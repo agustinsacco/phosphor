@@ -93,6 +93,16 @@ account therefore records its `orgId` at sign-in and gets it back as
 so a session's org always matches its token. The rest of that block is display
 and telemetry.
 
+The display half bit us anyway. `claude auth status` takes the _token_ from the
+account's own keychain entry but prints `email` / `subscriptionType` / `orgName`
+straight out of that shared block, so probing each account in turn returned the
+same identity for every one of them — the accounts list showed a row labelled
+`saccoagustin@hotmail.com` describing `agustin@goaugment.com`. Routing was never
+affected; only the subtitle was. `reconcileAuthIdentity` in `routing.ts` now
+keeps the live identity only when its email matches the one recorded at sign-in,
+and otherwise falls back to the stored record. `loggedIn` really is per-account
+and is always kept.
+
 ## Resumes keep their account
 
 `ClaudeAccountPrefs.bindings` maps session file path → account id, and a bound

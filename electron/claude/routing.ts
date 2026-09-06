@@ -11,7 +11,7 @@
  * "ordered" means *start* on the first account that is not exhausted, not fail
  * over mid-turn — a session that hits its limit is a session the user restarts.
  */
-import type { ClaudeAccount, ClaudeAccountPrefs } from '@shared/models'
+import type { ClaudeAccount, ClaudeAccountPrefs, ClaudeAuthStatus } from '@shared/models'
 
 /**
  * Environment that points the CLI at one account's credential.
@@ -29,6 +29,31 @@ export function claudeAccountEnv(account: ClaudeAccount | null): Record<string, 
     // the last sign-in wins its org id. The CLI reads this variable first.
     ...(account.orgId ? { CLAUDE_CODE_ORGANIZATION_UUID: account.orgId } : {}),
   }
+}
+
+/**
+ * Live `claude auth status` identity, kept only when it belongs to this account.
+ *
+ * The CLI reads the *token* from this account's own keychain entry, but prints
+ * `email` / `subscriptionType` / `orgName` from `~/.claude.json`'s
+ * `oauthAccount` block — which follows `CLAUDE_CONFIG_DIR`, not the
+ * securestorage dir, so every account shares it and whichever signed in last
+ * wins. Left alone, every row in the accounts list describes that one account.
+ *
+ * So the reported identity is trusted only when its email matches the one
+ * recorded at sign-in; otherwise the identity fields are dropped and the caller
+ * falls back to the stored record. `loggedIn` is per-account (it comes from the
+ * keychain entry) and is always kept.
+ */
+export function reconcileAuthIdentity(
+  account: ClaudeAccount,
+  auth: ClaudeAuthStatus,
+): ClaudeAuthStatus {
+  const same =
+    !account.email || !auth.email || account.email.toLowerCase() === auth.email.toLowerCase()
+  if (same) return auth
+  const { email: _email, plan: _plan, organization: _org, orgId: _orgId, ...rest } = auth
+  return rest
 }
 
 export interface Selection {

@@ -48,6 +48,7 @@ import {
   cooldownFromUsage,
   isCoolingDown,
   pruneCooldowns,
+  reconcileAuthIdentity,
   selectAccount,
 } from './routing'
 
@@ -178,7 +179,9 @@ export async function accountViews(claudeOverride?: string): Promise<ClaudeAccou
       const cooldown = prefs.cooldowns[account.id]
       return {
         account,
-        auth: status?.auth ?? { ok: false, error: 'status check failed' },
+        auth: status?.auth
+          ? reconcileAuthIdentity(account, status.auth)
+          : { ok: false, error: 'status check failed' },
         usage: cachedUsageSnapshot(account.id, now),
         cooldownUntil: cooldown !== undefined && cooldown > now ? cooldown : null,
       }
