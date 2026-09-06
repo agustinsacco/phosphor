@@ -39,6 +39,11 @@ Requirements:
 - Fullscreen (↗) overlays the entire main region (sidebar and top bar stay); it never resizes the split underneath, so exiting restores the exact prior layout.
 - Multiple sessions per workspace run **concurrently**; the chat pane shows the active session; switching sessions is instant (state held in stores keyed by sessionId); background sessions keep streaming into their stores.
 
+**Changes navigation:** each file has a keyboard-operable Open button, separate
+from Revert. A diff opens with focus on its named Back button; returning restores
+focus to the originating row. Diffs use the same saved font family/size as the
+editor, including live preference updates. Restore semantics are unchanged.
+
 ## Theming
 
 - Light / Dark / System in settings. Tokens are CSS variables consumed by Tailwind; surfaces that take a theme object instead each carry a mirrored copy, listed in [style-guide.md](style-guide.md#color). All switch together, live, no reload.

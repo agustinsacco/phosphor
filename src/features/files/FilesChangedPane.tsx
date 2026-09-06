@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
@@ -23,6 +23,7 @@ export const FilesChangedPane = memo(function FilesChangedPane({
     activeSessionId ? s.baselines[activeSessionId] : undefined,
   )
   const [selected, setSelected] = useState<string | null>(null)
+  const focusOnReturn = useRef<string | null>(null)
 
   const files = useMemo(
     () => (tools ? collectTouchedFiles(tools, workspacePath) : []),
@@ -62,7 +63,10 @@ export const FilesChangedPane = memo(function FilesChangedPane({
         workspacePath={workspacePath}
         file={selectedFile}
         baselineRef={baselineRef ?? null}
-        onBack={() => setSelected(null)}
+        onBack={() => {
+          focusOnReturn.current = selectedFile.relativePath
+          setSelected(null)
+        }}
       />
     )
   }
@@ -87,6 +91,12 @@ export const FilesChangedPane = memo(function FilesChangedPane({
             workspacePath={workspacePath}
             baselineRef={baselineRef ?? null}
             onOpen={() => setSelected(file.relativePath)}
+            openRef={(node) => {
+              if (node && focusOnReturn.current === file.relativePath) {
+                focusOnReturn.current = null
+                node.focus()
+              }
+            }}
           />
         ))}
       </div>
@@ -99,11 +109,13 @@ function FileRow({
   workspacePath,
   baselineRef,
   onOpen,
+  openRef,
 }: {
   file: TouchedFile
   workspacePath: string
   baselineRef: string | null
   onOpen: () => void
+  openRef: React.Ref<HTMLButtonElement>
 }): React.JSX.Element {
   const name = basename(file.relativePath)
   const dir = file.relativePath.slice(0, file.relativePath.length - name.length)
@@ -126,26 +138,31 @@ function FileRow({
   }
 
   return (
-    <div
-      onClick={onOpen}
-      className="hover:bg-bg-secondary/70 group flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-left transition-colors"
-    >
-      <span
-        className={clsx(
-          'shrink-0 rounded px-1 py-px text-2xs font-bold uppercase',
-          file.created ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning',
-        )}
+    <div className="hover:bg-bg-secondary/70 group flex w-full items-center gap-2 px-3 transition-colors">
+      <button
+        ref={openRef}
+        type="button"
+        onClick={onOpen}
+        aria-label={`View diff for ${file.relativePath}`}
+        className="flex min-h-8 min-w-0 flex-1 items-center gap-2 py-1.5 text-left"
       >
-        {file.created ? 'A' : 'M'}
-      </span>
-      <span className="min-w-0 flex-1 truncate text-base">
-        {dir && <span className="text-text-tertiary">{dir}</span>}
-        <span className="text-text">{name}</span>
-      </span>
-      <span className="shrink-0 font-mono text-sm">
-        <span className="text-success">+{file.additions}</span>{' '}
-        <span className="text-danger">−{file.deletions}</span>
-      </span>
+        <span
+          className={clsx(
+            'shrink-0 rounded px-1 py-px text-2xs font-bold uppercase',
+            file.created ? 'bg-success/15 text-success' : 'bg-warning/15 text-warning',
+          )}
+        >
+          {file.created ? 'A' : 'M'}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-base">
+          {dir && <span className="text-text-tertiary">{dir}</span>}
+          <span className="text-text">{name}</span>
+        </span>
+        <span className="shrink-0 font-mono text-sm">
+          <span className="text-success">+{file.additions}</span>{' '}
+          <span className="text-danger">−{file.deletions}</span>
+        </span>
+      </button>
       <button
         onClick={(e) => void revert(e)}
         title="Revert to session start"
@@ -223,7 +240,9 @@ function FileDiffView({
       <div className="border-border flex h-9 shrink-0 items-center gap-2 border-b px-2">
         <button
           onClick={onBack}
-          className="text-text-tertiary hover:text-text flex h-6 w-6 items-center justify-center rounded-md transition-colors"
+          aria-label="Back to changed files"
+          autoFocus
+          className="text-text-secondary hover:text-text flex h-8 w-8 items-center justify-center rounded-md transition-colors"
         >
           <svg
             width="13"

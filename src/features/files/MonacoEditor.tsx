@@ -2,6 +2,7 @@ import { memo, useEffect, useRef } from 'react'
 import type * as MonacoTypes from 'monaco-editor'
 import { getMonaco, monacoThemeFor } from '@/lib/monaco'
 import { useSettingsStore } from '@/stores/settings'
+import { editorFontOptions } from '@/lib/fonts'
 
 type Monaco = typeof MonacoTypes
 type Editor = MonacoTypes.editor.IStandaloneCodeEditor
@@ -76,8 +77,7 @@ export const MonacoEditor = memo(function MonacoEditor({
       editor = monaco.editor.create(containerRef.current, {
         theme: monacoThemeFor(useSettingsStore.getState().resolvedTheme),
         automaticLayout: true,
-        fontSize: fonts.editorFontSize,
-        fontFamily: `${fonts.monoFont}, ui-monospace, SF Mono, Menlo, monospace`,
+        ...editorFontOptions(fonts),
         minimap: { enabled: false },
         scrollBeyondLastLine: false,
         padding: { top: 8 },
@@ -153,10 +153,7 @@ export const MonacoEditor = memo(function MonacoEditor({
 
   // Live font updates from settings.
   useEffect(() => {
-    editorRef.current?.updateOptions({
-      fontSize: fonts.editorFontSize,
-      fontFamily: `${fonts.monoFont}, ui-monospace, SF Mono, Menlo, monospace`,
-    })
+    editorRef.current?.updateOptions(editorFontOptions(fonts))
   }, [fonts])
 
   function attachModel(
@@ -208,6 +205,7 @@ export const MonacoDiff = memo(function MonacoDiff({
   const editorRef = useRef<MonacoTypes.editor.IStandaloneDiffEditor | null>(null)
   const monacoRef = useRef<Monaco | null>(null)
   const resolvedTheme = useSettingsStore((s) => s.resolvedTheme)
+  const fonts = useSettingsStore((s) => s.fonts)
 
   useEffect(() => {
     let disposed = false
@@ -221,8 +219,7 @@ export const MonacoDiff = memo(function MonacoDiff({
       editor = monaco.editor.createDiffEditor(containerRef.current, {
         theme: monacoThemeFor(useSettingsStore.getState().resolvedTheme),
         automaticLayout: true,
-        fontSize: 12,
-        fontFamily: 'JetBrains Mono, ui-monospace, SF Mono, Menlo, monospace',
+        ...editorFontOptions(useSettingsStore.getState().fonts),
         minimap: { enabled: false },
         readOnly: true,
         renderSideBySide,
@@ -243,6 +240,10 @@ export const MonacoDiff = memo(function MonacoDiff({
       modified?.dispose()
     }
   }, [originalText, modifiedText, language])
+
+  useEffect(() => {
+    editorRef.current?.updateOptions(editorFontOptions(fonts))
+  }, [fonts])
 
   useEffect(() => {
     editorRef.current?.updateOptions({ renderSideBySide })

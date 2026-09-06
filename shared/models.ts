@@ -273,7 +273,7 @@ export interface FontPrefs {
   chatFontSize: number
   editorFontSize: number
   terminalFontSize: number
-  /** Mono font family name (bundled options). */
+  /** Mono family name; JetBrains Mono is bundled, other choices use local fonts. */
   monoFont: string
 }
 

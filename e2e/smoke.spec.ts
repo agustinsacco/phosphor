@@ -186,6 +186,50 @@ test('bundled fonts render offline before editor or terminal initialization', as
   }
 })
 
+test('Changes supports keyboard open/back and live diff font preferences', async () => {
+  const harness = await launch()
+  const { page, workspace } = harness
+  const dialogs: string[] = []
+  page.on('dialog', async (dialog) => {
+    dialogs.push(dialog.message())
+    await dialog.dismiss()
+  })
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    const before = await readFile(join(workspace, 'hello.ts'), 'utf8')
+    await page.getByTitle(/Changes pane/).click()
+    const row = page.getByRole('button', { name: 'View diff for hello.ts' })
+    await row.focus()
+    await row.press('Enter')
+    const back = page.getByRole('button', { name: 'Back to changed files' })
+    await expect(back).toBeFocused()
+    const lines = page.locator('.monaco-diff-editor .view-lines').first()
+    await expect(lines).toHaveCSS('font-size', '12.5px')
+
+    await page.getByRole('button', { name: /^Settings/ }).click()
+    const sizeRow = page.getByText('Editor font size', { exact: true }).locator('..').locator('..')
+    await sizeRow.getByRole('spinbutton').fill('18')
+    await page.getByRole('combobox').selectOption('Menlo')
+    await page.keyboard.press('Escape')
+    await expect(lines).toHaveCSS('font-size', '18px')
+    await expect(lines).toHaveCSS('font-family', /^Menlo,/)
+    await back.focus()
+    await back.press('Enter')
+    await expect(row).toBeFocused()
+    await row.press('Space')
+    await expect(back).toBeFocused()
+    await expect(lines).toHaveCSS('font-size', '18px')
+    await expect(lines).toHaveCSS('font-family', /^Menlo,/)
+    expect(dialogs).toEqual([])
+    expect(await readFile(join(workspace, 'hello.ts'), 'utf8')).toBe(before)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('workspace → session → streamed answer, diff and artifact render', async () => {
   const harness = await launch()
   const { page } = harness
