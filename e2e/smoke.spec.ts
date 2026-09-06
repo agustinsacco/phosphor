@@ -297,6 +297,15 @@ test('session chrome stays readable with long labels, laptop widths and zoom', a
         expect(box.x + box.width).toBeLessThanOrEqual(card!.x + card!.width + 1)
         expect(box.height).toBeGreaterThanOrEqual(32)
       }
+      // The provider rides on the model's own line. Stacking it under the
+      // name gave the footer a second row at every width, for a detail most
+      // sessions never show. A stacked provider drops a full line height.
+      const chip = await page.getByTestId('model-chip').evaluate((el) => {
+        const name = el.querySelector('[data-testid="model-label"]')!.getBoundingClientRect()
+        const provider = el.querySelector('[data-testid="model-provider"]')!.getBoundingClientRect()
+        return { drop: provider.top - name.top, line: name.height }
+      })
+      expect(chip.drop).toBeLessThan(chip.line / 2)
       const switcher = page
         .getByTestId('right-pane')
         .getByRole('group', { name: 'Pane', exact: true })
