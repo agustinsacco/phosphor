@@ -166,19 +166,22 @@ describe('ComposerField', () => {
   })
 
   it.each([
-    ['Bold', '**hello**'],
-    ['Italic', '_hello_'],
-    ['Inline code', '`hello`'],
-    ['Code block', '```\nhello\n```'],
-    ['Bulleted list', '- hello'],
-    ['Numbered list', '1. hello'],
-    ['Insert link', '[hello](https://)'],
-  ])('exposes %s without losing the selection or focus', (label, expected) => {
+    ['Italic', '_hello_', { code: 'KeyI', metaKey: true }],
+    ['Inline code', '`hello`', { code: 'KeyE', metaKey: true }],
+    ['Code block', '```\nhello\n```', { code: 'KeyC', metaKey: true, shiftKey: true }],
+    ['Insert link', '[hello](https://)', { code: 'KeyK', metaKey: true, shiftKey: true }],
+  ])('applies %s from the keyboard without losing focus', (_label, expected, chord) => {
     render(<Harness initial="hello" />)
     act(() => field().setSelectionRange(0, 5))
-    act(() => document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!.click())
+    press('x', chord as Parameters<typeof press>[1])
     expect(field().value).toBe(expected)
     expect(document.activeElement).toBe(field())
+  })
+
+  it('renders no formatting toolbar around the field', () => {
+    render(<Harness initial="draft" />)
+    expect(document.querySelector('[aria-label="Text formatting"]')).toBeNull()
+    expect(document.querySelectorAll('button')).toHaveLength(0)
   })
 
   it('expands the same textarea without changing its text or selection', () => {
@@ -186,17 +189,13 @@ describe('ComposerField', () => {
     const original = field()
     act(() => original.setSelectionRange(1, 4))
     press('X', { code: 'KeyX', metaKey: true, shiftKey: true })
-    const collapse = document.querySelector<HTMLButtonElement>(
-      'button[aria-label="Collapse input"]',
-    )!
-    expect(collapse.getAttribute('aria-expanded')).toBe('true')
-    expect(collapse.getAttribute('aria-controls')).toBe(original.id)
     expect(field()).toBe(original)
+    expect(field().style.maxHeight).toBe('50vh')
     expect(field().value).toBe('draft')
     expect(field().selectionStart).toBe(1)
     expect(field().selectionEnd).toBe(4)
-    act(() => collapse.click())
-    expect(document.querySelector('button[aria-label="Expand input"]')).not.toBeNull()
+    press('X', { code: 'KeyX', metaKey: true, shiftKey: true })
+    expect(field().style.maxHeight).toBe('')
   })
 
   it('leaves selected list text to the browser on Shift+Enter', () => {
@@ -213,9 +212,6 @@ describe('ComposerField', () => {
     act(() => {
       field().dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
     })
-    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Bold"]')!.disabled).toBe(
-      true,
-    )
     for (const key of ['Enter', 'Tab', 'Escape', 'ArrowUp']) press(key)
     press('b', { code: 'KeyB', metaKey: true })
     expect(onKeyDown).not.toHaveBeenCalled()

@@ -276,6 +276,13 @@ test('session chrome stays readable with long labels, laptop widths and zoom', a
         })
       const field = page.getByPlaceholder(/Describe a task…/i)
       await expect(field).toBeVisible()
+      // An empty composer is one line at every width: the placeholder's hints
+      // are clipped, never wrapped into a second row.
+      const fieldMetrics = await field.evaluate((el) => ({
+        height: el.getBoundingClientRect().height,
+        line: parseFloat(getComputedStyle(el).lineHeight),
+      }))
+      expect(fieldMetrics.height).toBeLessThan(2 * fieldMetrics.line)
       const card = await field.locator('..').boundingBox()
       expect(card).not.toBeNull()
       expect(card!.x + card!.width).toBeLessThanOrEqual(await page.evaluate(() => innerWidth))
@@ -295,12 +302,15 @@ test('session chrome stays readable with long labels, laptop widths and zoom', a
         .getByRole('group', { name: 'Pane', exact: true })
       expect(await switcher.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
       const title = page.getByTestId('session-title').first()
-      await expect(title).toHaveCSS('-webkit-line-clamp', '2')
+      await expect(title).toHaveCSS('text-overflow', 'ellipsis')
       const dims = await title.evaluate((el) => ({
         height: el.getBoundingClientRect().height,
         line: parseFloat(getComputedStyle(el).lineHeight),
+        overflowing: el.scrollWidth > el.clientWidth,
       }))
-      expect(dims.height).toBeLessThanOrEqual(2 * dims.line + 1)
+      // One line at every width, even when the label is far too long for it.
+      expect(dims.height).toBeLessThanOrEqual(dims.line + 1)
+      expect(dims.overflowing).toBe(true)
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       )
@@ -364,7 +374,7 @@ test('composer formatting participates in native undo and redo', async () => {
   }
 })
 
-test('composer controls format selections, insert links and expand long drafts', async () => {
+test('composer shortcuts format selections, insert links and expand long drafts', async () => {
   const harness = await launch()
   const { page } = harness
   const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
@@ -373,7 +383,7 @@ test('composer controls format selections, insert links and expand long drafts',
     const field = page.getByPlaceholder('Describe a task or ask a question')
     await field.fill('read more')
     await field.press(`${mod}+a`)
-    await page.getByRole('button', { name: 'Bold', exact: true }).click()
+    await field.press(`${mod}+b`)
     await expect(field).toHaveValue('**read more**')
     await expect(field).toBeFocused()
     await field.press(`${mod}+z`)
@@ -391,18 +401,14 @@ test('composer controls format selections, insert links and expand long drafts',
     const draft = Array.from({ length: 30 }, (_, i) => `Review item ${i + 1}`).join('\n')
     await field.fill(draft)
     const compact = (await field.boundingBox())!.height
-    await page.getByRole('button', { name: 'Expand input' }).click()
-    await expect(page.getByRole('button', { name: 'Collapse input' })).toHaveAttribute(
-      'aria-expanded',
-      'true',
-    )
+    await field.press(`${mod}+Shift+x`)
     const expanded = (await field.boundingBox())!.height
     expect(expanded).toBeGreaterThan(compact)
     expect(expanded).toBeLessThanOrEqual(await page.evaluate(() => innerHeight / 2))
     await expect(field).toHaveValue(draft)
     await page.screenshot({ path: test.info().outputPath('expanded-home-input.png') })
     await field.press(`${mod}+Shift+x`)
-    await expect(page.getByRole('button', { name: 'Expand input' })).toBeVisible()
+    await expect.poll(async () => (await field.boundingBox())!.height).toBe(compact)
     await expect(field).toHaveValue(draft)
     await field.fill('Update hello.ts')
     await field.press('Enter')
@@ -410,8 +416,10 @@ test('composer controls format selections, insert links and expand long drafts',
     const chat = page.getByRole('textbox', { name: 'Chat message', exact: true })
     await chat.fill('review code')
     await chat.press(`${mod}+a`)
-    await page.getByRole('button', { name: 'Inline code', exact: true }).click()
+    await chat.press(`${mod}+e`)
     await expect(chat).toHaveValue('`review code`')
+    // The composer stays two rows: the field and its footer, no toolbar strip.
+    await expect(page.locator('[aria-label="Text formatting"]')).toHaveCount(0)
     await chat.press(`${mod}+/`)
     const formatting = page.getByRole('heading', { name: 'Formatting', exact: true })
     await formatting.scrollIntoViewIfNeeded()
@@ -516,11 +524,12 @@ test('steering controls and modified Enter send the intended RPC mode', async ()
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
     const chat = page.getByRole('textbox', { name: 'Chat message' })
     const steer = page.getByRole('button', { name: 'Steer now' })
-    await expect(steer).toBeDisabled()
+    // No empty-draft row: the controls arrive with something to send.
+    await expect(steer).toBeHidden()
     await chat.fill('steer this')
     await steer.click()
     await expect(chat).toBeFocused()
-    await expect(steer).toBeDisabled()
+    await expect(steer).toBeHidden()
     await chat.fill('after this')
     await page.getByRole('button', { name: 'Queue follow-up' }).click()
     await chat.fill('keyboard follow-up')

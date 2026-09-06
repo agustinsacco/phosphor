@@ -591,6 +591,19 @@ select:focus:not(:focus-visible) {
 }
 
 /*
+ * The composer's placeholder carries its affordance hints ("/ commands · @
+ * files · ! shell"). At laptop widths, and with any pane open, that string
+ * wrapped onto a second line and the resting composer grew a row it never
+ * needed. Keep the hint, clip it instead of wrapping it — a placeholder is
+ * never read by the caret, so an ellipsis there costs nothing.
+ */
+.composer-field::placeholder {
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/*
  * Same trade for the sidebar's lane search: its field is the bordered row
  * around the input, which already turns accent on `focus-within`. The ring on
  * the input itself drew a second box inside the first and, at 2px offset,

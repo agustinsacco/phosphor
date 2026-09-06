@@ -1,4 +1,4 @@
-import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import {
   continueList,
   indentSelection,
@@ -12,8 +12,7 @@ import {
 } from '@/lib/composerText'
 import { COMPOSER_MAX_HEIGHT, useAutoResizeTextarea } from '@/lib/useAutoResizeTextarea'
 import { recordTextareaEdit } from '@/lib/textareaUndo'
-import { formatShortcut } from '@/lib/shortcuts'
-import { FORMATTING_ACTIONS, formattingKeys, type FormattingAction } from './formattingActions'
+import { FORMATTING_ACTIONS, type FormattingAction } from './formattingActions'
 
 /**
  * The composer textarea, shared by the chat composer and the home composer.
@@ -53,8 +52,8 @@ export type FormattingCommands = Record<FormattingAction, () => void>
  * Formatting commands bound to a textarea.
  *
  * Reads the live value off the DOM node rather than from React state: the node
- * is controlled, so the two agree, and this way the toolbar and the keymap
- * cannot disagree about where the caret is.
+ * is controlled, so the two agree, and any caller driving these commands sees
+ * the same caret the keymap does.
  */
 export function useComposerFormatting(
   textareaRef: React.RefObject<HTMLTextAreaElement | null>,
@@ -123,9 +122,7 @@ export function ComposerField({
   rows = 1,
   'data-testid': testId,
 }: ComposerFieldProps): React.JSX.Element {
-  const fieldId = useId()
   const [expanded, setExpanded] = useState(false)
-  const [isComposing, setIsComposing] = useState(false)
   useAutoResizeTextarea(
     textareaRef,
     value,
@@ -220,97 +217,30 @@ export function ComposerField({
   }
 
   return (
-    <>
-      <textarea
-        id={fieldId}
-        aria-label="Chat message"
-        data-composer-input=""
-        style={expanded ? { minHeight: 'min(20rem, 50vh)', maxHeight: '50vh' } : undefined}
-        ref={textareaRef}
-        value={value}
-        onChange={(event) =>
-          onChange(event.target.value, event.target.selectionStart ?? event.target.value.length)
-        }
-        onKeyDown={handleKeyDown}
-        onCompositionStart={() => {
-          composing.current = true
-          setIsComposing(true)
-        }}
-        onCompositionEnd={() => {
-          composing.current = false
-          setIsComposing(false)
-        }}
-        onPaste={handlePaste}
-        placeholder={placeholder}
-        rows={rows}
-        data-testid={testId}
-        className={
-          className ??
-          'composer-field text-text placeholder:text-text-secondary block w-full resize-none overflow-y-auto bg-transparent px-4 pt-3 pb-1 text-lg outline-none'
-        }
-      />
-      <div
-        role="group"
-        aria-label="Text formatting"
-        className="flex items-center gap-0.5 overflow-x-auto px-2 py-1"
-        onMouseDown={(event) => event.preventDefault()}
-      >
-        <div className="grid min-w-48 max-w-60 flex-1 grid-cols-7 gap-0.5">
-          {FORMATTING_ACTIONS.map((binding) => (
-            <button
-              key={binding.action}
-              type="button"
-              aria-label={binding.label}
-              title={`${binding.label} (${formatShortcut(...formattingKeys(binding))})`}
-              disabled={isComposing}
-              onClick={() => {
-                if (!composing.current) format[binding.action]()
-              }}
-              className="text-text-secondary hover:bg-bg-secondary hover:text-text flex h-8 min-w-6 items-center justify-center rounded-md font-mono text-base disabled:opacity-40"
-            >
-              {binding.action === 'link' ? (
-                <svg
-                  aria-hidden="true"
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                >
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                </svg>
-              ) : (
-                <span
-                  aria-hidden="true"
-                  className={
-                    binding.action === 'italic'
-                      ? 'italic'
-                      : binding.action === 'bold'
-                        ? 'font-bold'
-                        : undefined
-                  }
-                >
-                  {binding.glyph}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-        <button
-          type="button"
-          aria-label={expanded ? 'Collapse input' : 'Expand input'}
-          title={`${expanded ? 'Collapse' : 'Expand'} input (${formatShortcut('mod', 'shift', 'X')})`}
-          aria-expanded={expanded}
-          aria-controls={fieldId}
-          disabled={isComposing}
-          onClick={toggleExpanded}
-          className="text-text-secondary hover:bg-bg-secondary hover:text-text ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-lg disabled:opacity-40"
-        >
-          <span aria-hidden="true">{expanded ? '↙' : '↗'}</span>
-        </button>
-      </div>
-    </>
+    <textarea
+      aria-label="Chat message"
+      data-composer-input=""
+      style={expanded ? { minHeight: 'min(20rem, 50vh)', maxHeight: '50vh' } : undefined}
+      ref={textareaRef}
+      value={value}
+      onChange={(event) =>
+        onChange(event.target.value, event.target.selectionStart ?? event.target.value.length)
+      }
+      onKeyDown={handleKeyDown}
+      onCompositionStart={() => {
+        composing.current = true
+      }}
+      onCompositionEnd={() => {
+        composing.current = false
+      }}
+      onPaste={handlePaste}
+      placeholder={placeholder}
+      rows={rows}
+      data-testid={testId}
+      className={
+        className ??
+        'composer-field text-text placeholder:text-text-secondary block w-full resize-none overflow-y-auto bg-transparent px-4 pt-3 pb-1 text-lg outline-none'
+      }
+    />
   )
 }

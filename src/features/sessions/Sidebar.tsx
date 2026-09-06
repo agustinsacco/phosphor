@@ -1154,7 +1154,10 @@ function WorkspaceSwitcher(): React.JSX.Element {
   )
 }
 
-const SESSION_TITLE_CLASS = 'text-text line-clamp-2 break-words text-lg font-medium leading-5'
+// One line, always. A narrow sidebar used to wrap every long title onto a
+// second line, so the list re-flowed as the user dragged the divider and a
+// lane stopped being a fixed-height row. The full title stays in the tooltip.
+const SESSION_TITLE_CLASS = 'text-text block truncate text-lg font-medium leading-5'
 
 function SessionRow({
   meta,
