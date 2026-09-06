@@ -114,7 +114,9 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
       <button
         onClick={() => setOpen(open === 'model' ? null : 'model')}
         data-testid="model-chip"
-        title={currentModel ? `${currentModel.name} · via ${currentModel.provider}` : undefined}
+        title={
+          currentModel ? `${currentModel.name} · served by ${currentModel.provider}` : undefined
+        }
         className={clsx(
           'min-h-8 min-w-0 flex-1 rounded-md px-2 py-1 text-left text-lg font-medium transition-colors',
           open === 'model'
@@ -122,23 +124,31 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
             : 'text-text-secondary hover:bg-bg-secondary hover:text-text',
         )}
       >
-        <span className="block truncate" data-testid="model-label">
-          {currentModel?.name ??
-            (modelsLoaded ? (
-              'No model'
-            ) : (
-              <span className="bg-bg-secondary inline-block h-3.5 w-24 animate-pulse rounded align-middle" />
-            ))}
-        </span>
-        {/* Two providers can expose the same model name (native anthropic
-            and the Claude Code CLI provider both offer "Claude Opus 5"), so
-            the name alone cannot answer "what is actually serving this
-            session". Show the provider whenever it is not pi's own. */}
-        {currentModel && !NATIVE_PROVIDERS.has(currentModel.provider) && (
-          <span className="text-text-secondary block truncate font-mono text-base">
-            via {currentModel.provider}
+        {/* One line. Stacking the provider under the name gave the footer a
+            second row for a detail most sessions do not even show. */}
+        <span className="flex min-w-0 items-baseline gap-1.5">
+          <span className="truncate" data-testid="model-label">
+            {currentModel?.name ??
+              (modelsLoaded ? (
+                'No model'
+              ) : (
+                <span className="bg-bg-secondary inline-block h-3.5 w-24 animate-pulse rounded align-middle" />
+              ))}
           </span>
-        )}
+          {/* Two providers can expose the same model name (native anthropic
+              and the Claude Code CLI provider both offer "Claude Opus 5"), so
+              the name alone cannot answer "what is actually serving this
+              session". Show the provider whenever it is not pi's own — and
+              let it give up its width first, since the name matters more. */}
+          {currentModel && !NATIVE_PROVIDERS.has(currentModel.provider) && (
+            <span
+              data-testid="model-provider"
+              className="text-text-tertiary min-w-0 shrink-[9999] truncate font-mono text-sm font-normal"
+            >
+              {currentModel.provider}
+            </span>
+          )}
+        </span>
       </button>
 
       {/* Gate on what the menu will actually render (pi's answer when
