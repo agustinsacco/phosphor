@@ -372,7 +372,7 @@ function Tab({
       onClick={onClick}
       aria-pressed={active}
       className={clsx(
-        'rounded-md px-1.5 py-0.5 text-sm font-medium transition-colors',
+        'rounded-sm px-1.5 py-0.5 text-sm font-medium transition-colors',
         active ? 'bg-bg-secondary text-text' : 'text-text-tertiary hover:text-text',
       )}
     >
@@ -395,7 +395,7 @@ function ActionIcon({
       title={title}
       aria-label={title}
       onClick={onClick}
-      className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors"
+      className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 w-6 shrink-0 items-center justify-center rounded-sm transition-colors"
     >
       {children}
     </button>

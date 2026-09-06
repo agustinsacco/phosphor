@@ -70,7 +70,7 @@ export const TerminalPane = memo(function TerminalPane({
               <div
                 key={tab.ptyId}
                 className={clsx(
-                  'group flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 py-0.5 text-sm transition-colors',
+                  'group flex shrink-0 cursor-pointer items-center gap-1 rounded-sm px-2 py-0.5 text-sm transition-colors',
                   tab.ptyId === activeId
                     ? 'bg-bg-secondary text-text'
                     : 'text-text-tertiary hover:text-text',

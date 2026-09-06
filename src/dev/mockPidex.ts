@@ -464,45 +464,31 @@ function mockStats(): Record<string, unknown> {
   }
 }
 
+let mockFileClipboard = { paths: [] as string[], cut: false }
+const mockFs = new Map<string, boolean>(
+  [
+    'src/',
+    'electron/',
+    'package.json',
+    'README.md',
+    'src/main.tsx',
+    'src/App.tsx',
+    'electron/main.ts',
+  ].map(
+    (name) => [`/Users/dev/projects/pidex/${name.replace(/\/$/, '')}`, name.endsWith('/')] as const,
+  ),
+)
+
 function mockDir(dir: string): Array<Record<string, unknown>> {
-  const ws = '/Users/dev/projects/pidex'
-  if (dir === ws) {
-    return [
-      { name: 'src', path: `${ws}/src`, relativePath: 'src', isDirectory: true },
-      { name: 'electron', path: `${ws}/electron`, relativePath: 'electron', isDirectory: true },
-      {
-        name: 'package.json',
-        path: `${ws}/package.json`,
-        relativePath: 'package.json',
-        isDirectory: false,
-      },
-      { name: 'README.md', path: `${ws}/README.md`, relativePath: 'README.md', isDirectory: false },
-    ]
-  }
-  if (dir.endsWith('/src')) {
-    return [
-      {
-        name: 'main.tsx',
-        path: `${ws}/src/main.tsx`,
-        relativePath: 'src/main.tsx',
-        isDirectory: false,
-      },
-      {
-        name: 'App.tsx',
-        path: `${ws}/src/App.tsx`,
-        relativePath: 'src/App.tsx',
-        isDirectory: false,
-      },
-    ]
-  }
-  return [
-    {
-      name: 'main.ts',
-      path: `${dir}/main.ts`,
-      relativePath: 'electron/main.ts',
-      isDirectory: false,
-    },
-  ]
+  return [...mockFs]
+    .filter(([path]) => path.slice(0, path.lastIndexOf('/')) === dir)
+    .map(([path, isDirectory]) => ({
+      name: path.slice(path.lastIndexOf('/') + 1),
+      path,
+      isDirectory,
+      relativePath: path.replace('/Users/dev/projects/pidex/', ''),
+    }))
+    .sort((a, b) => Number(b.isDirectory) - Number(a.isDirectory) || a.name.localeCompare(b.name))
 }
 
 function mockTree(): Record<string, unknown> {
@@ -1308,6 +1294,11 @@ export function installMockPidex(): void {
           return Promise.resolve(mockStats())
         case 'app:openExternal':
           return Promise.resolve(undefined)
+        case 'clipboard:readFiles':
+          return Promise.resolve(mockFileClipboard)
+        case 'clipboard:writeFiles':
+          mockFileClipboard = { paths: args[0] as string[], cut: args[1] as boolean }
+          return Promise.resolve(undefined)
         case 'clipboard:writeImage':
           return mockClipboardWriteImage(args[0] as { data: string; mimeType: string })
         case 'gh:available':
@@ -1526,6 +1517,39 @@ export function installMockPidex(): void {
             size: 64,
             mtimeMs: Date.now(),
           })
+        }
+        case 'fs:pickEntries':
+          return Promise.resolve([])
+        case 'fs:transfer': {
+          const [, from, dir, mode] = args as [string, string, string, string]
+          const to = dir + '/' + from.slice(from.lastIndexOf('/') + 1)
+          if (mockFs.has(to)) return Promise.reject(new Error(`Already exists: ${to}`))
+          if (!mockFs.has(from))
+            return Promise.reject(new Error('Source is unavailable in browser preview'))
+          for (const [path, directory] of [...mockFs]) {
+            if (path !== from && !path.startsWith(from + '/')) continue
+            mockFs.set(to + path.slice(from.length), directory)
+            if (mode === 'move') mockFs.delete(path)
+          }
+          return Promise.resolve(to)
+        }
+        case 'fs:createFile':
+        case 'fs:createDir': {
+          const path = args[0] as string
+          if (mockFs.has(path)) return Promise.reject(new Error(`Already exists: ${path}`))
+          mockFs.set(path, channel === 'fs:createDir')
+          return Promise.resolve(undefined)
+        }
+        case 'fs:rename':
+        case 'fs:trash': {
+          const [from, to] = args as [string, string]
+          if (to && mockFs.has(to)) return Promise.reject(new Error(`Already exists: ${to}`))
+          for (const [path, directory] of [...mockFs]) {
+            if (path !== from && !path.startsWith(from + '/')) continue
+            mockFs.delete(path)
+            if (to) mockFs.set(to + path.slice(from.length), directory)
+          }
+          return Promise.resolve(undefined)
         }
         case 'fs:writeFile':
           return Promise.resolve({ mtimeMs: Date.now() })

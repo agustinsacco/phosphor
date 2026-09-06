@@ -2,6 +2,10 @@
 
 ## File explorer
 
+Implemented file-management behavior is documented in [files.md](../../files.md),
+including creation from empty workspaces, copy/cut/paste, multi-selection and
+file/folder drops (2026-09-05). Open-to-the-side remains deferred.
+
 - Workspace tree: lazy-loaded directories, gitignore-aware toggle (default on), hidden-files toggle, git status dots (modified/added/untracked), live updates via chokidar.
 - Context menu: reveal in OS file manager, copy path / relative path, new file, new folder, rename, delete (to trash), open to the side.
 - Fuzzy file finder (Cmd/Ctrl+P) shared with the composer's `@` search index.
