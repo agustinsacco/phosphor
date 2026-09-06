@@ -180,7 +180,9 @@ export const MonacoEditor = memo(function MonacoEditor({
       editor.revealLineInCenter(reveal)
       editor.setPosition({ lineNumber: reveal, column: 1 })
     }
-    editor.focus()
+    // A normal explorer click keeps keyboard focus in the tree for copy/cut.
+    // Explicit line navigation still focuses the editor.
+    if (reveal !== undefined) editor.focus()
   }
 
   return <div ref={containerRef} className="h-full w-full" />

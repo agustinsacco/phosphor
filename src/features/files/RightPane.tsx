@@ -8,8 +8,7 @@ import { TerminalPane } from '@/features/terminal/TerminalPane'
 import { ArtifactsPane } from '@/features/artifacts/ArtifactsPane'
 
 /**
- * Right-hand region: a floating rounded card inset from the chat (matching
- * the reference), hosting exactly one pane at a time inside a shared shell.
+ * Inset IDE panel, hosting exactly one pane at a time inside a shared shell.
  */
 export const RightPane = memo(function RightPane({
   workspacePath,
@@ -37,7 +36,7 @@ export const RightPane = memo(function RightPane({
     >
       <div
         data-testid="right-pane"
-        className="border-border bg-surface flex h-full flex-col overflow-hidden rounded-xl border shadow-sm"
+        className="border-border bg-surface flex h-full flex-col overflow-hidden rounded-md border"
       >
         {rightPane === 'files' && (
           <PaneShell title={<PaneSwitcher active="files" />}>
@@ -69,11 +68,7 @@ function PaneSwitcher({
   active: Extract<RightPaneId, 'files' | 'changes'>
 }): React.JSX.Element {
   return (
-    <div
-      className="border-border flex overflow-hidden rounded-lg border"
-      role="group"
-      aria-label="Pane"
-    >
+    <div className="flex min-w-0 items-center gap-0.5" role="group" aria-label="Pane">
       {(
         [
           { id: 'files', label: 'Files' },
@@ -85,7 +80,7 @@ function PaneSwitcher({
           aria-pressed={active === id}
           onClick={() => useLayoutStore.getState().setRightPane(id)}
           className={clsx(
-            'px-2.5 py-1 text-base font-medium transition-colors',
+            'rounded-sm px-2 py-1 text-base font-medium transition-colors',
             active === id ? 'bg-bg-secondary text-text' : 'text-text-tertiary hover:text-text',
           )}
         >

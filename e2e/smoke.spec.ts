@@ -9,7 +9,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises
 import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const repoRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..')
 const piStub = join(repoRoot, 'e2e', 'fixtures', 'pi-stub.cjs')
@@ -273,6 +273,194 @@ test('workspace → session → streamed answer, diff and artifact render', asyn
     await row.click()
     await expect(globalPage).not.toBeVisible()
     await expect(page.getByTestId('right-pane').getByText('E2E Card').first()).toBeVisible()
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('explorer creates entries from empty space and keeps renamed editor buffers', async () => {
+  const harness = await launch()
+  const { page, workspace } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    await rm(join(workspace, 'hello.ts'))
+    await page.getByTitle(/^Files pane/).click()
+    const explorer = page.getByTestId('file-explorer')
+    await expect(explorer.getByText(/Empty folder/)).toBeVisible()
+    await explorer.getByRole('button', { name: 'New folder', exact: true }).click()
+    await page.getByRole('textbox').last().fill('notes')
+    await page.getByRole('button', { name: 'OK', exact: true }).click()
+    await explorer.getByRole('button', { name: 'notes', exact: true }).click({ button: 'right' })
+    await page
+      .getByTestId('context-menu')
+      .getByRole('button', { name: 'New file…', exact: true })
+      .click()
+    await page.getByPlaceholder('Name', { exact: true }).fill('draft.md')
+    await page.getByRole('button', { name: 'OK', exact: true }).click()
+    await expect(explorer.getByRole('button', { name: 'draft.md', exact: true })).toBeVisible()
+    expect(await readFile(join(workspace, 'notes/draft.md'), 'utf8')).toBe('')
+    const editor = page.locator('.monaco-editor [role="textbox"]').first()
+    await editor.focus()
+    await page.keyboard.type('unsaved notes')
+    await expect(page.locator('.monaco-editor .view-lines')).toContainText('unsaved notes')
+    await explorer.getByRole('button', { name: 'notes', exact: true }).click({ button: 'right' })
+    await page.getByTestId('context-menu').getByRole('button', { name: 'Rename…' }).click()
+    await page.getByRole('textbox').last().fill('docs')
+    await page.getByRole('button', { name: 'OK', exact: true }).click()
+    await expect(page.getByTitle('docs/draft.md', { exact: true })).toBeVisible()
+    await expect(page.locator('.monaco-editor .view-lines')).toContainText('unsaved notes')
+    await editor.focus()
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+s' : 'Control+s')
+    await expect
+      .poll(() => readFile(join(workspace, 'docs/draft.md'), 'utf8'))
+      .toBe('unsaved notes')
+    expect(existsSync(join(workspace, 'notes'))).toBe(false)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('explorer copies, cuts, multi-drags and imports disk-backed files', async () => {
+  const harness = await launch()
+  const { page, workspace, app } = harness
+  const external = await mkdtemp(join(tmpdir(), 'pidex-drop-'))
+  const source = join(external, 'report.pdf')
+  const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
+  try {
+    await mkdir(join(workspace, 'destination'))
+    await mkdir(join(workspace, 'moved'))
+    await writeFile(join(workspace, 'a.txt'), 'a')
+    await writeFile(join(workspace, 'b.txt'), 'b')
+    await writeFile(source, Buffer.from([0, 255, 1, 2]))
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    await page.getByTitle(/^Files pane/).click()
+    const explorer = page.getByTestId('file-explorer')
+    const row = (name: string) => explorer.getByRole('button', { name, exact: true })
+    await row('hello.ts').click()
+    await expect(row('hello.ts')).toHaveAttribute('aria-pressed', 'true')
+    await expect(row('hello.ts')).toBeFocused()
+    await page.keyboard.press(`${mod}+x`)
+    await expect
+      .poll(() => page.evaluate(() => window.pidex.invoke('clipboard:readFiles')))
+      .toEqual({ paths: [join(workspace, 'hello.ts')], cut: true })
+    await row('destination').click()
+    await page.keyboard.press(`${mod}+v`)
+    await expect.poll(() => existsSync(join(workspace, 'destination/hello.ts'))).toBe(true)
+    await expect(explorer).toHaveAttribute('aria-busy', 'false')
+    expect(existsSync(join(workspace, 'hello.ts'))).toBe(false)
+    await expect(page.getByTitle('destination/hello.ts', { exact: true })).toBeVisible()
+
+    await row('destination').click({ button: 'right' })
+    await page
+      .getByTestId('context-menu')
+      .getByRole('button', { name: /^Copy (⌘C|Ctrl\+C)$/ })
+      .click()
+    await expect
+      .poll(() => page.evaluate(() => window.pidex.invoke('clipboard:readFiles')))
+      .toEqual({ paths: [join(workspace, 'destination')], cut: false })
+    await explorer.click({ button: 'right', position: { x: 10, y: 350 } })
+    await page
+      .getByTestId('context-menu')
+      .getByRole('button', { name: /^Paste / })
+      .click()
+    await expect.poll(() => existsSync(join(workspace, 'destination copy/hello.ts'))).toBe(true)
+    await expect(explorer).toHaveAttribute('aria-busy', 'false')
+
+    await row('a.txt').click()
+    await row('b.txt').click({ modifiers: [mod] })
+    await expect(row('a.txt')).toHaveAttribute('aria-pressed', 'true')
+    await expect(row('b.txt')).toHaveAttribute('aria-pressed', 'true')
+    await row('a.txt').dragTo(row('moved'))
+    await expect.poll(() => existsSync(join(workspace, 'moved/b.txt'))).toBe(true)
+    expect(await readFile(join(workspace, 'moved/a.txt'), 'utf8')).toBe('a')
+    expect(existsSync(join(workspace, 'a.txt'))).toBe(false)
+    await expect(explorer).toHaveAttribute('aria-busy', 'false')
+
+    // Real disk-backed File: exercises preload's webUtils path extraction, not a forged path.
+    await page.evaluate(() => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.id = 'drop-fixture'
+      document.body.append(input)
+    })
+    await page.locator('#drop-fixture').setInputFiles(source)
+    await page.evaluate(() => {
+      const dt = new DataTransfer()
+      dt.items.add(document.querySelector<HTMLInputElement>('#drop-fixture')!.files![0]!)
+      document
+        .querySelector('[data-testid="file-explorer"]')!
+        .dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }))
+      document.querySelector('#drop-fixture')!.remove()
+    })
+    await expect.poll(() => existsSync(join(workspace, 'report.pdf'))).toBe(true)
+    expect(await readFile(join(workspace, 'report.pdf'))).toEqual(await readFile(source))
+    await expect(explorer).toHaveAttribute('aria-busy', 'false')
+
+    // Seed the native OS file-list format, then paste through the focused explorer.
+    await app.evaluate(
+      ({ clipboard }, { source, url }) => {
+        if (process.platform === 'darwin')
+          clipboard.writeBuffer(
+            'NSFilenamesPboardType',
+            Buffer.from(
+              `<?xml version="1.0"?><plist version="1.0"><array><string>${source}</string></array></plist>`,
+            ),
+          )
+        else if (process.platform === 'win32') {
+          const header = Buffer.alloc(20)
+          header.writeUInt32LE(20, 0)
+          header.writeUInt32LE(1, 16)
+          clipboard.writeBuffer(
+            'CF_HDROP',
+            Buffer.concat([header, Buffer.from(source + '\0\0', 'utf16le')]),
+          )
+        } else clipboard.writeBuffer('text/uri-list', Buffer.from(url))
+      },
+      { source, url: pathToFileURL(source).href },
+    )
+    await row('destination').click()
+    await page.keyboard.press(`${mod}+v`)
+    await expect.poll(() => existsSync(join(workspace, 'destination/report.pdf'))).toBe(true)
+    await expect(explorer).toHaveAttribute('aria-busy', 'false')
+    await page.keyboard.press(`${mod}+v`)
+    await expect(page.getByText(/0 completed; 1 failed/)).toBeVisible()
+    expect(await readFile(join(workspace, 'destination/report.pdf'))).toEqual(
+      await readFile(source),
+    )
+  } finally {
+    await shutdown(harness)
+    await rm(external, { recursive: true, force: true })
+  }
+})
+
+test('floating IDE panes share compact corners in both themes', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate((value) => {
+        document.documentElement.classList.toggle('dark', value === 'dark')
+      }, theme)
+      for (const title of ['Files pane', 'Terminal pane', 'Artifacts pane']) {
+        await page.getByTitle(new RegExp(`^${title}`)).click()
+        const pane = page.getByTestId('right-pane')
+        await expect(pane).toBeVisible()
+        await expect(pane).toHaveCSS('border-radius', '6px')
+        await expect(pane).toHaveCSS('box-shadow', 'none')
+        await expect(pane.getByRole('button', { name: 'Close pane', exact: true })).toBeVisible()
+        await pane.getByRole('button', { name: 'Close pane', exact: true }).click()
+      }
+    }
   } finally {
     await shutdown(harness)
   }
