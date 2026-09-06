@@ -55,7 +55,8 @@ The whole feature is pidex-side; nothing was published to the provider package.
 - `electron/claude/accounts.ts` — the store, the per-account credential dirs
   under `userData/claude-accounts/<id>`, sign-in/out, usage refresh.
 - `electron/pi/session-accounts.ts` — parks a spawn's pick until the session's
-  `.jsonl` path exists.
+  `.jsonl` path exists, and keeps it for the session's life so the UI can say
+  which account a lane spends ([2026-09-06](2026-09-06-claude-account-routing.md)).
 - Settings → Claude Code → **Accounts** — list, reorder, add, remove, and the
   routing picker.
 

@@ -186,6 +186,16 @@ omitted rather than guessed; `utilization: null` and "none used" must never
 look the same. It renders only when the key is present, so other providers
 show nothing rather than an empty section.
 
+**Plan usage** above it reads the lane's OWN account (`claude:sessionAccount`
+→ `claude:usageSnapshot <id>`) and names it once more than one Claude login is
+configured; the rate-limit banner names it too. Asking without an id read
+whichever credential the CLI keeps by default, which on a multi-account install
+is routinely a different plan than the lane is spending
+([2026-09-06](log/2026-09-06-claude-account-routing.md)). When that account is
+held back — rejected, at its window, or spending overage — the section says
+which account new sessions go to instead; a running lane cannot move, because
+its credential was fixed when pi spawned.
+
 This is the only figure on the popover that comes from the account rather
 than from a token count, which makes it the one to trust when they disagree:
 sub-agent spend reached it (server-side) long before provider 0.4.10 taught

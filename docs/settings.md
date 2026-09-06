@@ -20,6 +20,14 @@ Settings window (Cmd/Ctrl+,), tabbed:
 - One row per provider pi can sign into with a subscription (`SUBSCRIPTION_PROVIDERS` in `electron/pi/auth-status.ts`), each showing ready / not ready from `pi auth check --json` and a Sign in button that drives pi's TUI off-screen ([2026-08-26-background-provider-login.md](log/2026-08-26-background-provider-login.md)).
 - A signed-in row also shows **which account**, when the provider's credential is a JWT that names one (ChatGPT/Codex today). The check runs with `--credentials` and `electron/pi/auth-identity.ts` reads the email claim out of the token inside the main process; the credential itself is never stored, logged, or sent to the renderer. Providers with an opaque credential (OpenRouter, Anthropic, GitHub) show "Signed in" and nothing more.
 
+- **Claude Code → Accounts** keeps several Claude logins and routes one to each
+  new session (`specific`, `ordered`, `round-robin`). An account is held back
+  from new sessions while the provider reports it rejected, at its window, or
+  **spending overage credits** — the plan is gone but requests still succeed, so
+  nothing else would notice. A running session keeps its account either way: the
+  credential is fixed at spawn. The context popover names the account a lane is
+  spending and shows that account's own plan usage.
+
 ## Workspaces
 
 - **New sessions**: whether a chat gets its own branch and worktree, and the

@@ -820,6 +820,29 @@ export interface ClaudeAccountView {
   cooldownUntil: number | null
 }
 
+/**
+ * Which Claude login a live session bills, for the surfaces that must say so.
+ *
+ * A lane's account is decided once, at spawn, and nothing downstream carried
+ * it: the context popover asked the CLI for "the" plan usage with no account
+ * env at all, so on a multi-account install it could show a different account's
+ * windows than the lane was actually spending. `claude:sessionAccount` is the
+ * answer to "whose quota is this lane eating".
+ */
+export interface ClaudeSessionAccount {
+  id: string
+  label: string
+  email?: string
+  plan?: string
+  /** How many accounts are configured, so the UI can stay quiet when it is 1. */
+  total: number
+  mode: ClaudeRoutingMode
+  /** When this account is held back from new sessions, if it is. */
+  cooldownUntil: number | null
+  /** An account new sessions would go to instead, when this one is held. */
+  alternative: string | null
+}
+
 /** `claude:accounts` channel result. */
 export interface ClaudeAccountsResult {
   prefs: ClaudeAccountPrefs
