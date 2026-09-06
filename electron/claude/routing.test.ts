@@ -5,6 +5,7 @@ import {
   cooldownFromUsage,
   isCoolingDown,
   pruneCooldowns,
+  reconcileAuthIdentity,
   selectAccount,
 } from './routing'
 
@@ -193,6 +194,41 @@ describe('claudeAccountEnv', () => {
     expect(claudeAccountEnv({ ...account('work'), orgId: 'org-1' })).toEqual({
       CLAUDE_SECURESTORAGE_CONFIG_DIR: '/creds/work',
       CLAUDE_CODE_ORGANIZATION_UUID: 'org-1',
+    })
+  })
+})
+
+describe('reconcileAuthIdentity', () => {
+  const other = { id: 'work', label: 'me@hotmail.com', email: 'me@hotmail.com' }
+
+  it('keeps a live identity that belongs to this account', () => {
+    const auth = { ok: true, loggedIn: true, email: 'ME@hotmail.com', plan: 'max' }
+    expect(reconcileAuthIdentity({ ...account('work'), ...other }, auth)).toEqual(auth)
+  })
+
+  it('drops the shared ~/.claude.json identity leaking onto another row', () => {
+    // `auth status` prints whichever account signed in LAST, for every row.
+    expect(
+      reconcileAuthIdentity(
+        { ...account('work'), ...other },
+        {
+          ok: true,
+          loggedIn: true,
+          method: 'claude.ai',
+          email: 'me@work.com',
+          plan: 'team',
+          organization: 'Acme',
+          orgId: 'org-9',
+        },
+      ),
+    ).toEqual({ ok: true, loggedIn: true, method: 'claude.ai' })
+  })
+
+  it('passes through when either side has no email to compare', () => {
+    const auth = { ok: true, loggedIn: true, email: 'me@work.com' }
+    expect(reconcileAuthIdentity(account('work'), auth)).toEqual(auth)
+    expect(reconcileAuthIdentity({ ...account('work'), ...other }, { ok: false })).toEqual({
+      ok: false,
     })
   })
 })
