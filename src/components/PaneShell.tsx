@@ -26,12 +26,7 @@ export const PaneShell = memo(function PaneShell({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      {/*
-       * No bottom border: the pane is already a bordered rounded card, so a
-       * rule under the title just draws a second horizontal line a few pixels
-       * inside the first. Spacing separates the header instead.
-       */}
-      <div className="flex min-h-11 shrink-0 flex-wrap items-center gap-1.5 px-2.5 py-1">
+      <div className="border-border flex min-h-10 shrink-0 flex-wrap items-center gap-1.5 border-b px-2 py-1">
         <div className="flex min-w-0 flex-auto items-center gap-1.5">{title}</div>
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {actions}
@@ -109,7 +104,7 @@ export function PaneIconButton({
       title={title}
       aria-label={title}
       onClick={onClick}
-      className="text-text-secondary hover:text-text hover:bg-bg-secondary flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors"
+      className="text-text-secondary hover:text-text hover:bg-bg-secondary flex h-8 w-8 shrink-0 items-center justify-center rounded-sm transition-colors"
     >
       {children}
     </button>

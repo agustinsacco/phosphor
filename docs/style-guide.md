@@ -207,6 +207,9 @@ markdown the _model_ authors; no pidex chrome uses it.
 ## Shape, depth, motion
 
 - Radii: 6 / 10 / 14 (`--px-radius-sm` / `--px-radius` / `--px-radius-lg`).
+  Floating IDE panes use `rounded-md` (6px), without a card shadow; their
+  tabs and icon controls use `rounded-sm` (2px). A compact, bordered header
+  separates tools from content. Chat bubbles and dialogs keep their own shape.
 - Depth comes from borders and one-step background shifts. No drop shadow
   heavier than `0 1px 2px rgb(0 0 0 / 0.06)` in light; popovers excepted.
 - Motion: message-in 180ms, expand-in 140ms, spark, shimmer. All token-driven
