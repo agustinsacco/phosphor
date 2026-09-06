@@ -4,7 +4,15 @@
 
 - Native frame conventions per OS (hiddenInset traffic lights on macOS).
 - Window title: `workspace · session name`.
-- Global shortcuts: Cmd/Ctrl+N new session, Cmd/Ctrl+P fuzzy file finder, Cmd/Ctrl+, settings, Cmd/Ctrl+` toggle terminal pane, Cmd/Ctrl+B toggle sidebar, Cmd/Ctrl+/ the shortcut list. The full sheet, including the chords inherited from Claude Code (Esc Esc rewind, ↑/↓ prompt history, Shift+Tab mode cycle, Ctrl+O verbose output), is Settings → Keybindings.
+- Global shortcuts: Cmd/Ctrl+N new session, Cmd/Ctrl+P fuzzy file finder, Cmd/Ctrl+, settings, Cmd/Ctrl+` toggle terminal pane, Cmd/Ctrl+B toggle sidebar, Cmd/Ctrl+/ the shortcut list. The full sheet, including the chords inherited from Claude Code (Esc Esc rewind, ↑/↓ prompt history, Tab/Shift+Tab list indentation or focus, Ctrl+O verbose output), is Settings → Keybindings.
+
+**Shortcut scope:** New (Cmd/Ctrl+N), Go to file (Cmd/Ctrl+P), Files
+(Cmd/Ctrl+Shift+E) and Changes (Cmd/Ctrl+Shift+G) work from the composer too.
+F6 moves between the composer and pane controls, returning from global pages;
+in a fullscreen pane it focuses Exit fullscreen rather than hidden chat.
+Dialogs block app navigation (not zoom). IME/AltGr and editor-owned letter chords
+are not interpreted as app commands. Terminal refits and search activation do not reclaim moved focus.
+Bindings belong to the app document, not sandboxed artifact iframe contents.
 
 ### Top bar
 

@@ -3,9 +3,7 @@ import type { PidexPlatform } from '@shared/ipc'
 /**
  * Platform-correct keyboard-shortcut labels.
  *
- * Every handler already accepts both modifiers (`event.metaKey ||
- * event.ctrlKey`, `event.altKey || event.metaKey`), so the KEYS work
- * everywhere and only the LABEL is platform-specific. macOS spells shortcuts
+ * Handlers own their chord/scope rules; these helpers only render labels. macOS spells shortcuts
  * as glyphs run together (⌘⇧E); Windows and Linux name the keys and separate
  * them (Ctrl+Shift+E).
  */

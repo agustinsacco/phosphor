@@ -113,6 +113,7 @@ export function ModalOverlay({
 
   return createPortal(
     <div
+      data-modal-overlay=""
       className={clsx(
         'fixed inset-0 flex justify-center',
         z === 40 ? 'z-40' : 'z-50',

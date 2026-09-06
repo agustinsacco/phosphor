@@ -8,6 +8,7 @@ import {
   renumber,
   toggleList,
   wrapCodeBlock,
+  wrapLink,
   wrapSelection,
 } from './composerText'
 
@@ -20,6 +21,13 @@ function show(edit: { value: string; selectionStart: number } | null): string | 
   if (!edit) return null
   return edit.value.slice(0, edit.selectionStart) + '|' + edit.value.slice(edit.selectionStart)
 }
+
+it('inserts links with an escaped label and selects only the URL placeholder', () => {
+  const edit = wrapLink('see [details]', 4, 13)
+  expect(edit.value).toBe('see [\\[details\\]](https://)')
+  expect(edit.value.slice(edit.selectionStart, edit.selectionEnd)).toBe('https://')
+  expect(wrapLink('', 0, 0).value).toBe('[link text](https://)')
+})
 
 describe('parseListLine', () => {
   it('reads bullets, ordered items and tasks', () => {

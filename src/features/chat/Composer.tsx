@@ -6,6 +6,7 @@ import { fuzzyFilter } from '@/lib/fuzzy'
 import { QueueChips } from './composer/QueueChips'
 import { ModelPicker } from './composer/ModelPicker'
 import { ContextMeter } from './composer/ContextMeter'
+import { submitBehavior } from './composer/submitBehavior'
 import {
   buildCommandEntries,
   CommandMenu,
@@ -459,14 +460,46 @@ export function Composer({
               updateOverlays(value, caret)
             }}
             onSubmit={(event) => {
-              // Alt/Cmd+Enter during streaming → follow-up; plain Enter → steer.
-              void send(event.altKey || event.metaKey ? 'followUp' : 'steer')
+              void send(submitBehavior(event))
             }}
             onKeyDown={handleKeyDownFirst}
             onKeyDownFallthrough={handleKeyDownLast}
             onPasteFiles={attachments.addFiles}
             placeholder={placeholder}
           />
+
+          {isStreaming && (
+            <div
+              className="flex flex-wrap justify-end gap-1 px-2.5 pb-2"
+              role="group"
+              aria-label="Send to running agent"
+            >
+              <button
+                type="button"
+                disabled={!text.trim() && images.length === 0}
+                onClick={() => {
+                  void send('steer')
+                  textareaRef.current?.focus()
+                }}
+                title="Steer the current turn (Enter)"
+                className="text-text-secondary hover:bg-bg-secondary hover:text-text min-h-8 rounded-md px-2 text-base disabled:opacity-40"
+              >
+                Steer now
+              </button>
+              <button
+                type="button"
+                disabled={!text.trim() && images.length === 0}
+                onClick={() => {
+                  void send('followUp')
+                  textareaRef.current?.focus()
+                }}
+                title={`Queue after this turn (${formatShortcut('alt', 'Enter')})`}
+                className="text-text-secondary hover:bg-bg-secondary hover:text-text min-h-8 rounded-md px-2 text-base disabled:opacity-40"
+              >
+                Queue follow-up
+              </button>
+            </div>
+          )}
 
           {/* Footer mirrors the reference: attach on the left, model +
               thinking + meter on the right, submit/stop as a quiet icon at

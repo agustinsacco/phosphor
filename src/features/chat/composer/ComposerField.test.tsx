@@ -66,12 +66,15 @@ function caretAt(index: number): void {
   el.setSelectionRange(index, index)
 }
 
-function press(key: string, init: Partial<KeyboardEventInit> & { code?: string } = {}): void {
+function press(
+  key: string,
+  init: Partial<KeyboardEventInit> & { code?: string } = {},
+): KeyboardEvent {
+  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init })
   act(() => {
-    field().dispatchEvent(
-      new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }),
-    )
+    field().dispatchEvent(event)
   })
+  return event
 }
 
 describe('ComposerField', () => {
@@ -160,6 +163,77 @@ describe('ComposerField', () => {
     act(() => field().setSelectionRange(8, 12))
     press('b', { code: 'KeyB', metaKey: true })
     expect(field().value).toBe('make me **bold**')
+  })
+
+  it.each([
+    ['Bold', '**hello**'],
+    ['Italic', '_hello_'],
+    ['Inline code', '`hello`'],
+    ['Code block', '```\nhello\n```'],
+    ['Bulleted list', '- hello'],
+    ['Numbered list', '1. hello'],
+    ['Insert link', '[hello](https://)'],
+  ])('exposes %s without losing the selection or focus', (label, expected) => {
+    render(<Harness initial="hello" />)
+    act(() => field().setSelectionRange(0, 5))
+    act(() => document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!.click())
+    expect(field().value).toBe(expected)
+    expect(document.activeElement).toBe(field())
+  })
+
+  it('expands the same textarea without changing its text or selection', () => {
+    render(<Harness initial="draft" />)
+    const original = field()
+    act(() => original.setSelectionRange(1, 4))
+    press('X', { code: 'KeyX', metaKey: true, shiftKey: true })
+    const collapse = document.querySelector<HTMLButtonElement>(
+      'button[aria-label="Collapse input"]',
+    )!
+    expect(collapse.getAttribute('aria-expanded')).toBe('true')
+    expect(collapse.getAttribute('aria-controls')).toBe(original.id)
+    expect(field()).toBe(original)
+    expect(field().value).toBe('draft')
+    expect(field().selectionStart).toBe(1)
+    expect(field().selectionEnd).toBe(4)
+    act(() => collapse.click())
+    expect(document.querySelector('button[aria-label="Expand input"]')).not.toBeNull()
+  })
+
+  it('leaves selected list text to the browser on Shift+Enter', () => {
+    render(<Harness initial="- selected" />)
+    act(() => field().setSelectionRange(2, 10))
+    expect(press('Enter', { shiftKey: true }).defaultPrevented).toBe(false)
+    expect(field().value).toBe('- selected')
+  })
+
+  it('does not send or invoke popup/history keys during composition', () => {
+    const onSubmit = vi.fn()
+    const onKeyDown = vi.fn(() => false)
+    render(<Harness initial="漢字" onSubmit={onSubmit} onKeyDown={onKeyDown} />)
+    act(() => {
+      field().dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+    })
+    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Bold"]')!.disabled).toBe(
+      true,
+    )
+    for (const key of ['Enter', 'Tab', 'Escape', 'ArrowUp']) press(key)
+    press('b', { code: 'KeyB', metaKey: true })
+    expect(onKeyDown).not.toHaveBeenCalled()
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(field().value).toBe('漢字')
+    act(() => {
+      field().dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }))
+    })
+    press('Enter')
+    expect(onSubmit).toHaveBeenCalledOnce()
+  })
+
+  it('also guards native isComposing and legacy keyCode 229 without composition events', () => {
+    const onSubmit = vi.fn()
+    render(<Harness initial="候補" onSubmit={onSubmit} />)
+    press('Enter', { isComposing: true })
+    press('Enter', { keyCode: 229 })
+    expect(onSubmit).not.toHaveBeenCalled()
   })
 
   it('lets the caller consume a key before the keymap sees it', () => {
