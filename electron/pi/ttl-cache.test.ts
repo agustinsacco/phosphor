@@ -67,4 +67,27 @@ describe('createTtlCache', () => {
     now = 200
     expect(cache.isFresh()).toBe(false)
   })
+
+  // The model catalogue holds pi's own answer for minutes but a models.json
+  // fallback for seconds, so one slow boot does not fix a wrong list in place.
+  it('takes the TTL from the value when given a function', async () => {
+    let now = 0
+    let n = 0
+    const cache = createTtlCache(
+      async () => (++n === 1 ? 'degraded' : 'good'),
+      (value) => (value === 'degraded' ? 100 : 10_000),
+      () => now,
+    )
+    expect(await cache.get()).toBe('degraded')
+
+    now = 50
+    expect(await cache.get()).toBe('degraded')
+
+    now = 150
+    expect(await cache.get()).toBe('good')
+
+    now = 5_000
+    expect(await cache.get()).toBe('good')
+    expect(n).toBe(2)
+  })
 })

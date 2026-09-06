@@ -41,6 +41,7 @@ export function HomeModelPicker({
 } = {}): React.JSX.Element | null {
   const status = useModelCatalogueStore((s) => s.status)
   const models = useModelCatalogueStore((s) => s.models)
+  const source = useModelCatalogueStore((s) => s.source)
   const providers = useModelCatalogueStore((s) => s.providers)
   const [provider, setProvider] = useState<string | null>(null)
   const [modelId, setModelId] = useState<string | null>(null)
@@ -76,8 +77,18 @@ export function HomeModelPicker({
   }, [])
 
   const current = models.find((m) => m.id === modelId && m.provider === provider)
-  const chip = modelChipLabel(status, current, modelId)
+  const chip = modelChipLabel(status, current, modelId, source)
   const busy = status === 'idle' || status === 'loading'
+
+  /**
+   * Opening the picker is the moment the list actually matters, so a degraded
+   * one gets one more attempt at pi here. Cheap: main serves a good answer
+   * from its cache, and only re-spawns pi when what it holds is the fallback.
+   */
+  const openModelMenu = (): void => {
+    setOpen(open === 'model' ? null : 'model')
+    if (source === 'config') void useModelCatalogueStore.getState().refresh()
+  }
 
   /** Levels to render, derived per-model — including xhigh/max when mapped. */
   const levelsToRender: ThinkingLevel[] = useMemo(
@@ -118,14 +129,16 @@ export function HomeModelPicker({
           default, so a click on a half-known list is a real mis-set, not a
           cosmetic one. */}
       <button
-        onClick={() => setOpen(open === 'model' ? null : 'model')}
+        onClick={openModelMenu}
         disabled={busy}
         data-testid="home-model-picker"
         data-loading={busy ? 'true' : undefined}
         title={
-          chip.unavailable
-            ? `${chip.text} is not in pi's catalogue`
-            : `${chip.text}${current ? ` · via ${current.provider}` : ''}`
+          chip.degraded
+            ? `pi's model catalogue could not be read, so only models.json is listed. ${chip.text} is probably still fine — open the picker to retry.`
+            : chip.unavailable
+              ? `${chip.text} is not in pi's catalogue`
+              : `${chip.text}${current ? ` · via ${current.provider}` : ''}`
         }
         className={clsx(
           'min-h-8 min-w-0 flex-1 rounded-md px-2 py-1 text-left text-lg font-medium transition-colors',
@@ -138,9 +151,15 @@ export function HomeModelPicker({
         {chip.loading ? (
           <span className="bg-bg-secondary inline-block h-3.5 w-24 animate-pulse rounded align-middle" />
         ) : (
-          <span className={clsx('block truncate', chip.unavailable && 'text-warning')}>
+          <span
+            className={clsx(
+              'block truncate',
+              (chip.unavailable || chip.degraded) && 'text-warning',
+            )}
+          >
             {chip.text}
             {chip.unavailable && ' · unavailable'}
+            {chip.degraded && ' · pi unreachable'}
           </span>
         )}
         {current && (
@@ -176,6 +195,11 @@ export function HomeModelPicker({
           onClose={() => setOpen(null)}
           loading={busy}
           emptyText={catalogueEmptyText(status, providers)}
+          notice={
+            source === 'config'
+              ? 'pi’s catalogue could not be read — showing only what models.json declares. Retrying…'
+              : undefined
+          }
           className="w-[30rem] max-w-[92vw]"
         />
       )}

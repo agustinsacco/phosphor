@@ -14,13 +14,19 @@ beforeEach(async () => {
   invoke.mockReset()
   vi.stubGlobal('window', { pidex: { invoke } })
   const { useModelCatalogueStore } = await import('./modelCatalogue')
-  useModelCatalogueStore.setState({ status: 'idle', models: [], providers: [], error: null })
+  useModelCatalogueStore.setState({
+    status: 'idle',
+    models: [],
+    source: 'pi',
+    providers: [],
+    error: null,
+  })
 })
 
-/** Default happy path: one model, one signed-in provider. */
-function stubOk(models: unknown[] = [MODEL]): void {
+/** Default happy path: pi answered, one model, no signed-in provider. */
+function stubOk(models: unknown[] = [MODEL], source: 'pi' | 'config' = 'pi'): void {
   invoke.mockImplementation(async (channel: string) => {
-    if (channel === 'pi:catalogueModels') return models
+    if (channel === 'pi:catalogueModels') return { models, source }
     if (channel === 'pi:subscriptionAuth') return []
     throw new Error(`unexpected channel ${channel}`)
   })
@@ -52,12 +58,38 @@ describe('useModelCatalogueStore', () => {
     expect(catalogueCalls).toHaveLength(1)
   })
 
-  it('does not re-fetch once ready', async () => {
+  it('does not re-fetch once ready on pi’s own answer', async () => {
     stubOk()
     const { useModelCatalogueStore } = await import('./modelCatalogue')
     await useModelCatalogueStore.getState().hydrate()
     await useModelCatalogueStore.getState().hydrate()
     expect(invoke.mock.calls.filter((c) => c[0] === 'pi:catalogueModels')).toHaveLength(1)
+  })
+
+  // The defect this store shipped with: a boot-time fetch that came back with
+  // the models.json fallback set status to 'ready', hydrate() short-circuited
+  // forever after, and nothing else called refresh(). The wrong model list
+  // then survived until the app was quit.
+  it('re-asks pi while the list in hand is only the models.json fallback', async () => {
+    stubOk([MODEL], 'config')
+    const { useModelCatalogueStore } = await import('./modelCatalogue')
+    await useModelCatalogueStore.getState().hydrate()
+    expect(useModelCatalogueStore.getState().status).toBe('ready')
+    expect(useModelCatalogueStore.getState().source).toBe('config')
+
+    await useModelCatalogueStore.getState().hydrate()
+    expect(invoke.mock.calls.filter((c) => c[0] === 'pi:catalogueModels')).toHaveLength(2)
+  })
+
+  it('stops re-asking once pi finally answers', async () => {
+    stubOk([MODEL], 'config')
+    const { useModelCatalogueStore } = await import('./modelCatalogue')
+    await useModelCatalogueStore.getState().hydrate()
+    stubOk()
+    await useModelCatalogueStore.getState().hydrate()
+    expect(useModelCatalogueStore.getState().source).toBe('pi')
+    await useModelCatalogueStore.getState().hydrate()
+    expect(invoke.mock.calls.filter((c) => c[0] === 'pi:catalogueModels')).toHaveLength(2)
   })
 
   it('re-fetches on an explicit refresh', async () => {
@@ -81,7 +113,7 @@ describe('useModelCatalogueStore', () => {
 
   it('still reaches ready when only the auth check fails', async () => {
     invoke.mockImplementation(async (channel: string) => {
-      if (channel === 'pi:catalogueModels') return [MODEL]
+      if (channel === 'pi:catalogueModels') return { models: [MODEL], source: 'pi' }
       throw new Error('auth check blew up')
     })
     const { useModelCatalogueStore } = await import('./modelCatalogue')
@@ -128,13 +160,37 @@ describe('modelChipLabel', () => {
   it('shows the display name once the model is known', async () => {
     const { modelChipLabel } = await import('./modelCatalogue')
     const chip = modelChipLabel('ready', MODEL, 'claude-opus-5')
-    expect(chip).toEqual({ text: 'Claude Opus 5', loading: false, unavailable: false })
+    expect(chip).toEqual({
+      text: 'Claude Opus 5',
+      loading: false,
+      unavailable: false,
+      degraded: false,
+    })
   })
 
   it('marks a configured model the catalogue does not have', async () => {
     const { modelChipLabel } = await import('./modelCatalogue')
     const chip = modelChipLabel('ready', undefined, 'gone-model')
-    expect(chip).toEqual({ text: 'gone-model', loading: false, unavailable: true })
+    expect(chip).toEqual({
+      text: 'gone-model',
+      loading: false,
+      unavailable: true,
+      degraded: false,
+    })
+  })
+
+  // models.json not listing a model says nothing about pi's catalogue, which
+  // is where a provider like pi-claude-cli actually lives. Calling that
+  // "unavailable" blamed the user's default for pi being unreachable.
+  it('does not call a model unavailable when only the fallback list is in hand', async () => {
+    const { modelChipLabel } = await import('./modelCatalogue')
+    const chip = modelChipLabel('ready', undefined, 'claude-opus-5', 'config')
+    expect(chip).toEqual({
+      text: 'claude-opus-5',
+      loading: false,
+      unavailable: false,
+      degraded: true,
+    })
   })
 
   it('falls back to a prompt when nothing is configured at all', async () => {

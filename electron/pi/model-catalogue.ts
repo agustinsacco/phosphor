@@ -1,5 +1,6 @@
 import { PiRpcClient } from './rpc-client'
 import { piProcessEnv } from './shell-env'
+import { log } from '../debug-log'
 import type { Model, ModelCost, RpcResponse, RpcResponseDataMap } from '@shared/rpc'
 
 /** One selectable model, for pickers that have no live pi process to ask. */
@@ -48,22 +49,40 @@ export interface CatalogueModel {
  *
  * `resolveBinary`, `fromConfig`, and `listModels` are injected so this
  * composes without requiring a pi binary on PATH under test.
+ *
+ * The fallback reports itself. It used to swallow every failure into a bare
+ * `catch {}` and return the models.json list as though it were the catalogue,
+ * so a transient boot-time failure showed the user a one-model picker and told
+ * them their configured default was "unavailable" — with no log line, and no
+ * way for a caller to know the answer was degraded. `source` is what lets both
+ * the log and the picker say which list this is.
  */
+export interface CatalogueResult {
+  models: CatalogueModel[]
+  /** `pi` when pi itself answered; `config` when models.json stood in. */
+  source: 'pi' | 'config'
+}
+
 export async function resolveCatalogueModels(
   resolveBinary: () => Promise<string | null>,
   fromConfig: () => Promise<CatalogueModel[]>,
   listModels: (binaryPath: string) => Promise<CatalogueModel[]> = listModelsViaRpc,
-): Promise<CatalogueModel[]> {
+): Promise<CatalogueResult> {
+  let reason = 'pi returned no models'
   try {
     const binaryPath = await resolveBinary()
     if (binaryPath) {
       const models = await listModels(binaryPath)
-      if (models.length > 0) return models
+      if (models.length > 0) return { models, source: 'pi' }
+    } else {
+      reason = 'pi is not available'
     }
-  } catch {
-    // Fall through to the config-only view.
+  } catch (error) {
+    reason = error instanceof Error ? error.message : String(error)
   }
-  return fromConfig()
+  const models = await fromConfig()
+  log('models', 'catalogue fell back to models.json', { reason, models: models.length })
+  return { models, source: 'config' }
 }
 
 /**
