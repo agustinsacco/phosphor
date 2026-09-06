@@ -29,16 +29,16 @@ with `·` and truncate in order; the chip is `ml-auto` so it forms a scannable
 column down the sidebar instead of floating after a branch name whose width
 varies per lane.
 
-**The chip and cost are mutually exclusive, not stacked.** `LanePrefs.prStatus`
-(default **on**) decides which one a lane's trailer _can_ show, but cost only
-steps aside once a chip is actually about to render in its place:
-`showChip = prStatus && (pullRequest || confirmedNoPr)`, and
-`sessionSubtitle(meta, git, { showCost: !showChip })`. Gating cost on the raw
-preference instead of on `showChip` was tried first and blanked the trailer —
-neither cost nor chip — on every plain non-worktree branch with no confirmed
-PR, which is strictly worse than the cost it replaced. Off reverts to plain
-cost and no chip, the behaviour from before this existed. Settings →
-Workspaces → "PR status instead of cost".
+**The row carries no spend.** A per-lane dollar figure is a detail you go
+looking for, not a way to choose a lane, and it competed with the branch for
+the row's one truncating slot. It lives in the row's context menu ("Copy
+spend"), the Home ledger and the context meter's Cost row instead.
+
+`LanePrefs.prStatus` (default **on**) decides whether the chip renders at all,
+and a chip only renders once there is something to say:
+`showChip = prStatus && (pullRequest || confirmedNoPr)` — gating on the raw
+preference put an empty trailer on every plain non-worktree branch with no
+confirmed PR. Settings → Workspaces → "PR status on lanes".
 
 ## Markers
 

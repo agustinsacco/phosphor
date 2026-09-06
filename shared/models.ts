@@ -332,9 +332,9 @@ export interface LanePrefs {
    */
   branchSlugMaxLength: number
   /**
-   * Show each lane's GitHub PR status (open, checks, review, merged,
-   * conflicts) in place of its session cost. Off reverts to cost, matching
-   * pidex's behaviour before the PR chip existed.
+   * Trail each lane with its GitHub PR status (open, checks, review, merged,
+   * conflicts). Off leaves the row to its title, timestamp and branch; spend
+   * is not a row trailer either way — see `sessionSubtitle.ts`.
    */
   prStatus: boolean
 }

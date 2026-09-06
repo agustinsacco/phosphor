@@ -468,33 +468,34 @@ export function Composer({
             placeholder={placeholder}
           />
 
-          {isStreaming && (
+          {/* Only while a turn is running AND there is something to send: an
+              always-present disabled row cost every reader a line of chrome
+              for a control they could not use. */}
+          {isStreaming && (text.trim() !== '' || images.length > 0) && (
             <div
-              className="flex flex-wrap justify-end gap-1 px-2.5 pb-2"
+              className="flex flex-wrap justify-end gap-1 px-2.5 pb-1"
               role="group"
               aria-label="Send to running agent"
             >
               <button
                 type="button"
-                disabled={!text.trim() && images.length === 0}
                 onClick={() => {
                   void send('steer')
                   textareaRef.current?.focus()
                 }}
                 title="Steer the current turn (Enter)"
-                className="text-text-secondary hover:bg-bg-secondary hover:text-text min-h-8 rounded-md px-2 text-base disabled:opacity-40"
+                className="text-text-secondary hover:bg-bg-secondary hover:text-text min-h-7 rounded-md px-2 text-base"
               >
                 Steer now
               </button>
               <button
                 type="button"
-                disabled={!text.trim() && images.length === 0}
                 onClick={() => {
                   void send('followUp')
                   textareaRef.current?.focus()
                 }}
                 title={`Queue after this turn (${formatShortcut('alt', 'Enter')})`}
-                className="text-text-secondary hover:bg-bg-secondary hover:text-text min-h-8 rounded-md px-2 text-base disabled:opacity-40"
+                className="text-text-secondary hover:bg-bg-secondary hover:text-text min-h-7 rounded-md px-2 text-base"
               >
                 Queue follow-up
               </button>

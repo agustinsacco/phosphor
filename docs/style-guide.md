@@ -186,10 +186,12 @@ user-configurable (`--px-chat-font-size` and friends, Settings → Appearance).
 Overall size is page zoom, not a font-size multiplier; see
 `electron/window-chrome.ts`.
 
-**Session chrome:** sidebar titles use `text-lg` and up to two lines; their
+**Session chrome:** sidebar titles use `text-lg` on a single truncated line —
+a narrow sidebar must not re-flow the list — with the full name in the tooltip; their
 metadata uses `text-base` with secondary ink (primary on the selected row).
-Composer actions have 32px square targets; formatting controls are 32px high,
-compacting to at least 24px wide. Model/provider labels stay on separate,
+Composer actions have 32px square targets and the composer stays two rows —
+field and footer — with formatting on the keyboard rather than a toolbar strip.
+Model/provider labels stay on separate,
 truncated lines with full tooltips and picker details, rather than growing the
 input footer indefinitely. Pane-header controls wrap together at narrow widths.
 Placeholders and Changes labels use readable ink. These are scoped role
