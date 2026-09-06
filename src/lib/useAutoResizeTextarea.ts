@@ -1,8 +1,8 @@
 import { useLayoutEffect, type RefObject } from 'react'
 
 /**
- * Composer cap: 8 visible lines. The composer fields are text-lg (18px × 1.55
- * body line-height ≈ 28px) with 16px vertical padding, so 8 lines ≈ 240px.
+ * Compact composer cap. The visible line count depends on font metrics/zoom;
+ * expanded composers instead use a viewport-bounded CSS min/max height.
  */
 export const COMPOSER_MAX_HEIGHT = 240
 

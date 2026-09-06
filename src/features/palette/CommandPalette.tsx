@@ -42,7 +42,13 @@ export function CommandPalette({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+      if (event.defaultPrevented || event.isComposing || event.keyCode === 229) return
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.code === 'KeyK'
+      ) {
         event.preventDefault()
         usePaletteStore.getState().setOpen(!usePaletteStore.getState().open)
       }

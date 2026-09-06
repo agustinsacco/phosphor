@@ -1,12 +1,13 @@
 import { SectionTitle } from '@/components/form'
 import { formatShortcut, hostPlatform } from '@/lib/shortcuts'
 import { clipboardModifiers } from '@/features/terminal/clipboardKeys'
+import { FORMATTING_ACTIONS, formattingKeys } from '@/features/chat/composer/formattingActions'
 
 /**
  * Static reference table of the keyboard shortcuts, grouped by where they
  * apply. Bindings that exist in Claude Code or Claude Desktop keep those
- * spellings — Esc Esc to rewind, ↑ for prompt history, ⇧Tab for the mode
- * switch, ⌃O for verbose output — so muscle memory carries over.
+ * spellings — Esc Esc to rewind, ↑ for prompt history and ⌃O for verbose
+ * output — so muscle memory carries over.
  */
 
 type Binding = [parts: string[], action: string]
@@ -29,7 +30,11 @@ const APP: Binding[] = [
 const CHAT: Binding[] = [
   [['Enter'], 'Send prompt (steer while streaming)'],
   [['alt', 'Enter'], 'Queue follow-up while streaming'],
-  [['shift', 'Enter'], 'Newline in composer'],
+  [['shift', 'Enter'], 'Newline / continue list in composer'],
+  [['mod', 'shift', 'X'], 'Expand / collapse focused composer'],
+  [['mod', 'Z'], 'Undo input edit'],
+  [['mod', 'shift', 'Z'], 'Redo input edit'],
+  [['Tab / Shift+Tab'], 'Indent / outdent a list; otherwise move focus'],
   [['Esc'], 'Stop the agent / close overlays'],
   [['Esc Esc'], 'Rewind to an earlier message'],
   [['↑'], 'Previous prompt (empty composer)'],
@@ -60,6 +65,13 @@ export function KeybindingsTab(): React.JSX.Element {
     <div className="space-y-5">
       <Group title="App" bindings={APP} />
       <Group title="Chat" bindings={CHAT} />
+      <Group
+        title="Formatting"
+        bindings={FORMATTING_ACTIONS.map<Binding>((binding) => [
+          formattingKeys(binding),
+          binding.label,
+        ])}
+      />
       <Group title="Editor & terminal" bindings={[...EDITOR, ...clipboardBindings()]} />
     </div>
   )

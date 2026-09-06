@@ -1,22 +1,25 @@
-import { useCallback, useLayoutEffect, useRef } from 'react'
+import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react'
 import {
   continueList,
   indentSelection,
   pasteIntoList,
   toggleList,
   wrapCodeBlock,
+  wrapLink,
   wrapSelection,
   type ListKind,
   type TextEdit,
 } from '@/lib/composerText'
 import { COMPOSER_MAX_HEIGHT, useAutoResizeTextarea } from '@/lib/useAutoResizeTextarea'
 import { recordTextareaEdit } from '@/lib/textareaUndo'
+import { formatShortcut } from '@/lib/shortcuts'
+import { FORMATTING_ACTIONS, formattingKeys, type FormattingAction } from './formattingActions'
 
 /**
  * The composer textarea, shared by the chat composer and the home composer.
  *
  * It owns autogrow, the markdown list keymap, and paste. Everything above it
- * in the key order — the `/` and `@` popups, ⇧Tab mode cycling, ↑/↓ prompt
+ * in the key order — the `/` and `@` popups and ↑/↓ prompt
  * recall — stays with the caller, which reports back through `onKeyDown`
  * whether it consumed the event.
  *
@@ -44,13 +47,7 @@ export interface ComposerFieldProps {
   'data-testid'?: string
 }
 
-export interface FormattingCommands {
-  toggleBullet: () => void
-  toggleOrdered: () => void
-  codeBlock: () => void
-  bold: () => void
-  italic: () => void
-}
+export type FormattingCommands = Record<FormattingAction, () => void>
 
 /**
  * Formatting commands bound to a textarea.
@@ -106,6 +103,8 @@ export function useComposerFormatting(
     toggleBullet: () => toggle('bullet'),
     toggleOrdered: () => toggle('ordered'),
     codeBlock: () => run(wrapCodeBlock),
+    inlineCode: () => run((v, from, to) => wrapSelection(v, from, to, '`')),
+    link: () => run(wrapLink),
     bold: () => run((v, from, to) => wrapSelection(v, from, to, '**')),
     italic: () => run((v, from, to) => wrapSelection(v, from, to, '_')),
   }
@@ -124,9 +123,20 @@ export function ComposerField({
   rows = 1,
   'data-testid': testId,
 }: ComposerFieldProps): React.JSX.Element {
-  useAutoResizeTextarea(textareaRef, value, COMPOSER_MAX_HEIGHT)
+  const fieldId = useId()
+  const [expanded, setExpanded] = useState(false)
+  const [isComposing, setIsComposing] = useState(false)
+  useAutoResizeTextarea(
+    textareaRef,
+    value,
+    expanded ? Number.MAX_SAFE_INTEGER : COMPOSER_MAX_HEIGHT,
+  )
   const format = useComposerFormatting(textareaRef, onChange)
   const composing = useRef(false)
+  const toggleExpanded = (): void => {
+    setExpanded((current) => !current)
+    textareaRef.current?.focus()
+  }
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     // Candidate confirmation must not send, accept a popup, recall history or abort.
@@ -164,30 +174,18 @@ export function ComposerField({
     }
 
     if (mod && !event.altKey) {
-      // event.code, not event.key: with Shift held, Digit8 reports as '*'.
-      if (event.shiftKey && event.code === 'Digit8') {
+      if (event.shiftKey && event.code === 'KeyX') {
         event.preventDefault()
-        format.toggleBullet()
+        toggleExpanded()
         return
       }
-      if (event.shiftKey && event.code === 'Digit7') {
+      // Physical codes work with shifted digits and non-US keyboard layouts.
+      const binding = FORMATTING_ACTIONS.find(
+        (item) => item.code === event.code && item.shift === event.shiftKey,
+      )
+      if (binding) {
         event.preventDefault()
-        format.toggleOrdered()
-        return
-      }
-      if (!event.shiftKey && event.code === 'KeyB') {
-        event.preventDefault()
-        format.bold()
-        return
-      }
-      if (!event.shiftKey && event.code === 'KeyI') {
-        event.preventDefault()
-        format.italic()
-        return
-      }
-      if (event.shiftKey && event.code === 'KeyC') {
-        event.preventDefault()
-        format.codeBlock()
+        format[binding.action]()
         return
       }
     }
@@ -222,27 +220,97 @@ export function ComposerField({
   }
 
   return (
-    <textarea
-      ref={textareaRef}
-      value={value}
-      onChange={(event) =>
-        onChange(event.target.value, event.target.selectionStart ?? event.target.value.length)
-      }
-      onKeyDown={handleKeyDown}
-      onCompositionStart={() => {
-        composing.current = true
-      }}
-      onCompositionEnd={() => {
-        composing.current = false
-      }}
-      onPaste={handlePaste}
-      placeholder={placeholder}
-      rows={rows}
-      data-testid={testId}
-      className={
-        className ??
-        'composer-field text-text placeholder:text-text-secondary block w-full resize-none overflow-y-auto bg-transparent px-4 pt-3 pb-1 text-lg outline-none'
-      }
-    />
+    <>
+      <textarea
+        id={fieldId}
+        aria-label="Chat message"
+        data-composer-input=""
+        style={expanded ? { minHeight: 'min(20rem, 50vh)', maxHeight: '50vh' } : undefined}
+        ref={textareaRef}
+        value={value}
+        onChange={(event) =>
+          onChange(event.target.value, event.target.selectionStart ?? event.target.value.length)
+        }
+        onKeyDown={handleKeyDown}
+        onCompositionStart={() => {
+          composing.current = true
+          setIsComposing(true)
+        }}
+        onCompositionEnd={() => {
+          composing.current = false
+          setIsComposing(false)
+        }}
+        onPaste={handlePaste}
+        placeholder={placeholder}
+        rows={rows}
+        data-testid={testId}
+        className={
+          className ??
+          'composer-field text-text placeholder:text-text-secondary block w-full resize-none overflow-y-auto bg-transparent px-4 pt-3 pb-1 text-lg outline-none'
+        }
+      />
+      <div
+        role="group"
+        aria-label="Text formatting"
+        className="flex items-center gap-0.5 overflow-x-auto px-2 py-1"
+        onMouseDown={(event) => event.preventDefault()}
+      >
+        <div className="grid min-w-48 max-w-60 flex-1 grid-cols-7 gap-0.5">
+          {FORMATTING_ACTIONS.map((binding) => (
+            <button
+              key={binding.action}
+              type="button"
+              aria-label={binding.label}
+              title={`${binding.label} (${formatShortcut(...formattingKeys(binding))})`}
+              disabled={isComposing}
+              onClick={() => {
+                if (!composing.current) format[binding.action]()
+              }}
+              className="text-text-secondary hover:bg-bg-secondary hover:text-text flex h-8 min-w-6 items-center justify-center rounded-md font-mono text-base disabled:opacity-40"
+            >
+              {binding.action === 'link' ? (
+                <svg
+                  aria-hidden="true"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                >
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                </svg>
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className={
+                    binding.action === 'italic'
+                      ? 'italic'
+                      : binding.action === 'bold'
+                        ? 'font-bold'
+                        : undefined
+                  }
+                >
+                  {binding.glyph}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          aria-label={expanded ? 'Collapse input' : 'Expand input'}
+          title={`${expanded ? 'Collapse' : 'Expand'} input (${formatShortcut('mod', 'shift', 'X')})`}
+          aria-expanded={expanded}
+          aria-controls={fieldId}
+          disabled={isComposing}
+          onClick={toggleExpanded}
+          className="text-text-secondary hover:bg-bg-secondary hover:text-text ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-lg disabled:opacity-40"
+        >
+          <span aria-hidden="true">{expanded ? '↙' : '↗'}</span>
+        </button>
+      </div>
+    </>
   )
 }

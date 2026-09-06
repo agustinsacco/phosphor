@@ -165,6 +165,40 @@ describe('ComposerField', () => {
     expect(field().value).toBe('make me **bold**')
   })
 
+  it.each([
+    ['Bold', '**hello**'],
+    ['Italic', '_hello_'],
+    ['Inline code', '`hello`'],
+    ['Code block', '```\nhello\n```'],
+    ['Bulleted list', '- hello'],
+    ['Numbered list', '1. hello'],
+    ['Insert link', '[hello](https://)'],
+  ])('exposes %s without losing the selection or focus', (label, expected) => {
+    render(<Harness initial="hello" />)
+    act(() => field().setSelectionRange(0, 5))
+    act(() => document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!.click())
+    expect(field().value).toBe(expected)
+    expect(document.activeElement).toBe(field())
+  })
+
+  it('expands the same textarea without changing its text or selection', () => {
+    render(<Harness initial="draft" />)
+    const original = field()
+    act(() => original.setSelectionRange(1, 4))
+    press('X', { code: 'KeyX', metaKey: true, shiftKey: true })
+    const collapse = document.querySelector<HTMLButtonElement>(
+      'button[aria-label="Collapse input"]',
+    )!
+    expect(collapse.getAttribute('aria-expanded')).toBe('true')
+    expect(collapse.getAttribute('aria-controls')).toBe(original.id)
+    expect(field()).toBe(original)
+    expect(field().value).toBe('draft')
+    expect(field().selectionStart).toBe(1)
+    expect(field().selectionEnd).toBe(4)
+    act(() => collapse.click())
+    expect(document.querySelector('button[aria-label="Expand input"]')).not.toBeNull()
+  })
+
   it('leaves selected list text to the browser on Shift+Enter', () => {
     render(<Harness initial="- selected" />)
     act(() => field().setSelectionRange(2, 10))
@@ -179,6 +213,9 @@ describe('ComposerField', () => {
     act(() => {
       field().dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
     })
+    expect(document.querySelector<HTMLButtonElement>('button[aria-label="Bold"]')!.disabled).toBe(
+      true,
+    )
     for (const key of ['Enter', 'Tab', 'Escape', 'ArrowUp']) press(key)
     press('b', { code: 'KeyB', metaKey: true })
     expect(onKeyDown).not.toHaveBeenCalled()

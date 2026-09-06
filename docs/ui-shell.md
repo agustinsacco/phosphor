@@ -4,7 +4,7 @@
 
 - Native frame conventions per OS (hiddenInset traffic lights on macOS).
 - Window title: `workspace · session name`.
-- Global shortcuts: Cmd/Ctrl+N new session, Cmd/Ctrl+P fuzzy file finder, Cmd/Ctrl+, settings, Cmd/Ctrl+` toggle terminal pane, Cmd/Ctrl+B toggle sidebar, Cmd/Ctrl+/ the shortcut list. The full sheet, including the chords inherited from Claude Code (Esc Esc rewind, ↑/↓ prompt history, Shift+Tab mode cycle, Ctrl+O verbose output), is Settings → Keybindings.
+- Global shortcuts: Cmd/Ctrl+N new session, Cmd/Ctrl+P fuzzy file finder, Cmd/Ctrl+, settings, Cmd/Ctrl+` toggle terminal pane, Cmd/Ctrl+B toggle sidebar, Cmd/Ctrl+/ the shortcut list. The full sheet, including the chords inherited from Claude Code (Esc Esc rewind, ↑/↓ prompt history, Tab/Shift+Tab list indentation or focus, Ctrl+O verbose output), is Settings → Keybindings.
 
 ### Top bar
 

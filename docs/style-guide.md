@@ -188,7 +188,8 @@ Overall size is page zoom, not a font-size multiplier; see
 
 **Session chrome:** sidebar titles use `text-lg` and up to two lines; their
 metadata uses `text-base` with secondary ink (primary on the selected row).
-Composer controls have 32px targets; model/provider labels stay on separate,
+Composer actions have 32px square targets; formatting controls are 32px high,
+compacting to at least 24px wide. Model/provider labels stay on separate,
 truncated lines with full tooltips and picker details, rather than growing the
 input footer indefinitely. Pane-header controls wrap together at narrow widths.
 Placeholders and Changes labels use readable ink. These are scoped role

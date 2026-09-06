@@ -364,6 +364,63 @@ test('composer formatting participates in native undo and redo', async () => {
   }
 })
 
+test('composer controls format selections, insert links and expand long drafts', async () => {
+  const harness = await launch()
+  const { page } = harness
+  const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
+  try {
+    await openWorkspace(page)
+    const field = page.getByPlaceholder('Describe a task or ask a question')
+    await field.fill('read more')
+    await field.press(`${mod}+a`)
+    await page.getByRole('button', { name: 'Bold', exact: true }).click()
+    await expect(field).toHaveValue('**read more**')
+    await expect(field).toBeFocused()
+    await field.press(`${mod}+z`)
+    await expect(field).toHaveValue('read more')
+    await field.press(`${mod}+a`)
+    await field.press(`${mod}+Shift+k`)
+    await expect(field).toHaveValue('[read more](https://)')
+    await expect(field).toBeFocused()
+    expect(await field.evaluate((el) => el.value.slice(el.selectionStart, el.selectionEnd))).toBe(
+      'https://',
+    )
+    await field.pressSequentially('https://example.com')
+    await expect(field).toHaveValue('[read more](https://example.com)')
+
+    const draft = Array.from({ length: 30 }, (_, i) => `Review item ${i + 1}`).join('\n')
+    await field.fill(draft)
+    const compact = (await field.boundingBox())!.height
+    await page.getByRole('button', { name: 'Expand input' }).click()
+    await expect(page.getByRole('button', { name: 'Collapse input' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    const expanded = (await field.boundingBox())!.height
+    expect(expanded).toBeGreaterThan(compact)
+    expect(expanded).toBeLessThanOrEqual(await page.evaluate(() => innerHeight / 2))
+    await expect(field).toHaveValue(draft)
+    await page.screenshot({ path: test.info().outputPath('expanded-home-input.png') })
+    await field.press(`${mod}+Shift+x`)
+    await expect(page.getByRole('button', { name: 'Expand input' })).toBeVisible()
+    await expect(field).toHaveValue(draft)
+    await field.fill('Update hello.ts')
+    await field.press('Enter')
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    const chat = page.getByRole('textbox', { name: 'Chat message', exact: true })
+    await chat.fill('review code')
+    await chat.press(`${mod}+a`)
+    await page.getByRole('button', { name: 'Inline code', exact: true }).click()
+    await expect(chat).toHaveValue('`review code`')
+    await chat.press(`${mod}+/`)
+    const formatting = page.getByRole('heading', { name: 'Formatting', exact: true })
+    await formatting.scrollIntoViewIfNeeded()
+    await expect(formatting).toBeInViewport()
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('workspace → session → streamed answer, diff and artifact render', async () => {
   const harness = await launch()
   const { page } = harness
