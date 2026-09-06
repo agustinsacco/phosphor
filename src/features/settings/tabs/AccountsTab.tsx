@@ -221,6 +221,13 @@ function ProviderRow({
               </span>
             )}
           </div>
+          {ready && provider.account && (
+            // Which account, not just whether: with two ChatGPT logins on one
+            // machine, "Signed in" alone does not say which one pi will bill.
+            <p className="text-text-secondary mt-0.5 truncate text-sm" title={provider.account}>
+              {provider.account}
+            </p>
+          )}
           <p className="text-text-secondary mt-0.5 text-sm">Requires {provider.requires}.</p>
           {provider.caveat && <p className="text-text-tertiary mt-1 text-sm">{provider.caveat}</p>}
           {provider.error && <p className="text-danger mt-1 text-sm">{provider.error}</p>}

@@ -14,6 +14,28 @@ describe('parseAuthCheck', () => {
     ).toEqual({ status: 'not_ready', reason: 'credentials_not_configured' })
   })
 
+  it('reads the account out of a credential and never returns the credential', () => {
+    // `--credentials` puts the token on the same line. A Codex token is a JWT
+    // whose payload names the account; everything else stays opaque, and
+    // either way the secret must not survive the parse.
+    const claims = Buffer.from(
+      JSON.stringify({ 'https://api.openai.com/profile': { email: 'user@example.com' } }),
+      'utf8',
+    ).toString('base64url')
+    const credentials = `eyJhbGciOiJSUzI1NiJ9.${claims}.c2ln`
+    const parsed = parseAuthCheck(
+      JSON.stringify({ status: 'ready', provider: 'openai-codex', authType: 'oauth', credentials }),
+    )
+    expect(parsed).toEqual({ status: 'ready', account: 'user@example.com' })
+    expect(JSON.stringify(parsed)).not.toContain(credentials)
+  })
+
+  it('leaves the account off when the credential is opaque', () => {
+    expect(
+      parseAuthCheck('{"status":"ready","provider":"openrouter","credentials":"sk-or-v1-abc"}'),
+    ).toEqual({ status: 'ready' })
+  })
+
   it('keeps the reason when pi does not know the provider', () => {
     expect(
       parseAuthCheck('{"status":"not_ready","provider":"nope","reason":"provider_not_found"}'),

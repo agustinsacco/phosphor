@@ -12,6 +12,10 @@ these are still worth reading for work to do.
 | [mid-turn-loss-2026-08-30.md](mid-turn-loss-2026-08-30.md) | An app exit discards the whole in-flight turn   | 5 of 5 findings       |
 | [tool-call-ui.md](tool-call-ui.md)                         | Tool-call and MCP row rendering, both providers | 8 of 8 findings       |
 
+[Engineering workbench review (2026-09-05)](ai-workbench-review-2026-09-05.md):
+visuals, interaction and delivery workflow; 12 open findings at `ae57ae3`, with
+observed behavior separated from code-traced risks and future design proposals.
+
 ## The rule that keeps these useful
 
 **Every finding carries its own status, and the status is re-verified against
