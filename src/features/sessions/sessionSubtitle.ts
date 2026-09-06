@@ -1,16 +1,15 @@
 import type { GitInfo } from '@shared/models'
 import { relativeTimeShort } from '@/lib/time'
-import { formatCost } from '@/lib/format'
 
 export interface SubtitleSegment {
-  key: 'time' | 'worktree' | 'branch' | 'dirty' | 'cost'
+  key: 'time' | 'worktree' | 'branch' | 'dirty'
   text: string
   /** The branch segment is the only one allowed to truncate. */
   truncate?: boolean
 }
 
 /**
- * The two fields a subtitle needs, rather than a whole `SessionMeta`.
+ * The one field a subtitle needs, rather than a whole `SessionMeta`.
  *
  * A live session with no file on disk yet has no `SessionMeta` at all, and it
  * needs this same subtitle — pi does not write a session file until a turn
@@ -18,32 +17,25 @@ export interface SubtitleSegment {
  */
 export interface SubtitleSource {
   mtimeMs: number
-  cost: number
 }
 
 /**
- * Sidebar row subtitle: `2m · ⌥wt · ⎇ branch · ±3 · $1.24`.
+ * Sidebar row subtitle: `2m · ⌥wt · ⎇ branch · ±3`.
  *
  * Everything after the timestamp is optional and data-driven; git segments
  * come from the batched per-cwd summary and may lag a refresh behind.
  *
- * `showCost` defaults on. The sidebar passes `false` when `LanePrefs.prStatus`
- * is on, so the row's PR chip (`prChip.ts` + `PrBadge.tsx`) replaces cost
- * instead of trailing it — the two are not meant to coexist, or the row reads
- * as double-counted status.
+ * **No spend here.** A per-lane dollar figure is a detail, not a way to pick a
+ * lane, and it competed with the branch for the row's one truncating slot. It
+ * lives where spending is the subject instead: the row's context menu, the
+ * Home ledger, and the context meter's Cost row.
  */
-export function sessionSubtitle(
-  meta: SubtitleSource,
-  git: GitInfo | undefined,
-  opts: { showCost?: boolean } = {},
-): SubtitleSegment[] {
-  const showCost = opts.showCost ?? true
+export function sessionSubtitle(meta: SubtitleSource, git: GitInfo | undefined): SubtitleSegment[] {
   const segments: SubtitleSegment[] = [{ key: 'time', text: relativeTimeShort(meta.mtimeMs) }]
   if (git?.isRepo) {
     if (git.isWorktree) segments.push({ key: 'worktree', text: 'wt' })
     if (git.branch) segments.push({ key: 'branch', text: git.branch, truncate: true })
     if (git.dirtyCount) segments.push({ key: 'dirty', text: `±${git.dirtyCount}` })
   }
-  if (showCost && meta.cost > 0) segments.push({ key: 'cost', text: formatCost(meta.cost) })
   return segments
 }

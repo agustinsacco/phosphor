@@ -1772,6 +1772,26 @@ test('an unsent draft survives a session switch and a relaunch', async () => {
   }
 })
 
+test('lane rows carry no spend, and the row menu still offers it', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    const row = page.getByTestId('session-row').first()
+    await expect(row).toBeVisible({ timeout: 20_000 })
+    // The stub bills a real (small) cost, so a row that shows spend would show
+    // it here — the trailer is gone, not merely empty.
+    await expect(row).not.toContainText('$')
+    await row.click({ button: 'right' })
+    await expect(page.getByRole('button', { name: /^Copy spend/ })).toBeVisible()
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('sidebar groups sessions from several workspaces and badges pinned rows', async () => {
   // Two projects, one shared prefs store so both stay in "known workspaces".
   const userDataDir = await mkdtemp(join(tmpdir(), 'pidex-e2e-prefs-'))

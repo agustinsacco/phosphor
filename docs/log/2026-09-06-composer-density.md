@@ -15,5 +15,12 @@ Sidebar titles are one truncated line again. Two-line clamping re-flowed the
 whole list as the divider moved, so lane rows changed height while dragging;
 the full title is still the row's tooltip.
 
+Lane rows dropped their spend trailer with the same reasoning: a dollar figure
+per lane is a detail, not a way to choose a lane, and it competed with the
+branch for the row's one truncating slot. Spend is still one right-click away
+("Copy spend"), and unchanged in the Home ledger and the context meter.
+Settings → Workspaces → "PR status on lanes" now only decides whether the chip
+renders, since there is no longer a cost for it to replace.
+
 Unchanged: send semantics (Enter steers, Alt/Cmd/Ctrl+Enter queues), undo-safe
 formatting, IME guards, drafts, fonts, diff preferences and pane chrome.

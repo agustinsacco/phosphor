@@ -15,6 +15,7 @@ import { MarkerPickerModal } from './MarkerPickerModal'
 import { BulkDeleteModal, BulkDeleteProgressModal } from './BulkDeleteModal'
 import { classifyLane, summarizePreflight, type PreflightSummary } from './deletePreflight'
 import { laneMarker } from '@/lib/laneMarker'
+import { formatCost } from '@/lib/format'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { usePullRequestsStore, pullRequestFor } from '@/stores/pullRequests'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
@@ -1221,11 +1222,9 @@ function SessionRow({
   const prFetchedAt = usePullRequestsStore((s) => s.byRepo[repoPath]?.fetchedAt ?? 0)
   const confirmedNoPr =
     !pullRequest && Boolean(git?.isWorktree) && ghCliAvailable === true && prFetchedAt > 0
-  // Cost only steps aside for a chip that is actually about to render. A
-  // non-worktree branch with no confirmed PR gets neither — gating this on
-  // the raw preference instead would blank the trailer on every plain-main
-  // session the moment the flag is on, which is strictly worse than the cost
-  // it replaced.
+  // Only render a chip that has something to say. A non-worktree branch with
+  // no confirmed PR gets none — gating on the raw preference instead would put
+  // an empty chip on every plain-main session the moment the flag is on.
   const showChip = showPrStatus && Boolean(pullRequest || confirmedNoPr)
   const explicitMarker = useSessionsStore((s) => s.laneMarkers[meta.path])
   const markerMode = useLanePrefsStore((s) => s.lanes.markers)
@@ -1341,6 +1340,17 @@ function SessionRow({
         label: 'Copy debug info',
         onClick: () => void copySessionDebugInfo(meta, livePidexId),
       },
+      // Spend left the row itself: it is a detail you go looking for, so it
+      // waits here (and in the Home ledger) rather than trailing every lane.
+      ...(meta.cost > 0
+        ? [
+            {
+              label: 'Copy spend',
+              hint: formatCost(meta.cost),
+              onClick: () => void navigator.clipboard.writeText(formatCost(meta.cost)),
+            },
+          ]
+        : []),
       {
         label: 'Delete',
         hint: 'to trash',
@@ -1351,7 +1361,7 @@ function SessionRow({
     ])
   }
 
-  const subtitle = sessionSubtitle(meta, git, { showCost: !showChip })
+  const subtitle = sessionSubtitle(meta, git)
   const indicatorState =
     isStreaming || booting ? 'streaming' : unseen ? 'unseen' : livePidexId ? 'live' : 'disk'
 
@@ -1594,7 +1604,7 @@ function PendingSessionRow({
   const title = sessionTitle({ explicitName, firstUserText }, { elide: false }) ?? 'New session'
   // Synthesised meta so this row and the disk-backed one format their
   // subtitle through the same function. Created now, nothing spent yet.
-  const subtitle = sessionSubtitle({ mtimeMs: Date.now(), cost: 0 }, git)
+  const subtitle = sessionSubtitle({ mtimeMs: Date.now() }, git)
   // The marker slot has to be here too, and derived the same way. This row is
   // swapped for a real SessionRow the moment the session file lands, and a
   // slot that appeared only after the swap would shift the title mid-turn —

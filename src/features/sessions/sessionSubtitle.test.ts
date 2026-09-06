@@ -32,18 +32,17 @@ describe('sessionSubtitle', () => {
     expect(segments).toHaveLength(1)
   })
 
-  it('adds branch, dirty count, and cost when available', () => {
+  it('adds branch and dirty count when available', () => {
     const segments = sessionSubtitle(
       meta({ cost: 1.244 }),
       git({ branch: 'fix/chat-ux', dirtyCount: 3 }),
     )
-    expect(segments.map((s) => s.key)).toEqual(['time', 'branch', 'dirty', 'cost'])
+    expect(segments.map((s) => s.key)).toEqual(['time', 'branch', 'dirty'])
     expect(segments.find((s) => s.key === 'branch')).toMatchObject({
       text: 'fix/chat-ux',
       truncate: true,
     })
     expect(segments.find((s) => s.key === 'dirty')?.text).toBe('±3')
-    expect(segments.find((s) => s.key === 'cost')?.text).toBe('$1.24')
   })
 
   it('marks worktree sessions', () => {
@@ -58,17 +57,10 @@ describe('sessionSubtitle', () => {
     expect(clean.map((s) => s.key)).toEqual(['time', 'branch'])
   })
 
-  it('formats tiny costs without collapsing to $0.00', () => {
-    const segments = sessionSubtitle(meta({ cost: 0.0042 }), undefined)
-    expect(segments.find((s) => s.key === 'cost')?.text).toBe('$0.0042')
-  })
-
-  it('drops cost when the PR chip is taking its place', () => {
-    const segments = sessionSubtitle(
-      meta({ cost: 1.24 }),
-      git({ branch: 'fix/chat-ux', dirtyCount: 3 }),
-      { showCost: false },
-    )
-    expect(segments.map((s) => s.key)).toEqual(['time', 'branch', 'dirty'])
+  it('never carries spend, however large', () => {
+    const rich = sessionSubtitle(meta({ cost: 90.92 }), git({ branch: 'main' }))
+    const tiny = sessionSubtitle(meta({ cost: 0.0042 }), undefined)
+    expect(rich.map((s) => s.key)).toEqual(['time', 'branch'])
+    expect(tiny.map((s) => s.key)).toEqual(['time'])
   })
 })
