@@ -226,7 +226,7 @@ export function ComposerField({
       data-testid={testId}
       className={
         className ??
-        'composer-field text-text placeholder:text-text-tertiary block w-full resize-none overflow-y-auto bg-transparent px-4 pt-3 pb-1 text-lg outline-none'
+        'composer-field text-text placeholder:text-text-secondary block w-full resize-none overflow-y-auto bg-transparent px-4 pt-3 pb-1 text-lg outline-none'
       }
     />
   )

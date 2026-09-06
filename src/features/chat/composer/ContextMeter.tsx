@@ -99,8 +99,8 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
         </svg>
         <span
           className={clsx(
-            'text-sm tabular-nums',
-            critical ? 'text-danger' : warn ? 'text-warning' : 'text-text-tertiary',
+            'text-base tabular-nums',
+            critical ? 'text-danger' : warn ? 'text-warning' : 'text-text-secondary',
           )}
         >
           {percent === null ? '—' : `${percent}%`}

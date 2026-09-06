@@ -202,7 +202,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
         </div>
       </div>
 
-      <div className="flex flex-col items-center px-8 pb-8 pt-4">
+      <div className="flex flex-col items-center px-4 pb-6 pt-4 sm:px-6">
         <div className="w-full max-w-2xl">
           {/*
             Folder, branch and isolation, on one row above the composer.
@@ -216,7 +216,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             where a chat will run, and the top bar's compact chips sit far from
             the composer and get clipped behind the OS window controls.
           */}
-          <div className="mb-2 flex items-center gap-1.5 px-0.5">
+          <div className="mb-2 flex flex-wrap items-center gap-1.5 px-0.5">
             <WorkspaceChip workspacePath={workspacePath} />
             {isRepo && <BranchControl workspacePath={workspacePath} />}
             {isRepo && (
@@ -246,17 +246,17 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               onPasteFiles={attachments.addFiles}
               placeholder="Describe a task or ask a question"
               rows={2}
-              className="composer-field text-text placeholder:text-text-tertiary block w-full resize-none overflow-y-auto bg-transparent px-4 pb-1 pt-3.5 text-lg outline-none"
+              className="composer-field text-text placeholder:text-text-secondary block w-full resize-none overflow-y-auto bg-transparent px-4 pb-1 pt-3.5 text-lg outline-none"
             />
 
             {/* Footer mirrors the chat composer: attachments on the left,
                 model + thinking on the right, submit at the far right. */}
-            <div className="flex items-center justify-between gap-2 px-2.5 pb-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 pb-2">
               <div className="flex min-w-0 items-center gap-1.5">
                 <AttachButton onFiles={attachments.addFiles} />
               </div>
 
-              <div className="flex shrink-0 items-center gap-0.5">
+              <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-0.5">
                 <HomeModelPicker
                   override={draft?.model}
                   onPick={(model) => useDraftsStore.getState().patch(draftKey, { model })}
@@ -322,7 +322,7 @@ function IsolateToggle({
         CURRENT branch — looking like the answer to "off what?", when
         `startChat` ignores it entirely and always branches from trunk.
       */}
-      <span className="text-text-tertiary text-sm">
+      <span className="text-text-secondary text-base">
         {checked && trunk ? `new branch off ${trunk}` : 'new branch'}
       </span>
     </label>

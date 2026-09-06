@@ -230,6 +230,96 @@ test('Changes supports keyboard open/back and live diff font preferences', async
   }
 })
 
+test('session chrome stays readable with long labels, laptop widths and zoom', async () => {
+  const harness = await launch()
+  const { page, app } = harness
+  try {
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    await page.getByTestId('session-row').first().dblclick()
+    const longTitle =
+      'Investigate reconnect recovery without losing the current session or unsent draft'
+    await page.getByRole('textbox', { name: 'Session name' }).fill(longTitle)
+    await page.getByRole('textbox', { name: 'Session name' }).press('Enter')
+    await expect(page.getByTestId('session-title').first()).toHaveText(longTitle)
+    await page.getByTitle(/Changes pane/).click()
+
+    for (const [theme, width, zoom] of [
+      ['Light', 1440, 1],
+      ['Dark', 1000, 1],
+      ['Light', 1000, 1.25],
+      ['Dark', 1440, 1.5],
+    ] as const) {
+      await app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0]!.webContents.setZoomFactor(1),
+      )
+      await page.getByRole('button', { name: /^Settings/ }).click()
+      await page.getByRole('button', { name: theme, exact: true }).click()
+      await page.keyboard.press('Escape')
+      await app.evaluate(
+        ({ BrowserWindow }, size) => {
+          const win = BrowserWindow.getAllWindows()[0]!
+          win.setContentSize(size.width, 740)
+          win.webContents.setZoomFactor(size.zoom)
+        },
+        { width, zoom },
+      )
+      // Deliberately synthetic long model label: exercise layout, not a provider.
+      await page
+        .getByTestId('model-chip')
+        .getByTestId('model-label')
+        .evaluate((el) => {
+          el.textContent = 'long-model-identifier-without-breaks'.repeat(3)
+        })
+      const field = page.getByPlaceholder(/Describe a task…/i)
+      await expect(field).toBeVisible()
+      const card = await field.locator('..').boundingBox()
+      expect(card).not.toBeNull()
+      expect(card!.x + card!.width).toBeLessThanOrEqual(await page.evaluate(() => innerWidth))
+      for (const control of [
+        page.getByRole('button', { name: 'Attach files', exact: true }),
+        page.getByRole('button', { name: 'Send message', exact: true }),
+        page.getByTestId('model-chip'),
+      ]) {
+        await expect(control).toBeVisible()
+        const box = (await control.boundingBox())!
+        expect(box.x).toBeGreaterThanOrEqual(card!.x - 1)
+        expect(box.x + box.width).toBeLessThanOrEqual(card!.x + card!.width + 1)
+        expect(box.height).toBeGreaterThanOrEqual(32)
+      }
+      const switcher = page
+        .getByTestId('right-pane')
+        .getByRole('group', { name: 'Pane', exact: true })
+      expect(await switcher.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+      const title = page.getByTestId('session-title').first()
+      await expect(title).toHaveCSS('-webkit-line-clamp', '2')
+      const dims = await title.evaluate((el) => ({
+        height: el.getBoundingClientRect().height,
+        line: parseFloat(getComputedStyle(el).lineHeight),
+      }))
+      expect(dims.height).toBeLessThanOrEqual(2 * dims.line + 1)
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      )
+      // capturePage uses native window dimensions; CDP screenshots crop at Electron zoom.
+      const png = await app.evaluate(async ({ BrowserWindow }) =>
+        (await BrowserWindow.getAllWindows()[0]!.webContents.capturePage())
+          .toPNG()
+          .toString('base64'),
+      )
+      await writeFile(
+        test.info().outputPath(`session-${theme}-${width}-${zoom}.png`),
+        Buffer.from(png, 'base64'),
+      )
+    }
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('workspace → session → streamed answer, diff and artifact render', async () => {
   const harness = await launch()
   const { page } = harness

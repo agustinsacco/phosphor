@@ -186,6 +186,14 @@ user-configurable (`--px-chat-font-size` and friends, Settings → Appearance).
 Overall size is page zoom, not a font-size multiplier; see
 `electron/window-chrome.ts`.
 
+**Session chrome:** sidebar titles use `text-lg` and up to two lines; their
+metadata uses `text-base` with secondary ink (primary on the selected row).
+Composer controls have 32px targets; model/provider labels stay on separate,
+truncated lines with full tooltips and picker details, rather than growing the
+input footer indefinitely. Pane-header controls wrap together at narrow widths.
+Placeholders and Changes labels use readable ink. These are scoped role
+migrations, not changes to the global scale or saved body-font preferences.
+
 **Mono:** JetBrains Mono (user-configurable), and the **structural voice**, not
 a code-only font. Section labels, workspace group headers, badges, stat-tile
 labels and eyebrows are mono, 10–11px, uppercase, `letter-spacing: .06–.09em`,

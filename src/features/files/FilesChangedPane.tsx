@@ -47,8 +47,8 @@ export const FilesChangedPane = memo(function FilesChangedPane({
     return (
       <div className="flex h-full items-center justify-center px-6">
         <div className="text-center">
-          <div className="text-text-tertiary text-lg">No changes yet</div>
-          <div className="text-text-tertiary mt-1 text-sm">
+          <div className="text-text text-lg font-medium">No changes yet</div>
+          <div className="text-text-secondary mt-1 text-base">
             Files the agent edits or creates in this session will appear here as reviewable diffs.
           </div>
         </div>
@@ -74,10 +74,10 @@ export const FilesChangedPane = memo(function FilesChangedPane({
   return (
     <div className="flex h-full flex-col">
       <div className="border-border flex h-9 shrink-0 items-center justify-between border-b px-3">
-        <span className="text-text-tertiary text-xs font-semibold font-mono uppercase tracking-wider">
+        <span className="text-text-secondary text-base font-semibold font-mono uppercase tracking-wider">
           Files changed
         </span>
-        <span className="text-sm font-medium">
+        <span className="text-base font-medium">
           {files.length} file{files.length === 1 ? '' : 's'}{' '}
           <span className="text-success">+{totals.additions}</span>{' '}
           <span className="text-danger">−{totals.deletions}</span>
@@ -144,6 +144,7 @@ function FileRow({
         type="button"
         onClick={onOpen}
         aria-label={`View diff for ${file.relativePath}`}
+        title={file.relativePath}
         className="flex min-h-8 min-w-0 flex-1 items-center gap-2 py-1.5 text-left"
       >
         <span
@@ -154,11 +155,11 @@ function FileRow({
         >
           {file.created ? 'A' : 'M'}
         </span>
-        <span className="min-w-0 flex-1 truncate text-base">
-          {dir && <span className="text-text-tertiary">{dir}</span>}
+        <span className="min-w-0 flex-1 truncate text-lg">
+          {dir && <span className="text-text-secondary">{dir}</span>}
           <span className="text-text">{name}</span>
         </span>
-        <span className="shrink-0 font-mono text-sm">
+        <span className="shrink-0 font-mono text-base">
           <span className="text-success">+{file.additions}</span>{' '}
           <span className="text-danger">−{file.deletions}</span>
         </span>
@@ -255,20 +256,22 @@ function FileDiffView({
             <path d="m15 18-6-6 6-6" />
           </svg>
         </button>
-        <span className="min-w-0 flex-1 truncate font-mono text-sm">{file.relativePath}</span>
-        <span className="shrink-0 font-mono text-sm">
+        <span className="min-w-0 flex-1 truncate font-mono text-base" title={file.relativePath}>
+          {file.relativePath}
+        </span>
+        <span className="shrink-0 font-mono text-base">
           <span className="text-success">+{file.additions}</span>{' '}
           <span className="text-danger">−{file.deletions}</span>
         </span>
         <button
           onClick={() => setSideBySide((v) => !v)}
-          className="border-border hover:bg-bg-secondary shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium transition-colors"
+          className="border-border hover:bg-bg-secondary min-h-8 shrink-0 rounded-md border px-2 text-base font-medium transition-colors"
         >
           {sideBySide ? 'Inline' : 'Split'}
         </button>
         <button
           onClick={() => void openFileInWorkspace(workspacePath, file.relativePath)}
-          className="border-border hover:bg-bg-secondary shrink-0 rounded-md border px-2 py-0.5 text-xs font-medium transition-colors"
+          className="border-border hover:bg-bg-secondary min-h-8 shrink-0 rounded-md border px-2 text-base font-medium transition-colors"
         >
           Open file
         </button>
@@ -284,7 +287,7 @@ function FileDiffView({
           />
         )}
         {(original === null || modified === null) && !error && (
-          <div className="text-text-tertiary animate-pulse p-4 text-base">Computing diff…</div>
+          <div className="text-text-secondary animate-pulse p-4 text-base">Computing diff…</div>
         )}
       </div>
     </div>

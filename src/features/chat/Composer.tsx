@@ -405,7 +405,7 @@ export function Composer({
       : 'Describe a task…  ( / commands · @ files · ! shell )'
 
   return (
-    <div className="shrink-0 px-6 pb-4 pt-1">
+    <div className="shrink-0 px-3 pb-4 pt-1 sm:px-5">
       <WorkingIndicator sessionId={sessionId} />
       <BootingIndicator sessionId={sessionId} />
       <AgentLaunchStrip sessionId={sessionId} />
@@ -471,17 +471,17 @@ export function Composer({
           {/* Footer mirrors the reference: attach on the left, model +
               thinking + meter on the right, submit/stop as a quiet icon at
               the far right — never a filled pill. */}
-          <div className="flex items-center justify-between gap-3 px-2.5 pb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 pb-2">
             <div className="flex min-w-0 items-center gap-1.5">
               <AttachButton onFiles={attachments.addFiles} />
               {isCompacting && (
-                <span className="text-text-tertiary flex items-center gap-1.5 px-1 text-sm">
+                <span className="text-text-secondary flex items-center gap-1.5 px-1 text-base">
                   <Spinner /> compacting…
                 </span>
               )}
             </div>
 
-            <div className="flex shrink-0 items-center gap-2">
+            <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-1.5">
               <ContextMeter sessionId={sessionId} />
               <ModelPicker sessionId={sessionId} />
               <div className="flex items-center gap-1.5">
@@ -504,13 +504,13 @@ export function Composer({
         </div>
 
         {attachWarning && (
-          <div className="text-warning px-2 pt-1.5 text-xs" role="alert">
+          <div className="text-warning px-2 pt-1.5 text-base" role="alert">
             {attachWarning}
           </div>
         )}
         <div
           className={clsx(
-            'text-text-tertiary px-2 pt-1.5 text-xs',
+            'text-text-secondary px-2 pt-1.5 text-base',
             !text.startsWith('!') && 'opacity-0',
           )}
         >

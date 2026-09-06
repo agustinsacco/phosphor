@@ -9,7 +9,7 @@ import { PlusIcon } from './icons'
  */
 
 const iconButtonClass =
-  'text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition-colors disabled:pointer-events-none disabled:opacity-30'
+  'text-text-secondary hover:text-text hover:bg-bg-secondary flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors disabled:pointer-events-none disabled:opacity-30'
 
 export function AttachButton({ onFiles }: { onFiles: (files: File[]) => void }): React.JSX.Element {
   const pick = (): void => {
@@ -96,7 +96,7 @@ export function StopIconButton({ onClick }: { onClick: () => void }): React.JSX.
       onClick={onClick}
       aria-label="Stop"
       title="Stop (Esc)"
-      className="border-border text-text-secondary hover:border-danger hover:text-danger flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition-colors"
+      className="border-border text-text-secondary hover:border-danger hover:text-danger flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors"
     >
       <span className="h-2.5 w-2.5 rounded-[3px] bg-current" />
     </button>

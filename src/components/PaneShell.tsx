@@ -26,54 +26,56 @@ export const PaneShell = memo(function PaneShell({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-border flex h-10 shrink-0 items-center gap-1.5 border-b px-2">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">{title}</div>
-        {actions}
-        {/* Side swap is meaningless while the pane covers the whole region. */}
-        {!expanded && (
+      <div className="border-border flex min-h-10 shrink-0 flex-wrap items-center gap-1.5 border-b px-2 py-1">
+        <div className="flex min-w-0 flex-auto items-center gap-1.5">{title}</div>
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          {actions}
+          {/* Side swap is meaningless while the pane covers the whole region. */}
+          {!expanded && (
+            <PaneIconButton
+              title={side === 'right' ? 'Move pane to the left' : 'Move pane to the right'}
+              onClick={() => useLayoutStore.getState().togglePaneSide()}
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="m16 4 4 4-4 4M20 8H7M8 20l-4-4 4-4M4 16h13" />
+              </svg>
+            </PaneIconButton>
+          )}
           <PaneIconButton
-            title={side === 'right' ? 'Move pane to the left' : 'Move pane to the right'}
-            onClick={() => useLayoutStore.getState().togglePaneSide()}
+            title={expanded ? 'Exit fullscreen' : 'Fullscreen pane'}
+            onClick={() => useLayoutStore.getState().toggleRightExpanded()}
           >
             <svg
-              width="13"
-              height="13"
+              width="12"
+              height="12"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
             >
-              <path d="m16 4 4 4-4 4M20 8H7M8 20l-4-4 4-4M4 16h13" />
+              {expanded ? (
+                <path d="M10 14 3 21m0-6v6h6M14 10l7-7m-6 0h6v6" />
+              ) : (
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              )}
             </svg>
           </PaneIconButton>
-        )}
-        <PaneIconButton
-          title={expanded ? 'Exit fullscreen' : 'Fullscreen pane'}
-          onClick={() => useLayoutStore.getState().toggleRightExpanded()}
-        >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
+          <PaneIconButton
+            title="Close pane"
+            onClick={() => useLayoutStore.getState().setRightPane(null)}
           >
-            {expanded ? (
-              <path d="M10 14 3 21m0-6v6h6M14 10l7-7m-6 0h6v6" />
-            ) : (
-              <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-            )}
-          </svg>
-        </PaneIconButton>
-        <PaneIconButton
-          title="Close pane"
-          onClick={() => useLayoutStore.getState().setRightPane(null)}
-        >
-          <CloseIcon size={13} />
-        </PaneIconButton>
+            <CloseIcon size={13} />
+          </PaneIconButton>
+        </div>
       </div>
       {/*
        * Flex column, not a plain block: panes size their body with `flex-1` +
@@ -102,7 +104,7 @@ export function PaneIconButton({
       title={title}
       aria-label={title}
       onClick={onClick}
-      className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 shrink-0 items-center justify-center rounded-sm transition-colors"
+      className="text-text-secondary hover:text-text hover:bg-bg-secondary flex h-8 w-8 shrink-0 items-center justify-center rounded-sm transition-colors"
     >
       {children}
     </button>

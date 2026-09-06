@@ -590,8 +590,10 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     const liveName = livePidexId ? liveNames.get(livePidexId) : undefined
     return {
       title:
-        sessionTitle({ explicitName: liveName ?? meta.name, firstUserText: meta.firstUserText }) ??
-        '',
+        sessionTitle(
+          { explicitName: liveName ?? meta.name, firstUserText: meta.firstUserText },
+          { elide: false },
+        ) ?? '',
       branch: git?.branch,
       pr: pullRequestFor({ byRepo: prByRepo }, repoPath, git?.branch),
     }
@@ -761,7 +763,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                   <button
                     onClick={() => toggleGroup(group, isCollapsed)}
                     data-testid="workspace-group"
-                    className="text-text-tertiary hover:text-text flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left text-xs font-semibold font-mono uppercase tracking-wider transition-colors"
+                    className="text-text-secondary hover:text-text flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left text-sm font-semibold font-mono uppercase tracking-wider transition-colors"
                     title={group.workspacePath}
                   >
                     <span className="min-w-0 truncate">{group.name}</span>
@@ -1152,6 +1154,8 @@ function WorkspaceSwitcher(): React.JSX.Element {
   )
 }
 
+const SESSION_TITLE_CLASS = 'text-text line-clamp-2 break-words text-lg font-medium leading-5'
+
 function SessionRow({
   meta,
   workspacePath,
@@ -1235,8 +1239,10 @@ function SessionRow({
     livePidexId ? s.sessions[livePidexId]?.meta?.sessionName : undefined,
   )
   const title =
-    sessionTitle({ explicitName: liveName ?? meta.name, firstUserText: meta.firstUserText }) ??
-    'Untitled session'
+    sessionTitle(
+      { explicitName: liveName ?? meta.name, firstUserText: meta.firstUserText },
+      { elide: false },
+    ) ?? 'Untitled session'
 
   const [renaming, setRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState('')
@@ -1410,9 +1416,10 @@ function SessionRow({
             // the entrance; without it React patches the text node in place and
             // the name simply pops.
             key={title}
-            title={naming.pending ? 'Naming this chat…' : undefined}
+            title={naming.pending ? 'Naming this chat…' : title}
+            data-testid="session-title"
             className={clsx(
-              'text-text block truncate text-base leading-4',
+              SESSION_TITLE_CLASS,
               // Shimmers while pending, same as the top bar (.name-pending in
               // index.css) — a session you just created is watched here in
               // the sidebar at least as often as in the top bar, and a name
@@ -1427,7 +1434,12 @@ function SessionRow({
             {title}
           </span>
         )}
-        <span className="text-text-tertiary flex items-center gap-1 text-xs leading-3.5">
+        <span
+          className={clsx(
+            'flex items-center gap-1 text-base leading-4',
+            active ? 'text-text' : 'text-text-secondary',
+          )}
+        >
           {isSuspended && (
             <span
               className="bg-chip text-text-secondary mr-0.5 shrink-0 rounded px-1 font-medium"
@@ -1576,7 +1588,7 @@ function PendingSessionRow({
   )
   const explicitName = useChatStore((s) => s.sessions[pidexId]?.meta?.sessionName)
   const naming = useNameTransition(pidexId)
-  const title = sessionTitle({ explicitName, firstUserText }) ?? 'New session'
+  const title = sessionTitle({ explicitName, firstUserText }, { elide: false }) ?? 'New session'
   // Synthesised meta so this row and the disk-backed one format their
   // subtitle through the same function. Created now, nothing spent yet.
   const subtitle = sessionSubtitle({ mtimeMs: Date.now(), cost: 0 }, git)
@@ -1641,9 +1653,10 @@ function PendingSessionRow({
         ) : (
           <span
             key={title}
-            title={naming.pending ? 'Naming this chat…' : undefined}
+            title={naming.pending ? 'Naming this chat…' : title}
+            data-testid="session-title"
             className={clsx(
-              'text-text block truncate text-base leading-4',
+              SESSION_TITLE_CLASS,
               // See SessionRow: shimmers while pending too, must match exactly —
               // this row is swapped for a real SessionRow mid-shimmer the moment
               // the session file lands, and any difference reads as a twitch.
@@ -1654,7 +1667,12 @@ function PendingSessionRow({
             {title}
           </span>
         )}
-        <span className="text-text-tertiary flex items-center gap-1 text-xs leading-3.5">
+        <span
+          className={clsx(
+            'flex items-center gap-1 text-base leading-4',
+            active ? 'text-text' : 'text-text-secondary',
+          )}
+        >
           <SubtitleSegments segments={subtitle} />
         </span>
       </span>
