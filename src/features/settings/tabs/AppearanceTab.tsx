@@ -70,7 +70,7 @@ export function AppearanceTab(): React.JSX.Element {
       </Row>
       <Row
         title="Editor font size"
-        description="Monaco editor and diffs. Applies to newly opened editors."
+        description="Monaco editor and diffs. Applies live to open views."
       >
         <NumberField
           value={fonts.editorFontSize}
@@ -81,7 +81,7 @@ export function AppearanceTab(): React.JSX.Element {
           onChange={(v) => setFonts({ editorFontSize: v })}
         />
       </Row>
-      <Row title="Terminal font size" description="Applies to new terminal tabs.">
+      <Row title="Terminal font size" description="Applies live to open terminal tabs.">
         <NumberField
           value={fonts.terminalFontSize}
           suffix="px"
@@ -91,7 +91,10 @@ export function AppearanceTab(): React.JSX.Element {
           onChange={(v) => setFonts({ terminalFontSize: v })}
         />
       </Row>
-      <Row title="Mono font" description="Used for code, diffs and the terminal.">
+      <Row
+        title="Mono font"
+        description="JetBrains Mono is bundled. Other choices use installed fonts."
+      >
         <select
           value={fonts.monoFont}
           onChange={(e) => setFonts({ monoFont: e.target.value })}

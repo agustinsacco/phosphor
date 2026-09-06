@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { useExtensionUiStore, type PendingDialog, type Toast } from '@/stores/extensionUi'
 import { CloseIcon } from '@/components/icons'
+import { ignoreShortcut } from '@/lib/shortcutContext'
 import { ModalPanel } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
 import { ansiToSpans, stripAnsi } from '@shared/ansi'
@@ -71,6 +72,7 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
+      if (ignoreShortcut(event)) return
       if (event.key === 'Escape') {
         event.preventDefault()
         resolve({ cancelled: true })
@@ -99,7 +101,10 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
   }, [request, selectedIndex])
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+    <div
+      data-shortcut-overlay="extension"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+    >
       <ModalPanel
         width={480}
         // An extension title is arbitrary text — pi's TUI wraps it, so gates
@@ -171,7 +176,7 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
               value={value}
               onChange={(e) => setValue(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') resolve({ value })
+                if (!ignoreShortcut(e.nativeEvent) && e.key === 'Enter') resolve({ value })
               }}
               placeholder={request.placeholder}
               className="w-full"

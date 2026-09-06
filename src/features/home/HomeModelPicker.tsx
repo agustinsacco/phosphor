@@ -124,7 +124,7 @@ export function HomeModelPicker({
   }
 
   return (
-    <div className="relative flex items-center gap-0.5">
+    <div className="relative flex min-w-0 max-w-full flex-1 items-center gap-0.5">
       {/* Disabled until the catalogue lands: picking writes pi's global
           default, so a click on a half-known list is a real mis-set, not a
           cosmetic one. */}
@@ -138,10 +138,10 @@ export function HomeModelPicker({
             ? `pi's model catalogue could not be read, so only models.json is listed. ${chip.text} is probably still fine — open the picker to retry.`
             : chip.unavailable
               ? `${chip.text} is not in pi's catalogue`
-              : undefined
+              : `${chip.text}${current ? ` · via ${current.provider}` : ''}`
         }
         className={clsx(
-          'rounded-md px-2 py-1 text-base font-medium transition-colors',
+          'min-h-8 min-w-0 flex-1 rounded-md px-2 py-1 text-left text-lg font-medium transition-colors',
           busy ? 'cursor-default' : 'cursor-pointer',
           open === 'model'
             ? 'bg-bg-secondary text-text'
@@ -151,10 +151,20 @@ export function HomeModelPicker({
         {chip.loading ? (
           <span className="bg-bg-secondary inline-block h-3.5 w-24 animate-pulse rounded align-middle" />
         ) : (
-          <span className={clsx((chip.unavailable || chip.degraded) && 'text-warning')}>
+          <span
+            className={clsx(
+              'block truncate',
+              (chip.unavailable || chip.degraded) && 'text-warning',
+            )}
+          >
             {chip.text}
             {chip.unavailable && ' · unavailable'}
             {chip.degraded && ' · pi unreachable'}
+          </span>
+        )}
+        {current && (
+          <span className="text-text-secondary block truncate font-mono text-base">
+            via {current.provider}
           </span>
         )}
       </button>
@@ -164,7 +174,7 @@ export function HomeModelPicker({
           onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
           data-testid="home-thinking-picker"
           className={clsx(
-            'cursor-pointer rounded-md px-2 py-1 text-base transition-colors',
+            'min-h-8 shrink-0 cursor-pointer rounded-md px-2 py-1 text-lg transition-colors',
             open === 'thinking'
               ? 'bg-bg-secondary text-text'
               : 'text-text-secondary hover:bg-bg-secondary hover:text-text',

@@ -56,8 +56,27 @@ import { checkProviderAuth } from './auth-status'
 
 /** How long to wait for each expected screen before giving up. */
 const STEP_TIMEOUT_MS = 20_000
-/** The whole flow, including however long the human takes in the browser. */
-const FLOW_TIMEOUT_MS = 5 * 60_000
+/**
+ * Driving the TUI from launch to an authorization URL. Machine-speed, so a
+ * generous ceiling here is still a fast failure.
+ */
+const SETUP_TIMEOUT_MS = 2 * 60_000
+/**
+ * The browser trip, measured from the moment pi hands us a URL.
+ *
+ * Deliberately long, and deliberately separate from the setup budget. Ending
+ * this flow kills the pty, and for a loopback-redirect provider that pty *is*
+ * the callback server — pi listens on `localhost` and the browser completes
+ * the exchange against it. So a timeout here does not merely abandon the
+ * sign-in, it tears down the port the user's browser is about to redirect to,
+ * and they get `ERR_CONNECTION_REFUSED` on a URL that looks perfectly valid.
+ *
+ * One five-minute clock used to cover setup *and* the browser, which is less
+ * than an SSO round trip with MFA and an account picker. Real symptom, on
+ * OpenAI Codex (loopback port 1455): the tab said "Sign-in timed out" while
+ * the browser said the site could not be reached, and neither named the cause.
+ */
+const BROWSER_TIMEOUT_MS = 15 * 60_000
 /** How often to re-read the terminal for a state change. */
 const POLL_MS = 250
 /** How often to ask pi whether the sign-in has landed. */
@@ -144,6 +163,31 @@ export function classifyScreen(
 }
 
 /**
+ * Which budget, if either, this flow has run past.
+ *
+ * Split in two because the two halves fail for different reasons and deserve
+ * different patience: reaching the URL is pi's work and should be quick, while
+ * everything after it is a human in a browser. `authAt` is when the URL was
+ * first emitted, or null if it has not been.
+ */
+export function expiredBudget(
+  now: number,
+  startedAt: number,
+  authAt: number | null,
+): 'setup' | 'browser' | null {
+  if (authAt === null) return now - startedAt > SETUP_TIMEOUT_MS ? 'setup' : null
+  return now - authAt > BROWSER_TIMEOUT_MS ? 'browser' : null
+}
+
+/** What to tell the user when a budget runs out. */
+export function timeoutMessage(budget: 'setup' | 'browser'): string {
+  return budget === 'setup'
+    ? 'pi did not reach a sign-in page. Use “Open pi’s login terminal” below to finish it by hand.'
+    : 'Sign-in timed out waiting for your browser, so pidex closed pi’s callback server. ' +
+        'If your browser now says it cannot reach localhost, that is why — start the sign-in again.'
+}
+
+/**
  * Providers pi offers on its "Sign in with an account" screen, keyed by the
  * label it renders. Typing the label filters the list, which is how a
  * provider is chosen without counting arrow-key presses against a list whose
@@ -218,6 +262,8 @@ export async function startLogin(
   let answeredHost = false
   let sentLoginMethod = false
   let lastAuth: { url: string; userCode?: string } | null = null
+  /** When pi first produced a URL — the start of the browser budget. */
+  let authAt: number | null = null
   let verifying = false
   let lastVerifyAt = 0
   let stepStartedAt = Date.now()
@@ -243,8 +289,9 @@ export async function startLogin(
     // `attach` is a pure read of the buffer — no side effects on the pty.
     const screen = screenText(ptyManager.attach(ptyId).scrollback)
 
-    if (Date.now() - startedAt > FLOW_TIMEOUT_MS) {
-      finish({ providerId, phase: 'error', message: 'Sign-in timed out.' })
+    const expired = expiredBudget(Date.now(), startedAt, authAt)
+    if (expired) {
+      finish({ providerId, phase: 'error', message: timeoutMessage(expired) })
       return
     }
 
@@ -298,6 +345,10 @@ export async function startLogin(
       if (auth && (!lastAuth || auth.url !== lastAuth.url || auth.userCode !== lastAuth.userCode)) {
         lastAuth = auth
         stepStartedAt = Date.now()
+        // A new URL is a new browser trip, so the browser budget starts here
+        // rather than at launch. The change guard above is what stops a repaint
+        // from extending it indefinitely.
+        authAt = Date.now()
         emit({ providerId, phase: 'awaiting-browser', url: auth.url, userCode: auth.userCode })
       }
     }

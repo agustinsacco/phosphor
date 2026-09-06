@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { clampUiScale } from '@shared/models'
-import { useLayoutStore } from '@/stores/layout'
+import { sessionPanes, useLayoutStore } from '@/stores/layout'
+import { ignoreShortcut, isComposerInput, shortcutOverlayOpen } from '@/lib/shortcutContext'
 import { useSettingsStore } from '@/stores/settings'
 import { useSessionsStore } from '@/stores/sessions'
 import { getActiveWorkspace } from '@/stores/workspaces'
@@ -68,15 +69,39 @@ export function canToggleRightPane(): boolean {
  */
 export function useGlobalShortcuts(): void {
   useEffect(() => {
+    // Capture only F6, so terminal/editor handlers cannot turn focus navigation
+    // into input. Other shortcuts still run after the editor gets first refusal.
+    const onFocusKey = (event: KeyboardEvent): void => {
+      if (event.code !== 'F6' || event.metaKey || event.ctrlKey || ignoreShortcut(event)) return
+      event.preventDefault()
+      event.stopPropagation()
+      if (shortcutOverlayOpen()) return
+      const layout = useLayoutStore.getState()
+      const sessionId = useSessionsStore.getState().activeSessionId
+      const pane = document.querySelector<HTMLElement>('[data-testid="right-pane"]')
+      const field = document.querySelector<HTMLTextAreaElement>('[data-composer-input]')
+      const fullscreen = pane && sessionId && sessionPanes(layout, sessionId).expanded
+      const target = fullscreen
+        ? (pane.querySelector<HTMLElement>('[aria-label="Exit fullscreen"]') ??
+          pane.querySelector<HTMLButtonElement>('button:not(:disabled)'))
+        : isComposerInput(event.target)
+          ? (pane?.querySelector<HTMLButtonElement>('button:not(:disabled)') ?? field)
+          : field
+      if (target) {
+        layout.setPage(null)
+        target.focus()
+      }
+    }
     const onKey = (event: KeyboardEvent): void => {
       const mod = event.metaKey || event.ctrlKey
-      if (!mod) return
+      if (!mod || ignoreShortcut(event)) return
+      if (shortcutOverlayOpen() && !ZOOM_KEYS.has(event.code)) return
 
       // ⌃O — expand or collapse every activity group in the session, Claude
       // Code's verbose-output toggle. Control specifically, on every platform,
       // and above the editable guard: you press it while reading, which is
       // while the composer holds focus.
-      if (event.ctrlKey && !event.metaKey && event.code === 'KeyO') {
+      if (event.ctrlKey && !event.metaKey && !event.shiftKey && event.code === 'KeyO') {
         event.preventDefault()
         const sessionId = useSessionsStore.getState().activeSessionId
         if (sessionId) useChatUiStore.getState().toggleVerbose(sessionId)
@@ -89,7 +114,10 @@ export function useGlobalShortcuts(): void {
       // focus, which is where you are when you want a terminal.
       if (event.code === 'Backquote') {
         event.preventDefault()
-        if (canToggleRightPane()) useLayoutStore.getState().toggleRightPane('terminal')
+        if (canToggleRightPane()) {
+          useLayoutStore.getState().setPage(null)
+          useLayoutStore.getState().toggleRightPane('terminal')
+        }
         return
       }
 
@@ -118,19 +146,24 @@ export function useGlobalShortcuts(): void {
         return
       }
 
-      // Letter shortcuts: never steal keys from a text field.
-      if (isEditableTarget(event.target)) return
+      // Explicit app navigation works from the composer; Monaco, terminals and
+      // other text fields keep their own letter chords. Bold is owned by the field.
+      const composer = isComposerInput(event.target)
+      if (isEditableTarget(event.target) && !composer) return
 
       switch (event.code) {
         case 'KeyB':
+          if (composer || event.shiftKey) return
           event.preventDefault()
           useLayoutStore.getState().toggleSidebar()
           break
         case 'KeyN':
+          if (event.shiftKey) return
           event.preventDefault()
           useSessionsStore.getState().activate(null)
           break
         case 'KeyP':
+          if (event.shiftKey) return
           event.preventDefault()
           if (getActiveWorkspace()) {
             useFinderStore.getState().setOpen(true)
@@ -141,19 +174,29 @@ export function useGlobalShortcuts(): void {
         case 'KeyE':
           if (!event.shiftKey) return
           event.preventDefault()
-          if (canToggleRightPane()) useLayoutStore.getState().toggleRightPane('files')
+          if (canToggleRightPane()) {
+            useLayoutStore.getState().setPage(null)
+            useLayoutStore.getState().toggleRightPane('files')
+          }
           break
         case 'KeyG':
           if (!event.shiftKey) return
           event.preventDefault()
-          if (canToggleRightPane()) useLayoutStore.getState().toggleRightPane('changes')
+          if (canToggleRightPane()) {
+            useLayoutStore.getState().setPage(null)
+            useLayoutStore.getState().toggleRightPane('changes')
+          }
           break
         default:
           break
       }
     }
 
+    window.addEventListener('keydown', onFocusKey, true)
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onFocusKey, true)
+      window.removeEventListener('keydown', onKey)
+    }
   }, [])
 }

@@ -42,8 +42,16 @@ const execFileAsync = promisify(execFile)
 
 /** How long to wait for the CLI to print its authorization URL. */
 const URL_TIMEOUT_MS = 30_000
-/** The whole flow, including however long the human takes in the browser. */
-const FLOW_TIMEOUT_MS = 5 * 60_000
+/**
+ * The browser trip, restarted every time the CLI offers a URL.
+ *
+ * Killing the child ends the sign-in outright: the CLI is the only thing that
+ * can exchange the code the user is about to paste, so a clock that expires
+ * mid-browser throws away work the user has already done. Measured from the
+ * newest URL, not from launch, because an invalid code makes the CLI restart
+ * the handshake and the user starts the trip over.
+ */
+const BROWSER_TIMEOUT_MS = 15 * 60_000
 
 /**
  * The authorization URL the CLI is currently offering, if any.
@@ -141,6 +149,10 @@ export async function startClaudeLogin(
       lastUrl = url
       awaitingExit = false
       clearTimeout(urlTimer)
+      // Each URL restarts the browser budget: the previous one is spent, and
+      // the user is beginning the trip again from this page.
+      clearTimeout(flowTimer)
+      flowTimer = setTimeout(onBrowserTimeout, BROWSER_TIMEOUT_MS)
       emit({ phase: 'awaiting-code', url, invalidCode: invalid })
     }
   }
@@ -167,6 +179,17 @@ export async function startClaudeLogin(
       )
   })
 
+  // A function declaration so `readChunk`, defined above, can restart it.
+  function onBrowserTimeout(): void {
+    emit({
+      phase: 'error',
+      message:
+        'Sign-in timed out waiting for your browser, so the Claude CLI was stopped. ' +
+        'A code pasted now cannot be redeemed — start the sign-in again.',
+    })
+    child.kill()
+  }
+
   const urlTimer = setTimeout(() => {
     emit({
       phase: 'error',
@@ -176,10 +199,7 @@ export async function startClaudeLogin(
     child.kill()
   }, URL_TIMEOUT_MS)
 
-  const flowTimer = setTimeout(() => {
-    emit({ phase: 'error', message: 'Sign-in timed out.' })
-    child.kill()
-  }, FLOW_TIMEOUT_MS)
+  let flowTimer = setTimeout(onBrowserTimeout, BROWSER_TIMEOUT_MS)
 
   running = {
     child,

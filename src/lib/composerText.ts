@@ -271,6 +271,19 @@ export function wrapSelection(value: string, from: number, to: number, marker: s
   }
 }
 
+/** Insert a Markdown link and select the destination for replacement. */
+export function wrapLink(value: string, from: number, to: number): TextEdit {
+  const label = (value.slice(from, to) || 'link text').replace(/([\\[\]])/g, '\\$1')
+  const destination = 'https://'
+  const inserted = `[${label}](${destination})`
+  const selectionStart = from + label.length + 3
+  return {
+    value: value.slice(0, from) + inserted + value.slice(to),
+    selectionStart,
+    selectionEnd: selectionStart + destination.length,
+  }
+}
+
 /** Wrap the selection in a fenced code block on its own lines. */
 export function wrapCodeBlock(value: string, from: number, to: number): TextEdit {
   const selected = value.slice(from, to)

@@ -8,7 +8,7 @@
  * said "New session" in the header while the sidebar showed its real subject.
  */
 
-/** Longest title we render before eliding; keeps one line in both surfaces. */
+/** Default textual elision; surfaces with CSS clamping can request the full title. */
 const MAX_TITLE = 80
 
 export interface SessionTitleSources {
@@ -23,12 +23,14 @@ export interface SessionTitleSources {
  * their own placeholder: "New session" in the header, "Untitled session" in the
  * sidebar list).
  */
-export function sessionTitle(sources: SessionTitleSources): string | null {
+export function sessionTitle(
+  sources: SessionTitleSources,
+  { elide = true }: { elide?: boolean } = {},
+): string | null {
   const explicit = clean(sources.explicitName)
-  if (explicit) return truncateTitle(explicit)
   const derived = clean(sources.firstUserText)
-  if (derived) return truncateTitle(firstLine(derived))
-  return null
+  const title = explicit ?? (derived ? firstLine(derived) : undefined)
+  return title ? (elide ? truncateTitle(title) : title) : null
 }
 
 function clean(value: string | null | undefined): string | undefined {

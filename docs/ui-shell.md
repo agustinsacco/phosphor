@@ -4,7 +4,15 @@
 
 - Native frame conventions per OS (hiddenInset traffic lights on macOS).
 - Window title: `workspace · session name`.
-- Global shortcuts: Cmd/Ctrl+N new session, Cmd/Ctrl+P fuzzy file finder, Cmd/Ctrl+, settings, Cmd/Ctrl+` toggle terminal pane, Cmd/Ctrl+B toggle sidebar, Cmd/Ctrl+/ the shortcut list. The full sheet, including the chords inherited from Claude Code (Esc Esc rewind, ↑/↓ prompt history, Shift+Tab mode cycle, Ctrl+O verbose output), is Settings → Keybindings.
+- Global shortcuts: Cmd/Ctrl+N new session, Cmd/Ctrl+P fuzzy file finder, Cmd/Ctrl+, settings, Cmd/Ctrl+` toggle terminal pane, Cmd/Ctrl+B toggle sidebar, Cmd/Ctrl+/ the shortcut list. The full sheet, including the chords inherited from Claude Code (Esc Esc rewind, ↑/↓ prompt history, Tab/Shift+Tab list indentation or focus, Ctrl+O verbose output), is Settings → Keybindings.
+
+**Shortcut scope:** New (Cmd/Ctrl+N), Go to file (Cmd/Ctrl+P), Files
+(Cmd/Ctrl+Shift+E) and Changes (Cmd/Ctrl+Shift+G) work from the composer too.
+F6 moves between the composer and pane controls, returning from global pages;
+in a fullscreen pane it focuses Exit fullscreen rather than hidden chat.
+Dialogs block app navigation (not zoom). IME/AltGr and editor-owned letter chords
+are not interpreted as app commands. Terminal refits and search activation do not reclaim moved focus.
+Bindings belong to the app document, not sandboxed artifact iframe contents.
 
 ### Top bar
 
@@ -38,6 +46,11 @@ Requirements:
 - The float pane can swap sides with the chat (⇄ in the pane header, per session).
 - Fullscreen (↗) overlays the entire main region (sidebar and top bar stay); it never resizes the split underneath, so exiting restores the exact prior layout.
 - Multiple sessions per workspace run **concurrently**; the chat pane shows the active session; switching sessions is instant (state held in stores keyed by sessionId); background sessions keep streaming into their stores.
+
+**Changes navigation:** each file has a keyboard-operable Open button, separate
+from Revert. A diff opens with focus on its named Back button; returning restores
+focus to the originating row. Diffs use the same saved font family/size as the
+editor, including live preference updates. Restore semantics are unchanged.
 
 ## Theming
 

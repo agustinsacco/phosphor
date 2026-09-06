@@ -68,7 +68,7 @@ function PaneSwitcher({
   active: Extract<RightPaneId, 'files' | 'changes'>
 }): React.JSX.Element {
   return (
-    <div className="flex min-w-0 items-center gap-0.5" role="group" aria-label="Pane">
+    <div className="flex shrink-0 items-center gap-0.5" role="group" aria-label="Pane">
       {(
         [
           { id: 'files', label: 'Files' },
@@ -80,8 +80,8 @@ function PaneSwitcher({
           aria-pressed={active === id}
           onClick={() => useLayoutStore.getState().setRightPane(id)}
           className={clsx(
-            'rounded-sm px-2 py-1 text-base font-medium transition-colors',
-            active === id ? 'bg-bg-secondary text-text' : 'text-text-tertiary hover:text-text',
+            'min-h-8 rounded-sm px-2 py-1 text-base font-medium transition-colors focus-visible:-outline-offset-2',
+            active === id ? 'bg-bg-secondary text-text' : 'text-text-secondary hover:text-text',
           )}
         >
           {label}

@@ -39,6 +39,13 @@ describe('sessionTitle', () => {
     expect(title.endsWith('…')).toBe(true)
   })
 
+  it('preserves full titles for CSS-clamped rows, tooltips and search', () => {
+    const name = 'x'.repeat(100) + ' searchable suffix'
+    expect(sessionTitle({ explicitName: name }, { elide: false })).toBe(name)
+    expect(sessionTitle({ firstUserText: `\n${name}\nnot the title` }, { elide: false })).toBe(name)
+    expect(sessionTitle({}, { elide: false })).toBeNull()
+  })
+
   it('does not elide an explicit name that fits', () => {
     const name = 'a'.repeat(80)
     expect(sessionTitle({ explicitName: name })).toBe(name)

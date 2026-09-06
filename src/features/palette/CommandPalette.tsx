@@ -12,6 +12,7 @@ import { useFinderStore } from '@/features/files/FuzzyFinder'
 import { useChatUiStore } from '@/features/chat/uiState'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { formatShortcut } from '@/lib/shortcuts'
+import { ignoreShortcut, shortcutOverlayOpen } from '@/lib/shortcutContext'
 
 interface PaletteState {
   open: boolean
@@ -42,7 +43,13 @@ export function CommandPalette({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+      if (ignoreShortcut(event) || shortcutOverlayOpen('palette')) return
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.code === 'KeyK'
+      ) {
         event.preventDefault()
         usePaletteStore.getState().setOpen(!usePaletteStore.getState().open)
       }
@@ -213,6 +220,7 @@ export function CommandPalette({
 
   return createPortal(
     <div
+      data-shortcut-overlay="palette"
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-[16vh] backdrop-blur-[2px]"
       onClick={close}
     >
@@ -228,6 +236,7 @@ export function CommandPalette({
             setActiveIndex(0)
           }}
           onKeyDown={(e) => {
+            if (ignoreShortcut(e.nativeEvent)) return
             if (e.key === 'Escape') close()
             else if (e.key === 'ArrowDown') {
               e.preventDefault()

@@ -110,29 +110,32 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
   }
 
   return (
-    <div className="relative flex items-center gap-1">
+    <div className="relative flex min-w-0 max-w-full flex-1 items-center gap-1">
       <button
         onClick={() => setOpen(open === 'model' ? null : 'model')}
         data-testid="model-chip"
+        title={currentModel ? `${currentModel.name} · via ${currentModel.provider}` : undefined}
         className={clsx(
-          'rounded-md px-2 py-1 text-base font-medium transition-colors',
+          'min-h-8 min-w-0 flex-1 rounded-md px-2 py-1 text-left text-lg font-medium transition-colors',
           open === 'model'
             ? 'bg-bg-secondary text-text'
             : 'text-text-secondary hover:bg-bg-secondary hover:text-text',
         )}
       >
-        {currentModel?.name ??
-          (modelsLoaded ? (
-            'No model'
-          ) : (
-            <span className="bg-bg-secondary inline-block h-3.5 w-24 animate-pulse rounded align-middle" />
-          ))}
+        <span className="block truncate" data-testid="model-label">
+          {currentModel?.name ??
+            (modelsLoaded ? (
+              'No model'
+            ) : (
+              <span className="bg-bg-secondary inline-block h-3.5 w-24 animate-pulse rounded align-middle" />
+            ))}
+        </span>
         {/* Two providers can expose the same model name (native anthropic
             and the Claude Code CLI provider both offer "Claude Opus 5"), so
             the name alone cannot answer "what is actually serving this
             session". Show the provider whenever it is not pi's own. */}
         {currentModel && !NATIVE_PROVIDERS.has(currentModel.provider) && (
-          <span className="text-text-tertiary ml-1.5 font-mono text-sm">
+          <span className="text-text-secondary block truncate font-mono text-base">
             via {currentModel.provider}
           </span>
         )}
@@ -147,7 +150,7 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
           onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
           data-testid="thinking-chip"
           className={clsx(
-            'rounded-md px-2 py-1 text-base transition-colors',
+            'min-h-8 shrink-0 rounded-md px-2 py-1 text-lg transition-colors',
             open === 'thinking'
               ? 'bg-bg-secondary text-text'
               : 'text-text-secondary hover:bg-bg-secondary hover:text-text',

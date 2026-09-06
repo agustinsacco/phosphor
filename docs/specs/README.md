@@ -7,11 +7,12 @@ read [the feature docs](..).
 This is a running folder. Entries arrive when work is deferred and leave when
 it lands or is abandoned. It is expected to be untidy in a way `docs/` is not.
 
-| Path                     | Holds                                                   | Trust it?                               |
-| ------------------------ | ------------------------------------------------------- | --------------------------------------- |
-| [TRACKER.md](TRACKER.md) | Phase state and the few remaining open boxes.           | For status, yes. Not for behaviour.     |
-| [backlog/](backlog/)     | Audits with findings that are not all resolved.         | Per-finding — check each status column. |
-| [build/](build/)         | Original requirements, written before the code existed. | **No.** Historical intent only.         |
+| Path                                         | Holds                                                                                        | Trust it?                                      |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| [TRACKER.md](TRACKER.md)                     | Phase state and the few remaining open boxes.                                                | For status, yes. Not for behaviour.            |
+| [backlog/](backlog/)                         | Audits with findings that are not all resolved.                                              | Per-finding — check each status column.        |
+| [build/](build/)                             | Original requirements, written before the code existed.                                      | **No.** Historical intent only.                |
+| [vision-ui-renewal.md](vision-ui-renewal.md) | A UI/UX renewal direction: pidex as an attention instrument (deck, lane, line, house, body). | As direction only. Nothing in it is scheduled. |
 
 ## backlog/
 

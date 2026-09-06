@@ -1,7 +1,16 @@
+import type { FontPrefs } from '@shared/models'
 import inter from '@/assets/fonts/InterVariable.woff2?url'
 import interItalic from '@/assets/fonts/InterVariable-Italic.woff2?url'
 import mono from '@/assets/fonts/JetBrainsMono.ttf?url'
 import monoItalic from '@/assets/fonts/JetBrainsMono-Italic.ttf?url'
+
+/** One preference mapping for both the editable and read-only Monaco surfaces. */
+export function editorFontOptions(fonts: Pick<FontPrefs, 'editorFontSize' | 'monoFont'>) {
+  return {
+    fontSize: fonts.editorFontSize,
+    fontFamily: `${fonts.monoFont}, ui-monospace, SF Mono, Menlo, monospace`,
+  }
+}
 
 /** Register only settled faces BEFORE React mounts Monaco/xterm and caches metrics.
  * Slow/broken assets fall back for this launch, never swap underneath a cursor.

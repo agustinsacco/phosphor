@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from 'vitest'
-import { loadBundledFonts } from './fonts'
+import { editorFontOptions, loadBundledFonts } from './fonts'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -31,6 +31,13 @@ function setup(load: (face: FontFace) => Promise<FontFace>) {
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   return { faces, add }
 }
+
+it('maps the same explicit font preferences for editors and diffs', () => {
+  expect(editorFontOptions({ editorFontSize: 18, monoFont: 'Menlo' })).toEqual({
+    fontSize: 18,
+    fontFamily: 'Menlo, ui-monospace, SF Mono, Menlo, monospace',
+  })
+})
 
 it('registers loaded normal/italic faces without touching user preferences', async () => {
   const { faces, add } = setup(async (face) => {
