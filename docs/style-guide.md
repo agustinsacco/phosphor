@@ -158,6 +158,13 @@ drag looked like nothing had been selected.
 
 **UI:** Inter / system sans. Body 14px/1.55.
 
+Inter and JetBrains Mono (variable normal/italic faces) are bundled locally;
+[pinned sources and checksums](../src/assets/fonts/README.md). Settings → About
+includes both licenses. `src/lib/fonts.ts` loads and registers settled faces before
+React mounts, so Monaco/xterm never cache metrics before a later bundled-font swap.
+Startup waits at most 1.5 seconds: failed/late faces stay on system fallbacks for
+that launch. No CDN, font installation requirement, or preference reset.
+
 **Scale:** nine steps in `@theme`. Every step pins its line-height to `inherit`
 rather than carrying Tailwind's default; set leading explicitly with `leading-*`
 where a block needs its own.

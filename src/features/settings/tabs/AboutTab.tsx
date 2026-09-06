@@ -3,6 +3,8 @@ import type { AboutInfo } from '@shared/models'
 import type { PiHealth, UpdateState } from '@shared/models'
 import { useEffect, useState } from 'react'
 import { useUpdatesStore } from '@/features/updates/updatesStore'
+import interLicense from '@/assets/fonts/Inter-OFL.txt?raw'
+import monoLicense from '@/assets/fonts/JetBrainsMono-OFL.txt?raw'
 
 /** App and runtime versions, an update check, and a pi version-drift warning. */
 
@@ -100,6 +102,13 @@ export function AboutTab(): React.JSX.Element {
           {about ? `Electron ${about.electron} · Node ${about.node}` : '…'}
         </span>
       </Row>
+
+      <details className="mt-4 text-base">
+        <summary>Bundled font licenses</summary>
+        <pre className="text-text-secondary mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-sm">
+          {`${interLicense}\n\n${monoLicense}`}
+        </pre>
+      </details>
 
       {drift && (
         <div className="bg-warning/10 border-warning/30 mt-4 rounded-lg border px-3.5 py-2.5 text-base">

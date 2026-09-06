@@ -134,6 +134,58 @@ async function openWorkspace(page: Page): Promise<void> {
   await expect(homeComposer).toBeVisible({ timeout: 20_000 })
 }
 
+/** scrollTop is fractional; scrollHeight/clientHeight are rounded. Capture the
+ * observed position BEFORE measuring the native limit, then restore it. This
+ * retains an exact end-position assertion without a font-dependent 1px oracle.
+ */
+function scrollPosition(el: HTMLElement): { top: number; max: number } {
+  const top = el.scrollTop
+  el.scrollTop = el.scrollHeight
+  const max = el.scrollTop
+  el.scrollTop = top
+  return { top, max }
+}
+
+test('bundled fonts render offline before editor or terminal initialization', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await page.context().setOffline(true)
+    await page.reload()
+    await openWorkspace(page)
+    expect(
+      await page.evaluate(() => [...document.fonts].filter((f) => f.status === 'loaded').length),
+    ).toBe(4)
+    const cdp = await page.context().newCDPSession(page)
+    await cdp.send('DOM.enable')
+    await cdp.send('CSS.enable')
+    for (const token of ['--px-font-sans', '--px-font-mono']) {
+      await page.evaluate((name) => {
+        document.getElementById('font-probe')?.remove()
+        const probe = document.createElement('span')
+        probe.id = 'font-probe'
+        probe.style.cssText = 'position:fixed;top:0;left:0;z-index:99999'
+        probe.style.fontFamily = `var(${name})`
+        probe.textContent = 'Read Il10 code'
+        document.body.append(probe)
+      }, token)
+      await expect(page.locator('#font-probe')).toBeVisible()
+      const { root } = await cdp.send('DOM.getDocument')
+      const { nodeId } = await cdp.send('DOM.querySelector', {
+        nodeId: root.nodeId,
+        selector: '#font-probe',
+      })
+      const { fonts } = await cdp.send('CSS.getPlatformFontsForNode', { nodeId })
+      expect(
+        fonts.some((font) => font.isCustomFont && font.glyphCount > 0),
+        JSON.stringify({ token, fonts }),
+      ).toBe(true)
+    }
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('workspace → session → streamed answer, diff and artifact render', async () => {
   const harness = await launch()
   const { page } = harness
@@ -1704,10 +1756,7 @@ test('transcript: reading back through a finished transcript is never fought', a
     await page.mouse.wheel(0, 5000)
     await page.waitForTimeout(600)
     await expect(page.getByRole('button', { name: /Follow stream|Jump to bottom/ })).toBeHidden()
-    const tail = await scroller.evaluate((el) => ({
-      top: Math.round(el.scrollTop),
-      max: Math.round(el.scrollHeight - el.clientHeight),
-    }))
+    const tail = await scroller.evaluate(scrollPosition)
     expect(tail.top).toBe(tail.max)
   } finally {
     await shutdown(harness)
@@ -1792,10 +1841,7 @@ test('transcript: a settling run cannot drag a reader back to the tail', async (
     // and lands on the real end of the transcript.
     await page.getByRole('button', { name: /Follow stream|Jump to bottom/ }).click()
     await page.waitForTimeout(400)
-    const end = await scroller.evaluate((el) => ({
-      top: Math.round(el.scrollTop),
-      max: Math.round(el.scrollHeight - el.clientHeight),
-    }))
+    const end = await scroller.evaluate(scrollPosition)
     expect(end.top).toBe(end.max)
     await expect(page.getByText('many turns complete')).toBeInViewport()
   } finally {
