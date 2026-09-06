@@ -59,6 +59,8 @@ interface FilesState {
 
   openFile: (workspacePath: string, path: string, line?: number) => Promise<void>
   closeFile: (workspacePath: string, path: string) => void
+  /** Retarget open buffers after a move, or close descendants after trash. */
+  reconcilePath: (workspacePath: string, from: string, to?: string) => void
   /** Drop a workspace's editors/explorer state and release its Monaco models. */
   releaseWorkspace: (workspacePath: string) => void
   setActive: (workspacePath: string, path: string) => void
@@ -197,6 +199,45 @@ export const useFilesStore = create<FilesState>((set, get) => ({
     void import('@/features/files/MonacoEditor').then(({ releaseFileModel }) =>
       releaseFileModel(path),
     )
+  },
+
+  reconcilePath: (workspacePath, from, to) => {
+    const matches = (path: string): boolean =>
+      path === from || path.startsWith(from + '/') || path.startsWith(from + '\\')
+    const paths = workspaceFiles(get(), workspacePath).openFiles.filter((f) => matches(f.path))
+    set((s) => ({
+      ...patchWorkspace(s, workspacePath, (w) => {
+        const openFiles = w.openFiles.flatMap((f) => {
+          if (!matches(f.path)) return [f]
+          if (!to) return []
+          const path = to + f.path.slice(from.length)
+          return [
+            {
+              ...f,
+              path,
+              relativePath: relativeTo(workspacePath, path),
+              language: languageForPath(path),
+            },
+          ]
+        })
+        return {
+          ...w,
+          openFiles,
+          activePath:
+            w.activePath && matches(w.activePath)
+              ? to
+                ? to + w.activePath.slice(from.length)
+                : (openFiles.at(-1)?.path ?? null)
+              : w.activePath,
+        }
+      }),
+      entries: Object.fromEntries(Object.entries(s.entries).filter(([p]) => !matches(p))),
+      expanded: Object.fromEntries(Object.entries(s.expanded).filter(([p]) => !matches(p))),
+    }))
+    if (paths.length)
+      void import('@/features/files/MonacoEditor').then(({ releaseFileModel }) => {
+        for (const file of paths) releaseFileModel(file.path)
+      })
   },
 
   /**

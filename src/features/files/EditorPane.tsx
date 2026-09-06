@@ -85,7 +85,7 @@ function Tab({
   return (
     <div
       className={clsx(
-        'group flex shrink-0 cursor-pointer items-center gap-1.5 rounded-t-lg border border-b-0 px-3 py-1.5 text-base transition-colors',
+        'group flex shrink-0 cursor-pointer items-center gap-1.5 rounded-t-sm border border-b-0 px-3 py-1.5 text-base transition-colors',
         active
           ? 'border-border bg-surface text-text'
           : 'border-transparent text-text-tertiary hover:text-text',

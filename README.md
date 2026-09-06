@@ -138,8 +138,9 @@ window on subscription providers:
 
 ### Files — explorer and editor, on whichever side you like
 
-A file explorer with a Monaco editor for the file you pick, switched in beside
-the chat from the session's top bar. On the right by default:
+A file explorer with creation, rename, Trash, multi-selection, copy/cut/paste,
+and file/folder drops, beside a Monaco editor. Switch it in from the session's
+top bar; docked on the right by default. [File management details](docs/files.md):
 
 ![The files pane on the right: explorer and Monaco editor beside the transcript](docs/img/files.png)
 

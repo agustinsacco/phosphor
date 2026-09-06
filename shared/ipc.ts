@@ -225,6 +225,8 @@ export interface IpcInvokeMap {
    * `nativeImage` sniffs the buffer and accepts all five.
    */
   'clipboard:writeImage': { args: [image: { data: string; mimeType: string }]; result: void }
+  'clipboard:writeFiles': { args: [paths: string[], cut: boolean]; result: void }
+  'clipboard:readFiles': { args: []; result: { paths: string[]; cut: boolean } }
 
   'fs:listFiles': { args: [workspacePath: string]; result: string[] }
   /** Effective settings: global merged with the workspace override (pi semantics). */
@@ -655,6 +657,12 @@ export interface IpcInvokeMap {
   'fs:createDir': { args: [path: string]; result: void }
   'fs:rename': { args: [from: string, to: string]; result: void }
   'fs:trash': { args: [path: string]; result: void }
+  /** Import/copy or move one entry. Returns its destination; refuses replacement. */
+  'fs:transfer': {
+    args: [workspace: string, source: string, directory: string, mode: 'copy' | 'move']
+    result: string
+  }
+  'fs:pickEntries': { args: [kind: 'file' | 'folder']; result: string[] }
   'fs:watchWorkspace': { args: [workspacePath: string]; result: void }
 
   'pty:create': {
