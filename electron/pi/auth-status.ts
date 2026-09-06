@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { SubscriptionProvider, SubscriptionProviderStatus } from '@shared/models'
+import { accountFromCredential } from './auth-identity'
 import { checkPiHealth } from './health'
 import { piProcessEnv } from './shell-env'
 
@@ -76,15 +77,40 @@ export const SUBSCRIPTION_PROVIDERS: SubscriptionProvider[] = [
 ]
 
 /**
+ * One readiness check, asked in the one way both call sites must ask it.
+ *
+ * `--credentials` is what makes the account email knowable — pi has no other
+ * command that says whose account a provider holds. It puts the token on
+ * stdout, so it is read once by `parseAuthCheck` and never stored, returned or
+ * logged; the argv itself carries no secret.
+ */
+const AUTH_CHECK_ARGS = (providerId: string): string[] => [
+  'auth',
+  'check',
+  '--provider',
+  providerId,
+  '--json',
+  '--no-refresh',
+  '--credentials',
+]
+
+/**
  * Parse one `pi auth check --json` line.
  *
  * Pure and total: any shape we do not recognise becomes `unknown` rather than
  * throwing, because this runs for every provider on every settings open and a
  * malformed line must not take the tab down with it.
+ *
+ * This is also the only place a credential is ever looked at: `--credentials`
+ * puts the token in that line, and the account email is read out of it here
+ * (see `auth-identity.ts`) so the secret goes no further than this function.
+ * Nothing it returns contains the credential.
  */
 export function parseAuthCheck(stdout: string): {
   status: 'ready' | 'not_ready' | 'unknown'
   reason?: string
+  /** Who the provider is signed in as, when the credential says. */
+  account?: string
 } {
   const line = stdout.trim().split('\n').at(-1)?.trim()
   if (!line || !line.startsWith('{')) return { status: 'unknown' }
@@ -98,7 +124,8 @@ export function parseAuthCheck(stdout: string): {
   const record = parsed as Record<string, unknown>
   const status = record.status
   const reason = typeof record.reason === 'string' ? record.reason : undefined
-  if (status === 'ready') return { status: 'ready' }
+  const account = accountFromCredential(record.credentials)
+  if (status === 'ready') return { status: 'ready', ...(account ? { account } : {}) }
   if (status === 'not_ready') return { status: 'not_ready', reason }
   return { status: 'unknown', reason }
 }
@@ -116,11 +143,11 @@ export async function checkProviderAuth(
   if (!health.ok || !health.binaryPath) return { status: 'unknown' }
   const env = await piProcessEnv()
   try {
-    const { stdout } = await execFileAsync(
-      health.binaryPath,
-      ['auth', 'check', '--provider', providerId, '--json', '--no-refresh'],
-      { env, timeout: 10_000, encoding: 'utf8' },
-    )
+    const { stdout } = await execFileAsync(health.binaryPath, AUTH_CHECK_ARGS(providerId), {
+      env,
+      timeout: 10_000,
+      encoding: 'utf8',
+    })
     return parseAuthCheck(stdout)
   } catch (error) {
     const stdout = (error as { stdout?: string }).stdout
@@ -152,11 +179,11 @@ export async function checkSubscriptionAuth(): Promise<SubscriptionProviderStatu
   return Promise.all(
     SUBSCRIPTION_PROVIDERS.map(async (provider) => {
       try {
-        const { stdout } = await execFileAsync(
-          binaryPath,
-          ['auth', 'check', '--provider', provider.id, '--json', '--no-refresh'],
-          { env, timeout: 10_000, encoding: 'utf8' },
-        )
+        const { stdout } = await execFileAsync(binaryPath, AUTH_CHECK_ARGS(provider.id), {
+          env,
+          timeout: 10_000,
+          encoding: 'utf8',
+        })
         return { ...provider, ...parseAuthCheck(stdout) }
       } catch (error) {
         // `pi auth check` exits 0 even for not_ready, so a throw here means the

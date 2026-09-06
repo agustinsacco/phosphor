@@ -944,6 +944,13 @@ export interface SubscriptionProvider {
  */
 export interface SubscriptionProviderStatus extends SubscriptionProvider {
   status: 'ready' | 'not_ready' | 'unknown'
+  /**
+   * Which account the credential belongs to — an email, when the provider's
+   * token says so (`electron/pi/auth-identity.ts`). Absent for an opaque
+   * credential, which is most of them, so the UI must read fine without it.
+   * Never the credential itself.
+   */
+  account?: string
   /** pi's machine-readable reason, e.g. `credentials_not_configured`. */
   reason?: string
   /** Present only when the check itself failed. */
