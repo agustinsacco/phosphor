@@ -30,6 +30,7 @@ import type {
   BranchInfo,
   CheckoutResult,
   ClaudeAccountsResult,
+  ClaudeSessionAccount,
   ClaudeRoutingMode,
   ClaudeStatus,
   ClaudeUsageSnapshotResult,
@@ -471,6 +472,15 @@ export interface IpcInvokeMap {
    * which misses the entire prompt cache and splits the thread's cost in two.
    */
   'claude:bindSession': { args: [sessionPath: string, pidexSessionId: string]; result: void }
+  /**
+   * Which account bills a session: the pick parked at spawn, else the stored
+   * binding for its file. Null when no account is configured, when the session
+   * is not on the Claude provider, or when neither source knows it yet.
+   */
+  'claude:sessionAccount': {
+    args: [pidexSessionId: string, sessionPath?: string]
+    result: ClaudeSessionAccount | null
+  }
   /**
    * Live subscription usage — the numbers Claude Code's own `/usage` panel
    * shows (5-hour + weekly windows, with percents), read by spawning

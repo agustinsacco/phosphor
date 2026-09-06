@@ -1049,6 +1049,16 @@ export function installMockPidex(): void {
           return Promise.resolve(undefined as never)
         case 'claude:bindSession':
           return Promise.resolve(undefined as never)
+        case 'claude:sessionAccount':
+          return Promise.resolve({
+            id: 'mock-a',
+            label: 'work@example.com',
+            email: 'work@example.com',
+            total: 2,
+            mode: mockClaudeAccounts.prefs.mode,
+            cooldownUntil: null,
+            alternative: 'personal@example.com',
+          } as never)
         case 'claude:cancelLogin':
           clearTimeout(mockClaudeLoginTimer)
           emitClaudeLoginState({ phase: 'cancelled' } as never)

@@ -9,7 +9,8 @@ import { runPrintMode } from '../pi/print-mode'
 import { piProcessEnv } from '../pi/shell-env'
 import { composeDirectives } from '../pi/directives'
 import { dedupeTitle, sanitizeTitle, titleArgs, titlePrompt } from '../pi/session-naming'
-import { accountForSpawn, claudeAccountEnv, primaryAccount } from '../claude/accounts'
+import { accountForSpawn, claudeAccountEnv, holdAccount, primaryAccount } from '../claude/accounts'
+import { RATE_LIMIT_STATUS_KEY, accountExhaustedUntil } from '@shared/claude-limits'
 import { forgetSpawnAccount, rememberSpawnAccount } from '../pi/session-accounts'
 import {
   claudeOneShotEnv,
@@ -186,7 +187,23 @@ async function spawnSession(
   // Trimmed, not forwarded whole: two of pi's events restate the entire run
   // after it has already streamed, and the renderer reads neither.
   session.client.on('event', (ev) => push({ kind: 'event', event: trimForRenderer(ev) }))
-  session.client.on('extension-ui', (request) => push({ kind: 'extension-ui', request }))
+  session.client.on('extension-ui', (request) => {
+    // The Claude provider reports its account's rate-limit state here, once
+    // per change, for free. Routing listens because this is the only signal
+    // that names the state `/usage` polling cannot: allowance gone, requests
+    // still served, every token now billed as overage. Holding the account
+    // here is what makes the NEXT lane pick a different one — this session's
+    // credential was fixed when it spawned and cannot move (routing.ts).
+    if (
+      claudeAccount &&
+      request.method === 'setStatus' &&
+      request.statusKey === RATE_LIMIT_STATUS_KEY
+    ) {
+      const until = accountExhaustedUntil(request.statusText)
+      if (until !== null) void holdAccount(claudeAccount.id, until).catch(() => undefined)
+    }
+    push({ kind: 'extension-ui', request })
+  })
   session.client.on('stderr', (text) => {
     // Persist as well as forward. pi's stderr is where a provider prints the
     // reason a turn failed, and forwarding it to the renderer alone means it
