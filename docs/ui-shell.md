@@ -27,7 +27,7 @@ It is the **only** element allowed in the strip the OS draws window controls in,
 Main area is a **resizable multi-pane layout** with drag handles, persisted per-session (selection, side, split size, fullscreen — localStorage, pruned on session dispose), panes closable/reopenable from a view menu and shortcuts:
 
 1. **Chat pane** — always present ([04-chat.md](chat.md)).
-2. **Files pane** — explorer tree + open-file tabs with Monaco ([05-files-editor.md](specs/build/05-files-editor.md)). Opening a file from tree, chat file-chips, or diffs lands here; support split (open to the side).
+2. **Files pane** — file management and explorer tree + open-file tabs with Monaco ([files.md](files.md)). Opening a file from tree, chat file-chips, or diffs lands here.
 3. **Terminal pane** — tabbed terminals ([06-terminal.md](terminal.md)).
 4. **Artifacts pane** — gallery + viewer ([07-artifacts.md](specs/build/07-artifacts.md)); opens automatically when a session produces its first artifact. The cross-session index is the global Artifacts _page_ (below), not this pane.
 

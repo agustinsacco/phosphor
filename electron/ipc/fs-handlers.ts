@@ -1,4 +1,5 @@
-import { shell } from 'electron'
+import { dialog, shell } from 'electron'
+import { transferEntry } from '../fs/file-transfer'
 import { handle } from './handle'
 import { listWorkspaceFiles } from '../fs/list-files'
 import { watchWorkspace } from '../fs/workspace-watcher'
@@ -31,6 +32,18 @@ export function registerFsHandlers(): void {
 
   handle('fs:trash', async (_event, path) => {
     await shell.trashItem(path)
+  })
+
+  handle('fs:transfer', (_event, workspace, source, directory, mode) =>
+    transferEntry(workspace, source, directory, mode),
+  )
+
+  handle('fs:pickEntries', async (_event, kind) => {
+    const result = await dialog.showOpenDialog({
+      title: kind === 'folder' ? 'Import folders' : 'Import files',
+      properties: [kind === 'folder' ? 'openDirectory' : 'openFile', 'multiSelections'],
+    })
+    return result.canceled ? [] : result.filePaths
   })
 
   handle('fs:watchWorkspace', (_event, workspacePath) => {

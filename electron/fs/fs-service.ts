@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
 import type { DirEntry, FileContent } from '@shared/models'
 
@@ -107,9 +107,21 @@ export async function createFile(path: string): Promise<void> {
 }
 
 export async function createDir(path: string): Promise<void> {
-  await mkdir(path, { recursive: true })
+  await mkdir(path)
+}
+
+/** lstat also detects dangling symlinks: they must not be overwritten. */
+export async function requireMissing(path: string): Promise<void> {
+  try {
+    await lstat(path)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+    throw error
+  }
+  throw new Error(`Already exists: ${path}`)
 }
 
 export async function renamePath(from: string, to: string): Promise<void> {
+  await requireMissing(to)
   await rename(from, to)
 }

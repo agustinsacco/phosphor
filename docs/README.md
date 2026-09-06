@@ -25,6 +25,7 @@ Start with [overview.md](overview.md) for what pidex is, or
 | [style-guide.md](style-guide.md)       | The Phosphor visual identity. Authoritative on all colour and type |
 | [ui-shell.md](ui-shell.md)             | Window chrome, top bar, sidebar, pane system, theming              |
 | [chat.md](chat.md)                     | Transcript rendering, composer, tool cards                         |
+| [files.md](files.md)                   | Explorer file management, transfers, clipboard and editor behavior |
 | [terminal.md](terminal.md)             | PTY panes, clipboard, scrollback, per-session ownership            |
 | [settings.md](settings.md)             | The settings window and which config file each tab writes          |
 | [updates.md](updates.md)               | Update detection, the three install paths, and the macOS swap      |

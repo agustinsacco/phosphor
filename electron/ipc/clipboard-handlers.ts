@@ -1,5 +1,6 @@
 import { clipboard, nativeImage } from 'electron'
 import { handle } from './handle'
+import { readFileClipboard, writeFilePaths } from '../fs/file-clipboard'
 
 /**
  * System clipboard, image side.
@@ -10,6 +11,8 @@ import { handle } from './handle'
  * can display, so "copy" works for any dropped image.
  */
 export function registerClipboardHandlers(): void {
+  handle('clipboard:readFiles', () => readFileClipboard())
+  handle('clipboard:writeFiles', (_event, paths, cut) => writeFilePaths(paths, cut))
   handle('clipboard:writeImage', (_event, image) => {
     const img = nativeImage.createFromBuffer(Buffer.from(image.data, 'base64'))
     if (img.isEmpty()) throw new Error(`Unreadable image data (${image.mimeType})`)
