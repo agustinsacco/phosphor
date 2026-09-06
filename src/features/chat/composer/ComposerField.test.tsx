@@ -66,12 +66,15 @@ function caretAt(index: number): void {
   el.setSelectionRange(index, index)
 }
 
-function press(key: string, init: Partial<KeyboardEventInit> & { code?: string } = {}): void {
+function press(
+  key: string,
+  init: Partial<KeyboardEventInit> & { code?: string } = {},
+): KeyboardEvent {
+  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init })
   act(() => {
-    field().dispatchEvent(
-      new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }),
-    )
+    field().dispatchEvent(event)
   })
+  return event
 }
 
 describe('ComposerField', () => {
@@ -160,6 +163,40 @@ describe('ComposerField', () => {
     act(() => field().setSelectionRange(8, 12))
     press('b', { code: 'KeyB', metaKey: true })
     expect(field().value).toBe('make me **bold**')
+  })
+
+  it('leaves selected list text to the browser on Shift+Enter', () => {
+    render(<Harness initial="- selected" />)
+    act(() => field().setSelectionRange(2, 10))
+    expect(press('Enter', { shiftKey: true }).defaultPrevented).toBe(false)
+    expect(field().value).toBe('- selected')
+  })
+
+  it('does not send or invoke popup/history keys during composition', () => {
+    const onSubmit = vi.fn()
+    const onKeyDown = vi.fn(() => false)
+    render(<Harness initial="漢字" onSubmit={onSubmit} onKeyDown={onKeyDown} />)
+    act(() => {
+      field().dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+    })
+    for (const key of ['Enter', 'Tab', 'Escape', 'ArrowUp']) press(key)
+    press('b', { code: 'KeyB', metaKey: true })
+    expect(onKeyDown).not.toHaveBeenCalled()
+    expect(onSubmit).not.toHaveBeenCalled()
+    expect(field().value).toBe('漢字')
+    act(() => {
+      field().dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }))
+    })
+    press('Enter')
+    expect(onSubmit).toHaveBeenCalledOnce()
+  })
+
+  it('also guards native isComposing and legacy keyCode 229 without composition events', () => {
+    const onSubmit = vi.fn()
+    render(<Harness initial="候補" onSubmit={onSubmit} />)
+    press('Enter', { isComposing: true })
+    press('Enter', { keyCode: 229 })
+    expect(onSubmit).not.toHaveBeenCalled()
   })
 
   it('lets the caller consume a key before the keymap sees it', () => {

@@ -320,6 +320,50 @@ test('session chrome stays readable with long labels, laptop widths and zoom', a
   }
 })
 
+test('composer formatting participates in native undo and redo', async () => {
+  const harness = await launch()
+  const { page } = harness
+  const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
+  try {
+    await openWorkspace(page)
+    const field = page.getByPlaceholder('Describe a task or ask a question')
+    await field.pressSequentially('hello')
+    await field.press(`${mod}+a`)
+    await field.press(`${mod}+b`)
+    await expect(field).toHaveValue('**hello**')
+    await field.press(`${mod}+z`)
+    await expect(field).toHaveValue('hello')
+    await field.press(`${mod}+Shift+z`)
+    await expect(field).toHaveValue('**hello**')
+    await field.press('Enter')
+    const chat = page.getByPlaceholder(/Describe a task…/i)
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    await chat.pressSequentially('another prompt')
+    await chat.press(`${mod}+a`)
+    await chat.press(`${mod}+i`)
+    await expect(chat).toHaveValue('_another prompt_')
+    await chat.press(`${mod}+z`)
+    await expect(chat).toHaveValue('another prompt')
+    await chat.fill('漢字')
+    await chat.evaluate((el) => {
+      el.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+      el.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Enter',
+          code: 'Enter',
+          isComposing: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      )
+      el.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }))
+    })
+    await expect(chat).toHaveValue('漢字')
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('workspace → session → streamed answer, diff and artifact render', async () => {
   const harness = await launch()
   const { page } = harness

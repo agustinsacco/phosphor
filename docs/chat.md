@@ -2,7 +2,8 @@
 
 ## Composer
 
-- Multi-line input; Enter sends, Shift+Enter newline.
+- Multi-line input; Enter sends, Shift+Enter newline. IME candidate-confirmation keys never send, accept a suggestion or abort a run. Selected text uses the browser's normal Shift+Enter replacement, rather than list continuation.
+- Formatting/list transformations participate in Electron's native Undo/Redo. The shared textarea records minimal plain-text edits through Chromium's `insertText` editing API; it never inserts HTML. Unsupported browser harnesses retain controlled-value editing, without a native-undo guarantee.
 - **Markdown list primitives** ([2026-08-28-composer-list-primitives.md](log/2026-08-28-composer-list-primitives.md)). Shift+Enter continues the list the caret is on (renumbering as it goes; an empty item steps out a level, then exits), Tab/Shift+Tab nest and un-nest inside a list only, Cmd/Ctrl+Shift+8 and +7 toggle bullet/numbered, Cmd/Ctrl+B and +I wrap, Cmd/Ctrl+Shift+C fences. **Enter always sends** — continuation is deliberately not on it, or a one-line prompt starting with `- ` would stop sending. Logic is pure in `src/lib/composerText.ts`; the keymap lives in `composer/ComposerField.tsx`, which both composers share.
 - Sent user messages render their list runs as real lists (`UserText`), not as literal `- ` text. Deliberately not a full markdown renderer: the bubble also carries the `<attached-files>` block.
 - **While streaming**: Enter queues a **steering** message (delivered after the current turn's tool calls), Alt/Cmd+Enter queues a **follow-up** (after the agent finishes). Match pi TUI semantics exactly; the two queues are visually distinct. Escape aborts and restores queued messages to the composer.

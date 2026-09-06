@@ -10,6 +10,7 @@ import {
   type TextEdit,
 } from '@/lib/composerText'
 import { COMPOSER_MAX_HEIGHT, useAutoResizeTextarea } from '@/lib/useAutoResizeTextarea'
+import { recordTextareaEdit } from '@/lib/textareaUndo'
 
 /**
  * The composer textarea, shared by the chat composer and the home composer.
@@ -78,6 +79,7 @@ export function useComposerFormatting(
     (edit: TextEdit | null): boolean => {
       if (!edit) return false
       pendingSelection.current = { start: edit.selectionStart, end: edit.selectionEnd }
+      if (textareaRef.current) recordTextareaEdit(textareaRef.current, edit.value)
       onChange(edit.value, edit.selectionStart)
       textareaRef.current?.focus()
       return true
@@ -124,8 +126,12 @@ export function ComposerField({
 }: ComposerFieldProps): React.JSX.Element {
   useAutoResizeTextarea(textareaRef, value, COMPOSER_MAX_HEIGHT)
   const format = useComposerFormatting(textareaRef, onChange)
+  const composing = useRef(false)
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+    // Candidate confirmation must not send, accept a popup, recall history or abort.
+    if (composing.current || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)
+      return
     if (onKeyDown?.(event)) return
 
     const el = event.currentTarget
@@ -133,7 +139,10 @@ export function ComposerField({
 
     // ⇧Enter continues the list instead of dropping a bare newline.
     if (event.key === 'Enter' && event.shiftKey && !mod && !event.altKey) {
-      if (format.apply(continueList(el.value, el.selectionStart))) {
+      if (
+        el.selectionStart === el.selectionEnd &&
+        format.apply(continueList(el.value, el.selectionStart))
+      ) {
         event.preventDefault()
         return
       }
@@ -220,6 +229,12 @@ export function ComposerField({
         onChange(event.target.value, event.target.selectionStart ?? event.target.value.length)
       }
       onKeyDown={handleKeyDown}
+      onCompositionStart={() => {
+        composing.current = true
+      }}
+      onCompositionEnd={() => {
+        composing.current = false
+      }}
       onPaste={handlePaste}
       placeholder={placeholder}
       rows={rows}
