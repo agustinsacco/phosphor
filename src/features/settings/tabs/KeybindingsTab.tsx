@@ -13,6 +13,7 @@ import { FORMATTING_ACTIONS, formattingKeys } from '@/features/chat/composer/for
 type Binding = [parts: string[], action: string]
 
 const APP: Binding[] = [
+  [['F6'], 'Focus composer / pane controls'],
   [['mod', 'N'], 'New session'],
   [['mod', 'K'], 'Command palette'],
   [['mod', 'P'], 'Go to file'],
@@ -30,6 +31,7 @@ const APP: Binding[] = [
 const CHAT: Binding[] = [
   [['Enter'], 'Send prompt (steer while streaming)'],
   [['alt', 'Enter'], 'Queue follow-up while streaming'],
+  [['mod', 'Enter'], 'Queue follow-up while streaming (alternative)'],
   [['shift', 'Enter'], 'Newline / continue list in composer'],
   [['mod', 'shift', 'X'], 'Expand / collapse focused composer'],
   [['mod', 'Z'], 'Undo input edit'],
@@ -63,6 +65,10 @@ function clipboardBindings(): Binding[] {
 export function KeybindingsTab(): React.JSX.Element {
   return (
     <div className="space-y-5">
+      <p className="text-text-secondary text-base">
+        App navigation works from the composer. Other editors keep their own letter chords. Dialogs
+        block app navigation; zoom still works. In a fullscreen pane, F6 focuses its exit control.
+      </p>
       <Group title="App" bindings={APP} />
       <Group title="Chat" bindings={CHAT} />
       <Group

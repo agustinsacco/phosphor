@@ -421,6 +421,130 @@ test('composer controls format selections, insert links and expand long drafts',
   }
 })
 
+test('work-area shortcuts work from chat without stealing dialog or editor input', async () => {
+  const harness = await launch()
+  const { page } = harness
+  const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
+  try {
+    await openWorkspace(page)
+    const home = page.getByRole('textbox', { name: 'Chat message' })
+    await home.fill('Update hello.ts')
+    await home.press(`${mod}+p`)
+    const finder = page.getByPlaceholder('Go to file…')
+    await expect(finder).toBeFocused()
+    await finder.press('F6')
+    await expect(finder).toBeFocused()
+    await finder.press('Escape')
+    await page.keyboard.press('F6')
+    await expect(home).toBeFocused()
+    await home.press('Enter')
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    const chat = page.getByRole('textbox', { name: 'Chat message' })
+    await chat.fill('preserved draft')
+    await chat.press(`${mod}+Shift+g`)
+    const pane = page.getByTestId('right-pane')
+    await expect(page.getByRole('button', { name: 'View diff for hello.ts' })).toBeVisible()
+    await chat.press('F6')
+    await expect(pane.getByRole('button', { name: 'Files', exact: true })).toBeFocused()
+    await page.keyboard.press('F6')
+    await expect(chat).toBeFocused()
+    await chat.press(`${mod}+Shift+e`)
+    await expect(pane.getByRole('button', { name: 'Files', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    await chat.press(`${mod}+p`)
+    await finder.fill('hello.ts')
+    await expect(
+      page.locator('[data-shortcut-overlay="finder"]').getByText('hello.ts', { exact: true }),
+    ).toBeVisible()
+    await finder.press('Enter')
+    const editor = page.locator('.monaco-editor textarea').first()
+    await editor.focus()
+    await editor.press(`${mod}+b`)
+    await expect(page.getByTestId('workspace-group').first()).toBeVisible()
+    await editor.press('F6')
+    await expect(chat).toBeFocused()
+    await chat.press(`${mod}+,`)
+    const size = page
+      .getByText('Editor font size', { exact: true })
+      .locator('..')
+      .locator('..')
+      .getByRole('spinbutton')
+    await size.focus()
+    await size.press('F6')
+    await expect(size).toBeFocused()
+    await size.press(`${mod}+Shift+g`)
+    await expect(pane.getByRole('button', { name: 'Files', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    await size.press('Escape')
+    await page.keyboard.press('F6')
+    await chat.press(`${mod}+n`)
+    await expect(page.getByPlaceholder('Describe a task or ask a question')).toBeVisible()
+    await page.getByTestId('session-row').first().click()
+    await expect(chat).toHaveValue('preserved draft')
+    await chat.press(`${mod}+Backquote`)
+    await expect(page.locator('.xterm')).toBeVisible()
+    await page.locator('.xterm-helper-textarea').press(`${mod}+f`)
+    await page.keyboard.press('F6')
+    await page.waitForTimeout(60) // Cross the terminal search's 30ms focus timer.
+    await expect(chat).toBeFocused()
+    await page.getByRole('button', { name: 'Skills', exact: true }).click()
+    await expect(page.getByTestId('global-page')).toBeVisible()
+    await page.keyboard.press('F6')
+    await expect(page.getByTestId('global-page')).toBeHidden()
+    await expect(chat).toBeFocused()
+    await page.getByRole('button', { name: 'Fullscreen pane', exact: true }).click()
+    await page.keyboard.press('F6')
+    await expect(page.getByRole('button', { name: 'Exit fullscreen', exact: true })).toBeFocused()
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('steering controls and modified Enter send the intended RPC mode', async () => {
+  const workspace = await mkdtemp(join(tmpdir(), 'pidex-queue-'))
+  const log = join(workspace, 'commands.jsonl')
+  const harness = await launch({ workspace, env: { PIDEX_E2E_COMMAND_LOG: log } })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('queue-hold')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
+    const chat = page.getByRole('textbox', { name: 'Chat message' })
+    const steer = page.getByRole('button', { name: 'Steer now' })
+    await expect(steer).toBeDisabled()
+    await chat.fill('steer this')
+    await steer.click()
+    await expect(chat).toBeFocused()
+    await expect(steer).toBeDisabled()
+    await chat.fill('after this')
+    await page.getByRole('button', { name: 'Queue follow-up' }).click()
+    await chat.fill('keyboard follow-up')
+    await chat.press('Control+Enter')
+    await expect
+      .poll(async () =>
+        (await readFile(log, 'utf8'))
+          .trim()
+          .split('\n')
+          .map(
+            (line) =>
+              JSON.parse(line) as { type: string; message?: string; streamingBehavior?: string },
+          )
+          .filter((cmd) => cmd.type === 'prompt' && cmd.message !== 'queue-hold')
+          .map((cmd) => cmd.streamingBehavior),
+      )
+      .toEqual(['steer', 'followUp', 'followUp'])
+    await page.getByRole('button', { name: 'Stop', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'Steer now' })).toBeHidden()
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('workspace → session → streamed answer, diff and artifact render', async () => {
   const harness = await launch()
   const { page } = harness

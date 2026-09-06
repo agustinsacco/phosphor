@@ -60,6 +60,9 @@ export const MessageList = memo(function MessageList({
    * the true bottom would recede forever and no scroll could ever re-pin.
    */
   const tailFloorRef = useRef(0)
+  // Unlike the sampled bottom, this CSS-relative floor also grows with the
+  // viewport (e.g. composer controls disappearing when a turn settles).
+  const readerTopRef = useRef(0)
 
   /**
    * Activity is grouped ACROSS assistant messages (pi emits one message per
@@ -135,7 +138,10 @@ export const MessageList = memo(function MessageList({
         // Sampled at the instant intent is expressed: this is the highest the
         // floor will sit for this read-back, and every later scroll can only
         // lower it.
-        if (pinnedRef.current) tailFloorRef.current = el.scrollTop + el.clientHeight
+        if (pinnedRef.current) {
+          tailFloorRef.current = el.scrollTop + el.clientHeight
+          readerTopRef.current = el.scrollTop
+        }
         setPinnedNow(false)
       }
       // A flick toward the tail lands well after its last wheel event, so the
@@ -218,6 +224,7 @@ export const MessageList = memo(function MessageList({
     // again.
     if (!pinnedRef.current && !heightChanged) {
       tailFloorRef.current = Math.min(tailFloorRef.current, el.scrollTop + el.clientHeight)
+      readerTopRef.current = Math.min(readerTopRef.current, el.scrollTop)
     }
     // Our own follow-the-tail scroll produces a scroll event too; reading it as
     // user intent is what re-pinned the view immediately after an unpin.
@@ -309,6 +316,7 @@ export const MessageList = memo(function MessageList({
              is declared: the floor has to be in place for the very commit that
              shrinks the transcript, and the ref is written a frame earlier. */
           style={{
+            minHeight: pinnedRef.current ? undefined : `calc(100% + ${readerTopRef.current}px)`,
             height: tailFloor(
               pinnedRef.current,
               tailFloorRef.current,

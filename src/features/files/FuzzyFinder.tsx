@@ -4,6 +4,7 @@ import { create } from 'zustand'
 import { fuzzyFilter } from '@/lib/fuzzy'
 import { openFileInWorkspace } from '@/stores/layout'
 import { MenuRow } from '@/components/PopupMenu'
+import { ignoreShortcut } from '@/lib/shortcutContext'
 
 interface FinderState {
   open: boolean
@@ -46,6 +47,7 @@ export function FuzzyFinder({
   }
 
   const onKeyDown = (event: React.KeyboardEvent): void => {
+    if (ignoreShortcut(event.nativeEvent)) return
     if (event.key === 'Escape') close()
     else if (event.key === 'ArrowDown') {
       event.preventDefault()
@@ -62,6 +64,7 @@ export function FuzzyFinder({
 
   return createPortal(
     <div
+      data-shortcut-overlay="finder"
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 pt-[18vh] backdrop-blur-[2px]"
       onClick={close}
     >

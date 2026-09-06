@@ -277,7 +277,11 @@ const CATALOGUE = [
 const DIFF = ' 1 export function hello() {\n-2   return "old"\n+2   return "new"\n 3 }'
 const PATCH = `--- a/hello.ts\n+++ b/hello.ts\n@@ -1,3 +1,3 @@\n export function hello() {\n-  return "old"\n+  return "new"\n }`
 
+let queueHold = false
 function handle(cmd) {
+  if (process.env.PIDEX_E2E_COMMAND_LOG) {
+    fs.appendFileSync(process.env.PIDEX_E2E_COMMAND_LOG, JSON.stringify(cmd) + '\n')
+  }
   switch (cmd.type) {
     case 'get_state':
       out({
@@ -361,6 +365,13 @@ function handle(cmd) {
       // Scenario switch, keyed off the prompt text: the default turn is what
       // most tests assert on, so extra scenarios must not change it.
       const message = typeof cmd.message === 'string' ? cmd.message : ''
+      if (message === 'queue-hold') {
+        queueHold = true
+        out({ type: 'agent_start' })
+        break
+      }
+      // Record the actual requested mode without starting overlapping fake turns.
+      if (queueHold && cmd.streamingBehavior) break
       // The MCP adapter's OAuth flow: an extension command, so it runs no
       // model at all. The stub reproduces the two wire facts pidex depends on
       // — the authorization prompt arrives as an `input` request the client
@@ -402,6 +413,10 @@ function handle(cmd) {
 
     case 'abort':
       out({ id: cmd.id, type: 'response', command: 'abort', success: true })
+      if (queueHold) {
+        queueHold = false
+        out({ type: 'agent_end', messages: [] })
+      }
       break
 
     // Real pi records a rename as a `session_info` entry in the session file,
