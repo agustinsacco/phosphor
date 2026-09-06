@@ -61,7 +61,7 @@ const MOCK_PROVIDERS = [
     name: 'ChatGPT (Codex)',
     requires: 'ChatGPT Plus or Pro',
     billing: 'subscription' as const,
-    defaultState: { status: 'ready' as const },
+    defaultState: { status: 'ready' as const, account: 'you@example.com' },
   },
   {
     id: 'anthropic',
