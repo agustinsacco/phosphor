@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { classifyScreen, parseAuthPrompt, screenText } from './login-flow'
+import {
+  classifyScreen,
+  expiredBudget,
+  parseAuthPrompt,
+  screenText,
+  timeoutMessage,
+} from './login-flow'
 
 /**
  * The fixtures below are real captures from pi 0.84.1's `/login`, escape
@@ -197,5 +203,41 @@ describe('parseAuthPrompt', () => {
     expect(parseAuthPrompt(boxed)?.url).toBe(
       'https://accounts.x.ai/oauth2/device?user_code=8G95-72AD',
     )
+  })
+})
+
+/**
+ * The budget split exists because ending a flow kills the pty, and for a
+ * loopback provider that pty is the callback server the browser is about to
+ * redirect to. A clock that covers setup and the browser together expires
+ * mid-sign-in and closes the port under the user.
+ */
+describe('expiredBudget', () => {
+  const MINUTE = 60_000
+
+  it('gives the setup phase a bounded budget', () => {
+    expect(expiredBudget(90 * 1000, 0, null)).toBeNull()
+    expect(expiredBudget(3 * MINUTE, 0, null)).toBe('setup')
+  })
+
+  it('does not spend the setup budget on a human who is in the browser', () => {
+    // Ten minutes in, but the URL landed at minute one. Under the single
+    // five-minute clock this killed pi's callback server.
+    expect(expiredBudget(10 * MINUTE, 0, 1 * MINUTE)).toBeNull()
+  })
+
+  it('still bounds the browser trip', () => {
+    expect(expiredBudget(20 * MINUTE, 0, 1 * MINUTE)).toBe('browser')
+  })
+
+  it('measures the browser budget from the URL, not from launch', () => {
+    // A flow that spent a while reaching the URL must not shorten the trip.
+    expect(expiredBudget(16 * MINUTE, 0, 2 * MINUTE)).toBeNull()
+  })
+
+  it('names the closed callback server, because the browser blames localhost', () => {
+    expect(timeoutMessage('browser')).toMatch(/callback server/i)
+    expect(timeoutMessage('browser')).toMatch(/localhost/i)
+    expect(timeoutMessage('setup')).toMatch(/login terminal/i)
   })
 })
