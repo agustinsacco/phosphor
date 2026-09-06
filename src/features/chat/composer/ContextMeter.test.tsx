@@ -164,7 +164,7 @@ describe('ContextMeter', () => {
       total: 2,
       mode: 'round-robin',
       cooldownUntil: Date.now() + 60_000,
-      alternative: 'first@example.com',
+      alternative: { id: 'acct-1', label: 'first@example.com' },
     }
     seed({ tokens: 50_000, contextWindow: 200_000, percent: 25 })
     render()
@@ -173,9 +173,10 @@ describe('ContextMeter', () => {
 
     expect(invoke).toHaveBeenCalledWith('claude:usageSnapshot', 'acct-2')
     expect(document.body.textContent).toContain('Plan usage · second@example.com')
-    // A running lane cannot change account, so the useful line is where the
-    // next one goes.
+    // A running lane cannot change account in place, so the popover says where
+    // the next one goes — and offers to restart this one there too.
     expect(document.body.textContent).toContain('New sessions go to first@example.com')
+    expect(document.body.textContent).toContain('Move this session too')
   })
 
   it('stays with the old wording when only one account is configured', async () => {

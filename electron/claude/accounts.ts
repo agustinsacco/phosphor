@@ -350,8 +350,16 @@ export async function sessionAccount(options: {
     mode: prefs.mode,
     cooldownUntil: cooldown !== undefined && cooldown > now ? cooldown : null,
     /** Another account is available and not itself on hold. */
-    alternative:
-      prefs.accounts.find((a) => a.id !== account.id && !isCoolingDown(prefs, a.id, now))?.label ??
-      null,
+    alternative: alternativeTo(prefs, account.id, now),
   }
+}
+
+/** The account a lane would move to: the first one not itself on hold. */
+function alternativeTo(
+  prefs: ClaudeAccountPrefs,
+  accountId: string,
+  nowMs: number,
+): { id: string; label: string } | null {
+  const other = prefs.accounts.find((a) => a.id !== accountId && !isCoolingDown(prefs, a.id, nowMs))
+  return other ? { id: other.id, label: other.email ?? other.label } : null
 }

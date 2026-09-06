@@ -36,6 +36,7 @@ import type {
   ClaudeUsageWindow,
 } from '@shared/models'
 import { useSessionClaudeAccount } from './useSessionAccount'
+import { useSessionsStore } from '@/stores/sessions'
 
 export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats)
@@ -364,32 +365,52 @@ function PlanUsage({ sessionId }: { sessionId: string }): React.JSX.Element {
           <UsageWindowRow key={window.label} window={window} />
         ))}
       </div>
-      <AccountRouting account={account} />
+      <AccountRouting sessionId={sessionId} account={account} />
     </>
   )
 }
 
 /**
- * What routing will do with this account next.
+ * What to do about a spent account, from the lane that is spending it.
  *
- * A lane cannot change account mid-session — the credential is fixed by the
- * environment pi was spawned with — so the useful thing to say when an account
- * is spent is not "switch", it is which account the next lane gets. Silent
- * with one account configured, or with nothing to report.
+ * A running lane cannot change account in place — the credential is fixed by
+ * the environment pi was spawned with — but it can be restarted onto another
+ * one, which is what the button does: dispose the subprocess, resume the same
+ * session file, spawn against the account routing would give a new lane. That
+ * costs a full re-read of the thread, so it is offered, never automatic.
+ * Silent with one account configured, or with nothing to report.
  */
 function AccountRouting({
+  sessionId,
   account,
 }: {
+  sessionId: string
   account: ClaudeSessionAccount | null
 }): React.JSX.Element | null {
+  const moveSessionToAccount = useSessionsStore((s) => s.moveSessionToAccount)
+  const [moving, setMoving] = useState(false)
   if (!account || account.total < 2 || account.cooldownUntil === null) return null
+
+  const alternative = account.alternative
   return (
     <div className="text-text-tertiary pt-1 text-sm">
       {account.mode === 'specific'
         ? 'This account is out of plan allowance. Routing is pinned to it — Settings → Claude Code.'
-        : account.alternative
-          ? `Out of plan allowance. New sessions go to ${account.alternative}.`
+        : alternative
+          ? `Out of plan allowance. New sessions go to ${alternative.label}.`
           : 'Out of plan allowance, and every other account is too.'}
+      {alternative && (
+        <button
+          onClick={() => {
+            setMoving(true)
+            void moveSessionToAccount(sessionId, alternative.id).finally(() => setMoving(false))
+          }}
+          disabled={moving}
+          className="text-accent ml-1 hover:underline disabled:opacity-50"
+        >
+          {moving ? 'Moving…' : 'Move this session too'}
+        </button>
+      )}
     </div>
   )
 }

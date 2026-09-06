@@ -35,3 +35,18 @@ export function spawnAccountFor(pidexSessionId: string): string | undefined {
 export function forgetSpawnAccount(pidexSessionId: string): void {
   bySession.delete(pidexSessionId)
 }
+
+/**
+ * Every live pick, grouped account id → session ids.
+ *
+ * The gateway view in Settings asks "who is spending this account right now",
+ * and this map is the only place that knows: `bindings` is keyed by session
+ * FILE, so it cannot say which of them are running.
+ */
+export function spawnAccountSessions(): Record<string, string[]> {
+  const grouped: Record<string, string[]> = {}
+  for (const [sessionId, accountId] of bySession) {
+    ;(grouped[accountId] ??= []).push(sessionId)
+  }
+  return grouped
+}

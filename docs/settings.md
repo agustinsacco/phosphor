@@ -27,6 +27,11 @@ Settings window (Cmd/Ctrl+,), tabbed:
   nothing else would notice. A running session keeps its account either way: the
   credential is fixed at spawn. The context popover names the account a lane is
   spending and shows that account's own plan usage.
+- Each account row **opens** onto that account's own usage windows and the live
+  sessions spending it (`claude:accountSessions`). A session there can be
+  restarted on the same account or moved to another one; both respawn it from
+  its session file, which is the only way an account can change
+  ([2026-09-06](log/2026-09-06-claude-account-gateway.md)).
 
 ## Workspaces
 

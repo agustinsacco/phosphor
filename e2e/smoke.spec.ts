@@ -2577,18 +2577,22 @@ test('claude provider tab proves the chain end to end (stubbed claude + pi)', as
     await expect(page.getByText(/v2\.1\.219 at /)).toBeVisible()
     await expect(page.getByText('e2e@test · max')).toBeVisible()
 
-    // The usage section runs `claude -p /usage` through the same override:
-    // real spawn, real parse, real IPC — the stub's JSON is shaped like a
-    // live capture, so this is the end-to-end proof of the plan bars.
-    await expect(page.getByText('5-hour window')).toBeVisible()
-    await expect(page.getByText(/40% used/).first()).toBeVisible()
-    await expect(page.getByText('Weekly window')).toBeVisible()
-    await expect(page.getByText(/51% used/)).toBeVisible()
-
     // The existing login is seeded as account one, and it keeps the CLI's own
     // keychain entry — the routing picker only appears once an account exists.
     await expect(page.getByRole('heading', { name: 'Accounts' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Route new sessions' })).toBeVisible()
+
+    // Usage lives under the account that spends it. Opening the row runs
+    // `claude -p /usage` under that account's credential through the same
+    // override: real spawn, real parse, real IPC — the stub's JSON is shaped
+    // like a live capture, so this is the end-to-end proof of the plan bars.
+    await expect(page.getByText('no live session')).toBeVisible()
+    await page.getByRole('button', { expanded: false, name: /e2e@test/ }).click()
+    await expect(page.getByText('5-hour window')).toBeVisible()
+    await expect(page.getByText(/40% used/).first()).toBeVisible()
+    await expect(page.getByText('Weekly window')).toBeVisible()
+    await expect(page.getByText(/51% used/)).toBeVisible()
+    await expect(page.getByText('Sessions on this account')).toBeVisible()
 
     // Re-authenticating is in-app: the CLI's sign-in runs with piped stdio, so
     // the paste-code box is the whole UI it needs — no terminal, no pty.

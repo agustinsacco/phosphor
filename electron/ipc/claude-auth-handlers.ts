@@ -21,7 +21,7 @@ import {
   sessionAccount,
   setRouting,
 } from '../claude/accounts'
-import { spawnAccountFor } from '../pi/session-accounts'
+import { spawnAccountFor, spawnAccountSessions } from '../pi/session-accounts'
 
 function broadcast(state: ClaudeLoginState): void {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -99,6 +99,12 @@ export function registerClaudeAuthHandlers(): void {
     const accountId = spawnAccountFor(pidexSessionId)
     if (accountId) await bindSession(sessionPath, accountId)
   })
+  // Moving a running lane is dispose-and-resume in the renderer; main only
+  // records where the next spawn should land. See shared/ipc.ts.
+  handle('claude:assignSession', (_event, sessionPath, accountId) =>
+    bindSession(sessionPath, accountId),
+  )
+  handle('claude:accountSessions', () => spawnAccountSessions())
   handle('claude:sessionAccount', (_event, pidexSessionId, sessionPath) =>
     sessionAccount({
       accountId: spawnAccountFor(pidexSessionId),
