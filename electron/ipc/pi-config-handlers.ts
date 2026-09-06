@@ -14,15 +14,25 @@ import {
 import {
   listModelsViaRpc,
   resolveCatalogueModels,
-  type CatalogueModel,
+  type CatalogueResult,
 } from '../pi/model-catalogue'
 import { cachedPiHealth } from '../pi/health'
 import { createTtlCache } from '../pi/ttl-cache'
 import { piStubPath } from '../pi/stub'
 import { type ConfigFileHealth } from '@shared/models'
 
-/** How long the catalogue stays believed without re-spawning pi. */
+/** How long pi's own answer stays believed without re-spawning pi. */
 const CATALOGUE_TTL_MS = 5 * 60_000
+
+/**
+ * How long a models.json fallback is reused before pi is tried again.
+ *
+ * Short on purpose. The fallback is not the catalogue — it is what we show
+ * when pi could not be asked — so remembering it for five minutes turns one
+ * slow boot into five minutes of a wrong model list. Not zero either: a user
+ * with no pi at all must not respawn a process on every picker open.
+ */
+const CATALOGUE_FALLBACK_TTL_MS = 20_000
 
 /**
  * The model catalogue, cached across pickers.
@@ -37,22 +47,25 @@ const CATALOGUE_TTL_MS = 5 * 60_000
  * is missing AND models.json is empty, and that is exactly the state a user
  * fixes and retries.
  */
-const catalogueCache = createTtlCache(async (): Promise<CatalogueModel[]> => {
-  const stub = piStubPath()
-  const models = await resolveCatalogueModels(
-    async () => {
-      if (stub) return process.execPath
-      const health = await cachedPiHealth()
-      return health.ok ? (health.binaryPath ?? null) : null
-    },
-    listCatalogueModels,
-    stub
-      ? (binaryPath) => listModelsViaRpc(binaryPath, [stub])
-      : (binaryPath) => listModelsViaRpc(binaryPath),
-  )
-  if (models.length === 0) throw new Error('no models available')
-  return models
-}, CATALOGUE_TTL_MS)
+const catalogueCache = createTtlCache(
+  async (): Promise<CatalogueResult> => {
+    const stub = piStubPath()
+    const result = await resolveCatalogueModels(
+      async () => {
+        if (stub) return process.execPath
+        const health = await cachedPiHealth()
+        return health.ok ? (health.binaryPath ?? null) : null
+      },
+      listCatalogueModels,
+      stub
+        ? (binaryPath) => listModelsViaRpc(binaryPath, [stub])
+        : (binaryPath) => listModelsViaRpc(binaryPath),
+    )
+    if (result.models.length === 0) throw new Error('no models available')
+    return result
+  },
+  (result) => (result.source === 'pi' ? CATALOGUE_TTL_MS : CATALOGUE_FALLBACK_TTL_MS),
+)
 
 /** Drop the cached catalogue — call after anything that changes pi's config. */
 export function invalidateCatalogueModels(): void {
@@ -79,11 +92,11 @@ export function registerPiConfigHandlers(): void {
   // that pruned a fixture package another test had written.
   handle('pi:catalogueModels', async () => {
     // The cache rejects on "nothing to show" so it does not remember an empty
-    // list; the channel's contract is still a list.
+    // list; the channel's contract is still a result.
     try {
       return await catalogueCache.get()
     } catch {
-      return []
+      return { models: [], source: 'config' as const }
     }
   })
 

@@ -118,6 +118,19 @@ registerArtifactScheme()
 const singleInstance = process.env.PIDEX_TEST_USER_DATA ? true : app.requestSingleInstanceLock()
 
 if (!singleInstance) {
+  // Say so. `npm run dev` against an already-running installed pidex exits
+  // here with no window and no message — electron-vite prints "starting
+  // electron app..." and then nothing forever, which reads as a broken build
+  // rather than a lock. That silence cost a debugging session; the workaround
+  // is a separate profile via PIDEX_TEST_USER_DATA.
+  // Dev only: for a packaged app a second launch is the normal "focus the
+  // existing window" path, and the debug log is not open yet here anyway.
+  if (!app.isPackaged) {
+    console.error(
+      'pidex is already running, so this instance exited. ' +
+        'For a second instance during development, set PIDEX_TEST_USER_DATA to a scratch directory.',
+    )
+  }
   app.quit()
 } else {
   app.on('second-instance', () => {

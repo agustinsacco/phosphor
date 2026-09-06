@@ -1184,93 +1184,96 @@ export function installMockPidex(): void {
             content: '{\n  "mcpServers": {}\n}\n',
           })
         case 'pi:catalogueModels':
-          return Promise.resolve([
-            {
-              id: 'claude-opus-5',
-              name: 'Opus 5',
-              api: 'anthropic',
-              provider: 'anthropic',
-              reasoning: true,
-              thinkingLevelMap: { xhigh: 'high-boost', max: null },
-              contextWindow: 200_000,
-              maxTokens: 64_000,
-              cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
-              input: ['text', 'image'],
-            },
-            // The same model reached a second way. This pair is the whole
-            // reason ModelMenu groups by family: two rows that read
-            // identically until you look at the provider.
-            {
-              id: 'claude-opus-5',
-              name: 'Opus 5',
-              provider: 'pi-claude-cli',
-              reasoning: true,
-              thinkingLevelMap: { xhigh: 'high-boost', max: null },
-              contextWindow: 200_000,
-              input: ['text', 'image'],
-            },
-            {
-              id: 'claude-sonnet-5',
-              name: 'Sonnet 5',
-              api: 'anthropic',
-              provider: 'anthropic',
-              reasoning: true,
-              thinkingLevelMap: null,
-              contextWindow: 200_000,
-              maxTokens: 64_000,
-              cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
-              input: ['text', 'image'],
-            },
-            {
-              id: 'Qwen 3.5 122b',
-              name: 'Qwen 3.5 122b',
-              provider: 'local-stark',
-              reasoning: false,
-              contextWindow: 128_000,
-              cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-            },
-            // Present so the harness can exercise the orchestrator's
-            // malformed-tool-name warning: this is the model observed bricking
-            // real threads (see features/orchestrator/threadHealth.ts).
-            {
-              id: 'minimax-m2',
-              name: 'MiniMax M2',
-              provider: 'amazon-bedrock',
-              reasoning: false,
-              thinkingLevelMap: null,
-            },
-            // Bedrock's real shape: a bare foundation id that cannot be invoked
-            // on-demand, alongside the region-prefixed inference profiles that
-            // can. Present so the harness exercises the disabled-row path in
-            // ModelMenu (see lib/modelAvailability).
-            {
-              id: 'anthropic.claude-fable-5',
-              name: 'Claude Fable 5',
-              provider: 'amazon-bedrock',
-              reasoning: true,
-              thinkingLevelMap: { off: null, xhigh: 'xhigh', max: 'max' },
-            },
-            {
-              id: 'us.anthropic.claude-fable-5',
-              name: 'Claude Fable 5 (US)',
-              provider: 'amazon-bedrock',
-              reasoning: true,
-              thinkingLevelMap: { off: null, xhigh: 'xhigh', max: 'max' },
-            },
-            {
-              id: 'global.anthropic.claude-fable-5',
-              name: 'Claude Fable 5 (Global)',
-              provider: 'amazon-bedrock',
-              reasoning: true,
-              thinkingLevelMap: { off: null, xhigh: 'xhigh', max: 'max' },
-            },
-            {
-              id: 'amazon.nova-pro-v1:0',
-              name: 'Nova Pro',
-              provider: 'amazon-bedrock',
-              reasoning: false,
-            },
-          ])
+          return Promise.resolve({
+            source: 'pi',
+            models: [
+              {
+                id: 'claude-opus-5',
+                name: 'Opus 5',
+                api: 'anthropic',
+                provider: 'anthropic',
+                reasoning: true,
+                thinkingLevelMap: { xhigh: 'high-boost', max: null },
+                contextWindow: 200_000,
+                maxTokens: 64_000,
+                cost: { input: 5, output: 25, cacheRead: 0.5, cacheWrite: 6.25 },
+                input: ['text', 'image'],
+              },
+              // The same model reached a second way. This pair is the whole
+              // reason ModelMenu groups by family: two rows that read
+              // identically until you look at the provider.
+              {
+                id: 'claude-opus-5',
+                name: 'Opus 5',
+                provider: 'pi-claude-cli',
+                reasoning: true,
+                thinkingLevelMap: { xhigh: 'high-boost', max: null },
+                contextWindow: 200_000,
+                input: ['text', 'image'],
+              },
+              {
+                id: 'claude-sonnet-5',
+                name: 'Sonnet 5',
+                api: 'anthropic',
+                provider: 'anthropic',
+                reasoning: true,
+                thinkingLevelMap: null,
+                contextWindow: 200_000,
+                maxTokens: 64_000,
+                cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+                input: ['text', 'image'],
+              },
+              {
+                id: 'Qwen 3.5 122b',
+                name: 'Qwen 3.5 122b',
+                provider: 'local-stark',
+                reasoning: false,
+                contextWindow: 128_000,
+                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+              },
+              // Present so the harness can exercise the orchestrator's
+              // malformed-tool-name warning: this is the model observed bricking
+              // real threads (see features/orchestrator/threadHealth.ts).
+              {
+                id: 'minimax-m2',
+                name: 'MiniMax M2',
+                provider: 'amazon-bedrock',
+                reasoning: false,
+                thinkingLevelMap: null,
+              },
+              // Bedrock's real shape: a bare foundation id that cannot be invoked
+              // on-demand, alongside the region-prefixed inference profiles that
+              // can. Present so the harness exercises the disabled-row path in
+              // ModelMenu (see lib/modelAvailability).
+              {
+                id: 'anthropic.claude-fable-5',
+                name: 'Claude Fable 5',
+                provider: 'amazon-bedrock',
+                reasoning: true,
+                thinkingLevelMap: { off: null, xhigh: 'xhigh', max: 'max' },
+              },
+              {
+                id: 'us.anthropic.claude-fable-5',
+                name: 'Claude Fable 5 (US)',
+                provider: 'amazon-bedrock',
+                reasoning: true,
+                thinkingLevelMap: { off: null, xhigh: 'xhigh', max: 'max' },
+              },
+              {
+                id: 'global.anthropic.claude-fable-5',
+                name: 'Claude Fable 5 (Global)',
+                provider: 'amazon-bedrock',
+                reasoning: true,
+                thinkingLevelMap: { off: null, xhigh: 'xhigh', max: 'max' },
+              },
+              {
+                id: 'amazon.nova-pro-v1:0',
+                name: 'Nova Pro',
+                provider: 'amazon-bedrock',
+                reasoning: false,
+              },
+            ],
+          })
         case 'app:userInfo':
           return Promise.resolve({ username: 'dev', awsProfile: 'dev' })
         case 'app:setLastSession':

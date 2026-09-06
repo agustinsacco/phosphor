@@ -136,7 +136,7 @@ describe('resolveCatalogueModels', () => {
         reasoning: true,
       },
     ]
-    const models = await resolveCatalogueModels(
+    const result = await resolveCatalogueModels(
       async () => '/fake/pi',
       async () => configModels,
       async (binaryPath) => {
@@ -144,47 +144,55 @@ describe('resolveCatalogueModels', () => {
         return rpcModels
       },
     )
-    expect(models).toEqual(rpcModels)
+    expect(result).toEqual({ models: rpcModels, source: 'pi' })
   })
 
   it('falls back to config when listModels returns nothing', async () => {
-    const models = await resolveCatalogueModels(
+    const result = await resolveCatalogueModels(
       async () => '/fake/pi',
       async () => configModels,
       async () => [],
     )
-    expect(models).toEqual(configModels)
+    expect(result).toEqual({ models: configModels, source: 'config' })
   })
 
   it('falls back to config when no pi binary is found', async () => {
-    const models = await resolveCatalogueModels(
+    const result = await resolveCatalogueModels(
       async () => null,
       async () => configModels,
       async () => {
         throw new Error('should not be called without a binary')
       },
     )
-    expect(models).toEqual(configModels)
+    expect(result).toEqual({ models: configModels, source: 'config' })
   })
 
   it('falls back to config when listModels throws', async () => {
-    const models = await resolveCatalogueModels(
+    const result = await resolveCatalogueModels(
       async () => '/fake/pi',
       async () => configModels,
       async () => {
         throw new Error('RPC exploded')
       },
     )
-    expect(models).toEqual(configModels)
+    expect(result).toEqual({ models: configModels, source: 'config' })
   })
 
   it('falls back to config when resolving the binary throws', async () => {
-    const models = await resolveCatalogueModels(
+    const result = await resolveCatalogueModels(
       async () => {
         throw new Error('health check exploded')
       },
       async () => configModels,
     )
-    expect(models).toEqual(configModels)
+    expect(result).toEqual({ models: configModels, source: 'config' })
+  })
+
+  it('marks an empty config fallback as a fallback, not as pi answering', async () => {
+    const result = await resolveCatalogueModels(
+      async () => null,
+      async () => [],
+    )
+    expect(result).toEqual({ models: [], source: 'config' })
   })
 })

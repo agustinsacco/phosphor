@@ -19,15 +19,20 @@ export interface TtlCache<T> {
   isFresh: () => boolean
 }
 
+/**
+ * `ttlMs` may be a function of the value, so an answer that is known to be a
+ * degraded stand-in can be held for less time than a good one.
+ */
 export function createTtlCache<T>(
   load: () => Promise<T>,
-  ttlMs: number,
+  ttlMs: number | ((value: T) => number),
   now: () => number = Date.now,
 ): TtlCache<T> {
   let value: { at: number; data: T } | null = null
   let inFlight: Promise<T> | null = null
 
-  const isFresh = (): boolean => value !== null && now() - value.at < ttlMs
+  const ttlFor = (data: T): number => (typeof ttlMs === 'function' ? ttlMs(data) : ttlMs)
+  const isFresh = (): boolean => value !== null && now() - value.at < ttlFor(value.data)
 
   return {
     isFresh,

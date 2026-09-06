@@ -236,21 +236,32 @@ export interface IpcInvokeMap {
     args: [workspacePath?: string]
     result: { global: Record<string, unknown>; project: Record<string, unknown> | null }
   }
-  /** Models from pi's models.json, for pickers with no live session yet. */
+  /**
+   * pi's model catalogue, for pickers with no live session yet.
+   *
+   * `source` is part of the answer, not a detail: when pi cannot be asked, the
+   * fallback is whatever the user declared in models.json, which is a handful
+   * of models rather than pi's full list. Returning that as if it were the
+   * catalogue is how a configured default came to render as "unavailable" with
+   * nothing anywhere saying pi had not been reached.
+   */
   'pi:catalogueModels': {
     args: []
     result: {
-      id: string
-      name: string
-      provider: string
-      reasoning: boolean
-      thinkingLevelMap?: ThinkingLevelMap | null
-      /** Absent when the models.json fallback answered — never guessed at. */
-      contextWindow?: number
-      maxTokens?: number
-      cost?: ModelCost
-      input?: string[]
-    }[]
+      models: {
+        id: string
+        name: string
+        provider: string
+        reasoning: boolean
+        thinkingLevelMap?: ThinkingLevelMap | null
+        /** Absent when the models.json fallback answered — never guessed at. */
+        contextWindow?: number
+        maxTokens?: number
+        cost?: ModelCost
+        input?: string[]
+      }[]
+      source: 'pi' | 'config'
+    }
   }
   'pi:readConfigFile': {
     args: [name: 'settings' | 'models' | 'web-search']

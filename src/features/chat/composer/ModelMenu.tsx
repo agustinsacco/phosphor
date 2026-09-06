@@ -67,6 +67,7 @@ export function ModelMenu({
   onClose,
   emptyText,
   loading = false,
+  notice,
   className,
 }: {
   models: ModelMenuEntry[]
@@ -79,6 +80,8 @@ export function ModelMenu({
    * "none configured", and the menu answers a question it has not asked yet.
    */
   loading?: boolean
+  /** Shown above a NON-empty list that is known to be incomplete. */
+  notice?: string
   className?: string
 }): React.JSX.Element {
   const [query, setQuery] = useState('')
@@ -317,6 +320,13 @@ export function ModelMenu({
           {loading && models.length === 0 && <ModelRowSkeletons />}
           {!loading && models.length === 0 && (
             <div className="text-text-tertiary px-3 py-2 text-base">{emptyText}</div>
+          )}
+          {/* A short list is indistinguishable from a complete one, so when we
+              know it is short, say why here rather than only on the chip. */}
+          {notice && models.length > 0 && (
+            <div className="text-warning px-3 py-2 text-sm" data-testid="model-menu-notice">
+              {notice}
+            </div>
           )}
           {models.length > 0 && results.length === 0 && (
             <div className="text-text-tertiary px-3 py-2 text-base">
