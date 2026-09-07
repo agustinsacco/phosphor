@@ -320,3 +320,36 @@ get a half-deleted one.
 renders it. Per-lane outcomes matter: a worktree that would not remove is the
 common case and that lane is still in the sidebar. A toast reading "3 deleted"
 when four were selected is exactly the silent failure this exists to prevent.
+
+## Reclaiming lanes automatically
+
+Deleting a lane by hand is the only thing that ever freed its disk, so a
+long-lived install keeps a worktree — and its own `node_modules` — per lane
+forever. Measured on one machine: 9.1 GB across 70 worktrees.
+
+Settings → Advanced → **Maintenance** runs a sweep. It has two switches,
+because measuring and deleting are different risks:
+
+- **Reclaim dead lanes** (on) sweeps hourly and **reports**. It never deletes.
+- **Delete automatically** (off) is what lets a sweep act.
+
+**Reclaim now** deletes without flipping the pref, and cannot delete more than
+a sweep would: both paths run the same policy.
+
+Six conditions must all hold before a worktree is a candidate
+(`electron/maintenance/policy.ts`), and every rejection is reported with its
+reason so a sweep is auditable: not the main checkout, on a branch, clean,
+not a live session's cwd or an open workspace, **proven merged** (the same
+squash test the manual delete uses), and untouched for `minAgeHours`. Deletion
+itself goes through `removeWorktree`, which refuses a dirty tree on its own.
+
+The grace period exists because a branch can land while its lane is still
+being read, and it counts pi's session directory for that cwd as use — a lane
+you read but never edit leaves the directory untouched while its transcript
+keeps moving.
+
+Sizes come from `du`, which Windows has not got; an unmeasured size reports
+"unknown" and the policy never depends on the number. The scheduler is a plain
+unref'd interval in main with a 5-minute warmup and a 15-minute floor, one
+sweep at a time. See
+[log/2026-09-07-lane-reclamation.md](log/2026-09-07-lane-reclamation.md).

@@ -1502,6 +1502,33 @@ export function installMockPidex(): void {
           return Promise.resolve({ removed: true, branchDeleted: false })
         case 'git:renameBranch':
           return Promise.resolve({ renamed: true, branch: args[2] as string })
+        case 'maintenance:scan':
+        case 'maintenance:run':
+          return {
+            ranAt: Date.now(),
+            workspacePath: String(args[0] ?? ''),
+            worktreeCount: 3,
+            candidates: [
+              {
+                path: '/repo/.pidex/worktrees/merged-lane',
+                branch: 'pidex/merged-lane',
+                bytes: 980 * 1024 * 1024,
+                reason: 'merged',
+              },
+            ],
+            held: [
+              { path: '/repo', branch: 'main', reason: 'main-checkout' },
+              { path: '/repo/.pidex/worktrees/busy', branch: 'pidex/busy', reason: 'dirty' },
+            ],
+            prunedRegistrations: [],
+            reclaimed: [],
+            reclaimableBytes: 980 * 1024 * 1024,
+            reclaimedBytes: 0,
+            liveSessionCount: 1,
+            errors: [],
+          }
+        case 'maintenance:setPrefs':
+          return undefined
         case 'git:pruneWorktrees':
           return Promise.resolve({ pruned: [] })
         case 'git:commitAll':
