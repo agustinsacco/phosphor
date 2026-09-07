@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import clsx from 'clsx'
 import type { Model, ThinkingLevel } from '@shared/rpc'
 import { supportedThinkingLevels } from '@shared/thinking'
 import { useChatStore } from '@/stores/chat'
@@ -7,6 +6,7 @@ import { piCall, piCallOk } from '@/lib/rpc'
 import { refreshThinkingLevels, useSessionsStore } from '@/stores/sessions'
 import { ModelMenu } from './ModelMenu'
 import { ThinkingMenu, thinkingLabel } from './ThinkingMenu'
+import { ModelChip, ModelChipSkeleton, ThinkingChip } from './ModelChip'
 
 /**
  * Model + thinking-level pickers in the composer footer.
@@ -18,28 +18,6 @@ import { ThinkingMenu, thinkingLabel } from './ThinkingMenu'
  *     just computed client-side to match rather than a hardcoded list that was
  *     wrong for most models.
  */
-/**
- * Providers shipped by pi itself. Anything else is a package the user
- * installed, and worth naming in the UI.
- */
-const NATIVE_PROVIDERS = new Set([
-  'anthropic',
-  'openai',
-  'google',
-  'azure',
-  'bedrock',
-  'vertex',
-  'groq',
-  'mistral',
-  'cerebras',
-  'xai',
-  'openrouter',
-  'zai',
-  'baseten',
-  'fireworks',
-  'together',
-])
-
 export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
   const models = useChatStore((s) => s.sessions[sessionId]?.models) ?? []
@@ -111,63 +89,28 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
 
   return (
     <div className="relative flex min-w-0 max-w-full flex-1 items-center gap-1">
-      <button
+      <ModelChip
+        testId="model-chip"
+        active={open === 'model'}
         onClick={() => setOpen(open === 'model' ? null : 'model')}
-        data-testid="model-chip"
         title={
           currentModel ? `${currentModel.name} · served by ${currentModel.provider}` : undefined
         }
-        className={clsx(
-          'min-h-8 min-w-0 flex-1 rounded-md px-2 py-1 text-left text-lg font-medium transition-colors',
-          open === 'model'
-            ? 'bg-bg-secondary text-text'
-            : 'text-text-secondary hover:bg-bg-secondary hover:text-text',
-        )}
-      >
-        {/* One line. Stacking the provider under the name gave the footer a
-            second row for a detail most sessions do not even show. */}
-        <span className="flex min-w-0 items-baseline gap-1.5">
-          <span className="truncate" data-testid="model-label">
-            {currentModel?.name ??
-              (modelsLoaded ? (
-                'No model'
-              ) : (
-                <span className="bg-bg-secondary inline-block h-3.5 w-24 animate-pulse rounded align-middle" />
-              ))}
-          </span>
-          {/* Two providers can expose the same model name (native anthropic
-              and the Claude Code CLI provider both offer "Claude Opus 5"), so
-              the name alone cannot answer "what is actually serving this
-              session". Show the provider whenever it is not pi's own — and
-              let it give up its width first, since the name matters more. */}
-          {currentModel && !NATIVE_PROVIDERS.has(currentModel.provider) && (
-            <span
-              data-testid="model-provider"
-              className="text-text-tertiary min-w-0 shrink-[9999] truncate font-mono text-sm font-normal"
-            >
-              {currentModel.provider}
-            </span>
-          )}
-        </span>
-      </button>
+        name={currentModel?.name ?? (modelsLoaded ? 'No model' : <ModelChipSkeleton />)}
+        provider={currentModel?.provider}
+      />
 
       {/* Gate on what the menu will actually render (pi's answer when
           present), not the local guess — if the two ever disagree, a chip
           opening a one-item menu (or a hidden chip over real choices) is the
           bug this avoids. */}
       {levelsToRender.length > 1 && (
-        <button
+        <ThinkingChip
+          testId="thinking-chip"
+          active={open === 'thinking'}
           onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
-          data-testid="thinking-chip"
-          className={clsx(
-            'min-h-8 shrink-0 rounded-md px-2 py-1 text-lg transition-colors',
-            open === 'thinking'
-              ? 'bg-bg-secondary text-text'
-              : 'text-text-secondary hover:bg-bg-secondary hover:text-text',
-          )}
-        >
-          {thinkingLabel(meta.thinkingLevel)}
-        </button>
+          label={thinkingLabel(meta.thinkingLevel)}
+        />
       )}
 
       {open === 'model' && (

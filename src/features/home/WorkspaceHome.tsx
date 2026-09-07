@@ -246,7 +246,6 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               onPasteFiles={attachments.addFiles}
               placeholder="Describe a task or ask a question"
               rows={2}
-              className="composer-field text-text placeholder:text-text-secondary block w-full resize-none overflow-y-auto bg-transparent px-4 pb-1 pt-3.5 text-lg outline-none"
             />
 
             {/* Footer mirrors the chat composer: attachments on the left,
@@ -256,7 +255,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
                 <AttachButton onFiles={attachments.addFiles} />
               </div>
 
-              <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-0.5">
+              <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-1.5">
                 <HomeModelPicker
                   override={draft?.model}
                   onPick={(model) => useDraftsStore.getState().patch(draftKey, { model })}

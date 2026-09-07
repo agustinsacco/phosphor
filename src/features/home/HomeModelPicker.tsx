@@ -4,6 +4,7 @@ import type { ThinkingLevel } from '@shared/rpc'
 import { ALL_THINKING_LEVELS, clampThinkingLevel, supportedThinkingLevels } from '@shared/thinking'
 import { ModelMenu } from '@/features/chat/composer/ModelMenu'
 import { ThinkingMenu, thinkingLabel } from '@/features/chat/composer/ThinkingMenu'
+import { ModelChip, ModelChipSkeleton, ThinkingChip } from '@/features/chat/composer/ModelChip'
 import {
   catalogueEmptyText,
   modelChipLabel,
@@ -124,64 +125,41 @@ export function HomeModelPicker({
   }
 
   return (
-    <div className="relative flex min-w-0 max-w-full flex-1 items-center gap-0.5">
-      {/* Disabled until the catalogue lands: picking writes pi's global
-          default, so a click on a half-known list is a real mis-set, not a
-          cosmetic one. */}
-      <button
-        onClick={openModelMenu}
+    <div className="relative flex min-w-0 max-w-full flex-1 items-center gap-1">
+      <ModelChip
+        testId="home-model-picker"
+        active={open === 'model'}
         disabled={busy}
-        data-testid="home-model-picker"
-        data-loading={busy ? 'true' : undefined}
+        loading={busy}
+        onClick={openModelMenu}
         title={
           chip.degraded
             ? `pi's model catalogue could not be read, so only models.json is listed. ${chip.text} is probably still fine — open the picker to retry.`
             : chip.unavailable
               ? `${chip.text} is not in pi's catalogue`
-              : `${chip.text}${current ? ` · via ${current.provider}` : ''}`
+              : `${chip.text}${current ? ` · served by ${current.provider}` : ''}`
         }
-        className={clsx(
-          'min-h-8 min-w-0 flex-1 rounded-md px-2 py-1 text-left text-lg font-medium transition-colors',
-          busy ? 'cursor-default' : 'cursor-pointer',
-          open === 'model'
-            ? 'bg-bg-secondary text-text'
-            : 'text-text-secondary hover:bg-bg-secondary hover:text-text',
-        )}
-      >
-        {chip.loading ? (
-          <span className="bg-bg-secondary inline-block h-3.5 w-24 animate-pulse rounded align-middle" />
-        ) : (
-          <span
-            className={clsx(
-              'block truncate',
-              (chip.unavailable || chip.degraded) && 'text-warning',
-            )}
-          >
-            {chip.text}
-            {chip.unavailable && ' · unavailable'}
-            {chip.degraded && ' · pi unreachable'}
-          </span>
-        )}
-        {current && (
-          <span className="text-text-secondary block truncate font-mono text-base">
-            via {current.provider}
-          </span>
-        )}
-      </button>
+        name={
+          chip.loading ? (
+            <ModelChipSkeleton />
+          ) : (
+            <span className={clsx((chip.unavailable || chip.degraded) && 'text-warning')}>
+              {chip.text}
+              {chip.unavailable && ' · unavailable'}
+              {chip.degraded && ' · pi unreachable'}
+            </span>
+          )
+        }
+        provider={current?.provider}
+      />
 
       {levelsToRender.length > 1 && (
-        <button
+        <ThinkingChip
+          testId="home-thinking-picker"
+          active={open === 'thinking'}
           onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
-          data-testid="home-thinking-picker"
-          className={clsx(
-            'min-h-8 shrink-0 cursor-pointer rounded-md px-2 py-1 text-lg transition-colors',
-            open === 'thinking'
-              ? 'bg-bg-secondary text-text'
-              : 'text-text-secondary hover:bg-bg-secondary hover:text-text',
-          )}
-        >
-          {thinkingLabel(displayedThinking)}
-        </button>
+          label={thinkingLabel(displayedThinking)}
+        />
       )}
 
       {open === 'model' && (

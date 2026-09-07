@@ -92,6 +92,14 @@ unreadable still renders as a plain named step.
 ## Session header / status strip (per session)
 
 - Model picker (from `get_available_models`, grouped by provider — remember custom/local providers exist), thinking-level selector (off→xhigh, hidden if model lacks reasoning).
+- **Two owners, one chip.** `ModelPicker` drives a live session over RPC
+  (`set_model`); `HomeModelPicker` has no process to talk to, so it reads and
+  writes pi's own `defaultProvider` / `defaultModel` / `defaultThinkingLevel`.
+  That split is deliberate. The chrome is not: both render
+  `composer/ModelChip.tsx`, which owns the one-line layout and the rule that
+  only a non-pi provider gets named. It was copy-pasted before, and drifted in
+  both directions — see
+  [docs/log/2026-09-07-composer-chip-dedup.md](log/2026-09-07-composer-chip-dedup.md).
 - Context meter: % of window from `get_session_stats` (poll after each `agent_end` + on demand); warn state near compaction threshold. Token/cost readout (input/output/cache split in a popover), plus the two sections below.
 - Controls: Stop (`abort`), Compact now (`compact`, optional custom instructions input), auto-compaction toggle, auto-retry toggle, steering/follow-up mode toggles ("all" vs "one-at-a-time"), rename session, export HTML (save dialog → `export_html` → reveal/open).
 
