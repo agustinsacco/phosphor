@@ -1602,6 +1602,15 @@ test('Connectors: adding a catalog connector writes a verified OAuth endpoint', 
           scope: expect.stringContaining('search:read.public'),
         },
       })
+
+    // Add is not a config edit, it is "connect this" — so it starts the
+    // headless OAuth flow itself. Writing mcp.json and then waiting for a
+    // separate Sign in click read as "Add did nothing", most sharply here,
+    // where the user has just pasted a client id and expects a browser.
+    await expect(slack.getByText(/Approve access in your browser/)).toBeVisible({
+      timeout: 30_000,
+    })
+    await expect(slack.getByText('https://stub.test/oauth/authorize?server=slack')).toBeVisible()
   } finally {
     await shutdown(harness)
     await rm(soloAgentDir, { recursive: true, force: true })

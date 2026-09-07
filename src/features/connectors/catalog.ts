@@ -24,6 +24,16 @@ import type { McpServerConfig } from '@shared/mcp'
  *   and it is a *public* client: it only accepts a loopback redirect URL from
  *   an app with PKCE enabled, and a PKCE app's token exchange carries no
  *   secret. The secret field stays optional for that reason.
+ *
+ *   The client id is not a pidex shortcoming and cannot be designed away.
+ *   Slack's own docs state it twice: "We do not support SSE-based connections
+ *   or Dynamic Client Registration at this time", and "MCP clients must be
+ *   backed by a registered Slack app with a fixed app ID and hardcode that
+ *   app ID". Its authorization-server metadata carries no
+ *   `registration_endpoint` to call even if we wanted to (re-probed
+ *   2026-09-07). A one-click Slack row would need pidex to own a
+ *   Marketplace-published Slack app, since only internal or directory-published
+ *   apps may use MCP at all.
  * - `oauth-or-key` — OAuth works, and an API key is a supported alternative.
  */
 export type ConnectorAuthKind = 'dcr' | 'preregistered' | 'oauth-or-key'
@@ -140,6 +150,54 @@ export const SLACK_APP_MANIFEST = JSON.stringify(
   2,
 )
 
+/**
+ * Every *read* scope Questrade's MCP server advertises, verbatim from
+ * `https://mcp.questrade.com/.well-known/oauth-protected-resource` (checked
+ * 2026-09-07), plus the two OIDC scopes the flow itself needs.
+ *
+ * Pinned rather than left to the default because the default is dangerous
+ * here. With no `oauth.scope` the MCP SDK requests every scope in the
+ * protected-resource metadata, and Questrade's list includes
+ * `brokerage.orders.all` — so a one-click connect would hand an LLM authority
+ * to place trades. Questrade's own setup guide makes the point that read-only
+ * access can be granted without trade permissions; this is that choice, made
+ * by default.
+ *
+ * `enterprise.balance-sheet.balance-sheet-app.read` is left out: it is an
+ * enterprise entitlement a retail account cannot grant.
+ */
+export const QUESTRADE_READ_SCOPES = [
+  'openid',
+  'offline_access',
+  'mcp:read',
+  'brokerage.accounts.read',
+  'brokerage.account-transactions.read',
+  'brokerage.balances.all',
+  'brokerage.charts.read',
+  'brokerage.custom-indexing-indexes.read',
+  'brokerage.custom-indexing-templates.read',
+  'brokerage.orders.read',
+  'brokerage.positions.read',
+  'brokerage.securities.read',
+  'brokerage.snap-quotes.read',
+  'brokerage.watchlists.read',
+]
+
+/**
+ * Questrade scopes pidex deliberately does not request. Named so a test can
+ * assert none of them ever leaks into `QUESTRADE_READ_SCOPES` — the failure
+ * mode is silent and expensive.
+ *
+ * `brokerage.balances.all` is NOT here: "all" means every balance type, not
+ * write access. `brokerage.orders.all` is the one that authorizes trading.
+ */
+export const QUESTRADE_WRITE_SCOPES = [
+  'mcp:write',
+  'brokerage.orders.all',
+  'brokerage.watchlists.write',
+  'brokerage.custom-indexing-indexes.write',
+]
+
 export const CONNECTORS: ConnectorEntry[] = [
   {
     id: 'linear',
@@ -199,6 +257,39 @@ export const CONNECTORS: ConnectorEntry[] = [
       'The host is per site — the wrong one authorizes and then returns nothing. The default endpoint serves a subset of the tools: append ?toolsets=all for every tool, or ?toolsets=apm,llmobs for one product. GovCloud (ddog-gov.com) is not supported.',
   },
   {
+    id: 'supabase',
+    name: 'Supabase',
+    serverName: 'supabase',
+    summary: 'Projects, Postgres queries, edge functions, logs and docs.',
+    authKind: 'dcr',
+    docsUrl: 'https://supabase.com/docs/guides/getting-started/mcp',
+    // Access is a query parameter, not a separate host, so it rides the
+    // variant select — and read-only is first, which makes it the default.
+    // `read_only=true` runs every query as a read-only Postgres user, which
+    // is the only thing standing between a prompt injection and your data.
+    variants: {
+      label: 'Access',
+      options: [
+        { id: 'read-only', label: 'Read-only', url: 'https://mcp.supabase.com/mcp?read_only=true' },
+        { id: 'read-write', label: 'Read + write', url: 'https://mcp.supabase.com/mcp' },
+      ],
+    },
+    caveat:
+      'Read-only runs every query as a read-only Postgres user. It does not narrow the OAuth grant: the token still carries write scopes, because Supabase advertises them all and the SDK asks for the advertised set. Without ?project_ref=<ref> the server reaches every project in the account — add one by editing the URL. Storage tools are opt-in via ?features=storage.',
+  },
+  {
+    id: 'questrade',
+    name: 'Questrade',
+    serverName: 'questrade',
+    summary: 'Brokerage accounts, positions, balances, orders, quotes and charts.',
+    authKind: 'dcr',
+    docsUrl: 'https://www.questrade.com/learning/using-questrade/connect-questrade-to-your-ai-tool',
+    url: 'https://mcp.questrade.com/v1/brokerage/mcp',
+    scope: QUESTRADE_READ_SCOPES.join(' '),
+    caveat:
+      'Read-only by default: pidex requests every read scope and no trading scope, so the model can see orders but not place them. Widen it under Advanced by editing oauth.scope if you actually want that. Registration hands every client the same shared public client id, so the app you approve in Questrade is not uniquely yours.',
+  },
+  {
     id: 'fellow',
     name: 'Fellow',
     serverName: 'fellow',
@@ -223,7 +314,7 @@ export const CONNECTORS: ConnectorEntry[] = [
       steps: [
         'At api.slack.com/apps choose Create New App → From a manifest, and paste the manifest below. It sets the user scopes, the redirect URL and PKCE together.',
         'Install the app to your workspace, then copy Basic Information → Client ID.',
-        'Paste the client ID here and press Add. Leave the secret empty unless your app predates PKCE.',
+        'Paste the client ID here and press Add — that writes the config and opens the browser to sign in. Leave the secret empty unless your app predates PKCE.',
       ],
       snippet: { label: 'Slack app manifest', text: SLACK_APP_MANIFEST },
     },
@@ -291,6 +382,18 @@ export function buildConnectorConfig(
 }
 
 /**
+ * Origin + path only: query strings and trailing slashes are configuration,
+ * not identity. Datadog's caveat tells people to append `?toolsets=all` and
+ * Supabase's own variants carry `?read_only=true`, so both sides of a
+ * comparison have to be stripped — normalizing only the configured URL made a
+ * catalog entry whose own URL had a query match nothing, which shows up as the
+ * connector staying in "Add a connector" forever after it was added.
+ */
+function endpointIdentity(url: string): string {
+  return url.split('?')[0]?.replace(/\/+$/, '') ?? ''
+}
+
+/**
  * Which catalog entry a configured server is, if any.
  *
  * Matched on the URL, not the name: a user may call it `linear-rw`, and the
@@ -298,13 +401,13 @@ export function buildConnectorConfig(
  */
 export function connectorForUrl(url: string | undefined): ConnectorEntry | undefined {
   if (!url) return undefined
-  const normalized = url.split('?')[0]?.replace(/\/+$/, '') ?? ''
+  const normalized = endpointIdentity(url)
   return CONNECTORS.find((entry) => {
     const candidates = [
       entry.url,
       entry.readOnlyUrl,
       ...(entry.variants?.options.map((o) => o.url) ?? []),
     ]
-    return candidates.some((candidate) => candidate && normalized === candidate)
+    return candidates.some((candidate) => candidate && normalized === endpointIdentity(candidate))
   })
 }

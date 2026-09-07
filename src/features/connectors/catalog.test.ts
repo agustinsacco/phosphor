@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   CONNECTORS,
   OAUTH_REDIRECT_URI,
+  QUESTRADE_READ_SCOPES,
+  QUESTRADE_WRITE_SCOPES,
   SLACK_APP_MANIFEST,
   SLACK_USER_SCOPES,
   buildConnectorConfig,
@@ -119,6 +121,60 @@ describe('connector catalog', () => {
     expect(connectorForUrl('https://mcp.notion.com/mcp/')?.id).toBe('notion')
     expect(connectorForUrl('https://mcp.example.com/mcp')).toBeUndefined()
     expect(connectorForUrl(undefined)).toBeUndefined()
+  })
+
+  it('matches a connector whose own catalog URL carries a query string', () => {
+    // Supabase puts read-only in a query parameter, so the catalog side needs
+    // the same normalization as the configured side. Without it the row stayed
+    // in "Add a connector" after being added, and lost its summary.
+    expect(connectorForUrl('https://mcp.supabase.com/mcp?read_only=true')?.id).toBe('supabase')
+    expect(connectorForUrl('https://mcp.supabase.com/mcp')?.id).toBe('supabase')
+    expect(connectorForUrl('https://mcp.supabase.com/mcp?project_ref=abc&read_only=true')?.id).toBe(
+      'supabase',
+    )
+  })
+
+  it('adds every configured connector back into the catalog exactly once', () => {
+    // The tab hides a catalog entry once `connectorForUrl` claims one of its
+    // endpoints, so an entry that cannot recognise its own URLs is a duplicate
+    // row waiting to happen.
+    for (const entry of CONNECTORS) {
+      const urls = [
+        entry.url,
+        entry.readOnlyUrl,
+        ...(entry.variants?.options.map((o) => o.url) ?? []),
+      ].filter((u): u is string => Boolean(u))
+      for (const url of urls) expect(connectorForUrl(url)?.id, url).toBe(entry.id)
+    }
+  })
+
+  it('defaults Supabase to read-only, since the variant order is the default', () => {
+    const supabase = CONNECTORS.find((c) => c.id === 'supabase')!
+    expect(connectorUrl(supabase)).toBe('https://mcp.supabase.com/mcp?read_only=true')
+    expect(connectorUrl(supabase, { variant: 'read-write' })).toBe('https://mcp.supabase.com/mcp')
+  })
+
+  it('never asks Questrade for a scope that can move money', () => {
+    // With no `oauth.scope` the MCP SDK requests every scope the server
+    // advertises, and Questrade advertises `brokerage.orders.all`. A one-click
+    // connect would hand an LLM the authority to place trades.
+    const questrade = CONNECTORS.find((c) => c.id === 'questrade')!
+    const requested = (questrade.scope ?? '').split(' ')
+    expect(requested).toEqual(QUESTRADE_READ_SCOPES)
+    for (const write of QUESTRADE_WRITE_SCOPES) {
+      expect(requested, write).not.toContain(write)
+      expect(QUESTRADE_READ_SCOPES, write).not.toContain(write)
+    }
+    // Refresh tokens and the id token are still needed for the flow itself.
+    expect(requested).toContain('offline_access')
+    expect(requested).toContain('mcp:read')
+    // And the pin has to survive into mcp.json, or the default applies anyway.
+    expect(buildConnectorConfig(questrade)).toEqual({
+      url: 'https://mcp.questrade.com/v1/brokerage/mcp',
+      auth: 'oauth',
+      lifecycle: 'lazy-keep-alive',
+      oauth: { scope: QUESTRADE_READ_SCOPES.join(' ') },
+    })
   })
 
   it('makes new connectors keep their connection, not the adapter lazy default', () => {
