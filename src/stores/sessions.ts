@@ -138,6 +138,17 @@ interface SessionsState {
   suspendSession: (sessionId: string) => Promise<void>
   /** Session paths suspended this run, so the UI can label them. */
   suspendedPaths: string[]
+  /**
+   * Restart a lane on a Claude account — the same one ("re-prime") or another.
+   *
+   * A running lane cannot change account: its credential is fixed by the
+   * environment pi was spawned with, and the Claude CLI process is parked for
+   * the lane's whole life. So the move is a dispose and a resume from the same
+   * session file, with the binding rewritten first so the new spawn routes
+   * where the user asked. Returns the new pidex session id, or null when the
+   * lane has no file yet and therefore nothing to resume.
+   */
+  moveSessionToAccount: (sessionId: string, accountId: string) => Promise<string | null>
   deleteDiskSession: (workspacePath: string, meta: SessionMeta) => Promise<void>
   togglePin: (path: string) => void
   /**
@@ -818,6 +829,17 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     // Remember the path (not the pidexId, which dies with the process) so the
     // sidebar can mark the row "suspended" until it is reopened.
     if (diskPath) markSuspended(diskPath)
+  },
+
+  moveSessionToAccount: async (sessionId, accountId) => {
+    const entry = get().live[sessionId]
+    const diskPath = entry?.diskPath
+    if (!entry || !diskPath) return null
+    // Binding first: `pi:createSession` reads it while spawning, so a failure
+    // here must abort the move rather than restart the lane where it was.
+    await window.pidex.invoke('claude:assignSession', diskPath, accountId)
+    await get().disposeSession(sessionId)
+    return get().createSession(entry.workspacePath, { sessionPath: diskPath })
   },
 
   deleteDiskSession: async (workspacePath, meta) => {

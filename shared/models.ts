@@ -839,9 +839,24 @@ export interface ClaudeSessionAccount {
   mode: ClaudeRoutingMode
   /** When this account is held back from new sessions, if it is. */
   cooldownUntil: number | null
-  /** An account new sessions would go to instead, when this one is held. */
-  alternative: string | null
+  /**
+   * An account new sessions would go to instead, when this one is held.
+   *
+   * Carries the id as well as the label because the surfaces that name it now
+   * also offer to move the lane there, and a move needs an id.
+   */
+  alternative: { id: string; label: string } | null
 }
+
+/**
+ * Which live lanes are spending which Claude account: account id → pidex
+ * session ids, as parked at spawn (`electron/pi/session-accounts.ts`).
+ *
+ * Only ids cross the wire. Titles, folders and session files are the
+ * renderer's to resolve — it already holds all three — and an account with no
+ * live lane is simply absent from the map.
+ */
+export type ClaudeAccountSessions = Record<string, string[]>
 
 /** `claude:accounts` channel result. */
 export interface ClaudeAccountsResult {
