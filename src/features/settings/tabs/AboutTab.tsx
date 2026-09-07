@@ -3,13 +3,11 @@ import type { AboutInfo } from '@shared/models'
 import type { PiHealth, UpdateState } from '@shared/models'
 import { useEffect, useState } from 'react'
 import { useUpdatesStore } from '@/features/updates/updatesStore'
+import { VERIFIED_PI_LINE, isPiNewerThanVerified } from '@/lib/piDrift'
 import interLicense from '@/assets/fonts/Inter-OFL.txt?raw'
 import monoLicense from '@/assets/fonts/JetBrainsMono-OFL.txt?raw'
 
 /** App and runtime versions, an update check, and a pi version-drift warning. */
-
-/** Newest pi minor pidex has been verified against (drift warning source). */
-const VERIFIED_PI_MINOR = 78
 
 /**
  * The update pill only appears once there is something to act on, so until
@@ -53,8 +51,7 @@ export function AboutTab(): React.JSX.Element {
   const busy = update.phase === 'checking' || update.phase === 'downloading'
   const actionable = update.phase === 'downloaded' || update.phase === 'manual-download'
 
-  const piMinor = health?.version ? Number(health.version.split('.')[1] ?? 0) : null
-  const drift = piMinor !== null && piMinor > VERIFIED_PI_MINOR
+  const drift = isPiNewerThanVerified(health?.version)
 
   return (
     <div>
@@ -114,7 +111,7 @@ export function AboutTab(): React.JSX.Element {
         <div className="bg-warning/10 border-warning/30 mt-4 rounded-lg border px-3.5 py-2.5 text-base">
           <span className="font-medium">pi {health?.version} is newer than tested.</span>{' '}
           <span className="text-text-secondary">
-            pidex is verified against pi 0.{VERIFIED_PI_MINOR}.x. Newer minors usually work, but
+            pidex is verified against pi {VERIFIED_PI_LINE}.x. Newer minors usually work, but
             protocol additions may not be surfaced yet.
           </span>
         </div>
