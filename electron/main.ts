@@ -1,6 +1,7 @@
 import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'node:path'
 import { registerIpcHandlers } from './ipc'
+import { maintenanceScheduler } from './ipc/maintenance-handlers'
 import { registry } from './registry'
 import { ptyManager } from './pty/pty-manager'
 import { disposeConnectorAuth } from './pi/connector-auth'
@@ -152,6 +153,9 @@ if (!singleInstance) {
     createWindow()
     // No-op unless packaged: dev and E2E must never poll GitHub.
     startUpdateChecks()
+    // Reclaims dead lanes on a timer. Unref'd, warms up before its first
+    // sweep, and deletes nothing unless the user turned that on.
+    maintenanceScheduler.start()
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()

@@ -10,7 +10,9 @@ import {
 import {
   DEFAULT_APP_PREFS,
   DEFAULT_CLAUDE_ACCOUNT_PREFS,
+  DEFAULT_MAINTENANCE_PREFS,
   DEFAULT_MODEL_PICKS,
+  type MaintenancePrefs,
   normalizeLanePrefs,
   type LanePrefs,
   type AgentDirectivePrefs,
@@ -47,6 +49,29 @@ function prefs(): Store<AppPrefs> {
   return store
 }
 
+/**
+ * Clamp the janitor's numbers on read. Prefs are user-editable JSON, and these
+ * two decide how often a timer fires and how old a directory must be before it
+ * can be deleted — a zero or a negative in either is not a setting worth
+ * honouring.
+ */
+function normalizeMaintenancePrefs(
+  stored: Partial<MaintenancePrefs> | undefined,
+): MaintenancePrefs {
+  const merged = { ...DEFAULT_MAINTENANCE_PREFS, ...stored }
+  return {
+    ...merged,
+    intervalMinutes: Math.max(
+      15,
+      Math.floor(merged.intervalMinutes) || DEFAULT_MAINTENANCE_PREFS.intervalMinutes,
+    ),
+    minAgeHours: Math.max(
+      1,
+      Math.floor(merged.minAgeHours) || DEFAULT_MAINTENANCE_PREFS.minAgeHours,
+    ),
+  }
+}
+
 export function getPrefs(): AppPrefs {
   const s = prefs()
   return {
@@ -68,6 +93,7 @@ export function getPrefs(): AppPrefs {
     // Normalized on read as well as write: prefs are user-editable JSON, and
     // these numbers reach a prompt, a git ref and a filesystem path.
     lanes: normalizeLanePrefs(s.get('lanes')),
+    maintenance: normalizeMaintenancePrefs(s.get('maintenance')),
     fonts: { ...DEFAULT_APP_PREFS.fonts, ...s.get('fonts') },
     agentDirectives: {
       ...DEFAULT_APP_PREFS.agentDirectives,
@@ -152,6 +178,10 @@ export function setFontPrefs(fonts: AppPrefs['fonts']): void {
 
 export function setWorktreePrefs(worktrees: AppPrefs['worktrees']): void {
   prefs().set('worktrees', worktrees)
+}
+
+export function setMaintenancePrefs(maintenance: AppPrefs['maintenance']): void {
+  prefs().set('maintenance', maintenance)
 }
 
 /**

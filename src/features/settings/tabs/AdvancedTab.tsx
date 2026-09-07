@@ -4,6 +4,7 @@ import { Button, Row, SectionTitle } from '@/components/form'
 import type { PiHealth } from '@shared/models'
 import type { PiResources } from '@shared/models'
 import { ConfigFileEditor, piConfigFile } from '../ConfigFileEditor'
+import { MaintenanceSection } from './MaintenanceSection'
 
 /** pi install health, discovered resources, and raw config file editing. */
 
@@ -51,6 +52,8 @@ export function AdvancedTab(): React.JSX.Element {
       >
         <Button onClick={() => setEditing('models')}>Edit…</Button>
       </Row>
+
+      <MaintenanceSection />
 
       <SectionTitle small>
         Local pi resources (loose files — packages are in the Extensions tab; skills have their own

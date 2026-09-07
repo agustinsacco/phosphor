@@ -25,6 +25,8 @@ import type { SkillImportPreview, SkillScope, SkillsListResult } from './skills'
 import type {
   AddWorktreeBranch,
   AppPrefs,
+  MaintenancePrefs,
+  MaintenanceReport,
   AboutInfo,
   AgentSettingsHealth,
   BranchInfo,
@@ -655,6 +657,15 @@ export interface IpcInvokeMap {
     result: { renamed: boolean; branch: string }
   }
   'git:pruneWorktrees': { args: [repoPath: string]; result: { pruned: string[] } }
+
+  /**
+   * Measure what the janitor could reclaim in a workspace. Never deletes.
+   * `act` on `maintenance:run` is what deletes, and it still obeys the same
+   * policy — the button cannot reclaim anything a sweep would have held.
+   */
+  'maintenance:scan': { args: [repoPath: string]; result: MaintenanceReport }
+  'maintenance:run': { args: [repoPath: string]; result: MaintenanceReport }
+  'maintenance:setPrefs': { args: [MaintenancePrefs]; result: void }
   'git:commitAll': { args: [worktreePath: string, message: string]; result: { sha: string } }
   /** Merge into the main tree's current branch; aborts cleanly on conflict. */
   'git:mergeBranch': {
