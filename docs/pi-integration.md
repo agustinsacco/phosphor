@@ -1,6 +1,6 @@
 # 02 — pi Integration Reference
 
-Everything here was verified against the locally installed `@earendil-works/pi-coding-agent`. The protocol mirror in `shared/rpc.ts` was re-verified against **0.84.4** (2026-08-28) and `MIN_PI_VERSION` is **0.84.1**; the 0.84.2 `usage` field and the 0.84.3 `toolcall_start` id/name are read as optional so both floors work. The 0.84.0 streaming-shape delta is in `shared/rpc.ts`'s header — read it before trusting any older doc, including the parts of this file written against 0.78/0.79.
+Everything here was verified against the locally installed `@earendil-works/pi-coding-agent`. The protocol mirror in `shared/rpc.ts` was re-verified against **0.85.1** (2026-09-07, live RPC session — see [docs/log/2026-09-07-pi-085-verification.md](log/2026-09-07-pi-085-verification.md)) and `MIN_PI_VERSION` is **0.84.1**; the 0.84.2 `usage` field and the 0.84.3 `toolcall_start` id/name are read as optional so both floors work. 0.85.0 and 0.85.1 add no RPC command, no event type and no response-shape change over 0.84.4, so the floor stays where it is. The 0.84.0 streaming-shape delta is in `shared/rpc.ts`'s header — read it before trusting any older doc, including the parts of this file written against 0.78/0.79.
 
 When re-verifying against a new pi, diff `shared/rpc.ts` against pi's command switch and `dist/modes/json-event.d.ts` (the stdout shape), not just against `rpc-types.d.ts` (the internal shape):
 
@@ -11,6 +11,8 @@ $(npm root -g)/@earendil-works/pi-coding-agent/docs/rpc.md            ← the pr
 .../dist/core/tools/*.d.ts                                            ← tool input/details schemas
 .../examples/extensions/  and  .../examples/rpc-extension-ui.ts       ← extension + client patterns
 ```
+
+Then run `node scripts/pi-live-smoke.mjs`, which drives a real `pi --mode rpc` through the commands, events and response fields pidex reads, and update `VERIFIED_PI_LINE` in `src/lib/piDrift.ts` (the About tab's drift banner) once it is green. `npm run validate` cannot substitute: its e2e suite talks to `e2e/fixtures/pi-stub.cjs`, which answers a fixed script and cannot notice that pi's real protocol moved.
 
 ## Process model
 
