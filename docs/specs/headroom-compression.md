@@ -1,200 +1,217 @@
-# Headroom as a middleman extension
+# Headroom as a first-class pidex feature
 
-**Status: proposed, nothing implemented.** Research done 2026-09-07 against
-Headroom 0.37.0 (`headroom-ai`, Apache-2.0, repo at `e67b3c8`) and pi 0.84.2.
-The proxy was run locally and measured on this repo's own tool output, and
-Headroom's own harness plugins were read as the reference integrations.
+**Status: proposed. Phases 1–3 are ready to build; 4–5 need a decision.**
+Research done 2026-09-07 against Headroom 0.37.0 (`headroom-ai`, Apache-2.0,
+repo at `e67b3c8`), pi 0.84.2 and pi-claude-cli 0.7.0. The proxy was run
+locally and measured on this repo's own tool output; every trap below comes
+from Headroom's source or wiki, not its README.
 
-## Verdict
+## What first-class has to mean
 
-Attach at pi's `tool_result` hook as a bundled pidex extension. Compress tool
-**outputs** at the moment they are produced, fail open, default off.
+pidex runs two harnesses and they fail differently.
 
-This deviates from Headroom's own harness plugins, which compress the whole
-message list before every request (`plugins/opencode`, `plugins/openclaw` —
-`HeadroomContextEngine.assemble()`). The deviation is deliberate; see
-[Why not whole-history](#why-not-whole-history).
+| Harness       | Who runs a tool                                                             | pi's hooks see    | The HTTP layer sees           |
+| ------------- | --------------------------------------------------------------------------- | ----------------- | ----------------------------- |
+| pi native     | pi                                                                          | every tool result | every request                 |
+| pi-claude-cli | the CLI for `Read Write Edit Bash Grep Glob`; pi for `mcp__custom-tools__*` | MCP results only  | every request, inside the CLI |
 
-## Coverage, and the hard limit
+The split is enforced by `isHandoffClaudeTool()` in pi-claude-cli's
+`tool-mapping.ts`, and `pi-ext/worktree-paths.ts` already records it. Headroom
+has no hook-based answer for the CLI half: its Claude Code plugin
+(`plugins/headroom-agent-hooks`) is two hooks that run `headroom init hook
+ensure` and nothing more. Every documented Claude Code path is the HTTP proxy.
 
-On the Claude Code provider — pidex's usual mode — `Read`, `Write`, `Edit`,
-`Bash`, `Grep` and `Glob` run **inside the CLI** and never touch pi's tool
-layer (`tool-mapping.ts: isHandoffClaudeTool`; the same fact is already
-recorded in `pi-ext/worktree-paths.ts`). Only custom tools —
-`mcp__custom-tools__*`, i.e. every MCP connector — are handed off to pi.
+So the design is two layers.
 
-| Session kind                    | What the hook can compress |
-| ------------------------------- | -------------------------- |
-| pi-native (Bedrock, Anthropic…) | every tool result          |
-| Claude Code provider            | MCP connector results only |
+## Layer 1 — `pi-ext/headroom.ts`, the safe default
 
-Headroom has no hook-based answer for this. Its Claude Code plugin
-(`plugins/headroom-agent-hooks`) is two `SessionStart` / `PreToolUse` hooks
-that run `headroom init hook ensure` — they start the proxy and nothing else.
-Every documented Claude Code path is the HTTP proxy.
+A sixth bundled extension on pi's `tool_result` hook. Compresses one tool
+output as it is produced and returns the shorter text.
 
-## What Headroom actually is
+Covers every tool on pi native, MCP connector results on pi-claude-cli.
 
-- A **Python** service with a Rust core. The `headroom-ai` npm package is a
-  thin HTTP client over it (`compress()` → `POST /v1/compress`, default
-  `http://localhost:8787`). There is no pure-TS compressor to bundle.
-- Install is heavy: `headroom-ai[proxy]` resolved to a **503 MB** venv,
-  `[ml,code]` took it to **1.4 GB** (torch, tree-sitter).
-- Loopback-only by default, no inbound token, local stats opt-in. **The upload
-  beacon is opt-OUT** (`BEACON_DEFAULT_ON = True`; content-free session
-  summaries to Headroom Labs). pidex must set `HEADROOM_BEACON=off` and
-  `DO_NOT_TRACK=1`.
+It is the default because a compressed result is written once and never
+rewritten, so every earlier message keeps its exact bytes and prefix caching
+cannot break — and because nothing but tool output ever crosses the socket.
 
-```
-POST /v1/compress  {messages, model, token_budget?, config?}
-                → {messages, tokens_before, tokens_after, tokens_saved,
-                   compression_ratio, transforms_applied, ccr_hashes}
-GET  /v1/retrieve/<hash>
-GET  /health
-```
+- **Gate.** Inert unless `PIDEX_HEADROOM_URL` is set. One `GET /health` at
+  first use; failure disables it for the session.
+- **Hook.** `pi.on("tool_result")` — chains like middleware, accepts a partial
+  patch of `{content, details, isError, usage}`. Text parts only.
+- **Eligibility**, narrow like `worktree-paths.ts`: skip `isError` (the error
+  text _is_ the payload), skip under ~1k tokens, skip `read`/`write`/`edit`,
+  skip `bash`. Compress custom/MCP tools, `grep`, `find`, `ls`.
+- **Accept-or-discard.** Keep the compressed text only if it is smaller _and_
+  carries no unretrievable omission marker.
+- **Fail open twice.** 3 s timeout on `ctx.signal`, plus a circuit breaker —
+  upstream's own `HeadroomContextEngine` has one. Far inside `HANDOFF_WAIT_MS`
+  (30 min), the ceiling on a blocked Claude CLI handoff.
+- **Say so.** Cumulative savings on `ctx.ui.setStatus` under `pidex-headroom`,
+  rendered in the context meter. Also needs `STRUCTURED_STATUS_KEYS`.
+- **No `headroom_retrieve` tool.** No hashes exist on this path, so it could
+  only ever error.
+
+## Layer 2 — provider routing, opt-in per harness
+
+Point model traffic at `127.0.0.1:8787`. The only thing that reaches Claude
+Code's own `Read`/`Bash`/`Grep` output, and the only configuration where CCR
+works at all.
+
+- **pi native:** a `baseUrl` override on the built-in provider in
+  `models.json`. pi documents that built-in models and existing OAuth keep
+  working.
+- **pi-claude-cli:** `ANTHROPIC_BASE_URL` on pidex's own `spawnEnv` — never
+  `headroom wrap` or `headroom init` (trap 1).
+
+Cost: the provider credential transits a third-party local process that holds
+it in memory (trap 2).
 
 ## Measured, on this repo
 
-One tool result per request, three-message envelope, model
-`claude-sonnet-4-5`, proxy 0.37.0 with `[proxy,ml,code]`:
+`POST /v1/compress`, one tool result per request, model `claude-sonnet-4-5`,
+proxy with `[proxy,ml,code]`.
 
-| Tool output                           | Before  | After   | Saved | Latency |
-| ------------------------------------- | ------- | ------- | ----- | ------- |
-| MCP JSON, 120 Linear-shaped records   | 30,203  | 14,075  | 53%   | 67 ms   |
-| MCP JSON, 2,000 records               | 218,720 | 142,747 | 35%   | ~1 s    |
-| `grep -rn session src/ electron/`     | 46,796  | 34,158  | 27%   | 42 ms   |
-| test log, 4k lines with real failures | 126,978 | 34,049  | 73%   | ~1 s    |
-| `git log --stat -n 40`                | 19,318  | 19,318  | 0%    | 5 ms    |
-| `read` of a 9.4 KB TypeScript file    | 2,377   | 2,377   | 0%    | 3 ms    |
+| Tool output                         | Before  | After   | Saved | Latency | Transform   |
+| ----------------------------------- | ------- | ------- | ----- | ------- | ----------- |
+| MCP JSON, 120 Linear-shaped records | 30,203  | 14,075  | 53%   | 67 ms   | restructure |
+| MCP JSON, 2,000 records             | 218,720 | 142,747 | 35%   | ~1 s    | restructure |
+| `grep -rn session src/ electron/`   | 46,796  | 34,158  | 27%   | 42 ms   | drop        |
+| test log, 4k lines, seeded failures | 126,978 | 34,049  | 73%   | ~1 s    | drop        |
+| uniform 4k-line log                 | 127,020 | 32      | 100%  | ~120 ms | drop        |
+| `git log --stat -n 40`              | 19,318  | 19,318  | 0%    | 5 ms    | noop        |
+| `read` of a 9.4 KB `.ts` file       | 2,377   | 2,377   | 0%    | 3 ms    | excluded    |
 
-The two zeroes are by design, not failure. `wiki/LIMITATIONS.md` documents code
-as passthrough behind `protect_recent_code=4` and `protect_analysis_context`,
-on the grounds that code is fetched because the user wants to work with it.
+The zeroes are deliberate upstream behaviour. `wiki/LIMITATIONS.md` documents
+code as passthrough behind `protect_recent_code=4` and
+`protect_analysis_context`, because code is fetched to be worked on.
 
-## Two transforms, and only one of them is safe
+**Restructure is safe.** JSON becomes a typed schema header plus CSV rows;
+verified by counting identifiers, 120 of 120 records survived, and 500 and
+2,000-record arrays behaved the same.
 
-Everything above ran one of two very different transforms, and the design
-turns on the difference.
+**Dropping is not, and on layer 1 it is permanent.** Every response came back
+`ccr_hashes: []` with no `hash=` marker, and `/v1/retrieve/stats` stayed
+empty. `wiki/ccr.md` says why: "the full compress-cache-retrieve tool-call
+loop … only runs inside `headroom proxy`, not the standalone SDK call." CCR
+must own the request/response loop to intercept the model's retrieve call; a
+`tool_result` hook never does. Hence accept-or-discard, and hence no `bash`.
 
-**Restructuring — safe.** JSON tool results hit `router:tool_result:mixed`,
-which rewrites the array as a typed schema header plus CSV rows. Verified by
-counting identifiers in the output: **120 of 120 records survived**, and 500
-and 2,000-record arrays behaved the same. Nothing is summarised away, so
-nothing needs retrieving.
+## Detect, install, run, check
 
-**Dropping — not safe.** Logs and search output hit
-`router:tool_result:search`, which deletes lines. A 4k-line log with seeded
-failures kept the `FAIL` line, the `AssertionError` and most `ERROR` lines,
-but swallowed three `ERROR` lines inside a `[2711 lines omitted: 3 ERROR,
-2725 INFO]` marker and mangled some timestamps. A _uniform_ 4k-line log
-collapsed to a single `[4001 lines omitted: 4000 INFO]` — 127,020 tokens to 32.
+**Detect.** `headroom --version` on the login-shell PATH pidex already
+resolves; `GET /health` for liveness and `checks.kompress.ready` for
+capabilities; `headroom doctor --json` (exit 0 pass / 1 warn / 2 fail) for
+diagnosis. Mirror `electron/pi/health.ts` as `electron/headroom/health.ts`,
+and keep pi's rule: reads never spawn anything.
 
-**And on this path the dropping is irreversible.** Every response came back
-`ccr_hashes: []` with no `hash=` marker, at 120, 500 and 2,000 records and on
-both log runs, and `/v1/retrieve/stats` stayed empty. This is not a bug to
-wait out. `wiki/ccr.md` says it plainly: "the full compress-cache-retrieve
-tool-call loop (`headroom_retrieve`, proactive expansion) only runs inside
-`headroom proxy`, not the standalone SDK call." CCR needs to own the
-request/response loop to intercept the model's retrieve call. A `tool_result`
-middleman never has that. (The FAQ in `wiki/integration-guide.md` claims CCR
-covers the SDK path too; `wiki/ccr.md` is the accurate one.)
+**Install, never silently.** `headroom-ai[proxy]` resolved to a 503 MB venv;
+`[ml,code]` took it to 1.4 GB. The npm package is only an HTTP client to the
+Python service, so there is nothing lighter to bundle. Show the command, then
+stream it over the same job pattern the packages tab already uses:
 
-So the extension must not trust `transforms_applied` after the fact — it must
-**verify the output**: if the compressed text contains an omission marker and
-no retrievable hash, discard the compression and keep the original. That rule
-is enforceable from the response alone and does not depend on Headroom's
-config staying the same.
+```
+headroom:install(extras) → { jobId }
+  → chunks on  headroom:output:<jobId>
+  → exit code on headroom:exit:<jobId>
+```
 
-## Design: `pi-ext/headroom.ts`
+**Run.** Main process owns it, one proxy per machine:
 
-A sixth bundled extension, loaded like the other five, inert unless enabled.
+```
+headroom proxy --port 8787 --no-subscription-tracking
+env: HEADROOM_BEACON=off  DO_NOT_TRACK=1  HEADROOM_UPDATE_CHECK=off
+```
 
-- **Gate.** Nothing happens unless `PIDEX_HEADROOM_URL` is set in pi's env.
-  One `GET /health` at first use; failure disables the extension for the rest
-  of the session.
-- **Hook.** `pi.on("tool_result")` — documented to chain like middleware and to
-  accept a partial patch of `{content, details, isError, usage}`. Only text
-  parts are touched; images pass through.
-- **Eligibility**, narrow by construction, same discipline as
-  `worktree-paths.ts`: skip `isError` (the error text _is_ the payload), skip
-  under ~1k tokens, skip `read`/`write`/`edit`, skip `bash` by default. Compress
-  custom/MCP tools, `grep`, `find`, `ls`.
-- **Accept-or-discard.** Keep the compressed text only if it is smaller _and_
-  carries no unretrievable omission marker. Otherwise keep the original.
-- **Fail open, twice.** A 3 s timeout per call linked to `ctx.signal`, plus a
-  circuit breaker — N consecutive failures open it for a cooldown, as
-  `HeadroomContextEngine` does. Any throw, non-200, or malformed body leaves
-  the result untouched. A compression service must never fail a turn.
-- **Say so.** Cumulative per-session savings on `ctx.ui.setStatus` under a
-  `pidex-headroom` key, rendered in the context meter. A silently rewritten
-  tool result is exactly the failure `worktree-paths.ts` exists to prevent.
-  The key also needs adding to `STRUCTURED_STATUS_KEYS`.
-- **No `headroom_retrieve` tool.** Headroom's own plugins register one. On this
-  path it could never succeed — there are no hashes to retrieve by — so
-  shipping it would be a tool that always errors.
+Adopt an existing proxy if `/health` already answers — the user may have run
+`headroom install apply`, and a second proxy on a second port silently splits
+the savings. Never outlive the app. Fail open on start.
 
-Cost when enabled: one loopback round trip per eligible tool result, 3–67 ms
-typical, ~1 s on a 200k-token payload. That is far inside `HANDOFF_WAIT_MS`
-(30 min), the ceiling on a blocked Claude CLI handoff.
+**Check.** A Settings section answering four questions: installed, running,
+routed, saving how much. The last is free once layer 1 pushes its status key.
 
-## Why not whole-history
+## Traps
 
-pi's `context` event is a 1:1 match for OpenClaw's `assemble()` — a deep copy
-of the message list, returned modified. It is the vendor's own pattern, and it
-is still wrong here, for two reasons.
+1. **Never `wrap` / `init` / `install --providers`.** Upstream's provider
+   adapters write `ANTHROPIC_BASE_URL` into `~/.claude/settings.json`
+   (`wiki/persistent-installs.md`) and `wrap claude` persists it into
+   `.claude/settings.local.json` in the cwd. A proxy that dies uncleanly then
+   bricks a plain `claude` with ConnectionRefused — upstream ships
+   `_selfheal_dead_wrap_base_url()` on a SessionStart hook to undo exactly
+   this. The global file changes the user's own CLI outside pidex; the
+   project-local one would land in every worktree. pidex sets env on its own
+   spawn only.
+2. **The proxy keeps the Claude OAuth token.** `subscription/tracker.py`
+   stores the raw bearer (`self._current_token = raw`) and polls
+   `api.anthropic.com/api/oauth/usage` with it every 300 s. Destination is
+   Anthropic, not Headroom Labs, so this is not exfiltration — but it is an
+   unrequested second use of the credential, and pidex already gets rate-limit
+   state from pi-claude-cli. Mitigation: `--no-subscription-tracking`,
+   non-negotiable if layer 2 ships.
+3. **A custom base URL inflates Claude Code's context.** Upstream issue #746:
+   the CLI disables on-demand tool loading when `ANTHROPIC_BASE_URL` is custom
+   and `ENABLE_TOOL_SEARCH` is unset, "which inflates the local context window
+   by tens of K tokens." Set `ENABLE_TOOL_SEARCH=true` beside it and verify on
+   the context meter.
+4. **The model picker does not survive a custom base URL.** Upstream's
+   `cli/wrap.py` says `/model` selection "does not survive", which is why
+   their `--1m` flag forces `ANTHROPIC_MODEL`. pidex sets a model per session
+   and shows it on a chip. Verify before phase 5 — a chip that lies is worse
+   than no compression.
+5. **Bedrock does not pass through.** With `CLAUDE_CODE_USE_BEDROCK=1` the CLI
+   calls Bedrock directly through the AWS SDK and ignores `ANTHROPIC_BASE_URL`
+   entirely (`docs/claude-code-bedrock-headroom.md`). The supported shape is
+   `CLAUDE_CODE_USE_BEDROCK=0` plus `headroom proxy --backend bedrock`. Same
+   for pi native: SigV4 signing means a `baseUrl` override cannot work, so a
+   Bedrock session needs an `anthropic-messages` provider pointed at Headroom.
+   Its own follow-up.
+6. **Whole-history compression busts the prefix cache.** pi's `context` event
+   maps 1:1 onto upstream's `HeadroomContextEngine.assemble()`. `wiki/proxy.md`
+   requires a stateless caller to pass `config.frozen_message_count` _and_
+   resend previously-forwarded messages or it "silently destroys the
+   provider's prefix cache"; upstream's own plugin passes neither. Layer 1's
+   per-result design sidesteps the parameter entirely.
+7. **Two Claude auth keys are mutually exclusive.**
+   `claude_auth_conflict_sources()` treats `ANTHROPIC_API_KEY` and
+   `ANTHROPIC_AUTH_TOKEN` as contradictory. pidex already writes account env
+   through `claudeAccountEnv()`; check the overlay before adding a writer.
+8. **Transport interception is not an option.** Upstream's opencode plugin
+   monkeypatches `fetch`, `http`, `https`, `http2` and
+   `child_process.spawn/exec/execFile/fork`, injecting
+   `NODE_OPTIONS=--import=<shim>` so children are patched too. It would reach
+   the Claude CLI, but `shouldRoute()` sends every non-loopback request through
+   the proxy, and pi is a process pidex spawns and depends on. Recorded so it
+   is not re-derived.
 
-**It busts the prefix cache.** `wiki/proxy.md` is explicit: a stateless caller
-must pass `config.frozen_message_count` _and_ resend the messages it previously
-forwarded rather than the pristine originals, or it "silently destroys the
-provider's prefix cache." `HeadroomContextEngine.assemble()` passes neither.
-pidex has spent several fixes protecting that cache; re-earning that bug is not
-worth 35%.
+## Delivery
 
-**It does nothing on Claude sessions.** pi-claude-cli 0.7.0 keeps one CLI
-process and sends full history only on create and import. Rewriting history
-mid-session would be both ineffective and a way to desync pi from the CLI's
-transcript.
+1. **The extension, inert.** Layer 1 as specified, wired into
+   `bundledExtensions()`, provably a no-op with no env var.
+   Files: `pi-ext/headroom.ts`, `pi-ext/headroom.test.ts`,
+   `electron/ipc/pi-session-handlers.ts`, [../extensions.md](../extensions.md),
+   [../../README.md](../../README.md) (the two "five extensions" counts).
+2. **Detect and install.** `electron/headroom/health.ts`, a Settings tab with
+   the not-installed state and the guided install job. No traffic touched.
+3. **Proxy lifecycle + savings surface.** Main-process supervisor, flip
+   `PIDEX_HEADROOM_URL` into `spawnEnv`, savings row in the context meter.
+   First release where anything is actually compressed.
+4. **Layer 2 for pi native.** `baseUrl` override. Verify pi's default
+   `eager_input_streaming: true` survives, else set
+   `compat.supportsEagerToolInputStreaming: false`. Bedrock excluded.
+5. **Layer 2 for pi-claude-cli.** `ANTHROPIC_BASE_URL` +
+   `ENABLE_TOOL_SEARCH=true` on pidex's own spawn. Blocked on trap 4 and on an
+   explicit call about trap 2.
 
-The `tool_result` design sidesteps `frozen_message_count` entirely: a compressed
-result is written once and never rewritten, so the bytes of every earlier
-message are stable by construction.
+Phases 1–3 need no decision. 4–5 do.
 
-## The three ways to reach Claude Code's own tools
+## Asks for Headroom
 
-None is in scope. Recording them so the option space is not re-derived.
+The integration surface that would make this clean, ranked.
 
-1. **`ANTHROPIC_BASE_URL` on the CLI spawn** — Headroom's documented path, and
-   it enables CCR because the proxy owns the loop. It also routes the user's
-   Claude subscription OAuth through a third-party local process on every
-   request.
-2. **Transport interception** — what `plugins/opencode/src/transport.ts` does:
-   monkeypatch `fetch`, `http`, `https`, `http2` _and_ `child_process.spawn/
-exec/execFile/fork`, injecting `NODE_OPTIONS=--import=<shim>` so children
-   are patched too. That would reach the CLI. `shouldRoute()` sends **every**
-   non-loopback request through the proxy, not just LLM calls, and pi's process
-   is one pidex spawns and depends on. Too wide.
-3. **Do nothing there** — accept that Claude sessions get MCP compression only.
-   The default.
-
-## Open decisions (user's call)
-
-1. **Lossy `bash` results** — the default above says never. If ever, it should
-   be its own opt-in switch, not folded into the main one.
-2. **The 1.4 GB install.** pidex can detect and use it; somebody still has to
-   install it. General feature, or per-user power feature?
-3. **Option 1 or 2 above** — the only ways to reach Claude Code's built-ins.
-   Worth the exposure, or not?
-
-## Plan
-
-1. `pi-ext/headroom.ts` + `pi-ext/headroom.test.ts` (eligibility, envelope,
-   accept-or-discard, circuit breaker, accumulator — pure logic, fake `fetch`).
-   Wired into `bundledExtensions()`, inert with no env var. Docs: the `pi-ext/`
-   table in [../extensions.md](../extensions.md) and the two "five extensions"
-   counts in [../../README.md](../../README.md).
-2. Settings → Agent toggle, proxy lifecycle owned by the main process (health
-   check, `HEADROOM_BEACON=off`, `DO_NOT_TRACK=1`, `PIDEX_HEADROOM_URL` on
-   `spawnEnv`), and a "not installed" state that shows the install command.
-3. The savings row in the context meter.
-
-Step 1 is a self-contained PR. Steps 2 and 3 wait on the open decisions.
+| Ask                                                                       | Unlocks                                                                                                                       |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **CCR on `/v1/compress`** — return hashes, honour `/v1/retrieve/<hash>`   | Turns layer 1 reversible. The one change that lets us stop excluding `bash` and logs, where the largest untapped savings are. |
+| **A credential-free routing mode** — never read or retain `authorization` | Removes the whole objection to layer 2; it becomes a toggle instead of a security review.                                     |
+| **A per-request transform allowlist** — e.g. `config.allow_lossy: false`  | Server-side guarantee instead of our client-side omission-marker heuristic.                                                   |
+| **A slimmer install** — proxy-only, no torch                              | 1.4 GB is the biggest desktop adoption barrier; structural compression already delivered most of what we measured.            |
+| **An env-only integration contract** — documented, no config-file writes  | Makes pidex a clean citizen and removes the stale-base-URL failure entirely.                                                  |
+| **A pi package** — publish the extension jointly                          | Layer 1 for every pi user, not just pidex, and a harness they do not currently list.                                          |
