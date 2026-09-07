@@ -27,11 +27,32 @@ server's URL matches a known connector. Sections, in order:
 3. **Advanced** (collapsed) — adapter install state and the chain file list
    with the raw JSON editor. Repair tools, not daily controls.
 
-Six curated OAuth
-connectors — Linear, Notion, Braintrust, Datadog, Fellow, Slack — each with the
-endpoint checked against the vendor's docs, because a wrong URL fails as
-"broken auth" (`src/features/connectors/catalog.ts`; endpoints and their
-gotchas are documented per entry there).
+Eight curated OAuth connectors — Linear, Notion, Braintrust, Datadog,
+Supabase, Questrade, Fellow, Slack — each with the endpoint checked against the
+vendor's docs _and_ against the server's own OAuth metadata, because a wrong
+URL fails as "broken auth" (`src/features/connectors/catalog.ts`; endpoints
+and their gotchas are documented per entry there).
+
+**Add starts the sign-in.** Add writes the `pi-global` entry and then
+immediately runs the headless OAuth flow, so the row appears in Connected with
+its flow card already open and the browser already launched. Add used to only
+write `mcp.json`, which left the connector needing a separate Sign in click and
+read as "Add did nothing" — worst on Slack, where you have just pasted a client
+id and are expecting a browser. The headless route is used even when a session
+is open: that session's adapter read `mcp.json` at startup, so it has never
+heard of the server just written.
+
+**Two connectors default to read-only, on purpose.** With no `oauth.scope`
+configured the MCP SDK requests every scope in the server's
+protected-resource metadata, and for a brokerage that set includes
+`brokerage.orders.all` — one click would give a model authority to place
+trades. Questrade therefore pins `QUESTRADE_READ_SCOPES` (every read scope the
+server advertises, no write scope; `QUESTRADE_WRITE_SCOPES` names the excluded
+ones so a test can assert they never leak in). Supabase's knob is a query
+parameter instead, so its `read_only=true` endpoint is the _first_ variant and
+therefore the default; note that this constrains the SQL user, not the OAuth
+grant, and that without `?project_ref=<ref>` the server reaches every project
+in the account.
 
 **"Is it up?" is a button, not an inference.** The status chip comes from the
 adapter inside a live session, so with nothing open the row could only say
@@ -85,8 +106,15 @@ Three rules hold this together:
    server has no token.
 
 Slack is the one connector that cannot be one click, and its row carries the
-whole reason why. Slack has no dynamic registration, so the user registers an
-app and pastes its **client id**. Slack also refuses a `http://localhost`
+whole reason why. This is not a pidex shortcoming and cannot be designed away:
+Slack's docs say "we do not support SSE-based connections or Dynamic Client
+Registration at this time" and "MCP clients must be backed by a registered
+Slack app with a fixed app ID and hardcode that app ID", and
+`mcp.slack.com/.well-known/oauth-authorization-server` carries no
+`registration_endpoint` to call even if we wanted to (re-probed 2026-09-07). So
+the user registers an app and pastes its **client id**, and the Add button
+stays disabled until they do. A one-click Slack row would need pidex to own a
+Marketplace-published Slack app. Slack also refuses a `http://localhost`
 redirect URL unless that app has **PKCE** enabled, and a PKCE app is a _public_
 client whose token exchange carries no secret — so the secret field is
 optional, and an empty one is never written (the adapter reads any secret as
@@ -224,7 +252,8 @@ mcp:submitAuthCallback / mcp:cancelAuth / mcp:checkServer` and the
   asserts the resolved row, toggles disable (file gains `"disabled": true`),
   adds a project server (`.pi/mcp.json` written). "Connectors" — adds Datadog
   on the EU site and asserts the written endpoint, since a per-site host that
-  silently defaults to US authorizes and then returns nothing. “Connectors:
+  silently defaults to US authorizes and then returns nothing; it then adds
+  Slack with a client id and asserts Add opened the flow card by itself. “Connectors:
   signing in works with no session open” drives the headless flow against the
   stub, which answers `/mcp-auth` with the adapter's real prompt shape, then
   clicks **Test** and asserts the `Up · 7 tools` verdict the stub's

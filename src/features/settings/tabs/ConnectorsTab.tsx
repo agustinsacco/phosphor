@@ -281,15 +281,27 @@ export function ConnectorsTab(): React.JSX.Element {
                 key={entry.id}
                 entry={entry}
                 onAdd={(choice) =>
-                  void act(() =>
-                    window.pidex.invoke(
+                  void act(async () => {
+                    await window.pidex.invoke(
                       'mcp:upsertServer',
                       'pi-global',
                       undefined,
                       entry.serverName,
                       buildConnectorConfig(entry, choice),
-                    ),
-                  )
+                    )
+                    // Adding was never the goal; being signed in is. Add used
+                    // to only write mcp.json, so the connector landed in the
+                    // list above still needing a separate Sign in — which
+                    // reads as "Add did nothing", most sharply on Slack,
+                    // where you have just pasted a client id and expect a
+                    // browser.
+                    //
+                    // Headless on purpose, even with a session open: a live
+                    // session's adapter loaded mcp.json when it started, so
+                    // it has never heard of the server just written and would
+                    // refuse the command.
+                    await useConnectorsStore.getState().connect(entry.serverName)
+                  })
                 }
               />
             ))}
@@ -646,6 +658,7 @@ function CatalogRow({
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const url = connectorUrl(entry, { variant, readOnly })
+  const needsClientId = entry.authKind === 'preregistered'
 
   return (
     <div
@@ -660,6 +673,15 @@ function CatalogRow({
         <Button
           variant="primary"
           size="sm"
+          // Slack cannot be one click: it supports no dynamic registration and
+          // requires its client id up front. Showing that as a disabled button
+          // beats letting `buildConnectorConfig` throw into the error banner.
+          disabled={needsClientId && !clientId.trim()}
+          title={
+            needsClientId && !clientId.trim()
+              ? `${entry.name} has no dynamic registration — paste the client ID of an app you registered.`
+              : undefined
+          }
           onClick={() => onAdd({ variant, readOnly, clientId, clientSecret })}
         >
           Add
@@ -696,7 +718,7 @@ function CatalogRow({
             read-only
           </label>
         )}
-        {entry.authKind === 'preregistered' && (
+        {needsClientId && (
           <>
             <TextInput
               value={clientId}
