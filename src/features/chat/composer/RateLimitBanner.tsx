@@ -10,6 +10,7 @@ import {
   utilizationPercent,
   windowLabel,
 } from './rateLimit'
+import { useSessionClaudeAccount } from './useSessionAccount'
 
 /**
  * Account usage warning, directly above the composer.
@@ -34,6 +35,10 @@ export function RateLimitBanner({
 }): React.JSX.Element | null {
   const statusText = useExtensionUiStore((s) => s.statuses[sessionId]?.[RATE_LIMIT_STATUS_KEY])
   const [dismissed, setDismissed] = useState<string | null>(null)
+  // Only asked for once this banner is warranted, and only shown once more
+  // than one account exists: with several logins in rotation, "limit reached"
+  // is meaningless until you know whose limit.
+  const { account } = useSessionClaudeAccount(sessionId, Boolean(statusText))
 
   const limit = parseRateLimit(statusText)
   if (!limit || !needsAttention(limit)) return null
@@ -61,6 +66,7 @@ export function RateLimitBanner({
         <span className="text-text-secondary flex-1 truncate text-base">
           {percent !== null && `${percent}% used`}
           {capped ? ' · limit reached' : reset ? ` · ${reset}` : ''}
+          {account && account.total > 1 && ` · ${account.email ?? account.label}`}
         </span>
         <button
           onClick={() => setDismissed(signature)}

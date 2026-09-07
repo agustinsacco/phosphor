@@ -1,27 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import type {
+  ClaudeAccountSessions,
   ClaudeAccountsResult,
   ClaudeAccountView,
   ClaudeLoginState,
   ClaudeRoutingMode,
   ClaudeStatus,
-  ClaudeUsageSnapshotResult,
   PiPackageEntry,
 } from '@shared/models'
 import { Button, TextInput } from '@/components/form'
-import { Spinner } from '@/components/icons'
+import { ChevronIcon, Spinner } from '@/components/icons'
 import { usePackageJob } from '../usePackageJob'
 import { isNewerVersion } from '@shared/version'
 import { JobOutput } from '../JobOutput'
-import {
-  usageBarClass,
-  usageTextClass,
-  usageUnavailableReason,
-  windowResetLabel,
-  windowTitle,
-} from '@/lib/claudeUsage'
+import { ClaudeAccountPanel } from './ClaudeAccountPanel'
+import { usageTextClass, windowResetLabel } from '@/lib/claudeUsage'
 import { isValidAutocompactValue } from '@/lib/claudeAutocompact'
+import { useSessionsStore } from '@/stores/sessions'
 
 /** Claude Code line the extension is tested against (see the fork's CI). */
 const TESTED_CLI_LINE = '2.1'
@@ -161,8 +157,6 @@ export function ClaudeProviderTab(): React.JSX.Element {
         onLoginState={setLogin}
       />
 
-      <UsageSection binaryOk={binaryOk} accountId={primaryAccountId(accounts)} />
-
       <ContextWindowSection />
 
       <h3 className="mt-6 text-lg font-semibold">Prove it end to end</h3>
@@ -282,9 +276,21 @@ function AccountsSection({
 }): React.JSX.Element {
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [sessions, setSessions] = useState<ClaudeAccountSessions>({})
   const inFlight = login !== null
   const prefs = accounts?.prefs
   const views = accounts?.views ?? []
+
+  // Re-read on every change to the live set, which is also what a move
+  // produces: the moved lane is a new pidex session id on a new account.
+  const liveKey = useSessionsStore((s) => Object.keys(s.live).sort().join(','))
+  useEffect(() => {
+    void window.pidex
+      .invoke('claude:accountSessions')
+      .then(setSessions)
+      .catch(() => setSessions({}))
+  }, [liveKey])
 
   const start = async (accountId?: string): Promise<void> => {
     setCode('')
@@ -340,6 +346,11 @@ function AccountsSection({
         another. The account is chosen when a session <strong>starts</strong> and stays fixed for
         its whole life — a resumed session always bills the account it began on.
       </p>
+      <p className="text-text-secondary mt-1 text-base">
+        Open a row for that account&apos;s own plan usage and the sessions spending it. A session on
+        a spent account can be restarted there, or moved to another account — both respawn it, so
+        the next turn re-reads the whole thread and pays for it once.
+      </p>
       <p className="text-text-tertiary mt-1 text-sm">
         Adding an account opens Claude&apos;s sign-in page. If your browser signs you straight back
         into the account you already have, sign out at claude.ai first — signing in as an email that
@@ -363,6 +374,12 @@ function AccountsSection({
               view={view}
               index={index}
               count={views.length}
+              views={views}
+              sessionIds={sessions[view.account.id] ?? []}
+              expanded={expandedId === view.account.id}
+              onToggle={() =>
+                setExpandedId((current) => (current === view.account.id ? null : view.account.id))
+              }
               pinned={prefs?.mode === 'specific' && primaryAccountId(accounts) === view.account.id}
               selectable={prefs?.mode === 'specific'}
               busy={busy || inFlight}
@@ -457,11 +474,23 @@ function AccountsSection({
   )
 }
 
-/** One account: identity, quota, order, and its two destructive-ish buttons. */
+/**
+ * One account: identity, quota, order, its two destructive-ish buttons — and,
+ * when opened, that account's own usage and the sessions spending it.
+ *
+ * The disclosure is what makes this a gateway rather than a list. Usage is
+ * per credential, so a single panel could only ever describe one of these
+ * rows; the numbers now sit under the account they belong to, and the lanes
+ * billing it sit under the same fold.
+ */
 function AccountRow({
   view,
   index,
   count,
+  views,
+  sessionIds,
+  expanded,
+  onToggle,
   pinned,
   selectable,
   busy,
@@ -473,6 +502,10 @@ function AccountRow({
   view: ClaudeAccountView
   index: number
   count: number
+  views: ClaudeAccountView[]
+  sessionIds: string[]
+  expanded: boolean
+  onToggle: () => void
   pinned: boolean
   selectable: boolean
   busy: boolean
@@ -493,78 +526,99 @@ function AccountRow({
     .join(' · ')
 
   return (
-    <div className="flex items-start gap-3 px-3.5 py-2.5">
-      {selectable ? (
-        <input
-          type="radio"
-          name="claude-pinned-account"
-          aria-label={`Use ${account.label} for new sessions`}
-          className="accent-accent mt-1.5"
-          checked={pinned}
-          disabled={busy}
-          onChange={onPin}
-        />
-      ) : (
-        <span
-          className={clsx(
-            'mt-2 h-2 w-2 shrink-0 rounded-full',
-            signedIn ? 'bg-success' : 'bg-warning',
+    <div className="px-3.5 py-2.5">
+      <div className="flex items-start gap-3">
+        {selectable ? (
+          <input
+            type="radio"
+            name="claude-pinned-account"
+            aria-label={`Use ${account.label} for new sessions`}
+            className="accent-accent mt-1.5"
+            checked={pinned}
+            disabled={busy}
+            onChange={onPin}
+          />
+        ) : (
+          <span
+            className={clsx(
+              'mt-2 h-2 w-2 shrink-0 rounded-full',
+              signedIn ? 'bg-success' : 'bg-warning',
+            )}
+            aria-hidden
+          />
+        )}
+
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          className="min-w-0 flex-1 text-left"
+        >
+          <div className="flex items-center gap-1.5 text-base font-medium">
+            <ChevronIcon expanded={expanded} className="text-text-tertiary" />
+            {account.label}
+            {!signedIn && <span className="text-warning text-sm">needs sign-in</span>}
+            <span className="text-text-tertiary text-sm font-normal">
+              {sessionIds.length === 0
+                ? 'no live session'
+                : sessionIds.length === 1
+                  ? '1 live session'
+                  : `${sessionIds.length} live sessions`}
+            </span>
+          </div>
+          <div className="text-text-tertiary truncate font-mono text-sm">{detail}</div>
+          {fiveHour && (
+            <div className={clsx('mt-0.5 font-mono text-sm', usageTextClass(fiveHour.percentUsed))}>
+              5-hour {Math.round(fiveHour.percentUsed)}% used
+              {windowResetLabel(fiveHour.resetsAt)
+                ? ` · ${windowResetLabel(fiveHour.resetsAt)}`
+                : ''}
+            </div>
           )}
-          aria-hidden
-        />
-      )}
+          {cooldownUntil !== null && (
+            <div className="text-warning mt-0.5 text-sm">
+              Skipped by routing until this window resets.
+            </div>
+          )}
+        </button>
 
-      <div className="min-w-0 flex-1">
-        <div className="text-base font-medium">
-          {account.label}
-          {!signedIn && <span className="text-warning ml-2 text-sm">needs sign-in</span>}
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            onClick={() => onMove(index, -1)}
+            disabled={busy || index === 0}
+            aria-label={`Move ${account.label} up`}
+            className="text-text-secondary hover:text-text px-1 text-base disabled:opacity-30"
+          >
+            ↑
+          </button>
+          <button
+            onClick={() => onMove(index, 1)}
+            disabled={busy || index === count - 1}
+            aria-label={`Move ${account.label} down`}
+            className="text-text-secondary hover:text-text px-1 text-base disabled:opacity-30"
+          >
+            ↓
+          </button>
+          <button
+            onClick={onReauth}
+            disabled={busy}
+            className="text-text-secondary hover:text-text text-base disabled:opacity-50"
+          >
+            Sign in again
+          </button>
+          <button
+            onClick={onRemove}
+            disabled={busy}
+            className="text-danger text-base hover:underline disabled:opacity-50"
+          >
+            Remove
+          </button>
         </div>
-        <div className="text-text-tertiary truncate font-mono text-sm">{detail}</div>
-        {fiveHour && (
-          <div className={clsx('mt-0.5 font-mono text-sm', usageTextClass(fiveHour.percentUsed))}>
-            5-hour {Math.round(fiveHour.percentUsed)}% used
-            {windowResetLabel(fiveHour.resetsAt) ? ` · ${windowResetLabel(fiveHour.resetsAt)}` : ''}
-          </div>
-        )}
-        {cooldownUntil !== null && (
-          <div className="text-warning mt-0.5 text-sm">
-            Skipped by routing until this window resets.
-          </div>
-        )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
-        <button
-          onClick={() => onMove(index, -1)}
-          disabled={busy || index === 0}
-          aria-label={`Move ${account.label} up`}
-          className="text-text-secondary hover:text-text px-1 text-base disabled:opacity-30"
-        >
-          ↑
-        </button>
-        <button
-          onClick={() => onMove(index, 1)}
-          disabled={busy || index === count - 1}
-          aria-label={`Move ${account.label} down`}
-          className="text-text-secondary hover:text-text px-1 text-base disabled:opacity-30"
-        >
-          ↓
-        </button>
-        <button
-          onClick={onReauth}
-          disabled={busy}
-          className="text-text-secondary hover:text-text text-base disabled:opacity-50"
-        >
-          Sign in again
-        </button>
-        <button
-          onClick={onRemove}
-          disabled={busy}
-          className="text-danger text-base hover:underline disabled:opacity-50"
-        >
-          Remove
-        </button>
-      </div>
+      {expanded && (
+        <ClaudeAccountPanel accountId={account.id} views={views} sessionIds={sessionIds} />
+      )}
     </div>
   )
 }
@@ -695,92 +749,6 @@ function UpdateRow({
         {running ? 'Updating…' : 'Update'}
       </button>
     </div>
-  )
-}
-
-/**
- * Live subscription usage — the same windows Claude Desktop shows (5-hour,
- * weekly, per-model weekly), plus the "what's contributing" context the CLI
- * renders from the same data. This is the diagnostics surface: the popover
- * hides failures, this tab says what they were.
- *
- * The fetch spawns `claude -p /usage`: zero quota, no API key, no credential
- * pidex touches — the CLI reads its own keychain login, so it needs nothing
- * from the user beyond being signed in to a subscription.
- */
-function UsageSection({
-  binaryOk,
-  accountId,
-}: {
-  binaryOk: boolean | undefined
-  /** Whose quota this panel reports. Undefined = the CLI's default credential. */
-  accountId: string | undefined
-}): React.JSX.Element {
-  const [state, setState] = useState<ClaudeUsageSnapshotResult | null>(null)
-
-  const refresh = useCallback(async (): Promise<void> => {
-    setState(await window.pidex.invoke('claude:usageSnapshot', accountId))
-  }, [accountId])
-
-  useEffect(() => {
-    if (binaryOk) void refresh()
-  }, [binaryOk, refresh])
-
-  return (
-    <>
-      <h3 className="mt-6 text-lg font-semibold">Usage</h3>
-      <div className="border-border mt-2 rounded-lg border px-3.5 py-3">
-        {!binaryOk ? (
-          <p className="text-text-secondary text-base">claude CLI not found — see Health above.</p>
-        ) : state === null ? (
-          <div className="text-text-secondary flex items-center gap-2 text-base">
-            <Spinner /> Checking your plan usage…
-          </div>
-        ) : !state.ok ? (
-          <p className="text-text-secondary text-base">{usageUnavailableReason(state.error)}</p>
-        ) : (
-          <div className="space-y-2.5">
-            {state.snapshot.stale && (
-              <p className="text-warning text-sm">
-                Last-known usage — the CLI could not refresh it just now.
-              </p>
-            )}
-            {state.snapshot.windows.map((window) => {
-              const percent = Math.round(window.percentUsed)
-              const reset = windowResetLabel(window.resetsAt)
-              return (
-                <div key={window.label}>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-base">{windowTitle(window)}</span>
-                    <span
-                      className={clsx('font-mono text-sm tabular-nums', usageTextClass(percent))}
-                    >
-                      {percent}% used{reset ? ` · ${reset}` : ''}
-                    </span>
-                  </div>
-                  <div className="bg-bg-secondary mt-1 h-1.5 overflow-hidden rounded-full">
-                    <div
-                      className={clsx('h-full rounded-full', usageBarClass(percent))}
-                      style={{ width: `${Math.min(100, percent)}%` }}
-                    />
-                  </div>
-                </div>
-              )
-            })}
-            {state.snapshot.contributing && (
-              <div className="border-border/60 border-t pt-2">
-                <div className="text-text-tertiary pb-1 font-mono text-2xs uppercase tracking-wider">
-                  What&apos;s contributing
-                </div>
-                <pre className="text-text-tertiary max-h-52 overflow-auto whitespace-pre-wrap font-sans text-sm leading-snug">
-                  {state.snapshot.contributing}
-                </pre>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </>
   )
 }
 

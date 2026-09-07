@@ -29,7 +29,9 @@ import type {
   AgentSettingsHealth,
   BranchInfo,
   CheckoutResult,
+  ClaudeAccountSessions,
   ClaudeAccountsResult,
+  ClaudeSessionAccount,
   ClaudeRoutingMode,
   ClaudeStatus,
   ClaudeUsageSnapshotResult,
@@ -471,6 +473,26 @@ export interface IpcInvokeMap {
    * which misses the entire prompt cache and splits the thread's cost in two.
    */
   'claude:bindSession': { args: [sessionPath: string, pidexSessionId: string]; result: void }
+  /**
+   * Point a session file at an account by hand, for the next spawn.
+   *
+   * The lane the user is looking at cannot move: its credential is fixed by
+   * the environment pi was spawned with. So "move this lane" is this call plus
+   * a dispose-and-resume in the renderer, which is why main only writes the
+   * binding here and never touches the subprocess.
+   */
+  'claude:assignSession': { args: [sessionPath: string, accountId: string]; result: void }
+  /** Account id → the live pidex sessions spawned onto it. */
+  'claude:accountSessions': { args: []; result: ClaudeAccountSessions }
+  /**
+   * Which account bills a session: the pick parked at spawn, else the stored
+   * binding for its file. Null when no account is configured, when the session
+   * is not on the Claude provider, or when neither source knows it yet.
+   */
+  'claude:sessionAccount': {
+    args: [pidexSessionId: string, sessionPath?: string]
+    result: ClaudeSessionAccount | null
+  }
   /**
    * Live subscription usage — the numbers Claude Code's own `/usage` panel
    * shows (5-hour + weekly windows, with percents), read by spawning

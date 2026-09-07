@@ -1048,7 +1048,22 @@ export function installMockPidex(): void {
           if (args[1]) mockClaudeAccounts.prefs.pinnedId = String(args[1])
           return Promise.resolve(undefined as never)
         case 'claude:bindSession':
+        case 'claude:assignSession':
           return Promise.resolve(undefined as never)
+        // The harness only ever spawns one session, and it lands on the first
+        // account — enough for the gateway view to list a lane and move it.
+        case 'claude:accountSessions':
+          return Promise.resolve({ default: ['mock-session-id'] } as never)
+        case 'claude:sessionAccount':
+          return Promise.resolve({
+            id: 'default',
+            label: 'dev@example.com',
+            email: 'dev@example.com',
+            total: 2,
+            mode: mockClaudeAccounts.prefs.mode,
+            cooldownUntil: Date.now() + 2.2 * 3600_000,
+            alternative: { id: 'work', label: 'dev@work.example' },
+          } as never)
         case 'claude:cancelLogin':
           clearTimeout(mockClaudeLoginTimer)
           emitClaudeLoginState({ phase: 'cancelled' } as never)

@@ -37,12 +37,20 @@ import type {
   ClaudeAccountView,
   ClaudeAccountsResult,
   ClaudeRoutingMode,
+  ClaudeSessionAccount,
 } from '@shared/models'
 import { getClaudeAccountPrefs, setClaudeAccountPrefs } from '../store'
 import { claudeStatus } from '../pi/packages'
 import { logoutClaude } from '../pi/claude-login'
 import { cachedUsageSnapshot, clearUsageCache, fetchUsageSnapshot } from './usage'
-import { claudeAccountEnv, cooldownFromUsage, pruneCooldowns, selectAccount } from './routing'
+import {
+  claudeAccountEnv,
+  cooldownFromUsage,
+  isCoolingDown,
+  pruneCooldowns,
+  reconcileAuthIdentity,
+  selectAccount,
+} from './routing'
 
 export { claudeAccountEnv }
 
@@ -171,7 +179,9 @@ export async function accountViews(claudeOverride?: string): Promise<ClaudeAccou
       const cooldown = prefs.cooldowns[account.id]
       return {
         account,
-        auth: status?.auth ?? { ok: false, error: 'status check failed' },
+        auth: status?.auth
+          ? reconcileAuthIdentity(account, status.auth)
+          : { ok: false, error: 'status check failed' },
         usage: cachedUsageSnapshot(account.id, now),
         cooldownUntil: cooldown !== undefined && cooldown > now ? cooldown : null,
       }
@@ -290,4 +300,66 @@ export async function setRouting(
 ): Promise<void> {
   const prefs = await loadAccounts(claudeOverride)
   save({ ...prefs, mode, ...(pinnedId ? { pinnedId } : {}) })
+}
+
+/**
+ * Hold an account back from new sessions until `untilMs`.
+ *
+ * Fed by the provider's own rate-limit reports (`electron/ipc/pi-session-handlers.ts`),
+ * which arrive free, per turn, and know about a state `/usage` polling does
+ * not surface as a window: an account past its plan allowance and spending
+ * pay-as-you-go credits. Requests still succeed there, so without this the
+ * router keeps handing out the one account that costs money.
+ *
+ * A no-op when it would shorten an existing hold — the reports repeat, and a
+ * later one must not walk a cooldown backwards.
+ */
+export async function holdAccount(accountId: string, untilMs: number): Promise<void> {
+  const prefs = getClaudeAccountPrefs()
+  if (!prefs.accounts.some((a) => a.id === accountId)) return
+  if ((prefs.cooldowns[accountId] ?? 0) >= untilMs) return
+  save({ ...prefs, cooldowns: { ...prefs.cooldowns, [accountId]: untilMs } })
+}
+
+/**
+ * Which account is billing this session, for the UI that has to say so.
+ *
+ * Two sources, in order: the live pick parked at spawn, then the persisted
+ * binding under the session's own file path (a resumed session, or one whose
+ * pi subprocess has since been released).
+ */
+export async function sessionAccount(options: {
+  accountId?: string | undefined
+  sessionPath?: string | undefined
+  claudeOverride?: string | undefined
+}): Promise<ClaudeSessionAccount | null> {
+  const prefs = await loadAccounts(options.claudeOverride)
+  const id =
+    options.accountId ?? (options.sessionPath ? prefs.bindings[options.sessionPath] : undefined)
+  if (!id) return null
+  const account = prefs.accounts.find((a) => a.id === id)
+  if (!account) return null
+  const now = Date.now()
+  const cooldown = prefs.cooldowns[account.id]
+  return {
+    id: account.id,
+    label: account.label,
+    ...(account.email ? { email: account.email } : {}),
+    ...(account.plan ? { plan: account.plan } : {}),
+    total: prefs.accounts.length,
+    mode: prefs.mode,
+    cooldownUntil: cooldown !== undefined && cooldown > now ? cooldown : null,
+    /** Another account is available and not itself on hold. */
+    alternative: alternativeTo(prefs, account.id, now),
+  }
+}
+
+/** The account a lane would move to: the first one not itself on hold. */
+function alternativeTo(
+  prefs: ClaudeAccountPrefs,
+  accountId: string,
+  nowMs: number,
+): { id: string; label: string } | null {
+  const other = prefs.accounts.find((a) => a.id !== accountId && !isCoolingDown(prefs, a.id, nowMs))
+  return other ? { id: other.id, label: other.email ?? other.label } : null
 }

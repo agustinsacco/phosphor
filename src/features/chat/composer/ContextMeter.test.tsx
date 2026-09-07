@@ -12,8 +12,14 @@ beforeAll(() => {
 
 const SESSION = 'sess-1'
 
-const invoke = vi.fn(async (channel: string) => {
+/** Overridden per test; the default is one account and a healthy plan. */
+let sessionAccount: unknown = null
+let usageResult: unknown = null
+
+const invoke = vi.fn(async (channel: string, ..._args: unknown[]) => {
+  if (channel === 'claude:sessionAccount') return sessionAccount
   if (channel === 'claude:usageSnapshot') {
+    if (usageResult) return usageResult
     return {
       ok: true,
       snapshot: {
@@ -89,6 +95,8 @@ function click(text: string): void {
 
 beforeEach(() => {
   invoke.mockClear()
+  sessionAccount = null
+  usageResult = null
   ;(globalThis as unknown as { window: { pidex: unknown } }).window.pidex = { invoke }
   useChatStore.setState({ sessions: {} })
 })
@@ -113,7 +121,7 @@ describe('ContextMeter', () => {
     click('—')
     await act(async () => {})
     expect(document.body.textContent).toContain('Session usage')
-    expect(invoke).toHaveBeenCalledWith('claude:usageSnapshot')
+    expect(invoke).toHaveBeenCalledWith('claude:usageSnapshot', undefined)
   })
 
   it('shows the percentage once pi reports one', () => {
@@ -135,7 +143,7 @@ describe('ContextMeter', () => {
   })
 
   it('shows a reason instead of vanishing when the usage run fails', async () => {
-    invoke.mockResolvedValueOnce({ ok: false, error: 'run-failed' } as never)
+    usageResult = { ok: false, error: 'run-failed' }
     seed({ tokens: 50_000, contextWindow: 200_000, percent: 25 })
     render()
     click('25%')
@@ -145,13 +153,59 @@ describe('ContextMeter', () => {
     expect(document.body.textContent).toContain('did not complete')
   })
 
+  it("names the lane's own account, and reads that account's usage", async () => {
+    // The defect this guards: the popover asked for "the" plan usage with no
+    // account, which reads whichever credential the CLI keeps by default —
+    // routinely a different plan than the lane is spending.
+    sessionAccount = {
+      id: 'acct-2',
+      label: 'second',
+      email: 'second@example.com',
+      total: 2,
+      mode: 'round-robin',
+      cooldownUntil: Date.now() + 60_000,
+      alternative: { id: 'acct-1', label: 'first@example.com' },
+    }
+    seed({ tokens: 50_000, contextWindow: 200_000, percent: 25 })
+    render()
+    click('25%')
+    await act(async () => {})
+
+    expect(invoke).toHaveBeenCalledWith('claude:usageSnapshot', 'acct-2')
+    expect(document.body.textContent).toContain('Plan usage · second@example.com')
+    // A running lane cannot change account in place, so the popover says where
+    // the next one goes — and offers to restart this one there too.
+    expect(document.body.textContent).toContain('New sessions go to first@example.com')
+    expect(document.body.textContent).toContain('Move this session too')
+  })
+
+  it('stays with the old wording when only one account is configured', async () => {
+    sessionAccount = {
+      id: 'acct-1',
+      label: 'only',
+      email: 'only@example.com',
+      total: 1,
+      mode: 'ordered',
+      cooldownUntil: null,
+      alternative: null,
+    }
+    seed({ tokens: 50_000, contextWindow: 200_000, percent: 25 })
+    render()
+    click('25%')
+    await act(async () => {})
+
+    expect(document.body.textContent).toContain('Plan usage · Claude account')
+    expect(document.body.textContent).not.toContain('New sessions go to')
+  })
+
   it('never asks for plan usage on a session the Claude CLI does not serve', async () => {
     seed({ tokens: 50_000, contextWindow: 200_000, percent: 25 }, 'amazon-bedrock')
     render()
     click('25%')
     await act(async () => {})
 
-    expect(invoke).not.toHaveBeenCalledWith('claude:usageSnapshot')
+    expect(invoke).not.toHaveBeenCalledWith('claude:usageSnapshot', undefined)
+    expect(invoke).not.toHaveBeenCalledWith('claude:sessionAccount', SESSION, undefined)
     expect(document.body.textContent).not.toContain('Plan usage')
   })
 })

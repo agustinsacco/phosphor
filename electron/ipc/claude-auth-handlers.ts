@@ -18,9 +18,10 @@ import {
   refreshCooldowns,
   removeAccount,
   reorderAccounts,
+  sessionAccount,
   setRouting,
 } from '../claude/accounts'
-import { takeSpawnAccount } from '../pi/session-accounts'
+import { spawnAccountFor, spawnAccountSessions } from '../pi/session-accounts'
 
 function broadcast(state: ClaudeLoginState): void {
   for (const window of BrowserWindow.getAllWindows()) {
@@ -95,9 +96,22 @@ export function registerClaudeAuthHandlers(): void {
     return accountViews(override)
   })
   handle('claude:bindSession', async (_event, sessionPath, pidexSessionId) => {
-    const accountId = takeSpawnAccount(pidexSessionId)
+    const accountId = spawnAccountFor(pidexSessionId)
     if (accountId) await bindSession(sessionPath, accountId)
   })
+  // Moving a running lane is dispose-and-resume in the renderer; main only
+  // records where the next spawn should land. See shared/ipc.ts.
+  handle('claude:assignSession', (_event, sessionPath, accountId) =>
+    bindSession(sessionPath, accountId),
+  )
+  handle('claude:accountSessions', () => spawnAccountSessions())
+  handle('claude:sessionAccount', (_event, pidexSessionId, sessionPath) =>
+    sessionAccount({
+      accountId: spawnAccountFor(pidexSessionId),
+      sessionPath,
+      claudeOverride: claudeBinOverride(),
+    }),
+  )
 }
 
 /** Credential env for one stored account, or none when the id is unknown. */

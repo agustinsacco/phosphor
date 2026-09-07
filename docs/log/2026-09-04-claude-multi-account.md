@@ -55,7 +55,8 @@ The whole feature is pidex-side; nothing was published to the provider package.
 - `electron/claude/accounts.ts` — the store, the per-account credential dirs
   under `userData/claude-accounts/<id>`, sign-in/out, usage refresh.
 - `electron/pi/session-accounts.ts` — parks a spawn's pick until the session's
-  `.jsonl` path exists.
+  `.jsonl` path exists, and keeps it for the session's life so the UI can say
+  which account a lane spends ([2026-09-06](2026-09-06-claude-account-routing.md)).
 - Settings → Claude Code → **Accounts** — list, reorder, add, remove, and the
   routing picker.
 
@@ -91,6 +92,16 @@ account therefore records its `orgId` at sign-in and gets it back as
 `CLAUDE_CODE_ORGANIZATION_UUID`, which the CLI reads _before_ `oauthAccount` —
 so a session's org always matches its token. The rest of that block is display
 and telemetry.
+
+The display half bit us anyway. `claude auth status` takes the _token_ from the
+account's own keychain entry but prints `email` / `subscriptionType` / `orgName`
+straight out of that shared block, so probing each account in turn returned the
+same identity for every one of them — the accounts list showed a row labelled
+`saccoagustin@hotmail.com` describing `agustin@goaugment.com`. Routing was never
+affected; only the subtitle was. `reconcileAuthIdentity` in `routing.ts` now
+keeps the live identity only when its email matches the one recorded at sign-in,
+and otherwise falls back to the stored record. `loggedIn` really is per-account
+and is always kept.
 
 ## Resumes keep their account
 
