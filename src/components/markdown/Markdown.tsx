@@ -9,6 +9,7 @@ import { ChartBlock } from './ChartBlock'
 import { VegaLiteBlock } from './VegaLiteBlock'
 import { HtmlBlock } from './HtmlBlock'
 import { Lightbox } from '../Lightbox'
+import { MarkdownLink } from './MarkdownLink'
 
 const REMARK_PLUGINS = [remarkGfm, remarkMath]
 const REHYPE_PLUGINS = [rehypeKatex]
@@ -130,19 +131,7 @@ const components: Components = {
   pre: ({ children }) => <>{children}</>,
   img: (props) => <MarkdownImage {...props} />,
   table: (props) => <MarkdownTable {...props} />,
-  a: ({ href, children, ...rest }) => (
-    <a
-      href={href}
-      {...rest}
-      className="text-info hover:underline"
-      onClick={(event) => {
-        event.preventDefault()
-        if (href) window.open(href) // main denies + opens externally
-      }}
-    >
-      {children}
-    </a>
-  ),
+  a: (props) => <MarkdownLink {...props} />,
 }
 
 interface MarkdownProps {

@@ -8,6 +8,7 @@ import { handle } from './handle'
 import { stageArtifactHtml } from '../artifacts/artifact-protocol'
 import { applyTitleBarOverlay, applyZoom } from '../window-chrome'
 import { debugLogPath } from '../debug-log'
+import { externalUrl } from '../external-links'
 import { userInfo } from 'node:os'
 import {
   deleteDraftBlobs,
@@ -293,18 +294,12 @@ export function registerAppHandlers(): void {
     shell.showItemInFolder(path)
   })
 
-  // http(s) only. The URL originates from `gh` output, so it is not attacker
-  // controlled today, but shell.openExternal will happily launch file:// or a
-  // registered custom scheme — a URL string must never be able to do that.
+  // http(s) only, via the shared policy in external-links.ts: a URL string
+  // from the renderer must never be able to launch file:// or a registered
+  // custom scheme. Every markdown link the model writes arrives here.
   handle('app:openExternal', async (_event, url: string) => {
-    let parsed: URL
-    try {
-      parsed = new URL(url)
-    } catch {
-      return
-    }
-    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return
-    await shell.openExternal(parsed.toString())
+    const external = externalUrl(url)
+    if (external) await shell.openExternal(external)
   })
 }
 

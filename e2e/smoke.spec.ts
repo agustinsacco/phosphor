@@ -2822,3 +2822,38 @@ test('skills page lists a seeded skill, and creates a new one on disk', async ()
     await rm(soloAgentDir, { recursive: true, force: true })
   }
 })
+
+test('a link to a spec the model wrote opens it in the Files pane', async () => {
+  const harness = await launch()
+  const { page, workspace } = harness
+  try {
+    await mkdir(join(workspace, 'docs'), { recursive: true })
+    await writeFile(
+      join(workspace, 'docs', 'plan.md'),
+      Array.from({ length: 50 }, (_, i) => `line ${i + 1}: plan body`).join('\n'),
+    )
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('speclink')
+    await page.getByRole('button', { name: /Start session/i }).click()
+
+    // The web URL keeps its href (it opens in the default browser, so the test
+    // must never click it — that would launch a real browser on the runner).
+    await expect(page.getByRole('link', { name: '#214' })).toHaveAttribute(
+      'href',
+      'https://github.com/agustinsacco/pidex/pull/214',
+      { timeout: 30_000 },
+    )
+
+    // The path link has no href at all: nothing can navigate the app away.
+    const specLink = page.getByRole('link', { name: 'docs/plan.md' })
+    await expect(specLink).toHaveAttribute('title', 'Open in Files pane')
+    expect(await specLink.getAttribute('href')).toBeNull()
+
+    await specLink.click()
+    await expect(page.getByTestId('right-pane')).toBeVisible()
+    await expect(page.getByTitle('docs/plan.md', { exact: true })).toBeVisible()
+    await expect(page.locator('.monaco-editor .view-lines')).toContainText('line 1: plan body')
+  } finally {
+    await shutdown(harness)
+  }
+})

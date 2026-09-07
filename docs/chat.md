@@ -88,6 +88,13 @@ unreadable still renders as a plain named step.
 - ```html → Code/Preview toggle; preview in sandboxed iframe (`sandbox` attr, no network, inlined content only).
 - KaTeX for `$…$` / `$$…$$`.
 - Images in content blocks inline with click-to-zoom.
+- **Links split by what they point at** (`components/markdown/MarkdownLink.tsx`,
+  classified by `lib/markdownLink.ts`). An `http(s)` URL opens in the default
+  browser via `app:openExternal`. A path — `docs/specs/x.md`, `./README.md`,
+  `/abs/path`, `file://` — opens in the **Files pane**, at the line it names
+  (`#L42` or `:42`); a path that cannot be read toasts and leaves the pane
+  alone. A file link renders with no `href` at all, so no click can navigate
+  the window away from the app. Other schemes (`mailto:`, custom) do nothing.
 
 ## Session header / status strip (per session)
 

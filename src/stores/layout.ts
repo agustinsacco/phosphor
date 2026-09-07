@@ -209,7 +209,10 @@ export async function openFileInWorkspace(
   line?: number,
 ): Promise<void> {
   const { useFilesStore } = await import('./files')
-  useLayoutStore.getState().setRightPane('files')
   const absolute = path.startsWith('/') ? path : `${workspacePath}/${path}`
+  // Read first, switch second: a markdown link can name a path that does not
+  // exist, and swapping the pane before the read means a failed open still
+  // hides whatever the user was looking at.
   await useFilesStore.getState().openFile(workspacePath, absolute, line)
+  useLayoutStore.getState().setRightPane('files')
 }
