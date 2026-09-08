@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { useChatStore } from '@/stores/chat'
 import { PopupMenu } from '@/components/PopupMenu'
+import { RefreshIcon, Spinner } from '@/components/icons'
 import { formatCost, formatTokens } from '@/lib/format'
 import { hasNoPricing } from './pricing'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
@@ -23,13 +24,16 @@ import {
 } from './rateLimit'
 import { assessBurn, burnSamples } from '@/lib/burnRate'
 import {
+  compactReset,
   isClaudeCliModel,
-  usageBarClass,
+  usageStroke,
   usageTextClass,
   usageUnavailableReason,
   windowResetLabel,
+  windowShortTitle,
   windowTitle,
 } from '@/lib/claudeUsage'
+import { moveTargets, type MoveTarget } from '@/lib/claudeGateway'
 import type {
   ClaudeSessionAccount,
   ClaudeUsageSnapshotResult,
@@ -128,68 +132,77 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
           onClose={() => setOpen(false)}
           triggerRef={triggerRef}
           fitViewport
-          className="absolute bottom-full left-0 mb-2 w-80 max-w-[calc(100vw-16rem)] p-3"
+          className="absolute bottom-full left-0 mb-2 w-[27rem] max-w-[calc(100vw-3rem)]"
         >
-          <div className="text-text text-base font-medium">Session usage</div>
-          {burning && (
-            <div
-              className={clsx(
-                'mt-2 rounded-md border px-2.5 py-2 text-sm leading-snug',
-                burn.level === 'runaway'
-                  ? 'border-danger/30 bg-danger-soft text-danger'
-                  : 'border-warning/30 bg-warning/10 text-warning',
-              )}
-            >
-              {formatTokens(Math.round(burn.tokensPerMinute))} tokens/min, cache writes accelerating
-              {burn.acceleration != null && ` ${burn.acceleration.toFixed(1)}×`} — the signature of
-              a loop re-sending context it already has. Only {(burn.yield * 100).toFixed(1)}% of the
-              spend reaches output; worth stopping the turn.
-            </div>
-          )}
-          <div className="mt-2 space-y-1 text-base">
-            <SectionLabel>Context</SectionLabel>
-            <StatRow
-              label="Window"
-              value={
-                percent === null
+          {/* Wide and two-column on purpose: stacked single-column sections
+              grew this panel taller than the window, and it anchors upward, so
+              the overflow clipped the heading. The scroller is the backstop
+              for a short window or a session with many usage windows. */}
+          <div className="max-h-[min(34rem,calc(100vh-9rem))] overflow-y-auto p-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-text text-lg font-medium">Session usage</span>
+              <span className="text-text-secondary font-mono text-sm tabular-nums">
+                {percent === null
                   ? usage?.contextWindow
-                    ? `measuring — ${formatTokens(usage.contextWindow)} window`
+                    ? `measuring · ${formatTokens(usage.contextWindow)}`
                     : 'measuring'
-                  : `${formatTokens(usage?.tokens ?? 0)} / ${formatTokens(usage?.contextWindow ?? 0)} (${percent}%)`
-              }
-            />
+                  : `${formatTokens(usage?.tokens ?? 0)} / ${formatTokens(usage?.contextWindow ?? 0)} · ${percent}%`}
+              </span>
+            </div>
+            {burning && (
+              <div
+                className={clsx(
+                  'mt-2 rounded-md border px-2.5 py-2 text-sm leading-snug',
+                  burn.level === 'runaway'
+                    ? 'border-danger/30 bg-danger-soft text-danger'
+                    : 'border-warning/30 bg-warning/10 text-warning',
+                )}
+              >
+                {formatTokens(Math.round(burn.tokensPerMinute))} tokens/min, cache writes
+                accelerating
+                {burn.acceleration != null && ` ${burn.acceleration.toFixed(1)}×`} — the signature
+                of a loop re-sending context it already has. Only {(burn.yield * 100).toFixed(1)}%
+                of the spend reaches output; worth stopping the turn.
+              </div>
+            )}
             <ContextComposition
               statusText={breakdownStatus}
               total={usage?.tokens ?? 0}
               window={usage?.contextWindow ?? 0}
             />
-            <SectionLabel>Tokens</SectionLabel>
-            <StatRow label="Input" value={formatTokens(stats.tokens.input)} />
-            <StatRow label="Output" value={formatTokens(stats.tokens.output)} />
-            <StatRow label="Cache read" value={formatTokens(stats.tokens.cacheRead)} />
-            <StatRow label="Cache write" value={formatTokens(stats.tokens.cacheWrite)} />
-            <SectionLabel>Session</SectionLabel>
-            {stats.cost === 0 && hasNoPricing(model) ? (
-              <div className="text-text-tertiary flex items-center justify-between gap-3">
-                <span>Cost</span>
-                <button
-                  onClick={() => {
-                    setOpen(false)
-                    const settingsUi = useSettingsUiStore.getState()
-                    settingsUi.setTab('advanced')
-                    settingsUi.setOpen(true)
-                  }}
-                  title={`No pricing configured for ${model?.name ?? 'this model'} — add cost rates to models.json`}
-                  className="text-warning hover:underline"
-                >
-                  no pricing configured →
-                </button>
+            <div className="border-border/60 mt-2 grid grid-cols-2 gap-x-5 border-t pt-1.5 text-base">
+              <div>
+                <SectionLabel>Tokens</SectionLabel>
+                <StatRow label="Input" value={formatTokens(stats.tokens.input)} />
+                <StatRow label="Output" value={formatTokens(stats.tokens.output)} />
+                <StatRow label="Cache read" value={formatTokens(stats.tokens.cacheRead)} />
+                <StatRow label="Cache write" value={formatTokens(stats.tokens.cacheWrite)} />
               </div>
-            ) : (
-              <StatRow label="Cost" value={formatCost(stats.cost)} />
-            )}
-            <StatRow label="Messages" value={String(stats.totalMessages)} />
-            <StatRow label="Tool calls" value={String(stats.toolCalls)} />
+              <div>
+                <SectionLabel>Session</SectionLabel>
+                {stats.cost === 0 && hasNoPricing(model) ? (
+                  <div className="text-text-tertiary flex items-center justify-between gap-3">
+                    <span>Cost</span>
+                    <button
+                      onClick={() => {
+                        setOpen(false)
+                        const settingsUi = useSettingsUiStore.getState()
+                        settingsUi.setTab('advanced')
+                        settingsUi.setOpen(true)
+                      }}
+                      title={`No pricing configured for ${model?.name ?? 'this model'} — add cost rates to models.json`}
+                      className="text-warning truncate hover:underline"
+                    >
+                      no pricing →
+                    </button>
+                  </div>
+                ) : (
+                  <StatRow label="Cost" value={formatCost(stats.cost)} />
+                )}
+                <StatRow label="Messages" value={String(stats.totalMessages)} />
+                <StatRow label="Tool calls" value={String(stats.toolCalls)} />
+              </div>
+            </div>
             {isClaudeCliModel(model) && <PlanUsage sessionId={sessionId} />}
             <PlanLimits statusText={rateLimitStatus} />
           </div>
@@ -203,6 +216,9 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
  * What is actually filling the window. Absent until the bundled extension
  * reports (first turn of a session), and silently absent if a user runs pi
  * without pidex's extensions — the meter must still work.
+ *
+ * The legend is two columns: four components plus free space is five rows of
+ * mostly empty width, and the panel's height is the scarce resource here.
  */
 function ContextComposition({
   statusText,
@@ -219,7 +235,7 @@ function ContextComposition({
   if (slices.length <= 1) return null
 
   return (
-    <div className="pt-1.5">
+    <div className="pt-2">
       <div className="bg-bg-secondary flex h-2 overflow-hidden rounded-full">
         {slices.map((slice) => (
           <div
@@ -229,9 +245,9 @@ function ContextComposition({
           />
         ))}
       </div>
-      <div className="mt-1.5 space-y-0.5">
+      <div className="mt-1.5 grid grid-cols-2 gap-x-5 gap-y-0.5 text-base">
         {slices.map((slice) => (
-          <div key={slice.key} className="flex items-center gap-2">
+          <div key={slice.key} className="flex items-center gap-1.5">
             <span
               className="h-2 w-2 shrink-0 rounded-full"
               style={{ backgroundColor: slice.color }}
@@ -246,7 +262,7 @@ function ContextComposition({
             <span className="text-text-secondary font-mono text-sm tabular-nums">
               {formatTokens(slice.tokens)}
             </span>
-            <span className="text-text-tertiary w-10 text-right font-mono text-sm tabular-nums">
+            <span className="text-text-tertiary w-9 text-right font-mono text-sm tabular-nums">
               {slice.percent < 0.1 ? '<0.1' : slice.percent.toFixed(1)}%
             </span>
           </div>
@@ -269,6 +285,9 @@ function ContextComposition({
  * the conversation does, and the single "MCP tools" slice cannot say which one
  * to disable. Absent until the adapter reports its servers, and hidden when
  * only one server exists — the slice above already answers that case.
+ *
+ * Chips rather than rows: what matters per server is a name and a number, and
+ * a row each spent a line of height on 25 characters of it.
  */
 function McpServers({
   breakdown,
@@ -282,17 +301,18 @@ function McpServers({
   return (
     <div className="border-border/60 mt-2 border-t pt-1.5">
       <SectionLabel>MCP servers</SectionLabel>
-      {rows.map((row) => (
-        <div key={row.name} className="flex items-center gap-2">
-          <span className="text-text-tertiary flex-1 truncate font-mono text-sm" title={row.name}>
-            {row.name}
-            <span className="text-text-tertiary/70"> · {row.count}</span>
+      <div className="flex flex-wrap gap-1">
+        {rows.map((row) => (
+          <span
+            key={row.name}
+            title={`${row.name}: ${row.count} tool schema${row.count === 1 ? '' : 's'} in the window, ~${formatTokens(row.tokens)} tokens. One schema per server is the MCP gateway's proxy tool — that server's own tools are fetched on demand, not carried in context.`}
+            className="bg-bg-secondary text-text-secondary flex items-baseline gap-1.5 rounded px-1.5 py-0.5 font-mono text-sm"
+          >
+            <span className="max-w-[9rem] truncate">{row.name}</span>
+            <span className="text-text-tertiary tabular-nums">{formatTokens(row.tokens)}</span>
           </span>
-          <span className="text-text-secondary font-mono text-sm tabular-nums">
-            {formatTokens(row.tokens)}
-          </span>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }
@@ -303,7 +323,8 @@ function McpServers({
  * spawns `claude -p /usage`: zero quota, ~1.5 s, cached ~60 s in main), so it
  * is always current the moment someone looks — which is the entire point of
  * this section: `PlanLimits` below only ever sees a window once the CLI's
- * warning threshold has crossed it.
+ * warning threshold has crossed it. The refresh control re-reads past that
+ * cache, because a number someone clicked for must be the current one.
  *
  * The section always renders: "Checking…" while the run is in flight, then
  * either the windows or the reason there are none. It used to disappear on a
@@ -312,7 +333,11 @@ function McpServers({
  */
 function PlanUsage({ sessionId }: { sessionId: string }): React.JSX.Element {
   const [state, setState] = useState<ClaudeUsageSnapshotResult | null>(null)
+  const [reload, setReload] = useState(0)
   const { account, ready } = useSessionClaudeAccount(sessionId)
+  // Only a click may skip main's 60 s cache. Read and cleared inside the
+  // effect so an account change afterwards is an ordinary cached read again.
+  const forceNext = useRef(false)
 
   useEffect(() => {
     // Whose quota this lane is eating decides WHICH account's windows to read.
@@ -320,9 +345,12 @@ function PlanUsage({ sessionId }: { sessionId: string }): React.JSX.Element {
     // credential the CLI keeps by default, which on a multi-account install is
     // routinely a different plan than the lane is spending.
     if (!ready) return
+    const force = forceNext.current
+    forceNext.current = false
     let cancelled = false
+    setState(null)
     void window.pidex
-      .invoke('claude:usageSnapshot', account?.id)
+      .invoke('claude:usageSnapshot', account?.id, force)
       // A rejected invoke (no handler, main-process restart) must read as a
       // failed run, not as a permanent "Checking…".
       .catch((): ClaudeUsageSnapshotResult => ({ ok: false, error: 'run-failed' }))
@@ -332,53 +360,131 @@ function PlanUsage({ sessionId }: { sessionId: string }): React.JSX.Element {
     return () => {
       cancelled = true
     }
-  }, [account?.id, ready])
+  }, [account?.id, ready, reload])
+
+  const refresh = useCallback((): void => {
+    forceNext.current = true
+    setReload((n) => n + 1)
+  }, [])
 
   // One account, or an account pidex cannot name: the old wording was right.
   const who = account && account.total > 1 ? (account.email ?? account.label) : 'Claude account'
+  const stale = state?.ok === true && state.snapshot.stale
 
-  if (!state) {
-    return (
-      <>
-        <SectionLabel>{`Plan usage · ${who}`}</SectionLabel>
+  return (
+    <section className="border-border/60 mt-2 border-t pt-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <SectionLabel>{`Plan usage · ${who}${stale ? ' · last known' : ''}`}</SectionLabel>
+        <button
+          onClick={refresh}
+          disabled={state === null}
+          title="Re-read this account's usage from the Claude CLI"
+          className="text-text-tertiary hover:text-text hover:bg-bg-secondary -mr-1 flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-sm transition-colors disabled:opacity-50"
+        >
+          {state === null ? <Spinner className="text-text-tertiary" /> : <RefreshIcon />}
+          Refresh
+        </button>
+      </div>
+      {state === null ? (
         <div className="text-text-tertiary text-sm">Checking…</div>
-      </>
-    )
-  }
-  if (!state.ok || state.snapshot.windows.length === 0) {
-    return (
-      <>
-        <SectionLabel>{`Plan usage · ${who}`}</SectionLabel>
+      ) : !state.ok || state.snapshot.windows.length === 0 ? (
         <div className="text-text-tertiary text-sm">
           {usageUnavailableReason(state.ok ? 'no-usage' : state.error)}
         </div>
-      </>
-    )
-  }
-  const { snapshot } = state
-
-  return (
-    <>
-      <SectionLabel>{`Plan usage · ${who}${snapshot.stale ? ' · last known' : ''}`}</SectionLabel>
-      <div className="space-y-1.5">
-        {snapshot.windows.map((window) => (
-          <UsageWindowRow key={window.label} window={window} />
-        ))}
-      </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-x-3 gap-y-2">
+          {state.snapshot.windows.map((window) => (
+            <UsageDial key={window.label} window={window} />
+          ))}
+        </div>
+      )}
       <AccountRouting sessionId={sessionId} account={account} />
-    </>
+    </section>
   )
 }
 
 /**
- * What to do about a spent account, from the lane that is spending it.
+ * One window as a dial: the arc carries the proportion, the number in the
+ * middle carries the value, and the caption under it says which window and
+ * when it clears. Three of these occupy one row where three labelled bars
+ * occupied three, and the arc reads at a glance from across a desk.
+ */
+function UsageDial({ window }: { window: ClaudeUsageWindow }): React.JSX.Element {
+  const percent = Math.round(window.percentUsed)
+  const reset = compactReset(window.resetsAt)
+  const full = windowResetLabel(window.resetsAt)
+  // r=17 on a 42px box: circumference 2πr, so the dash is the arc's share.
+  const circumference = 2 * Math.PI * 17
+  return (
+    <div
+      className="flex flex-col items-center gap-0.5"
+      title={`${windowTitle(window)} — ${percent}% used${full ? ` · ${full}` : ''}`}
+    >
+      <div className="relative h-[42px] w-[42px]">
+        <svg width="42" height="42" viewBox="0 0 42 42" className="-rotate-90">
+          <circle
+            cx="21"
+            cy="21"
+            r="17"
+            fill="none"
+            stroke="var(--px-border-strong)"
+            strokeWidth="3.5"
+            opacity="0.5"
+          />
+          <circle
+            cx="21"
+            cy="21"
+            r="17"
+            fill="none"
+            stroke={usageStroke(percent)}
+            strokeWidth="3.5"
+            strokeLinecap="round"
+            // Capped at 100 like the bars: a longer arc would lap the track,
+            // and the number inside already says how far over this is.
+            strokeDasharray={`${(Math.min(100, percent) / 100) * circumference} ${circumference}`}
+          />
+        </svg>
+        {/* Inline `%`, not a flex child: it keeps the shared baseline with
+            the number, and `leading-none` lets the grid centre the pair. */}
+        <span className="absolute inset-0 grid place-items-center">
+          <span
+            className={clsx(
+              'font-mono text-base leading-none tabular-nums',
+              usageTextClass(percent),
+            )}
+          >
+            {percent}
+            <span className="text-2xs opacity-70">%</span>
+          </span>
+        </span>
+      </div>
+      <span className="text-text-secondary max-w-full truncate text-sm">
+        {windowShortTitle(window)}
+      </span>
+      <span
+        className={clsx(
+          'text-2xs tabular-nums',
+          percent >= 100 ? 'text-danger' : 'text-text-tertiary',
+        )}
+      >
+        {percent >= 100 ? 'over' : (reset ?? 'no reset')}
+      </span>
+    </div>
+  )
+}
+
+/**
+ * Which login this lane is spending, and how to put it on another one.
  *
  * A running lane cannot change account in place — the credential is fixed by
- * the environment pi was spawned with — but it can be restarted onto another
- * one, which is what the button does: dispose the subprocess, resume the same
- * session file, spawn against the account routing would give a new lane. That
- * costs a full re-read of the thread, so it is offered, never automatic.
- * Silent with one account configured, or with nothing to report.
+ * the environment pi was spawned with — so switching is dispose-and-resume:
+ * the same session file, respawned against the chosen account. That costs a
+ * full re-read of the thread, so it is a deliberate click, never automatic.
+ * Silent with one account configured, because there is nowhere to go.
+ *
+ * The target list is fetched only when the picker is opened: `claude:accounts`
+ * runs `claude auth status` per account, and paying that on every popover open
+ * for a control most opens never touch is not a trade worth making.
  */
 function AccountRouting({
   sessionId,
@@ -388,56 +494,88 @@ function AccountRouting({
   account: ClaudeSessionAccount | null
 }): React.JSX.Element | null {
   const moveSessionToAccount = useSessionsStore((s) => s.moveSessionToAccount)
-  const [moving, setMoving] = useState(false)
-  if (!account || account.total < 2 || account.cooldownUntil === null) return null
+  const [picking, setPicking] = useState(false)
+  const [targets, setTargets] = useState<MoveTarget[] | null>(null)
+  const [moving, setMoving] = useState<string | null>(null)
+  if (!account || account.total < 2) return null
 
-  const alternative = account.alternative
-  return (
-    <div className="text-text-tertiary pt-1 text-sm">
-      {account.mode === 'specific'
-        ? 'This account is out of plan allowance. Routing is pinned to it — Settings → Claude Code.'
-        : alternative
-          ? `Out of plan allowance. New sessions go to ${alternative.label}.`
-          : 'Out of plan allowance, and every other account is too.'}
-      {alternative && (
-        <button
-          onClick={() => {
-            setMoving(true)
-            void moveSessionToAccount(sessionId, alternative.id).finally(() => setMoving(false))
-          }}
-          disabled={moving}
-          className="text-accent ml-1 hover:underline disabled:opacity-50"
-        >
-          {moving ? 'Moving…' : 'Move this session too'}
-        </button>
-      )}
-    </div>
-  )
-}
+  const held = account.cooldownUntil !== null
 
-/** One window: title, percent, reset countdown, and the bar itself. */
-function UsageWindowRow({ window }: { window: ClaudeUsageWindow }): React.JSX.Element {
-  const percent = Math.round(window.percentUsed)
-  const reset = windowResetLabel(window.resetsAt)
+  const open = (): void => {
+    setPicking((p) => !p)
+    if (targets !== null) return
+    void window.pidex
+      .invoke('claude:accounts')
+      .then((result) => setTargets(moveTargets(result.views, account.id)))
+      .catch(() => setTargets([]))
+  }
+
   return (
-    <div>
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-text-tertiary">{windowTitle(window)}</span>
-        <span
-          className={clsx('font-mono text-sm tabular-nums', usageTextClass(percent))}
-          title={reset ?? undefined}
-        >
-          {percent}%{percent >= 100 ? ' · over' : reset ? ` · ${reset}` : ''}
+    <div className="mt-1.5 text-sm">
+      <div className="flex items-start justify-between gap-2">
+        {/* Wraps rather than truncates: the held case names the account the
+            next lane goes to, which is the whole point of the sentence. */}
+        <span className={clsx('flex-1 leading-snug', held ? 'text-warning' : 'text-text-tertiary')}>
+          {held
+            ? account.mode === 'specific'
+              ? 'Out of plan allowance, and routing is pinned here — Settings → Claude Code.'
+              : account.alternative
+                ? `Out of plan allowance. New sessions go to ${account.alternative.label}.`
+                : 'Out of plan allowance, and every other account is too.'
+            : `Spending ${account.email ?? account.label} of ${account.total} accounts.`}
         </span>
+        <button
+          onClick={open}
+          className="text-accent shrink-0 hover:underline"
+          aria-expanded={picking}
+        >
+          {picking ? 'Cancel' : 'Switch account'}
+        </button>
       </div>
-      <div className="bg-bg-secondary mt-1 h-1 overflow-hidden rounded-full">
-        <div
-          className={clsx('h-full rounded-full', usageBarClass(percent))}
-          // Capped at 100 like PlanLimits: a 101% bar would overflow the
-          // track, and the number beside it already says how far over.
-          style={{ width: `${Math.min(100, percent)}%` }}
-        />
-      </div>
+      {picking && (
+        <div className="border-border/60 mt-1.5 space-y-0.5 rounded-md border p-1">
+          {targets === null ? (
+            <div className="text-text-tertiary flex items-center gap-1.5 px-1 py-0.5">
+              <Spinner className="text-text-tertiary" /> Reading accounts…
+            </div>
+          ) : targets.length === 0 ? (
+            <div className="text-text-tertiary px-1 py-0.5">
+              No other signed-in account to move this session to.
+            </div>
+          ) : (
+            <>
+              {targets.map((target) => (
+                <button
+                  key={target.id}
+                  disabled={moving !== null}
+                  onClick={() => {
+                    setMoving(target.id)
+                    void moveSessionToAccount(sessionId, target.id).finally(() => {
+                      setMoving(null)
+                      setPicking(false)
+                    })
+                  }}
+                  className="hover:bg-bg-secondary flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left transition-colors disabled:opacity-50"
+                >
+                  {/* Fixed slot so a row does not jump when its spinner appears. */}
+                  <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+                    {moving === target.id && <Spinner className="text-accent" />}
+                  </span>
+                  <span className="text-text flex-1 truncate">{target.label}</span>
+                  {target.held && <span className="text-warning shrink-0 text-2xs">held</span>}
+                  {account.alternative?.id === target.id && !target.held && (
+                    <span className="text-text-tertiary shrink-0 text-2xs">next in routing</span>
+                  )}
+                </button>
+              ))}
+              <div className="text-text-tertiary px-1.5 pt-0.5 text-2xs leading-snug">
+                Restarts this lane on the chosen account: same session file, one full re-read of the
+                thread.
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -463,13 +601,15 @@ function PlanLimits({ statusText }: { statusText: string | undefined }): React.J
   const paid = isPaidWindow(limit.windowType)
 
   return (
-    <>
-      <SectionLabel>Plan limits · Claude Code</SectionLabel>
+    <section className="border-border/60 mt-2 border-t pt-1.5 text-base">
       <div className="flex items-center justify-between gap-3">
-        <span className="text-text-tertiary">{windowLabel(limit.windowType)}</span>
+        <span className="text-text-tertiary truncate">
+          <span className="font-mono text-2xs uppercase tracking-wider">Claude Code</span> ·{' '}
+          {windowLabel(limit.windowType)}
+        </span>
         <span
           className={clsx(
-            'font-mono text-sm tabular-nums',
+            'shrink-0 font-mono text-sm tabular-nums',
             capped || over ? 'text-danger' : 'text-text-secondary',
           )}
         >
@@ -502,13 +642,13 @@ function PlanLimits({ statusText }: { statusText: string | undefined }): React.J
         <div className="text-warning text-sm">Using extra usage beyond the plan allowance.</div>
       )}
       {capped && reset && <div className="text-text-tertiary text-sm">{reset}.</div>}
-    </>
+    </section>
   )
 }
 
 function SectionLabel({ children }: { children: string }): React.JSX.Element {
   return (
-    <div className="text-text-tertiary pb-0.5 pt-1.5 font-mono text-2xs uppercase tracking-wider first:pt-0">
+    <div className="text-text-tertiary text-2xs truncate pb-0.5 font-mono uppercase tracking-wider">
       {children}
     </div>
   )
@@ -517,8 +657,8 @@ function SectionLabel({ children }: { children: string }): React.JSX.Element {
 function StatRow({ label, value }: { label: string; value: string }): React.JSX.Element {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-text-tertiary">{label}</span>
-      <span className="text-text-secondary font-mono text-sm tabular-nums">{value}</span>
+      <span className="text-text-tertiary truncate">{label}</span>
+      <span className="text-text-secondary shrink-0 font-mono text-sm tabular-nums">{value}</span>
     </div>
   )
 }

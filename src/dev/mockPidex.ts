@@ -659,7 +659,15 @@ const MOCK_CONTEXT_BREAKDOWN = JSON.stringify({
   totalTokens: 51350,
   contextWindow: 262144,
   parts: { messages: 41000, systemPrompt: 4200, tools: 5200, mcpTools: 2600 },
-  counts: { tools: 6, mcpTools: 12, messages: 9 },
+  counts: { tools: 6, mcpTools: 4, messages: 9 },
+  // One gateway proxy tool per server, which is what a real install reports
+  // unless a server opts into `directTools` — see docs/mcp.md.
+  mcpByServer: {
+    braintrust: { tokens: 700, count: 1 },
+    fellow: { tokens: 640, count: 1 },
+    linear: { tokens: 640, count: 1 },
+    notion: { tokens: 620, count: 1 },
+  },
   approximate: true,
 })
 

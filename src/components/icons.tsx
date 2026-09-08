@@ -295,6 +295,16 @@ export function DownloadIcon({ size = 12, className }: IconProps): React.JSX.Ele
   )
 }
 
+/** Circular arrow, for "read that number again". */
+export function RefreshIcon({ size = 12, className }: IconProps): React.JSX.Element {
+  return (
+    <svg {...strokeProps(size)} className={className} strokeLinecap="round">
+      <path d="M21 12a9 9 0 1 1-2.6-6.4" />
+      <path d="M21 3v6h-6" />
+    </svg>
+  )
+}
+
 /**
  * Indeterminate activity spinner. Colour comes from `className` so callers can
  * tint it (accent for tools, warning for retries) or inherit from an ancestor.

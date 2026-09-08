@@ -182,6 +182,30 @@ describe('fetchUsageSnapshot', () => {
     expect(failed).toBe(2) // failures are not cached; each ask retries
   })
 
+  it('re-runs inside the TTL when a refresh forces it', async () => {
+    let calls = 0
+    const runner = async (): Promise<string> => {
+      calls++
+      return FIXTURE
+    }
+    const t0 = nowAt(2026, 7, 30, 12)
+    await fetchUsageSnapshot({ claudeOverride: '/x/claude', runner, nowMs: t0 })
+    expect(calls).toBe(1)
+    // The refresh control in the context popover: a cached answer to a click
+    // looks broken, so this one call may skip the TTL.
+    const forced = await fetchUsageSnapshot({
+      claudeOverride: '/x/claude',
+      runner,
+      nowMs: t0 + 5_000,
+      force: true,
+    })
+    expect(forced.ok).toBe(true)
+    expect(calls).toBe(2)
+    // And it re-primed the cache, so the next ordinary read is free again.
+    await fetchUsageSnapshot({ claudeOverride: '/x/claude', runner, nowMs: t0 + 6_000 })
+    expect(calls).toBe(2)
+  })
+
   it('shares one run between concurrent callers', async () => {
     let calls = 0
     let release!: () => void

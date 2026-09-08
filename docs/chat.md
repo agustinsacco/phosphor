@@ -148,6 +148,15 @@ keep them distinguishable, because they are not equally trustworthy.
 | Plan usage          | `claude:usageSnapshot` IPC — `claude -p /usage`, live percents | Claude Code provider sessions |
 | Plan limits         | `claude-rate-limit` status key (provider ≥0.4.5)               | Claude Code provider sessions |
 
+**Wide, not tall** (redesigned
+[2026-09-07](log/2026-09-07-context-popover-redesign.md)). Six stacked
+single-column sections grew the panel past 1000px on a real session, and it
+anchors upward from the composer — so the overflow clipped its own heading off
+the top of the window. It is now 27rem wide with the composition legend,
+Tokens/Session and the plan windows each in a row rather than a stack, ~500px
+tall on the same data, and its body scrolls as a backstop for a short window.
+Adding a section means finding it a column, not another 100px.
+
 **Plan usage vs Plan limits.** The two plan sections answer different
 questions and must never be merged into one dashboard. **Plan usage** is
 the always-on percent per window (5-hour, weekly, per-model weekly) — the
@@ -181,6 +190,16 @@ character-based estimates (no tokenizer is reachable from an extension), so
 remainder, and the popover labels them approximate. Never present an
 estimate as measured, and never let the parts sum past the total.
 
+**MCP servers** breaks the MCP slice down per connector, as chips (name +
+tokens), because the single slice cannot say which server to disconnect. What
+it counts is the schema actually in the window, which under the gateway is
+**one proxy tool per server** (`mcp__<server>`, ~700 tokens) — the server's own
+tools are fetched on demand by `mcp` search/describe and are not carried in
+context. A server with `directTools` is the exception: its tools are promoted
+flat and every schema lands in the window, which is where a chip goes from
+hundreds of tokens to tens of thousands. See
+[mcp.md](mcp.md#the-claude-provider-reaches-mcp-through-pi-not-around-it).
+
 That scaling makes the total load-bearing twice over, and it is worth knowing
 how it failed. Until `pi-claude-cli` 0.4.10, a Claude session's
 `contextUsage.tokens` was the episode's **summed billing**, not its context:
@@ -201,18 +220,31 @@ omitted rather than guessed; `utilization: null` and "none used" must never
 look the same. It renders only when the key is present, so other providers
 show nothing rather than an empty section.
 
-**Plan usage** above it reads the lane's OWN account (`claude:sessionAccount`
-→ `claude:usageSnapshot <id>`) and names it once more than one Claude login is
+**Plan usage** renders one dial per window — arc for the proportion, percent
+inside it, short window name and a compact countdown (`4h 18m`) beneath. Three
+windows therefore cost one row instead of three, and the arc reads without
+being read. **Refresh** re-runs `claude -p /usage` past main's 60 s cache
+(`force` on the channel, honoured for no other caller): a refresh that returns
+the cached answer looks broken, while an uncached read on every popover open
+would hit the endpoint's own rate limit.
+
+It reads the lane's OWN account (`claude:sessionAccount` →
+`claude:usageSnapshot <id>`) and names it once more than one Claude login is
 configured; the rate-limit banner names it too. Asking without an id read
 whichever credential the CLI keeps by default, which on a multi-account install
 is routinely a different plan than the lane is spending
-([2026-09-06](log/2026-09-06-claude-account-routing.md)). When that account is
-held back — rejected, at its window, or spending overage — the section says
-which account new sessions go to instead, and offers to send this one there
-too. That is a respawn, not a switch: a running lane's credential was fixed
-when pi spawned, so the lane is disposed and resumed from its own session file
-against the new account, and the next turn re-reads the whole thread
-([2026-09-06](log/2026-09-06-claude-account-gateway.md)).
+([2026-09-06](log/2026-09-06-claude-account-routing.md)). **Switch account**
+lists every other signed-in login and moves this lane to the one picked, held
+accounts included and marked — a hold comes from a cached reading, and the
+person watching a stuck lane knows more than the cache does. It is offered
+whenever a second account exists, not only when the current one is spent; when
+it IS spent, the line above says which account new sessions go to instead. The
+move is a respawn, not a switch: a running lane's credential was fixed when pi
+spawned, so the lane is disposed and resumed from its own session file against
+the new account, and the next turn re-reads the whole thread
+([2026-09-06](log/2026-09-06-claude-account-gateway.md)). The target list is
+fetched when the picker opens, never on popover open — `claude:accounts` runs
+`claude auth status` once per account.
 
 This is the only figure on the popover that comes from the account rather
 than from a token count, which makes it the one to trust when they disagree:

@@ -221,11 +221,17 @@ export async function fetchUsageSnapshot(options?: {
   cacheKey?: string
   /** Credential-scoping env for one account; see electron/claude/accounts.ts. */
   extraEnv?: Record<string, string>
+  /**
+   * Ignore a fresh cache entry and re-run. For a user-initiated refresh only:
+   * a refresh button that returns the cached answer looks broken. The
+   * in-flight share below still applies, so a double click is one run.
+   */
+  force?: boolean
 }): Promise<ClaudeUsageSnapshotResult> {
   const nowMs = options?.nowMs ?? Date.now()
   const key = options?.cacheKey ?? DEFAULT_KEY
   const hit = cached.get(key)
-  if (hit && nowMs - hit.fetchedAt < CACHE_TTL_MS) {
+  if (!options?.force && hit && nowMs - hit.fetchedAt < CACHE_TTL_MS) {
     return { ok: true, snapshot: hit.snapshot }
   }
   const pending = inFlight.get(key)

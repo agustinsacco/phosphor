@@ -4,6 +4,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { ContextMeter } from './ContextMeter'
 import { useChatStore } from '@/stores/chat'
+import { useSessionsStore } from '@/stores/sessions'
 import type { SessionStats } from '@shared/rpc'
 
 beforeAll(() => {
@@ -16,8 +17,29 @@ const SESSION = 'sess-1'
 let sessionAccount: unknown = null
 let usageResult: unknown = null
 
+/** Two signed-in accounts, so the switcher has somewhere to send the lane. */
+const accountsResult = {
+  prefs: { mode: 'ordered', accounts: [], cooldowns: {} },
+  views: [
+    {
+      account: { id: 'acct-1', label: 'first', email: 'first@example.com', credentialDir: null },
+      auth: { ok: true, loggedIn: true, email: 'first@example.com' },
+      usage: null,
+      cooldownUntil: null,
+    },
+    {
+      account: { id: 'acct-2', label: 'second', email: 'second@example.com', credentialDir: null },
+      auth: { ok: true, loggedIn: true, email: 'second@example.com' },
+      usage: null,
+      cooldownUntil: null,
+    },
+  ],
+}
+
 const invoke = vi.fn(async (channel: string, ..._args: unknown[]) => {
   if (channel === 'claude:sessionAccount') return sessionAccount
+  if (channel === 'claude:accounts') return accountsResult
+  if (channel === 'claude:assignSession') return undefined
   if (channel === 'claude:usageSnapshot') {
     if (usageResult) return usageResult
     return {
@@ -121,7 +143,7 @@ describe('ContextMeter', () => {
     click('—')
     await act(async () => {})
     expect(document.body.textContent).toContain('Session usage')
-    expect(invoke).toHaveBeenCalledWith('claude:usageSnapshot', undefined)
+    expect(invoke).toHaveBeenCalledWith('claude:usageSnapshot', undefined, false)
   })
 
   it('shows the percentage once pi reports one', () => {
@@ -136,10 +158,25 @@ describe('ContextMeter', () => {
     click('25%')
     await act(async () => {})
 
-    expect(document.body.textContent).toContain('5-hour window')
-    expect(document.body.textContent).toContain('41%')
-    expect(document.body.textContent).toContain('Weekly window')
-    expect(document.body.textContent).toContain('63%')
+    // Dials: a short caption per window, the percent inside the arc.
+    expect(document.body.textContent).toContain('5-hour')
+    expect(document.body.textContent).toContain('41')
+    expect(document.body.textContent).toContain('Weekly')
+    expect(document.body.textContent).toContain('63')
+  })
+
+  it('re-reads usage past the cache when refresh is clicked', async () => {
+    seed({ tokens: 50_000, contextWindow: 200_000, percent: 25 })
+    render()
+    click('25%')
+    await act(async () => {})
+    expect(invoke).toHaveBeenCalledWith('claude:usageSnapshot', undefined, false)
+
+    click('Refresh')
+    await act(async () => {})
+    // A refresh that returned main's 60 s cache would look broken, so this
+    // call — and only this one — is allowed to skip it.
+    expect(invoke).toHaveBeenCalledWith('claude:usageSnapshot', undefined, true)
   })
 
   it('shows a reason instead of vanishing when the usage run fails', async () => {
@@ -171,12 +208,42 @@ describe('ContextMeter', () => {
     click('25%')
     await act(async () => {})
 
-    expect(invoke).toHaveBeenCalledWith('claude:usageSnapshot', 'acct-2')
+    expect(invoke).toHaveBeenCalledWith('claude:usageSnapshot', 'acct-2', false)
     expect(document.body.textContent).toContain('Plan usage · second@example.com')
     // A running lane cannot change account in place, so the popover says where
     // the next one goes — and offers to restart this one there too.
     expect(document.body.textContent).toContain('New sessions go to first@example.com')
-    expect(document.body.textContent).toContain('Move this session too')
+    expect(document.body.textContent).toContain('Switch account')
+  })
+
+  it('lists the other accounts only when the switcher is opened, then moves the lane', async () => {
+    sessionAccount = {
+      id: 'acct-2',
+      label: 'second',
+      email: 'second@example.com',
+      total: 2,
+      mode: 'round-robin',
+      cooldownUntil: null,
+      alternative: { id: 'acct-1', label: 'first@example.com' },
+    }
+    const move = vi.fn(async () => null)
+    useSessionsStore.setState({ moveSessionToAccount: move } as never)
+    seed({ tokens: 50_000, contextWindow: 200_000, percent: 25 })
+    render()
+    click('25%')
+    await act(async () => {})
+
+    // `claude:accounts` runs `claude auth status` per account, so the popover
+    // must not pay for it on every open.
+    expect(invoke).not.toHaveBeenCalledWith('claude:accounts')
+    click('Switch account')
+    await act(async () => {})
+    expect(invoke).toHaveBeenCalledWith('claude:accounts')
+    expect(document.body.textContent).toContain('first@example.com')
+
+    click('first@example.com')
+    await act(async () => {})
+    expect(move).toHaveBeenCalledWith(SESSION, 'acct-1')
   })
 
   it('stays with the old wording when only one account is configured', async () => {
@@ -204,7 +271,7 @@ describe('ContextMeter', () => {
     click('25%')
     await act(async () => {})
 
-    expect(invoke).not.toHaveBeenCalledWith('claude:usageSnapshot', undefined)
+    expect(invoke).not.toHaveBeenCalledWith('claude:usageSnapshot', undefined, false)
     expect(invoke).not.toHaveBeenCalledWith('claude:sessionAccount', SESSION, undefined)
     expect(document.body.textContent).not.toContain('Plan usage')
   })

@@ -502,8 +502,15 @@ export interface IpcInvokeMap {
    * its rendered text. Works for every signed-in subscription account; no
    * API key, no org, no credential crosses into pidex. Cached ~60 s in main,
    * because the endpoint behind it rate-limits.
+   *
+   * `force` skips that cache for a user-initiated refresh — the only caller
+   * that may, and only because someone clicked. Concurrent forces still share
+   * one CLI run, so a double click cannot spawn two.
    */
-  'claude:usageSnapshot': { args: [accountId?: string]; result: ClaudeUsageSnapshotResult }
+  'claude:usageSnapshot': {
+    args: [accountId?: string, force?: boolean]
+    result: ClaudeUsageSnapshotResult
+  }
   /** One print-mode turn through the pi-claude-cli provider, as a streamed job. */
   'packages:testClaudeProvider': { args: []; result: { jobId: string } }
 
