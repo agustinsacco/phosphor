@@ -129,6 +129,32 @@ the savings. Never outlive the app. Fail open on start.
 **Check.** A Settings section answering four questions: installed, running,
 routed, saving how much. The last is free once layer 1 pushes its status key.
 
+## Validated 2026-09-07
+
+Live end-to-end runs, not `/v1/compress` replays. Fixture: 100 Linear-shaped
+issues (~10.2k tokens), questions with a known exact answer.
+
+| Path                                                           | Result                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| L1 on pi native (OpenRouter haiku, real turn, probe extension) | works — hook fired mid-turn, 10,172→5,595 tokens (45%, 41 ms), model answered exactly from compressed text                                                                                                                                                                                 |
+| L1 on pi-claude-cli (custom tool through the handoff broker)   | works — 10,167→5,590 (22 ms) inside the blocked CLI turn, exact answer                                                                                                                                                                                                                     |
+| L1 fidelity                                                    | 100/100 rows survive; a wrong count by haiku reproduced identically UNcompressed — model error, not ours                                                                                                                                                                                   |
+| L2 claude CLI through the proxy (subscription OAuth)           | works; `--model` survives per invocation (haiku and sonnet both served as requested) — trap 4 does not bite pidex's pinned-model path                                                                                                                                                      |
+| Trap 3 measured with a bare recording proxy (no Headroom)      | 30 tools / 97,959 B of schemas without the flag vs 13 tools / 44,540 B with `ENABLE_TOOL_SEARCH=true` (~13k tokens per request); Headroom itself also stripped ~15k/request of schema when in the loop                                                                                     |
+| L2 pi native (built-in `openrouter` `baseUrl` override)        | works, existing auth kept working, exact answer — but live-turn message compression was ~0.2%: upstream recency protections spare the newest tool result, so L2's in-turn win is schema stripping; history compression needs long sessions and is untested                                 |
+| Bedrock (`--backend bedrock`)                                  | mechanism verified to the IAM door: boots healthy, discovers inference profiles, routes to the right ARN; invoke denied — `bedrock:InvokeModel` missing from the ReadOnlyAccess role. pi direct to Bedrock fails identically. Needs a role with `bedrock:InvokeModel(-WithResponseStream)` |
+
+Untested still: many-turn history compression through the proxy, concurrent
+sessions against one proxy, RPC-mode (vs `-p`) integration, and any Bedrock
+invoke.
+
+Two conclusions the tests add: L1 is not just the safer layer, it is the
+_stronger_ one for fresh tool results — the proxy's own recency protections
+mean it barely touches the newest tool output in-turn, while L1 compresses it
+at the source. And trap 4 is narrower than upstream's warning: it applies to
+the CLI's interactive `/model` picker, not to a model pinned per invocation,
+which is the only thing pidex does.
+
 ## Traps
 
 1. **Never `wrap` / `init` / `install --providers`.** Upstream's provider
