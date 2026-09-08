@@ -79,6 +79,13 @@ describe('cloneSession', () => {
     await cloneSession('/repo', meta, 's1')
 
     expect(useSessionsStore.getState().live.s1?.diskPath).toBe('/repo/.pi/sessions/cloned.jsonl')
+    // The clone's new pi session id orphans a pi-claude-cli CLI session, so
+    // the main process must be told to fork the CLI ledger — with the
+    // CLONE's file, not the pre-clone one.
+    expect(invoke).toHaveBeenCalledWith(
+      'sessions:forkClaudeLedger',
+      '/repo/.pi/sessions/cloned.jsonl',
+    )
   })
 
   it('leaves diskPath alone when an extension cancels the clone', async () => {
@@ -93,5 +100,6 @@ describe('cloneSession', () => {
 
     expect(useSessionsStore.getState().live.s1?.diskPath).toBe(meta.path)
     expect(useChatStore.getState().sessions.s1?.error).toBe('Clone was cancelled by an extension.')
+    expect(invoke).not.toHaveBeenCalledWith('sessions:forkClaudeLedger', expect.anything())
   })
 })

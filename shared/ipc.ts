@@ -589,6 +589,13 @@ export interface IpcInvokeMap {
    * under observer mode, which is why this cannot be derived in the renderer.
    */
   'sessions:claudeSessionId': { args: [piSessionId: string]; result: string | null }
+  /**
+   * After pi's `clone` RPC: fork the Claude CLI ledger so the clone gets its
+   * own CLI session instead of reimporting the whole conversation on its
+   * first turn. Takes the CLONE's session file; true when a fork was
+   * recorded, false when there was nothing to do (which is normal).
+   */
+  'sessions:forkClaudeLedger': { args: [cloneSessionFile: string]; result: boolean }
 
   /** PR for a branch via the `gh` CLI; null when gh/auth/remote is absent. */
   'gh:prForBranch': {

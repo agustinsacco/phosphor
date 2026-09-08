@@ -1550,6 +1550,9 @@ export function installMockPidex(): void {
         // pre-observer-mode session produces.
         case 'sessions:claudeSessionId':
           return Promise.resolve(null)
+        // Same reason: no provider sidecar to fork in the browser harness.
+        case 'sessions:forkClaudeLedger':
+          return Promise.resolve(false)
         case 'fs:readDir': {
           const dir = args[1] as string
           return Promise.resolve(mockDir(dir))
