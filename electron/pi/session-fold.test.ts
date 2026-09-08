@@ -420,3 +420,81 @@ describe('headerless session files', () => {
     expect(await listSessions(cwd)).toHaveLength(1)
   })
 })
+
+describe('headroom receipts', () => {
+  function toolResult(id: string, parent: string, details: unknown): string {
+    return line({
+      type: 'message',
+      id,
+      parentId: parent,
+      timestamp: '2026-08-01T11:00:00.000Z',
+      message: {
+        role: 'toolResult',
+        toolCallId: `call-${id}`,
+        toolName: 'mcpScript',
+        content: [{ type: 'text', text: '[3]{id:string}\n1\n2\n3' }],
+        details,
+        isError: false,
+        timestamp: 1,
+      },
+    })
+  }
+
+  it('sums details.headroom.savedTokens from toolResult messages into the meta', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'fold-hr-'))
+    const path = join(dir, 's.jsonl')
+    const content =
+      line(HEADER) +
+      turn(0, null) +
+      toolResult('t1', 'a0000', {
+        headroom: { savedTokens: 1257, beforeTokens: 2875, afterTokens: 1618, ms: 18 },
+      }) +
+      toolResult('t2', 't1', {
+        mode: 'script',
+        headroom: { savedTokens: 500, beforeTokens: 900, afterTokens: 400, ms: 9 },
+      })
+    await writeFile(path, content, 'utf8')
+
+    const meta = await parseSessionFile(path, (await stat(path)).mtimeMs)
+    expect(meta?.headroomSavedTokens).toBe(1757)
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('ignores tool results without a receipt, and malformed receipts', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'fold-hr-'))
+    const path = join(dir, 's.jsonl')
+    const content =
+      line(HEADER) +
+      turn(0, null) +
+      toolResult('t1', 'a0000', { mode: 'script' }) +
+      toolResult('t2', 't1', { headroom: { savedTokens: 'lots' } }) +
+      toolResult('t3', 't2', { headroom: { savedTokens: -50 } }) +
+      toolResult('t4', 't3', null)
+    await writeFile(path, content, 'utf8')
+
+    const meta = await parseSessionFile(path, (await stat(path)).mtimeMs)
+    expect(meta?.headroomSavedTokens).toBe(0)
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('matches the whole-file fold when resumed across a receipt boundary', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'fold-hr-'))
+    const path = join(dir, 's.jsonl')
+    const first = line(HEADER) + turn(0, null)
+    const second = toolResult('t1', 'a0000', {
+      headroom: { savedTokens: 42, beforeTokens: 100, afterTokens: 58, ms: 5 },
+    })
+    await writeFile(path, first, 'utf8')
+
+    const resumed = emptyFold()
+    const offset = await foldFrom(path, 0, resumed)
+    await appendFile(path, second, 'utf8')
+    await foldFrom(path, offset, resumed)
+
+    const whole = emptyFold()
+    await foldFrom(path, 0, whole)
+    expect(resumed.headroomSavedTokens).toBe(42)
+    expect(resumed.headroomSavedTokens).toBe(whole.headroomSavedTokens)
+    await rm(dir, { recursive: true, force: true })
+  })
+})

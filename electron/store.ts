@@ -110,9 +110,14 @@ export function getPrefs(): AppPrefs {
       ]),
     ),
     worktrees: { ...DEFAULT_APP_PREFS.worktrees, ...s.get('worktrees') },
+    headroom: { ...DEFAULT_APP_PREFS.headroom, ...s.get('headroom') },
     claudeAutocompact: s.get('claudeAutocompact') ?? '',
     drafts: s.get('drafts') ?? {},
   }
+}
+
+export function setHeadroomPrefs(headroom: AppPrefs['headroom']): void {
+  prefs().set('headroom', headroom)
 }
 
 /**

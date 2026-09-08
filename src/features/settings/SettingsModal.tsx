@@ -10,6 +10,7 @@ import { ExtensionsTab } from './tabs/ExtensionsTab'
 import { ClaudeProviderTab } from './tabs/ClaudeProviderTab'
 import { WebAccessTab } from './tabs/WebAccessTab'
 import { WorkspacesTab } from './tabs/WorkspacesTab'
+import { OptimizationTab } from './tabs/OptimizationTab'
 import { AdvancedTab } from './tabs/AdvancedTab'
 import { ConnectorsTab } from './tabs/ConnectorsTab'
 import { ComputerUseTab } from './tabs/ComputerUseTab'
@@ -23,6 +24,7 @@ const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'extensions', label: 'Extensions' },
   { id: 'connectors', label: 'MCP Connectors' },
   { id: 'workspaces', label: 'Workspaces' },
+  { id: 'optimization', label: 'Optimization' },
   { id: 'advanced', label: 'Advanced' },
   { id: 'keybindings', label: 'Keybindings' },
   { id: 'about', label: 'About' },
@@ -139,6 +141,7 @@ export function SettingsModal(): React.JSX.Element | null {
           {effectiveTab === 'connectors' && <ConnectorsTab />}
           {effectiveTab === 'computer-use' && <ComputerUseTab />}
           {effectiveTab === 'workspaces' && <WorkspacesTab />}
+          {effectiveTab === 'optimization' && <OptimizationTab />}
           {effectiveTab === 'advanced' && <AdvancedTab />}
           {effectiveTab === 'keybindings' && <KeybindingsTab />}
           {effectiveTab === 'about' && <AboutTab />}

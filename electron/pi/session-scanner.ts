@@ -198,11 +198,13 @@ export async function workspaceStats(workspacePath: string): Promise<WorkspaceSe
   let messages = 0
   let tokens = 0
   let totalCost = 0
+  let savedTokens = 0
 
   for (const session of sessions) {
     messages += session.userMessages + session.assistantMessages
     tokens += session.totalTokens
     totalCost += session.cost
+    savedTokens += session.headroomSavedTokens
     const day = session.lastActivityAt.slice(0, 10)
     if (day)
       activityByDay.set(
@@ -220,6 +222,7 @@ export async function workspaceStats(workspacePath: string): Promise<WorkspaceSe
     messages,
     tokens,
     cost: totalCost,
+    savedTokens,
     activeDays: activityByDay.size,
     activityByDay: Object.fromEntries(activityByDay),
   }

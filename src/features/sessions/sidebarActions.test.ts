@@ -22,6 +22,7 @@ const meta: SessionMeta = {
   cacheReadTokens: 0,
   cacheWriteTokens: 0,
   cost: 0,
+  headroomSavedTokens: 0,
   entryCount: 1,
   branchCount: 0,
   mtimeMs: 0,

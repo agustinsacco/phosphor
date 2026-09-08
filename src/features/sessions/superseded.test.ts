@@ -16,6 +16,7 @@ function meta(partial: Partial<SessionMeta> & { path: string }): SessionMeta {
     cacheReadTokens: 0,
     cacheWriteTokens: 0,
     cost: 0,
+    headroomSavedTokens: 0,
     entryCount: 2,
     branchCount: 0,
     mtimeMs: 0,

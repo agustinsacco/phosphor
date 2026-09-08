@@ -10,7 +10,9 @@
  * chosen over routing model traffic through the proxy (see
  * docs/specs/headroom-compression.md).
  *
- * Inert by default: it does nothing unless `PHOSPHOR_HEADROOM_URL` is set, and
+ * Inert by default: it does nothing unless `PHOSPHOR_HEADROOM_URL` is set
+ * (Phosphor sets it per session spawn when the supervisor in
+ * electron/headroom/proxy.ts believes the managed proxy is healthy), and
  * it fails open — any proxy failure disables it for the session and the
  * original tool result passes through untouched. A compression service must
  * never be able to break a turn.

@@ -1,8 +1,19 @@
 # The Optimization surface
 
-**Status: proposed.** Companion to
+**Status: SHIPPED 2026-09-08** (2a receipts+fold, 2b tab, 3 supervisor+advisor
+landed together — see
+[docs/log/2026-09-08-optimization-surface.md](../log/2026-09-08-optimization-surface.md);
+the Deck chip still waits for the Deck). Companion to
 [headroom-compression.md](headroom-compression.md) — the UI/UX half. Drafted
 2026-09-07; mock numbers are the measured ones from that spec.
+
+Deviations from the plan below, as built: the receipts persistence probe
+became a fold test (`session-fold.test.ts`, receipts verified against a real
+session file first); the lane-savings surface on the home screen is the
+Ledger's Saved tile + per-lane column, not a separate view; the Advisor
+shipped four rules (cache churn, headroom coverage, MCP schema weight,
+long-session drag) — provider-version gates, model mix and plan pacing wait
+for real-fleet tuning.
 
 ## Where it lives
 

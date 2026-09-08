@@ -49,6 +49,8 @@ import type {
   PiPackageEntry,
   GhPullRequest,
   GitInfo,
+  HeadroomStatus,
+  OptimizationStats,
   LiveSessionInfo,
   PiHealth,
   LoginFlowState,
@@ -680,6 +682,19 @@ export interface IpcInvokeMap {
   'maintenance:scan': { args: [repoPath: string]; result: MaintenanceReport }
   'maintenance:run': { args: [repoPath: string]; result: MaintenanceReport }
   'maintenance:setPrefs': { args: [MaintenancePrefs]; result: void }
+
+  // ---- Optimization (Settings → Optimization) ----
+  /** Headroom install/proxy state. Read-only; probes /health, spawns nothing. */
+  'headroom:status': { args: []; result: HeadroomStatus }
+  /** Persist the flag; on enable, bring the proxy up (adopt or spawn). */
+  'headroom:setEnabled': { args: [enabled: boolean]; result: HeadroomStatus }
+  'headroom:start': { args: []; result: HeadroomStatus }
+  /** Stops only a proxy Phosphor spawned; an adopted proxy is left alone. */
+  'headroom:stop': { args: []; result: HeadroomStatus }
+  /** Guided install as a streamed job on the `packages:output/exit` channels. */
+  'headroom:install': { args: []; result: { jobId: string } }
+  /** Folded savings + Advisor findings for one workspace. Read-only. */
+  'optimization:stats': { args: [workspacePath: string]; result: OptimizationStats }
   'git:commitAll': { args: [worktreePath: string, message: string]; result: { sha: string } }
   /** Merge into the main tree's current branch; aborts cleanly on conflict. */
   'git:mergeBranch': {

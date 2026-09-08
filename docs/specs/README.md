@@ -12,9 +12,9 @@ it lands or is abandoned. It is expected to be untidy in a way `docs/` is not.
 | [TRACKER.md](TRACKER.md)                           | Phase state and the few remaining open boxes.                                                                | For status, yes. Not for behaviour.                                                    |
 | [backlog/](backlog/)                               | Audits with findings that are not all resolved.                                                              | Per-finding — check each status column.                                                |
 | [build/](build/)                                   | Original requirements, written before the code existed.                                                      | **No.** Historical intent only.                                                        |
-| [vision-ui-renewal.md](vision-ui-renewal.md)       | A UI/UX renewal direction: Phosphor as an attention instrument (deck, lane, line, house, body).              | As direction only. Nothing in it is scheduled.                                         |
-| [headroom-compression.md](headroom-compression.md) | Implementation plan for Headroom compression across both harnesses, plus the traps and the partnership asks. | Measurements and traps yes. Phase 1 (`pi-ext/headroom.ts`) is built; the rest is not.  |
-| [optimization-surface.md](optimization-surface.md) | The Optimization settings tab, per-lane savings, and the efficiency Advisor — UI half of the Headroom work.  | As a plan, yes. Only the context-meter section and the receipts it folds exist so far. |
+| [vision-ui-renewal.md](vision-ui-renewal.md)       | A UI/UX renewal direction: Phosphor as an attention instrument (deck, lane, line, house, body).                 | As direction only. Nothing in it is scheduled.                                         |
+| [headroom-compression.md](headroom-compression.md) | Implementation plan for Headroom compression across both harnesses, plus the traps and the partnership asks. | Measurements and traps yes. Phases 1–3 are built; 4–6 (Layer 2) stay deferred.         |
+| [optimization-surface.md](optimization-surface.md) | The Optimization settings tab, per-lane savings, and the efficiency Advisor — UI half of the Headroom work.  | Shipped 2026-09-08 (see the header's deviations note); the Deck chip is still pending. |
 
 ## backlog/
 

@@ -1,7 +1,9 @@
 # Headroom as a first-class Phosphor feature
 
-**Status: phase 1 SHIPPED (`pi-ext/headroom.ts`, this branch, 2026-09-07);
-phases 2–3 ready to build; 4–6 (Layer 2) DEFERRED — decided 2026-09-07.**
+**Status: phases 1–3 SHIPPED (phase 1: `pi-ext/headroom.ts`, 2026-09-07;
+phases 2–3: fold + Optimization tab + proxy supervisor, 2026-09-08 — see
+[docs/log/2026-09-08-optimization-surface.md](../log/2026-09-08-optimization-surface.md));
+4–6 (Layer 2) DEFERRED — decided 2026-09-07.**
 Research done 2026-09-07 against Headroom 0.37.0 (`headroom-ai`, Apache-2.0,
 repo at `e67b3c8`), pi 0.84.2 and pi-claude-cli 0.7.0. The proxy was run
 locally and measured on this repo's own tool output; every trap below comes
