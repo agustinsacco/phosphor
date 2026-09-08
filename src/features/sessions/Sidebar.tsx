@@ -75,6 +75,9 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
   const activePage = useLayoutStore((s) => s.page)
   const recents = useWorkspacesStore((s) => s.recents)
+  const workspacesHydrated = useWorkspacesStore((s) => s.hydrated)
+  const [initialSidebarReady, setInitialSidebarReady] = useState(false)
+  const [worktreeDiscoverySettled, setWorktreeDiscoverySettled] = useState(false)
   const [treeFor, setTreeFor] = useState<SessionMeta | null>(null)
   const [worktreeModal, setWorktreeModal] = useState<{
     kind: 'remove' | 'merge'
@@ -196,6 +199,10 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
 
   // Scan every known workspace (capped; collapsed groups lazy-load on expand).
   useEffect(() => {
+    // Never begin from the store's empty default. On first launch that would
+    // scan just the resumed workspace, paint it as a complete sidebar, and
+    // append the persisted projects a beat later.
+    if (!workspacesHydrated || collapsed === null) return
     const store = useSessionsStore.getState()
     void store.refreshAllDisk(knownWorkspaces)
     void store.hydratePinned()
@@ -205,7 +212,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
       void useSessionsStore.getState().refreshDisk(payload.workspacePath)
     })
     return unsubscribe
-  }, [knownWorkspaces])
+  }, [knownWorkspaces, workspacesHydrated, collapsed])
 
   useEffect(() => {
     void window.pidex.invoke('app:getPrefs').then((prefs) => {
@@ -226,7 +233,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     // Wait for prefs hydration, and only list once per set of known roots —
     // expanding/collapsing a group must not re-run a full `git:listWorktrees`
     // per workspace.
-    if (collapsed === null) return
+    if (collapsed === null || !workspacesHydrated) return
     const roots = [...cleanRecents.map((ws) => ws.path), workspacePath].filter(
       (p) => Boolean(p) && !isWorktreeFolder(p!),
     )
@@ -238,6 +245,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     // settles.
     const key = [...roots, `lanes:${unknownLanes}`].join('\u0000')
     if (worktreeListedKey.current === key) return
+    setWorktreeDiscoverySettled(false)
     worktreeListedKey.current = key
     let cancelled = false
     void (async () => {
@@ -258,12 +266,48 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
           // Not a repo, or git unavailable — nothing to discover there.
         }
       }
-      if (!cancelled) setWorktreeDirs([...found].map(([path, root]) => ({ path, root })))
+      if (!cancelled) {
+        setWorktreeDirs([...found].map(([path, root]) => ({ path, root })))
+        setWorktreeDiscoverySettled(true)
+      }
     })()
     return () => {
       cancelled = true
     }
-  }, [cleanRecents, workspacePath, collapsed, unknownLanes])
+  }, [cleanRecents, workspacePath, collapsed, unknownLanes, workspacesHydrated])
+
+  /**
+   * First paint is atomic: do not replace the sidebar skeleton until prefs,
+   * worktree discovery, and every discovered session directory have settled.
+   * `refreshMissing` deliberately has no boot cap here; a capped result is
+   * useful for progressive refreshes, but misleading on the initial screen.
+   */
+  useEffect(() => {
+    if (
+      initialSidebarReady ||
+      !workspacesHydrated ||
+      collapsed === null ||
+      !worktreeDiscoverySettled
+    ) {
+      return
+    }
+    let cancelled = false
+    void useSessionsStore
+      .getState()
+      .refreshMissing(knownWorkspaces)
+      .finally(() => {
+        if (!cancelled) setInitialSidebarReady(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [
+    initialSidebarReady,
+    workspacesHydrated,
+    collapsed,
+    worktreeDiscoverySettled,
+    knownWorkspaces,
+  ])
 
   // Git summaries for row subtitles: refresh (debounced) whenever the disk
   // listing changes, and again on window focus (branch switches happen in
@@ -696,6 +740,8 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     }
   }
 
+  const sidebarLoading = !initialSidebarReady
+
   return (
     <aside className="bg-sidebar relative flex h-full shrink-0 flex-col" style={{ width }}>
       {/* No drag strip here any more: the window's title bar is now a single
@@ -730,7 +776,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
       </nav>
 
       <div className="flex-1 overflow-y-auto px-2 pb-2">
-        {pinnedMetas.length > 0 && (
+        {!sidebarLoading && pinnedMetas.length > 0 && (
           <>
             <SectionLabel>Pinned</SectionLabel>
             {pinnedMetas.map((meta) => (
@@ -742,9 +788,10 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
         {/* Prefs decide both which workspaces exist and what order they sit
             in, so any header painted before they land can be wrong or about
             to jump. A skeleton is the honest answer for that window. */}
-        {collapsed === null && <WorkspaceGroupSkeletons />}
+        {sidebarLoading && <WorkspaceGroupSkeletons />}
 
-        {collapsed !== null &&
+        {!sidebarLoading &&
+          collapsed !== null &&
           groups.map((group) => {
             const isCollapsed = isGroupCollapsed(group)
             const query = searchApplied[group.workspacePath] ?? ''

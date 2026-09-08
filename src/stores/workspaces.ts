@@ -23,6 +23,8 @@ interface WorkspacesState {
    * delete it.
    */
   sandboxes: SandboxInfo[]
+  /** True once persisted workspaces and sandboxes have been read for this launch. */
+  hydrated: boolean
   /** Point the home screen at a workspace (adds it to recents if new). */
   openWorkspace: (path: string) => void
   /** Native folder picker; adds the chosen folder rather than replacing. */
@@ -48,6 +50,7 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
   homePath: null,
   recents: [],
   sandboxes: [],
+  hydrated: false,
 
   openWorkspace: (path) => {
     // A worktree folder is a *branch* of a workspace, not a workspace of its
@@ -141,11 +144,18 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
   },
 
   hydrate: async () => {
-    const [prefs, sandboxes] = await Promise.all([
-      window.pidex.invoke('app:getPrefs'),
-      window.pidex.invoke('app:listSandboxes'),
-    ])
-    set({ recents: prefs.recentWorkspaces, sandboxes })
+    try {
+      const [prefs, sandboxes] = await Promise.all([
+        window.pidex.invoke('app:getPrefs'),
+        window.pidex.invoke('app:listSandboxes'),
+      ])
+      set({ recents: prefs.recentWorkspaces, sandboxes })
+    } finally {
+      // The sidebar must distinguish an empty list from the moment before
+      // prefs arrive. Also settle on a transient IPC failure: a later folder
+      // open can still recover the screen, while an endless skeleton cannot.
+      set({ hydrated: true })
+    }
   },
 }))
 
