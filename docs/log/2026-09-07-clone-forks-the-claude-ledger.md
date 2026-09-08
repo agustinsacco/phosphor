@@ -2,9 +2,9 @@
 
 _2026-09-07_
 
-Follow-up to the audit in
-[2026-09-07-clone-orphans-the-cli-session.md](2026-09-07-clone-orphans-the-cli-session.md)
-(landing separately in [PR #218](https://github.com/agustinsacco/pidex/pull/218)):
+Follow-up to a session audit
+(written up in [PR #218](https://github.com/agustinsacco/pidex/pull/218),
+closed unmerged — the evidence lives there):
 pi's `clone` RPC branches a session onto a new file with a new pi session id,
 and `@saccolabs/pi-claude-cli` keys its one-CLI-session-per-pi-session map on
 that id. A cloned Claude session therefore missed the map on its first turn
