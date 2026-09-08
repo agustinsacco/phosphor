@@ -4,6 +4,7 @@ import { normalize, relative } from 'node:path'
 import { BrowserWindow } from 'electron'
 
 const watchers = new Map<string, FSWatcher>()
+const watcherFilters = new Map<string, WatchFilter>()
 const pending = new Map<string, Set<string>>()
 const timers = new Map<string, NodeJS.Timeout>()
 
@@ -89,17 +90,42 @@ export const MAX_WATCH_DEPTH = 3
 export const MAX_DIR_ENTRIES = 2_000
 
 /**
- * Hard ceiling on paths one workspace watcher may hold open.
+ * Hard ceiling on paths all workspace watchers may hold open, per process.
  *
- * The last line of defence, and the only one that is a true bound: the prune
- * list and the depth cap are both heuristics that a sufficiently odd repo
- * walks straight past. Reaching this cap degrades the explorer to "watches
- * less"; overrunning it takes the whole main process down, because every
- * later `open()` fails — including electron-store reading `config.json`,
- * which is how this surfaced ("EMFILE ... open '.../pidex/config.json'" when
- * starting a session).
+ * macOS libuv cannot spawn a child once a stdio pipe lands above fd 10,239:
+ * it reports `spawn EBADF`, well before the OS's much higher maxfiles limit.
+ * Chokidar's FSEvents fallback opens one descriptor per path, so a per-workspace
+ * budget of 12,000 could hit that ceiling with just one large workspace (and
+ * several ordinary workspaces could exceed it together). Keep the *combined*
+ * watcher allocation comfortably below libuv's limit; reaching it only makes
+ * the explorer refresh less eagerly, while overrunning it deadlocks new pi
+ * sessions.
  */
-export const MAX_WATCHED_PATHS = 12_000
+export const MAX_WATCHED_PATHS = 6_000
+
+export class WatchBudget {
+  private used = 0
+
+  constructor(private readonly limit: number) {}
+
+  get full(): boolean {
+    return this.used >= this.limit
+  }
+
+  tryAcquire(): boolean {
+    if (this.full) return false
+    this.used += 1
+    return true
+  }
+
+  release(): void {
+    if (this.used > 0) this.used -= 1
+  }
+}
+
+// Module-scoped deliberately: Electron has one main process, but can have
+// many expanded workspace groups at the same time.
+const workspaceWatchBudget = new WatchBudget(MAX_WATCHED_PATHS)
 
 /** Match chokidar's own path normalization before comparing or recording. */
 function unixPath(path: string): string {
@@ -160,6 +186,8 @@ export interface WatchFilter {
   ignored: (path: string, stats?: Stats) => boolean
   /** chokidar dropped this path (unlink); hand its slot back to the budget. */
   release: (path: string) => void
+  /** Release every granted slot when its watcher is closed. */
+  releaseAll: () => void
   /** Paths currently counted against MAX_WATCHED_PATHS. */
   readonly size: number
 }
@@ -182,6 +210,7 @@ export interface WatchFilter {
 export function createWatchFilter(
   root: string,
   isOversized: (dir: string) => boolean = dirExceedsEntryCap,
+  budget = new WatchBudget(MAX_WATCHED_PATHS),
 ): WatchFilter {
   const rootPath = unixPath(root)
   const granted = new Set<string>()
@@ -198,14 +227,14 @@ export function createWatchFilter(
     // silently leaving the explorer with no watcher at all.
     if (IGNORED_DIR_PATTERN.test(unixPath(relative(rootPath, path)))) return true
     if (granted.has(path)) return false
-    if (!stats) return granted.size >= MAX_WATCHED_PATHS
+    if (!stats) return budget.full
     if (stats.isDirectory() && isOversized(path)) return true
-    if (granted.size >= MAX_WATCHED_PATHS) {
+    if (!budget.tryAcquire()) {
       if (!warned) {
         warned = true
         console.warn(
-          `[pidex] watch budget reached for ${root} (${MAX_WATCHED_PATHS} paths); ` +
-            'file changes past this point will not refresh the explorer',
+          `[pidex] global watch budget reached (${MAX_WATCHED_PATHS} paths); ` +
+            `not watching further paths in ${root}`,
         )
       }
       return true
@@ -217,7 +246,11 @@ export function createWatchFilter(
   return {
     ignored,
     release: (rawPath: string) => {
-      granted.delete(unixPath(rawPath))
+      if (granted.delete(unixPath(rawPath))) budget.release()
+    },
+    releaseAll: () => {
+      for (const _path of granted) budget.release()
+      granted.clear()
     },
     get size() {
       return granted.size
@@ -237,7 +270,7 @@ export function createWatchFilter(
 export function watchWorkspace(workspacePath: string): void {
   if (watchers.has(workspacePath)) return
 
-  const filter = createWatchFilter(workspacePath)
+  const filter = createWatchFilter(workspacePath, dirExceedsEntryCap, workspaceWatchBudget)
   const watcher = chokidar.watch(workspacePath, {
     ignoreInitial: true,
     ignored: filter.ignored,
@@ -287,6 +320,7 @@ export function watchWorkspace(workspacePath: string): void {
   watcher.on('addDir', queue)
   watcher.on('unlinkDir', dropped)
   watchers.set(workspacePath, watcher)
+  watcherFilters.set(workspacePath, filter)
 }
 
 /** Close every workspace watcher and drop pending debounced change batches. */
@@ -296,5 +330,7 @@ export async function unwatchAllWorkspaces(): Promise<void> {
   pending.clear()
   oversizedDirs.clear()
   await Promise.allSettled([...watchers.values()].map((w) => w.close()))
+  for (const filter of watcherFilters.values()) filter.releaseAll()
+  watcherFilters.clear()
   watchers.clear()
 }
