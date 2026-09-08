@@ -5,6 +5,7 @@ import {
   MAX_DIR_ENTRIES,
   MAX_WATCH_DEPTH,
   MAX_WATCHED_PATHS,
+  WatchBudget,
   createWatchFilter,
 } from './workspace-watcher'
 
@@ -22,10 +23,9 @@ const fileStats = { isDirectory: () => false } as Stats
  * opens one fd per watched PATH, files included, and the depth cap is blind
  * to a flat directory — every file in it sits at the same legal depth. On
  * augment-local, `.overrides-local/workflow-retries/captures` held 133,518
- * JSON files at exactly depth 3; the walk opened 91,255 of them, hit
- * `kern.maxfilesperproc`, and every later open() in the main process failed —
- * surfacing as "EMFILE ... open '.../pidex/config.json'" when starting a
- * session. `MAX_DIR_ENTRIES` and `MAX_WATCHED_PATHS` are what bound that.
+ * `MAX_DIR_ENTRIES` and the process-wide `MAX_WATCHED_PATHS` are what bound
+ * that. The latter stays below macOS libuv's fd 10,239 spawn limit: above it
+ * `child_process.spawn` reports EBADF and blocks a new pi session.
  */
 describe('workspace watcher bounds', () => {
   it('prunes the heavy directories that made the walk unbounded', () => {
@@ -56,16 +56,26 @@ describe('workspace watcher bounds', () => {
     expect(MAX_WATCH_DEPTH).toBeLessThanOrEqual(4)
   })
 
-  it('keeps the fd budget under what one process can hold', () => {
-    // macOS caps a process at kern.maxfilesperproc (92,160 on the machine
-    // that hit this). The budget must leave room for everything else the
-    // main process opens, not merely fit under the ceiling.
-    expect(MAX_WATCHED_PATHS).toBeLessThanOrEqual(20_000)
+  it('keeps the process-wide fd budget below macOS libuv’s spawn limit', () => {
+    // libuv uses an internal 10,240-fd table on macOS. Its failure mode above
+    // that is the misleading `spawn EBADF`, not EMFILE, so leave room for
+    // Electron, PTYs, session watchers and pi's three stdio pipes.
+    expect(MAX_WATCHED_PATHS).toBeLessThanOrEqual(6_000)
     expect(MAX_DIR_ENTRIES).toBeLessThan(MAX_WATCHED_PATHS)
   })
 })
 
 describe('createWatchFilter', () => {
+  it('shares a bounded process-wide budget across workspace filters', () => {
+    const budget = new WatchBudget(1)
+    const first = createWatchFilter('/first', () => false, budget)
+    const second = createWatchFilter('/second', () => false, budget)
+
+    expect(first.ignored('/first/a.ts', fileStats)).toBe(false)
+    expect(second.ignored('/second/b.ts', fileStats)).toBe(true)
+    first.releaseAll()
+    expect(second.ignored('/second/b.ts', fileStats)).toBe(false)
+  })
   it('never ignores the watch root', () => {
     // Ignoring the root watches nothing at all — the failure this must not
     // trade the EMFILE for. True even for a root whose own name is prunable.
