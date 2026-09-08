@@ -263,9 +263,9 @@ Six facts that explain the rest:
    sessions list is a scan of pi's session directory. pidex also appends to those
    files for bookmarks, branch jumps and forks — which is only safe while no pi
    process owns the file, and call sites enforce that by convention.
-5. **Six extensions run inside pi's process** (`pi-ext/`, loaded with `-e`
-   into every session): `artifacts`, `context-breakdown`, `headroom`,
-   `mcp-status`, `tool-name-guard`, `worktree-paths`. Two of them can change or refuse what
+5. **Five extensions run inside pi's process** (`pi-ext/`, loaded with `-e`
+   into every session): `artifacts`, `context-breakdown`, `mcp-status`,
+   `tool-name-guard`, `worktree-paths`. Two of them can change or refuse what
    the model did — read
    [docs/extensions.md](docs/extensions.md) first.
 6. **Failure is reported, not hidden.** Failures surface on the session's chat;
@@ -373,9 +373,9 @@ src/                 renderer (React) — pure UI over typed IPC
   lib/               framework-free helpers (format, path, rpc, fuzzy, time…)
   styles/            the Phosphor design tokens
   dev/               browser-only mock of the preload API (never bundled)
-pi-ext/              the six pi extensions that run inside pi's process,
+pi-ext/              the five pi extensions that run inside pi's process,
                      bundled into every session: artifacts, context-breakdown,
-                     headroom, mcp-status, tool-name-guard, worktree-paths
+                     mcp-status, tool-name-guard, worktree-paths
 e2e/                 Playwright-Electron smoke tests + deterministic pi stub
 scripts/             install.sh, icon + screenshot generation, release and
                      validate helpers
