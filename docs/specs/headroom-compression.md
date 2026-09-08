@@ -204,11 +204,11 @@ which is the only thing pidex does.
 The shipped extension (`pi-ext/headroom.ts`), loaded with `-e` into live
 `pi -p` runs against a local 0.37.0 proxy:
 
-| Provider                                  | Result                                                                                                                       |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| amazon-bedrock (sonnet 4.5)               | accepted live: 2,875 → 1,618 tokens (44%, 18 ms) on an mcpScript projection; `details.headroom` receipt in the session JSONL |
-| pi-claude-cli (haiku 4.5, handoff broker) | accepted live inside the blocked CLI handoff (21 ms); receipt persisted; turn continued                                      |
-| openrouter (sonnet)                       | hook verified firing + eligibility correct (instrumented run); acceptance on the Notion payload                              |
+| Provider                                  | Result                                                                                                                                                                     |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| amazon-bedrock (sonnet 4.5)               | accepted live: 2,875 → 1,618 tokens (44%, 18 ms) on an mcpScript projection; `details.headroom` receipt in the session JSONL                                               |
+| pi-claude-cli (haiku 4.5, handoff broker) | accepted live inside the blocked CLI handoff (21 ms); receipt persisted; turn continued                                                                                    |
+| openrouter (sonnet)                       | accepted live: 2,889 → 1,633 tokens (43%, 26 ms), receipt persisted, exact answer; the instrumented run also verified the correct no-op on an incompressible 51 KB payload |
 
 The receipt persistence question from optimization-surface.md is answered:
 pi persists a `tool_result` handler's `details` patch verbatim into the
