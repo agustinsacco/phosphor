@@ -169,7 +169,7 @@ you want to watch.
   and
   [docs/log/2026-09-03-post-compaction-stall-and-context-meter.md](docs/log/2026-09-03-post-compaction-stall-and-context-meter.md).
 
-- **pidex ships five extensions that run inside pi's process** (`pi-ext/`,
+- **pidex ships six extensions that run inside pi's process** (`pi-ext/`,
   loaded with `-e` into every session; listed in `bundledExtensions()` in
   `electron/ipc/pi-session-handlers.ts`). They are the only pidex code with a
   say inside a turn, and two of them can change or refuse what the model did:
