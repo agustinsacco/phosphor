@@ -1,7 +1,7 @@
 # Headroom as a first-class pidex feature
 
 **Status: phase 1 SHIPPED (`pi-ext/headroom.ts`, this branch, 2026-09-07);
-phases 2–3 ready to build; 4–6 need a decision.**
+phases 2–3 ready to build; 4–6 (Layer 2) DEFERRED — decided 2026-09-07.**
 Research done 2026-09-07 against Headroom 0.37.0 (`headroom-ai`, Apache-2.0,
 repo at `e67b3c8`), pi 0.84.2 and pi-claude-cli 0.7.0. The proxy was run
 locally and measured on this repo's own tool output; every trap below comes
@@ -339,7 +339,12 @@ stands.
    `ANTHROPIC_BASE_URL`. Mechanism fully verified 2026-09-07; gated only on
    accepting that Headroom holds the AWS credentials for these sessions.
 
-Phases 1–3 need no decision. 4–6 need the credential calls.
+Phases 1–3 need no decision. 4–6 need the credential calls — and are
+**deferred** (decision 2026-09-07): routing pi's provider traffic through the
+proxy risks breaking things pidex depends on (model listing among them) for
+an in-turn win that measured ~0.2% on live traffic. Revisit only after
+phases 2–3 land and with a specific breakage test plan for pi's model
+discovery and streaming paths.
 
 ## Asks for Headroom
 
