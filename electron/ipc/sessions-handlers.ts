@@ -4,6 +4,7 @@ import { listSessions, readSessionTree, workspaceStats } from '../pi/session-sca
 import { deleteSession } from '../pi/session-deleter'
 import { appendBranchJump, appendLabel, forkSessionAt } from '../pi/session-writer'
 import { claudeSessionIdFor } from '../pi/claude-session-map'
+import { forkClaudeLedgerForClone } from '../pi/claude-ledger-fork'
 import { clearDraft } from '../store'
 import { deleteDraftBlobs } from '../drafts-blobs'
 
@@ -45,5 +46,9 @@ export function registerSessionsHandlers(): void {
 
   handle('sessions:claudeSessionId', (_event, piSessionId: string) =>
     claudeSessionIdFor(piSessionId),
+  )
+
+  handle('sessions:forkClaudeLedger', (_event, cloneSessionFile: string) =>
+    forkClaudeLedgerForClone(cloneSessionFile),
   )
 }
