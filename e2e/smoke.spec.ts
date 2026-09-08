@@ -910,6 +910,61 @@ test('a pasted wide image stays inside the transcript column', async () => {
   }
 })
 
+test('a pasted long URL wraps inside its bubble instead of scrolling the transcript', async () => {
+  // Regression: the user bubble was capped at `max-w-[85%]` with no
+  // `overflow-wrap`, so a pasted OAuth callback URL — one unbreakable word —
+  // painted straight through the bubble and out of the column. Because the
+  // scroller sets `overflow-y: auto`, its `overflow-x` resolved to `auto` too,
+  // so the WHOLE transcript grew a horizontal scrollbar.
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+
+    const longUrl =
+      'http://localhost:1455/auth/callback?code=ac_N3IHRVZ2IfKBri7EOy5lRSAhogJGAP2P9cZBOMZbIJM.' +
+      'ka21HmBM0ayf2Rxas1vZKI9Gi_BdssfrPm4eICNDDQ0&scope=openid+profile+email&state=' +
+      'ZmFrZS1zdGF0ZS12YWx1ZS10aGF0LWlzLXZlcnktbG9uZy1pbmRlZWQtc28taXQtY2Fubm90LXdyYXA'
+    const composer = page.getByPlaceholder(/Describe a task…/i)
+    await composer.fill(`respond url: ${longUrl}`)
+    await composer.press('Enter')
+
+    const scroller = page.getByTestId('transcript-scroll')
+    const bubble = page.getByTestId('user-message').last()
+    await expect(bubble).toBeVisible()
+
+    // Geometric, like the wide-image test: the class list is not the contract,
+    // "it fits in the column" is.
+    const shown = (await bubble.boundingBox())!
+    const column = (await scroller.boundingBox())!
+    expect(shown.x).toBeGreaterThanOrEqual(column.x)
+    expect(shown.x + shown.width).toBeLessThanOrEqual(column.x + column.width)
+    // Wrapped, not one clipped line.
+    expect(shown.height).toBeGreaterThan(40)
+
+    // The URL WRAPPED — it is not merely hidden by the scroller's clip, which
+    // would leave the bubble itself overflowing and half the URL unreadable.
+    const overflow = await page.evaluate(() => {
+      const overflowOf = (el: HTMLElement): number => el.scrollWidth - el.clientWidth
+      const bubbles = document.querySelectorAll<HTMLElement>('[data-testid="user-message"]')
+      return {
+        bubble: overflowOf(bubbles[bubbles.length - 1]!),
+        scroller: overflowOf(
+          document.querySelector<HTMLElement>('[data-testid="transcript-scroll"]')!,
+        ),
+      }
+    })
+    expect(overflow.bubble).toBeLessThanOrEqual(1)
+    // And nothing anywhere in the transcript can be scrolled sideways.
+    expect(overflow.scroller).toBeLessThanOrEqual(1)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('right-hand pane controls stay clear of the OS window controls', async () => {
   // Regression: the pane header used to render its own expand/close buttons at
   // the top-right of the window, directly underneath the Window Controls

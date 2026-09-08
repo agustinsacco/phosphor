@@ -22,7 +22,7 @@ export function Divider({ item }: { item: DividerItem }): React.JSX.Element {
           <summary className="text-text-tertiary hover:text-text cursor-pointer text-center text-sm">
             show summary
           </summary>
-          <div className="border-border bg-surface mt-1.5 max-h-56 overflow-auto rounded-lg border px-3 py-2 whitespace-pre-wrap">
+          <div className="border-border bg-surface mt-1.5 max-h-56 overflow-auto rounded-lg border px-3 py-2 whitespace-pre-wrap break-words">
             {item.summary}
           </div>
         </details>

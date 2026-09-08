@@ -163,7 +163,21 @@ function UserMessage({
         </div>
       )}
       {item.text && (
-        <div className="bg-user-bubble max-w-[85%] rounded-xl px-4 py-2.5 text-lg">
+        /*
+         * `break-words` is not optional, and it lives HERE rather than on the
+         * spans inside `UserText` because `overflow-wrap` inherits: one rule
+         * covers the plain text, the list items, and anything added later.
+         * Without it a pasted URL or token is one unbreakable word, so
+         * `max-w-[85%]` caps the BOX while the text paints straight through
+         * it — out of the bubble, past the column, and into a horizontal
+         * scrollbar under the whole transcript (the scroller's `overflow-y`
+         * makes its `overflow-x` `auto`). Same failure as the wide-image cap
+         * in ChatImage, one axis over.
+         */
+        <div
+          data-testid="user-message"
+          className="bg-user-bubble max-w-[85%] break-words rounded-xl px-4 py-2.5 text-lg"
+        >
           <UserText text={item.text} />
         </div>
       )}

@@ -73,7 +73,7 @@ export function BashDetail({ tool }: { tool: ToolState }): React.JSX.Element {
           <CopyButton text={output} />
         </div>
       </div>
-      <pre className="terminal-output max-h-80 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed whitespace-pre-wrap">
+      <pre className="terminal-output max-h-80 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed break-words whitespace-pre-wrap">
         {output || (running ? '…' : '(no output)')}
       </pre>
       {details?.fullOutputPath && (
@@ -158,7 +158,7 @@ export function ReadDetail({ tool }: { tool: ToolState }): React.JSX.Element {
         </div>
       )}
       {text && (
-        <pre className="max-h-80 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed whitespace-pre-wrap">
+        <pre className="max-h-80 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed break-words whitespace-pre-wrap">
           {text}
         </pre>
       )}
@@ -179,7 +179,7 @@ export function ListDetail({ tool }: { tool: ToolState }): React.JSX.Element {
   if (tool.isError) return <ErrorText text={text} />
   return (
     <div>
-      <pre className="max-h-80 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed whitespace-pre-wrap">
+      <pre className="max-h-80 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed break-words whitespace-pre-wrap">
         {text || '(no results)'}
       </pre>
       {limit != null && (
@@ -217,7 +217,7 @@ export function GenericDetail({ tool }: { tool: ToolState }): React.JSX.Element 
           )}
         </button>
         {argsExpanded && (
-          <pre className="bg-code-bg border-border mt-2 max-h-60 overflow-auto rounded-md border px-2.5 py-2 font-mono text-sm leading-relaxed whitespace-pre-wrap">
+          <pre className="bg-code-bg border-border mt-2 max-h-60 overflow-auto rounded-md border px-2.5 py-2 font-mono text-sm leading-relaxed break-words whitespace-pre-wrap">
             {argsJson || '(none)'}
           </pre>
         )}
@@ -235,7 +235,7 @@ export function GenericDetail({ tool }: { tool: ToolState }): React.JSX.Element 
               )}
             </div>
           )}
-          <pre className="max-h-80 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed whitespace-pre-wrap">
+          <pre className="max-h-80 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed break-words whitespace-pre-wrap">
             {text || (running ? 'Running…' : '(no output)')}
           </pre>
         </>
@@ -248,7 +248,7 @@ export function GenericDetail({ tool }: { tool: ToolState }): React.JSX.Element 
 
 export function ErrorText({ text }: { text: string }): React.JSX.Element {
   return (
-    <pre className="text-danger max-h-80 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed whitespace-pre-wrap">
+    <pre className="text-danger max-h-80 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed break-words whitespace-pre-wrap">
       {text || 'Tool failed'}
     </pre>
   )
