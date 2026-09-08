@@ -31,9 +31,20 @@ import type { McpServerConfig } from '@shared/mcp'
  *   backed by a registered Slack app with a fixed app ID and hardcode that
  *   app ID". Its authorization-server metadata carries no
  *   `registration_endpoint` to call even if we wanted to (re-probed
- *   2026-09-07). A one-click Slack row would need pidex to own a
- *   Marketplace-published Slack app, since only internal or directory-published
- *   apps may use MCP at all.
+ *   2026-09-08).
+ *
+ *   Claude Desktop, Claude Code, Cursor and Perplexity are one click for the
+ *   same reason they are named on Slack's "available clients" list: each one
+ *   ships its OWN registered Slack app and hardcodes that app's id. Slack
+ *   publishes Claude Code's outright — client id `1601185624273.8899143856786`
+ *   on callback port 3118, in the plugin config on
+ *   `docs.slack.dev/ai/slack-mcp-server/connect-to-harnesses`. So pidex could
+ *   be one click two ways, and both are decisions rather than code: own a
+ *   Marketplace-published Slack app (only internal or directory-published apps
+ *   may use MCP at all), or hardcode somebody else's id — which would put
+ *   their app, not pidex, in front of the admin approving it and in the audit
+ *   log and rate-limit bucket recording it. Until then the row asks for the
+ *   id of an app the user controls.
  * - `oauth-or-key` — OAuth works, and an API key is a supported alternative.
  */
 export type ConnectorAuthKind = 'dcr' | 'preregistered' | 'oauth-or-key'
@@ -309,10 +320,11 @@ export const CONNECTORS: ConnectorEntry[] = [
     docsUrl: 'https://docs.slack.dev/ai/slack-mcp-server',
     url: 'https://mcp.slack.com/mcp',
     scope: SLACK_USER_SCOPES.join(' '),
-    caveat: `Slack has no dynamic registration, and it accepts ${OAUTH_REDIRECT_URI} as a redirect URL only from an app with PKCE enabled — which makes the app a public client, so the secret stays empty. Enabling PKCE cannot be undone without Slack support, and only internal or Marketplace-published apps may use MCP at all.`,
+    caveat: `Slack has no dynamic registration: every MCP client hardcodes its own registered Slack app id, which is why Claude Desktop is one click and this row asks for an id instead. Use an app you already registered, or create one below. Slack accepts ${OAUTH_REDIRECT_URI} as a redirect URL only from an app with PKCE enabled — which makes the app a public client, so the secret stays empty. Enabling PKCE cannot be undone without Slack support, and only internal or Marketplace-published apps may use MCP at all.`,
     setup: {
       steps: [
         'At api.slack.com/apps choose Create New App → From a manifest, and paste the manifest below. It sets the user scopes, the redirect URL and PKCE together.',
+        `Already have a Slack app? Reuse it instead: add ${OAUTH_REDIRECT_URI} to OAuth & Permissions → Redirect URLs, turn on PKCE, and declare the user scopes from the manifest below — Slack fails the whole authorization for any scope the app does not declare.`,
         'Install the app to your workspace, then copy Basic Information → Client ID.',
         'Paste the client ID here and press Add — that writes the config and opens the browser to sign in. Leave the secret empty unless your app predates PKCE.',
       ],

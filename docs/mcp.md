@@ -111,15 +111,38 @@ Slack's docs say "we do not support SSE-based connections or Dynamic Client
 Registration at this time" and "MCP clients must be backed by a registered
 Slack app with a fixed app ID and hardcode that app ID", and
 `mcp.slack.com/.well-known/oauth-authorization-server` carries no
-`registration_endpoint` to call even if we wanted to (re-probed 2026-09-07). So
+`registration_endpoint` to call even if we wanted to (re-probed 2026-09-08). So
 the user registers an app and pastes its **client id**, and the Add button
-stays disabled until they do. A one-click Slack row would need pidex to own a
-Marketplace-published Slack app. Slack also refuses a `http://localhost`
+stays disabled until they do. Slack also refuses a `http://localhost`
 redirect URL unless that app has **PKCE** enabled, and a PKCE app is a _public_
 client whose token exchange carries no secret — so the secret field is
 optional, and an empty one is never written (the adapter reads any secret as
-`client_secret_post`). The registered redirect URI pins the callback port:
-default `19876`, `MCP_OAUTH_CALLBACK_PORT` overrides it.
+`client_secret_post`). pidex writes the redirect URI per server
+(`oauth.redirectUri`, `http://localhost:19876/callback`), and the adapter
+prefers that over its own port setting and binds exactly that port — so
+`MCP_OAUTH_CALLBACK_PORT` does **not** move a connector row's callback. Change
+the constant and the manifest together, or the app's registered URL stops
+matching.
+
+**Why Claude Desktop is one click and this is not.** Claude Desktop, Claude
+Code, Cursor and Perplexity are on Slack's "available clients" list, and each
+one ships its own registered Slack app with the app id hardcoded, exactly as
+Slack's App Identity rule demands. Slack publishes Claude Code's in the open:
+the Slack plugin's `.mcp.json` pins client id `1601185624273.8899143856786` on
+callback port `3118`
+([connect-to-harnesses](https://docs.slack.dev/ai/slack-mcp-server/connect-to-harnesses)).
+So a one-click pidex row is a decision, not missing code, and there are only
+two versions of it: pidex owns a Marketplace-published Slack app (only
+internal or directory-published apps may use MCP at all), or pidex hardcodes
+someone else's id — which puts their app, not pidex, in front of the admin
+approving the integration, in the audit log, and in the rate-limit bucket.
+Until one of those is chosen, the row asks for the id of an app the user
+controls, and it accepts a Slack app they already registered for another
+client as readily as a fresh one.
+
+Slack's own "Connect to Pi" instructions on that page are wrong, incidentally:
+they show `{"url": ..., "auth": "oauth"}` with no client id, which sends the
+adapter to a `registration_endpoint` that does not exist.
 
 Two more Slack rules the row states, both of which fail late and confusingly:
 only **internal or Marketplace-published** apps may use MCP at all, and the
