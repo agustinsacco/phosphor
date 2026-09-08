@@ -196,6 +196,7 @@ as TypeScript files in `pi-ext/`, loaded into **every** session via
 | `worktree-paths.ts`    | refuses a file read that has escaped a worktree into the main checkout                       |
 | `tool-name-guard.ts`   | rewrites a malformed tool call before pi persists it and bricks the thread                   |
 | `mcp-status.ts`        | forwards the MCP adapter's per-server status off pi's shared event bus                       |
+| `headroom.ts`          | compresses large tool results through a local Headroom proxy at the moment they are produced |
 
 ### The artifact tools, and what each one costs
 
@@ -290,13 +291,14 @@ footer. It forwards the snapshot verbatim — no rewording, no inference.
 
 Both bundled extensions and provider packages talk to pidex's UI the same
 way: `ctx.ui.setStatus(key, text)` → pi's extension-UI request → the
-per-session map in `stores/extensionUi.ts`. Three keys are load-bearing today:
+per-session map in `stores/extensionUi.ts`. Four keys are load-bearing today:
 
 | Key                       | Emitter                            | Consumer                                                                                                     |
 | ------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `pidex-context-breakdown` | `pi-ext/context-breakdown.ts`      | `composer/contextBreakdown.ts` → ContextMeter                                                                |
 | `pidex-mcp-status`        | `pi-ext/mcp-status.ts`             | `connectors/mcpStatus.ts` → Connectors, footer                                                               |
 | `claude-rate-limit`       | `@saccolabs/pi-claude-cli` ≥ 0.4.5 | `composer/rateLimit.ts` → ContextMeter, RateLimitBanner; `shared/claude-limits.ts` → account routing in main |
+| `pidex-headroom`          | `pi-ext/headroom.ts`               | `composer/headroomStatus.ts` → ContextMeter (Optimization section)                                           |
 
 The last one crosses a repo boundary, so its shape is API — it is documented
 on the emitting side in that repo's `docs/ARCHITECTURE.md`, and changing it
