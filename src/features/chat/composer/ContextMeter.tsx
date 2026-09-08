@@ -21,7 +21,6 @@ import {
   utilizationPercent,
   windowLabel,
 } from './rateLimit'
-import { HEADROOM_STATUS_KEY, parseHeadroomStatus } from './headroomStatus'
 import { assessBurn, burnSamples } from '@/lib/burnRate'
 import {
   isClaudeCliModel,
@@ -52,9 +51,6 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   // Only sessions served by the Claude Code provider push this; every other
   // provider leaves the key unset and the section stays hidden.
   const rateLimitStatus = useExtensionUiStore((s) => s.statuses[sessionId]?.[RATE_LIMIT_STATUS_KEY])
-  // Only pushed once the bundled headroom extension has compressed something,
-  // so sessions without a proxy never grow the section.
-  const headroomStatus = useExtensionUiStore((s) => s.statuses[sessionId]?.[HEADROOM_STATUS_KEY])
 
   const usage = stats?.contextUsage
   // The meter is the ONLY way into this popover, and the popover is where a
@@ -194,7 +190,6 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
             )}
             <StatRow label="Messages" value={String(stats.totalMessages)} />
             <StatRow label="Tool calls" value={String(stats.toolCalls)} />
-            <HeadroomSavings statusText={headroomStatus} />
             {isClaudeCliModel(model) && <PlanUsage sessionId={sessionId} />}
             <PlanLimits statusText={rateLimitStatus} />
           </div>
@@ -507,38 +502,6 @@ function PlanLimits({ statusText }: { statusText: string | undefined }): React.J
         <div className="text-warning text-sm">Using extra usage beyond the plan allowance.</div>
       )}
       {capped && reset && <div className="text-text-tertiary text-sm">{reset}.</div>}
-    </>
-  )
-}
-
-/**
- * Cumulative Headroom compression savings for this session. Absent unless the
- * bundled headroom extension has actually compressed a result — no proxy, no
- * section. "Skipped (lossy)" is what the proxy offered but the extension
- * refused because the transform dropped lines irreversibly; it is the honest
- * ceiling, not a saving.
- */
-function HeadroomSavings({
-  statusText,
-}: {
-  statusText: string | undefined
-}): React.JSX.Element | null {
-  const status = parseHeadroomStatus(statusText)
-  if (!status) return null
-  return (
-    <>
-      <SectionLabel>Optimization · Headroom</SectionLabel>
-      <StatRow
-        label="Saved"
-        value={`${formatTokens(status.savedTokens)} (${status.results} results)`}
-      />
-      <StatRow
-        label="Compressed"
-        value={`${formatTokens(status.beforeTokens)} → ${formatTokens(status.afterTokens)} · ${status.lastMs} ms last`}
-      />
-      {status.skippedLossyTokens > 0 && (
-        <StatRow label="Skipped (lossy)" value={formatTokens(status.skippedLossyTokens)} />
-      )}
     </>
   )
 }
