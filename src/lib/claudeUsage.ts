@@ -23,6 +23,17 @@ export function usageTextClass(percent: number): string {
 }
 
 /**
+ * The same thresholds as an SVG stroke, for the dials in the context popover.
+ * A Tailwind `bg-*` class cannot paint a stroke, and a hard-coded hex would
+ * not follow the theme — the CSS variables do both.
+ */
+export function usageStroke(percent: number): string {
+  if (percent >= 100) return 'var(--px-danger)'
+  if (percent >= 75) return 'var(--px-warning)'
+  return 'var(--px-accent)'
+}
+
+/**
  * The CLI renders labels for humans ("Current session" is the 5-hour block,
  * "Current week (all models)" the weekly window); pidex names them for what
  * they are, and passes unknown labels through verbatim rather than guessing.
@@ -42,10 +53,49 @@ export function windowTitle(window: ClaudeUsageWindow): string {
   }
 }
 
+/**
+ * The same window, short enough to sit under a dial: "5-hour", "Weekly",
+ * "Fable". `windowTitle` is the sentence form for a labelled row; this is the
+ * caption form, and it keeps the model name for the per-model weekly window
+ * because that is the only thing distinguishing it from the plain weekly one.
+ */
+export function windowShortTitle(window: ClaudeUsageWindow): string {
+  switch (window.kind) {
+    case 'five_hour':
+      return '5-hour'
+    case 'weekly':
+      return 'Weekly'
+    case 'weekly_model':
+      return /^Current week \((.+)\)$/.exec(window.label)?.[1] ?? window.label
+    default:
+      return window.label
+  }
+}
+
 /** "Resets in 2 hr 24 min" from a Unix-ms reset, or null once it has passed. */
 export function windowResetLabel(resetsAt: number | null): string | null {
   if (resetsAt === null) return null
   return resetLabel(Math.floor(resetsAt / 1000))
+}
+
+/**
+ * The same countdown at dial scale: "5d 16h", "4h 18m", "9m".
+ *
+ * `windowResetLabel`'s sentence is ~22 characters, which does not fit under a
+ * 42px dial in the popover — and three of those sentences stacked is exactly
+ * the height this redesign was reclaiming. Null once the reset has passed,
+ * for the same reason: a stale countdown is worse than none.
+ */
+export function compactReset(resetsAt: number | null, nowMs: number = Date.now()): string | null {
+  if (resetsAt === null) return null
+  const seconds = Math.floor((resetsAt - nowMs) / 1000)
+  if (seconds <= 0) return null
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const minutes = Math.round((seconds % 3600) / 60)
+  if (days > 0) return `${days}d ${hours}h`
+  if (hours > 0) return `${hours}h ${minutes}m`
+  return `${Math.max(1, minutes)}m`
 }
 
 /**

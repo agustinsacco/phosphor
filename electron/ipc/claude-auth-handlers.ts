@@ -76,11 +76,12 @@ export function registerClaudeAuthHandlers(): void {
   })
   handle('claude:logout', () => logoutClaude(claudeBinOverride()))
   /** Read-only, cached ~60 s in main *per account*; the spawn is zero-quota. */
-  handle('claude:usageSnapshot', async (_event, accountId) => {
+  handle('claude:usageSnapshot', async (_event, accountId, force) => {
     const override = claudeBinOverride()
     return fetchUsageSnapshot({
       ...(override ? { claudeOverride: override } : {}),
       ...(accountId ? { cacheKey: accountId, extraEnv: await accountEnvFor(accountId) } : {}),
+      ...(force ? { force: true } : {}),
     })
   })
 

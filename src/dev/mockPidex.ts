@@ -659,7 +659,15 @@ const MOCK_CONTEXT_BREAKDOWN = JSON.stringify({
   totalTokens: 51350,
   contextWindow: 262144,
   parts: { messages: 41000, systemPrompt: 4200, tools: 5200, mcpTools: 2600 },
-  counts: { tools: 6, mcpTools: 12, messages: 9 },
+  counts: { tools: 6, mcpTools: 4, messages: 9 },
+  // One gateway proxy tool per server, which is what a real install reports
+  // unless a server opts into `directTools` — see docs/mcp.md.
+  mcpByServer: {
+    braintrust: { tokens: 700, count: 1 },
+    fellow: { tokens: 640, count: 1 },
+    linear: { tokens: 640, count: 1 },
+    notion: { tokens: 620, count: 1 },
+  },
   approximate: true,
 })
 
@@ -781,6 +789,26 @@ export function installMockPidex(): void {
                   isUsingOverage: false,
                   utilization: 0.62,
                   surpassedThreshold: null,
+                }),
+              },
+            } as SessionPush)
+            // The bundled headroom extension pushes this only once it has
+            // actually compressed a result; the harness shows the section it
+            // produces, including the lossy-skip row.
+            push('mock-session-id', {
+              kind: 'extension-ui',
+              request: {
+                type: 'extension_ui_request',
+                id: 'mock-headroom',
+                method: 'setStatus',
+                statusKey: 'pidex-headroom',
+                statusText: JSON.stringify({
+                  savedTokens: 12_400,
+                  beforeTokens: 48_000,
+                  afterTokens: 35_600,
+                  results: 37,
+                  skippedLossyTokens: 2100,
+                  lastMs: 118,
                 }),
               },
             } as SessionPush)
