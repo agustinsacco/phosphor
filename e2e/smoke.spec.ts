@@ -1798,13 +1798,29 @@ test('lane rows carry no spend, and the row menu still offers it', async () => {
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
     await page.getByRole('button', { name: /Start session/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
-    const row = page.getByTestId('session-row').first()
+    // `:not([data-pending])` is load-bearing, as it is at the relaunch test
+    // above. A live session keeps its PLACEHOLDER row for the whole first
+    // turn, that row carries the same `session-row` testid, and its menu is a
+    // different, shorter one — Open / Rename / Export HTML, no spend. A bare
+    // match took the placeholder and the assertion below could never pass.
+    const row = page.locator('[data-testid="session-row"]:not([data-pending])').first()
     await expect(row).toBeVisible({ timeout: 20_000 })
     // The stub bills a real (small) cost, so a row that shows spend would show
     // it here — the trailer is gone, not merely empty.
     await expect(row).not.toContainText('$')
-    await row.click({ button: 'right' })
-    await expect(page.getByRole('button', { name: /^Copy spend/ })).toBeVisible()
+    // Spend reaches the row through a disk rescan, which lands after the reply
+    // text does, and a context menu builds its items once at open — so a menu
+    // opened too early stays wrong however long the locator waits. Re-open it
+    // until the scan has caught up.
+    await expect
+      .poll(
+        async () => {
+          await row.click({ button: 'right' })
+          return page.getByRole('button', { name: /^Copy spend/ }).count()
+        },
+        { timeout: 20_000 },
+      )
+      .toBe(1)
   } finally {
     await shutdown(harness)
   }
