@@ -21,6 +21,39 @@ beforeEach(async () => {
     homePath: null,
     recents: workspaces(['/a', '/b', '/c']),
     sandboxes: [],
+    hydrated: false,
+  })
+})
+
+describe('workspace hydration', () => {
+  it('does not treat the empty default list as loaded', async () => {
+    const { useWorkspacesStore } = await import('./workspaces')
+    invoke.mockImplementation((channel: string) => {
+      if (channel === 'app:getPrefs')
+        return Promise.resolve({ recentWorkspaces: workspaces(['/a']) })
+      if (channel === 'app:listSandboxes') return Promise.resolve([sandbox('/s/sandbox-1')])
+      return Promise.resolve(undefined)
+    })
+
+    const hydrating = useWorkspacesStore.getState().hydrate()
+    expect(useWorkspacesStore.getState().hydrated).toBe(false)
+
+    await hydrating
+
+    expect(useWorkspacesStore.getState()).toMatchObject({
+      hydrated: true,
+      recents: workspaces(['/a']),
+      sandboxes: [sandbox('/s/sandbox-1')],
+    })
+  })
+
+  it('settles loading when persisted state cannot be read', async () => {
+    const { useWorkspacesStore } = await import('./workspaces')
+    invoke.mockRejectedValueOnce(new Error('unavailable'))
+
+    await expect(useWorkspacesStore.getState().hydrate()).rejects.toThrow('unavailable')
+
+    expect(useWorkspacesStore.getState().hydrated).toBe(true)
   })
 })
 
