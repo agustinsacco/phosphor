@@ -30,7 +30,7 @@ export function BashExecution({ item }: { item: BashItem }): React.JSX.Element {
           )}
         </div>
       </div>
-      <pre className="max-h-72 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed whitespace-pre-wrap">
+      <pre className="max-h-72 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed break-words whitespace-pre-wrap">
         {item.output || (item.running ? '…' : '(no output)')}
       </pre>
       {item.truncated && item.fullOutputPath && (

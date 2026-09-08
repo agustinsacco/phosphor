@@ -308,7 +308,16 @@ export const MessageList = memo(function MessageList({
         onScroll={handleScroll}
         data-testid="transcript-scroll"
         tabIndex={-1}
-        className="h-full overflow-y-auto pt-4 outline-none"
+        /*
+         * `overflow-x-hidden` is a backstop, not the fix: an unbreakable token
+         * that escapes its row used to hand the WHOLE transcript a horizontal
+         * scrollbar, because a scroller with `overflow-y: auto` resolves its
+         * visible `overflow-x` to `auto` too. Rows wrap their own content
+         * (user bubbles, markdown) and every genuinely wide surface — code
+         * blocks, tables, tool output — brings its own scroller, so nothing
+         * legitimate is clipped here.
+         */
+        className="h-full overflow-y-auto overflow-x-hidden pt-4 outline-none"
       >
         <div
           className="relative mx-auto w-full max-w-3xl px-6"

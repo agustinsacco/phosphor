@@ -504,7 +504,7 @@ function SubagentRow({ agent }: { agent: SubagentBlock }): React.JSX.Element {
       {open && agent.prompt && (
         <div
           data-testid="subagent-prompt"
-          className="border-accent/30 text-text-secondary mb-1.5 ml-5 mr-2 whitespace-pre-wrap border-l-2 pl-2.5 text-sm"
+          className="border-accent/30 text-text-secondary mb-1.5 ml-5 mr-2 whitespace-pre-wrap break-words border-l-2 pl-2.5 text-sm"
         >
           {agent.prompt}
         </div>
