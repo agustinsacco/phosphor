@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
-import type { IpcInvokeChannel, IpcInvokeMap, PidexApi } from '@shared/ipc'
+import type { IpcInvokeChannel, IpcInvokeMap, PhosphorApi } from '@shared/ipc'
 import { sessionEventChannel } from '@shared/ipc'
 import type {
   SessionPush,
@@ -27,7 +27,7 @@ function subscribe<A extends unknown[]>(
   return () => ipcRenderer.removeListener(channel, wrapped)
 }
 
-const api: PidexApi = {
+const api: PhosphorApi = {
   // A sandboxed preload still gets `process.platform` from Electron's polyfill.
   platform:
     process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux',
@@ -83,4 +83,4 @@ const api: PidexApi = {
   },
 }
 
-contextBridge.exposeInMainWorld('pidex', api)
+contextBridge.exposeInMainWorld('phosphor', api)

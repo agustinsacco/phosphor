@@ -151,7 +151,7 @@ describe('cooldownFromUsage', () => {
 
   it('ignores a full weekly window', () => {
     // A weekly reset is days out; skipping an account that long on one cached
-    // reading is not a call pidex makes silently.
+    // reading is not a call Phosphor makes silently.
     expect(
       cooldownFromUsage([{ kind: 'weekly', percentUsed: 100, resetsAt: NOW + 48 * HOUR }], NOW),
     ).toBeNull()

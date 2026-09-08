@@ -144,11 +144,11 @@ describe('classifyLane', () => {
     const out = classifyLane(
       lane({
         meta: meta({ name: 'Fix the composer', cost: 1.25 }),
-        git: { isRepo: true, branch: 'pidex/fix', isWorktree: true },
+        git: { isRepo: true, branch: 'phosphor/fix', isWorktree: true },
         isStreaming: true,
       }),
     )
-    expect(out).toMatchObject({ title: 'Fix the composer', branch: 'pidex/fix', cost: 1.25 })
+    expect(out).toMatchObject({ title: 'Fix the composer', branch: 'phosphor/fix', cost: 1.25 })
   })
 })
 

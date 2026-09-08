@@ -12,10 +12,10 @@ import { tmpdir } from 'node:os'
  * Self-update for macOS builds that cannot use `electron-updater`.
  *
  * `MacUpdater` hands the download to Squirrel.Mac, which validates the new
- * bundle against the RUNNING app's designated requirement. pidex ships ad-hoc
+ * bundle against the RUNNING app's designated requirement. Phosphor ships ad-hoc
  * signed (no Developer ID — see docs/log/2026-08-24-mac-adhoc-signing.md), and
  * an ad-hoc requirement is a per-build `cdhash`, so that validation can never
- * pass. Turning `pidexSigned` on for macOS would trade "opens a browser" for
+ * pass. Turning `phosphorSigned` on for macOS would trade "opens a browser" for
  * "errors silently".
  *
  * So this module does by hand what `scripts/install.sh` does by shell: fetch
@@ -33,17 +33,20 @@ import { tmpdir } from 'node:os'
  */
 
 /** Staging and backup directories, both siblings of the installed bundle. */
-const STAGING_PREFIX = '.pidex-update-'
-const BACKUP_PREFIX = '.pidex-old-'
+const STAGING_PREFIX = '.phosphor-update-'
+const BACKUP_PREFIX = '.phosphor-old-'
 
 /**
  * Names the startup sweep is allowed to delete.
  *
  * Deliberately exact: this matches only what {@link stagingDirName} and
  * {@link backupDirName} produce. A prefix test alone would let a
- * `.pidex-old-notes` a user happened to create fall inside `rm -rf`.
+ * `.phosphor-old-notes` a user happened to create fall inside `rm -rf`.
  */
-const ORPHAN_RE = /^\.pidex-(?:update|old)-\d+-\d+(?:\.app)?$/
+// `.pidex-` is matched too: the release that renamed the app to Phosphor is
+// downloaded and staged BY the last pidex build, whose staging/backup dirs
+// use the old prefix — and only the new build's sweep runs after the swap.
+const ORPHAN_RE = /^\.(?:phosphor|pidex)-(?:update|old)-\d+-\d+(?:\.app)?$/
 
 export interface MacManifestFile {
   url: string
@@ -257,8 +260,8 @@ export async function stageMacUpdate(options: StageOptions): Promise<StagedMacUp
 
   // The zip goes to the system temp dir: it is read once and deleted, so it
   // does not need to share a volume with the bundle the way staging does.
-  const downloadDir = await mkdtemp(join(tmpdir(), 'pidex-update-'))
-  const zipPath = join(downloadDir, 'pidex.zip')
+  const downloadDir = await mkdtemp(join(tmpdir(), 'phosphor-update-'))
+  const zipPath = join(downloadDir, 'phosphor.zip')
 
   try {
     await downloadFile(zipUrl, zipPath, onProgress, signal)
@@ -307,7 +310,7 @@ export async function stageMacUpdate(options: StageOptions): Promise<StagedMacUp
  * Both renames are within one directory on one volume, so each is atomic. If
  * the second fails the first is undone, leaving the running app exactly as it
  * was — the case worth designing for, since the alternative is a user with no
- * pidex at all.
+ * Phosphor at all.
  *
  * Returns the backup path, which the relauncher deletes once we have exited.
  */
@@ -327,7 +330,7 @@ export async function swapBundle(bundlePath: string, staged: StagedMacUpdate): P
 }
 
 /**
- * Hand off to a detached shell that waits for us to exit, then reopens pidex.
+ * Hand off to a detached shell that waits for us to exit, then reopens Phosphor.
  *
  * A fixed sleep is not good enough. `before-quit` in electron/main.ts SIGTERMs
  * every pi child, kills the PTYs and closes the watchers before quitting, and
@@ -339,7 +342,7 @@ export async function swapBundle(bundlePath: string, staged: StagedMacUpdate): P
  * body, and the script itself is written to our own temp directory.
  */
 export async function spawnRelauncher(bundlePath: string, backupPath: string): Promise<void> {
-  const dir = await mkdtemp(join(tmpdir(), 'pidex-relaunch-'))
+  const dir = await mkdtemp(join(tmpdir(), 'phosphor-relaunch-'))
   const script = join(dir, 'relaunch.sh')
   await writeFile(
     script,

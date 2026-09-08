@@ -144,13 +144,13 @@ describe('pruneLaneMarkers', () => {
 
 describe('visibleWorkspaces', () => {
   const ws = (path: string) => ({ path, name: path.split('/').pop()!, lastOpenedAt: 1 })
-  const isWorktree = (p: string) => p.includes('/.pidex/worktrees/')
+  const isWorktree = (p: string) => p.includes('/.phosphor/worktrees/')
 
   it('drops worktree folders and folders that are gone', () => {
     const alive = new Set(['/repo'])
     expect(
       visibleWorkspaces(
-        [ws('/repo'), ws('/repo/.pidex/worktrees/lane'), ws('/deleted')],
+        [ws('/repo'), ws('/repo/.phosphor/worktrees/lane'), ws('/deleted')],
         isWorktree,
         (p) => alive.has(p),
       ).map((w) => w.path),

@@ -1,14 +1,14 @@
 # 2026-08-21 — Claude Code provider: four gap fixes, live-verified
 
 `@saccolabs/pi-claude-cli` went from "loads and answers" to first-class in
-four releases. This is the pidex-side record; mechanics live in that repo's
+four releases. This is the Phosphor-side record; mechanics live in that repo's
 `docs/ARCHITECTURE.md`, and every claim below was reproduced against **pi
 0.84.2 + claude 2.1.237 on a real Max account**, not inferred.
 
-The provider is an ordinary pi package to pidex — none of this required a
-pidex code change. It matters here because pidex ships the catalogue entry,
+The provider is an ordinary pi package to Phosphor — none of this required a
+Phosphor code change. It matters here because Phosphor ships the catalogue entry,
 the Claude Code settings tab, and the "Test provider" button that proves the
-chain, so pidex support questions land on these behaviors.
+chain, so Phosphor support questions land on these behaviors.
 
 ## What was broken, and what fixed it
 
@@ -39,7 +39,7 @@ tools are legitimately silent on stdout for minutes.
 **Forked sessions always failed (0.4.2).** A fork copies pi history into a
 **new** session id, so the "has a prior provider turn" heuristic chose
 `--resume` while the CLI cache was keyed to the old id — every forked turn
-died with `No conversation found with session ID`. Since pidex forks
+died with `No conversation found with session ID`. Since Phosphor forks
 routinely (branch jumps, bookmarks), this broke a first-class flow.
 
 `streamViaCli` became a driver over `runOnce(forceFullReplay)`: a resume
@@ -102,7 +102,7 @@ a green publish run only means "nothing new to publish".
 
 Deferred by choice: running Claude Code as an autonomous **sub-agent** via
 ACP (see `EXTENSIONS_PLAN.md` WS5) — the research is banked, the trigger to
-reopen is wanting Claude Code's own agentic behavior inside a pidex session
+reopen is wanting Claude Code's own agentic behavior inside a Phosphor session
 rather than Claude models inside pi's loop. Also unmeasured: cost figures
 are computed at API list prices while the user actually spends plan quota,
-so pidex's totals overstate real cost for this provider.
+so Phosphor's totals overstate real cost for this provider.

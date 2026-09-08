@@ -15,7 +15,7 @@
  * tarball does not.
  *
  * `codesign --sign -` re-signs the bundle properly: identifier becomes
- * `works.pidex.app` and the resource seal is written, so the bundle verifies.
+ * `works.phosphor.app` and the resource seal is written, so the bundle verifies.
  * It is still ad-hoc — `spctl` says `rejected` rather than accepting it — but
  * "unsigned by anyone" is a normal right-click → Open, not a damaged app.
  *
@@ -46,8 +46,8 @@
  *
  * `-r` and `--deep` in one command produce a bundle that does not verify:
  *
- *     codesign --verify --deep --strict pidex.app
- *     pidex.app: nested code is modified or invalid
+ *     codesign --verify --deep --strict Phosphor.app
+ *     Phosphor.app: nested code is modified or invalid
  *
  * `--deep` applies the requirement to every nested Helper and Framework as
  * well, and re-signing them after the enclosing seal was computed leaves the

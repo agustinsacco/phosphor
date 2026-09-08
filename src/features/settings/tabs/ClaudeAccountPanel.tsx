@@ -35,14 +35,14 @@ export function ClaudeAccountPanel({
   accountId: string
   /** Every account, for the "move a lane there" targets. */
   views: ClaudeAccountView[]
-  /** Live pidex sessions spawned onto this account. */
+  /** Live Phosphor sessions spawned onto this account. */
   sessionIds: string[]
 }): React.JSX.Element {
   const [state, setState] = useState<ClaudeUsageSnapshotResult | null>(null)
 
   const refresh = useCallback(async (): Promise<void> => {
     setState(
-      await window.pidex
+      await window.phosphor
         .invoke('claude:usageSnapshot', accountId)
         // A rejected invoke is a failed run, never a permanent "Checking…".
         .catch((): ClaudeUsageSnapshotResult => ({ ok: false, error: 'run-failed' })),

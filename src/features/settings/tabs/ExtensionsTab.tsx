@@ -25,14 +25,14 @@ export function ExtensionsTab(): React.JSX.Element {
   const refresh = useCallback(async (): Promise<void> => {
     try {
       const [list, detect] = await Promise.all([
-        window.pidex.invoke('packages:list', workspacePath ?? undefined),
-        window.pidex.invoke('packages:detect'),
+        window.phosphor.invoke('packages:list', workspacePath ?? undefined),
+        window.phosphor.invoke('packages:detect'),
       ])
       setEntries(list)
       setClaudeDetected(detect.claude)
       // Registry lookup is slower than the local reads and may fail
       // (offline, private registry) — never let it block the listing.
-      void window.pidex
+      void window.phosphor
         .invoke('packages:checkUpdates', workspacePath ?? undefined)
         .then(setLatest)
         .catch(() => setLatest({}))
@@ -54,7 +54,7 @@ export function ExtensionsTab(): React.JSX.Element {
   ): void => {
     setError(null)
     void job.start(() =>
-      window.pidex.invoke('packages:run', action, spec, scope, workspacePath ?? undefined),
+      window.phosphor.invoke('packages:run', action, spec, scope, workspacePath ?? undefined),
     )
   }
 
@@ -82,7 +82,7 @@ export function ExtensionsTab(): React.JSX.Element {
       <p className="text-text-tertiary mt-2 text-sm">
         Browse the full ecosystem at{' '}
         <button
-          onClick={() => void window.pidex.invoke('app:openExternal', 'https://pi.dev/packages')}
+          onClick={() => void window.phosphor.invoke('app:openExternal', 'https://pi.dev/packages')}
           className="hover:text-text underline"
         >
           pi.dev/packages

@@ -2,7 +2,7 @@
 
 pi can bill three providers to a consumer subscription instead of an API key —
 ChatGPT (Codex), Claude Pro/Max, and GitHub Copilot — and until now the only
-way to use any of them from pidex was to quit, run `pi` in a terminal, and
+way to use any of them from Phosphor was to quit, run `pi` in a terminal, and
 type `/login`. Settings → **Accounts** brings that in-app.
 
 ## Why it hosts pi's TUI instead of doing OAuth itself
@@ -22,7 +22,7 @@ browser — was rejected after looking for a seam and not finding one:
 That last point is the whole argument. The API did not just become private;
 it relocated between two minor versions. Importing it by deep path would have
 made every pi upgrade a coin flip, in a repo whose first architectural rule is
-that pidex does not reach into pi's internals.
+that Phosphor does not reach into pi's internals.
 
 So the tab spawns pi in a PTY, sends `/login`, and lets the user complete
 pi's own flow. It is one extra provider selection for the user and zero

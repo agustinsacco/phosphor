@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <!--
-    pidex mark — "aperture".
-    A ring of six discrete segments around a phosphor core: one orchestrator,
+    Phosphor mark — "aperture".
+    A ring of six discrete segments around a Phosphor core: one orchestrator,
     many agents holding position. Phosphor amber on warm graphite
     (see specs/reference/style-guide.md §Logo).
 
@@ -17,7 +17,7 @@
     Light-background twin: build/icon-light.svg (keep the two in step).
   -->
   <defs>
-    <linearGradient id="phosphor" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="Phosphor" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#f2ab4e"/>
       <stop offset="100%" stop-color="#e2922e"/>
     </linearGradient>
@@ -30,8 +30,8 @@
   <rect width="1024" height="1024" rx="228" fill="#1f1c18"/>
   <circle cx="512" cy="512" r="246" fill="url(#bloom)"/>
   <circle cx="512" cy="512" r="258"
-          fill="none" stroke="url(#phosphor)" stroke-width="78" stroke-linecap="round"
+          fill="none" stroke="url(#Phosphor)" stroke-width="78" stroke-linecap="round"
           stroke-dasharray="144.17697 126" opacity="0.92"
           transform="rotate(-106.009 512 512)"/>
-  <circle cx="512" cy="512" r="104" fill="url(#phosphor)"/>
+  <circle cx="512" cy="512" r="104" fill="url(#Phosphor)"/>
 </svg>

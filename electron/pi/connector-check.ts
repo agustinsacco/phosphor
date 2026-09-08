@@ -5,7 +5,7 @@ import { log } from '../debug-log'
 /**
  * Testing whether a connector is actually up, with nothing open.
  *
- * Per-server MCP state reaches pidex only from the adapter running inside a
+ * Per-server MCP state reaches Phosphor only from the adapter running inside a
  * live session, so Settings could not answer "is this connector working?" —
  * it showed `state unknown`, or a stale `Signed in · idle` that says nothing
  * about the server being reachable right now.

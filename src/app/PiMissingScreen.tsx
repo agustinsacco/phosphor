@@ -28,14 +28,14 @@ export function PiMissingScreen({
       <div className="bg-surface border-border w-full max-w-lg rounded-lg border p-8 shadow-sm">
         <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
         <p className="text-text-secondary mt-3 text-lg leading-relaxed">
-          pidex is powered by the pi coding agent. {health.message}
+          Phosphor is powered by the pi coding agent. {health.message}
         </p>
 
         <div className="mt-6 flex items-center gap-3">
           <Button
             variant="primary"
             size="lg"
-            onClick={() => void job.start(() => window.pidex.invoke('packages:installPi'))}
+            onClick={() => void job.start(() => window.phosphor.invoke('packages:installPi'))}
             disabled={job.running}
           >
             {job.running ? 'Installing…' : tooOld ? 'Update pi' : 'Install pi'}

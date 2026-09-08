@@ -21,17 +21,17 @@ and opens a full view of what is filling the context window.
 | Per-server status snapshot (connected / needs-auth / failed / cached / disabled, tool + resource counts) | adapter `mcp-status.ts`                                                   |
 | `/mcp-auth <server>`, `/mcp logout`, `/mcp reconnect`                                                    | adapter `commands.ts:248`                                                 |
 | Static bearer tokens in the same credential store                                                        | `pi-mcp-adapter token set <server>` + `bearerTokenStore: true`            |
-| pidex-side config chain CRUD, scope badges, raw `mcp.json` editor                                        | `src/features/settings/tabs/McpTab.tsx`, [reference/mcp.md](../../mcp.md) |
+| Phosphor-side config chain CRUD, scope badges, raw `mcp.json` editor                                     | `src/features/settings/tabs/McpTab.tsx`, [reference/mcp.md](../../mcp.md) |
 
-So pidex is not building OAuth. It is building **actuation, custody-free
+So Phosphor is not building OAuth. It is building **actuation, custody-free
 status, and a catalog** on top of an adapter that already does the protocol.
 
 ## Decisions
 
-**D1 — pidex never stores a connector token.** Not in `electron-store`, not in
-a pidex keychain entry, not in memory beyond a render. Two copies of a refresh
+**D1 — Phosphor never stores a connector token.** Not in `electron-store`, not in
+a Phosphor keychain entry, not in memory beyond a render. Two copies of a refresh
 token means one of them is always stale, and the adapter is the only party that
-knows when it rotated. pidex owns `mcp.json` and the catalog; the adapter owns
+knows when it rotated. Phosphor owns `mcp.json` and the catalog; the adapter owns
 secrets.
 
 **D2 — auth is actuated by the adapter's own command, in a pi session.** The
@@ -39,9 +39,9 @@ package `exports` map only publishes `.`, `./types`, `./oauth`, `./config`,
 `./metadata-cache`. `./oauth` is read/inspect/update **tokens** only;
 `startAuth` / `completeAuth` / `getAuthStatus` live in `mcp-auth-flow.ts`,
 which is not exported — a deep import breaks on any adapter release, and this
-package is separately versioned with pidex pinning nothing (see
+package is separately versioned with Phosphor pinning nothing (see
 [CLAUDE.md](../../../CLAUDE.md) on `@saccolabs/pi-claude-cli` for how that goes).
-So pidex sends `{type:'prompt', message:'/mcp-auth linear'}`. Per pi's
+So Phosphor sends `{type:'prompt', message:'/mcp-auth linear'}`. Per pi's
 `docs/rpc.md:67` an extension command "executes immediately" and manages its
 own LLM interaction — `/mcp-auth` calls no model, so **the connect flow costs
 zero tokens**.
@@ -50,7 +50,7 @@ zero tokens**.
 The adapter assigns `state.statusEvents = pi.events` (`index.ts:525`) and
 publishes `pi-mcp-adapter/status/v1` snapshots on pi's shared cross-extension
 bus. A new bundled extension `pi-ext/mcp-status.ts` subscribes and re-publishes
-the snapshot as JSON under status key `pidex-mcp-status`. That key is
+the snapshot as JSON under status key `Phosphor-mcp-status`. That key is
 structured, so it must be added to `STRUCTURED_STATUS_KEYS`
 (`src/features/extension-ui/ExtensionUiHosts.tsx:231`) or it lands in the strip
 as raw JSON — exactly the bug fixed in #88.
@@ -74,18 +74,18 @@ Connectors row → mcp:startConnect(name)
   main: session.prompt('/mcp-auth <name>')            ← no model call
   adapter: startAuth → binds localhost:19876, opens PKCE authorize URL
   adapter: ctx.ui.input("Complete <name> OAuth …<url>… paste callback URL")
-  pidex:  intercepts that request, does NOT render the generic dialog,
+  Phosphor:  intercepts that request, does NOT render the generic dialog,
           shell.openExternal(url), shows a "Waiting for <name>…" card
   browser: user approves → loopback callback wins the race
   adapter: writes tokens to the OS credential store, reconnects, publishes status
-  pidex:  row flips to Connected when pidex-mcp-status says so; session disposed
+  Phosphor:  row flips to Connected when Phosphor-mcp-status says so; session disposed
 ```
 
 **Trap 1 — pi's RPC dialog protocol has no server→client cancel.** Requests
 are `extension_ui_request` and only the client may answer
 (`docs/rpc.md:1150`). When the loopback callback wins,
 `waitForAuthorizationResponse` aborts its own input signal
-(`mcp-auth-flow.ts:617`) and pidex is never told. Worse, pidex must **not**
+(`mcp-auth-flow.ts:617`) and Phosphor is never told. Worse, Phosphor must **not**
 "tidy up" by replying `cancelled: true` or with an empty value: an empty manual
 input wins the race and throws `OAuth authentication cancelled`, killing a flow
 that had already succeeded. Correct behaviour: leave the request pending,
@@ -179,7 +179,7 @@ All four landed in one pass; deviations are recorded in the log entry.
    requires a live session is useless on a fresh launch. Both routes exist: a
    throwaway `pi --no-session` for Settings, the live session's own channel for
    the adapter's mid-turn auto-auth.
-3. **Honest status.** Done — `pi-ext/mcp-status.ts` → `pidex-mcp-status` →
+3. **Honest status.** Done — `pi-ext/mcp-status.ts` → `Phosphor-mcp-status` →
    per-row badges and a clickable footer chip.
 4. **Context inspector.** Done — per-server MCP grouping and the prefix fix.
 
@@ -187,7 +187,7 @@ All four landed in one pass; deviations are recorded in the log entry.
 
 - Unit: catalog entries (every URL absolute https, no `/sse` defaults), the
   connect state machine including "callback wins while a paste dialog is
-  open", `pidex-mcp-status` parsing of malformed input, and tool→server
+  open", `Phosphor-mcp-status` parsing of malformed input, and tool→server
   classification across all four `toolPrefix` modes.
 - E2E: add a catalog connector and assert the written `mcp.json`; drive a
   connect against a stub authorization server, never a real vendor.
@@ -197,6 +197,6 @@ All four landed in one pass; deviations are recorded in the log entry.
 ## Non-goals
 
 Organization-level authorization, parity with Claude's connector directory,
-any storage of tokens by pidex, and a general bearer-token UI beyond
+any storage of tokens by Phosphor, and a general bearer-token UI beyond
 Braintrust's API-key alternative (`pi-mcp-adapter token set` already covers the
 rest).

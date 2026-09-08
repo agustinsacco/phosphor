@@ -62,7 +62,7 @@ export function useAttachments({
             onReject?.(`${file.name} is too large to attach (limit 10 MB).`)
             return
           }
-          const attachment = await toAttachment(file, (f) => window.pidex.pathForFile(f))
+          const attachment = await toAttachment(file, (f) => window.phosphor.pathForFile(f))
           if (!attachment) return
           const next = [...latest.current, attachment]
           if (totalAttachmentBytes(next) > MAX_ATTACHMENT_BYTES) {

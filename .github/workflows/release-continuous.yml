@@ -182,7 +182,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Signing/notarization run only when the secrets exist; unsigned
-          # otherwise. `pidexSigned` tells the app which update path it can
+          # otherwise. `phosphorSigned` tells the app which update path it can
           # offer — see electron/updates/updater.ts.
           CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
@@ -229,7 +229,7 @@ jobs:
           npx electron-builder ${{ matrix.args }} --publish always \
             "${HARDENED[@]+"${HARDENED[@]}"}" \
             --config.extraMetadata.version="${{ needs.guard.outputs.version }}" \
-            --config.extraMetadata.pidexSigned="${SIGNED}" \
+            --config.extraMetadata.phosphorSigned="${SIGNED}" \
             --config.publish.provider=github \
             --config.publish.releaseType=release
 
@@ -244,7 +244,7 @@ jobs:
         run: |
           set -euo pipefail
           FOUND=0
-          for APP in release/mac*/pidex.app; do
+          for APP in release/mac*/Phosphor.app; do
             [ -d "$APP" ] || continue
             FOUND=1
             echo "== $APP"
@@ -310,10 +310,10 @@ jobs:
           # Mirrors the mapping in scripts/install.sh — keep both in step.
           MISSING=0
           for EXPECTED in \
-            "pidex-${VERSION}-x86_64.AppImage" \
-            "pidex-${VERSION}-arm64.AppImage" \
-            "pidex-${VERSION}-x64.dmg" \
-            "pidex-${VERSION}-arm64.dmg"; do
+            "Phosphor-${VERSION}-x86_64.AppImage" \
+            "Phosphor-${VERSION}-arm64.AppImage" \
+            "Phosphor-${VERSION}-x64.dmg" \
+            "Phosphor-${VERSION}-arm64.dmg"; do
             case "$EXPECTED" in
               *.dmg) grep -q "\.dmg$" <<<"$AVAILABLE" || continue ;;   # mac did not build
               *.AppImage) grep -q "\.AppImage$" <<<"$AVAILABLE" || continue ;;
@@ -355,9 +355,9 @@ jobs:
             "" \
             "This replaces an existing install in place." \
             "" \
-            "Already running pidex? It will offer to update itself." \
+            "Already running Phosphor? It will offer to update itself." \
             "" \
-            "pidex requires the pi coding agent on your PATH:" \
+            "Phosphor requires the pi coding agent on your PATH:" \
             "" \
             '```sh' \
             "npm install -g @earendil-works/pi-coding-agent" \

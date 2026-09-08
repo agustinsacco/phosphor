@@ -56,8 +56,8 @@ Settings window (Cmd/Ctrl+,), tabbed:
 
 ## Connectors and MCP
 
-- **Connectors**: the curated OAuth catalog (Linear, Notion, Braintrust, Datadog, Supabase, Questrade, Fellow, Slack) — add, sign in, reconnect, remove. Add starts the sign-in itself. Signing in drives the MCP adapter's own `/mcp-auth` command; pidex holds no tokens.
+- **Connectors**: the curated OAuth catalog (Linear, Notion, Braintrust, Datadog, Supabase, Questrade, Fellow, Slack) — add, sign in, reconnect, remove. Add starts the sign-in itself. Signing in drives the MCP adapter's own `/mcp-auth` command; Phosphor holds no tokens.
 - **MCP**: the `mcp.json` resolution chain, custom servers, and raw JSON repair.
 - Both are specified in [mcp.md](mcp.md).
 
-pidex's own prefs live in electron-store; pi's config stays in pi's files — the two are never mixed.
+Phosphor's own prefs live in electron-store; pi's config stays in pi's files — the two are never mixed.

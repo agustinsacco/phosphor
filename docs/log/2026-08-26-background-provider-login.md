@@ -66,7 +66,7 @@ the break lands mid-token with no marker. Being wider than any URL is the fix.
 By asking pi, via `checkProviderAuth` (`pi auth check --provider … --json`),
 throttled to every 2s once a URL is on screen. The TUI does announce success,
 but in prose that can be reworded any release; `auth check` is the same fact
-the rest of pidex already trusts.
+the rest of Phosphor already trusts.
 
 ## What is deliberately not automated
 

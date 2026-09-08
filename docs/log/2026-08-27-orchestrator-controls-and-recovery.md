@@ -79,13 +79,13 @@ character, and the header button swapped between the two renderings of it.
 
 `OrchestratorIcon` is a hub with three satellites: one node coordinating others.
 The digest headline on home takes it too, since that is orchestrator output.
-`✳` stays as pidex's own mark in the home greeting.
+`✳` stays as Phosphor's own mark in the home greeting.
 
 ## A fixture gap this surfaced
 
 The e2e assertion for #1 failed at first — and correctly. The pi stub honoured
 `-n` when answering `get_state` but never wrote the name into the session file,
-where real pi records it as a `session_info` entry and where pidex's sidebar
+where real pi records it as a `session_info` entry and where Phosphor's sidebar
 reads names from.
 
 Under the stub, therefore, no session had a name on disk, so

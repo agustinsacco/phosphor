@@ -46,7 +46,7 @@ export interface BoardLane {
   /** Session file path — the identity the sidebar and the stores agree on. */
   path: string
   /** Live session id, when this lane has a process. */
-  pidexId?: string
+  phosphorId?: string
   title: string
   branch?: string
   workspacePath: string
@@ -64,7 +64,7 @@ export interface LaneInput {
   git?: GitInfo
   pr?: GhPullRequest
   /** This lane's live session id, when it has one. */
-  pidexId?: string
+  phosphorId?: string
   isStreaming: boolean
   /** The live session is holding a question the user has not answered. */
   hasPendingQuestion: boolean
@@ -97,7 +97,7 @@ export function classifyLane(input: LaneInput): BoardLane | null {
   const { meta, git, pr } = input
   const base = {
     path: meta.path,
-    ...(input.pidexId ? { pidexId: input.pidexId } : {}),
+    ...(input.phosphorId ? { phosphorId: input.phosphorId } : {}),
     title:
       sessionTitle({ explicitName: meta.name, firstUserText: meta.firstUserText }) ?? 'Untitled',
     ...(git?.branch ? { branch: git.branch } : {}),

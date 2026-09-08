@@ -15,7 +15,7 @@ Now Settings authorizes on its own. `mcp:authorize` spawns a throwaway
 (`electron/pi/connector-auth.ts`), sends `/mcp-auth <server>`, opens the
 browser, pushes progress on `mcp:authState`, and kills the process when the
 flow settles. Still no tokens spent — an extension command runs no model — and
-still no credential in pidex: the adapter writes them to the OS credential
+still no credential in Phosphor: the adapter writes them to the OS credential
 store as before.
 
 The in-session route stays, because it is not the same thing. The adapter
@@ -42,11 +42,11 @@ wrong), and `ActiveRun` now carries its own `finish`, which cancel calls with no
 state: the promise resolves, the process dies, and the UI is not told about a
 phase it already dropped.
 
-Cancel is also still the _only_ place pidex answers the adapter's prompt. The
+Cancel is also still the _only_ place Phosphor answers the adapter's prompt. The
 rule from [reference/mcp.md](../mcp.md#connectors-settings--connectors)
 is unchanged and now has a second guard: the "manual" mode of the new fake pi
 only succeeds if the client answers the prompt, so the test asserting that
-pidex does **not** answer is a test that would fail if a future refactor
+Phosphor does **not** answer is a test that would fail if a future refactor
 "tidied up" the pending request.
 
 ## Parsers moved to shared/

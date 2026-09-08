@@ -53,7 +53,7 @@ import { applySessionRename, copySessionDebugInfo, exportSessionHtml } from './s
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
 
-const SIDEBAR_WIDTH_KEY = 'pidex:sidebarWidth'
+const SIDEBAR_WIDTH_KEY = 'phosphor:sidebarWidth'
 const SIDEBAR_MIN = 208
 const SIDEBAR_MAX = 420
 const SIDEBAR_DEFAULT = 256
@@ -207,7 +207,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     void store.refreshAllDisk(knownWorkspaces)
     void store.hydratePinned()
 
-    const unsubscribe = window.pidex.onSessionsChanged((payload) => {
+    const unsubscribe = window.phosphor.onSessionsChanged((payload) => {
       // Re-scan only the workspace that actually changed.
       void useSessionsStore.getState().refreshDisk(payload.workspacePath)
     })
@@ -215,7 +215,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   }, [knownWorkspaces, workspacesHydrated, collapsed])
 
   useEffect(() => {
-    void window.pidex.invoke('app:getPrefs').then((prefs) => {
+    void window.phosphor.invoke('app:getPrefs').then((prefs) => {
       setCollapsed(Object.fromEntries(prefs.collapsedWorkspaces.map((p) => [p, true])))
     })
   }, [])
@@ -253,7 +253,10 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
       for (const root of roots) {
         if (cancelled) return
         try {
-          const worktrees = (await window.pidex.invoke('git:listWorktrees', root)) as WorktreeInfo[]
+          const worktrees = (await window.phosphor.invoke(
+            'git:listWorktrees',
+            root,
+          )) as WorktreeInfo[]
           for (const wt of worktrees) {
             // `prunable` is git's own answer for "this folder is gone". A
             // deleted worktree is still listed until someone prunes it, and
@@ -311,7 +314,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
 
   // Git summaries for row subtitles: refresh (debounced) whenever the disk
   // listing changes, and again on window focus (branch switches happen in
-  // terminals pidex can't observe).
+  // terminals Phosphor can't observe).
   useEffect(() => {
     const cwds = Object.values(disk)
       .flat()
@@ -331,7 +334,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   const liveByDisk = useMemo(() => {
     const map = new Map<string, string>()
     for (const entry of Object.values(live)) {
-      if (entry.diskPath) map.set(entry.diskPath, entry.pidexId)
+      if (entry.diskPath) map.set(entry.diskPath, entry.phosphorId)
     }
     return map
   }, [live])
@@ -352,7 +355,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
    * Remaining sessions grouped by *project*, live projects first.
    *
    * A linked worktree is a different folder from its main repo, so without
-   * this merge step every worktree got its own header ("pidex", "pidex
+   * this merge step every worktree got its own header ("Phosphor", "Phosphor
    * (test)", ...) even though they're all the same project — the sidebar
    * read as more projects than actually existed. Instead, a worktree's
    * sessions fold into its main repo's group (keyed by `mainRepoPath`, from
@@ -517,9 +520,9 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     const lanes = selection.paths.flatMap((path) => {
       const meta = metaByPath.get(path)
       if (!meta) return []
-      const livePidexId = liveByDisk.get(path)
+      const livePhosphorId = liveByDisk.get(path)
       const git = gitByCwd[meta.cwd || workspacePath]
-      const liveName = livePidexId ? chat.sessions[livePidexId]?.meta?.sessionName : undefined
+      const liveName = livePhosphorId ? chat.sessions[livePhosphorId]?.meta?.sessionName : undefined
       const explicit = sessions.laneMarkers[path]
       return [
         classifyLane({
@@ -532,8 +535,10 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
           marker: laneMarker(explicit, git?.branch, meta.cwd, markerPrefMode),
           git,
           pr: pullRequestFor(prState, git?.mainRepoPath ?? meta.cwd, git?.branch),
-          isLive: Boolean(livePidexId),
-          isStreaming: livePidexId ? (chat.sessions[livePidexId]?.isStreaming ?? false) : false,
+          isLive: Boolean(livePhosphorId),
+          isStreaming: livePhosphorId
+            ? (chat.sessions[livePhosphorId]?.isStreaming ?? false)
+            : false,
         }),
       ]
     })
@@ -559,7 +564,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   const toggleGroup = (group: GroupedSessions, wasCollapsed: boolean): void => {
     const next = { ...(collapsed ?? {}), [group.workspacePath]: !wasCollapsed }
     setCollapsed(next)
-    void window.pidex.invoke(
+    void window.phosphor.invoke(
       'app:setCollapsedWorkspaces',
       Object.keys(next).filter((p) => next[p]),
     )
@@ -631,8 +636,8 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   const laneFields = (meta: SessionMeta): LaneSearchFields => {
     const git = gitByCwd[meta.cwd || workspacePath]
     const repoPath = git?.mainRepoPath ?? meta.cwd ?? workspacePath
-    const livePidexId = liveByDisk.get(meta.path)
-    const liveName = livePidexId ? liveNames.get(livePidexId) : undefined
+    const livePhosphorId = liveByDisk.get(meta.path)
+    const liveName = livePhosphorId ? liveNames.get(livePhosphorId) : undefined
     return {
       title:
         sessionTitle(
@@ -681,7 +686,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     const openWorktreeModal = async (kind: 'remove' | 'merge'): Promise<void> => {
       const repoPath = git?.mainRepoPath
       if (!repoPath) return
-      const worktrees = await window.pidex.invoke('git:listWorktrees', repoPath)
+      const worktrees = await window.phosphor.invoke('git:listWorktrees', repoPath)
       const worktree = worktrees.find(
         (w) => w.path === group.workspacePath || w.realPath === group.workspacePath,
       )
@@ -724,16 +729,16 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   }
 
   const rowProps = (meta: SessionMeta) => {
-    const livePidexId = liveByDisk.get(meta.path)
-    const active = livePidexId === activeSessionId && activeSessionId !== null
+    const livePhosphorId = liveByDisk.get(meta.path)
+    const active = livePhosphorId === activeSessionId && activeSessionId !== null
     return {
       meta,
       workspacePath: meta.cwd || workspacePath,
-      livePidexId,
+      livePhosphorId,
       active,
       unseen:
         !active &&
-        ((unread[livePidexId ?? ''] ?? 0) > 0 ||
+        ((unread[livePhosphorId ?? ''] ?? 0) > 0 ||
           isUnseen(seenSessions, meta.path, meta.lastActivityAt)),
       git: gitByCwd[meta.cwd || workspacePath],
       onOpenTree: () => setTreeFor(meta),
@@ -899,7 +904,7 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                       >
                         Move down
                       </MenuRow>
-                      {/* Only a sandbox is deletable from here: it is pidex's
+                      {/* Only a sandbox is deletable from here: it is Phosphor's
                           own scratch folder, so removing it is ours to offer.
                           A project folder is the user's and is only ever
                           forgotten, in Settings. */}
@@ -967,12 +972,12 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
                     they stand aside. */}
                 {!isCollapsed &&
                   terms.length === 0 &&
-                  (pendingByWorkspace.get(group.workspacePath) ?? []).map((pidexId) => (
+                  (pendingByWorkspace.get(group.workspacePath) ?? []).map((phosphorId) => (
                     <PendingSessionRow
-                      key={pidexId}
-                      pidexId={pidexId}
-                      active={pidexId === activeSessionId}
-                      git={gitByCwd[live[pidexId]?.workspacePath ?? '']}
+                      key={phosphorId}
+                      phosphorId={phosphorId}
+                      active={phosphorId === activeSessionId}
+                      git={gitByCwd[live[phosphorId]?.workspacePath ?? '']}
                     />
                   ))}
                 {!isCollapsed &&
@@ -1133,7 +1138,7 @@ function WorkspaceSwitcher(): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   // Project only, no branch: the top bar's folder and branch chips sit a row
-  // above this and already answer "where am I". Showing `pidex (pidex/hey-2)`
+  // above this and already answer "where am I". Showing `Phosphor (phosphor/hey-2)`
   // here as well put the branch on screen twice and the folder twice.
   const name = currentPath ? projectName(currentPath, git) : 'Workspace'
 
@@ -1210,7 +1215,7 @@ const SESSION_TITLE_CLASS = 'text-text block truncate text-lg font-medium leadin
 function SessionRow({
   meta,
   workspacePath,
-  livePidexId,
+  livePhosphorId,
   active,
   unseen,
   git,
@@ -1223,7 +1228,7 @@ function SessionRow({
 }: {
   meta: SessionMeta
   workspacePath: string
-  livePidexId?: string
+  livePhosphorId?: string
   active: boolean
   /** Activity the user hasn't viewed yet (persisted across restarts). */
   unseen: boolean
@@ -1246,11 +1251,11 @@ function SessionRow({
   onToggleSelect?: (shiftKey: boolean) => void
 }): React.JSX.Element {
   const isStreaming = useChatStore((s) =>
-    livePidexId ? (s.sessions[livePidexId]?.isStreaming ?? false) : false,
+    livePhosphorId ? (s.sessions[livePhosphorId]?.isStreaming ?? false) : false,
   )
   // Prompt sent, pi not started yet: the row pulses like a streaming one, or
   // a lane that is genuinely booting reads as idle in the list.
-  const booting = useSessionBooting(livePidexId)
+  const booting = useSessionBooting(livePhosphorId)
   const isSuspended = useSessionsStore((s) => s.suspendedPaths.includes(meta.path))
   // A worktree lane's PRs live under the MAIN repo, which is also the key the
   // sidebar group and `gh:prsForRepo` use. Derived here rather than threaded
@@ -1275,17 +1280,17 @@ function SessionRow({
   const showChip = showPrStatus && Boolean(pullRequest || confirmedNoPr)
   const explicitMarker = useSessionsStore((s) => s.laneMarkers[meta.path])
   const markerMode = useLanePrefsStore((s) => s.lanes.markers)
-  // Keyed on the branch, not the title: pidex names a session only after its
+  // Keyed on the branch, not the title: Phosphor names a session only after its
   // first turn ends, so a title-derived marker would change under the user the
   // moment the auto-namer landed.
   const marker = laneMarker(explicitMarker, git?.branch, meta.cwd, markerMode)
-  const naming = useNameTransition(livePidexId)
+  const naming = useNameTransition(livePhosphorId)
   // A live session's own name beats the scanned one. pi writes its session
   // file only when a turn ENDS (measured), so a name set mid-turn does not
   // reach `meta.name` until the reply lands — sometimes minutes later. The
   // top bar reads the live store and would rename while this row did not.
   const liveName = useChatStore((s) =>
-    livePidexId ? s.sessions[livePidexId]?.meta?.sessionName : undefined,
+    livePhosphorId ? s.sessions[livePhosphorId]?.meta?.sessionName : undefined,
   )
   const title =
     sessionTitle(
@@ -1320,7 +1325,7 @@ function SessionRow({
     const name = committedRename(renameValue, title)
     setRenaming(false)
     if (!name) return
-    void renameSidebarSession(workspacePath, meta, name, livePidexId)
+    void renameSidebarSession(workspacePath, meta, name, livePhosphorId)
   }
 
   const cancelRename = (): void => {
@@ -1360,12 +1365,12 @@ function SessionRow({
             },
           ]
         : []),
-      ...(livePidexId
+      ...(livePhosphorId
         ? [
             {
               label: 'Suspend',
               hint: '~200 MB',
-              onClick: () => void store.suspendSession(livePidexId),
+              onClick: () => void store.suspendSession(livePhosphorId),
             },
           ]
         : []),
@@ -1377,15 +1382,15 @@ function SessionRow({
       },
       {
         label: 'Clone',
-        onClick: () => void cloneSession(workspacePath, meta, livePidexId),
+        onClick: () => void cloneSession(workspacePath, meta, livePhosphorId),
       },
       {
         label: 'Export HTML…',
-        onClick: () => void exportSidebarSession(workspacePath, meta, livePidexId),
+        onClick: () => void exportSidebarSession(workspacePath, meta, livePhosphorId),
       },
       {
         label: 'Copy debug info',
-        onClick: () => void copySessionDebugInfo(meta, livePidexId),
+        onClick: () => void copySessionDebugInfo(meta, livePhosphorId),
       },
       // Spend left the row itself: it is a detail you go looking for, so it
       // waits here (and in the Home ledger) rather than trailing every lane.
@@ -1410,7 +1415,7 @@ function SessionRow({
 
   const subtitle = sessionSubtitle(meta, git)
   const indicatorState =
-    isStreaming || booting ? 'streaming' : unseen ? 'unseen' : livePidexId ? 'live' : 'disk'
+    isStreaming || booting ? 'streaming' : unseen ? 'unseen' : livePhosphorId ? 'live' : 'disk'
 
   const rowClassName = clsx(
     'group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors',
@@ -1633,21 +1638,21 @@ function RenameInput({
  * read as the row being replaced, which is exactly what was happening.
  */
 function PendingSessionRow({
-  pidexId,
+  phosphorId,
   active,
   git,
 }: {
-  pidexId: string
+  phosphorId: string
   active: boolean
   git?: GitInfo
 }): React.JSX.Element {
-  const isStreaming = useChatStore((s) => s.sessions[pidexId]?.isStreaming ?? false)
-  const booting = useSessionBooting(pidexId)
+  const isStreaming = useChatStore((s) => s.sessions[phosphorId]?.isStreaming ?? false)
+  const booting = useSessionBooting(phosphorId)
   const firstUserText = useChatStore(
-    (s) => s.sessions[pidexId]?.items.find((item) => item.kind === 'user')?.text,
+    (s) => s.sessions[phosphorId]?.items.find((item) => item.kind === 'user')?.text,
   )
-  const explicitName = useChatStore((s) => s.sessions[pidexId]?.meta?.sessionName)
-  const naming = useNameTransition(pidexId)
+  const explicitName = useChatStore((s) => s.sessions[phosphorId]?.meta?.sessionName)
+  const naming = useNameTransition(phosphorId)
   const title = sessionTitle({ explicitName, firstUserText }, { elide: false }) ?? 'New session'
   // Synthesised meta so this row and the disk-backed one format their
   // subtitle through the same function. Created now, nothing spent yet.
@@ -1676,14 +1681,14 @@ function PendingSessionRow({
     // to rescan yet. `applySessionRename` patches the chat store, and this
     // row's title reads that store, so the new name shows immediately and
     // survives the swap to `SessionRow` (which prefers the live name too).
-    void applySessionRename(pidexId, name)
+    void applySessionRename(phosphorId, name)
   }
 
   const contextMenu = (event: React.MouseEvent): void => {
     showContextMenu(event, [
-      { label: 'Open', onClick: () => useSessionsStore.getState().activate(pidexId) },
+      { label: 'Open', onClick: () => useSessionsStore.getState().activate(phosphorId) },
       { label: 'Rename…', onClick: beginRename },
-      { label: 'Export HTML…', onClick: () => void exportSessionHtml(pidexId, title) },
+      { label: 'Export HTML…', onClick: () => void exportSessionHtml(phosphorId, title) },
     ])
   }
 
@@ -1752,7 +1757,7 @@ function PendingSessionRow({
 
   return (
     <button
-      onClick={() => useSessionsStore.getState().activate(pidexId)}
+      onClick={() => useSessionsStore.getState().activate(phosphorId)}
       onContextMenu={contextMenu}
       onDoubleClick={beginRename}
       data-testid="session-row"

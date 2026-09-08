@@ -19,7 +19,7 @@ sources both fail in this window:
   `git:infoBatch` — debounced 300ms and then 2-3 git subprocesses per cwd,
   across every worktree plus every session cwd. On a machine with 25 worktrees
   that is a visible wait.
-- The no-I/O fallback matches `<repo>/.pidex/worktrees/<name>` only. None of
+- The no-I/O fallback matches `<repo>/.phosphor/worktrees/<name>` only. None of
   the folders above are that shape: they are `.claude/worktrees/`,
   `augment-services-worktrees/`, sibling directories, and `/private/tmp`.
 

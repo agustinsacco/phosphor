@@ -1,7 +1,7 @@
 # Claude sessions re-billed their whole context after every commit; the provider now keeps one CLI process per session
 
 **Requires `@saccolabs/pi-claude-cli` >= 0.7.0**
-([PR #34](https://github.com/agustinsacco/pi-claude-cli/pull/34)). pidex itself
+([PR #34](https://github.com/agustinsacco/pi-claude-cli/pull/34)). Phosphor itself
 did not change behaviour for this; the fix lives in the provider, and this
 entry records the cause so nobody re-derives it.
 
@@ -19,7 +19,7 @@ prompt per process, and that prompt embeds a git snapshot: status, recent
 commits, branch. Two of the three misses line up with a git change between
 processes:
 
-- 13:22:54 pidex renamed the branch after auto-naming the session; the next
+- 13:22:54 Phosphor renamed the branch after auto-naming the session; the next
   process (13:23:27) missed.
 - 13:30:00 the model committed and pushed; the next process (13:38:20) missed.
 
@@ -50,9 +50,9 @@ changed.
   cache-write tokens; the old per-turn process re-bills 8,827 after the same
   commit.
 
-## What it means for pidex
+## What it means for Phosphor
 
-- Install and require `>= 0.7.0` (see CLAUDE.md). Nothing in pidex has to be
+- Install and require `>= 0.7.0` (see CLAUDE.md). Nothing in Phosphor has to be
   set; `PI_CLAUDE_CLI_STRICT_MCP=1` and the autocompact pref pass through
   unchanged.
 - Memory: one live CLI process per active Claude session (150 to 300 MB) for up

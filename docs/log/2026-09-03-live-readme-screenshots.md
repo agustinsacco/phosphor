@@ -4,7 +4,7 @@ The README's gallery is now shot against a **real pi instance** —
 `scripts/capture-live-shots.mjs`, `npm run shots:live` — instead of the e2e
 stub. The stub runner (`npm run shots`) stays for deterministic verification;
 the live one is what regenerates the README. App prefs are isolated
-(`PIDEX_TEST_USER_DATA`), pi's side deliberately is not: real providers, real
+(`PHOSPHOR_TEST_USER_DATA`), pi's side deliberately is not: real providers, real
 model catalogue, real sessions in the sidebar, two genuinely metered turns
 (one edit task in a disposable worktree, one artifact task).
 
@@ -25,7 +25,7 @@ Three things the shoot taught us, worth keeping:
   composer's Stop control for the full turn timeout.
 - **The Changes pane is empty for CLI-side providers.** `collectTouchedFiles`
   collects pi-native tool calls; on `pi-claude-cli` the CLI executes its own
-  Edit/Write tools and pidex sees only `[Claude Code · …]` markers, so a
+  Edit/Write tools and Phosphor sees only `[Claude Code · …]` markers, so a
   session's edits never reach the pane. The live runner works around it by
   running the edit session on a pi-native provider (`openai-codex`). An
   actual fix would parse the id-tagged result markers

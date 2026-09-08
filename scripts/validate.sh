@@ -6,7 +6,7 @@
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-LOG="${VALIDATE_LOG:-/tmp/pidex-validate-$$.log}"
+LOG="${VALIDATE_LOG:-/tmp/phosphor-validate-$$.log}"
 : > "$LOG"
 FAILED=()
 

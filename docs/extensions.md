@@ -1,12 +1,12 @@
 # Extensions (pi packages)
 
 pi's capability model is **packages**: npm/git/path bundles that contribute
-extensions, skills, prompt templates and themes to every session. pidex's
+extensions, skills, prompt templates and themes to every session. Phosphor's
 job is to make that ecosystem manageable without leaving the app — install,
 inspect, remove, configure — plus bootstrap pi itself on a fresh machine.
 
 Nothing here invents install semantics: **pi's own package-manager CLI does
-every mutation**, pidex only reads state and streams the CLI's output.
+every mutation**, Phosphor only reads state and streams the CLI's output.
 
 ## pi package semantics (verified against pi 0.84.2)
 
@@ -28,7 +28,7 @@ every mutation**, pidex only reads state and streams the CLI's output.
   `themes/`). Manifest globs are shown as written; `!exclusions` dropped.
 - Exit codes are meaningful: `pi install` on a bad spec exits 1 and leaves
   settings untouched; `pi remove` on an unknown spec is a friendly no-op.
-- `pi list` is human-oriented — pidex never parses it, it reads the settings
+- `pi list` is human-oriented — Phosphor never parses it, it reads the settings
   files and install dirs directly.
 
 ## Rules
@@ -109,7 +109,7 @@ the same catalogue cards, then Continue.
 
 A permission gate is an extension that hooks `tool_call`, decides a `bash`
 command is dangerous and asks the user through `ctx.ui.select` /
-`ctx.ui.confirm`. pidex has no special protocol for this: what arrives is an
+`ctx.ui.confirm`. Phosphor has no special protocol for this: what arrives is an
 ordinary `extension_ui_request` whose title is **prose the extension wrote,
 with the whole command inside it**. Rendered generically, a 60-line heredoc
 became a dialog _title_ — unwrapped, unscrollable, off both edges of the
@@ -124,9 +124,9 @@ screen, with nothing marking which four characters tripped the gate.
   gates are third-party and their wording drifts. A miss falls through to the
   generic dialog, which now caps and scrolls its title rather than growing.
 - **`analyzeCommand`** says which part is dangerous and why. **The gate never
-  tells us** — its answer is a boolean — so pidex re-derives the risk from the
+  tells us** — its answer is a boolean — so Phosphor re-derives the risk from the
   same pattern classes gates match on (`rm -rf`, `sudo`, force-push,
-  `chmod 777`, …). Two honest consequences: pidex can name a risk the gate did
+  `chmod 777`, …). Two honest consequences: Phosphor can name a risk the gate did
   not fire on, and it can find nothing at all. `risks.length === 0` is a real
   state and the sheet says so instead of inventing a reason.
 
@@ -147,12 +147,12 @@ Rules the sheet keeps:
 - **The panel is height-capped and scrolls.** Over 14 lines it opens folded to
   the flagged lines with the rest one click away.
 
-`src/dev/mockPidex.ts` raises a real one in the browser harness when a prompt
+`src/dev/mockPhosphor.ts` raises a real one in the browser harness when a prompt
 starts with `danger`, since the harness has no pi and therefore no gate.
 
 ## Foreign config files
 
-Some packages keep config outside pi's settings. pidex mirrors each
+Some packages keep config outside pi's settings. Phosphor mirrors each
 package's own resolution rather than guessing:
 
 - `pi-web-access` → `web-search.json` from `PI_CODING_AGENT_DIR`, then
@@ -177,14 +177,14 @@ testClaudeProvider` (`electron/ipc/packages-handlers.ts`);
 - UI: `tabs/ExtensionsTab.tsx` (+ exported `JobOutput`),
   `tabs/ClaudeProviderTab.tsx`, `tabs/WebAccessTab.tsx`, `CatalogueCards.tsx`,
   `catalogue.ts`, `usePackageJob.ts`; `app/PiMissingScreen.tsx`,
-  `app/GettingStartedScreen.tsx`. Mock cases in `src/dev/mockPidex.ts`.
+  `app/GettingStartedScreen.tsx`. Mock cases in `src/dev/mockPhosphor.ts`.
 - E2E (`e2e/smoke.spec.ts`): four tests — listing with a seeded fixture
   package, install/remove round-trip through the stub's package-manager
   mode, web-access key write, and the Claude provider chain.
 
-## Bundled extensions (pidex's own)
+## Bundled extensions (Phosphor's own)
 
-Separate from packages the user installs, pidex ships its own pi extensions
+Separate from packages the user installs, Phosphor ships its own pi extensions
 as TypeScript files in `pi-ext/`, loaded into **every** session via
 `pi --mode rpc -e <path>` (`bundledExtensions()` in
 `electron/ipc/pi-session-handlers.ts`; the e2e stub gets none):
@@ -233,7 +233,7 @@ with `srcdoc` — a `srcdoc` document inherits the embedder's policy container,
 so `script-src 'self'` from `src/index.html` refused every inline script and
 the `sandbox="allow-scripts"` attribute was a no-op. `blob:` and `data:`
 inherit the same way. `electron/artifacts/artifact-protocol.ts` serves staged
-HTML over `pidex-artifact://` with its own `default-src 'none'` policy, and the
+HTML over `phosphor-artifact://` with its own `default-src 'none'` policy, and the
 iframe keeps `sandbox="allow-scripts"` **without** `allow-same-origin`, which
 keeps the origin opaque. The result is measured, not assumed: scripts run;
 storage, cookies, parent and sibling DOM, top navigation, `fetch`,
@@ -256,8 +256,8 @@ empty-or-all-optional schema fails every call with `root: must be object` and
 the extension never runs. See
 [docs/log/2026-08-27-orchestrator-empty-tool-arguments.md](log/2026-08-27-orchestrator-empty-tool-arguments.md).
 
-`worktree-paths.ts` is the only pidex code that can refuse a tool call. A
-session in `.pidex/worktrees/<name>` was observed reading files out of the main
+`worktree-paths.ts` is the only Phosphor code that can refuse a tool call. A
+session in `.phosphor/worktrees/<name>` was observed reading files out of the main
 checkout — a different branch — because the model rebuilds absolute paths from
 what it thinks the project root is, and the worktree's cwd contains the main
 checkout as a prefix. `tool_call` is the one hook that sees the path before the
@@ -289,16 +289,16 @@ footer. It forwards the snapshot verbatim — no rewording, no inference.
 
 ### The status channel is a wire contract
 
-Both bundled extensions and provider packages talk to pidex's UI the same
+Both bundled extensions and provider packages talk to Phosphor's UI the same
 way: `ctx.ui.setStatus(key, text)` → pi's extension-UI request → the
 per-session map in `stores/extensionUi.ts`. Four keys are load-bearing today:
 
-| Key                       | Emitter                            | Consumer                                                                                                     |
-| ------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `pidex-context-breakdown` | `pi-ext/context-breakdown.ts`      | `composer/contextBreakdown.ts` → ContextMeter                                                                |
-| `pidex-mcp-status`        | `pi-ext/mcp-status.ts`             | `connectors/mcpStatus.ts` → Connectors, footer                                                               |
-| `claude-rate-limit`       | `@saccolabs/pi-claude-cli` ≥ 0.4.5 | `composer/rateLimit.ts` → ContextMeter, RateLimitBanner; `shared/claude-limits.ts` → account routing in main |
-| `pidex-headroom`          | `pi-ext/headroom.ts`               | `composer/headroomStatus.ts` → ContextMeter (Optimization section)                                           |
+| Key                          | Emitter                            | Consumer                                                                                                     |
+| ---------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `Phosphor-context-breakdown` | `pi-ext/context-breakdown.ts`      | `composer/contextBreakdown.ts` → ContextMeter                                                                |
+| `Phosphor-mcp-status`        | `pi-ext/mcp-status.ts`             | `connectors/mcpStatus.ts` → Connectors, footer                                                               |
+| `claude-rate-limit`          | `@saccolabs/pi-claude-cli` ≥ 0.4.5 | `composer/rateLimit.ts` → ContextMeter, RateLimitBanner; `shared/claude-limits.ts` → account routing in main |
+| `Phosphor-headroom`          | `pi-ext/headroom.ts`               | `composer/headroomStatus.ts` → ContextMeter (Optimization section)                                           |
 
 The last one crosses a repo boundary, so its shape is API — it is documented
 on the emitting side in that repo's `docs/ARCHITECTURE.md`, and changing it
@@ -320,7 +320,7 @@ handling (`items/transcriptRows.ts`, contract table in
 - **CLI-side tools** — WebSearch, WebFetch, ToolSearch, the user's own MCP
   servers, and Claude Code sub-agents run _inside_ the CLI, so pi never sees
   them as tool calls. The provider reports each as a
-  `[Claude Code · Name {args}]` marker text block; pidex parses it into an
+  `[Claude Code · Name {args}]` marker text block; Phosphor parses it into an
   `externalTool` activity step. Left as prose it wrapped raw JSON across
   paragraphs and markdown-linkified any URL inside it.
 
@@ -349,7 +349,7 @@ arg>` next to `Ran npm test` made one turn read as two transcripts.
   polish: no chevron (there is no `tool_result`, so nothing to expand into)
   and no status (the marker arrives after the fact, so the row is always
   settled). An unrecognised tool keeps its NAME as the emphasis —
-  `mcp__linear__save_issue` says more than any verb pidex could invent.
+  `mcp__linear__save_issue` says more than any verb Phosphor could invent.
 
   **The argument preview is capped at 142 characters**, and the cap lands
   inside the value often enough to matter: `Bash` carries a single `command`,
@@ -365,7 +365,7 @@ arg>` next to `Ran npm test` made one turn read as two transcripts.
   "thought" that expands to nothing. Skipped on settled items.
 
 Both were quantified by replaying real sessions from all four Claude
-families through pidex's own hydration and transcript builder; the fixture in
+families through Phosphor's own hydration and transcript builder; the fixture in
 `chat/__fixtures__/claude-cli-blocks.json` is trimmed from those captures and
 guards the behaviour (`items/claudeCliRendering.test.ts`).
 
@@ -398,7 +398,7 @@ false`, and its tool result promises "you will be notified automatically when
   `result` as a cycle boundary and lets the CLI re-invoke the model when the
   agents report, so their findings land in the same turn.
 
-  pidex pins no provider version, so both shapes keep arriving. Nothing in
+  Phosphor pins no provider version, so both shapes keep arriving. Nothing in
   the renderer checks a version: `trailingUnfinishedAgents` counts agents that
   never reached a terminal state, and only those raise the "never reported
   back" strip. `PI_CLAUDE_CLI_SETTINGS` → `--settings` with
@@ -438,8 +438,8 @@ depend on it parsing.
   the sandboxed settings.json and mirror the npm dir layout, `-p` answers
   print mode. An install must never create a stub session.
 - **Two gated env hooks**, both `!app.isPackaged` for the same reason as
-  `PIDEX_PI_STUB` (an env var must not become code execution in a shipped
-  app): the stub override for package jobs, and `PIDEX_CLAUDE_BIN` for the
+  `PHOSPHOR_PI_STUB` (an env var must not become code execution in a shipped
+  app): the stub override for package jobs, and `PHOSPHOR_CLAUDE_BIN` for the
   Claude health probes. The latter exists because a developer's real
   `claude` shadowed a PATH-prepended fake and made the test machine-dependent.
 - **`claude auth status` is local-only** (verified on 2.1.237), so the
@@ -452,7 +452,7 @@ depend on it parsing.
 
 `@saccolabs/pi-claude-cli` (our fork of `rchern/pi-claude-cli`) makes Claude
 Pro/Max subscription models available inside pi's own agent loop by running
-`claude -p` as a model server per turn. pidex treats it as an ordinary
+`claude -p` as a model server per turn. Phosphor treats it as an ordinary
 package — the abstraction holds, and `shared/rpc.ts` needed no changes.
 
 Its internals, and the compatibility fixes we shipped, are documented in

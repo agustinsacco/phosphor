@@ -8,7 +8,7 @@ claim it makes about a file name, a count, or a behaviour against the code.
 **Why this file exists.** `reference/` is the folder the repo tells you to
 trust, and the rule is that the code disagreeing with it makes _the doc_ wrong.
 That rule has not been enforced in a while: 44 claims across 9 of the 14 docs
-describe a pidex that no longer exists — layouts never built, tools with
+describe a Phosphor that no longer exists — layouts never built, tools with
 different signatures, tabs that were added and never written down. Two docs
 (`style-guide.md`, `mcp.md`) verified clean end to end, and `worktrees.md` and
 `updates.md` verified clean apart from nothing.
@@ -39,11 +39,11 @@ that fixes the doc, and delete this file when it reaches zero.
 
 ## reference/pi-integration.md
 
-| #   | Doc line | Says                                               | Code does                                                                                                 | Sev     | Status |
-| --- | -------- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------- | ------ |
-| P1  | 18       | `-e` "loads the bundled pidex artifacts extension" | five extensions are bundled into every session (`electron/ipc/pi-session-handlers.ts:49-57`)              | wrong   | open   |
-| P2  | 23-45    | table titled "RPC commands (complete set)"         | omits `clear_queue`, `get_entries`, `get_tree`, `get_available_thinking_levels` (`shared/rpc.ts:357-362`) | missing | open   |
-| P3  | 49       | event list                                         | omits `agent_settled`, `bash_execution_update`, and the three `summarization_retry_*` events              | missing | open   |
+| #   | Doc line | Says                                                  | Code does                                                                                                 | Sev     | Status |
+| --- | -------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------- | ------ |
+| P1  | 18       | `-e` "loads the bundled Phosphor artifacts extension" | five extensions are bundled into every session (`electron/ipc/pi-session-handlers.ts:49-57`)              | wrong   | open   |
+| P2  | 23-45    | table titled "RPC commands (complete set)"            | omits `clear_queue`, `get_entries`, `get_tree`, `get_available_thinking_levels` (`shared/rpc.ts:357-362`) | missing | open   |
+| P3  | 49       | event list                                            | omits `agent_settled`, `bash_execution_update`, and the three `summarization_retry_*` events              | missing | open   |
 
 ## reference/ui-shell.md
 
@@ -73,15 +73,15 @@ never built.
 
 ## reference/chat.md
 
-| #   | Doc line | Says                                                                    | Code does                                                                                                                                                                | Sev   | Status |
-| --- | -------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----- | ------ |
-| C1  | 15       | native commands "new, fork, clone, compact, export, model, name, tree…" | three: `compact`, `export`, `name` (`src/features/chat/Composer.tsx:142-160`)                                                                                            | wrong | open   |
-| C2  | 28       | code blocks offer "open as file"                                        | no such action. Open-as-artifact, run-in-terminal (shell only), copy (`src/components/markdown/CodeBlock.tsx:83-113`)                                                    | wrong | open   |
-| C3  | 29       | user messages offer "fork from here" and edit-and-refork                | the action is **Rewind to here**: it uses the `fork` RPC but truncates in place and creates no new session (`src/features/chat/rewind.ts:5-25`)                          | wrong | open   |
-| C4  | 77       | code blocks show line numbers on hover                                  | never implemented (`CodeBlock.tsx:116-127`)                                                                                                                              | wrong | open   |
-| C5  | 78       | mermaid blocks export PNG/SVG                                           | zoom-lightbox and a code fallback only (`MermaidBlock.tsx:80-95`)                                                                                                        | wrong | open   |
-| C6  | 82       | html preview is "inlined content only"                                  | deliberately the opposite — served over `pidex-artifact://` because `srcdoc` inherits the app CSP and makes `allow-scripts` a no-op (`src/components/SandboxedHtml.tsx`) | wrong | open   |
-| C7  | 88       | thinking levels run off→xhigh                                           | seven levels; `max` is omitted (`shared/rpc.ts:66`)                                                                                                                      | wrong | open   |
+| #   | Doc line | Says                                                                    | Code does                                                                                                                                                                   | Sev   | Status |
+| --- | -------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------ |
+| C1  | 15       | native commands "new, fork, clone, compact, export, model, name, tree…" | three: `compact`, `export`, `name` (`src/features/chat/Composer.tsx:142-160`)                                                                                               | wrong | open   |
+| C2  | 28       | code blocks offer "open as file"                                        | no such action. Open-as-artifact, run-in-terminal (shell only), copy (`src/components/markdown/CodeBlock.tsx:83-113`)                                                       | wrong | open   |
+| C3  | 29       | user messages offer "fork from here" and edit-and-refork                | the action is **Rewind to here**: it uses the `fork` RPC but truncates in place and creates no new session (`src/features/chat/rewind.ts:5-25`)                             | wrong | open   |
+| C4  | 77       | code blocks show line numbers on hover                                  | never implemented (`CodeBlock.tsx:116-127`)                                                                                                                                 | wrong | open   |
+| C5  | 78       | mermaid blocks export PNG/SVG                                           | zoom-lightbox and a code fallback only (`MermaidBlock.tsx:80-95`)                                                                                                           | wrong | open   |
+| C6  | 82       | html preview is "inlined content only"                                  | deliberately the opposite — served over `phosphor-artifact://` because `srcdoc` inherits the app CSP and makes `allow-scripts` a no-op (`src/components/SandboxedHtml.tsx`) | wrong | open   |
+| C7  | 88       | thinking levels run off→xhigh                                           | seven levels; `max` is omitted (`shared/rpc.ts:66`)                                                                                                                         | wrong | open   |
 
 ## reference/terminal.md
 

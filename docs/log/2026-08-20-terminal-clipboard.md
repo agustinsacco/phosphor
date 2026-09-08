@@ -20,7 +20,7 @@ rows, not a DOM selection, so:
 
 Every terminal emulator solves this the same way: Ctrl+Shift+C/V on
 Windows+Linux, ⌘C/⌘V on macOS (where Cmd chords are never turned into input).
-pidex had implemented neither. `specs/reference/terminal.md` listed "clipboard (copy
+Phosphor had implemented neither. `specs/reference/terminal.md` listed "clipboard (copy
 on select optional, paste)" as an addon, which is not a thing xterm provides.
 
 ## The fix

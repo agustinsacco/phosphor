@@ -3,7 +3,7 @@ import { laneHaystack, laneMatches, laneQueryTerms, type LaneSearchFields } from
 
 const lane: LaneSearchFields = {
   title: 'Fix And Rebase PR 130',
-  branch: 'pidex/fix-and-rebase-pr-130',
+  branch: 'phosphor/fix-and-rebase-pr-130',
   pr: { number: 412, title: 'Adjust tool group spacing' },
 }
 
@@ -30,7 +30,7 @@ describe('laneMatches', () => {
   })
 
   it('matches the branch across its separators', () => {
-    expect(finds('pidex fix')).toBe(true)
+    expect(finds('Phosphor fix')).toBe(true)
     expect(finds('fix-and-rebase')).toBe(true)
   })
 

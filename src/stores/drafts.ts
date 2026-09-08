@@ -16,13 +16,13 @@ import type { PendingAttachment } from '@/features/chat/attachments'
  * hydrate. The base64 is only ever in memory for the drafts you have opened.
  */
 
-/** `session:<sessionFilePath | pidexId>` or `home:<workspacePath>`. */
+/** `session:<sessionFilePath | phosphorId>` or `home:<workspacePath>`. */
 export type DraftKey = string
 
-export function sessionDraftKey(sessionFilePath: string | undefined, pidexId: string): DraftKey {
+export function sessionDraftKey(sessionFilePath: string | undefined, phosphorId: string): DraftKey {
   // Prefer the file path: it is the only identity that survives a restart.
-  // `pidexId` covers the window before pi has told us where the file is.
-  return `session:${sessionFilePath ?? pidexId}`
+  // `phosphorId` covers the window before pi has told us where the file is.
+  return `session:${sessionFilePath ?? phosphorId}`
 }
 
 export function homeDraftKey(workspacePath: string): DraftKey {
@@ -62,7 +62,7 @@ export const useDraftsStore = create<DraftsState>((set, get) => ({
     if (get().hydrated) return
     // The sweep is the launch-time GC: it drops drafts whose workspace is gone
     // and unlinks orphan blobs, then hands back what survived.
-    const records = await window.pidex.invoke('app:sweepDrafts')
+    const records = await window.phosphor.invoke('app:sweepDrafts')
     const entries = await Promise.all(
       Object.entries(records).map(async ([key, record]) => [key, await toDraft(record)] as const),
     )
@@ -90,7 +90,7 @@ export const useDraftsStore = create<DraftsState>((set, get) => ({
       delete drafts[key]
       return { drafts }
     })
-    void window.pidex.invoke('app:clearDraft', key)
+    void window.phosphor.invoke('app:clearDraft', key)
   },
 
   rekey: (from, to) => {
@@ -103,7 +103,7 @@ export const useDraftsStore = create<DraftsState>((set, get) => ({
       drafts[to] = draft
       return { drafts }
     })
-    void window.pidex.invoke('app:clearDraft', from)
+    void window.phosphor.invoke('app:clearDraft', from)
     schedulePersist(to, draft)
   },
 }))
@@ -142,7 +142,7 @@ function schedulePersist(key: DraftKey, draft: Draft): void {
 
 async function persist(key: DraftKey, draft: Draft): Promise<void> {
   if (isEmptyDraft(draft)) {
-    await window.pidex.invoke('app:clearDraft', key)
+    await window.phosphor.invoke('app:clearDraft', key)
     return
   }
   const saved = await Promise.all(draft.attachments.map((a) => saveAttachment(a)))
@@ -158,7 +158,7 @@ async function persist(key: DraftKey, draft: Draft): Promise<void> {
     if (!current || current.attachments !== draft.attachments) return s
     return { drafts: { ...s.drafts, [key]: { ...current, attachments: withIds } } }
   })
-  await window.pidex.invoke('app:setDraft', {
+  await window.phosphor.invoke('app:setDraft', {
     key,
     text: draft.text,
     attachments: saved.map((entry) => entry.record).filter((a): a is DraftAttachment => a !== null),
@@ -191,7 +191,7 @@ async function saveAttachment(
   let updated: PendingAttachment | null = null
   if (!blobId) {
     blobId = newBlobId()
-    const ok = await window.pidex.invoke('app:writeDraftBlob', blobId, attachment.data)
+    const ok = await window.phosphor.invoke('app:writeDraftBlob', blobId, attachment.data)
     if (!ok) return { record: null, attachment: null }
     updated = { ...attachment, blobId }
   }
@@ -214,7 +214,7 @@ async function toDraft(record: ComposerDraftRecord): Promise<Draft> {
         return a.path ? { kind: 'file', path: a.path, name: a.name, size: a.size } : null
       }
       if (!a.blobId) return null
-      const data = await window.pidex.invoke('app:readDraftBlob', a.blobId)
+      const data = await window.phosphor.invoke('app:readDraftBlob', a.blobId)
       // The file is gone: drop the chip rather than showing a broken image.
       if (data === null) return null
       // Carrying the blobId back means re-saving this draft reuses the file

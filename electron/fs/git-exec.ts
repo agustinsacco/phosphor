@@ -72,7 +72,7 @@ export async function dirtyCount(cwd: string): Promise<number> {
  *
  * Both calls tolerate failure on purpose: the conflict list is diagnostic
  * only, and `merge --abort` fails when there is no merge in progress (the
- * original failure predated it). Either way pidex never leaves a tree
+ * original failure predated it). Either way Phosphor never leaves a tree
  * mid-merge.
  */
 export async function abortMergeAndCollectConflicts(cwd: string): Promise<string[]> {

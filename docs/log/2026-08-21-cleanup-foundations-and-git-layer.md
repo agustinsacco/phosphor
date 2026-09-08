@@ -47,8 +47,8 @@ is about. `shared/` already carries runtime code consumed by main
 ## `preload.ts`
 
 Nine subscription methods were the same four lines with a different channel and
-payload type. One `subscribe()` helper; nine one-liners. `PidexApi` is
-unchanged, so neither the renderer nor `mockPidex.ts` can tell.
+payload type. One `subscribe()` helper; nine one-liners. `PhosphorApi` is
+unchanged, so neither the renderer nor `mockPhosphor.ts` can tell.
 
 ## `electron/fs/git-exec.ts`
 

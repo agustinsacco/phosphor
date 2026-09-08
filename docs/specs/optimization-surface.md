@@ -35,12 +35,12 @@ from cached scan data, pi-health style.
 
 The session altitude is one context-meter section (`Optimization · Headroom`:
 saved this session, last result, skipped-lossy, overhead) fed by the
-structured `pidex-headroom` status key — hidden when never pushed, exactly
+structured `Phosphor-headroom` status key — hidden when never pushed, exactly
 like plan limits on non-Claude sessions.
 
 ## The Advisor
 
-A rules engine over data pidex already has — never a model call, never an
+A rules engine over data Phosphor already has — never a model call, never an
 actor. Each check is a pure function with one action button that opens the
 surface owning the change (scope guard: the 2026-09-03 orchestration removal
 stays removed).
@@ -65,13 +65,13 @@ stays removed).
    `SessionMeta`, summed like `cacheReadTokens`.
 3. **One read-only IPC channel** `optimization:stats(workspace?)`: folded
    aggregates + advisor findings, computed in main. Mock case in
-   `mockPidex.ts`.
+   `mockPhosphor.ts`.
 4. **Proxy metrics as cross-check**: lifetime totals for the manager card,
-   and a drift signal when non-pidex sessions share the adopted proxy.
+   and a drift signal when non-Phosphor sessions share the adopted proxy.
 
 **Verify before 2a is committed:** pi persists a hook's `details` patch
 verbatim (content-patch persistence is validated; details round-trip is a
-10-minute probe with the L1 rig). Fallback: sidecar under pidex userData —
+10-minute probe with the L1 rig). Fallback: sidecar under Phosphor userData —
 never beside pi's session files.
 
 ## Delivery

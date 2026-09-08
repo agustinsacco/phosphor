@@ -20,7 +20,7 @@ beforeEach(async () => {
     if (channel === 'app:readDraftBlob') return 'AAAA'
     return undefined
   })
-  vi.stubGlobal('window', { pidex: { invoke } })
+  vi.stubGlobal('window', { phosphor: { invoke } })
   vi.stubGlobal('crypto', { randomUUID: () => 'blob-id' })
   const { useDraftsStore } = await import('./drafts')
   useDraftsStore.setState({ hydrated: false, drafts: {} })
@@ -42,12 +42,12 @@ function setCalls(): unknown[][] {
 describe('draft keys', () => {
   it('prefers the session file path, the only id that survives a restart', async () => {
     const { sessionDraftKey } = await import('./drafts')
-    expect(sessionDraftKey('/repo/s.jsonl', 'pidex-1')).toBe('session:/repo/s.jsonl')
+    expect(sessionDraftKey('/repo/s.jsonl', 'phosphor-1')).toBe('session:/repo/s.jsonl')
   })
 
-  it('falls back to the pidexId before pi reports the path', async () => {
+  it('falls back to the phosphorId before pi reports the path', async () => {
     const { sessionDraftKey } = await import('./drafts')
-    expect(sessionDraftKey(undefined, 'pidex-1')).toBe('session:pidex-1')
+    expect(sessionDraftKey(undefined, 'phosphor-1')).toBe('session:phosphor-1')
   })
 
   it('keys the home composer by folder, so two projects keep two drafts', async () => {
@@ -158,18 +158,18 @@ describe('useDraftsStore', () => {
 describe('rekey', () => {
   it('moves a draft when the session learns its file path', async () => {
     const { useDraftsStore } = await import('./drafts')
-    useDraftsStore.getState().setText('session:pidex-1', 'typed early')
-    useDraftsStore.getState().rekey('session:pidex-1', 'session:/repo/s.jsonl')
+    useDraftsStore.getState().setText('session:phosphor-1', 'typed early')
+    useDraftsStore.getState().rekey('session:phosphor-1', 'session:/repo/s.jsonl')
     expect(useDraftsStore.getState().get('session:/repo/s.jsonl').text).toBe('typed early')
-    expect(useDraftsStore.getState().get('session:pidex-1').text).toBe('')
-    expect(invoke).toHaveBeenCalledWith('app:clearDraft', 'session:pidex-1')
+    expect(useDraftsStore.getState().get('session:phosphor-1').text).toBe('')
+    expect(invoke).toHaveBeenCalledWith('app:clearDraft', 'session:phosphor-1')
   })
 
   it('does nothing when there is no draft to move', async () => {
     const { useDraftsStore } = await import('./drafts')
-    useDraftsStore.getState().rekey('session:pidex-1', 'session:/repo/s.jsonl')
+    useDraftsStore.getState().rekey('session:phosphor-1', 'session:/repo/s.jsonl')
     expect(useDraftsStore.getState().drafts).toEqual({})
-    expect(invoke).not.toHaveBeenCalledWith('app:clearDraft', 'session:pidex-1')
+    expect(invoke).not.toHaveBeenCalledWith('app:clearDraft', 'session:phosphor-1')
   })
 
   it('is a no-op when the key has not changed', async () => {

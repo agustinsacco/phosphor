@@ -7,7 +7,7 @@
 
 Rewinding a message ("Rewind to here", the fork picker) or cloning a live
 session from the sidebar no longer leaves the sidebar tracking the wrong
-file. Both now re-sync `live[pidexId].diskPath` right after pi's `fork`/
+file. Both now re-sync `live[PhosphorId].diskPath` right after pi's `fork`/
 `clone` RPC resolves, by re-running `bootstrapSession` (now exported from
 `stores/sessions.ts`) alongside the existing transcript rehydrate.
 
@@ -27,8 +27,8 @@ which is `fork` at the current leaf — tears down the live runtime and
 replaces it with one bound to a brand-new `TIMESTAMP_ID.jsonl` file, parented
 to the original via `parentSession`. The live RPC connection survives
 (same subprocess, only its internal session object swaps), which is why the
-chat pane itself kept rendering correctly through a rewind — but pidex never
-re-asked `get_state` afterward, so `live[pidexId].diskPath` kept pointing at
+chat pane itself kept rendering correctly through a rewind — but Phosphor never
+re-asked `get_state` afterward, so `live[PhosphorId].diskPath` kept pointing at
 the file pi had just abandoned.
 
 The visible symptom was two identically-named sidebar rows after a rewind:
@@ -40,7 +40,7 @@ wrong, which is what made this read as the chat having silently duplicated
 itself rather than as a stale sidebar entry.
 
 `bootstrapSession` already did exactly the needed work (`get_state` →
-`live[pidexId].diskPath`, plus a `refreshDisk` of the folder) for the
+`live[PhosphorId].diskPath`, plus a `refreshDisk` of the folder) for the
 create/adopt path, so the fix reuses it rather than re-deriving a smaller
 version of the same sync.
 

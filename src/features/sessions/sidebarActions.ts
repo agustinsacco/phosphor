@@ -14,40 +14,40 @@ export async function renameSidebarSession(
   workspacePath: string,
   meta: SessionMeta,
   name: string,
-  livePidexId?: string,
+  livePhosphorId?: string,
 ): Promise<void> {
   const store = useSessionsStore.getState()
-  const pidexId = livePidexId ?? (await store.openDiskSession(workspacePath, meta))
-  if (await applySessionRename(pidexId, name)) void store.refreshDisk(workspacePath)
+  const phosphorId = livePhosphorId ?? (await store.openDiskSession(workspacePath, meta))
+  if (await applySessionRename(phosphorId, name)) void store.refreshDisk(workspacePath)
 }
 
 export async function cloneSession(
   workspacePath: string,
   meta: SessionMeta,
-  livePidexId?: string,
+  livePhosphorId?: string,
 ): Promise<void> {
-  if (livePidexId) {
+  if (livePhosphorId) {
     // The `success &&` guard used to swallow the failure branch entirely, so a
     // clone that never happened still refreshed the sidebar and looked done.
-    const result = await piCall(livePidexId, { type: 'clone' })
+    const result = await piCall(livePhosphorId, { type: 'clone' })
     if (!result) return
     if (result.cancelled) {
-      useChatStore.getState().setError(livePidexId, 'Clone was cancelled by an extension.')
+      useChatStore.getState().setError(livePhosphorId, 'Clone was cancelled by an extension.')
       return
     }
     // pi's `clone` is a same-file-branching `fork` under the hood, so it
     // swaps this live session onto the new file too — relearn it (see
     // bootstrapSession's doc comment), or `live.diskPath` keeps pointing at
     // the pre-clone file and the sidebar tracks the wrong row as live.
-    await bootstrapSession(livePidexId)
+    await bootstrapSession(livePhosphorId)
     // A clone gets a new pi session id, which orphans a pi-claude-cli
     // session's CLI counterpart — the provider's next turn would reimport the
     // whole conversation as a full-context cache write. Fork the CLI ledger
     // onto the new id first. Awaited so the pairing is on disk before the
     // user can send the clone's first prompt; a false result is the normal
     // not-a-Claude-session case, so it is not surfaced.
-    const clonePath = useSessionsStore.getState().live[livePidexId]?.diskPath
-    if (clonePath) await window.pidex.invoke('sessions:forkClaudeLedger', clonePath)
+    const clonePath = useSessionsStore.getState().live[livePhosphorId]?.diskPath
+    if (clonePath) await window.phosphor.invoke('sessions:forkClaudeLedger', clonePath)
     void useSessionsStore.getState().refreshDisk(workspacePath)
   } else {
     await useSessionsStore.getState().createSession(workspacePath, { forkFrom: meta.path })
@@ -58,9 +58,9 @@ export async function cloneSession(
 export async function exportSidebarSession(
   workspacePath: string,
   meta: SessionMeta,
-  livePidexId?: string,
+  livePhosphorId?: string,
 ): Promise<void> {
   const store = useSessionsStore.getState()
-  const pidexId = livePidexId ?? (await store.openDiskSession(workspacePath, meta))
-  await exportSessionHtml(pidexId, meta.name ?? 'session')
+  const phosphorId = livePhosphorId ?? (await store.openDiskSession(workspacePath, meta))
+  await exportSessionHtml(phosphorId, meta.name ?? 'session')
 }

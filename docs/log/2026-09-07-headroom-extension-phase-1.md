@@ -3,9 +3,9 @@
 **Shipped:** `pi-ext/headroom.ts`, the sixth bundled extension — compresses
 large JSON tool results through a local [Headroom](https://github.com/headroomlabs-ai/headroom)
 proxy on pi's `tool_result` hook, at the moment they are produced. Inert
-without `PIDEX_HEADROOM_URL`; fails open on any proxy failure. Savings render
+without `PHOSPHOR_HEADROOM_URL`; fails open on any proxy failure. Savings render
 as an `Optimization · Headroom` section in the context meter
-(`pidex-headroom` status key) and persist as `details.headroom` receipts in
+(`Phosphor-headroom` status key) and persist as `details.headroom` receipts in
 the session file, which phase 2a folds for per-lane rollups.
 
 Design and full measurements: [specs/headroom-compression.md](../specs/headroom-compression.md)

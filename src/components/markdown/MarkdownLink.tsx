@@ -21,7 +21,7 @@ export function MarkdownLink({
   const activate = (event: { preventDefault: () => void }): void => {
     event.preventDefault()
     if (target.kind === 'external') {
-      void window.pidex.invoke('app:openExternal', target.url)
+      void window.phosphor.invoke('app:openExternal', target.url)
       return
     }
     if (target.kind !== 'file') return

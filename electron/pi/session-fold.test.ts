@@ -76,7 +76,7 @@ describe('foldFrom', () => {
   let path: string
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'pidex-fold-'))
+    dir = await mkdtemp(join(tmpdir(), 'phosphor-fold-'))
     path = join(dir, 'session.jsonl')
   })
 
@@ -189,7 +189,7 @@ describe('firstEntryId', () => {
   let path: string
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'pidex-first-entry-'))
+    dir = await mkdtemp(join(tmpdir(), 'phosphor-first-entry-'))
     path = join(dir, 'session.jsonl')
   })
 
@@ -221,7 +221,7 @@ describe('readSignature', () => {
   let path: string
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'pidex-sig-'))
+    dir = await mkdtemp(join(tmpdir(), 'phosphor-sig-'))
     path = join(dir, 'session.jsonl')
   })
 
@@ -265,7 +265,7 @@ describe('listSessions with a growing session', () => {
   const cwd = '/work/growing'
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), 'pidex-scan-'))
+    root = await mkdtemp(join(tmpdir(), 'phosphor-scan-'))
     process.env.PI_CODING_AGENT_SESSION_DIR = root
     sessionDir = join(root, sessionDirNameForCwd(cwd))
     await rm(sessionDir, { recursive: true, force: true })
@@ -370,7 +370,7 @@ describe('headerless session files', () => {
   const cwd = '/work/headerless'
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), 'pidex-headerless-'))
+    root = await mkdtemp(join(tmpdir(), 'phosphor-headerless-'))
     process.env.PI_CODING_AGENT_SESSION_DIR = root
     sessionDir = join(root, sessionDirNameForCwd(cwd))
     await mkdir(sessionDir, { recursive: true })

@@ -25,10 +25,11 @@ import {
 
 /**
  * True for a path inside a repo's internal worktree folder
- * (`<repo>/.pidex/worktrees/<name>`). A worktree is a branch of an existing
+ * (`<repo>/.phosphor/worktrees/<name>`). A worktree is a branch of an existing
  * workspace, not a workspace itself, so it must never persist as one.
  */
-const WORKTREE_SEGMENT = /[/\\]\.pidex[/\\]worktrees[/\\]/
+// `.pidex` is the pre-rename (2026-09-08) folder; existing lanes still live there.
+const WORKTREE_SEGMENT = /[/\\]\.(?:phosphor|pidex)[/\\]worktrees[/\\]/
 function isWorktreeFolder(path: string): boolean {
   return WORKTREE_SEGMENT.test(path)
 }

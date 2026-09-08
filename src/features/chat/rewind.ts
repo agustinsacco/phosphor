@@ -59,7 +59,7 @@ export async function entryIdForUserMessageOrdinal(
   sessionId: string,
   ordinal: number,
 ): Promise<string | null> {
-  const response = await window.pidex.piCommand(sessionId, { type: 'get_fork_messages' })
+  const response = await window.phosphor.piCommand(sessionId, { type: 'get_fork_messages' })
   if (!response.success || !response.data) return null
   return response.data.messages[ordinal]?.entryId ?? null
 }

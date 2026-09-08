@@ -324,7 +324,7 @@ small payloads; the final args always arrive via `tool_execution_start` /
 
 **Severity: high · VERIFIED against the installed pi · `shared/rpc.ts:195-211, 227`**
 
-pidex declares:
+Phosphor declares:
 
 ```ts
 | { type: 'message_update'; message: AgentMessage; assistantMessageEvent: AssistantMessageEvent }
@@ -594,7 +594,7 @@ run, not with the turn count.
 
 Note the payload also crosses stdout **four times** per tool call in total:
 `tool_execution_end.result`, the toolResult `message_end`, `turn_end.toolResults`,
-and `agent_end.messages`. pidex needs the first two.
+and `agent_end.messages`. Phosphor needs the first two.
 
 **Fix.** Slim the events in `push`, in the main process, before `contents.send`:
 drop `messages` from `agent_end` (keep `willRetry`) and drop `message` /
@@ -744,7 +744,7 @@ has (they can share one cache keyed by cwd, with separate entries for the
 call per two seconds without any visible staleness.
 
 **Risk: very low.** A cache hit can only return a value up to TTL old; the chip
-already re-polls on window focus for the cases pidex cannot observe.
+already re-polls on window focus for the cases Phosphor cannot observe.
 
 ---
 

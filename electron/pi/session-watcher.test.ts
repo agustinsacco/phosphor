@@ -34,7 +34,7 @@ let workspace: string
 
 beforeEach(async () => {
   sent.length = 0
-  root = await mkdtemp(join(tmpdir(), 'pidex-watch-'))
+  root = await mkdtemp(join(tmpdir(), 'phosphor-watch-'))
   // pi-paths reads this at call time, so pointing it at a temp dir keeps the
   // test off the developer's real ~/.pi.
   process.env.PI_CODING_AGENT_SESSION_DIR = join(root, 'sessions')

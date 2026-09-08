@@ -13,7 +13,7 @@ it('only closes trashed tabs after confirmation and successful IPC', async () =>
   const entry = { name: 'docs', path: '/repo/docs', relativePath: 'docs', isDirectory: true }
   const confirm = vi.fn(() => false)
   const invoke = vi.fn().mockRejectedValue(new Error('Permission denied'))
-  vi.stubGlobal('window', { confirm, pidex: { invoke } })
+  vi.stubGlobal('window', { confirm, phosphor: { invoke } })
   const reconcile = vi.spyOn(useFilesStore.getState(), 'reconcilePath').mockImplementation(() => {})
   vi.spyOn(useFilesStore.getState(), 'refreshDir').mockResolvedValue()
   await trashEntry('/repo', entry)

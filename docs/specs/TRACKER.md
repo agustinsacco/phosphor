@@ -1,4 +1,4 @@
-# pidex — Build Tracker
+# Phosphor — Build Tracker
 
 **How to use this file (executing agent, read this first):**
 
@@ -62,8 +62,8 @@ it sequenced is done.
 - 2026-08-27 — **P10 closed.** The last box asked to regenerate
   `specs/screenshots/` because "the PNGs still show the pre-Phosphor UI". That
   was a misreading of what they were: every capture was of Anthropic's Claude
-  Desktop, taken during the original cloning study, not of pidex. There was no
-  pidex UI in them to regenerate, so the box could never have been ticked as
+  Desktop, taken during the original cloning study, not of Phosphor. There was no
+  Phosphor UI in them to regenerate, so the box could never have been ticked as
   written. Phosphor makes the resemblance an explicit non-goal
   ([style-guide.md](../style-guide.md): "the wrong place to stay"), so
   the 8.7MB of third-party captures were deleted and the two live docs that
@@ -109,7 +109,7 @@ the boxes.
 
 **Log:**
 
-- 2026-08-08 — Phase 0 landed. Evidence: 409 unit tests (30 files) + 11 e2e green. The transcript e2e asserts unpin-survives-stream, zero "unknown" tool labels, and **row density** (tallest tool row < 44px, gaps < 8px) — verified non-vacuous by restoring a single duplicate margin, which pushes the row to 48.9px and fails the test. The artifacts e2e asserts the pane's scroller actually overflows and scrolls. B6 verified as _correct_ rather than fixed — pi prices cacheRead/cacheWrite separately and pidex only displays its numbers (arithmetic checked against a live session: 50/14.9k/706k/115k tokens at $5/$25/$0.50/$6.25 per 1M = $1.4445 vs $1.4410 displayed, the delta being token-display rounding). Remaining B6 work is display honesty for models with no pricing configured, not a math fix.
+- 2026-08-08 — Phase 0 landed. Evidence: 409 unit tests (30 files) + 11 e2e green. The transcript e2e asserts unpin-survives-stream, zero "unknown" tool labels, and **row density** (tallest tool row < 44px, gaps < 8px) — verified non-vacuous by restoring a single duplicate margin, which pushes the row to 48.9px and fails the test. The artifacts e2e asserts the pane's scroller actually overflows and scrolls. B6 verified as _correct_ rather than fixed — pi prices cacheRead/cacheWrite separately and Phosphor only displays its numbers (arithmetic checked against a live session: 50/14.9k/706k/115k tokens at $5/$25/$0.50/$6.25 per 1M = $1.4445 vs $1.4410 displayed, the delta being token-display rounding). Remaining B6 work is display honesty for models with no pricing configured, not a math fix.
 - 2026-08-08 — Method note: the A3 "virtualizer estimate causes the gaps" hypothesis was **refuted** by the measurement it was gated behind (0.1px gaps at the old estimate). Restyling margins first would have "fixed" the symptom for the wrong reason. The plan's Phase 0 gate earned its place; keep gating layout hypotheses on a harness measurement.
 - 2026-08-08 — Process note: two agent sessions edited this tree concurrently; one committed `1e55008` and discarded the rest of the working tree, destroying unrelated uncommitted work (a WorkingIndicator component, an extracted `items/spacing.ts`, model-catalogue changes). Untracked files were unrecoverable. Checkpoint-commit before parallel work on the same tree.
 - 2026-08-09 — Adversarial review pass over the whole branch (7 reviewers + per-finding refutation): 40 findings raised, 1 refuted, 4 downgraded. Fixed here, each with a regression test: `artifact_update` cards rendering the sentinel type `update` (wrong glyph) and the slug id as title (store metadata now wins); `partialStringArg` mangling `\uXXXX`/`\r`/`\b`/`\f` escapes ("Café"→"Cafu00e9") — now decodes the full JSON escape set and bails on unknown ones; the placeholder tools-map entry leaking on the ordering real pi actually produces (`message_end` before `tool_execution_*` — the unit suite only covered the inverse, which pi never emits); `toolcall_end` duplicating the re-key mechanics of `applyRevealedIdentity` (now one owner); tool cards remounting on identity adoption (keyed by position, not the mutable id); the thinking chip misreporting after a model switch (pi re-clamps during `set_model`; state is re-read) and offering the previous model's levels (cleared synchronously so the local derivation covers the gap); the thinking menu duplicated between both pickers (extracted `ThinkingMenu`); `sessionTitle` bypassed by the palette and tree modal; astral characters split at the elision boundary; scrollbar-drag and wheel-down-at-bottom not registering as intent; unpin stranding a non-overflowing transcript; sending a message not re-pinning; the jump pill labelling state instead of its action; `isToolOnlyTurn` reflowing the row 8px at `text_end`; the artifacts viewer yanking a reader off a pinned older version. Also restored the two features destroyed by the concurrent-session incident above (WorkingIndicator + the model-catalogue RPC rework), the latter now carrying `thinkingLevelMap` so the home picker derives real per-model levels instead of assuming five. **Two e2e assertions were proven vacuous by reintroducing the bugs they guard**: the "unknown" check passed with `Running unknown` restored (point-in-time count-0 against a window a few ticks wide) — now a MutationObserver over the whole stream, re-verified to fail when the bug returns. Evidence: 423 unit (32 files) + 11 e2e green.
@@ -125,7 +125,7 @@ Specs: [WORKTREES.md](../worktrees.md) · [11-mcp.md](../mcp.md)
 - [x] Sidebar: PiSpark while streaming, green pill = persisted **unseen activity** (`seenSessions` pref + `app:markSessionSeen`, pure `unseen.ts`), hollow-green = live-but-seen; compact rows; subtitle = time · wt · ⎇ branch · ±dirty · cost via batched cached `git:infoBatch` (GitInfo gained `isWorktree`/`mainRepoPath`)
 - [x] Terminals re-keyed **per session** (spawned in the session cwd); PTYs killed on session dispose (artifacts cleanup gap fixed too); foreground-process busy detection (`IPty.process` polling → `pty:status`); terminal + artifacts header buttons gained count badges and running dots
 - [x] Usage: scanner splits token classes; `sessions:usage` rollup across every session dir grouped by header cwd; Usage modal (sidebar nav) with sortable per-workspace/session table; `formatCost`; ContextMeter popover sectioned, shows "no pricing configured" (models.json rates) instead of a misleading $0.0000
-- [x] Worktrees full lifecycle under `<repo>/.pidex/worktrees/` — see WORKTREES.md
+- [x] Worktrees full lifecycle under `<repo>/.phosphor/worktrees/` — see WORKTREES.md
 - [x] MCP first-class: Settings → MCP over the pi-mcp-adapter config chain — see 11-mcp.md
 
 **Done when:** all ten user-reported items addressed; typecheck/lint/prettier/unit/e2e green.
@@ -229,9 +229,9 @@ isn't supported.` — the bare foundation id was selected from the model menu.
 2. `data retention mode 'default' is not available for this model` — an
    account-level Bedrock setting that Claude 5 models refuse to run under.
 
-Neither is a pidex or pi bug; pi surfaces exactly what Bedrock returned (the
+Neither is a Phosphor or pi bug; pi surfaces exactly what Bedrock returned (the
 docs-URL suffix on #2 is pi's own courtesy hint, added in
-`pi-ai/api/bedrock-converse-stream.ts`). What _was_ a pidex bug: the menu
+`pi-ai/api/bedrock-converse-stream.ts`). What _was_ a Phosphor bug: the menu
 offered a model that fails 100% of the time, and the errors taught nothing.
 
 - [x] **A · the bare id is no longer selectable** — new
@@ -255,14 +255,14 @@ offered a model that fails 100% of the time, and the errors taught nothing.
       `electron.vite.config.ts`, so `@/` and `@shared/` went unresolved and the
       app failed to load (the `web-mock` launch entry was dead). Added a
       renderer-only `vite.config.ts`; keep its root/aliases in sync with the
-      `renderer` section of the electron config. `mockPidex` now serves
+      `renderer` section of the electron config. `mockPhosphor` now serves
       Bedrock-shaped models so the harness exercises the disabled-row path.
 
 Coverage: 27 new unit tests (`modelAvailability`, `ModelMenu` DOM incl. keyboard
 traversal over disabled rows, `ErrorBlock` DOM incl. "no command for the
 retention failure"). Verified in the mock harness in both light and dark themes.
 
-**Still outstanding (not pidex's to fix):** the retention mode itself. A Bedrock
+**Still outstanding (not Phosphor's to fix):** the retention mode itself. A Bedrock
 admin has to move the account off `default`; until then every Claude 5 call
 fails regardless of inference profile. Which AWS account serves these calls was
 not confirmed — `~/.aws/config` has three SSO profiles (`dev`, `domains`,

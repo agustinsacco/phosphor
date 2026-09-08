@@ -3,7 +3,7 @@
 _2026-09-07_
 
 Follow-up to a session audit
-(written up in [PR #218](https://github.com/agustinsacco/pidex/pull/218),
+(written up in [PR #218](https://github.com/agustinsacco/Phosphor/pull/218),
 closed unmerged — the evidence lives there):
 pi's `clone` RPC branches a session onto a new file with a new pi session id,
 and `@saccolabs/pi-claude-cli` keys its one-CLI-session-per-pi-session map on
@@ -38,4 +38,4 @@ today's behaviour, a reimport. `claude-session-map.ts` stays read-only.
 tool results) is not copied, the same trade `--fork-session` makes. And the
 right long-term home for this is upstream — the provider following pi's
 `parentSession` lineage on a map miss — which needs pi to hand providers the
-parent session id; this is the pidex-side fix that works today.
+parent session id; this is the Phosphor-side fix that works today.

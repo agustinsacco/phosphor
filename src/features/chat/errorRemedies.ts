@@ -66,7 +66,7 @@ export function matchErrorRemedy(
 
   // Bedrock data retention mode. An account/profile-level Bedrock setting that
   // newer Claude models refuse to run under; nothing about the session, the
-  // credentials or pidex can change it, so the only honest advice is "an admin
+  // credentials or Phosphor can change it, so the only honest advice is "an admin
   // changes the account setting, or pick another model meanwhile".
   if (text.includes('data retention mode')) {
     return {
@@ -96,7 +96,7 @@ export function matchErrorRemedy(
   if (text.includes('extra usage') && text.includes('plan limits')) {
     return {
       label: 'Open usage settings',
-      hint: 'Your Claude plan limit is used up for third-party apps like pidex. Add usage credit on claude.ai, or switch to a model on another provider (or a local one) to keep working now.',
+      hint: 'Your Claude plan limit is used up for third-party apps like Phosphor. Add usage credit on claude.ai, or switch to a model on another provider (or a local one) to keep working now.',
       docsUrl: 'https://claude.ai/settings/usage',
       retryAfter: false,
       suggestModelSwitch: true,

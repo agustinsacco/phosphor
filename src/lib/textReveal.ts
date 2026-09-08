@@ -9,7 +9,7 @@
  * Claude-provider turns land in harsh slabs — Claude desktop receives the
  * same coarse chunks and reads smoothly because the client paces the reveal.
  *
- * So pidex paces it too: text drains from the (exact, untouched) store into
+ * So Phosphor paces it too: text drains from the (exact, untouched) store into
  * view at a rate that aims to empty the backlog in about one upstream gap.
  * The rate is proportional to the backlog — big chunk arrives, reveal speeds
  * up; backlog nearly empty, it eases out — so the reveal never falls behind

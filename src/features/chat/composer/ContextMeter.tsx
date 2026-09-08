@@ -49,7 +49,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   // Pushed by the bundled context-breakdown extension, so it is present for
-  // every provider — including ones pidex knows nothing about.
+  // every provider — including ones Phosphor knows nothing about.
   const breakdownStatus = useExtensionUiStore(
     (s) => s.statuses[sessionId]?.[CONTEXT_BREAKDOWN_STATUS_KEY],
   )
@@ -220,7 +220,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
 /**
  * What is actually filling the window. Absent until the bundled extension
  * reports (first turn of a session), and silently absent if a user runs pi
- * without pidex's extensions — the meter must still work.
+ * without Phosphor's extensions — the meter must still work.
  *
  * The legend is two columns: four components plus free space is five rows of
  * mostly empty width, and the panel's height is the scarce resource here.
@@ -354,7 +354,7 @@ function PlanUsage({ sessionId }: { sessionId: string }): React.JSX.Element {
     forceNext.current = false
     let cancelled = false
     setState(null)
-    void window.pidex
+    void window.phosphor
       .invoke('claude:usageSnapshot', account?.id, force)
       // A rejected invoke (no handler, main-process restart) must read as a
       // failed run, not as a permanent "Checking…".
@@ -372,7 +372,7 @@ function PlanUsage({ sessionId }: { sessionId: string }): React.JSX.Element {
     setReload((n) => n + 1)
   }, [])
 
-  // One account, or an account pidex cannot name: the old wording was right.
+  // One account, or an account Phosphor cannot name: the old wording was right.
   const who = account && account.total > 1 ? (account.email ?? account.label) : 'Claude account'
   const stale = state?.ok === true && state.snapshot.stale
 
@@ -509,7 +509,7 @@ function AccountRouting({
   const open = (): void => {
     setPicking((p) => !p)
     if (targets !== null) return
-    void window.pidex
+    void window.phosphor
       .invoke('claude:accounts')
       .then((result) => setTargets(moveTargets(result.views, account.id)))
       .catch(() => setTargets([]))

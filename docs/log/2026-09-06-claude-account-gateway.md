@@ -17,7 +17,7 @@ numbers nobody asked to see, is not a page load.
 ## Which lanes are spending it
 
 `claude:accountSessions` answers "who is on this account right now": account id
-→ live pidex session ids, read from the picks parked at spawn
+→ live Phosphor session ids, read from the picks parked at spawn
 (`electron/pi/session-accounts.ts`). It is the only place that can answer it —
 `ClaudeAccountPrefs.bindings` is keyed by session FILE, so it knows what a
 resume would bill, not what is running. Only ids cross the wire; the renderer

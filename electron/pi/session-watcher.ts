@@ -65,7 +65,7 @@ export function watchWorkspaceSessions(workspacePath: string): void {
   watcher.on('unlink', (path) => granted.delete(normalize(path)))
   watcher.on('error', (error) => {
     // Never let a watcher error become an uncaught exception in main.
-    console.warn(`[pidex] session watcher error for ${dir}:`, error)
+    console.warn(`[Phosphor] session watcher error for ${dir}:`, error)
   })
 
   const notify = (): void => {

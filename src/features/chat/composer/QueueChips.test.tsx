@@ -21,7 +21,7 @@ let container: HTMLDivElement | null = null
 
 beforeEach(() => {
   piCommand.mockClear()
-  ;(globalThis as unknown as { window: { pidex: unknown } }).window.pidex = { piCommand }
+  ;(globalThis as unknown as { window: { phosphor: unknown } }).window.phosphor = { piCommand }
   useChatStore.setState({ sessions: {} }, false)
   container = document.createElement('div')
   document.body.appendChild(container)

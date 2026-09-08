@@ -1,7 +1,7 @@
 # `specs/` was two genres wearing one name
 
 `specs/` held 108 markdown files doing two unrelated jobs. `reference/` (14
-files) documented how pidex behaves **now** — it was the technical manual.
+files) documented how Phosphor behaves **now** — it was the technical manual.
 `build/`, `backlog/` and `TRACKER.md` held the opposite: original intent,
 unresolved findings, work not yet done. `log/` (83 files) held a third thing
 again, dated history.
@@ -20,7 +20,7 @@ of error as the light palette drifting for 19
 
 | Was                | Is now                  | Genre                         |
 | ------------------ | ----------------------- | ----------------------------- |
-| `specs/reference/` | `docs/`                 | How pidex behaves now         |
+| `specs/reference/` | `docs/`                 | How Phosphor behaves now      |
 | `specs/log/`       | `docs/log/`             | Dated history, one per change |
 | `specs/backlog/`   | `docs/specs/backlog/`   | Findings not yet resolved     |
 | `specs/build/`     | `docs/specs/build/`     | Original pre-code intent      |

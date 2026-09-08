@@ -11,7 +11,7 @@ vi.mock('electron', () => ({
 }))
 
 beforeEach(() => {
-  userData = mkdtempSync(join(tmpdir(), 'pidex-drafts-'))
+  userData = mkdtempSync(join(tmpdir(), 'phosphor-drafts-'))
   vi.resetModules()
 })
 
@@ -98,7 +98,7 @@ describe('draft blobs', () => {
    * test's pasted images would land in the developer's real profile.
    */
   it('resolves userData lazily, not at import time', async () => {
-    const moved = mkdtempSync(join(tmpdir(), 'pidex-drafts-late-'))
+    const moved = mkdtempSync(join(tmpdir(), 'phosphor-drafts-late-'))
     const module = await blobs()
     userData = moved
     await module.writeDraftBlob(ID, HELLO)

@@ -16,7 +16,7 @@ type Phase =
 /**
  * Guided merge of a worktree branch into the main tree's CURRENT branch:
  * commit the worktree (user-typed message) → preflight (main must be clean —
- * pidex never checks out or stashes for the user) → `merge --no-ff`.
+ * Phosphor never checks out or stashes for the user) → `merge --no-ff`.
  * Conflicts abort immediately, so the repo is never left mid-merge.
  */
 export function MergeWorktreeModal({
@@ -44,7 +44,7 @@ export function MergeWorktreeModal({
   // Refresh the worktree row after commit so the remove shortcut sees clean.
   useEffect(() => {
     if (phase.step !== 'merged') return
-    void window.pidex.invoke('git:listWorktrees', repoPath).then((list) => {
+    void window.phosphor.invoke('git:listWorktrees', repoPath).then((list) => {
       const updated = list.find((w) => w.path === worktree.path)
       if (updated) setFreshWorktree(updated)
     })
@@ -52,14 +52,14 @@ export function MergeWorktreeModal({
 
   const commit = (): Promise<void> =>
     run(async () => {
-      await window.pidex.invoke('git:commitAll', worktree.path, message)
+      await window.phosphor.invoke('git:commitAll', worktree.path, message)
       setPhase({ step: 'ready' })
     })
 
   const merge = (): Promise<void> =>
     run(async () => {
       if (!branch) return
-      const result = await window.pidex.invoke('git:mergeBranch', repoPath, branch)
+      const result = await window.phosphor.invoke('git:mergeBranch', repoPath, branch)
       if (result.merged) {
         setPhase({ step: 'merged', sha: result.sha })
         void useWorktreesStore.getState().refresh(repoPath)
@@ -142,7 +142,7 @@ export function MergeWorktreeModal({
             <div className="text-text-secondary text-base">
               Merge <span className="font-mono">{branch}</span> into the main tree&apos;s current
               branch with <span className="font-mono">--no-ff</span>. The main tree must be clean;
-              pidex never checks out or stashes for you.
+              Phosphor never checks out or stashes for you.
             </div>
           )}
 

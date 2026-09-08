@@ -1,5 +1,5 @@
 /**
- * pidex worktree-paths extension — loaded into every pidex session via
+ * Phosphor worktree-paths extension — loaded into every Phosphor session via
  * `pi --mode rpc -e <this file>`, alongside artifacts.ts and
  * context-breakdown.ts.
  *
@@ -12,9 +12,9 @@
  * Claude Code CLI provider): pi's tools accept relative paths, but Claude
  * Code's tool discipline pushes the model to absolutise them, and it builds
  * the absolute path from what it believes the project root is rather than
- * from the cwd it was given. pidex's worktrees live at
- * `<repo>/.pidex/worktrees/<name>`, so the cwd literally contains the main
- * checkout as a prefix — trimming the `.pidex/worktrees/<name>` segment
+ * from the cwd it was given. Phosphor's worktrees live at
+ * `<repo>/.phosphor/worktrees/<name>`, so the cwd literally contains the main
+ * checkout as a prefix — trimming the `.phosphor/worktrees/<name>` segment
  * yields a path that exists, opens, and returns another branch's code. In
  * that session one of two reads leaked exactly this way, with the model's
  * own reasoning naming the correct RELATIVE path first.
@@ -48,7 +48,7 @@ import { existsSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 
 // Loose structural types: the real ones live in @earendil-works/pi-coding-agent,
-// which is provided by pi at load time (not a pidex dependency).
+// which is provided by pi at load time (not a Phosphor dependency).
 interface PiExtensionApi {
   on(event: string, handler: (event: unknown, ctx: unknown) => unknown): void
 }

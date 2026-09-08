@@ -55,7 +55,7 @@ Deleting the views was the small part. Both had a full main-process tail:
   `/private/var/folders/…`, and the match silently found nothing — so the
   assertion read `undefined` and failed locally on every macOS run while CI
   (Linux, no symlink) stayed green. Fixed here and, independently, in
-  [#81](https://github.com/agustinsacco/pidex/pull/81); that version landed
+  [#81](https://github.com/agustinsacco/Phosphor/pull/81); that version landed
   first and this branch took it on rebase, since matching `path || realPath`
   mirrors what every production lookup does.
 
@@ -68,8 +68,8 @@ Verification: typecheck, lint, 1052 unit tests across 100 files, e2e green.
 Reported against this branch, same PR. With a worktree session open, the top
 bar's folder chip read `hey-2` — the worktree folder's basename, which is the
 branch slug — so the bar claimed the user had switched to a workspace that does
-not exist. The switcher beside it said `pidex (pidex/hey-2)`, and the sidebar
-group said `PIDEX`: three surfaces, three answers.
+not exist. The switcher beside it said `Phosphor (Phosphor/hey-2)`, and the sidebar
+group said `PHOSPHOR`: three surfaces, three answers.
 
 `useActiveWorkspace()` is right to return the worktree path. That path is the
 session's real cwd, and the file tree, git calls and terminals all need it.
@@ -92,8 +92,8 @@ the branch slug, which then collapses into the project group a moment later.
 `projectPathFor(path, git)` in [src/lib/path.ts](../../src/lib/path.ts) is now
 the one answer, with two sources that fail in opposite directions: `mainRepoPath`
 when git has answered (authoritative, and works for a worktree anywhere on
-disk), else the path shape `<repo>/.pidex/worktrees/<name>` (needs no I/O, but
-only knows worktrees pidex created). `projectName()` wraps it for display and
+disk), else the path shape `<repo>/.phosphor/worktrees/<name>` (needs no I/O, but
+only knows worktrees Phosphor created). `projectName()` wraps it for display and
 deliberately carries no branch.
 
 Applied to every surface that answers "which project am I in": the top bar and
@@ -104,14 +104,14 @@ sidebar's project grouping. Surfaces that are about a worktree _as a worktree_ �
 collision check — still use `workspaceName` on purpose.
 
 **The window title is the one exception**, and it keeps the branch:
-`pidex (pidex/hey-2) — pidex`. This branch originally dropped it, on the rule
+`Phosphor (Phosphor/hey-2) — Phosphor`. This branch originally dropped it, on the rule
 that a workspace display never shows a worktree.
-[#81](https://github.com/agustinsacco/pidex/pull/81) landed the opposite call
+[#81](https://github.com/agustinsacco/Phosphor/pull/81) landed the opposite call
 with a reason that holds — the title is one line with nowhere else to put the
 branch, unlike every in-app surface, which sits under a top bar that names the
 folder and the branch separately — so the rebase kept `worktreeAwareName` for
 it. It now delegates to `projectName`, so it inherits the path-shape fallback
-below and reads `pidex (…)` rather than `main (…)` before git info arrives.
+below and reads `Phosphor (…)` rather than `main (…)` before git info arrives.
 
 Guarded by a new assertion in the existing worktree-flow e2e test, on the real
 worktree session it already creates. Verified the honest way: restoring

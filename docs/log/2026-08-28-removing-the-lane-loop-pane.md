@@ -26,7 +26,7 @@ of this presentation of it.
 - Its two mount points: above the composer in `ChatView`, and on `SessionCard`.
 - `LaneRung`, `LaneRungState`, `LaneLoop`, `DEFAULT_LANE_RUNGS` and
   `DEFAULT_DIFF_BUDGET` in `shared/models.ts`.
-- The `pidex-lane-loop` key from the status strip's structured-key list, the
+- The `Phosphor-lane-loop` key from the status strip's structured-key list, the
   stub's lane payload, and the two e2e tests that covered the banner.
 
 ## What deliberately stayed

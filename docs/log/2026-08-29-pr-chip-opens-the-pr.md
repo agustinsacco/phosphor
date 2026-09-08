@@ -1,6 +1,6 @@
 # 2026-08-29 — the PR chip becomes the way into the PR
 
-The sidebar's PR chip ([#110](https://github.com/agustinsacco/pidex/pull/110))
+The sidebar's PR chip ([#110](https://github.com/agustinsacco/Phosphor/pull/110))
 told you a lane's pull request state and then made you go find it yourself.
 It is now the shortcut: click it and the PR opens in your browser.
 

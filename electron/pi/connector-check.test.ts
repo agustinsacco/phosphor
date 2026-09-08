@@ -14,7 +14,7 @@ const check = (mode: string, timeoutMs = 5000): ReturnType<typeof checkConnector
     cwd: here,
     binaryPath: process.execPath,
     prefixArgs: [fakePi],
-    env: { PIDEX_FAKE_CHECK: mode },
+    env: { PHOSPHOR_FAKE_CHECK: mode },
     timeoutMs,
   })
 

@@ -33,7 +33,7 @@ export function WorkspacesTab(): React.JSX.Element {
     // `allRecents`, not the filtered list: writing the filtered one back would
     // forget every sandbox as a side effect of removing one project.
     const next = allRecents.filter((w) => w.path !== workspace.path)
-    await window.pidex.invoke('app:setRecentWorkspaces', next)
+    await window.phosphor.invoke('app:setRecentWorkspaces', next)
     useWorkspacesStore.setState({ recents: next })
   }
 
@@ -45,7 +45,7 @@ export function WorkspacesTab(): React.JSX.Element {
   }
 
   // Show what the branch will actually look like, since the prefix is
-  // normalized (a bare "pidex" becomes "pidex/") before it is ever used.
+  // normalized (a bare "Phosphor" becomes "phosphor/") before it is ever used.
   const examplePrefix = normalizePrefix(branchPrefix)
   // Show the cap doing its job on a realistic title rather than describing it.
   const exampleSlug = `${examplePrefix}${slugifyTitle(
@@ -165,7 +165,7 @@ export function WorkspacesTab(): React.JSX.Element {
         >
           <TextField
             defaultValue={branchPrefix}
-            placeholder="pidex/"
+            placeholder="phosphor/"
             onCommit={(value) => useWorktreesStore.getState().setBranchPrefix(value)}
           />
         </Row>

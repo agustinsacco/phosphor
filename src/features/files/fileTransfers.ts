@@ -3,7 +3,7 @@ import { dirname } from '@/lib/path'
 import { useFilesStore } from '@/stores/files'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 
-export const FILE_DRAG = 'application/x-pidex-explorer'
+export const FILE_DRAG = 'application/x-phosphor-explorer'
 
 export function topLevelPaths(paths: string[]): string[] {
   return [...new Set(paths)].filter(
@@ -27,7 +27,7 @@ export async function transferFiles(
   let completed = 0
   for (const path of topLevelPaths(paths)) {
     try {
-      const to = await window.pidex.invoke(
+      const to = await window.phosphor.invoke(
         'fs:transfer',
         workspace,
         path,
@@ -54,9 +54,9 @@ export async function transferFiles(
     )
   if (cut) {
     // Do not clear a newer clipboard copied during a slow transfer (or an unrelated drag).
-    const clipboard = await window.pidex.invoke('clipboard:readFiles')
+    const clipboard = await window.phosphor.invoke('clipboard:readFiles')
     if (clipboard.cut && JSON.stringify(clipboard.paths) === JSON.stringify(paths)) {
-      await window.pidex.invoke('clipboard:writeFiles', remaining, true)
+      await window.phosphor.invoke('clipboard:writeFiles', remaining, true)
     }
   }
 }
@@ -66,7 +66,7 @@ export function entryDirectory(workspace: string, entry?: DirEntry): string {
 }
 
 export async function pasteFiles(workspace: string, dir: string): Promise<void> {
-  const clipboard = await window.pidex.invoke('clipboard:readFiles')
+  const clipboard = await window.phosphor.invoke('clipboard:readFiles')
   if (!clipboard.paths.length)
     throw new Error('Copy files in the explorer or your file manager first.')
   await transferFiles(workspace, clipboard.paths, dir, clipboard.cut)
@@ -77,6 +77,6 @@ export async function importFiles(
   dir: string,
   kind: 'file' | 'folder',
 ): Promise<void> {
-  const paths = await window.pidex.invoke('fs:pickEntries', kind)
+  const paths = await window.phosphor.invoke('fs:pickEntries', kind)
   if (paths.length) await transferFiles(workspace, paths, dir, false)
 }

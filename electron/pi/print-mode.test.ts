@@ -16,7 +16,7 @@ let failingScript: string
 let answersThenHangsScript: string
 
 beforeAll(() => {
-  dir = mkdtempSync(join(tmpdir(), 'pidex-print-mode-'))
+  dir = mkdtempSync(join(tmpdir(), 'phosphor-print-mode-'))
   blockingScript = join(dir, 'waits-for-stdin.cjs')
   writeFileSync(
     blockingScript,

@@ -3,7 +3,7 @@ name: e2e
 description: Run or extend the Playwright-Electron e2e suite (deterministic pi stub, no API key). Use when verifying IPC/session/UI flows end-to-end, debugging a failing smoke test, or adding e2e coverage for a new feature.
 ---
 
-# pidex e2e suite
+# Phosphor e2e suite
 
 ```bash
 npm run test:e2e                      # full: build + all specs
@@ -24,9 +24,9 @@ failures.** If a spec fails right after you changed code, rebuild first.
   streamed reply, an edit tool call with a diff, an artifact tool call.
   No network, no API key.
 - Env contract (all gated on `!app.isPackaged`):
-  - `PIDEX_PI_STUB` — path to the stub; main spawns it instead of real pi
-  - `PIDEX_E2E_WORKSPACE` — skips the native (undriveable) folder picker
-  - `PIDEX_TEST_USER_DATA` — isolates electron-store prefs per test
+  - `PHOSPHOR_PI_STUB` — path to the stub; main spawns it instead of real pi
+  - `PHOSPHOR_E2E_WORKSPACE` — skips the native (undriveable) folder picker
+  - `PHOSPHOR_TEST_USER_DATA` — isolates electron-store prefs per test
   - `PI_CODING_AGENT_DIR` — pins pi's session dir to a scratch dir
 - The stub writes a real session JSONL into the **mangled session dir** for
   the workspace (pi's `--<cwd with / → ->--` layout) — that's what makes
@@ -42,7 +42,7 @@ failures.** If a spec fails right after you changed code, rebuild first.
 - Composer buttons are icon buttons with aria-labels: "Send message",
   "Start session", "Stop", "Attach images".
 - New prefs/IPC used at boot need nothing special — the real handlers run;
-  only the *browser* mock (`src/dev/mockPidex.ts`) needs explicit cases.
+  only the *browser* mock (`src/dev/mockPhosphor.ts`) needs explicit cases.
 - Keep tests serial-safe: fresh `mktemp` dirs per launch, no shared state.
 
 CI runs this matrix on ubuntu (xvfb) and macOS with `electron-rebuild` for

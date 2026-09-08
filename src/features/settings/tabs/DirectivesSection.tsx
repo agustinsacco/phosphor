@@ -7,7 +7,7 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { errorText } from '@shared/errors'
 
 /**
- * Settings for the directive stack: what pidex appends to a lane's system
+ * Settings for the directive stack: what Phosphor appends to a lane's system
  * prompt.
  *
  * Three things make this a setting rather than a constant.
@@ -29,7 +29,7 @@ export function DirectivesSection(): React.JSX.Element {
   const [byProject, setByProject] = useState<Record<string, AgentDirectivePrefs>>({})
 
   const reload = useCallback((): void => {
-    void window.pidex.invoke('app:getPrefs').then((prefs) => {
+    void window.phosphor.invoke('app:getPrefs').then((prefs) => {
       setGlobal(prefs.agentDirectives)
       setByProject(prefs.agentDirectivesByProject)
     })
@@ -43,7 +43,7 @@ export function DirectivesSection(): React.JSX.Element {
 
   const save = async (next: AgentDirectivePrefs | null): Promise<void> => {
     try {
-      await window.pidex.invoke(
+      await window.phosphor.invoke(
         'app:setAgentDirectives',
         next,
         scope === 'project' ? (workspace ?? undefined) : undefined,
@@ -67,41 +67,41 @@ export function DirectivesSection(): React.JSX.Element {
     if (editing.worktreeGuard) {
       blocks.push(
         [
-          '<pidex_workspace>',
+          '<phosphor_workspace>',
           'Working directory: <this lane’s worktree>',
           'This session runs in a git worktree. The repository’s main checkout is',
           'on a DIFFERENT branch. Resolve every relative path against the working',
           'directory above, and never shorten an absolute path back to the main',
           'checkout — files there belong to another branch and read with no error.',
-          '</pidex_workspace>',
+          '</phosphor_workspace>',
         ].join('\n'),
       )
     }
     if (editing.laneCharter) {
       blocks.push(
         [
-          '<pidex_lane>',
+          '<phosphor_lane>',
           'This session is a LANE: one unit of work, on its own branch, that ends in a',
           'pull request. Not a scratch session.',
           'Branch: <this lane’s branch>',
           '- Commit your work on this branch as you go. Do not commit to the base branch.',
           '- Open a pull request when the work is done. That is how this lane closes.',
           '- Keep the change reviewable: aim under 400 changed lines and 20 files.',
-          '- pidex runs typecheck, tests and lint itself when your turn settles …',
-          '</pidex_lane>',
+          '- Phosphor runs typecheck, tests and lint itself when your turn settles …',
+          '</phosphor_lane>',
         ].join('\n'),
       )
     }
     if (editing.subagentPolicy) {
       blocks.push(
         [
-          '<pidex_subagents>',
+          '<phosphor_subagents>',
           'Sub-agents are available, and the synchronous form is the reliable one:',
           'run_in_background: false returns the findings inside this turn on every',
           'provider version. A backgrounded agent reports back only on pi-claude-cli',
           '0.4.14 or newer; on anything older it dies with the turn, findings lost.',
           '- Answer directly when you can. Reading a handful of files is not a fan-out.',
-          '</pidex_subagents>',
+          '</phosphor_subagents>',
         ].join('\n'),
       )
     }
@@ -114,9 +114,9 @@ export function DirectivesSection(): React.JSX.Element {
       <SectionTitle>Directives</SectionTitle>
 
       <div className="text-text-secondary text-sm leading-relaxed">
-        What pidex appends to every lane&rsquo;s system prompt, in this order. Project rules files
-        are a separate layer the agent reads as an ordinary message, with no guarantee it follows
-        them; this one is part of the system prompt and survives compaction.
+        What Phosphor appends to every lane&rsquo;s system prompt, in this order. Project rules
+        files are a separate layer the agent reads as an ordinary message, with no guarantee it
+        follows them; this one is part of the system prompt and survives compaction.
       </div>
 
       <div className="flex items-center gap-1.5">

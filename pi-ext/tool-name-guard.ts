@@ -1,5 +1,5 @@
 /**
- * pidex extension: keep malformed tool calls out of the session file.
+ * Phosphor extension: keep malformed tool calls out of the session file.
  *
  * A model can emit a tool call whose *name* is not a tool name at all. Seen in
  * production from MiniMax M2 on Bedrock, which leaked its raw tool-call syntax
@@ -51,7 +51,7 @@ export function describeDroppedCall(name: unknown, args: unknown): string {
   } catch {
     /* unserializable args: the name alone is enough to explain the drop */
   }
-  return `[pidex dropped a malformed tool call: ${shown}${argsText}]`
+  return `[Phosphor dropped a malformed tool call: ${shown}${argsText}]`
 }
 
 interface ContentBlock {
@@ -93,7 +93,7 @@ export default function toolNameGuardExtension(pi: PiExtensionApi): void {
     if (!message) return undefined
     const sanitized = sanitizeMessage(message)
     if (!sanitized) return undefined
-    console.error('[pidex] dropped a malformed tool call before it reached the session file')
+    console.error('[Phosphor] dropped a malformed tool call before it reached the session file')
     // The replacement must keep the original role (pi's contract).
     return { message: { ...message, content: sanitized.content } }
   })

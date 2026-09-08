@@ -79,7 +79,7 @@ describe('adoptSession', () => {
     invoke.mockReset().mockResolvedValue(undefined)
     piCommand.mockReset().mockResolvedValue({ success: false })
     vi.stubGlobal('window', {
-      pidex: {
+      phosphor: {
         invoke,
         piCommand,
         onSessionPush: () => () => {},
@@ -92,7 +92,7 @@ describe('adoptSession', () => {
     await useSessionsStore.getState().adoptSession('orc-1', '/repo')
 
     expect(useSessionsStore.getState().live['orc-1']).toMatchObject({
-      pidexId: 'orc-1',
+      phosphorId: 'orc-1',
       workspacePath: '/repo',
     })
     useSessionsStore.setState({ activeSessionId: 'orc-1' })
@@ -120,7 +120,7 @@ describe('session scan status', () => {
   beforeEach(() => {
     invoke.mockReset()
     vi.stubGlobal('window', {
-      pidex: { invoke, piCommand: vi.fn(), onSessionPush: vi.fn() },
+      phosphor: { invoke, piCommand: vi.fn(), onSessionPush: vi.fn() },
     })
     useSessionsStore.setState({ disk: {}, scanStatus: {} })
   })
@@ -176,7 +176,7 @@ describe('refreshMissing', () => {
   beforeEach(() => {
     invoke.mockReset()
     vi.stubGlobal('window', {
-      pidex: { invoke, piCommand: vi.fn(), onSessionPush: vi.fn() },
+      phosphor: { invoke, piCommand: vi.fn(), onSessionPush: vi.fn() },
     })
     useSessionsStore.setState({ disk: {}, scanStatus: {} })
   })
@@ -184,9 +184,9 @@ describe('refreshMissing', () => {
   it('scans only the workspaces with no attempt recorded', async () => {
     invoke.mockResolvedValue([])
     useSessionsStore.setState({ scanStatus: { '/repo': 'ok' } })
-    await useSessionsStore.getState().refreshMissing(['/repo', '/repo/.pidex/worktrees/lane'])
+    await useSessionsStore.getState().refreshMissing(['/repo', '/repo/.phosphor/worktrees/lane'])
     const listed = invoke.mock.calls.filter((c) => c[0] === 'sessions:list').map((c) => c[1])
-    expect(listed).toEqual(['/repo/.pidex/worktrees/lane'])
+    expect(listed).toEqual(['/repo/.phosphor/worktrees/lane'])
   })
 
   it('re-scans a workspace whose last attempt errored only on an explicit retry', async () => {
@@ -198,7 +198,7 @@ describe('refreshMissing', () => {
 
   it('is not capped — every unscanned lane of an expanded group gets scanned', async () => {
     invoke.mockResolvedValue([])
-    const lanes = Array.from({ length: 20 }, (_, i) => `/repo/.pidex/worktrees/l${i}`)
+    const lanes = Array.from({ length: 20 }, (_, i) => `/repo/.phosphor/worktrees/l${i}`)
     await useSessionsStore.getState().refreshMissing(lanes)
     expect(invoke.mock.calls.filter((c) => c[0] === 'sessions:list')).toHaveLength(20)
   })

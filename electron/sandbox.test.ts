@@ -12,7 +12,7 @@ import {
 
 /** A scratch base directory, removed after `run`. */
 function withBase(run: (base: string) => void): void {
-  const scratch = mkdtempSync(join(tmpdir(), 'pidex-sandbox-test-'))
+  const scratch = mkdtempSync(join(tmpdir(), 'phosphor-sandbox-test-'))
   try {
     run(join(scratch, 'sandboxes'))
   } finally {
@@ -133,7 +133,7 @@ describe('resolveSandboxFolder', () => {
   })
 
   it('refuses a path outside the base, traversal included', () => {
-    expect(resolveSandboxFolder(base, '/Users/dev/pidex')).toBeNull()
+    expect(resolveSandboxFolder(base, '/Users/dev/phosphor')).toBeNull()
     expect(resolveSandboxFolder(base, '/data/sandboxes/sandbox-1/../../sandbox-1')).toBeNull()
     expect(resolveSandboxFolder(base, '/data/sandboxes/nested/sandbox-1')).toBeNull()
   })

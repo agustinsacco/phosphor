@@ -71,7 +71,7 @@ export function blobIdsOf(drafts: ComposerDraftRecord[]): string[] {
  * Drop drafts whose target no longer exists.
  *
  * `sessions:delete` clears its own draft, but a session file removed outside
- * pidex (or a workspace that has gone away) leaves one behind. Same
+ * Phosphor (or a workspace that has gone away) leaves one behind. Same
  * validate-then-drop shape the launch-time resume target uses.
  */
 export function sweepDrafts(
@@ -81,7 +81,7 @@ export function sweepDrafts(
   const kept: Record<string, ComposerDraftRecord> = {}
   const gone: ComposerDraftRecord[] = []
   for (const [key, draft] of Object.entries(drafts)) {
-    // A live session's key is its pidexId, which says nothing about disk; only
+    // A live session's key is its phosphorId, which says nothing about disk; only
     // the home drafts name a folder we can check.
     const folder = key.startsWith('home:') ? key.slice('home:'.length) : null
     if (folder && !exists(folder)) gone.push(draft)

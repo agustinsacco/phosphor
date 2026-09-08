@@ -20,7 +20,7 @@ export function AccountsTab(): React.JSX.Element {
   const [ptyId, setPtyId] = useState<string | null>(null)
 
   const refresh = useCallback(async (): Promise<void> => {
-    setProviders(await window.pidex.invoke('pi:subscriptionAuth'))
+    setProviders(await window.phosphor.invoke('pi:subscriptionAuth'))
   }, [])
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export function AccountsTab(): React.JSX.Element {
 
   useEffect(
     () =>
-      window.pidex.onPiLoginState((state) => {
+      window.phosphor.onPiLoginState((state) => {
         setFlow(state.phase === 'signed-in' || state.phase === 'cancelled' ? null : state)
         if (state.phase === 'error') setError(state.message)
         // Re-check on every terminal phase, not just success: a cancelled or
@@ -43,7 +43,7 @@ export function AccountsTab(): React.JSX.Element {
     setError(null)
     setFlow({ providerId, phase: 'starting' })
     try {
-      await window.pidex.invoke('pi:startLogin', providerId)
+      await window.phosphor.invoke('pi:startLogin', providerId)
     } catch (caught) {
       setFlow(null)
       setError(caught instanceof Error ? caught.message : String(caught))
@@ -51,14 +51,14 @@ export function AccountsTab(): React.JSX.Element {
   }
 
   const cancel = (providerId: LoginProviderId): void => {
-    void window.pidex.invoke('pi:cancelLogin', providerId)
+    void window.phosphor.invoke('pi:cancelLogin', providerId)
     setFlow(null)
   }
 
   const openTerminal = async (): Promise<void> => {
     setError(null)
     try {
-      const { ptyId: id } = await window.pidex.invoke('pi:loginTerminal', 80, 20)
+      const { ptyId: id } = await window.phosphor.invoke('pi:loginTerminal', 80, 20)
       setPtyId(id)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught))
@@ -66,7 +66,7 @@ export function AccountsTab(): React.JSX.Element {
   }
 
   const closeTerminal = (): void => {
-    if (ptyId) void window.pidex.invoke('pty:kill', ptyId)
+    if (ptyId) void window.phosphor.invoke('pty:kill', ptyId)
     setPtyId(null)
     void refresh()
   }
@@ -298,7 +298,7 @@ function LoginProgress({ flow }: { flow: LoginFlowState }): React.JSX.Element | 
       )}
 
       <button
-        onClick={() => void window.pidex.invoke('app:openExternal', flow.url)}
+        onClick={() => void window.phosphor.invoke('app:openExternal', flow.url)}
         className="text-accent mt-2.5 block text-sm hover:underline"
       >
         Browser didn’t open? Open the sign-in page again

@@ -1,5 +1,5 @@
 /**
- * pidex headroom extension — loaded into every pidex session via
+ * Phosphor headroom extension — loaded into every Phosphor session via
  * `pi --mode rpc -e <this file>`, alongside the other bundled extensions.
  *
  * Compresses large tool results through a local Headroom proxy
@@ -10,7 +10,7 @@
  * chosen over routing model traffic through the proxy (see
  * docs/specs/headroom-compression.md).
  *
- * Inert by default: it does nothing unless `PIDEX_HEADROOM_URL` is set, and
+ * Inert by default: it does nothing unless `PHOSPHOR_HEADROOM_URL` is set, and
  * it fails open — any proxy failure disables it for the session and the
  * original tool result passes through untouched. A compression service must
  * never be able to break a turn.
@@ -26,9 +26,9 @@
  * (verified 120/500/2000 records intact), and its lossy row-sampling path
  * is suppressed when no CCR store exists — heterogeneous JSON comes back
  * `router:noop`, byte-identical. So the gate is one JSON.parse, enforceable
- * here regardless of how the proxy pidex adopted happens to be configured.
+ * here regardless of how the proxy Phosphor adopted happens to be configured.
  * The omission-marker check below stays as the second layer, and the
- * pidex-managed proxy additionally pins HEADROOM_COMPRESSORS to the
+ * phosphor-managed proxy additionally pins HEADROOM_COMPRESSORS to the
  * lossless families — three independent defenses.
  *
  * Every accepted compression writes a receipt into the result's `details`
@@ -41,7 +41,7 @@
  */
 
 // Loose structural types: the real ones live in @earendil-works/pi-coding-agent,
-// which is provided by pi at load time (not a pidex dependency).
+// which is provided by pi at load time (not a Phosphor dependency).
 interface PiExtensionApi {
   on(event: string, handler: (event: unknown, ctx: unknown) => unknown): void
 }
@@ -59,7 +59,7 @@ interface ExtensionContext {
   ui?: { setStatus?(key: string, text: string | undefined): void }
 }
 
-export const HEADROOM_STATUS_KEY = 'pidex-headroom'
+export const HEADROOM_STATUS_KEY = 'phosphor-headroom'
 
 /**
  * Never compressed, even when their output happens to be JSON: a `read` of a
@@ -262,7 +262,7 @@ export function createHeadroomHandler(deps: {
 }
 
 export default function headroomExtension(pi: PiExtensionApi): void {
-  const baseUrl = process.env.PIDEX_HEADROOM_URL
+  const baseUrl = process.env.PHOSPHOR_HEADROOM_URL
   if (!baseUrl) return
   pi.on('tool_result', createHeadroomHandler({ baseUrl, fetchImpl: fetch }))
 }

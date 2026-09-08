@@ -18,7 +18,7 @@ export function CrashBanner({
     const store = useSessionsStore.getState()
     await store.disposeSession(sessionId)
     if (diskPath) {
-      const metas = await window.pidex.invoke('sessions:list', workspacePath)
+      const metas = await window.phosphor.invoke('sessions:list', workspacePath)
       const meta = metas.find((m) => m.path === diskPath)
       if (meta) {
         await store.openDiskSession(workspacePath, meta)

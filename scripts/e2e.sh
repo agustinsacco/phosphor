@@ -16,20 +16,20 @@
 # So: use xvfb when it is installed, and inside it let the windows map normally.
 # Install once on Debian/Ubuntu with:  sudo apt install xvfb
 #
-# PIDEX_E2E_SHOW=1 runs the suite on your real display, for when you actually
+# PHOSPHOR_E2E_SHOW=1 runs the suite on your real display, for when you actually
 # want to watch it.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-if [[ "${PIDEX_E2E_SHOW:-}" == "1" ]]; then
+if [[ "${PHOSPHOR_E2E_SHOW:-}" == "1" ]]; then
   exec npx playwright test "$@"
 fi
 
 if command -v xvfb-run >/dev/null 2>&1; then
-  # PIDEX_E2E_SHOW=1 inside the virtual display on purpose: nothing reaches a
+  # PHOSPHOR_E2E_SHOW=1 inside the virtual display on purpose: nothing reaches a
   # human screen there, so mapping the windows costs nothing and avoids the
   # unmapped-rendering penalty described above.
-  exec env PIDEX_E2E_SHOW=1 xvfb-run --auto-servernum \
+  exec env PHOSPHOR_E2E_SHOW=1 xvfb-run --auto-servernum \
     --server-args='-screen 0 1600x1200x24' npx playwright test "$@"
 fi
 

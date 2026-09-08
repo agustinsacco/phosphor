@@ -34,7 +34,7 @@ export const useLanePrefsStore = create<LanePrefsState>((set, get) => ({
   setLanePrefs: (patch) => {
     const lanes = normalizeLanePrefs({ ...get().lanes, ...patch })
     set({ lanes })
-    void window.pidex.invoke('app:setLanePrefs', lanes)
+    void window.phosphor.invoke('app:setLanePrefs', lanes)
   },
 
   applyLanePrefs: (lanes) => set({ lanes: normalizeLanePrefs(lanes) }),

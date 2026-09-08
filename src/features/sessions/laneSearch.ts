@@ -2,7 +2,7 @@
  * Matching for the sidebar's per-workspace lane search.
  *
  * A lane is found by whichever of its three identities the reader remembers:
- * the title pidex gave it, the branch it runs on, or the PR it became. So the
+ * the title Phosphor gave it, the branch it runs on, or the PR it became. So the
  * haystack is all three, and a query term may land in any of them.
  *
  * Substring, not subsequence. `lib/fuzzy.ts` is a subsequence matcher, and on
@@ -26,7 +26,7 @@ export interface LaneSearchFields {
  * Lowercase, and every run of non-alphanumerics becomes one space.
  *
  * That is what makes `#412` findable as `412`, and
- * `pidex/fix-and-rebase-pr-130` findable as `fix rebase`, without the caller
+ * `phosphor/fix-and-rebase-pr-130` findable as `fix rebase`, without the caller
  * knowing which separator a branch happens to use.
  */
 function normalize(value: string): string {

@@ -14,7 +14,7 @@ import type { StartingChat as StartingChatState } from '@/stores/startingChat'
  * in the composer and a 14px spinner as the only sign anything had happened.
  *
  * Deliberately NOT the real transcript with a fake session id: the chat store
- * is keyed by pidexId, and inventing one would mean reconciling a placeholder
+ * is keyed by phosphorId, and inventing one would mean reconciling a placeholder
  * with the real session's items a moment later. A read-only echo has none of
  * that risk.
  *

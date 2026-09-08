@@ -6,7 +6,7 @@ export const MIN_INTERVAL_MINUTES = 15
 
 /**
  * How long the app must have been up before the first sweep. Launch is the
- * busiest minute pidex has — window creation, session re-adoption, an update
+ * busiest minute Phosphor has — window creation, session re-adoption, an update
  * check — and a `du` over 45 worktrees competes with all of it.
  */
 export const WARMUP_MS = 5 * 60 * 1000

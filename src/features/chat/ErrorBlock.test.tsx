@@ -29,7 +29,7 @@ function render(ui: React.ReactNode): void {
 
 beforeEach(() => {
   // ErrorBlock reads the active AWS profile over IPC on mount.
-  ;(globalThis as unknown as { window: { pidex: unknown } }).window.pidex = {
+  ;(globalThis as unknown as { window: { phosphor: unknown } }).window.phosphor = {
     invoke: vi.fn().mockResolvedValue({ awsProfile: undefined }),
   }
 })

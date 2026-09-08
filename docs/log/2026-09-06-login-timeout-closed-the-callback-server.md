@@ -1,7 +1,7 @@
 # A sign-in timeout closed the port the browser was redirecting to
 
 Signing pi into OpenAI Codex from Settings → Accounts failed with two messages
-that did not obviously describe the same event. pidex said "Sign-in timed out."
+that did not obviously describe the same event. Phosphor said "Sign-in timed out."
 The browser said:
 
 ```
@@ -44,10 +44,10 @@ const FLOW_TIMEOUT_MS = 5 * 60_000 // whole flow, including the human
 
 measured from launch and covering both the TUI driving and the browser trip.
 An enterprise SSO round trip (identity provider, MFA, account picker) does not
-reliably fit in what is left of five minutes. When it expired, pidex killed pi
+reliably fit in what is left of five minutes. When it expired, Phosphor killed pi
 mid-sign-in and tore down the port the user's browser was seconds from hitting.
 
-Neither message named the cause. pidex reported a timeout without saying it had
+Neither message named the cause. Phosphor reported a timeout without saying it had
 just closed a server; the browser reported a refused connection without knowing
 why the server was gone.
 
@@ -67,9 +67,9 @@ shorten the human's trip, and a re-issued URL restarts it — the previous one i
 spent. The flow is still bounded; it just no longer spends the human's budget
 on machine work.
 
-The timeout message now names what pidex did, since the browser cannot:
+The timeout message now names what Phosphor did, since the browser cannot:
 
-> Sign-in timed out waiting for your browser, so pidex closed pi's callback
+> Sign-in timed out waiting for your browser, so Phosphor closed pi's callback
 > server. If your browser now says it cannot reach localhost, that is why —
 > start the sign-in again.
 
@@ -91,7 +91,7 @@ and they sign into different credential stores:
 | Settings → Claude provider | `claude auth login`        | the Claude CLI's own store |
 
 Neither launches a vendor desktop app. `~/.codex/auth.json` — the Codex desktop
-app's own credential — is not read or written by pidex at all, and a login there
+app's own credential — is not read or written by Phosphor at all, and a login there
 has no effect on pi. The two can be, and were, signed into different accounts.
 
 ## Still missing
@@ -99,7 +99,7 @@ has no effect on pi. The two can be, and were, signed into different accounts.
 The Accounts tab reports **that** a provider is signed in, never **which
 account**. `pi auth check --json` returns only `{status, provider, authType}`,
 so the identity would have to come from `--credentials` and a decoded JWT —
-which puts a bearer token in pidex's main process, so it is deliberately not
+which puts a bearer token in Phosphor's main process, so it is deliberately not
 done here. This is already the "show which account is signed in" item in
 [cli-providers.md](../cli-providers.md).
 

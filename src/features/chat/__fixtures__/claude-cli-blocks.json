@@ -57,7 +57,7 @@
         "id": "toolu_01RFhLovt7cGv6e7rt5YVPDB",
         "name": "write",
         "arguments": {
-          "path": "/tmp/claude-1000/-home-agustinsacco-src-agustinsacco-pidex--claude-worktrees-pi-agent-cli-integration-b2e20a/aafae7b3-f013-473d-b384-bc1f3676c36b/scratchpad/matrix-thinking/claude-fable-5-tools/ws/probe.txt",
+          "path": "/tmp/claude-1000/-home-agustinsacco-src-agustinsacco-phosphor--claude-worktrees-pi-agent-cli-integration-b2e20a/aafae7b3-f013-473d-b384-bc1f3676c36b/scratchpad/matrix-thinking/claude-fable-5-tools/ws/probe.txt",
           "content": "ok"
         }
       }

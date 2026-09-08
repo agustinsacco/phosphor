@@ -36,7 +36,7 @@ function broadcast(state: ClaudeLoginState): void {
  */
 function claudeBinOverride(): string | undefined {
   if (app.isPackaged) return undefined
-  return process.env.PIDEX_CLAUDE_BIN || undefined
+  return process.env.PHOSPHOR_CLAUDE_BIN || undefined
 }
 
 /**
@@ -96,8 +96,8 @@ export function registerClaudeAuthHandlers(): void {
     await refreshCooldowns(override)
     return accountViews(override)
   })
-  handle('claude:bindSession', async (_event, sessionPath, pidexSessionId) => {
-    const accountId = spawnAccountFor(pidexSessionId)
+  handle('claude:bindSession', async (_event, sessionPath, phosphorSessionId) => {
+    const accountId = spawnAccountFor(phosphorSessionId)
     if (accountId) await bindSession(sessionPath, accountId)
   })
   // Moving a running lane is dispose-and-resume in the renderer; main only
@@ -106,9 +106,9 @@ export function registerClaudeAuthHandlers(): void {
     bindSession(sessionPath, accountId),
   )
   handle('claude:accountSessions', () => spawnAccountSessions())
-  handle('claude:sessionAccount', (_event, pidexSessionId, sessionPath) =>
+  handle('claude:sessionAccount', (_event, phosphorSessionId, sessionPath) =>
     sessionAccount({
-      accountId: spawnAccountFor(pidexSessionId),
+      accountId: spawnAccountFor(phosphorSessionId),
       sessionPath,
       claudeOverride: claudeBinOverride(),
     }),

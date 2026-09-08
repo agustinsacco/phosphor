@@ -1,13 +1,13 @@
 # Worktrees
 
-pidex sessions are tied to their cwd (pi records sessions under
+Phosphor sessions are tied to their cwd (pi records sessions under
 `~/.pi/agent/sessions/<mangled-cwd>/`), so a git worktree is the natural unit
 of parallel work: each task gets its own checkout, its own sessions, its own
 sidebar group.
 
 ## Decisions
 
-- **Location**: `<repo>/.pidex/worktrees/<name>`, ignored via
+- **Location**: `<repo>/.phosphor/worktrees/<name>`, ignored via
   `.git/info/exclude` (appended idempotently; tracked files never touched).
   In-repo keeps worktrees discoverable and the sidebar group name meaningful
   (groups key on cwd basename).
@@ -40,19 +40,19 @@ sidebar group.
 - **Auto-created branches start from `origin/<trunk>`, not local trunk.**
   "Branch off the latest main" is the intent, and a local `main` in a repo
   someone has been working in is routinely stale. Pulling it first would fail
-  on a dirty main tree, so pidex fetches (throttled) and branches off the
+  on a dirty main tree, so Phosphor fetches (throttled) and branches off the
   remote-tracking ref instead: freshest trunk, main checkout untouched, dirty
   or not. `--no-track` goes with it, or the new branch would take `origin/main`
   as its upstream and read as "behind trunk" forever
   (`startPoint` in `git-worktrees.ts`).
 - **The branch prefix is configurable, and one flag governs isolation.**
-  `pidex/` by default (Settings → Workspaces, empty allowed). The composer's
+  `phosphor/` by default (Settings → Workspaces, empty allowed). The composer's
   "new branch" checkbox, the branch popup's "worktree" checkbox and the
   settings toggle are one persisted preference — three surfaces asking "does
   my work get its own branch?" that must not be able to disagree. It persists
   now; before, it reset to on at every launch.
 - **The main tree's checkout may be changed, but only deliberately and only
-  when it is safe.** _This reverses the original rule that pidex would never
+  when it is safe.** _This reverses the original rule that Phosphor would never
   run `git checkout` in the main tree._ The reversal was requested so the
   branch picker matches Claude Desktop, where unticking "worktree" means the
   branch opens in the checkout you already have. The safety the old rule
@@ -140,7 +140,7 @@ means new work. Continuing on the branch you are looking at is the sidebar's
 - IPC: `git:listWorktrees / listBranches / addWorktree / removeWorktree /
 pruneWorktrees / commitAll / mergeBranch / fetch / pull / updateFromMain /
 checkoutBranch` (`shared/ipc.ts`, `electron/ipc/git-handlers.ts`, mocks in
-  `src/dev/mockPidex.ts`).
+  `src/dev/mockPhosphor.ts`).
 - `src/stores/worktrees.ts` — `byRepo[repoPath]` cache of worktrees/branches
   plus fetch bookkeeping, and the global `preferWorktree` checkbox state.
 - UI: `src/features/worktrees/BranchControl.tsx` (top-bar chip + popup),
@@ -160,7 +160,7 @@ checkoutBranch` (`shared/ipc.ts`, `electron/ipc/git-handlers.ts`, mocks in
   can produce is a ref `git check-ref-format` would reject.
 - `e2e/smoke.spec.ts` "worktree flow": git-init a scratch workspace → create
   `task-1` from the top-bar control → send a first message → the chat branches
-  off trunk into `pidex/stub-session-title` rather than continuing on `task-1`
+  off trunk into `phosphor/stub-session-title` rather than continuing on `task-1`
   → one sidebar group for the project. Its sibling test unticks the composer
   checkbox and asserts nothing is created. The stub answers the naming prompt
   with a fixed title and honours `-n`, which is what makes the branch name

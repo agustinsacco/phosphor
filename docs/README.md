@@ -1,6 +1,6 @@
-# pidex documentation
+# Phosphor documentation
 
-**How pidex works today.** Every file here describes shipped behaviour. If one
+**How Phosphor works today.** Every file here describes shipped behaviour. If one
 disagrees with the code, the file is wrong and fixing it is part of the change
 that broke it.
 
@@ -14,7 +14,7 @@ Two neighbours hold other genres, and they are not interchangeable:
 
 ## Feature docs
 
-Start with [overview.md](overview.md) for what pidex is, or
+Start with [overview.md](overview.md) for what Phosphor is, or
 [architecture.md](architecture.md) for how the processes fit together.
 
 | File                                   | Covers                                                             |

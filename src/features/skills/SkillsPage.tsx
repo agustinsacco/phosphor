@@ -44,7 +44,7 @@ export const SkillsPage = memo(function SkillsPage({
   const selected = skills.find((skill) => skill.dir === selectedDir)
 
   const pickImport = async (): Promise<void> => {
-    const preview = await window.pidex.invoke('skills:importPick')
+    const preview = await window.phosphor.invoke('skills:importPick')
     if (preview) setImportPreview(preview)
   }
 
@@ -302,7 +302,7 @@ function SkillDetail({
   useEffect(() => {
     setContent(null)
     let alive = true
-    void window.pidex.invoke('skills:readFile', skill.dir, file).then(
+    void window.phosphor.invoke('skills:readFile', skill.dir, file).then(
       (read) => {
         if (alive) setContent(read.binary ? null : read.content)
       },
@@ -330,9 +330,9 @@ function SkillDetail({
 
   const toggleDraft = (): Promise<void> =>
     run(skill.draft ? 'publish' : 'draft', async () => {
-      const read = await window.pidex.invoke('skills:readFile', skill.dir, 'SKILL.md')
+      const read = await window.phosphor.invoke('skills:readFile', skill.dir, 'SKILL.md')
       if (read.content == null) throw new Error('SKILL.md is not editable')
-      await window.pidex.invoke(
+      await window.phosphor.invoke(
         'skills:writeFile',
         skill.dir,
         'SKILL.md',
@@ -348,7 +348,7 @@ function SkillDetail({
       const library = SKILL_CATALOG.find((entry) => entry.id === provenance.catalogId)
       if (!library) return
       const skillName = provenance.subpath.split('/').pop() ?? skill.name
-      await window.pidex.invoke('skills:install', library.id, skillName, {
+      await window.phosphor.invoke('skills:install', library.id, skillName, {
         targetName: skill.dir.split('/').pop(),
         overwrite: true,
       })
@@ -356,7 +356,7 @@ function SkillDetail({
 
   const remove = (): Promise<void> =>
     run('delete', async () => {
-      await window.pidex.invoke('skills:delete', skill.dir, workspacePath)
+      await window.phosphor.invoke('skills:delete', skill.dir, workspacePath)
       onBack()
     })
 
@@ -424,7 +424,9 @@ function SkillDetail({
         <Button
           size="sm"
           disabled={pending != null}
-          onClick={() => void run('export', () => window.pidex.invoke('skills:export', skill.dir))}
+          onClick={() =>
+            void run('export', () => window.phosphor.invoke('skills:export', skill.dir))
+          }
         >
           Export
         </Button>
@@ -544,7 +546,7 @@ function LibrarySection({
     setBusy(name)
     setFailure(null)
     try {
-      await window.pidex.invoke('skills:install', library.id, name)
+      await window.phosphor.invoke('skills:install', library.id, name)
       await useSkillsStore.getState().refresh(workspacePath)
     } catch (cause) {
       setFailure(cause instanceof Error ? cause.message : String(cause))
@@ -558,7 +560,7 @@ function LibrarySection({
       <div className="flex items-baseline gap-2">
         <span className="text-base font-semibold">{library.label}</span>
         <button
-          onClick={() => void window.pidex.invoke('app:openExternal', library.url)}
+          onClick={() => void window.phosphor.invoke('app:openExternal', library.url)}
           className="text-accent cursor-pointer text-xs hover:underline"
         >
           {library.repo} ↗
@@ -618,7 +620,7 @@ function ImportSheet({
     setBusy(true)
     setFailure(null)
     try {
-      await window.pidex.invoke('skills:importConfirm', {
+      await window.phosphor.invoke('skills:importConfirm', {
         sourcePath: preview.sourcePath,
         scope,
         workspacePath,

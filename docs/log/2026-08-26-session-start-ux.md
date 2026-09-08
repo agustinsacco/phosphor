@@ -23,7 +23,7 @@ Same binary, same argv, same cwd, on the machine that reported this:
 
 The last row is the mechanism on its own: nothing is slow, pi is simply waiting.
 
-The disk agrees. Across every pidex worktree session in
+The disk agrees. Across every Phosphor worktree session in
 `~/.pi/agent/sessions/`, **no session file contains a `session_info` record**.
 The only named sessions are the orchestrator's, which are spawned with `-n`.
 Auto-naming had never worked with real pi, which is why every auto-created
@@ -45,7 +45,7 @@ naming run: the failure mode here produced no symptom at all beyond "sessions
 are never named", which names no cause.
 
 Verified against real pi through the shipped code path (`runPrintMode` +
-`titlePrompt` + `sanitizeTitle` + `dedupeTitle`), in a pidex worktree: 7.5s,
+`titlePrompt` + `sanitizeTitle` + `dedupeTitle`), in a Phosphor worktree: 7.5s,
 no error, `Friendly Greeting`.
 
 ### The name still had to reach the row
@@ -118,8 +118,8 @@ keystroke rather than at the end of that.
   turn (see above), that swap was very visible. Both rows render the same
   subtitle through one `SubtitleSegments` component.
 - **The branch is named once.** The sidebar's workspace switcher said
-  `pidex (pidex/hey-2)` directly under a top bar whose chips already said
-  `hey-2` and `pidex/hey-2`. It uses the new `projectName` and says `pidex`;
+  `Phosphor (Phosphor/hey-2)` directly under a top bar whose chips already said
+  `hey-2` and `phosphor/hey-2`. It uses the new `projectName` and says `Phosphor`;
   the window title keeps the long form, having nowhere else to put the branch.
 - **"new branch" says what it branches from.** With isolation on, `startChat`
   always branches from trunk and ignores the branch chip beside the composer —

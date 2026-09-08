@@ -1,5 +1,5 @@
 {
-  "name": "pidex",
+  "name": "phosphor",
   "version": "0.1.0",
   "description": "Desktop coding-agent app powered by the pi coding agent",
   "type": "module",
@@ -27,14 +27,14 @@
     "postinstall": "electron-builder install-app-deps && node scripts/fix-node-pty.mjs"
   },
   "author": {
-    "name": "pidex",
+    "name": "Phosphor",
     "email": "saccoagustin@hotmail.com"
   },
   "license": "MIT",
-  "homepage": "https://github.com/agustinsacco/pidex",
+  "homepage": "https://github.com/agustinsacco/Phosphor",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/agustinsacco/pidex.git"
+    "url": "git+https://github.com/agustinsacco/Phosphor.git"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.0",

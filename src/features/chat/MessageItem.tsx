@@ -300,7 +300,7 @@ function AssistantOutcome({ item }: { item: AssistantItem }): React.JSX.Element 
 }
 
 /**
- * Failed turn. When the message names a failure pidex knows the fix for, that
+ * Failed turn. When the message names a failure Phosphor knows the fix for, that
  * fix is offered inline instead of leaving the user to go find it: a runnable
  * command for the shell-fixable ones (expired AWS SSO token, missing pi login),
  * and for configuration failures that no command can fix (Bedrock's
@@ -312,7 +312,7 @@ export function ErrorBlock({ message }: { message?: string }): React.JSX.Element
   const [awsProfile, setAwsProfile] = useState<string | undefined>(undefined)
 
   useEffect(() => {
-    void window.pidex.invoke('app:userInfo').then((info) => setAwsProfile(info.awsProfile))
+    void window.phosphor.invoke('app:userInfo').then((info) => setAwsProfile(info.awsProfile))
   }, [])
 
   // Match remedies against the raw text: some patterns ('data retention mode')

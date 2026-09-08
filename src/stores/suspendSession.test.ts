@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Suspending reclaims a session's pi subprocess (~200MB measured) while keeping
- * its sidebar row. The marker is keyed by DISK PATH, not pidexId, because the
- * pidexId dies with the process — that is what lets the row stay labelled and
+ * its sidebar row. The marker is keyed by DISK PATH, not phosphorId, because the
+ * phosphorId dies with the process — that is what lets the row stay labelled and
  * the reopen path clear it.
  */
 const invoke = vi.fn().mockResolvedValue(undefined)
@@ -11,7 +11,7 @@ const invoke = vi.fn().mockResolvedValue(undefined)
 beforeEach(async () => {
   invoke.mockClear()
   vi.stubGlobal('window', {
-    pidex: {
+    phosphor: {
       invoke,
       onSessionPush: vi.fn(() => () => {}),
       // bootstrapSession fires these; without a stub they reject unhandled.
@@ -32,7 +32,7 @@ describe('suspendSession', () => {
   it('disposes the process and marks the session suspended by disk path', async () => {
     const { useSessionsStore } = await import('./sessions')
     useSessionsStore.setState({
-      live: { s1: { pidexId: 's1', workspacePath: '/w', diskPath: '/sessions/a.jsonl' } },
+      live: { s1: { phosphorId: 's1', workspacePath: '/w', diskPath: '/sessions/a.jsonl' } },
       activeSessionId: 's1',
     })
 
@@ -48,7 +48,7 @@ describe('suspendSession', () => {
     // A brand-new session has no disk path to reopen from, so there is nothing
     // to label.
     const { useSessionsStore } = await import('./sessions')
-    useSessionsStore.setState({ live: { s2: { pidexId: 's2', workspacePath: '/w' } } })
+    useSessionsStore.setState({ live: { s2: { phosphorId: 's2', workspacePath: '/w' } } })
 
     await useSessionsStore.getState().suspendSession('s2')
 
@@ -58,7 +58,7 @@ describe('suspendSession', () => {
   it('does not duplicate the marker when suspended twice', async () => {
     const { useSessionsStore } = await import('./sessions')
     useSessionsStore.setState({
-      live: { s1: { pidexId: 's1', workspacePath: '/w', diskPath: '/sessions/a.jsonl' } },
+      live: { s1: { phosphorId: 's1', workspacePath: '/w', diskPath: '/sessions/a.jsonl' } },
       suspendedPaths: ['/sessions/a.jsonl'],
     })
 
@@ -84,7 +84,7 @@ describe('suspendSession', () => {
   it('reactivates an already-live session instead of respawning it', async () => {
     const { useSessionsStore } = await import('./sessions')
     useSessionsStore.setState({
-      live: { s1: { pidexId: 's1', workspacePath: '/w', diskPath: '/sessions/a.jsonl' } },
+      live: { s1: { phosphorId: 's1', workspacePath: '/w', diskPath: '/sessions/a.jsonl' } },
     })
 
     const id = await useSessionsStore

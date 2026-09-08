@@ -117,7 +117,7 @@ plus one mixed session used as a sanity check. That is more evidence than the
 yield gate had, and it is still not much. The gap between 0.91 and 2.86 is wide
 enough that 1.5 is unlikely to be badly wrong, but the threshold should be
 revisited as more sessions accumulate — particularly from providers other than
-Claude Code, whose caching behaviour pidex has not measured at all.
+Claude Code, whose caching behaviour Phosphor has not measured at all.
 
 One known blind spot, stated plainly: acceleration detects a loop whose cost is
 _compounding_. A loop that replays a constant-size prefix at a constant rate

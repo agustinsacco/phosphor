@@ -5,7 +5,7 @@ expanding it again listed them all. That was reproducible and load-bearing:
 users learned the toggle as a ritual.
 
 A **lane** is a chat in its own git worktree at
-`<repo>/.pidex/worktrees/<slug>`. Separate cwd, separate pi session directory,
+`<repo>/.phosphor/worktrees/<slug>`. Separate cwd, separate pi session directory,
 separate scan target. Lanes are deliberately never written to `recents`
 (`src/stores/workspaces.ts`), so they reach the sidebar only through async
 `git:listWorktrees` discovery.

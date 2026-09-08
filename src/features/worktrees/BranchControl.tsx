@@ -37,11 +37,11 @@ export function BranchControl({
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null
     const refresh = (): void => {
-      void window.pidex.invoke('git:info', workspacePath).then(setInfo)
+      void window.phosphor.invoke('git:info', workspacePath).then(setInfo)
     }
     refresh()
-    void window.pidex.invoke('fs:watchWorkspace', workspacePath)
-    const unsubscribe = window.pidex.onFsChanged((payload) => {
+    void window.phosphor.invoke('fs:watchWorkspace', workspacePath)
+    const unsubscribe = window.phosphor.onFsChanged((payload) => {
       if (payload.workspacePath !== workspacePath) return
       if (timer) clearTimeout(timer)
       timer = setTimeout(refresh, 500)
@@ -81,7 +81,7 @@ export function BranchControl({
   const repoLoadedAt = useWorktreesStore((s) => repoWorktrees(s, repoPath).loadedAt)
   useEffect(() => {
     if (repoLoadedAt === 0) return
-    void window.pidex.invoke('git:info', workspacePath).then(setInfo)
+    void window.phosphor.invoke('git:info', workspacePath).then(setInfo)
   }, [repoLoadedAt, workspacePath])
 
   /**
@@ -106,7 +106,7 @@ export function BranchControl({
   const openMergeModal = async (): Promise<void> => {
     if (!mainRepo) return
     setOpen(false)
-    const worktrees = await window.pidex.invoke('git:listWorktrees', mainRepo)
+    const worktrees = await window.phosphor.invoke('git:listWorktrees', mainRepo)
     const here = worktrees.find((w) => w.path === workspacePath || w.realPath === workspacePath)
     if (here) setMergeTarget(here)
   }
@@ -202,7 +202,7 @@ export function BranchControl({
             active={false}
             onClick={() => {
               setOpen(false)
-              void window.pidex.invoke('app:revealPath', workspacePath)
+              void window.phosphor.invoke('app:revealPath', workspacePath)
             }}
           >
             <span className="text-lg">{revealLabel()}</span>

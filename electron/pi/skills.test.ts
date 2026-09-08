@@ -14,6 +14,7 @@ import {
   writeSkillFileEntry,
   _registerKnownSkillDirForTest,
   SKILL_SIDECAR,
+  LEGACY_SKILL_SIDECAR,
 } from './skills'
 import { readZipEntries, writeZipStore } from './zip'
 import { SKILL_CATALOG } from '@shared/skillsCatalog'
@@ -28,8 +29,8 @@ let agentDir: string
 let workspace: string
 
 beforeEach(() => {
-  agentDir = mkdtempSync(join(tmpdir(), 'pidex-skills-agent-'))
-  workspace = mkdtempSync(join(tmpdir(), 'pidex-skills-ws-'))
+  agentDir = mkdtempSync(join(tmpdir(), 'phosphor-skills-agent-'))
+  workspace = mkdtempSync(join(tmpdir(), 'phosphor-skills-ws-'))
   process.env.PI_CODING_AGENT_DIR = agentDir
 })
 
@@ -53,7 +54,7 @@ describe('resolveSkills (scan fallback)', () => {
   it('finds user-root, project-root and settings-listed skills', async () => {
     seedSkill(join(agentDir, 'skills'), 'alpha')
     seedSkill(join(workspace, '.pi', 'skills'), 'bravo')
-    const foreign = mkdtempSync(join(tmpdir(), 'pidex-skills-foreign-'))
+    const foreign = mkdtempSync(join(tmpdir(), 'phosphor-skills-foreign-'))
     seedSkill(foreign, 'charlie')
     writeFileSync(join(agentDir, 'settings.json'), JSON.stringify({ skills: [foreign] }))
 
@@ -80,6 +81,19 @@ describe('resolveSkills (scan fallback)', () => {
     expect(delta.files.map((file) => file.path)).toEqual(['SKILL.md', 'references/notes.md'])
     expect(delta.provenance?.repo).toBe('r')
   })
+
+  it('still reads the pre-rename (pidex) provenance sidecar and hides it from the bundle', async () => {
+    const dir = seedSkill(join(agentDir, 'skills'), 'echo', '')
+    writeFileSync(
+      join(dir, LEGACY_SKILL_SIDECAR),
+      JSON.stringify({ catalogId: 'x', repo: 'legacy-repo', sha: 's' }),
+    )
+
+    const result = await resolveSkills({})
+    const echo = result.skills.find((skill) => skill.name === 'echo')!
+    expect(echo.provenance?.repo).toBe('legacy-repo')
+    expect(echo.files.map((file) => file.path)).toEqual(['SKILL.md'])
+  })
 })
 
 describe('read/write containment', () => {
@@ -94,7 +108,7 @@ describe('read/write containment', () => {
 
   it('writes only into writable roots and never the sidecar', async () => {
     const dir = seedSkill(join(agentDir, 'skills'), 'foxtrot')
-    const foreign = mkdtempSync(join(tmpdir(), 'pidex-skills-foreign-'))
+    const foreign = mkdtempSync(join(tmpdir(), 'phosphor-skills-foreign-'))
     const foreignDir = seedSkill(foreign, 'golf')
     _registerKnownSkillDirForTest(foreignDir)
     await resolveSkills({})

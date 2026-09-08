@@ -42,7 +42,7 @@ describe('claudeProviderSpawnEnv', () => {
   })
 
   it("never sets hermetic mode, which would strip the CLI's CLAUDE.md", () => {
-    // pidex passes --no-context-files, so pi does not send CLAUDE.md either.
+    // Phosphor passes --no-context-files, so pi does not send CLAUDE.md either.
     // Hermetic reaches the same MCP flag but also empties --setting-sources,
     // leaving the model with project instructions from neither side.
     expect(claudeProviderSpawnEnv()).not.toHaveProperty('PI_CLAUDE_CLI_HERMETIC')

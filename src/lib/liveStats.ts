@@ -28,7 +28,7 @@ import type { SessionStats, Usage } from '@shared/rpc'
  *
  * Capability is detected, not version-checked: pi < 0.84.2 sends no `usage`
  * on deltas, `hasUsageDeltas` stays false, and the caller keeps the old
- * per-sub-step polling. pidex does not control which pi is installed.
+ * per-sub-step polling. Phosphor does not control which pi is installed.
  */
 
 interface TokenTotals {

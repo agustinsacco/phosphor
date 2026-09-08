@@ -12,19 +12,21 @@ import {
 
 describe('isWorktreeFolder', () => {
   it('flags a path inside a repo worktree folder', () => {
-    expect(isWorktreeFolder('/home/u/pidex/.pidex/worktrees/some-task')).toBe(true)
-    expect(isWorktreeFolder('C:\\Users\\u\\pidex\\.pidex\\worktrees\\task')).toBe(true)
+    expect(isWorktreeFolder('/home/u/phosphor/.phosphor/worktrees/some-task')).toBe(true)
+    expect(isWorktreeFolder('C:\\Users\\u\\Phosphor\\.phosphor\\worktrees\\task')).toBe(true)
+    // Lanes created before the 2026-09-08 rename still live under `.pidex`.
+    expect(isWorktreeFolder('/home/u/phosphor/.pidex/worktrees/some-task')).toBe(true)
   })
 
   it('does not flag the main repo, another workspace, or a session dir', () => {
-    expect(isWorktreeFolder('/home/u/pidex')).toBe(false)
+    expect(isWorktreeFolder('/home/u/phosphor')).toBe(false)
     expect(isWorktreeFolder('/home/u/games')).toBe(false)
     expect(isWorktreeFolder('/home/u/.pi/agent/sessions/--x--')).toBe(false)
   })
 
   it('requires the folder component, not just the substring', () => {
-    expect(isWorktreeFolder('/home/u/pidex/.pidex/worktrees2/x')).toBe(false)
-    expect(isWorktreeFolder('/home/u/pidexworktrees/x')).toBe(false)
+    expect(isWorktreeFolder('/home/u/phosphor/.phosphor/worktrees2/x')).toBe(false)
+    expect(isWorktreeFolder('/home/u/phosphorworktrees/x')).toBe(false)
   })
 })
 
@@ -97,42 +99,44 @@ describe('workspaceName', () => {
 
 describe('projectPathFor', () => {
   it('returns the path itself outside a worktree', () => {
-    expect(projectPathFor('/Users/u/pidex')).toBe('/Users/u/pidex')
-    expect(projectPathFor('/Users/u/pidex', { isWorktree: false })).toBe('/Users/u/pidex')
+    expect(projectPathFor('/Users/u/phosphor')).toBe('/Users/u/phosphor')
+    expect(projectPathFor('/Users/u/phosphor', { isWorktree: false })).toBe('/Users/u/phosphor')
   })
 
   it('prefers git mainRepoPath, which covers a worktree anywhere on disk', () => {
     expect(
       projectPathFor('/tmp/detached-checkout', {
         isWorktree: true,
-        mainRepoPath: '/Users/u/pidex',
+        mainRepoPath: '/Users/u/phosphor',
       }),
-    ).toBe('/Users/u/pidex')
+    ).toBe('/Users/u/phosphor')
   })
 
   it('falls back to the path shape when git info has not loaded', () => {
     // The reported bug: every surface renders once before `git:infoBatch`
     // answers, and one whose cwd never gets an answer renders that way for
     // good. Without this branch the top bar sat on the branch slug.
-    expect(projectPathFor('/Users/u/pidex/.pidex/worktrees/hey-2')).toBe('/Users/u/pidex')
-    expect(projectPathFor('C:\\Users\\u\\pidex\\.pidex\\worktrees\\hey-2')).toBe(
-      'C:\\Users\\u\\pidex',
+    expect(projectPathFor('/Users/u/phosphor/.phosphor/worktrees/hey-2')).toBe('/Users/u/phosphor')
+    expect(projectPathFor('C:\\Users\\u\\Phosphor\\.phosphor\\worktrees\\hey-2')).toBe(
+      'C:\\Users\\u\\Phosphor',
     )
+    // Lanes created before the 2026-09-08 rename still live under `.pidex`.
+    expect(projectPathFor('/Users/u/phosphor/.pidex/worktrees/hey-2')).toBe('/Users/u/phosphor')
   })
 
   it('still resolves the repo when git reports isWorktree false', () => {
     // Stale or partial git info must not resurrect the folder basename: the
-    // path shape alone proves this is a worktree pidex made.
+    // path shape alone proves this is a worktree Phosphor made.
     expect(
-      projectPathFor('/Users/u/pidex/.pidex/worktrees/main', {
+      projectPathFor('/Users/u/phosphor/.phosphor/worktrees/main', {
         isWorktree: false,
-        mainRepoPath: '/Users/u/pidex',
+        mainRepoPath: '/Users/u/phosphor',
       }),
-    ).toBe('/Users/u/pidex')
+    ).toBe('/Users/u/phosphor')
   })
 
   it('uses a known root for a worktree the path shape cannot recognise', () => {
-    // The startup bug: worktrees living outside `<repo>/.pidex/worktrees/`
+    // The startup bug: worktrees living outside `<repo>/.phosphor/worktrees/`
     // each opened their own sidebar group, named after their branch, until
     // `git:infoBatch` answered. `git worktree list` already reported the repo
     // they belong to, so no round trip is needed.
@@ -160,8 +164,8 @@ describe('projectPathFor', () => {
   })
 
   it('cuts at the outermost worktree folder', () => {
-    expect(projectPathFor('/Users/u/pidex/.pidex/worktrees/a/.pidex/worktrees/b')).toBe(
-      '/Users/u/pidex',
+    expect(projectPathFor('/Users/u/phosphor/.phosphor/worktrees/a/.phosphor/worktrees/b')).toBe(
+      '/Users/u/phosphor',
     )
   })
 })
@@ -170,13 +174,13 @@ describe('projectName', () => {
   it('names the repo, never the worktree folder or its branch', () => {
     // A worktree folder is named after its branch, so its basename read as if
     // the user had switched projects. The branch has its own control.
-    expect(projectName('/Users/u/pidex/.pidex/worktrees/hey-2')).toBe('pidex')
+    expect(projectName('/Users/u/phosphor/.phosphor/worktrees/hey-2')).toBe('phosphor')
     expect(
-      projectName('/Users/u/pidex/.pidex/worktrees/hey-2', {
+      projectName('/Users/u/phosphor/.phosphor/worktrees/hey-2', {
         isWorktree: true,
-        mainRepoPath: '/Users/u/pidex',
+        mainRepoPath: '/Users/u/phosphor',
       }),
-    ).toBe('pidex')
+    ).toBe('phosphor')
   })
 
   it('is the folder basename for an ordinary workspace', () => {
@@ -190,27 +194,27 @@ describe('worktreeAwareName', () => {
   // and the branch separately, and uses `projectName`.
   it('appends the branch for a linked worktree', () => {
     expect(
-      worktreeAwareName('/Users/u/pidex/.pidex/worktrees/main', {
+      worktreeAwareName('/Users/u/phosphor/.phosphor/worktrees/main', {
         isWorktree: true,
-        mainRepoPath: '/Users/u/pidex',
+        mainRepoPath: '/Users/u/phosphor',
         branch: 'main',
       }),
-    ).toBe('pidex (main)')
+    ).toBe('phosphor (main)')
   })
 
   it('is just the project when the branch is unknown', () => {
     expect(
-      worktreeAwareName('/Users/u/pidex/.pidex/worktrees/main', {
+      worktreeAwareName('/Users/u/phosphor/.phosphor/worktrees/main', {
         isWorktree: true,
-        mainRepoPath: '/Users/u/pidex',
+        mainRepoPath: '/Users/u/phosphor',
       }),
-    ).toBe('pidex')
+    ).toBe('phosphor')
   })
 
   it('names the project, not the folder, before git info arrives', () => {
     // It delegates to `projectName`, so it inherits the path-shape fallback:
-    // this used to read "main" for the pidex repo.
-    expect(worktreeAwareName('/Users/u/pidex/.pidex/worktrees/main')).toBe('pidex')
+    // this used to read "main" for the Phosphor repo.
+    expect(worktreeAwareName('/Users/u/phosphor/.phosphor/worktrees/main')).toBe('phosphor')
   })
 
   it('is the folder basename for an ordinary workspace', () => {

@@ -2,7 +2,7 @@
 
 **2026-09-04.** The repo's `.claude/skills/` (debug, e2e, run) were visible
 only to Claude Code's own skill loader. pi sessions — which is to say every
-pidex session — never saw them, so the `/` command menu offered `skill:debug`
+Phosphor session — never saw them, so the `/` command menu offered `skill:debug`
 to a bare `claude` run but not to the app that exists to wrap pi.
 
 pi has first-class support for this (its `skills.md`, "Using Skills from

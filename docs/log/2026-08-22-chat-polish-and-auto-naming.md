@@ -7,7 +7,7 @@ Four chat-layer changes shipped together on the sidebar-polish branch (PR
 
 A new session's sidebar title used to be its first user message forever. Now,
 after the first prompt of a fresh session (not a resume, not explicitly
-named), pidex asks for a short capitalized title and applies it:
+named), Phosphor asks for a short capitalized title and applies it:
 
 - `pi:generateTitle` (pi-session-handlers.ts) runs **`pi -p --no-session
 --no-tools`** with a naming prompt — a one-shot completion against the

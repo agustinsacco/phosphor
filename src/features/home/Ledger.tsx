@@ -38,7 +38,7 @@ export function Ledger({
           (entry) =>
             entry.workspacePath === workspacePath || lanes.some((m) => m.path === entry.diskPath),
         )
-        .map((entry) => entry.pidexId),
+        .map((entry) => entry.phosphorId),
     [live, workspacePath, lanes],
   )
 

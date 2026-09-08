@@ -30,7 +30,7 @@ beforeEach(() => {
   piCommand.mockReset()
   invoke.mockReset()
   installedPi('0.84.1')
-  vi.stubGlobal('window', { pidex: { piCommand, invoke } })
+  vi.stubGlobal('window', { phosphor: { piCommand, invoke } })
   useChatStore.setState({ sessions: {} }, false)
 })
 

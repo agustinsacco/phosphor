@@ -51,7 +51,7 @@ function gate(command: string): ExtensionUIRequest {
 
 beforeEach(() => {
   invoke = vi.fn().mockResolvedValue(undefined)
-  ;(globalThis as unknown as { window: { pidex: unknown } }).window.pidex = { invoke }
+  ;(globalThis as unknown as { window: { phosphor: unknown } }).window.phosphor = { invoke }
   useExtensionUiStore.setState({ dialogs: [] })
 })
 

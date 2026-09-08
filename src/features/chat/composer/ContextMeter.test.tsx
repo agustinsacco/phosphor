@@ -120,7 +120,7 @@ beforeEach(() => {
   invoke.mockClear()
   sessionAccount = null
   usageResult = null
-  ;(globalThis as unknown as { window: { pidex: unknown } }).window.pidex = { invoke }
+  ;(globalThis as unknown as { window: { phosphor: unknown } }).window.phosphor = { invoke }
   useChatStore.setState({ sessions: {} })
   useExtensionUiStore.setState({ statuses: {} })
 })
@@ -275,7 +275,7 @@ describe('ContextMeter', () => {
     useExtensionUiStore.setState({
       statuses: {
         [SESSION]: {
-          'pidex-headroom': JSON.stringify({
+          'phosphor-headroom': JSON.stringify({
             savedTokens: 12_400,
             beforeTokens: 48_000,
             afterTokens: 35_600,

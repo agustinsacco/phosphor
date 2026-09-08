@@ -62,7 +62,7 @@ const ADAPTER_PACKAGE = 'npm:pi-mcp-adapter'
  * the adapter's install state live under Advanced, because they are repair
  * tools rather than daily controls.
  *
- * pidex still never holds a token: it writes mcp.json and drives the adapter's
+ * Phosphor still never holds a token: it writes mcp.json and drives the adapter's
  * own `/mcp-auth`. See docs/mcp.md.
  */
 export function ConnectorsTab(): React.JSX.Element {
@@ -87,12 +87,12 @@ export function ConnectorsTab(): React.JSX.Element {
   const refresh = useCallback(async (): Promise<void> => {
     try {
       const [nextConfigs, nextCache, packageEntries] = await Promise.all([
-        window.pidex.invoke('mcp:readConfigs', workspacePath ?? undefined),
-        window.pidex.invoke('mcp:readCache'),
+        window.phosphor.invoke('mcp:readConfigs', workspacePath ?? undefined),
+        window.phosphor.invoke('mcp:readCache'),
         // Per-scope package entries — pi loads BOTH scopes' packages, so the
         // merged settings view (where a project array shadows global) would
         // misreport the adapter as missing.
-        window.pidex.invoke('packages:list', workspacePath ?? undefined),
+        window.phosphor.invoke('packages:list', workspacePath ?? undefined),
       ])
       setConfigs(nextConfigs)
       setCache(nextCache)
@@ -117,7 +117,7 @@ export function ConnectorsTab(): React.JSX.Element {
   const runCheck = async (serverName: string): Promise<void> => {
     setChecks((c) => ({ ...c, [serverName]: { status: 'running' } }))
     try {
-      const result = await window.pidex.invoke(
+      const result = await window.phosphor.invoke(
         'mcp:checkServer',
         serverName,
         workspacePath ?? undefined,
@@ -161,7 +161,7 @@ export function ConnectorsTab(): React.JSX.Element {
         Services reachable over the Model Context Protocol, provided to sessions by the{' '}
         <span className="font-mono">pi-mcp-adapter</span> package. Signing in runs the
         adapter&apos;s own OAuth flow — it stores the tokens in your operating system&apos;s
-        credential store, and pidex never holds a copy.
+        credential store, and Phosphor never holds a copy.
       </p>
 
       {packages !== null && !adapterInstalled && (
@@ -176,7 +176,7 @@ export function ConnectorsTab(): React.JSX.Element {
               onClick={() => {
                 setError(null)
                 void installJob.start(() =>
-                  window.pidex.invoke(
+                  window.phosphor.invoke(
                     'packages:run',
                     'install',
                     ADAPTER_PACKAGE,
@@ -231,7 +231,7 @@ export function ConnectorsTab(): React.JSX.Element {
               onCheck={() => void runCheck(server.name)}
               onToggle={(disabled) =>
                 void act(() =>
-                  window.pidex.invoke(
+                  window.phosphor.invoke(
                     'mcp:setDisabled',
                     server.scope,
                     workspacePath ?? undefined,
@@ -242,7 +242,7 @@ export function ConnectorsTab(): React.JSX.Element {
               }
               onKeepAlive={(keep) =>
                 void act(() =>
-                  window.pidex.invoke(
+                  window.phosphor.invoke(
                     'mcp:upsertServer',
                     server.scope === 'pi-project' ? 'pi-project' : 'pi-global',
                     workspacePath ?? undefined,
@@ -253,7 +253,7 @@ export function ConnectorsTab(): React.JSX.Element {
               }
               onRemove={() =>
                 void act(() =>
-                  window.pidex.invoke(
+                  window.phosphor.invoke(
                     'mcp:removeServer',
                     server.scope,
                     workspacePath ?? undefined,
@@ -282,7 +282,7 @@ export function ConnectorsTab(): React.JSX.Element {
                 entry={entry}
                 onAdd={(choice) =>
                   void act(async () => {
-                    await window.pidex.invoke(
+                    await window.phosphor.invoke(
                       'mcp:upsertServer',
                       'pi-global',
                       undefined,
@@ -378,7 +378,7 @@ export function ConnectorsTab(): React.JSX.Element {
           }}
           onSave={(scope, name, config) =>
             void act(async () => {
-              await window.pidex.invoke(
+              await window.phosphor.invoke(
                 'mcp:upsertServer',
                 scope,
                 workspacePath ?? undefined,

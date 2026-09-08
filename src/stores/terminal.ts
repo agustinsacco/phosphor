@@ -41,7 +41,7 @@ const terminals = keyedSlice<SessionTerminals>({
 })
 
 interface TerminalState {
-  /** pidex session id → that session's terminal tabs. */
+  /** Phosphor session id → that session's terminal tabs. */
   bySession: Record<string, SessionTerminals>
   /** Text waiting to be pasted into the active terminal once it exists. */
   pendingPaste: string | null
@@ -93,7 +93,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     // tree (builds, tests, dev servers) to it in the resource monitor.
     let ptyId: string
     try {
-      ;({ ptyId } = await window.pidex.invoke('pty:create', cwd, 80, 24, sessionId))
+      ;({ ptyId } = await window.phosphor.invoke('pty:create', cwd, 80, 24, sessionId))
     } catch (error) {
       // Resolve with null rather than rejecting: every caller is a UI action
       // ("+", first open, run-in-terminal) whose only sane response is to show
@@ -119,7 +119,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     set((s) => patchSession(s, sessionId, (t) => (t.error === null ? t : { ...t, error: null }))),
 
   closeTab: async (sessionId, ptyId) => {
-    await window.pidex.invoke('pty:kill', ptyId)
+    await window.phosphor.invoke('pty:kill', ptyId)
     set((s) =>
       patchSession(s, sessionId, (t) => {
         const tabs = t.tabs.filter((tab) => tab.ptyId !== ptyId)
@@ -181,7 +181,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
 
   removeSession: async (sessionId) => {
     const tabs = get().bySession[sessionId]?.tabs ?? []
-    await Promise.allSettled(tabs.map((tab) => window.pidex.invoke('pty:kill', tab.ptyId)))
+    await Promise.allSettled(tabs.map((tab) => window.phosphor.invoke('pty:kill', tab.ptyId)))
     set((s) => ({ bySession: drop(s.bySession, sessionId) }))
   },
 
@@ -205,7 +205,7 @@ export function runningCount(state: TerminalState, sessionId: string): number {
  * one (both callers live in the active chat).
  *
  * Pasting does NOT execute by default — a code block the model wrote is the
- * user's call to review and run. `execute: true` is for commands pidex itself
+ * user's call to review and run. `execute: true` is for commands Phosphor itself
  * proposes (a known remediation with a play button), where the click IS the
  * confirmation.
  */

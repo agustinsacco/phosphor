@@ -7,7 +7,7 @@ a `docs/log/` entry and this file loses that section.
 
 ## Thesis
 
-Every IDE ever shipped is a typing instrument: file tree, buffer, cursor. pidex
+Every IDE ever shipped is a typing instrument: file tree, buffer, cursor. Phosphor
 already lives in a different world — agents do the typing, work runs as lanes on
 worktrees — but it still wears a chat app's clothes. The renewal is an
 inversion: stop decorating the transcript, and build the instrument for the

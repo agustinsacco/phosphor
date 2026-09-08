@@ -30,7 +30,7 @@ bug class that had just cost a full day to find and fix.
 ## What changed
 
 - Real sessions always run pi-claude-cli's own default (`claude`, append
-  mode) — pidex no longer passes `PI_CLAUDE_CLI_SYSTEM_PROMPT` when spawning
+  mode) — Phosphor no longer passes `PI_CLAUDE_CLI_SYSTEM_PROMPT` when spawning
   one. Removed: the Settings → Claude Code "System prompt" section, the
   `claudeSystemPrompt` pref (`AppPrefs`, `electron/store.ts`), the
   `app:setClaudeSystemPrompt` IPC channel, and the `ClaudeSystemPromptMode`
@@ -43,6 +43,6 @@ bug class that had just cost a full day to find and fix.
 ## Not touched
 
 The underlying `PI_CLAUDE_CLI_SYSTEM_PROMPT` env var and both modes still
-exist in the extension (`system-prompt-mode.ts`) — this is a pidex-side
+exist in the extension (`system-prompt-mode.ts`) — this is a Phosphor-side
 removal of the _user-facing choice_, not a change to the extension's own
 default or capability.

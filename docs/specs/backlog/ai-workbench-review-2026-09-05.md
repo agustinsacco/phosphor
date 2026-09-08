@@ -1,4 +1,4 @@
-# pidex engineering workbench review
+# Phosphor engineering workbench review
 
 **Assessment and proposal, not shipped behavior.** Reviewed 2026-09-05 at
 `ae57ae3d4ac826da83585815419109a7c2b23801`. Priorities are design judgments;
@@ -13,7 +13,7 @@ are implemented in open PRs #194–#199; the broader workbench remains proposed.
 engineering workbench.** Keep chat as the universal input and inspectable history;
 make the work, decisions, and verification the primary navigation objects.
 
-pidex already has much of the foundation: independent worktree lanes, a Home lane
+Phosphor already has much of the foundation: independent worktree lanes, a Home lane
 board and cost ledger, multi-provider model switching, Claude account routing,
 rich grouped transcripts, per-session pane layouts, versioned artifacts, session
 trees, and a Skills library. Do not pitch those as missing features. The opportunity

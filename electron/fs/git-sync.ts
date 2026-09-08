@@ -7,7 +7,7 @@ import { parseWorktreeList } from './git-worktrees'
  * Staying in sync with the remote: fetch, fast-forward pull, refreshing a
  * worktree from trunk, and checking a branch out in the main tree.
  *
- * Why this exists at all: nothing in pidex used to run `git fetch`, so the
+ * Why this exists at all: nothing in Phosphor used to run `git fetch`, so the
  * `behind` count in `git-info.ts` was measured against whatever
  * `refs/remotes/origin/*` happened to be on disk. A repo nobody had fetched in
  * a week reported "up to date" forever, which is exactly the state the branch
@@ -119,7 +119,7 @@ export async function pullFastForward(cwd: string): Promise<PullResult> {
  * Unlike `pullFastForward` this cannot be ff-only — a worktree with its own
  * commits has diverged from trunk by definition, and refusing that case would
  * make the action useless exactly when it is needed. Conflicts abort right
- * away, matching `mergeBranch`: pidex never leaves a tree mid-merge.
+ * away, matching `mergeBranch`: Phosphor never leaves a tree mid-merge.
  */
 export async function updateFromMain(
   worktreePath: string,
@@ -155,7 +155,7 @@ export async function updateFromMain(
  * Check `branch` out in the working tree at `repoPath`.
  *
  * This reverses a standing rule — `docs/worktrees.md` used to say the main
- * tree's checkout is never changed by pidex — so the guards carry the weight
+ * tree's checkout is never changed by Phosphor — so the guards carry the weight
  * the rule used to. A checkout is refused outright when the tree is dirty
  * (git would either fail or carry changes across, and neither is something a
  * user expects from picking a branch in a menu) and when another worktree

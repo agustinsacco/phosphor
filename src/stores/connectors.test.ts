@@ -10,7 +10,7 @@ beforeEach(() => {
   piCommand.mockClear()
   useConnectorsStore.setState({ flows: {} })
   // @ts-expect-error partial preload surface, only what the store touches
-  window.pidex = { invoke, piCommand }
+  window.phosphor = { invoke, piCommand }
 })
 
 const calls = (channel: string): unknown[][] =>
@@ -125,7 +125,7 @@ describe('connector flow — in a live session', () => {
     expect(calls('mcp:submitAuthCallback')).toEqual([])
   })
 
-  it('cancels explicitly — the only case where pidex answers', () => {
+  it('cancels explicitly — the only case where Phosphor answers', () => {
     const store = useConnectorsStore.getState()
     store.promptReceived({
       sessionId: 's1',

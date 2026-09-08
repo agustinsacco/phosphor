@@ -7,7 +7,7 @@ import { exportSessionHtml } from '@/features/sessions/sessionActions'
 import { promptText } from '@/stores/prompt'
 
 /**
- * Auto-retry state isn't reported by get_state, so pidex tracks the last
+ * Auto-retry state isn't reported by get_state, so Phosphor tracks the last
  * value it set per session (pi defaults to enabled).
  */
 const autoRetryLocal = new Map<string, boolean>()

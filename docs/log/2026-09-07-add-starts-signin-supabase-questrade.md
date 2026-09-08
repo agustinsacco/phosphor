@@ -19,7 +19,7 @@ Re-probed today:
   backed by a registered Slack app with a fixed app ID and hardcode that app
   ID". Plus "Only directory-published apps or internal apps may use MCP."
 
-So a one-click Slack row is only reachable if pidex registers its own Slack app
+So a one-click Slack row is only reachable if Phosphor registers its own Slack app
 and gets it published to the Marketplace. Until then the client-id field stays.
 What changed is honesty about it: the Add button is now disabled until a client
 id is typed, instead of letting `buildConnectorConfig` throw

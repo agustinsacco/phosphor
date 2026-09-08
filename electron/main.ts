@@ -1,5 +1,6 @@
 import { app, BrowserWindow, shell } from 'electron'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { existsSync, renameSync } from 'node:fs'
 import { registerIpcHandlers } from './ipc'
 import { maintenanceScheduler } from './ipc/maintenance-handlers'
 import { registry } from './registry'
@@ -23,8 +24,24 @@ const isDev = !!process.env.ELECTRON_RENDERER_URL
 // run is the stock Electron.app, so macOS shows the Electron dock icon and
 // the switcher says "Electron". The dock icon is fixable at runtime; the
 // menu-bar/switcher *title* is read from Electron.app's Info.plist and is not
-// — only a packaged build shows "pidex" there.
-app.setName('pidex')
+// — only a packaged build shows "Phosphor" there.
+app.setName('Phosphor')
+
+// The app was named "pidex" until 2026-09-08, and Electron derives the
+// userData directory from the app name — so every existing install keeps its
+// prefs, drafts and window state in ".../pidex". Adopt that directory once,
+// by rename (same volume, atomic), only when the new one does not exist yet.
+// Must run before ANYTHING resolves 'userData'; electron/store.ts constructs
+// its store lazily for exactly this kind of pre-ready adjustment.
+try {
+  const newUserData = app.getPath('userData')
+  const legacyUserData = join(dirname(newUserData), 'pidex')
+  if (!existsSync(newUserData) && existsSync(legacyUserData)) {
+    renameSync(legacyUserData, newUserData)
+  }
+} catch {
+  // A failed migration means first-run defaults, not a broken launch.
+}
 // Inset artwork on macOS (the dock applies no margin of its own, and the
 // full-bleed icon.png rendered larger than every neighbouring icon); linux
 // window/taskbar slots want the full-bleed tile.
@@ -37,11 +54,11 @@ const devIcon = !app.isPackaged
 // directory explicitly; everything else gets a per-pid scratch dir. Gated on
 // packaging so the env var cannot redirect a shipped app's user data
 // (see ipc/pi-session-handlers.ts:piStubPath).
-if (!app.isPackaged && process.env.PIDEX_TEST_USER_DATA) {
+if (!app.isPackaged && process.env.PHOSPHOR_TEST_USER_DATA) {
   const dir =
-    process.env.PIDEX_TEST_USER_DATA !== '1'
-      ? process.env.PIDEX_TEST_USER_DATA
-      : join(app.getPath('temp'), `pidex-e2e-${process.pid}`)
+    process.env.PHOSPHOR_TEST_USER_DATA !== '1'
+      ? process.env.PHOSPHOR_TEST_USER_DATA
+      : join(app.getPath('temp'), `phosphor-e2e-${process.pid}`)
   app.setPath('userData', dir)
 }
 
@@ -113,7 +130,7 @@ function createWindow(): BrowserWindow {
 }
 
 /**
- * One pidex per machine.
+ * One Phosphor per machine.
  *
  * Two instances would each own a copy of the session registry, so they would
  * race each other over the same session files. Focusing the existing window is
@@ -126,20 +143,20 @@ function createWindow(): BrowserWindow {
 // during Chromium's startup. See artifacts/artifact-protocol.ts.
 registerArtifactScheme()
 
-const singleInstance = process.env.PIDEX_TEST_USER_DATA ? true : app.requestSingleInstanceLock()
+const singleInstance = process.env.PHOSPHOR_TEST_USER_DATA ? true : app.requestSingleInstanceLock()
 
 if (!singleInstance) {
-  // Say so. `npm run dev` against an already-running installed pidex exits
+  // Say so. `npm run dev` against an already-running installed Phosphor exits
   // here with no window and no message — electron-vite prints "starting
   // electron app..." and then nothing forever, which reads as a broken build
   // rather than a lock. That silence cost a debugging session; the workaround
-  // is a separate profile via PIDEX_TEST_USER_DATA.
+  // is a separate profile via PHOSPHOR_TEST_USER_DATA.
   // Dev only: for a packaged app a second launch is the normal "focus the
   // existing window" path, and the debug log is not open yet here anyway.
   if (!app.isPackaged) {
     console.error(
-      'pidex is already running, so this instance exited. ' +
-        'For a second instance during development, set PIDEX_TEST_USER_DATA to a scratch directory.',
+      'Phosphor is already running, so this instance exited. ' +
+        'For a second instance during development, set PHOSPHOR_TEST_USER_DATA to a scratch directory.',
     )
   }
   app.quit()

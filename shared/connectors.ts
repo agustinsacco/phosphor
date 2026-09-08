@@ -2,7 +2,7 @@
  * Reading the MCP adapter's OAuth conversation.
  *
  * The adapter drives OAuth through `ctx.ui.input()` and `ctx.ui.notify()`,
- * which reach pidex as ordinary extension-UI requests. pidex intercepts the
+ * which reach Phosphor as ordinary extension-UI requests. Phosphor intercepts the
  * ones that belong to an authorization flow so it can open the browser and
  * show a connector card instead of a bare "paste this URL" text box.
  *
@@ -61,7 +61,7 @@ export interface AuthNotice {
 }
 
 /**
- * The adapter's own verdict on a flow, which is what actually tells pidex the
+ * The adapter's own verdict on a flow, which is what actually tells Phosphor the
  * browser round-trip finished. Status snapshots follow, but they arrive on a
  * reconnect and can lag.
  */
@@ -85,7 +85,7 @@ export function parseAuthNotice(message: string): AuthNotice | null {
 }
 
 /**
- * The verdict of `/mcp reconnect <server>` — pidex's connection test.
+ * The verdict of `/mcp reconnect <server>` — Phosphor's connection test.
  *
  * "Is this connector up?" had no answer without a live session, because
  * per-server state only arrives from the adapter running inside one. The

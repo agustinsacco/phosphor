@@ -16,7 +16,7 @@ Received arguments:
 ```
 
 The orchestrator then answered "what lanes do you see?" from Claude Code's own
-`ListAgents` — peer Claude sessions, not pidex lanes — and told the user its
+`ListAgents` — peer Claude sessions, not Phosphor lanes — and told the user its
 fleet view might be incomplete. The fleet tool has been dead on that provider
 for as long as the provider has been in use.
 
@@ -52,5 +52,5 @@ provider.
 ## The real fix, upstream
 
 `JSON.parse(block.partialJson || "{}")` in `pi-claude-cli`'s
-`event-bridge.ts`. That package is separately versioned and pidex pins nothing,
+`event-bridge.ts`. That package is separately versioned and Phosphor pins nothing,
 so the invariant above stays either way.

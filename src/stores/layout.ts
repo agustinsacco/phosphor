@@ -80,7 +80,7 @@ export function sessionPanes(
   return panes.read(state.bySession, sessionId)
 }
 
-const STORAGE_KEY = 'pidex-pane-layout'
+const STORAGE_KEY = 'phosphor-pane-layout'
 
 /**
  * Validate a persisted `bySession` map field by field. localStorage survives

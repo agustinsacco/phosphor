@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { createToolCallGuard, worktreeCounterpart } from './worktree-paths'
 
-/** The real shape: pidex puts worktrees inside the checkout they branch from. */
-const MAIN = '/home/u/src/pidex'
-const CWD = '/home/u/src/pidex/.pidex/worktrees/read-composer'
+/** The real shape: Phosphor puts worktrees inside the checkout they branch from. */
+const MAIN = '/home/u/src/phosphor'
+const CWD = '/home/u/src/phosphor/.phosphor/worktrees/read-composer'
 
 const existsOnly =
   (...paths: string[]) =>
@@ -77,7 +77,7 @@ describe('worktreeCounterpart', () => {
   })
 
   it('works for a sibling worktree, not just a nested one', () => {
-    const sibling = '/home/u/src/pidex-feature'
+    const sibling = '/home/u/src/phosphor-feature'
     expect(
       worktreeCounterpart({
         cwd: sibling,
@@ -93,9 +93,9 @@ describe('worktreeCounterpart', () => {
       worktreeCounterpart({
         cwd: CWD,
         mainRepoPath: MAIN,
-        // `/home/u/src/pidex-notes` shares a prefix with `/home/u/src/pidex`
+        // `/home/u/src/phosphor-notes` shares a prefix with `/home/u/src/phosphor`
         // as a string but is not inside it.
-        requestedPath: '/home/u/src/pidex-notes/src/lib/burnRate.ts',
+        requestedPath: '/home/u/src/phosphor-notes/src/lib/burnRate.ts',
         exists: () => true,
       }),
     ).toBeNull()

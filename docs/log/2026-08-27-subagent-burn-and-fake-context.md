@@ -35,7 +35,7 @@ read "Async agent launched successfully". `Agent` backgrounds by default;
 `run_in_background: false` is opt-in. And a synchronous sub-agent works fine
 here: one `claude -p` invocation, agent launched with the flag, and the
 result came back inside the turn (verified directly, twice). So the
-capability was never structurally broken in pidex. Nothing was telling the
+capability was never structurally broken in Phosphor. Nothing was telling the
 model which form to use.
 
 Hence `subagentPolicy` in [directives.ts](../../electron/pi/directives.ts) —
@@ -47,7 +47,7 @@ The hard block exists if it is ever needed, and it was verified: the provider
 reads `PI_CLAUDE_CLI_SETTINGS` and passes it as `--settings`, so a settings
 file with `permissions.deny: ["Agent","Task"]` removes the tool from the
 model's list outright — tested under `bypassPermissions`, the model reported
-no such tool existed and `permission_denials` was empty. pidex sets that
+no such tool existed and `permission_denials` was empty. Phosphor sets that
 variable nowhere. Left that way deliberately: banning a tool whose
 synchronous form works is the wrong trade.
 
@@ -125,9 +125,9 @@ model kept the "delegate broad sweeps" half and lost every bit of guidance
 about when not to. pi's replacement tools section names six tools and
 `Agent` is not among them.
 
-That is why "how do I add a new claude account on pidex?" fanned out, and why
+That is why "how do I add a new claude account on Phosphor?" fanned out, and why
 the same model in Claude Code's own harness does not. Reverted to `claude`
-(pidex's default, and the provider's). Costs ~12k context per call, cached at
+(Phosphor's default, and the provider's). Costs ~12k context per call, cached at
 0.1x.
 
 ## Also fixed here

@@ -1,7 +1,7 @@
 /**
  * Will this spawn land on the Claude Code provider (`pi-claude-cli`)?
  *
- * Decided at spawn time so pidex can pass `--no-context-files` for those
+ * Decided at spawn time so Phosphor can pass `--no-context-files` for those
  * sessions: the Claude CLI loads CLAUDE.md itself as memory, and pi embedding
  * the same file in its system prompt bills it twice on every request
  * (~4,900 tokens measured on this repo's CLAUDE.md). See
@@ -33,14 +33,14 @@ export function usesClaudeCliProvider(
  * model through one door: pi-mcp-adapter's `mcp` gateway, configured by
  * Settings -> Connectors. Without it the CLI also loads whatever is in
  * `~/.claude/.mcp.json`, `~/.claude.json` and the user's claude.ai connectors.
- * Those servers are invisible to pidex (the status chip and the context meter
+ * Those servers are invisible to Phosphor (the status chip and the context meter
  * both read the adapter, which only knows its own chain), they never become pi
  * `tool_execution_*` events, so `pi-ext/worktree-paths.ts` cannot guard them,
  * and they make the same project behave differently on two machines.
  *
  * Deliberately NOT `PI_CLAUDE_CLI_HERMETIC`, which would reach the same flag
  * but also pass an empty `--setting-sources`. That drops the CLI's CLAUDE.md
- * auto-memory, and pidex already passes `--no-context-files` so pi does not
+ * auto-memory, and Phosphor already passes `--no-context-files` so pi does not
  * send its own copy — the model would end up with project instructions from
  * neither side. See docs/mcp.md.
  *

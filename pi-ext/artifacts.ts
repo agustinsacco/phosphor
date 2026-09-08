@@ -1,9 +1,9 @@
 /**
- * pidex artifacts extension — loaded into every pidex session via
+ * Phosphor artifacts extension — loaded into every Phosphor session via
  * `pi --mode rpc -e <this file>`.
  *
  * Registers the artifact tool family. Tool results keep chat output short
- * (confirmation text) while the full payload rides in `details`, which pidex
+ * (confirmation text) while the full payload rides in `details`, which Phosphor
  * consumes from tool_execution_end events and from session history on resume
  * (toolResult messages persist in the JSONL).
  *
@@ -35,7 +35,7 @@ interface ToolResultLike {
 }
 
 // Loose structural types: the real ones live in @earendil-works/pi-coding-agent,
-// which is provided by pi at load time (not a pidex dependency).
+// which is provided by pi at load time (not a Phosphor dependency).
 interface PiExtensionApi {
   registerTool(definition: Record<string, unknown>): void
   on(event: string, handler: (event: unknown, ctx: unknown) => unknown): void

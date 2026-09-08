@@ -265,8 +265,8 @@ describe('summarizeExternalTool', () => {
   it('strips the worktree prefix out of a command, exactly as pi rows do', () => {
     const summary = summarizeExternalTool(
       'Bash',
-      { command: 'cd /w/.pidex/worktrees/lane && npm test' },
-      '/w/.pidex/worktrees/lane',
+      { command: 'cd /w/.phosphor/worktrees/lane && npm test' },
+      '/w/.phosphor/worktrees/lane',
     )
     expect(summary.object).toBe('npm test')
   })

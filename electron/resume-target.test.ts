@@ -63,7 +63,7 @@ describe('resume target resolution', () => {
   let sessionPath: string
 
   beforeEach(async () => {
-    workspace = await mkdtemp(join(tmpdir(), 'pidex-resume-'))
+    workspace = await mkdtemp(join(tmpdir(), 'phosphor-resume-'))
     sessionPath = join(workspace, 'session.jsonl')
     await writeFile(sessionPath, '{"type":"session"}\n')
   })
@@ -122,7 +122,7 @@ describe('resume target resolution', () => {
   })
 
   it('prefers a valid lastWorkspacePath over a newer recent', async () => {
-    const newer = await mkdtemp(join(tmpdir(), 'pidex-resume-newer-'))
+    const newer = await mkdtemp(join(tmpdir(), 'phosphor-resume-newer-'))
     try {
       await expect(
         resolveResumeTarget({

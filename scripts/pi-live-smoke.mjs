@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Live re-verification of pidex against the installed pi.
+ * Live re-verification of Phosphor against the installed pi.
  *
  * `npm run validate` cannot do this: the e2e suite speaks to
  * `e2e/fixtures/pi-stub.cjs`, which answers a fixed script and therefore
@@ -8,7 +8,7 @@
  * `pi --mode rpc` the way `electron/pi/rpc-client.ts` spawns one — same argv
  * shape, all five bundled `pi-ext/` extensions, the Claude provider with
  * `PI_CLAUDE_CLI_STRICT_MCP=1` — and drives the commands, events and response
- * fields pidex actually reads.
+ * fields Phosphor actually reads.
  *
  * It runs one real model turn, so it needs a working provider login and costs
  * a few cents. Not part of `validate`, not part of CI; run it by hand when the

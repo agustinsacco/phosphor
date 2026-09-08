@@ -1,18 +1,18 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="build/icon.svg">
   <source media="(prefers-color-scheme: light)" srcset="build/icon-light.svg">
-  <img src="build/icon.svg" alt="pidex" width="88" height="88">
+  <img src="build/icon.svg" alt="Phosphor" width="88" height="88">
 </picture>
 
-# pidex
+# Phosphor
 
 **The [pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent),
 extended into a desktop IDE for macOS, Linux and Windows — the most advanced
 multi-provider agentic IDE you can run on your own machine.**
 
-[![CI](https://github.com/agustinsacco/pidex/actions/workflows/ci.yml/badge.svg)](https://github.com/agustinsacco/pidex/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/agustinsacco/pidex?label=release&color=ffbe5c)](https://github.com/agustinsacco/pidex/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/agustinsacco/pidex/total?label=downloads)](https://github.com/agustinsacco/pidex/releases)
+[![CI](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml/badge.svg)](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/agustinsacco/Phosphor?label=release&color=ffbe5c)](https://github.com/agustinsacco/Phosphor/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/agustinsacco/Phosphor/total?label=downloads)](https://github.com/agustinsacco/Phosphor/releases)
 ![License: MIT](https://img.shields.io/badge/license-MIT-8ec9a0)
 
 Open a project folder, describe a task, and work alongside the agent — with a
@@ -39,19 +39,19 @@ needed. Switch models mid-session and the conversation carries over.
 ## Quick start
 
 ```bash
-# 1. pi is the engine — pidex needs it on your PATH (Node ≥ 22.19)
+# 1. pi is the engine — Phosphor needs it on your PATH (Node ≥ 22.19)
 npm install -g @earendil-works/pi-coding-agent
 
-# 2. Install pidex (macOS / Linux; Windows builds are on tagged releases)
-curl -fsSL https://github.com/agustinsacco/pidex/releases/latest/download/install.sh | sh
+# 2. Install Phosphor (macOS / Linux; Windows builds are on tagged releases)
+curl -fsSL https://github.com/agustinsacco/Phosphor/releases/latest/download/install.sh | sh
 ```
 
-Launch pidex, open a project folder, and sign in to a provider: open the
+Launch Phosphor, open a project folder, and sign in to a provider: open the
 built-in terminal, run `pi`, and use `/login` — or configure API keys / a local
 endpoint in `~/.pi/agent/`. Then describe a task in the composer and press
 Enter. Details and alternative installs are under [Install](#install).
 
-## What pidex does
+## What Phosphor does
 
 - **Sessions are real pi subprocesses.** One `pi --mode rpc` per live session,
   spawned in the workspace folder. Everything pi exposes over RPC is reachable
@@ -72,7 +72,7 @@ Enter. Details and alternative installs are under [Install](#install).
   restarts via session replay.
 - **Your machine, your models.** Sign in to providers, pick models, set themes,
   and mount MCP servers from Settings. MCP OAuth is owned by the adapter, never
-  by pidex: [docs/mcp.md](docs/mcp.md).
+  by Phosphor: [docs/mcp.md](docs/mcp.md).
 
 ## The screens
 
@@ -183,7 +183,7 @@ provider:
 ![The Accounts tab with signed-in providers](docs/img/accounts.png)
 
 Connectors mounts MCP servers (Notion, Linear, and anything else with an MCP
-endpoint); OAuth is owned by the adapter, never by pidex:
+endpoint); OAuth is owned by the adapter, never by Phosphor:
 
 ![The Connectors tab](docs/img/connectors.png)
 
@@ -196,26 +196,26 @@ And the light theme, on the artifact session:
 macOS and Linux:
 
 ```bash
-curl -fsSL https://github.com/agustinsacco/pidex/releases/latest/download/install.sh | sh
+curl -fsSL https://github.com/agustinsacco/Phosphor/releases/latest/download/install.sh | sh
 ```
 
 The script installs the AppImage on Linux and the `.app` bundle on macOS,
 verifying the download against the release's `checksums.txt`. Binaries are also
-on the [Releases page](https://github.com/agustinsacco/pidex/releases) — DMG and
+on the [Releases page](https://github.com/agustinsacco/Phosphor/releases) — DMG and
 ZIP for macOS, AppImage and `.deb` for Linux.
 
 Windows builds are produced by the tagged `Release` workflow rather than the
 per-merge one, so a `.exe` is only present on releases that were cut from a `v*`
 tag.
 
-pidex needs `pi` on your PATH:
+Phosphor needs `pi` on your PATH:
 
 ```bash
 npm install -g @earendil-works/pi-coding-agent
 ```
 
 The app shows a setup screen until pi is available. Sign in to a provider by
-running `pi` in pidex's built-in terminal and using `/login`, or configure API
+running `pi` in Phosphor's built-in terminal and using `/login`, or configure API
 keys / a local endpoint in `~/.pi/agent/`.
 
 ### Updates
@@ -233,7 +233,7 @@ entirely in development builds — they only run when packaged.
 ## How it works
 
 One `pi --mode rpc` subprocess per live session, spoken to over JSONL on stdio.
-pidex never imports pi's code: the protocol is hand-mirrored in
+Phosphor never imports pi's code: the protocol is hand-mirrored in
 [`shared/rpc.ts`](shared/rpc.ts) with compile-time drift guards, so a change to
 pi's protocol that this file hasn't caught won't compile.
 
@@ -255,12 +255,12 @@ Six facts that explain the rest:
    needs disk, network, or a subprocess, it goes in `electron/`, not `src/`.
 2. **IPC is a typed contract.** A new channel is an entry in `shared/ipc.ts`'s
    `IpcInvokeMap`, a handler in the `electron/ipc/<prefix>-handlers.ts` module
-   matching the prefix, and a case in `src/dev/mockPidex.ts`.
+   matching the prefix, and a case in `src/dev/mockPhosphor.ts`.
 3. **Stores (`src/stores/`) are projections of main-process state**, not a second
    source of truth. The zustand chat store is what keeps a session's live title,
    tokens, and context meter honest while a turn is running.
 4. **Sessions are files.** pi writes a session's JSONL when a turn _ends_; the
-   sessions list is a scan of pi's session directory. pidex also appends to those
+   sessions list is a scan of pi's session directory. Phosphor also appends to those
    files for bookmarks, branch jumps and forks — which is only safe while no pi
    process owns the file, and call sites enforce that by convention.
 5. **Six extensions run inside pi's process** (`pi-ext/`, loaded with `-e`
@@ -269,9 +269,9 @@ Six facts that explain the rest:
    the model did — read
    [docs/extensions.md](docs/extensions.md) first.
 6. **Failure is reported, not hidden.** Failures surface on the session's chat;
-   main-process detail goes to `pidex.log`. When diagnosing a bad session,
+   main-process detail goes to `phosphor.log`. When diagnosing a bad session,
    [CLAUDE.md](CLAUDE.md#debugging-a-failing-session) has the three layers of
-   evidence and the one command that decides pidex-vs-pi.
+   evidence and the one command that decides Phosphor-vs-pi.
 
 ## Development
 
@@ -318,7 +318,7 @@ npm run build && npm run shots:live
 ```
 
 The live runner (`scripts/capture-live-shots.mjs`) isolates app prefs (so it
-never fights an installed pidex) but deliberately not pi: it runs one small
+never fights an installed Phosphor) but deliberately not pi: it runs one small
 edit task in a disposable git worktree and one artifact task, then shoots the
 transcript, panes, menus and popovers those turns produced. It spends real
 tokens and leaves the two sessions and the worktree behind — that is the
@@ -379,7 +379,7 @@ pi-ext/              the six pi extensions that run inside pi's process,
 e2e/                 Playwright-Electron smoke tests + deterministic pi stub
 scripts/             install.sh, icon + screenshot generation, release and
                      validate helpers
-docs/                how pidex works now; docs/log dated history;
+docs/                how Phosphor works now; docs/log dated history;
                      docs/specs deferred work — see docs/README.md
 docs/img/            the screenshots above (assets, not documentation)
 ```
@@ -390,14 +390,14 @@ only ever renders inside a sandboxed iframe.
 
 ## Documentation map
 
-| Read                                           | When                                                    |
-| ---------------------------------------------- | ------------------------------------------------------- |
-| [CLAUDE.md](CLAUDE.md)                         | Orientation, conventions, sharp edges, debugging        |
-| [docs/README.md](docs/README.md)               | The map: what is current behaviour and what is deferred |
-| [docs/](docs/)                                 | How pidex works now (architecture, extensions, MCP, …)  |
-| [docs/log/](docs/log/)                         | Dated notes on what changed and why                     |
-| [docs/specs/TRACKER.md](docs/specs/TRACKER.md) | Phases and their logs                                   |
-| [docs/specs/](docs/specs/)                     | Deferred work: findings, backlog, build intent          |
+| Read                                           | When                                                      |
+| ---------------------------------------------- | --------------------------------------------------------- |
+| [CLAUDE.md](CLAUDE.md)                         | Orientation, conventions, sharp edges, debugging          |
+| [docs/README.md](docs/README.md)               | The map: what is current behaviour and what is deferred   |
+| [docs/](docs/)                                 | How Phosphor works now (architecture, extensions, MCP, …) |
+| [docs/log/](docs/log/)                         | Dated notes on what changed and why                       |
+| [docs/specs/TRACKER.md](docs/specs/TRACKER.md) | Phases and their logs                                     |
+| [docs/specs/](docs/specs/)                     | Deferred work: findings, backlog, build intent            |
 
 `docs/` is current behaviour. `docs/specs/build/` is a dated design doc;
 reading one as current is how stale conclusions survive.

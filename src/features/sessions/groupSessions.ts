@@ -26,7 +26,7 @@ export interface GroupedSessions {
    * True once ANY folder in this group has been scanned.
    *
    * The collapse default keys off this rather than `scanned`. A lane
-   * (`<repo>/.pidex/worktrees/<slug>`) is discovered asynchronously and folds
+   * (`<repo>/.phosphor/worktrees/<slug>`) is discovered asynchronously and folds
    * into its repo's group, so with `scanned` an already-open group flipped
    * shut the moment discovery added one unscanned folder — which also
    * unwatched it.
@@ -41,8 +41,8 @@ export interface GroupedSessions {
  * in the caller's persisted workspace order.
  *
  * A linked worktree is a different folder from its main repo, so grouping
- * naively by folder gave every worktree its own sidebar header ("pidex",
- * "pidex (test)", ...) even though they're all the same project — the
+ * naively by folder gave every worktree its own sidebar header ("Phosphor",
+ * "Phosphor (test)", ...) even though they're all the same project — the
  * sidebar read as more projects than actually existed. Instead, a worktree's
  * sessions fold into its main repo's group (keyed by `mainRepoPath`, from
  * `git:info`); the worktree/branch a session actually runs on is shown per
@@ -62,7 +62,7 @@ export function groupSessionsByProject(
    *
    * The sidebar's discovery pass knows this the instant it learns the path,
    * so a worktree folds into its project on the very first render. Without
-   * it, any worktree outside `<repo>/.pidex/worktrees/` waited on
+   * it, any worktree outside `<repo>/.phosphor/worktrees/` waited on
    * `git:infoBatch` and opened its own branch-named group in the meantime.
    */
   worktreeRoots: Record<string, string> = {},
@@ -86,7 +86,7 @@ export function groupSessionsByProject(
     // git info alone: a worktree whose `git:infoBatch` answer has not landed
     // would otherwise open its own group, headed by the branch slug.
     // `worktreeRoots` is what makes that true for a worktree living anywhere
-    // on disk, not just under `<repo>/.pidex/worktrees/`.
+    // on disk, not just under `<repo>/.phosphor/worktrees/`.
     const projectKey = projectPathFor(path, git, worktreeRoots[path])
     const metas = dropSupersededSessions(disk[path] ?? [], isLive).filter((m) => !isPinned(m))
     const liveCount = metas.filter(isLive).length
@@ -145,7 +145,7 @@ export function groupSessionsByProject(
 }
 
 interface LiveEntry {
-  pidexId: string
+  phosphorId: string
   workspacePath: string
   diskPath?: string
 }
@@ -173,8 +173,8 @@ export function pendingSessionsByGroup(
     if (entry.diskPath && diskPaths.has(entry.diskPath)) continue
     const key = groupKeyByPath.get(entry.workspacePath) ?? entry.workspacePath
     const list = map.get(key)
-    if (list) list.push(entry.pidexId)
-    else map.set(key, [entry.pidexId])
+    if (list) list.push(entry.phosphorId)
+    else map.set(key, [entry.phosphorId])
   }
   return map
 }

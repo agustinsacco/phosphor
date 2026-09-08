@@ -19,13 +19,13 @@ import {
  */
 function piStubPath(): string | undefined {
   if (app.isPackaged) return undefined
-  return process.env.PIDEX_PI_STUB || undefined
+  return process.env.PHOSPHOR_PI_STUB || undefined
 }
 
 /** E2E-only claude override, so a developer's real install can't shadow it. */
 function claudeBinOverride(): string | undefined {
   if (app.isPackaged) return undefined
-  return process.env.PIDEX_CLAUDE_BIN || undefined
+  return process.env.PHOSPHOR_CLAUDE_BIN || undefined
 }
 
 /** pi package listing + mutations via pi's own CLI (streamed jobs). */

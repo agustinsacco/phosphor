@@ -2,7 +2,7 @@ import type { AgentDirectivePrefs, GitInfo } from '@shared/models'
 import { worktreePromptBlock } from './workspace-prompt'
 
 /**
- * The directive stack: everything pidex appends to a lane's system prompt.
+ * The directive stack: everything Phosphor appends to a lane's system prompt.
  *
  * Four layers reach a lane and only two of them are ours:
  *
@@ -51,7 +51,7 @@ export interface LaneCharter {
  */
 export function laneCharterBlock(charter: LaneCharter): string {
   const lines = [
-    '<pidex_lane>',
+    '<phosphor_lane>',
     'This session is a LANE: one unit of work, on its own branch, that ends in a',
     'pull request. Not a scratch session.',
   ]
@@ -65,7 +65,7 @@ export function laneCharterBlock(charter: LaneCharter): string {
     '  work is genuinely larger, land it as a stack of smaller PRs rather than one.',
     "- Run the project's own typecheck, tests and lint before you claim the work is",
     '  done. Saying it is done is not evidence; an exit code is.',
-    '</pidex_lane>',
+    '</phosphor_lane>',
   )
   return lines.join('\n')
 }
@@ -83,7 +83,7 @@ export function laneCharterBlock(charter: LaneCharter): string {
  * and 28.6M cache-read tokens, all seven killed at the same millisecond, not
  * one finding returned.
  *
- * 0.4.14 waits for them, but pidex pins no provider version and this text is
+ * 0.4.14 waits for them, but Phosphor pins no provider version and this text is
  * fixed at spawn — so it must be true under both. Synchronous delegation is:
  * it returns inside the turn either way.
  *
@@ -91,13 +91,13 @@ export function laneCharterBlock(charter: LaneCharter): string {
  */
 export function subagentPolicyBlock(): string {
   return [
-    '<pidex_subagents>',
+    '<phosphor_subagents>',
     'Sub-agents are available, and the synchronous form is the reliable one:',
     'run_in_background: false returns the findings inside this turn on every',
     'provider version. A backgrounded agent reports back only on pi-claude-cli',
     '0.4.14 or newer; on anything older it dies with the turn, findings lost.',
     '- Answer directly when you can. Reading a handful of files is not a fan-out.',
-    '</pidex_subagents>',
+    '</phosphor_subagents>',
   ].join('\n')
 }
 

@@ -59,12 +59,12 @@ explicit streaming send controls; no workbench/orchestration features were added
 
 ## Implementation and evidence
 
-Merge in order: [fonts #194](https://github.com/agustinsacco/pidex/pull/194) →
-[diffs #195](https://github.com/agustinsacco/pidex/pull/195) →
-[readability #196](https://github.com/agustinsacco/pidex/pull/196) →
-[editing #197](https://github.com/agustinsacco/pidex/pull/197) →
-[controls #198](https://github.com/agustinsacco/pidex/pull/198) →
-[shortcuts #199](https://github.com/agustinsacco/pidex/pull/199).
+Merge in order: [fonts #194](https://github.com/agustinsacco/Phosphor/pull/194) →
+[diffs #195](https://github.com/agustinsacco/Phosphor/pull/195) →
+[readability #196](https://github.com/agustinsacco/Phosphor/pull/196) →
+[editing #197](https://github.com/agustinsacco/Phosphor/pull/197) →
+[controls #198](https://github.com/agustinsacco/Phosphor/pull/198) →
+[shortcuts #199](https://github.com/agustinsacco/Phosphor/pull/199).
 
 At `7676d62`: typecheck/lint/format/build passed; 1,844 unit tests and 43 Electron
 e2e tests passed. All six PRs have green Linux/macOS CI. Native captures covered

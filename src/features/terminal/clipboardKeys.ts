@@ -1,4 +1,4 @@
-import type { PidexPlatform } from '@shared/ipc'
+import type { PhosphorPlatform } from '@shared/ipc'
 
 export type ClipboardAction = 'copy' | 'paste'
 
@@ -23,13 +23,13 @@ export type ClipboardKeyEvent = Pick<
  * `useGlobalShortcuts` matches codes).
  */
 /** The modifier half of that chord, for `formatShortcut` labels. */
-export function clipboardModifiers(platform: PidexPlatform): string[] {
+export function clipboardModifiers(platform: PhosphorPlatform): string[] {
   return platform === 'darwin' ? ['mod'] : ['mod', 'shift']
 }
 
 export function clipboardActionFor(
   event: ClipboardKeyEvent,
-  platform: PidexPlatform,
+  platform: PhosphorPlatform,
 ): ClipboardAction | null {
   if (event.type !== 'keydown' || event.altKey) return null
   const held =

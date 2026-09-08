@@ -18,36 +18,36 @@ import { create } from 'zustand'
  * resource monitor's "include terminals" toggle started failing in e2e, twice
  * in two runs, and passed with this state disabled).
  *
- * Keyed pidexId → the workspace being named, rather than pidexId → boolean, so
+ * Keyed phosphorId → the workspace being named, rather than phosphorId → boolean, so
  * the branch chip can ask "is anything in my folder being named?" without also
  * subscribing to the live-session map it would otherwise need to join against.
  */
 interface NamingState {
-  /** pidexId → workspacePath whose chat is currently being named. */
+  /** phosphorId → workspacePath whose chat is currently being named. */
   naming: Record<string, string>
-  start: (pidexId: string, workspacePath: string) => void
-  finish: (pidexId: string) => void
+  start: (phosphorId: string, workspacePath: string) => void
+  finish: (phosphorId: string) => void
 }
 
 export const useNamingStore = create<NamingState>((set) => ({
   naming: {},
 
-  start: (pidexId, workspacePath) =>
-    set((s) => ({ naming: { ...s.naming, [pidexId]: workspacePath } })),
+  start: (phosphorId, workspacePath) =>
+    set((s) => ({ naming: { ...s.naming, [phosphorId]: workspacePath } })),
 
   // Dropped rather than tombstoned: a session that has been named is not
   // "not naming", it is done, and this map is read per row on every render.
-  finish: (pidexId) =>
+  finish: (phosphorId) =>
     set((s) => {
-      if (!(pidexId in s.naming)) return s
-      const { [pidexId]: _done, ...rest } = s.naming
+      if (!(phosphorId in s.naming)) return s
+      const { [phosphorId]: _done, ...rest } = s.naming
       return { naming: rest }
     }),
 }))
 
 /** Is this session still waiting on its name? */
-export function isNaming(naming: Record<string, string>, pidexId: string | undefined): boolean {
-  return pidexId !== undefined && pidexId in naming
+export function isNaming(naming: Record<string, string>, phosphorId: string | undefined): boolean {
+  return phosphorId !== undefined && phosphorId in naming
 }
 
 /**

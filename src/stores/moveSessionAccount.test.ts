@@ -17,7 +17,7 @@ beforeEach(async () => {
       : Promise.resolve(undefined),
   )
   vi.stubGlobal('window', {
-    pidex: {
+    phosphor: {
       invoke,
       onSessionPush: vi.fn(() => () => {}),
       piCommand: vi.fn().mockResolvedValue({ success: true, data: {} }),
@@ -37,7 +37,7 @@ describe('moveSessionToAccount', () => {
   it('binds the file, drops the old process, and resumes the same file', async () => {
     const { useSessionsStore } = await import('./sessions')
     useSessionsStore.setState({
-      live: { s1: { pidexId: 's1', workspacePath: '/w', diskPath: '/sessions/a.jsonl' } },
+      live: { s1: { phosphorId: 's1', workspacePath: '/w', diskPath: '/sessions/a.jsonl' } },
       activeSessionId: 's1',
     })
 
@@ -61,7 +61,7 @@ describe('moveSessionToAccount', () => {
     // pi writes the file when the first turn ENDS, so a lane mid-first-turn has
     // nothing to resume from: disposing it would throw the thread away.
     const { useSessionsStore } = await import('./sessions')
-    useSessionsStore.setState({ live: { s2: { pidexId: 's2', workspacePath: '/w' } } })
+    useSessionsStore.setState({ live: { s2: { phosphorId: 's2', workspacePath: '/w' } } })
 
     expect(await useSessionsStore.getState().moveSessionToAccount('s2', 'work')).toBeNull()
     expect(invoke).not.toHaveBeenCalledWith('pi:disposeSession', 's2')
@@ -70,7 +70,7 @@ describe('moveSessionToAccount', () => {
   it('keeps the lane when the binding cannot be written', async () => {
     const { useSessionsStore } = await import('./sessions')
     useSessionsStore.setState({
-      live: { s1: { pidexId: 's1', workspacePath: '/w', diskPath: '/sessions/a.jsonl' } },
+      live: { s1: { phosphorId: 's1', workspacePath: '/w', diskPath: '/sessions/a.jsonl' } },
     })
     invoke.mockImplementation((channel: string) =>
       channel === 'claude:assignSession'

@@ -10,7 +10,7 @@ beforeEach(() => {
   useExtensionUiStore.setState({ dialogs: [], statuses: {}, widgets: {}, toasts: [] })
   useConnectorsStore.setState({ flows: {} })
   // @ts-expect-error partial preload surface
-  window.pidex = { invoke }
+  window.phosphor = { invoke }
 })
 
 const oauthRequest = {

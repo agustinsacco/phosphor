@@ -10,7 +10,7 @@ import { useEffect, useState } from 'react'
  * interactive artifact rendered as a page of empty boxes where its scripted
  * regions should have been, and Chromium logged the refusal.
  *
- * So the HTML is staged in the main process and served over `pidex-artifact://`
+ * So the HTML is staged in the main process and served over `phosphor-artifact://`
  * with its own `default-src 'none'` policy. The sandbox attribute stays and
  * deliberately omits `allow-same-origin`, which keeps the document's origin
  * opaque. See electron/artifacts/artifact-protocol.ts for the measured
@@ -31,7 +31,7 @@ export function SandboxedHtml({
   useEffect(() => {
     let cancelled = false
     setFailed(false)
-    void window.pidex
+    void window.phosphor
       .invoke('artifacts:stageHtml', html)
       .then((staged) => {
         if (!cancelled) setUrl(staged)

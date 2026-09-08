@@ -3,7 +3,7 @@
 Sessions on `@saccolabs/pi-claude-cli` carry two block shapes no pi-native
 provider produces, and the transcript rendered both wrong. Found by reviewing
 a real session, then quantified by running 16 real turns across all four
-Claude families and feeding the resulting sessions through pidex's **own**
+Claude families and feeding the resulting sessions through Phosphor's **own**
 `hydrateFromMessages` + `buildTranscriptRows` + `summarizeActivity`.
 
 ## CLI-side tools were prose
@@ -34,7 +34,7 @@ transcript advertised "1 thought" that expanded to nothing — sometimes an
 entire activity card containing nothing at all.
 
 Fixed upstream in the provider (0.4.4, lazy materialization), but sessions
-recorded before that fix are on disk forever and pidex hydrates them, so
+recorded before that fix are on disk forever and Phosphor hydrates them, so
 `buildTranscriptRows` also skips empty thinking blocks on non-streaming
 items. A streaming block is legitimately empty for a few frames, so the guard
 is scoped to settled items.

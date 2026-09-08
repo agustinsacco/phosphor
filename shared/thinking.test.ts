@@ -8,7 +8,7 @@ import {
 } from './thinking.js'
 
 describe('ALL_THINKING_LEVELS', () => {
-  it('includes max, which pidex omitted', () => {
+  it('includes max, which Phosphor omitted', () => {
     expect(ALL_THINKING_LEVELS).toContain('max')
   })
   it("matches pi's own order", () => {

@@ -7,7 +7,7 @@ import { copyChatImage, imageUrl } from './ChatImage'
 const image: ImageContent = { type: 'image', data: 'QUJD', mimeType: 'image/png' }
 
 function stubInvoke(handler: (channel: string, ...args: unknown[]) => unknown): void {
-  ;(globalThis as unknown as { window: { pidex: unknown } }).window.pidex = {
+  ;(globalThis as unknown as { window: { phosphor: unknown } }).window.phosphor = {
     invoke: (channel: string, ...args: unknown[]) => Promise.resolve(handler(channel, ...args)),
   }
 }
@@ -38,7 +38,7 @@ describe('copyChatImage', () => {
   })
 
   it('toasts an error instead of throwing when the write fails', async () => {
-    ;(globalThis as unknown as { window: { pidex: unknown } }).window.pidex = {
+    ;(globalThis as unknown as { window: { phosphor: unknown } }).window.phosphor = {
       invoke: () => Promise.reject(new Error('clipboard unavailable')),
     }
 

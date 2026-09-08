@@ -127,7 +127,7 @@ jobs:
 
             Windows: download the `.exe` installer below.
 
-            pidex requires the pi coding agent on your PATH:
+            Phosphor requires the pi coding agent on your PATH:
 
             ```sh
             npm install -g @earendil-works/pi-coding-agent

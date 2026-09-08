@@ -68,20 +68,20 @@ export function useLaneBoard(workspacePath: string): LaneBoardData {
     // uses. A session whose path has not landed yet simply has no card.
     const liveByDisk = new Map<string, string>()
     for (const entry of Object.values(live)) {
-      if (entry.diskPath) liveByDisk.set(entry.diskPath, entry.pidexId)
+      if (entry.diskPath) liveByDisk.set(entry.diskPath, entry.phosphorId)
     }
     const asking = new Set(dialogs.map((d) => d.sessionId))
     const inputs: LaneInput[] = lanes.map((meta) => {
-      const pidexId = liveByDisk.get(meta.path)
+      const phosphorId = liveByDisk.get(meta.path)
       const git = gitByCwd[meta.cwd]
       const pr = pullRequestFor({ byRepo: prByRepo }, projectRoot, git?.branch)
       return {
         meta,
         ...(git ? { git } : {}),
-        ...(pidexId ? { pidexId } : {}),
+        ...(phosphorId ? { phosphorId } : {}),
         ...(pr ? { pr } : {}),
-        isStreaming: pidexId ? (chatSessions[pidexId]?.isStreaming ?? false) : false,
-        hasPendingQuestion: pidexId ? asking.has(pidexId) : false,
+        isStreaming: phosphorId ? (chatSessions[phosphorId]?.isStreaming ?? false) : false,
+        hasPendingQuestion: phosphorId ? asking.has(phosphorId) : false,
       }
     })
     return buildLaneBoard(inputs)

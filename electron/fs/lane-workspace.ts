@@ -39,7 +39,7 @@ export interface LaneWorkspaceOptions {
   workspacePath: string
   /** Lane title, used for the branch and folder slug. */
   title: string
-  /** Configured branch prefix, e.g. `pidex/`. */
+  /** Configured branch prefix, e.g. `phosphor/`. */
   branchPrefix?: string
 }
 

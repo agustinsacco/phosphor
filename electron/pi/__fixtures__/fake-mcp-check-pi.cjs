@@ -2,7 +2,7 @@
 /**
  * Fake pi that speaks the MCP adapter's `/mcp reconnect` conversation, for
  * `connector-check.test.ts`. The verdict arrives as a `notify`, exactly as the
- * real adapter reports it. Behaviour is chosen by PIDEX_FAKE_CHECK:
+ * real adapter reports it. Behaviour is chosen by PHOSPHOR_FAKE_CHECK:
  *
  *   ok (default) — reconnected, with a tool count
  *   auth         — needs OAuth
@@ -13,7 +13,7 @@
  */
 'use strict'
 
-const mode = process.env.PIDEX_FAKE_CHECK || 'ok'
+const mode = process.env.PHOSPHOR_FAKE_CHECK || 'ok'
 const out = (obj) => process.stdout.write(JSON.stringify(obj) + '\n')
 
 let buffer = ''

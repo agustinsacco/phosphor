@@ -27,7 +27,7 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
   refresh: async (workspacePath) => {
     set((state) => ({ loading: { ...state.loading, [workspacePath]: true } }))
     try {
-      const result = await window.pidex.invoke('skills:list', workspacePath)
+      const result = await window.phosphor.invoke('skills:list', workspacePath)
       set((state) => ({
         byWorkspace: { ...state.byWorkspace, [workspacePath]: result },
         loading: { ...state.loading, [workspacePath]: false },

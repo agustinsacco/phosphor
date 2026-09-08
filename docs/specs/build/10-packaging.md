@@ -20,7 +20,7 @@
 
 ## Prereq check
 
-- pidex requires `pi` on PATH at runtime (min version pinned in one constant). The installer prints a notice if missing: `npm i -g @earendil-works/pi-coding-agent`. The app itself shows the setup screen ([08-sessions.md](08-sessions.md)) — installer check is advisory only.
+- Phosphor requires `pi` on PATH at runtime (min version pinned in one constant). The installer prints a notice if missing: `npm i -g @earendil-works/pi-coding-agent`. The app itself shows the setup screen ([08-sessions.md](08-sessions.md)) — installer check is advisory only.
 
 ## CI (GitHub Actions)
 

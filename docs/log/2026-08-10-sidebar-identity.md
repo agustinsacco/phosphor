@@ -5,8 +5,8 @@ reality.
 
 - **A worktree read as the wrong project.** `workspaceName()` is a basename
   function, and worktree folders are conventionally named after their branch
-  (`.pidex/worktrees/main`), so opening one showed "main" for what is actually
-  the `pidex` repo — in the sidebar group header, the workspace switcher, the
+  (`.phosphor/worktrees/main`), so opening one showed "main" for what is actually
+  the `Phosphor` repo — in the sidebar group header, the workspace switcher, the
   pinned-row workspace badge, and the window title. New `worktreeAwareName()`
   in `lib/path.ts` returns `repoName (branch)` when `GitInfo.isWorktree` and
   `mainRepoPath` are set, falling back to the plain basename otherwise (a
@@ -35,6 +35,6 @@ reality.
 Coverage: 5 unit tests for `worktreeAwareName` (including the folder-named-after
 -its-branch regression). The pending row is DOM state over store selectors, so
 it was verified in the mock harness instead — whose `get_state` returns no
-`sessionFile`, making it a permanent pending row and a good fixture. `mockPidex`
+`sessionFile`, making it a permanent pending row and a good fixture. `mockPhosphor`
 gained a `mainRepoPath` on its worktree cwd so the harness exercises the
 `repo (branch)` label at all.

@@ -553,7 +553,7 @@ export function activeActivityId(rows: TranscriptRow[], isStreaming: boolean): s
  * at the turn's first `result`, so a background agent always died unreported
  * and every launch belonged in this count. Now agents normally finish and the
  * count is zero — but an older provider is still installed on plenty of
- * machines and pidex pins nothing, so the same session can produce either
+ * machines and Phosphor pins nothing, so the same session can produce either
  * shape. Counting what the markers actually show keeps the strip honest under
  * both, with no version check anywhere in the renderer.
  */

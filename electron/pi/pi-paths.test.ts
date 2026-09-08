@@ -59,7 +59,11 @@ describe('claudeProjectDirName (Claude Code CLI)', () => {
     // Verbatim from a real ~/.claude/projects directory: the source cwd
     // mangles to 201 characters, one over, so the CLI kept the first 200 and
     // appended `-81g7h6`. Reproducing that suffix is the whole point of the
-    // hash — a prefix match alone would find the wrong project.
+    // hash — a prefix match alone would find the wrong project. The "pidex"
+    // inside the path is deliberate: this sample predates the 2026-09-08
+    // rename to Phosphor, and the hash is computed over the exact bytes, so
+    // renaming the fixture would silently detach it from the real directory
+    // it was captured from.
     const cwd =
       '/tmp/claude-1000/-home-agustinsacco-src-agustinsacco-pidex--claude-worktrees-pi-agent-cli-integration-b2e20a/aafae7b3-f013-473d-b384-bc1f3676c36b/scratchpad/matrix-thinking/claude-sonnet-5-websearch/ws'
     expect(claudeProjectDirName(cwd)).toBe(
@@ -113,7 +117,7 @@ describe('realCwd memoization', () => {
 
   beforeEach(() => {
     clearRealCwdCache()
-    root = realpathSync.native(mkdtempSync(join(tmpdir(), 'pidex-realcwd-')))
+    root = realpathSync.native(mkdtempSync(join(tmpdir(), 'phosphor-realcwd-')))
     target = join(root, 'target')
     link = join(root, 'link')
     mkdirSync(target)

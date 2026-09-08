@@ -28,7 +28,7 @@ async function freshModule(): Promise<DebugLog> {
 
 describe('debug-log', () => {
   beforeEach(() => {
-    logsDir = mkdtempSync(join(tmpdir(), 'pidex-log-test-'))
+    logsDir = mkdtempSync(join(tmpdir(), 'phosphor-log-test-'))
   })
   afterEach(() => {
     rmSync(logsDir, { recursive: true, force: true })
@@ -38,7 +38,7 @@ describe('debug-log', () => {
     const { initDebugLog, debugLogPath } = await freshModule()
     initDebugLog()
     const path = debugLogPath()
-    expect(path).toBe(join(logsDir, 'pidex.log'))
+    expect(path).toBe(join(logsDir, 'phosphor.log'))
     const body = readFileSync(path!, 'utf8')
     expect(body).toContain('session start')
     expect(body).toContain('"path"')
@@ -48,7 +48,7 @@ describe('debug-log', () => {
     const { initDebugLog, log } = await freshModule()
     initDebugLog()
     log('pi', 'spawn', { args: ['--mode', 'rpc'] })
-    const lines = readFileSync(join(logsDir, 'pidex.log'), 'utf8').trim().split('\n')
+    const lines = readFileSync(join(logsDir, 'phosphor.log'), 'utf8').trim().split('\n')
     expect(lines).toHaveLength(2) // header + this line
     expect(lines[1]).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z \[pi] spawn /)
     expect(lines[1]).toContain('"--mode"')
@@ -66,13 +66,13 @@ describe('debug-log', () => {
     const circular: Record<string, unknown> = {}
     circular.self = circular
     expect(() => log('pi', 'circular', circular)).not.toThrow()
-    expect(readFileSync(join(logsDir, 'pidex.log'), 'utf8')).toContain('[unserializable]')
+    expect(readFileSync(join(logsDir, 'phosphor.log'), 'utf8')).toContain('[unserializable]')
   })
 
   it('rotates once past the size cap, so the log cannot grow without bound', async () => {
     const { initDebugLog, log } = await freshModule()
     initDebugLog()
-    const path = join(logsDir, 'pidex.log')
+    const path = join(logsDir, 'phosphor.log')
     writeFileSync(path, 'x'.repeat(5 * 1024 * 1024 + 1))
     log('pi', 'after rotation')
     expect(existsSync(`${path}.1`)).toBe(true)

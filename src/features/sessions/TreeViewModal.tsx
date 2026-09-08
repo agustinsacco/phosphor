@@ -37,7 +37,7 @@ export function TreeViewModal({
   } | null>(null)
 
   const reload = useCallback((): void => {
-    void window.pidex.invoke('sessions:readTree', meta.path).then(setTree)
+    void window.phosphor.invoke('sessions:readTree', meta.path).then(setTree)
   }, [meta.path])
 
   useEffect(() => reload(), [reload])
@@ -88,7 +88,7 @@ export function TreeViewModal({
   const withSessionClosed = async (action: () => Promise<void>): Promise<void> => {
     const store = useSessionsStore.getState()
     const live = Object.values(store.live).find((l) => l.diskPath === meta.path)
-    if (live) await store.disposeSession(live.pidexId)
+    if (live) await store.disposeSession(live.phosphorId)
     await action()
     await store.refreshDisk(workspacePath)
   }
@@ -97,9 +97,9 @@ export function TreeViewModal({
     setBusy('Jumping…')
     try {
       await withSessionClosed(async () => {
-        await window.pidex.invoke('sessions:jump', meta.path, node.id)
+        await window.phosphor.invoke('sessions:jump', meta.path, node.id)
       })
-      const metas = await window.pidex.invoke('sessions:list', workspacePath)
+      const metas = await window.phosphor.invoke('sessions:list', workspacePath)
       const updated = metas.find((m) => m.path === meta.path)
       if (updated) await useSessionsStore.getState().openDiskSession(workspacePath, updated)
       onClose()
@@ -111,9 +111,9 @@ export function TreeViewModal({
   const forkHere = async (node: DisplayNode): Promise<void> => {
     setBusy('Forking…')
     try {
-      const newPath = await window.pidex.invoke('sessions:forkAt', meta.path, node.id)
+      const newPath = await window.phosphor.invoke('sessions:forkAt', meta.path, node.id)
       await useSessionsStore.getState().refreshDisk(workspacePath)
-      const metas = await window.pidex.invoke('sessions:list', workspacePath)
+      const metas = await window.phosphor.invoke('sessions:list', workspacePath)
       const created = metas.find((m) => m.path === newPath)
       if (created) await useSessionsStore.getState().openDiskSession(workspacePath, created)
       onClose()
@@ -133,7 +133,7 @@ export function TreeViewModal({
     setBusy('Labeling…')
     try {
       await withSessionClosed(async () => {
-        await window.pidex.invoke('sessions:appendLabel', meta.path, node.id, label || undefined)
+        await window.phosphor.invoke('sessions:appendLabel', meta.path, node.id, label || undefined)
       })
       reload()
       setSelected(null)

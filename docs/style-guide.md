@@ -1,6 +1,8 @@
-# pidex visual identity — "Phosphor"
+# Phosphor visual identity
 
-> **This file is the authority on pidex's visual identity.** Where any other
+> **This file is the authority on Phosphor's visual identity.** The design
+> system was named "Phosphor" first (2026-08-07); on 2026-09-08 the app took
+> the design system's name. Where any other
 > spec disagrees, this one wins. `src/styles/index.css` carries these values;
 > the five satellite copies below mirror them by hand.
 
@@ -207,7 +209,7 @@ labels and eyebrows are mono, 10–11px, uppercase, `letter-spacing: .06–.09em
 Claude.
 
 **Serif:** not part of the brand voice. `--px-font-serif` stays defined for
-markdown the _model_ authors; no pidex chrome uses it.
+markdown the _model_ authors; no Phosphor chrome uses it.
 
 ## Shape, depth, motion
 
@@ -236,7 +238,7 @@ amber (`#f2ab4e → #e2922e` vertical), tile in graphite `#1f1c18`, tile radius
   **Not built** — no component in `src/` draws the mark at all. The previous
   mark carried this same line unbuilt for three weeks; don't repeat that.
 - **Clear space:** half the ring's diameter on all sides. No text in the mark;
-  "pidex" is set separately, lowercase, in the mono face.
+  "Phosphor" is set separately, capitalized, in the mono face.
 - Regenerate platform assets with `node scripts/generate-icons.mjs`
   (Playwright-rendered; icns is darwin-only). It reads only `icon.svg`.
 
@@ -247,7 +249,10 @@ brand asset, not a themed surface. Don't token-ize it.
 
 ## Voice
 
-Lowercase "pidex" always, including sentence starts. Labels are verbs or nouns,
+Capitalized "Phosphor" always — it is a proper noun. (The old name, pidex, was
+lowercase always; that convention retired with it on 2026-09-08.) The dark
+accent color keeps its lowercase "phosphor" when named as a color, not as the
+product. Labels are verbs or nouns,
 never sentences: "Export HTML…", not "Click here to export". Qualifiers ride as
 muted hints, never parentheticals.
 
@@ -264,9 +269,10 @@ muted hints, never parentheticals.
 
 Why the current state is the current state. Details in the linked write-ups.
 
-| Date       | Change                                                                                                                                         |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-08-07 | Phosphor replaced the Claude-study palette.                                                                                                    |
-| 2026-08-10 | Light neutrals re-based warm → cool (`11a5d7c`), bundled in a QoL pass with no design note.                                                    |
-| 2026-08-29 | [Doc reconciled with the code](log/2026-08-29-phosphor-light-palette-reconcile.md); 11 light tokens corrected, four satellites re-neutralized. |
-| 2026-08-29 | [Aperture mark](log/2026-08-29-aperture-mark.md) replaced the prompt bubble.                                                                   |
+| Date       | Change                                                                                                                                                                                         |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-07 | Phosphor replaced the Claude-study palette.                                                                                                                                                    |
+| 2026-08-10 | Light neutrals re-based warm → cool (`11a5d7c`), bundled in a QoL pass with no design note.                                                                                                    |
+| 2026-08-29 | [Doc reconciled with the code](log/2026-08-29-phosphor-light-palette-reconcile.md); 11 light tokens corrected, four satellites re-neutralized.                                                 |
+| 2026-08-29 | [Aperture mark](log/2026-08-29-aperture-mark.md) replaced the prompt bubble.                                                                                                                   |
+| 2026-09-08 | [The app itself was renamed](log/2026-09-08-rename-pidex-to-phosphor.md) from pidex to Phosphor, after its design system. Capital P; the lowercase-brand voice rule retired with the old name. |

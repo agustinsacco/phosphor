@@ -27,7 +27,7 @@ now `{ text, images }` instead of a bare string.
 
 **The extra row.** `createBranchedSession` copies the entries up to the branch
 point into a new `TIMESTAMP_ID.jsonl` and abandons the original. PR #144 fixed
-_which_ of the two pidex marked live; the abandoned file itself was still on
+_which_ of the two Phosphor marked live; the abandoned file itself was still on
 disk, so the sidebar kept a full second row with the same name and the same
 `wt` chip. That reads as the lane having duplicated itself.
 

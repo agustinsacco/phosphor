@@ -32,14 +32,14 @@ export function MaintenanceSection(): React.JSX.Element {
   const [busy, setBusy] = useState<'scan' | 'run' | null>(null)
 
   useEffect(() => {
-    void window.pidex.invoke('app:getPrefs').then((p) => setPrefs(p.maintenance))
+    void window.phosphor.invoke('app:getPrefs').then((p) => setPrefs(p.maintenance))
   }, [])
 
   const scan = useCallback(async () => {
     if (!repoPath) return
     setBusy('scan')
     try {
-      setReport(await window.pidex.invoke('maintenance:scan', repoPath))
+      setReport(await window.phosphor.invoke('maintenance:scan', repoPath))
     } finally {
       setBusy(null)
     }
@@ -51,14 +51,14 @@ export function MaintenanceSection(): React.JSX.Element {
 
   const save = (next: MaintenancePrefs): void => {
     setPrefs(next)
-    void window.pidex.invoke('maintenance:setPrefs', next)
+    void window.phosphor.invoke('maintenance:setPrefs', next)
   }
 
   const reclaim = async (): Promise<void> => {
     if (!repoPath) return
     setBusy('run')
     try {
-      setReport(await window.pidex.invoke('maintenance:run', repoPath))
+      setReport(await window.phosphor.invoke('maintenance:run', repoPath))
     } finally {
       setBusy(null)
     }

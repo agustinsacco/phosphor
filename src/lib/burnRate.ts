@@ -4,7 +4,7 @@
  * A provider can bill enormously while accomplishing nothing: a tool loop that
  * re-sends context it already delivered spends its whole budget on input and
  * cache tokens, and the only visible symptom is that the numbers climb. On
- * 2026-08-21 that pattern consumed ~46M tokens across three concurrent pidex
+ * 2026-08-21 that pattern consumed ~46M tokens across three concurrent Phosphor
  * sessions in roughly twenty minutes, peaking at 3.5M tokens/minute, and
  * nothing in the stack remarked on it.
  *

@@ -10,7 +10,7 @@ independent bugs still stood between a user and a working install.
 `curl … install.sh | sh` on x86_64 Linux died with:
 
 ```
-==> Downloading pidex-0.1.48-x64.AppImage (v0.1.48)…
+==> Downloading Phosphor-0.1.48-x64.AppImage (v0.1.48)…
 curl: (22) The requested URL returned error: 404
 ```
 
@@ -25,7 +25,7 @@ AppImage target started building.
 
 `APPIMAGE_ARCH` now carries the AppImage spelling alongside `ARCH`. Verified by
 running the fixed script end to end against the live release: it downloaded
-`pidex-0.1.48-x86_64.AppImage`, printed **Checksum verified** (the
+`Phosphor-0.1.48-x86_64.AppImage`, printed **Checksum verified** (the
 `checksums.txt` added in the previous change), installed the binary, wrote the
 desktop entry and icon, and found `pi` on PATH.
 
@@ -68,7 +68,7 @@ there surfaced as a raw warning instead of the silent degrade this module
 promises everywhere else.
 
 **Verified against a real packaged build**, not a reasoned argument: an AppImage
-built exactly as CI builds it (`--config.extraMetadata.pidexSigned=true`,
+built exactly as CI builds it (`--config.extraMetadata.phosphorSigned=true`,
 version pinned to `0.1.40`) and run against the live v0.1.48 release. Zero
 TypeErrors, zero unhandled rejections, and the sidebar rendered
 **"Restart to update"** — the first time the pill has ever appeared.

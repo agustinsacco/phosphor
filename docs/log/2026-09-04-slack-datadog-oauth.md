@@ -42,7 +42,7 @@ the row offers to copy, which sets the scopes, the redirect URL and
 `pkce_enabled` in one paste at `api.slack.com/apps`. A test asserts the two
 cannot drift.
 
-The row also now says the rule that fails last and reads as a pidex bug: only
+The row also now says the rule that fails last and reads as a Phosphor bug: only
 **internal or Marketplace-published** apps may use the Slack MCP server at all.
 
 ## Datadog: right path, two missing sites

@@ -1,12 +1,12 @@
 /**
- * pidex context-breakdown extension — loaded into every pidex session via
+ * Phosphor context-breakdown extension — loaded into every Phosphor session via
  * `pi --mode rpc -e <this file>`, alongside artifacts.ts.
  *
  * pi reports context usage as a single number (`contextUsage.tokens`), which
  * answers "how full" but never "full of what". The parts are only visible
  * from inside pi — the composed system prompt, the active tool schemas — so
  * this extension measures them and pushes a breakdown to the front-end
- * through `ctx.ui.setStatus`, which pidex already routes per session.
+ * through `ctx.ui.setStatus`, which Phosphor already routes per session.
  *
  * Provider-agnostic on purpose: it reads pi's own state, so it works
  * identically for local models, native Anthropic, and the Claude Code CLI
@@ -56,7 +56,7 @@ export interface ContextBreakdown {
   approximate: true
 }
 
-const STATUS_KEY = 'pidex-context-breakdown'
+const STATUS_KEY = 'phosphor-context-breakdown'
 /** The MCP adapter's status event, its only announcement of server names. */
 const MCP_STATUS_EVENT = 'pi-mcp-adapter/status/v1'
 
@@ -97,7 +97,7 @@ export function classifyToolServer(toolName: string, serverNames: string[]): str
       return server
     }
   }
-  // A server pidex has not been told about yet still reads as MCP when the
+  // A server Phosphor has not been told about yet still reads as MCP when the
   // adapter namespaced it.
   const unknown = /^mcp__([A-Za-z0-9_]+?)(?:_|$)/.exec(toolName)
   return unknown?.[1] ?? null

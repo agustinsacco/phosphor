@@ -2,8 +2,8 @@
  * Turning a session title into the branch and folder a new chat runs on.
  *
  * A chat that starts with "Fix the composer autogrow jump" becomes the session
- * *Composer Autogrow Fix*, the folder `.pidex/worktrees/composer-autogrow-fix`
- * and the branch `pidex/composer-autogrow-fix` — one name in three places, so
+ * *Composer Autogrow Fix*, the folder `.phosphor/worktrees/composer-autogrow-fix`
+ * and the branch `phosphor/composer-autogrow-fix` — one name in three places, so
  * the sidebar group, the branch chip and the session title all agree.
  *
  * Folder and branch are derived together and deliberately differ: the prefix
@@ -26,11 +26,11 @@ const MAX_SUFFIX = 100
 export interface BranchNameInput {
   /** Session title, or the first user message when naming fell through. */
   title: string
-  /** Configured prefix, e.g. `pidex/`. Empty means no prefix. */
+  /** Configured prefix, e.g. `phosphor/`. Empty means no prefix. */
   prefix: string
   /** Branch names already in this repo. */
   takenBranches: string[]
-  /** Worktree folder names already under `.pidex/worktrees`. */
+  /** Worktree folder names already under `.phosphor/worktrees`. */
   takenFolders: string[]
   /** Slug cap; defaults to 40. From `LanePrefs.branchSlugMaxLength`. */
   maxSlug?: number
@@ -73,8 +73,8 @@ export function slugifyTitle(title: string, maxSlug = DEFAULT_MAX_SLUG): string 
 /**
  * Make a user-typed prefix safe and separator-terminated.
  *
- * Someone who types `pidex` in settings means `pidex/`, but someone who types
- * `pidex-` means `pidex-`: a prefix already ending in a separator is left
+ * Someone who types `Phosphor` in settings means `phosphor/`, but someone who types
+ * `phosphor-` means `phosphor-`: a prefix already ending in a separator is left
  * alone, and one ending in an alphanumeric gets a `/`. Empty stays empty.
  */
 export function normalizePrefix(prefix: string): string {

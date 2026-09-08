@@ -20,11 +20,11 @@ right-click the new row — passes against the _unfixed_ code just as happily as
 the fixed code.
 
 The reason is the stub. `pi-stub.cjs` created its session directory and file
-**synchronously at startup**, so the directory was always on disk before pidex
+**synchronously at startup**, so the directory was always on disk before Phosphor
 could attach a watcher to it. The gap the bug lives in never opened. Any test
 written against that stub was measuring nothing.
 
-`PIDEX_E2E_SESSION_WRITE_DELAY_MS` now defers the write, and the new test
+`PHOSPHOR_E2E_SESSION_WRITE_DELAY_MS` now defers the write, and the new test
 (`a session whose file lands late still becomes a real, right-clickable row`)
 asserts the row leaves the placeholder state and answers a right-click
 **without switching session and back** — which is exactly how the bug was
@@ -58,7 +58,7 @@ dir, and npm — which owns `node_modules` — pruned the hand-written fixture f
 not being in its manifest.
 
 That something was `pi:catalogueModels`. It resolved its binary straight from
-`checkPiHealth()` and never consulted `PIDEX_PI_STUB`, making it the only pi
+`checkPiHealth()` and never consulted `PHOSPHOR_PI_STUB`, making it the only pi
 spawn in the app that ignored the stub. Opening a model picker therefore booted
 the **real** pi against the test's agent dir, and real pi installs whatever
 `settings.json` declares. The `auth.json` and `models-store.json` sitting in

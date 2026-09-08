@@ -77,7 +77,7 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
       }
 
       case 'notify': {
-        // The adapter's own verdict is what tells pidex a browser round-trip
+        // The adapter's own verdict is what tells Phosphor a browser round-trip
         // finished; status snapshots follow later, on reconnect.
         const notice = parseAuthNotice(request.message)
         if (notice) {
@@ -115,7 +115,7 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
         break
 
       case 'setTitle':
-        document.title = request.title ? `${request.title} — pidex` : 'pidex'
+        document.title = request.title ? `${request.title} — Phosphor` : 'Phosphor'
         break
 
       case 'set_editor_text':
@@ -141,7 +141,7 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
             id: dialog.request.id,
             value: response.value ?? '',
           }
-    void window.pidex.invoke('pi:extensionUiResponse', dialog.sessionId, payload)
+    void window.phosphor.invoke('pi:extensionUiResponse', dialog.sessionId, payload)
   },
 
   pushToast: (message, kind = 'info') => {

@@ -411,7 +411,7 @@ function WorktreeToggle({
       className="hover:bg-bg-secondary mx-2 mb-1 flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 transition-colors"
       title={
         checked
-          ? 'Each branch you pick gets its own checkout under .pidex/worktrees — your main tree is never touched.'
+          ? 'Each branch you pick gets its own checkout under .phosphor/worktrees — your main tree is never touched.'
           : 'Picking a branch checks it out in the main tree. Refused if the tree has uncommitted changes.'
       }
     >

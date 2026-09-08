@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { composeDirectives, subagentPolicyBlock } from './directives'
 import type { AgentDirectivePrefs, GitInfo } from '@shared/models'
 
-const CWD = '/home/u/src/pidex/.pidex/worktrees/read-composer'
-const GIT: GitInfo = { isRepo: true, isWorktree: true, mainRepoPath: '/home/u/src/pidex' }
-const CHARTER = { branch: 'pidex/read-composer', base: 'main' }
+const CWD = '/home/u/src/phosphor/.phosphor/worktrees/read-composer'
+const GIT: GitInfo = { isRepo: true, isWorktree: true, mainRepoPath: '/home/u/src/phosphor' }
+const CHARTER = { branch: 'phosphor/read-composer', base: 'main' }
 
 const ALL_OFF: AgentDirectivePrefs = {
   worktreeGuard: false,
@@ -40,13 +40,13 @@ describe('composeDirectives', () => {
   })
 
   it('includes each block only when its toggle is on', () => {
-    expect(compose({ worktreeGuard: true })).toContain('<pidex_workspace>')
-    expect(compose({ worktreeGuard: true })).not.toContain('<pidex_subagents>')
+    expect(compose({ worktreeGuard: true })).toContain('<phosphor_workspace>')
+    expect(compose({ worktreeGuard: true })).not.toContain('<phosphor_subagents>')
 
-    expect(compose({ subagentPolicy: true })).toContain('<pidex_subagents>')
-    expect(compose({ subagentPolicy: true })).not.toContain('<pidex_lane>')
+    expect(compose({ subagentPolicy: true })).toContain('<phosphor_subagents>')
+    expect(compose({ subagentPolicy: true })).not.toContain('<phosphor_lane>')
 
-    expect(compose({ laneCharter: true })).toContain('<pidex_lane>')
+    expect(compose({ laneCharter: true })).toContain('<phosphor_lane>')
   })
 
   it('keeps the documented order: workspace, lane, sub-agents, custom', () => {
@@ -56,9 +56,12 @@ describe('composeDirectives', () => {
       subagentPolicy: true,
       custom: 'MY OWN TEXT',
     })
-    const order = ['<pidex_workspace>', '<pidex_lane>', '<pidex_subagents>', 'MY OWN TEXT'].map(
-      (needle) => out.indexOf(needle),
-    )
+    const order = [
+      '<phosphor_workspace>',
+      '<phosphor_lane>',
+      '<phosphor_subagents>',
+      'MY OWN TEXT',
+    ].map((needle) => out.indexOf(needle))
 
     expect(order.every((index) => index >= 0)).toBe(true)
     expect([...order].sort((a, b) => a - b)).toEqual(order)
@@ -71,7 +74,7 @@ describe('composeDirectives', () => {
         git: GIT,
         prefs: { ...ALL_OFF, laneCharter: true, subagentPolicy: true },
       }) ?? ''
-    expect(out).not.toContain('<pidex_lane>')
-    expect(out).toContain('<pidex_subagents>')
+    expect(out).not.toContain('<phosphor_lane>')
+    expect(out).toContain('<phosphor_subagents>')
   })
 })

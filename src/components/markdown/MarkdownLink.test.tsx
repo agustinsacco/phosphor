@@ -41,11 +41,11 @@ beforeEach(() => {
     if (channel === 'fs:readFile') return { content: '# spec', mtimeMs: 1 }
     return undefined
   })
-  ;(window as unknown as { pidex: unknown }).pidex = { invoke }
+  ;(window as unknown as { phosphor: unknown }).phosphor = { invoke }
   useWorkspacesStore.setState({ homePath: '/repo' })
   useSessionsStore.setState({
     activeSessionId: 's1',
-    live: { s1: { pidexId: 's1', workspacePath: '/repo' } },
+    live: { s1: { phosphorId: 's1', workspacePath: '/repo' } },
   })
   useFilesStore.setState({ byWorkspace: {} })
   useLayoutStore.setState({ bySession: {} })

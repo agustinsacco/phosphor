@@ -2,7 +2,7 @@ import type { AgentMessage, RpcCommand, RpcResponseDataMap } from '@shared/rpc'
 import { useChatStore } from '@/stores/chat'
 
 /**
- * Helpers over `window.pidex.piCommand`.
+ * Helpers over `window.phosphor.piCommand`.
  *
  * The raw API returns a `{ success, data?, error? }` envelope, which meant every
  * call site re-implemented the unwrapping — and roughly half of them dropped the
@@ -18,7 +18,7 @@ export async function piCall<T extends RpcCommand['type']>(
   sessionId: string,
   command: Extract<RpcCommand, { type: T }>,
 ): Promise<RpcResponseDataMap[T] | undefined> {
-  const response = await window.pidex.piCommand<T>(sessionId, command)
+  const response = await window.phosphor.piCommand<T>(sessionId, command)
   if (!response.success) {
     useChatStore.getState().setError(sessionId, response.error ?? `${command.type} failed`)
     return undefined
@@ -37,7 +37,7 @@ export async function piCallOk<T extends RpcCommand['type']>(
   sessionId: string,
   command: Extract<RpcCommand, { type: T }>,
 ): Promise<boolean> {
-  const response = await window.pidex.piCommand<T>(sessionId, command)
+  const response = await window.phosphor.piCommand<T>(sessionId, command)
   if (!response.success) {
     useChatStore.getState().setError(sessionId, response.error ?? `${command.type} failed`)
     return false

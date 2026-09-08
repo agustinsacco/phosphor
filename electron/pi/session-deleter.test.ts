@@ -79,7 +79,7 @@ describe('deleteSession', () => {
       trashed.push(path)
     })
 
-    root = await mkdtemp(join(tmpdir(), 'pidex-delete-'))
+    root = await mkdtemp(join(tmpdir(), 'phosphor-delete-'))
     // The workspace has to exist on disk: the path helper resolves symlinks
     // before mangling, exactly as both harnesses do.
     workspace = join(root, 'proj')

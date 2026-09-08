@@ -99,7 +99,7 @@ function versionFailureMessage(binaryPath: string, stdout: string, stderr: strin
     return (
       `Found pi at ${binaryPath}, but Node.js could not be located to run it (${detail}). ` +
       'This usually means a version manager (fnm, nvm, asdf, volta) sets up Node in your shell ' +
-      'rc file in a way that GUI apps do not inherit. Launching pidex from a terminal, or ' +
+      'rc file in a way that GUI apps do not inherit. Launching Phosphor from a terminal, or ' +
       'installing Node system-wide, resolves it.'
     )
   }

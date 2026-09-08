@@ -37,7 +37,7 @@ const pr = (over: Partial<GhPullRequest> = {}): GhPullRequest => ({
 
 beforeEach(() => {
   invoke = vi.fn().mockResolvedValue(undefined)
-  ;(window as unknown as { pidex: unknown }).pidex = { invoke }
+  ;(window as unknown as { phosphor: unknown }).phosphor = { invoke }
 })
 
 afterEach(() => {
@@ -117,7 +117,7 @@ describe('PrBadge with no PR', () => {
 
 describe('theming', () => {
   it('never uses a `dark:` utility', () => {
-    // pidex themes with a `.dark` class and defines no @custom-variant dark,
+    // Phosphor themes with a `.dark` class and defines no @custom-variant dark,
     // so Tailwind's `dark:` keys off the OS preference instead of the app
     // theme. Hover state must derive from the chip's own token colour.
     render(<PrBadge pr={pr()} />)

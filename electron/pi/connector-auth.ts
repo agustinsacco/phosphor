@@ -184,7 +184,7 @@ export function submitConnectorCallback(serverName: string, url: string): boolea
 
 /**
  * Abandon a flow. Answering `cancelled` first is deliberate and is the *only*
- * place pidex answers the prompt: it makes the adapter tear down its own
+ * place Phosphor answers the prompt: it makes the adapter tear down its own
  * pending callback rather than leaving a listener on the loopback port.
  */
 export async function cancelConnectorAuth(serverName: string): Promise<void> {

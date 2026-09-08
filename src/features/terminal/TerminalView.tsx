@@ -79,7 +79,7 @@ export const TerminalView = memo(function TerminalView({
 
     // Renderer → PTY
     const dataDisposable = term.onData((data) => {
-      void window.pidex.invoke('pty:write', ptyId, data)
+      void window.phosphor.invoke('pty:write', ptyId, data)
     })
 
     /*
@@ -101,25 +101,25 @@ export const TerminalView = memo(function TerminalView({
      */
     let replayed = false
     let buffered: string[] = []
-    const unsubscribeData = window.pidex.onPtyData(ptyId, (data) => {
+    const unsubscribeData = window.phosphor.onPtyData(ptyId, (data) => {
       if (replayed) term.write(data)
       else buffered.push(data)
     })
-    void window.pidex.invoke('pty:attach', ptyId).then(({ scrollback }) => {
+    void window.phosphor.invoke('pty:attach', ptyId).then(({ scrollback }) => {
       if (termRef.current !== term) return // disposed mid-flight
       if (scrollback) term.write(scrollback)
       replayed = true
       buffered = []
     })
 
-    const unsubscribeExit = window.pidex.onPtyExit(ptyId, (exitCode) => {
+    const unsubscribeExit = window.phosphor.onPtyExit(ptyId, (exitCode) => {
       term.write(`\r\n\x1b[2m[process exited with code ${exitCode}]\x1b[0m\r\n`)
       useTerminalStore.getState().markExited(ptyId)
     })
 
     // Resize plumbing (pane drags included).
     const sendResize = (): void => {
-      void window.pidex.invoke('pty:resize', ptyId, term.cols, term.rows)
+      void window.phosphor.invoke('pty:resize', ptyId, term.cols, term.rows)
     }
     const observer = new ResizeObserver(() => {
       if (container.clientWidth > 0 && container.clientHeight > 0) {

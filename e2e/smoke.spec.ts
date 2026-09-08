@@ -21,7 +21,7 @@ interface Harness {
 }
 
 /**
- * Launch pidex against a deterministic pi stub in a scratch workspace.
+ * Launch Phosphor against a deterministic pi stub in a scratch workspace.
  * Each test gets its own instance so no test can leave focus or pane state
  * that breaks the next one.
  */
@@ -29,7 +29,7 @@ interface Harness {
  * Scratch pi-agent dir for the whole e2e run, so stub sessions are never
  * written into the developer's real ~/.pi.
  */
-const agentDir = mkdtempSync(join(tmpdir(), 'pidex-e2e-agent-'))
+const agentDir = mkdtempSync(join(tmpdir(), 'phosphor-e2e-agent-'))
 
 /**
  * A pi-agent dir of one test's own, for tests that seed `npm/node_modules`
@@ -47,7 +47,7 @@ const agentDir = mkdtempSync(join(tmpdir(), 'pidex-e2e-agent-'))
  * fixture unreachable by any other test's installer, in either direction.
  */
 function privateAgentDir(): string {
-  return mkdtempSync(join(tmpdir(), 'pidex-e2e-agent-solo-'))
+  return mkdtempSync(join(tmpdir(), 'phosphor-e2e-agent-solo-'))
 }
 
 /**
@@ -77,7 +77,7 @@ async function launch(
     env?: Record<string, string>
   } = {},
 ): Promise<Harness> {
-  const workspace = options.workspace ?? (await mkdtemp(join(tmpdir(), 'pidex-e2e-')))
+  const workspace = options.workspace ?? (await mkdtemp(join(tmpdir(), 'phosphor-e2e-')))
   await writeFile(join(workspace, 'hello.ts'), 'export function hello() {\n  return "new"\n}\n')
 
   const app = await electron.launch({
@@ -85,9 +85,9 @@ async function launch(
     env: {
       ...devServerEnvStripped(),
       NODE_ENV: 'production',
-      PIDEX_PI_STUB: piStub,
-      PIDEX_E2E_WORKSPACE: workspace,
-      PIDEX_TEST_USER_DATA: options.userDataDir ?? '1',
+      PHOSPHOR_PI_STUB: piStub,
+      PHOSPHOR_E2E_WORKSPACE: workspace,
+      PHOSPHOR_TEST_USER_DATA: options.userDataDir ?? '1',
       PI_CODING_AGENT_DIR: options.agentDir ?? agentDir,
       ...options.env,
     },
@@ -106,7 +106,7 @@ async function shutdown(harness: Harness): Promise<void> {
   await harness.app.close()
   await rm(harness.workspace, { recursive: true, force: true })
   if (pid !== undefined) {
-    await rm(join(tmpdir(), `pidex-e2e-${pid}`), { recursive: true, force: true })
+    await rm(join(tmpdir(), `phosphor-e2e-${pid}`), { recursive: true, force: true })
   }
 }
 
@@ -522,9 +522,9 @@ test('work-area shortcuts work from chat without stealing dialog or editor input
 })
 
 test('steering controls and modified Enter send the intended RPC mode', async () => {
-  const workspace = await mkdtemp(join(tmpdir(), 'pidex-queue-'))
+  const workspace = await mkdtemp(join(tmpdir(), 'phosphor-queue-'))
   const log = join(workspace, 'commands.jsonl')
-  const harness = await launch({ workspace, env: { PIDEX_E2E_COMMAND_LOG: log } })
+  const harness = await launch({ workspace, env: { PHOSPHOR_E2E_COMMAND_LOG: log } })
   const { page } = harness
   try {
     await openWorkspace(page)
@@ -659,7 +659,7 @@ test('explorer creates entries from empty space and keeps renamed editor buffers
 test('explorer copies, cuts, multi-drags and imports disk-backed files', async () => {
   const harness = await launch()
   const { page, workspace, app } = harness
-  const external = await mkdtemp(join(tmpdir(), 'pidex-drop-'))
+  const external = await mkdtemp(join(tmpdir(), 'phosphor-drop-'))
   const source = join(external, 'report.pdf')
   const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
   try {
@@ -680,7 +680,7 @@ test('explorer copies, cuts, multi-drags and imports disk-backed files', async (
     await expect(row('hello.ts')).toBeFocused()
     await page.keyboard.press(`${mod}+x`)
     await expect
-      .poll(() => page.evaluate(() => window.pidex.invoke('clipboard:readFiles')))
+      .poll(() => page.evaluate(() => window.phosphor.invoke('clipboard:readFiles')))
       .toEqual({ paths: [join(workspace, 'hello.ts')], cut: true })
     await row('destination').click()
     await page.keyboard.press(`${mod}+v`)
@@ -695,7 +695,7 @@ test('explorer copies, cuts, multi-drags and imports disk-backed files', async (
       .getByRole('button', { name: /^Copy (⌘C|Ctrl\+C)$/ })
       .click()
     await expect
-      .poll(() => page.evaluate(() => window.pidex.invoke('clipboard:readFiles')))
+      .poll(() => page.evaluate(() => window.phosphor.invoke('clipboard:readFiles')))
       .toEqual({ paths: [join(workspace, 'destination')], cut: false })
     await explorer.click({ button: 'right', position: { x: 10, y: 350 } })
     await page
@@ -1045,11 +1045,11 @@ test('settings modal switches theme and reports versions', async () => {
     await expect(page.locator('html')).not.toHaveClass(/dark/)
 
     await page.getByRole('button', { name: 'About', exact: true }).click()
-    await expect(page.getByRole('heading', { name: 'About pidex' })).toBeVisible()
-    await expect(page.getByText('pidex version')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'About Phosphor' })).toBeVisible()
+    await expect(page.getByText('Phosphor version')).toBeVisible()
 
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('heading', { name: 'About pidex' })).toBeHidden()
+    await expect(page.getByRole('heading', { name: 'About Phosphor' })).toBeHidden()
   } finally {
     await shutdown(harness)
   }
@@ -1108,7 +1108,7 @@ test('terminal pane spawns a real shell, and reopening replays its scrollback', 
     await expect(page.getByText('Could not start a shell')).toBeHidden()
 
     // Prove the shell is real and talking back.
-    const marker = 'pidex_marker_7f3a'
+    const marker = 'phosphor_marker_7f3a'
     await page.locator('.xterm').first().click()
     await page.keyboard.type(`echo ${marker}`)
     await page.keyboard.press('Enter')
@@ -1301,14 +1301,14 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
 
 test('worktree flow: create from the branch chip, session stays under the project group', async () => {
   // The workspace must be a git repo BEFORE the app queries git:info.
-  const workspace = await mkdtemp(join(tmpdir(), 'pidex-e2e-wt-'))
+  const workspace = await mkdtemp(join(tmpdir(), 'phosphor-e2e-wt-'))
   const { execFile } = await import('node:child_process')
   const { promisify } = await import('node:util')
   const run = promisify(execFile)
   await writeFile(join(workspace, 'hello.ts'), 'export function hello() {\n  return "new"\n}\n')
   await run('git', ['init', '-b', 'main'], { cwd: workspace })
-  await run('git', ['config', 'user.email', 'e2e@pidex.dev'], { cwd: workspace })
-  await run('git', ['config', 'user.name', 'pidex e2e'], { cwd: workspace })
+  await run('git', ['config', 'user.email', 'e2e@phosphor.dev'], { cwd: workspace })
+  await run('git', ['config', 'user.name', 'Phosphor e2e'], { cwd: workspace })
   await run('git', ['add', '-A'], { cwd: workspace })
   await run('git', ['commit', '-m', 'initial'], { cwd: workspace })
 
@@ -1338,12 +1338,12 @@ test('worktree flow: create from the branch chip, session stays under the projec
     // that inversion is what keeps the send button from blocking on a ~13s
     // subprocess. The folder never changes afterwards: it is a live session's
     // cwd, and moving it would break the session's binding to its transcript.
-    expect(existsSync(join(workspace, '.pidex', 'worktrees', 'update-hello-ts'))).toBe(true)
+    expect(existsSync(join(workspace, '.phosphor', 'worktrees', 'update-hello-ts'))).toBe(true)
 
     // ...and then the name lands and the BRANCH is renamed to match it, so the
     // branch chip and the session title still agree. "Stub Session Title" is
     // the stub's deterministic answer to the naming prompt.
-    await expect(page.getByTestId('branch-chip')).toContainText('pidex/stub-session-title', {
+    await expect(page.getByTestId('branch-chip')).toContainText('phosphor/stub-session-title', {
       timeout: 30_000,
     })
     // The generated name reaches both surfaces. Two locators, not one
@@ -1359,9 +1359,9 @@ test('worktree flow: create from the branch chip, session stays under the projec
 
     const branches = await run('git', ['branch', '--format=%(refname:short)'], { cwd: workspace })
     const names = branches.stdout.split('\n').map((b) => b.trim())
-    expect(names).toContain('pidex/stub-session-title')
+    expect(names).toContain('phosphor/stub-session-title')
     // Renamed, not duplicated: the provisional slug branch is gone.
-    expect(names).not.toContain('pidex/update-hello-ts')
+    expect(names).not.toContain('phosphor/update-hello-ts')
 
     // The "still being named" treatment must CLEAR. Catching the shimmer while
     // it is up would be racing a sub-second window, but a stuck one is the
@@ -1404,14 +1404,14 @@ test('a session whose file lands late still becomes a real, right-clickable row'
   // revisits a missing target. So the promotion never came.
   //
   // The delay is what makes this a real test: with the stub writing its
-  // session file synchronously the directory is always there before pidex can
+  // session file synchronously the directory is always there before Phosphor can
   // attach, and this passes against the unfixed code too (confirmed).
-  const workspace = await mkdtemp(join(tmpdir(), 'pidex-e2e-late-'))
+  const workspace = await mkdtemp(join(tmpdir(), 'phosphor-e2e-late-'))
   await writeFile(join(workspace, 'hello.ts'), 'export function hello() {\n  return "new"\n}\n')
 
   const harness = await launch({
     workspace,
-    env: { PIDEX_E2E_SESSION_WRITE_DELAY_MS: '2500' },
+    env: { PHOSPHOR_E2E_SESSION_WRITE_DELAY_MS: '2500' },
   })
   const { page } = harness
   try {
@@ -1491,14 +1491,14 @@ test('double-clicking a sidebar row renames the session inline', async () => {
 })
 
 test('new chat without isolation runs in the open workspace', async () => {
-  const workspace = await mkdtemp(join(tmpdir(), 'pidex-e2e-nowt-'))
+  const workspace = await mkdtemp(join(tmpdir(), 'phosphor-e2e-nowt-'))
   const { execFile } = await import('node:child_process')
   const { promisify } = await import('node:util')
   const run = promisify(execFile)
   await writeFile(join(workspace, 'hello.ts'), 'export function hello() {\n  return "new"\n}\n')
   await run('git', ['init', '-b', 'main'], { cwd: workspace })
-  await run('git', ['config', 'user.email', 'e2e@pidex.dev'], { cwd: workspace })
-  await run('git', ['config', 'user.name', 'pidex e2e'], { cwd: workspace })
+  await run('git', ['config', 'user.email', 'e2e@phosphor.dev'], { cwd: workspace })
+  await run('git', ['config', 'user.name', 'Phosphor e2e'], { cwd: workspace })
   await run('git', ['add', '-A'], { cwd: workspace })
   await run('git', ['commit', '-m', 'initial'], { cwd: workspace })
 
@@ -1517,7 +1517,7 @@ test('new chat without isolation runs in the open workspace', async () => {
     await expect(page.getByTestId('branch-chip')).toContainText('main', { timeout: 15_000 })
     const branches = await run('git', ['branch', '--format=%(refname:short)'], { cwd: workspace })
     expect(branches.stdout.trim()).toBe('main')
-    expect(existsSync(join(workspace, '.pidex'))).toBe(false)
+    expect(existsSync(join(workspace, '.phosphor'))).toBe(false)
   } finally {
     await shutdown(harness)
   }
@@ -1537,7 +1537,7 @@ test('Connectors: resolved rows, disable toggle, add custom server', async () =>
   // workspace and send the write there.
   const harness = await launch({
     agentDir: soloAgentDir,
-    userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-mcp-')),
+    userDataDir: await mkdtemp(join(tmpdir(), 'phosphor-e2e-mcp-')),
   })
   const { page, workspace } = harness
   try {
@@ -1595,7 +1595,7 @@ test('Connectors: adding a catalog connector writes a verified OAuth endpoint', 
   const soloAgentDir = privateAgentDir()
   const harness = await launch({
     agentDir: soloAgentDir,
-    userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-connectors-')),
+    userDataDir: await mkdtemp(join(tmpdir(), 'phosphor-e2e-connectors-')),
   })
   const { page } = harness
   try {
@@ -1684,7 +1684,7 @@ test('Connectors: signing in works with no session open', async () => {
   )
   const harness = await launch({
     agentDir: soloAgentDir,
-    userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-signin-')),
+    userDataDir: await mkdtemp(join(tmpdir(), 'phosphor-e2e-signin-')),
   })
   const { page } = harness
   try {
@@ -1721,8 +1721,8 @@ test('Connectors: signing in works with no session open', async () => {
 test('reopens the last session on relaunch instead of the picker', async () => {
   // Both launches share a userData dir so prefs survive the restart, while
   // staying isolated from the developer's real config.
-  const userDataDir = await mkdtemp(join(tmpdir(), 'pidex-e2e-prefs-'))
-  const workspace = await mkdtemp(join(tmpdir(), 'pidex-e2e-'))
+  const userDataDir = await mkdtemp(join(tmpdir(), 'phosphor-e2e-prefs-'))
+  const workspace = await mkdtemp(join(tmpdir(), 'phosphor-e2e-'))
 
   try {
     // First launch: open the workspace and start a session.
@@ -1773,8 +1773,8 @@ test('reopens the last session on relaunch instead of the picker', async () => {
 test('an unsent draft survives a session switch and a relaunch', async () => {
   // One userData dir across both launches so the draft has somewhere to live,
   // while staying out of the developer's real prefs.
-  const userDataDir = await mkdtemp(join(tmpdir(), 'pidex-e2e-prefs-'))
-  const workspace = await mkdtemp(join(tmpdir(), 'pidex-e2e-'))
+  const userDataDir = await mkdtemp(join(tmpdir(), 'phosphor-e2e-prefs-'))
+  const workspace = await mkdtemp(join(tmpdir(), 'phosphor-e2e-'))
 
   try {
     const first = await launch({ workspace, userDataDir })
@@ -1817,7 +1817,7 @@ test('an unsent draft survives a session switch and a relaunch', async () => {
         .poll(
           () =>
             first.page.evaluate(async () => {
-              const prefs = await window.pidex.invoke('app:getPrefs')
+              const prefs = await window.phosphor.invoke('app:getPrefs')
               return Object.keys(prefs.drafts).length
             }),
           { timeout: 10_000 },
@@ -1883,9 +1883,9 @@ test('lane rows carry no spend, and the row menu still offers it', async () => {
 
 test('sidebar groups sessions from several workspaces and badges pinned rows', async () => {
   // Two projects, one shared prefs store so both stay in "known workspaces".
-  const userDataDir = await mkdtemp(join(tmpdir(), 'pidex-e2e-prefs-'))
-  const workspaceA = await mkdtemp(join(tmpdir(), 'pidex-e2e-a-'))
-  const workspaceB = await mkdtemp(join(tmpdir(), 'pidex-e2e-b-'))
+  const userDataDir = await mkdtemp(join(tmpdir(), 'phosphor-e2e-prefs-'))
+  const workspaceA = await mkdtemp(join(tmpdir(), 'phosphor-e2e-a-'))
+  const workspaceB = await mkdtemp(join(tmpdir(), 'phosphor-e2e-b-'))
   const nameA = workspaceA.split('/').pop()!
   const nameB = workspaceB.split('/').pop()!
 
@@ -1998,7 +1998,7 @@ test('home composer: grey focus border, top-bar chip popovers, and model picker'
     expect(Math.max(r, g, b) - Math.min(r, g, b)).toBeLessThan(24)
 
     // Every chip opens a popover. (The informational "Local" chip was removed —
-    // pidex only ever runs pi as a local subprocess. On the home screen the
+    // Phosphor only ever runs pi as a local subprocess. On the home screen the
     // folder and branch chips sit above the composer and the top bar shows
     // neither, so "which folder / which branch" still has exactly one answer.)
     await expect(page.getByRole('banner').getByTestId('workspace-chip')).toHaveCount(0)
@@ -2473,12 +2473,12 @@ test('the updater stays dormant in an unpackaged run', async () => {
     // The updater is gated on app.isPackaged. E2E and dev runs are unpackaged,
     // so it must report `unsupported` and never reach the network — otherwise
     // every test run (and every `npm run dev`) would poll GitHub releases.
-    const state = await page.evaluate(() => window.pidex.invoke('updates:state'))
+    const state = await page.evaluate(() => window.phosphor.invoke('updates:state'))
     expect(state.phase).toBe('unsupported')
 
     // An explicit check is likewise a no-op rather than a fetch.
-    await page.evaluate(() => window.pidex.invoke('updates:check'))
-    expect((await page.evaluate(() => window.pidex.invoke('updates:state'))).phase).toBe(
+    await page.evaluate(() => window.phosphor.invoke('updates:check'))
+    expect((await page.evaluate(() => window.phosphor.invoke('updates:state'))).phase).toBe(
       'unsupported',
     )
 
@@ -2607,12 +2607,12 @@ test('web access tab writes provider keys to web-search.json', async () => {
 })
 
 test('claude provider tab proves the chain end to end (stubbed claude + pi)', async () => {
-  // A fake claude via the gated PIDEX_CLAUDE_BIN override — PATH games are
+  // A fake claude via the gated PHOSPHOR_CLAUDE_BIN override — PATH games are
   // machine-dependent (a developer's real install shadows the fake). It answers
   // `auth status`, `auth login`, and `-p /usage` (the live-usage snapshot),
   // the surfaces the tab drives; the login branch reproduces the real CLI's
   // shape (URL on stdout, code read from stdin).
-  const claudeDir = await mkdtemp(join(tmpdir(), 'pidex-e2e-claude-'))
+  const claudeDir = await mkdtemp(join(tmpdir(), 'phosphor-e2e-claude-'))
   await writeFile(
     join(claudeDir, 'claude'),
     '#!/bin/sh\n' +
@@ -2644,7 +2644,7 @@ test('claude provider tab proves the chain end to end (stubbed claude + pi)', as
 
   const harness = await launch({
     agentDir: soloAgentDir,
-    env: { PIDEX_CLAUDE_BIN: join(claudeDir, 'claude') },
+    env: { PHOSPHOR_CLAUDE_BIN: join(claudeDir, 'claude') },
   })
   try {
     await openWorkspace(harness.page)
@@ -2687,7 +2687,7 @@ test('claude provider tab proves the chain end to end (stubbed claude + pi)', as
 
     // The one-click proof runs through the (stubbed) pi print mode.
     await page.getByRole('button', { name: 'Test provider' }).click()
-    await expect(page.getByText('pidex-provider-ok')).toBeVisible()
+    await expect(page.getByText('phosphor-provider-ok')).toBeVisible()
     await expect(page.getByText('Round-trip confirmed', { exact: false })).toBeVisible()
   } finally {
     await shutdown(harness)
@@ -2698,7 +2698,7 @@ test('claude provider tab proves the chain end to end (stubbed claude + pi)', as
 
 test('the workspace header carries fixed search / new / menu controls', async () => {
   const harness = await launch({
-    userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-header-')),
+    userDataDir: await mkdtemp(join(tmpdir(), 'phosphor-e2e-header-')),
   })
   const { page } = harness
   try {
@@ -2772,8 +2772,8 @@ test('a renderer reload re-adopts the live session instead of orphaning it', asy
   // re-navigation) used to hand the renderer an empty map while every
   // ~200 MB child kept running until quit — and resuming the same session
   // file then spawned a SECOND process against it.
-  const userDataDir = await mkdtemp(join(tmpdir(), 'pidex-e2e-reload-'))
-  const workspace = await mkdtemp(join(tmpdir(), 'pidex-e2e-'))
+  const userDataDir = await mkdtemp(join(tmpdir(), 'phosphor-e2e-reload-'))
+  const workspace = await mkdtemp(join(tmpdir(), 'phosphor-e2e-'))
 
   try {
     const harness = await launch({ workspace, userDataDir })
@@ -2794,9 +2794,9 @@ test('a renderer reload re-adopts the live session instead of orphaning it', asy
       const pidBefore = await harness.page.evaluate(() =>
         (
           window as unknown as {
-            pidex: { invoke: (c: string) => Promise<Array<{ pid?: number }>> }
+            phosphor: { invoke: (c: string) => Promise<Array<{ pid?: number }>> }
           }
-        ).pidex
+        ).phosphor
           .invoke('pi:listLiveSessions')
           .then((live) => live.map((s) => s.pid)),
       )
@@ -2812,9 +2812,9 @@ test('a renderer reload re-adopts the live session instead of orphaning it', asy
       const pidAfter = await harness.page.evaluate(() =>
         (
           window as unknown as {
-            pidex: { invoke: (c: string) => Promise<Array<{ pid?: number }>> }
+            phosphor: { invoke: (c: string) => Promise<Array<{ pid?: number }>> }
           }
-        ).pidex
+        ).phosphor
           .invoke('pi:listLiveSessions')
           .then((live) => live.map((s) => s.pid)),
       )
@@ -2839,7 +2839,7 @@ test('skills page lists a seeded skill, and creates a new one on disk', async ()
   )
   const harness = await launch({
     agentDir: soloAgentDir,
-    userDataDir: await mkdtemp(join(tmpdir(), 'pidex-e2e-skills-')),
+    userDataDir: await mkdtemp(join(tmpdir(), 'phosphor-e2e-skills-')),
   })
   const { page } = harness
   try {
@@ -2911,7 +2911,7 @@ test('a link to a spec the model wrote opens it in the Files pane', async () => 
     // must never click it — that would launch a real browser on the runner).
     await expect(page.getByRole('link', { name: '#214' })).toHaveAttribute(
       'href',
-      'https://github.com/agustinsacco/pidex/pull/214',
+      'https://github.com/agustinsacco/Phosphor/pull/214',
       { timeout: 30_000 },
     )
 

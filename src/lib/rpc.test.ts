@@ -6,7 +6,7 @@ const piCommand = vi.fn()
 
 beforeEach(() => {
   piCommand.mockReset()
-  vi.stubGlobal('window', { pidex: { piCommand } })
+  vi.stubGlobal('window', { phosphor: { piCommand } })
   useChatStore.setState({ sessions: {} }, false)
 })
 

@@ -59,5 +59,5 @@ typecheck / lint / format / 1212 unit tests / 30 e2e all pass.
 
 The same screenshot showed the lane loop's `{"rungs":[…]}` payload printed
 across the foot of the window. That is the bug fixed the same morning in
-[#88](https://github.com/agustinsacco/pidex/pull/88) (`2002d12`); the reporting
+[#88](https://github.com/agustinsacco/Phosphor/pull/88) (`2002d12`); the reporting
 build predates it.

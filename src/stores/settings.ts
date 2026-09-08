@@ -59,7 +59,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
     fonts: DEFAULT_FONT_PREFS,
 
     loadAgentSettings: async (workspacePath) => {
-      const settings = await window.pidex.invoke('pi:agentSettings', workspacePath)
+      const settings = await window.phosphor.invoke('pi:agentSettings', workspacePath)
       set({ hideThinkingBlock: settings.hideThinkingBlock === true })
     },
 
@@ -67,18 +67,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
       const resolved = resolve(theme)
       applyToDom(resolved)
       set({ theme, resolvedTheme: resolved })
-      void window.pidex.invoke('app:setTheme', theme)
+      void window.phosphor.invoke('app:setTheme', theme)
     },
 
     setFonts: (patch) => {
       const fonts = { ...get().fonts, ...patch }
       applyFontsToDom(fonts)
       set({ fonts })
-      void window.pidex.invoke('app:setFontPrefs', fonts)
+      void window.phosphor.invoke('app:setFontPrefs', fonts)
     },
 
     hydrate: async () => {
-      const prefs = await window.pidex.invoke('app:getPrefs')
+      const prefs = await window.phosphor.invoke('app:getPrefs')
       const resolved = resolve(prefs.theme)
       applyToDom(resolved)
       applyFontsToDom(prefs.fonts)

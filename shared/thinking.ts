@@ -2,7 +2,7 @@
  * Which thinking levels a given model actually supports.
  *
  * Mirrors pi's `getSupportedThinkingLevels()` / `clampThinkingLevel()` from
- * @earendil-works/pi-ai (dist/models.js, verified against pi 0.84.1). pidex
+ * @earendil-works/pi-ai (dist/models.js, verified against pi 0.84.1). Phosphor
  * never imports pi's code, so the algorithm is duplicated here and pinned by
  * unit tests — same contract as `shared/rpc.ts`.
  *
@@ -14,8 +14,8 @@
  *   - Offering a level the model lacks. Kimi K2.5 has `thinkingLevelMap: null`,
  *     so `xhigh` is unsupported; pi's `setThinkingLevel` clamps it to `high`
  *     without erroring. The chip then displayed "Xhigh" while the model ran at
- *     `high` — pidex reporting a setting the agent was not using.
- *   - Hiding `max` entirely. pi has seven levels; pidex's union had six, so
+ *     `high` — Phosphor reporting a setting the agent was not using.
+ *   - Hiding `max` entirely. pi has seven levels; Phosphor's union had six, so
  *     `max`-capable models (98 records) could not reach their top level at all.
  *
  * A live session should prefer pi's own answer over this
@@ -67,7 +67,7 @@ export function supportedThinkingLevels(model: ThinkingCapableModel): ThinkingLe
  * The level pi will actually use if asked for `level`.
  *
  * Prefers the next level *up* from the request, then falls back downward —
- * matching pi so pidex can predict the clamp instead of misreporting it.
+ * matching pi so Phosphor can predict the clamp instead of misreporting it.
  */
 export function clampThinkingLevel(
   model: ThinkingCapableModel,

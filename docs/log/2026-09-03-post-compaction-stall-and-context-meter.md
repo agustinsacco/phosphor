@@ -10,7 +10,7 @@ Two reports, one shared cause and one coincidence.
 2. The context ring and its popover are missing, and the 5-hour / weekly plan
    usage often never appears.
 
-The first is a `@saccolabs/pi-claude-cli` bug. The second is pidex's.
+The first is a `@saccolabs/pi-claude-cli` bug. The second is Phosphor's.
 
 ## 1. A result the CLI spent on its own queued prompt
 

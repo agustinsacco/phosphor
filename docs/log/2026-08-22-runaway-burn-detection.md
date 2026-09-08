@@ -4,13 +4,13 @@
 
 ## What happened
 
-On 2026-08-21, three concurrent pidex sessions consumed ~46M billed tokens in
+On 2026-08-21, three concurrent Phosphor sessions consumed ~46M billed tokens in
 roughly twenty minutes — peaking at 3.5M tokens/minute — and exhausted the
-account's rate limit. Nothing in pidex remarked on it. The sessions looked
+account's rate limit. Nothing in Phosphor remarked on it. The sessions looked
 normal: the context meter sat at a plausible percentage while the provider
 spent the entire budget re-sending context it had already delivered.
 
-Root cause was outside pidex, in the `@saccolabs/pi-claude-cli` provider:
+Root cause was outside Phosphor, in the `@saccolabs/pi-claude-cli` provider:
 `buildResumePrompt` anchored its resume delta on the last _user_ message, but
 pi's tool loop keeps the only user entry at index 0, so every iteration replayed
 the whole transcript. With an image in that first message the image branch
@@ -19,7 +19,7 @@ output and re-issued the same call indefinitely. Fixed upstream in
 [pi-claude-cli#12](https://github.com/agustinsacco/pi-claude-cli/pull/12),
 released as 0.4.6.
 
-Two measurements shaped what pidex does about it:
+Two measurements shaped what Phosphor does about it:
 
 - The Claude CLI's "Continue from where you left off" recovery nudge, which
   fires because break-early SIGKILLs the subprocess mid-turn, is a `<synthetic>`
@@ -47,7 +47,7 @@ polls `get_session_stats` on every completed sub-step of a turn, and dropped in
 elevated or runaway, and an explanatory line in the popover naming the rate, the
 output share, and the suggested action. Advisory only — it does not stop a turn.
 
-**`StatusStrip`** no longer renders `pidex-context-breakdown`. `setStatus` is
+**`StatusStrip`** no longer renders `Phosphor-context-breakdown`. `setStatus` is
 pi's only channel for pushing extension state to the front-end, so it doubles as
 a data bus; the context-breakdown extension's JSON payload is meant for
 `ContextMeter` to parse, but the strip was also printing it raw at the bottom of

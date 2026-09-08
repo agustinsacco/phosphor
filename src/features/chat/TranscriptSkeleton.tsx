@@ -13,7 +13,7 @@
 export function TranscriptSkeleton({
   /**
    * Shown above the bars. A resume the user did not initiate (reopening a
-   * session pidex suspended to reclaim memory) needs to say so — otherwise the
+   * session Phosphor suspended to reclaim memory) needs to say so — otherwise the
    * wait looks like the app being slow rather than a deliberate trade.
    */
   message = 'Restoring this session from disk…',

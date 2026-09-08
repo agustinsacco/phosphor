@@ -1,9 +1,9 @@
 ---
 name: run
-description: Launch pidex to see a change working — Electron dev mode with a real pi, the browser-only mock harness, or a stubbed Electron instance when no pi/API key is available. Use when asked to run, start, demo, or visually verify the app.
+description: Launch Phosphor to see a change working — Electron dev mode with a real pi, the browser-only mock harness, or a stubbed Electron instance when no pi/API key is available. Use when asked to run, start, demo, or visually verify the app.
 ---
 
-# Running pidex
+# Running Phosphor
 
 Pick the lightest mode that can show the change:
 
@@ -14,7 +14,7 @@ npx vite dev
 ```
 
 Open the printed localhost URL in a browser. `src/main.tsx` detects the
-missing `window.pidex` and installs `src/dev/mockPidex.ts`: canned sessions,
+missing `window.phosphor` and installs `src/dev/mockPhosphor.ts`: canned sessions,
 a scripted streaming reply, mock file tree/terminal. Good for layout, chat
 rendering, sidebar, theming. Useless for anything touching real IPC, pi, git,
 or PTYs. If your change added an IPC channel that a rendered screen calls,
@@ -40,9 +40,9 @@ Build once, then launch against the e2e stub:
 
 ```bash
 npm run build
-PIDEX_PI_STUB="$PWD/e2e/fixtures/pi-stub.cjs" \
-PIDEX_E2E_WORKSPACE="$(mktemp -d)" \
-PIDEX_TEST_USER_DATA="$(mktemp -d)" \
+PHOSPHOR_PI_STUB="$PWD/e2e/fixtures/pi-stub.cjs" \
+PHOSPHOR_E2E_WORKSPACE="$(mktemp -d)" \
+PHOSPHOR_TEST_USER_DATA="$(mktemp -d)" \
 PI_CODING_AGENT_DIR="$(mktemp -d)" \
 npx electron .
 ```

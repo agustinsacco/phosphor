@@ -42,7 +42,7 @@ describe('groupSessionsByProject', () => {
 
   it('folds an externally-placed worktree via its known root, before git info lands', () => {
     // The startup bug: `git worktree list` reports worktrees anywhere on
-    // disk, but only `<repo>/.pidex/worktrees/` is recognisable from the path
+    // disk, but only `<repo>/.phosphor/worktrees/` is recognisable from the path
     // alone. Every other one opened its own branch-named group for as long as
     // `git:infoBatch` took — a wall of fake "workspaces" on every cold start.
     const known = [
@@ -88,7 +88,7 @@ describe('groupSessionsByProject', () => {
   it('folds a linked worktree into its main repo group instead of a second header', () => {
     const gitByCwd: Record<string, GitInfo> = {
       '/repo': { isRepo: true, branch: 'main' },
-      '/repo/.pidex/worktrees/test': {
+      '/repo/.phosphor/worktrees/test': {
         isRepo: true,
         branch: 'test',
         isWorktree: true,
@@ -97,17 +97,17 @@ describe('groupSessionsByProject', () => {
     }
     const disk = {
       '/repo': [meta({ path: '/repo/a.jsonl', cwd: '/repo', mtimeMs: 1000 })],
-      '/repo/.pidex/worktrees/test': [
+      '/repo/.phosphor/worktrees/test': [
         meta({
-          path: '/repo/.pidex/worktrees/test/b.jsonl',
-          cwd: '/repo/.pidex/worktrees/test',
+          path: '/repo/.phosphor/worktrees/test/b.jsonl',
+          cwd: '/repo/.phosphor/worktrees/test',
           createdAt: '2026-08-10T00:00:00.000Z',
           mtimeMs: 2000,
         }),
       ],
     }
     const groups = groupSessionsByProject(
-      ['/repo', '/repo/.pidex/worktrees/test'],
+      ['/repo', '/repo/.phosphor/worktrees/test'],
       disk,
       gitByCwd,
       notPinned,
@@ -119,10 +119,10 @@ describe('groupSessionsByProject', () => {
     // the sidebar into "repo" and "repo (test)".
     expect(groups).toHaveLength(1)
     expect(groups[0]?.name).toBe('repo')
-    expect(groups[0]?.paths.sort()).toEqual(['/repo', '/repo/.pidex/worktrees/test'].sort())
+    expect(groups[0]?.paths.sort()).toEqual(['/repo', '/repo/.phosphor/worktrees/test'].sort())
     // Sessions from both physical folders show up under the merged group,
     // newest-created first, each still carrying its own (worktree) cwd.
-    expect(groups[0]?.metas.map((m) => m.cwd)).toEqual(['/repo/.pidex/worktrees/test', '/repo'])
+    expect(groups[0]?.metas.map((m) => m.cwd)).toEqual(['/repo/.phosphor/worktrees/test', '/repo'])
   })
 
   it('folds a worktree in before its git info arrives', () => {
@@ -131,13 +131,13 @@ describe('groupSessionsByProject', () => {
     // alone opened a second group headed by the branch slug, which then
     // collapsed into the project group a moment later.
     const groups = groupSessionsByProject(
-      ['/repo', '/repo/.pidex/worktrees/hey-2'],
+      ['/repo', '/repo/.phosphor/worktrees/hey-2'],
       {
         '/repo': [meta({ path: '/repo/a.jsonl', cwd: '/repo' })],
-        '/repo/.pidex/worktrees/hey-2': [
+        '/repo/.phosphor/worktrees/hey-2': [
           meta({
-            path: '/repo/.pidex/worktrees/hey-2/b.jsonl',
-            cwd: '/repo/.pidex/worktrees/hey-2',
+            path: '/repo/.phosphor/worktrees/hey-2/b.jsonl',
+            cwd: '/repo/.phosphor/worktrees/hey-2',
           }),
         ],
       },
@@ -245,7 +245,7 @@ describe('groupSessionsByProject', () => {
   it('is attempted only once every folder in the group has had a scan', () => {
     const gitByCwd: Record<string, GitInfo> = {
       '/repo': { isRepo: true, branch: 'main' },
-      '/repo/.pidex/worktrees/test': {
+      '/repo/.phosphor/worktrees/test': {
         isRepo: true,
         branch: 'test',
         isWorktree: true,
@@ -253,7 +253,7 @@ describe('groupSessionsByProject', () => {
       },
     }
     const groups = groupSessionsByProject(
-      ['/repo', '/repo/.pidex/worktrees/test'],
+      ['/repo', '/repo/.phosphor/worktrees/test'],
       {},
       gitByCwd,
       notPinned,
@@ -270,7 +270,7 @@ describe('groupSessionsByProject', () => {
   it("flags a group once a merged folder's scan threw", () => {
     const gitByCwd: Record<string, GitInfo> = {
       '/repo': { isRepo: true, branch: 'main' },
-      '/repo/.pidex/worktrees/test': {
+      '/repo/.phosphor/worktrees/test': {
         isRepo: true,
         branch: 'test',
         isWorktree: true,
@@ -278,13 +278,13 @@ describe('groupSessionsByProject', () => {
       },
     }
     const groups = groupSessionsByProject(
-      ['/repo', '/repo/.pidex/worktrees/test'],
+      ['/repo', '/repo/.phosphor/worktrees/test'],
       {},
       gitByCwd,
       notPinned,
       notLive,
       '/repo',
-      { '/repo': 'ok', '/repo/.pidex/worktrees/test': 'error' },
+      { '/repo': 'ok', '/repo/.phosphor/worktrees/test': 'error' },
     )
     expect(groups[0]?.attempted).toBe(true)
     expect(groups[0]?.errored).toBe(true)
@@ -300,7 +300,7 @@ describe('groupSessionsByProject', () => {
 describe('scan bookkeeping across a merged group', () => {
   const gitByCwd: Record<string, GitInfo> = {
     '/repo': { isRepo: true, branch: 'main' },
-    '/repo/.pidex/worktrees/lane': {
+    '/repo/.phosphor/worktrees/lane': {
       isRepo: true,
       branch: 'lane',
       isWorktree: true,
@@ -310,7 +310,7 @@ describe('scan bookkeeping across a merged group', () => {
 
   it('stays anyScanned when a freshly discovered lane is still unscanned', () => {
     const groups = groupSessionsByProject(
-      ['/repo', '/repo/.pidex/worktrees/lane'],
+      ['/repo', '/repo/.phosphor/worktrees/lane'],
       { '/repo': [meta({ path: '/repo/a.jsonl' })] },
       gitByCwd,
       notPinned,
@@ -324,7 +324,7 @@ describe('scan bookkeeping across a merged group', () => {
 
   it('names the folders still to scan', () => {
     const groups = groupSessionsByProject(
-      ['/repo', '/repo/.pidex/worktrees/lane'],
+      ['/repo', '/repo/.phosphor/worktrees/lane'],
       { '/repo': [] },
       gitByCwd,
       notPinned,
@@ -332,20 +332,20 @@ describe('scan bookkeeping across a merged group', () => {
       '/elsewhere',
       { '/repo': 'ok' },
     )
-    expect(groups[0]!.unscannedPaths).toEqual(['/repo/.pidex/worktrees/lane'])
+    expect(groups[0]!.unscannedPaths).toEqual(['/repo/.phosphor/worktrees/lane'])
   })
 
   it('has nothing left to scan once every folder has been attempted', () => {
     const groups = groupSessionsByProject(
-      ['/repo', '/repo/.pidex/worktrees/lane'],
-      { '/repo': [], '/repo/.pidex/worktrees/lane': [] },
+      ['/repo', '/repo/.phosphor/worktrees/lane'],
+      { '/repo': [], '/repo/.phosphor/worktrees/lane': [] },
       gitByCwd,
       notPinned,
       notLive,
       // The active workspace, so a fully scanned but empty group still gets a
       // header — an empty non-active group is filtered out by design.
       '/repo',
-      { '/repo': 'ok', '/repo/.pidex/worktrees/lane': 'ok' },
+      { '/repo': 'ok', '/repo/.phosphor/worktrees/lane': 'ok' },
     )
     expect(groups[0]).toMatchObject({ scanned: true, anyScanned: true, attempted: true })
     expect(groups[0]!.unscannedPaths).toEqual([])
@@ -366,7 +366,7 @@ describe('scan bookkeeping across a merged group', () => {
   })
 
   it('lists every lane of the group so an expanded group can scan them all', () => {
-    const lanes = Array.from({ length: 12 }, (_, i) => `/repo/.pidex/worktrees/l${i}`)
+    const lanes = Array.from({ length: 12 }, (_, i) => `/repo/.phosphor/worktrees/l${i}`)
     const git: Record<string, GitInfo> = { '/repo': { isRepo: true, branch: 'main' } }
     for (const lane of lanes) {
       git[lane] = { isRepo: true, branch: 'l', isWorktree: true, mainRepoPath: '/repo' }
@@ -388,7 +388,7 @@ describe('pendingSessionsByGroup', () => {
   const groups = [{ workspacePath: '/repo', paths: ['/repo'] }]
 
   it('is pending while diskPath is unknown', () => {
-    const live = [{ pidexId: 'p1', workspacePath: '/repo' }]
+    const live = [{ phosphorId: 'p1', workspacePath: '/repo' }]
     const pending = pendingSessionsByGroup(live, new Set(), groups)
     expect(pending.get('/repo')).toEqual(['p1'])
   })
@@ -398,22 +398,22 @@ describe('pendingSessionsByGroup', () => {
     // shows up in a `disk` scan (write + watcher awaitWriteFinish + debounce
     // all still have to happen). Gating on "diskPath known" alone dropped the
     // placeholder during that gap and left the row missing.
-    const live = [{ pidexId: 'p1', workspacePath: '/repo', diskPath: '/repo/a.jsonl' }]
+    const live = [{ phosphorId: 'p1', workspacePath: '/repo', diskPath: '/repo/a.jsonl' }]
     const pending = pendingSessionsByGroup(live, new Set(), groups)
     expect(pending.get('/repo')).toEqual(['p1'])
   })
 
   it('drops out once the disk scan actually contains the session', () => {
-    const live = [{ pidexId: 'p1', workspacePath: '/repo', diskPath: '/repo/a.jsonl' }]
+    const live = [{ phosphorId: 'p1', workspacePath: '/repo', diskPath: '/repo/a.jsonl' }]
     const pending = pendingSessionsByGroup(live, new Set(['/repo/a.jsonl']), groups)
     expect(pending.has('/repo')).toBe(false)
   })
 
   it('keys a pending worktree session by its main-repo group, not its own path', () => {
     const foldedGroups = [
-      { workspacePath: '/repo', paths: ['/repo', '/repo/.pidex/worktrees/test'] },
+      { workspacePath: '/repo', paths: ['/repo', '/repo/.phosphor/worktrees/test'] },
     ]
-    const live = [{ pidexId: 'p1', workspacePath: '/repo/.pidex/worktrees/test' }]
+    const live = [{ phosphorId: 'p1', workspacePath: '/repo/.phosphor/worktrees/test' }]
     const pending = pendingSessionsByGroup(live, new Set(), foldedGroups)
     expect(pending.get('/repo')).toEqual(['p1'])
   })

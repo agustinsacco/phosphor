@@ -6,7 +6,7 @@
  * a message that is self-contradictory and names no cause. The actual reason
  * (`API Error: Effort 'max' isn't available with thinking turned off`) existed
  * only inside the Claude CLI's own transcript under `~/.claude/projects/`.
- * pidex had already received the failing turn and kept nothing: pi's stderr
+ * Phosphor had already received the failing turn and kept nothing: pi's stderr
  * was forwarded to the renderer and dropped, and the app wrote no log at all.
  * Reconstructing it took shimming the `claude` binary to capture argv.
  *
@@ -43,7 +43,7 @@ export function initDebugLog(): void {
   try {
     const dir = app.getPath('logs')
     mkdirSync(dir, { recursive: true })
-    logPath = join(dir, 'pidex.log')
+    logPath = join(dir, 'phosphor.log')
     log('app', 'session start', {
       version: app.getVersion(),
       electron: process.versions.electron,

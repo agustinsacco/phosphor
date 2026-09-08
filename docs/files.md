@@ -33,7 +33,7 @@ copy can leave a partial destination; its source remains intact.
 
 The system clipboard accepts incoming Finder/Explorer/Linux file lists;
 ordinary copied text is never interpreted as a file. **Outbound file paste
-into OS file managers is not implemented** (pidex-to-pidex copy/cut works).
+into OS file managers is not implemented** (Phosphor-to-Phosphor copy/cut works).
 Cross-device moves fail safely; copy then delete explicitly instead.
 
 ## Editor

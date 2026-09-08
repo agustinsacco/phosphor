@@ -22,7 +22,7 @@ rather than as the plan — the panel is meant to fit.
 short window name, and a compact countdown ("5d 16h", "4h 18m") under it. Three
 labelled bars needed three rows for the same three numbers, and the arc reads
 without being read. Thresholds are unchanged and still shared with every other
-meter in pidex (`usageBarClass`, and now `usageStroke` for the SVG).
+meter in Phosphor (`usageBarClass`, and now `usageStroke` for the SVG).
 
 **MCP servers as chips.** Name plus tokens, wrapped, instead of a row each. A
 row spent a full line of height on twenty-five characters. The tooltip is where
@@ -50,7 +50,7 @@ popover open — `claude:accounts` runs `claude auth status` once per account.
 
 ## Merging with Headroom
 
-Headroom's phase 1 ([#221](https://github.com/agustinsacco/pidex/pull/221))
+Headroom's phase 1 ([#221](https://github.com/agustinsacco/Phosphor/pull/221))
 landed its own `Optimization · Headroom` section in this same file while the
 redesign was in flight, as a fragment of three labelled rows after "Tool
 calls". "Tool calls" is now the last row of a 190px column, where

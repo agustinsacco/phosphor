@@ -23,7 +23,7 @@ export function useSessionClaudeAccount(
   useEffect(() => {
     if (!enabled) return
     let cancelled = false
-    void window.pidex
+    void window.phosphor
       .invoke('claude:sessionAccount', sessionId, diskPath)
       // A rejected invoke (no handler, main restarted) is "no account", never
       // a permanent pending state — the caller has a request waiting on this.

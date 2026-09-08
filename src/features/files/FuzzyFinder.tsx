@@ -32,7 +32,7 @@ export function FuzzyFinder({
     if (!open) return
     setQuery('')
     setActiveIndex(0)
-    void window.pidex.invoke('fs:listFiles', workspacePath).then(setFiles)
+    void window.phosphor.invoke('fs:listFiles', workspacePath).then(setFiles)
     setTimeout(() => inputRef.current?.focus(), 30)
   }, [open, workspacePath])
 

@@ -39,17 +39,17 @@ async function commit(cwd: string, file: string, body: string): Promise<void> {
 beforeEach(async () => {
   resetFetchThrottle()
 
-  origin = await mkdtemp(join(tmpdir(), 'pidex-origin-'))
+  origin = await mkdtemp(join(tmpdir(), 'phosphor-origin-'))
   await git(origin, ['init', '-b', 'main'])
-  await git(origin, ['config', 'user.email', 'test@pidex.dev'])
-  await git(origin, ['config', 'user.name', 'pidex test'])
+  await git(origin, ['config', 'user.email', 'test@phosphor.dev'])
+  await git(origin, ['config', 'user.name', 'Phosphor test'])
   await commit(origin, 'a.txt', 'one\n')
 
-  repo = await mkdtemp(join(tmpdir(), 'pidex-clone-'))
+  repo = await mkdtemp(join(tmpdir(), 'phosphor-clone-'))
   await rm(repo, { recursive: true, force: true })
   await execFileAsync('git', ['clone', origin, repo])
-  await git(repo, ['config', 'user.email', 'test@pidex.dev'])
-  await git(repo, ['config', 'user.name', 'pidex test'])
+  await git(repo, ['config', 'user.email', 'test@phosphor.dev'])
+  await git(repo, ['config', 'user.name', 'Phosphor test'])
 })
 
 afterEach(async () => {
@@ -70,10 +70,10 @@ describe('fetchRepo', () => {
   })
 
   it('reports an unreachable remote as failed instead of throwing', async () => {
-    const broken = await mkdtemp(join(tmpdir(), 'pidex-broken-'))
+    const broken = await mkdtemp(join(tmpdir(), 'phosphor-broken-'))
     try {
       await git(broken, ['init', '-b', 'main'])
-      await git(broken, ['remote', 'add', 'origin', join(tmpdir(), 'pidex-does-not-exist')])
+      await git(broken, ['remote', 'add', 'origin', join(tmpdir(), 'phosphor-does-not-exist')])
 
       expect(await fetchRepo(broken)).toMatchObject({ fetched: false, reason: 'failed' })
       // A failed fetch must not poison the throttle: the next call retries
@@ -87,7 +87,7 @@ describe('fetchRepo', () => {
   it('treats a repo with no remote at all as a harmless no-op', async () => {
     // `git fetch` with nothing configured exits 0 having done nothing, so a
     // local-only repo reports success rather than surfacing a scary error.
-    const local = await mkdtemp(join(tmpdir(), 'pidex-local-'))
+    const local = await mkdtemp(join(tmpdir(), 'phosphor-local-'))
     try {
       await git(local, ['init', '-b', 'main'])
       expect(await fetchRepo(local)).toMatchObject({ fetched: true })

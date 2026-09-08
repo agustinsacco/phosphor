@@ -1,11 +1,11 @@
 # MCP isolation: one door into a Claude session
 
 **2026-08-31.** A `pi-claude-cli` session was loading MCP servers from two
-chains at once. Only one of them is pidex's, and the other one was invisible.
+chains at once. Only one of them is Phosphor's, and the other one was invisible.
 
 ## What was wrong
 
-pidex writes connectors to `~/.pi/agent/mcp.json`, the adapter loads that chain
+Phosphor writes connectors to `~/.pi/agent/mcp.json`, the adapter loads that chain
 and registers `mcp` / `mcpScript` into pi's tool registry, and pi-claude-cli
 snapshots pi's non-built-in tools into a schema-only MCP server it hands the
 CLI as `--mcp-config`. That part worked: the gateway arrives as
@@ -33,14 +33,14 @@ Tokens were the smaller half:
 `PI_CLAUDE_CLI_HERMETIC`, together with an empty `--setting-sources`.
 
 That bundle is unusable here. `--setting-sources ""` drops the CLI's CLAUDE.md
-auto-memory, and pidex already passes `--no-context-files` so pi omits its own
+auto-memory, and Phosphor already passes `--no-context-files` so pi omits its own
 copy (~4,900 tokens of duplication, see
 [2026-08-29-claude-provider-token-overhead.md](2026-08-29-claude-provider-token-overhead.md)).
 Enabling hermetic for real sessions would have left the model with project
 instructions from **neither** side.
 
 So pi-claude-cli 0.5.1 splits them: `PI_CLAUDE_CLI_STRICT_MCP` passes the MCP
-flag alone. pidex sets it for every Claude-provider spawn
+flag alone. Phosphor sets it for every Claude-provider spawn
 (`claudeProviderSpawnEnv` in `electron/pi/provider-detect.ts`), reusing the
 same provider verdict that already drives `--no-context-files`.
 

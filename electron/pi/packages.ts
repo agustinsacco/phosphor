@@ -23,7 +23,7 @@ const execFileAsync = promisify(execFile)
  *
  * Mutations go through pi's own CLI (`pi install` / `pi remove` /
  * `pi update`), spawned by the job runner below — pi owns pinning, git-ref
- * reconciliation and `npmCommand` wrappers, so pidex never re-implements
+ * reconciliation and `npmCommand` wrappers, so Phosphor never re-implements
  * install semantics. This module only *displays* state.
  */
 
@@ -546,11 +546,11 @@ export async function runClaudeProviderTest(
       '-p',
       '--model',
       'pi-claude-cli/claude-haiku-4-5',
-      'Reply with exactly: pidex-provider-ok',
+      'Reply with exactly: phosphor-provider-ok',
     ],
     // `claudeOneShotEnv` or the job never ends: 0.7.0 parks the CLI process
     // after `result`, and startJob has no timeout — the test would print
-    // "pidex-provider-ok" and then sit as a running job for ten minutes.
+    // "phosphor-provider-ok" and then sit as a running job for ten minutes.
     { cwd: tmpdir(), env: { ...invoker.env, ...claudeOneShotEnv() } },
   )
 }

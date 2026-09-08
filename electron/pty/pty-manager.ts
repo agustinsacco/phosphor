@@ -67,7 +67,10 @@ class PtyManager {
         cwd: workspacePath,
         cols,
         rows,
-        env: { ...process.env, ...command?.env, TERM_PROGRAM: 'pidex' } as Record<string, string>,
+        env: { ...process.env, ...command?.env, TERM_PROGRAM: 'phosphor' } as Record<
+          string,
+          string
+        >,
       })
     } catch (error) {
       // node-pty throws bare strings like "posix_spawnp failed." with no hint

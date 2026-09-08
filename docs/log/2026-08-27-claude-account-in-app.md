@@ -2,7 +2,7 @@
 
 > **Superseded 2026-09-04.** The "exactly one credential" premise below is
 > wrong: `CLAUDE_SECURESTORAGE_CONFIG_DIR` scopes the CLI's keychain entry, so
-> pidex now keeps several accounts and routes sessions between them. See
+> Phosphor now keeps several accounts and routes sessions between them. See
 > [2026-09-04-claude-multi-account.md](2026-09-04-claude-multi-account.md).
 
 Date: 2026-08-27
@@ -16,7 +16,7 @@ not a label. It shows who is signed in (email · plan · org), and offers
 > not logged in — run `claude` in a terminal and use /login
 
 That instruction was correct and it was the whole problem: the one provider
-pidex recommends for plan-limit billing was also the only one whose sign-in
+Phosphor recommends for plan-limit billing was also the only one whose sign-in
 required leaving the app, while pi's own OAuth providers had had in-app buttons
 in the Accounts tab since 2026-08-26.
 
@@ -52,7 +52,7 @@ Each was found by running it, and each is a line of code plus a test:
   match — a code pasted from the first URL can never succeed.
 - **Its prose is not the outcome.** A run given a bogus code still printed
   `Login successful.` and exited 0. Completion is decided by
-  `claude auth status`, the same fact the rest of pidex already trusts — the
+  `claude auth status`, the same fact the rest of Phosphor already trusts — the
   identical rule `login-flow.ts` arrived at for pi.
 
 That last one has a subtlety worth keeping: on a **switch**, `auth status` says
@@ -74,7 +74,7 @@ offering a button that would silently replace the credential.
 - `electron/pi/claude-login.test.ts` — 7 tests pinning the URL parser and the
   invalid-code notice against verbatim 2.1.231 captures, including the
   newest-URL-wins case.
-- The whole flow is mocked in `src/dev/mockPidex.ts` (`claude:*` channels), so
+- The whole flow is mocked in `src/dev/mockPhosphor.ts` (`claude:*` channels), so
   the paste-code box, a rejected code, and the row flipping to a new account are
   developable in `npm run dev:web` without a `claude` install. Submitting the
   literal code `bad` replays the rejection.

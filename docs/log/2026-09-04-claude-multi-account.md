@@ -6,7 +6,7 @@ credential and there was believed to be no way to hold two. That belief was
 wrong, and it cost real work — a session hitting a 5-hour limit meant signing
 out of one plan and back into another, which also signed out the terminal.
 
-pidex now keeps as many Claude logins as you want, in an order you control, and
+Phosphor now keeps as many Claude logins as you want, in an order you control, and
 picks one per session.
 
 ## The mechanism
@@ -41,11 +41,11 @@ it (`projectsDirectory` follows it, confirmed the same way).
 
 ## Why pi-claude-cli did not change
 
-`spawnClaude` builds its child env as `{ ...process.env }`. pidex spawns one
+`spawnClaude` builds its child env as `{ ...process.env }`. Phosphor spawns one
 `pi` per session, and pi-claude-cli >= 0.7.0 keeps **one** CLI process per pi
 session. Putting the variable on the pi spawn therefore binds pi, the extension
 and the parked CLI process to a single account for the session's whole life.
-The whole feature is pidex-side; nothing was published to the provider package.
+The whole feature is Phosphor-side; nothing was published to the provider package.
 
 ## Shape
 

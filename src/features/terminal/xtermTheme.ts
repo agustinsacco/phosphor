@@ -8,7 +8,7 @@ import type { ITheme } from '@xterm/xterm'
 export function xtermTheme(resolved: 'light' | 'dark'): ITheme {
   if (resolved === 'dark') {
     return {
-      // The dark terminal sits on --px-bg itself, cursor in phosphor.
+      // The dark terminal sits on --px-bg itself, cursor in Phosphor.
       background: '#1e1c18',
       foreground: '#ece7db',
       cursor: '#eca03d',

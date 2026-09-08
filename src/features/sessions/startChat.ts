@@ -16,7 +16,7 @@ import { errorText } from '@shared/errors'
  * Starting a chat from the home composer: branch it, run it, name it.
  *
  * A chat that edits files wants its own branch, and pi never titles a session,
- * so pidex asks a one-shot `pi -p` for a name and derives the branch from it —
+ * so Phosphor asks a one-shot `pi -p` for a name and derives the branch from it —
  * one chat, one branch, one name.
  *
  * The ORDER of those three is the whole design, and it is the opposite of what
@@ -162,7 +162,7 @@ export async function startChat(options: StartChatOptions): Promise<StartChatRes
 async function shouldIsolate(workspacePath: string): Promise<{ repoPath: string } | null> {
   if (!useWorktreesStore.getState().preferWorktree) return null
   try {
-    const info = await window.pidex.invoke('git:info', workspacePath)
+    const info = await window.phosphor.invoke('git:info', workspacePath)
     if (!info.isRepo) return null
     return { repoPath: info.isWorktree && info.mainRepoPath ? info.mainRepoPath : workspacePath }
   } catch {
@@ -271,7 +271,9 @@ async function generateTitle(
   prompt: string,
 ): Promise<string | null> {
   const existing = existingTitlesForRepo(repoPath, workspacePath)
-  return window.pidex.invoke('pi:generateTitle', workspacePath, prompt, existing).catch(() => null)
+  return window.phosphor
+    .invoke('pi:generateTitle', workspacePath, prompt, existing)
+    .catch(() => null)
 }
 
 /**
@@ -318,7 +320,7 @@ function existingTitlesForRepo(repoPath: string, workspacePath: string): string[
  */
 async function resolveBase(repoPath: string): Promise<{ base: string; noTrack: boolean }> {
   try {
-    const point = await window.pidex.invoke('git:startPoint', repoPath)
+    const point = await window.phosphor.invoke('git:startPoint', repoPath)
     return { base: point.base, noTrack: point.fromRemote }
   } catch {
     // `HEAD` is the last resort: whatever trunk is, the main tree is on it.
@@ -338,7 +340,7 @@ async function resolveBase(repoPath: string): Promise<{ base: string; noTrack: b
 export function prefetchTrunk(workspacePath: string): void {
   void (async () => {
     try {
-      const info = await window.pidex.invoke('git:info', workspacePath)
+      const info = await window.phosphor.invoke('git:info', workspacePath)
       if (!info.isRepo) return
       const repoPath = info.isWorktree && info.mainRepoPath ? info.mainRepoPath : workspacePath
       await useWorktreesStore.getState().syncRemote(repoPath)

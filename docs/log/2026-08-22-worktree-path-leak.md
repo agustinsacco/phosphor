@@ -4,16 +4,16 @@
 
 ## Why
 
-A session running in `.pidex/worktrees/<name>` sometimes read a file out of the
+A session running in `.phosphor/worktrees/<name>` sometimes read a file out of the
 **main checkout** instead of its own tree. The two are different branches, so
 the model answered confidently about code that was not the code it was asked
 about — and nothing anywhere said so.
 
 Confirmed on two real sessions, and reproduced from their on-disk ledgers:
 
-- **01a02ca0** (cwd `…/.pidex/worktrees/read-src-features-chat-composer`), asked
+- **01a02ca0** (cwd `…/.phosphor/worktrees/read-src-features-chat-composer`), asked
   to read `src/features/chat/composer/ContextMeter.tsx`, called pi's `read` with
-  `/home/agustinsacco/src/agustinsacco/pidex/src/features/chat/composer/ContextMeter.tsx`
+  `/home/agustinsacco/src/agustinsacco/Phosphor/src/features/chat/composer/ContextMeter.tsx`
   — the main checkout, sitting on `fix/composer-autogrow`, 19 commits behind
   main and predating PR #48. It then recommended building the burn badge that
   already existed at lines 80-109 of its own worktree's copy. 1 of 2 reads.
@@ -29,7 +29,7 @@ Both of the obvious suspects were checked and cleared:
   inherits it too (`options?.cwd ?? process.cwd()` in the provider).
 - **The system prompt does say so.** Captured from a live run by shimming the
   `claude` binary to dump its argv and `--system-prompt` file: pi ends its
-  prompt with `Current working directory: …/.pidex/worktrees/…`, and the
+  prompt with `Current working directory: …/.phosphor/worktrees/…`, and the
   project context arrives as `<project_instructions path="…/worktrees/…/CLAUDE.md">`.
   pi 0.84.2 already shadows the main checkout's `CLAUDE.md` for a nested
   worktree (`findShadowedContextFile`), so the main path is never fed in.
@@ -44,9 +44,9 @@ absolute one. Two things combine:
    the provider substitutes Claude Code's tool documentation, and in `claude`
    mode Claude Code's own prompt is right there saying it.
 2. It builds that absolute path from where it thinks the project root is, not
-   from the cwd it was given. pidex puts worktrees at
-   `<repo>/.pidex/worktrees/<name>`, so the cwd _literally contains the main
-   checkout as a prefix_, and `.pidex/worktrees/<name>` reads like a tooling
+   from the cwd it was given. Phosphor puts worktrees at
+   `<repo>/.phosphor/worktrees/<name>`, so the cwd _literally contains the main
+   checkout as a prefix_, and `.phosphor/worktrees/<name>` reads like a tooling
    directory to trim. The shortened path exists, opens, and returns another
    branch's file — a wrong answer that looks exactly like a right one.
 
@@ -90,7 +90,7 @@ pi's own line already covers them, and every token here is spent per request.
 Live, in the worktree that produced session 01a02ca0, against
 `claude-haiku-4-5` on the `pi-claude-cli` provider with `PI_CLAUDE_CLI_SYSTEM_PROMPT=pi`:
 asked to read the main-checkout absolute path, the guard fired
-(`BLOCK …/pidex/src/lib/burnRate.ts -> …/worktrees/read-src-features-chat-composer/src/lib/burnRate.ts`)
+(`BLOCK …/Phosphor/src/lib/burnRate.ts -> …/worktrees/read-src-features-chat-composer/src/lib/burnRate.ts`)
 and the model immediately re-issued the read at the worktree path — one wasted
 tool call, correct answer, same turn.
 
@@ -100,7 +100,7 @@ between pi's prompt and `<project_context>`.
 
 ## Sharp edges
 
-- The extension is the only pidex code that runs _inside_ pi's process and can
+- The extension is the only Phosphor code that runs _inside_ pi's process and can
   refuse a tool call. Widening `PATH_TOOLS` or loosening the four conditions
   means blocking legitimate reads — pi's own system prompt instructs the model
   to read pi's docs from absolute paths well outside the cwd.
@@ -112,7 +112,7 @@ between pi's prompt and `<project_context>`.
   Neither observed session took it — every read in both went through pi's
   `read`, and neither ledger contains a single `[Claude Code · …]` marker — but
   it is the gap to close if this recurs, and closing it means an argv change in
-  `@saccolabs/pi-claude-cli`, not in pidex.
+  `@saccolabs/pi-claude-cli`, not in Phosphor.
 - `pi-ext/*.ts` ships as `extraResources`, so the packaging filter now excludes
   `*.test.ts`; the rule's tests live beside it because pi loads each `-e` file
   standalone and a local import would not resolve.

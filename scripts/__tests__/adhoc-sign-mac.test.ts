@@ -23,7 +23,7 @@ import adhocSignMac from '../adhoc-sign-mac.mjs'
  * These run only on macOS — `codesign` does not exist elsewhere, and CI builds
  * the mac artifacts on a macOS runner.
  */
-const APP_ID = 'works.pidex.adhoc-sign-test'
+const APP_ID = 'works.phosphor.adhoc-sign-test'
 const dirs: string[] = []
 
 function plist(executable: string, id: string): string {
@@ -40,23 +40,26 @@ function plist(executable: string, id: string): string {
 }
 
 function makeBundle(marker: string): { appOutDir: string; app: string } {
-  const appOutDir = mkdtempSync(join(tmpdir(), 'pidex-sign-test-'))
+  const appOutDir = mkdtempSync(join(tmpdir(), 'phosphor-sign-test-'))
   dirs.push(appOutDir)
-  const app = join(appOutDir, 'pidex.app')
+  const app = join(appOutDir, 'Phosphor.app')
   mkdirSync(join(app, 'Contents', 'MacOS'), { recursive: true })
   mkdirSync(join(app, 'Contents', 'Resources'), { recursive: true })
-  writeFileSync(join(app, 'Contents', 'Info.plist'), plist('pidex', APP_ID))
+  writeFileSync(join(app, 'Contents', 'Info.plist'), plist('phosphor', APP_ID))
   // A real Mach-O is required; /bin/echo is the smallest one always present.
-  execFileSync('/bin/cp', ['/bin/echo', join(app, 'Contents', 'MacOS', 'pidex')])
+  execFileSync('/bin/cp', ['/bin/echo', join(app, 'Contents', 'MacOS', 'phosphor')])
   // Differs per build, so the two bundles get different code hashes.
   writeFileSync(join(app, 'Contents', 'Resources', 'version.txt'), marker)
 
   // Electron ships four Helper apps and several frameworks; one nested bundle
   // is enough to reproduce every nesting bug seen so far.
-  const helper = join(app, 'Contents', 'Frameworks', 'pidex Helper.app')
+  const helper = join(app, 'Contents', 'Frameworks', 'Phosphor Helper.app')
   mkdirSync(join(helper, 'Contents', 'MacOS'), { recursive: true })
-  writeFileSync(join(helper, 'Contents', 'Info.plist'), plist('pidex Helper', `${APP_ID}.helper`))
-  execFileSync('/bin/cp', ['/bin/echo', join(helper, 'Contents', 'MacOS', 'pidex Helper')])
+  writeFileSync(
+    join(helper, 'Contents', 'Info.plist'),
+    plist('Phosphor Helper', `${APP_ID}.helper`),
+  )
+  execFileSync('/bin/cp', ['/bin/echo', join(helper, 'Contents', 'MacOS', 'Phosphor Helper')])
 
   return { appOutDir, app }
 }
@@ -65,7 +68,7 @@ function sign(appOutDir: string) {
   return adhocSignMac({
     electronPlatformName: 'darwin',
     appOutDir,
-    packager: { appInfo: { productFilename: 'pidex', id: APP_ID } },
+    packager: { appInfo: { productFilename: 'phosphor', id: APP_ID } },
   })
 }
 

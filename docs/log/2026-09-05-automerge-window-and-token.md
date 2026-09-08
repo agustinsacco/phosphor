@@ -6,14 +6,14 @@
 > is history only.
 
 Automerge had run four times and failed all four, each in under fifteen seconds
-([run 33935905176](https://github.com/agustinsacco/pidex/actions/runs/33935905176)).
+([run 33935905176](https://github.com/agustinsacco/Phosphor/actions/runs/33935905176)).
 The queue consequence was visible from the sidebar: two quiet, green PRs open
 with nothing happening to them.
 
 ## The cause was setup, not logic
 
 ```console
-$ gh api repos/agustinsacco/pidex/actions/secrets
+$ gh api repos/agustinsacco/Phosphor/actions/secrets
 {"total_count":0,"secrets":[]}
 ```
 
@@ -65,7 +65,7 @@ Contents: Read and write, Pull requests: Read and write, and the longest expiry
 offered. Then:
 
 ```bash
-gh secret set AUTOMERGE_TOKEN --repo agustinsacco/pidex < token.txt
+gh secret set AUTOMERGE_TOKEN --repo agustinsacco/Phosphor < token.txt
 ```
 
 Worth noting what a PAT is still required for, since a poll now re-evaluates the

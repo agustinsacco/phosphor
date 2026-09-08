@@ -163,8 +163,8 @@ describe('piProcessEnv', () => {
 
   it('merges extra vars and lets them override the base env', async () => {
     shellReturns('/usr/bin')
-    const env = await piProcessEnv({ PIDEX_TEST: '1', PATH: '/override' })
-    expect(env.PIDEX_TEST).toBe('1')
+    const env = await piProcessEnv({ PHOSPHOR_TEST: '1', PATH: '/override' })
+    expect(env.PHOSPHOR_TEST).toBe('1')
     expect(env.PATH).toBe('/override')
   })
 

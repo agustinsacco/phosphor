@@ -37,8 +37,8 @@ export async function createIn(
   })
   if (!name) return
   const target = entryPath(dir, name)
-  if (kind === 'file') await window.pidex.invoke('fs:createFile', target)
-  else await window.pidex.invoke('fs:createDir', target)
+  if (kind === 'file') await window.phosphor.invoke('fs:createFile', target)
+  else await window.phosphor.invoke('fs:createDir', target)
   const store = useFilesStore.getState()
   if (dir !== workspacePath && !store.expanded[dir]) await store.toggleDir(workspacePath, dir)
   await store.refreshDir(workspacePath, dir)
@@ -50,7 +50,7 @@ export async function renameEntry(workspacePath: string, entry: DirEntry): Promi
   if (!name || name === entry.name) return
   const dir = dirname(entry.path)
   const target = entryPath(dir, name)
-  await window.pidex.invoke('fs:rename', entry.path, target)
+  await window.phosphor.invoke('fs:rename', entry.path, target)
   useFilesStore.getState().reconcilePath(workspacePath, entry.path, target)
   await useFilesStore.getState().refreshDir(workspacePath, dir)
 }
@@ -68,7 +68,7 @@ export async function trashEntry(workspacePath: string, entry: DirEntry): Promis
     !window.confirm(`Move “${entry.name}” to Trash?${dirty ? ' Unsaved edits will be lost.' : ''}`)
   )
     return
-  await window.pidex.invoke('fs:trash', entry.path)
+  await window.phosphor.invoke('fs:trash', entry.path)
   const dir = dirname(entry.path)
   store.reconcilePath(workspacePath, entry.path)
   await store.refreshDir(workspacePath, dir)

@@ -34,7 +34,7 @@ export function NewSkillModal({
     setBusy(true)
     setFailure(null)
     try {
-      await window.pidex.invoke('skills:create', {
+      await window.phosphor.invoke('skills:create', {
         scope,
         workspacePath,
         name,

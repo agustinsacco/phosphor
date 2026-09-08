@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <!--
-    pidex mark — "aperture", light-background twin of build/icon.svg.
+    Phosphor mark — "aperture", light-background twin of build/icon.svg.
     Same geometry, ember accent on paper. Used for light-theme documentation
     (the README swaps on prefers-color-scheme); NOT a platform icon —
     generate-icons.mjs only reads icon.svg.

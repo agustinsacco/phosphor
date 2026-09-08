@@ -85,12 +85,12 @@ describe('sanitizeMessage', () => {
 describe('describeDroppedCall', () => {
   it('names the call and previews its arguments', () => {
     expect(describeDroppedCall('bad name', { a: 1 })).toBe(
-      '[pidex dropped a malformed tool call: bad name {"a":1}]',
+      '[Phosphor dropped a malformed tool call: bad name {"a":1}]',
     )
   })
 
   it('omits empty arguments', () => {
-    expect(describeDroppedCall('bad', {})).toBe('[pidex dropped a malformed tool call: bad]')
+    expect(describeDroppedCall('bad', {})).toBe('[Phosphor dropped a malformed tool call: bad]')
   })
 
   it('survives unserializable arguments', () => {

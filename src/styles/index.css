@@ -2,7 +2,7 @@
 @import 'katex/dist/katex.min.css';
 
 /* ---------------------------------------------------------------------------
- * pidex design tokens — the "Phosphor" system (specs/reference/style-guide.md).
+ * Phosphor design tokens — the "Phosphor" system (specs/reference/style-guide.md).
  * Paper light theme / graphite dark theme, amber-phosphor accent.
  * Every surface in the app (Monaco, xterm, Shiki, Mermaid) reads these vars.
  * ------------------------------------------------------------------------- */
@@ -82,7 +82,7 @@
 }
 
 .dark {
-  /* Dark theme — "phosphor". NOTE: --px-accent-text flips to dark ink here;
+  /* Dark theme — "Phosphor". NOTE: --px-accent-text flips to dark ink here;
      white on amber fails contrast (2.2:1). Always use the token pair. */
   --px-bg: #1e1c18;
   --px-bg-secondary: #26231e;
@@ -480,7 +480,7 @@ body {
   margin-left: 1px;
 }
 
-/* The phosphor "working" spark */
+/* The Phosphor "working" spark */
 @keyframes px-pulse-spark {
   0%,
   100% {

@@ -54,7 +54,7 @@ import { createHash } from 'node:crypto'
 const ARTIFACT_CSP = [
   "default-src 'none'",
   // Model-authored HTML is inline by construction; a nonce would have to be
-  // threaded into content pidex does not author. 'unsafe-eval' costs nothing
+  // threaded into content Phosphor does not author. 'unsafe-eval' costs nothing
   // extra once inline script is allowed, and charting code expects it.
   "script-src 'unsafe-inline' 'unsafe-eval'",
   "style-src 'unsafe-inline'",
@@ -66,7 +66,7 @@ const ARTIFACT_CSP = [
   "base-uri 'none'",
 ].join('; ')
 
-export const ARTIFACT_SCHEME = 'pidex-artifact'
+export const ARTIFACT_SCHEME = 'phosphor-artifact'
 
 /**
  * Staged documents, keyed by content hash.
