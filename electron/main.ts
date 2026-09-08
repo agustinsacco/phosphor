@@ -14,6 +14,7 @@ import { applyZoom, hideWindowsForE2E, overlayFor } from './window-chrome'
 import { getPrefs } from './store'
 import { initDebugLog, log } from './debug-log'
 import { registerArtifactScheme, registerArtifactProtocol } from './artifacts/artifact-protocol'
+import { externalUrl, isAppNavigation } from './external-links'
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
 
@@ -87,10 +88,19 @@ function createWindow(): BrowserWindow {
 
   // External links open in the default browser, never inside the app.
   window.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://') || url.startsWith('http://')) {
-      void shell.openExternal(url)
-    }
+    const external = externalUrl(url)
+    if (external) void shell.openExternal(external)
     return { action: 'deny' }
+  })
+
+  // Same rule for a link that tries to replace this document instead of
+  // opening a window (a plain anchor, a middle-click). The window has one
+  // document and no routes, so navigating away is never recoverable in-app.
+  window.webContents.on('will-navigate', (event, url) => {
+    if (isAppNavigation(url, window.webContents.getURL())) return
+    event.preventDefault()
+    const external = externalUrl(url)
+    if (external) void shell.openExternal(external)
   })
 
   if (isDev) {

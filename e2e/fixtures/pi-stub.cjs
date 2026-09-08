@@ -402,7 +402,8 @@ function handle(cmd) {
         })
         break
       }
-      if (message.includes('longartifact')) runLongArtifactTurn()
+      if (message.includes('speclink')) runSpecLinkTurn()
+      else if (message.includes('longartifact')) runLongArtifactTurn()
       else if (message.includes('manyitems')) runManyItemsTurn()
       else if (message.includes('fanout')) runSubagentTurn()
       else if (message.includes('longstream')) runLongStreamTurn()
@@ -671,6 +672,33 @@ function play(steps, gapMs = 40) {
       await new Promise((resolve) => setTimeout(resolve, gapMs))
     }
   })()
+}
+
+/**
+ * A reply that announces a spec it wrote: one repo-relative link and one web
+ * URL, the exact shape a real session produces after writing a doc.
+ */
+function runSpecLinkTurn() {
+  const text =
+    'Spec written: [docs/plan.md](docs/plan.md), line ' +
+    '[42](docs/plan.md#L42). PR: [#214](https://github.com/agustinsacco/pidex/pull/214).'
+  play([
+    () => out({ type: 'agent_start' }),
+    () => out({ type: 'turn_start' }),
+    () => out({ type: 'message_start', message: { role: 'assistant', content: [] } }),
+    () =>
+      out({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text }],
+          stopReason: 'stop',
+          timestamp: Date.now(),
+        },
+      }),
+    () => out({ type: 'agent_end', messages: [] }),
+    () => out({ type: 'agent_settled' }),
+  ])
 }
 
 /**
