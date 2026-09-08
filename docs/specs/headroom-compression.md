@@ -1,6 +1,7 @@
 # Headroom as a first-class pidex feature
 
-**Status: proposed. Phases 1–3 are ready to build; 4–5 need a decision.**
+**Status: phase 1 SHIPPED (`pi-ext/headroom.ts`, this branch, 2026-09-07);
+phases 2–3 ready to build; 4–6 need a decision.**
 Research done 2026-09-07 against Headroom 0.37.0 (`headroom-ai`, Apache-2.0,
 repo at `e67b3c8`), pi 0.84.2 and pi-claude-cli 0.7.0. The proxy was run
 locally and measured on this repo's own tool output; every trap below comes
@@ -38,11 +39,23 @@ cannot break — and because nothing but tool output ever crosses the socket.
   first use; failure disables it for the session.
 - **Hook.** `pi.on("tool_result")` — chains like middleware, accepts a partial
   patch of `{content, details, isError, usage}`. Text parts only.
-- **Eligibility**, narrow like `worktree-paths.ts`: skip `isError` (the error
-  text _is_ the payload), skip under ~1k tokens, skip `read`/`write`/`edit`,
-  skip `bash`. Compress custom/MCP tools, `grep`, `find`, `ls`.
+- **Eligibility — JSON only, and that rule is load-bearing.** Skip `isError`
+  (the error text _is_ the payload), skip under ~1k tokens, skip
+  `read`/`write`/`edit`/`bash`, and require the text to parse as a JSON
+  object or array. As-built this SUPERSEDES the earlier plan to compress
+  `grep`/`find`/`ls`: measured against a 0.37.0 proxy with the ml+code
+  extras, plain text routes to transforms that are lossy WITHOUT saying so —
+  `code_aware` kept 3% of a grep result and `kompress` deleted words from
+  `git log` prose ("design the Optimization surface" → "design Optimization
+  surface") with no marker and no hash. Valid JSON is lossless-or-noop on
+  this endpoint by construction: the lossy row-sampling path is suppressed
+  when no CCR store exists, so heterogeneous JSON comes back `router:noop`
+  byte-identical. One `JSON.parse` enforces this regardless of how an
+  adopted proxy is configured.
 - **Accept-or-discard.** Keep the compressed text only if it is smaller _and_
-  carries no unretrievable omission marker.
+  carries no unretrievable omission marker (second layer behind the JSON
+  gate). The phase-3 supervisor adds a third: start the managed proxy with
+  `HEADROOM_COMPRESSORS=smart_crusher,tabular`.
 - **Fail open twice.** 3 s timeout on `ctx.signal`, plus a circuit breaker —
   upstream's own `HeadroomContextEngine` has one. Far inside `HANDOFF_WAIT_MS`
   (30 min), the ceiling on a blocked Claude CLI handoff.
@@ -85,16 +98,42 @@ The zeroes are deliberate upstream behaviour. `wiki/LIMITATIONS.md` documents
 code as passthrough behind `protect_recent_code=4` and
 `protect_analysis_context`, because code is fetched to be worked on.
 
+Re-measured 2026-09-07 with the ml+code extras installed and REAL connector
+payloads (the first table used synthetic uniform records — too optimistic):
+
+| Payload                                       | Before | Saved | Transform                       | L1 verdict                   |
+| --------------------------------------------- | ------ | ----- | ------------------------------- | ---------------------------- |
+| live mcpScript field projection (Bedrock run) | 2,875  | 44%   | lossless CSV                    | accepted, receipt persisted  |
+| synthetic uniform 120 records                 | 9,498  | 38%   | lossless CSV                    | accepted                     |
+| real Notion search, 10 records                | 1,920  | 9.7%  | lossless CSV                    | accepted                     |
+| real `linear list_issues`, 60 records, 102 KB | 33,325 | 0%    | `router:noop` (hetero + prose)  | nothing to accept            |
+| same payload after pi's ~50 KB MCP truncation | 16,906 | 0%    | `router:noop` (invalid JSON)    | refused by the parse gate    |
+| `grep -rn`, 257 KB                            | 66,946 | 97%   | `code_aware` — silently lossy   | refused by the JSON gate     |
+| `git log --stat -n 40`                        | 18,317 | 33%   | `kompress` — deletes words      | refused by the JSON gate     |
+| `grep -rn` with `config.mode: "ccr"`          | 66,946 | 97%   | `code_aware` + retrievable hash | future phase (retrieve tool) |
+
+Where the savings actually come from: the JSON SCAFFOLDING — repeated key
+names, quotes, braces, commas. Byte anatomy: the synthetic uniform array is
+46% scaffolding → 38% saved; Notion records are 22% scaffolding → 9.7%;
+real Linear issues are nested, 7 distinct key-sets, description-heavy → below
+SmartCrusher's 15% lossless gate → noop. Corollary the Advisor should teach:
+FIELD PROJECTION (an mcpScript that emits only the fields it needs) both
+shrinks the raw payload and makes the remainder uniform enough to compress —
+the live Bedrock run did exactly this and got 44% on top of the projection.
+
 **Restructure is safe.** JSON becomes a typed schema header plus CSV rows;
 verified by counting identifiers, 120 of 120 records survived, and 500 and
 2,000-record arrays behaved the same.
 
-**Dropping is not, and on layer 1 it is permanent.** Every response came back
-`ccr_hashes: []` with no `hash=` marker, and `/v1/retrieve/stats` stayed
-empty. `wiki/ccr.md` says why: "the full compress-cache-retrieve tool-call
-loop … only runs inside `headroom proxy`, not the standalone SDK call." CCR
-must own the request/response loop to intercept the model's retrieve call; a
-`tool_result` hook never does. Hence accept-or-discard, and hence no `bash`.
+**Dropping is not — but the wiki's "CCR is proxy-only" claim is stale.**
+0.37.0's `/v1/compress` accepts `config.mode: "ccr"`: the same grep result
+then returns a `hash=` marker, writes a store entry, and
+`GET /v1/retrieve/<hash>` returns the full original — round-trip verified
+2026-09-07. So the "CCR on the stateless endpoint" partnership ask is
+already shipped; what remains is OUR side (register a `headroom_retrieve` pi
+tool, budget the store TTL of 1800 s), which is a future phase, not an
+upstream dependency. Until then the default marker-free mode plus the JSON
+gate is what ships.
 
 ## Detect, install, run, check
 
@@ -159,6 +198,38 @@ mean it barely touches the newest tool output in-turn, while L1 compresses it
 at the source. And trap 4 is narrower than upstream's warning: it applies to
 the CLI's interactive `/model` picker, not to a model pinned per invocation,
 which is the only thing pidex does.
+
+## Phase 1 as-built validation (2026-09-07)
+
+The shipped extension (`pi-ext/headroom.ts`), loaded with `-e` into live
+`pi -p` runs against a local 0.37.0 proxy:
+
+| Provider                                  | Result                                                                                                                       |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| amazon-bedrock (sonnet 4.5)               | accepted live: 2,875 → 1,618 tokens (44%, 18 ms) on an mcpScript projection; `details.headroom` receipt in the session JSONL |
+| pi-claude-cli (haiku 4.5, handoff broker) | accepted live inside the blocked CLI handoff (21 ms); receipt persisted; turn continued                                      |
+| openrouter (sonnet)                       | hook verified firing + eligibility correct (instrumented run); acceptance on the Notion payload                              |
+
+The receipt persistence question from optimization-surface.md is answered:
+pi persists a `tool_result` handler's `details` patch verbatim into the
+session file, so per-lane savings can be folded from disk (phase 2a).
+
+Also validated: a real programming task ran in the pidex worktree on
+pi-claude-cli with the extension loaded (wrote
+`src/features/chat/composer/headroomStatus.test.ts`, 8/8 green) — the
+feature does not disturb ordinary work.
+
+Two traps found by the live runs, added here so they are not re-derived:
+
+- **pi truncates MCP tool output at ~50 KB** (mid-byte, with a
+  `[MCP text output truncated …]` notice and a temp-file pointer). The hook
+  runs AFTER that cut, so oversized connector results arrive as invalid JSON
+  and are refused by the parse gate. Headroom cannot recover what pi already
+  cut; if compress-before-truncate is ever wanted, that is a pi-side ask.
+- **The default marker-free mode is silently lossy for plain text** when the
+  ml/code extras are installed (see the re-measured table). Any future
+  widening beyond JSON must go through `config.mode: "ccr"` plus a
+  registered retrieve tool, never through the default mode.
 
 ## Multiple Claude accounts
 
