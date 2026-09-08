@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="i4g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f2ab4e"/><stop offset="100%" stop-color="#e2922e"/></linearGradient>
+    <radialGradient id="i4b" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#f2ab4e" stop-opacity=".30"/><stop offset="45%" stop-color="#eca03d" stop-opacity=".14"/><stop offset="100%" stop-color="#eca03d" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="228" fill="#1f1c18"/>
+  <circle cx="512" cy="512" r="266" fill="url(#i4b)"/>
+  <g fill="url(#i4g)">
+    <g id="i4p"><path d="M512 178 C548 226 560 264 548 300 C540 326 526 340 512 340 C498 340 484 326 476 300 C464 264 476 226 512 178 Z"/></g>
+    <use href="#i4p" transform="rotate(60 512 512)"/>
+    <use href="#i4p" transform="rotate(120 512 512)"/>
+    <use href="#i4p" transform="rotate(180 512 512)"/>
+    <use href="#i4p" transform="rotate(240 512 512)"/>
+    <use href="#i4p" transform="rotate(300 512 512)"/>
+  </g>
+  <circle cx="512" cy="512" r="104" fill="url(#i4g)"/>
+</svg>

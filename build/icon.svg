@@ -1,37 +1,49 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <!--
-    Phosphor mark — "aperture".
-    A ring of six discrete segments around a Phosphor core: one orchestrator,
-    many agents holding position. Phosphor amber on warm graphite
-    (see specs/reference/style-guide.md §Logo).
+    Phosphor mark — "electron shell".
+    Element 15: a drawn "P" inside phosphorus's three electron shells, with
+    the configuration 2 · 8 · 5 set beneath in the mono face
+    (see docs/style-guide.md §Logo, docs/brand-explorations.md for the
+    variations this won against).
 
-    Two things are load-bearing:
-    1. The dash pattern divides the circumference exactly six times
-       (2*pi*258 = 1621.0618 = 6 * (144.17697 + 126)), so the ring has no
-       seam. Changing r or the segment count means recomputing both numbers.
+    Four things are load-bearing:
+    1. The shells are chemistry, not decoration. Radii step evenly
+       (170 / 255 / 340 — 85px apart) and fade outward (.16 / .13 / .10),
+       and 2 · 8 · 5 IS phosphorus's electron configuration. Don't retune
+       the numbers for looks.
     2. The bloom is a radial gradient, not stacked translucent circles.
-       Stacked circles rasterize as two hard-edged discs — a bullseye, not a
+       Stacked circles rasterize as hard-edged discs — a bullseye, not a
        glow.
+    3. The P is a drawn path (evenodd), not a font glyph. The caption is
+       the only font-dependent element; keep its full mono stack so the
+       Playwright rasterizer and GitHub both resolve it.
+    4. The mark's center is (512, 470), NOT the canvas center: the caption
+       occupies the bottom band, and (512, 470) is what optically centers
+       the whole composition with it. Move both or neither.
 
     Regenerate platform assets with: node scripts/generate-icons.mjs
     Light-background twin: build/icon-light.svg (keep the two in step).
   -->
   <defs>
-    <linearGradient id="Phosphor" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="phosphor" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#f2ab4e"/>
       <stop offset="100%" stop-color="#e2922e"/>
     </linearGradient>
     <radialGradient id="bloom" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#f2ab4e" stop-opacity="0.30"/>
-      <stop offset="45%" stop-color="#eca03d" stop-opacity="0.14"/>
+      <stop offset="0%" stop-color="#f2ab4e" stop-opacity="0.24"/>
+      <stop offset="45%" stop-color="#eca03d" stop-opacity="0.11"/>
       <stop offset="100%" stop-color="#eca03d" stop-opacity="0"/>
     </radialGradient>
   </defs>
   <rect width="1024" height="1024" rx="228" fill="#1f1c18"/>
-  <circle cx="512" cy="512" r="246" fill="url(#bloom)"/>
-  <circle cx="512" cy="512" r="258"
-          fill="none" stroke="url(#Phosphor)" stroke-width="78" stroke-linecap="round"
-          stroke-dasharray="144.17697 126" opacity="0.92"
-          transform="rotate(-106.009 512 512)"/>
-  <circle cx="512" cy="512" r="104" fill="url(#Phosphor)"/>
+  <circle cx="512" cy="470" r="330" fill="url(#bloom)"/>
+  <g stroke="#eca03d" fill="none">
+    <circle cx="512" cy="470" r="170" stroke-width="10" opacity="0.16"/>
+    <circle cx="512" cy="470" r="255" stroke-width="10" opacity="0.13"/>
+    <circle cx="512" cy="470" r="340" stroke-width="10" opacity="0.10"/>
+  </g>
+  <g transform="translate(161.7 153.8) scale(0.62)">
+    <path d="M340 220 H560 C700 220 790 305 790 425 C790 545 700 630 560 630 H430 V800 H340 Z M430 310 H552 C640 310 700 355 700 425 C700 495 640 540 552 540 H430 Z" fill="url(#phosphor)" fill-rule="evenodd"/>
+  </g>
+  <text x="512" y="850" text-anchor="middle" font-family="ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, 'DejaVu Sans Mono', monospace" font-size="64" fill="#eca03d" opacity="0.7">2 · 8 · 5</text>
 </svg>

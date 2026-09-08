@@ -33,8 +33,9 @@ Not obvious from reading the code. Each has been violated at least once.
    CSS loads, so it can only be a literal — the two agreeing _is_ the contract.
 6. **Light neutrals stay cool.** Warming them without re-picking the accent is
    a change that has already been made and reverted.
-7. **The logo's dash pattern is computed, not chosen.** Recompute it if the
-   radius or segment count changes, or the ring gets a visible seam.
+7. **The logo's shell geometry is chemistry, not taste.** Radii step evenly
+   (85px apart) and `2 · 8 · 5` is phosphorus's electron configuration —
+   "improving" either breaks what the mark says.
 8. **The logo's bloom must stay a `radialGradient`.** Stacked translucent
    circles rasterize into hard-edged discs and read as a bullseye.
 
@@ -225,27 +226,44 @@ markdown the _model_ authors; no Phosphor chrome uses it.
 
 ## Logo
 
-`build/icon.svg` — the **aperture**: a ring of six discrete segments around a
-phosphor core. One orchestrator, many agents holding position. Core and ring in
-amber (`#f2ab4e → #e2922e` vertical), tile in graphite `#1f1c18`, tile radius
-228/1024.
+`build/icon.svg` — the **electron shell**: a drawn "P" inside phosphorus's
+three electron shells, the configuration `2 · 8 · 5` set beneath in the mono
+face. Element 15 is the element that glows in air — the name, the chemistry
+and the CRT heritage in one mark. P in amber (`#f2ab4e → #e2922e` vertical),
+shells in faint `#eca03d`, tile in graphite `#1f1c18`, tile radius 228/1024.
 
 - **App icon:** always the full tile. Dark on every OS.
 - **Light backgrounds:** `build/icon-light.svg` — same geometry, ember
-  (`#b35c0f → #9d500b`) on paper `#f7f7f8`. Documentation only; the README
-  swaps the two on `prefers-color-scheme`. Hand-kept: edit both or neither.
-- **In-app / monochrome:** ring plus core in one `currentColor`, bloom dropped.
-  **Not built** — no component in `src/` draws the mark at all. The previous
-  mark carried this same line unbuilt for three weeks; don't repeat that.
-- **Clear space:** half the ring's diameter on all sides. No text in the mark;
-  "Phosphor" is set separately, capitalized, in the mono face.
+  (`#b35c0f → #9d500b`) on paper `#f7f7f8`, shell opacities bumped so the
+  thin lines survive paper. Documentation only; the README swaps the two on
+  `prefers-color-scheme`. Hand-kept: edit both or neither.
+- **In-app / monochrome:** the P alone in one `currentColor`, shells and
+  bloom dropped. **Not built** — no component in `src/` draws the mark at
+  all. The previous two marks carried this same line unbuilt; don't repeat it.
+- **Clear space:** half the outer shell's diameter on all sides. No wordmark
+  in the mark — the only text is the `2 · 8 · 5` caption; "Phosphor" is set
+  separately, capitalized, in the mono face.
+- **Small sizes:** the P carries the mark alone. Shells fade out and the
+  caption reads as a baseline texture below ~48px — that is expected, not a
+  rendering bug to fix.
 - Regenerate platform assets with `node scripts/generate-icons.mjs`
   (Playwright-rendered; icns is darwin-only). It reads only `icon.svg`.
 
-The dash pattern divides the circumference exactly six times
-(`2π × 258 = 1621.0618 = 6 × (144.17697 + 126)`). The mark keeps its own
-graphite `#1f1c18`, which is not `--px-bg` in either theme — it is a fixed
-brand asset, not a themed surface. Don't token-ize it.
+Geometry that is chemistry, not taste: the shell radii step evenly
+(170 / 255 / 340 — 85px apart) fading outward (.16 / .13 / .10), and
+`2 · 8 · 5` is phosphorus's electron configuration — don't retune either for
+looks. The P is a drawn path (evenodd), not a font glyph; the caption is the
+only font-dependent element. The mark's center is (512, 470), not the canvas
+center — the caption occupies the bottom band, and the offset is what
+optically centers the composition. The mark keeps its own graphite `#1f1c18`,
+which is not `--px-bg` in either theme — it is a fixed brand asset, not a
+themed surface. Don't token-ize it.
+
+The mark was chosen from three exploration rounds (30 candidates: ten
+directions, ten flame descendants, ten Element-15 descendants). All of them
+live in [brand-explorations.md](brand-explorations.md) as the palette of
+sanctioned variations — pull from there for campaign art, easter eggs or a
+future revision rather than sketching from zero.
 
 ## Voice
 
@@ -276,3 +294,4 @@ Why the current state is the current state. Details in the linked write-ups.
 | 2026-08-29 | [Doc reconciled with the code](log/2026-08-29-phosphor-light-palette-reconcile.md); 11 light tokens corrected, four satellites re-neutralized.                                                 |
 | 2026-08-29 | [Aperture mark](log/2026-08-29-aperture-mark.md) replaced the prompt bubble.                                                                                                                   |
 | 2026-09-08 | [The app itself was renamed](log/2026-09-08-rename-pidex-to-phosphor.md) from pidex to Phosphor, after its design system. Capital P; the lowercase-brand voice rule retired with the old name. |
+| 2026-09-08 | [Electron-shell mark](log/2026-09-08-electron-shell-mark.md) replaced the aperture, chosen from [30 explorations](brand-explorations.md).                                                      |
