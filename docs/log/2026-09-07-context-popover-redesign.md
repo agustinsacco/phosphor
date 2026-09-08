@@ -48,6 +48,19 @@ this is still a respawn with a full re-read of the thread, and the panel says so
 where the click is. The target list is fetched when the picker opens, never on
 popover open — `claude:accounts` runs `claude auth status` once per account.
 
+## Merging with Headroom
+
+Headroom's phase 1 ([#221](https://github.com/agustinsacco/pidex/pull/221))
+landed its own `Optimization · Headroom` section in this same file while the
+redesign was in flight, as a fragment of three labelled rows after "Tool
+calls". "Tool calls" is now the last row of a 190px column, where
+`48k → 36k · 120 ms last` wraps twice. The section is a full-width row below
+the grid instead, with the saving promoted into its own header
+(`−12.4k`, in success colour) and the before/after, result count and last
+duration on one line under it. Same numbers, same honesty about the lossy
+skip, three lines instead of eight. Two tests pin the placement, because a
+future conflict in this region would otherwise drop the section silently.
+
 ## Notes
 
 - `windowShortTitle`, `compactReset` and `usageStroke` are in

@@ -792,6 +792,26 @@ export function installMockPidex(): void {
                 }),
               },
             } as SessionPush)
+            // The bundled headroom extension pushes this only once it has
+            // actually compressed a result; the harness shows the section it
+            // produces, including the lossy-skip row.
+            push('mock-session-id', {
+              kind: 'extension-ui',
+              request: {
+                type: 'extension_ui_request',
+                id: 'mock-headroom',
+                method: 'setStatus',
+                statusKey: 'pidex-headroom',
+                statusText: JSON.stringify({
+                  savedTokens: 12_400,
+                  beforeTokens: 48_000,
+                  afterTokens: 35_600,
+                  results: 37,
+                  skippedLossyTokens: 2100,
+                  lastMs: 118,
+                }),
+              },
+            } as SessionPush)
           }, 120)
           return Promise.resolve({
             sessionId: 'mock-session-id',
@@ -1558,6 +1578,9 @@ export function installMockPidex(): void {
         // pre-observer-mode session produces.
         case 'sessions:claudeSessionId':
           return Promise.resolve(null)
+        // Same reason: no provider sidecar to fork in the browser harness.
+        case 'sessions:forkClaudeLedger':
+          return Promise.resolve(false)
         case 'fs:readDir': {
           const dir = args[1] as string
           return Promise.resolve(mockDir(dir))

@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { ContextMeter } from './ContextMeter'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
+import { useExtensionUiStore } from '@/stores/extensionUi'
 import type { SessionStats } from '@shared/rpc'
 
 beforeAll(() => {
@@ -121,6 +122,7 @@ beforeEach(() => {
   usageResult = null
   ;(globalThis as unknown as { window: { pidex: unknown } }).window.pidex = { invoke }
   useChatStore.setState({ sessions: {} })
+  useExtensionUiStore.setState({ statuses: {} })
 })
 
 afterEach(() => {
@@ -263,6 +265,45 @@ describe('ContextMeter', () => {
 
     expect(document.body.textContent).toContain('Plan usage · Claude account')
     expect(document.body.textContent).not.toContain('New sessions go to')
+  })
+
+  it('gives the Headroom savings a full-width row of their own', async () => {
+    // The redesign moved Tool calls into a two-column grid, and this section
+    // was a fragment of labelled rows that followed it — putting it in that
+    // column would wrap every value. It renders below the grid instead, and
+    // only when the extension has actually compressed something.
+    useExtensionUiStore.setState({
+      statuses: {
+        [SESSION]: {
+          'pidex-headroom': JSON.stringify({
+            savedTokens: 12_400,
+            beforeTokens: 48_000,
+            afterTokens: 35_600,
+            results: 37,
+            skippedLossyTokens: 2100,
+            lastMs: 118,
+          }),
+        },
+      },
+    })
+    seed({ tokens: 50_000, contextWindow: 200_000, percent: 25 })
+    render()
+    click('25%')
+    await act(async () => {})
+
+    expect(document.body.textContent).toContain('Optimization · Headroom')
+    expect(document.body.textContent).toContain('12.4k')
+    expect(document.body.textContent).toContain('48.0k → 35.6k over 37 results')
+    expect(document.body.textContent).toContain('118 ms last')
+    expect(document.body.textContent).toContain('Skipped as lossy')
+  })
+
+  it('says nothing about Headroom on a session that never compressed anything', async () => {
+    seed({ tokens: 50_000, contextWindow: 200_000, percent: 25 })
+    render()
+    click('25%')
+    await act(async () => {})
+    expect(document.body.textContent).not.toContain('Headroom')
   })
 
   it('never asks for plan usage on a session the Claude CLI does not serve', async () => {

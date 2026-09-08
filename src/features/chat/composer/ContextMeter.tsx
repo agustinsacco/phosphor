@@ -22,6 +22,7 @@ import {
   utilizationPercent,
   windowLabel,
 } from './rateLimit'
+import { HEADROOM_STATUS_KEY, parseHeadroomStatus } from './headroomStatus'
 import { assessBurn, burnSamples } from '@/lib/burnRate'
 import {
   compactReset,
@@ -55,6 +56,9 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   // Only sessions served by the Claude Code provider push this; every other
   // provider leaves the key unset and the section stays hidden.
   const rateLimitStatus = useExtensionUiStore((s) => s.statuses[sessionId]?.[RATE_LIMIT_STATUS_KEY])
+  // Only pushed once the bundled headroom extension has compressed something,
+  // so sessions without a proxy never grow the section.
+  const headroomStatus = useExtensionUiStore((s) => s.statuses[sessionId]?.[HEADROOM_STATUS_KEY])
 
   const usage = stats?.contextUsage
   // The meter is the ONLY way into this popover, and the popover is where a
@@ -138,7 +142,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
               grew this panel taller than the window, and it anchors upward, so
               the overflow clipped the heading. The scroller is the backstop
               for a short window or a session with many usage windows. */}
-          <div className="max-h-[min(34rem,calc(100vh-9rem))] overflow-y-auto p-3">
+          <div className="max-h-[min(42rem,calc(100vh-9rem))] overflow-y-auto p-3">
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-text text-lg font-medium">Session usage</span>
               <span className="text-text-secondary font-mono text-sm tabular-nums">
@@ -203,6 +207,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
                 <StatRow label="Tool calls" value={String(stats.toolCalls)} />
               </div>
             </div>
+            <HeadroomSavings statusText={headroomStatus} />
             {isClaudeCliModel(model) && <PlanUsage sessionId={sessionId} />}
             <PlanLimits statusText={rateLimitStatus} />
           </div>
@@ -642,6 +647,57 @@ function PlanLimits({ statusText }: { statusText: string | undefined }): React.J
         <div className="text-warning text-sm">Using extra usage beyond the plan allowance.</div>
       )}
       {capped && reset && <div className="text-text-tertiary text-sm">{reset}.</div>}
+    </section>
+  )
+}
+
+/**
+ * Cumulative Headroom compression savings for this session. Absent unless the
+ * bundled headroom extension has actually compressed a result — no proxy, no
+ * section. "Skipped as lossy" is what the proxy offered but the extension
+ * refused because the transform dropped lines irreversibly; it is the honest
+ * ceiling, not a saving.
+ *
+ * Full width rather than a column, and the saving in the section header: three
+ * labelled rows in the Session column would have wrapped `48k → 36k · 120 ms`
+ * onto two lines each, which is the height this panel was redesigned to stop
+ * spending.
+ */
+function HeadroomSavings({
+  statusText,
+}: {
+  statusText: string | undefined
+}): React.JSX.Element | null {
+  const status = parseHeadroomStatus(statusText)
+  if (!status) return null
+  return (
+    <section className="border-border/60 mt-2 border-t pt-1.5 text-base">
+      <div className="flex items-baseline justify-between gap-2">
+        <SectionLabel>Optimization · Headroom</SectionLabel>
+        <span
+          className="text-success shrink-0 font-mono text-sm tabular-nums"
+          title="Tokens this session never had to carry"
+        >
+          −{formatTokens(status.savedTokens)}
+        </span>
+      </div>
+      <div className="text-text-tertiary flex items-baseline justify-between gap-3">
+        <span className="truncate">
+          {formatTokens(status.beforeTokens)} → {formatTokens(status.afterTokens)} over{' '}
+          {status.results} result{status.results === 1 ? '' : 's'}
+        </span>
+        <span className="text-text-secondary shrink-0 font-mono text-sm tabular-nums">
+          {status.lastMs} ms last
+        </span>
+      </div>
+      {status.skippedLossyTokens > 0 && (
+        <div className="text-text-tertiary flex items-baseline justify-between gap-3">
+          <span className="truncate">Skipped as lossy</span>
+          <span className="shrink-0 font-mono text-sm tabular-nums">
+            {formatTokens(status.skippedLossyTokens)}
+          </span>
+        </div>
+      )}
     </section>
   )
 }

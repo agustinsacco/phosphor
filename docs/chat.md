@@ -138,15 +138,16 @@ recorded cadence. Rules that matter:
 
 ### What the context meter's popover shows
 
-Four sources, three different confidence levels — and the UI is required to
+Five sources, three different confidence levels — and the UI is required to
 keep them distinguishable, because they are not equally trustworthy.
 
-| Section             | Source                                                         | Shown for                     |
-| ------------------- | -------------------------------------------------------------- | ----------------------------- |
-| Tokens / cost       | `get_session_stats`                                            | every session                 |
-| Context composition | `pidex-context-breakdown` status key (bundled extension)       | every session                 |
-| Plan usage          | `claude:usageSnapshot` IPC — `claude -p /usage`, live percents | Claude Code provider sessions |
-| Plan limits         | `claude-rate-limit` status key (provider ≥0.4.5)               | Claude Code provider sessions |
+| Section                 | Source                                                         | Shown for                         |
+| ----------------------- | -------------------------------------------------------------- | --------------------------------- |
+| Tokens / cost           | `get_session_stats`                                            | every session                     |
+| Context composition     | `pidex-context-breakdown` status key (bundled extension)       | every session                     |
+| Optimization · Headroom | `pidex-headroom` status key (bundled extension)                | sessions that compressed a result |
+| Plan usage              | `claude:usageSnapshot` IPC — `claude -p /usage`, live percents | Claude Code provider sessions     |
+| Plan limits             | `claude-rate-limit` status key (provider ≥0.4.5)               | Claude Code provider sessions     |
 
 **Wide, not tall** (redesigned
 [2026-09-07](log/2026-09-07-context-popover-redesign.md)). Six stacked
@@ -155,7 +156,9 @@ anchors upward from the composer — so the overflow clipped its own heading off
 the top of the window. It is now 27rem wide with the composition legend,
 Tokens/Session and the plan windows each in a row rather than a stack, ~500px
 tall on the same data, and its body scrolls as a backstop for a short window.
-Adding a section means finding it a column, not another 100px.
+Adding a section means finding it a column, not another 100px — Headroom's
+savings are one full-width row with the total in its own header, not three
+labelled rows in a 190px column where every value would have wrapped.
 
 **Plan usage vs Plan limits.** The two plan sections answer different
 questions and must never be merged into one dashboard. **Plan usage** is
