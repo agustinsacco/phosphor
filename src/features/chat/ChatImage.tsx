@@ -18,7 +18,7 @@ export function imageUrl(img: ImageContent): string {
  */
 export async function copyChatImage(img: ImageContent): Promise<void> {
   try {
-    await window.pidex.invoke('clipboard:writeImage', {
+    await window.phosphor.invoke('clipboard:writeImage', {
       data: img.data,
       mimeType: img.mimeType,
     })

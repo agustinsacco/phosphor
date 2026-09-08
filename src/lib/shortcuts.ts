@@ -1,4 +1,4 @@
-import type { PidexPlatform } from '@shared/ipc'
+import type { PhosphorPlatform } from '@shared/ipc'
 
 /**
  * Platform-correct keyboard-shortcut labels.
@@ -12,7 +12,7 @@ export type Modifier = 'mod' | 'shift' | 'alt' | 'ctrl'
 
 /**
  * `mod` is Command on macOS and Control everywhere else; `ctrl` is Control on
- * every platform, for the handful of bindings pidex inherits from Claude
+ * every platform, for the handful of bindings Phosphor inherits from Claude
  * Code's terminal UI (⌃O) where Control is the key regardless of OS.
  */
 const GLYPHS: Record<Modifier, string> = { mod: '⌘', shift: '⇧', alt: '⌥', ctrl: '⌃' }
@@ -30,7 +30,7 @@ function isModifier(part: string): part is Modifier {
 }
 
 /** Pure form, for tests and for callers that already know the platform. */
-export function formatShortcutFor(platform: PidexPlatform, parts: readonly string[]): string {
+export function formatShortcutFor(platform: PhosphorPlatform, parts: readonly string[]): string {
   const mac = platform === 'darwin'
   const table = mac ? GLYPHS : NAMES
   const rendered = parts.map((part) => (isModifier(part) ? table[part] : part))
@@ -42,8 +42,8 @@ export function formatShortcutFor(platform: PidexPlatform, parts: readonly strin
  * during first paint, and a missing bridge should degrade to a spelled-out
  * label, never a blank one.
  */
-export function hostPlatform(): PidexPlatform {
-  return typeof window === 'undefined' ? 'linux' : (window.pidex?.platform ?? 'linux')
+export function hostPlatform(): PhosphorPlatform {
+  return typeof window === 'undefined' ? 'linux' : (window.phosphor?.platform ?? 'linux')
 }
 
 /** `formatShortcut('mod', 'shift', 'E')` → `⌘⇧E` on macOS, `Ctrl+Shift+E` elsewhere. */

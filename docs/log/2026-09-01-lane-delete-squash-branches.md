@@ -5,13 +5,13 @@
 Two faults in the same flow: every merged lane reported a branch error, and
 the progress modal grew a row at a time while it ran.
 
-## `git branch -d` refuses every merged pidex lane
+## `git branch -d` refuses every merged Phosphor lane
 
 `removeWorktree` deleted a branch with `-d` only, on the stated principle that
 an unmerged branch must never be lost. The principle is right; the test was
 wrong. `-d` asks "is this branch an ancestor of its upstream", and a squash
 merge rewrites the branch into one new commit with no ancestry link back to
-it. pidex lands PRs as squash merges, so `-d` refused **every** merged lane:
+it. Phosphor lands PRs as squash merges, so `-d` refused **every** merged lane:
 
 ```
 error: the branch 'agustin/lane-status-strip-leak' is not fully merged

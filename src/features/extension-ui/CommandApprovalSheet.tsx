@@ -112,7 +112,7 @@ export function CommandApprovalSheet({
           <div className="border-border flex flex-col gap-2 border-b px-4 py-3">
             {risks.length === 0 && (
               <p className="text-text-secondary text-base leading-snug">
-                The extension flagged this command, but pidex could not identify which part it
+                The extension flagged this command, but Phosphor could not identify which part it
                 objected to. Read the command below before allowing it.
               </p>
             )}

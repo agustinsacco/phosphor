@@ -85,7 +85,7 @@ export function registerPiConfigHandlers(): void {
   // model-catalogue.ts), falling back to parsing models.json directly when
   // pi can't be run.
   //
-  // Honors PIDEX_PI_STUB like every other pi spawn. It did not, and that made
+  // Honors PHOSPHOR_PI_STUB like every other pi spawn. It did not, and that made
   // it the one hole in the e2e harness: opening a model picker shelled out to
   // the real binary, which boots pi against the sandboxed agent dir and
   // installs whatever `settings.json` declares — a network install, mid-suite,

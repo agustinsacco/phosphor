@@ -8,7 +8,7 @@ import type { ClaudeUsageError, ClaudeUsageWindow } from '@shared/models'
 import type { Model } from '@shared/rpc'
 import { resetLabel } from '@/features/chat/composer/rateLimit'
 
-/** A bar's colour class by the thresholds every other meter in pidex uses. */
+/** A bar's colour class by the thresholds every other meter in Phosphor uses. */
 export function usageBarClass(percent: number): string {
   if (percent >= 100) return 'bg-danger'
   if (percent >= 75) return 'bg-warning'
@@ -35,7 +35,7 @@ export function usageStroke(percent: number): string {
 
 /**
  * The CLI renders labels for humans ("Current session" is the 5-hour block,
- * "Current week (all models)" the weekly window); pidex names them for what
+ * "Current week (all models)" the weekly window); Phosphor names them for what
  * they are, and passes unknown labels through verbatim rather than guessing.
  */
 export function windowTitle(window: ClaudeUsageWindow): string {

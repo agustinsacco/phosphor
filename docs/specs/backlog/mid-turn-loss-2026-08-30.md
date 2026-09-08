@@ -15,12 +15,12 @@ with no warning before and no trace after.
 | 15:20:06   | pi session file | user message `fix conflicts …/pull/124` written, turn starts                      |
 | 15:20:18   | provider        | rebases onto main, force-pushes, PR back to MERGEABLE                             |
 | 15:21:03   | provider        | starts polling CI in a blocking `until … sleep 20 … done` loop, `timeout: 600000` |
-| 15:22:43   | pidex           | `[updates] staged macOS update {"version":"0.1.139"}`                             |
+| 15:22:43   | Phosphor        | `[updates] staged macOS update {"version":"0.1.139"}`                             |
 | 15:28:18   | provider        | last record — an assistant `tool_use`, `stop_reason: tool_use`                    |
-| 15:28:32   | pidex           | `[app] session start` — the app process restarted                                 |
-| 15:28:43   | pidex           | `[updates] installing macOS update`                                               |
-| 15:28:46   | pidex           | `[app] session start {"version":"0.1.139"}`                                       |
-| 15:29:27   | pidex           | pi respawned with `--session <file>`, resuming from the last persisted state      |
+| 15:28:32   | Phosphor        | `[app] session start` — the app process restarted                                 |
+| 15:28:43   | Phosphor        | `[updates] installing macOS update`                                               |
+| 15:28:46   | Phosphor        | `[app] session start {"version":"0.1.139"}`                                       |
+| 15:29:27   | Phosphor        | pi respawned with `--session <file>`, resuming from the last persisted state      |
 
 The turn was in flight for **8m 12s** when the app went away.
 
@@ -61,7 +61,7 @@ me", which is why the first diagnosis went looking at the provider.
 | M2  | `before-quit` (`electron/main.ts:164`) has no in-flight check either, so Cmd+Q and window-close lose turns the same way.                                                                                                     | Open   |
 | M3  | The user gets no warning before the quit and no marker after it. The session is indistinguishable from one the model never answered.                                                                                         | Open   |
 | M4  | `main.ts`'s "pi owns its session files and gets a SIGTERM to flush" comment is wrong for an in-flight turn and actively misleads.                                                                                            | Open   |
-| M5  | Contributing factor, not a pidex defect: the model held the turn open ~8 min in a blocking `until … sleep 20 … done` CI poll. Long polls inside a turn widen the loss window by orders of magnitude.                         | Open   |
+| M5  | Contributing factor, not a Phosphor defect: the model held the turn open ~8 min in a blocking `until … sleep 20 … done` CI poll. Long polls inside a turn widen the loss window by orders of magnitude.                      | Open   |
 
 ## The signal to guard on already exists
 
@@ -106,7 +106,7 @@ The narrow fix for the reported failure.
    repo convention — not `dialog.showMessageBox`, which main does not use
    anywhere today). Lists the busy sessions by title. "Restart anyway" /
    "Wait".
-6. `src/dev/mockPidex.ts` — add the new result shape so the browser harness
+6. `src/dev/mockPhosphor.ts` — add the new result shape so the browser harness
    still exercises it.
 
 Tests: `updates-handlers` refuses when a session is streaming and passes when
@@ -122,14 +122,14 @@ straight through.
 
 Watch two things: `hardShutdown()` (signal-initiated, must stay synchronous
 and unguarded) and E2E, which quits the app between specs — gate the prompt
-behind `!process.env.PIDEX_TEST_USER_DATA` or have the harness confirm.
+behind `!process.env.PHOSPHOR_TEST_USER_DATA` or have the harness confirm.
 
 ### Lane 3 — leave a trace when a turn is lost anyway
 
 A crash, a force-quit, or a confirmed "restart anyway" will still drop a turn.
 Today that is invisible. After `disposeAll()` resolves, no pi process owns the
 file, which is exactly the precondition
-`electron/pi/session-writer.ts` documents — so pidex can append a marker record
+`electron/pi/session-writer.ts` documents — so Phosphor can append a marker record
 noting the turn was interrupted, and the transcript can render it.
 
 This one is the riskiest of the three: it writes to pi's on-disk format and
@@ -140,4 +140,4 @@ own tests, and only after lanes 1 and 2.
 
 M5 is provider-side behaviour. The durable fix is guidance to background long
 polls rather than blocking a turn on them, which belongs in the session prompt,
-not in this code. Worth noting in the lane prompt; not worth a pidex change.
+not in this code. Worth noting in the lane prompt; not worth a Phosphor change.

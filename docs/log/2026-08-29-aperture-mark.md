@@ -3,7 +3,7 @@
 The mark shipped 2026-08-07 was a chat bubble carrying a `>_`. Both halves are
 stock: the bubble is the shape of a customer-support widget, and `>_` is the
 most-used glyph in developer tooling. Stacked, they said "you can talk to this"
-— which is table stakes, and not what pidex claims. What pidex claims is that
+— which is table stakes, and not what Phosphor claims. What Phosphor claims is that
 **many agents run at once**: lanes, the fleet hub, the orchestrator, fan-out.
 None of that was in the mark.
 

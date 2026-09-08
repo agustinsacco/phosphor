@@ -32,7 +32,7 @@ async function runSweep(repoPath: string, act: boolean): Promise<MaintenanceRepo
 
 /**
  * The periodic janitor. Sweeps the workspaces the user actually opens, since
- * those are the repos whose lanes pidex created in the first place.
+ * those are the repos whose lanes Phosphor created in the first place.
  */
 export const maintenanceScheduler = new MaintenanceScheduler({
   getPrefs: () => getPrefs().maintenance,

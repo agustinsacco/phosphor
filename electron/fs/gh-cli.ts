@@ -10,7 +10,7 @@ const execFileAsync = promisify(execFile)
  *
  * `gh` is used rather than the REST/GraphQL API on purpose: it already holds
  * the user's credentials (`gh auth`), respects their enterprise host config,
- * and needs no token stored by pidex. That also means every failure mode here
+ * and needs no token stored by Phosphor. That also means every failure mode here
  * is *normal* — gh not installed, not authed, no remote, remote isn't GitHub —
  * so nothing in this module throws for those. Callers get `null` and the UI
  * simply shows no PR, because "this repo has no GitHub PR" is a state, not an

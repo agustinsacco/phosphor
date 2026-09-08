@@ -32,8 +32,8 @@ export interface NameTransition {
   settled: boolean
 }
 
-export function useNameTransition(pidexId: string | undefined): NameTransition {
-  return useSettleAfter(useNamingStore((s) => isNaming(s.naming, pidexId)))
+export function useNameTransition(phosphorId: string | undefined): NameTransition {
+  return useSettleAfter(useNamingStore((s) => isNaming(s.naming, phosphorId)))
 }
 
 /**

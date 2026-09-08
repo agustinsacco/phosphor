@@ -7,7 +7,7 @@ let invoke: ReturnType<typeof vi.fn>
 beforeEach(() => {
   useLanePrefsStore.setState({ lanes: DEFAULT_LANE_PREFS })
   invoke = vi.fn().mockResolvedValue(undefined)
-  ;(globalThis as { window?: unknown }).window = { pidex: { invoke } }
+  ;(globalThis as { window?: unknown }).window = { phosphor: { invoke } }
 })
 
 describe('normalizeLanePrefs', () => {

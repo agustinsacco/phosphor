@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invoke = vi.fn()
 vi.stubGlobal('window', {
-  pidex: { invoke },
+  phosphor: { invoke },
 })
 
-// sessions/layout stores pull in window.pidex at import in some paths; the
+// sessions/layout stores pull in window.phosphor at import in some paths; the
 // stub above must exist before the store module loads.
 const { useTerminalStore, sessionTerminals, runningCount } = await import('./terminal')
 

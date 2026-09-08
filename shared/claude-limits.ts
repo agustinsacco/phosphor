@@ -31,7 +31,7 @@ const FIVE_HOURS_MS = 5 * 60 * 60 * 1000
  *
  * Returns the instant the account should be reconsidered, or null when it is
  * fine. `resetsAt` is unix SECONDS in this payload, unlike everything else in
- * pidex.
+ * Phosphor.
  */
 export function accountExhaustedUntil(
   statusText: string | undefined,

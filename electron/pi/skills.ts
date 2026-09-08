@@ -4,13 +4,13 @@
  * Resolution asks pi itself — a throwaway `pi --mode rpc --no-session`
  * answering `get_commands` (the connector-auth/model-catalogue machinery, no
  * tokens spent). pi's answer carries each skill's path, scope and source, so
- * pidex never re-implements the discovery chain (six roots, settings arrays,
+ * Phosphor never re-implements the discovery chain (six roots, settings arrays,
  * packages, trust). When pi can't run, or answers with no skills at all (the
- * e2e stub does), a filesystem scan of the roots pidex knows about keeps the
+ * e2e stub does), a filesystem scan of the roots Phosphor knows about keeps the
  * page honest instead of empty — labelled `probe: 'scan'` so the UI can say
  * the list is approximate.
  *
- * Mutations only ever touch the two pidex-writable roots
+ * Mutations only ever touch the two phosphor-writable roots
  * (`~/.pi/agent/skills`, `<ws>/.pi/skills`). Package dirs are npm-owned and
  * `pi update` would destroy edits; foreign harness dirs (`.claude/skills`)
  * are read-only here on purpose.
@@ -39,7 +39,9 @@ import {
 import { catalogLibrary } from '@shared/skillsCatalog'
 
 /** Provenance sidecar name. Dot-prefixed: skill discovery ignores dotfiles. */
-export const SKILL_SIDECAR = '.pidex-skill.json'
+export const SKILL_SIDECAR = '.phosphor-skill.json'
+/** Sidecar name written by pre-rename (pidex) installs; still read, never written. */
+export const LEGACY_SKILL_SIDECAR = '.pidex-skill.json'
 
 const RPC_TIMEOUT_MS = 20_000
 const MAX_BUNDLE_FILES = 500
@@ -181,10 +183,10 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 }
 
 /**
- * Fallback discovery: the two pidex-writable roots plus any directories the
+ * Fallback discovery: the two phosphor-writable roots plus any directories the
  * settings `skills` arrays point at (global resolved against the agent dir,
  * project against `<ws>/.pi`). Loose root-level `.md` skills are RPC-only —
- * the scan reports bundle dirs, which is every skill pidex can act on.
+ * the scan reports bundle dirs, which is every skill Phosphor can act on.
  */
 async function scanSkillDirs(
   workspacePath?: string,
@@ -285,7 +287,12 @@ async function enrichSkill(
 
 async function readSidecar(dir: string): Promise<SkillProvenance | undefined> {
   try {
-    const parsed: unknown = JSON.parse(await readFile(join(dir, SKILL_SIDECAR), 'utf8'))
+    // Skills installed before the 2026-09-08 rename carry the old sidecar
+    // name; their provenance must keep resolving. New writes use the new name.
+    const raw = await readFile(join(dir, SKILL_SIDECAR), 'utf8').catch(() =>
+      readFile(join(dir, LEGACY_SKILL_SIDECAR), 'utf8'),
+    )
+    const parsed: unknown = JSON.parse(raw)
     const p = parsed as Partial<SkillProvenance>
     if (
       typeof p.repo === 'string' &&
@@ -301,7 +308,7 @@ async function readSidecar(dir: string): Promise<SkillProvenance | undefined> {
       }
     }
   } catch {
-    // absent or malformed — not installed by pidex
+    // absent or malformed — not installed by Phosphor
   }
   return undefined
 }
@@ -322,7 +329,8 @@ async function walkBundle(
   // Files before subdirectories, so SKILL.md leads its bundle in the UI.
   for (const entry of sorted) {
     if (budget.left <= 0) break
-    if (!entry.isFile() || entry.name === SKILL_SIDECAR) continue
+    if (!entry.isFile() || entry.name === SKILL_SIDECAR || entry.name === LEGACY_SKILL_SIDECAR)
+      continue
     const rel = prefix ? `${prefix}/${entry.name}` : entry.name
     budget.left -= 1
     try {
@@ -391,7 +399,8 @@ export async function writeSkillFileEntry(
   content: string,
   workspacePath?: string,
 ): Promise<void> {
-  if (!isWritableSkillDir(dir, workspacePath)) throw new Error('this skill is read-only in pidex')
+  if (!isWritableSkillDir(dir, workspacePath))
+    throw new Error('this skill is read-only in Phosphor')
   const target = requireKnownPath(dir, rel)
   if (basename(target) === SKILL_SIDECAR) throw new Error('the provenance sidecar is not editable')
   await mkdir(dirname(target), { recursive: true })
@@ -401,7 +410,8 @@ export async function writeSkillFileEntry(
 export async function deleteSkill(dir: string, workspacePath?: string): Promise<void> {
   const base = resolve(dir)
   if (!knownSkillDirs.has(base)) throw new Error('unknown skill directory')
-  if (!isWritableSkillDir(base, workspacePath)) throw new Error('this skill is read-only in pidex')
+  if (!isWritableSkillDir(base, workspacePath))
+    throw new Error('this skill is read-only in Phosphor')
   await rm(base, { recursive: true, force: true })
   knownSkillDirs.delete(base)
 }
@@ -439,7 +449,7 @@ export interface InstallSkillOptions {
   skillName: string
   /** Install under a different directory name (collision escape hatch). */
   targetName?: string
-  /** Reinstall over an existing pidex-installed copy (the update flow). */
+  /** Reinstall over an existing phosphor-installed copy (the update flow). */
   overwrite?: boolean
   fetchZip?: ZipFetcher
 }

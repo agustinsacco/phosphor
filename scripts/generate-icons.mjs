@@ -15,7 +15,7 @@
  *
  * macOS art is inset inside its canvas (MACOS_TILE_RATIO). icon.svg is a
  * full-bleed rounded tile, and macOS does NOT inset for you — shipping it
- * edge-to-edge made pidex render visibly larger than every neighbouring dock
+ * edge-to-edge made Phosphor render visibly larger than every neighbouring dock
  * icon. Apple's grid puts a rounded-rect app tile at ~80% of the canvas.
  *
  * Maintainer script — not part of the build; run it when the mark changes

@@ -1,5 +1,5 @@
 /**
- * Context-window composition, as reported by pidex's bundled
+ * Context-window composition, as reported by Phosphor's bundled
  * `pi-ext/context-breakdown.ts` extension over pi's status channel.
  *
  * pi's RPC reports one number for context usage — how full, never full of
@@ -11,7 +11,7 @@
  * for local models, native Anthropic and the Claude Code CLI provider alike.
  */
 
-export const CONTEXT_BREAKDOWN_STATUS_KEY = 'pidex-context-breakdown'
+export const CONTEXT_BREAKDOWN_STATUS_KEY = 'phosphor-context-breakdown'
 
 export interface ContextBreakdown {
   totalTokens: number | null
@@ -71,7 +71,7 @@ export function parseContextBreakdown(statusText: string | undefined): ContextBr
 
 /**
  * Per-server MCP cost, rebuilt defensively: the extension is a separate file
- * loaded into pi, so a session started by an older pidex build sends a payload
+ * loaded into pi, so a session started by an older Phosphor build sends a payload
  * without this key. Missing means "no per-server detail", never zero cost.
  */
 function parseByServer(raw: unknown): ContextBreakdown['mcpByServer'] {

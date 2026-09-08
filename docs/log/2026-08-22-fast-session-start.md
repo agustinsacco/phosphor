@@ -22,7 +22,7 @@ this:
 branch was derived from `title ?? prompt` — the message slug — and no `name`
 reached `createSession`, so the store's own `autoNameSession` fired a **second**
 ~13s `pi -p`. Two model calls, ~26s, and a branch named
-`pidex/read-each-of-the-12-largest-tsx-files`. Both worktrees sitting in the
+`phosphor/read-each-of-the-12-largest-tsx-files`. Both worktrees sitting in the
 reporter's repo were slugs; the feature had never once produced a generated
 name.
 
@@ -102,7 +102,7 @@ violations, which is how it was caught.
   changes, which covers every mutation that store performs.
 - **The pi stub invented a session name.** Without `-n` it reported
   `'E2E stub session'` from `get_state`, but real pi never titles a session by
-  itself. Every pidex auto-naming path is guarded on "has pi already got a name
+  itself. Every Phosphor auto-naming path is guarded on "has pi already got a name
   for this?", so the stub silently disabled the very thing it was added to
   test. It now reports no name unless `-n` is passed.
 
@@ -116,7 +116,7 @@ violations, which is how it was caught.
   the fix.
 - `e2e/smoke.spec.ts` — the worktree flow now asserts the new order: the folder
   is `update-hello-ts` (the message slug, cut before naming), the branch ends
-  as `pidex/stub-session-title` after the rename, and `pidex/update-hello-ts` is
+  as `phosphor/stub-session-title` after the rename, and `phosphor/update-hello-ts` is
   **gone** — renamed, not duplicated.
 
 Full suite green at the time of writing.

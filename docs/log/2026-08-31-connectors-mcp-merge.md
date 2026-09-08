@@ -62,7 +62,7 @@ This merge was deliberately not done earlier. Until
 [2026-08-31-mcp-isolation.md](2026-08-31-mcp-isolation.md) cut off the Claude
 CLI's own MCP chain, a single tab claiming to be the complete inventory of what
 a session can reach would have been wrong: Snowflake and the claude.ai
-connectors were reachable by the model and invisible to every pidex surface.
+connectors were reachable by the model and invisible to every Phosphor surface.
 
 ## Verification
 

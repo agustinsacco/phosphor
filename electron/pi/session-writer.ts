@@ -103,7 +103,7 @@ export async function appendBranchJump(path: string, targetId: string): Promise<
     parentId: targetId,
     timestamp: new Date().toISOString(),
     fromId: leafId,
-    summary: 'Jumped here from another branch in pidex (tree view).',
+    summary: 'Jumped here from another branch in Phosphor (tree view).',
   }
   await appendFile(path, JSON.stringify(entry) + '\n', 'utf8')
 }

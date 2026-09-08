@@ -10,7 +10,7 @@ sometimes failed with:
 ```
 Couldn't start this session. Error invoking remote method 'pi:createSession':
 Error: EMFILE: too many open files, open
-'/Users/agustinsacco/Library/Application Support/pidex/config.json'
+'/Users/agustinsacco/Library/Application Support/Phosphor/config.json'
 ```
 
 `config.json` is a red herring. It is `electron-store`'s file, opened on the

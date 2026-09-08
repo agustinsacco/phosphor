@@ -1,6 +1,6 @@
 # 07 — Artifacts
 
-pi has no built-in artifacts (community packages `pi-artifacts` / `@jakeryderv/pi-artifacts` target TUI preview/publish workflows — not suitable). pidex ships its **own bundled pi extension**, a TypeScript file packaged with the app at `pi-ext/artifacts.ts`, loaded per-session via `pi --mode rpc -e <path>`.
+pi has no built-in artifacts (community packages `pi-artifacts` / `@jakeryderv/pi-artifacts` target TUI preview/publish workflows — not suitable). Phosphor ships its **own bundled pi extension**, a TypeScript file packaged with the app at `pi-ext/artifacts.ts`, loaded per-session via `pi --mode rpc -e <path>`.
 
 ## Extension design
 

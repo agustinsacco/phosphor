@@ -41,7 +41,7 @@ called `pi-ext/` "bundled pi extension (artifacts tools)", singular.
 still show the pre-Phosphor UI." That box was unsatisfiable, because the
 premise was wrong. Every one of the 15 captures was of **Anthropic's Claude
 Desktop**, taken during the original cloning study — `home-light.png` shows its
-Home/Code tabs and an "Agustin · Pro" account row. There was no pidex UI in them
+Home/Code tabs and an "Agustin · Pro" account row. There was no Phosphor UI in them
 to regenerate.
 
 Phosphor makes the resemblance an explicit non-goal, so 8.7MB of a different
@@ -68,7 +68,7 @@ specific staleness in each file rather than a general warning.
 Deleted: `IMPLEMENTATION_PROMPT.md` (a build prompt for a finished build),
 `specs/screenshots/`, `TECH_DEBT_AUDIT.md` (landed 2026-08-06; every item
 verified fixed, and its "largest remaining files" table was stale in all five
-rows — `reducer.ts` 620→704, `Composer.tsx` 456→622, `mockPidex.ts` 493→1229),
+rows — `reducer.ts` 620→704, `Composer.tsx` 456→622, `mockPhosphor.ts` 493→1229),
 and the whole of `specs/archive/`.
 
 ### There is no archive any more

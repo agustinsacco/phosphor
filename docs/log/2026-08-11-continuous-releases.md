@@ -36,7 +36,7 @@ Two paths, chosen at startup from a build-time flag rather than by waiting for a
 failure: full auto-update where the platform can install (signed macOS, Linux
 AppImage), and `manual-download` where it cannot — unsigned macOS, because
 Squirrel.Mac validates the code signature and refuses, and deb, where the package
-manager owns the files. CI stamps `pidexSigned` only when the signing secrets
+manager owns the files. CI stamps `phosphorSigned` only when the signing secrets
 exist, so adding an Apple cert upgrades macOS to full restart-to-update with zero
 code changes. The manual path reads `latest-*.yml` straight off
 `releases/latest/download/` (a static asset — no API, no rate limit).

@@ -27,10 +27,10 @@ export function usePackageJob(onExit?: (exitCode: number) => void): PackageJobSt
 
   useEffect(() => {
     if (!jobId) return
-    const offOutput = window.pidex.onPackagesJobOutput(jobId, (data) => {
+    const offOutput = window.phosphor.onPackagesJobOutput(jobId, (data) => {
       setOutput((prev) => prev + data)
     })
-    const offExit = window.pidex.onPackagesJobExit(jobId, (code) => {
+    const offExit = window.phosphor.onPackagesJobExit(jobId, (code) => {
       setRunning(false)
       setExitCode(code)
       onExitRef.current?.(code)

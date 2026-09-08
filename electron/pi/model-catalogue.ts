@@ -131,7 +131,7 @@ export async function requestAvailableModels(
  * very much does, and an earlier version of this comment claimed "nothing here
  * touches the filesystem", which was wrong. Booting pi writes `auth.json` and
  * `models-store.json`, and pi installs whatever `settings.json` declares. That
- * mattered under e2e: this was the one pi spawn that ignored `PIDEX_PI_STUB`,
+ * mattered under e2e: this was the one pi spawn that ignored `PHOSPHOR_PI_STUB`,
  * so the suite quietly shelled out to the real binary, which reached the
  * network to `npm install` a declared package into the sandboxed agent dir —
  * and npm, owning `node_modules`, pruned the hand-written fixture package a

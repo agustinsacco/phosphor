@@ -12,7 +12,7 @@ export interface NativeCommand {
 export interface CommandEntry {
   name: string
   description?: string
-  badge: 'pidex' | 'extension' | 'prompt' | 'skill'
+  badge: 'phosphor' | 'extension' | 'prompt' | 'skill'
   native?: NativeCommand
 }
 
@@ -23,7 +23,7 @@ export function buildCommandEntries(
   const native: CommandEntry[] = nativeCommands.map((command) => ({
     name: command.name,
     description: command.description,
-    badge: 'pidex',
+    badge: 'phosphor',
     native: command,
   }))
   const fromPi: CommandEntry[] = piCommands.map((command) => ({
@@ -35,7 +35,7 @@ export function buildCommandEntries(
 }
 
 const BADGE_STYLES: Record<CommandEntry['badge'], string> = {
-  pidex: 'bg-accent-soft text-accent',
+  phosphor: 'bg-accent-soft text-accent',
   extension: 'bg-info/10 text-info',
   prompt: 'bg-success/10 text-success',
   skill: 'bg-warning/10 text-warning',

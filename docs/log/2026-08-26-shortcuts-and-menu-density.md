@@ -1,12 +1,12 @@
 # Claude Code chords, and tighter menus
 
-Two passes over the same surface: every action pidex offers that Claude Code or
+Two passes over the same surface: every action Phosphor offers that Claude Code or
 Claude Desktop binds to a key now has that key, and every popover that had
 grown into prose got cut back to labels.
 
 ## The shortcuts
 
-pidex already had the desktop-app half (⌘N, ⌘K, ⌘P, ⌘B, ⌘,, ⌘\`, ⌘⇧E, ⌘⇧G,
+Phosphor already had the desktop-app half (⌘N, ⌘K, ⌘P, ⌘B, ⌘,, ⌘\`, ⌘⇧E, ⌘⇧G,
 Enter/⌥Enter/Esc in the composer). What it did not have was the terminal half —
 the chords someone arrives with after a day in Claude Code, presses here, and
 gets nothing from. Five landed:
@@ -23,7 +23,7 @@ Three decisions inside those:
 
 - **The prompt history is the transcript.** Every send already appends a user
   item to the chat store before pi echoes it back, so `promptHistory()` reads
-  the session's own user messages instead of pidex keeping a second list to
+  the session's own user messages instead of Phosphor keeping a second list to
   persist and drift. A session resumed from disk has its history immediately.
 - **Browsing ends at the first keystroke.** ↑ recalls only from an empty
   composer or while already browsing; `onChange` clears the index, so the

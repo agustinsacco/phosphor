@@ -1,7 +1,7 @@
 # 2026-08-23 — Sidebar shows sessions where workspaces belong
 
-A session folder is not a workspace. pidex's session isolation gives every
-chat its own git worktree under `<repo>/.pidex/worktrees/<slug>`, and worktrees
+A session folder is not a workspace. Phosphor's session isolation gives every
+chat its own git worktree under `<repo>/.phosphor/worktrees/<slug>`, and worktrees
 are branches of a workspace, not workspaces themselves. But worktree folders
 were being recorded as if they were workspaces, so the sidebar's chat list
 (the workspace groups + the top workspace switcher) read as a pile of sessions
@@ -20,7 +20,7 @@ switcher lists it verbatim. It was filling with a worktree folder per chat:
 - `getPrefs` returned them as-is, so hydrate loaded them.
 
 In the real prefs the list was 14 folders, 11 of them per-chat worktree nodes
-and only 3 real workspaces (`pidex`, `games`, `brigades`). The sidebar
+and only 3 real workspaces (`Phosphor`, `games`, `brigades`). The sidebar
 _does_ recover by grouping worktrees under their main repo (`git:info`
 supplies `isWorktree`+`mainRepoPath`, `groupSessionsByProject` merges on it) —
 but only once git info has been fetched. Before that (and in the switcher,
@@ -36,7 +36,7 @@ resume behave exactly as before — only the persistent workspace list stays
 clean.
 
 - `src/lib/path.ts` — `isWorktreeFolder(path)`, a structural test for the
-  `/.pidex/worktrees/<name>` container (mirrored in `electron/store.ts`).
+  `/.phosphor/worktrees/<name>` container (mirrored in `electron/store.ts`).
 - `src/stores/workspaces.ts` — `openWorkspace` sets `homePath` always but only
   appends to `recents` for a non-worktree folder.
 - `electron/store.ts` — `recordWorkspace` still writes `lastWorkspacePath`
@@ -44,11 +44,11 @@ clean.
   `recentWorkspaces`; `getPrefs` prunes any already-polluted entries on read
   (so an existing install repairs itself on next launch).
 - `src/features/sessions/Sidebar.tsx` — because worktrees are no longer
-  persisted, the sidebar discovers each known repo's `.pidex/worktrees/*` via
+  persisted, the sidebar discovers each known repo's `.phosphor/worktrees/*` via
   `git:listWorktrees` (once per set of open roots) so their sessions still
   appear, folded into the project group they belong to.
 
-Now the sidebar group list and the switcher show `pidex`, `games`, `brigades`
+Now the sidebar group list and the switcher show `Phosphor`, `games`, `brigades`
 — the workspaces — with each project's worktree sessions under it, the way
 `groupSessionsByProject` already intended.
 

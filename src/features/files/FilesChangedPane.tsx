@@ -124,16 +124,25 @@ function FileRow({
     event.stopPropagation()
     if (!window.confirm(`Revert ${file.relativePath} to its state at session start?`)) return
     if (baselineRef) {
-      await window.pidex.invoke('git:restoreFileTo', workspacePath, baselineRef, file.relativePath)
+      await window.phosphor.invoke(
+        'git:restoreFileTo',
+        workspacePath,
+        baselineRef,
+        file.relativePath,
+      )
     } else if (file.created) {
-      await window.pidex.invoke('fs:trash', `${workspacePath}/${file.relativePath}`)
+      await window.phosphor.invoke('fs:trash', `${workspacePath}/${file.relativePath}`)
     } else if (file.patches.length > 0) {
-      const current = await window.pidex.invoke(
+      const current = await window.phosphor.invoke(
         'fs:readFile',
         `${workspacePath}/${file.relativePath}`,
       )
       const original = reconstructOriginal(current.content, file.patches)
-      await window.pidex.invoke('fs:writeFile', `${workspacePath}/${file.relativePath}`, original)
+      await window.phosphor.invoke(
+        'fs:writeFile',
+        `${workspacePath}/${file.relativePath}`,
+        original,
+      )
     }
   }
 
@@ -205,13 +214,13 @@ function FileDiffView({
     void (async () => {
       try {
         const absolute = `${workspacePath}/${file.relativePath}`
-        const current = await window.pidex.invoke('fs:readFile', absolute).catch(() => null)
+        const current = await window.phosphor.invoke('fs:readFile', absolute).catch(() => null)
         const currentContent = current?.content ?? ''
 
         let baselineContent: string
         if (baselineRef) {
           baselineContent =
-            (await window.pidex.invoke(
+            (await window.phosphor.invoke(
               'git:showFileAt',
               workspacePath,
               baselineRef,

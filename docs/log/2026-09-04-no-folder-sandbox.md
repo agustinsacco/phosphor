@@ -2,7 +2,7 @@
 
 2026-09-04
 
-Every session needs a real cwd for pi, so pidex could only start a chat
+Every session needs a real cwd for pi, so Phosphor could only start a chat
 inside a chosen project folder. Quick questions and throwaway experiments
 had nowhere to go.
 
@@ -12,7 +12,7 @@ target:
 
 - `app:createSandbox` (`electron/ipc/app-handlers.ts`) returns a
   `<userData>/sandboxes/sandbox-N` folder via `electron/sandbox.ts`. userData,
-  not homedir, so E2E's `PIDEX_TEST_USER_DATA` redirect keeps test runs out of
+  not homedir, so E2E's `PHOSPHOR_TEST_USER_DATA` redirect keeps test runs out of
   the real one.
 - From then on a sandbox is an **ordinary workspace**: it enters recents and
   hosts any number of sessions. Nothing downstream needed changing — the home

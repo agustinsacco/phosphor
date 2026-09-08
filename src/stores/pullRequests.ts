@@ -56,7 +56,7 @@ export const usePullRequestsStore = create<PullRequestsState>((set, get) => ({
 
     let available = get().available
     if (available === undefined) {
-      available = await window.pidex.invoke('gh:available')
+      available = await window.phosphor.invoke('gh:available')
       set({ available })
     }
     // No gh, no chips, no noise — and no repeated probe: the main-process
@@ -66,7 +66,7 @@ export const usePullRequestsStore = create<PullRequestsState>((set, get) => ({
     set((s) => ({ byRepo: repos.patch(s.byRepo, repoPath, (r) => ({ ...r, loading: true })) }))
     let byBranch: Record<string, GhPullRequest> = {}
     try {
-      byBranch = await window.pidex.invoke('gh:prsForRepo', repoPath)
+      byBranch = await window.phosphor.invoke('gh:prsForRepo', repoPath)
     } catch {
       // Handler already swallows gh's own failures; this catches IPC teardown
       // during shutdown. Keep the previous map rather than blanking the chips.

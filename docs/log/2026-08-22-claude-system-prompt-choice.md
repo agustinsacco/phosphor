@@ -13,7 +13,7 @@ Upstream [rchern/pi-claude-cli#21](https://github.com/rchern/pi-claude-cli/pull/
 swaps the flag for `--system-prompt` unconditionally. We wanted the option, not
 the mandate — so the fork takes it as a setting
 ([agustinsacco/pi-claude-cli#14](https://github.com/agustinsacco/pi-claude-cli/pull/14),
-v0.4.7) and pidex surfaces the choice.
+v0.4.7) and Phosphor surfaces the choice.
 
 ## Sizing, measured
 
@@ -32,7 +32,7 @@ never a meaningful part of the burn. It buys window, not dollars.
 `AppPrefs.claudeSystemPrompt` (`'claude' | 'pi'`, defaulting to `'claude'`) with
 `app:setClaudeSystemPrompt` to persist it. `pi:createSession` injects it as
 `PI_CLAUDE_CLI_SYSTEM_PROMPT` in the spawn env — per session rather than once at
-startup, so a change applies to the next session without restarting pidex.
+startup, so a change applies to the next session without restarting Phosphor.
 
 Settings → Claude Code grows a two-option chooser above "Prove it end to end",
 stating the trade in each option rather than burying it in help text. The

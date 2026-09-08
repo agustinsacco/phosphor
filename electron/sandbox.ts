@@ -10,7 +10,7 @@ import type { SandboxInfo } from '@shared/models'
  *
  * The base is injected rather than read from `app` here so this module stays
  * importable in tests without mocking electron, and so E2E runs (which
- * redirect userData via PIDEX_TEST_USER_DATA) never write into the real one.
+ * redirect userData via PHOSPHOR_TEST_USER_DATA) never write into the real one.
  */
 
 const SANDBOX_NAME = /^sandbox-(\d+)$/

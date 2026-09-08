@@ -15,7 +15,7 @@ const workspaces = (paths: string[]): WorkspaceInfo[] =>
 
 beforeEach(async () => {
   invoke.mockClear()
-  vi.stubGlobal('window', { pidex: { invoke } })
+  vi.stubGlobal('window', { phosphor: { invoke } })
   const { useWorkspacesStore } = await import('./workspaces')
   useWorkspacesStore.setState({
     homePath: null,
@@ -90,7 +90,7 @@ describe('workspace ordering', () => {
 
   it('does not add a worktree folder as a workspace (a branch, not a project)', async () => {
     const { useWorkspacesStore } = await import('./workspaces')
-    const wt = '/a/.pidex/worktrees/my-task'
+    const wt = '/a/.phosphor/worktrees/my-task'
 
     useWorkspacesStore.getState().openWorkspace(wt)
 

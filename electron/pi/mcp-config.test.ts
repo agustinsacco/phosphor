@@ -17,7 +17,7 @@ let dirs: McpDirs
 let workspace: string
 
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'pidex-mcp-'))
+  root = await mkdtemp(join(tmpdir(), 'phosphor-mcp-'))
   dirs = {
     home: join(root, 'home'),
     xdgConfig: join(root, 'xdg'),

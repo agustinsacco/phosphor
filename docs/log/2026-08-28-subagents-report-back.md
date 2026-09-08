@@ -7,7 +7,7 @@ They did not come back at all. Six weeks of notes in this repo
 ([2026-08-22](2026-08-22-claude-subagents-never-return.md),
 [2026-08-27](2026-08-27-subagent-burn-and-fake-context.md)) treated that as a
 property of the CLI. It was not. It was one `SIGKILL` in the provider, and
-everything pidex had built on top of it — the wording of a strip, the rows in
+everything Phosphor had built on top of it — the wording of a strip, the rows in
 a transcript, a count in a summary — had hardened around the wrong cause.
 
 ## What the sessions showed
@@ -79,7 +79,7 @@ local source checkout of pi-claude-cli` in a three-agent fan-out. Only
 ## Fixed here
 
 - **One transcript row per AGENT, not per marker.** The CLI reports each agent
-  three times (`Agent` call, `Task started`, `Task completed`). pidex rendered
+  three times (`Agent` call, `Task started`, `Task completed`). Phosphor rendered
   all three, so three agents became eight rows and a strip announcing "8
   sub-agents were started". `buildTranscriptRows` now folds them — by
   `task_id` when present, otherwise by pairing one marker per phase under a
@@ -90,7 +90,7 @@ local source checkout of pi-claude-cli` in a three-agent fan-out. Only
 - **The strip counts evidence, not launches.** `trailingUnfinishedAgents`
   counts agents that never reached a terminal state. On 0.4.14 that is zero
   and the strip stays away; on an older provider every launch still qualifies
-  and it says so. pidex pins no provider version, so both shapes keep
+  and it says so. Phosphor pins no provider version, so both shapes keep
   arriving and neither is assumed.
 - **`claude-subagents` is registered as a structured status key.** Until it
   was, `StatusStrip` printed the whole JSON payload along the bottom of the
@@ -98,7 +98,7 @@ local source checkout of pi-claude-cli` in a three-agent fan-out. Only
   an agent chip.
 - **The CLI transcript path was wrong everywhere it was used.** Observer mode
   gives the CLI its own session id and records the pairing in a sidecar map;
-  pidex still derived the path from the pi session id. That broke the debug
+  Phosphor still derived the path from the pi session id. That broke the debug
   block a user pastes into a bug report, and the second half of a session
   delete — every deleted Claude session left its CLI transcript behind, which
   is megabytes each. `electron/pi/claude-session-map.ts` reads the map;

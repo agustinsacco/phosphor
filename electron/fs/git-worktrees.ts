@@ -9,10 +9,10 @@ import { abortMergeAndCollectConflicts, dirtyCount, git, gitErrorText } from './
 const execFileAsync = promisify(execFile)
 
 /**
- * Worktree lifecycle for pidex sessions.
+ * Worktree lifecycle for Phosphor sessions.
  *
  * Layout decision: worktrees live INSIDE the repo at
- * `<repo>/.pidex/worktrees/<name>` (mirroring the `.claude/worktrees`
+ * `<repo>/.phosphor/worktrees/<name>` (mirroring the `.claude/worktrees`
  * convention), ignored via `.git/info/exclude` so `git status` stays clean
  * without touching tracked files. In-repo keeps them discoverable from a
  * plain file listing, and its `git:info` (`isWorktree` / `mainRepoPath`) is
@@ -28,7 +28,7 @@ const execFileAsync = promisify(execFile)
 const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/
 
 export function worktreeRootFor(repoPath: string): string {
-  return join(repoPath, '.pidex', 'worktrees')
+  return join(repoPath, '.phosphor', 'worktrees')
 }
 
 /**
@@ -281,7 +281,7 @@ async function enrichWithSync(
   }
 }
 
-/** Append `/.pidex/` to .git/info/exclude once (never touches .gitignore). */
+/** Append `/.phosphor/` to .git/info/exclude once (never touches .gitignore). */
 async function ensureExcluded(repoPath: string): Promise<void> {
   const commonDir = (
     await git(repoPath, ['rev-parse', '--path-format=absolute', '--git-common-dir'])
@@ -293,9 +293,9 @@ async function ensureExcluded(repoPath: string): Promise<void> {
   } catch {
     // no exclude file yet
   }
-  if (existing.split('\n').some((l) => l.trim() === '/.pidex/')) return
+  if (existing.split('\n').some((l) => l.trim() === '/.phosphor/')) return
   await mkdir(join(commonDir, 'info'), { recursive: true })
-  await appendFile(excludePath, `${existing.endsWith('\n') || !existing ? '' : '\n'}/.pidex/\n`)
+  await appendFile(excludePath, `${existing.endsWith('\n') || !existing ? '' : '\n'}/.phosphor/\n`)
 }
 
 export async function addWorktree(
@@ -404,7 +404,7 @@ export async function renameBranch(
  * Is this branch's work already on the trunk, squash merges included?
  *
  * `git branch -d` only asks "is it an ancestor", and a squash merge rewrites
- * the branch into one new commit that has no ancestry link back to it. pidex
+ * the branch into one new commit that has no ancestry link back to it. Phosphor
  * lanes land as squash-merged PRs, so `-d` refused EVERY merged lane and the
  * delete flow reported an error on each one — the branch was safe to drop the
  * whole time.
@@ -441,7 +441,7 @@ export async function isBranchMerged(repoPath: string, branch: string): Promise<
       if (!mergeBase || !tree) continue
       const probe = await git(
         repoPath,
-        ['commit-tree', tree, '-p', mergeBase, '-m', 'pidex squash-merge probe'],
+        ['commit-tree', tree, '-p', mergeBase, '-m', 'Phosphor squash-merge probe'],
         { trim: true },
       )
       // `git cherry` prefixes '-' when an equivalent patch is already upstream.
@@ -487,7 +487,7 @@ export async function removeWorktree(
       await git(repoPath, ['branch', '-d', branch])
       branchDeleted = true
     } catch (error) {
-      // `-d` refuses a squash-merged branch, which is how every pidex lane
+      // `-d` refuses a squash-merged branch, which is how every Phosphor lane
       // lands. Escalate to `-D` ONLY when the squash test proves the work is
       // already on the trunk; a genuinely unmerged branch is still kept and
       // reported, never forced.

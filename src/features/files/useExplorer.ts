@@ -39,7 +39,7 @@ export function useExplorer(workspace: string) {
   const selection = (entry?: DirEntry): DirEntry[] =>
     entry && !selected.some((e) => e.path === entry.path) ? [entry] : selected
   const copy = (cut: boolean, entry?: DirEntry): Promise<void> =>
-    window.pidex.invoke(
+    window.phosphor.invoke(
       'clipboard:writeFiles',
       selection(entry).map((e) => e.path),
       cut,
@@ -152,7 +152,7 @@ export function useExplorer(workspace: string) {
         event.stopPropagation()
         setDropDir(null)
         const raw = event.dataTransfer.getData(FILE_DRAG)
-        const files = [...event.dataTransfer.files].map((file) => window.pidex.pathForFile(file))
+        const files = [...event.dataTransfer.files].map((file) => window.phosphor.pathForFile(file))
         const dir = directory(event.target)
         run(async () => {
           const paths: unknown = raw ? JSON.parse(raw) : files

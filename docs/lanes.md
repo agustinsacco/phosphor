@@ -1,7 +1,7 @@
 # Lanes
 
 A **lane** is one unit of work: a session, the branch it runs on, the worktree
-that branch is checked out in, and the pull request it becomes. pidex shows all
+that branch is checked out in, and the pull request it becomes. Phosphor shows all
 four on a single sidebar row, and this document is the contract for that row.
 
 Related: [extensions.md](extensions.md) for the artifact tools a lane can
@@ -50,11 +50,11 @@ rather than the glyph:
    the list, the left edge goes ragged, and the eye has to re-find the title on
    each row. That is the thing the column exists to prevent.
 2. **The fallback is derived, not stored.** `SessionMeta` is scanned out of
-   pi's own `.jsonl`; pidex does not own that format and must not add fields to
+   pi's own `.jsonl`; Phosphor does not own that format and must not add fields to
    it. Explicit choices live in `AppPrefs.laneMarkers` keyed by session path;
    every other lane hashes its **branch**.
 
-Keying on the branch and not the title is load-bearing: pidex names a session
+Keying on the branch and not the title is load-bearing: Phosphor names a session
 only after its first turn **ends**, so a title-derived marker would change
 under the user the moment the auto-namer landed. The branch exists from the
 moment the worktree does.
@@ -72,7 +72,7 @@ behind.
 
 ## PR status
 
-`electron/fs/gh-cli.ts` is the only place pidex shells out to `gh`, and it is
+`electron/fs/gh-cli.ts` is the only place Phosphor shells out to `gh`, and it is
 **read-only by design**: no push, no create. Those are outward-facing writes
 and belong behind an explicit confirmed action, which is why the `↑ no PR` chip
 is inert rather than a one-click create button.
@@ -278,7 +278,7 @@ Deleting is three resources, and only the first two default on:
 3. the branch, only when its work is already on the trunk
 
 **A branch is deleted only when it is proven merged.** `git branch -d` alone is
-not that proof: it tests ancestry, and pidex lands PRs as squash merges, which
+not that proof: it tests ancestry, and Phosphor lands PRs as squash merges, which
 leaves no ancestry link — so `-d` refused every merged lane and every delete
 reported an error. `isBranchMerged` adds the squash test (`git cherry` against a
 commit built from the branch's tree), and `-D` runs only when it returns true.

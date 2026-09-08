@@ -33,8 +33,8 @@ export function piConfigFile(name: 'settings' | 'models' | 'web-search'): Config
   return {
     key: `${name}.json`,
     fallback: '{\n}\n',
-    read: () => window.pidex.invoke('pi:readConfigFile', name),
-    write: (content) => window.pidex.invoke('pi:writeConfigFile', name, content),
+    read: () => window.phosphor.invoke('pi:readConfigFile', name),
+    write: (content) => window.phosphor.invoke('pi:writeConfigFile', name, content),
     savedToast: `${name}.json saved — restart sessions to apply`,
   }
 }
@@ -46,8 +46,8 @@ export function mcpConfigFile(scope: McpScope, workspacePath?: string): ConfigFi
     // key is what makes the editor re-read when either half changes.
     key: `mcp-${scope}${workspacePath ? `-${workspacePath}` : ''}.json`,
     fallback: '{\n  "mcpServers": {}\n}\n',
-    read: () => window.pidex.invoke('mcp:readFile', scope, workspacePath),
-    write: (content) => window.pidex.invoke('mcp:writeFile', scope, workspacePath, content),
+    read: () => window.phosphor.invoke('mcp:readFile', scope, workspacePath),
+    write: (content) => window.phosphor.invoke('mcp:writeFile', scope, workspacePath, content),
   }
 }
 

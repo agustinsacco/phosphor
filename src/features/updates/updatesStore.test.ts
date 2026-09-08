@@ -30,7 +30,7 @@ describe('updates store', () => {
     unsubscribe.mockReset()
     pushListener = null
     vi.stubGlobal('window', {
-      pidex: {
+      phosphor: {
         invoke,
         onUpdateEvent: (listener: (state: UpdateState) => void) => {
           pushListener = listener

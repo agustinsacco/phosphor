@@ -1,12 +1,12 @@
 /**
- * The `pidex-headroom` status key: cumulative compression savings pushed by
+ * The `phosphor-headroom` status key: cumulative compression savings pushed by
  * the bundled headroom extension (`pi-ext/headroom.ts`). Part of the status
  * wire contract in docs/extensions.md — the extension only pushes the key
  * once a result has actually been through the proxy, so a session with
  * Headroom off (or absent) never shows the section at all.
  */
 
-export const HEADROOM_STATUS_KEY = 'pidex-headroom'
+export const HEADROOM_STATUS_KEY = 'phosphor-headroom'
 
 export interface HeadroomStatus {
   savedTokens: number

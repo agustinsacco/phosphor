@@ -1,7 +1,7 @@
 /**
  * The connector authorization flow.
  *
- * pidex does not implement OAuth and does not hold connector tokens. The MCP
+ * Phosphor does not implement OAuth and does not hold connector tokens. The MCP
  * adapter already does PKCE, dynamic client registration, a loopback callback
  * server and token custody in the OS credential store — so this store only
  * *drives* it, through the adapter's own `/mcp-auth <server>` command (an
@@ -22,7 +22,7 @@
  * The load-bearing rule in both paths: **never auto-answer the adapter's
  * pending input request.** pi's RPC has no server→client cancel, so when the
  * loopback callback wins the race the adapter silently abandons its prompt and
- * pidex is never told. An empty or cancelled answer sent "to tidy up" wins
+ * Phosphor is never told. An empty or cancelled answer sent "to tidy up" wins
  * that race instead and throws `OAuth authentication cancelled` — killing a
  * flow that already succeeded. A pending request is left pending; only an
  * explicit user Cancel answers it.
@@ -68,7 +68,7 @@ interface ConnectorsState {
   settle: (serverName: string, outcome: 'success' | 'failure', detail?: string) => void
   /** Answer the pending prompt with a pasted callback URL. */
   submitCallbackUrl: (serverName: string, url: string) => void
-  /** Explicit user cancel — the only case where pidex answers the prompt. */
+  /** Explicit user cancel — the only case where Phosphor answers the prompt. */
   cancel: (serverName: string) => void
   /** Clear a settled flow's card. */
   dismiss: (serverName: string) => void
@@ -120,7 +120,7 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
       return
     }
     try {
-      await window.pidex.invoke('mcp:authorize', serverName)
+      await window.phosphor.invoke('mcp:authorize', serverName)
     } catch (error) {
       set((s) => ({
         flows: setFlow(s.flows, serverName, {
@@ -152,7 +152,7 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
         requestId,
       }),
     }))
-    void window.pidex.invoke('app:openExternal', authorizationUrl).catch(() => {
+    void window.phosphor.invoke('app:openExternal', authorizationUrl).catch(() => {
       // The card shows the URL, so a blocked browser launch is recoverable.
     })
   },
@@ -173,13 +173,13 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
     const flow = get().flows[serverName]
     if (flow?.phase !== 'awaiting-browser') return
     if (flow.sessionId && flow.requestId) {
-      void window.pidex.invoke('pi:extensionUiResponse', flow.sessionId, {
+      void window.phosphor.invoke('pi:extensionUiResponse', flow.sessionId, {
         type: 'extension_ui_response',
         id: flow.requestId,
         value: url.trim(),
       })
     } else {
-      void window.pidex.invoke('mcp:submitAuthCallback', serverName, url.trim())
+      void window.phosphor.invoke('mcp:submitAuthCallback', serverName, url.trim())
     }
     set((s) => ({ flows: setFlow(s.flows, serverName, { phase: 'starting' }) }))
   },
@@ -187,13 +187,13 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
   cancel: (serverName) => {
     const flow = get().flows[serverName]
     if (flow?.phase === 'awaiting-browser' && flow.sessionId && flow.requestId) {
-      void window.pidex.invoke('pi:extensionUiResponse', flow.sessionId, {
+      void window.phosphor.invoke('pi:extensionUiResponse', flow.sessionId, {
         type: 'extension_ui_response',
         id: flow.requestId,
         cancelled: true,
       })
     } else {
-      void window.pidex.invoke('mcp:cancelAuth', serverName)
+      void window.phosphor.invoke('mcp:cancelAuth', serverName)
     }
     set((s) => ({ flows: setFlow(s.flows, serverName, undefined) }))
   },
@@ -216,7 +216,7 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
 
 /** Subscribe the store to headless flow pushes. Called once, from App. */
 export function attachConnectorAuthListener(): () => void {
-  return window.pidex.onMcpAuthState(({ serverName, state }) => {
+  return window.phosphor.onMcpAuthState(({ serverName, state }) => {
     useConnectorsStore.getState().headlessState(serverName, state)
   })
 }

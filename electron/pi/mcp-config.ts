@@ -158,7 +158,7 @@ async function mutateFile(
   if (file.state.malformed) {
     throw new Error(
       `${path} is not valid JSON (${file.state.error ?? 'parse error'}). ` +
-        'pidex will not overwrite it — fix it via the raw editor first.',
+        'Phosphor will not overwrite it — fix it via the raw editor first.',
     )
   }
   // Mutate the parsed object so unknown top-level keys survive.

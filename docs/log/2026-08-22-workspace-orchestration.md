@@ -21,7 +21,7 @@ same `spawnSession` path as any other session (extracted from the
 `pi:createSession` handler so env, bundled extensions and stub handling can
 never drift), plus `pi-ext/orchestrator.ts` and a composed system prompt.
 
-**Layer 3 — rules, memory, autopilot.** `<mainRepo>/.pidex/orchestrator.md` and
+**Layer 3 — rules, memory, autopilot.** `<mainRepo>/.phosphor/orchestrator.md` and
 `orchestrator-memory.md`, a per-project prefs record, and a Settings →
 Orchestration tab. Autopilot is off by default; without it `propose_work` can
 only suggest.
@@ -33,7 +33,7 @@ and a digest line. The stats card moved into a `<details>` — it is a flourish;
 the fleet is the point. The sidebar gained an orchestrator row per project.
 
 Also landed because the feature exposed them: a **single-instance lock** (two
-pidex instances would run duplicate sweeps and race the same memory file) and
+Phosphor instances would run duplicate sweeps and race the same memory file) and
 **desktop notifications** with an app badge — the app had no notification code
 at all, which is a hole when the premise is that agents work while you are away.
 
@@ -42,9 +42,9 @@ at all, which is a hole when the premise is that agents work while you are away.
 **The control channel is not a socket.** Extensions run inside pi and must
 reach main. `ExtensionUIContext.input()` returns `Promise<string | undefined>`
 and, in RPC mode, round-trips through the `extension_ui_request` /
-`extension_ui_response` pair pidex already implements (verified against pi
+`extension_ui_response` pair Phosphor already implements (verified against pi
 0.84.2: `dist/core/extensions/types.d.ts`, and `examples/rpc-extension-ui.ts`
-demonstrates the loop). So a request whose title carries `pidex-fleet:v1` is
+demonstrates the loop). So a request whose title carries `Phosphor-fleet:v1` is
 intercepted in main and never forwarded to the renderer. No listening port, no
 token, no `app.isPackaged` gate to get wrong. **Authorization is structural**:
 main honours the sentinel only from a session it spawned as an orchestrator, so
@@ -91,7 +91,7 @@ notification coalescing, inbox ranking, and the identity predicate. Two new
 e2e tests cover the mechanical layer: a live session becoming a home card you
 can steer, and the orchestrator row being distinct from session rows.
 
-**Honest scope limit on e2e:** the stub is spawned without pidex's bundled
+**Honest scope limit on e2e:** the stub is spawned without Phosphor's bundled
 extensions, so the orchestrator's tools cannot run under Playwright. Tool
 behaviour is covered by unit tests over `handleFleetCommand` with a fake
 registry instead, and the e2e test says so in its own comment.

@@ -18,7 +18,7 @@ const window = (over: Partial<ClaudeUsageWindow>): ClaudeUsageWindow => ({
 })
 
 describe('windowTitle', () => {
-  it('names the two windows pidex knows', () => {
+  it('names the two windows Phosphor knows', () => {
     expect(windowTitle(window({}))).toBe('5-hour window')
     expect(windowTitle(window({ kind: 'weekly', label: 'Current week (all models)' }))).toBe(
       'Weekly window',

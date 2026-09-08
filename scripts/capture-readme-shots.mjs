@@ -7,7 +7,7 @@
  *
  * What is real and what is not: this launches the BUILT app (`out/`) through
  * Playwright's Electron driver, so every pixel of chrome, layout, colour and
- * interaction is pidex as it ships. The transcript itself is the deterministic
+ * interaction is Phosphor as it ships. The transcript itself is the deterministic
  * e2e pi stub (`e2e/fixtures/pi-stub.cjs`) — no model, no API key, no network —
  * so the assistant prose and artifact titles are the stub's fixed script. That
  * is deliberate: the shots must be reproducible from a clean clone, and a real
@@ -46,40 +46,40 @@ async function main() {
 
   // A named scratch project, not an mkdtemp slug: the folder name IS the
   // workspace chip in every shot, and it reads better as a project than as
-  // `pidex-shots-Qk2p1A`. Seeded as a git repo so the branch chip is real.
-  const root = await mkdtemp(join(tmpdir(), 'pidex-shots-'))
+  // `phosphor-shots-Qk2p1A`. Seeded as a git repo so the branch chip is real.
+  const root = await mkdtemp(join(tmpdir(), 'phosphor-shots-'))
   const workspace = join(root, 'welcome-app')
   await mkdir(workspace, { recursive: true })
   await writeFile(join(workspace, 'hello.ts'), 'export function hello() {\n  return "old"\n}\n')
   await writeFile(
     join(workspace, 'README.md'),
-    '# welcome-app\n\nA tiny demo project used to show pidex in its own README.\n',
+    '# welcome-app\n\nA tiny demo project used to show Phosphor in its own README.\n',
   )
   const git = (args) => execFileSync('git', args, { cwd: workspace, stdio: 'ignore' })
   git(['init', '-b', 'main'])
-  git(['config', 'user.email', 'shots@pidex.dev'])
-  git(['config', 'user.name', 'pidex shots'])
+  git(['config', 'user.email', 'shots@phosphor.dev'])
+  git(['config', 'user.name', 'Phosphor shots'])
   git(['add', '-A'])
   git(['commit', '-m', 'initial'])
 
   // Never the developer's real ~/.pi: the stub writes session files, and prefs
   // go to a userData dir main.ts derives from its own pid for e2e runs.
-  const agentDir = mkdtempSync(join(tmpdir(), 'pidex-shots-agent-'))
+  const agentDir = mkdtempSync(join(tmpdir(), 'phosphor-shots-agent-'))
 
   const env = { ...process.env, NODE_ENV: 'production' }
   for (const key of ['ELECTRON_RENDERER_URL', 'NODE_ENV_ELECTRON_VITE', 'ELECTRON_CLI_ARGS']) {
     delete env[key]
   }
   Object.assign(env, {
-    PIDEX_PI_STUB: piStub,
-    PIDEX_E2E_WORKSPACE: workspace,
-    PIDEX_TEST_USER_DATA: '1',
+    PHOSPHOR_PI_STUB: piStub,
+    PHOSPHOR_E2E_WORKSPACE: workspace,
+    PHOSPHOR_TEST_USER_DATA: '1',
     PI_CODING_AGENT_DIR: agentDir,
     // Mapped windows on purpose. The e2e suite leaves windows unmapped so no
     // run steals your screen, but an unmapped window never repaints cleanly:
     // captures come out with stale layers ghosting through the new frame.
     // A screenshot run is allowed to be seen — that is what it is for.
-    PIDEX_E2E_SHOW: '1',
+    PHOSPHOR_E2E_SHOW: '1',
   })
 
   // --disable-gpu puts Chromium on the software compositor, so a capture

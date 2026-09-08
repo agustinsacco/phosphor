@@ -145,7 +145,7 @@ export interface IpcInvokeMap {
   }
   /**
    * Stage model-authored HTML for the artifact iframe and return a
-   * `pidex-artifact://` URL for it. The document is served on its own opaque
+   * `phosphor-artifact://` URL for it. The document is served on its own opaque
    * origin with `default-src 'none'`, which is what lets it run scripts
    * without the app's CSP — see electron/artifacts/artifact-protocol.ts.
    */
@@ -305,7 +305,7 @@ export interface IpcInvokeMap {
    *
    * This exists because pi exposes sign-in nowhere else: no RPC command, no
    * `pi login` subcommand, and pi-ai no longer exports its OAuth runtime.
-   * Hosting pi's own TUI is the only path that does not couple pidex to pi
+   * Hosting pi's own TUI is the only path that does not couple Phosphor to pi
    * internals. Drive it with the ordinary `pty:*` channels once created.
    */
   'pi:loginTerminal': { args: [cols: number, rows: number]; result: { ptyId: string } }
@@ -334,7 +334,7 @@ export interface IpcInvokeMap {
   /**
    * Skills page (sidebar → Skills). Resolution asks pi itself
    * (`get_commands` over a throwaway RPC process, no tokens) with a
-   * filesystem scan fallback; mutations touch only the pidex-writable roots.
+   * filesystem scan fallback; mutations touch only the phosphor-writable roots.
    * All paths cross this boundary only after `skills:list` reported them.
    */
   'skills:list': { args: [workspacePath?: string]; result: SkillsListResult }
@@ -418,7 +418,7 @@ export interface IpcInvokeMap {
   'packages:updateClaudeCli': { args: []; result: { jobId: string } }
 
   /**
-   * Sign the Claude Code CLI in from inside pidex — the account that bills a
+   * Sign the Claude Code CLI in from inside Phosphor — the account that bills a
    * Claude Pro/Max plan.
    *
    * No terminal, and no pty either: unlike pi's TUI-only `/login`,
@@ -440,7 +440,7 @@ export interface IpcInvokeMap {
   'claude:logout': { args: []; result: void }
 
   /**
-   * Every Claude login pidex knows about, in routing order, with each one's
+   * Every Claude login Phosphor knows about, in routing order, with each one's
    * live auth state and cached usage.
    *
    * Multiple accounts are possible because `CLAUDE_SECURESTORAGE_CONFIG_DIR`
@@ -474,7 +474,7 @@ export interface IpcInvokeMap {
    * binding, resuming a round-robin session could land on a different plan,
    * which misses the entire prompt cache and splits the thread's cost in two.
    */
-  'claude:bindSession': { args: [sessionPath: string, pidexSessionId: string]; result: void }
+  'claude:bindSession': { args: [sessionPath: string, phosphorSessionId: string]; result: void }
   /**
    * Point a session file at an account by hand, for the next spawn.
    *
@@ -484,7 +484,7 @@ export interface IpcInvokeMap {
    * binding here and never touches the subprocess.
    */
   'claude:assignSession': { args: [sessionPath: string, accountId: string]; result: void }
-  /** Account id → the live pidex sessions spawned onto it. */
+  /** Account id → the live Phosphor sessions spawned onto it. */
   'claude:accountSessions': { args: []; result: ClaudeAccountSessions }
   /**
    * Which account bills a session: the pick parked at spawn, else the stored
@@ -492,7 +492,7 @@ export interface IpcInvokeMap {
    * is not on the Claude provider, or when neither source knows it yet.
    */
   'claude:sessionAccount': {
-    args: [pidexSessionId: string, sessionPath?: string]
+    args: [phosphorSessionId: string, sessionPath?: string]
     result: ClaudeSessionAccount | null
   }
   /**
@@ -500,7 +500,7 @@ export interface IpcInvokeMap {
    * shows (5-hour + weekly windows, with percents), read by spawning
    * `claude -p /usage` (zero model calls, zero quota) in main and parsing
    * its rendered text. Works for every signed-in subscription account; no
-   * API key, no org, no credential crosses into pidex. Cached ~60 s in main,
+   * API key, no org, no credential crosses into Phosphor. Cached ~60 s in main,
    * because the endpoint behind it rate-limits.
    *
    * `force` skips that cache for a user-initiated refresh — the only caller
@@ -644,7 +644,7 @@ export interface IpcInvokeMap {
    * so a dirty main tree is irrelevant to starting a chat.
    */
   'git:startPoint': { args: [repoPath: string]; result: StartPoint }
-  /** Create `<repo>/.pidex/worktrees/<name>` on a new or existing branch. */
+  /** Create `<repo>/.phosphor/worktrees/<name>` on a new or existing branch. */
   'git:addWorktree': {
     args: [repoPath: string, name: string, branch: AddWorktreeBranch]
     result: WorktreeInfo
@@ -757,17 +757,17 @@ export type IpcInvokeChannel = keyof IpcInvokeMap
 
 export const sessionEventChannel = (sessionId: string): string => `pi:event:${sessionId}`
 
-/** The API surface exposed on window.pidex by the preload script. */
+/** The API surface exposed on window.phosphor by the preload script. */
 /** Host platform, normalized. Anything exotic (bsd, sunos) reads as 'linux'. */
-export type PidexPlatform = 'darwin' | 'win32' | 'linux'
+export type PhosphorPlatform = 'darwin' | 'win32' | 'linux'
 
-export interface PidexApi {
+export interface PhosphorApi {
   /**
    * The host platform, synchronously. Key-hint labels are rendered during the
    * first paint, so this cannot be an async `invoke` without every shortcut
    * flashing the wrong modifier first.
    */
-  platform: PidexPlatform
+  platform: PhosphorPlatform
 
   invoke<C extends IpcInvokeChannel>(
     channel: C,
@@ -820,6 +820,6 @@ export interface PidexApi {
 
 declare global {
   interface Window {
-    pidex: PidexApi
+    phosphor: PhosphorApi
   }
 }

@@ -9,9 +9,9 @@ stub session.
 
 To route package jobs through it, the job runner gained the same override
 mechanism as the session spawner: `packages-handlers` passes
-`PIDEX_PI_STUB` (gated `!app.isPackaged`, same env-var-code-execution
+`PHOSPHOR_PI_STUB` (gated `!app.isPackaged`, same env-var-code-execution
 rationale) and `packages.ts` runs the stub via Electron-as-Node. A second
-gated hook, `PIDEX_CLAUDE_BIN`, pins the Claude binary for
+gated hook, `PHOSPHOR_CLAUDE_BIN`, pins the Claude binary for
 `claudeStatus`/`detectBinaries` — the first version of the chain test used
 PATH-prepending and was promptly shadowed by the developer's real
 `~/.local/bin/claude`, which is exactly the machine-dependence the
@@ -25,9 +25,9 @@ New tests (all green on a fresh build):
 - **web-access keys** — Web access tab Set key → Enter →
   `web-search.json` in the sandboxed agent dir contains the value
   (polled), row flips to "configured".
-- **claude provider chain** — fake claude via `PIDEX_CLAUDE_BIN`
+- **claude provider chain** — fake claude via `PHOSPHOR_CLAUDE_BIN`
   (version + auth JSON), health card asserts binary and account rows,
-  Test provider streams `pidex-provider-ok` through the stubbed pi print
+  Test provider streams `Phosphor-provider-ok` through the stubbed pi print
   mode and the tab confirms the round-trip.
 
 Note from the shadowing incident: a real claude 2.1.237 login on the dev

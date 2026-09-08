@@ -2,9 +2,9 @@
  * Dev-only mock of the preload API so the renderer can run in a plain
  * browser (vite dev server without Electron). Replays the captured real
  * pi event stream with realistic pacing. Never bundled in production:
- * loaded lazily behind `import.meta.env.DEV && !window.pidex`.
+ * loaded lazily behind `import.meta.env.DEV && !window.phosphor`.
  */
-import type { PidexApi } from '@shared/ipc'
+import type { PhosphorApi } from '@shared/ipc'
 import type { ConnectorAuthPush, ConnectorAuthState, SessionPush } from '@shared/models'
 import type { ConnectorCheckResult } from '@shared/connectors'
 import { DEFAULT_APP_PREFS, MIN_PI_VERSION } from '@shared/models'
@@ -42,7 +42,7 @@ function replayFixture(sessionId: string): void {
         replaying = false
       }
     } catch (error) {
-      console.error('[pidex mock] replay failed:', error)
+      console.error('[Phosphor mock] replay failed:', error)
       clearInterval(timer)
       replaying = false
     }
@@ -164,7 +164,7 @@ const mockClaudeAccounts: {
         label: 'dev@work.example',
         email: 'dev@work.example',
         plan: 'team',
-        credentialDir: '/Users/dev/Library/Application Support/pidex/claude-accounts/work',
+        credentialDir: '/Users/dev/Library/Application Support/phosphor/claude-accounts/work',
         addedAt: Date.now() - 3_600_000,
       },
     ],
@@ -350,7 +350,7 @@ function respond(command: RpcCommand): RpcResponse {
  *
  * `cwd` is load-bearing: `sessions:list` filters on it, because the real
  * handler reads one session directory per workspace folder. Returning every
- * session for every folder duplicated each row inside the pidex group — the
+ * session for every folder duplicated each row inside the Phosphor group — the
  * worktree folder folds into its main repo, so the same `path` was keyed
  * twice and React logged "two children with the same key".
  */
@@ -358,7 +358,7 @@ const MOCK_DISK_SESSIONS = [
   {
     path: '/mock/sessions/a.jsonl',
     sessionId: 'a',
-    cwd: '/Users/dev/projects/pidex',
+    cwd: '/Users/dev/projects/phosphor',
     createdAt: '2026-08-01T10:00:00.000Z',
     name: 'Refactor auth module',
     firstUserText: 'Refactor the auth module to use the new token service',
@@ -379,7 +379,7 @@ const MOCK_DISK_SESSIONS = [
   {
     path: '/mock/sessions/b.jsonl',
     sessionId: 'b',
-    cwd: '/Users/dev/projects/pidex',
+    cwd: '/Users/dev/projects/phosphor',
     createdAt: '2026-07-28T15:00:00.000Z',
     firstUserText: 'Why is the vite build slow?',
     userMessages: 3,
@@ -402,7 +402,7 @@ const MOCK_DISK_SESSIONS = [
     // subtitle chip.
     path: '/mock/sessions/c.jsonl',
     sessionId: 'c',
-    cwd: '/Users/dev/projects/pidex/.pidex/worktrees/fix-auth',
+    cwd: '/Users/dev/projects/phosphor/.phosphor/worktrees/fix-auth',
     createdAt: '2026-08-02T08:00:00.000Z',
     name: 'Fix the auth redirect loop',
     firstUserText: 'The login redirect loops on expired tokens',
@@ -475,7 +475,8 @@ const mockFs = new Map<string, boolean>(
     'src/App.tsx',
     'electron/main.ts',
   ].map(
-    (name) => [`/Users/dev/projects/pidex/${name.replace(/\/$/, '')}`, name.endsWith('/')] as const,
+    (name) =>
+      [`/Users/dev/projects/phosphor/${name.replace(/\/$/, '')}`, name.endsWith('/')] as const,
   ),
 )
 
@@ -486,7 +487,7 @@ function mockDir(dir: string): Array<Record<string, unknown>> {
       name: path.slice(path.lastIndexOf('/') + 1),
       path,
       isDirectory,
-      relativePath: path.replace('/Users/dev/projects/pidex/', ''),
+      relativePath: path.replace('/Users/dev/projects/phosphor/', ''),
     }))
     .sort((a, b) => Number(b.isDirectory) - Number(a.isDirectory) || a.name.localeCompare(b.name))
 }
@@ -494,7 +495,7 @@ function mockDir(dir: string): Array<Record<string, unknown>> {
 function mockTree(): Record<string, unknown> {
   return {
     sessionId: 'a',
-    cwd: '/Users/dev/projects/pidex',
+    cwd: '/Users/dev/projects/phosphor',
     leafId: 'u4',
     entries: [
       {
@@ -671,8 +672,8 @@ const MOCK_CONTEXT_BREAKDOWN = JSON.stringify({
   approximate: true,
 })
 
-export function installMockPidex(): void {
-  const api: PidexApi = {
+export function installMockPhosphor(): void {
+  const api: PhosphorApi = {
     // The browser harness has no Electron; report the real host so key hints
     // in `npm run dev:web` match the machine the developer is sitting at.
     platform: navigator.userAgent.includes('Mac')
@@ -694,7 +695,7 @@ export function installMockPidex(): void {
           return Promise.resolve({
             theme: DEFAULT_APP_PREFS.theme,
             recentWorkspaces: [
-              { path: '/Users/dev/projects/pidex', name: 'pidex', lastOpenedAt: Date.now() },
+              { path: '/Users/dev/projects/phosphor', name: 'phosphor', lastOpenedAt: Date.now() },
               {
                 path: '/Users/dev/projects/other',
                 name: 'other',
@@ -742,7 +743,7 @@ export function installMockPidex(): void {
         case 'app:setAgentDirectives':
           return Promise.resolve(undefined)
         case 'app:selectFolder':
-          return Promise.resolve('/Users/dev/projects/pidex')
+          return Promise.resolve('/Users/dev/projects/phosphor')
         case 'app:createSandbox':
           return Promise.resolve('/Users/dev/sandboxes/sandbox-1')
         case 'app:listSandboxes':
@@ -766,7 +767,7 @@ export function installMockPidex(): void {
                 type: 'extension_ui_request',
                 id: 'mock-ctx',
                 method: 'setStatus',
-                statusKey: 'pidex-context-breakdown',
+                statusKey: 'phosphor-context-breakdown',
                 statusText: MOCK_CONTEXT_BREAKDOWN,
               },
             } as SessionPush)
@@ -801,7 +802,7 @@ export function installMockPidex(): void {
                 type: 'extension_ui_request',
                 id: 'mock-headroom',
                 method: 'setStatus',
-                statusKey: 'pidex-headroom',
+                statusKey: 'phosphor-headroom',
                 statusText: JSON.stringify({
                   savedTokens: 12_400,
                   beforeTokens: 48_000,
@@ -815,7 +816,7 @@ export function installMockPidex(): void {
           }, 120)
           return Promise.resolve({
             sessionId: 'mock-session-id',
-            workspacePath: '/Users/dev/projects/pidex',
+            workspacePath: '/Users/dev/projects/phosphor',
             pid: 1234,
           })
         case 'pi:command': {
@@ -881,7 +882,7 @@ export function installMockPidex(): void {
               },
               {
                 name: 'debug',
-                description: 'Diagnose a failing pidex session outside-in.',
+                description: 'Diagnose a failing Phosphor session outside-in.',
                 dir: '/mock/workspace/.claude/skills/debug',
                 scope: 'project' as const,
                 source: 'scan',
@@ -1110,7 +1111,10 @@ export function installMockPidex(): void {
           return Promise.resolve(undefined)
         case 'packages:testClaudeProvider':
           return Promise.resolve(
-            runMockJob(['$ pi -p --model pi-claude-cli/claude-haiku-4-5 …', 'pidex-provider-ok']),
+            runMockJob([
+              '$ pi -p --model pi-claude-cli/claude-haiku-4-5 …',
+              'phosphor-provider-ok',
+            ]),
           )
         case 'mcp:readConfigs':
           return Promise.resolve({
@@ -1162,14 +1166,14 @@ export function installMockPidex(): void {
               },
               {
                 scope: 'project',
-                path: '/Users/dev/projects/pidex/.mcp.json',
+                path: '/Users/dev/projects/phosphor/.mcp.json',
                 exists: false,
                 malformed: false,
                 serverNames: [],
               },
               {
                 scope: 'pi-project',
-                path: '/Users/dev/projects/pidex/.pi/mcp.json',
+                path: '/Users/dev/projects/phosphor/.pi/mcp.json',
                 exists: true,
                 malformed: false,
                 serverNames: ['snowflake'],
@@ -1354,7 +1358,7 @@ export function installMockPidex(): void {
             number: 42,
             title: 'Composer attachments and worktree controls',
             state: 'OPEN',
-            url: 'https://github.com/agustinsacco/pidex/pull/42',
+            url: 'https://github.com/agustinsacco/Phosphor/pull/42',
             mergeable: 'MERGEABLE',
             mergeStateStatus: 'CLEAN',
             checks: { passed: 3, failed: 0, pending: 1, total: 4 },
@@ -1378,7 +1382,7 @@ export function installMockPidex(): void {
               number: 42,
               title: 'Composer attachments and worktree controls',
               state: 'OPEN',
-              url: 'https://github.com/agustinsacco/pidex/pull/42',
+              url: 'https://github.com/agustinsacco/Phosphor/pull/42',
               checks: { passed: 3, failed: 0, pending: 1, total: 4 },
               reviewDecision: 'APPROVED',
             },
@@ -1386,7 +1390,7 @@ export function installMockPidex(): void {
               number: 39,
               title: 'Lane loop removal',
               state: 'MERGED',
-              url: 'https://github.com/agustinsacco/pidex/pull/39',
+              url: 'https://github.com/agustinsacco/Phosphor/pull/39',
               checks: { passed: 4, failed: 0, pending: 0, total: 4 },
             },
           })
@@ -1414,7 +1418,7 @@ export function installMockPidex(): void {
                       // Worktree folders are commonly named after their branch
                       // (".../worktrees/main") — mainRepoPath exercises the
                       // "repo (branch)" sidebar label instead of that folder name.
-                      mainRepoPath: '/Users/dev/projects/pidex',
+                      mainRepoPath: '/Users/dev/projects/phosphor',
                     }
                   : { isRepo: true, branch: 'main', dirtyCount: 0, isWorktree: false },
               ]),
@@ -1426,8 +1430,8 @@ export function installMockPidex(): void {
         case 'git:listWorktrees':
           return Promise.resolve([
             {
-              path: '/Users/dev/projects/pidex',
-              realPath: '/Users/dev/projects/pidex',
+              path: '/Users/dev/projects/phosphor',
+              realPath: '/Users/dev/projects/phosphor',
               branch: 'main',
               head: 'abcdef1234567890',
               isMain: true,
@@ -1436,8 +1440,8 @@ export function installMockPidex(): void {
               dirtyCount: 3,
             },
             {
-              path: '/Users/dev/projects/pidex/.pidex/worktrees/fix-auth',
-              realPath: '/Users/dev/projects/pidex/.pidex/worktrees/fix-auth',
+              path: '/Users/dev/projects/phosphor/.phosphor/worktrees/fix-auth',
+              realPath: '/Users/dev/projects/phosphor/.phosphor/worktrees/fix-auth',
               branch: 'fix-auth',
               head: '123456abcdef7890',
               isMain: false,
@@ -1446,11 +1450,11 @@ export function installMockPidex(): void {
               dirtyCount: 0,
             },
             {
-              // Outside `.pidex/worktrees`, so nothing about the path says
-              // "worktree". It must still fold into the pidex group on the
+              // Outside `.phosphor/worktrees`, so nothing about the path says
+              // "worktree". It must still fold into the Phosphor group on the
               // first render, from the root this call was made against.
-              path: '/tmp/pidex-pr-4821',
-              realPath: '/tmp/pidex-pr-4821',
+              path: '/tmp/phosphor-pr-4821',
+              realPath: '/tmp/phosphor-pr-4821',
               branch: 'pr-4821',
               head: '9876fedcba543210',
               isMain: false,
@@ -1460,8 +1464,8 @@ export function installMockPidex(): void {
             },
             {
               // Folder deleted behind git's back. Never a sidebar group.
-              path: '/Users/dev/projects/pidex-gone',
-              realPath: '/Users/dev/projects/pidex-gone',
+              path: '/Users/dev/projects/phosphor-gone',
+              realPath: '/Users/dev/projects/phosphor-gone',
               branch: 'gone',
               head: '0000000000000000',
               isMain: false,
@@ -1492,7 +1496,7 @@ export function installMockPidex(): void {
               {
                 name: 'fix-auth',
                 isCurrent: false,
-                worktreePath: '/Users/dev/projects/pidex/.pidex/worktrees/fix-auth',
+                worktreePath: '/Users/dev/projects/phosphor/.phosphor/worktrees/fix-auth',
                 lastCommitSubject: 'wip',
                 behindDefault: 3,
               },
@@ -1516,8 +1520,8 @@ export function installMockPidex(): void {
           // the harness has to echo the requested branch rather than the folder.
           const branch = args[2] as { kind: string; branch?: string }
           return Promise.resolve({
-            path: `/Users/dev/projects/pidex/.pidex/worktrees/${args[1] as string}`,
-            realPath: `/Users/dev/projects/pidex/.pidex/worktrees/${args[1] as string}`,
+            path: `/Users/dev/projects/phosphor/.phosphor/worktrees/${args[1] as string}`,
+            realPath: `/Users/dev/projects/phosphor/.phosphor/worktrees/${args[1] as string}`,
             branch: branch.branch ?? (args[1] as string),
             head: 'abcdef1234567890',
             isMain: false,
@@ -1538,15 +1542,15 @@ export function installMockPidex(): void {
             worktreeCount: 3,
             candidates: [
               {
-                path: '/repo/.pidex/worktrees/merged-lane',
-                branch: 'pidex/merged-lane',
+                path: '/repo/.phosphor/worktrees/merged-lane',
+                branch: 'phosphor/merged-lane',
                 bytes: 980 * 1024 * 1024,
                 reason: 'merged',
               },
             ],
             held: [
               { path: '/repo', branch: 'main', reason: 'main-checkout' },
-              { path: '/repo/.pidex/worktrees/busy', branch: 'pidex/busy', reason: 'dirty' },
+              { path: '/repo/.phosphor/worktrees/busy', branch: 'phosphor/busy', reason: 'dirty' },
             ],
             prunedRegistrations: [],
             reclaimed: [],
@@ -1821,8 +1825,8 @@ export function installMockPidex(): void {
         sessionId,
         command,
       ),
-  } as PidexApi
+  } as PhosphorApi
 
-  window.pidex = api
-  console.info('[pidex] mock preload API installed (browser dev mode)')
+  window.phosphor = api
+  console.info('[Phosphor] mock preload API installed (browser dev mode)')
 }

@@ -21,7 +21,7 @@ const invoke = vi.fn(async (channel: string) => {
 beforeEach(() => {
   invoke.mockClear()
   // The menu is a projection of persisted picks; give it a main process.
-  ;(globalThis as unknown as { window: { pidex: unknown } }).window.pidex = { invoke }
+  ;(globalThis as unknown as { window: { phosphor: unknown } }).window.phosphor = { invoke }
   useModelPicksStore.setState({
     starred: [],
     recent: [],

@@ -99,13 +99,13 @@ export const useWorktreesStore = create<WorktreesState>((set, get) => ({
   branchPrefix: DEFAULT_WORKTREE_PREFS.branchPrefix,
 
   hydratePrefs: async () => {
-    const { worktrees } = await window.pidex.invoke('app:getPrefs')
+    const { worktrees } = await window.phosphor.invoke('app:getPrefs')
     set({ preferWorktree: worktrees.auto, branchPrefix: worktrees.branchPrefix })
   },
 
   setPreferWorktree: (value) => {
     set({ preferWorktree: value })
-    void window.pidex.invoke('app:setWorktreePrefs', {
+    void window.phosphor.invoke('app:setWorktreePrefs', {
       auto: value,
       branchPrefix: get().branchPrefix,
     })
@@ -113,7 +113,7 @@ export const useWorktreesStore = create<WorktreesState>((set, get) => ({
 
   setBranchPrefix: (value) => {
     set({ branchPrefix: value })
-    void window.pidex.invoke('app:setWorktreePrefs', {
+    void window.phosphor.invoke('app:setWorktreePrefs', {
       auto: get().preferWorktree,
       branchPrefix: value,
     })
@@ -122,8 +122,8 @@ export const useWorktreesStore = create<WorktreesState>((set, get) => ({
   refresh: async (repoPath) => {
     try {
       const [worktrees, branchData] = await Promise.all([
-        window.pidex.invoke('git:listWorktrees', repoPath),
-        window.pidex.invoke('git:listBranches', repoPath),
+        window.phosphor.invoke('git:listWorktrees', repoPath),
+        window.phosphor.invoke('git:listBranches', repoPath),
       ])
       set((s) =>
         // Spread the previous entry so a refresh triggered mid-fetch does not
@@ -151,25 +151,30 @@ export const useWorktreesStore = create<WorktreesState>((set, get) => ({
   },
 
   addWorktree: async (repoPath, name, branch) => {
-    const created = await window.pidex.invoke('git:addWorktree', repoPath, name, branch)
+    const created = await window.phosphor.invoke('git:addWorktree', repoPath, name, branch)
     await get().refresh(repoPath)
     return created
   },
 
   removeWorktree: async (repoPath, worktreePath, options) => {
-    const result = await window.pidex.invoke('git:removeWorktree', repoPath, worktreePath, options)
+    const result = await window.phosphor.invoke(
+      'git:removeWorktree',
+      repoPath,
+      worktreePath,
+      options,
+    )
     if (result.removed) await get().refresh(repoPath)
     return result
   },
 
   renameBranch: async (repoPath, from, to) => {
-    const result = await window.pidex.invoke('git:renameBranch', repoPath, from, to)
+    const result = await window.phosphor.invoke('git:renameBranch', repoPath, from, to)
     if (result.renamed) await get().refresh(repoPath)
     return result.branch
   },
 
   prune: async (repoPath) => {
-    const { pruned } = await window.pidex.invoke('git:pruneWorktrees', repoPath)
+    const { pruned } = await window.phosphor.invoke('git:pruneWorktrees', repoPath)
     await get().refresh(repoPath)
     return pruned
   },
@@ -180,7 +185,7 @@ export const useWorktreesStore = create<WorktreesState>((set, get) => ({
 
     patch({ fetching: true })
     try {
-      const result = await window.pidex.invoke('git:fetch', repoPath, options)
+      const result = await window.phosphor.invoke('git:fetch', repoPath, options)
       if (result.fetched) {
         patch({ fetchedAt: result.at })
         // Only re-list when something could actually have moved. A throttled
@@ -195,20 +200,20 @@ export const useWorktreesStore = create<WorktreesState>((set, get) => ({
   },
 
   pull: async (repoPath, cwd) => {
-    const result = await window.pidex.invoke('git:pull', cwd)
+    const result = await window.phosphor.invoke('git:pull', cwd)
     if (result.pulled) await get().refresh(repoPath)
     return result
   },
 
   updateFromMain: async (repoPath, worktreePath) => {
     const mainBranch = repoWorktrees(get(), repoPath).defaultBranch
-    const result = await window.pidex.invoke('git:updateFromMain', worktreePath, mainBranch)
+    const result = await window.phosphor.invoke('git:updateFromMain', worktreePath, mainBranch)
     if (result.updated) await get().refresh(repoPath)
     return result
   },
 
   checkout: async (repoPath, branch) => {
-    const result = await window.pidex.invoke('git:checkoutBranch', repoPath, branch)
+    const result = await window.phosphor.invoke('git:checkoutBranch', repoPath, branch)
     if (result.checkedOut) await get().refresh(repoPath)
     return result
   },

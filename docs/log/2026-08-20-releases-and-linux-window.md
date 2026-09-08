@@ -9,7 +9,7 @@ that 404s, hit its `!response.ok` branch, and applied an `error` event — which
 Three independent causes, each masking the next:
 
 - **Linux** died building the `.deb`: electron-builder needs `author.email`
-  for the maintainer field, and `package.json` had the bare string `"pidex"`.
+  for the maintainer field, and `package.json` had the bare string `"Phosphor"`.
   Fixing that surfaced a second hard error, `Please specify project homepage`,
   invisible until the first was fixed. Both are now set, plus `repository`.
 - **macOS** died in code signing with `⨯ <projectDir> not a file`. A missing
@@ -29,8 +29,8 @@ caused all of this — is generated again. The macOS path is reasoned, not
 verified; no mac signing environment was reachable.
 
 **Install was documented against a repo that does not exist.** The README and
-`install.sh` both defaulted to `pidex-app/pidex`, which 404s, while
-`updater.ts` correctly used `agustinsacco/pidex`. The app could find its
+`install.sh` both defaulted to `Phosphor-app/Phosphor`, which 404s, while
+`updater.ts` correctly used `agustinsacco/Phosphor`. The app could find its
 updates; a new user could not find the app. Also: the continuous workflow
 never published `checksums.txt`, so every `curl | sh` install printed
 "continuing without verification". `finalize` now computes and uploads it.
@@ -56,7 +56,7 @@ window manager, though the Linux overlay draws only minimize and close.
 no platform detection anywhere in the renderer — the composer told Linux users
 to press `⌥Enter` for a queued follow-up. The handlers were always correct
 (`event.metaKey || event.ctrlKey`), so only the labels were wrong. `platform`
-is now a synchronous field on `PidexApi` (labels render on first paint, so an
+is now a synchronous field on `PhosphorApi` (labels render on first paint, so an
 async `invoke` would flash the wrong modifier), and `src/lib/shortcuts.ts`
 formats per platform: glyphs run together on macOS, `Ctrl+Shift+E` elsewhere.
 The `⌥` in `sessionSubtitle.ts` is a worktree marker, not a key, and was left

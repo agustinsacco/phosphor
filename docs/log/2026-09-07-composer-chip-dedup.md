@@ -9,7 +9,7 @@ that is where they drifted.
 ## What was wrong
 
 Putting the provider on the model's own line
-([#206](https://github.com/agustinsacco/pidex/pull/206)) reached
+([#206](https://github.com/agustinsacco/Phosphor/pull/206)) reached
 `ModelPicker` and not `HomeModelPicker`, because the chip markup was
 copy-pasted between them. So a live session read
 

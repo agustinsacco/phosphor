@@ -1,6 +1,6 @@
-# pidex — Product Overview
+# Phosphor — Product Overview
 
-pidex is a desktop coding-agent app, powered entirely by the **pi coding agent** (`@earendil-works/pi-coding-agent`). It began as a study of Anthropic's Claude Desktop "Code" experience and took its interaction vocabulary from there; the visual identity has since diverged deliberately — see [style-guide.md](style-guide.md).
+Phosphor is a desktop coding-agent app, powered entirely by the **pi coding agent** (`@earendil-works/pi-coding-agent`). It began as a study of Anthropic's Claude Desktop "Code" experience and took its interaction vocabulary from there; the visual identity has since diverged deliberately — see [style-guide.md](style-guide.md).
 
 ## Product definition
 

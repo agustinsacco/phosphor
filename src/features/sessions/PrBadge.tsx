@@ -67,7 +67,7 @@ export function PrBadge({ pr }: { pr: GhPullRequest | null }): React.JSX.Element
       className={clsx(
         'ml-auto flex shrink-0 items-center gap-0.5 rounded-full border px-1.5 font-mono text-2xs font-semibold',
         // Hover derives from the chip's OWN colour (`border-current`) rather
-        // than a `dark:` variant: pidex themes via a `.dark` CLASS, but no
+        // than a `dark:` variant: Phosphor themes via a `.dark` CLASS, but no
         // `@custom-variant dark` is defined, so Tailwind's `dark:` would key
         // off the OS preference and be wrong whenever the two disagree. No
         // other component in the renderer uses `dark:` either.
@@ -83,5 +83,5 @@ export function PrBadge({ pr }: { pr: GhPullRequest | null }): React.JSX.Element
 
 /** Open a PR in the user's browser. Shared by the chip and the context menu. */
 export function openPullRequest(pr: GhPullRequest): Promise<void> {
-  return window.pidex.invoke('app:openExternal', pr.url)
+  return window.phosphor.invoke('app:openExternal', pr.url)
 }

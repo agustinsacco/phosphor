@@ -1,4 +1,5 @@
 .claude/
+.phosphor/
 .pidex/
 node_modules/
 out/

@@ -68,13 +68,13 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   const workspaceName = projectName(workspacePath, git)
 
   useEffect(() => {
-    void window.pidex.invoke('sessions:stats', workspacePath).then(setStats)
-    void window.pidex
+    void window.phosphor.invoke('sessions:stats', workspacePath).then(setStats)
+    void window.phosphor
       .invoke('app:userInfo')
       .then((info) => setUsername(prettifyName(info.username)))
     // Only a git repo can offer isolation, so the toggle stays hidden until we
     // know this folder is one.
-    void window.pidex
+    void window.phosphor
       .invoke('git:info', workspacePath)
       .then((info) => setIsRepo(info.isRepo))
       .catch(() => setIsRepo(false))
@@ -338,7 +338,7 @@ function useStartPoint(workspacePath: string): string | null {
   const [trunk, setTrunk] = useState<string | null>(null)
   useEffect(() => {
     let cancelled = false
-    void window.pidex
+    void window.phosphor
       .invoke('git:startPoint', workspacePath)
       .then((point) => {
         if (!cancelled) setTrunk(point.defaultBranch)

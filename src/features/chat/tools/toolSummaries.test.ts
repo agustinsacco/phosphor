@@ -191,33 +191,33 @@ describe('summarizeTool', () => {
     })
 
     it('drops a leading cd into the workspace, keeping the real command', () => {
-      const ws = '/home/u/src/pidex/.pidex/worktrees/fix-sidebar'
+      const ws = '/home/u/src/phosphor/.phosphor/worktrees/fix-sidebar'
       const t = tool({ toolName: 'bash', args: { command: `cd ${ws} && git status` } })
       expect(summarizeTool(t, ws).object).toBe('git status')
     })
 
     it('handles quoted cd targets and trailing slashes in the workspace', () => {
-      const ws = '/home/u/src/pidex/.pidex/worktrees/fix-sidebar/'
+      const ws = '/home/u/src/phosphor/.phosphor/worktrees/fix-sidebar/'
       const trimmed = ws.replace(/\/+$/, '')
       const t = tool({ toolName: 'bash', args: { command: `cd "${trimmed}" && npm test` } })
       expect(summarizeTool(t, ws).object).toBe('npm test')
     })
 
     it('collapses later workspace mentions to the folder basename', () => {
-      const ws = '/home/u/src/pidex/.pidex/worktrees/fix-sidebar'
+      const ws = '/home/u/src/phosphor/.phosphor/worktrees/fix-sidebar'
       const t = tool({ toolName: 'bash', args: { command: `git -C ${ws} diff` } })
       expect(summarizeTool(t, ws).object).toBe('git -C fix-sidebar diff')
     })
 
     it('keeps the full workspace path when no workspace is known', () => {
-      const ws = '/home/u/src/pidex/.pidex/worktrees/fix-sidebar'
+      const ws = '/home/u/src/phosphor/.phosphor/worktrees/fix-sidebar'
       const t = tool({ toolName: 'bash', args: { command: `cd ${ws} && git status` } })
       expect(summarizeTool(t).object).toBe('git status')
     })
 
     it('drops a cd into any directory, not only the workspace', () => {
       // cd is setup wherever it points; the expanded detail keeps the wd.
-      const ws = '/home/u/src/pidex/.pidex/worktrees/fix-sidebar'
+      const ws = '/home/u/src/phosphor/.phosphor/worktrees/fix-sidebar'
       const t = tool({ toolName: 'bash', args: { command: 'cd /tmp && ls' } })
       const summary = summarizeTool(t, ws)
       expect(summary.object).toBe('ls')
@@ -227,7 +227,7 @@ describe('summarizeTool', () => {
     it('labels a multi-line script by its operative line, not its setup', () => {
       // The measured shape: 96% of real bash calls are multi-line and 94%
       // open with cd/echo/VAR= — the old flatten+truncate showed only those.
-      const ws = '/home/u/src/pidex/.pidex/worktrees/fix-sidebar'
+      const ws = '/home/u/src/phosphor/.phosphor/worktrees/fix-sidebar'
       const command = `cd ${ws}\necho "=== scopes ==="\ngrep -n "mcp.json" electron/pi/mcp-config.ts`
       const summary = summarizeTool(tool({ toolName: 'bash', args: { command } }), ws)
       expect(summary.object).toBe('grep -n "mcp.json" electron/pi/mcp-config.ts')
@@ -262,7 +262,7 @@ describe('summarizeTool', () => {
     })
 
     it('shortens workspace mentions inside the picked line', () => {
-      const ws = '/home/u/src/pidex/.pidex/worktrees/fix-sidebar'
+      const ws = '/home/u/src/phosphor/.phosphor/worktrees/fix-sidebar'
       const command = `echo hi\ngrep -rn "x" ${ws}/src`
       expect(summarizeTool(tool({ toolName: 'bash', args: { command } }), ws).object).toBe(
         'grep -rn "x" fix-sidebar/src',

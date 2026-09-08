@@ -51,7 +51,7 @@ export function SettingsModal(): React.JSX.Element | null {
   // the extension's own tab appear without reopening the app.
   useEffect(() => {
     if (!open) return
-    void window.pidex
+    void window.phosphor
       .invoke('packages:list')
       .then((entries) => setInstalledSpecs(entries.map((e) => e.spec)))
       .catch(() => setInstalledSpecs([]))

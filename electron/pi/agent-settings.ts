@@ -131,7 +131,7 @@ export async function patchWebSearchConfig(patch: Record<string, unknown>): Prom
   if (read.malformed) {
     throw new Error(
       `${path} is not valid JSON (${read.error ?? 'parse error'}). ` +
-        'pidex will not overwrite it — fix it via "Edit raw JSON" first.',
+        'Phosphor will not overwrite it — fix it via "Edit raw JSON" first.',
     )
   }
   const merged = { ...read.value, ...patch }
@@ -159,7 +159,7 @@ export async function patchAgentSettings(
   if (read.malformed) {
     throw new Error(
       `${path} is not valid JSON (${read.error ?? 'parse error'}). ` +
-        'pidex will not overwrite it and lose your existing settings — ' +
+        'Phosphor will not overwrite it and lose your existing settings — ' +
         'fix it in Settings → Advanced → pi settings.json, then try again.',
     )
   }

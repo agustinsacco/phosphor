@@ -16,7 +16,7 @@ import { describeWarnings, type PreflightSummary } from './deletePreflight'
  * "Delete a lane" is three resources, and only the first two default on:
  * the session transcript (to the OS Trash, recoverable), the worktree
  * directory (gone), and the branch (only when it is proven merged). Remote branches are
- * deliberately not offered — pidex has no channel for it, and a bulk flow is
+ * deliberately not offered — Phosphor has no channel for it, and a bulk flow is
  * the worst place to introduce the least reversible operation.
  */
 export function BulkDeleteModal({
@@ -337,8 +337,8 @@ export function BulkDeleteProgressModal({
             </div>
             {warned.length > 0 && (
               <p className="text-text-tertiary mt-2 text-xs">
-                Deleted, but the branch was kept: its work is not on the trunk yet, and pidex never
-                force-deletes a branch that would lose commits.
+                Deleted, but the branch was kept: its work is not on the trunk yet, and Phosphor
+                never force-deletes a branch that would lose commits.
               </p>
             )}
           </div>

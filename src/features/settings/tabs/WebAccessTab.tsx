@@ -34,7 +34,7 @@ export function WebAccessTab(): React.JSX.Element {
   const [rawEdit, setRawEdit] = useState(false)
 
   const refresh = useCallback(async (): Promise<void> => {
-    setState(await window.pidex.invoke('pi:webSearchConfig'))
+    setState(await window.phosphor.invoke('pi:webSearchConfig'))
   }, [])
 
   useEffect(() => {
@@ -43,7 +43,7 @@ export function WebAccessTab(): React.JSX.Element {
 
   const patch = async (key: string, value: string): Promise<void> => {
     try {
-      await window.pidex.invoke('pi:patchWebSearchConfig', { [key]: value || undefined })
+      await window.phosphor.invoke('pi:patchWebSearchConfig', { [key]: value || undefined })
       useExtensionUiStore.getState().pushToast('Saved — applies to new sessions', 'info')
       await refresh()
     } catch (error) {
@@ -72,7 +72,7 @@ export function WebAccessTab(): React.JSX.Element {
             {state.path} is not valid JSON{state.error ? ` (${state.error})` : ''}.
           </span>{' '}
           <span className="text-text-secondary">
-            Field editing is disabled so pidex cannot clobber it — fix it in the raw editor.
+            Field editing is disabled so Phosphor cannot clobber it — fix it in the raw editor.
           </span>
         </div>
       )}

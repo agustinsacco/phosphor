@@ -7,8 +7,8 @@ there was no way to see the plan window at all: the same "Claude Opus 5"
 label appears whether it came from pi's Anthropic path or through the Claude
 Code CLI, and only one of those spends plan quota.
 
-Shipped as [#42](https://github.com/agustinsacco/pidex/pull/42) (composition)
-and [#45](https://github.com/agustinsacco/pidex/pull/45) (plan limits), both
+Shipped as [#42](https://github.com/agustinsacco/Phosphor/pull/42) (composition)
+and [#45](https://github.com/agustinsacco/Phosphor/pull/45) (plan limits), both
 into the context meter's popover.
 
 ## Composition: measured where the parts actually exist
@@ -17,7 +17,7 @@ The pieces that fill a context window — the composed system prompt, the
 active tool schemas — are assembled **inside pi** and are not reachable from
 the renderer through any RPC. So the measurement moved to where the data
 lives: `pi-ext/context-breakdown.ts`, a bundled extension loaded into every
-session, publishing a breakdown on the `pidex-context-breakdown` status key.
+session, publishing a breakdown on the `Phosphor-context-breakdown` status key.
 
 Provider-agnostic by construction. It reads pi's own state, so it works
 identically for local models, native Anthropic and the Claude Code CLI —
@@ -44,7 +44,7 @@ total — would be worse than the single number we started with.
 The Claude Code CLI emits a `rate_limit_event` on **every turn** that the
 provider was silently dropping. It now forwards it (`onRateLimit`) and
 publishes it on the neutral `claude-rate-limit` key — neutral rather than
-`pidex-*` because it is account state any pi front-end can use. Provider
+`Phosphor-*` because it is account state any pi front-end can use. Provider
 0.4.5; the payload and its rules are documented in that repo's
 `docs/ARCHITECTURE.md`.
 
@@ -60,7 +60,7 @@ next provider we add.
 **What it deliberately does not show: utilization percentages.** The "12% of
 your 5-hour limit" in Claude Code's own TUI comes from
 `anthropic-ratelimit-unified-*` **response headers**, which the CLI consumes
-in-process and never writes to stdout. Getting them means pidex making
+in-process and never writes to stdout. Getting them means Phosphor making
 authenticated Anthropic requests with the user's credentials — the same line
 we declined to cross when we chose to route inference through the CLI rather
 than borrow its tokens. So the chip answers "when does capacity come back",

@@ -14,7 +14,7 @@ pi's system prompt, so one page serves every provider.
 (`PiRpcClient`, `noSession: true`) and reads `get_commands` — the same
 discovery every session uses, so the list can't drift from what a session
 actually loads. Each skill's `sourceInfo` gives path/scope/source/origin;
-pidex enriches it with parsed frontmatter, the file tree, and provenance.
+Phosphor enriches it with parsed frontmatter, the file tree, and provenance.
 
 When the probe fails **or returns zero skills**, a filesystem scan of the
 known roots takes over (`~/.pi/agent/skills`, `<ws>/.pi/skills`, plus any
@@ -25,11 +25,11 @@ exercises the scan path deterministically.
 
 Honesty rules baked into the model:
 
-- **writable** = under a pidex-managed root and not from a package. Package
+- **writable** = under a Phosphor-managed root and not from a package. Package
   skills and settings-listed foreign dirs (e.g. borrowed `~/.claude/skills`)
   render read-only; there is no fake enable toggle.
 - **draft** = `disable-model-invocation: true` — a real Agent Skills flag,
-  not pidex state. Hide/publish just rewrites that frontmatter key.
+  not Phosphor state. Hide/publish just rewrites that frontmatter key.
 - Grouping is by root, not scope: `~/.claude/skills` and `~/.pi/agent/skills`
   are both "user" to pi, and telling them apart is the point.
 
@@ -50,7 +50,7 @@ extensions catalogue): `anthropics/skills` (19), `obra/superpowers` (13),
 pinned SHAs. Install fetches the GitHub zipball
 (`codeload.github.com/<repo>/zip/<sha>`), extracts exactly one
 `<subpath>/<skill>/` subtree into the global root, and writes a
-`.pidex-skill.json` sidecar (`catalogId/repo/sha/subpath/installedAt`) so
+`.phosphor-skill.json` sidecar (`catalogId/repo/sha/subpath/installedAt`) so
 the detail view can offer **Update** when the catalog pin moves. The zipball
 is cached per repo@sha for the app's lifetime.
 
@@ -67,7 +67,7 @@ caps, declared-size mismatches. Import (`Upload`) reuses it for `.zip` /
 `src/stores/skills.ts` (keyed `byWorkspace`), `'skills'` added to the
 `RightPane` union, nav row under Artifacts. The Advanced settings tab's
 resource grid dropped its skills card (extensions/prompts/themes remain) and
-points here. Mock cases in `src/dev/mockPidex.ts` keep browser-only dev
+points here. Mock cases in `src/dev/mockPhosphor.ts` keep browser-only dev
 working.
 
 ## Tests

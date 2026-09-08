@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.stubGlobal('window', { pidex: { invoke: vi.fn().mockResolvedValue(undefined) } })
+vi.stubGlobal('window', { phosphor: { invoke: vi.fn().mockResolvedValue(undefined) } })
 
 const { useLayoutStore, sessionPanes, sanitizePersistedPanes } = await import('./layout')
 const { useSessionsStore } = await import('./sessions')

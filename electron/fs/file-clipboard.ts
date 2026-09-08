@@ -2,7 +2,7 @@ import { clipboard } from 'electron'
 import { execFile } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
-const FORMAT = 'application/x-pidex-file-paths'
+const FORMAT = 'application/x-phosphor-file-paths'
 
 /** Our clipboard payload cannot be mistaken for ordinary copied text. */
 export function writeFilePaths(paths: string[], cut: boolean): void {

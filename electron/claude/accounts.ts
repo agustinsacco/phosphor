@@ -19,7 +19,7 @@
  * `projectsDirectory: ~/.claude/projects`. `CLAUDE_CONFIG_DIR` is the wrong
  * knob for this: it relocates projects, settings.json, skills and plugins too.
  *
- * pidex spawns one `pi` per session and pi-claude-cli spawns the CLI with
+ * Phosphor spawns one `pi` per session and pi-claude-cli spawns the CLI with
  * `{ ...process.env }`, so putting the variable on the pi spawn binds the whole
  * session — pi, the extension, and the parked CLI process — to one account.
  * That is why this feature needs no pi-claude-cli change at all.

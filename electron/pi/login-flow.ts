@@ -49,7 +49,7 @@ import { type AuthCheck, checkProviderAuth } from './auth-status'
  *
  * - The device code, where there is one, must reach the user — not just the
  *   URL, or they get a browser page they cannot complete.
- * - pi does **not** open the browser ("Cmd+click to open"), so pidex does.
+ * - pi does **not** open the browser ("Cmd+click to open"), so Phosphor does.
  *   That is a feature: the login lands in the user's real browser, where they
  *   are already signed in, instead of an embedded view.
  */
@@ -213,7 +213,7 @@ export function isNewCredential(before: AuthCheck, after: AuthCheck): boolean {
 export function timeoutMessage(budget: 'setup' | 'browser'): string {
   return budget === 'setup'
     ? 'pi did not reach a sign-in page. Use “Open pi’s login terminal” below to finish it by hand.'
-    : 'Sign-in timed out waiting for your browser, so pidex closed pi’s callback server. ' +
+    : 'Sign-in timed out waiting for your browser, so Phosphor closed pi’s callback server. ' +
         'If your browser now says it cannot reach localhost, that is why — start the sign-in again.'
 }
 
@@ -362,7 +362,7 @@ export async function startLogin(
       sentLoginMethod = true
       stepStartedAt = Date.now()
       // OpenAI Codex asks browser-vs-device-code. "Browser login" is both the
-      // preselected default and the better fit here, since pidex opens the
+      // preselected default and the better fit here, since Phosphor opens the
       // user's real browser — where they are already signed in.
       ptyManager.write(ptyId, CR)
     } else if (step === 'host-question' && !answeredHost) {
@@ -390,7 +390,7 @@ export async function startLogin(
 
     // Completion is asked of pi, not read off the screen. The TUI announces
     // success in prose that could change wording at any release, whereas
-    // `auth check` is the same fact the rest of pidex already trusts.
+    // `auth check` is the same fact the rest of Phosphor already trusts.
     // Throttled well below the poll rate: each check is a `pi` subprocess, and
     // the thing being waited on is a human in a browser.
     if (lastAuth && !verifying && Date.now() - lastVerifyAt >= VERIFY_INTERVAL_MS) {

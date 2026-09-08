@@ -30,10 +30,10 @@ async function git(cwd: string, args: string[]): Promise<string> {
 }
 
 beforeEach(async () => {
-  repo = await mkdtemp(join(tmpdir(), 'pidex-wt-'))
+  repo = await mkdtemp(join(tmpdir(), 'phosphor-wt-'))
   await git(repo, ['init', '-b', 'main'])
-  await git(repo, ['config', 'user.email', 'test@pidex.dev'])
-  await git(repo, ['config', 'user.name', 'pidex test'])
+  await git(repo, ['config', 'user.email', 'test@phosphor.dev'])
+  await git(repo, ['config', 'user.name', 'Phosphor test'])
   await writeFile(join(repo, 'a.txt'), 'one\n')
   await git(repo, ['add', '-A'])
   await git(repo, ['commit', '-m', 'initial'])
@@ -51,12 +51,12 @@ describe('parseWorktreeList', () => {
         'HEAD 1111111111111111111111111111111111111111',
         'branch refs/heads/main',
         '',
-        'worktree /repo/.pidex/worktrees/task',
+        'worktree /repo/.phosphor/worktrees/task',
         'HEAD 2222222222222222222222222222222222222222',
         'branch refs/heads/task',
         'locked reason',
         '',
-        'worktree /repo/.pidex/worktrees/gone',
+        'worktree /repo/.phosphor/worktrees/gone',
         'HEAD 3333333333333333333333333333333333333333',
         'detached',
         'prunable gitdir file points to non-existent location',
@@ -71,21 +71,21 @@ describe('parseWorktreeList', () => {
 })
 
 describe('git-worktrees (real git)', () => {
-  it('adds a worktree on a new branch and excludes /.pidex/', async () => {
+  it('adds a worktree on a new branch and excludes /.phosphor/', async () => {
     const created = await addWorktree(repo, 'task-1', { kind: 'new', base: 'main' })
     expect(created.branch).toBe('task-1')
     expect(created.isMain).toBe(false)
     expect(existsSync(join(worktreeRootFor(repo), 'task-1'))).toBe(true)
 
-    // /.pidex/ excluded → main status stays clean.
+    // /.phosphor/ excluded → main status stays clean.
     expect(await git(repo, ['status', '--porcelain'])).toBe('')
     const exclude = await readFile(join(repo, '.git', 'info', 'exclude'), 'utf8')
-    expect(exclude).toContain('/.pidex/')
+    expect(exclude).toContain('/.phosphor/')
 
     // Idempotent exclude append.
     await addWorktree(repo, 'task-2', { kind: 'new', base: 'main' })
     const exclude2 = await readFile(join(repo, '.git', 'info', 'exclude'), 'utf8')
-    expect(exclude2.match(/\/\.pidex\//g)).toHaveLength(1)
+    expect(exclude2.match(/\/\.phosphor\//g)).toHaveLength(1)
   })
 
   it('refuses names with path separators traversal and duplicates', async () => {
@@ -158,7 +158,7 @@ describe('git-worktrees (real git)', () => {
   })
 
   it('deletes a squash-merged branch, which plain -d refuses', async () => {
-    // The exact shape of a merged pidex lane: the PR squashes the branch's
+    // The exact shape of a merged Phosphor lane: the PR squashes the branch's
     // commits into one new commit on main, so the branch is not an ancestor
     // and `git branch -d` refuses it even though nothing would be lost.
     const created = await addWorktree(repo, 'task-1', { kind: 'new', base: 'main' })
@@ -241,15 +241,15 @@ describe('git-worktrees (real git)', () => {
   })
 
   it('creates a branch whose name differs from the worktree folder', async () => {
-    // Auto-created session branches are prefixed (`pidex/…`) but their folder
+    // Auto-created session branches are prefixed (`phosphor/…`) but their folder
     // cannot be — the basename names the sidebar group, and a `/` would nest
     // the checkout a level deeper.
     const created = await addWorktree(repo, 'session-naming', {
       kind: 'new',
       base: 'main',
-      branch: 'pidex/session-naming',
+      branch: 'phosphor/session-naming',
     })
-    expect(created.branch).toBe('pidex/session-naming')
+    expect(created.branch).toBe('phosphor/session-naming')
     expect(created.path.endsWith(join('worktrees', 'session-naming'))).toBe(true)
     expect(existsSync(join(worktreeRootFor(repo), 'session-naming'))).toBe(true)
   })
@@ -281,18 +281,18 @@ describe('renameBranch (real git)', () => {
     await addWorktree(repo, 'slug-folder', {
       kind: 'new',
       base: 'HEAD',
-      branch: 'pidex/read-each-of-the-12-largest-files',
+      branch: 'phosphor/read-each-of-the-12-largest-files',
     })
     const path = join(worktreeRootFor(repo), 'slug-folder')
 
     const result = await renameBranch(
       repo,
-      'pidex/read-each-of-the-12-largest-files',
-      'pidex/tsx-file-survey',
+      'phosphor/read-each-of-the-12-largest-files',
+      'phosphor/tsx-file-survey',
     )
 
-    expect(result).toEqual({ renamed: true, branch: 'pidex/tsx-file-survey' })
-    expect(await git(path, ['rev-parse', '--abbrev-ref', 'HEAD'])).toBe('pidex/tsx-file-survey')
+    expect(result).toEqual({ renamed: true, branch: 'phosphor/tsx-file-survey' })
+    expect(await git(path, ['rev-parse', '--abbrev-ref', 'HEAD'])).toBe('phosphor/tsx-file-survey')
     // The folder deliberately does NOT move: it is a live session's cwd.
     expect(existsSync(path)).toBe(true)
     // Matched on `realPath` as well as `path`, the way every production
@@ -303,39 +303,39 @@ describe('renameBranch (real git)', () => {
     const created = worktrees.find(
       (w) => w.path === path || w.realPath === realpathSync.native(path),
     )
-    expect(created?.branch).toBe('pidex/tsx-file-survey')
+    expect(created?.branch).toBe('phosphor/tsx-file-survey')
   })
 
   it('reports failure instead of throwing when the target name is taken', async () => {
-    await git(repo, ['branch', 'pidex/taken'])
-    await git(repo, ['branch', 'pidex/original'])
+    await git(repo, ['branch', 'phosphor/taken'])
+    await git(repo, ['branch', 'phosphor/original'])
 
-    expect(await renameBranch(repo, 'pidex/original', 'pidex/taken')).toEqual({
+    expect(await renameBranch(repo, 'phosphor/original', 'phosphor/taken')).toEqual({
       renamed: false,
-      branch: 'pidex/original',
+      branch: 'phosphor/original',
     })
     // Neither branch was disturbed — `-m` refuses rather than clobbering.
     const names = (await listBranches(repo)).branches.map((b) => b.name)
-    expect(names).toContain('pidex/original')
-    expect(names).toContain('pidex/taken')
+    expect(names).toContain('phosphor/original')
+    expect(names).toContain('phosphor/taken')
   })
 
   it('refuses ref-hostile targets without invoking git', async () => {
-    await git(repo, ['branch', 'pidex/original'])
+    await git(repo, ['branch', 'phosphor/original'])
     for (const hostile of ['bad..name', '-leading-dash', 'has space', 'tilde~1']) {
-      expect(await renameBranch(repo, 'pidex/original', hostile)).toEqual({
+      expect(await renameBranch(repo, 'phosphor/original', hostile)).toEqual({
         renamed: false,
-        branch: 'pidex/original',
+        branch: 'phosphor/original',
       })
     }
-    expect((await listBranches(repo)).branches.map((b) => b.name)).toContain('pidex/original')
+    expect((await listBranches(repo)).branches.map((b) => b.name)).toContain('phosphor/original')
   })
 
   it('is a no-op when the name is already right', async () => {
-    await git(repo, ['branch', 'pidex/same'])
-    expect(await renameBranch(repo, 'pidex/same', 'pidex/same')).toEqual({
+    await git(repo, ['branch', 'phosphor/same'])
+    expect(await renameBranch(repo, 'phosphor/same', 'phosphor/same')).toEqual({
       renamed: false,
-      branch: 'pidex/same',
+      branch: 'phosphor/same',
     })
   })
 })
@@ -346,10 +346,10 @@ describe('startPoint with a remote (real git)', () => {
 
   beforeEach(async () => {
     origin = repo
-    clone = await mkdtemp(join(tmpdir(), 'pidex-wt-clone-'))
+    clone = await mkdtemp(join(tmpdir(), 'phosphor-wt-clone-'))
     await execFileAsync('git', ['clone', '--quiet', origin, clone])
-    await git(clone, ['config', 'user.email', 'test@pidex.dev'])
-    await git(clone, ['config', 'user.name', 'pidex test'])
+    await git(clone, ['config', 'user.email', 'test@phosphor.dev'])
+    await git(clone, ['config', 'user.name', 'Phosphor test'])
   })
 
   afterEach(async () => {
@@ -371,13 +371,13 @@ describe('startPoint with a remote (real git)', () => {
     const created = await addWorktree(clone, 'fresh', {
       kind: 'new',
       base: point.base,
-      branch: 'pidex/fresh',
+      branch: 'phosphor/fresh',
       noTrack: true,
     })
     // The new branch has the remote's newest commit; local main does not — the
     // whole point of preferring origin/main over the stale local trunk.
     expect(existsSync(join(created.path, 'b.txt'))).toBe(true)
-    expect(await git(clone, ['rev-parse', 'pidex/fresh'])).toBe(
+    expect(await git(clone, ['rev-parse', 'phosphor/fresh'])).toBe(
       await git(clone, ['rev-parse', 'origin/main']),
     )
     expect(await git(clone, ['rev-parse', 'main'])).not.toBe(
@@ -386,21 +386,21 @@ describe('startPoint with a remote (real git)', () => {
   })
 
   it('noTrack keeps origin/main from becoming the new branch upstream', async () => {
-    await addWorktree(clone, 'tracked', { kind: 'new', base: 'origin/main', branch: 'pidex/t' })
+    await addWorktree(clone, 'tracked', { kind: 'new', base: 'origin/main', branch: 'phosphor/t' })
     await addWorktree(clone, 'untracked', {
       kind: 'new',
       base: 'origin/main',
-      branch: 'pidex/u',
+      branch: 'phosphor/u',
       noTrack: true,
     })
     // Without --no-track git adopts origin/main as upstream, which would make
     // the branch chip measure the session against trunk and point `git push`
     // at main. With it, the branch simply has no upstream.
     expect(
-      await git(clone, ['for-each-ref', '--format=%(upstream:short)', 'refs/heads/pidex/t']),
+      await git(clone, ['for-each-ref', '--format=%(upstream:short)', 'refs/heads/phosphor/t']),
     ).toBe('origin/main')
     expect(
-      await git(clone, ['for-each-ref', '--format=%(upstream:short)', 'refs/heads/pidex/u']),
+      await git(clone, ['for-each-ref', '--format=%(upstream:short)', 'refs/heads/phosphor/u']),
     ).toBe('')
   })
 })

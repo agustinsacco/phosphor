@@ -8,7 +8,7 @@
  *    shifts every title in the list and the left edge goes ragged, which is
  *    what stops the column being scannable. So an unassigned lane falls back
  *    to a hash of its branch — never to blank.
- * 2. The fallback is derived, not stored. pidex names a session only AFTER its
+ * 2. The fallback is derived, not stored. Phosphor names a session only AFTER its
  *    first turn ends, so a brand-new lane has no name to key off; its branch
  *    exists from the moment the worktree does. That is why the hash keys on
  *    the branch (or cwd) and not on the title.

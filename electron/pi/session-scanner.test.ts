@@ -68,7 +68,7 @@ describe('session scanner', () => {
   let sessionPath: string
 
   beforeAll(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'pidex-scan-'))
+    dir = await mkdtemp(join(tmpdir(), 'phosphor-scan-'))
     sessionPath = join(dir, '2026-08-01T10-00-00-000Z_sess-uuid-1.jsonl')
     await writeFile(sessionPath, SESSION_CONTENT, 'utf8')
   })
@@ -146,7 +146,7 @@ describe('session scanner', () => {
   })
 
   it('orders sessions by immutable creation time, not changed-file mtime', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'pidex-scan-order-'))
+    const root = await mkdtemp(join(tmpdir(), 'phosphor-scan-order-'))
     const previousRoot = process.env.PI_CODING_AGENT_SESSION_DIR
     process.env.PI_CODING_AGENT_SESSION_DIR = root
     try {

@@ -26,7 +26,7 @@ function run(
     cwd: here,
     binaryPath: process.execPath,
     prefixArgs: [fakePi],
-    env: { PIDEX_FAKE_AUTH: mode },
+    env: { PHOSPHOR_FAKE_AUTH: mode },
     onState: (state) => states.push(state),
     openUrl: (url) => opened.push(url),
     ...overrides,

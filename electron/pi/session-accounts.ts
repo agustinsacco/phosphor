@@ -4,7 +4,7 @@
  * A session's account is decided at spawn, but the thing it has to be recorded
  * against — the session's own `.jsonl` path — does not exist yet: pi writes the
  * file when the first turn ends, and the renderer only learns the path from
- * `get_state`. So the pick is parked here under the pidex session id and
+ * `get_state`. So the pick is parked here under the Phosphor session id and
  * claimed by `claude:bindSession` once the path is known.
  *
  * Deliberately not persisted. An entry for a session disposed before its
@@ -13,9 +13,9 @@
  */
 const bySession = new Map<string, string>()
 
-/** Record the account a spawn chose, keyed by pidex session id. */
-export function rememberSpawnAccount(pidexSessionId: string, accountId: string): void {
-  bySession.set(pidexSessionId, accountId)
+/** Record the account a spawn chose, keyed by Phosphor session id. */
+export function rememberSpawnAccount(phosphorSessionId: string, accountId: string): void {
+  bySession.set(phosphorSessionId, accountId)
 }
 
 /**
@@ -27,13 +27,13 @@ export function rememberSpawnAccount(pidexSessionId: string, accountId: string):
  * asks, and the one that decides whose usage it should show. The entry now
  * lives until the subprocess goes away and `forgetSpawnAccount` clears it.
  */
-export function spawnAccountFor(pidexSessionId: string): string | undefined {
-  return bySession.get(pidexSessionId)
+export function spawnAccountFor(phosphorSessionId: string): string | undefined {
+  return bySession.get(phosphorSessionId)
 }
 
 /** Drop a session's parked pick when its subprocess goes away. */
-export function forgetSpawnAccount(pidexSessionId: string): void {
-  bySession.delete(pidexSessionId)
+export function forgetSpawnAccount(phosphorSessionId: string): void {
+  bySession.delete(phosphorSessionId)
 }
 
 /**

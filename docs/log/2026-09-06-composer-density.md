@@ -1,6 +1,6 @@
 # Composer density and one-line lanes
 
-The formatting toolbar shipped in [#198](https://github.com/agustinsacco/pidex/pull/198)
+The formatting toolbar shipped in [#198](https://github.com/agustinsacco/Phosphor/pull/198)
 made the resting composer three rows tall — field, a strip of seven glyph
 buttons, then the footer — for commands that already had chords. The strip is
 gone. Bold, italic, inline code, code block, both lists, links and

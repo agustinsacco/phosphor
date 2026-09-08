@@ -26,9 +26,9 @@ async function git(cwd: string, args: string[]): Promise<string> {
   return stdout.trim()
 }
 
-/** A lane whose branch has landed on the trunk as a squash, as pidex lanes do. */
+/** A lane whose branch has landed on the trunk as a squash, as Phosphor lanes do. */
 async function mergedLane(name: string): Promise<string> {
-  const branch = `pidex/${name}`
+  const branch = `phosphor/${name}`
   const { path } = await addWorktree(repo, name, { kind: 'new', base: 'main', branch })
   await writeFile(join(path, `${name}.txt`), 'work\n')
   await commitAll(path, `work on ${name}`)
@@ -43,10 +43,10 @@ const prefs = { ...DEFAULT_MAINTENANCE_PREFS, reclaimMergedWorktrees: true }
 const later = (): number => Date.now() + 48 * HOUR
 
 beforeEach(async () => {
-  repo = realpathSync.native(await mkdtemp(join(tmpdir(), 'pidex-sweep-')))
+  repo = realpathSync.native(await mkdtemp(join(tmpdir(), 'phosphor-sweep-')))
   await git(repo, ['init', '-b', 'main'])
-  await git(repo, ['config', 'user.email', 'test@pidex.dev'])
-  await git(repo, ['config', 'user.name', 'pidex test'])
+  await git(repo, ['config', 'user.email', 'test@phosphor.dev'])
+  await git(repo, ['config', 'user.name', 'Phosphor test'])
   await writeFile(join(repo, 'a.txt'), 'one\n')
   await git(repo, ['add', '-A'])
   await git(repo, ['commit', '-m', 'initial'])
@@ -92,7 +92,7 @@ describe('sweep', () => {
     expect(report.reclaimed.map((r) => r.path)).toEqual([lane])
     expect(report.reclaimedBytes).toBeGreaterThan(0)
     expect(existsSync(lane)).toBe(false)
-    expect(await git(repo, ['branch', '--list', 'pidex/landed'])).toBe('')
+    expect(await git(repo, ['branch', '--list', 'phosphor/landed'])).toBe('')
     expect(report.liveSessionCount).toBe(2)
     expect(report.errors).toEqual([])
   })

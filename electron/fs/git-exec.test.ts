@@ -19,10 +19,10 @@ const execFileAsync = promisify(execFile)
 let repo: string
 
 beforeEach(async () => {
-  repo = await mkdtemp(join(tmpdir(), 'pidex-git-exec-'))
+  repo = await mkdtemp(join(tmpdir(), 'phosphor-git-exec-'))
   await execFileAsync('git', ['init', '-b', 'main'], { cwd: repo })
-  await execFileAsync('git', ['config', 'user.email', 'test@pidex.dev'], { cwd: repo })
-  await execFileAsync('git', ['config', 'user.name', 'pidex test'], { cwd: repo })
+  await execFileAsync('git', ['config', 'user.email', 'test@phosphor.dev'], { cwd: repo })
+  await execFileAsync('git', ['config', 'user.name', 'Phosphor test'], { cwd: repo })
   await writeFile(join(repo, 'a.txt'), 'one\n')
   await execFileAsync('git', ['add', '-A'], { cwd: repo })
   await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: repo })

@@ -71,7 +71,7 @@ describe('disposeSession wiring', () => {
     // The store's dispose path is what ties the per-session records together;
     // a missing line here is a silent leak, so assert the wiring itself.
     vi.stubGlobal('window', {
-      pidex: {
+      phosphor: {
         invoke: vi.fn().mockResolvedValue(undefined),
         onSessionPush: vi.fn(() => () => {}),
       },
@@ -79,7 +79,7 @@ describe('disposeSession wiring', () => {
 
     const { useSessionsStore } = await import('./sessions')
     useSessionsStore.setState({
-      live: { s1: { pidexId: 's1', workspacePath: '/w' } },
+      live: { s1: { phosphorId: 's1', workspacePath: '/w' } },
       unread: { s1: 3 },
       baselines: { s1: 'ref-abc' },
       activeSessionId: 's1',

@@ -6,7 +6,7 @@
  * It reproduces the two things that make the real flow hard: the authorization
  * prompt is an `extension_ui_request` the client is *not* supposed to answer,
  * and the outcome arrives later as a `notify`. Behaviour is chosen by
- * PIDEX_FAKE_AUTH:
+ * PHOSPHOR_FAKE_AUTH:
  *
  *   callback (default) — prompt, then succeed on its own (the loopback
  *                        callback winning the race), leaving the prompt unanswered
@@ -17,7 +17,7 @@
  */
 'use strict'
 
-const mode = process.env.PIDEX_FAKE_AUTH || 'callback'
+const mode = process.env.PHOSPHOR_FAKE_AUTH || 'callback'
 const out = (obj) => process.stdout.write(JSON.stringify(obj) + '\n')
 
 let buffer = ''

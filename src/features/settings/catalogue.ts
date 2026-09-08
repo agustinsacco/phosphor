@@ -1,5 +1,5 @@
 /**
- * Curated pi packages pidex recommends. Versions are pinned once reviewed —
+ * Curated pi packages Phosphor recommends. Versions are pinned once reviewed —
  * pi packages run with full system access, so an entry here is a statement
  * that we've read that version's source.
  *

@@ -101,10 +101,10 @@ column, not the glyph:
 1. **Every lane has one**, because a slot that collapses shifts every title and
    the left edge goes ragged — which is the thing the column exists to prevent.
 2. **The fallback is derived, not stored.** `SessionMeta` is scanned out of
-   pi's own `.jsonl`; pidex does not own that format and must not add fields to
+   pi's own `.jsonl`; Phosphor does not own that format and must not add fields to
    it. Explicit choices go in `AppPrefs.laneMarkers` keyed by session path
    (beside `pinnedSessions` / `seenSessions`); everything else hashes the
-   **branch**. Not the title: pidex names a session only after its first turn
+   **branch**. Not the title: Phosphor names a session only after its first turn
    ends, so a title-derived marker would change under the user the moment the
    auto-namer landed.
 
@@ -159,7 +159,7 @@ of empty boxes where its scripted regions should have been.
 inherit the same way. Only a real, non-local scheme gets its own policy, so the
 document has to be **served** rather than embedded.
 
-`electron/artifacts/artifact-protocol.ts` registers `pidex-artifact://` as a
+`electron/artifacts/artifact-protocol.ts` registers `phosphor-artifact://` as a
 standard, secure scheme and serves staged HTML with its own
 `default-src 'none'` policy. The iframe keeps `sandbox="allow-scripts"` and
 deliberately still omits `allow-same-origin`, which is what keeps the
@@ -191,7 +191,7 @@ Two traps worth recording for anyone re-testing this:
   negatives.** Both queue and are refused asynchronously. Trust the console
   violations, not the return values.
 - **`location.origin` is not the security origin.** It reports
-  `pidex-artifact://doc` even when the document is opaque. `window.origin` is
+  `phosphor-artifact://doc` even when the document is opaque. `window.origin` is
   the one that says `"null"`.
 
 A form POST is a _navigation_, so `connect-src` does not cover it. It is
@@ -200,7 +200,7 @@ it as an independent second layer.
 
 ### The CSP line did change
 
-`frame-src` in `src/index.html` gained `pidex-artifact:`. That is the one
+`frame-src` in `src/index.html` gained `phosphor-artifact:`. That is the one
 widening, and it is what CLAUDE.md's "never widen this" was guarding. It was
 made deliberately, with the containment above measured first, because the
 alternative was a feature that silently did not work.

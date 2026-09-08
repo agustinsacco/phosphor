@@ -3,7 +3,7 @@
 pi core deliberately excludes MCP; it arrives via the `pi-mcp-adapter`
 package (declared in pi settings.json `packages`). MCP tools reach the chat
 as ordinary `tool_execution_*` events, so the transcript needs nothing
-special — pidex's job is **config management and status surfacing**.
+special — Phosphor's job is **config management and status surfacing**.
 
 ## Settings → Connectors
 
@@ -71,16 +71,16 @@ no tokens.
 
 Three rules hold this together:
 
-1. **pidex never holds a connector token.** The adapter does PKCE, dynamic
+1. **Phosphor never holds a connector token.** The adapter does PKCE, dynamic
    client registration, a loopback callback on `localhost:19876/callback` and
-   token custody in the OS credential store. pidex writes `mcp.json` and
+   token custody in the OS credential store. Phosphor writes `mcp.json` and
    nothing else. Two copies of a refresh token means one is always stale.
 2. **Auth is actuated by the adapter's own command,** `/mcp-auth <server>`. pi
    runs extension commands immediately without an LLM call, so connecting
    spends **no tokens**. Disconnect is `/mcp logout`, reconnect is
    `/mcp reconnect`. Deep-importing the adapter's auth module is not an option:
    only `./oauth` (read tokens) is in its `exports` map, and the package is
-   versioned independently of pidex.
+   versioned independently of Phosphor.
    There are two routes to that command, and the difference is which process
    runs it:
    - **Headless** (`mcp:authorize`, the default): main spawns a throwaway
@@ -93,8 +93,8 @@ Three rules hold this together:
      a tool whose server has no token, so the same prompt can arrive on a live
      session's extension-UI channel. `stores/extensionUi.ts` routes it to the
      same store and the same card.
-3. **pidex never auto-answers the adapter's authorization prompt.** The adapter
-   asks for the callback URL through `ctx.ui.input`, and pidex claims that
+3. **Phosphor never auto-answers the adapter's authorization prompt.** The adapter
+   asks for the callback URL through `ctx.ui.input`, and Phosphor claims that
    request (`stores/extensionUi.ts` → `stores/connectors.ts`), opens the
    browser and shows a card. pi's RPC has **no server→client cancel**, so when
    the loopback callback wins the race the adapter abandons its prompt silently
@@ -106,14 +106,14 @@ Three rules hold this together:
    server has no token.
 
 Slack is the one connector that cannot be one click, and its row carries the
-whole reason why. This is not a pidex shortcoming and cannot be designed away:
+whole reason why. This is not a Phosphor shortcoming and cannot be designed away:
 Slack's docs say "we do not support SSE-based connections or Dynamic Client
 Registration at this time" and "MCP clients must be backed by a registered
 Slack app with a fixed app ID and hardcode that app ID", and
 `mcp.slack.com/.well-known/oauth-authorization-server` carries no
 `registration_endpoint` to call even if we wanted to (re-probed 2026-09-07). So
 the user registers an app and pastes its **client id**, and the Add button
-stays disabled until they do. A one-click Slack row would need pidex to own a
+stays disabled until they do. A one-click Slack row would need Phosphor to own a
 Marketplace-published Slack app. Slack also refuses a `http://localhost`
 redirect URL unless that app has **PKCE** enabled, and a PKCE app is a _public_
 client whose token exchange carries no secret — so the secret field is
@@ -123,7 +123,7 @@ default `19876`, `MCP_OAUTH_CALLBACK_PORT` overrides it.
 
 Two more Slack rules the row states, both of which fail late and confusingly:
 only **internal or Marketplace-published** apps may use MCP at all, and the
-app's declared user scopes must cover what pidex asks for. The row's "Set up
+app's declared user scopes must cover what Phosphor asks for. The row's "Set up
 the app" disclosure hands over an app manifest that sets the scopes, the
 redirect URL and `pkce_enabled` in one paste, and the catalog writes
 `oauth.scope` from the same list (`SLACK_USER_SCOPES`) — with no scope
@@ -134,7 +134,7 @@ scope the app does not declare.
 ## The Claude provider reaches MCP through pi, not around it
 
 A `pi-claude-cli` session has **two** possible sources of MCP servers, and only
-one of them is pidex's.
+one of them is Phosphor's.
 
 1. **pi's chain** (the table below), loaded by the adapter, which registers
    `mcp` / `mcpScript` into pi's tool registry. pi-claude-cli then snapshots
@@ -143,7 +143,7 @@ one of them is pidex's.
    schema server answers `initialize` and `tools/list` only: a call is bounced
    back to pi, which executes the real tool and resumes the CLI next turn.
 2. **The Claude CLI's own chain** — `~/.claude/.mcp.json`, `~/.claude.json`,
-   and the user's claude.ai account connectors. pidex neither writes nor reads
+   and the user's claude.ai account connectors. Phosphor neither writes nor reads
    these.
 
 Servers from (2) are a problem, not a bonus. They never become pi
@@ -156,7 +156,7 @@ behaves differently on two machines. So every Claude-provider spawn gets
 and drops chain (2) entirely.
 
 Not `PI_CLAUDE_CLI_HERMETIC`: it reaches the same flag but also passes an empty
-`--setting-sources`, which drops the CLI's CLAUDE.md auto-memory. pidex already
+`--setting-sources`, which drops the CLI's CLAUDE.md auto-memory. Phosphor already
 passes `--no-context-files` so pi omits its own copy, and the pair would leave
 the model with project instructions from neither side.
 
@@ -174,7 +174,7 @@ worth ~80KB of schema for a server like Linear.
 ## Per-server status
 
 `pi-ext/mcp-status.ts` forwards the adapter's `pi-mcp-adapter/status/v1`
-snapshots to the renderer under status key `pidex-mcp-status`
+snapshots to the renderer under status key `Phosphor-mcp-status`
 (`src/features/connectors/mcpStatus.ts`). That is the only structured source of
 per-server state: connected / needs-auth / failed / cached / disabled /
 not-connected, plus tool and resource counts. It needs a live session, since
@@ -197,7 +197,7 @@ Settings → Connectors; the context meter attributes MCP schema cost per server
 | `pi-project` | `<workspace>/.pi/mcp.json`                                         |
 
 Shape: `{"mcpServers": {name: {url | command+args+env, directTools?, disabled?}}}`.
-Later files win per server name; pidex records shadowed scopes.
+Later files win per server name; Phosphor records shadowed scopes.
 
 ## Rules
 
@@ -247,7 +247,7 @@ mcp:submitAuthCallback / mcp:cancelAuth / mcp:checkServer` and the
   disclosure, directTools warning, shadow notes, OAuth flow card), the
   catalog add rows, the add/edit form, and an Advanced disclosure holding the
   adapter card and the chain file list with its raw editor. Mock cases in
-  `src/dev/mockPidex.ts`.
+  `src/dev/mockPhosphor.ts`.
 - E2E: `e2e/smoke.spec.ts` "Connectors: resolved rows" — seeds `agentDir/mcp.json`,
   asserts the resolved row, toggles disable (file gains `"disabled": true`),
   adds a project server (`.pi/mcp.json` written). "Connectors" — adds Datadog

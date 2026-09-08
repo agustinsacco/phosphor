@@ -4,15 +4,15 @@
  * The CLI's own `/usage` panel is fed by Anthropic's internal
  * `GET /api/oauth/usage` endpoint — the same numbers Claude Desktop shows,
  * live, at any percentage (unlike `rate_limit_event`, whose `utilization`
- * only arrives after the CLI's warning threshold). pidex cannot call that
+ * only arrives after the CLI's warning threshold). Phosphor cannot call that
  * endpoint (the OAuth token is the CLI's, in the OS keychain, and the wire
  * is undocumented) — but the CLI prints the panel in print mode, so we spawn
  * it and parse its rendered answer. Zero model calls, zero quota
  * (`num_turns: 0`, `total_cost_usd: 0`), ~1.5–2 s per run, and no credential
- * ever crosses into pidex.
+ * ever crosses into Phosphor.
  *
  * The rendered text is a wire contract in the same sense as the
- * `[Claude Code · …]` markers: parsed narrowly, and any line pidex doesn't
+ * `[Claude Code · …]` markers: parsed narrowly, and any line Phosphor doesn't
  * recognise is ignored rather than guessed at. If the shape drifts so far
  * that nothing parses, the caller gets `no-usage` and hides the section —
  * never a wrong number. See docs/log/2026-08-30-usage-report-api-review.md.
@@ -29,7 +29,7 @@ import type {
 
 /**
  * How long a fetched snapshot is reused. The upstream endpoint rate-limits
- * (the CLI itself falls back to "last-known usage" when it trips), so pidex
+ * (the CLI itself falls back to "last-known usage" when it trips), so Phosphor
  * must not ask more often than roughly a minute even across many surfaces.
  */
 const CACHE_TTL_MS = 60_000

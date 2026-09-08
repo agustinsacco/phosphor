@@ -1,6 +1,6 @@
 # Updates
 
-How a running pidex learns about a new release and installs it. The release
+How a running Phosphor learns about a new release and installs it. The release
 pipeline that produces those artifacts is
 [.github/workflows/release-continuous.yml](../.github/workflows/release-continuous.yml);
 this document covers only the client half.
@@ -15,13 +15,13 @@ even load it.
 `resolveUpdatePath()` in [electron/updates/updater.ts](../electron/updates/updater.ts)
 picks one and caches it. The answer cannot change while the process runs.
 
-| Path       | When                                              | What a click does                   |
-| ---------- | ------------------------------------------------- | ----------------------------------- |
-| `updater`  | `pidexSigned` **and** (signed macOS \| AppImage)  | `electron-updater` `quitAndInstall` |
-| `mac-self` | unsigned macOS, bundle writable, not translocated | swap the bundle, relaunch           |
-| `manual`   | anything else (`.deb`, read-only bundle)          | open the releases page              |
+| Path       | When                                                | What a click does                   |
+| ---------- | --------------------------------------------------- | ----------------------------------- |
+| `updater`  | `phosphorSigned` **and** (signed macOS \| AppImage) | `electron-updater` `quitAndInstall` |
+| `mac-self` | unsigned macOS, bundle writable, not translocated   | swap the bundle, relaunch           |
+| `manual`   | anything else (`.deb`, read-only bundle)            | open the releases page              |
 
-`pidexSigned` is stamped into the packaged `package.json` by CI, not probed at
+`phosphorSigned` is stamped into the packaged `package.json` by CI, not probed at
 runtime, so the UI knows before the first check whether it can promise a
 restart. It is `true` for every Linux build (AppImage self-updates with no
 signing requirement) and only for macOS builds where `MAC_CERT_P12` was set.
@@ -32,13 +32,13 @@ signing requirement) and only for macOS builds where `MAC_CERT_P12` was set.
 
 `MacUpdater` delegates to Electron's `autoUpdater`, i.e. Squirrel.Mac, which
 validates the downloaded bundle against the **running** app's designated
-requirement. pidex ships ad-hoc signed — there is no Developer ID; see
+requirement. Phosphor ships ad-hoc signed — there is no Developer ID; see
 [2026-08-24-mac-adhoc-signing.md](log/2026-08-24-mac-adhoc-signing.md). The
 signer now pins that requirement to the bundle identifier rather than a
 per-build `cdhash` (see [TCC grants](#tcc-grants-survive-an-update) below), so
 the requirement check itself is no longer the blocker it was — but the bundle
 is still ad-hoc and unnotarized, and nothing here has been tested against
-Squirrel.Mac. Setting `pidexSigned=true` for macOS would trade "opens a
+Squirrel.Mac. Setting `phosphorSigned=true` for macOS would trade "opens a
 browser" for "errors silently".
 
 So [electron/updates/mac-installer.ts](../electron/updates/mac-installer.ts)
@@ -82,7 +82,7 @@ interpolated into a shell string anywhere in this module.
 A crash or force-quit between "extracted" and "swapped" strands several hundred
 MB beside the app. `sweepOrphans` runs once at startup — the only moment we
 know no swap is in flight — and removes entries matching exactly
-`.pidex-update-<pid>-<stamp>` or `.pidex-old-<pid>-<stamp>.app` in the bundle's
+`.phosphor-update-<pid>-<stamp>` or `.phosphor-old-<pid>-<stamp>.app` in the bundle's
 own parent directory. A bare prefix test is not enough: this is `rm -rf` next
 to a user's `/Applications`.
 
@@ -90,14 +90,14 @@ to a user's `/Applications`.
 
 Nothing persistent lives inside the bundle, so a swap resets no state:
 
-- `~/Library/Application Support/pidex/config.json` — every pref. Its location
+- `~/Library/Application Support/Phosphor/config.json` — every pref. Its location
   derives from the app **name**, not the bundle path.
-- `~/Library/Logs/pidex/` — the debug log.
+- `~/Library/Logs/Phosphor/` — the debug log.
 - `~/.pi/`, `~/.claude/` — pi's sessions and settings, the Claude provider's
   transcripts.
-- `<workspace>/.pi/`, `<workspace>/.mcp.json`, `<workspace>/.pidex/`.
+- `<workspace>/.pi/`, `<workspace>/.mcp.json`, `<workspace>/.phosphor/`.
 - MCP OAuth tokens. The adapter owns those in the OS credential store, and a
-  keychain ACL binds to the accessing process — which is `pi`, not `pidex.app`.
+  keychain ACL binds to the accessing process — which is `pi`, not `Phosphor.app`.
 
 The only bundle-internal thing read at runtime is `process.resourcesPath/pi-ext`,
 the shipped extension sources, which the new version _should_ replace.
@@ -117,7 +117,7 @@ the Downloads / Documents / Desktop prompts came back. A release ships on every
 green merge to main, so the app asked again roughly daily.
 
 [scripts/adhoc-sign-mac.mjs](../scripts/adhoc-sign-mac.mjs) therefore signs
-with an explicit `-r=designated => identifier "works.pidex.app"`, which is
+with an explicit `-r=designated => identifier "works.phosphor.app"`, which is
 stable across builds, and asserts the result matches by identifier before the
 build is allowed to pass. It must be the inline `-r=<text>` form: given `-r`
 and the text as separate arguments, `codesign` reads the text as a path to a

@@ -14,7 +14,7 @@ in memory, and only for a session that **failed** to start.
 draft was composed against.
 
 - `session:<sessionFilePath>` for a live chat, falling back to
-  `session:<pidexId>` before pi reports the path. The file path is the only
+  `session:<PhosphorId>` before pi reports the path. The file path is the only
   identity that survives a restart; `rekey` moves the draft across when the
   path arrives, so a draft typed in a session's first moments is not stranded.
 - `home:<workspacePath>` for the not-yet-created chat.
@@ -67,7 +67,7 @@ before. The draft's own model is an **override**: coming back to a draft
 restores the model you chose for it rather than whatever a later session set
 globally.
 
-The browser harness (`src/dev/mockPidex.ts`) answers the draft channels
+The browser harness (`src/dev/mockPhosphor.ts`) answers the draft channels
 in-memory only. There is no main process there to persist to, and a fake blob
 store would only hide that.
 

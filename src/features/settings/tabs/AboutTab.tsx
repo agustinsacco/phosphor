@@ -39,8 +39,8 @@ export function AboutTab(): React.JSX.Element {
   const update = useUpdatesStore((s) => s.update)
 
   useEffect(() => {
-    void window.pidex.invoke('app:about').then(setAbout)
-    void window.pidex.invoke('pi:health').then(setHealth)
+    void window.phosphor.invoke('app:about').then(setAbout)
+    void window.phosphor.invoke('pi:health').then(setHealth)
   }, [])
 
   // The pill owns the subscription while it is mounted, but it unmounts
@@ -55,14 +55,14 @@ export function AboutTab(): React.JSX.Element {
 
   return (
     <div>
-      <SectionTitle>About pidex</SectionTitle>
+      <SectionTitle>About Phosphor</SectionTitle>
       <p className="text-text-secondary -mt-2 mb-4 text-base leading-relaxed">
         A desktop coding-agent app powered by the{' '}
         <span className="font-medium">pi coding agent</span>. Sessions run as real{' '}
         <code className="font-mono">pi --mode rpc</code> subprocesses in your workspace.
       </p>
 
-      <Row title="pidex version">
+      <Row title="Phosphor version">
         <span className="font-mono text-base">{about?.appVersion ?? '…'}</span>
       </Row>
       <Row title="Updates" description={updateSummary(update)}>
@@ -111,7 +111,7 @@ export function AboutTab(): React.JSX.Element {
         <div className="bg-warning/10 border-warning/30 mt-4 rounded-lg border px-3.5 py-2.5 text-base">
           <span className="font-medium">pi {health?.version} is newer than tested.</span>{' '}
           <span className="text-text-secondary">
-            pidex is verified against pi {VERIFIED_PI_LINE}.x. Newer minors usually work, but
+            Phosphor is verified against pi {VERIFIED_PI_LINE}.x. Newer minors usually work, but
             protocol additions may not be surfaced yet.
           </span>
         </div>

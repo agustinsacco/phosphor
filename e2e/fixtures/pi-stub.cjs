@@ -9,7 +9,7 @@
 'use strict'
 
 /**
- * CLI-mode dispatch: pidex's package job runner invokes pi's package manager
+ * CLI-mode dispatch: Phosphor's package job runner invokes pi's package manager
  * (`pi install/remove/update`) and print mode (`pi -p …`) as subprocesses.
  * Handle those deterministically and exit before any RPC/session-file setup
  * below runs — an `install` must not create a stub session.
@@ -49,7 +49,7 @@
       // naming prompt deterministically is what lets the e2e assert on the
       // branch a new chat creates, since the branch is derived from the title.
       const naming = argv.some((a) => a.includes('You name coding sessions'))
-      process.stdout.write(naming ? 'Stub Session Title\n' : 'pidex-provider-ok\n')
+      process.stdout.write(naming ? 'Stub Session Title\n' : 'phosphor-provider-ok\n')
       process.exit(0)
     }
 
@@ -113,12 +113,12 @@ process.stdin.on('data', (chunk) => {
 const out = (obj) => process.stdout.write(JSON.stringify(obj) + '\n')
 
 /**
- * Honour `-n <name>` the way real pi does, so a session pidex names up front
+ * Honour `-n <name>` the way real pi does, so a session Phosphor names up front
  * reports that name back from `get_state`. Without this the stub insisted on
  * its own title and the auto-naming path was untestable end to end.
  *
  * An UNNAMED session must report no name at all — pi never titles a session by
- * itself, and every pidex auto-naming path is guarded on "has pi already got a
+ * itself, and every Phosphor auto-naming path is guarded on "has pi already got a
  * name for this?". A stub that invented one made that guard fire on every
  * session and silently disabled auto-naming end to end, which is exactly what
  * it was added to test.
@@ -133,7 +133,7 @@ const path = require('node:path')
 const fs = require('node:fs')
 const os = require('node:os')
 // pi stores sessions under ~/.pi/agent/sessions/--<cwd with / as ->--/, and
-// pidex's sidebar scans exactly that path. Writing here (not into the
+// Phosphor's sidebar scans exactly that path. Writing here (not into the
 // workspace) is what makes the session discoverable, mirroring real pi.
 const AGENT_DIR = process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), '.pi', 'agent')
 const SESSION_DIR = path.join(
@@ -146,16 +146,16 @@ const SESSION_FILE = path.join(SESSION_DIR, `2026-01-01T00-00-00-000Z_stub-${pro
  * Create the session directory and file, optionally late.
  *
  * Writing it synchronously — as this stub always did — makes one real bug
- * unreachable from e2e. pidex attaches a chokidar watcher to a session
+ * unreachable from e2e. Phosphor attaches a chokidar watcher to a session
  * directory as soon as the session exists, and a watcher pointed at a
  * directory that does not exist yet is born dead: chokidar never revisits a
  * missing target, so the later `add` raises no event and the sidebar row stays
  * a context-menu-less placeholder. A stub that has already created the
- * directory before pidex can attach means the watcher always finds it there,
+ * directory before Phosphor can attach means the watcher always finds it there,
  * and a regression test would pass against the broken code just as happily as
  * the fixed one.
  *
- * PIDEX_E2E_SESSION_WRITE_DELAY_MS reopens that window on demand, so the test
+ * PHOSPHOR_E2E_SESSION_WRITE_DELAY_MS reopens that window on demand, so the test
  * that covers it can actually fail when the fix is removed.
  */
 function writeSessionFile() {
@@ -178,13 +178,13 @@ function writeSessionFile() {
           timestamp: new Date().toISOString(),
           message: {
             role: 'user',
-            content: process.env.PIDEX_STUB_SESSION_TITLE || 'stub session',
+            content: process.env.PHOSPHOR_STUB_SESSION_TITLE || 'stub session',
           },
         }) +
         '\n' +
         /*
          * A `-n` name belongs ON DISK, not just in `get_state`. Real pi records
-         * it as a `session_info` entry, and pidex's sidebar reads names from the
+         * it as a `session_info` entry, and Phosphor's sidebar reads names from the
          * file — so a stub that only answered the RPC left every named session
          * showing its first user message instead.
          *
@@ -207,7 +207,7 @@ function writeSessionFile() {
   }
 }
 
-const SESSION_WRITE_DELAY_MS = Number(process.env.PIDEX_E2E_SESSION_WRITE_DELAY_MS || 0)
+const SESSION_WRITE_DELAY_MS = Number(process.env.PHOSPHOR_E2E_SESSION_WRITE_DELAY_MS || 0)
 if (SESSION_WRITE_DELAY_MS > 0) {
   // unref: a pending timer must never be what keeps this process alive.
   setTimeout(writeSessionFile, SESSION_WRITE_DELAY_MS).unref()
@@ -279,8 +279,8 @@ const PATCH = `--- a/hello.ts\n+++ b/hello.ts\n@@ -1,3 +1,3 @@\n export function
 
 let queueHold = false
 function handle(cmd) {
-  if (process.env.PIDEX_E2E_COMMAND_LOG) {
-    fs.appendFileSync(process.env.PIDEX_E2E_COMMAND_LOG, JSON.stringify(cmd) + '\n')
+  if (process.env.PHOSPHOR_E2E_COMMAND_LOG) {
+    fs.appendFileSync(process.env.PHOSPHOR_E2E_COMMAND_LOG, JSON.stringify(cmd) + '\n')
   }
   switch (cmd.type) {
     case 'get_state':
@@ -373,7 +373,7 @@ function handle(cmd) {
       // Record the actual requested mode without starting overlapping fake turns.
       if (queueHold && cmd.streamingBehavior) break
       // The MCP adapter's OAuth flow: an extension command, so it runs no
-      // model at all. The stub reproduces the two wire facts pidex depends on
+      // model at all. The stub reproduces the two wire facts Phosphor depends on
       // — the authorization prompt arrives as an `input` request the client
       // must NOT answer, and the outcome arrives later as a `notify`.
       if (message.startsWith('/mcp-auth ')) {
@@ -390,7 +390,7 @@ function handle(cmd) {
         break
       }
       // The connection test: `/mcp reconnect <server>` is an extension
-      // command too, and its verdict arrives as a `notify` — the string pidex
+      // command too, and its verdict arrives as a `notify` — the string Phosphor
       // parses into an up/down badge.
       if (message.startsWith('/mcp reconnect ')) {
         const server = message.slice('/mcp reconnect '.length).trim()
@@ -421,7 +421,7 @@ function handle(cmd) {
       break
 
     // Real pi records a rename as a `session_info` entry in the session file,
-    // and pidex's sidebar reads names from disk — so a stub that only answered
+    // and Phosphor's sidebar reads names from disk — so a stub that only answered
     // `success: true` would make every rename appear to revert on the next
     // directory refresh, and no rename could be asserted end to end.
     case 'set_session_name':
@@ -681,7 +681,7 @@ function play(steps, gapMs = 40) {
 function runSpecLinkTurn() {
   const text =
     'Spec written: [docs/plan.md](docs/plan.md), line ' +
-    '[42](docs/plan.md#L42). PR: [#214](https://github.com/agustinsacco/pidex/pull/214).'
+    '[42](docs/plan.md#L42). PR: [#214](https://github.com/agustinsacco/Phosphor/pull/214).'
   play([
     () => out({ type: 'agent_start' }),
     () => out({ type: 'turn_start' }),
@@ -986,9 +986,9 @@ function runManyTurnsTurn(tailGroup = false) {
  * A Claude Code sub-agent fan-out, replayed marker for marker.
  *
  * The strings below are copied from a real captured session (pi session
- * 01a04614, 2026-08-28) and are the ONE shape pidex cannot get from any
+ * 01a04614, 2026-08-28) and are the ONE shape Phosphor cannot get from any
  * pi-native provider: the CLI reports each agent three times — the model's
- * `Agent` call, `Task started`, `Task completed` — and pidex must fold them
+ * `Agent` call, `Task started`, `Task completed` — and Phosphor must fold them
  * into one row per agent. In that capture it did not, and three agents
  * rendered as eight rows above a strip claiming "8 sub-agents were started".
  *
@@ -1041,14 +1041,14 @@ function runSubagentTurn() {
   for (const text of [
     '[Claude Code · Agent {"description":"Dig into pi-claude-cli internals","subagent_type":"general-purpose","prompt":"Investigate how the @saccolabs provider keeps its CLI alive…]',
     '[Claude Code · Task {"status":"started","description":"Dig into pi-claude-cli internals","subagent_type":"general-purpose","task_id":"a8de7d982d824b56a"}]',
-    '[Claude Code · Agent {"description":"Map pidex/pi dialog surfaces","subagent_type":"Explore","prompt":"Search breadth: very thorough. Read-only…]',
-    '[Claude Code · Task {"status":"started","description":"Map pidex/pi dialog surfaces","subagent_type":"Explore","task_id":"a600d45bcde2ddb13"}]',
+    '[Claude Code · Agent {"description":"Map phosphor/pi dialog surfaces","subagent_type":"Explore","prompt":"Search breadth: very thorough. Read-only…]',
+    '[Claude Code · Task {"status":"started","description":"Map phosphor/pi dialog surfaces","subagent_type":"Explore","task_id":"a600d45bcde2ddb13"}]',
     // The third agent never gets a lifecycle event: the pre-0.4.14 shape.
     '[Claude Code · Agent {"description":"Find failing AskUserQuestion session","subagent_type":"general-purpose","prompt":"Read-only forensic task…]',
     // The two lifecycle finishes, which fold into the rows above rather than
     // adding rows of their own.
     '[Claude Code · Task {"status":"completed","description":"Dig into pi-claude-cli internals","task_id":"a8de7d982d824b56a","tool_uses":2,"total_tokens":1234,"duration_ms":900}]',
-    '[Claude Code · Task {"status":"completed","description":"Map pidex/pi dialog surfaces","task_id":"a600d45bcde2ddb13","tool_uses":12,"total_tokens":48210,"duration_ms":91000}]',
+    '[Claude Code · Task {"status":"completed","description":"Map phosphor/pi dialog surfaces","task_id":"a600d45bcde2ddb13","tool_uses":12,"total_tokens":48210,"duration_ms":91000}]',
   ]) {
     steps.push(...marker(text))
   }

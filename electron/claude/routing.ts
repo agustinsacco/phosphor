@@ -125,7 +125,7 @@ export function selectAccount(
  *
  * Only the 5-hour window counts. A weekly window at 100% is a real block too,
  * but its reset is days away and skipping an account for days on the strength
- * of one cached reading is not a trade pidex should make silently.
+ * of one cached reading is not a trade Phosphor should make silently.
  *
  * Returns null when the account is not exhausted, which the caller stores as
  * "clear any cooldown" rather than "leave the old one".

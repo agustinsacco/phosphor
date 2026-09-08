@@ -9,6 +9,7 @@ export default tseslint.config(
       'node_modules/**',
       'release/**',
       '.claude/**',
+      '.phosphor/**',
       '.pidex/**',
       '**/*.cjs',
     ],

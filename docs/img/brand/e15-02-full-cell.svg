@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="e2g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f2ab4e"/><stop offset="100%" stop-color="#e2922e"/></linearGradient>
+    <radialGradient id="e2b" cx="50%" cy="46%" r="50%"><stop offset="0%" stop-color="#f2ab4e" stop-opacity=".20"/><stop offset="45%" stop-color="#eca03d" stop-opacity=".09"/><stop offset="100%" stop-color="#eca03d" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="228" fill="#1f1c18"/>
+  <circle cx="512" cy="470" r="310" fill="url(#e2b)"/>
+  <rect x="190" y="190" width="644" height="644" rx="56" fill="none" stroke="url(#e2g)" stroke-width="22"/>
+  <text x="248" y="330" font-family="ui-monospace, 'JetBrains Mono', monospace" font-size="88" fill="#eca03d" opacity=".85">15</text>
+  <g transform="translate(173 164) scale(0.6)">
+    <path d="M340 220 H560 C700 220 790 305 790 425 C790 545 700 630 560 630 H430 V800 H340 Z M430 310 H552 C640 310 700 355 700 425 C700 495 640 540 552 540 H430 Z" fill="url(#e2g)" fill-rule="evenodd"/>
+  </g>
+  <text x="512" y="716" text-anchor="middle" font-family="ui-monospace, 'JetBrains Mono', monospace" font-size="64" fill="#eca03d" opacity=".85">phosphorus</text>
+  <text x="512" y="792" text-anchor="middle" font-family="ui-monospace, 'JetBrains Mono', monospace" font-size="52" fill="#eca03d" opacity=".5">30.974</text>
+</svg>

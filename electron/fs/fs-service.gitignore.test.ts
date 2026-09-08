@@ -8,7 +8,7 @@ import { listDir } from './fs-service'
 
 describe('listDir gitignore filtering', () => {
   it('filters ignored entries inside a repo', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'pidex-gi-'))
+    const dir = await mkdtemp(join(tmpdir(), 'phosphor-gi-'))
     execFileSync('git', ['init', '-q'], { cwd: dir })
     await writeFile(join(dir, '.gitignore'), 'secret.txt\nbuilt/\n')
     await writeFile(join(dir, 'keep.txt'), 'x')
@@ -22,7 +22,7 @@ describe('listDir gitignore filtering', () => {
   })
 
   it('lists everything when nothing is ignored (git exit 1)', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'pidex-gi-'))
+    const dir = await mkdtemp(join(tmpdir(), 'phosphor-gi-'))
     execFileSync('git', ['init', '-q'], { cwd: dir })
     await writeFile(join(dir, 'a.txt'), 'x')
     await writeFile(join(dir, 'b.txt'), 'x')
@@ -34,7 +34,7 @@ describe('listDir gitignore filtering', () => {
     // Regression: `git check-ignore` exits immediately outside a repo, so a
     // large stdin write hit a closed pipe and the unhandled EPIPE crashed the
     // main process.
-    const dir = await mkdtemp(join(tmpdir(), 'pidex-nonrepo-'))
+    const dir = await mkdtemp(join(tmpdir(), 'phosphor-nonrepo-'))
     await Promise.all(
       Array.from({ length: 300 }, (_, i) => writeFile(join(dir, `f-${i}.txt`), 'x')),
     )

@@ -123,7 +123,7 @@ export const useFilesStore = create<FilesState>((set, get) => ({
   refreshDir: async (workspacePath, dirPath) => {
     const { showHidden, respectGitignore } = get()
     try {
-      const list = await window.pidex.invoke('fs:readDir', workspacePath, dirPath, {
+      const list = await window.phosphor.invoke('fs:readDir', workspacePath, dirPath, {
         showHidden,
         respectGitignore,
       })
@@ -134,7 +134,7 @@ export const useFilesStore = create<FilesState>((set, get) => ({
   },
 
   refreshGitStatus: async (workspacePath) => {
-    const gitStatus = await window.pidex.invoke('git:statusMap', workspacePath)
+    const gitStatus = await window.phosphor.invoke('git:statusMap', workspacePath)
     set((s) => patchWorkspace(s, workspacePath, (w) => ({ ...w, gitStatus })))
   },
 
@@ -159,7 +159,7 @@ export const useFilesStore = create<FilesState>((set, get) => ({
       )
       return
     }
-    const file = await window.pidex.invoke('fs:readFile', path)
+    const file = await window.phosphor.invoke('fs:readFile', path)
     const openFile: OpenFile = {
       path,
       relativePath: relativeTo(workspacePath, path),
@@ -286,7 +286,7 @@ export const useFilesStore = create<FilesState>((set, get) => ({
   saveFile: async (workspacePath, path) => {
     const file = workspaceFiles(get(), workspacePath).openFiles.find((f) => f.path === path)
     if (!file || !file.dirty) return
-    const { mtimeMs } = await window.pidex.invoke('fs:writeFile', path, file.content)
+    const { mtimeMs } = await window.phosphor.invoke('fs:writeFile', path, file.content)
     set((s) =>
       patchWorkspace(s, workspacePath, (w) => ({
         ...w,
@@ -330,7 +330,7 @@ export const useFilesStore = create<FilesState>((set, get) => ({
 
   reloadFromDisk: async (workspacePath, path) => {
     try {
-      const file = await window.pidex.invoke('fs:readFile', path)
+      const file = await window.phosphor.invoke('fs:readFile', path)
       set((s) =>
         patchWorkspace(s, workspacePath, (w) =>
           patchFile(w, path, {

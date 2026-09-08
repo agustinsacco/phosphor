@@ -1,4 +1,4 @@
-# Connectors: six services, OAuth, and no tokens in pidex
+# Connectors: six services, OAuth, and no tokens in Phosphor
 
 Date: 2026-08-27
 
@@ -20,14 +20,14 @@ which is what makes "should I disable Datadog?" answerable.
 Plan and findings: [backlog/connectors.md](../specs/backlog/connectors.md). Live
 contract: [reference/mcp.md](../mcp.md#connectors-settings--connectors).
 
-## The decision that shaped everything: pidex holds nothing
+## The decision that shaped everything: Phosphor holds nothing
 
 `pi-mcp-adapter` already implements OAuth 2.1 with PKCE, dynamic client
 registration, a loopback callback server, refresh, and token custody in the OS
 credential store. So the interesting question was never "how do we do OAuth",
-it was "how little can pidex do".
+it was "how little can Phosphor do".
 
-The answer: pidex writes `mcp.json`, sends the adapter's own
+The answer: Phosphor writes `mcp.json`, sends the adapter's own
 `/mcp-auth <server>` command into a session, and opens a browser. That is the
 whole feature. **The main process gained no code** — no new IPC channel, no
 `mcp:startConnect`, no hidden session, none of which the plan expected to
@@ -37,7 +37,7 @@ immediately without an LLM call.
 The alternative — importing the adapter's `startAuth`/`completeAuth` from the
 main process — was rejected on evidence: only `./oauth` (read tokens) is in the
 package's `exports` map, the auth module is not exported, and this package is
-versioned independently of pidex with nothing pinned. The `pi-claude-cli`
+versioned independently of Phosphor with nothing pinned. The `pi-claude-cli`
 history in [CLAUDE.md](../../CLAUDE.md) is what that road looks like.
 
 ## The trap that will bite anyone who touches this
@@ -47,13 +47,13 @@ answer an `extension_ui_request`.
 
 The adapter races two things when it authorizes: the loopback callback, and a
 "paste the callback URL" prompt as a fallback. When the callback wins, the
-adapter aborts its own prompt internally — and pidex is never told. The obvious
+adapter aborts its own prompt internally — and Phosphor is never told. The obvious
 tidy-up, answering the now-orphaned request so the dialog goes away, is exactly
 wrong: an empty or cancelled answer _wins that race instead_ and throws
 `OAuth authentication cancelled`, killing a flow that had already succeeded and
 written tokens.
 
-So the rule is: **pidex never auto-answers.** A pending request stays pending
+So the rule is: **Phosphor never auto-answers.** A pending request stays pending
 and hidden; only an explicit user Cancel answers it. `stores/connectors.test.ts`
 asserts that `promptReceived` sends no response, because this is the kind of
 thing a future refactor "cleans up".
@@ -63,7 +63,7 @@ design. The adapter auto-authenticates _mid-turn_ when a model calls a tool
 whose server has no token, so the OAuth prompt can appear during ordinary
 chat. It is handled in `stores/extensionUi.ts`, globally.
 
-## A bug found by reading the adapter, not by using pidex
+## A bug found by reading the adapter, not by using Phosphor
 
 `pi-ext/context-breakdown.ts` classified MCP tools by an `mcp__` name prefix.
 The adapter renames MCP tools four different ways depending on `toolPrefix`,

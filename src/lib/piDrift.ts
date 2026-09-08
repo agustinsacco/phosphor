@@ -1,5 +1,5 @@
 /**
- * "Is the installed pi newer than the one pidex was verified against?"
+ * "Is the installed pi newer than the one Phosphor was verified against?"
  *
  * The About tab shows a drift warning from this, so the comparison has to
  * survive pi leaving 0.x: reading only `version.split('.')[1]` made pi 1.0
@@ -8,7 +8,7 @@
  * parse — an unfamiliar shape is not evidence of drift.
  */
 
-/** Newest pi minor line pidex has been verified against, as `major.minor`. */
+/** Newest pi minor line Phosphor has been verified against, as `major.minor`. */
 export const VERIFIED_PI_LINE = '0.85'
 
 function parseLine(version: string): [number, number] | null {

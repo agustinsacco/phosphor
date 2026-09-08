@@ -13,7 +13,7 @@ import { getPrefs } from './store'
  *
  * Gated on packaging for the same reason as the other E2E env hooks (an env
  * var must not change a shipped app's behavior — see
- * ipc/pi-session-handlers.ts:piStubPath). `PIDEX_E2E_SHOW=1` opts back in when
+ * ipc/pi-session-handlers.ts:piStubPath). `PHOSPHOR_E2E_SHOW=1` opts back in when
  * you want to watch a run.
  *
  * Callers that honor this MUST also set `backgroundThrottling: false`: an
@@ -23,8 +23,8 @@ import { getPrefs } from './store'
 export function hideWindowsForE2E(): boolean {
   return (
     !app.isPackaged &&
-    Boolean(process.env.PIDEX_TEST_USER_DATA) &&
-    process.env.PIDEX_E2E_SHOW !== '1'
+    Boolean(process.env.PHOSPHOR_TEST_USER_DATA) &&
+    process.env.PHOSPHOR_E2E_SHOW !== '1'
   )
 }
 

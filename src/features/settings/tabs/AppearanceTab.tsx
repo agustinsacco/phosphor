@@ -4,7 +4,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { formatShortcut } from '@/lib/shortcuts'
 import { Row, SectionTitle, NumberField } from '@/components/form'
 
-/** Theme, UI scale and font preferences (pidex-local, not pi settings). */
+/** Theme, UI scale and font preferences (phosphor-local, not pi settings). */
 
 const THEME_OPTIONS = [
   { value: 'light', label: 'Light' },

@@ -3,9 +3,9 @@ import { classifyLink } from './markdownLink'
 
 describe('classifyLink', () => {
   it('sends web URLs to the browser', () => {
-    expect(classifyLink('https://github.com/agustinsacco/pidex/pull/214')).toEqual({
+    expect(classifyLink('https://github.com/agustinsacco/Phosphor/pull/214')).toEqual({
       kind: 'external',
-      url: 'https://github.com/agustinsacco/pidex/pull/214',
+      url: 'https://github.com/agustinsacco/Phosphor/pull/214',
     })
     expect(classifyLink('http://localhost:5173/x')).toEqual({
       kind: 'external',
@@ -20,9 +20,9 @@ describe('classifyLink', () => {
     })
     expect(classifyLink('./README.md')).toEqual({ kind: 'file', path: 'README.md' })
     expect(classifyLink('../shared/rpc.ts')).toEqual({ kind: 'file', path: '../shared/rpc.ts' })
-    expect(classifyLink('/Users/u/pidex/CLAUDE.md')).toEqual({
+    expect(classifyLink('/Users/u/phosphor/CLAUDE.md')).toEqual({
       kind: 'file',
-      path: '/Users/u/pidex/CLAUDE.md',
+      path: '/Users/u/phosphor/CLAUDE.md',
     })
   })
 
@@ -70,7 +70,7 @@ describe('classifyLink', () => {
   it('refuses schemes that are not http(s) or file', () => {
     expect(classifyLink('mailto:a@b.com')).toEqual({ kind: 'none' })
     expect(classifyLink('javascript:alert(1)')).toEqual({ kind: 'none' })
-    expect(classifyLink('pidex-artifact://x')).toEqual({ kind: 'none' })
+    expect(classifyLink('phosphor-artifact://x')).toEqual({ kind: 'none' })
   })
 
   it('does nothing for in-document anchors and empty hrefs', () => {

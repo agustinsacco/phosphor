@@ -9,10 +9,10 @@ import { piProcessEnv } from './shell-env'
 const execFileAsync = promisify(execFile)
 
 /**
- * Signing the Claude Code CLI in and out from inside pidex.
+ * Signing the Claude Code CLI in and out from inside Phosphor.
  *
  * This is the account that bills a Claude Pro/Max plan (`pi-claude-cli`), and
- * until now pidex only *read* it — the tab told the user to go run `claude` in
+ * until now Phosphor only *read* it — the tab told the user to go run `claude` in
  * a terminal and type `/login`. That is the one provider whose sign-in needs no
  * terminal at all, because unlike pi's `/login` (TUI-only, hence the pty
  * driver in `login-flow.ts`), `claude auth login` is a plain subcommand that
@@ -28,7 +28,7 @@ const execFileAsync = promisify(execFile)
  * into stdin. Three facts that shape the code below, all established by running
  * the real CLI:
  *
- * - **The CLI opens the browser itself.** pidex must not open it too, or the
+ * - **The CLI opens the browser itself.** Phosphor must not open it too, or the
  *   user gets two tabs and pastes the code from the stale one. The UI offers
  *   the URL as a fallback link instead.
  * - **A wrong code is not fatal.** The CLI prints `Invalid code.` and re-prompts
@@ -36,7 +36,7 @@ const execFileAsync = promisify(execFile)
  *   failing — and the newest URL is the live one.
  * - **Its prose is not the outcome.** A run given a bogus code still printed
  *   `Login successful.` and exited 0. Completion is therefore decided by
- *   `claude auth status`, the same fact the rest of pidex already trusts, never
+ *   `claude auth status`, the same fact the rest of Phosphor already trusts, never
  *   by matching output. (Same principle as `login-flow.ts`.)
  */
 

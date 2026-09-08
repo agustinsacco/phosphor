@@ -7,7 +7,7 @@ export interface PiHealth {
   binaryPath?: string
   /** Reported `pi --version`, when runnable. */
   version?: string
-  /** Minimum version pidex supports. */
+  /** Minimum version Phosphor supports. */
   minVersion: string
   reason?: 'not-found' | 'version-check-failed' | 'too-old'
   message?: string
@@ -50,7 +50,7 @@ export interface CreateSessionOptions {
 
 /** A live session handle as reported by main. */
 export interface LiveSessionInfo {
-  /** pidex-side id used for IPC channels (not pi's session id). */
+  /** phosphor-side id used for IPC channels (not pi's session id). */
   sessionId: string
   workspacePath: string
   pid?: number
@@ -162,7 +162,7 @@ export type AddWorktreeBranch =
       base: string
       /**
        * Branch to create, when it must differ from the worktree folder name.
-       * Auto-created session branches carry a configurable prefix (`pidex/…`)
+       * Auto-created session branches carry a configurable prefix (`phosphor/…`)
        * that cannot appear in the folder name — the folder's basename is what
        * names the sidebar group, and a `/` in it would nest the checkout.
        * Absent means "same as the folder name", the hand-created case.
@@ -409,7 +409,7 @@ export interface WorktreePrefs {
   /** New chats start on their own branch in their own worktree. */
   auto: boolean
   /**
-   * Prepended to auto-generated branch names. `pidex/session-naming` keeps
+   * Prepended to auto-generated branch names. `phosphor/session-naming` keeps
    * generated branches sorted together and away from hand-made ones. Empty is
    * allowed and means "no prefix".
    */
@@ -418,7 +418,7 @@ export interface WorktreePrefs {
 
 export const DEFAULT_WORKTREE_PREFS: WorktreePrefs = {
   auto: true,
-  branchPrefix: 'pidex/',
+  branchPrefix: 'phosphor/',
 }
 
 /**
@@ -495,7 +495,7 @@ export interface AppPrefs {
   lastWorkspacePath?: string
   /**
    * Session file (.jsonl) that was open when the app last closed. Restored on
-   * launch so pidex reopens where you left off rather than at the picker.
+   * launch so Phosphor reopens where you left off rather than at the picker.
    */
   lastSessionPath?: string
   /** Pinned session file paths. */
@@ -522,7 +522,7 @@ export interface AppPrefs {
   /** How lanes name and brand themselves. See LanePrefs. */
   lanes: LanePrefs
   fonts: FontPrefs
-  /** What pidex appends to every lane's system prompt. */
+  /** What Phosphor appends to every lane's system prompt. */
   agentDirectives: AgentDirectivePrefs
   /** Per-project override of the above, keyed by main-repo path. */
   agentDirectivesByProject: Record<string, AgentDirectivePrefs>
@@ -551,7 +551,7 @@ export interface AppPrefs {
    */
   claudeAccounts?: ClaudeAccountPrefs
   /**
-   * Unsent composer drafts, keyed by `session:<pidexId>` or
+   * Unsent composer drafts, keyed by `session:<phosphorId>` or
    * `home:<workspacePath>`.
    *
    * Both composers used to keep their text and pending attachments in local
@@ -601,7 +601,7 @@ export const MAX_DRAFTS = 30
 export const MAX_DRAFT_BLOB_BYTES = 50 * 1024 * 1024
 
 /**
- * Layer 2 of the directive stack: what pidex appends to a lane's system
+ * Layer 2 of the directive stack: what Phosphor appends to a lane's system
  * prompt. See `electron/pi/directives.ts` for the full stack and why this is
  * a setting rather than a constant.
  *
@@ -696,7 +696,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   drafts: {},
 }
 
-/** Minimum pi version pidex is verified against. */
+/** Minimum pi version Phosphor is verified against. */
 export const MIN_PI_VERSION = '0.84.1'
 
 /**
@@ -803,7 +803,7 @@ export interface ClaudeStatus {
 export interface ClaudeUsageWindow {
   /** The CLI's rendered label, e.g. "Current session" (the 5-hour block). */
   label: string
-  /** Window family, derived from the label; `other` for kinds pidex doesn't know. */
+  /** Window family, derived from the label; `other` for kinds Phosphor doesn't know. */
   kind: 'five_hour' | 'weekly' | 'weekly_model' | 'other'
   /** Fraction of the window consumed, 0–100 (the CLI prints whole percents). */
   percentUsed: number
@@ -824,7 +824,7 @@ export interface ClaudeUsageSnapshot {
 // ---------- Claude Code accounts ----------
 
 /**
- * One Claude Code login pidex can route a session to.
+ * One Claude Code login Phosphor can route a session to.
  *
  * Multiple accounts are possible because the CLI derives its keychain service
  * name from a config directory: `CLAUDE_SECURESTORAGE_CONFIG_DIR` appends a
@@ -920,7 +920,7 @@ export interface ClaudeSessionAccount {
 }
 
 /**
- * Which live lanes are spending which Claude account: account id → pidex
+ * Which live lanes are spending which Claude account: account id → Phosphor
  * session ids, as parked at spawn (`electron/pi/session-accounts.ts`).
  *
  * Only ids cross the wire. Titles, folders and session files are the
@@ -970,7 +970,7 @@ export type ClaudeLoginState =
 
 /**
  * A provider pi can sign into with a consumer subscription rather than an
- * API key. The list is pidex's, not pi's: pi exposes no way to enumerate its
+ * API key. The list is Phosphor's, not pi's: pi exposes no way to enumerate its
  * OAuth providers over RPC or the CLI, so these are curated from pi's
  * providers doc and each id is verified against `pi auth check`.
  */
@@ -1047,7 +1047,7 @@ export interface SubscriptionProvider {
 /**
  * One provider's readiness, straight from `pi auth check --json`.
  *
- * `status` is pi's own word. `unknown` is pidex's: it means the check could
+ * `status` is pi's own word. `unknown` is Phosphor's: it means the check could
  * not be run at all (pi missing, spawn failed, unparseable output), which is
  * deliberately distinct from pi answering "not_ready".
  */

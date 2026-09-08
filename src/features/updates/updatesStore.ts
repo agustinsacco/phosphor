@@ -21,10 +21,10 @@ export const useUpdatesStore = create<UpdatesStoreState>((set, get) => ({
   acting: false,
 
   subscribe: () => {
-    const unsubscribe = window.pidex.onUpdateEvent((update) => set({ update }))
+    const unsubscribe = window.phosphor.onUpdateEvent((update) => set({ update }))
     // Read the current state too: main may have found an update before this
     // window existed (or before the user opened a second one).
-    void window.pidex.invoke('updates:state').then((update) => {
+    void window.phosphor.invoke('updates:state').then((update) => {
       if (update) set({ update })
     })
     return unsubscribe
@@ -36,14 +36,14 @@ export const useUpdatesStore = create<UpdatesStoreState>((set, get) => ({
     try {
       // For a staged update this quits the app, so nothing after it runs. For
       // the manual-download path it opens the release page and returns.
-      await window.pidex.invoke('updates:restartAndInstall')
+      await window.phosphor.invoke('updates:restartAndInstall')
     } finally {
       set({ acting: false })
     }
   },
 
   check: async () => {
-    await window.pidex.invoke('updates:check')
+    await window.phosphor.invoke('updates:check')
   },
 }))
 

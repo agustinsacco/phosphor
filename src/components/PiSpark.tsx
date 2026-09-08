@@ -4,7 +4,7 @@ import clsx from 'clsx'
 /**
  * The "pi is working" mark.
  *
- * An eight-ray spark in the pidex accent, drawn rather than typed — the
+ * An eight-ray spark in the Phosphor accent, drawn rather than typed — the
  * previous placeholder was a literal ✳ glyph whose only motion was an
  * opacity blink, so it read as a flashing character instead of a living
  * indicator.

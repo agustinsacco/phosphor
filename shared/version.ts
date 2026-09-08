@@ -1,6 +1,6 @@
 /**
  * "Is there something newer than what is installed?" — one implementation,
- * used for both pi packages (Settings → Extensions) and pidex's own updater.
+ * used for both pi packages (Settings → Extensions) and Phosphor's own updater.
  *
  * Deliberately not a full semver comparison. Both callers ask the same narrow
  * question about plain dotted versions, and the only consumer of the answer is

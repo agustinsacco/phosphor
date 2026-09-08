@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { worktreePromptBlock } from './workspace-prompt'
 
-const CWD = '/home/u/src/pidex/.pidex/worktrees/read-composer'
-const MAIN = '/home/u/src/pidex'
+const CWD = '/home/u/src/phosphor/.phosphor/worktrees/read-composer'
+const MAIN = '/home/u/src/phosphor'
 
 describe('worktreePromptBlock', () => {
   it('names the cwd and the main checkout for a worktree session', () => {

@@ -18,7 +18,7 @@ beforeEach(() => {
   invoke = vi.fn(async (channel: string) =>
     channel === 'gh:available' ? true : { 'feat/a': pr() },
   )
-  ;(globalThis as { window?: unknown }).window = { pidex: { invoke } }
+  ;(globalThis as { window?: unknown }).window = { phosphor: { invoke } }
   vi.useRealTimers()
 })
 

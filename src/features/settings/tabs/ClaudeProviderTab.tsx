@@ -36,9 +36,9 @@ export function ClaudeProviderTab(): React.JSX.Element {
 
   const refresh = useCallback(async (): Promise<void> => {
     const [entries, claudeState, accountState] = await Promise.all([
-      window.pidex.invoke('packages:list'),
-      window.pidex.invoke('packages:claudeStatus'),
-      window.pidex.invoke('claude:accounts'),
+      window.phosphor.invoke('packages:list'),
+      window.phosphor.invoke('packages:claudeStatus'),
+      window.phosphor.invoke('claude:accounts'),
     ])
     const entry = entries.find((e) => e.spec.includes('pi-claude-cli')) ?? null
     setPkg(entry)
@@ -46,12 +46,12 @@ export function ClaudeProviderTab(): React.JSX.Element {
     setAccounts(accountState)
     // Both version checks hit the network, so neither blocks the health rows.
     if (entry) {
-      void window.pidex
+      void window.phosphor
         .invoke('packages:checkUpdates')
         .then((map) => setLatest(map[entry.spec] ?? null))
         .catch(() => setLatest(null))
     }
-    void window.pidex
+    void window.phosphor
       .invoke('packages:claudeCliLatest')
       .then(setCliLatest)
       .catch(() => setCliLatest(null))
@@ -66,7 +66,7 @@ export function ClaudeProviderTab(): React.JSX.Element {
   // account that is actually live, not the one we hoped for.
   useEffect(
     () =>
-      window.pidex.onClaudeLoginState((state) => {
+      window.phosphor.onClaudeLoginState((state) => {
         setLogin(state.phase === 'signed-in' || state.phase === 'cancelled' ? null : state)
         if (state.phase === 'signed-in' || state.phase === 'cancelled') void refresh()
       }),
@@ -114,7 +114,7 @@ export function ClaudeProviderTab(): React.JSX.Element {
             running={updateJob.running}
             onUpdate={() =>
               void updateJob.start(() =>
-                window.pidex.invoke('packages:run', 'update', pkg!.spec, 'global', undefined),
+                window.phosphor.invoke('packages:run', 'update', pkg!.spec, 'global', undefined),
               )
             }
           />
@@ -136,7 +136,7 @@ export function ClaudeProviderTab(): React.JSX.Element {
             note="The CLI never updates itself mid-session — update, then restart sessions."
             running={cliUpdateJob.running}
             onUpdate={() =>
-              void cliUpdateJob.start(() => window.pidex.invoke('packages:updateClaudeCli'))
+              void cliUpdateJob.start(() => window.phosphor.invoke('packages:updateClaudeCli'))
             }
           />
         )}
@@ -167,7 +167,9 @@ export function ClaudeProviderTab(): React.JSX.Element {
       </p>
       <Button
         variant="primary"
-        onClick={() => void testJob.start(() => window.pidex.invoke('packages:testClaudeProvider'))}
+        onClick={() =>
+          void testJob.start(() => window.phosphor.invoke('packages:testClaudeProvider'))
+        }
         disabled={testJob.running || !binaryOk}
         className="mt-2.5"
       >
@@ -184,7 +186,7 @@ export function ClaudeProviderTab(): React.JSX.Element {
         exitCode={cliUpdateJob.exitCode}
       />
       <JobOutput running={testJob.running} output={testJob.output} exitCode={testJob.exitCode} />
-      {testJob.exitCode === 0 && testJob.output.includes('pidex-provider-ok') && (
+      {testJob.exitCode === 0 && testJob.output.includes('phosphor-provider-ok') && (
         <p className="text-success mt-2 text-base">
           Round-trip confirmed — the provider is fully working.
         </p>
@@ -251,7 +253,7 @@ const ROUTING_OPTIONS: { value: ClaudeRoutingMode; title: string; detail: string
  *
  * This is the row that used to say “switching accounts is sign-out then
  * sign-in”. It no longer is: the CLI scopes its keychain entry by
- * `CLAUDE_SECURESTORAGE_CONFIG_DIR`, so pidex keeps one credential directory
+ * `CLAUDE_SECURESTORAGE_CONFIG_DIR`, so Phosphor keeps one credential directory
  * per account and hands the right one to each session's `pi` spawn.
  *
  * Two things the UI has to be honest about, because both surprise people:
@@ -283,10 +285,10 @@ function AccountsSection({
   const views = accounts?.views ?? []
 
   // Re-read on every change to the live set, which is also what a move
-  // produces: the moved lane is a new pidex session id on a new account.
+  // produces: the moved lane is a new Phosphor session id on a new account.
   const liveKey = useSessionsStore((s) => Object.keys(s.live).sort().join(','))
   useEffect(() => {
-    void window.pidex
+    void window.phosphor
       .invoke('claude:accountSessions')
       .then(setSessions)
       .catch(() => setSessions({}))
@@ -296,7 +298,7 @@ function AccountsSection({
     setCode('')
     onLoginState({ phase: 'starting' })
     try {
-      await window.pidex.invoke('claude:startLogin', accountId)
+      await window.phosphor.invoke('claude:startLogin', accountId)
     } catch (caught) {
       onLoginState({
         phase: 'error',
@@ -308,7 +310,7 @@ function AccountsSection({
   const submit = async (): Promise<void> => {
     if (!code.trim()) return
     try {
-      await window.pidex.invoke('claude:submitCode', code.trim())
+      await window.phosphor.invoke('claude:submitCode', code.trim())
       setCode('')
     } catch (caught) {
       onLoginState({
@@ -335,7 +337,7 @@ function AccountsSection({
     const reordered = [...ids]
     const [moved] = reordered.splice(index, 1)
     reordered.splice(target, 0, moved!)
-    void mutate(() => window.pidex.invoke('claude:reorderAccounts', reordered))
+    void mutate(() => window.phosphor.invoke('claude:reorderAccounts', reordered))
   }
 
   return (
@@ -386,12 +388,12 @@ function AccountsSection({
               onMove={move}
               onPin={() =>
                 void mutate(() =>
-                  window.pidex.invoke('claude:setRouting', 'specific', view.account.id),
+                  window.phosphor.invoke('claude:setRouting', 'specific', view.account.id),
                 )
               }
               onReauth={() => void start(view.account.id)}
               onRemove={() =>
-                void mutate(() => window.pidex.invoke('claude:removeAccount', view.account.id))
+                void mutate(() => window.phosphor.invoke('claude:removeAccount', view.account.id))
               }
             />
           ))
@@ -402,7 +404,7 @@ function AccountsSection({
         {inFlight ? (
           <button
             onClick={() => {
-              void window.pidex.invoke('claude:cancelLogin')
+              void window.phosphor.invoke('claude:cancelLogin')
               onLoginState(null)
             }}
             className="text-text-secondary hover:text-text text-base"
@@ -417,7 +419,7 @@ function AccountsSection({
         <button
           onClick={() =>
             void mutate(async () =>
-              onAccounts(await window.pidex.invoke('claude:refreshAccountUsage')),
+              onAccounts(await window.phosphor.invoke('claude:refreshAccountUsage')),
             )
           }
           disabled={disabled || busy || views.length === 0}
@@ -446,7 +448,7 @@ function AccountsSection({
                   disabled={busy}
                   onChange={() =>
                     void mutate(() =>
-                      window.pidex.invoke(
+                      window.phosphor.invoke(
                         'claude:setRouting',
                         option.value,
                         primaryAccountId(accounts),
@@ -683,7 +685,7 @@ function LoginProgress({
             </Button>
           </div>
           <button
-            onClick={() => void window.pidex.invoke('app:openExternal', login.url)}
+            onClick={() => void window.phosphor.invoke('app:openExternal', login.url)}
             className="text-accent mt-2.5 block text-sm hover:underline"
           >
             Browser didn’t open? Open the sign-in page
@@ -791,7 +793,7 @@ function ContextWindowSection(): React.JSX.Element {
   const [customError, setCustomError] = useState(false)
 
   useEffect(() => {
-    void window.pidex.invoke('app:getPrefs').then((prefs) => {
+    void window.phosphor.invoke('app:getPrefs').then((prefs) => {
       const stored = prefs.claudeAutocompact ?? ''
       setValue(stored)
       if (!AUTOCOMPACT_PRESETS.some((p) => p.value === stored)) setCustomDraft(stored)
@@ -801,7 +803,7 @@ function ContextWindowSection(): React.JSX.Element {
   const save = useCallback((next: string): void => {
     setValue(next)
     setCustomError(false)
-    void window.pidex.invoke('app:setClaudeAutocompact', next)
+    void window.phosphor.invoke('app:setClaudeAutocompact', next)
   }, [])
 
   const commitCustom = useCallback((): void => {

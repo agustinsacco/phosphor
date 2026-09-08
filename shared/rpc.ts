@@ -5,12 +5,12 @@
  *   dist/modes/rpc/rpc-types.d.ts
  *   docs/rpc.md
  *
- * Self-contained on purpose — pidex spawns pi as a subprocess and never
+ * Self-contained on purpose — Phosphor spawns pi as a subprocess and never
  * imports its code, so the contract is duplicated here and unit-tested.
  *
  * Note on the drift guards at the bottom of this file: they prove the command
  * union and `RpcResponseDataMap` agree with *each other*. They cannot see pi,
- * so a command pi supports but pidex never declared stays invisible to them —
+ * so a command pi supports but Phosphor never declared stays invisible to them —
  * that is how `get_available_thinking_levels` went missing. When re-verifying
  * against a new pi, diff this file against pi's command switch, not just
  * against itself.

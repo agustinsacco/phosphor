@@ -75,7 +75,7 @@ describe('session writer', () => {
   let sessionPath: string
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'pidex-writer-'))
+    dir = await mkdtemp(join(tmpdir(), 'phosphor-writer-'))
     sessionPath = join(dir, '2026-08-01T10-00-00-000Z_sess-uuid-1.jsonl')
     await writeFile(sessionPath, SESSION_CONTENT, 'utf8')
   })
@@ -294,7 +294,7 @@ describe('currentLeafId tail window', () => {
   let sessionPath: string
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'pidex-writer-tail-'))
+    dir = await mkdtemp(join(tmpdir(), 'phosphor-writer-tail-'))
     sessionPath = join(dir, '2026-08-01T10-00-00-000Z_sess-uuid-1.jsonl')
   })
 

@@ -20,7 +20,7 @@ import {
  * (`defaultProvider` / `defaultModel` / `defaultThinkingLevel` in
  * settings.json). That is the same surface pi itself uses to pick a model on
  * startup, so whatever is shown here is genuinely what the next session will
- * run with — not a pidex-local preference that silently disagrees.
+ * run with — not a phosphor-local preference that silently disagrees.
  *
  * Supported thinking levels are derived locally via `supportedThinkingLevels`
  * (shared/thinking.ts), which implements pi's per-model rules over the
@@ -59,7 +59,7 @@ export function HomeModelPicker({
     // Usually a no-op — App hydrates this at boot, well before the home
     // screen renders. It stays here so the picker still works if it does not.
     void useModelCatalogueStore.getState().hydrate()
-    void window.pidex.invoke('pi:agentSettings').then((settings) => {
+    void window.phosphor.invoke('pi:agentSettings').then((settings) => {
       const defaultProvider = settings.defaultProvider
       const defaultModel = settings.defaultModel
       const defaultThinking = settings.defaultThinkingLevel
@@ -110,7 +110,7 @@ export function HomeModelPicker({
     setProvider(model.provider)
     setModelId(model.id)
     onPick?.({ provider: model.provider, id: model.id })
-    void window.pidex.invoke('pi:patchAgentSettings', 'global', undefined, {
+    void window.phosphor.invoke('pi:patchAgentSettings', 'global', undefined, {
       defaultProvider: model.provider,
       defaultModel: model.id,
     })
@@ -119,7 +119,7 @@ export function HomeModelPicker({
   const chooseThinking = (level: ThinkingLevel): void => {
     setOpen(null)
     setThinking(level)
-    void window.pidex.invoke('pi:patchAgentSettings', 'global', undefined, {
+    void window.phosphor.invoke('pi:patchAgentSettings', 'global', undefined, {
       defaultThinkingLevel: level,
     })
   }

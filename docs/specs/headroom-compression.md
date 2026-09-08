@@ -1,4 +1,4 @@
-# Headroom as a first-class pidex feature
+# Headroom as a first-class Phosphor feature
 
 **Status: phase 1 SHIPPED (`pi-ext/headroom.ts`, this branch, 2026-09-07);
 phases 2–3 ready to build; 4–6 (Layer 2) DEFERRED — decided 2026-09-07.**
@@ -9,7 +9,7 @@ from Headroom's source or wiki, not its README.
 
 ## What first-class has to mean
 
-pidex runs two harnesses and they fail differently.
+Phosphor runs two harnesses and they fail differently.
 
 | Harness       | Who runs a tool                                                             | pi's hooks see    | The HTTP layer sees           |
 | ------------- | --------------------------------------------------------------------------- | ----------------- | ----------------------------- |
@@ -35,7 +35,7 @@ It is the default because a compressed result is written once and never
 rewritten, so every earlier message keeps its exact bytes and prefix caching
 cannot break — and because nothing but tool output ever crosses the socket.
 
-- **Gate.** Inert unless `PIDEX_HEADROOM_URL` is set. One `GET /health` at
+- **Gate.** Inert unless `PHOSPHOR_HEADROOM_URL` is set. One `GET /health` at
   first use; failure disables it for the session.
 - **Hook.** `pi.on("tool_result")` — chains like middleware, accepts a partial
   patch of `{content, details, isError, usage}`. Text parts only.
@@ -59,7 +59,7 @@ cannot break — and because nothing but tool output ever crosses the socket.
 - **Fail open twice.** 3 s timeout on `ctx.signal`, plus a circuit breaker —
   upstream's own `HeadroomContextEngine` has one. Far inside `HANDOFF_WAIT_MS`
   (30 min), the ceiling on a blocked Claude CLI handoff.
-- **Say so.** Cumulative savings on `ctx.ui.setStatus` under `pidex-headroom`,
+- **Say so.** Cumulative savings on `ctx.ui.setStatus` under `Phosphor-headroom`,
   rendered in the context meter. Also needs `STRUCTURED_STATUS_KEYS`.
 - **No `headroom_retrieve` tool.** No hashes exist on this path, so it could
   only ever error.
@@ -73,7 +73,7 @@ works at all.
 - **pi native:** a `baseUrl` override on the built-in provider in
   `models.json`. pi documents that built-in models and existing OAuth keep
   working.
-- **pi-claude-cli:** `ANTHROPIC_BASE_URL` on pidex's own `spawnEnv` — never
+- **pi-claude-cli:** `ANTHROPIC_BASE_URL` on Phosphor's own `spawnEnv` — never
   `headroom wrap` or `headroom init` (trap 1).
 
 Cost: the provider credential transits a third-party local process that holds
@@ -137,7 +137,7 @@ gate is what ships.
 
 ## Detect, install, run, check
 
-**Detect.** `headroom --version` on the login-shell PATH pidex already
+**Detect.** `headroom --version` on the login-shell PATH Phosphor already
 resolves; `GET /health` for liveness and `checks.kompress.ready` for
 capabilities; `headroom doctor --json` (exit 0 pass / 1 warn / 2 fail) for
 diagnosis. Mirror `electron/pi/health.ts` as `electron/headroom/health.ts`,
@@ -178,7 +178,7 @@ issues (~10.2k tokens), questions with a known exact answer.
 | L1 on pi native (OpenRouter haiku, real turn, probe extension) | works — hook fired mid-turn, 10,172→5,595 tokens (45%, 41 ms), model answered exactly from compressed text                                                                                                                                                                                                                                  |
 | L1 on pi-claude-cli (custom tool through the handoff broker)   | works — 10,167→5,590 (22 ms) inside the blocked CLI turn, exact answer                                                                                                                                                                                                                                                                      |
 | L1 fidelity                                                    | 100/100 rows survive; a wrong count by haiku reproduced identically UNcompressed — model error, not ours                                                                                                                                                                                                                                    |
-| L2 claude CLI through the proxy (subscription OAuth)           | works; `--model` survives per invocation (haiku and sonnet both served as requested) — trap 4 does not bite pidex's pinned-model path                                                                                                                                                                                                       |
+| L2 claude CLI through the proxy (subscription OAuth)           | works; `--model` survives per invocation (haiku and sonnet both served as requested) — trap 4 does not bite Phosphor's pinned-model path                                                                                                                                                                                                    |
 | Trap 3 measured with a bare recording proxy (no Headroom)      | 30 tools / 97,959 B of schemas without the flag vs 13 tools / 44,540 B with `ENABLE_TOOL_SEARCH=true` (~13k tokens per request); Headroom itself also stripped ~15k/request of schema when in the loop                                                                                                                                      |
 | L2 pi native (built-in `openrouter` `baseUrl` override)        | works, existing auth kept working, exact answer — but live-turn message compression was ~0.2%: upstream recency protections spare the newest tool result, so L2's in-turn win is schema stripping; history compression needs long sessions and is untested                                                                                  |
 | Bedrock (`--backend bedrock`)                                  | works end-to-end (re-run 2026-09-07 on PowerUserAccess). Direct `/v1/messages` invoke, pi native via a custom `anthropic-messages` provider, the Claude CLI via `ANTHROPIC_BASE_URL` with the model honoured, and the full stack — L1 probe + Bedrock routing in one live tool-calling turn (10,171→7,369, 14 ms, exact answer) — all green |
@@ -197,7 +197,7 @@ _stronger_ one for fresh tool results — the proxy's own recency protections
 mean it barely touches the newest tool output in-turn, while L1 compresses it
 at the source. And trap 4 is narrower than upstream's warning: it applies to
 the CLI's interactive `/model` picker, not to a model pinned per invocation,
-which is the only thing pidex does.
+which is the only thing Phosphor does.
 
 ## Phase 1 as-built validation (2026-09-07)
 
@@ -214,7 +214,7 @@ The receipt persistence question from optimization-surface.md is answered:
 pi persists a `tool_result` handler's `details` patch verbatim into the
 session file, so per-lane savings can be folded from disk (phase 2a).
 
-Also validated: a real programming task ran in the pidex worktree on
+Also validated: a real programming task ran in the Phosphor worktree on
 pi-claude-cli with the extension loaded (wrote
 `src/features/chat/composer/headroomStatus.test.ts`, 8/8 green) — the
 feature does not disturb ordinary work.
@@ -233,7 +233,7 @@ Two traps found by the live runs, added here so they are not re-derived:
 
 ## Multiple Claude accounts
 
-pidex runs pi-claude-cli under several accounts at once, selected per spawn by
+Phosphor runs pi-claude-cli under several accounts at once, selected per spawn by
 `claudeAccountEnv()` (`CLAUDE_SECURESTORAGE_CONFIG_DIR` + pinned org UUID).
 Each CLI process reads its own keychain entry and sends its own OAuth bearer.
 Read against Headroom 0.37.0 source:
@@ -254,7 +254,7 @@ Read against Headroom 0.37.0 source:
 - **The CCR store is content-hash keyed, global per proxy.** No account or
   session partitioning: content compressed in one session is retrievable from
   another. Same machine, same human, same trust domain — acceptable, but it is
-  a reason one pidex-managed proxy should never be shared beyond the local
+  a reason one Phosphor-managed proxy should never be shared beyond the local
   user (it binds 127.0.0.1, so it isn't).
 
 Verdict: multi-account is not a blocker for any phase. One proxy per machine
@@ -268,14 +268,14 @@ stands.
    `.claude/settings.local.json` in the cwd. A proxy that dies uncleanly then
    bricks a plain `claude` with ConnectionRefused — upstream ships
    `_selfheal_dead_wrap_base_url()` on a SessionStart hook to undo exactly
-   this. The global file changes the user's own CLI outside pidex; the
-   project-local one would land in every worktree. pidex sets env on its own
+   this. The global file changes the user's own CLI outside Phosphor; the
+   project-local one would land in every worktree. Phosphor sets env on its own
    spawn only.
 2. **The proxy keeps the Claude OAuth token.** `subscription/tracker.py`
    stores the raw bearer (`self._current_token = raw`) and polls
    `api.anthropic.com/api/oauth/usage` with it every 300 s. Destination is
    Anthropic, not Headroom Labs, so this is not exfiltration — but it is an
-   unrequested second use of the credential, and pidex already gets rate-limit
+   unrequested second use of the credential, and Phosphor already gets rate-limit
    state from pi-claude-cli. Mitigation: `--no-subscription-tracking`,
    non-negotiable if layer 2 ships.
 3. **A custom base URL inflates Claude Code's context.** Upstream issue #746:
@@ -285,7 +285,7 @@ stands.
    the context meter.
 4. **The model picker does not survive a custom base URL.** Upstream's
    `cli/wrap.py` says `/model` selection "does not survive", which is why
-   their `--1m` flag forces `ANTHROPIC_MODEL`. pidex sets a model per session
+   their `--1m` flag forces `ANTHROPIC_MODEL`. Phosphor sets a model per session
    and shows it on a chip. Verify before phase 5 — a chip that lies is worse
    than no compression.
 5. **Bedrock does not pass through.** With `CLAUDE_CODE_USE_BEDROCK=1` the CLI
@@ -304,14 +304,14 @@ stands.
    per-result design sidesteps the parameter entirely.
 7. **Two Claude auth keys are mutually exclusive.**
    `claude_auth_conflict_sources()` treats `ANTHROPIC_API_KEY` and
-   `ANTHROPIC_AUTH_TOKEN` as contradictory. pidex already writes account env
+   `ANTHROPIC_AUTH_TOKEN` as contradictory. Phosphor already writes account env
    through `claudeAccountEnv()`; check the overlay before adding a writer.
 8. **Transport interception is not an option.** Upstream's opencode plugin
    monkeypatches `fetch`, `http`, `https`, `http2` and
    `child_process.spawn/exec/execFile/fork`, injecting
    `NODE_OPTIONS=--import=<shim>` so children are patched too. It would reach
    the Claude CLI, but `shouldRoute()` sends every non-loopback request through
-   the proxy, and pi is a process pidex spawns and depends on. Recorded so it
+   the proxy, and pi is a process Phosphor spawns and depends on. Recorded so it
    is not re-derived.
 
 ## Delivery
@@ -324,14 +324,14 @@ stands.
 2. **Detect and install.** `electron/headroom/health.ts`, a Settings tab with
    the not-installed state and the guided install job. No traffic touched.
 3. **Proxy lifecycle + savings surface.** Main-process supervisor, flip
-   `PIDEX_HEADROOM_URL` into `spawnEnv`, savings row in the context meter.
+   `PHOSPHOR_HEADROOM_URL` into `spawnEnv`, savings row in the context meter.
    First release where anything is actually compressed.
 4. **Layer 2 for pi native.** `baseUrl` override. Verify pi's default
    `eager_input_streaming: true` survives, else set
    `compat.supportsEagerToolInputStreaming: false`.
 5. **Layer 2 for pi-claude-cli.** `ANTHROPIC_BASE_URL` +
-   `ENABLE_TOOL_SEARCH=true` on pidex's own spawn. Trap 4 verified harmless
-   for pidex's pinned-model path (guard test only); remaining gate is the
+   `ENABLE_TOOL_SEARCH=true` on Phosphor's own spawn. Trap 4 verified harmless
+   for Phosphor's pinned-model path (guard test only); remaining gate is the
    explicit call about trap 2.
 6. **Bedrock, both harnesses.** `headroom proxy --backend bedrock`; pi native
    gets a generated `anthropic-messages` provider entry with a **bare-origin**
@@ -341,7 +341,7 @@ stands.
 
 Phases 1–3 need no decision. 4–6 need the credential calls — and are
 **deferred** (decision 2026-09-07): routing pi's provider traffic through the
-proxy risks breaking things pidex depends on (model listing among them) for
+proxy risks breaking things Phosphor depends on (model listing among them) for
 an in-turn win that measured ~0.2% on live traffic. Revisit only after
 phases 2–3 land and with a specific breakage test plan for pi's model
 discovery and streaming paths.
@@ -356,5 +356,5 @@ The integration surface that would make this clean, ranked.
 | **A credential-free routing mode** — never read or retain `authorization` | Removes the whole objection to layer 2; it becomes a toggle instead of a security review.                                     |
 | **A per-request transform allowlist** — e.g. `config.allow_lossy: false`  | Server-side guarantee instead of our client-side omission-marker heuristic.                                                   |
 | **A slimmer install** — proxy-only, no torch                              | 1.4 GB is the biggest desktop adoption barrier; structural compression already delivered most of what we measured.            |
-| **An env-only integration contract** — documented, no config-file writes  | Makes pidex a clean citizen and removes the stale-base-URL failure entirely.                                                  |
-| **A pi package** — publish the extension jointly                          | Layer 1 for every pi user, not just pidex, and a harness they do not currently list.                                          |
+| **An env-only integration contract** — documented, no config-file writes  | Makes Phosphor a clean citizen and removes the stale-base-URL failure entirely.                                               |
+| **A pi package** — publish the extension jointly                          | Layer 1 for every pi user, not just Phosphor, and a harness they do not currently list.                                       |

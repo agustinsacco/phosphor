@@ -26,10 +26,10 @@ export function AgentTab(): React.JSX.Element {
     // Unmerged per-scope reads: the editor must show what each file actually
     // contains, or a project override would silently absorb inherited global
     // values on the next edit.
-    void window.pidex
+    void window.phosphor
       .invoke('pi:agentSettingsScoped', currentWorkspace ?? undefined)
       .then(setScoped)
-    void window.pidex.invoke('pi:checkAgentSettings', workspaceArg).then((result) => {
+    void window.phosphor.invoke('pi:checkAgentSettings', workspaceArg).then((result) => {
       setHealth(
         scope === 'global'
           ? result.global
@@ -43,7 +43,7 @@ export function AgentTab(): React.JSX.Element {
   const patch = async (partial: Record<string, unknown>): Promise<void> => {
     setSaving(true)
     try {
-      await window.pidex.invoke('pi:patchAgentSettings', scope, workspaceArg, partial)
+      await window.phosphor.invoke('pi:patchAgentSettings', scope, workspaceArg, partial)
       setScoped((s) =>
         s === null
           ? s
@@ -92,8 +92,8 @@ export function AgentTab(): React.JSX.Element {
             This {scope === 'global' ? 'global' : 'workspace'} settings.json is not valid JSON.
           </div>
           <div className="text-text-secondary mt-1 leading-relaxed">
-            Editing is disabled so pidex cannot overwrite and lose your existing configuration. pi
-            also ignores the broken file and falls back to its defaults.
+            Editing is disabled so Phosphor cannot overwrite and lose your existing configuration.
+            pi also ignores the broken file and falls back to its defaults.
             {health?.error ? ` (${health.error})` : ''}
           </div>
           <button

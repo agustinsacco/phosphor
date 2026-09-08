@@ -12,8 +12,8 @@ export const FilesPane = memo(function FilesPane({
   workspacePath: string
 }): React.JSX.Element {
   useEffect(() => {
-    void window.pidex.invoke('fs:watchWorkspace', workspacePath)
-    const unsubscribe = window.pidex.onFsChanged((payload) => {
+    void window.phosphor.invoke('fs:watchWorkspace', workspacePath)
+    const unsubscribe = window.phosphor.onFsChanged((payload) => {
       if (payload.workspacePath !== workspacePath) return
       const store = useFilesStore.getState()
       void store.handleExternalChanges(workspacePath, payload.paths)
@@ -29,7 +29,7 @@ export const FilesPane = memo(function FilesPane({
   }, [workspacePath])
 
   return (
-    <PanelGroup direction="horizontal" autoSaveId={`pidex-files-${workspacePath}`}>
+    <PanelGroup direction="horizontal" autoSaveId={`phosphor-files-${workspacePath}`}>
       <Panel defaultSize={32} minSize={16} className="bg-bg-secondary/40">
         <FileExplorer workspacePath={workspacePath} />
       </Panel>

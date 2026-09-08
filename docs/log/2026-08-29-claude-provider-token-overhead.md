@@ -3,7 +3,7 @@
 A per-request token audit of two real pi-claude-cli sessions (Opus 5), each
 cross-read against its Claude CLI transcript in `~/.claude/projects/`, plus a
 control set of plain Claude Code sessions on the same machine. Question asked:
-does Claude Code spend more tokens through pidex than it would on its own?
+does Claude Code spend more tokens through Phosphor than it would on its own?
 Answer: yes, ~25% of list-price cost per session was avoidable, from three
 causes. Two are fixed in this diff; the largest lives in the provider package.
 
@@ -15,7 +15,7 @@ causes. Two are fixed in this diff; the largest lives in the provider package.
 | CLAUDE.md billed twice: pi embeds it in `<project_context>` in its system prompt, and the Claude CLI loads the same file again as memory                                                                                                                            | **+4,890 tokens on every request** (this repo's CLAUDE.md)                                  | fixed here                                                 |
 | Session auto-naming ran a full-fat `claude -p` on the default model (Opus): full Claude Code prompt, skills, MCP instructions, agent listings                                                                                                                       | **~35,000 tokens per new session** for a ~15-token title                                    | fixed here                                                 |
 
-Static prefix was _not_ bloated: a pidex session's first-call prefix measured
+Static prefix was _not_ bloated: a Phosphor session's first-call prefix measured
 31,698 tokens vs 33,421 for plain `claude -p` in the same worktree. Of the
 bundled extensions only `artifacts.ts` is model-visible (~90 tokens of
 deferred tool names eagerly; schemas load on demand). `context-breakdown`,
@@ -94,5 +94,5 @@ The dominant cost — the cache collapse at turn boundaries — is the provider'
 per-turn process lifecycle and cannot be fixed from this repo. The validated
 direction is a persistent CLI process (with an executing MCP bridge replacing
 the schema-only server). Until that ships in `@saccolabs/pi-claude-cli`,
-every pidex Claude session still re-bills its transcript on most user turns;
+every Phosphor Claude session still re-bills its transcript on most user turns;
 the fixes here trim roughly a third of the measured waste.

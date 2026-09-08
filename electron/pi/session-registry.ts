@@ -15,7 +15,7 @@ interface SessionRegistryEvents {
 }
 
 /**
- * Registry of live pi subprocesses, keyed by a pidex-side session id.
+ * Registry of live pi subprocesses, keyed by a phosphor-side session id.
  * The single source of truth for what's running; renderer stores are
  * projections fed over IPC.
  *

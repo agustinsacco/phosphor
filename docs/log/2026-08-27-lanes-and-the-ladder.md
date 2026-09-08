@@ -150,7 +150,7 @@ and three of them silently invalidate anything built on top of them.
   built. It is deliberately second: a queue with nothing worth taking in it is
   an empty inbox, so the ladder had to land first.
 - **Per-project rung configuration.** The ladder reads `package.json` scripts
-  and falls back to `unconfigured`. A `.pidex/lane.json` is the obvious next
+  and falls back to `unconfigured`. A `.phosphor/lane.json` is the obvious next
   step and is not needed to prove the shape.
 
 ## References

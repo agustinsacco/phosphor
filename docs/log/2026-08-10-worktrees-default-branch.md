@@ -1,7 +1,7 @@
 # 2026-08-10 — Worktrees never take the default branch
 
 Found the hard way: `git checkout main` in the main clone started failing with
-`fatal: 'main' is already used by worktree at .../.pidex/worktrees/main`. pidex
+`fatal: 'main' is already used by worktree at .../.phosphor/worktrees/main`. Phosphor
 had offered `main` under "Branches (opens as worktree)" and created a worktree
 for it, permanently locking the main tree out of its own default branch.
 
@@ -33,6 +33,6 @@ existing branch name, verified by probe rather than assumed.
 Coverage: a real-git test that checks out a feature branch first, proving trunk
 is refused precisely when git would have allowed it, plus that other existing
 branches still work from there. The e2e placeholder selector moved with the
-rename. `mockPidex` now reports `main` as **not** current (with a fourth branch
+rename. `mockPhosphor` now reports `main` as **not** current (with a fourth branch
 added), because the old fixture had `isCurrent: true` — the one state in which
 this bug is invisible.

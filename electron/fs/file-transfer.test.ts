@@ -6,7 +6,7 @@ import { transferEntry } from './file-transfer'
 
 let root: string, ws: string, source: string, dir: string
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), 'pidex-transfer-'))
+  root = await mkdtemp(join(tmpdir(), 'phosphor-transfer-'))
   ws = join(root, 'workspace')
   source = join(root, 'report.pdf')
   dir = join(ws, 'docs')

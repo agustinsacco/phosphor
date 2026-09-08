@@ -11,20 +11,20 @@ wrong answer.
 
 **It never retried.** `useModelCatalogueStore.hydrate()` short-circuited on
 `status === 'ready'`, and `refresh()` — written for exactly this — had no callers
-anywhere in the app. One bad answer at boot lasted until pidex was quit. Boot is
+anywhere in the app. One bad answer at boot lasted until Phosphor was quit. Boot is
 also the worst moment to ask: the app spawns the resumed session's pi about 30ms
 before the throwaway catalogue pi, so two cold pi boots race each other.
 
 **It never said so.** `resolveCatalogueModels` swallowed every failure into a
 bare `catch {}` and returned models.json as though it were the catalogue. Nothing
-reached `pidex.log`, and the store reported `status: 'ready'`. The picker then
+reached `phosphor.log`, and the store reported `status: 'ready'`. The picker then
 blamed the user's default — models.json not listing `claude-opus-5` says nothing
 about pi's catalogue, which is where that provider actually lives.
 
 ## What changed
 
 - `resolveCatalogueModels` returns `{ models, source: 'pi' | 'config' }` and logs
-  the fallback reason to `pidex.log` under `[models]`.
+  the fallback reason to `phosphor.log` under `[models]`.
 - `createTtlCache` accepts a per-value TTL. Main holds pi's own answer for
   5 minutes and a models.json fallback for 20 seconds, so the next ask retries pi
   instead of remembering a stand-in.
@@ -35,8 +35,8 @@ about pi's catalogue, which is where that provider actually lives.
 
 ## Also
 
-`npm run dev` exited with no window and no message whenever the installed pidex
+`npm run dev` exited with no window and no message whenever the installed Phosphor
 held the single-instance lock — electron-vite prints `starting electron app...`
 and then nothing. `electron/main.ts` now says so on the way out, and names the
-`PIDEX_TEST_USER_DATA` workaround. That silence is why this class of bug is hard
+`PHOSPHOR_TEST_USER_DATA` workaround. That silence is why this class of bug is hard
 to reproduce locally.

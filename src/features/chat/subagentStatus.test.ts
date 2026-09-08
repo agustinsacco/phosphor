@@ -20,7 +20,7 @@ describe('parseSubagentStatus', () => {
       },
       {
         taskId: 'a600d45bcde2ddb13',
-        description: 'Map pidex/pi dialog surfaces',
+        description: 'Map phosphor/pi dialog surfaces',
         subagentType: 'Explore',
         status: 'completed',
         toolUses: 12,

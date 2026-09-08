@@ -3,11 +3,11 @@ import type { GhPullRequest, GitInfo, SessionMeta } from '@shared/models'
 import { classifyLane, summarizePreflight, describeWarnings } from './deletePreflight'
 
 const meta = (over: Partial<SessionMeta> = {}): SessionMeta =>
-  ({ path: '/s/a.jsonl', cwd: '/repo/.pidex/worktrees/a', ...over }) as SessionMeta
+  ({ path: '/s/a.jsonl', cwd: '/repo/.phosphor/worktrees/a', ...over }) as SessionMeta
 
 const git = (over: Partial<GitInfo> = {}): GitInfo => ({
   isRepo: true,
-  branch: 'pidex/a',
+  branch: 'phosphor/a',
   isWorktree: true,
   mainRepoPath: '/repo',
   ...over,
@@ -54,7 +54,7 @@ describe('classifyLane', () => {
   })
 
   it('offers a worktree path only for a real linked worktree', () => {
-    expect(lane().worktreePath).toBe('/repo/.pidex/worktrees/a')
+    expect(lane().worktreePath).toBe('/repo/.phosphor/worktrees/a')
     // A session in the main checkout has no directory of its own to remove —
     // offering to would delete the user's actual repo.
     expect(lane({ git: git({ isWorktree: false }) }).worktreePath).toBeUndefined()

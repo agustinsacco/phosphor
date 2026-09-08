@@ -129,18 +129,18 @@ function ArtifactWorkspace({
   const versioned = artifact.versions.length > 1
 
   const save = async (): Promise<void> => {
-    const outputPath = await window.pidex.invoke('app:saveDialog', {
+    const outputPath = await window.phosphor.invoke('app:saveDialog', {
       title: 'Save artifact',
       defaultPath: suggestedFileName(artifact),
     })
     if (!outputPath) return
-    await window.pidex.invoke('fs:writeFile', outputPath, shown.content)
-    await window.pidex.invoke('app:revealPath', outputPath)
+    await window.phosphor.invoke('fs:writeFile', outputPath, shown.content)
+    await window.phosphor.invoke('app:revealPath', outputPath)
   }
 
   const openInFiles = async (): Promise<void> => {
     const target = `${workspacePath}/${suggestedFileName(artifact)}`
-    await window.pidex.invoke('fs:writeFile', target, shown.content)
+    await window.phosphor.invoke('fs:writeFile', target, shown.content)
     await openFileInWorkspace(workspacePath, target)
   }
 

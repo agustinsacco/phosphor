@@ -34,7 +34,7 @@ describe('parseContextBreakdown', () => {
   })
 
   it('treats a payload with no per-server detail as no detail, not zero cost', () => {
-    // A session started by an older pidex build sends no mcpByServer key.
+    // A session started by an older Phosphor build sends no mcpByServer key.
     expect(parseContextBreakdown(LIVE)?.mcpByServer).toEqual({})
     expect(
       parseContextBreakdown('{"parts":{"messages":1},"mcpByServer":"nope"}')?.mcpByServer,

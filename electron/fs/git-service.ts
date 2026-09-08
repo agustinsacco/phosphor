@@ -61,13 +61,13 @@ export async function createSessionBaseline(workspacePath: string): Promise<stri
   }
 
   const head = await git(workspacePath, ['rev-parse', 'HEAD'], { allowFail: true, trim: true })
-  const indexFile = join(tmpdir(), `pidex-baseline-${randomUUID()}.index`)
+  const indexFile = join(tmpdir(), `phosphor-baseline-${randomUUID()}.index`)
   const env = {
     GIT_INDEX_FILE: indexFile,
-    GIT_AUTHOR_NAME: 'pidex',
-    GIT_AUTHOR_EMAIL: 'pidex@localhost',
-    GIT_COMMITTER_NAME: 'pidex',
-    GIT_COMMITTER_EMAIL: 'pidex@localhost',
+    GIT_AUTHOR_NAME: 'Phosphor',
+    GIT_AUTHOR_EMAIL: 'phosphor@localhost',
+    GIT_COMMITTER_NAME: 'Phosphor',
+    GIT_COMMITTER_EMAIL: 'phosphor@localhost',
   }
 
   try {
@@ -76,7 +76,7 @@ export async function createSessionBaseline(workspacePath: string): Promise<stri
     await git(workspacePath, ['add', '-A'], { env })
     const tree = await git(workspacePath, ['write-tree'], { env, trim: true })
     if (!tree) return head || null
-    const args = ['commit-tree', tree, '-m', 'pidex session baseline']
+    const args = ['commit-tree', tree, '-m', 'Phosphor session baseline']
     if (head) args.push('-p', head)
     const commit = await git(workspacePath, args, { env, trim: true })
     return commit || head || null

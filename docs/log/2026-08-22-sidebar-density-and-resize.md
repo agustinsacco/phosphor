@@ -8,7 +8,7 @@ modeled on the Claude desktop session list:
 - **Resizable width.** The sidebar was a fixed `w-64` (256px), tight for long
   session titles and branch chips. It now has a drag handle on its right
   border (a 4px invisible strip that tints accent on hover), clamped to
-  208–420px, persisted in `localStorage` under `pidex:sidebarWidth`. Renderer
+  208–420px, persisted in `localStorage` under `Phosphor:sidebarWidth`. Renderer
   localStorage is the right home for pure-UI layout state — same place
   react-resizable-panels keeps the pane split — so no new IPC channel. A
   fixed full-screen overlay during the drag keeps the `col-resize` cursor and

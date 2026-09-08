@@ -26,7 +26,7 @@ export function WorkspaceChip({
   const triggerRef = useRef<HTMLButtonElement>(null)
   const recents = useWorkspacesStore((s) => s.recents)
   // The project, not the folder: with a worktree session open `workspacePath`
-  // is `<repo>/.pidex/worktrees/<branch-slug>`, and its basename read as if the
+  // is `<repo>/.phosphor/worktrees/<branch-slug>`, and its basename read as if the
   // user had switched workspaces. The branch is the chip immediately to the
   // right of this one.
   const git = useSessionsStore((s) => s.gitByCwd[workspacePath])

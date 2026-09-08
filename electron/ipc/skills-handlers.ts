@@ -18,7 +18,7 @@ import {
 
 /**
  * Skills page: list/inspect what pi resolves, create and edit bundles in the
- * pidex-writable roots, install from the pinned catalog, import and export.
+ * phosphor-writable roots, install from the pinned catalog, import and export.
  *
  * The list probe follows the same stub contract as every other headless pi
  * spawn (`pi:catalogueModels` learned this the hard way): under e2e the stub

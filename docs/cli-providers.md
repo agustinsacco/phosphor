@@ -1,6 +1,6 @@
 # 14 — Subscription CLIs as pi providers
 
-pidex reaches paid coding agents through their **own CLIs**, using the user's
+Phosphor reaches paid coding agents through their **own CLIs**, using the user's
 OAuth subscription instead of an API key. The first one shipped
 (`@saccolabs/pi-claude-cli`, Claude Code). This spec generalises what that
 taught us into a pattern that a second and third CLI can be built against,
@@ -51,7 +51,7 @@ a paper rule — pi's built-in `anthropic` OAuth provider cannot serve a Max
 plan even if you are willing to ignore the terms.
 
 **So `pi-claude-cli` is not one option among several. It is the only way to
-reach a Claude subscription from pidex**, precisely because it delegates to
+reach a Claude subscription from Phosphor**, precisely because it delegates to
 the official client rather than borrowing its credentials. That is a stronger
 justification than the "we want Claude Code's harness" argument an earlier
 draft of this spec gave, and it is the one to keep.
@@ -64,21 +64,21 @@ we want the model, the subscription and the reasoning — and we want pi to
 keep the loop, the tools and the transcript.
 
 The load-bearing decision is that the adapter is **a pi extension, not a
-pidex feature**. It registers a provider inside pi's process. pidex learns
+Phosphor feature**. It registers a provider inside pi's process. Phosphor learns
 nothing; `shared/rpc.ts` did not change once for the entire Claude effort.
 
 ```mermaid
 flowchart TB
-  subgraph R["pidex renderer — sandboxed UI"]
+  subgraph R["Phosphor renderer — sandboxed UI"]
     UI["chat, context meter, settings"]
   end
-  subgraph M["pidex main — Electron"]
+  subgraph M["Phosphor main — Electron"]
     REG["session registry, one pi per session"]
   end
   subgraph PI["pi — agent loop, tools, session file"]
     LOOP["agent loop"]
     ADP["CLI adapter extension<br/>registers a provider"]
-    EXT["pidex's bundled extensions<br/>artifacts, context-breakdown"]
+    EXT["Phosphor's bundled extensions<br/>artifacts, context-breakdown"]
   end
   subgraph CLI["the vendor CLI — claude / codex"]
     SUB["owns auth, subscription, its own tools"]
@@ -111,7 +111,7 @@ Verified against `@saccolabs/pi-claude-cli` 0.4.6 and live runs.
 | Multi-cycle        | One run is N API cycles; wire `content_block` indexes reset each cycle, so every block carries its own `contentIndex`         |
 | Tool arbitration   | pi-known tools → translate, emit as pi `toolCall`, **SIGKILL at `message_stop`** before the CLI can execute them              |
 | pi's custom tools  | Advertised to the CLI through a **schema-only MCP server** in a temp `--mcp-config`; never actually callable                  |
-| CLI-internal tools | Emitted as `[Claude Code · Name {args}]` text — a wire contract pidex parses into activity rows                               |
+| CLI-internal tools | Emitted as `[Claude Code · Name {args}]` text — a wire contract Phosphor parses into activity rows                            |
 | Account state      | `rate_limit_event` → `ctx.ui.setStatus("claude-rate-limit", json)`, never into turn content                                   |
 | Isolation          | `PI_CLAUDE_CLI_HERMETIC=1` → `--strict-mcp-config --setting-sources ""`                                                       |
 | Account selection  | `CLAUDE_CONFIG_DIR` — verified to isolate accounts completely                                                                 |
@@ -270,7 +270,7 @@ on a subscription at all.
 
 **Corollary: never adopt `--bare` as a stronger hermetic mode.** It is a
 tidier superset of `--strict-mcp-config --setting-sources ""` in every respect
-except the one that matters, and swapping to it converts every pidex session
+except the one that matters, and swapping to it converts every Phosphor session
 from "uses your plan" to "requires an API key".
 
 There is no `--no-bare` in 2.1.238's help, so if the `-p` default flips before
@@ -336,7 +336,7 @@ flowchart LR
     B["6 · sideband"]
   end
   D --> A --> S --> N --> T --> B
-  B -.->|"ctx.ui.setStatus"| UI["pidex UI"]
+  B -.->|"ctx.ui.setStatus"| UI["Phosphor UI"]
   N -.->|"AssistantMessageEventStream"| PILOOP["pi's agent loop"]
   T -.->|"pi toolCall / marker text"| PILOOP
 ```
@@ -396,7 +396,7 @@ the protocol, with no race and no orphan.
 
 **6 · Sideband.** Account state never enters turn content — it would be
 replayed to the model and written to pi's session file. One status key per
-provider, one shape, so pidex renders one component:
+provider, one shape, so Phosphor renders one component:
 
 ```jsonc
 {
@@ -428,11 +428,11 @@ existing tests are the acceptance criteria.
 **Phase B — multi-account, on the kit.** The already-planned round-robin,
 built once in the kit rather than in the Claude adapter, over the two account
 shapes in §4.2. The policy prefers an account whose window is not exhausted,
-using the `resetsAt` the sideband already reports. pidex gets a generic
+using the `resetsAt` the sideband already reports. Phosphor gets a generic
 Accounts panel driven by the provider's declared capabilities, not a
 Claude-specific one.
 
-**Phase C — surface pi's native subscription providers in pidex.** This
+**Phase C — surface pi's native subscription providers in Phosphor.** This
 replaces the Codex CLI bridge that an earlier draft of this spec proposed.
 The work is UI and plumbing, not protocol: expose `openai-codex` (and the
 other OAuth providers pi already ships) in the provider picker, drive
@@ -459,7 +459,7 @@ way it would have under a bridge. Whether pi's auth store supports more than
 one credential per provider, which decides whether Phase B's second account
 shape is implementable without an upstream change. (Answered for the _Claude_
 provider on 2026-09-04: it does not need pi's auth store at all —
-`CLAUDE_SECURESTORAGE_CONFIG_DIR` scopes the CLI's own keychain entry, so pidex
+`CLAUDE_SECURESTORAGE_CONFIG_DIR` scopes the CLI's own keychain entry, so Phosphor
 holds several accounts and picks one per session. See
 [log/2026-09-04-claude-multi-account.md](log/2026-09-04-claude-multi-account.md).) And what a Claude account
 in the pool actually costs to add, given each one needs its own real

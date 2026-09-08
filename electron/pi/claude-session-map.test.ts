@@ -15,7 +15,7 @@ describe('claudeSessionIdFor', () => {
   let root: string
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), 'pidex-session-map-'))
+    root = await mkdtemp(join(tmpdir(), 'phosphor-session-map-'))
     process.env.PI_CLAUDE_CLI_STATE_DIR = join(root, 'state')
   })
 

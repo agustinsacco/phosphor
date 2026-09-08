@@ -1,19 +1,19 @@
 ---
 name: debug
-description: Diagnose a pidex session that errors, hangs, or returns an empty reply — read the main-process debug log, pi's session JSONL, and the provider's own transcript. Use when a session "isn't working", a turn fails with a confusing message, pi crashes, or a provider (Claude CLI, Bedrock) misbehaves.
+description: Diagnose a Phosphor session that errors, hangs, or returns an empty reply — read the main-process debug log, pi's session JSONL, and the provider's own transcript. Use when a session "isn't working", a turn fails with a confusing message, pi crashes, or a provider (Claude CLI, Bedrock) misbehaves.
 ---
 
-# Debugging a failing pidex session
+# Debugging a failing Phosphor session
 
 Work outside-in. The layer that prints the error is usually not the layer that
-caused it: a turn that fails inside the Claude CLI surfaces in pidex as a
+caused it: a turn that fails inside the Claude CLI surfaces in Phosphor as a
 generic red message, and the real reason is one or two layers down.
 
 The stack, and what each layer keeps:
 
 ```
-pidex renderer  →  chat bubble; keeps nothing after unmount
-pidex main      →  ~/Library/Logs/pidex/pidex.log   (spawn argv, pi stderr, crashes)
+Phosphor renderer  →  chat bubble; keeps nothing after unmount
+Phosphor main      →  ~/Library/Logs/Phosphor/phosphor.log   (spawn argv, pi stderr, crashes)
 pi subprocess   →  ~/.pi/agent/sessions/<mangled-cwd>/<ts>_<id>.jsonl
 provider        →  ~/.claude/projects/<mangled-cwd>/<session-id>.jsonl   (Claude CLI only)
 ```
@@ -21,12 +21,12 @@ provider        →  ~/.claude/projects/<mangled-cwd>/<session-id>.jsonl   (Clau
 ## 1. The debug log
 
 ```bash
-tail -100 ~/Library/Logs/pidex/pidex.log
+tail -100 ~/Library/Logs/Phosphor/phosphor.log
 ```
 
 Always on, no flag to set — a log you must enable first is never on when the
 bug happens. Rotates at 5MB keeping one `.1`. macOS path shown; Linux is
-`~/.config/pidex/logs/`. From a shipped build the path is also available over
+`~/.config/Phosphor/logs/`. From a shipped build the path is also available over
 IPC (`app:debugLogPath`, `app:revealDebugLog`).
 
 What it answers:
@@ -65,7 +65,7 @@ for l in open(sys.argv[1]):
 timestamp gap means the model never ran.** The provider failed before the API
 call. Do not read that as a model problem — go to step 3.
 
-To tell a provider fault from a pidex fault, compare across sessions: if every
+To tell a provider fault from a Phosphor fault, compare across sessions: if every
 session on one provider is empty while another provider's sessions have real
 token counts, the fault is that provider.
 
@@ -78,7 +78,7 @@ token counts, the fault is that provider.
 ~/.claude/projects/<cwd-with-slashes-as-dashes>/<pi-session-id>.jsonl
 ```
 
-It records the plain-English API error that pidex renders as something
+It records the plain-English API error that Phosphor renders as something
 unhelpful. Read the `result` field of the `type: "result"` line:
 
 ```bash
@@ -98,16 +98,16 @@ that fired is `is_error`, producing the self-contradictory
 the provider never surfaces. Any confusing provider error — always read
 `result`.
 
-## 4. Reproduce outside pidex
+## 4. Reproduce outside Phosphor
 
-This decides "is it pidex or is it pi/the provider" in one command:
+This decides "is it Phosphor or is it pi/the provider" in one command:
 
 ```bash
 cd /tmp && echo "reply with exactly: pong" | pi -p
 ```
 
-Fails here too ⇒ not a pidex bug. Fix pi, the provider, or its config.
-Works here but fails in pidex ⇒ compare the `[pi] spawn` argv from the debug
+Fails here too ⇒ not a Phosphor bug. Fix pi, the provider, or its config.
+Works here but fails in Phosphor ⇒ compare the `[pi] spawn` argv from the debug
 log against what you just ran; the difference is the bug.
 
 ## 5. Capture the real argv of a nested CLI

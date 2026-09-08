@@ -38,7 +38,7 @@ a lane holding uncommitted work that happens to sit on a merged branch is
 exactly the case where a wrong answer destroys someone's work.
 
 "Proven merged" is `isBranchMerged`, the same squash test the manual bulk
-delete uses: pidex lands PRs as squash merges, which leave no ancestry, so
+delete uses: Phosphor lands PRs as squash merges, which leave no ancestry, so
 `git merge-base --is-ancestor` answers no for every landed lane. Anything the
 test cannot prove reads as **not** merged — an error must never read as proof.
 Deletion still goes through `removeWorktree`, which refuses a dirty tree
@@ -64,7 +64,7 @@ reclaimed anything automatically was the session reaper, which derived its
 schedule from the fleet hub and went out with it
 ([2026-09-03-remove-orchestration.md](2026-09-03-remove-orchestration.md)).
 A timer owns no session state, so nothing here can hold a session open or read
-a stale phase. It warms up for 5 minutes (launch is the busiest minute pidex
+a stale phase. It warms up for 5 minutes (launch is the busiest minute Phosphor
 has), floors the interval at 15 minutes whatever the pref says, and runs one
 sweep at a time — a `du` over a large workspace can outlast the interval, and
 two concurrent sweeps would race on `git worktree remove`.

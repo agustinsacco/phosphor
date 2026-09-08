@@ -21,7 +21,7 @@ import type { ModelCost, ThinkingLevelMap } from '@shared/rpc'
  * that fetch came back with the models.json fallback, `hydrate()` short-
  * circuited on `status === 'ready'` for the rest of the app's life. `refresh()`
  * existed for exactly this and had no callers anywhere, so the only cure was
- * quitting pidex. `hydrate()` now re-asks whenever the list in hand is the
+ * quitting Phosphor. `hydrate()` now re-asks whenever the list in hand is the
  * degraded one.
  */
 
@@ -92,8 +92,8 @@ export const useModelCatalogueStore = create<ModelCatalogueState>((set, get) => 
         // The auth check is a nice-to-have for the empty state; a failure
         // there must not turn a good model list into an error.
         const [catalogue, providers] = await Promise.all([
-          window.pidex.invoke('pi:catalogueModels'),
-          window.pidex.invoke('pi:subscriptionAuth').catch(() => []),
+          window.phosphor.invoke('pi:catalogueModels'),
+          window.phosphor.invoke('pi:subscriptionAuth').catch(() => []),
         ])
         set({
           status: 'ready',

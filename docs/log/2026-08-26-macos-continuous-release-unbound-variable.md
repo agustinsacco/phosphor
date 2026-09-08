@@ -5,9 +5,9 @@ Reported as: "the v0.1.93 releases page has no `.dmg`."
 ## What shipped
 
 v0.1.93's assets: `checksums.txt`, `icon.png`, `install.sh`,
-`latest-linux.yml`, `latest-linux-arm64.yml`, `pidex-0.1.93-amd64.deb`,
-`pidex-0.1.93-arm64.deb`, `pidex-0.1.93-arm64.AppImage`,
-`pidex-0.1.93-x86_64.AppImage`. No `.dmg`, no `.zip`, no `latest-mac.yml`.
+`latest-linux.yml`, `latest-linux-arm64.yml`, `Phosphor-0.1.93-amd64.deb`,
+`Phosphor-0.1.93-arm64.deb`, `Phosphor-0.1.93-arm64.AppImage`,
+`Phosphor-0.1.93-x86_64.AppImage`. No `.dmg`, no `.zip`, no `latest-mac.yml`.
 
 ## Root cause
 

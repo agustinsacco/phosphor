@@ -1,7 +1,7 @@
 # macOS asked for folder permission after every update
 
-pidex re-asked for Downloads, Documents and Desktop access every few days. The
-prompt looked like a bug in what pidex reads. It was not: nothing in this repo
+Phosphor re-asked for Downloads, Documents and Desktop access every few days. The
+prompt looked like a bug in what Phosphor reads. It was not: nothing in this repo
 reads those folders by name. The bug was in how the app is signed.
 
 ## What actually happened
@@ -13,7 +13,7 @@ running app against it before honouring the grant.
 The installed app's requirement was:
 
 ```
-$ codesign -d -r - /Applications/pidex.app
+$ codesign -d -r - /Applications/Phosphor.app
 # designated => cdhash H"d4594ebba2e142f2869729209bfa2d74a822034b"
 ```
 
@@ -39,7 +39,7 @@ requirement to the bundle identifier, which does not change between builds:
 
 ```
 codesign --force --deep --sign - --timestamp=none \
-  '-r=designated => identifier "works.pidex.app"' pidex.app
+  '-r=designated => identifier "works.phosphor.app"' Phosphor.app
 ```
 
 > **Corrected 2026-09-03.** That single command does not survive nested code:
@@ -54,7 +54,7 @@ The same two-bundle experiment then passes, which is exactly the check TCC
 performs after an update:
 
 ```
-$ codesign --verify -R='identifier "works.pidex.app"' v2.app   # ok
+$ codesign --verify -R='identifier "works.phosphor.app"' v2.app   # ok
 ```
 
 Two things that cost time:
@@ -89,5 +89,5 @@ Two things that cost time:
   change re-keys them to the identifier; from then on they persist.
 
 Whoever reads a folder is unchanged — usually the pi agent the user asked to
-work somewhere, running as a child of pidex, which is why the prompt names
-pidex.
+work somewhere, running as a child of Phosphor, which is why the prompt names
+Phosphor.

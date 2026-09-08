@@ -47,13 +47,13 @@ describe('slugifyTitle', () => {
 
 describe('normalizePrefix', () => {
   it('keeps a prefix that already ends in a separator', () => {
-    expect(normalizePrefix('pidex/')).toBe('pidex/')
-    expect(normalizePrefix('pidex-')).toBe('pidex-')
+    expect(normalizePrefix('phosphor/')).toBe('phosphor/')
+    expect(normalizePrefix('phosphor-')).toBe('phosphor-')
     expect(normalizePrefix('wip_')).toBe('wip_')
   })
 
-  it('adds a slash to a bare prefix, since that is what "pidex" means', () => {
-    expect(normalizePrefix('pidex')).toBe('pidex/')
+  it('adds a slash to a bare prefix, since that is what "Phosphor" means', () => {
+    expect(normalizePrefix('phosphor')).toBe('phosphor/')
     expect(normalizePrefix('  agus/session  ')).toBe('agus/session/')
   })
 
@@ -64,19 +64,19 @@ describe('normalizePrefix', () => {
   })
 
   it('strips characters that would make an invalid ref', () => {
-    expect(normalizePrefix('pi dex?/')).toBe('pidex/')
+    expect(normalizePrefix('phos phor?/')).toBe('phosphor/')
     expect(normalizePrefix('../escape/')).toBe('escape/')
     expect(normalizePrefix('a//b')).toBe('a/b/')
   })
 })
 
 describe('branchNameFor', () => {
-  const base = { prefix: 'pidex/', takenBranches: [], takenFolders: [] }
+  const base = { prefix: 'phosphor/', takenBranches: [], takenFolders: [] }
 
   it('pairs a folder with its prefixed branch', () => {
     expect(branchNameFor({ ...base, title: 'Session Naming And Worktrees' })).toEqual({
       folder: 'session-naming-and-worktrees',
-      branch: 'pidex/session-naming-and-worktrees',
+      branch: 'phosphor/session-naming-and-worktrees',
     })
   })
 
@@ -89,8 +89,8 @@ describe('branchNameFor', () => {
 
   it('suffixes past a taken branch', () => {
     expect(
-      branchNameFor({ ...base, title: 'Quick Fix', takenBranches: ['pidex/quick-fix'] }),
-    ).toEqual({ folder: 'quick-fix-2', branch: 'pidex/quick-fix-2' })
+      branchNameFor({ ...base, title: 'Quick Fix', takenBranches: ['phosphor/quick-fix'] }),
+    ).toEqual({ folder: 'quick-fix-2', branch: 'phosphor/quick-fix-2' })
   })
 
   it('suffixes past a taken folder even when the branch is free', () => {
@@ -98,7 +98,7 @@ describe('branchNameFor', () => {
     // survived a prune: either half being taken must move the pair along.
     expect(branchNameFor({ ...base, title: 'Quick Fix', takenFolders: ['quick-fix'] })).toEqual({
       folder: 'quick-fix-2',
-      branch: 'pidex/quick-fix-2',
+      branch: 'phosphor/quick-fix-2',
     })
   })
 
@@ -107,16 +107,16 @@ describe('branchNameFor', () => {
       branchNameFor({
         ...base,
         title: 'Quick Fix',
-        takenBranches: ['pidex/quick-fix', 'pidex/quick-fix-2'],
+        takenBranches: ['phosphor/quick-fix', 'phosphor/quick-fix-2'],
         takenFolders: ['quick-fix-3'],
       }),
-    ).toEqual({ folder: 'quick-fix-4', branch: 'pidex/quick-fix-4' })
+    ).toEqual({ folder: 'quick-fix-4', branch: 'phosphor/quick-fix-4' })
   })
 
   it('compares case-insensitively, because the folder lands on a case-insensitive disk', () => {
     expect(branchNameFor({ ...base, title: 'Quick Fix', takenFolders: ['Quick-Fix'] })).toEqual({
       folder: 'quick-fix-2',
-      branch: 'pidex/quick-fix-2',
+      branch: 'phosphor/quick-fix-2',
     })
   })
 })
@@ -135,13 +135,13 @@ describe('configurable slug length', () => {
   it('threads the cap through branchNameFor', () => {
     const { folder, branch } = branchNameFor({
       title: 'fix the composer autogrow jump on paste',
-      prefix: 'pidex/',
+      prefix: 'phosphor/',
       takenBranches: [],
       takenFolders: [],
       maxSlug: 16,
     })
     expect(folder.length).toBeLessThanOrEqual(16)
-    expect(branch).toBe(`pidex/${folder}`)
+    expect(branch).toBe(`phosphor/${folder}`)
   })
 
   it('refuses an absurdly small cap rather than producing an empty slug', () => {

@@ -1,7 +1,7 @@
 # 2026-08-23 — Tool-call row polish: command labels, alignment, no box-in-a-box
 
 Three readability fixes to the activity group's tool rows, all driven by how
-badly worktree sessions read (`Ran cd /home/u/src/pidex/.pidex/worktrees/…`).
+badly worktree sessions read (`Ran cd /home/u/src/Phosphor/.phosphor/worktrees/…`).
 
 - **Bash labels drop the workspace path.** `cleanCommandForDisplay` in
   `src/features/chat/tools/toolSummaries.ts` strips a leading

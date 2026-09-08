@@ -63,7 +63,7 @@ export const IGNORED_DIR_PATTERN = new RegExp(
  *   4         ⇒  3,354 dirs, 523ms
  *   3         ⇒  1,559 dirs, 168ms
  * Three keeps the app responsive on the worst repo here while still covering
- * a normal project end to end (pidex's own source tree bottoms out at depth 3).
+ * a normal project end to end (Phosphor's own source tree bottoms out at depth 3).
  * Edits deeper than this stop producing `fs:changed` pushes; the git chips
  * still re-poll on window focus, so the cost is explorer immediacy, not
  * correctness.
@@ -173,7 +173,7 @@ function dirExceedsEntryCap(dir: string): boolean {
 
   if (oversized) {
     console.warn(
-      `[pidex] not watching ${dir}: more than ${MAX_DIR_ENTRIES} entries in one directory`,
+      `[Phosphor] not watching ${dir}: more than ${MAX_DIR_ENTRIES} entries in one directory`,
     )
   }
   oversizedDirs.set(dir, oversized)
@@ -233,7 +233,7 @@ export function createWatchFilter(
       if (!warned) {
         warned = true
         console.warn(
-          `[pidex] global watch budget reached (${MAX_WATCHED_PATHS} paths); ` +
+          `[Phosphor] global watch budget reached (${MAX_WATCHED_PATHS} paths); ` +
             `not watching further paths in ${root}`,
         )
       }
@@ -282,7 +282,7 @@ export function watchWorkspace(workspacePath: string): void {
   // 'error' event — chokidar emits it asynchronously, so an unhandled one
   // takes the app down. Log and keep whatever the watcher did manage to bind.
   watcher.on('error', (error) => {
-    console.warn(`[pidex] workspace watcher error for ${workspacePath}:`, error)
+    console.warn(`[Phosphor] workspace watcher error for ${workspacePath}:`, error)
   })
 
   const queue = (path: string): void => {

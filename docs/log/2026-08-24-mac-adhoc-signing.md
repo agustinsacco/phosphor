@@ -62,7 +62,7 @@ assembled and **before** the dmg/zip targets are cut, so both artifacts carry
 the corrected signature from one hook.
 
 ```
-Identifier=works.pidex.app
+Identifier=works.phosphor.app
 flags=0x2(adhoc)
 Sealed Resources version=2 rules=13 files=165
 codesign --verify --deep --strict → passes
@@ -105,7 +105,7 @@ first Finder launch is still right-click → Open. The change is from _malformed
 (reads as damaged, no clear user action) to _well-formed but unidentified_
 (the normal macOS unsigned-app path).
 
-**macOS self-update remains off.** `pidexSigned=false` — confirmed by reading
+**macOS self-update remains off.** `phosphorSigned=false` — confirmed by reading
 the packaged `package.json` out of the shipped v0.1.90 asar — so
 `canSelfInstall()` returns false and macOS takes `checkManually()`, which
 detects the new version and then just opens the releases page via
@@ -151,7 +151,7 @@ sits in `result` and is never surfaced. It was recoverable only from the CLI's
 own transcript under `~/.claude/projects/`, and confirming the argv required
 shimming the `claude` binary on PATH.
 
-pidex kept none of this. pi's stderr was forwarded to the renderer and dropped
+Phosphor kept none of this. pi's stderr was forwarded to the renderer and dropped
 on unmount, and the app wrote no log at all — 4 `console.*` calls in all of
 `electron/`.
 

@@ -3,7 +3,7 @@ import { autoMarker, laneMarker, allMarkers, AUTO_MARKERS, MARKER_CATEGORIES } f
 
 describe('autoMarker', () => {
   it('is stable for the same key', () => {
-    expect(autoMarker('pidex/lane-a')).toBe(autoMarker('pidex/lane-a'))
+    expect(autoMarker('phosphor/lane-a')).toBe(autoMarker('phosphor/lane-a'))
   })
 
   it('always returns a glyph, even with no key', () => {
@@ -14,34 +14,34 @@ describe('autoMarker', () => {
 
   it('only ever returns glyphs from the auto palette', () => {
     for (let i = 0; i < 200; i++) {
-      expect(AUTO_MARKERS).toContain(autoMarker(`pidex/branch-${i}`))
+      expect(AUTO_MARKERS).toContain(autoMarker(`phosphor/branch-${i}`))
     }
   })
 
   it('spreads realistic branch names across most of the palette', () => {
     // A hash that clumps would give every lane in a repo the same glyph, which
     // is the one failure mode that makes the whole feature pointless.
-    const branches = Array.from({ length: 40 }, (_, i) => `pidex/feature-${i}`)
+    const branches = Array.from({ length: 40 }, (_, i) => `phosphor/feature-${i}`)
     const distinct = new Set(branches.map(autoMarker))
     expect(distinct.size).toBeGreaterThanOrEqual(20)
   })
 
   it('gives sibling branch names different glyphs', () => {
-    expect(autoMarker('pidex/lane-a')).not.toBe(autoMarker('pidex/lane-b'))
+    expect(autoMarker('phosphor/lane-a')).not.toBe(autoMarker('phosphor/lane-b'))
   })
 })
 
 describe('laneMarker', () => {
   it('prefers an explicit choice', () => {
-    expect(laneMarker('🐙', 'pidex/x', '/cwd')).toBe('🐙')
+    expect(laneMarker('🐙', 'phosphor/x', '/cwd')).toBe('🐙')
   })
 
   it('honours an explicit empty string as "no marker, on purpose"', () => {
-    expect(laneMarker('', 'pidex/x', '/cwd')).toBe('')
+    expect(laneMarker('', 'phosphor/x', '/cwd')).toBe('')
   })
 
   it('falls back to the branch hash, not the cwd, when both exist', () => {
-    expect(laneMarker(undefined, 'pidex/x', '/cwd')).toBe(autoMarker('pidex/x'))
+    expect(laneMarker(undefined, 'phosphor/x', '/cwd')).toBe(autoMarker('phosphor/x'))
   })
 
   it('falls back to cwd when the lane has no branch yet', () => {
@@ -72,20 +72,20 @@ describe('palette', () => {
 
 describe('laneMarker modes', () => {
   it('auto derives a marker for a lane that never chose', () => {
-    expect(laneMarker(undefined, 'pidex/x', '/cwd', 'auto')).toBe(autoMarker('pidex/x'))
+    expect(laneMarker(undefined, 'phosphor/x', '/cwd', 'auto')).toBe(autoMarker('phosphor/x'))
   })
 
   it('manual respects a choice but derives nothing', () => {
-    expect(laneMarker('🐙', 'pidex/x', '/cwd', 'manual')).toBe('🐙')
-    expect(laneMarker(undefined, 'pidex/x', '/cwd', 'manual')).toBe('')
+    expect(laneMarker('🐙', 'phosphor/x', '/cwd', 'manual')).toBe('🐙')
+    expect(laneMarker(undefined, 'phosphor/x', '/cwd', 'manual')).toBe('')
   })
 
   it('off wins over an explicit choice', () => {
     // Otherwise turning markers off would leave the ones you picked behind.
-    expect(laneMarker('🐙', 'pidex/x', '/cwd', 'off')).toBe('')
+    expect(laneMarker('🐙', 'phosphor/x', '/cwd', 'off')).toBe('')
   })
 
   it('defaults to auto when no mode is given', () => {
-    expect(laneMarker(undefined, 'pidex/x', '/cwd')).toBe(autoMarker('pidex/x'))
+    expect(laneMarker(undefined, 'phosphor/x', '/cwd')).toBe(autoMarker('phosphor/x'))
   })
 })

@@ -29,10 +29,10 @@ async function git(cwd: string, args: string[]): Promise<string> {
 }
 
 beforeEach(async () => {
-  repo = await mkdtemp(join(tmpdir(), 'pidex-baseline-'))
+  repo = await mkdtemp(join(tmpdir(), 'phosphor-baseline-'))
   await git(repo, ['init', '-b', 'main'])
-  await git(repo, ['config', 'user.email', 'test@pidex.dev'])
-  await git(repo, ['config', 'user.name', 'pidex test'])
+  await git(repo, ['config', 'user.email', 'test@phosphor.dev'])
+  await git(repo, ['config', 'user.name', 'Phosphor test'])
   await writeFile(join(repo, 'tracked.txt'), 'committed\n')
   await git(repo, ['add', '-A'])
   await git(repo, ['commit', '-m', 'initial'])
@@ -89,7 +89,7 @@ describe('createSessionBaseline', () => {
   })
 
   it('works in a repo with no commits yet', async () => {
-    const fresh = await mkdtemp(join(tmpdir(), 'pidex-baseline-empty-'))
+    const fresh = await mkdtemp(join(tmpdir(), 'phosphor-baseline-empty-'))
     try {
       await git(fresh, ['init', '-b', 'main'])
       await writeFile(join(fresh, 'first.ts'), 'export const y = 2\n')
@@ -103,7 +103,7 @@ describe('createSessionBaseline', () => {
   })
 
   it('returns null outside a repo', async () => {
-    const plain = await mkdtemp(join(tmpdir(), 'pidex-baseline-plain-'))
+    const plain = await mkdtemp(join(tmpdir(), 'phosphor-baseline-plain-'))
     try {
       expect(await createSessionBaseline(plain)).toBeNull()
     } finally {

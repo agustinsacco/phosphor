@@ -110,7 +110,7 @@ describe('listPackages', () => {
   const originalPiDir = process.env.PI_CODING_AGENT_DIR
 
   beforeEach(() => {
-    home = mkdtempSync(join(tmpdir(), 'pidex-packages-'))
+    home = mkdtempSync(join(tmpdir(), 'phosphor-packages-'))
     workspace = join(home, 'ws')
     mkdirSync(join(home, 'agent'), { recursive: true })
     mkdirSync(join(workspace, '.pi'), { recursive: true })
@@ -258,7 +258,7 @@ describe('runClaudeUpdate', () => {
   let dir: string
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'pidex-claude-update-'))
+    dir = mkdtempSync(join(tmpdir(), 'phosphor-claude-update-'))
   })
 
   afterEach(() => {

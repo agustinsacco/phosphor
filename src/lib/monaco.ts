@@ -1,6 +1,6 @@
 /**
  * Monaco singleton: bundled workers (no CDN — strict CSP), theme definitions
- * bound to pidex tokens, lazy loading as an async chunk.
+ * bound to Phosphor tokens, lazy loading as an async chunk.
  */
 import type * as MonacoTypes from 'monaco-editor'
 
@@ -68,7 +68,7 @@ async function loadMonaco(): Promise<typeof MonacoTypes> {
 
   // Phosphor editor themes (docs/style-guide.md). Hex literals on purpose —
   // Monaco takes a JS object; keep in sync with --px-* in src/styles/index.css.
-  monaco.editor.defineTheme('pidex-light', {
+  monaco.editor.defineTheme('phosphor-light', {
     base: 'vs',
     inherit: true,
     rules: [],
@@ -89,7 +89,7 @@ async function loadMonaco(): Promise<typeof MonacoTypes> {
     },
   })
 
-  monaco.editor.defineTheme('pidex-dark', {
+  monaco.editor.defineTheme('phosphor-dark', {
     base: 'vs-dark',
     inherit: true,
     rules: [],
@@ -126,7 +126,7 @@ async function loadMonaco(): Promise<typeof MonacoTypes> {
 }
 
 export function monacoThemeFor(resolved: 'light' | 'dark'): string {
-  return resolved === 'dark' ? 'pidex-dark' : 'pidex-light'
+  return resolved === 'dark' ? 'phosphor-dark' : 'phosphor-light'
 }
 
 const EXT_LANGUAGE: Record<string, string> = {

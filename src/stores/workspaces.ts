@@ -73,17 +73,17 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     // Persist immediately (recents + lastWorkspacePath). The main process
     // prunes worktree folders from the persisted list; the in-memory list
     // above has already excluded them.
-    void window.pidex.invoke('app:recordWorkspace', path)
+    void window.phosphor.invoke('app:recordWorkspace', path)
   },
 
   pickAndOpen: async () => {
-    const path = await window.pidex.invoke('app:selectFolder')
+    const path = await window.phosphor.invoke('app:selectFolder')
     if (path) get().openWorkspace(path)
     return path
   },
 
   openSandbox: async () => {
-    const path = await window.pidex.invoke('app:createSandbox')
+    const path = await window.phosphor.invoke('app:createSandbox')
     get().openWorkspace(path)
     // Main may have minted a new one, and its item count changes the moment a
     // session writes anything — so re-read rather than patching the list.
@@ -92,12 +92,12 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
   },
 
   refreshSandboxes: async () => {
-    set({ sandboxes: await window.pidex.invoke('app:listSandboxes') })
+    set({ sandboxes: await window.phosphor.invoke('app:listSandboxes') })
   },
 
   deleteSandbox: async (path) => {
     const name = path.split(/[\\/]/).filter(Boolean).pop() ?? path
-    const result = await window.pidex.invoke('app:deleteSandbox', path)
+    const result = await window.phosphor.invoke('app:deleteSandbox', path)
     // Reported here rather than at each call site: main refuses for reasons
     // (a live session) the sidebar and Settings would both have to explain.
     if (!result.ok) {
@@ -140,14 +140,14 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
     const [workspace] = next.splice(index, 1)
     next.splice(target, 0, workspace!)
     set({ recents: next })
-    void window.pidex.invoke('app:setRecentWorkspaces', next)
+    void window.phosphor.invoke('app:setRecentWorkspaces', next)
   },
 
   hydrate: async () => {
     try {
       const [prefs, sandboxes] = await Promise.all([
-        window.pidex.invoke('app:getPrefs'),
-        window.pidex.invoke('app:listSandboxes'),
+        window.phosphor.invoke('app:getPrefs'),
+        window.phosphor.invoke('app:listSandboxes'),
       ])
       set({ recents: prefs.recentWorkspaces, sandboxes })
     } finally {

@@ -30,7 +30,7 @@ import { buildTranscriptRows, trailingUnfinishedAgents } from './items/transcrip
  * cycle boundary, the CLI re-invokes the model itself when they report, and
  * their findings land in the same turn. So the strip is now driven by
  * EVIDENCE — agents whose markers never reached a terminal state — instead of
- * by the assumption. pidex pins no provider version, so both shapes will keep
+ * by the assumption. Phosphor pins no provider version, so both shapes will keep
  * arriving from real sessions; counting what the transcript proves is the
  * only version-free way to be right about either.
  */

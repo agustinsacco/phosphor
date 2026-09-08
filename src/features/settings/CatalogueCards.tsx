@@ -42,7 +42,7 @@ export function CatalogueCards({
             <p className="text-text-secondary mt-1.5 text-base leading-snug">{entry.description}</p>
             <div className="mt-2 flex items-center gap-3">
               <button
-                onClick={() => void window.pidex.invoke('app:openExternal', entry.docsUrl)}
+                onClick={() => void window.phosphor.invoke('app:openExternal', entry.docsUrl)}
                 className="text-text-tertiary hover:text-text text-sm underline"
               >
                 Docs

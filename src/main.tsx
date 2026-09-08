@@ -7,9 +7,9 @@ import './styles/index.css'
 
 async function bootstrap(): Promise<void> {
   // Plain-browser dev (vite server without Electron): install the mock API.
-  if (import.meta.env.DEV && typeof window.pidex === 'undefined') {
-    const { installMockPidex } = await import('./dev/mockPidex')
-    installMockPidex()
+  if (import.meta.env.DEV && typeof window.phosphor === 'undefined') {
+    const { installMockPhosphor } = await import('./dev/mockPhosphor')
+    installMockPhosphor()
     // Debug access to stores from the browser console.
     void import('./stores/chat').then((m) => {
       ;(window as unknown as Record<string, unknown>).__chatStore = m.useChatStore

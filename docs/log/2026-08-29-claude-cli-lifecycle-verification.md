@@ -39,7 +39,7 @@ the persistent-process rewrite this audit originally proposed.
 ## How pi manages Claude Code
 
 ```
-pidex (Electron main)
+Phosphor (Electron main)
   └─ spawns once per session:  pi --mode rpc [--no-context-files] -e …ext…
        └─ pi-claude-cli provider, per USER TURN:
             1. spawn claude -p …  (--session-id on turn 1, --resume after)
@@ -130,7 +130,7 @@ Continuity check: 2a8d559a's turn-1 context ended at ~85.6k; turn 2 read
 85,564. The entire non-default portion re-billed, exactly once.
 
 The audit's earlier claim of "median 35,300 lost on 71% of boundaries" was
-an over-generalization: pidex sessions are typically short, so turn-2 swap
+an over-generalization: Phosphor sessions are typically short, so turn-2 swap
 boundaries and TTL expiries dominated that sample. Steady-state boundaries
 are fine.
 
@@ -141,7 +141,7 @@ onward:
 
 - In `PI_CLAUDE_CLI_SYSTEM_PROMPT=pi` (replace) mode, the session ran under
   Claude Code's default prompt, not pi's.
-- In `claude` (append) mode, pi's appended directives — pidex's lane
+- In `claude` (append) mode, pi's appended directives — Phosphor's lane
   charter, subagent policy, prompt-level worktree guidance — vanished.
   (The worktree-paths PreToolUse hook survived; it rides
   `PI_CLAUDE_CLI_SETTINGS`, which is passed on every spawn.)
@@ -157,7 +157,7 @@ onward:
 | permissions      | interactive                     | `--permission-prompt-tool stdio`, `AskUserQuestion` disallowed (no TUI)     |
 
 Answer to the original question: **no, Claude Code does not burn more tokens
-via pidex than on its own** — once 0.4.15 is installed. The static prefix is
+via Phosphor than on its own** — once 0.4.15 is installed. The static prefix is
 slightly _smaller_ than a bare `claude -p` in the same cwd (31,698 vs 33,421),
 because pi replaces Claude Code's system prompt rather than appending to it.
 
@@ -221,7 +221,7 @@ just silently ran on Claude Code's default prompt (`pi` mode) or appended a
 stray filesystem path as noise the model ignored (`claude` mode).
 
 This is strictly worse than what PR #27 diagnosed: it isn't a turn-2 problem,
-it's a turn-1 problem, present in every pidex Claude-provider session that
+it's a turn-1 problem, present in every Phosphor Claude-provider session that
 has ever run, on both `PI_CLAUDE_CLI_SYSTEM_PROMPT` modes, independent of
 resume. pi's instructions — replaced or appended — never reached the model at
 all. 0.4.15's fix (re-send the prompt on every `--resume`) was necessary and
@@ -251,11 +251,11 @@ the staged file's _content_, not just its presence, and that neither
 unsuffixed flag is ever used), but the mocked guard is a regression net, not
 what found the bug.
 
-**Corrected verdict.** No, Claude Code does not use more tokens through pidex
+**Corrected verdict.** No, Claude Code does not use more tokens through Phosphor
 than on its own — that holds on 0.4.16 as it did on 0.4.15, the token math in
 this doc is unaffected. But the "constant, correct system prompt" row of the
 terminal-parity table above was wrong until 0.4.16: on 0.4.14 and 0.4.15,
-every pidex Claude-provider session ran fully or partially on Claude Code's
+every Phosphor Claude-provider session ran fully or partially on Claude Code's
 own instructions, not pi's, for its entire lifetime.
 
 ## Repro harness

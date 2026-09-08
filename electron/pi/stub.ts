@@ -1,7 +1,7 @@
 import { app } from 'electron'
 
 /**
- * E2E hook: PIDEX_PI_STUB points at a script that speaks the RPC protocol in
+ * E2E hook: PHOSPHOR_PI_STUB points at a script that speaks the RPC protocol in
  * place of the real pi binary, so CI can smoke-test without an API key.
  *
  * Gated on `!app.isPackaged`. The hook makes the main process execute an
@@ -17,5 +17,5 @@ import { app } from 'electron'
  */
 export function piStubPath(): string | undefined {
   if (app.isPackaged) return undefined
-  return process.env.PIDEX_PI_STUB || undefined
+  return process.env.PHOSPHOR_PI_STUB || undefined
 }

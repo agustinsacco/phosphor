@@ -24,7 +24,7 @@ it('reconciles successful moves and leaves only failures on the cut clipboard', 
     }
     if (channel === 'clipboard:readFiles') return { paths, cut: true }
   })
-  vi.stubGlobal('window', { pidex: { invoke } })
+  vi.stubGlobal('window', { phosphor: { invoke } })
   await transferFiles('/repo', paths, '/repo', true)
   expect(reconcile).toHaveBeenCalledExactlyOnceWith('/repo', '/repo/a', '/repo/moved-a')
   expect(invoke).toHaveBeenCalledWith('clipboard:writeFiles', ['/repo/b'], true)

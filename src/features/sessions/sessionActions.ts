@@ -20,7 +20,7 @@ import { formatSessionDebugInfo } from '@/lib/sessionDebugInfo'
  * No-op when the user cancels the dialog.
  */
 export async function exportSessionHtml(sessionId: string, defaultName = 'session'): Promise<void> {
-  const outputPath = await window.pidex.invoke('app:saveDialog', {
+  const outputPath = await window.phosphor.invoke('app:saveDialog', {
     title: 'Export session as HTML',
     defaultPath: `${defaultName}.html`,
     filters: [{ name: 'HTML', extensions: ['html'] }],
@@ -28,7 +28,7 @@ export async function exportSessionHtml(sessionId: string, defaultName = 'sessio
   if (!outputPath) return
 
   const data = await piCall(sessionId, { type: 'export_html', outputPath })
-  if (data) await window.pidex.invoke('app:revealPath', data.path)
+  if (data) await window.phosphor.invoke('app:revealPath', data.path)
 }
 
 /**
@@ -76,13 +76,13 @@ export async function renameSession(
  */
 export async function copySessionDebugInfo(
   meta: { path: string; sessionId: string; cwd: string },
-  livePidexId?: string,
+  livePhosphorId?: string,
 ): Promise<void> {
-  const chat = livePidexId ? useChatStore.getState().sessions[livePidexId]?.meta : undefined
+  const chat = livePhosphorId ? useChatStore.getState().sessions[livePhosphorId]?.meta : undefined
   // The CLI's transcript is filed under the CLI's own session id, which only
   // the provider's sidecar map knows. Best-effort: a failed lookup falls back
   // to the pi id inside formatSessionDebugInfo.
-  const claudeSessionId = await window.pidex
+  const claudeSessionId = await window.phosphor
     .invoke('sessions:claudeSessionId', meta.sessionId)
     .catch(() => null)
   const text = formatSessionDebugInfo({

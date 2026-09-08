@@ -39,7 +39,9 @@ export async function unqueueMessage(
   text: string,
 ): Promise<void> {
   const chat = useChatStore.getState()
-  const response = await window.pidex.piCommand<'clear_queue'>(sessionId, { type: 'clear_queue' })
+  const response = await window.phosphor.piCommand<'clear_queue'>(sessionId, {
+    type: 'clear_queue',
+  })
   const drainedQueues = response.success ? response.data : undefined
   if (!drainedQueues) {
     const rejection = response.success ? null : response.error
@@ -92,7 +94,7 @@ async function unqueueFailureMessage(rejection: string | null): Promise<string> 
   ]
   if (rejection) parts.push('Your queued messages are unchanged.')
 
-  const installed = await window.pidex
+  const installed = await window.phosphor
     .invoke('pi:health')
     .then((health) => health.version)
     .catch(() => undefined)

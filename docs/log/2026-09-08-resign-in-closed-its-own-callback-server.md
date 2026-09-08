@@ -39,7 +39,7 @@ So the flow reported success while the user was still on OpenAI's page, and
 That pty is pi, and pi is the loopback callback server on port 1455. The code
 in the redirect was real and had nowhere to be redeemed.
 
-Nothing on screen said so. pidex flipped the row to "Signed in" — truthfully,
+Nothing on screen said so. Phosphor flipped the row to "Signed in" — truthfully,
 about the account the user was trying to leave.
 
 ## Fix

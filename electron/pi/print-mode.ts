@@ -5,7 +5,7 @@
  * module exists. It was previously run through `execFile`, which hands the
  * child an open stdin pipe and never closes it, so pi sat idle until the call
  * timed out — silently, with empty stdout and empty stderr. Session
- * auto-naming is the only caller, so no pidex session was ever auto-named and
+ * auto-naming is the only caller, so no Phosphor session was ever auto-named and
  * every auto-created branch kept the slug of its first message. Measured on
  * the machine that reported it: identical argv, `execFile` timed out at 30s,
  * `spawn` with `stdio[0] = 'ignore'` answered in 8.8s.

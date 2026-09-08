@@ -17,14 +17,14 @@ not the tool result.** `items/transcriptRows.ts` and `items/ActivityGroup.tsx`
 were built to be honest about that — no chevron, because there is nothing to
 expand into; no status, because the marker carries none. That was correct when
 it was written and is no longer correct: `pi-claude-cli` 0.7.0 already ships
-result forwarding behind a host opt-in, and pidex never turned it on.
+result forwarding behind a host opt-in, and Phosphor never turned it on.
 
 ## The divergences, with their evidence
 
 | #   | Today, Claude Code                           | Today, native pi                               | Cause                                                                                                                                                                                   |
 | --- | -------------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | D1  | `5 steps · claude code 5 tools`              | `27 steps · ran 13 commands · 14 thoughts`     | `summarizeActivity` buckets every `externalTool` step under one `'Claude Code'` label (`transcriptRows.ts:640`), so the verb vocabulary the rows already use is thrown away in the head |
-| D2  | No chevron, no detail                        | Chevron on every row, per-tool detail view     | Provider sends no `tool_result` unless `PI_CLAUDE_CLI_TOOL_RESULTS=1` (`event-bridge.ts:704`); pidex does not set it (`electron/pi/provider-detect.ts`)                                 |
+| D2  | No chevron, no detail                        | Chevron on every row, per-tool detail view     | Provider sends no `tool_result` unless `PI_CLAUDE_CLI_TOOL_RESULTS=1` (`event-bridge.ts:704`); Phosphor does not set it (`electron/pi/provider-detect.ts`)                              |
 | D3  | No `failed` badge, no `N failed` on the head | Red row, `failed` chip, `2 failed` on the head | Same cause as D2. `summarizeActivity` only counts `tool.status === 'error'`, which external steps can never reach                                                                       |
 | D4  | `Created tab…` — a label cut mid-path        | Full path                                      | Provider caps the argument preview at 120 chars (`event-bridge.ts:687`)                                                                                                                 |
 | D5  | `cc` mark in the gutter                      | no mark                                        | Deliberate. Recommend keeping it                                                                                                                                                        |
@@ -32,7 +32,7 @@ result forwarding behind a host opt-in, and pidex never turned it on.
 Two things that look like divergences and are not:
 
 - **The two-line model chip** (`Claude Opus 5` over `via pi-claude-cli`) was
-  fixed in [#206](https://github.com/agustinsacco/pidex/pull/206). Screenshots
+  fixed in [#206](https://github.com/agustinsacco/Phosphor/pull/206). Screenshots
   older than 2026-09-06 still show it.
 - **The bottom status strip** (`192 tools · MCP: 4 servers enabled`) is MCP
   configuration, not provider behaviour.

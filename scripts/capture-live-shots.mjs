@@ -19,7 +19,7 @@
  * tools and surfaces them as markers, which the Changes pane does not collect
  * — that session instead demonstrates the artifact flow and the composer.
  *
- * What stays isolated: app prefs. PIDEX_TEST_USER_DATA gives the run its own
+ * What stays isolated: app prefs. PHOSPHOR_TEST_USER_DATA gives the run its own
  * userData dir, so it neither fights the installed app's single-instance
  * lock nor overwrites its settings. pi's side is NOT isolated on purpose —
  * that is the point.
@@ -27,7 +27,7 @@
  * Costs and leftovers, deliberately: the two turns and session auto-naming
  * spend real tokens on whatever provider serves them, and the run leaves
  * behind two real sessions plus one worktree/branch under the workspace's
- * .pidex/worktrees. Delete them like any other session/worktree if unwanted.
+ * .phosphor/worktrees. Delete them like any other session/worktree if unwanted.
  */
 import { mkdir, writeFile } from 'node:fs/promises'
 import { Buffer } from 'node:buffer'
@@ -40,7 +40,7 @@ import { _electron as electron } from 'playwright'
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = join(repoRoot, 'docs', 'img')
 
-const workspace = process.env.WORKSPACE ?? join(process.env.HOME ?? '', 'pidex')
+const workspace = process.env.WORKSPACE ?? join(process.env.HOME ?? '', 'phosphor')
 /**
  * The edit task, run on a fresh worktree branch. The git/gh prohibition is
  * load-bearing: an earlier phrasing left the agent free to push its worktree
@@ -52,7 +52,7 @@ const TASK_EDIT =
 /** The artifact task, read-only, run on the checked-out branch. */
 const TASK_ARTIFACT =
   process.env.TASK_ARTIFACT ??
-  'Create a markdown artifact titled "How pidex talks to pi": a one-page explainer of the RPC boundary, based on shared/rpc.ts and the architecture notes in CLAUDE.md. Do not edit any files.'
+  'Create a markdown artifact titled "How Phosphor talks to pi": a one-page explainer of the RPC boundary, based on shared/rpc.ts and the architecture notes in CLAUDE.md. Do not edit any files.'
 /**
  * Who serves each session: a provider filter-chip name plus a model search
  * string. Provider-scoped because several catalogues carry the same model
@@ -82,15 +82,15 @@ async function main() {
     'NODE_ENV_ELECTRON_VITE',
     'ELECTRON_CLI_ARGS',
     // Never the stub here — a leftover e2e env var would silently fake the run.
-    'PIDEX_PI_STUB',
+    'PHOSPHOR_PI_STUB',
     'PI_CODING_AGENT_DIR',
   ]) {
     delete env[key]
   }
   Object.assign(env, {
-    PIDEX_E2E_WORKSPACE: workspace,
-    PIDEX_TEST_USER_DATA: '1',
-    PIDEX_E2E_SHOW: '1',
+    PHOSPHOR_E2E_WORKSPACE: workspace,
+    PHOSPHOR_TEST_USER_DATA: '1',
+    PHOSPHOR_E2E_SHOW: '1',
   })
 
   // Same capture mechanics as capture-readme-shots.mjs — see the comments

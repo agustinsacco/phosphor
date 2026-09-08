@@ -186,12 +186,17 @@ describe('ModalPanel', () => {
 
   it('renders title, subtitle and footer when given', () => {
     render(
-      <ModalPanel width={440} title="Remove worktree" subtitle="pidex — main" footer={<button />}>
+      <ModalPanel
+        width={440}
+        title="Remove worktree"
+        subtitle="Phosphor — main"
+        footer={<button />}
+      >
         body
       </ModalPanel>,
     )
     expect(panel().textContent).toContain('Remove worktree')
-    expect(panel().textContent).toContain('pidex — main')
+    expect(panel().textContent).toContain('Phosphor — main')
     expect(panel().querySelector('.border-t button')).not.toBeNull()
   })
 

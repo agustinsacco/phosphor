@@ -1,7 +1,7 @@
 # 2026-09-03 — The TCC fix broke every macOS release build: `-r` and `--deep` cannot share a pass
 
 Reported as: "the latest release failed"
-([run 33814643109](https://github.com/agustinsacco/pidex/actions/runs/33814643109)).
+([run 33814643109](https://github.com/agustinsacco/Phosphor/actions/runs/33814643109)).
 
 ## What shipped
 
@@ -18,9 +18,9 @@ v0.1.172 is the first release missing them. v0.1.170 still had both `.dmg`s.
 `Build and publish macOS` failed inside `electron-builder`'s `afterPack` hook:
 
 ```
-release/mac-arm64/pidex.app: replacing existing signature
-release/mac-arm64/pidex.app: nested code is modified or invalid
-  ⨯ Command failed: codesign --verify --deep --strict …/pidex.app
+release/mac-arm64/Phosphor.app: replacing existing signature
+release/mac-arm64/Phosphor.app: nested code is modified or invalid
+  ⨯ Command failed: codesign --verify --deep --strict …/Phosphor.app
     at adhocSignMac (scripts/adhoc-sign-mac.mjs:75:3)
 ```
 
@@ -31,7 +31,7 @@ introduced — a single pass carrying both `--deep` and the pinned requirement:
 
 ```sh
 codesign --force --deep --sign - --timestamp=none \
-  '-r=designated => identifier "works.pidex.app"' pidex.app
+  '-r=designated => identifier "works.phosphor.app"' Phosphor.app
 ```
 
 `--deep` applies `-r` to every nested Helper and Framework as well. Re-signing
@@ -72,9 +72,9 @@ Two passes. Seal nested code first with no requirement of our own, then
 re-sign only the outer bundle with `-r`:
 
 ```sh
-codesign --force --deep --sign - --timestamp=none pidex.app
+codesign --force --deep --sign - --timestamp=none Phosphor.app
 codesign --force --sign - --timestamp=none \
-  '-r=designated => identifier "works.pidex.app"' pidex.app
+  '-r=designated => identifier "works.phosphor.app"' Phosphor.app
 ```
 
 Signing outside-in is what Apple asks for anyway: the outer signature seals the
@@ -87,16 +87,16 @@ Verified against a real `Electron.app` on macOS 26.6.2 and against a full
 `electron-builder --mac dmg --arm64` run:
 
 ```
-Identifier=works.pidex.app
+Identifier=works.phosphor.app
 flags=0x2(adhoc)
-designated => identifier "works.pidex.app"
+designated => identifier "works.phosphor.app"
 codesign --verify --deep --strict          → ok
-codesign --verify -R='identifier "works.pidex.app"' → ok
+codesign --verify -R='identifier "works.phosphor.app"' → ok
 ```
 
 ## The guard
 
-The test fixture now nests a `pidex Helper.app` under `Contents/Frameworks`, as
+The test fixture now nests a `Phosphor Helper.app` under `Contents/Frameworks`, as
 the real bundle does, and a new case runs the same
 `codesign --verify --deep --strict` CI runs. Against the shipped signer three
 of the four cases fail with the CI error; against the fix all four pass. One

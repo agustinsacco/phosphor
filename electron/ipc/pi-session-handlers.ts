@@ -33,7 +33,7 @@ import { log } from '../debug-log'
 
 let cachedHealth: PiHealth | null = null
 
-/** Bundled pidex pi extension (dev: repo path; packaged: resources). */
+/** Bundled Phosphor pi extension (dev: repo path; packaged: resources). */
 function bundledExtensionPath(file: string): string {
   if (app.isPackaged) {
     return joinPath(process.resourcesPath, 'pi-ext', file)
@@ -42,7 +42,7 @@ function bundledExtensionPath(file: string): string {
 }
 
 /**
- * Extensions pidex loads into EVERY session, regardless of provider:
+ * Extensions Phosphor loads into EVERY session, regardless of provider:
  * artifacts (tools the model can call), context-breakdown (passive reporting
  * of what is filling the context window, which only pi can see),
  * worktree-paths (refuses a file read that has escaped into the main
@@ -86,7 +86,7 @@ async function spawnSession(
   //
   // No PI_CLAUDE_CLI_SYSTEM_PROMPT override here: real sessions always run
   // pi-claude-cli's own default (`claude` mode, appends pi's prompt to Claude
-  // Code's own). This used to be a pidex setting; dropped because the only
+  // Code's own). This used to be a Phosphor setting; dropped because the only
   // upside of the alternative (`pi` mode, replacing Claude Code's prompt
   // outright) is ~12k tokens of context WINDOW, not cost — both modes are
   // cached — at the cost of losing Claude Code's own tuned guidance for the
@@ -97,7 +97,7 @@ async function spawnSession(
   // own internal `pi` override — a no-tools, no-guidance-needed case.
   // Claude Code auto-compact window (Settings → Claude Code → Context
   // window). Read per spawn so a change applies to the next session started
-  // without restarting pidex; unset means the provider's own default (200k),
+  // without restarting Phosphor; unset means the provider's own default (200k),
   // so the env var is only set when the user chose something.
   const claudeAutocompact = getPrefs().claudeAutocompact
   const spawnEnv: Record<string, string> = stub

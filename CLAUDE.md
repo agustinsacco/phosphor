@@ -1,14 +1,14 @@
 # CLAUDE.md
 
-pidex is an Electron desktop app that wraps the **pi coding agent**
+Phosphor is an Electron desktop app that wraps the **pi coding agent**
 (`@earendil-works/pi-coding-agent`) — one `pi --mode rpc` subprocess per live
-session, spoken to over JSONL on stdio. pidex never imports pi's code; the
+session, spoken to over JSONL on stdio. Phosphor never imports pi's code; the
 protocol is hand-mirrored in `shared/rpc.ts`.
 
 **Two maps before you start.** [README.md](README.md#repo-layout) has the repo
 tree — the single copy, since three copies drifted.
 [docs/README.md](docs/README.md) is the documentation index: `docs/` is how
-pidex behaves **now**, `docs/log/` is dated history, and `docs/specs/` is work
+Phosphor behaves **now**, `docs/log/` is dated history, and `docs/specs/` is work
 not yet done. Reading a `docs/specs/build/` doc as current is how the
 terracotta-vs-Phosphor contradiction survived 20 days.
 
@@ -30,7 +30,7 @@ change done; run e2e when touching IPC, session lifecycle, or visible UI flow.
 
 `npm run validate` (`scripts/validate.sh`) is the one to reach for when you
 just want a verdict: it prints one line per step and sends everything else to
-`$VALIDATE_LOG` (default `/tmp/pidex-validate-$$.log`). `SKIP_E2E=1` stops
+`$VALIDATE_LOG` (default `/tmp/phosphor-validate-$$.log`). `SKIP_E2E=1` stops
 before the slow part.
 
 **E2E windows never appear on your screen**, so a background agent running the
@@ -39,7 +39,7 @@ suite can't steal focus mid-keystroke. `scripts/e2e.sh` prefers `xvfb-run`
 `sudo apt install xvfb`) and otherwise leaves the windows unmapped
 (`hideWindowsForE2E` in `electron/window-chrome.ts`), which is ~2-3x slower
 because Chromium deprioritizes rendering for a window that was never shown.
-`PIDEX_E2E_SHOW=1 npm run test:e2e` puts them back on your real display when
+`PHOSPHOR_E2E_SHOW=1 npm run test:e2e` puts them back on your real display when
 you want to watch.
 
 ## Architecture in six facts
@@ -51,12 +51,12 @@ you want to watch.
    `shared/ipc.ts` `IpcInvokeMap` + a handler in
    `electron/ipc/<prefix>-handlers.ts` (the module matching the channel prefix
    — 14 of them, listed in [README.md](README.md#repo-layout)) + a case in
-   `src/dev/mockPidex.ts` if the browser harness should exercise it.
+   `src/dev/mockPhosphor.ts` if the browser harness should exercise it.
    `electron/ipc.ts` is only the composition root; the session registry lives
    in `electron/registry.ts` so handlers never import their composition root.
 3. **RPC to pi goes through `src/lib/rpc.ts`** (`piCall` / `piCallOk`), which
    unwraps the `{success, data?, error?}` envelope and surfaces failures on
-   the session's chat. Calling `window.pidex.piCommand` directly means you own
+   the session's chat. Calling `window.phosphor.piCommand` directly means you own
    the error branch — half the original call sites forgot, so don't.
 4. **`shared/rpc.ts` is a mirror of pi's protocol** with compile-time drift
    guards (`_NoMissingResponseKeys` / `_NoExtraResponseKeys`). Adding an RPC
@@ -104,8 +104,8 @@ you want to watch.
 - **`electron/store.ts` constructs its electron-store lazily on purpose** —
   a module-scope `new Store()` would resolve `userData` before main.ts can
   redirect it for E2E, leaking test state into real prefs.
-- **E2E env hooks (`PIDEX_PI_STUB`, `PIDEX_E2E_WORKSPACE`,
-  `PIDEX_TEST_USER_DATA`) must stay gated on `!app.isPackaged`.** Ungated,
+- **E2E env hooks (`PHOSPHOR_PI_STUB`, `PHOSPHOR_E2E_WORKSPACE`,
+  `PHOSPHOR_TEST_USER_DATA`) must stay gated on `!app.isPackaged`.** Ungated,
   they are env-var-triggered code execution in the main process of a shipped
   app (fixed once; don't regress it).
 - **`bootstrapSession` learns a session's file path asynchronously** (from
@@ -122,7 +122,7 @@ you want to watch.
   plaintext. Before touching transcript rendering, tool UX or subagent UI,
   read [docs/extensions.md](docs/extensions.md#how-provider-transcripts-render).
 - **Claude sessions run through a SEPARATELY VERSIONED package**, and
-  pidex pins nothing. `@saccolabs/pi-claude-cli` is installed into pi
+  Phosphor pins nothing. `@saccolabs/pi-claude-cli` is installed into pi
   (`~/.pi/agent/npm/node_modules/`), so token behaviour, session resume and
   filler bugs all live outside this repo. Check what is actually installed
   before diagnosing a Claude-provider session:
@@ -144,7 +144,7 @@ you want to watch.
   broken flag, so it didn't fix the missing instructions.) If a session
   doesn't honour its charter at all, or stops after turn 1, check the
   installed version first: `>= 0.4.16` is required for both. **`>= 0.5.1`**
-  is required for MCP isolation: pidex sets `PI_CLAUDE_CLI_STRICT_MCP=1` on
+  is required for MCP isolation: Phosphor sets `PI_CLAUDE_CLI_STRICT_MCP=1` on
   every Claude session so the CLI cannot load the user's own MCP servers
   alongside pi's, and older versions ignore it. **`>= 0.6.1`** is required
   after a compaction: below it the first message (often the second too) does
@@ -169,9 +169,9 @@ you want to watch.
   and
   [docs/log/2026-09-03-post-compaction-stall-and-context-meter.md](docs/log/2026-09-03-post-compaction-stall-and-context-meter.md).
 
-- **pidex ships six extensions that run inside pi's process** (`pi-ext/`,
+- **Phosphor ships six extensions that run inside pi's process** (`pi-ext/`,
   loaded with `-e` into every session; listed in `bundledExtensions()` in
-  `electron/ipc/pi-session-handlers.ts`). They are the only pidex code with a
+  `electron/ipc/pi-session-handlers.ts`). They are the only Phosphor code with a
   say inside a turn, and two of them can change or refuse what the model did:
   - **`worktree-paths.ts` can refuse a tool call.** It blocks a
     `read`/`write`/`edit`/`ls`/`grep`/`find` whose path escapes a worktree
@@ -208,8 +208,8 @@ you want to watch.
   instance and the user is left with no app. The startup sweep that deletes
   leftovers is `rm -rf` next to `/Applications`; its name match is a full-string
   regex on purpose. See [docs/updates.md](docs/updates.md).
-- **Connecting an MCP server never puts a token in pidex.** The adapter owns
-  OAuth and the OS credential store; pidex writes `mcp.json` and drives the
+- **Connecting an MCP server never puts a token in Phosphor.** The adapter owns
+  OAuth and the OS credential store; Phosphor writes `mcp.json` and drives the
   adapter's own `/mcp-auth` command (an extension command, so no model runs).
   And it must **never auto-answer** the adapter's "paste the callback URL"
   prompt: pi's RPC has no dialog cancel, so an empty answer wins the race
@@ -233,7 +233,7 @@ you want to watch.
   `presentText` from `src/stores/prompt.ts` (rendered by `PromptHost`).
   ESLint (`no-restricted-syntax`) enforces this in `src/`.
 - Model-authored HTML renders **only** inside a sandboxed iframe, served over
-  `pidex-artifact://` with its own `default-src 'none'` policy
+  `phosphor-artifact://` with its own `default-src 'none'` policy
   (`electron/artifacts/artifact-protocol.ts`). It is deliberately NOT `srcdoc`:
   a srcdoc document inherits the app's CSP, which refused every inline script
   and made `sandbox="allow-scripts"` a no-op. Two things must never change —
@@ -242,7 +242,7 @@ you want to watch.
   denies the document any network reach). Widen neither.
 - Renderer path aliases: `@/` → `src/`, `@shared/` → `shared/`.
 - Browser-only dev (vite without Electron) auto-installs
-  `src/dev/mockPidex.ts` when `window.pidex` is undefined — new IPC channels
+  `src/dev/mockPhosphor.ts` when `window.phosphor` is undefined — new IPC channels
   used by screens the harness renders need a mock case.
 - When you ship a substantial feature or refactor: if it advances a numbered
   phase, add a dated note to that phase's Log in `docs/specs/TRACKER.md`;
@@ -263,8 +263,8 @@ which mirrors the `renderer` block of `electron.vite.config.ts` — keep the two
 in sync). The `/run` and `/e2e` skills cover both flows.
 
 **Never run a packaging build (`electron-builder`, or anything that writes
-`release/`) in the main pidex checkout.** It drops a real, fully-formed
-`pidex.app` at `~/pidex/release/mac-arm64/pidex.app`, and macOS Spotlight
+`release/`) in the main Phosphor checkout.** It drops a real, fully-formed
+`Phosphor.app` at `~/Phosphor/release/mac-arm64/Phosphor.app`, and macOS Spotlight
 indexes that identically to the actual install in `/Applications` — same
 name, no version shown in search. Launching the wrong one from Spotlight
 looks like a broken auto-updater ("Update available" never clears) when it's
@@ -272,16 +272,16 @@ actually just a stale local build sitting next to the real app. Confirmed
 2026-08-27: a stray `release/` build was 5 versions behind and someone
 launched it by mistake straight from search.
 
-The user installs pidex the normal way — download the DMG from
-[GitHub Releases](https://github.com/agustinsacco/pidex/releases), drag to
+The user installs Phosphor the normal way — download the DMG from
+[GitHub Releases](https://github.com/agustinsacco/Phosphor/releases), drag to
 `/Applications`, let it auto-update from there (a release ships on every
 green merge to main). If a packaged build is ever genuinely needed for local
 testing, point the output outside the repo (e.g. the scratchpad) instead of
-letting it land in `~/pidex/release/`.
+letting it land in `~/Phosphor/release/`.
 
 ## Debugging a failing session
 
-`~/Library/Logs/pidex/pidex.log` (Linux: `~/.config/pidex/logs/`) is written by
+`~/Library/Logs/Phosphor/phosphor.log` (Linux: `~/.config/Phosphor/logs/`) is written by
 `electron/debug-log.ts` — always on, no flag, rotating at 5MB. It records pi's
 spawn argv, pi's stderr, unexpected exits, and main-process crashes, plus the
 inherited `PATH` (a GUI app gets launchd's, not your login shell's, so `pi` and
@@ -290,12 +290,12 @@ inherited `PATH` (a GUI app gets launchd's, not your login shell's, so `pi` and
 **Three layers keep evidence, and the useful one is usually the deepest.** An
 assistant message with empty content and `totalTokens: 0` in pi's session JSONL
 means the model never ran — the provider failed before the API call, so read
-the provider's own transcript rather than pidex's error text. For
+the provider's own transcript rather than Phosphor's error text. For
 `pi-claude-cli` that is `~/.claude/projects/<mangled-cwd>/<session-id>.jsonl`,
 whose `result` field holds the real API error. Its error template prints
 `subtype` while the check that fired is `is_error`, so a genuine failure can
 render as the self-contradictory `Error: Claude CLI returned success`.
 
-`cd /tmp && echo hi | pi -p` decides pidex-vs-pi in one command: if it fails
-there too, it is not a pidex bug. The `/debug` skill has the full procedure,
+`cd /tmp && echo hi | pi -p` decides Phosphor-vs-pi in one command: if it fails
+there too, it is not a Phosphor bug. The `/debug` skill has the full procedure,
 including how to shim a nested CLI to capture its real argv.

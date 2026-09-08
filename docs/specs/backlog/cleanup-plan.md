@@ -126,9 +126,9 @@ function subscribe<A extends unknown[]>(
 ```
 
 Each method becomes a one-liner, e.g.
-`onPtyData: (ptyId, l) => subscribe(`pty:data:${ptyId}`, l)`. The `PidexApi`
+`onPtyData: (ptyId, l) => subscribe(`pty:data:${ptyId}`, l)`. The `PhosphorApi`
 interface in `shared/ipc.ts` is unchanged, so this is invisible to the renderer
-and to `mockPidex.ts`.
+and to `mockPhosphor.ts`.
 
 **Verify phase 1:** `npm run typecheck && npm run lint && npm test`, plus
 `npm run test:e2e` (preload is in the IPC path).
@@ -316,14 +316,14 @@ second parameter, or leave that one call site alone. Prefer leaving it alone;
 
 `CLAUDE.md` fact #3 says RPC goes through `src/lib/rpc.ts` because "half the
 original call sites forgot [the error branch]". The codebase is currently
-**majority non-compliant**: 21 direct `window.pidex.piCommand` sites vs 16
+**majority non-compliant**: 21 direct `window.phosphor.piCommand` sites vs 16
 `piCall`/`piCallOk`.
 
 Not all 21 are violations. Triage:
 
 **Fix — silently drops failures:**
 
-- `src/features/chat/RetryStrip.tsx:23` — `await window.pidex.piCommand(sessionId,
+- `src/features/chat/RetryStrip.tsx:23` — `await window.phosphor.piCommand(sessionId,
 { type: 'abort_retry' })` with **no error branch at all**. → `piCallOk`.
 - `src/features/sessions/sidebarActions.ts:28` — checks
   `response.success && response.data?.cancelled`, so the `!response.success`
@@ -575,7 +575,7 @@ plan in place if the work deviates from it.
 
 ## Explicitly out of scope
 
-- `src/dev/mockPidex.ts` (1021 lines) — a flat channel switch. It reads as
+- `src/dev/mockPhosphor.ts` (1021 lines) — a flat channel switch. It reads as
   duplication but each case is an independent fixture; consolidating would
   couple unrelated mocks. Leave it.
 - `e2e/smoke.spec.ts` (1135 lines) — repeated locators are the point in tests.

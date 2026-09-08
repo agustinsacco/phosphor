@@ -6,7 +6,7 @@ import type { ExtensionUIRequest } from '@shared/rpc'
  *
  * A permission-gate extension (pi's convention: `~/.pi/agent/extensions/`)
  * intercepts a `bash` tool call, decides the command is dangerous, and asks
- * the user through `ctx.ui.select` / `ctx.ui.confirm`. All pidex receives is
+ * the user through `ctx.ui.select` / `ctx.ui.confirm`. All Phosphor receives is
  * the prose the extension wrote — one string, the whole command inside it,
  * no structure. Rendered as a dialog title that is a 4000-character wall of
  * shell script, which is what the user actually saw.
@@ -18,9 +18,9 @@ import type { ExtensionUIRequest } from '@shared/rpc'
  *    extension is third-party and its wording will drift. A miss falls back
  *    to the generic dialog, it never blocks the user.
  * 2. `analyzeCommand` — say WHICH part is dangerous and why. The extension
- *    does not tell us (its answer is a boolean), so pidex re-derives it from
+ *    does not tell us (its answer is a boolean), so Phosphor re-derives it from
  *    the same pattern classes those gates use. Two consequences worth
- *    knowing: pidex can name a risk the gate did not match on, and it can
+ *    knowing: Phosphor can name a risk the gate did not match on, and it can
  *    fail to find one at all — `risks.length === 0` is a real state the UI
  *    has to render honestly rather than paper over.
  *

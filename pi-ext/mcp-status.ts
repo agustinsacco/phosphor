@@ -1,5 +1,5 @@
 /**
- * pidex mcp-status extension — bundled into every pidex session via
+ * Phosphor mcp-status extension — bundled into every Phosphor session via
  * `pi --mode rpc -e <this file>`.
  *
  * The MCP adapter knows, per server, whether it is connected, needs
@@ -9,19 +9,19 @@
  * has no channel for it, so a front-end can otherwise only read the adapter's
  * one-line footer sentence — which says nothing per server.
  *
- * This forwards the snapshot verbatim to pidex through `ctx.ui.setStatus`,
- * which pidex already routes per session. Nothing is inferred or reworded: if
+ * This forwards the snapshot verbatim to Phosphor through `ctx.ui.setStatus`,
+ * which Phosphor already routes per session. Nothing is inferred or reworded: if
  * the adapter is absent or an older version stops publishing, the status key
- * simply never appears and pidex's connector rows show no state rather than a
+ * simply never appears and Phosphor's connector rows show no state rather than a
  * guess.
  *
- * Wire contract: status key `pidex-mcp-status`, JSON of the adapter's
+ * Wire contract: status key `phosphor-mcp-status`, JSON of the adapter's
  * `McpStatusSnapshot`. Consumer: `src/features/connectors/mcpStatus.ts`.
  */
 
 /** The adapter's event name, versioned by the adapter (`types.ts`). */
 const ADAPTER_STATUS_EVENT = 'pi-mcp-adapter/status/v1'
-const STATUS_KEY = 'pidex-mcp-status'
+const STATUS_KEY = 'phosphor-mcp-status'
 
 interface PiExtensionApi {
   on(event: string, handler: (event: unknown, ctx: unknown) => unknown): void
@@ -52,7 +52,7 @@ export default function mcpStatusExtension(pi: PiExtensionApi): void {
   pi.events?.on(ADAPTER_STATUS_EVENT, (payload) => {
     if (!payload || typeof payload !== 'object') return
     const snapshot = payload as { servers?: unknown }
-    // Only forward the shape pidex parses; anything else would be noise the
+    // Only forward the shape Phosphor parses; anything else would be noise the
     // renderer has to defend against a second time.
     if (!Array.isArray(snapshot.servers)) return
     try {

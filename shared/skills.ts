@@ -16,7 +16,7 @@ export interface SkillFileEntry {
   size: number
 }
 
-/** Sidecar written by pidex installs (`.pidex-skill.json`) — provenance. */
+/** Sidecar written by Phosphor installs (`.phosphor-skill.json`) — provenance. */
 export interface SkillProvenance {
   catalogId: string
   repo: string
@@ -35,7 +35,7 @@ export interface ResolvedSkill {
   /** pi's sourceInfo.source (`auto`, `local`, `npm:<pkg>`) or `scan`. */
   source: string
   origin: 'package' | 'top-level'
-  /** Under a root pidex may write to (`~/.pi/agent/skills`, `<ws>/.pi/skills`). */
+  /** Under a root Phosphor may write to (`~/.pi/agent/skills`, `<ws>/.pi/skills`). */
   writable: boolean
   /** Lives in another harness's directory (`.claude/skills`). */
   borrowed: boolean

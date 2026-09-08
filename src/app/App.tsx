@@ -56,12 +56,13 @@ export function App(): React.JSX.Element {
     // Restores unsent drafts (text, pasted images, the model each was
     // composed against) and runs the launch-time draft GC.
     void useDraftsStore.getState().hydrate()
-    void window.pidex.invoke('pi:health').then(setHealth)
+    void window.phosphor.invoke('pi:health').then(setHealth)
   }, [])
 
   // Terminal busy-map broadcast → store (drives header badges + tab dots).
   useEffect(
-    () => window.pidex.onPtyStatus((statuses) => useTerminalStore.getState().applyStatus(statuses)),
+    () =>
+      window.phosphor.onPtyStatus((statuses) => useTerminalStore.getState().applyStatus(statuses)),
     [],
   )
 
@@ -85,13 +86,13 @@ export function App(): React.JSX.Element {
         // SECOND process against the same session file. `adoptSession` learns
         // each one's session file from `get_state`, which is what the resume
         // match below waits on.
-        const orphans = await window.pidex.invoke('pi:listLiveSessions').catch(() => [])
+        const orphans = await window.phosphor.invoke('pi:listLiveSessions').catch(() => [])
         for (const orphan of orphans) {
           if (cancelled) return
           await useSessionsStore.getState().adoptSession(orphan.sessionId, orphan.workspacePath)
         }
 
-        const target = await window.pidex.invoke('app:resumeTarget')
+        const target = await window.phosphor.invoke('app:resumeTarget')
         if (cancelled || target.kind === 'none') return
 
         useWorkspacesStore.getState().openWorkspace(target.workspacePath)
@@ -102,7 +103,7 @@ export function App(): React.JSX.Element {
             (l) => l.diskPath === target.sessionPath,
           )
           if (adopted) {
-            useSessionsStore.getState().activate(adopted.pidexId)
+            useSessionsStore.getState().activate(adopted.phosphorId)
             return
           }
           // Resume by path directly. The session-dir scan is only used to
@@ -129,7 +130,7 @@ export function App(): React.JSX.Element {
     const name = currentWorkspace
       ? worktreeAwareName(currentWorkspace, currentWorkspaceGit)
       : undefined
-    document.title = name ? `${name} — pidex` : 'pidex'
+    document.title = name ? `${name} — Phosphor` : 'Phosphor'
   }, [currentWorkspace, currentWorkspaceGit])
 
   if (health === null) {
@@ -146,14 +147,14 @@ export function App(): React.JSX.Element {
         health={health}
         onRetry={() => {
           setHealth(null)
-          void window.pidex.invoke('pi:health').then(setHealth)
+          void window.phosphor.invoke('pi:health').then(setHealth)
         }}
         onInstalled={() => setShowGettingStarted(true)}
       />
     )
   }
 
-  // One-time recommendations after pidex itself installed pi.
+  // One-time recommendations after Phosphor itself installed pi.
   if (showGettingStarted) {
     return <GettingStartedScreen onDone={() => setShowGettingStarted(false)} />
   }

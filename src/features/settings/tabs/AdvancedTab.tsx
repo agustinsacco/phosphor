@@ -14,8 +14,8 @@ export function AdvancedTab(): React.JSX.Element {
   const [editing, setEditing] = useState<'settings' | 'models' | null>(null)
 
   useEffect(() => {
-    void window.pidex.invoke('pi:health').then(setHealth)
-    void window.pidex.invoke('pi:listResources').then(setResources)
+    void window.phosphor.invoke('pi:health').then(setHealth)
+    void window.phosphor.invoke('pi:listResources').then(setResources)
   }, [])
 
   return (
@@ -79,7 +79,7 @@ export function AdvancedTab(): React.JSX.Element {
         ))}
       </div>
       <p className="text-text-tertiary mt-3 text-sm">
-        auth.json is never read or displayed by pidex.
+        auth.json is never read or displayed by Phosphor.
       </p>
 
       {editing && (

@@ -13,16 +13,16 @@ regardless of which of its nine modes ran.
 
 Status column is re-verified against the code, never inferred from this file.
 
-| #   | Finding                                             | Status as of 2026-09-01 |
-| --- | --------------------------------------------------- | ----------------------- |
-| F1  | Multi-line scripts collapse to their setup line     | open                    |
-| F2  | `cd <ws>` strip only matches `&&`, not newline      | open                    |
-| F3  | Every MCP gateway call renders as `Used mcp`        | open                    |
-| F4  | A failed tool hides its arguments two clicks deep   | open                    |
-| F5  | Raw `mcp__server__tool` names leak into the label   | open                    |
-| F6  | `ToolSearch` rows show the machine query            | open                    |
-| F7  | Structured MCP chip degrades silently to prose      | open                    |
-| F8  | `mcp({})` fails on every Claude session (not pidex) | open — `pi-claude-cli`  |
+| #   | Finding                                                | Status as of 2026-09-01 |
+| --- | ------------------------------------------------------ | ----------------------- |
+| F1  | Multi-line scripts collapse to their setup line        | open                    |
+| F2  | `cd <ws>` strip only matches `&&`, not newline         | open                    |
+| F3  | Every MCP gateway call renders as `Used mcp`           | open                    |
+| F4  | A failed tool hides its arguments two clicks deep      | open                    |
+| F5  | Raw `mcp__server__tool` names leak into the label      | open                    |
+| F6  | `ToolSearch` rows show the machine query               | open                    |
+| F7  | Structured MCP chip degrades silently to prose         | open                    |
+| F8  | `mcp({})` fails on every Claude session (not Phosphor) | open — `pi-claude-cli`  |
 
 ## F1 — Multi-line scripts collapse to their setup line
 
@@ -112,8 +112,8 @@ states that read as contradictory.
 
 ## F8 — `mcp({})` fails on every Claude-provider session
 
-Not a pidex bug; recorded here because it is what a user hits first when
-debugging MCP from a pidex session.
+Not a Phosphor bug; recorded here because it is what a user hits first when
+debugging MCP from a Phosphor session.
 
 ```
 mcp({})  →  Validation failed for tool "mcp":

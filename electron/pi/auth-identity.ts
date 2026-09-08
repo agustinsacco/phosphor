@@ -11,7 +11,7 @@
  * Two rules this file exists to enforce:
  *
  * - **The credential never leaves here.** Callers pass the secret in and get
- *   back an email, a fingerprint, or nothing. Nothing else in pidex holds it,
+ *   back an email, a fingerprint, or nothing. Nothing else in Phosphor holds it,
  *   logs it, or sends it to the renderer.
  * - **A signature is never checked, so nothing here may be trusted for
  *   access.** This is a display label. pi already decided the credential is

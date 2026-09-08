@@ -19,7 +19,7 @@ const MARKERS: string[] = JSON.parse(
 ) as string[]
 
 const WORKSPACE =
-  '/Users/agustinsacco/pidex/.pidex/worktrees/orchestrators-of-workspaces-should-not'
+  '/Users/agustinsacco/Phosphor/.phosphor/worktrees/orchestrators-of-workspaces-should-not'
 
 describe('real Claude Code markers from a live lane', () => {
   it('has a corpus that actually exercises the cap', () => {

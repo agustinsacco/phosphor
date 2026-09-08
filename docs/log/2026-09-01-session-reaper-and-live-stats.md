@@ -28,7 +28,7 @@ Three design decisions worth recording:
 
 - **It lives in main, driven by the fleet hub.** The hub already derives
   phase, `lastActivityAt`, `idleSince` and `pendingQuestion` per live session
-  from events pidex receives anyway, so the reaper adds zero RPC and zero
+  from events Phosphor receives anyway, so the reaper adds zero RPC and zero
   inference. Main-side is also what makes it survive the renderer (see S2).
 - **The eligibility list errs on keeping sessions alive**, because the failure
   mode is destroyed user work, which is strictly worse than the memory it
@@ -101,7 +101,7 @@ Capability is **detected, not version-checked**: the first delta carrying
 usage flips the session to boundary-only polling (`agent_end`,
 `compaction_end` — where pi computes things the stream cannot carry). pi <
 0.84.2 never flips it and keeps the old per-sub-step polling, so the meter
-still works there. pidex does not control which pi is installed; the machine
+still works there. Phosphor does not control which pi is installed; the machine
 this was built on runs 0.84.1 and exercises the fallback.
 
 Burn-rate samples now come from the same accounting (`liveBilledTokens`,

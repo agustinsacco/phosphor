@@ -16,7 +16,7 @@
 - **Drafts persist** ([2026-08-28-persisted-composer-drafts.md](log/2026-08-28-persisted-composer-drafts.md)). Text, pending attachments and the model a draft was composed against live in `src/stores/drafts.ts`, keyed `session:<sessionFilePath>` or `home:<workspacePath>`, and survive switching session (the composer subtree unmounts) and quitting. Image bytes go to `userData/drafts/` by blob id, never into prefs.
 - The model chip and the model menu have an explicit **loading** state; an empty list before the catalogue answers is never rendered as "no models configured" ([2026-08-28-model-catalogue-loading.md](log/2026-08-28-model-catalogue-loading.md)).
 - `!command` → RPC `bash` (output shown in chat, enters model context on next prompt). `!!command` → same with `excludeFromContext: true` and a "not sent to model" badge. Surface both in a composer hint.
-- `/` → command menu fed by `get_commands` (extension commands, prompt templates, `skill:*` — with source badges and descriptions) merged with pidex-native commands (new, fork, clone, compact, export, model, name, tree…). Sending an unknown `/x` still goes to pi as a prompt (pi expands templates/skills itself).
+- `/` → command menu fed by `get_commands` (extension commands, prompt templates, `skill:*` — with source badges and descriptions) merged with Phosphor-native commands (new, fork, clone, compact, export, model, name, tree…). Sending an unknown `/x` still goes to pi as a prompt (pi expands templates/skills itself).
 - Composer widget slots above/below for extension `setWidget`; `set_editor_text` prefills the input.
 
 ## Streaming rendering rules
@@ -72,7 +72,7 @@ start, and no completion until one is reported. Background agents ran to their
 death before provider 0.4.14
 ([log/2026-08-22-claude-subagents-never-return.md](log/2026-08-22-claude-subagents-never-return.md),
 [log/2026-08-28-subagents-report-back.md](log/2026-08-28-subagents-report-back.md));
-pidex pins no version, so both shapes are rendered from evidence and neither
+Phosphor pins no version, so both shapes are rendered from evidence and neither
 is assumed.
 Nothing may ever _depend_ on the preview parsing: a marker whose args are
 unreadable still renders as a plain named step.
@@ -144,8 +144,8 @@ keep them distinguishable, because they are not equally trustworthy.
 | Section                 | Source                                                         | Shown for                         |
 | ----------------------- | -------------------------------------------------------------- | --------------------------------- |
 | Tokens / cost           | `get_session_stats`                                            | every session                     |
-| Context composition     | `pidex-context-breakdown` status key (bundled extension)       | every session                     |
-| Optimization · Headroom | `pidex-headroom` status key (bundled extension)                | sessions that compressed a result |
+| Context composition     | `Phosphor-context-breakdown` status key (bundled extension)    | every session                     |
+| Optimization · Headroom | `Phosphor-headroom` status key (bundled extension)             | sessions that compressed a result |
 | Plan usage              | `claude:usageSnapshot` IPC — `claude -p /usage`, live percents | Claude Code provider sessions     |
 | Plan limits             | `claude-rate-limit` status key (provider ≥0.4.5)               | Claude Code provider sessions     |
 

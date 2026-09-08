@@ -6,9 +6,9 @@ const NOW = 1_700_000_000_000
 
 function facts(over: Partial<WorktreeFacts> = {}): WorktreeFacts {
   return {
-    path: '/repo/.pidex/worktrees/lane',
-    realPath: '/repo/.pidex/worktrees/lane',
-    branch: 'pidex/lane',
+    path: '/repo/.phosphor/worktrees/lane',
+    realPath: '/repo/.phosphor/worktrees/lane',
+    branch: 'phosphor/lane',
     isMain: false,
     dirtyCount: 0,
     merged: true,
@@ -24,7 +24,12 @@ describe('selectReclaimable', () => {
   it('reclaims a clean, merged, idle lane', () => {
     const { candidates, held } = selectReclaimable([facts()], opts)
     expect(candidates).toEqual([
-      { path: '/repo/.pidex/worktrees/lane', branch: 'pidex/lane', bytes: 1024, reason: 'merged' },
+      {
+        path: '/repo/.phosphor/worktrees/lane',
+        branch: 'phosphor/lane',
+        bytes: 1024,
+        reason: 'merged',
+      },
     ])
     expect(held).toEqual([])
   })
@@ -53,7 +58,7 @@ describe('selectReclaimable', () => {
   it('holds a lane protected by its unresolved path too', () => {
     const { held } = selectReclaimable([facts()], {
       ...opts,
-      protectedPaths: ['/repo/.pidex/worktrees/lane'],
+      protectedPaths: ['/repo/.phosphor/worktrees/lane'],
     })
     expect(held[0]?.reason).toBe('in-use')
   })

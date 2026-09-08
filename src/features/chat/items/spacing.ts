@@ -5,7 +5,7 @@ import type { TranscriptRow } from './transcriptRows'
  *
  * The reference (Claude Desktop) uses *one* step for the whole stream and
  * encodes grouping with colour and weight: gray tool lines, full-contrast
- * prose. pidex previously did the opposite — a boundary-aware 8/16px gap here
+ * prose. Phosphor previously did the opposite — a boundary-aware 8/16px gap here
  * *plus* per-block margins inside each item (tool group `my-2`, thinking
  * `my-1.5`, divider `my-1`, markdown paragraphs) — so 4–6 independent sources
  * of space stacked and the effective gap varied by block type even when this

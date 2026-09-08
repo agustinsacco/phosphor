@@ -42,12 +42,12 @@ import {
 /**
  * E2E hook: skip the native (undriveable) folder picker.
  *
- * Gated on `!app.isPackaged` for the same reason as PIDEX_PI_STUB — a shipped
+ * Gated on `!app.isPackaged` for the same reason as PHOSPHOR_PI_STUB — a shipped
  * app must not let an environment variable choose the workspace.
  */
 function e2eWorkspaceOverride(): string | undefined {
   if (app.isPackaged) return undefined
-  return process.env.PIDEX_E2E_WORKSPACE || undefined
+  return process.env.PHOSPHOR_E2E_WORKSPACE || undefined
 }
 
 /** True when the path is reachable — used to validate persisted locations. */
@@ -62,7 +62,7 @@ async function pathExists(path: string): Promise<boolean> {
 
 /**
  * Where sandboxes live. userData, not homedir: E2E redirects userData
- * (PIDEX_TEST_USER_DATA), so stub-driven runs never touch the real one.
+ * (PHOSPHOR_TEST_USER_DATA), so stub-driven runs never touch the real one.
  */
 function sandboxBase(): string {
   return join(app.getPath('userData'), 'sandboxes')

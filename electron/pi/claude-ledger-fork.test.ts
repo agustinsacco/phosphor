@@ -25,7 +25,7 @@ describe('forkClaudeLedgerForClone', () => {
   let newPiFile: string
 
   beforeEach(async () => {
-    root = await mkdtemp(join(tmpdir(), 'pidex-ledger-fork-'))
+    root = await mkdtemp(join(tmpdir(), 'phosphor-ledger-fork-'))
     cwd = join(root, 'workspace')
     stateDir = join(root, 'state')
     process.env.PI_CLAUDE_CLI_STATE_DIR = stateDir

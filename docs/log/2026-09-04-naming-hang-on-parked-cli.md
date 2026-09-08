@@ -7,7 +7,7 @@ anyone read it.
 
 ## Evidence
 
-`~/Library/Logs/pidex/pidex.log`, real (non-stub) naming runs only:
+`~/Library/Logs/Phosphor/phosphor.log`, real (non-stub) naming runs only:
 
 ```
 2026-09-04T01:44:22.771Z [naming] generated a session name {"ms":9574,"title":"Investigate Failed Release Action"}
@@ -64,7 +64,7 @@ Verified: same argv with `PI_CLAUDE_CLI_KEEPALIVE_MS=0` printed at 4.9s and
 exited clean at 5.4s.
 
 The Settings → Packages "test the Claude provider" job had the same hang and no
-timeout at all — it would have printed `pidex-provider-ok` and stayed a running
+timeout at all — it would have printed `Phosphor-provider-ok` and stayed a running
 job for ten minutes. Same one-line fix.
 
 ## What the e2e stub cannot see
@@ -79,7 +79,7 @@ then refuses to exit.
 
 This is the third time a naming failure has been silent and the second time the
 cause was outside this repo. `@saccolabs/pi-claude-cli` is separately versioned
-and pidex pins nothing, so a provider release changes pidex's behaviour with no
+and Phosphor pins nothing, so a provider release changes Phosphor's behaviour with no
 diff here. Check the installed version first:
 
 ```bash

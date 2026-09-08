@@ -10,7 +10,7 @@ afterEach(async () => {
 })
 
 it('creates entries and refuses duplicate files, directories and rename collisions', async () => {
-  const root = await mkdtemp(join(tmpdir(), 'pidex-mutations-'))
+  const root = await mkdtemp(join(tmpdir(), 'phosphor-mutations-'))
   roots.push(root)
   const a = join(root, 'a'),
     b = join(root, 'b'),

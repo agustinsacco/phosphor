@@ -132,7 +132,7 @@ export function commandHeadline(command: string, workspacePath?: string): Comman
 
 /**
  * Collapse mentions of the session's workspace path to the folder basename —
- * in worktree sessions the full `.pidex/worktrees/…` chain drowns everything
+ * in worktree sessions the full `.phosphor/worktrees/…` chain drowns everything
  * around it while identifying nothing the row's context doesn't already.
  */
 function shortenWorkspacePaths(text: string, workspacePath?: string): string {

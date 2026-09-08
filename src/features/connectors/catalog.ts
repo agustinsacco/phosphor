@@ -1,5 +1,5 @@
 /**
- * The connector catalog: services pidex knows how to point the MCP adapter at
+ * The connector catalog: services Phosphor knows how to point the MCP adapter at
  * without the user typing a URL.
  *
  * Every entry here was checked against the vendor's own documentation. The
@@ -9,7 +9,7 @@
  * "could not connect", not "you used the deprecated path".
  *
  * Auth is the adapter's job (OAuth 2.1 + PKCE + dynamic client registration,
- * tokens in the OS credential store). pidex only writes the config that lets
+ * tokens in the OS credential store). Phosphor only writes the config that lets
  * it work. See docs/specs/backlog/connectors.md.
  */
 import type { McpServerConfig } from '@shared/mcp'
@@ -25,13 +25,13 @@ import type { McpServerConfig } from '@shared/mcp'
  *   an app with PKCE enabled, and a PKCE app's token exchange carries no
  *   secret. The secret field stays optional for that reason.
  *
- *   The client id is not a pidex shortcoming and cannot be designed away.
+ *   The client id is not a Phosphor shortcoming and cannot be designed away.
  *   Slack's own docs state it twice: "We do not support SSE-based connections
  *   or Dynamic Client Registration at this time", and "MCP clients must be
  *   backed by a registered Slack app with a fixed app ID and hardcode that
  *   app ID". Its authorization-server metadata carries no
  *   `registration_endpoint` to call even if we wanted to (re-probed
- *   2026-09-07). A one-click Slack row would need pidex to own a
+ *   2026-09-07). A one-click Slack row would need Phosphor to own a
  *   Marketplace-published Slack app, since only internal or directory-published
  *   apps may use MCP at all.
  * - `oauth-or-key` — OAuth works, and an API key is a supported alternative.
@@ -96,7 +96,7 @@ export const OAUTH_REDIRECT_URI = 'http://localhost:19876/callback'
 /**
  * Slack's user-token scopes, verbatim from the server's own
  * `.well-known/oauth-protected-resource` (checked 2026-09-04). One list feeds
- * both the manifest the user pastes into Slack and the `oauth.scope` pidex
+ * both the manifest the user pastes into Slack and the `oauth.scope` Phosphor
  * writes, because Slack fails the authorization if they disagree.
  */
 export const SLACK_USER_SCOPES = [
@@ -139,7 +139,7 @@ export const SLACK_USER_SCOPES = [
  */
 export const SLACK_APP_MANIFEST = JSON.stringify(
   {
-    display_information: { name: 'pidex MCP' },
+    display_information: { name: 'Phosphor MCP' },
     oauth_config: {
       redirect_urls: [OAUTH_REDIRECT_URI],
       scopes: { user: SLACK_USER_SCOPES },
@@ -184,7 +184,7 @@ export const QUESTRADE_READ_SCOPES = [
 ]
 
 /**
- * Questrade scopes pidex deliberately does not request. Named so a test can
+ * Questrade scopes Phosphor deliberately does not request. Named so a test can
  * assert none of them ever leaks into `QUESTRADE_READ_SCOPES` — the failure
  * mode is silent and expensive.
  *
@@ -287,7 +287,7 @@ export const CONNECTORS: ConnectorEntry[] = [
     url: 'https://mcp.questrade.com/v1/brokerage/mcp',
     scope: QUESTRADE_READ_SCOPES.join(' '),
     caveat:
-      'Read-only by default: pidex requests every read scope and no trading scope, so the model can see orders but not place them. Widen it under Advanced by editing oauth.scope if you actually want that. Registration hands every client the same shared public client id, so the app you approve in Questrade is not uniquely yours.',
+      'Read-only by default: Phosphor requests every read scope and no trading scope, so the model can see orders but not place them. Widen it under Advanced by editing oauth.scope if you actually want that. Registration hands every client the same shared public client id, so the app you approve in Questrade is not uniquely yours.',
   },
   {
     id: 'fellow',

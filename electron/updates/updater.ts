@@ -46,7 +46,7 @@ import {
  *    would silently do nothing.
  */
 
-const REPO = 'agustinsacco/pidex'
+const REPO = 'agustinsacco/Phosphor'
 const RELEASES_LATEST = `https://github.com/${REPO}/releases/latest`
 const DOWNLOAD_BASE = `https://github.com/${REPO}/releases/latest/download`
 const CHECK_INTERVAL_MS = 30 * 60 * 1000
@@ -87,7 +87,7 @@ let updatePathKind: UpdatePathKind | null = null
 /**
  * Which mechanism this install can use.
  *
- * CI stamps `pidexSigned` into the packaged package.json only when the signing
+ * CI stamps `phosphorSigned` into the packaged package.json only when the signing
  * secrets were present (and always for Linux, where AppImage self-updates
  * without signing). Reading a build-time flag beats probing at runtime: the
  * answer is known before the first check, so the UI never promises a restart
@@ -125,9 +125,9 @@ function readPackagedFlag(): boolean | null {
     // `getAppPath()` is the asar root in a packaged app, which is where
     // electron-builder writes the package.json its extraMetadata patched.
     const raw = readFileSync(join(app.getAppPath(), 'package.json'), 'utf8')
-    const pkg = JSON.parse(raw) as { pidexSigned?: boolean | string }
+    const pkg = JSON.parse(raw) as { phosphorSigned?: boolean | string }
     // CLI-injected metadata arrives as the STRING "true", not a boolean.
-    return pkg.pidexSigned === true || pkg.pidexSigned === 'true'
+    return pkg.phosphorSigned === true || pkg.phosphorSigned === 'true'
   } catch {
     return null
   }
@@ -256,7 +256,7 @@ async function checkWithUpdater(): Promise<void> {
     const { autoUpdater } = await importUpdater()
     await autoUpdater.checkForUpdates()
   } catch (error) {
-    console.warn('[pidex] update check failed:', error)
+    console.warn('[Phosphor] update check failed:', error)
     apply({ type: 'error' })
   }
 }
@@ -281,7 +281,7 @@ async function wireUpdaterEvents(): Promise<void> {
     apply({ type: 'update-downloaded', version: info.version })
   })
   autoUpdater.on('error', (error: Error) => {
-    console.warn('[pidex] updater error:', error.message)
+    console.warn('[Phosphor] updater error:', error.message)
     apply({ type: 'error' })
   })
 }
@@ -329,7 +329,7 @@ export function startUpdateChecks(): void {
     if ((await resolveUpdatePath()) === 'updater') await wireUpdaterEvents()
     await checkForUpdates()
   })().catch((error: unknown) => {
-    console.warn('[pidex] update init failed:', error)
+    console.warn('[Phosphor] update init failed:', error)
     apply({ type: 'error' })
   })
 
@@ -377,7 +377,7 @@ export async function restartAndInstall(): Promise<void> {
 
   const { autoUpdater } = await importUpdater()
   // isSilent=false so the installer UI shows if the platform has one;
-  // isForceRunAfter=true so the user lands back in pidex, not on the desktop.
+  // isForceRunAfter=true so the user lands back in Phosphor, not on the desktop.
   autoUpdater.quitAndInstall(false, true)
 }
 

@@ -31,7 +31,7 @@ export const useModelPicksStore = create<ModelPicksState>((set, get) => ({
 
   hydrate: async () => {
     if (get().hydrated) return
-    const prefs = await window.pidex.invoke('app:getPrefs')
+    const prefs = await window.phosphor.invoke('app:getPrefs')
     const picks = prefs.modelPicks
     set({
       starred: picks?.starred ?? [],
@@ -67,5 +67,5 @@ export const useModelPicksStore = create<ModelPicksState>((set, get) => ({
 
 /** Write the durable slice only — `hydrated` and the actions are local state. */
 function persist({ starred, recent, groupMode }: ModelPicks): void {
-  void window.pidex.invoke('app:setModelPicks', { starred, recent, groupMode })
+  void window.phosphor.invoke('app:setModelPicks', { starred, recent, groupMode })
 }

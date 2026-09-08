@@ -1,5 +1,5 @@
 /**
- * Per-server MCP state, as published by pidex's bundled `pi-ext/mcp-status.ts`
+ * Per-server MCP state, as published by Phosphor's bundled `pi-ext/mcp-status.ts`
  * over pi's status channel.
  *
  * The adapter emits `pi-mcp-adapter/status/v1` snapshots on pi's shared
@@ -9,7 +9,7 @@
  */
 import type { ConnectorCheckResult } from '@shared/connectors'
 
-export const MCP_STATUS_STATUS_KEY = 'pidex-mcp-status'
+export const MCP_STATUS_STATUS_KEY = 'phosphor-mcp-status'
 
 /** Mirrors the adapter's `McpServerStatusSnapshot["status"]`. */
 export const MCP_SERVER_STATES = [

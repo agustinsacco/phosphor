@@ -1,11 +1,11 @@
 # 2026-08-19 — Sidebar groups sessions by project, not by worktree folder
 
 Follow-up to the "Sidebar identity" entry above: `worktreeAwareName()` fixed
-the _label_ a worktree's group showed ("pidex (test)" instead of "test"), but
+the _label_ a worktree's group showed ("Phosphor (test)" instead of "test"), but
 each worktree still got its own group, since grouping keyed on the physical
 workspace folder and a linked worktree is a different folder from its main
-repo. Opening both left the sidebar reading as two projects — "pidex" and
-"pidex (test)" — for what is one repo on two branches.
+repo. Opening both left the sidebar reading as two projects — "Phosphor" and
+"Phosphor (test)" — for what is one repo on two branches.
 
 `groupSessionsByProject()` (new, `src/features/sessions/groupSessions.ts`)
 folds a worktree's sessions into its main repo's group instead: the group key

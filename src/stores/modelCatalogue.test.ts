@@ -12,7 +12,7 @@ const MODEL = {
 
 beforeEach(async () => {
   invoke.mockReset()
-  vi.stubGlobal('window', { pidex: { invoke } })
+  vi.stubGlobal('window', { phosphor: { invoke } })
   const { useModelCatalogueStore } = await import('./modelCatalogue')
   useModelCatalogueStore.setState({
     status: 'idle',

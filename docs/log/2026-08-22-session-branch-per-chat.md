@@ -7,7 +7,7 @@ project shared one branch and the sidebar showed the same branch on every row
 — which is what prompted this work.
 
 Naming and branching ship together because they are the same operation. pi
-never titles a session, so pidex already asked a one-shot `pi -p` for a name
+never titles a session, so Phosphor already asked a one-shot `pi -p` for a name
 (see 2026-08-22-chat-polish-and-auto-naming.md); that title is now also what
 the branch and the worktree folder are named after. Doing them separately
 would have meant two model calls and two unrelated names for one piece of
@@ -66,8 +66,8 @@ already reported separately via `behindDefault`.
 ## Names
 
 `src/lib/branchName.ts` is pure and tested: slugify (NFKD, `[a-z0-9-]`, word-
-boundary truncation at 40), normalize the prefix (a bare `pidex` means
-`pidex/`; `pidex-` is left alone), then suffix past collisions in **both**
+boundary truncation at 40), normalize the prefix (a bare `Phosphor` means
+`phosphor/`; `Phosphor-` is left alone), then suffix past collisions in **both**
 namespaces — a folder and its branch can be taken independently, and
 creating one without the other leaves a chat whose sidebar group and branch
 chip disagree.
@@ -77,7 +77,7 @@ emit needs re-validating: `..`, `@{`, `~^:?*[\`, a leading `-` and a trailing
 `.lock` are all unreachable from `[a-z0-9-]` starting alphanumeric.
 
 Folder and branch differ on purpose (`stub-session-title` vs
-`pidex/stub-session-title`): the prefix contains a `/`, and a `/` in the
+`phosphor/stub-session-title`): the prefix contains a `/`, and a `/` in the
 folder name would nest the checkout and rename the sidebar group to the last
 segment. `AddWorktreeBranch`'s `new` variant grew an optional `branch` for
 this.
@@ -89,7 +89,7 @@ on every launch, which made it a preference the user could not actually turn
 off. The branch popup's "worktree" checkbox, a new "new branch" checkbox on
 the home composer, and a Settings → Workspaces toggle are all the same flag —
 three surfaces asking "does my work get its own branch?" that must not be able
-to disagree. The prefix lives beside it (default `pidex/`, empty allowed).
+to disagree. The prefix lives beside it (default `phosphor/`, empty allowed).
 
 The composer checkbox partially reverses the "no chips above the composer"
 decision in WORKTREES.md, deliberately and narrowly: it does not pick a
@@ -104,7 +104,7 @@ which is worth deciding per message.
   and a real clone proving a new branch starts from `origin/main` while local
   `main` is stale, plus that `--no-track` leaves the branch upstream-less.
 - `e2e/smoke.spec.ts` — the worktree flow now asserts that a chat started from
-  inside worktree `task-1` branches off trunk into `pidex/stub-session-title`
+  inside worktree `task-1` branches off trunk into `phosphor/stub-session-title`
   rather than continuing on `task-1`; a sibling test unticks the checkbox and
   asserts nothing is created. The stub answers the naming prompt with a fixed
   title and honours `-n`, which is what makes the branch name deterministic.

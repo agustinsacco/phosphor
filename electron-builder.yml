@@ -1,6 +1,6 @@
-appId: works.pidex.app
-productName: pidex
-copyright: pidex
+appId: works.phosphor.app
+productName: Phosphor
+copyright: Phosphor
 
 directories:
   buildResources: build
@@ -40,20 +40,20 @@ mac:
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
-  # macOS asks once per protected folder the first time pidex (or the pi agent
+  # macOS asks once per protected folder the first time Phosphor (or the pi agent
   # it spawns) reads one. Without these strings the prompt is a bare demand;
   # with them it says why. It does not skip the prompt — only the stable
   # designated requirement in scripts/adhoc-sign-mac.mjs keeps the answer from
   # being forgotten on the next auto-update.
   extendInfo:
     NSDesktopFolderUsageDescription: >-
-      pidex reads files in this folder when you open a workspace there or ask
+      Phosphor reads files in this folder when you open a workspace there or ask
       the agent to work on one.
     NSDocumentsFolderUsageDescription: >-
-      pidex reads files in this folder when you open a workspace there or ask
+      Phosphor reads files in this folder when you open a workspace there or ask
       the agent to work on one.
     NSDownloadsFolderUsageDescription: >-
-      pidex reads files in this folder when you open a workspace there or ask
+      Phosphor reads files in this folder when you open a workspace there or ask
       the agent to work on one.
   target:
     - target: dmg
@@ -75,7 +75,7 @@ linux:
   artifactName: ${productName}-${version}-${arch}.${ext}
   desktop:
     entry:
-      StartupWMClass: pidex
+      StartupWMClass: Phosphor
   target:
     - target: AppImage
       arch: [x64, arm64]

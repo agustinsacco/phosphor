@@ -26,12 +26,12 @@ function sessionState(sessionFile: string): RpcSessionState {
 beforeEach(() => {
   invoke.mockReset().mockResolvedValue(undefined)
   piCommand.mockReset()
-  vi.stubGlobal('window', { pidex: { invoke, piCommand } })
+  vi.stubGlobal('window', { phosphor: { invoke, piCommand } })
   useChatStore.setState({ sessions: {} }, false)
   useChatUiStore.setState({ prefill: {}, forkPickerFor: null, verbose: {} }, false)
   useSessionsStore.setState({
     live: {
-      s1: { pidexId: 's1', workspacePath: '/repo', diskPath: '/repo/.pi/sessions/old.jsonl' },
+      s1: { phosphorId: 's1', workspacePath: '/repo', diskPath: '/repo/.pi/sessions/old.jsonl' },
     },
     activeSessionId: 's1',
   })

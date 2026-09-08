@@ -18,13 +18,13 @@ That is right for `https://github.com/.../pull/214` and wrong for everything
 else, because `window.open` resolves a relative href against the **renderer's
 own document**:
 
-- packaged, that is `file:///Applications/pidex.app/.../renderer/docs/specs/…`
+- packaged, that is `file:///Applications/Phosphor.app/.../renderer/docs/specs/…`
   — a path that does not exist. The window-open handler denies it (not http),
   so the click is silently swallowed.
 - in dev it is `http://localhost:5173/docs/specs/…`, which _is_ http, so the
   handler opened the user's browser on the Vite dev server, which 404s.
 
-Either way the file pidex already knows how to display — it has a Files pane,
+Either way the file Phosphor already knows how to display — it has a Files pane,
 an editor and a `read` tool chip that opens both — was unreachable from the
 message announcing it.
 

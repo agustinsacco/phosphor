@@ -175,7 +175,7 @@ function ExplorerRow({
     showContextMenu(event, [
       {
         label: revealLabel(),
-        onClick: () => void window.pidex.invoke('app:revealPath', entry.path),
+        onClick: () => void window.phosphor.invoke('app:revealPath', entry.path),
       },
       {
         label: 'Copy path',

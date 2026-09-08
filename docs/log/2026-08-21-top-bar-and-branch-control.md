@@ -6,7 +6,7 @@ right place disagreed with the others.
 
 ## The pane buttons under the window controls
 
-On Windows and Linux pidex runs frameless with a Window Controls Overlay
+On Windows and Linux Phosphor runs frameless with a Window Controls Overlay
 (`titleBarStyle: 'hidden'` + `titleBarOverlay`), so the OS paints
 minimize/maximize/close over the top-right of the _page_. Exactly one element
 compensated: the chat header, via `.titlebar-inset-end`.
@@ -49,7 +49,7 @@ gone; `WorkspaceChip` was lifted out of `WorkspaceHome` into
 
 ## Reversed: the main tree's checkout
 
-`WORKTREES.md` used to state that pidex never changes the main tree's
+`WORKTREES.md` used to state that Phosphor never changes the main tree's
 checkout. Unticking "worktree" does exactly that, so the rule is now recorded
 as reversed rather than quietly violated. The safety moved into guards:
 `checkoutBranch` refuses on any uncommitted change and refuses when another
@@ -57,7 +57,7 @@ worktree holds the branch, naming which one. The checkbox defaults to ticked.
 
 ## Pull latest, and the fetch that makes it true
 
-Nothing in pidex ran `git fetch`, so `GitInfo.behind` was measured against
+Nothing in Phosphor ran `git fetch`, so `GitInfo.behind` was measured against
 whatever `refs/remotes/*` was on disk — a repo nobody had fetched reported
 "up to date" indefinitely, which made an "out of date" warning meaningless.
 

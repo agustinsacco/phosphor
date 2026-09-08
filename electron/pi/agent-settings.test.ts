@@ -22,7 +22,7 @@ describe('pi agent settings', () => {
   let previousEnv: string | undefined
 
   beforeEach(async () => {
-    dir = await mkdtemp(join(tmpdir(), 'pidex-settings-'))
+    dir = await mkdtemp(join(tmpdir(), 'phosphor-settings-'))
     previousEnv = process.env.PI_CODING_AGENT_DIR
     process.env.PI_CODING_AGENT_DIR = dir
   })
@@ -115,7 +115,7 @@ describe('pi agent settings', () => {
   })
 
   it('merges project overrides one level deep, matching pi semantics', async () => {
-    const workspace = await mkdtemp(join(tmpdir(), 'pidex-ws-'))
+    const workspace = await mkdtemp(join(tmpdir(), 'phosphor-ws-'))
     try {
       await writeFile(
         settingsPath(),
@@ -166,7 +166,7 @@ describe('pi agent settings', () => {
   })
 
   it('scoped read returns each file as written, never merged', async () => {
-    const workspace = await mkdtemp(join(tmpdir(), 'pidex-ws-'))
+    const workspace = await mkdtemp(join(tmpdir(), 'phosphor-ws-'))
     try {
       await writeFile(settingsPath(), JSON.stringify({ defaultModel: 'claude-opus-5' }))
       const { mkdir } = await import('node:fs/promises')
@@ -190,7 +190,7 @@ describe('pi agent settings', () => {
   })
 
   it('project scope writes <workspace>/.pi/settings.json', async () => {
-    const workspace = await mkdtemp(join(tmpdir(), 'pidex-ws-'))
+    const workspace = await mkdtemp(join(tmpdir(), 'phosphor-ws-'))
     try {
       await patchAgentSettings('project', workspace, { defaultModel: 'project-model' })
       const written = JSON.parse(await readFile(join(workspace, '.pi', 'settings.json'), 'utf8'))

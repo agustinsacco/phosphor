@@ -1,7 +1,7 @@
 # 2026-08-30 — Review: always-on Claude usage stats (live plan bars)
 
 Claude Desktop shows account usage all the time — bars for how much of the
-5-hour and weekly allowance is spent, per session and per week. pidex shows
+5-hour and weekly allowance is spent, per session and per week. Phosphor shows
 the `claude-rate-limit` state only once the CLI's warning threshold has
 been crossed, which is the moment the number is least useful for planning: you
 want to see yourself approaching the wall, not the wall.
@@ -35,7 +35,7 @@ binding window's type and reset, but no fraction. The fraction lives in
 response headers (`anthropic-ratelimit-unified-{claim}-utilization`,
 `-reset`, `-surpassed-threshold`) that the CLI parses inside its own process
 and only forwards once a warning step (`allowed_warning` →
-`surpassedThreshold`) has tripped. pidex never sees those headers, and no
+`surpassedThreshold`) has tripped. Phosphor never sees those headers, and no
 fork change can surface them before the CLI decides to.
 
 So from this stream, always-on, we can know: which window binds (5h → 7d →
@@ -48,8 +48,8 @@ The CLI's own `/usage` panel (what Claude Desktop's numbers mirror) fetches
 `GET https://api.anthropic.com/api/oauth/usage` with the logged-in user's
 OAuth token, auto-refreshed on 401. That endpoint is undocumented and
 first-party-only, and the OAuth token belongs to the `claude` binary in the
-OS keychain — pidex never holds it, by design (the account row in Settings
-says exactly this: the credential is the CLI's, not pidex's).
+OS keychain — Phosphor never holds it, by design (the account row in Settings
+says exactly this: the credential is the CLI's, not Phosphor's).
 
 **But the CLI prints that panel in print mode.** Verified against 2.1.231:
 
@@ -69,9 +69,9 @@ Current week (Fable): 37% used · resets Aug 30 at 3:59pm (America/Toronto)
 This is **live** server-side utilization (the percent moved 26% → 27%
 between two runs a few minutes apart), it works for **any signed-in
 subscription account** — Pro/Max personal included, no org, no admin key,
-no credential ever handed to pidex — and it costs ~1.5–2 s of process spawn
+no credential ever handed to Phosphor — and it costs ~1.5–2 s of process spawn
 per fetch. The `rate_limit_event`-stream gap (percent only after threshold)
-and the keychain problem both dissolve: pidex spawns the CLI, the CLI uses
+and the keychain problem both dissolve: Phosphor spawns the CLI, the CLI uses
 its own keychain, we parse its rendered answer.
 
 The CLI binary's strings give the full window vocabulary behind the text:
@@ -87,7 +87,7 @@ The CLI binary's strings give the full window vocabulary behind the text:
 Two failure modes are visible in the CLI's own code and must be handled:
 it can serve **last-known** data ("Showing last-known usage (could not
 refresh)") or fail outright ("Could not refresh usage data") — the usage
-endpoint is rate-limited on Anthropic's side, which is also why pidex must
+endpoint is rate-limited on Anthropic's side, which is also why Phosphor must
 not poll it tighter than roughly a minute.
 
 The rendered text is a wire contract in exactly the sense the repo already
@@ -120,7 +120,7 @@ commits, PRs, LOC. Full detail below.
 Headers: `anthropic-version: 2023-06-01`, `x-api-key: $ANTHROPIC_ADMIN_KEY`
 (an Admin API key, `sk-ant-admin01-…`, created by an org admin in the
 Console; an OAuth bearer token with `org:admin` scope also works). Docs ask
-integrations to set a `User-Agent: pidex/<version>`.
+integrations to set a `User-Agent: Phosphor/<version>`.
 
 **Response** — one row per (actor, `is_remote`) for the day:
 
@@ -200,7 +200,7 @@ credit · Expires …`. The reset text is the CLI's local-timezone rendering
 ```
 
 Handlers in `electron/ipc/claude-handlers.ts`, mock case in
-`src/dev/mockPidex.ts` (a fixture snapshot keeps `dev:web` honest).
+`src/dev/mockPhosphor.ts` (a fixture snapshot keeps `dev:web` honest).
 
 **Popover**: a real "Plan usage" section replaces `PlanLimits`' single
 window: a bar per window the CLI reports — 5-hour and weekly always,

@@ -10,7 +10,7 @@ the wrong places.
    (`App.tsx`), crushing the chat to an unusable column. Restore hardcoded
    45%, discarding any dragged size.
 2. **The squish leaked across sessions.** Split sizes persisted via
-   react-resizable-panels `autoSaveId="pidex-main-${workspacePath}"` — per
+   react-resizable-panels `autoSaveId="Phosphor-main-${workspacePath}"` — per
    workspace, not per session — so the 85% written by expand became every
    other session's opening layout.
 3. **The pane could only sit on the right.** Panel order was hardcoded.
@@ -29,7 +29,7 @@ the wrong places.
   exact prior split. The e2e asserts transcript width before == after.
 - **Layout is one persisted per-session record** in `stores/layout.ts`:
   `{ pane, expanded, side, size }`, debounce-written to localStorage
-  (`pidex-pane-layout`), sanitized field-by-field on load
+  (`Phosphor-pane-layout`), sanitized field-by-field on load
   (`sanitizePersistedPanes`), pruned by the existing `removeSession` path.
   The main PanelGroup dropped `autoSaveId`; it is keyed by
   `sessionId:side` so each session's `defaultSize` re-applies on switch.

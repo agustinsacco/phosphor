@@ -32,7 +32,7 @@ export function workspaceName(workspacePath: string): string {
 
 /**
  * True for a path inside a repo's internal worktree folder
- * (`<repo>/.pidex/worktrees/<name>`).
+ * (`<repo>/.phosphor/worktrees/<name>`).
  *
  * A worktree is a *branch* of an existing workspace, not a workspace of its
  * own, so it must never be persisted as one — otherwise the sidebar and the
@@ -40,7 +40,8 @@ export function workspaceName(workspacePath: string): string {
  * project.
  */
 export function isWorktreeFolder(path: string): boolean {
-  return /[/\\]\.pidex[/\\]worktrees[/\\]/.test(path)
+  // `.pidex` is the pre-rename (2026-09-08) folder; existing lanes still live there.
+  return /[/\\]\.(?:phosphor|pidex)[/\\]worktrees[/\\]/.test(path)
 }
 
 /**
@@ -56,18 +57,18 @@ export function isWorktreeFolder(path: string): boolean {
  *     The sidebar's worktree discovery already has it at the moment it learns
  *     the path, so passing it costs nothing and needs no round trip. Covers
  *     worktrees anywhere on disk, unlike step 3.
- *  3. The path shape `<repo>/.pidex/worktrees/<name>`, which needs no I/O and
- *     is true the moment the path exists. It only knows about worktrees pidex
+ *  3. The path shape `<repo>/.phosphor/worktrees/<name>`, which needs no I/O and
+ *     is true the moment the path exists. It only knows about worktrees Phosphor
  *     created, which is why it is the last fallback and not the primary.
  *
- * Without step 2, a worktree that is not under `.pidex/worktrees` (a sibling
+ * Without step 2, a worktree that is not under `.phosphor/worktrees` (a sibling
  * folder, `.claude/worktrees/`, `/tmp`) opened its OWN sidebar group, headed
  * by the branch slug, for as long as `git:infoBatch` took to answer — a wall
  * of fake "workspaces" on every cold start.
  *
  * Without step 3 the identity flashed — or stuck, whenever git info for that
  * cwd never loaded — on the worktree folder's own basename. Those folders are
- * named after their branch, so the top bar read "hey-2" for the `pidex` repo.
+ * named after their branch, so the top bar read "hey-2" for the `Phosphor` repo.
  */
 export function projectPathFor(
   path: string,
@@ -76,7 +77,7 @@ export function projectPathFor(
 ): string {
   if (git?.isWorktree && git.mainRepoPath) return git.mainRepoPath
   if (knownRoot) return knownRoot
-  return /^(.*?)[/\\]\.pidex[/\\]worktrees[/\\]/.exec(path)?.[1] ?? path
+  return /^(.*?)[/\\]\.(?:phosphor|pidex)[/\\]worktrees[/\\]/.exec(path)?.[1] ?? path
 }
 
 /**

@@ -9,7 +9,7 @@ describe('externalUrl', () => {
 
   it('refuses every other scheme', () => {
     expect(externalUrl('file:///etc/passwd')).toBeNull()
-    expect(externalUrl('pidex-artifact://x')).toBeNull()
+    expect(externalUrl('phosphor-artifact://x')).toBeNull()
     expect(externalUrl('javascript:alert(1)')).toBeNull()
     expect(externalUrl('mailto:a@b.com')).toBeNull()
     expect(externalUrl('docs/specs/x.md')).toBeNull()
@@ -19,7 +19,7 @@ describe('externalUrl', () => {
 
 describe('isAppNavigation', () => {
   const dev = 'http://localhost:5173/'
-  const packaged = 'file:///Applications/pidex.app/Contents/Resources/app/renderer/index.html'
+  const packaged = 'file:///Applications/Phosphor.app/Contents/Resources/app/renderer/index.html'
 
   it('allows the dev server reloading itself', () => {
     expect(isAppNavigation('http://localhost:5173/', dev)).toBe(true)
@@ -30,7 +30,7 @@ describe('isAppNavigation', () => {
     expect(isAppNavigation(packaged, packaged)).toBe(true)
     expect(
       isAppNavigation(
-        'file:///Applications/pidex.app/Contents/Resources/app/renderer/assets/x.js',
+        'file:///Applications/Phosphor.app/Contents/Resources/app/renderer/assets/x.js',
         packaged,
       ),
     ).toBe(true)
@@ -44,7 +44,7 @@ describe('isAppNavigation', () => {
 
   it('blocks a file:// path outside the bundle', () => {
     expect(isAppNavigation('file:///etc/passwd', packaged)).toBe(false)
-    expect(isAppNavigation('file:///Users/u/pidex/docs/x.md', packaged)).toBe(false)
+    expect(isAppNavigation('file:///Users/u/phosphor/docs/x.md', packaged)).toBe(false)
     expect(isAppNavigation('file:///Users/u/secret.md', dev)).toBe(false)
   })
 

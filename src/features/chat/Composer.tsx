@@ -81,7 +81,7 @@ export function Composer({
   const [attachWarning, setAttachWarning] = useState<string | null>(null)
 
   // The file path arrives asynchronously (see `bootstrapSession`), so a draft
-  // typed in the first moments is filed under the pidexId. Move it rather than
+  // typed in the first moments is filed under the phosphorId. Move it rather than
   // stranding it under a key nothing will read again.
   const previousKey = useRef(draftKey)
   useEffect(() => {
@@ -115,7 +115,7 @@ export function Composer({
   useEffect(() => {
     if (mention && !filesLoaded.current) {
       filesLoaded.current = true
-      void window.pidex.invoke('fs:listFiles', workspacePath).then(setWorkspaceFiles)
+      void window.phosphor.invoke('fs:listFiles', workspacePath).then(setWorkspaceFiles)
     }
   }, [mention, workspacePath])
 
@@ -211,7 +211,7 @@ export function Composer({
           // Deliberately raw rather than `piCall` (CLAUDE.md fact 3): a failed
           // `!command` belongs in the bash item's own output next to the
           // command that produced it, not on the session-wide error surface.
-          const response = await window.pidex.piCommand(sessionId, {
+          const response = await window.phosphor.piCommand(sessionId, {
             type: 'bash',
             command: shellCommand,
             excludeFromContext: exclude,
@@ -570,7 +570,7 @@ const DOUBLE_ESCAPE_MS = 600
  * Read straight off the transcript rather than kept as a second list: every
  * send appends a user item (optimistically, before pi echoes it), so the
  * transcript is already the history — and a session resumed from disk has one
- * without pidex persisting anything of its own.
+ * without Phosphor persisting anything of its own.
  */
 function promptHistory(sessionId: string): string[] {
   const items = useChatStore.getState().sessions[sessionId]?.items ?? []

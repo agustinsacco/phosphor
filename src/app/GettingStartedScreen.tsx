@@ -5,7 +5,7 @@ import { usePackageJob } from '@/features/settings/usePackageJob'
 import { JobOutput } from '@/features/settings/JobOutput'
 
 /**
- * One-time step after pidex itself installed pi: recommend providers and
+ * One-time step after Phosphor itself installed pi: recommend providers and
  * curated extensions before entering the app. Everything here is reachable
  * again later via Settings → Extensions / Agent.
  */
@@ -16,8 +16,8 @@ export function GettingStartedScreen({ onDone }: { onDone: () => void }): React.
   const refresh = useCallback(async (): Promise<void> => {
     try {
       const [list, detect] = await Promise.all([
-        window.pidex.invoke('packages:list'),
-        window.pidex.invoke('packages:detect'),
+        window.phosphor.invoke('packages:list'),
+        window.phosphor.invoke('packages:detect'),
       ])
       setInstalledSpecs(list.map((entry) => entry.spec))
       setClaudeDetected(detect.claude)
@@ -46,7 +46,7 @@ export function GettingStartedScreen({ onDone }: { onDone: () => void }): React.
           <code className="bg-code-bg rounded px-1 font-mono text-base">pi</code> in a terminal and
           type <code className="bg-code-bg rounded px-1 font-mono text-base">/login</code>. API keys
           (Anthropic, OpenAI, Google, …) work via environment variables or Settings → Agent. Tokens
-          are shared with pidex automatically.
+          are shared with Phosphor automatically.
         </p>
 
         <h2 className="mt-6 text-lg font-semibold">Recommended extensions</h2>
@@ -57,7 +57,7 @@ export function GettingStartedScreen({ onDone }: { onDone: () => void }): React.
             busy={job.running}
             onInstall={(spec) =>
               void job.start(() =>
-                window.pidex.invoke('packages:run', 'install', spec, 'global', undefined),
+                window.phosphor.invoke('packages:run', 'install', spec, 'global', undefined),
               )
             }
           />

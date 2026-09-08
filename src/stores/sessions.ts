@@ -52,11 +52,11 @@ export function shouldRefreshStatsOn(
 /**
  * Live pi subprocesses + on-disk session catalogue.
  * Multiple sessions stream concurrently; switching is instant because chat
- * state is keyed by pidex session id and background handlers keep reducing.
+ * state is keyed by Phosphor session id and background handlers keep reducing.
  */
 
 interface LiveSessionEntry {
-  pidexId: string
+  phosphorId: string
   workspacePath: string
   /** Disk session file, learned from get_state after spawn. */
   diskPath?: string
@@ -64,15 +64,15 @@ interface LiveSessionEntry {
 
 interface SessionsState {
   activeSessionId: string | null
-  /** pidexId → live entry. */
+  /** phosphorId → live entry. */
   live: Record<string, LiveSessionEntry>
   /** workspacePath → on-disk metas (sidebar). */
   disk: Record<string, SessionMeta[]>
   /** workspacePath → latest scan attempt; absence = never attempted. */
   scanStatus: Record<string, SessionScanStatus>
-  /** pidexId → unread activity count for background sessions. */
+  /** phosphorId → unread activity count for background sessions. */
   unread: Record<string, number>
-  /** pidexId → git session baseline ref (null = not a repo). */
+  /** phosphorId → git session baseline ref (null = not a repo). */
   baselines: Record<string, string | null>
   pinned: string[]
   /**
@@ -145,7 +145,7 @@ interface SessionsState {
    * environment pi was spawned with, and the Claude CLI process is parked for
    * the lane's whole life. So the move is a dispose and a resume from the same
    * session file, with the binding rewritten first so the new spawn routes
-   * where the user asked. Returns the new pidex session id, or null when the
+   * where the user asked. Returns the new Phosphor session id, or null when the
    * lane has no file yet and therefore nothing to resume.
    */
   moveSessionToAccount: (sessionId: string, accountId: string) => Promise<string | null>
@@ -227,7 +227,7 @@ const watchedWorkspaces = new Set<string>()
  * single-message "rewind" — verified against the installed pi core's
  * `agent-session-runtime.js`, `SessionManager.createBranchedSession()` — it
  * never truncates the live file in place. Without a second call here,
- * `live[pidexId].diskPath` keeps pointing at the abandoned pre-fork file, so
+ * `live[phosphorId].diskPath` keeps pointing at the abandoned pre-fork file, so
  * the sidebar highlights that stale file as "live" while the real, actively
  * written branch shows up as an unclaimed extra row — read by a user as the
  * chat having been duplicated.
@@ -238,19 +238,19 @@ const watchedWorkspaces = new Set<string>()
  * simply lack some of these commands, and surfacing five chat errors while a
  * session is still opening would be worse than the graceful degradation below.
  */
-export async function bootstrapSession(pidexId: string): Promise<void> {
+export async function bootstrapSession(phosphorId: string): Promise<void> {
   const chat = useChatStore.getState()
   // get_state is awaited on its own, ahead of the rest: it carries
   // `sessionFile`, and "reopen my last session" depends on that path being
   // persisted. Batching it with the slower catalogue calls meant a window
   // closed before the batch settled lost the pref entirely — a race the
   // relaunch e2e caught on Linux CI once a fifth call joined the batch.
-  const statePromise = window.pidex.piCommand(pidexId, { type: 'get_state' })
+  const statePromise = window.phosphor.piCommand(phosphorId, { type: 'get_state' })
   const restPromise = Promise.allSettled([
-    window.pidex.piCommand(pidexId, { type: 'get_available_models' }),
-    window.pidex.piCommand(pidexId, { type: 'get_commands' }),
-    window.pidex.piCommand(pidexId, { type: 'get_session_stats' }),
-    window.pidex.piCommand(pidexId, { type: 'get_available_thinking_levels' }),
+    window.phosphor.piCommand(phosphorId, { type: 'get_available_models' }),
+    window.phosphor.piCommand(phosphorId, { type: 'get_commands' }),
+    window.phosphor.piCommand(phosphorId, { type: 'get_session_stats' }),
+    window.phosphor.piCommand(phosphorId, { type: 'get_available_thinking_levels' }),
   ])
 
   const state = await statePromise.then(
@@ -258,23 +258,23 @@ export async function bootstrapSession(pidexId: string): Promise<void> {
     (reason: unknown) => ({ status: 'rejected' as const, reason }),
   )
   if (state.status === 'fulfilled' && state.value.success && state.value.data) {
-    chat.setMeta(pidexId, state.value.data)
+    chat.setMeta(phosphorId, state.value.data)
     const diskPath = state.value.data.sessionFile
     if (diskPath) {
       useSessionsStore.setState((s) => ({
         live: {
           ...s.live,
-          [pidexId]: { ...(s.live[pidexId] ?? { pidexId, workspacePath: '' }), diskPath },
+          [phosphorId]: { ...(s.live[phosphorId] ?? { phosphorId, workspacePath: '' }), diskPath },
         },
       }))
       // Same reason the Claude account binding happens here: main picked the
       // account at spawn, but the file it has to be recorded against did not
       // exist yet. No-op for a session that is not on the Claude provider.
-      void window.pidex.invoke('claude:bindSession', diskPath, pidexId)
+      void window.phosphor.invoke('claude:bindSession', diskPath, phosphorId)
       // The path only becomes known here (get_state resolves after spawn), so
       // persist it now if this session is the one on screen.
-      if (useSessionsStore.getState().activeSessionId === pidexId) {
-        void window.pidex.invoke('app:setLastSession', diskPath)
+      if (useSessionsStore.getState().activeSessionId === phosphorId) {
+        void window.phosphor.invoke('app:setLastSession', diskPath)
         useSessionsStore.getState().markSeen(diskPath)
       }
       // Re-scan the folder so the session gets a real sidebar row rather than
@@ -285,20 +285,20 @@ export async function bootstrapSession(pidexId: string): Promise<void> {
       // the session that created it exists). Without this the row stayed a
       // `PendingSessionRow` — no context menu, no right-click — until some
       // unrelated re-render happened to re-scan.
-      const workspacePath = useSessionsStore.getState().live[pidexId]?.workspacePath
+      const workspacePath = useSessionsStore.getState().live[phosphorId]?.workspacePath
       if (workspacePath) void useSessionsStore.getState().refreshDisk(workspacePath)
     }
   }
   const [models, commands, stats, thinkingLevels] = await restPromise
   if (models.status === 'fulfilled' && models.value.success && models.value.data) {
-    chat.setModels(pidexId, models.value.data.models)
+    chat.setModels(phosphorId, models.value.data.models)
   }
   if (commands.status === 'fulfilled' && commands.value.success && commands.value.data) {
-    chat.setCommands(pidexId, commands.value.data.commands)
+    chat.setCommands(phosphorId, commands.value.data.commands)
   }
   if (stats.status === 'fulfilled' && stats.value.success && stats.value.data) {
-    recordPolledStats(pidexId, stats.value.data)
-    chat.setStats(pidexId, stats.value.data)
+    recordPolledStats(phosphorId, stats.value.data)
+    chat.setStats(phosphorId, stats.value.data)
   }
   // Older pi builds lack this command; leaving it null makes the picker derive
   // the levels locally instead of showing a wrong hardcoded list.
@@ -307,7 +307,7 @@ export async function bootstrapSession(pidexId: string): Promise<void> {
     thinkingLevels.value.success &&
     thinkingLevels.value.data
   ) {
-    chat.setThinkingLevels(pidexId, thinkingLevels.value.data.levels)
+    chat.setThinkingLevels(phosphorId, thinkingLevels.value.data.levels)
   }
 }
 
@@ -320,13 +320,13 @@ export async function bootstrapSession(pidexId: string): Promise<void> {
  * Raw `piCommand` on purpose: the failure mode is "pi is too old to know this
  * command", which the picker already handles by deriving the levels locally.
  */
-export async function refreshThinkingLevels(pidexId: string): Promise<void> {
+export async function refreshThinkingLevels(phosphorId: string): Promise<void> {
   try {
-    const response = await window.pidex.piCommand(pidexId, {
+    const response = await window.phosphor.piCommand(phosphorId, {
       type: 'get_available_thinking_levels',
     })
     if (response.success && response.data) {
-      useChatStore.getState().setThinkingLevels(pidexId, response.data.levels)
+      useChatStore.getState().setThinkingLevels(phosphorId, response.data.levels)
     }
   } catch {
     // Session gone, or pi too old — the picker's local derivation covers it.
@@ -342,25 +342,25 @@ export async function refreshThinkingLevels(pidexId: string): Promise<void> {
  * along so the model avoids duplicating a sibling session's name.
  */
 async function autoNameSession(
-  pidexId: string,
+  phosphorId: string,
   workspacePath: string,
   firstPrompt: string,
 ): Promise<void> {
   const existing = (useSessionsStore.getState().disk[workspacePath] ?? [])
     .map((m) => sessionTitle({ explicitName: m.name, firstUserText: m.firstUserText }))
     .filter((t): t is string => Boolean(t))
-  useNamingStore.getState().start(pidexId, workspacePath)
-  const title = await window.pidex
+  useNamingStore.getState().start(phosphorId, workspacePath)
+  const title = await window.phosphor
     .invoke('pi:generateTitle', workspacePath, firstPrompt, existing)
     .catch(() => null)
-  useNamingStore.getState().finish(pidexId)
+  useNamingStore.getState().finish(phosphorId)
   if (!title) return
-  if (useChatStore.getState().sessions[pidexId]?.meta?.sessionName) return
-  if (!useSessionsStore.getState().live[pidexId]) return
-  if (await piCallOk(pidexId, { type: 'set_session_name', name: title })) {
+  if (useChatStore.getState().sessions[phosphorId]?.meta?.sessionName) return
+  if (!useSessionsStore.getState().live[phosphorId]) return
+  if (await piCallOk(phosphorId, { type: 'set_session_name', name: title })) {
     // The visible rename; the disk scan may not carry it for a while yet.
     // See the same call in features/sessions/startChat.ts.
-    useChatStore.getState().patchMeta(pidexId, { sessionName: title })
+    useChatStore.getState().patchMeta(phosphorId, { sessionName: title })
     void useSessionsStore.getState().refreshDisk(workspacePath)
   }
 }
@@ -370,16 +370,16 @@ async function autoNameSession(
  * so routing failures to the chat surface would paint an error per token batch.
  * A stale context meter is the better failure.
  */
-async function refreshStats(pidexId: string): Promise<void> {
+async function refreshStats(phosphorId: string): Promise<void> {
   try {
-    const response = await window.pidex.piCommand(pidexId, { type: 'get_session_stats' })
+    const response = await window.phosphor.piCommand(phosphorId, { type: 'get_session_stats' })
     if (response.success && response.data) {
       // Re-seed the live overlay's baseline BEFORE displaying, so a delta
       // arriving between here and the next poll stacks on current truth.
-      recordPolledStats(pidexId, response.data)
-      useChatStore.getState().setStats(pidexId, response.data)
+      recordPolledStats(phosphorId, response.data)
+      useChatStore.getState().setStats(phosphorId, response.data)
       const { input, output, cacheRead, cacheWrite } = response.data.tokens
-      recordBurnSample(pidexId, {
+      recordBurnSample(phosphorId, {
         at: Date.now(),
         billed: input + output + cacheRead + cacheWrite,
         output,
@@ -438,12 +438,12 @@ async function cleanupLocalSessionState(sessionId: string): Promise<void> {
   }))
 }
 
-function attachSessionPushHandler(pidexId: string): void {
-  const unsubscribe = window.pidex.onSessionPush(pidexId, (push: SessionPush) => {
+function attachSessionPushHandler(phosphorId: string): void {
+  const unsubscribe = window.phosphor.onSessionPush(phosphorId, (push: SessionPush) => {
     const chatStore = useChatStore.getState()
     switch (push.kind) {
       case 'event': {
-        chatStore.applyEvent(pidexId, push.event)
+        chatStore.applyEvent(phosphorId, push.event)
         if (
           push.event.type === 'tool_execution_end' &&
           !push.event.isError &&
@@ -453,7 +453,7 @@ function attachSessionPushHandler(pidexId: string): void {
             useArtifactsStore
               .getState()
               .ingest(
-                pidexId,
+                phosphorId,
                 (push.event as { toolName: string }).toolName,
                 (push.event as { result?: { details?: unknown } }).result?.details,
               ),
@@ -461,11 +461,11 @@ function attachSessionPushHandler(pidexId: string): void {
         }
         const { activeSessionId } = useSessionsStore.getState()
         if (
-          activeSessionId !== pidexId &&
+          activeSessionId !== phosphorId &&
           (push.event.type === 'message_end' || push.event.type === 'agent_end')
         ) {
           useSessionsStore.setState((s) => ({
-            unread: { ...s.unread, [pidexId]: (s.unread[pidexId] ?? 0) + 1 },
+            unread: { ...s.unread, [phosphorId]: (s.unread[phosphorId] ?? 0) + 1 },
           }))
         }
         // NOTE: deliberately no markSeen() here. Marking the *active* session
@@ -479,11 +479,11 @@ function attachSessionPushHandler(pidexId: string): void {
         // carries the streaming message's cumulative usage, so the context
         // meter and burn rate move without an RPC round trip per sub-step.
         if (push.event.type === 'message_update' && push.event.usage) {
-          const patched = recordUsageDelta(pidexId, push.event.usage)
-          if (patched) chatStore.setStats(pidexId, patched)
-          const billed = liveBilledTokens(pidexId)
+          const patched = recordUsageDelta(phosphorId, push.event.usage)
+          if (patched) chatStore.setStats(phosphorId, patched)
+          const billed = liveBilledTokens(phosphorId)
           if (billed !== null) {
-            recordBurnSample(pidexId, {
+            recordBurnSample(phosphorId, {
               at: Date.now(),
               billed,
               output: patched?.tokens.output ?? 0,
@@ -493,18 +493,18 @@ function attachSessionPushHandler(pidexId: string): void {
         } else if (push.event.type === 'message_end') {
           const message = push.event.message
           const usage = message.role === 'assistant' ? message.usage : undefined
-          const patched = recordMessageEnd(pidexId, usage)
-          if (patched) chatStore.setStats(pidexId, patched)
+          const patched = recordMessageEnd(phosphorId, usage)
+          if (patched) chatStore.setStats(phosphorId, patched)
         }
-        if (shouldRefreshStatsOn(push.event.type, hasUsageDeltas(pidexId))) {
-          void refreshStats(pidexId)
+        if (shouldRefreshStatsOn(push.event.type, hasUsageDeltas(phosphorId))) {
+          void refreshStats(phosphorId)
         }
         break
       }
       case 'exit':
         if (!push.expected) {
           chatStore.setError(
-            pidexId,
+            phosphorId,
             `pi exited unexpectedly (code ${push.code ?? 'unknown'}). The session file is preserved.`,
           )
         }
@@ -514,12 +514,12 @@ function attachSessionPushHandler(pidexId: string): void {
         break
       case 'extension-ui':
         void import('./extensionUi').then(({ useExtensionUiStore }) =>
-          useExtensionUiStore.getState().handleRequest(pidexId, push.request),
+          useExtensionUiStore.getState().handleRequest(phosphorId, push.request),
         )
         break
     }
   })
-  unsubscribers.set(pidexId, unsubscribe)
+  unsubscribers.set(phosphorId, unsubscribe)
 }
 
 export const useSessionsStore = create<SessionsState>((set, get) => ({
@@ -538,7 +538,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   creating: false,
 
   hydratePinned: async () => {
-    const prefs = await window.pidex.invoke('app:getPrefs')
+    const prefs = await window.phosphor.invoke('app:getPrefs')
     set({
       pinned: prefs.pinnedSessions,
       seenSessions: prefs.seenSessions ?? {},
@@ -549,14 +549,14 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   markSeen: (sessionPath) => {
     if (!sessionPath) return
     set((s) => ({ seenSessions: { ...s.seenSessions, [sessionPath]: Date.now() } }))
-    void window.pidex.invoke('app:markSessionSeen', sessionPath)
+    void window.phosphor.invoke('app:markSessionSeen', sessionPath)
   },
 
   refreshGitInfo: async (cwds) => {
     const unique = [...new Set(cwds)].filter(Boolean)
     if (unique.length === 0) return
     try {
-      const map = await window.pidex.invoke('git:infoBatch', unique)
+      const map = await window.phosphor.invoke('git:infoBatch', unique)
       set((s) => ({ gitByCwd: { ...s.gitByCwd, ...map } }))
     } catch {
       // git unavailable — subtitles just omit their git segments
@@ -565,7 +565,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 
   refreshDisk: async (workspacePath) => {
     try {
-      const metas = await window.pidex.invoke('sessions:list', workspacePath)
+      const metas = await window.phosphor.invoke('sessions:list', workspacePath)
       set((s) => ({
         disk: { ...s.disk, [workspacePath]: metas },
         scanStatus: { ...s.scanStatus, [workspacePath]: 'ok' },
@@ -606,7 +606,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           return {
             path,
             status: 'ok' as const,
-            metas: await window.pidex.invoke('sessions:list', path),
+            metas: await window.phosphor.invoke('sessions:list', path),
           }
         } catch {
           return { path, status: 'error' as const }
@@ -648,78 +648,78 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     for (const path of workspacePaths) {
       if (watchedWorkspaces.has(path)) continue
       watchedWorkspaces.add(path)
-      void window.pidex.invoke('sessions:watch', path)
+      void window.phosphor.invoke('sessions:watch', path)
     }
   },
 
   unwatchWorkspaces: (workspacePaths) => {
     for (const path of workspacePaths) {
       if (!watchedWorkspaces.delete(path)) continue
-      void window.pidex.invoke('sessions:unwatch', path)
+      void window.phosphor.invoke('sessions:unwatch', path)
     }
   },
 
   createSession: async (workspacePath, options = {}) => {
     set({ creating: true })
     try {
-      const info = await window.pidex.invoke('pi:createSession', {
+      const info = await window.phosphor.invoke('pi:createSession', {
         workspacePath,
         sessionPath: options.sessionPath,
         forkFrom: options.forkFrom,
         name: options.name,
       })
-      const pidexId = info.sessionId
+      const phosphorId = info.sessionId
       // Resuming from disk means history is on its way; the transcript shows a
       // skeleton instead of the "nothing here yet" empty state until it lands.
-      useChatStore.getState().ensure(pidexId, { resuming: Boolean(options.sessionPath) })
-      attachSessionPushHandler(pidexId)
+      useChatStore.getState().ensure(phosphorId, { resuming: Boolean(options.sessionPath) })
+      attachSessionPushHandler(phosphorId)
 
       // Git baseline for the Files Changed panel ("changes since session start").
-      void window.pidex
+      void window.phosphor
         .invoke('git:sessionBaseline', workspacePath)
-        .then((ref) => set((s) => ({ baselines: { ...s.baselines, [pidexId]: ref } })))
-        .catch(() => set((s) => ({ baselines: { ...s.baselines, [pidexId]: null } })))
+        .then((ref) => set((s) => ({ baselines: { ...s.baselines, [phosphorId]: ref } })))
+        .catch(() => set((s) => ({ baselines: { ...s.baselines, [phosphorId]: null } })))
       set((s) => ({
         live: {
           ...s.live,
-          [pidexId]: { pidexId, workspacePath, diskPath: options.sessionPath },
+          [phosphorId]: { phosphorId, workspacePath, diskPath: options.sessionPath },
         },
-        activeSessionId: pidexId,
-        unread: { ...s.unread, [pidexId]: 0 },
+        activeSessionId: phosphorId,
+        unread: { ...s.unread, [phosphorId]: 0 },
       }))
       // Resumed sessions already know their file; fresh ones learn it from
       // get_state in bootstrapSession, which persists it then.
       if (options.sessionPath) {
-        void window.pidex.invoke('app:setLastSession', options.sessionPath)
+        void window.phosphor.invoke('app:setLastSession', options.sessionPath)
       }
 
       // Resume: hydrate history before metadata so the transcript paints fast.
       if (options.sessionPath) {
         try {
-          const messages = await rehydrateTranscript(pidexId)
+          const messages = await rehydrateTranscript(phosphorId)
           if (messages) {
             // Rebuild artifacts by replaying persisted toolResult messages.
             const { useArtifactsStore } = await import('./artifacts')
-            useArtifactsStore.getState().ingestFromHistory(pidexId, messages)
+            useArtifactsStore.getState().ingestFromHistory(phosphorId, messages)
           }
         } catch {
           // non-fatal
         } finally {
           // hydrate() clears this, but a failed or empty get_messages must not
           // leave the transcript stuck behind a skeleton forever.
-          useChatStore.getState().doneResuming(pidexId)
+          useChatStore.getState().doneResuming(phosphorId)
         }
       }
       // Never rejects (it wraps get_state and allSettles the rest), so the
       // naming chain below can hang off it safely.
-      const bootstrapped = bootstrapSession(pidexId)
+      const bootstrapped = bootstrapSession(phosphorId)
       void bootstrapped
 
       const firstPrompt = options.firstPrompt
       if (firstPrompt) {
         const images = options.firstImages?.length ? options.firstImages : undefined
-        useChatStore.getState().addUserMessage(pidexId, firstPrompt, images)
-        void piCallOk(pidexId, {
+        useChatStore.getState().addUserMessage(phosphorId, firstPrompt, images)
+        void piCallOk(phosphorId, {
           type: 'prompt',
           message: firstPrompt,
           ...(images ? { images } : {}),
@@ -745,10 +745,10 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           !options.name &&
           !options.sessionPath
         ) {
-          void bootstrapped.then(() => autoNameSession(pidexId, workspacePath, firstPrompt))
+          void bootstrapped.then(() => autoNameSession(phosphorId, workspacePath, firstPrompt))
         }
       }
-      return pidexId
+      return phosphorId
     } finally {
       set({ creating: false })
     }
@@ -762,7 +762,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       // diskPath only when the caller already knows it; `bootstrapSession`'s
       // `get_state` is what supplies it for a reload re-adoption, and resume
       // matching waits on that round trip.
-      live: { ...s.live, [sessionId]: { pidexId: sessionId, workspacePath, diskPath } },
+      live: { ...s.live, [sessionId]: { phosphorId: sessionId, workspacePath, diskPath } },
       unread: { ...s.unread, [sessionId]: 0 },
     }))
     try {
@@ -787,8 +787,8 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     // Already live? Just activate.
     const existing = Object.values(get().live).find((l) => l.diskPath === meta.path)
     if (existing) {
-      get().activate(existing.pidexId)
-      return existing.pidexId
+      get().activate(existing.phosphorId)
+      return existing.phosphorId
     }
     return get().createSession(workspacePath, { sessionPath: meta.path })
   },
@@ -807,18 +807,18 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     // Remember where to reopen next launch. Clearing the session (New) also
     // clears the memory, so we land on the home screen instead.
     const live = sessionId ? get().live[sessionId] : undefined
-    void window.pidex.invoke('app:setLastSession', live?.diskPath)
+    void window.phosphor.invoke('app:setLastSession', live?.diskPath)
     if (live?.diskPath) get().markSeen(live.diskPath)
     // Keep the persisted workspace paired with the persisted session —
     // resumeTarget reunites the two on launch, and a stale lastWorkspacePath
     // would resume this session against another project's cwd.
     if (live?.workspacePath) {
-      void window.pidex.invoke('app:recordWorkspace', live.workspacePath)
+      void window.phosphor.invoke('app:recordWorkspace', live.workspacePath)
     }
   },
 
   disposeSession: async (sessionId) => {
-    await window.pidex.invoke('pi:disposeSession', sessionId)
+    await window.phosphor.invoke('pi:disposeSession', sessionId)
     await cleanupLocalSessionState(sessionId)
   },
 
@@ -826,7 +826,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     const entry = get().live[sessionId]
     const diskPath = entry?.diskPath
     await get().disposeSession(sessionId)
-    // Remember the path (not the pidexId, which dies with the process) so the
+    // Remember the path (not the phosphorId, which dies with the process) so the
     // sidebar can mark the row "suspended" until it is reopened.
     if (diskPath) markSuspended(diskPath)
   },
@@ -837,15 +837,15 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     if (!entry || !diskPath) return null
     // Binding first: `pi:createSession` reads it while spawning, so a failure
     // here must abort the move rather than restart the lane where it was.
-    await window.pidex.invoke('claude:assignSession', diskPath, accountId)
+    await window.phosphor.invoke('claude:assignSession', diskPath, accountId)
     await get().disposeSession(sessionId)
     return get().createSession(entry.workspacePath, { sessionPath: diskPath })
   },
 
   deleteDiskSession: async (workspacePath, meta) => {
     const live = Object.values(get().live).find((l) => l.diskPath === meta.path)
-    if (live) await get().disposeSession(live.pidexId)
-    await window.pidex.invoke('sessions:delete', meta.path)
+    if (live) await get().disposeSession(live.phosphorId)
+    await window.phosphor.invoke('sessions:delete', meta.path)
     await get().refreshDisk(workspacePath)
   },
 
@@ -908,7 +908,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       publish(lane.title)
 
       const live = Object.values(get().live).find((l) => l.diskPath === lane.path)
-      if (live) await get().disposeSession(live.pidexId)
+      if (live) await get().disposeSession(live.phosphorId)
 
       if (options.removeWorktree && lane.worktreePath && lane.mainRepoPath) {
         try {
@@ -932,7 +932,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
             // A branch that would not safe-delete is reported, but the lane is
             // still gone: `git branch -d` refusing is not a reason to keep the
             // transcript. Never escalate to -D here.
-            await window.pidex.invoke('sessions:delete', lane.path)
+            await window.phosphor.invoke('sessions:delete', lane.path)
             results.push({
               path: lane.path,
               title: lane.title,
@@ -950,7 +950,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       }
 
       try {
-        await window.pidex.invoke('sessions:delete', lane.path)
+        await window.phosphor.invoke('sessions:delete', lane.path)
         results.push({ path: lane.path, title: lane.title, ok: true })
       } catch (error) {
         results.push({ path: lane.path, title: lane.title, ok: false, error: String(error) })
@@ -965,7 +965,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       set((s) => {
         const laneMarkers = { ...s.laneMarkers }
         for (const path of gone) delete laneMarkers[path]
-        void window.pidex.invoke('app:setLaneMarkers', laneMarkers)
+        void window.phosphor.invoke('app:setLaneMarkers', laneMarkers)
         return { laneMarkers }
       })
     }
@@ -992,7 +992,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       const laneMarkers = { ...s.laneMarkers }
       if (marker === null) delete laneMarkers[path]
       else laneMarkers[path] = marker
-      void window.pidex.invoke('app:setLaneMarkers', laneMarkers)
+      void window.phosphor.invoke('app:setLaneMarkers', laneMarkers)
       return { laneMarkers }
     })
   },
@@ -1002,7 +1002,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       const pinned = s.pinned.includes(path)
         ? s.pinned.filter((p) => p !== path)
         : [...s.pinned, path]
-      void window.pidex.invoke('app:setPinnedSessions', pinned)
+      void window.phosphor.invoke('app:setPinnedSessions', pinned)
       return { pinned }
     })
   },

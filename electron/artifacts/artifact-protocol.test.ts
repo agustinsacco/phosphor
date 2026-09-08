@@ -11,7 +11,7 @@ beforeEach(() => __testing.staged.clear())
 
 describe('stageArtifactHtml', () => {
   it('returns a URL on the artifact scheme', () => {
-    expect(stageArtifactHtml('<p>hi</p>')).toMatch(/^pidex-artifact:\/\/doc\/[0-9a-f]{32}$/)
+    expect(stageArtifactHtml('<p>hi</p>')).toMatch(/^phosphor-artifact:\/\/doc\/[0-9a-f]{32}$/)
   })
 
   it('is idempotent, so a re-render does not rebuild the iframe', () => {
