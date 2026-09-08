@@ -1055,6 +1055,39 @@ test('settings modal switches theme and reports versions', async () => {
   }
 })
 
+test('the optimization tab reports headroom state without starting anything', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await page.getByRole('button', { name: 'Optimization', exact: true }).click()
+    await expect(page.getByRole('heading', { name: 'Optimization', exact: true })).toBeVisible({
+      timeout: 10_000,
+    })
+
+    // Both new channels answered through the real main process: the manager
+    // card resolved past "Checking Headroom…" (headroom:status) and the
+    // savings tiles past "Reading session files…" (optimization:stats).
+    const switches = page.getByRole('switch')
+    await expect(switches.first()).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByText('Lanes with savings')).toBeVisible({ timeout: 10_000 })
+
+    // Compression ships off — the Advisor says so, and the switch agrees.
+    await expect(page.getByText('Tool-result compression is off')).toBeVisible()
+    await expect(switches.first()).toHaveAttribute('aria-checked', 'false')
+    // Text compression stays inert until a retrieve tool exists, and a switch
+    // that cannot move must refuse the click rather than look live.
+    await expect(switches.nth(1)).toBeDisabled()
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('heading', { name: 'Optimization', exact: true })).toBeHidden()
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('command palette opens with the keyboard shortcut', async () => {
   const harness = await launch()
   const { page } = harness

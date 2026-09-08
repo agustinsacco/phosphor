@@ -1,5 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { appendFile, mkdir, mkdtemp, rm, stat, truncate, utimes, writeFile } from 'node:fs/promises'
+import {
+  appendFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  truncate,
+  utimes,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -496,5 +506,53 @@ describe('headroom receipts', () => {
     expect(resumed.headroomSavedTokens).toBe(42)
     expect(resumed.headroomSavedTokens).toBe(whole.headroomSavedTokens)
     await rm(dir, { recursive: true, force: true })
+  })
+})
+
+/**
+ * The receipt is a WIRE CONTRACT with pi: the extension returns a `details`
+ * patch from its `tool_result` hook and pi persists it verbatim into the
+ * session file. Nothing in this repo compiles against that, so the guard is
+ * a session file captured from a real run — pi 0.85.1, Headroom 0.37.0,
+ * 2026-09-08 — replayed through the real fold.
+ *
+ * It also pins what "lossless" meant on that run: 120 JSON records came back
+ * as a typed header plus 120 CSV rows, and the model answered the count and
+ * the last id exactly from the compressed text.
+ */
+describe('a real captured session', () => {
+  const fixture = join(__dirname, '__fixtures__', 'headroom-live-session.jsonl')
+
+  it('folds the receipt pi actually persisted', async () => {
+    const meta = await parseSessionFile(fixture, (await stat(fixture)).mtimeMs)
+    expect(meta?.headroomSavedTokens).toBe(1931)
+  })
+
+  it('kept every record the uncompressed result had', async () => {
+    const entries = (await readFile(fixture, 'utf8'))
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as { message?: { role?: string; content?: unknown } })
+
+    const result = entries.find((e) => e.message?.role === 'toolResult')
+    const blocks = result?.message?.content as Array<{ text: string }> | undefined
+    const text = blocks?.[0]?.text ?? ''
+    const [header, ...rows] = text.trim().split('\n')
+    // SmartCrusher's lossless restructure: "[count]{field:type,…}" then rows.
+    expect(header).toMatch(/^\[120\]\{.*id:string.*\}$/)
+    expect(rows).toHaveLength(120)
+    expect(rows[119]).toContain('ISS-0119')
+
+    // And the model read it correctly — the fidelity claim, end to end.
+    const answer = entries
+      .flatMap((e) =>
+        e.message?.role === 'assistant'
+          ? ((e.message.content ?? []) as Array<{ text?: string }>)
+          : [],
+      )
+      .map((b) => b.text ?? '')
+      .join('\n')
+    expect(answer).toContain('120')
+    expect(answer).toContain('ISS-0119')
   })
 })

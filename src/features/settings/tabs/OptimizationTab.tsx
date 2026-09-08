@@ -14,7 +14,8 @@ import { usePackageJob } from '../usePackageJob'
  * what it has saved per lane, and surface the Advisor's recommendations.
  *
  * Read-only by construction except the explicit buttons: opening this tab
- * probes /health but never spawns or installs anything.
+ * probes /health and looks for the binary, but never starts the proxy and
+ * never installs anything.
  */
 export function OptimizationTab(): React.JSX.Element {
   const workspacePath = useActiveWorkspace()
@@ -56,7 +57,9 @@ export function OptimizationTab(): React.JSX.Element {
       <HeadroomManager
         status={status}
         busy={busy || install.running}
-        onToggle={(enabled) => void act(() => window.phosphor.invoke('headroom:setEnabled', enabled))}
+        onToggle={(enabled) =>
+          void act(() => window.phosphor.invoke('headroom:setEnabled', enabled))
+        }
         onStart={() => void act(() => window.phosphor.invoke('headroom:start'))}
         onStop={() => void act(() => window.phosphor.invoke('headroom:stop'))}
         onInstall={() => void install.start(() => window.phosphor.invoke('headroom:install'))}
@@ -206,13 +209,13 @@ function HeadroomManager({
           title="Compress tool results"
           description="Large JSON tool results are restructured losslessly before entering the context — or left untouched, never summarized. The proxy runs on loopback only, with telemetry off, and stops with Phosphor. Applies to new sessions."
         >
-          <Toggle on={status.enabled} onChange={onToggle} />
+          <Toggle on={status.enabled} onChange={onToggle} disabled={busy} />
         </Row>
         <Row
           title="Compress search & log output"
           description="Not yet available: plain-text compression is reversible only through Headroom's retrieval store, which needs a Phosphor retrieve tool first. Until then grep and log output pass through untouched, by design."
         >
-          <Toggle on={false} onChange={() => undefined} />
+          <Toggle on={false} onChange={() => undefined} disabled />
         </Row>
       </div>
     </div>

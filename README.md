@@ -347,9 +347,9 @@ electron/            main process — owns every side effect
                      (app, claude-auth, clipboard, fs, git, maintenance, mcp,
                       optimization, packages, pi-auth, pi-config, pi-session,
                       pty, sessions, skills, updates) plus handle.ts, the
-                     envelope unwrapper. The
-                     contract lives in shared/ipc.ts; ipc.ts is the composition
-                      root, so a handler module never imports it back.
+                      envelope unwrapper. The contract lives in shared/ipc.ts;
+                      ipc.ts is the composition root, so a handler module
+                      never imports it back.
   registry.ts        the live pi session registry
   broadcast.ts       send a push to every open window
   pi/                RPC client (strict LF JSONL framing), session scanner,

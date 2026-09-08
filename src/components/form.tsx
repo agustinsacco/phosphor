@@ -124,18 +124,24 @@ export function Row({
 export function Toggle({
   on,
   onChange,
+  disabled = false,
 }: {
   on: boolean
   onChange: (on: boolean) => void
+  /** Renders dimmed and refuses the click — a switch that cannot move must look it. */
+  disabled?: boolean
 }): React.JSX.Element {
   return (
     <button
       role="switch"
       aria-checked={on}
+      aria-disabled={disabled}
+      disabled={disabled}
       onClick={() => onChange(!on)}
       className={clsx(
         'relative h-[22px] w-10 rounded-full transition-colors',
         on ? 'bg-accent' : 'bg-border-strong',
+        disabled && 'cursor-not-allowed opacity-40',
       )}
     >
       <span

@@ -33,6 +33,11 @@ const execFileAsync = promisify(execFile)
 export const HEADROOM_PROXY_PORT = 8787
 export const HEADROOM_PROXY_URL = `http://127.0.0.1:${HEADROOM_PROXY_PORT}`
 
+/** Loopback URL for a port. The port is only ever non-default in tests. */
+export function proxyUrl(port: number): string {
+  return `http://127.0.0.1:${port}`
+}
+
 const HEALTH_TIMEOUT_MS = 1500
 /** How long a spawned proxy gets to answer /health before we call it failed. */
 const STARTUP_DEADLINE_MS = 15_000
@@ -42,13 +47,13 @@ const CRASH_WINDOW_MS = 10_000
 const MAX_CRASHES = 2
 
 /** Argv for the managed proxy. Exported for tests — this list is a contract. */
-export function proxyArgs(): string[] {
+export function proxyArgs(port: number = HEADROOM_PROXY_PORT): string[] {
   return [
     'proxy',
     '--host',
     '127.0.0.1',
     '--port',
-    String(HEADROOM_PROXY_PORT),
+    String(port),
     // The subscription tracker stores ONE bearer token and polls Anthropic
     // with it; with multiple Claude accounts that is wrong data, so it is off
     // unconditionally (docs/specs/headroom-compression.md).
@@ -82,6 +87,8 @@ interface SupervisorDeps {
   isEnabled: () => boolean
   setEnabled: (enabled: boolean) => void
   logImpl: (message: string) => void
+  /** Defaults to 8787. Only a test ever moves it off the machine-wide port. */
+  port?: number
 }
 
 export interface HeadroomSupervisor {
@@ -97,6 +104,8 @@ export interface HeadroomSupervisor {
 
 /** Factory so tests can inject every side effect. */
 export function createHeadroomSupervisor(deps: SupervisorDeps): HeadroomSupervisor {
+  const port = deps.port ?? HEADROOM_PROXY_PORT
+  const url = proxyUrl(port)
   let child: ChildProcess | null = null
   let childStartedAt = 0
   let running = false
@@ -111,11 +120,18 @@ export function createHeadroomSupervisor(deps: SupervisorDeps): HeadroomSupervis
   }
   let detection: { value: Detection; at: number } | null = null
   const DETECT_TTL_MS = 5 * 60_000
+  /**
+   * A MISS is cached too, briefly. `resolveBinary` runs a login shell, and the
+   * tab calls `status()` on mount, after every button and after the install
+   * job — for the common not-installed case that was a shell spawn each time.
+   * Short enough that the refresh after an install (tens of seconds of
+   * downloading) still sees the new binary.
+   */
+  const MISS_TTL_MS = 5_000
 
   async function detect(): Promise<Detection> {
-    if (detection && Date.now() - detection.at < DETECT_TTL_MS && detection.value.binaryPath) {
-      return detection.value
-    }
+    const ttl = detection?.value.binaryPath ? DETECT_TTL_MS : MISS_TTL_MS
+    if (detection && Date.now() - detection.at < ttl) return detection.value
     const binaryPath = await deps.resolveBinaryImpl('headroom')
     const version = binaryPath ? await deps.versionImpl(binaryPath) : null
     const value = { binaryPath, version }
@@ -125,7 +141,7 @@ export function createHeadroomSupervisor(deps: SupervisorDeps): HeadroomSupervis
 
   async function probe(): Promise<boolean> {
     try {
-      const res = await deps.fetchImpl(`${HEADROOM_PROXY_URL}/health`, {
+      const res = await deps.fetchImpl(`${url}/health`, {
         signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
       })
       running = res.ok
@@ -170,7 +186,7 @@ export function createHeadroomSupervisor(deps: SupervisorDeps): HeadroomSupervis
 
     const started = Date.now()
     childStartedAt = started
-    const spawned = deps.spawnImpl(found.binaryPath, proxyArgs(), {
+    const spawned = deps.spawnImpl(found.binaryPath, proxyArgs(port), {
       env: proxyEnv(await deps.envImpl()) as Record<string, string>,
       stdio: ['ignore', 'ignore', 'pipe'],
       // Deliberately NOT detached: if Phosphor dies without will-quit firing,
@@ -241,7 +257,7 @@ export function createHeadroomSupervisor(deps: SupervisorDeps): HeadroomSupervis
       ...(found.binaryPath ? { binaryPath: found.binaryPath } : {}),
       proxy: {
         running,
-        url: HEADROOM_PROXY_URL,
+        url,
         owned: child !== null && child.exitCode === null,
       },
       ...(lastError && !running ? { error: lastError } : {}),
@@ -276,7 +292,7 @@ export function createHeadroomSupervisor(deps: SupervisorDeps): HeadroomSupervis
       // Stale-belief risk is bounded by the extension failing open: a dead
       // URL costs one 1.5 s health probe in-session, then it disables itself.
       void ensure().catch(() => undefined)
-      return running ? { PHOSPHOR_HEADROOM_URL: HEADROOM_PROXY_URL } : {}
+      return running ? { PHOSPHOR_HEADROOM_URL: url } : {}
     },
   }
 }

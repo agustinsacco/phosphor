@@ -13,7 +13,9 @@ const MAX_LANES = 8
 /**
  * The Optimization surface: Headroom lifecycle plus read-only savings and
  * Advisor stats. Everything in `optimization:stats` is a projection of the
- * disk scan and current config — opening the tab spawns nothing.
+ * disk scan and current config — opening the tab never starts the proxy and
+ * never installs anything (it does resolve `headroom` on the login-shell
+ * PATH, which is one short-lived `sh`, cached either way).
  */
 export function registerOptimizationHandlers(): void {
   const supervisor = headroomSupervisor()
