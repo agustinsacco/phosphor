@@ -134,19 +134,24 @@ routed, saving how much. The last is free once layer 1 pushes its status key.
 Live end-to-end runs, not `/v1/compress` replays. Fixture: 100 Linear-shaped
 issues (~10.2k tokens), questions with a known exact answer.
 
-| Path                                                           | Result                                                                                                                                                                                                                                                                                     |
-| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| L1 on pi native (OpenRouter haiku, real turn, probe extension) | works — hook fired mid-turn, 10,172→5,595 tokens (45%, 41 ms), model answered exactly from compressed text                                                                                                                                                                                 |
-| L1 on pi-claude-cli (custom tool through the handoff broker)   | works — 10,167→5,590 (22 ms) inside the blocked CLI turn, exact answer                                                                                                                                                                                                                     |
-| L1 fidelity                                                    | 100/100 rows survive; a wrong count by haiku reproduced identically UNcompressed — model error, not ours                                                                                                                                                                                   |
-| L2 claude CLI through the proxy (subscription OAuth)           | works; `--model` survives per invocation (haiku and sonnet both served as requested) — trap 4 does not bite pidex's pinned-model path                                                                                                                                                      |
-| Trap 3 measured with a bare recording proxy (no Headroom)      | 30 tools / 97,959 B of schemas without the flag vs 13 tools / 44,540 B with `ENABLE_TOOL_SEARCH=true` (~13k tokens per request); Headroom itself also stripped ~15k/request of schema when in the loop                                                                                     |
-| L2 pi native (built-in `openrouter` `baseUrl` override)        | works, existing auth kept working, exact answer — but live-turn message compression was ~0.2%: upstream recency protections spare the newest tool result, so L2's in-turn win is schema stripping; history compression needs long sessions and is untested                                 |
-| Bedrock (`--backend bedrock`)                                  | mechanism verified to the IAM door: boots healthy, discovers inference profiles, routes to the right ARN; invoke denied — `bedrock:InvokeModel` missing from the ReadOnlyAccess role. pi direct to Bedrock fails identically. Needs a role with `bedrock:InvokeModel(-WithResponseStream)` |
+| Path                                                           | Result                                                                                                                                                                                                                                                                                                                                      |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| L1 on pi native (OpenRouter haiku, real turn, probe extension) | works — hook fired mid-turn, 10,172→5,595 tokens (45%, 41 ms), model answered exactly from compressed text                                                                                                                                                                                                                                  |
+| L1 on pi-claude-cli (custom tool through the handoff broker)   | works — 10,167→5,590 (22 ms) inside the blocked CLI turn, exact answer                                                                                                                                                                                                                                                                      |
+| L1 fidelity                                                    | 100/100 rows survive; a wrong count by haiku reproduced identically UNcompressed — model error, not ours                                                                                                                                                                                                                                    |
+| L2 claude CLI through the proxy (subscription OAuth)           | works; `--model` survives per invocation (haiku and sonnet both served as requested) — trap 4 does not bite pidex's pinned-model path                                                                                                                                                                                                       |
+| Trap 3 measured with a bare recording proxy (no Headroom)      | 30 tools / 97,959 B of schemas without the flag vs 13 tools / 44,540 B with `ENABLE_TOOL_SEARCH=true` (~13k tokens per request); Headroom itself also stripped ~15k/request of schema when in the loop                                                                                                                                      |
+| L2 pi native (built-in `openrouter` `baseUrl` override)        | works, existing auth kept working, exact answer — but live-turn message compression was ~0.2%: upstream recency protections spare the newest tool result, so L2's in-turn win is schema stripping; history compression needs long sessions and is untested                                                                                  |
+| Bedrock (`--backend bedrock`)                                  | works end-to-end (re-run 2026-09-07 on PowerUserAccess). Direct `/v1/messages` invoke, pi native via a custom `anthropic-messages` provider, the Claude CLI via `ANTHROPIC_BASE_URL` with the model honoured, and the full stack — L1 probe + Bedrock routing in one live tool-calling turn (10,171→7,369, 14 ms, exact answer) — all green |
+
+Bedrock notes from the run: models must be addressed by inference-profile id
+(`us.anthropic.…`), the same as pi direct. And pi's `anthropic-messages`
+client appends `/v1/messages` itself, so the provider `baseUrl` must be the
+bare origin (`http://127.0.0.1:8803`) — with `/v1` appended you get a 404.
 
 Untested still: many-turn history compression through the proxy, concurrent
-sessions against one proxy, RPC-mode (vs `-p`) integration, and any Bedrock
-invoke.
+sessions against one proxy, RPC-mode (vs `-p`) integration, and a live
+two-account run against one proxy (source-verified only, below).
 
 Two conclusions the tests add: L1 is not just the safer layer, it is the
 _stronger_ one for fresh tool results — the proxy's own recency protections
@@ -154,6 +159,35 @@ mean it barely touches the newest tool output in-turn, while L1 compresses it
 at the source. And trap 4 is narrower than upstream's warning: it applies to
 the CLI's interactive `/model` picker, not to a model pinned per invocation,
 which is the only thing pidex does.
+
+## Multiple Claude accounts
+
+pidex runs pi-claude-cli under several accounts at once, selected per spawn by
+`claudeAccountEnv()` (`CLAUDE_SECURESTORAGE_CONFIG_DIR` + pinned org UUID).
+Each CLI process reads its own keychain entry and sends its own OAuth bearer.
+Read against Headroom 0.37.0 source:
+
+- **Layer 1: no interaction at all.** No credential crosses the socket; the
+  compress endpoint sees tool text and a model name.
+- **Layer 2 forwarding is per-request.** `proxy/handlers/anthropic.py` forwards
+  the incoming request's own `authorization` / `x-api-key` upstream (only
+  `x-headroom-*` headers are stripped). Two accounts through one proxy each
+  keep their own token; nothing is cached on the forwarding path. The rate
+  limiter even buckets by token prefix, so accounts get separate buckets.
+- **The subscription tracker is the one single-token assumption.**
+  `notify_active()` overwrites `self._current_token`, so with two accounts it
+  would poll `api.anthropic.com/api/oauth/usage` with whichever token arrived
+  last — wrong-account attribution. `--no-subscription-tracking` (already
+  mandatory, trap 2) upgrades from privacy hygiene to a correctness
+  requirement.
+- **The CCR store is content-hash keyed, global per proxy.** No account or
+  session partitioning: content compressed in one session is retrievable from
+  another. Same machine, same human, same trust domain — acceptable, but it is
+  a reason one pidex-managed proxy should never be shared beyond the local
+  user (it binds 127.0.0.1, so it isn't).
+
+Verdict: multi-account is not a blocker for any phase. One proxy per machine
+stands.
 
 ## Traps
 
@@ -189,7 +223,8 @@ which is the only thing pidex does.
    `CLAUDE_CODE_USE_BEDROCK=0` plus `headroom proxy --backend bedrock`. Same
    for pi native: SigV4 signing means a `baseUrl` override cannot work, so a
    Bedrock session needs an `anthropic-messages` provider pointed at Headroom.
-   Its own follow-up.
+   Verified end-to-end 2026-09-07 on both harnesses; the remaining question is
+   policy (Headroom holds the AWS credentials), not mechanism.
 6. **Whole-history compression busts the prefix cache.** pi's `context` event
    maps 1:1 onto upstream's `HeadroomContextEngine.assemble()`. `wiki/proxy.md`
    requires a stateless caller to pass `config.frozen_message_count` _and_
@@ -222,12 +257,18 @@ which is the only thing pidex does.
    First release where anything is actually compressed.
 4. **Layer 2 for pi native.** `baseUrl` override. Verify pi's default
    `eager_input_streaming: true` survives, else set
-   `compat.supportsEagerToolInputStreaming: false`. Bedrock excluded.
+   `compat.supportsEagerToolInputStreaming: false`.
 5. **Layer 2 for pi-claude-cli.** `ANTHROPIC_BASE_URL` +
-   `ENABLE_TOOL_SEARCH=true` on pidex's own spawn. Blocked on trap 4 and on an
+   `ENABLE_TOOL_SEARCH=true` on pidex's own spawn. Trap 4 verified harmless
+   for pidex's pinned-model path (guard test only); remaining gate is the
    explicit call about trap 2.
+6. **Bedrock, both harnesses.** `headroom proxy --backend bedrock`; pi native
+   gets a generated `anthropic-messages` provider entry with a **bare-origin**
+   `baseUrl`, pi-claude-cli gets `CLAUDE_CODE_USE_BEDROCK=0` +
+   `ANTHROPIC_BASE_URL`. Mechanism fully verified 2026-09-07; gated only on
+   accepting that Headroom holds the AWS credentials for these sessions.
 
-Phases 1–3 need no decision. 4–5 do.
+Phases 1–3 need no decision. 4–6 need the credential calls.
 
 ## Asks for Headroom
 
