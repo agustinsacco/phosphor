@@ -45,20 +45,34 @@ The Slack plugin's config, verbatim from
 }
 ```
 
-So the missing piece in pidex is a registered app, not code. Two ways to get
-one, both a decision rather than a patch:
+So the missing piece in pidex is a registered app, not code. Three ways to get
+one, and the ordering is not the obvious one.
 
-1. **pidex owns a Slack app**, published to the Marketplace so any workspace
-   can authorize it (an internal app only works in the workspace that made
-   it). Then the row hardcodes that id and port and becomes one click for
-   everyone. Cost: Marketplace review, and pidex carries the rate-limit bucket.
-2. **pidex hardcodes the published plugin id.** One line, works today. It also
-   puts somebody else's app in front of the admin approving the integration,
-   in the workspace audit log, and in the shared rate limit — the exact
-   attribution Slack's App Identity rule exists to provide. Not taken.
+1. **An internal app, per user.** What the row does today. Create from the
+   manifest at `api.slack.com/apps`, install to the workspace, paste the client
+   id: a one-time errand of a couple of minutes, no review, and every connect
+   after it is the same browser flow as any other connector. Internal apps are
+   explicitly allowed to use MCP. The app only exists in the workspace that
+   made it, so each user does their own.
+2. **pidex owns a Marketplace-published app.** This is the one that sounds
+   right and is effectively closed. Slack requires a submission to have **at
+   least 10 installations on active workspaces before review starts**, held
+   for the whole review ([changelog, 2026-09-01](https://docs.slack.dev/changelog/2026/09/01/slack-marketplace-install-requirement));
+   preliminary review runs up to 10 business days and functional review **up
+   to 10 weeks**. The guidelines also refuse apps that "do not include
+   functionality in Slack", that "replicate Slack client functionality", and
+   that "unnecessarily request a large number of scopes" — a desktop MCP
+   reader asking for all 30 user scopes is three for three. Claude and Cursor
+   cleared this as Slack partners at scale; pidex would not.
+3. **pidex hardcodes the published Claude plugin id.** One line, works today,
+   and in a workspace that already approved the Claude app it needs no admin
+   request at all. It also puts somebody else's app in front of the admin
+   approving the integration, in the workspace audit log, and in the shared
+   rate limit — the exact attribution Slack's App Identity rule exists to
+   provide. Not taken.
 
-Until one is chosen, the row asks for the id of an app the user controls, and
-that is the honest state, not a defect.
+So the row asking for the id of an app the user controls is the design, not a
+placeholder for a one-click version that is coming.
 
 ## What changed here
 

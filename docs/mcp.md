@@ -131,14 +131,20 @@ Slack's App Identity rule demands. Slack publishes Claude Code's in the open:
 the Slack plugin's `.mcp.json` pins client id `1601185624273.8899143856786` on
 callback port `3118`
 ([connect-to-harnesses](https://docs.slack.dev/ai/slack-mcp-server/connect-to-harnesses)).
-So a one-click pidex row is a decision, not missing code, and there are only
-two versions of it: pidex owns a Marketplace-published Slack app (only
-internal or directory-published apps may use MCP at all), or pidex hardcodes
-someone else's id — which puts their app, not pidex, in front of the admin
-approving the integration, in the audit log, and in the rate-limit bucket.
-Until one of those is chosen, the row asks for the id of an app the user
-controls, and it accepts a Slack app they already registered for another
-client as readily as a fresh one.
+So a one-click pidex row is a decision, not missing code — and the obvious
+version of it is closed. Publishing a pidex app to the Marketplace needs **10
+installations on active workspaces before review even starts**, then up to 10
+business days of preliminary review and up to 10 weeks of functional review,
+and the guidelines refuse apps that "do not include functionality in Slack",
+"replicate Slack client functionality", or "unnecessarily request a large
+number of scopes". The other version is hardcoding someone else's id, which
+puts their app, not pidex, in front of the admin approving the integration, in
+the audit log, and in the rate-limit bucket. So the row asks for the id of an
+app the user controls: an **internal** app is explicitly allowed to use MCP,
+takes one paste of the manifest to create, and is a one-time errand — and a
+Slack app already registered for another client works as well as a fresh one.
+The three routes are compared in
+[docs/log/2026-09-08-slack-mcp-oauth.md](log/2026-09-08-slack-mcp-oauth.md).
 
 Slack's own "Connect to Pi" instructions on that page are wrong, incidentally:
 they show `{"url": ..., "auth": "oauth"}` with no client id, which sends the

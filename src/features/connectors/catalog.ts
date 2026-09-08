@@ -38,13 +38,16 @@ import type { McpServerConfig } from '@shared/mcp'
  *   ships its OWN registered Slack app and hardcodes that app's id. Slack
  *   publishes Claude Code's outright — client id `1601185624273.8899143856786`
  *   on callback port 3118, in the plugin config on
- *   `docs.slack.dev/ai/slack-mcp-server/connect-to-harnesses`. So pidex could
- *   be one click two ways, and both are decisions rather than code: own a
- *   Marketplace-published Slack app (only internal or directory-published apps
- *   may use MCP at all), or hardcode somebody else's id — which would put
- *   their app, not pidex, in front of the admin approving it and in the audit
- *   log and rate-limit bucket recording it. Until then the row asks for the
- *   id of an app the user controls.
+ *   `docs.slack.dev/ai/slack-mcp-server/connect-to-harnesses`. pidex could be
+ *   one click two ways, and neither is code. Owning a Marketplace-published
+ *   app is effectively closed: Slack requires 10 installations on active
+ *   workspaces before review starts, functional review runs up to 10 weeks,
+ *   and the guidelines refuse apps that "do not include functionality in
+ *   Slack" or "replicate Slack client functionality". Hardcoding somebody
+ *   else's id would put their app, not pidex, in front of the admin approving
+ *   it and in the audit log and rate-limit bucket recording it. So the row
+ *   asks for the id of an app the user controls — an *internal* app is
+ *   allowed to use MCP and is a one-time errand.
  * - `oauth-or-key` — OAuth works, and an API key is a supported alternative.
  */
 export type ConnectorAuthKind = 'dcr' | 'preregistered' | 'oauth-or-key'
