@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   classifyScreen,
   expiredBudget,
+  isNewCredential,
   parseAuthPrompt,
   screenText,
   timeoutMessage,
@@ -239,5 +240,44 @@ describe('expiredBudget', () => {
     expect(timeoutMessage('browser')).toMatch(/callback server/i)
     expect(timeoutMessage('browser')).toMatch(/localhost/i)
     expect(timeoutMessage('setup')).toMatch(/login terminal/i)
+  })
+})
+
+/**
+ * Switching accounts starts from a provider that is already signed in, so
+ * `ready` on its own is not completion — it is the answer the old credential
+ * gives a second after pi prints the URL, and acting on it kills the pty that
+ * *is* the callback server the browser is about to redirect to.
+ */
+describe('isNewCredential', () => {
+  const ready = (fingerprint?: string): { status: 'ready'; fingerprint?: string } => ({
+    status: 'ready',
+    ...(fingerprint ? { fingerprint } : {}),
+  })
+
+  it('accepts any ready when nothing was signed in before', () => {
+    expect(isNewCredential({ status: 'not_ready' }, ready('new'))).toBe(true)
+    expect(isNewCredential({ status: 'unknown' }, ready())).toBe(true)
+  })
+
+  it('does not accept the credential that was already there', () => {
+    // The reported bug: "Sign in again" on a signed-in provider reported
+    // success immediately and the browser then hit ERR_CONNECTION_REFUSED.
+    expect(isNewCredential(ready('old'), ready('old'))).toBe(false)
+  })
+
+  it('accepts a credential that changed, including a second sign-in to the same account', () => {
+    expect(isNewCredential(ready('old'), ready('fresh'))).toBe(true)
+  })
+
+  it('waits rather than guessing when there is nothing to compare', () => {
+    // Better to run out the browser budget than to close the port early.
+    expect(isNewCredential(ready('old'), ready())).toBe(false)
+    expect(isNewCredential(ready(), ready('new'))).toBe(false)
+  })
+
+  it('is never true for a provider that is not ready', () => {
+    expect(isNewCredential(ready('old'), { status: 'not_ready' })).toBe(false)
+    expect(isNewCredential({ status: 'not_ready' }, { status: 'unknown' })).toBe(false)
   })
 })

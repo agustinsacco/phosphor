@@ -26,14 +26,34 @@ describe('parseAuthCheck', () => {
     const parsed = parseAuthCheck(
       JSON.stringify({ status: 'ready', provider: 'openai-codex', authType: 'oauth', credentials }),
     )
-    expect(parsed).toEqual({ status: 'ready', account: 'user@example.com' })
+    expect(parsed.status).toBe('ready')
+    expect(parsed.account).toBe('user@example.com')
     expect(JSON.stringify(parsed)).not.toContain(credentials)
   })
 
+  it('fingerprints the credential so a re-sign-in can be told from the old one', () => {
+    // The account email cannot answer this — signing back into the *same*
+    // account is a legitimate sign-in and issues a different token.
+    const ready = (credentials: string): string =>
+      JSON.stringify({ status: 'ready', provider: 'openai-codex', credentials })
+    const first = parseAuthCheck(ready('token-one')).fingerprint
+    const second = parseAuthCheck(ready('token-two')).fingerprint
+    expect(first).toBeDefined()
+    expect(second).not.toBe(first)
+    expect(parseAuthCheck(ready('token-one')).fingerprint).toBe(first)
+    // No credential to fingerprint is "cannot tell", not a fixed value.
+    expect(parseAuthCheck('{"status":"ready","provider":"anthropic"}').fingerprint).toBeUndefined()
+  })
+
   it('leaves the account off when the credential is opaque', () => {
-    expect(
-      parseAuthCheck('{"status":"ready","provider":"openrouter","credentials":"sk-or-v1-abc"}'),
-    ).toEqual({ status: 'ready' })
+    // Opaque to `accountFromCredential`, but still fingerprintable — which is
+    // what a re-sign-in on these providers has to compare.
+    const parsed = parseAuthCheck(
+      '{"status":"ready","provider":"openrouter","credentials":"sk-or-v1-abc"}',
+    )
+    expect(parsed.status).toBe('ready')
+    expect(parsed.account).toBeUndefined()
+    expect(parsed.fingerprint).toBeDefined()
   })
 
   it('keeps the reason when pi does not know the provider', () => {

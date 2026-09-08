@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { SubscriptionProvider, SubscriptionProviderStatus } from '@shared/models'
-import { accountFromCredential } from './auth-identity'
+import { accountFromCredential, credentialFingerprint } from './auth-identity'
 import { checkPiHealth } from './health'
 import { piProcessEnv } from './shell-env'
 
@@ -111,6 +111,13 @@ export function parseAuthCheck(stdout: string): {
   reason?: string
   /** Who the provider is signed in as, when the credential says. */
   account?: string
+  /**
+   * Which credential this is, as a process-local digest — never the credential
+   * and never sent to the renderer (`checkSubscriptionAuth` drops it). The
+   * sign-in flow compares it before and after to tell a new sign-in from the
+   * one that was already stored; see `isNewCredential` in `login-flow.ts`.
+   */
+  fingerprint?: string
 } {
   const line = stdout.trim().split('\n').at(-1)?.trim()
   if (!line || !line.startsWith('{')) return { status: 'unknown' }
@@ -125,20 +132,32 @@ export function parseAuthCheck(stdout: string): {
   const status = record.status
   const reason = typeof record.reason === 'string' ? record.reason : undefined
   const account = accountFromCredential(record.credentials)
-  if (status === 'ready') return { status: 'ready', ...(account ? { account } : {}) }
+  const fingerprint = credentialFingerprint(record.credentials)
+  if (status === 'ready') {
+    return {
+      status: 'ready',
+      ...(account ? { account } : {}),
+      ...(fingerprint ? { fingerprint } : {}),
+    }
+  }
   if (status === 'not_ready') return { status: 'not_ready', reason }
   return { status: 'unknown', reason }
 }
+
+/** One `auth check`, as this process understands it. */
+export type AuthCheck = ReturnType<typeof parseAuthCheck>
 
 /**
  * Ask pi whether one provider is signed in.
  *
  * Split out so the login flow can poll a single provider for completion:
  * pi's TUI announces success in prose, but `auth check` is the fact.
+ *
+ * The fingerprint comes back with it, because "signed in" alone does not
+ * answer the question a *re-*sign-in asks: a provider that was already signed
+ * in reports `ready` from its old credential the moment you ask.
  */
-export async function checkProviderAuth(
-  providerId: string,
-): Promise<{ status: 'ready' | 'not_ready' | 'unknown'; reason?: string }> {
+export async function checkProviderAuth(providerId: string): Promise<AuthCheck> {
   const health = await checkPiHealth()
   if (!health.ok || !health.binaryPath) return { status: 'unknown' }
   const env = await piProcessEnv()
@@ -154,6 +173,18 @@ export async function checkProviderAuth(
     if (typeof stdout === 'string' && stdout.includes('{')) return parseAuthCheck(stdout)
     return { status: 'unknown' }
   }
+}
+
+/**
+ * What the renderer is allowed to see of an `auth check`.
+ *
+ * The fingerprint is a main-process comparison value with no meaning in the
+ * UI, and it is derived from a credential — so it stops here rather than
+ * riding a spread across IPC.
+ */
+function forRenderer(check: AuthCheck): Omit<AuthCheck, 'fingerprint'> {
+  const { fingerprint: _fingerprint, ...rest } = check
+  return rest
 }
 
 /**
@@ -184,13 +215,13 @@ export async function checkSubscriptionAuth(): Promise<SubscriptionProviderStatu
           timeout: 10_000,
           encoding: 'utf8',
         })
-        return { ...provider, ...parseAuthCheck(stdout) }
+        return { ...provider, ...forRenderer(parseAuthCheck(stdout)) }
       } catch (error) {
         // `pi auth check` exits 0 even for not_ready, so a throw here means the
         // spawn or the timeout failed — never "the user is signed out".
         const stdout = (error as { stdout?: string }).stdout
         if (typeof stdout === 'string' && stdout.includes('{')) {
-          return { ...provider, ...parseAuthCheck(stdout) }
+          return { ...provider, ...forRenderer(parseAuthCheck(stdout)) }
         }
         return {
           ...provider,

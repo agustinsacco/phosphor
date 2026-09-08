@@ -4,7 +4,7 @@ import type { LoginFlowState, LoginProviderId } from '@shared/models'
 import { checkPiHealth } from './health'
 import { piProcessEnv } from './shell-env'
 import { ptyManager } from '../pty/pty-manager'
-import { checkProviderAuth } from './auth-status'
+import { type AuthCheck, checkProviderAuth } from './auth-status'
 
 /**
  * Signing into a pi provider without making the user drive a terminal.
@@ -179,6 +179,36 @@ export function expiredBudget(
   return now - authAt > BROWSER_TIMEOUT_MS ? 'browser' : null
 }
 
+/**
+ * Did this flow produce a *new* credential, or is `auth check` still answering
+ * with the one that was already stored?
+ *
+ * Completion cannot be "the provider is ready", because switching accounts
+ * starts from a provider that is already ready. `auth check` answers `ready`
+ * from the old credential the first time it is asked — about a second after pi
+ * prints the authorization URL — so the flow declared success, and `finish()`
+ * killed the pty while the user was still on the provider's page. For a
+ * loopback provider that pty *is* the callback server: OpenAI Codex redirects
+ * to `http://localhost:1455/auth/callback`, and the browser got
+ * `ERR_CONNECTION_REFUSED` on a URL carrying a perfectly good code. The
+ * account never changed, because the exchange that would have changed it had
+ * nowhere to land.
+ *
+ * So the fact to wait for is the credential *changing*. A first sign-in is any
+ * `ready`; a re-sign-in must produce a different fingerprint — which a second
+ * sign-in to the same account also does, since the provider issues a new token.
+ *
+ * When pi hands over no credential to fingerprint, this stays `false` rather
+ * than guessing: an unbounded wait ends at the browser budget, whereas a wrong
+ * `true` closes the port the user is mid-sign-in against.
+ */
+export function isNewCredential(before: AuthCheck, after: AuthCheck): boolean {
+  if (after.status !== 'ready') return false
+  if (before.status !== 'ready') return true
+  if (!before.fingerprint || !after.fingerprint) return false
+  return before.fingerprint !== after.fingerprint
+}
+
 /** What to tell the user when a budget runs out. */
 export function timeoutMessage(budget: 'setup' | 'browser'): string {
   return budget === 'setup'
@@ -241,6 +271,11 @@ export async function startLogin(
   if (!health.ok || !health.binaryPath) {
     throw new Error(health.message ?? 'pi is not available')
   }
+
+  // What "signed in" looked like *before* this attempt, so completion can be
+  // "the credential changed" rather than "the provider is ready". Read once,
+  // here, because from the moment the pty starts pi may rewrite it.
+  const before = await checkProviderAuth(providerId)
 
   // Absurdly wide on purpose. Nothing renders this pty, but pi hard-wraps its
   // output to the reported width, and a wrapped URL is a *broken* URL — there
@@ -363,7 +398,8 @@ export async function startLogin(
       lastVerifyAt = Date.now()
       void checkProviderAuth(providerId)
         .then((result) => {
-          if (result.status === 'ready' && !settled) {
+          // Against the baseline, never `ready` alone — see `isNewCredential`.
+          if (isNewCredential(before, result) && !settled) {
             finish({ providerId, phase: 'signed-in' })
           }
         })
