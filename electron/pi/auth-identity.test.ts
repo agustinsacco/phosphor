@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { accountFromCredential } from './auth-identity'
+import { accountFromCredential, credentialFingerprint } from './auth-identity'
 
 /** Build a JWT-shaped string whose payload is `claims`. Signature is junk. */
 function jwt(claims: Record<string, unknown>): string {
@@ -62,5 +62,38 @@ describe('accountFromCredential', () => {
     // is something to show a user as "the account you are signed in as".
     const token = jwt({ sub: 'user-jGhfnaJ', account_id: 'b13dd77f-1117', iss: 'https://auth.x' })
     expect(accountFromCredential(token)).toBeUndefined()
+  })
+})
+
+describe('credentialFingerprint', () => {
+  it('is stable for one credential and different for another', () => {
+    expect(credentialFingerprint('token-a')).toBe(credentialFingerprint('token-a'))
+    expect(credentialFingerprint('token-a')).not.toBe(credentialFingerprint('token-b'))
+  })
+
+  it('works for the opaque credentials that have no account to compare', () => {
+    // The sign-in flow's only question on these providers.
+    expect(credentialFingerprint('gho_old')).not.toBe(credentialFingerprint('gho_new'))
+  })
+
+  it('handles a credential pi stores as an object', () => {
+    const one = credentialFingerprint({ access: 'a', refresh: 'b' })
+    expect(one).toBeDefined()
+    expect(one).toBe(credentialFingerprint({ access: 'a', refresh: 'b' }))
+    expect(one).not.toBe(credentialFingerprint({ access: 'a', refresh: 'c' }))
+  })
+
+  it('never contains the credential it fingerprints', () => {
+    const secret = 'sk-ant-oat01-super-secret-value'
+    expect(credentialFingerprint(secret)).not.toContain('secret')
+    expect(credentialFingerprint(secret)).toMatch(/^[0-9a-f]{16}$/)
+  })
+
+  it('says "cannot tell" rather than inventing a value', () => {
+    // A caller reading undefined as "unchanged" would close pi's callback
+    // server mid-sign-in, so absence must stay distinguishable.
+    for (const missing of [undefined, null, '', 42, []]) {
+      expect(credentialFingerprint(missing)).toBeUndefined()
+    }
   })
 })
