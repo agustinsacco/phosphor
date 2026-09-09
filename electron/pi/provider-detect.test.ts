@@ -57,6 +57,16 @@ describe('claudeProviderSpawnEnv', () => {
   it('leaves the 0.7.0 keepalive alone for real sessions', () => {
     expect(claudeProviderSpawnEnv()).not.toHaveProperty('PI_CLAUDE_CLI_KEEPALIVE_MS')
   })
+
+  /**
+   * Without this the provider forwards the invocation of every tool the CLI
+   * ran itself and nothing else, so those rows can never say whether the
+   * tool worked — no line counts, no exit codes, nothing to expand into.
+   * `items/transcriptRows.ts` parses the shapes it turns on.
+   */
+  it('asks for CLI-side tool results, so those rows have an outcome', () => {
+    expect(claudeProviderSpawnEnv().PI_CLAUDE_CLI_TOOL_RESULTS).toBe('1')
+  })
 })
 
 describe('Claude context provider version gate', () => {

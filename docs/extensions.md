@@ -423,21 +423,44 @@ arg>` next to `Ran npm test` made one turn read as two transcripts.
   x, and the ✳ reasoning mark and `cc` share one slot. Guarded by
   `items/activityGroupRows.test.tsx`.
 
-  Two things are deliberately NOT borrowed, and both are honesty rather than
-  polish: no chevron (there is no `tool_result`, so nothing to expand into)
-  and no status (the marker arrives after the fact, so the row is always
-  settled). An unrecognised tool keeps its NAME as the emphasis —
+  An unrecognised tool keeps its NAME as the emphasis —
   `mcp__linear__save_issue` says more than any verb Phosphor could invent.
 
-  **The argument preview is capped at 142 characters**, and the cap lands
-  inside the value often enough to matter: `Bash` carries a single `command`,
-  so a complete-`"key":"value"`-pair scan recovered nothing and 26 of 47 rows
-  in one real turn rendered as a bare row with no command at all.
+  **What the row may claim is bounded by what the markers carry.** Phosphor
+  sets `PI_CLAUDE_CLI_TOOL_RESULTS=1` on every session
+  (`claudeProviderSpawnEnv`), which makes the provider tag each call with its
+  `tool_use_id` and follow it with a `[Claude Code · result #<id> {…}]`
+  marker. A tagged call is a promise of a result, so those rows go through
+  the same three states a pi tool row does — running (dot + shimmer),
+  settled with an outcome, failed (`failed` chip, danger text) — and expand
+  into the output. `buildTranscriptRows` folds a result into the row its call
+  already produced (the pairing outlives a message: the CLI reports in
+  whichever episode the tool finished in) and a result marker is **never a
+  row of its own**, which would read as a tool named "result". An UNTAGGED
+  call keeps the older shape exactly: no chevron, no status, always settled,
+  because a chevron that opens onto nothing is a promise the transcript
+  cannot keep. Guarded by `items/externalToolResults.test.ts`.
+
+  The outcome line is the provider's own `summary` — Phosphor measures
+  nothing here. Provider >= 0.8.0 builds it from the CLI's structured tool
+  result (`419 lines`, `+1 -1 in poem.txt`, `4 files`,
+  `exit 1 · ls: /nope: No such file or directory`); 0.6.0–0.7.1 sends only
+  `{status, preview, length}`, and then the row shows the status and expands
+  into the preview with no outcome line. A CLI-side failure also counts in
+  the collapsed head, which it could not before.
+
+  **The argument preview is complete JSON on provider >= 0.8.0**, and a
+  document cut at 120 characters below it. That cut lands inside the value
+  often enough to matter: `Bash` carries a single `command`, so a
+  complete-`"key":"value"`-pair scan recovered nothing and 26 of 47 rows in
+  one real turn rendered as a bare row with no command at all.
   `externalToolInfo` therefore also recovers the final UNTERMINATED value,
   unescaping defensively (a cut can land mid-`\uXXXX` or after a lone
-  backslash). Guarded by `items/externalToolRealMarkers.test.ts`, which
-  replays all 47 markers from that turn — synthetic fixtures kept missing
-  this, because hand-written markers are short enough to survive the cap.
+  backslash). That recovery stays for sessions recorded before 0.8.0 — they
+  are on disk forever. Guarded by `items/externalToolRealMarkers.test.ts`,
+  which replays all 47 markers from that turn — synthetic fixtures kept
+  missing this, because hand-written markers are short enough to survive the
+  cap.
 
 - **Encrypted thinking** — a signature with no plaintext, which rendered as a
   "thought" that expands to nothing. Skipped on settled items.

@@ -8,9 +8,11 @@ import {
   summarizeActivity,
   type ActivityStep,
   type ExternalToolInfo,
+  type ExternalToolResult,
   type SubagentBlock,
 } from './transcriptRows'
 import { ToolCard, ToolDetail } from '../tools/ToolCard'
+import { CopyButton } from '@/components/CopyButton'
 import { settledVerb, summarizeExternalTool } from '../tools/toolSummaries'
 import { useSessionsStore } from '@/stores/sessions'
 import { Markdown } from '@/components/markdown/Markdown'
@@ -270,9 +272,21 @@ function ActivityRow({
   }
 
   if (step.block.type === 'externalTool') {
-    const { name, args } = step.block
+    const { name, args, result, toolUseId } = step.block
     const info = externalToolInfo(name, args)
-    return <ExternalToolRow name={name} args={args} info={info} sessionId={sessionId} />
+    return (
+      <ExternalToolRow
+        name={name}
+        args={args}
+        info={info}
+        result={result}
+        // A tagged call with no result yet is running — but only while its
+        // message streams. See `isActivityLive`: an unanswered call on a
+        // settled turn is a CLI that never reported, not work in flight.
+        pending={!!toolUseId && !result && step.streaming}
+        sessionId={sessionId}
+      />
+    )
   }
 
   if (step.block.type !== 'tool') return null
@@ -349,36 +363,44 @@ function ActivityRow({
  * same act made one turn read like two transcripts stitched together.
  * `summarizeExternalTool` owns the mapping.
  *
- * Two things stay deliberately different, and both are honest rather than
- * cosmetic. There is no chevron: the provider forwards the invocation and no
- * `tool_result`, so there is nothing to expand into and a disclosure control
- * would promise output that does not exist. And the row is always settled —
- * no running dot, no failure state — because the marker arrives after the
- * fact and carries no status. The `cc` mark in the row's gutter keeps the
- * provenance visible:
+ * **What the row can claim is bounded by what the markers carry.** Until
+ * provider 0.8.0 that was the invocation and nothing else, so the row had no
+ * chevron and no status: always settled, nothing to expand into. When the
+ * provider tags a call with its `tool_use_id` it is promising a result
+ * marker, and then this row goes through the same three states a pi tool row
+ * does — running, settled with an outcome, failed — and expands into the
+ * output. An untagged call still renders exactly as before, because a host
+ * on an older provider must not grow a chevron that opens onto nothing.
+ *
+ * The `cc` mark in the row's gutter keeps the provenance visible either way:
  * pi never saw these calls, so they are absent from its own accounting.
  */
 function ExternalToolRow({
   name,
   args,
   info,
+  result,
+  pending,
   sessionId,
 }: {
   name: string
   args?: string
   info: ExternalToolInfo
+  result?: ExternalToolResult
+  /** Tagged for a result that has not landed yet: the tool is running. */
+  pending: boolean
   sessionId: string
 }): React.JSX.Element {
+  const [expanded, setExpanded] = useState(false)
   const workspacePath = useSessionsStore((s) => s.live[sessionId]?.workspacePath ?? undefined)
   const summary = summarizeExternalTool(name, info.fields, workspacePath)
+  const failed = result?.status === 'error'
+  // Only an outcome with something in it earns a disclosure control.
+  const expandable = !!result && (!!result.preview || !!result.error)
+  const title = args ? `Claude Code · ${name} ${args}` : `Claude Code · ${name}`
 
-  return (
-    <div
-      className={clsx('relative flex items-center gap-1.5 py-1 text-lg', ROW_INSET)}
-      data-testid="external-tool-row"
-      // The full untruncated preview, for the case the cap cut the label.
-      title={args ? `Claude Code · ${name} ${args}` : `Claude Code · ${name}`}
-    >
+  const body = (
+    <>
       {/* Provenance belongs in the gutter, not in front of the label. It used
           to be an inline pill, which pushed every Claude row ~25px right of
           pi's own rows — and a Claude turn interleaves the two in one card, so
@@ -396,11 +418,20 @@ function ExternalToolRow({
           cc
         </span>
       </span>
-      <span className="text-text-secondary shrink-0">{summary.label}</span>
+      <span
+        className={clsx(
+          'shrink-0',
+          failed ? 'text-danger' : 'text-text-secondary',
+          pending && 'tool-running-label',
+        )}
+      >
+        {summary.label}
+      </span>
       {summary.object && (
         <span
           className={clsx(
-            'text-text min-w-0 truncate font-medium',
+            'min-w-0 truncate font-medium',
+            failed ? 'text-danger' : 'text-text',
             summary.mono && 'font-mono text-base',
           )}
         >
@@ -408,9 +439,132 @@ function ExternalToolRow({
         </span>
       )}
       {summary.hint && (
-        <span className="text-text-tertiary min-w-0 truncate font-mono text-sm">
+        <span className="text-text-tertiary min-w-0 shrink truncate font-mono text-sm">
           {summary.hint}
         </span>
+      )}
+      {/* The outcome, in the provider's own words. Right-aligned so a column
+          of rows reads as "what ran … what came of it" rather than burying
+          the result inside the label. */}
+      {result?.summary && (
+        <span
+          data-testid="external-tool-outcome"
+          className={clsx(
+            // Capped, not `shrink-0`: a summary runs to 160 characters (a
+            // failure quotes the CLI's message), and the command is what the
+            // row is about.
+            'ml-auto max-w-[45%] min-w-0 truncate font-mono text-sm',
+            failed ? 'text-danger' : 'text-text-tertiary',
+          )}
+        >
+          {result.summary}
+        </span>
+      )}
+      {failed && (
+        <span className="bg-danger-soft text-danger shrink-0 rounded px-1.5 py-px text-xs font-medium">
+          failed
+        </span>
+      )}
+      {pending && (
+        <span
+          aria-hidden
+          data-testid="external-tool-running"
+          className="bg-accent tool-running-dot ml-auto h-1.5 w-1.5 shrink-0 rounded-full"
+        />
+      )}
+      {expandable && <ChevronIcon expanded={expanded} className="text-text-tertiary" />}
+    </>
+  )
+
+  return (
+    <div>
+      {expandable ? (
+        <button
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+          className={clsx(
+            'relative flex w-full items-center gap-1.5 py-1 text-left text-lg transition-colors',
+            ROW_INSET,
+            !failed && 'hover:text-text',
+          )}
+          data-testid="external-tool-row"
+          title={title}
+        >
+          {body}
+        </button>
+      ) : (
+        <div
+          className={clsx('relative flex items-center gap-1.5 py-1 text-lg', ROW_INSET)}
+          data-testid="external-tool-row"
+          // The full marker, for the case the label had to drop something.
+          title={title}
+        >
+          {body}
+        </div>
+      )}
+      {expanded && result && (
+        // Same full-width section a pi tool's detail gets — not a nested
+        // card, which read as box-in-a-box.
+        <div className="border-border expand-enter border-t">
+          <ExternalToolDetail name={name} result={result} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * What a CLI-side tool returned.
+ *
+ * The provider caps the preview at 2,000 characters and reports the full
+ * size, so this says which it is showing rather than pretending the preview
+ * is the whole output — the rest is only in Claude Code's own transcript,
+ * which is not something a reader can reach from here.
+ */
+function ExternalToolDetail({
+  name,
+  result,
+}: {
+  name: string
+  result: ExternalToolResult
+}): React.JSX.Element {
+  const text = result.preview ?? result.error ?? ''
+  const failed = result.status === 'error'
+
+  return (
+    <div>
+      <div className="border-border flex items-center justify-between gap-2 border-b px-3 py-2">
+        <span className="text-text-tertiary min-w-0 flex-1 truncate font-mono text-sm">
+          {name}
+          {result.summary ? ` · ${result.summary}` : ''}
+        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          <span
+            className={clsx(
+              'rounded px-1.5 py-px font-mono text-xs font-medium',
+              failed ? 'bg-danger-soft text-danger' : 'bg-success/15 text-success',
+            )}
+          >
+            {failed ? 'error' : 'ok'}
+          </span>
+          {text && <CopyButton text={text} />}
+        </div>
+      </div>
+      <pre
+        data-testid="external-tool-preview"
+        className={clsx(
+          'max-h-80 overflow-auto px-3 py-2.5 font-mono text-base leading-relaxed break-words whitespace-pre-wrap',
+          failed ? 'text-danger' : 'terminal-output',
+        )}
+      >
+        {text || '(no output)'}
+      </pre>
+      {result.truncated && (
+        <div className="border-border text-text-tertiary border-t px-3 py-1.5 text-sm">
+          Showing the first {result.preview?.length.toLocaleString()} of{' '}
+          {result.length?.toLocaleString()} characters — the rest stayed in Claude Code&apos;s own
+          transcript.
+        </div>
       )}
     </div>
   )
