@@ -107,7 +107,7 @@ pre.code,pre{
 }
 pre b{color:var(--art-accent);font-weight:500}
 .mono{font-family:var(--art-mono)}
-.scroll{overflow-x:auto}
+.scroll{overflow-x:auto;max-width:100%}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(17rem,1fr));gap:.75rem}
 
 .eyebrow{font-family:var(--art-mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--art-accent);margin-bottom:.5rem}
@@ -141,10 +141,17 @@ svg text{font-family:var(--art-mono);fill:var(--art-ink-2)}
 .grid-line{stroke:var(--art-line);stroke-width:1}
 .mark:hover{opacity:.82;cursor:default}
 
-table.data{border-collapse:collapse;width:100%;font-size:.85rem;min-width:30rem}
+/* The panel an artifact is read in is often ~380px wide, so a table has to
+   survive being narrower than it wants. min-width:min(100%,30rem) asks for
+   30rem only while there is 30rem to ask for; the flat 30rem it replaces is
+   what used to push the whole page into a horizontal scroll. Cells wrap rather
+   than overflow, and a table too wide to squeeze goes in a .scroll wrapper. */
+table.data{border-collapse:collapse;width:100%;font-size:.85rem;min-width:min(100%,30rem)}
 table.data th{font-family:var(--art-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--art-ink-3);text-align:left;font-weight:500;padding:.4rem .6rem;border-bottom:1px solid var(--art-line)}
 table.data td{padding:.42rem .6rem;border-bottom:1px solid var(--art-line-soft);font-variant-numeric:tabular-nums}
-table.data td.num{text-align:right;font-family:var(--art-mono)}
+table.data th,table.data td{overflow-wrap:anywhere;hyphens:auto}
+table.data td.num{text-align:right;font-family:var(--art-mono);white-space:nowrap}
+table.data .pill{white-space:nowrap}
 table.data tr:last-child td{border-bottom:0}
 
 .callout{border-left:2px solid var(--art-accent);background:var(--art-accent-dim);padding:.6rem .8rem;font-size:.88rem;border-radius:0 3px 3px 0;margin:.75rem 0}
@@ -156,7 +163,7 @@ table.data tr:last-child td{border-bottom:0}
 
 /* Step rail — a sequence should look like a sequence. */
 .rail{display:grid;margin-top:.6rem}
-.rail .node{display:grid;grid-template-columns:1.9rem 1fr;gap:.7rem}
+.rail .node:has(>.gut){display:grid;grid-template-columns:1.9rem 1fr;gap:.7rem}
 .rail .gut{position:relative}
 .rail .gut::before{content:"";position:absolute;left:.85rem;top:0;bottom:0;width:1px;background:var(--art-line)}
 .rail .node:last-child .gut::before{bottom:auto;height:.75rem}
@@ -165,17 +172,26 @@ table.data tr:last-child td{border-bottom:0}
 .rail h4{margin:.15rem 0 .2rem}
 .rail p{font-size:.86rem;color:var(--art-ink-2);margin:0}
 
-/* Ledger — charts collapsed into the text flow, for verification logs. */
+/* Ledger — charts collapsed into the text flow, for verification logs.
+   The column grid engages ONLY for a row built from ledger cells. A .row of
+   free prose has as many grid items as it has inline children, so the fixed
+   four-column track sliced a sentence into one-word columns and then wrapped
+   the remainder into implicit rows. Same guard on .steps and .rail: a
+   primitive used as a paragraph style has to degrade to a paragraph. */
 .ledger{font-family:var(--art-mono);font-size:12.5px}
-.ledger .row{display:grid;grid-template-columns:1.6rem 1fr 4.5rem 4rem;gap:.5rem;align-items:center;padding:.32rem 0;border-bottom:1px solid var(--art-line-soft)}
+.ledger .row{padding:.32rem 0;border-bottom:1px solid var(--art-line-soft)}
+.ledger .row:has(>.idx,>.lab,>.bar,>.val){display:grid;grid-template-columns:1.6rem 1fr 4.5rem 4rem;gap:.5rem;align-items:center}
+.ledger .row:not(:has(>.idx,>.lab,>.bar,>.val)){font-family:var(--art-sans);font-size:.88rem;color:var(--art-ink-2);padding:.45rem 0}
 .ledger .row:last-child{border-bottom:0}
+.ledger .row b,.ledger .row strong{color:var(--art-ink)}
 .ledger .idx{color:var(--art-ink-3)}
 .ledger .bar{height:8px;background:var(--art-line);border-radius:0 4px 4px 0;overflow:hidden}
 .ledger .bar i{display:block;height:100%;border-radius:0 4px 4px 0}
 .ledger .val{text-align:right;font-variant-numeric:tabular-nums}
 .ledger .lab{color:var(--art-ink-2)}
 .steps{font-family:var(--art-mono);font-size:12.5px;color:var(--art-ink-2)}
-.steps .s{display:grid;grid-template-columns:1.5rem 1fr;gap:.5rem;padding:.3rem 0;border-bottom:1px dotted var(--art-line)}
+.steps .s{padding:.3rem 0;border-bottom:1px dotted var(--art-line)}
+.steps .s:has(>.n){display:grid;grid-template-columns:1.5rem 1fr;gap:.5rem}
 .steps .s:last-child{border-bottom:0}
 .steps .n{color:var(--art-accent)}
 .steps b{color:var(--art-ink);font-weight:600}

@@ -287,6 +287,16 @@ a CDN chart library renders nothing at all), and any chart carrying a claim gets
 a `table.data` under it. See
 [docs/log/2026-09-08-artifact-house-style.md](log/2026-09-08-artifact-house-style.md).
 
+**A row primitive is a column grid, and the sheet only engages it for its own
+cells.** `.ledger>.row`, `.steps>.s` and `.rail>.node` lay out one grid item per
+inline child, so a row of free prose was sliced into word-wide columns; each of
+those tracks is now behind a `:has()` guard on the cell classes, and a prose row
+degrades to a paragraph. `table.data` asks for `min-width:min(100%,30rem)` — the
+flat `30rem` it replaces forced a horizontal page scroll in a panel narrower
+than that. The width budget is the reason the tool description caps a table at
+five columns. See
+[docs/log/2026-09-09-artifact-tables-narrow-panel.md](log/2026-09-09-artifact-tables-narrow-panel.md).
+
 `lane-loop.ts` used to sit here too — it ran a fixed ladder of checks when a
 turn settled and published the result to a banner above the composer. Both the
 extension and the banner were removed on 2026-08-28; the idea is meant to come
