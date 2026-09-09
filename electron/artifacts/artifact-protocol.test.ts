@@ -25,6 +25,20 @@ describe('stageArtifactHtml', () => {
     expect(stageArtifactHtml('<p>a</p>')).not.toBe(stageArtifactHtml('<p>b</p>'))
   })
 
+  it('gives the same content a different URL per theme', () => {
+    // The house stylesheet is injected here, so the theme is part of the
+    // staged document. Same URL across themes would strand an open artifact
+    // on the theme it was first rendered in.
+    expect(stageArtifactHtml('<p>x</p>', 'dark')).not.toBe(stageArtifactHtml('<p>x</p>', 'light'))
+  })
+
+  it('serves the wrapped document, not the raw markup', () => {
+    const url = stageArtifactHtml('<p>x</p>', 'dark')
+    const served = __testing.staged.get(url.split('/').pop()!)
+    expect(served).toContain('data-theme="dark"')
+    expect(served).toContain('--art-bg')
+  })
+
   it('bounds the map so a long session cannot grow main’s heap', () => {
     for (let i = 0; i < __testing.MAX_STAGED + 10; i++) stageArtifactHtml(`<p>${i}</p>`)
     expect(__testing.staged.size).toBe(__testing.MAX_STAGED)

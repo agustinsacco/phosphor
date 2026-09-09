@@ -60,6 +60,16 @@ mirrored copy that must be updated in the same commit:
 and holds no `--px-*` values, so it is not a sixth satellite. Code-block token
 colors are not expected to match the brand ramp.
 
+**Artifacts are their own surface, for the same reason.**
+`electron/artifacts/artifact-skeleton.ts` carries a `--art-*` namespace —
+darker ground than the app (`#0e0d0b` vs `--px-bg`), denser type, and a
+categorical data palette app chrome has no use for. It is not a satellite copy
+and must never be "unified" with the neutrals: an artifact is a document, the
+app is chrome, and the two want different contrast. Its series colours are
+computed rather than chosen (the dataviz six-checks validator, both modes) —
+re-run it before changing a hex. The house style itself is
+[docs/log/2026-09-08-artifact-house-style.md](log/2026-09-08-artifact-house-style.md).
+
 ### Light — "slate paper"
 
 Cool neutral greys. The accent is the only warm element on the page.

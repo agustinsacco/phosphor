@@ -11,7 +11,13 @@ import { cancelAllClaudeLogins } from './pi/claude-login'
 import { unwatchAll } from './pi/session-watcher'
 import { unwatchAllWorkspaces } from './fs/workspace-watcher'
 import { startUpdateChecks, stopUpdateChecks } from './updates/updater'
-import { applyZoom, backgroundFor, hideWindowsForE2E, overlayFor } from './window-chrome'
+import {
+  applyThemeSource,
+  applyZoom,
+  backgroundFor,
+  hideWindowsForE2E,
+  overlayFor,
+} from './window-chrome'
 import { getPrefs } from './store'
 import { initDebugLog, log } from './debug-log'
 import { registerArtifactScheme, registerArtifactProtocol } from './artifacts/artifact-protocol'
@@ -178,6 +184,9 @@ if (!singleInstance) {
       app.dock?.setIcon(devIcon)
     }
     registerArtifactProtocol()
+    // Before the first window: artifact iframes read Chromium's scheme, not
+    // the app's theme class, so this has to be right at first paint.
+    applyThemeSource(getPrefs().theme)
     registerIpcHandlers()
     createWindow()
     // No-op unless packaged: dev and E2E must never poll GitHub.

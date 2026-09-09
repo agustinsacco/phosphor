@@ -151,8 +151,13 @@ export interface IpcInvokeMap {
    * `phosphor-artifact://` URL for it. The document is served on its own opaque
    * origin with `default-src 'none'`, which is what lets it run scripts
    * without the app's CSP — see electron/artifacts/artifact-protocol.ts.
+   *
+   * `theme` is the renderer's RESOLVED theme, and it is part of the staged
+   * document (the house stylesheet is injected here, not written by the
+   * model), so it must be passed on every call — not read from prefs in the
+   * main process, or the caller has no dependency to re-stage on.
    */
-  'artifacts:stageHtml': { args: [html: string]; result: string }
+  'artifacts:stageHtml': { args: [html: string, theme: 'light' | 'dark']; result: string }
   'app:setPinnedSessions': { args: [string[]]; result: void }
   /** Explicit lane-marker choices, keyed by session file path. */
   'app:setLaneMarkers': { args: [Record<string, string>]; result: void }

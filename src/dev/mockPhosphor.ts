@@ -1449,7 +1449,10 @@ export function installMockPhosphor(): void {
         case 'artifacts:stageHtml':
           // The browser harness has no custom protocol; a blob URL previews
           // the same content. It inherits the page CSP, so scripts stay
-          // blocked here — only the packaged app runs artifact JS.
+          // blocked here — only the packaged app runs artifact JS. The house
+          // stylesheet is injected by the main process, so the harness shows
+          // the model's markup unstyled; that difference is the point of the
+          // Electron path, not a bug to paper over here.
           return Promise.resolve(
             URL.createObjectURL(new Blob([args[0] as string], { type: 'text/html' })),
           )

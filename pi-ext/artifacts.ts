@@ -160,27 +160,47 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
       'Type is one of: ' +
       ARTIFACT_TYPES.join(', ') +
       '. ' +
-      'Always author HTML pages directly — no <!DOCTYPE>, <html>, <head>, or ' +
-      '<body> tags of your own; the viewer wraps the file in a skeleton at ' +
-      'publish time. Put your own <title> and <style> at the top of the file. ' +
-      'Set a short noun-phrase title (2–4 words, distinctive to the page); ' +
-      'the explanation belongs in the title parameter, not appended to the name. ' +
-      'Keep the design responsive: use relative units, flexbox or grid, ' +
-      'max-width: 100% on images, and wrap wide content (tables, code, ' +
-      'diagrams) in its own overflow-x: auto container — the page body must ' +
-      'never scroll horizontally. Use theme-aware palettes: define colors as ' +
-      'tokens on bare :root, with a dark-mode override guarded by ' +
-      ':root:not([data-theme="light"]) and :root[data-theme="dark"] so the ' +
-      'toggle wins in both directions. Give body an explicit background ' +
-      'token; the viewer paints its own ground behind the page. Small snippets ' +
-      'and inline code stay in chat, not artifacts.',
+      'Author HTML as a FRAGMENT — no <!DOCTYPE>, <html>, <head>, or <body> ' +
+      'tags; the viewer wraps it and injects the house stylesheet at publish ' +
+      'time. Never write a palette: the sheet already defines dark-first ' +
+      'tokens, typography and layout primitives, and it follows the app theme. ' +
+      'Use its classes and tokens, add CSS only for what it lacks. ' +
+      'Tokens: --art-bg / --art-panel / --art-panel-2 (surfaces), --art-ink / ' +
+      '--art-ink-2 / --art-ink-3 (text), --art-line / --art-line-soft (rules), ' +
+      '--art-accent, --art-s1..--art-s5 (series, fixed order, never cycled), ' +
+      '--art-r1..--art-r5 (sequential ramp), --art-good / --art-warn / ' +
+      '--art-crit, --art-mono / --art-sans. ' +
+      'Classes: .wrap .eyebrow .kicker .deck .lede .chips>.chip · ' +
+      '.kpis>.kpi>(.k-label .k-val .k-sub) · .panelbox .grid .scroll · ' +
+      '.chart-title .chart-note .legend>span>i.swatch .grid-line .mark · ' +
+      'table.data (td.num) · .callout .pill.ok|.no · .rail>.node>(.gut>.dot, ' +
+      '.body) · .ledger>.row · .steps>.s · .blueprint .verdict · pre.code. ' +
+      'House style — dense, dark, chart-first, for readers who read diffs: ' +
+      'lead with the finding in one sentence, then the numbers; no abstract, ' +
+      'no closing summary. Charts are HAND-AUTHORED INLINE SVG — the artifact ' +
+      'CSP has no network at all, so a chart library, a CDN script or a ' +
+      'webfont renders nothing. Hairline solid gridlines, 2px lines, bars ' +
+      'under 24px with a 4px rounded data-end, markers at least 8px with a 2px ' +
+      'surface ring, area fills near 10% opacity. A legend for two or more ' +
+      'series; direct labels only at endpoints or extremes, never on every ' +
+      'point; text wears ink tokens, never a series colour. Cap scatter and ' +
+      'small multiples at three series (--art-s1..s3). Any chart carrying a ' +
+      'claim gets a table.data under it — that is the evidence and the ' +
+      'accessible fallback. Set a short noun-phrase title (2–4 words, ' +
+      'distinctive to the page); the explanation belongs in the title ' +
+      'parameter, not appended to the name. Stay responsive: relative units, ' +
+      'flex or grid, wide content (tables, code, diagrams) in its own ' +
+      'overflow-x: auto container — the body must never scroll horizontally. ' +
+      'Small snippets and inline code stay in chat, not artifacts.',
     promptSnippet:
-      'Create a rich artifact (html / svg / markdown / mermaid / chart / code) in the side panel — design-aware, theme-aware, responsive',
+      'Create a rich artifact (html / svg / markdown / mermaid / chart / code) in the side panel — dense, dark, chart-first house style',
     promptGuidelines: [
-      'Use artifact_create for substantial, self-contained deliverables — HTML mockups, SVG graphics, mermaid diagrams, markdown reports, chart specs, or complete code files meant for review. Small snippets stay inline in chat.',
-      'Before writing: calibrate the design investment. A finished deliverable (report, plan, reference, decision case) must include a theme-aware, responsive design — light palette as :root tokens, dark-mode guarded override, relative units, flex/grid layout, overflow-x: auto for wide content. The title is a short noun phrase (2–4 words), distinctive to the page; explanation goes in the description parameter, not appended after a dash.',
+      'Use artifact_create for substantial, self-contained deliverables — reports, walkthroughs, plans, mockups, diagrams, or complete code files meant for review. Small snippets stay inline in chat.',
+      'Never write a palette or a type scale: the viewer injects the house stylesheet at publish time (dark-first --art-* tokens plus .kpis / .panelbox / table.data / .rail / .ledger primitives). Write against those, and add CSS only for what they lack.',
+      'House style is dense, dark and chart-first: verdict in the first sentence, numbers next, a chart wherever a shape beats a paragraph, and a table.data under any chart that carries a claim.',
+      'Charts are hand-authored inline SVG. The artifact CSP grants no network, so Chart.js, a CDN script or a webfont renders nothing at all.',
       'To revise: prefer artifact_edit (exact-string replacement, lowest token cost) over artifact_update (full rewrite). If you no longer have the current content (after compaction or a resumed session), call artifact_list then artifact_read first. Never guess old_string — whitespace and indentation must match exactly.',
-      'Format: HTML artifacts are authored directly — the file is wrapped in a skeleton at publish time, so include <title> and <style> at the top but never add <!DOCTYPE>, <html>, <head>, or <body> tags. Markdown is only for documents; when a user shares markdown content meant as an artifact, author an HTML page based on its substance rather than transcribing it one-to-one.',
+      'Format: HTML artifacts are fragments — no <!DOCTYPE>, <html>, <head> or <body> tags. Markdown is only for documents; when a user shares markdown content meant as an artifact, author an HTML page based on its substance rather than transcribing it one-to-one.',
     ],
     parameters: Type.Object({
       id: Type.Optional(
