@@ -1,17 +1,17 @@
+import type { PiPackageEntry } from '@shared/models'
+import { compareVersions } from './health'
+
 /**
  * Will this spawn land on the Claude Code provider (`pi-claude-cli`)?
  *
- * Decided at spawn time so Phosphor can pass `--no-context-files` for those
- * sessions: the Claude CLI loads CLAUDE.md itself as memory, and pi embedding
- * the same file in its system prompt bills it twice on every request
- * (~4,900 tokens measured on this repo's CLAUDE.md). See
- * docs/log/2026-08-29-claude-provider-token-overhead.md.
+ * Used for account routing and the context-policy version gate. All sessions
+ * now retain pi's project context, including sessions that switch providers.
  *
  * Deliberately conservative: when the answer depends on pi's fuzzy model
  * matching (a bare pattern with no explicit provider), only a `claude*`
  * pattern under a `pi-claude-cli` default counts. A miss in that direction
- * costs the ~4,900 duplicated tokens (status quo), while a false positive
- * would silently strip CLAUDE.md from a non-Claude provider's prompt.
+ * is caught by the resolved-model check before prompting; a false positive
+ * would require the Claude package for a session that never uses it.
  */
 export function usesClaudeCliProvider(
   options: { provider?: string; model?: string },
@@ -25,30 +25,40 @@ export function usesClaudeCliProvider(
   return defaultProvider === 'pi-claude-cli'
 }
 
+/** The first provider release supporting pi context with native Claude tools. */
+export const MIN_CLAUDE_CONTEXT_VERSION = '0.7.1'
+
+/** Fail visibly rather than silently enabling two context loaders on old providers. */
+export function assertClaudeContextProvider(
+  packages: Pick<PiPackageEntry, 'name' | 'version' | 'installed'>[],
+): void {
+  const providers = packages.filter((pkg) => pkg.name === '@saccolabs/pi-claude-cli')
+  if (
+    providers.length === 0 ||
+    providers.some(
+      (pkg) =>
+        !pkg.installed ||
+        !pkg.version ||
+        !/^\d+\.\d+\.\d+$/.test(pkg.version) ||
+        compareVersions(pkg.version, MIN_CLAUDE_CONTEXT_VERSION) < 0,
+    )
+  ) {
+    throw new Error(
+      `Claude context alignment requires @saccolabs/pi-claude-cli ${MIN_CLAUDE_CONTEXT_VERSION}+ ` +
+        'as an installed pi package. Update it in Settings → Extensions, then start a fresh session.',
+    )
+  }
+}
+
 /**
- * Extra environment a Claude-provider spawn needs, on top of `piProcessEnv()`.
- *
- * `PI_CLAUDE_CLI_STRICT_MCP` confines the Claude CLI to the schema-only server
- * pi-claude-cli generates from pi's own tool registry, so MCP reaches the
- * model through one door: pi-mcp-adapter's `mcp` gateway, configured by
- * Settings -> Connectors. Without it the CLI also loads whatever is in
- * `~/.claude/.mcp.json`, `~/.claude.json` and the user's claude.ai connectors.
- * Those servers are invisible to Phosphor (the status chip and the context meter
- * both read the adapter, which only knows its own chain), they never become pi
- * `tool_execution_*` events, so `pi-ext/worktree-paths.ts` cannot guard them,
- * and they make the same project behave differently on two machines.
- *
- * Deliberately NOT `PI_CLAUDE_CLI_HERMETIC`, which would reach the same flag
- * but also pass an empty `--setting-sources`. That drops the CLI's CLAUDE.md
- * auto-memory, and Phosphor already passes `--no-context-files` so pi does not
- * send its own copy — the model would end up with project instructions from
- * neither side. See docs/mcp.md.
- *
- * Requires pi-claude-cli >= 0.5.1; older versions ignore the variable, which
- * leaves the pre-existing behaviour rather than breaking a session.
+ * Sent to every pi spawn so switching from a native provider to Claude keeps
+ * the same project context. Other providers ignore these variables. Claude
+ * keeps its own default prompt and native tools; pi alone supplies project
+ * files, skills and custom integrations. The provider aligns tool vocabulary
+ * and disables duplicate discovery, while preserving explicit host guards.
  */
 export function claudeProviderSpawnEnv(): Record<string, string> {
-  return { PI_CLAUDE_CLI_STRICT_MCP: '1' }
+  return { PI_CLAUDE_CLI_STRICT_MCP: '1', PI_CLAUDE_CLI_CONTEXT: 'pi' }
 }
 
 /**

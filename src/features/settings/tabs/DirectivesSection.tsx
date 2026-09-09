@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DEFAULT_AGENT_DIRECTIVES } from '@shared/models'
+import { subagentPolicyBlock } from '@shared/agent-directives'
 import type { AgentDirectivePrefs } from '@shared/models'
 import { Row, SectionTitle, Toggle } from '@/components/form'
 import { useActiveWorkspace } from '@/stores/workspaces'
@@ -87,23 +88,13 @@ export function DirectivesSection(): React.JSX.Element {
           '- Commit your work on this branch as you go. Do not commit to the base branch.',
           '- Open a pull request when the work is done. That is how this lane closes.',
           '- Keep the change reviewable: aim under 400 changed lines and 20 files.',
-          '- Phosphor runs typecheck, tests and lint itself when your turn settles …',
+          "- Run the project's own typecheck, tests and lint before claiming the work is done.",
           '</phosphor_lane>',
         ].join('\n'),
       )
     }
     if (editing.subagentPolicy) {
-      blocks.push(
-        [
-          '<phosphor_subagents>',
-          'Sub-agents are available, and the synchronous form is the reliable one:',
-          'run_in_background: false returns the findings inside this turn on every',
-          'provider version. A backgrounded agent reports back only on pi-claude-cli',
-          '0.4.14 or newer; on anything older it dies with the turn, findings lost.',
-          '- Answer directly when you can. Reading a handful of files is not a fan-out.',
-          '</phosphor_subagents>',
-        ].join('\n'),
-      )
+      blocks.push(subagentPolicyBlock())
     }
     if (editing.custom.trim()) blocks.push(editing.custom.trim())
     return blocks.join('\n\n')
@@ -114,9 +105,9 @@ export function DirectivesSection(): React.JSX.Element {
       <SectionTitle>Directives</SectionTitle>
 
       <div className="text-text-secondary text-sm leading-relaxed">
-        What Phosphor appends to every lane&rsquo;s system prompt, in this order. Project rules
-        files are a separate layer the agent reads as an ordinary message, with no guarantee it
-        follows them; this one is part of the system prompt and survives compaction.
+        What Phosphor appends to every lane&rsquo;s system prompt, in this order. pi also loads
+        project rules into its assembled prompt. These instructions guide the agent; tool guards
+        provide enforcement. Changes apply to newly started sessions.
       </div>
 
       <div className="flex items-center gap-1.5">
@@ -157,7 +148,7 @@ export function DirectivesSection(): React.JSX.Element {
 
       <Row
         title="Sub-agent policy"
-        description="Asks for direct answers on small work, and run_in_background: false when delegating is genuinely warranted — a synchronous sub-agent returns inside the turn on any provider version, while a backgrounded one needs pi-claude-cli 0.4.14 or newer to report back at all."
+        description="Prefers direct answers for small work. For broader delegation, distinguishes native Claude Agent parameters from pi subagent parameters and asks the agent to wait for findings."
       >
         <Toggle on={editing.subagentPolicy} onChange={(on) => patch({ subagentPolicy: on })} />
       </Row>

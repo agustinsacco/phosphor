@@ -6,9 +6,20 @@ OAuth subscription instead of an API key. The first one shipped
 taught us into a pattern that a second and third CLI can be built against,
 and records what the OpenAI Codex CLI investigation found.
 
-Status: the Claude adapter is **shipped and live-verified**. Codex CLI claims
-are **derived from published documentation, not from a running binary** —
-`codex` is not installed in this workspace.
+## Current Claude integration
+
+Phosphor requires `pi-claude-cli >= 0.7.1` for its context policy: pi loads
+project instructions and skills; the provider disables duplicate Claude
+memory/skill/MCP discovery and aligns generated tool vocabulary. Claude's
+**default prompt and native tools remain**, along with its persistent process
+and separate transcript/compaction. Explicit host guards are preserved. Start
+fresh sessions across policy changes. See
+[the context-alignment contract and validation](log/2026-09-09-claude-context-alignment.md).
+
+**The investigation below is historical:** its Claude tables describe 0.4.6,
+including the retired interrupt/kill-per-tool design, not current execution.
+Codex CLI claims were derived from published documentation, not a running
+binary. Do not implement current lifecycle behavior from those dated tables.
 
 **Read §1a before planning anything.** Whether a bridge is required at all is
 a vendor-policy question, not a technical one, and the two vendors answer it

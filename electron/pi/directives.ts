@@ -1,5 +1,7 @@
 import type { AgentDirectivePrefs, GitInfo } from '@shared/models'
 import { worktreePromptBlock } from './workspace-prompt'
+import { subagentPolicyBlock } from '@shared/agent-directives'
+export { subagentPolicyBlock } from '@shared/agent-directives'
 
 /**
  * The directive stack: everything Phosphor appends to a lane's system prompt.
@@ -11,10 +13,9 @@ import { worktreePromptBlock } from './workspace-prompt'
  *   2. **This.** The worktree warning, the lane charter, and the user's own
  *      text, concatenated in a fixed order and passed as
  *      `--append-system-prompt`.
- *   3. Project rules files, which the agent reads as an ordinary user message
- *      AFTER the system prompt. Anthropic's own docs say there is "no
- *      guarantee of strict compliance" and that adherence degrades past
- *      roughly 200 lines.
+ *   3. Project rules files, loaded by pi into its assembled system prompt.
+ *      The Claude context policy disables the CLI's independent copy. Like
+ *      other prose instructions, these guide behavior rather than enforcing it.
  *   4. Our extensions, running inside the turn. Not prose: they refuse,
  *      rewrite and measure.
  *
@@ -68,37 +69,6 @@ export function laneCharterBlock(charter: LaneCharter): string {
     '</phosphor_lane>',
   )
   return lines.join('\n')
-}
-
-/**
- * Sub-agents: allowed, and synchronous is the form that always works.
- *
- * The default is the risky one. Claude Code's `Agent` tool backgrounds the
- * sub-agent unless the caller passes `run_in_background: false`, and its tool
- * result promises "you will be notified automatically when it completes".
- * That promise was false here until `pi-claude-cli` 0.4.14: the provider
- * killed `claude -p` at the turn's first `result`, which for a background
- * call lands while the agents are still working. Measured 2026-08-27 on one
- * lane: five background agents, two more nested inside them, 352 shell calls
- * and 28.6M cache-read tokens, all seven killed at the same millisecond, not
- * one finding returned.
- *
- * 0.4.14 waits for them, but Phosphor pins no provider version and this text is
- * fixed at spawn — so it must be true under both. Synchronous delegation is:
- * it returns inside the turn either way.
- *
- * Deliberately short. This is spent on every request for the life of the lane.
- */
-export function subagentPolicyBlock(): string {
-  return [
-    '<phosphor_subagents>',
-    'Sub-agents are available, and the synchronous form is the reliable one:',
-    'run_in_background: false returns the findings inside this turn on every',
-    'provider version. A backgrounded agent reports back only on pi-claude-cli',
-    '0.4.14 or newer; on anything older it dies with the turn, findings lost.',
-    '- Answer directly when you can. Reading a handful of files is not a fan-out.',
-    '</phosphor_subagents>',
-  ].join('\n')
 }
 
 export interface ComposeDirectivesOptions {

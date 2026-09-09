@@ -28,7 +28,12 @@ describe('subagentPolicyBlock', () => {
   it('asks for the synchronous form rather than banning the tool', () => {
     const block = subagentPolicyBlock()
     expect(block).toContain('run_in_background: false')
-    expect(block).toContain('Sub-agents are available')
+    expect(block).toContain('When sub-agent tools are available')
+    expect(block).toContain('Native Claude Code Agent/Task:')
+    expect(block).toContain('pi subagent: follow its advertised schema')
+    expect(block).toContain('Do not add run_in_background')
+    expect(block).not.toContain('dies with the turn')
+    expect(block).not.toContain('0.4.14')
   })
 })
 
