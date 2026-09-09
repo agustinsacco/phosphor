@@ -4,7 +4,7 @@ import type { AssistantBlock, AssistantItem, CustomItem, ToolState, UserItem } f
 import { Markdown } from '@/components/markdown/Markdown'
 import { useSmoothedText } from './useSmoothedText'
 import { CopyButton } from '@/components/CopyButton'
-import { PiSpark } from '@/components/PiSpark'
+import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { absoluteTime, relativeTime } from '@/lib/time'
 import { useChatStore } from '@/stores/chat'
 import { useChatUiStore } from './uiState'
@@ -65,7 +65,7 @@ export const MessageItemView = memo(function MessageItemView({
           // Only reached for an empty streaming turn (spinner placeholder).
           return (
             <div className="py-1">
-              <PiSpark />
+              <PhosphorLoader label="Waiting for a response" />
             </div>
           )
         case 'bash':

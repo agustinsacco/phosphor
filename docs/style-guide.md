@@ -221,9 +221,46 @@ markdown the _model_ authors; no Phosphor chrome uses it.
   separates tools from content. Chat bubbles and dialogs keep their own shape.
 - Depth comes from borders and one-step background shifts. No drop shadow
   heavier than `0 1px 2px rgb(0 0 0 / 0.06)` in light; popovers excepted.
-- Motion: message-in 180ms, expand-in 140ms, spark, shimmer. All token-driven
+- Motion: message-in 180ms, expand-in 140ms, beacon, shimmer. All token-driven
   and all gated on `prefers-reduced-motion`. The streaming cursor `▍` and the
-  working spark inherit phosphor automatically.
+  working beacon inherit phosphor automatically.
+
+### Loading identity — Phosphor Beacon
+
+`src/components/PhosphorLoader.tsx` is the shared **indeterminate activity**
+mark for app startup, starting/working lanes, and agent activity in chat. It
+replaces the eight-ray PiSpark everywhere; generic file/network button spinners
+remain generic. This is a motion companion to the electron-shell identity,
+not a replacement logo or a depiction of phosphorus's electron configuration.
+
+- **Form:** a persistent nucleus, two quiet rings, one bright orbiting head
+  and its short trail. The whole mark never fades away. The radial accent-soft
+  bloom is CSS, not stacked discs or an SVG blur filter.
+- **Scale:** 20px in the lane gutter (previously a 13px spark), 24px beside
+  activity copy, 80px on the startup screen. All use the same SVG geometry.
+- **Motion:** one 2.4s linear orbit; the nucleus breathes between 75–100%
+  opacity and 85–100% scale. `--px-beacon-duration` owns the shared cadence.
+  Only transform/opacity animate: no per-frame JavaScript or layout work.
+- **State:** Starting means a prompt is sent but the agent has not started;
+  Working follows the existing streaming state, including tool activity.
+  Idle/completed lanes lose the beacon, label and rail; green unread/live
+  dots retain their existing meaning. Selection remains the neutral row fill.
+- **Lane recipe:** beacon + straight, inset 2px amber rail + Starting/Working
+  chip in the timestamp slot. The chip uses primary text on accent-soft, not
+  tiny amber text. The former timestamp remains in its tooltip. At narrow row
+  widths, dirty count (≤256px) then the worktree chip (≤224px) yield to the
+  activity label, branch and PR. Both pending and disk-backed rows use this
+  treatment, including unselected/background lanes. The hover checkbox keeps
+  the same 20px gutter; label and rail remain visible when it replaces the icon.
+- **Accessibility:** pair the mark with readable status text; set `decorative`
+  when that text already names the state. Standalone marks receive a label.
+  No fake percentage or per-lane live-announcement loop. Reduced motion stops
+  both orbit and breathing but retains every visual cue; errors use
+  `animated={false}` rather than displaying a moving loader forever.
+
+A larger spark alone still competed with lane emoji; a full-row shimmer would
+make a busy sidebar a wall of motion. The beacon plus static rail and text
+makes work visible without either problem.
 
 ## Logo
 
