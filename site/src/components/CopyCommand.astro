@@ -13,7 +13,8 @@ const { id, label, command } = Astro.props
       type="button"
       data-copy-command
       aria-label={`Copy ${label}`}
-      hidden>Copy <span aria-hidden="true">↗</span></button>
+      hidden>Copy <span aria-hidden="true">↗</span></button
+    >
   </div>
   <pre id={id} tabindex="0"><code>{command}</code></pre>
 </div>
