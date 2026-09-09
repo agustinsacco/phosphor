@@ -43,7 +43,10 @@ that put it on the k3s cluster next to tars.saccolabs.com.
 Same pattern as every other site on the box: a `type: LoadBalancer` Service on
 a **port unique to the site** (`5015`, element 15 — tars is 5252, lattice
 3010), because k3s servicelb binds the port on the node and the edge routes
-hostnames to node ports. The image is public on Docker Hub (as `tars-docs` is);
+hostnames to node ports. Unlike tars's workflow, this one also waits for the
+Service to get its node address and prints it: a Pending Service is a port
+collision, `rollout status` cannot see it, and the run fails instead of
+reporting a green deploy nobody can reach. The image is public on Docker Hub (as `tars-docs` is);
 the `docker-registry-key` pull secret is copied from the `tars` namespace on
 first deploy only if it exists there, and only to dodge the anonymous rate
 limit.

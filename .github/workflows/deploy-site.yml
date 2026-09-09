@@ -104,3 +104,36 @@ jobs:
           grep -Fq "image: ${IMAGE_NAME}@${IMAGE_DIGEST}" "$RUNNER_TEMP/phosphor-site.yaml"
           kubectl apply -f "$RUNNER_TEMP/phosphor-site.yaml"
           kubectl rollout status deployment/phosphor-site -n phosphor --timeout=180s
+
+      - name: Wait for the Service address
+        run: |
+          set -euo pipefail
+          # k3s servicelb gives a LoadBalancer Service the node's IP once the
+          # port is free on the node. Pending here means a port collision, which
+          # `rollout status` above cannot see — the pods are fine, the site is
+          # just unreachable. Fail loudly instead of reporting a green deploy.
+          for _ in $(seq 1 18); do
+            ip=$(kubectl get svc phosphor-site -n phosphor -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+            if [ -n "$ip" ]; then
+              echo "phosphor-site is serving on http://${ip}:5015 — route phosphor.saccolabs.com there at the edge"
+              echo "SITE_ADDR=http://${ip}:5015" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Service phosphor-site has no LoadBalancer address after 90s — is port 5015 already bound on the node?"
+          kubectl get svc -A -o wide
+          kubectl describe svc phosphor-site -n phosphor
+          exit 1
+
+      - name: Smoke the served page
+        run: |
+          # Best effort: servicelb hands out the node's LAN address, which the
+          # runner may not reach over the tailnet. nginx in the pod is what the
+          # readiness probe already proved; this only confirms the node port.
+          if curl -fsS --max-time 10 "$SITE_ADDR/" | grep -q '<title>'; then
+            echo "GET $SITE_ADDR/ returned the page"
+          else
+            echo "::warning::could not fetch $SITE_ADDR/ from the runner; check from inside the network"
+          fi
+          kubectl get pods,svc -n phosphor -o wide
