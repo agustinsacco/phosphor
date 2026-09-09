@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: phosphor-site
+  namespace: phosphor
+  labels:
+    app: phosphor-site
+spec:
+  selector:
+    app: phosphor-site
+  # Same shape as tars-docs: k3s servicelb binds this port on the node, and the
+  # edge (Cloudflare tunnel) routes phosphor.saccolabs.com to it. The port is
+  # unique per site on purpose — two LoadBalancer services on one port leave
+  # the second one Pending forever.
+  type: LoadBalancer
+  ports:
+    - protocol: TCP
+      port: 5015
+      targetPort: 5015
+      name: http

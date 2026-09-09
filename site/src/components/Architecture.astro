@@ -1,0 +1,74 @@
+---
+/**
+ * The process model, animated: pulses travel renderer → main → pi → provider.
+ * Shapes mirror README.md "How it works".
+ */
+---
+
+<svg
+  viewBox="0 0 1040 330"
+  class="h-auto w-full"
+  role="img"
+  aria-label="Renderer talks to the Electron main process over typed IPC; main talks to one pi subprocess per session over JSONL on stdio; pi talks to providers, tools and files under ~/.pi"
+>
+  <!-- edges -->
+  <path id="e1" class="edge" d="M232 120 H300"></path>
+  <path class="edge-pulse" d="M232 120 H300" style="--d: 0s"></path>
+  <path class="edge" d="M532 120 H600"></path>
+  <path class="edge-pulse" d="M532 120 H600" style="--d: 0.6s"></path>
+  <path class="edge" d="M832 100 H900 V70 H910"></path>
+  <path class="edge-pulse" d="M832 100 H900 V70 H910" style="--d: 1.2s"></path>
+  <path class="edge" d="M832 120 H910"></path>
+  <path class="edge-pulse" d="M832 120 H910" style="--d: 1.5s"></path>
+  <path class="edge" d="M832 140 H900 V170 H910"></path>
+  <path class="edge-pulse" d="M832 140 H900 V170 H910" style="--d: 1.8s"></path>
+  <!-- return pulses -->
+  <path class="edge-pulse" d="M600 150 H532" style="--d: 2.1s; opacity: 0.6"></path>
+  <path class="edge-pulse" d="M300 150 H232" style="--d: 2.6s; opacity: 0.6"></path>
+
+  <!-- edge labels -->
+  <text class="edge-label" x="266" y="104" text-anchor="middle">typed IPC</text>
+  <text class="edge-label" x="566" y="104" text-anchor="middle">JSONL · stdio</text>
+
+  <!-- Renderer -->
+  <rect class="node" x="20" y="60" width="212" height="120" rx="10"></rect>
+  <text class="node-title" x="40" y="94">Renderer · src/</text>
+  <text class="node-sub" x="40" y="118">React, sandboxed, no Node</text>
+  <text class="node-sub" x="40" y="138">contextIsolation · strict CSP</text>
+  <text class="node-sub" x="40" y="158">zustand stores = projections</text>
+
+  <!-- Main -->
+  <rect class="node" x="300" y="60" width="232" height="120" rx="10"></rect>
+  <text class="node-title" x="320" y="94">Main · electron/</text>
+  <text class="node-sub" x="320" y="118">session registry · pi client</text>
+  <text class="node-sub" x="320" y="138">fs · git · pty · updates</text>
+  <text class="node-sub" x="320" y="158">owns every side effect</text>
+
+  <!-- pi -->
+  <rect class="node node--accent" x="600" y="60" width="232" height="120" rx="10"></rect>
+  <text class="node-title" x="620" y="94">pi --mode rpc</text>
+  <text class="node-sub" x="620" y="118">one subprocess per session</text>
+  <text class="node-sub" x="620" y="138">agent loop · tools · session file</text>
+  <text class="node-sub" x="620" y="158">+ 6 Phosphor extensions (-e)</text>
+
+  <!-- right column -->
+  <rect class="node" x="910" y="50" width="110" height="40" rx="8"></rect>
+  <text class="node-sub" x="965" y="75" text-anchor="middle" style="fill: var(--px-text)">providers</text>
+  <rect class="node" x="910" y="100" width="110" height="40" rx="8"></rect>
+  <text class="node-sub" x="965" y="125" text-anchor="middle" style="fill: var(--px-text)">MCP servers</text>
+  <rect class="node" x="910" y="150" width="110" height="40" rx="8"></rect>
+  <text class="node-sub" x="965" y="175" text-anchor="middle" style="fill: var(--px-text)">your files</text>
+
+  <!-- ~/.pi -->
+  <path class="edge" d="M716 180 V226" stroke-dasharray="3 5"></path>
+  <rect class="node" x="560" y="226" width="312" height="60" rx="10"></rect>
+  <text class="node-sub" x="716" y="251" text-anchor="middle" style="fill: var(--px-text)">~/.pi</text>
+  <text class="node-sub" x="716" y="271" text-anchor="middle"
+    >sessions · models · auth · mcp.json · skills</text
+  >
+
+  <!-- footer note -->
+  <text class="node-sub" x="20" y="300"
+    >shared/rpc.ts mirrors pi's protocol with compile-time drift guards — Phosphor never imports pi's code.</text
+  >
+</svg>

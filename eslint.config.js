@@ -11,6 +11,9 @@ export default tseslint.config(
       '.claude/**',
       '.phosphor/**',
       '.pidex/**',
+      'site/.astro/**',
+      'site/dist/**',
+      'site/shots-raw/**',
       '**/*.cjs',
     ],
   },
@@ -42,7 +45,7 @@ export default tseslint.config(
   },
   {
     // Maintainer scripts run under plain Node (no tsconfig project).
-    files: ['scripts/**/*.mjs'],
+    files: ['scripts/**/*.mjs', 'site/scripts/**/*.mjs'],
     languageOptions: {
       globals: {
         console: 'readonly',

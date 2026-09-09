@@ -1,0 +1,59 @@
+---
+import PhosphorMark from './PhosphorMark.astro'
+import { GITHUB, RELEASES, PI_NPM, PI_CLAUDE_CLI } from '../lib/content'
+const year = new Date().getFullYear()
+---
+
+<footer class="band band--sunken">
+  <div class="mx-auto grid max-w-7xl gap-10 px-4 py-14 md:grid-cols-[1.4fr_1fr_1fr_1fr] md:px-6">
+    <div>
+      <a href="/" class="flex items-center gap-2.5" aria-label="Phosphor home">
+        <PhosphorMark size={32} animated={false} />
+        <span class="font-mono text-[15px] font-semibold text-text">Phosphor</span>
+      </a>
+      <p class="lede mt-4 max-w-sm text-sm">
+        The pi coding agent, extended into a desktop IDE for macOS, Linux and Windows. Your models,
+        your keys, your files — on your own machine.
+      </p>
+      <p class="eyebrow mt-6">2 · 8 · 5 — element 15, the one that glows in air</p>
+    </div>
+    <div>
+      <h3 class="eyebrow mb-4">Project</h3>
+      <ul class="space-y-2 text-sm text-text-secondary">
+        <li><a class="hover:text-text" href={GITHUB} target="_blank" rel="noopener noreferrer">GitHub</a></li>
+        <li><a class="hover:text-text" href={RELEASES} target="_blank" rel="noopener noreferrer">Releases</a></li>
+        <li>
+          <a class="hover:text-text" href={`${GITHUB}/blob/main/docs/README.md`} target="_blank" rel="noopener noreferrer">Documentation</a>
+        </li>
+        <li>
+          <a class="hover:text-text" href={`${GITHUB}/issues`} target="_blank" rel="noopener noreferrer">Issues</a>
+        </li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="eyebrow mb-4">Built on</h3>
+      <ul class="space-y-2 text-sm text-text-secondary">
+        <li><a class="hover:text-text" href={PI_NPM} target="_blank" rel="noopener noreferrer">pi coding agent</a></li>
+        <li><a class="hover:text-text" href={PI_CLAUDE_CLI} target="_blank" rel="noopener noreferrer">pi-claude-cli</a></li>
+        <li><a class="hover:text-text" href="https://pi.dev/packages" target="_blank" rel="noopener noreferrer">pi packages</a></li>
+        <li><a class="hover:text-text" href="https://modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">Model Context Protocol</a></li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="eyebrow mb-4">On this page</h3>
+      <ul class="space-y-2 text-sm text-text-secondary">
+        <li><a class="hover:text-text" href="#providers">Providers</a></li>
+        <li><a class="hover:text-text" href="#gateway">Gateway</a></li>
+        <li><a class="hover:text-text" href="#workbench">Workbench</a></li>
+        <li><a class="hover:text-text" href="#how-it-works">How it works</a></li>
+        <li><a class="hover:text-text" href="#install">Install</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="border-t border-border">
+    <div class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-5 md:px-6">
+      <p class="eyebrow">MIT license · © {year} saccolabs</p>
+      <p class="eyebrow">Every screenshot is the real app against a real pi</p>
+    </div>
+  </div>
+</footer>

@@ -14,3 +14,8 @@ build/*.png
 specs/screenshots/
 src/features/chat/__fixtures__/
 package-lock.json
+site/.astro/
+site/dist/
+site/shots-raw/
+site/src/assets/shots/
+site/public/fonts/

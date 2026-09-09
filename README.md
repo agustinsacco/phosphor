@@ -10,6 +10,7 @@
 extended into a desktop IDE for macOS, Linux and Windows — the most advanced
 multi-provider agentic IDE you can run on your own machine.**
 
+[![Website](https://img.shields.io/badge/phosphor.saccolabs.com-eca03d?label=web&labelColor=1e1c18)](https://phosphor.saccolabs.com)
 [![CI](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml/badge.svg)](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/agustinsacco/Phosphor?label=release&color=ffbe5c)](https://github.com/agustinsacco/Phosphor/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/agustinsacco/Phosphor/total?label=downloads)](https://github.com/agustinsacco/Phosphor/releases)
@@ -385,6 +386,9 @@ scripts/             install.sh, icon + screenshot generation, release and
 docs/                how Phosphor works now; docs/log dated history;
                      docs/specs deferred work — see docs/README.md
 docs/img/            the screenshots above (assets, not documentation)
+site/                phosphor.saccolabs.com — the Astro landing page and its
+                     nginx image (site/README.md)
+.infra/phosphor-site/  the k3s manifests the Deploy Site workflow applies
 ```
 
 The main process owns all side effects. The renderer runs with

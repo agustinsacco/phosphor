@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: phosphor-site
+  namespace: phosphor
+  labels:
+    app: phosphor-site
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 180
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: phosphor-site
+  template:
+    metadata:
+      labels:
+        app: phosphor-site
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: phosphor-site
+          # The workflow rewrites this tag to the pushed image's digest before
+          # applying, so a rollout is pinned to exactly what was built.
+          image: saccodigital/phosphor-site:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 5015
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
+            - name: runtime
+              mountPath: /tmp
+          resources:
+            limits:
+              memory: 128Mi
+              cpu: 500m
+            requests:
+              memory: 64Mi
+              cpu: 100m
+      imagePullSecrets:
+        - name: docker-registry-key
+      volumes:
+        - name: nginx-cache
+          emptyDir: {}
+        - name: runtime
+          emptyDir: {}

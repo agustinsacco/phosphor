@@ -9,3 +9,5 @@ out/
 playwright-report/
 release/
 test-results/
+site/.astro/
+site/shots-raw/

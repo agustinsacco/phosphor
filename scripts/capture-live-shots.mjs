@@ -32,13 +32,20 @@
 import { mkdir, writeFile } from 'node:fs/promises'
 import { Buffer } from 'node:buffer'
 import { statSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { _electron as electron } from 'playwright'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
-const outDir = join(repoRoot, 'docs', 'img')
+/**
+ * Where the shots land and how wide they are. The README reads 1440px PNGs
+ * out of docs/img; the landing site (site/) wants the same captures at the
+ * display's native scale, so it sets OUT_DIR and MAX_WIDTH=0 (keep the
+ * device-scale original).
+ */
+const outDir = process.env.OUT_DIR ? resolve(process.env.OUT_DIR) : join(repoRoot, 'docs', 'img')
+const maxWidth = Number(process.env.MAX_WIDTH ?? 1440)
 
 const workspace = process.env.WORKSPACE ?? join(process.env.HOME ?? '', 'phosphor')
 /**
@@ -127,10 +134,12 @@ async function main() {
       return win.capturePage().then((image) => image.toDataURL())
     })
     await writeFile(path, Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64'))
-    try {
-      execFileSync('sips', ['-Z', '1440', path, '--out', path], { stdio: 'ignore' })
-    } catch {
-      // no sips (non-macOS): keep the device-scale original
+    if (maxWidth > 0) {
+      try {
+        execFileSync('sips', ['-Z', String(maxWidth), path, '--out', path], { stdio: 'ignore' })
+      } catch {
+        // no sips (non-macOS): keep the device-scale original
+      }
     }
     shots.push(name)
     console.log(`  ✓ ${name}.png (${Math.round(statSync(path).size / 1024)} KB)`)
@@ -306,7 +315,7 @@ async function main() {
     await page.getByRole('button', { name: 'Accounts', exact: true }).click()
     await settle(page)
     await shot('accounts')
-    await page.getByRole('button', { name: 'Connectors', exact: true }).click()
+    await page.getByRole('button', { name: 'MCP Connectors', exact: true }).click()
     await settle(page)
     await shot('connectors')
 

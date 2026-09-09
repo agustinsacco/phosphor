@@ -1,0 +1,139 @@
+name: Deploy Site
+
+# phosphor.saccolabs.com. Same pipeline as tars.saccolabs.com: build the
+# Astro site into an nginx image, push it by commit SHA, then apply the
+# kustomization with the image pinned to the pushed DIGEST and wait for the
+# rollout. `latest` is published for discovery only; it is never what runs.
+#
+# Needs four repository secrets (the same four tars uses):
+#   DOCKER_HUB_USER / DOCKER_HUB_PASSWORD  push to docker.io/saccodigital
+#   TS_AUTH_KEY                            Tailscale auth key tagged tag:ci
+#   ULTRON_KUBE_CONFIG                     base64 kubeconfig for the k3s cluster
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.infra/phosphor-site/**'
+      - '.github/workflows/deploy-site.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phosphor-site-production
+  cancel-in-progress: true
+
+env:
+  IMAGE_NAME: saccodigital/phosphor-site
+  KUBECTL_VERSION: v1.30.3
+
+jobs:
+  build-and-deploy:
+    name: Build immutable image and deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: site-production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKER_HUB_USER }}
+          password: ${{ secrets.DOCKER_HUB_PASSWORD }}
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: ./site
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Connect to deployment network
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TS_AUTH_KEY }}
+          tags: tag:ci
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v5
+        with:
+          version: ${{ env.KUBECTL_VERSION }}
+
+      - name: Configure Kubernetes credentials
+        env:
+          KUBE_CONFIG_BASE64: ${{ secrets.ULTRON_KUBE_CONFIG }}
+        run: |
+          install -d -m 700 "$RUNNER_TEMP/phosphor-kube"
+          printf '%s' "$KUBE_CONFIG_BASE64" | base64 --decode > "$RUNNER_TEMP/phosphor-kube/config"
+          chmod 600 "$RUNNER_TEMP/phosphor-kube/config"
+          echo "KUBECONFIG=$RUNNER_TEMP/phosphor-kube/config" >> "$GITHUB_ENV"
+
+      - name: Apply and verify deployment
+        env:
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          kubectl create namespace phosphor --dry-run=client -o yaml | kubectl apply -f -
+          # The image is public, so the pull secret only matters for Docker Hub's
+          # anonymous rate limit. Copy tars's across once if it exists; a missing
+          # imagePullSecret is a warning event, not a failed pull.
+          if ! kubectl get secret docker-registry-key -n phosphor >/dev/null 2>&1; then
+            if kubectl get secret docker-registry-key -n tars >/dev/null 2>&1; then
+              kubectl get secret docker-registry-key -n tars -o json \
+                | jq 'del(.metadata.namespace, .metadata.uid, .metadata.resourceVersion, .metadata.creationTimestamp, .metadata.managedFields)' \
+                | kubectl apply -n phosphor -f -
+            else
+              echo "::warning::no docker-registry-key in namespace tars; pulling anonymously"
+            fi
+          fi
+          kubectl kustomize .infra/phosphor-site > "$RUNNER_TEMP/phosphor-site.yaml"
+          sed -i "s#image: ${IMAGE_NAME}:latest#image: ${IMAGE_NAME}@${IMAGE_DIGEST}#" "$RUNNER_TEMP/phosphor-site.yaml"
+          grep -Fq "image: ${IMAGE_NAME}@${IMAGE_DIGEST}" "$RUNNER_TEMP/phosphor-site.yaml"
+          kubectl apply -f "$RUNNER_TEMP/phosphor-site.yaml"
+          kubectl rollout status deployment/phosphor-site -n phosphor --timeout=180s
+
+      - name: Wait for the Service address
+        run: |
+          set -euo pipefail
+          # k3s servicelb gives a LoadBalancer Service the node's IP once the
+          # port is free on the node. Pending here means a port collision, which
+          # `rollout status` above cannot see — the pods are fine, the site is
+          # just unreachable. Fail loudly instead of reporting a green deploy.
+          for _ in $(seq 1 18); do
+            ip=$(kubectl get svc phosphor-site -n phosphor -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+            if [ -n "$ip" ]; then
+              echo "phosphor-site is serving on http://${ip}:5015 — route phosphor.saccolabs.com there at the edge"
+              echo "SITE_ADDR=http://${ip}:5015" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::Service phosphor-site has no LoadBalancer address after 90s — is port 5015 already bound on the node?"
+          kubectl get svc -A -o wide
+          kubectl describe svc phosphor-site -n phosphor
+          exit 1
+
+      - name: Smoke the served page
+        run: |
+          # Best effort: servicelb hands out the node's LAN address, which the
+          # runner may not reach over the tailnet. nginx in the pod is what the
+          # readiness probe already proved; this only confirms the node port.
+          if curl -fsS --max-time 10 "$SITE_ADDR/" | grep -q '<title>'; then
+            echo "GET $SITE_ADDR/ returned the page"
+          else
+            echo "::warning::could not fetch $SITE_ADDR/ from the runner; check from inside the network"
+          fi
+          kubectl get pods,svc -n phosphor -o wide
