@@ -130,8 +130,9 @@ node site/scripts/social.mjs
 
 ## Deployment
 
-The existing `Dockerfile`, `nginx.conf` and `.infra/phosphor-site/` manifests
-remain unchanged from the original deployment: same namespace, immutable image
+The Docker builder now runs Astro check before building, in an isolated context
+without the repository root's dependencies. `nginx.conf` and
+`.infra/phosphor-site/` remain unchanged from the original deployment: same namespace, immutable image
 digest, port 5015, unprivileged nginx, read-only root filesystem, probes,
 resource limits and rollout verification. No second Service or hostname is created.
 

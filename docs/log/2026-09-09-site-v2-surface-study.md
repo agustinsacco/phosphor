@@ -39,7 +39,7 @@ own native tools, authenticated subscription and persistent process.
 
 Promotion restores `site/**` as the workflow trigger and `./site` as the Docker
 context. The separate `site_v2/` directory and duplicate CI matrix are removed;
-the original page remains in Git history. Dockerfile, nginx config and
+the original page remains in Git history. The nginx runtime and
 `.infra/phosphor-site/` remain the same, so the existing
 `phosphor.saccolabs.com` edge route still reaches the same Service on port 5015.
 The screenshot importer again reads raw captures, not another site's directory,
@@ -55,3 +55,9 @@ dropped: the page, immutable CSS, font license and social image returned
 successfully. The raw-capture importer was checked for WebP conversion and
 byte-identical IDE PNG preservation. The Electron app and its IPC/session
 behavior are unchanged.
+
+CI exposed a missing site-local `@types/node` dependency: local Astro checks
+silently resolved it from the root install. Added the Node 22 types explicitly
+and made the Docker builder check before building. Reproduced the four errors
+in a standalone `/tmp` checkout; after the fix, its clean install, Astro check,
+build and all 25 browser tests (`CI=1`) passed, as did the isolated Docker build.

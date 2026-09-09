@@ -7,7 +7,8 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+# Check in this isolated context too: root devDependencies must not mask omissions.
+RUN npm run check && npm run build
 
 # Stage 2: serve it with nginx, as an unprivileged user on a read-only root
 FROM nginx:alpine
