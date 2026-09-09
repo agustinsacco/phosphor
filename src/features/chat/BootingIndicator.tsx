@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useChatStore } from '@/stores/chat'
-import { PiSpark } from '@/components/PiSpark'
+import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { BOOT_PHRASE_MS, bootPhrase } from './bootPhrases'
 
 /**
@@ -45,7 +45,7 @@ export function BootingIndicator({ sessionId }: { sessionId: string }): React.JS
   return (
     <div className="mx-auto w-full max-w-3xl px-1 pb-2" data-testid="booting-indicator">
       <div className="text-text-secondary flex items-center gap-2 px-2 text-base">
-        <PiSpark size={14} />
+        <PhosphorLoader decorative />
         {/* Re-keyed so a new phrase fades in rather than swapping mid-word. */}
         <span key={phrase} className="name-enter truncate">
           {phrase}

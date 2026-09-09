@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useChatStore } from '@/stores/chat'
-import { PiSpark } from '@/components/PiSpark'
+import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { formatDuration, formatTokens } from '@/lib/format'
 import { buildTranscriptRows, trailingUnfinishedAgents } from './items/transcriptRows'
 
@@ -79,9 +79,10 @@ export function WorkingIndicator({ sessionId }: { sessionId: string }): React.JS
   if (!isStreaming || !agentStartedAt) return null
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-1 pb-2">
+    <div className="mx-auto w-full max-w-3xl px-1 pb-2" data-testid="working-indicator">
       <div className="text-text-secondary flex items-center gap-2 px-2 text-base">
-        <PiSpark size={14} />
+        <PhosphorLoader decorative />
+        <span className="text-text font-medium">Working</span>
         <span className="tabular-nums">{formatDuration(elapsedMs)}</span>
         {totalTokens != null && (
           <>

@@ -31,7 +31,7 @@ import {
   SearchIcon,
   Spinner,
 } from '@/components/icons'
-import { PiSpark } from '@/components/PiSpark'
+import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { TreeViewModal } from './TreeViewModal'
 import { LaneSearchBar } from './LaneSearchBar'
 import { laneHaystack, laneMatches, laneQueryTerms, type LaneSearchFields } from './laneSearch'
@@ -1427,24 +1427,19 @@ function SessionRow({
   }
 
   const subtitle = sessionSubtitle(meta, git)
-  const indicatorState =
-    isStreaming || booting ? 'streaming' : unseen ? 'unseen' : livePhosphorId ? 'live' : 'disk'
+  const activity = isStreaming ? 'working' : booting ? 'starting' : undefined
+  const indicatorState = activity
+    ? 'streaming'
+    : unseen
+      ? 'unseen'
+      : livePhosphorId
+        ? 'live'
+        : 'disk'
 
   const rowClassName = clsx(
-    'group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors',
-    // Active = the row on screen, and a plain fill is the whole signal.
-    //
-    // This used to be a 2px accent rail plus a `bg-bg-secondary` fill, because
-    // that fill was invisible in light mode — `--px-bg-secondary` sits on the
-    // *lighter* side of the sidebar ground. The rail was a workaround, and on
-    // a `rounded-lg` row it followed the corner radius and rendered as an
-    // amber crescent down the left edge rather than a straight line.
-    //
-    // Fixed at the token instead: `sidebar-active` / `sidebar-hover` move away
-    // from the sidebar in whichever direction the theme needs. The fill alone
-    // is then legible in both modes, so the rail is gone, the radius is a
-    // step squarer, and the left edge is flush again. State (live, streaming,
-    // unseen) stays the indicator dot's job — see SessionIndicator.
+    'lane-row group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors',
+    // Selection stays a neutral fill. Working gets a separate inset rail,
+    // beacon and explicit label, even when the lane is not the active one.
     active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover',
     selected && 'bg-accent-soft',
   )
@@ -1466,7 +1461,7 @@ function SessionRow({
             onToggleSelect(event.shiftKey)
           }}
           className={clsx(
-            'grid size-4 shrink-0 place-items-center rounded-[4px] border text-2xs',
+            'grid size-5 shrink-0 place-items-center rounded-[4px] border text-2xs',
             selected
               ? 'bg-accent border-accent text-accent-text'
               : 'border-border-strong bg-surface',
@@ -1526,7 +1521,7 @@ function SessionRow({
               suspended
             </span>
           )}
-          <SubtitleSegments segments={subtitle} />
+          <SubtitleSegments segments={subtitle} activity={activity} />
           {showChip && <PrBadge pr={pullRequest ?? null} />}
         </span>
       </span>
@@ -1568,7 +1563,12 @@ function SessionRow({
   if (renaming) {
     return (
       <>
-        <div data-testid="session-row" data-workspace={rowWorkspaceName} className={rowClassName}>
+        <div
+          data-testid="session-row"
+          data-workspace={rowWorkspaceName}
+          data-activity={activity}
+          className={rowClassName}
+        >
           {body}
         </div>
         {markerPicker}
@@ -1584,6 +1584,7 @@ function SessionRow({
         onDoubleClick={beginRename}
         data-testid="session-row"
         data-workspace={rowWorkspaceName}
+        data-activity={activity}
         title={meta.branchCount > 0 ? `${meta.branchCount + 1} branches` : undefined}
         className={rowClassName}
       >
@@ -1661,6 +1662,7 @@ function PendingSessionRow({
 }): React.JSX.Element {
   const isStreaming = useChatStore((s) => s.sessions[phosphorId]?.isStreaming ?? false)
   const booting = useSessionBooting(phosphorId)
+  const activity = isStreaming ? 'working' : booting ? 'starting' : undefined
   const firstUserText = useChatStore(
     (s) => s.sessions[phosphorId]?.items.find((item) => item.kind === 'user')?.text,
   )
@@ -1706,7 +1708,7 @@ function PendingSessionRow({
   }
 
   const className = clsx(
-    'group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors',
+    'lane-row group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors',
     // Same treatment as SessionRow — see the comment there. It must match
     // exactly: this row is replaced by a real SessionRow the moment the
     // session file lands, and any difference reads as the row twitching.
@@ -1715,7 +1717,7 @@ function PendingSessionRow({
 
   const body = (
     <>
-      <SessionIndicator state={isStreaming || booting ? 'streaming' : 'live'} />
+      <SessionIndicator state={activity ? 'streaming' : 'live'} />
       {markerMode !== 'off' && <LaneMarker marker={marker} />}
       <span className="min-w-0 flex-1">
         {renaming ? (
@@ -1751,7 +1753,7 @@ function PendingSessionRow({
             active ? 'text-text' : 'text-text-secondary',
           )}
         >
-          <SubtitleSegments segments={subtitle} />
+          <SubtitleSegments segments={subtitle} activity={activity} />
         </span>
       </span>
     </>
@@ -1762,7 +1764,12 @@ function PendingSessionRow({
   // button, not the field.
   if (renaming) {
     return (
-      <div data-testid="session-row" data-pending="true" className={className}>
+      <div
+        data-testid="session-row"
+        data-pending="true"
+        data-activity={activity}
+        className={className}
+      >
         {body}
       </div>
     )
@@ -1775,6 +1782,7 @@ function PendingSessionRow({
       onDoubleClick={beginRename}
       data-testid="session-row"
       data-pending="true"
+      data-activity={activity}
       className={className}
     >
       {body}
@@ -1789,12 +1797,19 @@ function PendingSessionRow({
  * because a live session swaps from the second to the first mid-turn and the
  * swap has to be invisible. They had drifted into two different subtitles.
  */
-function SubtitleSegments({ segments }: { segments: SubtitleSegment[] }): React.JSX.Element {
+function SubtitleSegments({
+  segments,
+  activity,
+}: {
+  segments: SubtitleSegment[]
+  activity?: 'starting' | 'working'
+}): React.JSX.Element {
   return (
     <>
       {segments.map((segment, i) => (
         <span
           key={segment.key}
+          data-segment={segment.key}
           className={clsx(
             'flex items-center',
             // The branch is the only segment allowed to give up space.
@@ -1806,7 +1821,11 @@ function SubtitleSegments({ segments }: { segments: SubtitleSegment[] }): React.
           )}
         >
           {i > 0 && <span className="pr-1">·</span>}
-          {segment.key === 'worktree' ? (
+          {segment.key === 'time' && activity ? (
+            <span className="lane-activity-label" title={`Last activity: ${segment.text}`}>
+              {activity === 'starting' ? 'Starting' : 'Working'}
+            </span>
+          ) : segment.key === 'worktree' ? (
             <span
               className="bg-chip text-text-secondary rounded px-1 font-medium"
               title="Runs in a git worktree"
@@ -1841,10 +1860,10 @@ function SessionIndicator({
     <span
       data-testid="session-indicator"
       data-state={state}
-      className="flex h-4 w-4 shrink-0 items-center justify-center"
+      className="flex size-5 shrink-0 items-center justify-center"
     >
       {state === 'streaming' ? (
-        <PiSpark size={13} />
+        <PhosphorLoader size={20} decorative />
       ) : state === 'unseen' ? (
         <span className="bg-success h-2 w-2 rounded-full" title="New activity" />
       ) : state === 'live' ? (

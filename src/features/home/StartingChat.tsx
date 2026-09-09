@@ -1,4 +1,4 @@
-import { PiSpark } from '@/components/PiSpark'
+import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { ChatImage } from '@/features/chat/ChatImage'
 import { UserText } from '@/features/chat/UserText'
 import type { StartingChat as StartingChatState } from '@/stores/startingChat'
@@ -56,8 +56,8 @@ export function StartingChat({ starting }: { starting: StartingChatState }): Rea
         showed anyone.
       */}
       <div className="flex items-center justify-center gap-2 pb-8 pt-4">
-        <PiSpark size={14} />
-        <span className="text-text-tertiary text-base" data-testid="starting-chat-phase">
+        <PhosphorLoader decorative />
+        <span className="text-text-secondary text-base" data-testid="starting-chat-phase">
           {starting.phase === 'branching' ? 'Creating branch…' : 'Starting session…'}
         </span>
       </div>

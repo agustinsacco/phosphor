@@ -223,7 +223,7 @@ export function ChangesIcon({ size = 14, className }: IconProps): React.JSX.Elem
  * The orchestrator: one node coordinating three others.
  *
  * Deliberately not a spark. `✳` was doing double duty — it is the "pi is
- * working" mark (see `PiSpark`, and the activity rows in `ActivityGroup`), so
+ * working" mark (see `PhosphorLoader`, and the activity rows in `ActivityGroup`), so
  * the orchestrator's *identity* and every session's *busy state* were the same
  * glyph, and the header button swapped between the two renderings of it. A
  * hub-and-spoke says what this thread actually is: the one that manages the
