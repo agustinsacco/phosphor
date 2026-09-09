@@ -158,6 +158,13 @@ export interface IpcInvokeMap {
    * main process, or the caller has no dependency to re-stage on.
    */
   'artifacts:stageHtml': { args: [html: string, theme: 'light' | 'dark']; result: string }
+  /** Export an artifact's preview render to a single-page PDF saved to Downloads. */
+  'artifacts:exportPdf': {
+    args: [
+      { content: string; type: string; title: string; language?: string; theme?: 'light' | 'dark' },
+    ]
+    result: { savedTo: string } | null
+  }
   'app:setPinnedSessions': { args: [string[]]; result: void }
   /** Explicit lane-marker choices, keyed by session file path. */
   'app:setLaneMarkers': { args: [Record<string, string>]; result: void }
