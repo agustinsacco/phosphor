@@ -51,7 +51,12 @@ function bundledExtensionPath(file: string): string {
  * worktree-paths (refuses a file read that has escaped into the main
  * checkout of a worktree session), tool-name-guard (keeps a malformed
  * tool call out of the session file, where it would brick every later turn),
- * and mcp-status (per-server MCP state for the connectors UI).
+ * mcp-status (per-server MCP state for the connectors UI), and headroom
+ * (compresses large tool results through the local Headroom proxy as they
+ * are produced; inert unless PHOSPHOR_HEADROOM_URL is set at spawn).
+ *
+ * All six files in pi-ext/ are listed here — keep this comment and the array
+ * in step, since nothing else records why a given one is loaded.
  */
 function bundledExtensions(): string[] {
   return [

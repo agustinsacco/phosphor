@@ -61,7 +61,7 @@ cannot break — and because nothing but tool output ever crosses the socket.
 - **Fail open twice.** 3 s timeout on `ctx.signal`, plus a circuit breaker —
   upstream's own `HeadroomContextEngine` has one. Far inside `HANDOFF_WAIT_MS`
   (30 min), the ceiling on a blocked Claude CLI handoff.
-- **Say so.** Cumulative savings on `ctx.ui.setStatus` under `Phosphor-headroom`,
+- **Say so.** Cumulative savings on `ctx.ui.setStatus` under `phosphor-headroom`,
   rendered in the context meter. Also needs `STRUCTURED_STATUS_KEYS`.
 - **No `headroom_retrieve` tool.** No hashes exist on this path, so it could
   only ever error.

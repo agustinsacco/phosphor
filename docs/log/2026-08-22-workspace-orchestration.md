@@ -2,8 +2,14 @@
 
 **2026-08-22.** The home screen was a greeting and every session was an island:
 "what is everything doing right now?" was answered by clicking through the
-sidebar. This lands the design in [13-orchestration.md](../orchestration.md)
-— three layers, strictly ordered by cost.
+sidebar. This lands the design in `13-orchestration.md` — three layers,
+strictly ordered by cost.
+
+> **All of it was removed on 2026-09-03** — the orchestrator, the fleet hub,
+> and the design doc — see
+> [remove-orchestration](2026-09-03-remove-orchestration.md). Nothing described
+> below is current behaviour; the home screen that survived is the lane board.
+> Kept because the removal only makes sense against what it removed.
 
 ## What shipped
 

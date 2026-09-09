@@ -18,11 +18,19 @@ it lands or is abandoned. It is expected to be untidy in a way `docs/` is not.
 
 ## backlog/
 
+Six files, all re-verified against the code on 2026-09-09:
 [perf-findings.md](backlog/perf-findings.md) (memory and CPU on the streaming
-path), [cleanup-plan.md](backlog/cleanup-plan.md) (duplication and dead code),
-and [connectors.md](backlog/connectors.md) (OAuth MCP connectors). All are
-per-finding status tables, not prose backlogs — a finding is only closed when
-its row says so. See [backlog/README.md](backlog/README.md).
+path), [mid-turn-loss-2026-08-30.md](backlog/mid-turn-loss-2026-08-30.md) (an
+exit discards the in-flight turn), [tool-call-ui.md](backlog/tool-call-ui.md)
+(tool and MCP row rendering),
+[ai-workbench-review-2026-09-05.md](backlog/ai-workbench-review-2026-09-05.md)
+(trust, recovery and delivery), [cleanup-plan.md](backlog/cleanup-plan.md)
+(duplication and dead code), and
+[phosphor-refinement-2026-09-05.md](backlog/phosphor-refinement-2026-09-05.md)
+(visual direction). All but the last are per-finding status tables, not prose
+backlogs — a finding is only closed when its row says so.
+See [backlog/README.md](backlog/README.md), whose index carries the current
+open counts and the list of files deleted at zero.
 
 ## build/
 

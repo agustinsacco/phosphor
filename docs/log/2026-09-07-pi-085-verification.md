@@ -57,7 +57,7 @@ so it costs a few cents and stays out of `validate` and out of CI. All green:
 - `get_session_stats` populated end to end, including `contextUsage`
   (`{tokens: 36170, contextWindow: 200000, percent: 18.085}`).
 - All three extension-fed UI surfaces reported in on the status channel:
-  `Phosphor-context-breakdown`, `Phosphor-mcp-status`, `mcp` (bundled extensions)
+  `phosphor-context-breakdown`, `phosphor-mcp-status`, `mcp` (bundled extensions)
   plus `claude-rate-limit` and `claude-subagents` (the provider package).
 
 `entry_appended`, `session_info_changed` and `thinking_level_changed` are

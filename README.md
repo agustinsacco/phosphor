@@ -368,9 +368,10 @@ shared/              types and pure logic shared by main + renderer
   models.ts          model catalogue and shared app types
 src/                 renderer (React) — pure UI over typed IPC
   app/               shell: App, TopBar, workspace picker, global shortcuts
-  features/          one folder per surface: chat, sessions, files, terminal,
-                     artifacts, settings, home, worktrees, workspaces,
-                     palette, updates, connectors, extension-ui
+  features/          one folder per surface (14): chat, sessions, files,
+                     terminal, artifacts, settings, home, worktrees,
+                     workspaces, palette, updates, connectors, extension-ui,
+                     skills
   components/        cross-feature primitives (Modal, PopupMenu, form, icons,
                      markdown renderers)
   stores/            zustand stores — projections of main-process state

@@ -35,7 +35,7 @@ Start with [overview.md](overview.md) for what Phosphor is, or
 | [extensions.md](extensions.md)                 | The bundled pi extensions; provider transcript shapes                         |
 | [cli-providers.md](cli-providers.md)           | Running sessions on external CLI providers (Claude Code)                      |
 
-## Two rules that keep this workable
+## Three rules that keep this workable
 
 1. **One fact, one home.** If a doc here and anything else disagree, this
    folder is right and the other file gets fixed or deleted. The exception is
@@ -45,6 +45,13 @@ Start with [overview.md](overview.md) for what Phosphor is, or
    Specs drifting from code is this repo's recurring failure mode — see
    [log/2026-08-29-phosphor-light-palette-reconcile.md](log/2026-08-29-phosphor-light-palette-reconcile.md)
    for what nineteen days of drift cost.
+3. **A rename is not a review.** Every file here was rewritten by the
+   2026-09-08 pidex→Phosphor pass, and that pass was a find-and-replace: it
+   touched the exact lines that were wrong and left every one of them wrong,
+   which made the whole folder read as freshly maintained. Thirty false claims
+   survived it, and it corrupted three status-channel keys that are literals.
+   A doc whose last commit was a rename has not been verified. If you are
+   sweeping this folder mechanically, read what you are editing.
 
 ## Note on paths
 

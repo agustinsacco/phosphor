@@ -3,9 +3,27 @@
 **Assessment and proposal, not shipped behavior.** Reviewed 2026-09-05 at
 `ae57ae3d4ac826da83585815419109a7c2b23801`. Priorities are design judgments;
 observations, code-traced risks, and untested hypotheses are distinguished below.
-No application behavior changes accompany this review. Follow-through:
-[typography, session polish and richer input](session-polish-pr-2026-09-05.md#implementation-and-evidence)
-are implemented in open PRs #194–#199; the broader workbench remains proposed.
+No application behavior changes accompany this review.
+
+> **Status re-verified 2026-09-09** against the code, finding by finding:
+> **10 of 12 still reproduce**, including all five P1 trust-and-recovery items
+> (R1–R5) and R12. Two moved:
+>
+> - **R6 fixed** by #187 — `src/stores/layout.ts` gained a nullable `page`, and
+>   `src/app/App.tsx` renders Skills/Artifacts as an overlay independent of
+>   `activeSessionId`, so opening one on an empty Home no longer leaves Home
+>   with no pane and no longer needs a session to exist.
+> - **R7 half fixed.** The Changes row is now a real `<button>` with an
+>   `aria-label` and a named back action (#195). The other half is untouched:
+>   `src/components/Modal.tsx` still has no `role="dialog"`, no `aria-modal`,
+>   no focus trap and no focus restoration, and the Settings close button has
+>   no accessible name. Its cited line in `FilesChangedPane.tsx` is stale.
+>
+> The typography and session-polish follow-through shipped as #194–#199 (all
+> merged) — its plan doc was deleted on 2026-09-09 once every item in it was
+> verified landed. Note that **the two-line lane title in that stack was
+> deliberately reverted** by #204; the style guide now codifies one truncated
+> line. The broader workbench below remains proposed.
 
 ## Recommendation
 

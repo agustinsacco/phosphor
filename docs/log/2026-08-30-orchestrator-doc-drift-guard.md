@@ -1,7 +1,7 @@
 # The orchestrator tool table is now a test, not a promise
 
 `specs/reference/orchestration.md` documents ten tools the orchestrator can
-call. An audit on 2026-08-30 ([spec-drift](../specs/backlog/spec-drift-2026-08-30.md))
+call. An audit on 2026-08-30 (`spec-drift-2026-08-30.md`, deleted 2026-09-09 at zero open findings)
 found **five of the ten rows had the wrong arguments**, including two tools
 documented as taking none that in fact require one, and one documented as
 taking a `DigestPayload` type that has never existed.

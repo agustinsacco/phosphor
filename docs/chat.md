@@ -16,7 +16,7 @@
 - **Drafts persist** ([2026-08-28-persisted-composer-drafts.md](log/2026-08-28-persisted-composer-drafts.md)). Text, pending attachments and the model a draft was composed against live in `src/stores/drafts.ts`, keyed `session:<sessionFilePath>` or `home:<workspacePath>`, and survive switching session (the composer subtree unmounts) and quitting. Image bytes go to `userData/drafts/` by blob id, never into prefs.
 - The model chip and the model menu have an explicit **loading** state; an empty list before the catalogue answers is never rendered as "no models configured" ([2026-08-28-model-catalogue-loading.md](log/2026-08-28-model-catalogue-loading.md)).
 - `!command` → RPC `bash` (output shown in chat, enters model context on next prompt). `!!command` → same with `excludeFromContext: true` and a "not sent to model" badge. Surface both in a composer hint.
-- `/` → command menu fed by `get_commands` (extension commands, prompt templates, `skill:*` — with source badges and descriptions) merged with Phosphor-native commands (new, fork, clone, compact, export, model, name, tree…). Sending an unknown `/x` still goes to pi as a prompt (pi expands templates/skills itself).
+- `/` → command menu fed by `get_commands` (extension commands, prompt templates, `skill:*` — with source badges and descriptions) merged with the Phosphor-native ones, of which there are exactly **three**: `/compact`, `/export`, `/name` (`nativeCommands` in `features/chat/Composer.tsx`). Everything else in that menu is pi's, so the list grows by installing an extension, not by editing Phosphor. Sending an unknown `/x` still goes to pi as a prompt (pi expands templates/skills itself).
 - Composer widget slots above/below for extension `setWidget`; `set_editor_text` prefills the input.
 
 ## Streaming rendering rules
@@ -31,8 +31,9 @@
 
 ## Message affordances
 
-- Copy message / copy as markdown; code blocks: copy, "open as file", "run in terminal", "open as artifact".
-- User messages: **fork from here** (`fork` entryId) and edit-and-refork.
+- Copy message: the raw markdown of the WHOLE turn, even from the pill on one prose block — that is what a reader means by "copy the answer" when a turn interleaves text with tool calls.
+- Code blocks carry exactly three hover actions (`components/markdown/CodeBlock.tsx`): **Open as artifact** (promotes the fence into a local artifact, typed from its language — html/svg/mermaid/chart/markdown, else `code`), **Run in terminal** — offered only for shell languages (`bash`, `sh`, `shell`, `zsh`, `console`, `terminal`, `fish`) and pasting without executing — and copy. (`CodeBlock` also takes an `actions` slot rendered ahead of them; no caller fills it today.)
+- User messages: **Rewind to here**, plus a branch button opening the multi-message rewind picker (Esc Esc). Both run pi's own `fork` RPC (`features/chat/rewind.ts`), and what that does is worth stating plainly: it branches the live session onto a **new session file** rooted just before that entry, and hands the original text back for the composer to edit and resend. The subprocess and the RPC connection carry on untouched, but `bootstrapSession` must re-run to relearn the new `sessionFile` — skip it and `live[sessionId].diskPath` still points at the abandoned pre-fork file, which reads in the sidebar as the chat having been duplicated. Attachments are restored from the transcript, not from pi: `fork` replies with text only, so the rendered message is the sole surviving copy of an image the user attached.
 - Error/abort stopReasons styled clearly (error banner with message; aborted = muted "stopped" divider).
 - Auto-retry: inline strip "Retrying (2/3) in 4s — <error>" with cancel (`abort_retry`).
 - Compaction: `compaction_start/end` render a system divider "Context compacted — N tokens summarized" (expandable summary). Branch summaries similar.
@@ -42,7 +43,7 @@
 | Tool               | Treatment                                                                                                                                                                                                                                                         |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `read`             | Collapsed file chip: path, line range, size; click opens the file in Files pane. Returned images render inline                                                                                                                                                    |
-| `bash`             | Terminal-styled block, streaming output, exit-code badge, duration; truncation notice links `fullOutputPath`                                                                                                                                                      |
+| `bash`             | Terminal-styled block, streaming output, exit-code badge, duration; truncation notice names `fullOutputPath` (text, not a link)                                                                                                                                   |
 | `edit`             | Proper diff from `details.diff`/`details.patch` — green/red gutters, collapsed beyond ~40 lines, header shows path + hunk stats, click opens file at `details.firstChangedLine`; feeds Files Changed panel ([05-files-editor.md](specs/build/05-files-editor.md)) |
 | `write`            | "Created/Overwrote <path>" chip + collapsible content preview (highlighted)                                                                                                                                                                                       |
 | `grep`/`find`/`ls` | Compact result lists, match counts, truncation notices; rows click through to files                                                                                                                                                                               |
@@ -79,13 +80,11 @@ unreadable still renders as a plain named step.
 
 ## Rich content (first-class citizens)
 
-- GFM: headings, tables (copy as markdown/CSV), task lists, blockquote callouts, footnotes, autolinks.
-- Code: Shiki/hljs, language badge, copy, line numbers on hover, horizontal scroll contained inside the block.
-- ```mermaid → rendered diagram; click for pan/zoom lightbox; export PNG/SVG; parse errors fall back to code with an error note.
-
-  ```
-- `vega-lite / `chart → theme-aware rendered chart; invalid spec falls back to code.
-- ```html → Code/Preview toggle; preview in sandboxed iframe (`sandbox` attr, no network, inlined content only).
+- GFM (`remark-gfm`): headings, tables (hover → Copy MD / Copy CSV), task lists, footnotes, autolinks, styled blockquotes — plain ones; GitHub's `[!NOTE]` callout syntax is not special-cased.
+- Code: Shiki, language badge, the three hover actions above, horizontal scroll contained inside the block. One highlighter singleton carries BOTH themes (`vitesse-light`/`vitesse-dark`) with `defaultColor: false`, so switching theme re-paints from CSS variables and never re-highlights; a language outside the core set is `loadLanguage`d on demand and falls back to plain text if Shiki has none (`components/markdown/highlighter.ts`).
+- ` ```mermaid ` → diagram rendered against the Phosphor palette (`theme: 'base'` + explicit `themeVariables`, `securityLevel: 'strict'`), re-rendered on theme change. Click opens a **lightbox** — a scrollable, full-width copy of the same SVG, dismissed by click or Escape. There is no pan/zoom control and no PNG/SVG export. A parse error falls back to the code block with the mermaid error printed under it.
+- ` ```chart ` (a Chart.js config: `{ type, data, options? }`) and ` ```vega-lite ` → theme-aware rendered chart; invalid JSON or a spec the engine rejects falls back to the code block with the error.
+- ` ```html ` → Code/Preview toggle. The preview is `<iframe sandbox="allow-scripts" src=…>` — **`src`, never `srcDoc`**, and that is load-bearing: a `srcdoc` document inherits the embedder's policy container, so `script-src 'self'` from `src/index.html` refuses every inline script and the sandbox attribute becomes a no-op (measured on Electron 43: interactive artifacts rendered as a page of empty boxes, with Chromium logging the refusal; `blob:`/`data:` inherit the same way). So the HTML is staged in main and **served** over `phosphor-artifact://` under its own `default-src 'none'` policy, which permits inline script/style and `data:`/`blob:` media but no `connect-src`, no remote images, no `form-action`. `allow-same-origin` is deliberately absent, which is what keeps the document's origin opaque and its `localStorage`/parent DOM a `SecurityError`. Net: the artifact gains scripting and loses all network reach. `components/SandboxedHtml.tsx`; the measured containment table lives in `electron/artifacts/artifact-protocol.ts`.
 - KaTeX for `$…$` / `$$…$$`.
 - Images in content blocks inline with click-to-zoom.
 - **Links split by what they point at** (`components/markdown/MarkdownLink.tsx`,
@@ -96,9 +95,14 @@ unreadable still renders as a plain named step.
   alone. A file link renders with no `href` at all, so no click can navigate
   the window away from the app. Other schemes (`mailto:`, custom) do nothing.
 
-## Session header / status strip (per session)
+## Session controls (per session)
 
-- Model picker (from `get_available_models`, grouped by provider — remember custom/local providers exist), thinking-level selector (off→xhigh, hidden if model lacks reasoning).
+Not a header strip: the model chip, thinking chip and context meter live in the
+**composer footer** (`Composer.tsx`, right of the attach button), and the
+session's ⋮ menu lives in the **top bar** (`app/TopBar.tsx` → `SessionMenu`).
+
+- Model picker (from `get_available_models`, grouped by **family** by default so every route to one model sits under one header — toggleable to provider grouping, with `provider:`/`id:`/`name:`/`is:` search qualifiers, starred and recent rows; remember custom/local providers exist).
+- Thinking-level selector: pi has **seven** levels — `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` (`ALL_THINKING_LEVELS`, ascending; the order is load-bearing because clamping walks it). Which ones a model offers is per-model, not universal: a non-reasoning model has only `off`, a `null` in its `thinkingLevelMap` marks a level explicitly unsupported, and `xhigh`/`max` are opt-in (absent means unsupported, whereas absent for `off…high` means "provider default", i.e. supported). A live session prefers pi's own `get_available_thinking_levels`; the home picker, which has no session to ask, derives the same answer from `shared/thinking.ts`. The chip is hidden unless the model has more than one level — a chip reading "No thinking" over a one-item menu is noise.
 - **Two owners, one chip.** `ModelPicker` drives a live session over RPC
   (`set_model`); `HomeModelPicker` has no process to talk to, so it reads and
   writes pi's own `defaultProvider` / `defaultModel` / `defaultThinkingLevel`.
@@ -108,7 +112,7 @@ unreadable still renders as a plain named step.
   both directions — see
   [docs/log/2026-09-07-composer-chip-dedup.md](log/2026-09-07-composer-chip-dedup.md).
 - Context meter: % of window from `get_session_stats` (poll after each `agent_end` + on demand); warn state near compaction threshold. Token/cost readout (input/output/cache split in a popover), plus the two sections below.
-- Controls: Stop (`abort`), Compact now (`compact`, optional custom instructions input), auto-compaction toggle, auto-retry toggle, steering/follow-up mode toggles ("all" vs "one-at-a-time"), rename session, export HTML (save dialog → `export_html` → reveal/open).
+- Stop (`abort`) is the composer's send button while a turn runs. Everything else is in the ⋮ menu (`SessionMenu.tsx`): Export HTML… (save dialog → `export_html` → reveal/open), Compact now… (prompts for optional custom instructions; blank = default), then auto-compaction, auto-retry and the two queue-mode rows (Steering / Follow-ups, each showing its current mode — "All at once" / "One at a time" — and cycling to the other in place). Toggles keep the menu open — they are settings you may flip two of, not commands that take you elsewhere. Renaming is `/name` or the sidebar row, not this menu.
 
 ### Streaming text is paced, not rendered per delta
 
@@ -144,8 +148,8 @@ keep them distinguishable, because they are not equally trustworthy.
 | Section                 | Source                                                         | Shown for                         |
 | ----------------------- | -------------------------------------------------------------- | --------------------------------- |
 | Tokens / cost           | `get_session_stats`                                            | every session                     |
-| Context composition     | `Phosphor-context-breakdown` status key (bundled extension)    | every session                     |
-| Optimization · Headroom | `Phosphor-headroom` status key (bundled extension)             | sessions that compressed a result |
+| Context composition     | `phosphor-context-breakdown` status key (bundled extension)    | every session                     |
+| Optimization · Headroom | `phosphor-headroom` status key (bundled extension)             | sessions that compressed a result |
 | Plan usage              | `claude:usageSnapshot` IPC — `claude -p /usage`, live percents | Claude Code provider sessions     |
 | Plan limits             | `claude-rate-limit` status key (provider ≥0.4.5)               | Claude Code provider sessions     |
 

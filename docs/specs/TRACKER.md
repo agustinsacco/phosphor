@@ -21,10 +21,16 @@ Numbered phases stop at P14. Work since then lives in [log/](../log) as one
 dated file per change — that is the current convention; do not open a P15
 without a reason to batch work into a phase again.
 
-**Still open** (the only unchecked boxes in this file):
+**Still open** (the only unchecked boxes in this file, re-verified 2026-09-09):
 
-- P11 — B6 cost honesty (`—` for an all-zero `ModelCost`, per-component rows).
-- P11 — phases 2–5 of the plan (type scale, ink-based grouping, CTA rows, `Notice`).
+- P11 — B6 cost honesty: per-component cost rows in the usage popover. The
+  all-zero `ModelCost` half shipped as the "no pricing configured" text.
+- P11 — phase 4: one hover-action component. Two implementations remain.
+- P11 — phase 5: a `Notice` primitive for `RetryStrip`, `banners.tsx` and
+  `RateLimitBanner` — three implementations, not the two recorded below.
+
+Phases 2 and 3 were ticked in this pass: both had shipped by other routes and
+nobody had reconciled the boxes.
 
 ---
 
@@ -87,23 +93,28 @@ actionable without it.
 - [x] B4 Floating right pane: `.pane-handle::after` transparent until hover/drag
 - [x] B5 Pane scrolling: `PaneShell` content slot is a flex column, so `flex-1` bodies constrain their scrollers
 - [x] Artifact tool UX: `ArtifactDetail` card (glyph/title/type/version, "Open in panel"), artifact-aware labels, live byte counter while content streams
-- [ ] B6 Cost honesty: `—` for all-zero `ModelCost`, per-component cost rows in the usage popover
-- [ ] Phases 2–5 of the plan — **status stale, re-verify before picking any of these up.** Parts appear to have shipped by other routes; see the inlined list below.
+- [x] Phase 2 — one type scale (delivered by the 2026-08-20 type-scale pass, without the proposed tokens)
+- [x] Phase 3 — consecutive tool rows group by ink (delivered by P13's `ActivityGroup`)
+- [ ] B6 Cost honesty: `—` for all-zero `ModelCost`, per-component cost rows in the usage popover. The "no pricing configured" half shipped; the per-component rows did not.
+- [ ] Phase 4 — the two hover-action implementations in `MessageItem.tsx` are still separate
+- [ ] Phase 5 — a `Notice` primitive for what is now **three** banner implementations
 
 ### Phases 2–5, inlined from the deleted plan
 
-Recorded verbatim in intent so the boxes above survive the plan's deletion. The
-**status column is what needs checking** — the surrounding work (the 2026-08-20
-type scale, P13's activity grouping, the ContextMeter pricing text) delivered
-some of this by different means than the plan proposed, and nobody reconciled
-the boxes.
+Recorded verbatim in intent so the boxes above survive the plan's deletion.
+**Re-verified against the code 2026-09-09** — phases 2 and 3 had in fact been
+delivered by other routes (the 2026-08-20 type scale, P13's activity grouping)
+and their boxes are now ticked; 4 and 5 are genuinely open, and 5 is bigger
+than the plan recorded.
 
-| Phase | Intent                                                                                                                                     | Apparent state (2026-08-27, unverified)                                                                                                                          |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2     | One type scale replacing hardcoded sizes; larger body text in less vertical space. Plan proposed `--px-fs-*` tokens.                       | **Delivered differently** — [the type scale](../log/2026-08-20-type-scale.md) replaced 424 sizes without those tokens.                                           |
-| 3     | Consecutive tool rows of one turn render as one block (gray label + emphasized object), grouping by ink rather than whitespace.            | **Likely delivered** by P13's turn-level `ActivityGroup`.                                                                                                        |
-| 4     | One `MessageActions` used by both user and assistant messages, always rendered, so turn rhythm stops alternating. Plus B3 session title.   | B3 is done. `MessageActions` was never built; P13 shipped a zero-height floating hover pill instead.                                                             |
-| 5     | A `<Notice tone level actions>` primitive replacing `CrashBanner` / `NoModelsBanner` / `RetryStrip` / the inline assistant error. Plus B6. | **Open.** `RetryStrip.tsx` and `banners.tsx` are still separate. B6's "no pricing configured" text exists in `ContextMeter`; the per-component cost rows do not. |
+| Phase | Intent                                                                                                                                     | Verified state (2026-09-09, read against the code)                                                                                                                                                  |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2     | One type scale replacing hardcoded sizes; larger body text in less vertical space. Plan proposed `--px-fs-*` tokens.                       | **Done, differently.** [The type scale](../log/2026-08-20-type-scale.md) replaced 424 sizes; the nine steps live as `@theme` entries in `src/styles/index.css`, not as `--px-fs-*`. Close it.       |
+| 3     | Consecutive tool rows of one turn render as one block (gray label + emphasized object), grouping by ink rather than whitespace.            | **Done.** P13's `items/ActivityGroup.tsx` + `items/transcriptRows.ts`, virtualized from `MessageList.tsx`. Close it.                                                                                |
+| 4     | One `MessageActions` used by both user and assistant messages, always rendered, so turn rhythm stops alternating. Plus B3 session title.   | **Open, and deliberately so.** B3 is done. `MessageActions` was never built — P13 shipped a zero-height floating hover pill instead, which is the better answer to the same problem. Two hover      |
+|       |                                                                                                                                            | implementations remain in `MessageItem.tsx`. Unify them or drop the box; do not build the plan's version.                                                                                           |
+| 5     | A `<Notice tone level actions>` primitive replacing `CrashBanner` / `NoModelsBanner` / `RetryStrip` / the inline assistant error. Plus B6. | **Open, and larger than written.** There are now **three** separate implementations, not two: `RetryStrip.tsx`, `banners.tsx` and `composer/RateLimitBanner.tsx`. B6's "no pricing configured" text |
+|       |                                                                                                                                            | exists in `ContextMeter`; the per-component cost rows do not.                                                                                                                                       |
 
 **Done when:** the plan's Phase 0 exit criteria hold in e2e and Phases 1–5 are either landed or explicitly deferred here.
 

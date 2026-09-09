@@ -17,7 +17,7 @@ The pieces that fill a context window — the composed system prompt, the
 active tool schemas — are assembled **inside pi** and are not reachable from
 the renderer through any RPC. So the measurement moved to where the data
 lives: `pi-ext/context-breakdown.ts`, a bundled extension loaded into every
-session, publishing a breakdown on the `Phosphor-context-breakdown` status key.
+session, publishing a breakdown on the `phosphor-context-breakdown` status key.
 
 Provider-agnostic by construction. It reads pi's own state, so it works
 identically for local models, native Anthropic and the Claude Code CLI —

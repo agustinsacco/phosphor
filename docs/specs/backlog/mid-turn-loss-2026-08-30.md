@@ -63,7 +63,28 @@ me", which is why the first diagnosis went looking at the provider.
 | M4  | `main.ts`'s "pi owns its session files and gets a SIGTERM to flush" comment is wrong for an in-flight turn and actively misleads.                                                                                            | Open   |
 | M5  | Contributing factor, not a Phosphor defect: the model held the turn open ~8 min in a blocking `until … sleep 20 … done` CI poll. Long polls inside a turn widen the loss window by orders of magnitude.                      | Open   |
 
-## The signal to guard on already exists
+## The signal to guard on already exists — **no longer true**
+
+> **Re-verified 2026-09-09: all five findings still reproduce exactly** (only
+> line numbers drifted — `main.ts:164` is now `:218` and `:243`), **but this
+> section and the Lane 1 steps below are moot.** `FleetHub`, `FleetPhase` and
+> `electron/orchestrator/fleet.ts` were all deleted on 2026-09-03 with the
+> [orchestration removal](../../log/2026-09-03-remove-orchestration.md). Its
+> replacement, `SessionRegistry` (`electron/pi/session-registry.ts`), tracks
+> only `{sessionId, workspacePath, client}` — no phase, no streaming state.
+>
+> So "No new tracking is needed" is now false, and Lane 1 step 1 has no file
+> to attach to. Whoever picks this up has to derive in-flight state fresh,
+> most likely from the pi event stream in
+> `electron/ipc/pi-session-handlers.ts`, which already sees `agent_start` and
+> `agent_end`. **The findings are still valid; the plan needs a rewrite before
+> it is actionable.**
+>
+> M4 also got worse rather than better: the wrong "SIGTERM lets pi flush its
+> session file" assumption has since been _copied_ into
+> `electron/pi/rpc-client.ts`, so there are now two places asserting it.
+
+The original reasoning, kept because it records why this looked cheap:
 
 `FleetHub` is started unconditionally for every session at
 `electron/ipc/pi-session-handlers.ts:218` — not orchestrator-only. Its

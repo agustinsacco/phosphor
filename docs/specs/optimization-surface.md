@@ -46,7 +46,7 @@ from cached scan data, pi-health style.
 
 The session altitude is one context-meter section (`Optimization · Headroom`:
 saved this session, last result, skipped-lossy, overhead) fed by the
-structured `Phosphor-headroom` status key — hidden when never pushed, exactly
+structured `phosphor-headroom` status key — hidden when never pushed, exactly
 like plan limits on non-Claude sessions.
 
 ## The Advisor

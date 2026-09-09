@@ -2,11 +2,16 @@
 
 2026-09-01
 
-Phases 2 and 3 of
-[specs/backlog/session-resource-management.md](../specs/backlog/session-resource-management.md),
-landing the same day as Phase 1
+Phases 2 and 3 of `specs/backlog/session-resource-management.md` (since deleted
+at zero open findings — `git show f6c90c9:docs/specs/backlog/perf-findings.md`
+carries the findings it drew from), landing the same day as Phase 1
 ([log](2026-09-01-session-scan-and-ipc-trims.md)). This half changes what the
 user sees; Phase 1 deliberately did not.
+
+**The reaper described below no longer exists.** It was deleted wholesale on
+2026-09-03 with the [orchestration removal](2026-09-03-remove-orchestration.md),
+which re-opened `perf-findings` F7. Read this entry as the record of why the
+reaper was built, not as current behaviour.
 
 ## The idle-session reaper (S1)
 

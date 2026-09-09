@@ -10,7 +10,7 @@ control, and the idle-session reaper that sat on top of the hub.
 
 Maintenance cost exceeded value. The design doc had 14 verified drift items
 against the code it described
-([specs/backlog/spec-drift-2026-08-30.md](../specs/backlog/spec-drift-2026-08-30.md)),
+(`specs/backlog/spec-drift-2026-08-30.md`, deleted 2026-09-09 at zero open findings),
 and the layer touched session spawn, IPC, the sidebar, the home screen and the
 settings modal — so every unrelated change had to reason about it.
 

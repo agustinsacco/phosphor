@@ -5,24 +5,45 @@ the `pi-claude-cli` provider. Measured against one real session
 (`01a0548d-9f3a-7f50-aa3f-d8e0d70071a9`, Claude provider, 163 unique bash
 calls).
 
-**Headline.** The row label is 64 characters and it is spent on setup. 96% of
-the session's bash calls are multi-line scripts and 94% open with `cd`, `echo`
-or a variable assignment, so the command that the row actually ran is past the
-truncation point. MCP is worse: every gateway call renders as `Used mcp`
-regardless of which of its nine modes ran.
+**Headline, as written 2026-09-01.** The row label is 64 characters and it is
+spent on setup. 96% of the session's bash calls are multi-line scripts and 94%
+open with `cd`, `echo` or a variable assignment, so the command that the row
+actually ran is past the truncation point. MCP is worse: every gateway call
+renders as `Used mcp` regardless of which of its nine modes ran.
+
+**Half of that headline is now obsolete.** The bash-truncation complaint (F1,
+F2) was fixed by `commandHeadline()`, which splits a script and labels the row
+by its operative line. The MCP half is exactly as true as the day it was
+written: F3, F5 and F6 are one untouched lane — nothing anywhere in
+`src/features/chat/` reads an MCP gateway call's mode.
 
 Status column is re-verified against the code, never inferred from this file.
 
-| #   | Finding                                                | Status as of 2026-09-01 |
-| --- | ------------------------------------------------------ | ----------------------- |
-| F1  | Multi-line scripts collapse to their setup line        | open                    |
-| F2  | `cd <ws>` strip only matches `&&`, not newline         | open                    |
-| F3  | Every MCP gateway call renders as `Used mcp`           | open                    |
-| F4  | A failed tool hides its arguments two clicks deep      | open                    |
-| F5  | Raw `mcp__server__tool` names leak into the label      | open                    |
-| F6  | `ToolSearch` rows show the machine query               | open                    |
-| F7  | Structured MCP chip degrades silently to prose         | open                    |
-| F8  | `mcp({})` fails on every Claude session (not Phosphor) | open — `pi-claude-cli`  |
+| #   | Finding                                                | Status as of 2026-09-09           |
+| --- | ------------------------------------------------------ | --------------------------------- |
+| F1  | Multi-line scripts collapse to their setup line        | **fixed** — `31426e6`             |
+| F2  | `cd <ws>` strip only matches `&&`, not newline         | **fixed** — `31426e6`             |
+| F3  | Every MCP gateway call renders as `Used mcp`           | open                              |
+| F4  | A failed tool hides its arguments two clicks deep      | open                              |
+| F5  | Raw `mcp__server__tool` names leak into the label      | open — **pinned by a test**       |
+| F6  | `ToolSearch` rows show the machine query               | open                              |
+| F7  | Structured MCP chip degrades silently to prose         | open                              |
+| F8  | `mcp({})` fails on every Claude session (not Phosphor) | **fixed** — `pi-claude-cli` 0.7.1 |
+
+Two notes on the resolved rows. F1/F2 landed together in `31426e6` ("Label bash
+rows by their operative line"), with the split behaviour locked by
+`toolSummaries.test.ts`; F2 stopped being separately fixable because the `cd`
+strip now runs after the split, so the separator no longer matters. F8 was
+never Phosphor's to fix and was fixed upstream — `event-bridge.ts` in
+`pi-claude-cli` 0.7.1 special-cases an empty `partialJson` on a `tool_use`
+block end, which is the `mcp({})` / `artifact_list()` case. A non-empty but
+unparseable payload still passes through raw, deliberately.
+
+**Before picking up F5, read its test.**
+`src/features/chat/items/claudeCliRendering.test.ts` asserts the raw
+`mcp__linear__save_issue` string reaches the label, so the current behaviour is
+pinned. Changing it means changing that assertion — decide the intent first
+rather than treating the test as an accident.
 
 ## F1 — Multi-line scripts collapse to their setup line
 

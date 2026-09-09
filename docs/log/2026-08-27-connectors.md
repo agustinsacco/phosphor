@@ -17,7 +17,10 @@ Two smaller things came with it. The session footer now shows MCP as a chip
 sentence. And the context meter attributes MCP schema cost **per server**,
 which is what makes "should I disable Datadog?" answerable.
 
-Plan and findings: [backlog/connectors.md](../specs/backlog/connectors.md). Live
+Plan and findings: `backlog/connectors.md`, deleted 2026-09-09 once six of its
+seven findings were verified fixed and the seventh — pi's RPC having no
+server→client cancel — was written up as a permanent rule in
+[docs/mcp.md](../mcp.md). Live
 contract: [reference/mcp.md](../mcp.md#connectors-settings--connectors).
 
 ## The decision that shaped everything: Phosphor holds nothing

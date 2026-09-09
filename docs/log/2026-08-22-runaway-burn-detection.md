@@ -47,7 +47,7 @@ polls `get_session_stats` on every completed sub-step of a turn, and dropped in
 elevated or runaway, and an explanatory line in the popover naming the rate, the
 output share, and the suggested action. Advisory only — it does not stop a turn.
 
-**`StatusStrip`** no longer renders `Phosphor-context-breakdown`. `setStatus` is
+**`StatusStrip`** no longer renders `phosphor-context-breakdown`. `setStatus` is
 pi's only channel for pushing extension state to the front-end, so it doubles as
 a data bus; the context-breakdown extension's JSON payload is meant for
 `ContextMeter` to parse, but the strip was also printing it raw at the bottom of

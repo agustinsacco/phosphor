@@ -13,27 +13,35 @@ Two claims made by comments in the codebase turned out to be **false**
 (F5, F6) and one turned out to be **true but obsolete** (F5's upstream
 counterpart). Those are listed first among the high-severity items.
 
-> **Status re-verified 2026-08-27** against the tree at `4c02e13`, finding by
+> **Status re-verified 2026-09-09** against the tree at `f6c90c9`, finding by
 > finding, by reading the cited code rather than trusting this document.
-> Result: **17 open, 1 fixed, 1 moot.** The audit is essentially unactioned —
-> treat the `open` rows as a live backlog, not as history.
+> Result: **13 open, 5 fixed, 1 moot.** Line numbers in the table below are
+> from the original audit and have drifted; the finding bodies name the
+> functions, which have not.
 >
-> - **F14 fixed.** `electron/fs/git-info.ts` now has a TTL cache plus in-flight
->   dedupe behind `git:infoBatch`, landed with the P12 sidebar work.
-> - **F15 moot.** Its cost was the floating monitor window, which no longer
->   exists. Push channels still fan out over `BrowserWindow.getAllWindows()`,
->   but there is no second window to pay for it.
+> Two of this file's own statuses were **wrong**, both in the direction that
+> costs the most — a live problem filed as solved:
 >
-> **2026-09-01** — F7, F8, F10, F16 and F17 fixed by the session resource
-> work (its S1/S5/S4/S2/S6), logs
-> [2026-09-01-session-scan-and-ipc-trims.md](../../log/2026-09-01-session-scan-and-ipc-trims.md)
-> and
-> [2026-09-01-session-reaper-and-live-stats.md](../../log/2026-09-01-session-reaper-and-live-stats.md).
+> - **F14 was never fixed.** The 2026-08-27 note credited the TTL cache plus
+>   in-flight dedupe on `gitInfoBatch`. F14 is about `gitInfo`, the sibling
+>   function, which is still uncached, still runs four `git` spawns, and is
+>   still what `git:info` and `BranchControl` call on every debounced
+>   `fs:changed`. Reverted to `open`.
+> - **F7 regressed.** It was genuinely fixed by the idle-session reaper
+>   (#146), and then the reaper was deleted wholesale with the orchestration
+>   removal on 2026-09-03 —
+>   [that log says so explicitly](../../log/2026-09-03-remove-orchestration.md).
+>   There is no automatic suspend, LRU or idle timeout today; the only
+>   `suspendSession` caller is the sidebar menu. Reverted to `open`.
+>
+> F5, F8, F10, F16 and F17 hold up as genuinely fixed. Everything still marked
+> `open` reproduces verbatim.
 >
 > Status values: `open` (reproduces today) · `fixed` (with the commit or file
 > that fixed it) · `moot` (the code it described is gone). Keep this column
 > current — a finding list with no status is what made this file 956 lines of
-> unknowns.
+> unknowns. And re-verify against the code, never against this header: both
+> errors above came from trusting a previous pass.
 
 > **2026-08-26** — the Usage view and the resource monitor were deleted (see
 > [log/2026-08-26-remove-usage-and-resources.md](../../log/2026-08-26-remove-usage-and-resources.md)).
@@ -53,14 +61,14 @@ counterpart). Those are listed first among the high-severity items.
 | F4  | open      | `summarizeTool` re-`JSON.parse`s the entire accumulated args on every delta (O(n²))                   | high | MEASURED 665 ms for one 488 KB `write`                                                              | `src/features/chat/tools/toolSummaries.ts:80`                                                                                                                    |
 | F5  | fixed     | `shared/rpc.ts` `message_update` mirrors a **pre-0.84.0** pi; all `partial` handling is dead code     | high | VERIFIED against pi 0.84.4 + its CHANGELOG + `docs/rpc.md`; see `specs/log/2026-08-28-pi-compat.md` | `shared/rpc.ts` header, `src/features/chat/toolIdentity.ts` (`revealedFromStart`), `reducer.ts` `toolcall_start`                                                 |
 | F6  | open      | `releaseWorkspace` — the documented fix for editor/Monaco retention — is **never called**             | high | VERIFIED: only callers are its own test                                                             | `src/stores/files.ts:197`                                                                                                                                        |
-| F7  | **fixed** | Live pi subprocesses are unbounded and only disposed by explicit user action                          | high | MEASURED 172 MB RSS for one _idle_ pi tree                                                          | `src/stores/sessions.ts:433-491`                                                                                                                                 |
+| F7  | open      | Live pi subprocesses are unbounded and only disposed by explicit user action                          | high | MEASURED 172 MB RSS for one _idle_ pi tree; **regressed** — reaper deleted with orchestration       | `src/stores/sessions.ts:433-491`                                                                                                                                 |
 | F8  | **fixed** | 28–49 `get_session_stats` RPC round trips per user turn; `usage` now arrives free on every delta      | med  | MEASURED against two real session files                                                             | `src/stores/sessions.ts:15-22,219-221`                                                                                                                           |
 | F9  | open      | `JsonlDecoder` is O(n²) when one record spans many stdout chunks                                      | med  | MEASURED 959 ms for a 15.3 MB record; fix 17.6 ms                                                   | `electron/pi/jsonl.ts:19-31`                                                                                                                                     |
 | F10 | **fixed** | `agent_end.messages` / `turn_end.toolResults` are serialized across IPC and then discarded            | med  | MEASURED 0.19–1.92 MB and 1–2 ms per run                                                            | `electron/ipc/pi-session-handlers.ts:95`, `src/features/chat/reducer.ts:82-112`                                                                                  |
 | F11 | open      | `message_end` fold is O(items + tools); pi emits one message per tool call ⇒ O(n²) per session        | med  | MEASURED 616 µs @4000 items / 2000 tools                                                            | `src/features/chat/reducer.ts:505,526`                                                                                                                           |
 | F12 | open      | `FilesChangedPane` re-derives every touched file (re-parsing every patch) on every tool delta         | med  | MEASURED 208–972 µs per recompute                                                                   | `src/features/files/FilesChangedPane.tsx:27-30`                                                                                                                  |
 | F13 | open      | Artifact `versions[]` grows unbounded, full content per version, duplicated with the tool payload     | med  | REASONED                                                                                            | `src/stores/artifacts.ts:109,122`                                                                                                                                |
-| F14 | **fixed** | `git:info` is uncached: 4 `git` spawns per debounced `fs:changed`                                     | med  | MEASURED 18 ms median on this repo                                                                  | `electron/ipc/git-handlers.ts:24`, `src/features/worktrees/BranchControl.tsx:38`                                                                                 |
+| F14 | open      | `git:info` is uncached: 4 `git` spawns per debounced `fs:changed`                                     | med  | MEASURED 18 ms median; the TTL cache is on `gitInfoBatch`, **not** on `gitInfo`                     | `electron/ipc/git-handlers.ts:24`, `src/features/worktrees/BranchControl.tsx:38`                                                                                 |
 | F15 | moot      | Every push channel broadcasts to **all** BrowserWindows, including the monitor float                  | med  | REASONED                                                                                            | `electron/pty/pty-manager.ts:189-193`, `electron/fs/workspace-watcher.ts:111-115`, `electron/pi/session-watcher.ts:26-30`, `electron/resources/monitor.ts:34-36` |
 | F16 | **fixed** | A renderer reload orphans every live pi; `pi:listLiveSessions` exists to fix this and is never called | med  | VERIFIED: zero renderer callers                                                                     | `electron/ipc/pi-session-handlers.ts:126`                                                                                                                        |
 | F17 | **fixed** | `metaCache` in the session scanner is unbounded and never evicts deleted files                        | low  | REASONED                                                                                            | `electron/pi/session-scanner.ts:28`                                                                                                                              |
@@ -784,15 +792,15 @@ channel.
 running — 172 MB each (F7) — with no renderer that knows its id, no push
 listener, and no path to `pi:disposeSession`.
 
-`pi:listLiveSessions` exists in `shared/ipc.ts:92` and is registered in
-`pi-session-handlers.ts:126` specifically to make reattachment possible. It has
-**zero renderer callers**. It is dead IPC surface that also happens to be the
-fix for a real leak.
+`pi:listLiveSessions` exists in `shared/ipc.ts` and is registered in
+`pi-session-handlers.ts` specifically to make reattachment possible. At the
+time of the audit it had **zero renderer callers** — dead IPC surface that
+also happened to be the fix for a real leak.
 
-**Fix.** On renderer boot, call `pi:listLiveSessions` and either reattach
-(re-register push handlers, re-hydrate via `get_messages`) or dispose the
-orphans. Disposing is the two-line version and stops the leak immediately;
-reattaching is the better product behaviour.
+**Fixed 2026-09-01.** `src/app/App.tsx` now invokes `pi:listLiveSessions` on
+boot and `adoptSession`s each orphan before resuming — the reattach option,
+not the dispose one. The paragraphs below record the original reasoning; the
+"zero renderer callers" claim above is history, not current state.
 
 **Risk: low** for the dispose-on-boot version, with one caveat: it must not run
 in a second window (the monitor float loads the same bundle with

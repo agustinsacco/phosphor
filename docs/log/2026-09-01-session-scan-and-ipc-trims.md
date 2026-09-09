@@ -2,8 +2,8 @@
 
 2026-09-01
 
-Phase 1 of
-[specs/backlog/session-resource-management.md](../specs/backlog/session-resource-management.md).
+Phase 1 of `specs/backlog/session-resource-management.md`, since deleted at zero
+open findings.
 Five changes, no behaviour change intended, all on the filesystem and IPC cost
 of managing pi sessions. The memory half of that plan (the idle-session reaper)
 is Phase 2 and is not in this change.

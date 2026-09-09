@@ -427,7 +427,32 @@ tolerate nulls, so the union costs nothing.
 
 ---
 
-## 5. What to build
+## 5. What shipped, and what is left to build
+
+**Shipped: pi's native subscription providers are surfaced in Phosphor.** This
+was Phase C of this plan, and it replaced the Codex CLI bridge an earlier
+draft proposed. Settings → **Accounts** (`tabs/AccountsTab.tsx`) lists the
+seven providers pi offers under "Sign in with an account" — `openai-codex`,
+`anthropic`, `github-copilot`, `kimi-for-coding` as subscriptions, then `xai`,
+`openrouter`, `radius` as per-token balances, sorted that way because a plan
+you already pay for is the point. Each row is a button, a browser tab, and a
+flip to "Signed in".
+
+The work turned out not to be pure plumbing after all. pi's `/login` is
+**TUI-only** — no `pi auth login`, no RPC auth command, and pi-ai's OAuth
+registry is not a public export — so `electron/pi/login-flow.ts` drives that
+TUI off-screen in a pty and parses its rendering into structured state
+(`pi:startLogin` / `pi:cancelLogin`, progress on the `pi:loginState`
+broadcast). Two sign-in shapes had to be handled and the first cut only knew
+one: device code (xAI) hands the user a code, while loopback redirect
+(Anthropic) has no code at all because pi runs its own callback server — that
+version hung forever on Anthropic. `pi:loginTerminal` survives as the escape
+hatch for a provider whose prompts the driver does not recognise, which is
+what a hand-written parser for someone else's TUI is always one release away
+from. The provider list itself is hand-curated in `electron/pi/auth-status.ts`
+for the same reason, with every id verified against `pi auth check --provider`.
+
+There is no Phase C below; what follows is what is still to build.
 
 **Phase A — extract the kit.** Pull the CLI-agnostic half out of
 `pi-claude-cli` into `@saccolabs/pi-cli-bridge`: process lifecycle, orphan
@@ -436,20 +461,18 @@ the account registry, the status-key publisher. `pi-claude-cli` becomes a
 thin adapter over it and must stay byte-identical in behaviour — its
 existing tests are the acceptance criteria.
 
-**Phase B — multi-account, on the kit.** The already-planned round-robin,
-built once in the kit rather than in the Claude adapter, over the two account
-shapes in §4.2. The policy prefers an account whose window is not exhausted,
-using the `resetsAt` the sideband already reports. Phosphor gets a generic
-Accounts panel driven by the provider's declared capabilities, not a
-Claude-specific one.
-
-**Phase C — surface pi's native subscription providers in Phosphor.** This
-replaces the Codex CLI bridge that an earlier draft of this spec proposed.
-The work is UI and plumbing, not protocol: expose `openai-codex` (and the
-other OAuth providers pi already ships) in the provider picker, drive
-`/login` from a settings panel instead of the terminal, show which account is
-signed in, and surface plan state where pi exposes it. Far less code than a
-bridge and it lights up ChatGPT, Copilot and Anthropic OAuth together.
+**Phase B — multi-account, on the kit.** Round-robin over several accounts is
+no longer hypothetical: it shipped for Claude, in **Phosphor main**, not in the
+kit and not in the adapter (`claude:accounts / setRouting / bindSession`,
+modes `specific | ordered | round-robin`, with cooldowns keyed off the
+window each account was last seen to exhaust). That is the thing to
+generalise, and its shape is the argument for doing so — the routing table,
+the per-session binding that keeps a resumed thread on the account that
+warmed its prompt cache, and the cooldown bookkeeping are all
+provider-agnostic ideas currently spelled `claude*`. Phase B is to lift them
+over the two account shapes in §4.2 and drive a generic Accounts panel from
+the provider's declared capabilities, so the second CLI-backed provider does
+not re-implement any of it.
 
 **Not planned: `pi-codex-cli`.** A previous version of this document proposed
 one. §3d is the reason it is not here. The subscription is already reachable
@@ -465,8 +488,12 @@ describes subscription usage rather than a credit pool. Cheap now, and the
 alternative is discovering it from a user report.
 
 **Open questions.** Whether pi's native `openai-codex` provider surfaces plan
-limits at all, or whether that section stays empty for ChatGPT sessions the
-way it would have under a bridge. Whether pi's auth store supports more than
+limits at all. Building Accounts answered half of it: `pi auth check --json`
+reports readiness and, for a token that says so, an account email — nothing
+about a plan, for any provider. So the ChatGPT row today shows identity and
+readiness only, exactly the empty section a bridge would also have left in
+exec mode (§3a). Whether the numbers are reachable some other way is untested.
+Whether pi's auth store supports more than
 one credential per provider, which decides whether Phase B's second account
 shape is implementable without an upstream change. (Answered for the _Claude_
 provider on 2026-09-04: it does not need pi's auth store at all —

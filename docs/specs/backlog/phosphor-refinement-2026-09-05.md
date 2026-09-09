@@ -1,10 +1,21 @@
 # Phosphor refinement
 
-**Visual/UX proposal, not shipped behavior.** Companion to the
+**Visual/UX proposal, mostly not shipped.** Companion to the
 [engineering workbench review](ai-workbench-review-2026-09-05.md), assessed
-2026-09-05. This assessment remains docs-only; the approved subset is implemented
-in the [#194–#199 stack](session-polish-pr-2026-09-05.md#implementation-and-evidence),
-awaiting merge. The rest remains a proposal.
+2026-09-05.
+
+> **Re-verified 2026-09-09.** The approved subset shipped as #194–#199 (all
+> merged): fonts bundled locally, the composer/Changes role migration, tabular
+> numerals, reduced-motion. **The majority of this document did not ship and is
+> still worth reading** — the density preference, surface roles, reading width,
+> Home starters, layout presets, Settings type sample and sidebar
+> attention-ordering are all untouched.
+>
+> Three things in it are now actively misleading, corrected in place below:
+> the Typography section's claim that no font files are bundled (they are);
+> the proposed type scale, which was **not** adopted — the shipped work moved
+> _roles_ onto the existing 9–28 px steps instead; and the two-line lane
+> title, which shipped in #196 and was **deliberately reverted** in #204.
 
 ## Direction
 
@@ -26,12 +37,21 @@ headings and negative tracking in small UI copy. Retain mono for paths, code and
 occasional structural labels, not every badge or button. Use tabular numbers for
 costs/counters; make code ligatures optional, off by default for diffs.
 
-The current [CSS](../../../src/styles/index.css) declares both faces, but a repo
-search found no bundled UI font files, `@font-face`, font-CDN links or font-loading
-dependency. [Appearance](../../../src/features/settings/tabs/AppearanceTab.tsx)
-offers named mono fonts without checking availability. Installed fonts can render;
-otherwise the declared stack falls back. This is not a measurement of the font
-actually rendered on each user's machine. KaTeX's dependency fonts are unrelated.
+**This paragraph described the tree at `ae57ae3` and no longer holds — the
+delivery half shipped in #194.** Four faces are bundled under
+`src/assets/fonts/` with their OFL notices, registered through the `FontFace`
+API in `src/lib/fonts.ts` (not `@font-face`, which is why a naive repo search
+still turns up nothing) behind a 1500 ms deadline that falls back rather than
+blocking startup. Appearance now discloses "JetBrains Mono is bundled. Other
+choices use installed fonts" — honest labelling, but still not an availability
+probe, so the last sentence of the original finding stands:
+
+> The current [CSS](../../../src/styles/index.css) declares both faces, but a repo
+> search found no bundled UI font files, `@font-face`, font-CDN links or font-loading
+> dependency. [Appearance](../../../src/features/settings/tabs/AppearanceTab.tsx)
+> offers named mono fonts without checking availability. Installed fonts can render;
+> otherwise the declared stack falls back. This is not a measurement of the font
+> actually rendered on each user's machine. KaTeX's dependency fonts are unrelated.
 
 Bundle the selected families locally with their license notices; retain system
 and script fallbacks. Do not introduce a runtime CDN dependency or require users
@@ -39,6 +59,13 @@ to install the advertised default font. Validate actual rendered glyph sources,
 not only the CSS family string. See [Inter](https://github.com/rsms/inter#readme)
 and [JetBrains Mono](https://www.jetbrains.com/lp/mono/) for official font sources
 and SIL Open Font License terms.
+
+**Not adopted.** The scale below was never taken up. #196 delivered the intent
+by a different route: it moved _roles_ onto the existing 9–28 px steps in
+[the style guide](../../style-guide.md) — controls to 13.5 px, metadata to
+12.5 px — rather than restating the scale. Lane titles are 13.5 px, not the
+18–20 px proposed here. Kept as the original argument for why the roles needed
+separating at all.
 
 | Role                          | Proposed default at 100% zoom    |
 | ----------------------------- | -------------------------------- |
@@ -60,8 +87,13 @@ separately: compact changes padding/row height, not legibility or font size.
   raised interaction/overlay. Keep existing palette tokens; reduce redundant nested
   borders and cards rather than invent more backgrounds. Keep the 6/10/14 px radius
   family and restrained depth; no glass, neon gradients or oversized in-app heroes.
-- **One dominant title and next action.** Let long lane titles use two lines before
-  truncating. Use one useful status per row; move branch/cost/routing to secondary
+- **One dominant title and next action.** ~~Let long lane titles use two lines
+  before truncating.~~ **Tried and rejected** — two-line titles shipped in #196
+  and were reverted in #204; the sidebar is back to one truncated line, and
+  [the style guide](../../style-guide.md) now codifies that as the rule. The
+  density cost outweighed the extra characters. Do not re-propose this without
+  reading [the density log](../../log/2026-09-06-composer-density.md).
+  Use one useful status per row; move branch/cost/routing to secondary
   details. Keep personalization optional and status independent of emoji.
 - **Readable, not washed out.** Essential status uses secondary or primary ink.
   Existing tertiary/page contrast is 2.74:1 light and 3.77:1 dark, below normal-text
@@ -97,7 +129,10 @@ separately: compact changes padding/row height, not legibility or font size.
 
 ## First implementation slices and verification
 
-For the bounded next PR, see [Readable sessions and diffs](session-polish-pr-2026-09-05.md).
+The bounded next PR was `session-polish-pr-2026-09-05.md`. It shipped in full as
+#194–#199 and the file was deleted on 2026-09-09 at zero open items; its six
+dated write-ups are in [the log](../../log/), starting with
+[bundled fonts](../../log/2026-09-05-bundled-fonts.md).
 
 1. Bundle/verify fonts, correct important low-contrast copy, migrate typography by
    role. Check fallback scripts, glyph ambiguity, offline startup and license files.

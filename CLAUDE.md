@@ -194,13 +194,17 @@ you want to watch.
     request (`Member must satisfy regular expression pattern: [a-zA-Z0-9_-]+`),
     bricking the thread permanently. The guard turns it into plain text.
     See [docs/log/2026-08-26-orchestrator-controls.md](docs/log/2026-08-26-orchestrator-controls.md).
-- **Three UI surfaces are fed by extensions, not by RPC.** The context meter's
+- **Five UI surfaces are fed by extensions, not by RPC.** The context meter's
   composition section comes from `pi-ext/context-breakdown.ts` (bundled, `-e`
-  into every session), its plan-limits section from the Claude provider
-  package, and per-server MCP state from `pi-ext/mcp-status.ts` — all over
-  `ctx.ui.setStatus` into `stores/extensionUi.ts`. The provider one crosses a
-  repo boundary, so nothing here fails to compile when it
-  changes; the keys and their rules are in
+  into every session), per-server MCP state from `pi-ext/mcp-status.ts`, and
+  headroom/compression state from `pi-ext/headroom.ts`; its plan-limits
+  section and the sub-agent chip come from the Claude provider package. All
+  arrive over `ctx.ui.setStatus` into `stores/extensionUi.ts`. **The status
+  keys are lowercase `phosphor-*` / `claude-*` string literals, unchecked on
+  both sides** — a capitalising find-and-replace over the docs silently broke
+  them once (fixed 2026-09-09). The two `claude-*` keys cross a repo boundary,
+  so nothing here fails to compile when they change; the keys and their rules
+  are in
   [docs/extensions.md](docs/extensions.md#the-status-channel-is-a-wire-contract).
   Component sizes in that breakdown are estimates and must stay labelled as
   such — only pi's total is authoritative.
