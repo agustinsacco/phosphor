@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import type { PiHealth } from '@shared/models'
-import { useSettingsStore } from '@/stores/settings'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useStartingChatStore } from '@/stores/startingChat'
 import { useSessionsStore } from '@/stores/sessions'
 import { useActivePanes, useLayoutStore } from '@/stores/layout'
 import { PiMissingScreen } from './PiMissingScreen'
+import { LoadingScreen } from './LoadingScreen'
 import { GettingStartedScreen } from './GettingStartedScreen'
 import { WorkspacePicker } from './WorkspacePicker'
 import { ChatView } from '@/features/chat/ChatView'
@@ -43,20 +43,39 @@ export function App(): React.JSX.Element {
   )
 
   const [restoring, setRestoring] = useState(true)
+  const [initialDataReady, setInitialDataReady] = useState(false)
+  const [sidebarReady, setSidebarReady] = useState(false)
+  const [startupComplete, setStartupComplete] = useState(false)
+  const [startupError, setStartupError] = useState<string | null>(null)
   const [showGettingStarted, setShowGettingStarted] = useState(false)
 
+  const checkHealth = (): void => {
+    setStartupError(null)
+    setHealth(null)
+    void window.phosphor
+      .invoke('pi:health')
+      .then(setHealth)
+      .catch(() => {
+        setStartupError('Couldn’t check your pi installation.')
+      })
+  }
+
   useEffect(() => {
-    void useSettingsStore.getState().hydrate()
-    void useWorkspacesStore.getState().hydrate()
-    void useWorktreesStore.getState().hydratePrefs()
+    void Promise.allSettled([
+      useWorkspacesStore.getState().hydrate(),
+      useWorktreesStore.getState().hydratePrefs(),
+      useDraftsStore.getState().hydrate(),
+    ]).then((results) => {
+      if (results.some((result) => result.status === 'rejected')) {
+        setStartupError('Couldn’t load your workspace preferences.')
+      }
+      setInitialDataReady(true)
+    })
     // Preload the model catalogue: it spawns a pi process, so paying for it
     // now means the first picker open is instant instead of showing an empty
     // list that reads as "nothing configured".
     void useModelCatalogueStore.getState().hydrate()
-    // Restores unsent drafts (text, pasted images, the model each was
-    // composed against) and runs the launch-time draft GC.
-    void useDraftsStore.getState().hydrate()
-    void window.phosphor.invoke('pi:health').then(setHealth)
+    checkHealth()
   }, [])
 
   // Terminal busy-map broadcast → store (drives header badges + tab dots).
@@ -113,6 +132,8 @@ export function App(): React.JSX.Element {
             .getState()
             .createSession(target.workspacePath, { sessionPath: target.sessionPath })
         }
+      } catch {
+        if (!cancelled) setStartupError('Couldn’t restore your last session.')
       } finally {
         if (!cancelled) setRestoring(false)
       }
@@ -123,7 +144,36 @@ export function App(): React.JSX.Element {
     }
   }, [health?.ok])
 
-  useGlobalShortcuts()
+  // One launch-only latch: sidebar refreshes and later session switches must
+  // never bring back the full-window screen. Keep the shell mounted beneath
+  // it so Sidebar can finish its initial discovery/scan without a deadlock.
+  useEffect(() => {
+    if (
+      health?.ok &&
+      initialDataReady &&
+      !restoring &&
+      (!currentWorkspace || !sidebarVisible || sidebarReady)
+    ) {
+      setStartupComplete(true)
+    }
+  }, [health?.ok, initialDataReady, restoring, currentWorkspace, sidebarVisible, sidebarReady])
+
+  const loading = !startupComplete || startupError !== null
+  useGlobalShortcuts(!loading)
+  const loadingScreen = (
+    <LoadingScreen
+      message={
+        health === null
+          ? 'Checking pi installation…'
+          : restoring
+            ? 'Restoring your workspace…'
+            : 'Loading your sessions…'
+      }
+      error={startupError ?? undefined}
+      onRetry={() => window.location.reload()}
+      onContinue={health?.ok ? () => setStartupError(null) : undefined}
+    />
+  )
 
   // Window title: workspace · session.
   useEffect(() => {
@@ -134,21 +184,14 @@ export function App(): React.JSX.Element {
   }, [currentWorkspace, currentWorkspaceGit])
 
   if (health === null) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-text-tertiary animate-pulse text-lg">Checking pi installation…</div>
-      </div>
-    )
+    return loadingScreen
   }
 
   if (!health.ok) {
     return (
       <PiMissingScreen
         health={health}
-        onRetry={() => {
-          setHealth(null)
-          void window.phosphor.invoke('pi:health').then(setHealth)
-        }}
+        onRetry={checkHealth}
         onInstalled={() => setShowGettingStarted(true)}
       />
     )
@@ -159,16 +202,8 @@ export function App(): React.JSX.Element {
     return <GettingStartedScreen onDone={() => setShowGettingStarted(false)} />
   }
 
-  // Hold the picker back until the restore attempt settles, otherwise it
-  // flashes for a frame before the previous session loads.
   if (!currentWorkspace) {
-    if (restoring) {
-      return (
-        <div className="flex h-full items-center justify-center">
-          <div className="text-text-tertiary animate-pulse text-lg">Restoring your session…</div>
-        </div>
-      )
-    }
+    if (loading) return loadingScreen
     return <WorkspacePicker piVersion={health.version} />
   }
 
@@ -177,12 +212,20 @@ export function App(): React.JSX.Element {
     // sidebar/chat/pane columns. That is what keeps the OS window-control
     // inset a single concern (see TopBar) instead of something each column
     // that can reach the right edge has to remember.
-    <div className="flex h-full flex-col">
-      <TopBar workspacePath={currentWorkspace} />
-      <div className="flex min-h-0 flex-1">
-        {sidebarVisible && <Sidebar workspacePath={currentWorkspace} />}
-        <main className="relative min-w-0 flex-1">
-          {/*
+    <>
+      <div
+        className="flex h-full flex-col"
+        inert={loading}
+        style={loading ? { visibility: 'hidden' } : undefined}
+        data-testid="app-shell"
+      >
+        <TopBar workspacePath={currentWorkspace} />
+        <div className="flex min-h-0 flex-1">
+          {sidebarVisible && (
+            <Sidebar workspacePath={currentWorkspace} onInitialReady={setSidebarReady} />
+          )}
+          <main className="relative min-w-0 flex-1">
+            {/*
             Three states, in priority order. `starting` sits between the other
             two on purpose: it covers the window where a chat has been sent but
             `activeSessionId` is still null, which used to fall through to the
@@ -191,14 +234,14 @@ export function App(): React.JSX.Element {
             re-rendered for an empty folder ("Start your first session in
             hey-2") for a beat before the chat replaced it.
           */}
-          {activeSessionId ? (
-            <MainWithPanes workspacePath={currentWorkspace} activeSessionId={activeSessionId} />
-          ) : starting ? (
-            <StartingChat starting={starting} />
-          ) : (
-            <WorkspaceHome workspacePath={currentWorkspace} />
-          )}
-          {/*
+            {activeSessionId ? (
+              <MainWithPanes workspacePath={currentWorkspace} activeSessionId={activeSessionId} />
+            ) : starting ? (
+              <StartingChat starting={starting} />
+            ) : (
+              <WorkspaceHome workspacePath={currentWorkspace} />
+            )}
+            {/*
             Global pages cover the main region as an overlay, like an expanded
             pane (z-20 inside MainWithPanes) but one level up and one z higher.
             Overlay rather than a fourth main state so the session underneath
@@ -206,25 +249,27 @@ export function App(): React.JSX.Element {
             was. Sidebar and top bar stay reachable; session activation closes
             the page (stores/sessions.ts activate).
           */}
-          {page && (
-            <div data-testid="global-page" className="bg-bg absolute inset-0 z-30">
-              {page === 'skills' ? (
-                <SkillsPage workspacePath={currentWorkspace} />
-              ) : (
-                <ArtifactsPage />
-              )}
-            </div>
-          )}
-        </main>
+            {page && (
+              <div data-testid="global-page" className="bg-bg absolute inset-0 z-30">
+                {page === 'skills' ? (
+                  <SkillsPage workspacePath={currentWorkspace} />
+                ) : (
+                  <ArtifactsPage />
+                )}
+              </div>
+            )}
+          </main>
+        </div>
+        <FuzzyFinder workspacePath={currentWorkspace} />
+        <ContextMenuHost />
+        <ExtensionDialogHost />
+        <PromptHost />
+        <ToastHost />
+        <CommandPalette workspacePath={currentWorkspace} />
+        <SettingsModal />
       </div>
-      <FuzzyFinder workspacePath={currentWorkspace} />
-      <ContextMenuHost />
-      <ExtensionDialogHost />
-      <PromptHost />
-      <ToastHost />
-      <CommandPalette workspacePath={currentWorkspace} />
-      <SettingsModal />
-    </div>
+      {loading && loadingScreen}
+    </>
   )
 }
 

@@ -37,6 +37,7 @@ function resolve(theme: ThemePreference): 'light' | 'dark' {
 
 function applyToDom(resolved: 'light' | 'dark'): void {
   document.documentElement.classList.toggle('dark', resolved === 'dark')
+  document.documentElement.style.colorScheme = resolved
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => {
@@ -51,8 +52,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
 
   return {
     // Dark is the default (matches DEFAULT_APP_PREFS). A stored preference
-    // replaces this on hydrate, so this only decides the first launch and the
-    // pre-hydrate paint.
+    // replaces this on hydrate; preload applies the saved appearance to the
+    // document before hydration, so these defaults do not decide first paint.
     theme: 'dark',
     resolvedTheme: resolve('dark'),
     hideThinkingBlock: false,

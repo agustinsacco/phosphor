@@ -9,6 +9,9 @@ import type {
   ConnectorAuthPush,
 } from '@shared/models'
 import type { RpcCommand } from '@shared/rpc'
+import { applyStartupAppearance } from './startup-appearance'
+
+applyStartupAppearance(process.argv)
 
 /**
  * Listen on a push channel until the returned function is called.

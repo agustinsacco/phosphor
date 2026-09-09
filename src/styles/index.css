@@ -1,6 +1,76 @@
 @import 'tailwindcss';
 @import 'katex/dist/katex.min.css';
 
+/* Opaque, full-window startup surface. Uses the same tokens as the app so
+   saved light/dark/system appearance carries through without a palette swap. */
+.startup-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: var(--px-bg);
+  color: var(--px-text);
+}
+
+.startup-mark {
+  display: grid;
+  place-items: center;
+  width: 6rem;
+  height: 6rem;
+  border: 1px solid var(--px-border);
+  border-radius: 1.75rem;
+  background: radial-gradient(circle, var(--px-accent-soft), var(--px-bg) 75%);
+}
+
+.startup-progress {
+  width: min(10rem, 100%);
+  height: 2px;
+  overflow: hidden;
+  border-radius: 1rem;
+  background: var(--px-border);
+}
+
+.startup-progress::after {
+  content: '';
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: var(--px-accent);
+  animation: startup-progress 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes startup-progress {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(150%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .startup-progress::after {
+    animation: none;
+  }
+}
+
+.startup-action {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--px-border-strong);
+  border-radius: var(--px-radius);
+  background: var(--px-surface);
+  cursor: pointer;
+}
+
+.startup-action:hover {
+  background: var(--px-bg-secondary);
+}
+.startup-action:focus-visible {
+  outline: 2px solid var(--px-accent);
+  outline-offset: 3px;
+}
+
 /* ---------------------------------------------------------------------------
  * Phosphor design tokens — the "Phosphor" system (specs/reference/style-guide.md).
  * Paper light theme / graphite dark theme, amber-phosphor accent.

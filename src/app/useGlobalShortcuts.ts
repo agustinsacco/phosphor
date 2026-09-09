@@ -67,8 +67,9 @@ export function canToggleRightPane(): boolean {
  * layout- and modifier-dependent, so Ctrl+~ arrives as "~" rather than "`"
  * and a `key === '\`'` test silently never matches.
  */
-export function useGlobalShortcuts(): void {
+export function useGlobalShortcuts(enabled = true): void {
   useEffect(() => {
+    if (!enabled) return
     // Capture only F6, so terminal/editor handlers cannot turn focus navigation
     // into input. Other shortcuts still run after the editor gets first refusal.
     const onFocusKey = (event: KeyboardEvent): void => {
@@ -198,5 +199,5 @@ export function useGlobalShortcuts(): void {
       window.removeEventListener('keydown', onFocusKey, true)
       window.removeEventListener('keydown', onKey)
     }
-  }, [])
+  }, [enabled])
 }

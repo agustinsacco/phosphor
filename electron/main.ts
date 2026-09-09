@@ -11,7 +11,7 @@ import { cancelAllClaudeLogins } from './pi/claude-login'
 import { unwatchAll } from './pi/session-watcher'
 import { unwatchAllWorkspaces } from './fs/workspace-watcher'
 import { startUpdateChecks, stopUpdateChecks } from './updates/updater'
-import { applyZoom, hideWindowsForE2E, overlayFor } from './window-chrome'
+import { applyZoom, backgroundFor, hideWindowsForE2E, overlayFor } from './window-chrome'
 import { getPrefs } from './store'
 import { initDebugLog, log } from './debug-log'
 import { registerArtifactScheme, registerArtifactProtocol } from './artifacts/artifact-protocol'
@@ -80,7 +80,7 @@ function createWindow(): BrowserWindow {
     // The in-window menu bar duplicated shortcuts already in the palette and
     // cost another row of chrome; Alt still reveals it on Windows/Linux.
     autoHideMenuBar: process.platform !== 'darwin',
-    backgroundColor: '#1e1c18', // must equal the dark theme's --px-bg
+    backgroundColor: backgroundFor(getPrefs().theme),
     // Window/taskbar icon for unpackaged linux runs (packaged linux resolves
     // it from the desktop entry; macOS ignores this option).
     ...(devIcon && process.platform === 'linux' ? { icon: devIcon } : {}),
@@ -89,6 +89,8 @@ function createWindow(): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Preload applies the saved preference before the document's first paint.
+      additionalArguments: [`--phosphor-theme=${getPrefs().theme}`],
       // Required whenever the window stays unmapped; see hideWindowsForE2E.
       ...(hideWindowsForE2E() ? { backgroundThrottling: false } : {}),
     },

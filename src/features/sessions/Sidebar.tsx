@@ -64,7 +64,13 @@ function loadSidebarWidth(): number {
   return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, stored))
 }
 
-export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX.Element {
+export function Sidebar({
+  workspacePath,
+  onInitialReady,
+}: {
+  workspacePath: string
+  onInitialReady?: (ready: boolean) => void
+}): React.JSX.Element {
   const disk = useSessionsStore((s) => s.disk)
   const scanStatus = useSessionsStore((s) => s.scanStatus)
   const live = useSessionsStore((s) => s.live)
@@ -215,9 +221,12 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
   }, [knownWorkspaces, workspacesHydrated, collapsed])
 
   useEffect(() => {
-    void window.phosphor.invoke('app:getPrefs').then((prefs) => {
-      setCollapsed(Object.fromEntries(prefs.collapsedWorkspaces.map((p) => [p, true])))
-    })
+    void window.phosphor
+      .invoke('app:getPrefs')
+      .then((prefs) => {
+        setCollapsed(Object.fromEntries(prefs.collapsedWorkspaces.map((p) => [p, true])))
+      })
+      .catch(() => setCollapsed({}))
   }, [])
 
   /**
@@ -311,6 +320,10 @@ export function Sidebar({ workspacePath }: { workspacePath: string }): React.JSX
     worktreeDiscoverySettled,
     knownWorkspaces,
   ])
+
+  useEffect(() => {
+    if (initialSidebarReady) onInitialReady?.(true)
+  }, [initialSidebarReady, onInitialReady])
 
   // Git summaries for row subtitles: refresh (debounced) whenever the disk
   // listing changes, and again on window focus (branch switches happen in

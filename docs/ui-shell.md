@@ -20,6 +20,19 @@ A **single full-width bar** (`src/app/TopBar.tsx`) sits above the sidebar, chat,
 
 It is the **only** element allowed in the strip the OS draws window controls in, and therefore the only call site of `.titlebar-inset-end` (right, Windows/Linux overlay) and `.titlebar-inset-start` (left, macOS traffic lights). This is structural, not cosmetic: those insets are `100vw`-relative, so they are only correct on an element that spans the window. Per-column headers cannot know whether they are the one under the OS buttons — when the chat header owned the inset, opening a right-hand pane put that pane's expand/close buttons directly beneath the real close button. Columns must not grow their own title bars.
 
+## Startup
+
+A full-window Phosphor loading screen uses the saved Light / Dark / System
+appearance from the first paint (native window background plus preload), then
+stays visible while bundled fonts, preferences, pi health, the previous
+workspace/session transcript, and the visible sidebar's initial scan settle.
+The shell mounts hidden and inert beneath it so discovery can finish without
+showing skeletons or accepting app shortcuts. Readiness dismisses the screen;
+there is no minimum display time, and later session switches/refreshes keep
+their local loading states. Missing pi leads to setup; startup failures offer
+retry, and a failed restore can be skipped. The model catalogue is preloaded
+in the background but does not hold up the screen.
+
 ## Left sidebar (Claude Desktop style)
 
 - **Workspace switcher** at top: current workspace name + dropdown of recent workspaces; "Open Folder…" via native picker. Adding a workspace records it in app prefs.
