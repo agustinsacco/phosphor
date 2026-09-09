@@ -153,7 +153,9 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
       'will follow, a reference document, a dashboard mockup, an interactive ' +
       'prototype, or a decision case the team has not made yet. A finished ' +
       'deliverable with an audience is not fully delivered while it lives only ' +
-      'in scrollback — finish it as an artifact, and hand the user the link. ' +
+      'in scrollback — finish it as an artifact, then link it in your reply as ' +
+      '[Title](artifact://<id>), which opens the panel on that artifact ' +
+      '(add #v2 to open one version). ' +
       'When the user asks for such a page, offer it; when they ask only for ' +
       'advice they will act on alone now, in the code at hand, no audience ' +
       'exists — keep it as text. ' +
@@ -200,6 +202,7 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
       'House style is dense, dark and chart-first: verdict in the first sentence, numbers next, a chart wherever a shape beats a paragraph, and a table.data under any chart that carries a claim.',
       'Charts are hand-authored inline SVG. The artifact CSP grants no network, so Chart.js, a CDN script or a webfont renders nothing at all.',
       'To revise: prefer artifact_edit (exact-string replacement, lowest token cost) over artifact_update (full rewrite). If you no longer have the current content (after compaction or a resumed session), call artifact_list then artifact_read first. Never guess old_string — whitespace and indentation must match exactly.',
+      'Hand over the finished artifact with a link: write [Title](artifact://<id>) in your reply (append #v2 for a specific version). The link opens the Artifacts pane on that artifact, so the reader does not have to go find it.',
       'Format: HTML artifacts are fragments — no <!DOCTYPE>, <html>, <head> or <body> tags. Markdown is only for documents; when a user shares markdown content meant as an artifact, author an HTML page based on its substance rather than transcribing it one-to-one.',
     ],
     parameters: Type.Object({
@@ -240,6 +243,7 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
         },
         `Created artifact "${params.title}" (id: ${id}, v${version}, ${type}, ` +
           `${params.content.length} chars). It is now visible in the artifact panel. ` +
+          `Link to it in your reply as [${params.title}](artifact://${id}). ` +
           'Use artifact_edit to revise it.',
       )
     },

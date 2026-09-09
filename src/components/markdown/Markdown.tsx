@@ -10,6 +10,7 @@ import { VegaLiteBlock } from './VegaLiteBlock'
 import { HtmlBlock } from './HtmlBlock'
 import { Lightbox } from '../Lightbox'
 import { MarkdownLink } from './MarkdownLink'
+import { artifactUrlTransform } from '@/lib/markdownLink'
 
 const REMARK_PLUGINS = [remarkGfm, remarkMath]
 const REHYPE_PLUGINS = [rehypeKatex]
@@ -153,6 +154,7 @@ export const Markdown = memo(function Markdown({
       <ReactMarkdown
         remarkPlugins={REMARK_PLUGINS}
         rehypePlugins={REHYPE_PLUGINS}
+        urlTransform={artifactUrlTransform}
         components={components}
       >
         {closed}
