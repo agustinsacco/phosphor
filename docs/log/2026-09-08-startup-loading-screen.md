@@ -24,7 +24,10 @@ screen/handoff, explicit light/dark palettes, system appearance before async
 prefs, reduced motion, and error recovery. Dark and light screenshots are
 captured by the startup e2e tests.
 
-## Shared loading identity (same PR)
+## Shared loading identity (follow-up)
+
+Requested as part of #231; that PR merged while the extension was being
+validated, so the Beacon ships as the isolated follow-up #233.
 
 The lane indicator's 13px spark was too easy to miss next to emoji and state
 dots. `PhosphorLoader` replaces it across startup and all agent-activity
