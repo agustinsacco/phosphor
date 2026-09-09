@@ -45,6 +45,8 @@ export interface FoldState {
   cacheReadTokens: number
   cacheWriteTokens: number
   cost: number
+  /** Summed from the `details.headroom` receipts the bundled extension writes. */
+  headroomSavedTokens: number
   entryCount: number
   lastTimestamp?: string
   branchCount: number
@@ -68,6 +70,7 @@ export function emptyFold(): FoldState {
     cacheReadTokens: 0,
     cacheWriteTokens: 0,
     cost: 0,
+    headroomSavedTokens: 0,
     entryCount: 0,
     branchCount: 0,
     seenParents: new Set(),
@@ -119,6 +122,7 @@ export function foldLine(state: FoldState, line: string): void {
     | {
         role?: string
         content?: unknown
+        details?: { headroom?: { savedTokens?: unknown } }
         usage?: {
           totalTokens?: number
           input?: number
@@ -134,6 +138,12 @@ export function foldLine(state: FoldState, line: string): void {
   if (message.role === 'user') {
     state.userMessages++
     if (!state.firstUserText) state.firstUserText = extractText(message.content)
+    return
+  }
+  if (message.role === 'toolResult') {
+    // Receipt written by pi-ext/headroom.ts when it compressed this result.
+    const saved = message.details?.headroom?.savedTokens
+    if (typeof saved === 'number' && saved > 0) state.headroomSavedTokens += saved
     return
   }
   if (message.role !== 'assistant') return
@@ -177,6 +187,7 @@ export function metaFromFold(state: FoldState, path: string, mtimeMs: number): S
     cacheReadTokens: state.cacheReadTokens,
     cacheWriteTokens: state.cacheWriteTokens,
     cost: state.cost,
+    headroomSavedTokens: state.headroomSavedTokens,
     entryCount: state.entryCount,
     branchCount: state.branchCount,
     mtimeMs,

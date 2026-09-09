@@ -52,9 +52,15 @@ export function Ledger({
 
   return (
     <div className="mt-6 w-full" data-testid="home-ledger">
-      <div className="grid grid-cols-3 gap-2">
+      <div className={clsx('grid gap-2', stats.savedTokens > 0 ? 'grid-cols-4' : 'grid-cols-3')}>
         <StatTile label="Spent here" value={formatCost(stats.cost)} />
         <StatTile label="Tokens" value={formatTokens(stats.tokens)} />
+        {/* Only once compression has saved something — a zero would demand an
+            explanation the home screen has no room for (Settings →
+            Optimization is that explanation). */}
+        {stats.savedTokens > 0 && (
+          <StatTile label="Saved" value={`−${formatTokens(stats.savedTokens)}`} />
+        )}
         <StatTile
           label="Live"
           value={liveIds.length === 0 ? '0' : `${liveIds.length} · ~${formatMb(residentMb)}`}
@@ -120,6 +126,14 @@ export function Ledger({
               <span className="text-text w-14 shrink-0 text-right font-mono tabular-nums">
                 {formatCost(meta.cost)}
               </span>
+              {stats.savedTokens > 0 && (
+                <span
+                  className="text-success w-14 shrink-0 text-right font-mono tabular-nums"
+                  title="Tokens headroom compression kept out of this lane's context"
+                >
+                  {meta.headroomSavedTokens > 0 ? `−${formatTokens(meta.headroomSavedTokens)}` : ''}
+                </span>
+              )}
             </div>
           ))}
         </div>

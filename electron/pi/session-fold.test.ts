@@ -1,5 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { appendFile, mkdir, mkdtemp, rm, stat, truncate, utimes, writeFile } from 'node:fs/promises'
+import {
+  appendFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  truncate,
+  utimes,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -418,5 +428,131 @@ describe('headerless session files', () => {
     const later = new Date(Number(stamp) + 5_000)
     await utimes(path, later, later)
     expect(await listSessions(cwd)).toHaveLength(1)
+  })
+})
+
+describe('headroom receipts', () => {
+  function toolResult(id: string, parent: string, details: unknown): string {
+    return line({
+      type: 'message',
+      id,
+      parentId: parent,
+      timestamp: '2026-08-01T11:00:00.000Z',
+      message: {
+        role: 'toolResult',
+        toolCallId: `call-${id}`,
+        toolName: 'mcpScript',
+        content: [{ type: 'text', text: '[3]{id:string}\n1\n2\n3' }],
+        details,
+        isError: false,
+        timestamp: 1,
+      },
+    })
+  }
+
+  it('sums details.headroom.savedTokens from toolResult messages into the meta', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'fold-hr-'))
+    const path = join(dir, 's.jsonl')
+    const content =
+      line(HEADER) +
+      turn(0, null) +
+      toolResult('t1', 'a0000', {
+        headroom: { savedTokens: 1257, beforeTokens: 2875, afterTokens: 1618, ms: 18 },
+      }) +
+      toolResult('t2', 't1', {
+        mode: 'script',
+        headroom: { savedTokens: 500, beforeTokens: 900, afterTokens: 400, ms: 9 },
+      })
+    await writeFile(path, content, 'utf8')
+
+    const meta = await parseSessionFile(path, (await stat(path)).mtimeMs)
+    expect(meta?.headroomSavedTokens).toBe(1757)
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('ignores tool results without a receipt, and malformed receipts', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'fold-hr-'))
+    const path = join(dir, 's.jsonl')
+    const content =
+      line(HEADER) +
+      turn(0, null) +
+      toolResult('t1', 'a0000', { mode: 'script' }) +
+      toolResult('t2', 't1', { headroom: { savedTokens: 'lots' } }) +
+      toolResult('t3', 't2', { headroom: { savedTokens: -50 } }) +
+      toolResult('t4', 't3', null)
+    await writeFile(path, content, 'utf8')
+
+    const meta = await parseSessionFile(path, (await stat(path)).mtimeMs)
+    expect(meta?.headroomSavedTokens).toBe(0)
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('matches the whole-file fold when resumed across a receipt boundary', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'fold-hr-'))
+    const path = join(dir, 's.jsonl')
+    const first = line(HEADER) + turn(0, null)
+    const second = toolResult('t1', 'a0000', {
+      headroom: { savedTokens: 42, beforeTokens: 100, afterTokens: 58, ms: 5 },
+    })
+    await writeFile(path, first, 'utf8')
+
+    const resumed = emptyFold()
+    const offset = await foldFrom(path, 0, resumed)
+    await appendFile(path, second, 'utf8')
+    await foldFrom(path, offset, resumed)
+
+    const whole = emptyFold()
+    await foldFrom(path, 0, whole)
+    expect(resumed.headroomSavedTokens).toBe(42)
+    expect(resumed.headroomSavedTokens).toBe(whole.headroomSavedTokens)
+    await rm(dir, { recursive: true, force: true })
+  })
+})
+
+/**
+ * The receipt is a WIRE CONTRACT with pi: the extension returns a `details`
+ * patch from its `tool_result` hook and pi persists it verbatim into the
+ * session file. Nothing in this repo compiles against that, so the guard is
+ * a session file captured from a real run — pi 0.85.1, Headroom 0.37.0,
+ * 2026-09-08 — replayed through the real fold.
+ *
+ * It also pins what "lossless" meant on that run: 120 JSON records came back
+ * as a typed header plus 120 CSV rows, and the model answered the count and
+ * the last id exactly from the compressed text.
+ */
+describe('a real captured session', () => {
+  const fixture = join(__dirname, '__fixtures__', 'headroom-live-session.jsonl')
+
+  it('folds the receipt pi actually persisted', async () => {
+    const meta = await parseSessionFile(fixture, (await stat(fixture)).mtimeMs)
+    expect(meta?.headroomSavedTokens).toBe(1931)
+  })
+
+  it('kept every record the uncompressed result had', async () => {
+    const entries = (await readFile(fixture, 'utf8'))
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as { message?: { role?: string; content?: unknown } })
+
+    const result = entries.find((e) => e.message?.role === 'toolResult')
+    const blocks = result?.message?.content as Array<{ text: string }> | undefined
+    const text = blocks?.[0]?.text ?? ''
+    const [header, ...rows] = text.trim().split('\n')
+    // SmartCrusher's lossless restructure: "[count]{field:type,…}" then rows.
+    expect(header).toMatch(/^\[120\]\{.*id:string.*\}$/)
+    expect(rows).toHaveLength(120)
+    expect(rows[119]).toContain('ISS-0119')
+
+    // And the model read it correctly — the fidelity claim, end to end.
+    const answer = entries
+      .flatMap((e) =>
+        e.message?.role === 'assistant'
+          ? ((e.message.content ?? []) as Array<{ text?: string }>)
+          : [],
+      )
+      .map((b) => b.text ?? '')
+      .join('\n')
+    expect(answer).toContain('120')
+    expect(answer).toContain('ISS-0119')
   })
 })

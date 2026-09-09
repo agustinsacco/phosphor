@@ -10,6 +10,7 @@ export type SettingsTab =
   | 'computer-use'
   | 'connectors'
   | 'workspaces'
+  | 'optimization'
   | 'advanced'
   | 'keybindings'
   | 'about'

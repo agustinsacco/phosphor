@@ -18,6 +18,7 @@ import {
   usesClaudeCliProvider,
 } from '../pi/provider-detect'
 import { readAgentSettings } from '../pi/agent-settings'
+import { headroomSupervisor } from '../headroom/proxy'
 import { sessionEventChannel } from '@shared/ipc'
 import { getPrefs, recordWorkspace, getLanePrefs } from '../store'
 import { gitInfoBatch } from '../fs/git-info'
@@ -163,6 +164,12 @@ async function spawnSession(
       }).catch(() => null)
     : null
   if (claudeAccount) Object.assign(spawnEnv, claudeAccountEnv(claudeAccount))
+
+  // Headroom compression (Settings → Optimization). Set only when the managed
+  // proxy is believed healthy — the bundled extension is inert without the
+  // URL, and fails open even with a stale one. Env-only integration on
+  // purpose: Phosphor never writes provider config for a proxy.
+  if (!stub) Object.assign(spawnEnv, headroomSupervisor().sessionEnv())
 
   const session = registry.create(options.workspacePath, {
     binaryPath,

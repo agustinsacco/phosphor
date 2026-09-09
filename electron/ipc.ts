@@ -13,6 +13,7 @@ import { registerPackagesHandlers } from './ipc/packages-handlers'
 import { registerUpdateHandlers } from './ipc/updates-handlers'
 import { registerSkillsHandlers } from './ipc/skills-handlers'
 import { registerMaintenanceHandlers } from './ipc/maintenance-handlers'
+import { registerOptimizationHandlers } from './ipc/optimization-handlers'
 
 /**
  * Register every IPC invoke handler, grouped by domain.
@@ -37,4 +38,5 @@ export function registerIpcHandlers(): void {
   registerUpdateHandlers()
   registerSkillsHandlers()
   registerMaintenanceHandlers()
+  registerOptimizationHandlers()
 }

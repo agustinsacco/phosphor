@@ -235,7 +235,7 @@ const activeJobs = new Map<string, ReturnType<typeof spawn>>()
  * `packages:output:<jobId>` / `packages:exit:<jobId>`. Output and exit are
  * fire-and-forget: a closed window simply stops receiving.
  */
-function startJob(
+export function startJob(
   sender: JobSender,
   command: string,
   args: string[],
@@ -298,7 +298,7 @@ export async function resolveBinary(name: string): Promise<string | null> {
 }
 
 /** Report a spawn-precondition failure through the job channels. */
-function failedJob(sender: JobSender, message: string): { jobId: string } {
+export function failedJob(sender: JobSender, message: string): { jobId: string } {
   const jobId = randomUUID()
   // Delay so the renderer can subscribe with the returned jobId first.
   setTimeout(() => {

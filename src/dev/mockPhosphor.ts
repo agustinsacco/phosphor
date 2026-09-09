@@ -371,6 +371,7 @@ const MOCK_DISK_SESSIONS = [
     cacheReadTokens: 640_000,
     cacheWriteTokens: 35_000,
     cost: 1.24,
+    headroomSavedTokens: 64_000,
     entryCount: 96,
     branchCount: 2,
     mtimeMs: Date.now() - 3600_000,
@@ -391,6 +392,7 @@ const MOCK_DISK_SESSIONS = [
     cacheReadTokens: 88_000,
     cacheWriteTokens: 2_000,
     cost: 0.31,
+    headroomSavedTokens: 0,
     entryCount: 18,
     branchCount: 0,
     mtimeMs: Date.now() - 86_400_000 * 2,
@@ -415,6 +417,7 @@ const MOCK_DISK_SESSIONS = [
     cacheReadTokens: 182_000,
     cacheWriteTokens: 8_000,
     cost: 0.52,
+    headroomSavedTokens: 18_500,
     entryCount: 31,
     branchCount: 1,
     mtimeMs: Date.now() - 7200_000,
@@ -438,6 +441,7 @@ const MOCK_DISK_SESSIONS = [
     cacheReadTokens: 33_000,
     cacheWriteTokens: 1_000,
     cost: 0.09,
+    headroomSavedTokens: 0,
     entryCount: 9,
     branchCount: 0,
     mtimeMs: Date.now() - 86_400_000 * 9,
@@ -459,6 +463,7 @@ function mockStats(): Record<string, unknown> {
     messages: 77_813,
     tokens: 33_100_000,
     cost: 148.2,
+    savedTokens: 82_500,
     activeDays: 46,
     activityByDay,
   }
@@ -580,6 +585,20 @@ function mockTree(): Record<string, unknown> {
         timestamp: '2026-08-01T11:20:00Z',
       },
     ],
+  }
+}
+
+/** Optimization tab state: toggling and start/stop work in the harness. */
+let mockHeadroomEnabled = true
+let mockHeadroomRunning = true
+
+function mockHeadroomStatus(): Record<string, unknown> {
+  return {
+    enabled: mockHeadroomEnabled,
+    installed: true,
+    version: '0.37.0',
+    binaryPath: '/mock/.local/bin/headroom',
+    proxy: { running: mockHeadroomRunning, url: 'http://127.0.0.1:8787', owned: true },
   }
 }
 
@@ -1342,6 +1361,62 @@ export function installMockPhosphor(): void {
         }
         case 'sessions:stats':
           return Promise.resolve(mockStats())
+        case 'headroom:status':
+          return Promise.resolve(mockHeadroomStatus())
+        case 'headroom:setEnabled':
+          mockHeadroomEnabled = args[0] as boolean
+          return Promise.resolve(mockHeadroomStatus())
+        case 'headroom:start':
+          mockHeadroomRunning = true
+          return Promise.resolve(mockHeadroomStatus())
+        case 'headroom:stop':
+          mockHeadroomRunning = false
+          return Promise.resolve(mockHeadroomStatus())
+        case 'headroom:install':
+          return Promise.resolve(
+            runMockJob([
+              'Resolved 34 packages in 1.2s',
+              'Installed 34 packages in 8.4s',
+              'Installed 1 executable: headroom',
+            ]),
+          )
+        case 'optimization:stats': {
+          const workspacePath = args[0] as string
+          const sessions = MOCK_DISK_SESSIONS.filter((m) => m.cwd === workspacePath)
+          const withSavings = sessions.filter((m) => m.headroomSavedTokens > 0)
+          return Promise.resolve({
+            savedTokens: sessions.reduce((sum, m) => sum + m.headroomSavedTokens, 0),
+            sessionsWithSavings: withSavings.length,
+            sessionCount: sessions.length,
+            lanes: withSavings
+              .sort((a, b) => b.headroomSavedTokens - a.headroomSavedTokens)
+              .map((m) => ({
+                path: m.path,
+                name: 'name' in m ? m.name : undefined,
+                firstUserText: m.firstUserText,
+                savedTokens: m.headroomSavedTokens,
+                totalTokens: m.totalTokens,
+              })),
+            advisor: [
+              {
+                id: 'cache-churn',
+                severity: 'serious',
+                title: 'A lane is re-writing its context cache',
+                detail:
+                  '"Refactor auth module" spent 54% of its tokens on cache writes. Check the installed pi-claude-cli version (0.7.0+ keeps one CLI process per session).',
+                settingsTab: 'claude-provider',
+              },
+              {
+                id: 'mcp-weight',
+                severity: 'tip',
+                title: '4 MCP servers are connected',
+                detail:
+                  'Each server adds its tool schemas to every request. Disconnect the ones this project does not use.',
+                settingsTab: 'connectors',
+              },
+            ],
+          })
+        }
         case 'app:openExternal':
           return Promise.resolve(undefined)
         case 'clipboard:readFiles':
