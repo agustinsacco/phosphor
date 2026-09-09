@@ -4,7 +4,6 @@ import type { AssistantBlock, AssistantItem, CustomItem, ToolState, UserItem } f
 import { Markdown } from '@/components/markdown/Markdown'
 import { useSmoothedText } from './useSmoothedText'
 import { CopyButton } from '@/components/CopyButton'
-import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { absoluteTime, relativeTime } from '@/lib/time'
 import { useChatStore } from '@/stores/chat'
 import { useChatUiStore } from './uiState'
@@ -62,12 +61,9 @@ export const MessageItemView = memo(function MessageItemView({
         case 'user':
           return <UserMessage item={row.item} sessionId={sessionId} />
         case 'assistant':
-          // Only reached for an empty streaming turn (spinner placeholder).
-          return (
-            <div className="py-1">
-              <PhosphorLoader label="Waiting for a response" />
-            </div>
-          )
+          // Only reached for an empty streaming turn (reply placeholder).
+          return <PendingReply />
+
         case 'bash':
           return <BashExecution item={row.item} />
         case 'divider':
@@ -77,6 +73,31 @@ export const MessageItemView = memo(function MessageItemView({
       }
   }
 })
+
+/**
+ * An assistant turn that exists but has produced nothing yet.
+ *
+ * Deliberately NOT a second Beacon. The Beacon is the run's identity and it is
+ * already on screen in the composer strip, with the elapsed timer, the token
+ * count and `Esc to stop` — two identical orbiting marks for one turn read as
+ * two things loading. The division of labour is: the strip above the input
+ * reports the PROCESS, the transcript holds a SEAT for the content.
+ *
+ * So the seat is the same blinking caret the streaming tail paints
+ * (`.streaming-cursor`, pinned visible under reduced motion). When the first
+ * token lands, prose grows from exactly where the caret sat instead of a
+ * spinner being swapped out for text — and the same rule already applied to
+ * running tools, whose label shimmers rather than adding a circle "competing
+ * with the spark for attention" (see .tool-running-label in styles/index.css).
+ */
+function PendingReply(): React.JSX.Element {
+  return (
+    <div className="text-lg leading-relaxed" data-testid="pending-reply" role="status">
+      <span className="sr-only">Waiting for a response</span>
+      <span className="streaming-cursor" aria-hidden="true" />
+    </div>
+  )
+}
 
 /** Extension-injected message; badged when it also reaches the LLM. */
 function CustomMessageItem({ item }: { item: CustomItem }): React.JSX.Element {

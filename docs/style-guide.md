@@ -262,6 +262,13 @@ not a replacement logo or a depiction of phosphorus's electron configuration.
   activity label, branch and PR. Both pending and disk-backed rows use this
   treatment, including unselected/background lanes. The hover checkbox keeps
   the same 20px gutter; label and rail remain visible when it replaces the icon.
+- **One beacon per turn.** The strip above the composer reports the PROCESS
+  (beacon, elapsed timer, token count, `Esc to stop`); the transcript only
+  holds a SEAT for the content — the same blinking `.streaming-cursor` the
+  streaming tail paints, so prose grows from where the caret sat. An empty
+  streaming turn must never render a second beacon in the message list: two
+  identical orbiting marks for one turn read as two things loading. Same rule
+  as a running tool, whose label shimmers instead of adding a circle.
 - **Accessibility:** pair the mark with readable status text; set `decorative`
   when that text already names the state. Standalone marks receive a label.
   No fake percentage or per-lane live-announcement loop. Reduced motion stops
