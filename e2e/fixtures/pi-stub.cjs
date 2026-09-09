@@ -762,7 +762,15 @@ function runArtifactLinkTurn() {
         message: {
           role: 'assistant',
           content: [
-            { type: 'text', text: 'Done — [Preview the design](artifact://e2e-linked-doc).' },
+            {
+              type: 'text',
+              // Two forms in one message: a markdown link, and the backticked
+              // URL models actually write most often (inert until
+              // remarkArtifactLinks promoted it).
+              text:
+                'Done — [Preview the design](artifact://e2e-linked-doc).\n\n' +
+                '- Delivered companion artifact: `artifact://e2e-linked-doc`\n',
+            },
           ],
           stopReason: 'stop',
           timestamp: Date.now(),

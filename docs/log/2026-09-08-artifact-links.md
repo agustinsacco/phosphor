@@ -62,3 +62,8 @@ not the failure here.
 
 Tests: `src/lib/markdownLink.test.ts`,
 `src/components/markdown/MarkdownLink.test.tsx`.
+
+Follow-up: this covered the markdown-link form only. A third of the artifact
+URLs models write are inline code (`` `artifact://x` ``) and were still dead
+text — see
+[2026-09-09-artifact-link-forms.md](2026-09-09-artifact-link-forms.md).
