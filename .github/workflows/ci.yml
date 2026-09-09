@@ -46,8 +46,11 @@ jobs:
   site:
     # phosphor.saccolabs.com is deployed from main by deploy-site.yml, which
     # only runs after a merge — this catches a broken page on the PR instead.
-    name: Site · astro check · build
+    name: ${{ matrix.site }} · astro check · build
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        site: [site, site_v2]
     steps:
       - uses: actions/checkout@v4
 
@@ -55,16 +58,32 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: site/package-lock.json
+          cache-dependency-path: ${{ matrix.site }}/package-lock.json
 
       - name: Install site dependencies
-        run: npm ci --prefix site
+        run: npm ci --prefix ${{ matrix.site }}
 
       - name: Astro check
-        run: npm run check --prefix site
+        run: npm run check --prefix ${{ matrix.site }}
 
       - name: Build site
-        run: npm run build --prefix site
+        run: npm run build --prefix ${{ matrix.site }}
+
+      - name: Install browser for v2 checks
+        if: matrix.site == 'site_v2'
+        working-directory: site_v2
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser checks (desktop, mobile, no JS, reduced motion)
+        if: matrix.site == 'site_v2'
+        run: npm test --prefix site_v2
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.site == 'site_v2' && always()
+        with:
+          name: site-v2-browser-evidence
+          path: site_v2/test-results/
+          retention-days: 7
 
   e2e:
     name: E2E smoke (${{ matrix.os }} ${{ matrix.shardIndex }}/${{ matrix.shardTotal }})

@@ -1,9 +1,9 @@
 # phosphor.saccolabs.com
 
-The Phosphor landing page: one Astro 7 page, Tailwind 4 over the Phosphor design
-tokens (a hand-mirrored satellite of `src/styles/index.css` — see
-`docs/style-guide.md`), no client framework. Built into an nginx image and
-deployed to the k3s cluster by `.github/workflows/deploy-site.yml`.
+The original Phosphor landing page: one Astro 7 page, Tailwind 4 over the
+Phosphor design tokens, no client framework. Preserved as the previous design
+and source-capture directory. The replacement is [site_v2/](../site_v2/README.md),
+which uses the same nginx/k3s contract with a new page and components.
 
 ## Local development
 
@@ -41,8 +41,9 @@ The published `accounts.webp` has the account email blurred by hand
 
 ## Deployment
 
-Pushes to `main` that touch `site/**`, `.infra/phosphor-site/**` or the workflow
-build `saccodigital/phosphor-site:<sha>`, push it, then apply
+The workflow now builds from `site_v2/`, triggered by changes there, to
+`.infra/phosphor-site/**` or to the workflow itself. It requires the exact IDE
+capture before publishing. It builds `saccodigital/phosphor-site:<sha>`, pushes it, then applies
 `.infra/phosphor-site` with the image pinned to the pushed digest and wait for
 the rollout. The Service is `type: LoadBalancer` on port **5015** (unique per
 site — k3s servicelb binds it on the node), so the edge needs a route from

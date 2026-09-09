@@ -17,6 +17,21 @@ Settings window (Cmd/Ctrl+,), tabbed:
 
 ## Accounts
 
+The subscription routes are distinct (`SUBSCRIPTION_PROVIDERS` in
+`electron/pi/auth-status.ts` is the UI's registry):
+
+| Account        | Route                                                                      | Requirement                  |
+| -------------- | -------------------------------------------------------------------------- | ---------------------------- |
+| ChatGPT        | pi's native `openai-codex` OAuth; no Codex CLI bridge                      | Plus or Pro                  |
+| Claude         | Authenticated Claude Code CLI through `@saccolabs/pi-claude-cli`           | Pro or Max; provider ≥ 0.7.1 |
+| GitHub Copilot | pi account login on github.com; Enterprise Server uses pi's terminal login | Copilot subscription         |
+| Kimi           | pi's `kimi-for-coding` account login                                       | Kimi For Coding plan         |
+
+Provider limits and billing rules still apply. Native Anthropic OAuth is a
+separate route from Claude Code subscription sessions; the Accounts UI warns
+that it bills extra usage. xAI, OpenRouter and Radius account sign-ins use a
+credit balance rather than an included subscription allowance.
+
 - One row per provider pi can sign into with a subscription (`SUBSCRIPTION_PROVIDERS` in `electron/pi/auth-status.ts`), each showing ready / not ready from `pi auth check --json` and a Sign in button that drives pi's TUI off-screen ([2026-08-26-background-provider-login.md](log/2026-08-26-background-provider-login.md)).
 - A signed-in row also shows **which account**, when the provider's credential is a JWT that names one (ChatGPT/Codex today). The check runs with `--credentials` and `electron/pi/auth-identity.ts` reads the email claim out of the token inside the main process; the credential itself is never stored, logged, or sent to the renderer. Providers with an opaque credential (OpenRouter, Anthropic, GitHub) show "Signed in" and nothing more.
 - **Sign in again** (switching accounts) finishes on the credential _changing_, not on `pi auth check` reporting ready — the credential already stored answers ready a second after pi prints the URL, and ending the flow kills the pty that is pi's own callback server ([2026-09-08-resign-in-closed-its-own-callback-server.md](log/2026-09-08-resign-in-closed-its-own-callback-server.md)).
