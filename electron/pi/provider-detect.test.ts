@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { claudeOneShotEnv, claudeProviderSpawnEnv, usesClaudeCliProvider } from './provider-detect'
+import {
+  assertClaudeContextProvider,
+  claudeOneShotEnv,
+  claudeProviderSpawnEnv,
+  usesClaudeCliProvider,
+} from './provider-detect'
 
 describe('usesClaudeCliProvider', () => {
   it('trusts an explicit provider over everything else', () => {
@@ -41,10 +46,9 @@ describe('claudeProviderSpawnEnv', () => {
     expect(claudeProviderSpawnEnv().PI_CLAUDE_CLI_STRICT_MCP).toBe('1')
   })
 
-  it("never sets hermetic mode, which would strip the CLI's CLAUDE.md", () => {
-    // Phosphor passes --no-context-files, so pi does not send CLAUDE.md either.
-    // Hermetic reaches the same MCP flag but also empties --setting-sources,
-    // leaving the model with project instructions from neither side.
+  it('selects pi context, not prompt replacement or a toolset change', () => {
+    expect(claudeProviderSpawnEnv().PI_CLAUDE_CLI_CONTEXT).toBe('pi')
+    expect(claudeProviderSpawnEnv()).not.toHaveProperty('PI_CLAUDE_CLI_SYSTEM_PROMPT')
     expect(claudeProviderSpawnEnv()).not.toHaveProperty('PI_CLAUDE_CLI_HERMETIC')
   })
 
@@ -52,6 +56,36 @@ describe('claudeProviderSpawnEnv', () => {
   // session. Only one-shots opt out.
   it('leaves the 0.7.0 keepalive alone for real sessions', () => {
     expect(claudeProviderSpawnEnv()).not.toHaveProperty('PI_CLAUDE_CLI_KEEPALIVE_MS')
+  })
+})
+
+describe('Claude context provider version gate', () => {
+  const pkg = (version: string, installed = true) => ({
+    name: '@saccolabs/pi-claude-cli',
+    version,
+    installed,
+  })
+  it('accepts installed stable supported releases', () => {
+    for (const version of ['0.7.1', '0.8.0', '1.0.0']) {
+      expect(() => assertClaudeContextProvider([pkg(version)])).not.toThrow()
+    }
+  })
+  it('rejects old, prerelease, missing and ambiguous mixed versions', () => {
+    for (const packages of [
+      [],
+      [pkg('0.7.0')],
+      [pkg('0.7.1-beta.1')],
+      [pkg('unknown')],
+      [pkg('0.7.1', false)],
+      [pkg('0.8.0'), pkg('0.7.0')],
+    ]) {
+      expect(() => assertClaudeContextProvider(packages)).toThrow('Settings → Extensions')
+    }
+  })
+  it('does not mistake another package for the provider', () => {
+    expect(() => assertClaudeContextProvider([{ ...pkg('99.0.0'), name: 'other' }])).toThrow(
+      '0.7.1+',
+    )
   })
 })
 

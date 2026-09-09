@@ -140,8 +140,8 @@ one of them is Phosphor's.
    `mcp` / `mcpScript` into pi's tool registry. pi-claude-cli then snapshots
    every non-built-in pi tool into a schema-only MCP server it hands the CLI as
    `--mcp-config`, so the gateway arrives as `mcp__custom-tools__mcp`. The
-   schema server answers `initialize` and `tools/list` only: a call is bounced
-   back to pi, which executes the real tool and resumes the CLI next turn.
+   schema server proxies `tools/call` back to pi. pi executes the real tool
+   and returns its result to the same persistent CLI process.
 2. **The Claude CLI's own chain** — `~/.claude/.mcp.json`, `~/.claude.json`,
    and the user's claude.ai account connectors. Phosphor neither writes nor reads
    these.
@@ -155,15 +155,20 @@ behaves differently on two machines. So every Claude-provider spawn gets
 `electron/pi/provider-detect.ts`), which passes the CLI `--strict-mcp-config`
 and drops chain (2) entirely.
 
-Not `PI_CLAUDE_CLI_HERMETIC`: it reaches the same flag but also passes an empty
-`--setting-sources`, which drops the CLI's CLAUDE.md auto-memory. Phosphor already
-passes `--no-context-files` so pi omits its own copy, and the pair would leave
-the model with project instructions from neither side.
+Every live pi spawn also receives `PI_CLAUDE_CLI_CONTEXT=pi`, including native
+provider sessions so a later switch to Claude is consistent. pi retains its
+project-context loading; the provider suppresses Claude's second memory and
+skill loader, aligns generated tool guidance, and disables claude.ai connectors.
+Claude's default prompt and native tools remain. Explicit host guard settings
+and administrator-managed policy remain honored.
 
-**Requires pi-claude-cli >= 0.5.1.** Older versions ignore the variable and
-keep the pre-existing merge. That release also refreshes the schema snapshot
-per turn; before it, the tool surface froze at turn 1, so a connector added
-mid-session never reached the model until the session restarted.
+**Requires an installed pi-claude-cli >= 0.7.1.** Phosphor checks declared global
+and project provider packages before creating a Claude session or forwarding a
+switch to Claude. Old, missing, unversioned, or mixed unsupported packages
+produce an update message rather than silently ignoring the policy. No package
+is automatically installed or upgraded. Start fresh sessions when adopting the
+policy; the provider refuses to reuse saved prompts from the previous policy.
+See [the context-alignment rollout](log/2026-09-09-claude-context-alignment.md).
 
 The gateway is also what keeps a session small: `mcp` + `mcpScript` cost ~3.9KB
 of schema no matter how many servers are configured, growing only by the server

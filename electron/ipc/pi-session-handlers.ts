@@ -15,9 +15,11 @@ import { forgetSpawnAccount, rememberSpawnAccount } from '../pi/session-accounts
 import {
   claudeOneShotEnv,
   claudeProviderSpawnEnv,
+  assertClaudeContextProvider,
   usesClaudeCliProvider,
 } from '../pi/provider-detect'
 import { readAgentSettings } from '../pi/agent-settings'
+import { listPackages } from '../pi/packages'
 import { headroomSupervisor } from '../headroom/proxy'
 import { sessionEventChannel } from '@shared/ipc'
 import { getPrefs, recordWorkspace, getLanePrefs } from '../store'
@@ -105,6 +107,7 @@ async function spawnSession(
     ? { ELECTRON_RUN_AS_NODE: '1' }
     : {
         ...(await piProcessEnv()),
+        ...claudeProviderSpawnEnv(),
         ...(claudeAutocompact ? { PI_CLAUDE_CLI_AUTOCOMPACT: claudeAutocompact } : {}),
       }
 
@@ -134,24 +137,17 @@ async function spawnSession(
     ...(git.isWorktree && git.branch ? { charter: { branch: git.branch } } : {}),
   })
 
-  // Claude-provider sessions get `--no-context-files`: the Claude CLI loads
-  // CLAUDE.md itself as memory, so pi's copy in the system prompt bills the
-  // same file twice on EVERY request (~4,900 tokens measured on this repo).
-  // Known trade-off: pi's prompt is fixed at spawn, so a session switched to
-  // a non-Claude provider mid-conversation runs without pi's CLAUDE.md copy.
-  // See docs/log/2026-08-29-claude-provider-token-overhead.md.
+  // pi loads project context for EVERY provider. The Claude context policy
+  // disables the CLI's second loader without replacing its native tools or
+  // default prompt. Gate the separately installed provider before relying on
+  // that policy; older versions silently ignore the new environment variable.
   const claudeProvider = stub
     ? false
     : usesClaudeCliProvider(
         options,
         (await readAgentSettings(options.workspacePath)).defaultProvider,
       )
-  const noContextFiles = claudeProvider
-
-  // Same verdict, second consequence: confine the Claude CLI to pi's own tool
-  // registry so MCP reaches the model only through the adapter's gateway.
-  // Rationale and the pi-claude-cli version floor live in provider-detect.ts.
-  if (claudeProvider) Object.assign(spawnEnv, claudeProviderSpawnEnv())
+  if (claudeProvider) assertClaudeContextProvider(await listPackages(options.workspacePath))
 
   // Which Claude login bills this session (Settings -> Claude Code ->
   // Accounts). One env var on the pi spawn is enough: pi-claude-cli spawns the
@@ -180,7 +176,6 @@ async function spawnSession(
     model: options.model,
     provider: options.provider,
     thinkingLevel: options.thinkingLevel,
-    ...(noContextFiles ? { noContextFiles } : {}),
     ...(appendSystemPrompt ? { appendSystemPrompt } : {}),
     // The bundled artifacts extension rides along in every session.
     ...(stub ? {} : { extensions }),
@@ -263,6 +258,20 @@ export function registerPiSessionHandlers(): void {
   handle('pi:command', async (_event, sessionId: string, command: RpcCommand) => {
     const session = registry.get(sessionId)
     if (!session) throw new Error(`Unknown session: ${sessionId}`)
+    if (!piStubPath()) {
+      if (command.type === 'set_model' && command.provider === 'pi-claude-cli') {
+        assertClaudeContextProvider(await listPackages(session.workspacePath))
+      }
+      // Spawn-time prediction cannot resolve pi's fuzzy model patterns. Verify
+      // the actual provider before a prompt can run against an old package.
+      if (command.type === 'prompt') {
+        const state = await session.client.request({ type: 'get_state' })
+        if (!state.success || !state.data) throw new Error('Cannot verify the active pi model.')
+        if (state.data.model?.provider === 'pi-claude-cli') {
+          assertClaudeContextProvider(await listPackages(session.workspacePath))
+        }
+      }
+    }
     return session.client.request(command)
   })
 

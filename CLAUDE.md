@@ -144,9 +144,13 @@ you want to watch.
   broken flag, so it didn't fix the missing instructions.) If a session
   doesn't honour its charter at all, or stops after turn 1, check the
   installed version first: `>= 0.4.16` is required for both. **`>= 0.5.1`**
-  is required for MCP isolation: Phosphor sets `PI_CLAUDE_CLI_STRICT_MCP=1` on
-  every Claude session so the CLI cannot load the user's own MCP servers
-  alongside pi's, and older versions ignore it. **`>= 0.6.1`** is required
+  originally added MCP isolation. **Current Phosphor requires `>= 0.7.1`**
+  for `PI_CLAUDE_CLI_CONTEXT=pi`: pi loads project context and skills, the
+  provider suppresses duplicate Claude discovery and aligns native-tool
+  vocabulary, while retaining Claude's default prompt, native tools and
+  explicit host guards. It also implies strict MCP isolation. Start a fresh
+  session across this policy change; old saved prompts are not migrated.
+  **`>= 0.6.1`** is required
   after a compaction: below it the first message (often the second too) does
   nothing, because the CLI answers its own queued `<task-notification>` first
   and the provider read that empty `result` as the end of the turn. The same
