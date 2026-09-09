@@ -19,7 +19,3 @@ site/dist/
 site/shots-raw/
 site/src/assets/shots/
 site/public/fonts/
-site_v2/.astro/
-site_v2/dist/
-site_v2/src/assets/shots/
-site_v2/public/fonts/

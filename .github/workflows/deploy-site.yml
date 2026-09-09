@@ -14,7 +14,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'site_v2/**'
+      - 'site/**'
       - '.infra/phosphor-site/**'
       - '.github/workflows/deploy-site.yml'
   workflow_dispatch:
@@ -42,7 +42,7 @@ jobs:
 
       # Keep the real full-IDE source capture in the self-contained image context.
       - name: Require the IDE capture
-        run: test -f site_v2/src/assets/shots/ide-flex.png
+        run: test -f site/src/assets/shots/ide-flex.png
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -57,7 +57,7 @@ jobs:
         id: build
         uses: docker/build-push-action@v7
         with:
-          context: ./site_v2
+          context: ./site
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:${{ github.sha }}

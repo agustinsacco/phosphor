@@ -386,11 +386,9 @@ scripts/             install.sh, icon + screenshot generation, release and
 docs/                how Phosphor works now; docs/log dated history;
                      docs/specs deferred work — see docs/README.md
 docs/img/            the screenshots above (assets, not documentation)
-site/                the original Astro landing page and real source captures
-                     (site/README.md)
-site_v2/             the replacement landing page, native CSS layout studies,
-                     nginx image and browser checks (site_v2/README.md)
-.infra/phosphor-site/  the shared k3s manifests the Deploy Site workflow applies
+site/                phosphor.saccolabs.com — the Astro landing page, real
+                     captures, nginx image and browser checks (site/README.md)
+.infra/phosphor-site/  the k3s manifests the Deploy Site workflow applies
 ```
 
 The main process owns all side effects. The renderer runs with

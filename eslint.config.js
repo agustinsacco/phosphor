@@ -14,10 +14,8 @@ export default tseslint.config(
       'site/.astro/**',
       'site/dist/**',
       'site/shots-raw/**',
-      'site_v2/.astro/**',
-      'site_v2/dist/**',
-      'site_v2/test-results/**',
-      'site_v2/playwright-report/**',
+      'site/test-results/**',
+      'site/playwright-report/**',
       '**/*.cjs',
     ],
   },
@@ -49,7 +47,7 @@ export default tseslint.config(
   },
   {
     // Maintainer scripts run under plain Node (no tsconfig project).
-    files: ['scripts/**/*.mjs', 'site/scripts/**/*.mjs', 'site_v2/scripts/**/*.mjs'],
+    files: ['scripts/**/*.mjs', 'site/scripts/**/*.mjs'],
     languageOptions: {
       globals: {
         console: 'readonly',
