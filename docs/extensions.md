@@ -236,6 +236,16 @@ link written from the title still resolves. The tool description and the
 `artifact_create` result both name the syntax, because models were already
 inventing this link and every one of them was inert.
 
+**It does not have to be written as a markdown link.** Models reference an
+artifact most often as inline code (`` `artifact://phosphor-beacon` ``, because
+the URL reads like an identifier) and sometimes bare in prose; GFM autolinks
+only www/http/mailto, so both forms stayed dead text.
+`remarkArtifactLinks` (`src/lib/remarkArtifactLinks.ts`, the last remark plugin
+in `Markdown.tsx`) promotes both into link nodes before rendering — the
+inline-code one keeps its `<code>` child, so it still looks like code and
+merely becomes clickable. A code span that only mentions a URL among other
+words is left alone, and trailing punctuation is never part of the id.
+
 `session_start` rebuilds the full artifact record — content included, not just
 version numbers — because an edit has to apply to the live text in a resumed
 session.

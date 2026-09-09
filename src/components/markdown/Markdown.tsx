@@ -11,8 +11,11 @@ import { HtmlBlock } from './HtmlBlock'
 import { Lightbox } from '../Lightbox'
 import { MarkdownLink } from './MarkdownLink'
 import { artifactUrlTransform } from '@/lib/markdownLink'
+import { remarkArtifactLinks } from '@/lib/remarkArtifactLinks'
 
-const REMARK_PLUGINS = [remarkGfm, remarkMath]
+// remarkArtifactLinks runs last: GFM's own autolinking has already claimed the
+// www/http text it wants, so what is left to promote is only ours.
+const REMARK_PLUGINS = [remarkGfm, remarkMath, remarkArtifactLinks]
 const REHYPE_PLUGINS = [rehypeKatex]
 
 /**

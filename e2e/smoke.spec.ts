@@ -2985,6 +2985,13 @@ test('an artifact link the model wrote opens the Artifacts pane', async () => {
     await artifactLink.click()
     await expect(page.getByTestId('artifact-scroll')).toBeVisible({ timeout: 10_000 })
     await expect(page.getByTestId('right-pane')).toContainText('E2E Linked Doc')
+
+    // The same message also writes the URL as inline code — the form models use
+    // most — which is a link only because remarkArtifactLinks promotes it.
+    await page.getByRole('button', { name: 'Artifacts pane', exact: true }).click()
+    await expect(page.getByTestId('artifact-scroll')).toBeHidden()
+    await page.getByRole('link', { name: 'artifact://e2e-linked-doc' }).click()
+    await expect(page.getByTestId('artifact-scroll')).toBeVisible({ timeout: 10_000 })
   } finally {
     await shutdown(harness)
   }
