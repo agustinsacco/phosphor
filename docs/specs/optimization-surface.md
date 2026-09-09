@@ -58,7 +58,7 @@ stays removed).
 
 | Check                  | Signal (source)                                                             | Emits                                                                |
 | ---------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Cache health           | cacheWrite ÷ totalTokens spikes (fold)                                      | full-context re-bill caught live; points at provider version/restart |
+| Cache health           | cacheWrite ÷ (cacheWrite + cacheRead) spikes (fold)                         | full-context re-bill caught live; points at provider version/restart |
 | Provider version gates | installed pi-claude-cli vs known minimums (0.4.16 / 0.5.1 / 0.6.1 / 0.7.0)  | "update the package" with the cost of not doing it                   |
 | MCP schema weight      | connected servers (mcp.json + mcp-status) vs servers actually called (fold) | "N connected, M used — ~13k tok/request" (measured 30→13 tools)      |
 | Long-session drag      | totalTokens vs window; context-breakdown composition                        | "fork from the bookmark instead" — surfaces existing primitives      |

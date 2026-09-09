@@ -18,9 +18,20 @@ export interface AdvisorInput {
   mcpServerCount: number
 }
 
-/** cacheWrite share of a session's tokens that reads as re-billing, not use. */
+/**
+ * Share of a lane's CACHED traffic that had to be re-written rather than read.
+ *
+ * Deliberately not a share of `totalTokens`. pi's per-message
+ * `usage.totalTokens` is the provider's own number — on pi-claude-cli it
+ * tracks the request's context size and excludes `cacheRead` — so summing it
+ * across turns produces a quantity that a cumulative `cacheWrite` cannot
+ * meaningfully be divided by. Measured on a real lane: 528k written against
+ * 13.4M read (healthy reuse) read as "96% cache writes" against a 549k
+ * totalTokens sum, and the rule fired SERIOUS on a lane doing nothing wrong.
+ * `cacheWrite ÷ (cacheWrite + cacheRead)` is the fraction the rule means.
+ */
 const CACHE_CHURN_RATIO = 0.5
-/** Below this a session is too small for its cache ratio to mean anything. */
+/** Below this much cached traffic the ratio is noise. */
 const CACHE_CHURN_MIN_TOKENS = 200_000
 
 /** Servers whose schemas ride on every request before the tip fires. */
@@ -32,14 +43,15 @@ const LONG_SESSION_TOKENS = 5_000_000
 export function adviseOptimization(input: AdvisorInput): AdvisorFinding[] {
   const findings: AdvisorFinding[] = []
 
-  // Cache churn: a lane whose cache WRITES rival its total is re-billing its
-  // whole context repeatedly — the signature of the pre-0.7.0 pi-claude-cli
-  // restart bug, or of something else invalidating the prefix cache.
+  // Cache churn: a lane that re-writes more of its cached context than it
+  // reads back is paying for the same tokens repeatedly — the signature of the
+  // pre-0.7.0 pi-claude-cli restart bug, or of anything else invalidating the
+  // prefix cache.
   const churner = input.sessions
     .filter(
       (s) =>
-        s.totalTokens >= CACHE_CHURN_MIN_TOKENS &&
-        s.cacheWriteTokens > s.totalTokens * CACHE_CHURN_RATIO,
+        cachedTokens(s) >= CACHE_CHURN_MIN_TOKENS &&
+        s.cacheWriteTokens > cachedTokens(s) * CACHE_CHURN_RATIO,
     )
     .sort((a, b) => b.cacheWriteTokens - a.cacheWriteTokens)[0]
   if (churner) {
@@ -48,11 +60,11 @@ export function adviseOptimization(input: AdvisorInput): AdvisorFinding[] {
       severity: 'serious',
       title: 'A lane is re-writing its context cache',
       detail:
-        `"${laneLabel(churner)}" spent ${Math.round(
-          (churner.cacheWriteTokens / Math.max(churner.totalTokens, 1)) * 100,
-        )}% of its tokens on cache writes. That usually means the provider is rebuilding ` +
-        'context instead of reusing it — check the installed pi-claude-cli version (0.7.0+ ' +
-        'keeps one CLI process per session).',
+        `"${laneLabel(churner)}" re-wrote ${Math.round(
+          (churner.cacheWriteTokens / cachedTokens(churner)) * 100,
+        )}% of its cached context instead of reading it back. Two known causes: a ` +
+        'pi-claude-cli older than 0.7.0 restarts the CLI on every turn and every tool call, ' +
+        'and long gaps between turns let the provider’s prompt cache expire.',
       settingsTab: 'claude-provider',
     })
   }
@@ -123,6 +135,11 @@ export function adviseOptimization(input: AdvisorInput): AdvisorFinding[] {
 
   const rank: Record<AdvisorFinding['severity'], number> = { serious: 0, warning: 1, tip: 2 }
   return findings.sort((a, b) => rank[a.severity] - rank[b.severity])
+}
+
+/** Cached-context traffic: what was written into the cache plus what was read. */
+function cachedTokens(meta: SessionMeta): number {
+  return meta.cacheWriteTokens + meta.cacheReadTokens
 }
 
 function laneLabel(meta: SessionMeta): string {
