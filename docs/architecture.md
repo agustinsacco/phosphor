@@ -16,7 +16,7 @@
 | HTML preview         | `<iframe sandbox="allow-scripts">` over `phosphor-artifact://`, never `srcDoc`; Code/Preview toggle |
 | File watching        | chokidar (main process)                                                                             |
 | Packaging            | electron-builder → macOS (dmg+zip, arm64+x64), Linux (AppImage+deb), Windows (nsis)                 |
-| Install              | GitHub Releases + `curl … install.sh \| sh` (see [10-packaging.md](specs/build/10-packaging.md))    |
+| Install              | GitHub Releases + `curl … install.sh \| sh` (`scripts/install.sh`)                                  |
 | IPC                  | Typed contextBridge preload; renderer never touches Node APIs                                       |
 | pi integration       | RPC subprocess, one `pi --mode rpc` per live session ([pi-integration.md](pi-integration.md))       |
 

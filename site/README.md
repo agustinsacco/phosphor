@@ -46,6 +46,15 @@ build `saccodigital/phosphor-site:<sha>`, push it, then apply
 `.infra/phosphor-site` with the image pinned to the pushed digest and wait for
 the rollout. The Service is `type: LoadBalancer` on port **5015** (unique per
 site — k3s servicelb binds it on the node), so the edge needs a route from
-`phosphor.saccolabs.com` to that port. Secrets and the one-time edge setup are
-listed in the workflow header and in
-`docs/log/2026-09-09-landing-site.md`.
+`phosphor.saccolabs.com` to that port. The workflow waits for the Service to
+get its node address and prints it, because a Pending Service means a port
+collision and `rollout status` cannot see one — without that wait the run
+reports a green deploy nobody can reach.
+
+Two things live outside the repo, both listed in the workflow header:
+
+1. Four repository secrets — `DOCKER_HUB_USER`, `DOCKER_HUB_PASSWORD`,
+   `TS_AUTH_KEY`, `ULTRON_KUBE_CONFIG`. The repo is public, but the workflow
+   only runs on pushes to `main`, so forks never see them.
+2. The edge route for `phosphor.saccolabs.com` → the node on port 5015, in
+   whatever fronts the cluster. Nothing in this repo can create it.

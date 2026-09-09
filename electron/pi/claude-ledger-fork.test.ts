@@ -11,8 +11,8 @@ const NEW_PI_ID = '01a07ecb-f990-7149-879a-dcc27b874128'
 const OLD_CLI_ID = 'a48dc146-a367-4be7-bc92-b1d45c90c148'
 
 /**
- * The scenario is the one measured on 2026-09-07 (docs/log): a sidebar clone
- * gives pi a new session id, and without a ledger fork the provider's next
+ * The scenario is the one measured on 2026-09-07: a sidebar clone gives pi a
+ * new session id, and without a ledger fork the provider's next
  * turn reimports the whole conversation. These tests build both trees — pi's
  * session files and the CLI's project dir — in a sandbox via the same env
  * overrides the real programs honour.

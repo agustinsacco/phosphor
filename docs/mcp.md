@@ -181,7 +181,8 @@ switch to Claude. Old, missing, unversioned, or mixed unsupported packages
 produce an update message rather than silently ignoring the policy. No package
 is automatically installed or upgraded. Start fresh sessions when adopting the
 policy; the provider refuses to reuse saved prompts from the previous policy.
-See [the context-alignment rollout](log/2026-09-09-claude-context-alignment.md).
+0.7.1 in turn needs Claude Code **2.1.263+**, the first release with the
+isolation controls the profile is built on.
 
 The gateway is also what keeps a session small: `mcp` + `mcpScript` cost ~3.9KB
 of schema no matter how many servers are configured, growing only by the server

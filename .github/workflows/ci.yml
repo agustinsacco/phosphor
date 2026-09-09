@@ -111,8 +111,8 @@ jobs:
       # 'darwin')` — codesign exists nowhere else — so the ubuntu unit-test job
       # skips it and CI never ran it at all. That is how a signer that fails
       # its own verification merged green and killed every macOS release build
-      # for a day (see docs/log/2026-09-03-adhoc-sign-nested-code.md). This is
-      # the only macOS runner in CI; the suite takes well under a second.
+      # for a day. This is the only macOS runner in CI; the suite takes well
+      # under a second.
       - name: Unit tests (macOS-only suites)
         if: runner.os == 'macOS'
         run: npx vitest run scripts/__tests__/adhoc-sign-mac.test.ts

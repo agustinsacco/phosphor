@@ -4,8 +4,9 @@ import type { AdvisorFinding, SessionMeta } from '@shared/models'
  * The Optimization tab's Advisor: a rules engine over data Phosphor already
  * holds. Every rule is a pure function of its inputs, every finding is advice
  * with a pointer at the surface that owns the fix, and nothing here ever
- * acts — the 2026-09-03 orchestration removal stays removed
- * (docs/specs/optimization-surface.md).
+ * acts — the 2026-09-03 orchestration removal stays removed, and a rules
+ * engine that acted would grow back the derived state that made it too
+ * expensive to keep.
  *
  * Thresholds are deliberately conservative first ships; tune from real
  * fleets, not intuition.

@@ -7,10 +7,12 @@ protocol is hand-mirrored in `shared/rpc.ts`.
 
 **Two maps before you start.** [README.md](README.md#repo-layout) has the repo
 tree — the single copy, since three copies drifted.
-[docs/README.md](docs/README.md) is the documentation index: `docs/` is how
-Phosphor behaves **now**, `docs/log/` is dated history, and `docs/specs/` is work
-not yet done. Reading a `docs/specs/build/` doc as current is how the
-terracotta-vs-Phosphor contradiction survived 20 days.
+[docs/README.md](docs/README.md) is the documentation index. Everything in
+`docs/` is present tense: how Phosphor behaves **now**, one living contract per
+surface. The single exception is
+[docs/known-issues.md](docs/known-issues.md), which is defects that reproduce
+today. There is no history folder and no specs folder — git is the history, and
+a doc is updated in the same diff as the behaviour it describes.
 
 ## Commands
 
@@ -65,9 +67,12 @@ you want to watch.
 5. **Every session is independent.** There is no cross-session manager: no
    fleet hub, no orchestrator thread, no automatic reclamation of an idle
    session's subprocess. Sessions are created from the renderer, and
-   `electron/registry.ts` is the only thing that knows what is running.
-   Removed 2026-09-03; see
-   [docs/log/2026-09-03-remove-orchestration.md](docs/log/2026-09-03-remove-orchestration.md).
+   `electron/registry.ts` is the only thing that knows what is running. The
+   orchestration layer that used to do this was removed on 2026-09-03 for
+   maintenance cost — it touched session spawn, IPC, the sidebar, the home
+   screen and settings at once. Do not grow it back. The known cost of the
+   removal is that nothing reclaims an idle session's ~172 MB pi tree
+   ([known-issues.md](docs/known-issues.md) S11).
 6. **Stores (`src/stores/`, zustand) are projections of main-process state.**
    `files.ts` and `terminal.ts` are keyed `byWorkspace[path]`; their
    `workspaceFiles()` / `workspaceTerminals()` selectors return a shared
@@ -94,8 +99,7 @@ you want to watch.
   ever named and no branch was ever renamed. Spawn print-mode runs through
   `electron/pi/print-mode.ts` (`stdio[0] = 'ignore'`). The e2e stub cannot
   catch a regression — it prints and exits without reading stdin — so the guard
-  is `electron/pi/print-mode.test.ts`. See
-  [docs/log/2026-08-26-session-start-ux.md](docs/log/2026-08-26-session-start-ux.md).
+  is `electron/pi/print-mode.test.ts`.
 - **pi writes a session's file only when a turn ENDS**, not incrementally. A
   name set mid-turn does not reach the disk scan until the reply lands, so
   every surface showing a LIVE session's title prefers the chat store's
@@ -164,14 +168,14 @@ you want to watch.
   (`PI_CLAUDE_CLI_KEEPALIVE_MS=0`): a parked child holds pi's event loop
   open, so a naming run prints its title and then does not exit for ten
   minutes. That silently killed session auto-naming, and with it every branch
-  rename, the hour 0.7.0 was installed. See
-  [docs/log/2026-08-29-claude-cli-lifecycle-verification.md](docs/log/2026-08-29-claude-cli-lifecycle-verification.md)
-  and
-  [docs/log/2026-09-02-persistent-claude-cli.md](docs/log/2026-09-02-persistent-claude-cli.md)
-  and
-  [docs/log/2026-09-04-naming-hang-on-parked-cli.md](docs/log/2026-09-04-naming-hang-on-parked-cli.md)
-  and
-  [docs/log/2026-09-03-post-compaction-stall-and-context-meter.md](docs/log/2026-09-03-post-compaction-stall-and-context-meter.md).
+  rename, the hour 0.7.0 was installed.
+
+  The through-line across every version floor above: **this provider's failures
+  are silent and look like Phosphor bugs.** A missing system prompt, a dead
+  first message after compaction, a naming run that never exits, a whole
+  conversation re-billed as cache write — none of them raise an error. Check
+  the installed version before diagnosing anything on a Claude-provider
+  session.
 
 - **Phosphor ships six extensions that run inside pi's process** (`pi-ext/`,
   loaded with `-e` into every session; listed in `bundledExtensions()` in
@@ -184,8 +188,7 @@ you want to watch.
     models were doing this silently and answering about the wrong branch. The
     four conditions in that file are deliberately narrow; widening them blocks
     legitimate reads, because pi's own prompt sends the model to absolute paths
-    outside the cwd for its docs. See
-    [docs/log/2026-08-22-worktree-path-leak.md](docs/log/2026-08-22-worktree-path-leak.md).
+    outside the cwd for its docs.
   - **`tool-name-guard.ts` rewrites a malformed tool call** at `message_end`,
     before pi persists it. A model can emit a tool call whose _name_ is not a
     tool name (seen: `mcp({})<tool_call>find`, raw syntax leaked into the name
@@ -193,7 +196,6 @@ you want to watch.
     and then every later turn replays it and the provider rejects the whole
     request (`Member must satisfy regular expression pattern: [a-zA-Z0-9_-]+`),
     bricking the thread permanently. The guard turns it into plain text.
-    See [docs/log/2026-08-26-orchestrator-controls.md](docs/log/2026-08-26-orchestrator-controls.md).
 - **Five UI surfaces are fed by extensions, not by RPC.** The context meter's
   composition section comes from `pi-ext/context-breakdown.ts` (bundled, `-e`
   into every session), per-server MCP state from `pi-ext/mcp-status.ts`, and
@@ -252,14 +254,14 @@ you want to watch.
 - Browser-only dev (vite without Electron) auto-installs
   `src/dev/mockPhosphor.ts` when `window.phosphor` is undefined — new IPC channels
   used by screens the harness renders need a mock case.
-- When you ship a substantial feature or refactor: if it advances a numbered
-  phase, add a dated note to that phase's Log in `docs/specs/TRACKER.md`;
-  otherwise write it up as its own `docs/log/YYYY-MM-DD-slug.md` (the existing
-  files show the convention). Never append a new section to `TRACKER.md` — a
-  shared append point is what used to make unrelated PRs conflict. **If the
-  change makes a `docs/` file wrong, that file is part of the same diff, not a
-  follow-up** — docs drifting from the code is the recurring failure mode here.
-  Also update any plan doc you implemented or deviated from.
+- **Do not write a dated write-up for what you shipped.** That convention
+  existed until 2026-09-09 and produced 161 files of history that nobody could
+  tell apart from living contracts. Git is the history; put the reasoning in
+  the commit message. What you owe instead: **if the change makes a `docs/`
+  file wrong, that file is part of the same diff, not a follow-up** — docs
+  drifting from the code is the recurring failure mode here. And if you fix
+  something listed in [docs/known-issues.md](docs/known-issues.md), delete its
+  row in the same diff.
 
 ## Running the app
 

@@ -13,8 +13,10 @@ project instructions and skills; the provider disables duplicate Claude
 memory/skill/MCP discovery and aligns generated tool vocabulary. Claude's
 **default prompt and native tools remain**, along with its persistent process
 and separate transcript/compaction. Explicit host guards are preserved. Start
-fresh sessions across policy changes. See
-[the context-alignment contract and validation](log/2026-09-09-claude-context-alignment.md).
+fresh sessions across policy changes. Validated against a real Claude 2.1.263 /
+Haiku 4.5 session: zero native skills, `custom-tools` the only MCP server, no
+foreign memory/skill/agent sentinels in the saved CLI transcript, and one model
+process across two turns.
 
 **The investigation below is historical:** its Claude tables describe 0.4.6,
 including the retired interrupt/kill-per-tool design, not current execution.
@@ -498,8 +500,7 @@ one credential per provider, which decides whether Phase B's second account
 shape is implementable without an upstream change. (Answered for the _Claude_
 provider on 2026-09-04: it does not need pi's auth store at all —
 `CLAUDE_SECURESTORAGE_CONFIG_DIR` scopes the CLI's own keychain entry, so Phosphor
-holds several accounts and picks one per session. See
-[log/2026-09-04-claude-multi-account.md](log/2026-09-04-claude-multi-account.md).) And what a Claude account
+holds several accounts and picks one per session.) And what a Claude account
 in the pool actually costs to add, given each one needs its own real
 subscription and its own `claude login`.
 

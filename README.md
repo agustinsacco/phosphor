@@ -355,11 +355,18 @@ electron/            main process — owns every side effect
   broadcast.ts       send a push to every open window
   pi/                RPC client (strict LF JSONL framing), session scanner,
                      writer, paths, print mode, model catalogue, login flow
+  claude/            pi-claude-cli: several Claude Code logins side by side,
+                     which one bills a session (decided once, at spawn), and
+                     live subscription usage
   headroom/          Headroom proxy supervisor (adopt/spawn/kill) + install job
   optimization/      the Advisor rules engine (pure functions, advice only)
   pty/               node-pty manager + spawn-helper repair
   fs/                file service, git layer (git-exec/info/sync/worktrees),
                      workspace watcher
+  artifacts/         the `phosphor-artifact://` protocol — model HTML on its
+                     own origin, so it runs JS without weakening the app CSP
+  maintenance/       worktree reclaim: a pure policy that judges, a sweep that
+                     does the git and the disk, a scheduler that rate-limits it
   updates/           update check + download state machine
   store.ts           app prefs (electron-store, constructed lazily)
 shared/              types and pure logic shared by main + renderer
@@ -377,6 +384,7 @@ src/                 renderer (React) — pure UI over typed IPC
   stores/            zustand stores — projections of main-process state
   lib/               framework-free helpers (format, path, rpc, fuzzy, time…)
   styles/            the Phosphor design tokens
+  assets/            the bundled fonts
   dev/               browser-only mock of the preload API (never bundled)
 pi-ext/              the six pi extensions that run inside pi's process,
                      bundled into every session: artifacts, context-breakdown,
@@ -384,8 +392,9 @@ pi-ext/              the six pi extensions that run inside pi's process,
 e2e/                 Playwright-Electron smoke tests + deterministic pi stub
 scripts/             install.sh, icon + screenshot generation, release and
                      validate helpers
-docs/                how Phosphor works now; docs/log dated history;
-                     docs/specs deferred work — see docs/README.md
+docs/                living technical docs — one file per surface, each
+                     rewritten in the same diff as the behaviour it describes;
+                     plus known-issues.md, defects that reproduce today
 docs/img/            the screenshots above (assets, not documentation)
 site/                phosphor.saccolabs.com — the Astro landing page and its
                      nginx image (site/README.md)
@@ -398,22 +407,34 @@ only ever renders inside a sandboxed iframe.
 
 ## Documentation map
 
-| Read                                           | When                                                      |
-| ---------------------------------------------- | --------------------------------------------------------- |
-| [CLAUDE.md](CLAUDE.md)                         | Orientation, conventions, sharp edges, debugging          |
-| [docs/README.md](docs/README.md)               | The map: what is current behaviour and what is deferred   |
-| [docs/](docs/)                                 | How Phosphor works now (architecture, extensions, MCP, …) |
-| [docs/log/](docs/log/)                         | Dated notes on what changed and why                       |
-| [docs/specs/TRACKER.md](docs/specs/TRACKER.md) | Phases and their logs                                     |
-| [docs/specs/](docs/specs/)                     | Deferred work: findings, backlog, build intent            |
+| Read                                             | When                                                      |
+| ------------------------------------------------ | --------------------------------------------------------- |
+| [CLAUDE.md](CLAUDE.md)                           | Orientation, conventions, sharp edges, debugging          |
+| [docs/README.md](docs/README.md)                 | The map: which file owns which fact                       |
+| [docs/](docs/)                                   | How Phosphor works now (architecture, extensions, MCP, …) |
+| [docs/known-issues.md](docs/known-issues.md)     | Defects that reproduce today, with the file that has them |
+| [docs/architecture.md](docs/architecture.md)     | Process model, IPC design, cross-cutting requirements     |
+| [docs/pi-integration.md](docs/pi-integration.md) | pi's RPC protocol and session format                      |
 
-`docs/` is current behaviour. `docs/specs/build/` is a dated design doc;
-reading one as current is how stale conclusions survive.
+`docs/` holds living technical docs — every file describes shipped behaviour,
+and a doc is part of the diff that changes its behaviour, not a follow-up.
+There is no dated log and no spec folder: history is the git log, and a doc
+kept as history is a doc someone will read as current. The one file that
+records what is _wrong_ rather than how something works is
+[docs/known-issues.md](docs/known-issues.md); a row leaves it in the same diff
+that fixes the code.
+
+Drift is this repo's recurring failure mode, and it is expensive. The style
+guide described a warm "bone paper" light theme for 19 days after a QoL commit
+had re-based every light neutral to a cool grey ramp — 11 of 22 tokens, and
+four satellite copies (xterm, Monaco, Mermaid, Chart) kept rendering warm
+inside a cool app before anyone noticed the doc and the CSS disagreed.
 
 ## Contributing
 
-Issues and PRs are welcome. Run `npm run validate` before opening a PR, and
-write a `docs/log/` note for a substantial feature or refactor.
+Issues and PRs are welcome. Run `npm run validate` before opening a PR, and if
+your change moves behaviour a `docs/` file describes, update that file in the
+same diff — a doc corrected in a follow-up is a doc that ships wrong.
 
 ## License
 

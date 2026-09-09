@@ -1,39 +1,50 @@
 # Phosphor documentation
 
-**How Phosphor works today.** Every file here describes shipped behaviour. If one
-disagrees with the code, the file is wrong and fixing it is part of the change
-that broke it.
+**How Phosphor works today.** Every file here describes shipped behaviour. If
+one disagrees with the code, the file is wrong and fixing it is part of the
+change that broke it.
 
-Two neighbours hold other genres, and they are not interchangeable:
-
-| Folder           | Holds                                                            | Trust as current? |
-| ---------------- | ---------------------------------------------------------------- | ----------------- |
-| `docs/` (here)   | Living contracts. How a feature behaves now.                     | **Yes**           |
-| [log/](log/)     | One dated write-up per shipped change: what broke and why.       | As history only   |
-| [specs/](specs/) | Work not yet done — open findings, phase state, original intent. | As intent only    |
-
-## Feature docs
+There is one exception, and it is labelled: [known-issues.md](known-issues.md)
+describes what is _broken_ rather than how something works.
 
 Start with [overview.md](overview.md) for what Phosphor is, or
 [architecture.md](architecture.md) for how the processes fit together.
 
-| File                                           | Covers                                                                        |
-| ---------------------------------------------- | ----------------------------------------------------------------------------- |
-| [overview.md](overview.md)                     | Product definition, non-negotiables, engineering quality bar                  |
-| [architecture.md](architecture.md)             | Process model, IPC design, cross-cutting requirements                         |
-| [pi-integration.md](pi-integration.md)         | pi's RPC protocol and session format — the load-bearing document              |
-| [style-guide.md](style-guide.md)               | The Phosphor visual identity. Authoritative on all colour and type            |
-| [brand-explorations.md](brand-explorations.md) | The 30 mark candidates behind the electron-shell icon — sanctioned variations |
-| [ui-shell.md](ui-shell.md)                     | Window chrome, top bar, sidebar, pane system, theming                         |
-| [chat.md](chat.md)                             | Transcript rendering, composer, tool cards                                    |
-| [files.md](files.md)                           | Explorer file management, transfers, clipboard and editor behavior            |
-| [terminal.md](terminal.md)                     | PTY panes, clipboard, scrollback, per-session ownership                       |
-| [settings.md](settings.md)                     | The settings window and which config file each tab writes                     |
-| [updates.md](updates.md)                       | Update detection, the three install paths, and the macOS swap                 |
-| [worktrees.md](worktrees.md)                   | Git worktree lifecycle and the branch control                                 |
-| [mcp.md](mcp.md)                               | MCP servers via the pi-mcp-adapter config chain                               |
-| [extensions.md](extensions.md)                 | The bundled pi extensions; provider transcript shapes                         |
-| [cli-providers.md](cli-providers.md)           | Running sessions on external CLI providers (Claude Code)                      |
+## The system
+
+| File                                   | Covers                                                           |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| [overview.md](overview.md)             | Product definition, non-negotiables, engineering quality bar     |
+| [architecture.md](architecture.md)     | Process model, the 17 IPC prefixes, cross-cutting requirements   |
+| [pi-integration.md](pi-integration.md) | pi's RPC protocol and session format — the load-bearing document |
+
+## The surfaces
+
+| File                         | Covers                                                     |
+| ---------------------------- | ---------------------------------------------------------- |
+| [ui-shell.md](ui-shell.md)   | Window chrome, top bar, sidebar, the pane system, theming  |
+| [chat.md](chat.md)           | Transcript rendering, composer, tool cards                 |
+| [files.md](files.md)         | Explorer file management, transfers, clipboard, the editor |
+| [terminal.md](terminal.md)   | PTY panes, clipboard, scrollback, per-session ownership    |
+| [lanes.md](lanes.md)         | The lane board, lane state, and the ledger                 |
+| [worktrees.md](worktrees.md) | Git worktree lifecycle and the branch control              |
+| [settings.md](settings.md)   | The settings modal and which config file each tab writes   |
+
+## What Phosphor talks to
+
+| File                                 | Covers                                                     |
+| ------------------------------------ | ---------------------------------------------------------- |
+| [extensions.md](extensions.md)       | The six bundled pi extensions; the status-channel contract |
+| [mcp.md](mcp.md)                     | MCP servers and connectors via the pi-mcp-adapter chain    |
+| [cli-providers.md](cli-providers.md) | Running sessions on external CLI providers (Claude Code)   |
+| [updates.md](updates.md)             | Update detection, the three install paths, the macOS swap  |
+
+## Visual identity
+
+| File                                           | Covers                                             |
+| ---------------------------------------------- | -------------------------------------------------- |
+| [style-guide.md](style-guide.md)               | Authoritative on all colour, type and voice        |
+| [brand-explorations.md](brand-explorations.md) | The sanctioned mark variations behind the app icon |
 
 ## Three rules that keep this workable
 
@@ -42,27 +53,29 @@ Start with [overview.md](overview.md) for what Phosphor is, or
    visual identity: [style-guide.md](style-guide.md) wins even over its
    neighbours here.
 2. **A doc is part of the diff that changes its behaviour**, not a follow-up.
-   Specs drifting from code is this repo's recurring failure mode — see
-   [log/2026-08-29-phosphor-light-palette-reconcile.md](log/2026-08-29-phosphor-light-palette-reconcile.md)
-   for what nineteen days of drift cost.
-3. **A rename is not a review.** Every file here was rewritten by the
-   2026-09-08 pidex→Phosphor pass, and that pass was a find-and-replace: it
-   touched the exact lines that were wrong and left every one of them wrong,
-   which made the whole folder read as freshly maintained. Thirty false claims
-   survived it, and it corrupted three status-channel keys that are literals.
-   A doc whose last commit was a rename has not been verified. If you are
-   sweeping this folder mechanically, read what you are editing.
+   Docs drifting from code is this repo's recurring failure mode. It once cost
+   nineteen days of a style guide describing a warm "bone paper" light theme
+   after an unrelated commit had re-based every light neutral to cool grey —
+   half the tokens wrong, with the terminal and editor still rendering warm
+   inside a cool app, and nobody able to tell which half to trust.
+3. **A rename is not a review.** In September 2026 a find-and-replace rewrote
+   every file in this folder. It touched the exact lines that were wrong and
+   left every one of them wrong, which made the whole folder read as freshly
+   maintained — thirty false claims survived it, and it corrupted three
+   status-channel keys that are unchecked string literals. A doc whose last
+   commit is a mechanical sweep has not been verified. If you are editing this
+   folder in bulk, read what you are changing.
 
-## Note on paths
+## There is no history here
 
-This tree was `specs/` until 2026-08-30. Dated entries in [log/](log/) still
-name files by their old paths, deliberately — they record what was true when
-they were written. The mapping is:
+This folder is the present tense. It carried 161 dated write-ups and a specs
+tree of already-built plans until 2026-09-09; both were deleted, because a
+reader could no longer tell a living contract from a finished plan, and the
+finished plans were the larger pile. **Git is the history** — `git log -p docs/`
+answers "when did this change and why", and any deleted file is one
+`git show <sha>:<path>` away.
 
-| Was                | Is now                  |
-| ------------------ | ----------------------- |
-| `specs/reference/` | `docs/`                 |
-| `specs/log/`       | `docs/log/`             |
-| `specs/backlog/`   | `docs/specs/backlog/`   |
-| `specs/build/`     | `docs/specs/build/`     |
-| `specs/TRACKER.md` | `docs/specs/TRACKER.md` |
+What that means in practice: when you ship something, update the doc it makes
+wrong, in the same diff. Do not add a dated entry describing what you did. If
+you fix a defect listed in [known-issues.md](known-issues.md), delete its row
+in that same diff — the code becomes the record.

@@ -17,8 +17,7 @@ const MAX_EXISTING_NAMES = 40
  * A title needs none of a session's context, so this strips everything pi
  * would otherwise load: tools, CLAUDE.md/AGENTS.md, skills, prompt templates.
  * Measured before the strip, the naming call carried ~35,000 tokens of
- * harness to produce a 15-token title — see
- * docs/log/2026-08-29-claude-provider-token-overhead.md.
+ * harness to produce a 15-token title.
  *
  * `--no-extensions` is conspicuously ABSENT: providers register through
  * extension discovery, so `-ne` makes pi-claude-cli an unknown provider and

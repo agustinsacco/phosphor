@@ -56,7 +56,7 @@ export function proxyArgs(port: number = HEADROOM_PROXY_PORT): string[] {
     String(port),
     // The subscription tracker stores ONE bearer token and polls Anthropic
     // with it; with multiple Claude accounts that is wrong data, so it is off
-    // unconditionally (docs/specs/headroom-compression.md).
+    // unconditionally.
     '--no-subscription-tracking',
   ]
 }

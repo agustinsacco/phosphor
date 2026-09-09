@@ -1,7 +1,10 @@
 # Brand explorations — the mark
 
-The 30 candidates the [electron-shell mark](log/2026-09-08-electron-shell-mark.md)
-was chosen from, preserved as the palette of **sanctioned variations**. Pull
+The 30 candidates the electron-shell mark — a drawn "P" inside phosphorus's
+three electron shells, `2 · 8 · 5` beneath in the mono face — was chosen from,
+preserved as the palette of **sanctioned variations**. It won on the day the
+app took the Phosphor name: the retired aperture said "one orchestrator, many
+agents", the shell says the name itself. Pull
 from here for campaign art, easter eggs, or a future revision — don't sketch
 from zero. Every candidate keeps the brand DNA: graphite tile `#1f1c18`,
 amber gradient `#f2ab4e → #e2922e`, a `radialGradient` bloom (never stacked

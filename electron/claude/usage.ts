@@ -15,7 +15,7 @@
  * `[Claude Code · …]` markers: parsed narrowly, and any line Phosphor doesn't
  * recognise is ignored rather than guessed at. If the shape drifts so far
  * that nothing parses, the caller gets `no-usage` and hides the section —
- * never a wrong number. See docs/log/2026-08-30-usage-report-api-review.md.
+ * never a wrong number.
  */
 import { tmpdir } from 'node:os'
 import { runPrintMode } from '../pi/print-mode'

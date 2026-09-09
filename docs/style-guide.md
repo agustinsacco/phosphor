@@ -67,8 +67,10 @@ categorical data palette app chrome has no use for. It is not a satellite copy
 and must never be "unified" with the neutrals: an artifact is a document, the
 app is chrome, and the two want different contrast. Its series colours are
 computed rather than chosen (the dataviz six-checks validator, both modes) —
-re-run it before changing a hex. The house style itself is
-[docs/log/2026-09-08-artifact-house-style.md](log/2026-09-08-artifact-house-style.md).
+re-run it before changing a hex. The sheet is **injected** into every staged
+document's `<head>`, never prompted for — which is why it costs no model tokens,
+applies retroactively to artifacts written weeks ago, and cannot drift between
+two artifacts in one session.
 
 ### Light — "slate paper"
 
@@ -322,8 +324,7 @@ future revision rather than sketching from zero.
 
 ## Voice
 
-Capitalized "Phosphor" always — it is a proper noun. (The old name, pidex, was
-lowercase always; that convention retired with it on 2026-09-08.) The dark
+Capitalized "Phosphor" always — it is a proper noun. The dark
 accent color keeps its lowercase "phosphor" when named as a color, not as the
 product. Labels are verbs or nouns,
 never sentences: "Export HTML…", not "Click here to export". Qualifiers ride as
@@ -340,13 +341,13 @@ muted hints, never parentheticals.
 
 ## History
 
-Why the current state is the current state. Details in the linked write-ups.
+Why the current state is the current state.
 
-| Date       | Change                                                                                                                                                                                         |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-08-07 | Phosphor replaced the Claude-study palette.                                                                                                                                                    |
-| 2026-08-10 | Light neutrals re-based warm → cool (`11a5d7c`), bundled in a QoL pass with no design note.                                                                                                    |
-| 2026-08-29 | [Doc reconciled with the code](log/2026-08-29-phosphor-light-palette-reconcile.md); 11 light tokens corrected, four satellites re-neutralized.                                                 |
-| 2026-08-29 | [Aperture mark](log/2026-08-29-aperture-mark.md) replaced the prompt bubble.                                                                                                                   |
-| 2026-09-08 | [The app itself was renamed](log/2026-09-08-rename-pidex-to-phosphor.md) from pidex to Phosphor, after its design system. Capital P; the lowercase-brand voice rule retired with the old name. |
-| 2026-09-08 | [Electron-shell mark](log/2026-09-08-electron-shell-mark.md) replaced the aperture, chosen from [30 explorations](brand-explorations.md).                                                      |
+| Date       | Change                                                                                                                           |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-07 | Phosphor replaced the Claude-study palette.                                                                                      |
+| 2026-08-10 | Light neutrals re-based warm → cool (`11a5d7c`), bundled in a QoL pass with no design note.                                      |
+| 2026-08-29 | Doc reconciled with the code; 11 light tokens corrected, four satellites re-neutralized.                                         |
+| 2026-08-29 | Aperture mark replaced the prompt bubble.                                                                                        |
+| 2026-09-08 | The app took the name of its design system. Capital P always; the previous lowercase-brand voice rule retired with the old name. |
+| 2026-09-08 | Electron-shell mark replaced the aperture, chosen from [30 explorations](brand-explorations.md).                                 |

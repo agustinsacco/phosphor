@@ -13,9 +13,8 @@ import { tmpdir } from 'node:os'
  *
  * `MacUpdater` hands the download to Squirrel.Mac, which validates the new
  * bundle against the RUNNING app's designated requirement. Phosphor ships ad-hoc
- * signed (no Developer ID — see docs/log/2026-08-24-mac-adhoc-signing.md), and
- * an ad-hoc requirement is a per-build `cdhash`, so that validation can never
- * pass. Turning `phosphorSigned` on for macOS would trade "opens a browser" for
+ * signed (no Developer ID), and an ad-hoc requirement is a per-build `cdhash`,
+ * so that validation can never pass. Turning `phosphorSigned` on for macOS would trade "opens a browser" for
  * "errors silently".
  *
  * So this module does by hand what `scripts/install.sh` does by shell: fetch

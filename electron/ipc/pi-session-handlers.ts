@@ -99,10 +99,12 @@ async function spawnSession(
   // outright) is ~12k tokens of context WINDOW, not cost — both modes are
   // cached — at the cost of losing Claude Code's own tuned guidance for the
   // native tools this provider actually runs. Not worth doubling the number
-  // of system-prompt code paths that have to reach the model correctly; see
-  // docs/log/2026-08-29-claude-cli-lifecycle-verification.md for how fragile
-  // that one path already turned out to be. The naming call below keeps its
-  // own internal `pi` override — a no-tools, no-guidance-needed case.
+  // of system-prompt code paths that have to reach the model correctly — the
+  // one path has already been silently broken twice: the CLI dropped
+  // `--system-prompt` across `--resume`, and it takes a literal string where
+  // the provider was passing a temp-file path, so pi's instructions never
+  // reached Claude Code at all. The naming call below keeps its own internal
+  // `pi` override — a no-tools, no-guidance-needed case.
   // Claude Code auto-compact window (Settings → Claude Code → Context
   // window). Read per spawn so a change applies to the next session started
   // without restarting Phosphor; unset means the provider's own default (200k),

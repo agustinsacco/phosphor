@@ -29,7 +29,7 @@ export async function gitStatusMap(workspacePath: string): Promise<Record<string
  *
  * This used to be `git stash create`, which **silently omits untracked
  * files**. Untracked files are exactly the class that was unrecoverable when
- * two concurrent sessions collided in one tree (docs/specs/TRACKER.md:114 — one agent ran
+ * two concurrent sessions collided in one tree (one agent ran
  * `git add -A && commit` and discarded the rest; a component and an extracted
  * module were rebuilt from scratch). So the product's own undo did not cover
  * the loss it was written for.

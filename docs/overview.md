@@ -55,11 +55,11 @@ implements:
 - Graceful subprocess handling: pi crash → toast + one-click resume (the session file survives); app quit → clean SIGTERM to all children.
 - Performance: virtualized chat list, debounced markdown re-parse, streaming without full-list re-render, 60fps pane dragging.
 - Tests: unit tests for RPC framing edge cases (U+2028 inside JSON strings, CRLF, chunk splits mid-line), session-file parser, diff reconstruction; Playwright-for-Electron smoke e2e (open workspace → new session → prompt → streamed response → edit diff renders → artifact renders).
-- CI: GitHub Actions — typecheck, lint, test on PR; release workflow producing builds for macOS/Linux/Windows + the install script ([10-packaging.md](specs/build/10-packaging.md)).
+- CI: GitHub Actions — typecheck, lint, test on PR; release workflow producing builds for macOS/Linux/Windows + the install script (`scripts/install.sh`).
 
 ## Reference material
 
-- Spec docs: this folder. Execution order and status: [TRACKER.md](specs/TRACKER.md).
+- Technical docs: this folder — one living contract per surface, indexed by [README.md](README.md). Defects that still reproduce are in [known-issues.md](known-issues.md).
 - pi local docs (verify against these before guessing pi behavior):
   `$(npm root -g)/@earendil-works/pi-coding-agent/docs/` — especially `rpc.md`, `session-format.md`, `settings.md`, `usage.md`, `extensions.md`, `skills.md`
   `$(npm root -g)/@earendil-works/pi-coding-agent/dist/modes/rpc/rpc-types.d.ts` — exact protocol types

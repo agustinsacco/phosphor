@@ -210,7 +210,7 @@ as **six** TypeScript files in `pi-ext/`, all six loaded into **every** session 
 
 | File                   | Why it must run inside pi                                                                    |
 | ---------------------- | -------------------------------------------------------------------------------------------- |
-| `artifacts.ts`         | registers the artifact tools (see below, and [07-artifacts.md](specs/build/07-artifacts.md)) |
+| `artifacts.ts`         | registers the artifact tools (see below)                                                     |
 | `context-breakdown.ts` | measures context composition — the parts are only visible in-process                         |
 | `worktree-paths.ts`    | refuses a file read that has escaped a worktree into the main checkout                       |
 | `tool-name-guard.ts`   | rewrites a malformed tool call before pi persists it and bricks the thread                   |
@@ -280,8 +280,7 @@ keeps the origin opaque. The result is measured, not assumed: scripts run;
 storage, cookies, parent and sibling DOM, top navigation, `fetch`,
 `sendBeacon`, WebSocket, remote images and form POSTs are all refused. Never
 add `allow-same-origin`, and never add a `connect-src` to that policy — either
-one hands model-authored HTML a channel out. See
-[docs/log/2026-08-28-lane-management-and-artifact-edits.md](log/2026-08-28-lane-management-and-artifact-edits.md).
+one hands model-authored HTML a channel out.
 
 **The look of an artifact is injected, not prompted.**
 `electron/artifacts/artifact-skeleton.ts` wraps the model's markup in a real
@@ -303,22 +302,23 @@ fragment and no palette at all. Three consequences worth knowing:
 Two rules the sheet cannot enforce, so the tool description carries them:
 charts are **hand-authored inline SVG** (the artifact CSP grants no network, so
 a CDN chart library renders nothing at all), and any chart carrying a claim gets
-a `table.data` under it. See
-[docs/log/2026-09-08-artifact-house-style.md](log/2026-09-08-artifact-house-style.md).
+a `table.data` under it.
 
 `lane-loop.ts` used to sit here too — it ran a fixed ladder of checks when a
 turn settled and published the result to a banner above the composer. Both the
-extension and the banner were removed on 2026-08-28; the idea is meant to come
-back in a different shape. See
-[docs/log/2026-08-28-removing-the-lane-loop-pane.md](log/2026-08-28-removing-the-lane-loop-pane.md).
+extension and the banner were removed on 2026-08-28: it spent a typecheck, a
+test run and a lint on every settled turn, and held the strip directly above
+the composer — the most valuable in the window — to say what the terminal says
+on demand. The idea it encoded (a claim of "done" backed by prose is not
+evidence; only the harness may fill a rung) is meant to come back in a
+different shape; the lane charter still carries the surviving half of it.
 
 Every tool an extension registers should declare at least one **required**
 parameter. A tool call carrying no arguments reaches pi as `arguments: ""` on
 the Claude Code provider (no `input_json_delta` is streamed, so the bridge's
 accumulated JSON is empty), and pi validates before `execute` runs — so an
 empty-or-all-optional schema fails every call with `root: must be object` and
-the extension never runs. See
-[docs/log/2026-08-27-orchestrator-empty-tool-arguments.md](log/2026-08-27-orchestrator-empty-tool-arguments.md).
+the extension never runs.
 
 `worktree-paths.ts` is the only Phosphor code that can refuse a tool call. A
 session in `.phosphor/worktrees/<name>` was observed reading files out of the main
@@ -329,7 +329,6 @@ file is opened, which is why this runs in pi rather than in the main process.
 The rule is deliberately four-condition narrow (worktree session, path outside
 cwd, path inside the main checkout, counterpart exists in cwd) because pi's own
 system prompt sends the model to absolute paths outside the cwd for its docs.
-Full account: [log/2026-08-22-worktree-path-leak.md](log/2026-08-22-worktree-path-leak.md).
 
 `context-breakdown.ts` exists because pi reports context usage as one
 number. The composed system prompt and the active tool schemas are not
@@ -526,8 +525,7 @@ Pro/Max subscription models available inside pi's own agent loop by running
 package — the abstraction holds, and `shared/rpc.ts` needed no changes.
 
 Its internals, and the compatibility fixes we shipped, are documented in
-that repo's `docs/ARCHITECTURE.md`. Landing log:
-[log/2026-08-21-claude-cli-provider-fixes.md](log/2026-08-21-claude-cli-provider-fixes.md).
+that repo's `docs/ARCHITECTURE.md`.
 
 ### Two versions go stale, and only one of them is pi's
 

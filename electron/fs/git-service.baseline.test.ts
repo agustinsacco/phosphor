@@ -11,7 +11,7 @@ import { createSessionBaseline, showFileAt } from './git-service'
  *
  * The bug: `createSessionBaseline` used `git stash create`, which silently
  * omits untracked files. Untracked files are exactly the class that was
- * unrecoverable in the two-agents-one-tree incident (docs/specs/TRACKER.md:114).
+ * unrecoverable in the two-agents-one-tree incident.
  *
  * `captures untracked source files` is the assertion that matters, and it has
  * been verified to FAIL against the `git stash create` implementation: a stash

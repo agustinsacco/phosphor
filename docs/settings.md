@@ -41,9 +41,9 @@ Writes pi's own `settings.json`. A **Scope** switch chooses global (`~/.pi/agent
 
 ## Accounts
 
-- One row per provider pi can sign into with a subscription (`SUBSCRIPTION_PROVIDERS` in `electron/pi/auth-status.ts`), each showing ready / not ready from `pi auth check --json` and a Sign in button that drives pi's TUI off-screen ([2026-08-26-background-provider-login.md](log/2026-08-26-background-provider-login.md)).
+- One row per provider pi can sign into with a subscription (`SUBSCRIPTION_PROVIDERS` in `electron/pi/auth-status.ts`), each showing ready / not ready from `pi auth check --json` and a Sign in button that drives pi's TUI off-screen.
 - A signed-in row also shows **which account**, when the provider's credential is a JWT that names one (ChatGPT/Codex today). The check runs with `--credentials` and `electron/pi/auth-identity.ts` reads the email claim out of the token inside the main process; the credential itself is never stored, logged, or sent to the renderer. Providers with an opaque credential (OpenRouter, Anthropic, GitHub) show "Signed in" and nothing more.
-- **Sign in again** (switching accounts) finishes on the credential _changing_, not on `pi auth check` reporting ready — the credential already stored answers ready a second after pi prints the URL, and ending the flow kills the pty that is pi's own callback server ([2026-09-08-resign-in-closed-its-own-callback-server.md](log/2026-09-08-resign-in-closed-its-own-callback-server.md)).
+- **Sign in again** (switching accounts) finishes on the credential _changing_, not on `pi auth check` reporting ready — the credential already stored answers ready a second after pi prints the URL, and ending the flow kills the pty that is pi's own callback server.
 
 This tab is pi's own `auth`, nothing more. The **Claude Code** provider keeps a separate set of logins, under Extensions → Claude Code below.
 
@@ -71,8 +71,7 @@ Routes model calls through the Claude Code CLI, billing your Claude Pro/Max plan
 - Each account row **opens** onto that account's own usage windows and the live
   sessions spending it (`claude:accountSessions`). A session there can be
   restarted on the same account or moved to another one; both respawn it from
-  its session file, which is the only way an account can change
-  ([2026-09-06](log/2026-09-06-claude-account-gateway.md)).
+  its session file, which is the only way an account can change.
 
 ### Web access (`pi-web-access`)
 
@@ -127,7 +126,7 @@ Headroom, the local tool-result compression proxy. Opening the tab probes `/heal
 - **pi health**: the resolved binary path, its version, and the minimum version Phosphor supports, read when the tab opens.
 - **Raw file editors** (Monaco JSON) for `~/.pi/agent/settings.json` and `models.json`, with a "restart sessions to apply" note. This is the escape hatch the Agent tab points at when a config file is too broken to edit structurally.
 - **Maintenance**: a periodic sweep for worktrees whose branch already landed. It always _measures_ — the row reports "N of M worktrees reclaimable" — and only deletes once "Delete automatically" is on, because a reclaimed lane needs a fresh install to come back. Interval (≥15 min) and a grace period (a merged lane is kept this long after its last use, in case you are still reading it) are both configurable.
-- **Local pi resources**: a read-only listing of the loose extensions, prompts and themes pi discovered, up to 8 per column. Packages are the Extensions tab; skills have their own page (sidebar → Skills, [2026-09-04-skills-page.md](log/2026-09-04-skills-page.md)). `auth.json` is never read or displayed.
+- **Local pi resources**: a read-only listing of the loose extensions, prompts and themes pi discovered, up to 8 per column. Packages are the Extensions tab; skills have their own page (sidebar → Skills, [ui-shell.md](ui-shell.md#global-surfaces)). `auth.json` is never read or displayed.
 
 ## Keybindings
 

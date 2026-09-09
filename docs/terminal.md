@@ -40,4 +40,4 @@ Full PTY terminal pane, independent from the agent (agent `bash` tool calls rend
   (`src/components/RunCommandRow.tsx` — the play button IS the confirmation).
   If no shell exists and none can be started, the paste is dropped rather than
   stranded in the store: the pane is already showing the spawn error.
-- Used by onboarding: "open a terminal running `pi` to log in" ([08-sessions.md](specs/build/08-sessions.md)).
+- Used by onboarding: "open a terminal running `pi` to log in".
