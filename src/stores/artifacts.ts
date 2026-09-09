@@ -202,3 +202,18 @@ export const useArtifactsStore = create<ArtifactsState>((set, get) => ({
       unseen: drop(s.unseen, sessionId),
     })),
 }))
+
+/**
+ * Open one artifact in its pane, from anywhere in the UI (an `artifact://id`
+ * link in chat, a tool card). Returns false when this session has no such
+ * artifact — the caller decides how to say so, since a chat link can name an
+ * id that never existed or was written before a fork.
+ */
+export function openArtifact(sessionId: string, artifactId: string, version?: number): boolean {
+  const store = useArtifactsStore.getState()
+  if (!store.bySession[sessionId]?.[artifactId]) return false
+  store.select(sessionId, artifactId, version)
+  store.clearUnseen(sessionId)
+  useLayoutStore.getState().setRightPane('artifacts', sessionId)
+  return true
+}

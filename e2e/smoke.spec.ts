@@ -2961,6 +2961,35 @@ test('skills page lists a seeded skill, and creates a new one on disk', async ()
   }
 })
 
+test('an artifact link the model wrote opens the Artifacts pane', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('artifactlink please')
+    await page.getByRole('button', { name: /Start session/i }).click()
+
+    const artifactLink = page.getByRole('link', { name: 'Preview the design' })
+    await expect(artifactLink).toHaveAttribute('title', 'Open in Artifacts pane', {
+      timeout: 30_000,
+    })
+    // No href, same as a file link: nothing can navigate the app away.
+    expect(await artifactLink.getAttribute('href')).toBeNull()
+
+    // The pane auto-opens on a session's first artifact, so close it first —
+    // otherwise this passes on a pane the link never touched. Exact role match:
+    // the link's own title ("Open in Artifacts pane") is a getByTitle substring.
+    await page.getByRole('button', { name: 'Artifacts pane', exact: true }).click()
+    await expect(page.getByTestId('artifact-scroll')).toBeHidden()
+
+    await artifactLink.click()
+    await expect(page.getByTestId('artifact-scroll')).toBeVisible({ timeout: 10_000 })
+    await expect(page.getByTestId('right-pane')).toContainText('E2E Linked Doc')
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('a link to a spec the model wrote opens it in the Files pane', async () => {
   const harness = await launch()
   const { page, workspace } = harness

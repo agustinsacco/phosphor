@@ -1,13 +1,16 @@
-import { classifyLink } from '@/lib/markdownLink'
+import { classifyLink, type LinkTarget } from '@/lib/markdownLink'
 import { openFileInWorkspace } from '@/stores/layout'
 import { getActiveWorkspace } from '@/stores/workspaces'
 import { useExtensionUiStore } from '@/stores/extensionUi'
+import { openArtifact } from '@/stores/artifacts'
+import { useSessionsStore } from '@/stores/sessions'
 
 /**
  * A link in model-authored markdown. A web URL goes to the default browser; a
- * path the model wrote opens in the Files pane, at its line when it names one.
+ * path the model wrote opens in the Files pane, at its line when it names one;
+ * `artifact://<id>` opens that artifact in the Artifacts pane.
  *
- * A file link carries no `href` on purpose: with one, a middle-click or a
+ * An in-app link carries no `href` on purpose: with one, a middle-click or a
  * missed `preventDefault` navigates the whole app to a path that is not a
  * route, and the only way back is a reload.
  */
@@ -24,6 +27,14 @@ export function MarkdownLink({
       void window.phosphor.invoke('app:openExternal', target.url)
       return
     }
+    if (target.kind === 'artifact') {
+      const sessionId = useSessionsStore.getState().activeSessionId
+      if (sessionId && openArtifact(sessionId, target.id, target.version)) return
+      useExtensionUiStore
+        .getState()
+        .pushToast(`No artifact "${target.id}" in this session`, 'error')
+      return
+    }
     if (target.kind !== 'file') return
     const workspacePath = getActiveWorkspace()
     if (!workspacePath) return
@@ -33,17 +44,13 @@ export function MarkdownLink({
   }
 
   const className = 'text-info hover:underline'
-  if (target.kind === 'file') {
+  if (target.kind === 'file' || target.kind === 'artifact') {
     return (
       <a
         {...rest}
         role="link"
         tabIndex={0}
-        title={
-          target.line === undefined
-            ? 'Open in Files pane'
-            : `Open in Files pane at line ${target.line}`
-        }
+        title={inAppTitle(target)}
         className={`${className} cursor-pointer`}
         onClick={activate}
         onKeyDown={(event) => {
@@ -60,4 +67,15 @@ export function MarkdownLink({
       {children}
     </a>
   )
+}
+
+function inAppTitle(target: Extract<LinkTarget, { kind: 'file' | 'artifact' }>): string {
+  if (target.kind === 'artifact') {
+    return target.version === undefined
+      ? 'Open in Artifacts pane'
+      : `Open in Artifacts pane at v${target.version}`
+  }
+  return target.line === undefined
+    ? 'Open in Files pane'
+    : `Open in Files pane at line ${target.line}`
 }

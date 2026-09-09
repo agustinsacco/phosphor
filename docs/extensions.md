@@ -224,6 +224,18 @@ It must never use `String.replace`: even with a string pattern that expands
 `$&`, `` $` ``, `$'` and `$1` in the _replacement_, which silently corrupts any
 `new_string` containing them.
 
+**`artifact://<id>` is a link the model can write in chat.** Two pieces make it
+work, and both are required: `artifactUrlTransform` is handed to
+`ReactMarkdown` as `urlTransform`, because react-markdown's default filter
+rewrites any non-web protocol to `''` before a component ever sees the href;
+then `classifyLink` (both in `src/lib/markdownLink.ts`) resolves it against the
+active session's artifacts and `MarkdownLink` opens the Artifacts pane on it.
+`#v2` / `@v2` opens one version, and an id this session never had raises a
+toast instead of doing nothing. The id is slugified exactly as `slugifyArtifactId` slugifies it, so a
+link written from the title still resolves. The tool description and the
+`artifact_create` result both name the syntax, because models were already
+inventing this link and every one of them was inert.
+
 `session_start` rebuilds the full artifact record — content included, not just
 version numbers — because an edit has to apply to the live text in a resumed
 session.

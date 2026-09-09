@@ -403,6 +403,7 @@ function handle(cmd) {
         break
       }
       if (message.includes('speclink')) runSpecLinkTurn()
+      else if (message.includes('artifactlink')) runArtifactLinkTurn()
       else if (message.includes('longartifact')) runLongArtifactTurn()
       else if (message.includes('manyitems')) runManyItemsTurn()
       else if (message.includes('fanout')) runSubagentTurn()
@@ -692,6 +693,77 @@ function runSpecLinkTurn() {
         message: {
           role: 'assistant',
           content: [{ type: 'text', text }],
+          stopReason: 'stop',
+          timestamp: Date.now(),
+        },
+      }),
+    () => out({ type: 'agent_end', messages: [] }),
+    () => out({ type: 'agent_settled' }),
+  ])
+}
+
+/**
+ * An artifact, then the hand-off line real models write about it: an
+ * `artifact://<id>` link back to what they just produced. The link was inert
+ * until Phosphor learned the scheme — an unknown scheme classified the same as
+ * `javascript:`, so the click did nothing at all.
+ */
+function runArtifactLinkTurn() {
+  play([
+    () => out({ type: 'agent_start' }),
+    () => out({ type: 'turn_start' }),
+    () => out({ type: 'message_start', message: { role: 'assistant', content: [] } }),
+    () =>
+      out({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [
+            {
+              type: 'toolCall',
+              id: 'call_link_art',
+              name: 'artifact_create',
+              arguments: { title: 'E2E Linked Doc' },
+            },
+          ],
+          stopReason: 'toolUse',
+          timestamp: Date.now(),
+        },
+      }),
+    () =>
+      out({
+        type: 'tool_execution_start',
+        toolCallId: 'call_link_art',
+        toolName: 'artifact_create',
+        args: { title: 'E2E Linked Doc' },
+      }),
+    () =>
+      out({
+        type: 'tool_execution_end',
+        toolCallId: 'call_link_art',
+        toolName: 'artifact_create',
+        isError: false,
+        result: {
+          content: [{ type: 'text', text: 'Created artifact' }],
+          details: {
+            id: 'e2e-linked-doc',
+            title: 'E2E Linked Doc',
+            type: 'markdown',
+            content: '# E2E Linked Doc\n\nThe artifact the chat link points at.\n',
+            version: 1,
+          },
+        },
+      }),
+    // A fresh assistant message, so the tool row keeps its own activity group.
+    () => out({ type: 'message_start', message: { role: 'assistant', content: [] } }),
+    () =>
+      out({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: 'Done — [Preview the design](artifact://e2e-linked-doc).' },
+          ],
           stopReason: 'stop',
           timestamp: Date.now(),
         },
