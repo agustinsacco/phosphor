@@ -21,6 +21,9 @@ import { composePrompt, toImageContents, type PendingAttachment } from '@/featur
 import { AttachmentChips, DropOverlay } from '@/features/chat/composer/AttachmentChips'
 import { useAttachments } from '@/features/chat/composer/useAttachments'
 import { ComposerField } from '@/features/chat/composer/ComposerField'
+import { buildCommandEntries, CommandMenu } from '@/features/chat/composer/CommandMenu'
+import { useSlashMenu } from '@/features/chat/composer/useSlashMenu'
+import { NO_COMMANDS, usePiCommandsStore } from '@/stores/piCommands'
 import { homeDraftKey, useDraftsStore } from '@/stores/drafts'
 
 /** Greeting home for a workspace: stats card + heatmap + first-prompt composer. */
@@ -63,6 +66,24 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
     onChange: setImages,
     onReject: setWarning,
   })
+  /*
+   * The `/` menu, same component and same keymap as the chat composer.
+   *
+   * The entries cannot come from where the chat composer gets them — that list
+   * is answered by the session's own pi process, and here there is no session
+   * yet — so they come from a workspace-scoped probe instead, loaded on the
+   * first `/` rather than on mount (it spawns a pi). No native commands:
+   * /compact, /export and /name all act on a session that does not exist.
+   */
+  const piCommands = usePiCommandsStore((s) => s.byWorkspace[workspacePath] ?? NO_COMMANDS)
+  const commandEntries = useMemo(() => buildCommandEntries(piCommands, []), [piCommands])
+  const slash = useSlashMenu({
+    entries: commandEntries,
+    setText,
+    onOpen: () => void usePiCommandsStore.getState().load(workspacePath),
+    focus: () => textareaRef.current?.focus(),
+  })
+
   // The project, never the worktree folder this home screen may be pointed at.
   const git = useSessionsStore((s) => s.gitByCwd[workspacePath])
   const workspaceName = projectName(workspacePath, git)
@@ -203,7 +224,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
       </div>
 
       <div className="flex flex-col items-center px-4 pb-6 pt-4 sm:px-6">
-        <div className="w-full max-w-2xl">
+        <div className="relative w-full max-w-2xl">
           {/*
             Folder, branch and isolation, on one row above the composer.
 
@@ -223,6 +244,16 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               <IsolateToggle checked={isolate} disabled={starting} workspacePath={workspacePath} />
             )}
           </div>
+          {slash.visible && (
+            <CommandMenu
+              query={slash.query ?? ''}
+              entries={commandEntries}
+              activeIndex={slash.activeIndex}
+              onHover={slash.setActiveIndex}
+              onPick={slash.pick}
+              onClose={slash.close}
+            />
+          )}
           {/* One seamless card: the submit affordance sits inside the field
               (a quiet ⏎ glyph), never as a second bordered row. */}
           <div
@@ -241,10 +272,14 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             <ComposerField
               value={text}
               textareaRef={textareaRef}
-              onChange={setText}
+              onChange={(value) => {
+                setText(value)
+                slash.sync(value)
+              }}
               onSubmit={() => void start()}
+              onKeyDown={slash.handleKeyDown}
               onPasteFiles={attachments.addFiles}
-              placeholder="Describe a task or ask a question"
+              placeholder="Describe a task or ask a question  ( / commands )"
               rows={2}
             />
 

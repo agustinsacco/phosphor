@@ -10,6 +10,7 @@ import type {
   RpcResponse,
   ExtensionUIResponse,
   RpcResponseDataMap,
+  RpcSlashCommand,
   ThinkingLevelMap,
   ModelCost,
 } from './rpc'
@@ -241,6 +242,18 @@ export interface IpcInvokeMap {
   'pi:agentSettingsScoped': {
     args: [workspacePath?: string]
     result: { global: Record<string, unknown>; project: Record<string, unknown> | null }
+  }
+  /**
+   * The slash commands pi resolves for a folder, with no live session yet.
+   *
+   * A session gets its own list from `get_commands` at bootstrap; the home
+   * composer has no session to ask, so it asks a throwaway pi instead
+   * (`electron/pi/commands.ts`). Empty when pi cannot be run — the menu then
+   * simply never opens, which is what it did before.
+   */
+  'pi:commands': {
+    args: [workspacePath?: string]
+    result: { commands: RpcSlashCommand[] }
   }
   /**
    * pi's model catalogue, for pickers with no live session yet.

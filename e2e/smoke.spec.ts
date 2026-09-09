@@ -339,6 +339,40 @@ test('session chrome stays readable with long labels, laptop widths and zoom', a
   }
 })
 
+test('the / menu offers pi commands on the home screen and in a session', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    const field = page.getByPlaceholder('Describe a task or ask a question')
+    // The list comes from a throwaway `pi --mode rpc --no-session`, not from a
+    // session: this screen has none yet.
+    await field.pressSequentially('/stub')
+    // Matched on the description: the command's own name also appears in the
+    // textarea's value once it is picked, which `getByText` would resolve to.
+    const row = page.getByText('A stub command')
+    await expect(row).toBeVisible({ timeout: 30_000 })
+    // Enter picks rather than sending, and leaves room for arguments.
+    await field.press('Enter')
+    await expect(field).toHaveValue('/stub-command ')
+    await expect(row).toBeHidden()
+
+    // Same menu, same keymap, in the session composer — where the list comes
+    // from the session's own pi instead.
+    await field.fill('Update hello.ts')
+    await field.press('Enter')
+    const chat = page.getByPlaceholder(/Describe a task…/i)
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    await chat.pressSequentially('/stub')
+    await expect(row).toBeVisible()
+    await chat.press('Escape')
+    await expect(row).toBeHidden()
+    await expect(chat).toHaveValue('/stub')
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('composer formatting participates in native undo and redo', async () => {
   const harness = await launch()
   const { page } = harness
@@ -819,7 +853,7 @@ test('dropped chat images open on click and copy on right-click', async () => {
       dataTransfer.items.add(new File([bytes], 'dot.png', { type: 'image/png' }))
       const zone = document
         .querySelector<HTMLTextAreaElement>(
-          'textarea[placeholder="Describe a task or ask a question"]',
+          'textarea[placeholder^="Describe a task or ask a question"]',
         )!
         .closest('div.relative')!
       zone.dispatchEvent(
@@ -1823,7 +1857,7 @@ test('an unsent draft survives a session switch and a relaunch', async () => {
         dataTransfer.items.add(new File([bytes], 'dot.png', { type: 'image/png' }))
         const zone = document
           .querySelector<HTMLTextAreaElement>(
-            'textarea[placeholder="Describe a task or ask a question"]',
+            'textarea[placeholder^="Describe a task or ask a question"]',
           )!
           .closest('div.relative')!
         zone.dispatchEvent(

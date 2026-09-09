@@ -19,10 +19,9 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
-import { PiRpcClient } from './rpc-client'
+import { probeCommands } from './commands'
 import { piAgentDir } from './pi-paths'
 import { readZipEntries, writeZipStore, type ZipEntry } from './zip'
-import type { RpcResponse, RpcResponseDataMap } from '@shared/rpc'
 import {
   composeSkillMd,
   isSkillDraft,
@@ -43,7 +42,6 @@ export const SKILL_SIDECAR = '.phosphor-skill.json'
 /** Sidecar name written by pre-rename (pidex) installs; still read, never written. */
 export const LEGACY_SKILL_SIDECAR = '.pidex-skill.json'
 
-const RPC_TIMEOUT_MS = 20_000
 const MAX_BUNDLE_FILES = 500
 const MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024
 const MAX_ARCHIVE_BYTES = 60 * 1024 * 1024
@@ -131,55 +129,22 @@ async function probeSkillsViaRpc(
 ): Promise<
   Array<{ dir: string; scope: SkillScope; source: string; origin: 'package' | 'top-level' }>
 > {
-  const client = new PiRpcClient({
-    cwd: options.workspacePath ?? process.cwd(),
-    ...(options.binaryPath ? { binaryPath: options.binaryPath } : {}),
-    ...(options.prefixArgs ? { prefixArgs: options.prefixArgs } : {}),
-    noSession: true,
-    ...(options.env ? { env: options.env } : {}),
-  })
-  client.spawn()
-  try {
-    const response = (await withTimeout(
-      client.request({ type: 'get_commands' }),
-      RPC_TIMEOUT_MS,
-    )) as RpcResponse<RpcResponseDataMap['get_commands']>
-    if (!response.success || !response.data) return []
-    const results: Array<{
-      dir: string
-      scope: SkillScope
-      source: string
-      origin: 'package' | 'top-level'
-    }> = []
-    for (const command of response.data.commands) {
-      if (command.source !== 'skill' || !command.sourceInfo?.path) continue
-      results.push({
-        dir: dirname(command.sourceInfo.path),
-        scope: command.sourceInfo.scope === 'project' ? 'project' : 'user',
-        source: command.sourceInfo.source,
-        origin: command.sourceInfo.origin,
-      })
-    }
-    return results
-  } finally {
-    await client.dispose()
+  const results: Array<{
+    dir: string
+    scope: SkillScope
+    source: string
+    origin: 'package' | 'top-level'
+  }> = []
+  for (const command of await probeCommands(options)) {
+    if (command.source !== 'skill' || !command.sourceInfo?.path) continue
+    results.push({
+      dir: dirname(command.sourceInfo.path),
+      scope: command.sourceInfo.scope === 'project' ? 'project' : 'user',
+      source: command.sourceInfo.source,
+      origin: command.sourceInfo.origin,
+    })
   }
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolvePromise, reject) => {
-    const timer = setTimeout(() => reject(new Error('skills probe timed out')), ms)
-    promise.then(
-      (value) => {
-        clearTimeout(timer)
-        resolvePromise(value)
-      },
-      (error) => {
-        clearTimeout(timer)
-        reject(error)
-      },
-    )
-  })
+  return results
 }
 
 /**
