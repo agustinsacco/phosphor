@@ -252,7 +252,7 @@ function ContextComposition({
       </div>
       <div className="mt-1.5 grid grid-cols-2 gap-x-5 gap-y-0.5 text-base">
         {slices.map((slice) => (
-          <div key={slice.key} className="flex items-center gap-1.5">
+          <div key={slice.key} className="flex items-center gap-1.5" title={slice.hint}>
             <span
               className="h-2 w-2 shrink-0 rounded-full"
               style={{ backgroundColor: slice.color }}
@@ -275,7 +275,8 @@ function ContextComposition({
       </div>
       {breakdown.approximate && (
         <div className="text-text-tertiary pt-1 text-sm">
-          Component sizes are estimates; the total is pi&apos;s own figure.
+          Component sizes are estimates; the total is pi&apos;s own figure. Whatever pi counts
+          beyond them is &ldquo;Unmeasured&rdquo;, never folded into the rows above.
         </div>
       )}
       <McpServers breakdown={breakdown} total={total} />

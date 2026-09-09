@@ -33,6 +33,44 @@ export interface BreakdownSlice {
   /** CSS colour for the bar segment and dot. */
   color: string
   count?: number
+  /** Explains a slice the labels alone cannot; rendered as the row's title. */
+  hint?: string
+}
+
+/**
+ * How much of pi's total the extension could not attribute.
+ *
+ * The extension measures pi's own state — its composed system prompt and its
+ * active tool schemas. Under a CLI provider that is only part of the request:
+ * the Claude Code CLI sends its own system prompt and its own native tool
+ * schemas too, and keeps native tool results in its own transcript. Measured
+ * live on 2026-09-09, that unattributable share was ~29k tokens on turn 1 of
+ * a Claude session and ~0.5k on a native one.
+ *
+ * It must be shown as its own slice, never spread across the measured ones.
+ * See `scaleFor`.
+ */
+export function measuredTokens(breakdown: ContextBreakdown): number {
+  const p = breakdown.parts
+  return p.messages + p.systemPrompt + p.tools + p.mcpTools
+}
+
+/**
+ * Estimates are scaled DOWN to fit pi's total, and never up.
+ *
+ * Down is honest: `~4 characters per token` can overshoot, and a component
+ * cannot occupy more of the window than the whole request does.
+ *
+ * Up is not. Scaling up assumes every token pi counts belongs to something
+ * this extension measured, which is false for any CLI provider — so the
+ * provider's own prompt and tool schemas were silently added to *our* slices.
+ * A fixed 9,914-token system prompt rendered as 44.1k then 22.5k across four
+ * turns of one Claude session, drifting with the provider's hidden share, while
+ * the same code stayed within ~8% on a native pi session. The remainder is the
+ * `unmeasured` slice instead.
+ */
+function scaleFor(measured: number, total: number): number {
+  return measured > total && measured > 0 ? total / measured : 1
 }
 
 /**
@@ -89,16 +127,14 @@ function parseByServer(raw: unknown): ContextBreakdown['mcpByServer'] {
 }
 
 /**
- * Per-server MCP rows for the popover, largest first and scaled to pi's total
- * the same way the slices are, so the numbers agree with the bar above them.
+ * Per-server MCP rows for the popover, largest first and scaled the same way
+ * the slices are, so the numbers agree with the bar above them.
  */
 export function mcpServerRows(
   breakdown: ContextBreakdown,
   total: number,
 ): Array<{ name: string; tokens: number; count: number }> {
-  const parts = breakdown.parts
-  const estimated = parts.messages + parts.systemPrompt + parts.tools + parts.mcpTools
-  const scale = estimated > 0 && total > 0 ? total / estimated : 0
+  const scale = scaleFor(measuredTokens(breakdown), total)
   return Object.entries(breakdown.mcpByServer)
     .map(([name, value]) => ({
       name,
@@ -112,11 +148,11 @@ export function mcpServerRows(
  * Turn a breakdown into rendered slices against the authoritative totals.
  *
  * `total` and `window` come from pi (not the extension), because pi's number
- * is the one that decides compaction. The component estimates are scaled to
- * fit it: they are character-based approximations, so left unscaled they
- * would visibly disagree with the number right above them. Scaling keeps the
- * proportions — which is what the breakdown is for — while the totals stay
- * exact. "Free space" is always the honest remainder.
+ * is the one that decides compaction. The measured components keep their own
+ * size (clamped down to fit — see `scaleFor`), and whatever pi counts beyond
+ * them becomes the `unmeasured` slice. Both remainders are honest: `unmeasured`
+ * is the part of the request this process cannot see, "Free space" is the part
+ * of the window nothing occupies yet.
  */
 export function breakdownSlices(
   breakdown: ContextBreakdown,
@@ -124,8 +160,7 @@ export function breakdownSlices(
   window: number,
 ): BreakdownSlice[] {
   const parts = breakdown.parts
-  const estimated = parts.messages + parts.systemPrompt + parts.tools + parts.mcpTools
-  const scale = estimated > 0 && total > 0 ? total / estimated : 0
+  const scale = total > 0 ? scaleFor(measuredTokens(breakdown), total) : 0
   const pct = (tokens: number): number => (window > 0 ? (tokens / window) * 100 : 0)
 
   const scaled = (tokens: number): number => Math.round(tokens * scale)
@@ -160,6 +195,20 @@ export function breakdownSlices(
   ]
     .filter((slice) => slice.tokens > 0)
     .map((slice) => ({ ...slice, percent: pct(slice.tokens) }))
+
+  // Computed from the ROUNDED slices, so the legend adds up to pi's total
+  // exactly rather than to the total plus four rounding errors.
+  const unmeasured = Math.max(0, total - slices.reduce((sum, slice) => sum + slice.tokens, 0))
+  if (unmeasured > 0) {
+    slices.push({
+      key: 'unmeasured',
+      label: 'Unmeasured',
+      tokens: unmeasured,
+      percent: pct(unmeasured),
+      color: 'var(--px-text-tertiary)',
+      hint: "Counted by pi but not visible from inside it. On a CLI provider this is the CLI's own system prompt, its native tool schemas and results it keeps in its own transcript; elsewhere it is drift between the character estimate and the real tokenizer.",
+    })
+  }
 
   const used = slices.reduce((sum, slice) => sum + slice.tokens, 0)
   const free = Math.max(0, window - used)

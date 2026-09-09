@@ -55,12 +55,20 @@ describe('mcpServerRows', () => {
     }),
   )!
 
-  it('orders by cost and scales to pi\u2019s authoritative total', () => {
-    // Estimated 500, real 1000 — the same 2× scaling the slices use, so the
-    // rows cannot disagree with the bar above them.
+  it('orders by cost and keeps its own estimate when pi counts more', () => {
+    // Measured 500, pi says 1000. The extra 500 belongs to the provider, not
+    // to these servers, so the rows report what they measured.
     expect(mcpServerRows(breakdown, 1000)).toEqual([
-      { name: 'datadog', tokens: 300, count: 22 },
-      { name: 'linear', tokens: 100, count: 8 },
+      { name: 'datadog', tokens: 150, count: 22 },
+      { name: 'linear', tokens: 50, count: 8 },
+    ])
+  })
+
+  it('scales down when the estimate overshoots pi', () => {
+    // Measured 500, pi says 250: chars/4 overshot, so halve.
+    expect(mcpServerRows(breakdown, 250)).toEqual([
+      { name: 'datadog', tokens: 75, count: 22 },
+      { name: 'linear', tokens: 25, count: 8 },
     ])
   })
 
@@ -78,14 +86,52 @@ describe('breakdownSlices', () => {
     }),
   )!
 
-  it("scales estimates onto pi's authoritative total", () => {
-    // Estimates sum to 500; pi says 1000. Components double, and the split
-    // stays 60/20/20 — proportions are the point, the total is pi's.
+  it('keeps measured components at their measured size', () => {
+    const byKey = Object.fromEntries(
+      breakdownSlices(breakdown, 1000, 10_000).map((s) => [s.key, s.tokens]),
+    )
+    expect(byKey.messages).toBe(300)
+    expect(byKey.systemPrompt).toBe(100)
+    expect(byKey.tools).toBe(100)
+  })
+
+  it("reports pi's unattributed remainder as its own slice", () => {
     const slices = breakdownSlices(breakdown, 1000, 10_000)
-    const byKey = Object.fromEntries(slices.map((s) => [s.key, s.tokens]))
-    expect(byKey.messages).toBe(600)
-    expect(byKey.systemPrompt).toBe(200)
-    expect(byKey.tools).toBe(200)
+    const unmeasured = slices.find((s) => s.key === 'unmeasured')
+    expect(unmeasured?.tokens).toBe(500)
+    expect(unmeasured?.hint).toContain('not visible from inside it')
+  })
+
+  /**
+   * The regression this file exists for. The old code scaled estimates UP to
+   * pi's total, so a Claude session's hidden CLI prompt landed on our slices:
+   * one fixed 9,914-token system prompt rendered as 44.1k then 22.5k as the
+   * provider's share moved. Measured 2026-09-09 on session 01a0865a.
+   */
+  it('holds a fixed system prompt steady while the provider share swings', () => {
+    const claude = parseContextBreakdown(
+      JSON.stringify({
+        parts: { messages: 1259, systemPrompt: 9914, tools: 7868, mcpTools: 698 },
+        counts: { tools: 27, mcpTools: 5, messages: 4 },
+      }),
+    )!
+    for (const total of [87_880, 50_461, 56_054, 63_576]) {
+      const slices = breakdownSlices(claude, total, 1_000_000)
+      expect(slices.find((s) => s.key === 'systemPrompt')?.tokens).toBe(9914)
+      // Nothing is invented and nothing is lost: the legend sums to pi's total.
+      const used = slices.filter((s) => s.key !== 'free').reduce((n, s) => n + s.tokens, 0)
+      expect(used).toBe(total)
+    }
+  })
+
+  it('scales down, never up, when the estimate overshoots pi', () => {
+    // Measured 500 against a real 250 — a component cannot outweigh the request.
+    const byKey = Object.fromEntries(
+      breakdownSlices(breakdown, 250, 10_000).map((s) => [s.key, s.tokens]),
+    )
+    expect(byKey.messages).toBe(150)
+    expect(byKey.systemPrompt).toBe(50)
+    expect(byKey.unmeasured).toBeUndefined()
   })
 
   it('always ends with free space as the honest remainder', () => {
