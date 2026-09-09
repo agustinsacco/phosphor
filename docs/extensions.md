@@ -242,6 +242,29 @@ add `allow-same-origin`, and never add a `connect-src` to that policy — either
 one hands model-authored HTML a channel out. See
 [docs/log/2026-08-28-lane-management-and-artifact-edits.md](log/2026-08-28-lane-management-and-artifact-edits.md).
 
+**The look of an artifact is injected, not prompted.**
+`electron/artifacts/artifact-skeleton.ts` wraps the model's markup in a real
+document and puts the house stylesheet in its `<head>`, so the model writes a
+fragment and no palette at all. Three consequences worth knowing:
+
+- **It is retroactive.** The document is rebuilt on every stage, so an artifact
+  written weeks ago re-renders in the current style.
+- **The model still wins.** Its `<style>` lands after the sheet in document
+  order; the sheet is a floor, not a cage.
+- **The theme is Phosphor's, not the OS's.** `data-theme` is stamped on the
+  root element from the renderer's resolved theme (which is why
+  `artifacts:stageHtml` takes it as an argument — the staged content depends on
+  it, so the caller needs a dependency to re-stage on), and `main.ts` sets
+  `nativeTheme.themeSource` so the `prefers-color-scheme` path agrees. Before
+  this, nothing wrote `data-theme` anywhere, and an artifact followed macOS
+  while the app followed its own preference.
+
+Two rules the sheet cannot enforce, so the tool description carries them:
+charts are **hand-authored inline SVG** (the artifact CSP grants no network, so
+a CDN chart library renders nothing at all), and any chart carrying a claim gets
+a `table.data` under it. See
+[docs/log/2026-09-08-artifact-house-style.md](log/2026-09-08-artifact-house-style.md).
+
 `lane-loop.ts` used to sit here too — it ran a fixed ladder of checks when a
 turn settled and published the result to a banner above the composer. Both the
 extension and the banner were removed on 2026-08-28; the idea is meant to come

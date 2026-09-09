@@ -22,7 +22,7 @@ export const HtmlBlock = memo(function HtmlBlock({ code }: { code: string }): Re
         </ToggleTab>
       </div>
       {mode === 'preview' ? (
-        <SandboxedHtml html={code} title="HTML preview" className="h-96 w-full bg-white" />
+        <SandboxedHtml html={code} title="HTML preview" className="bg-bg h-96 w-full" />
       ) : (
         <div className="[&>div]:my-0 [&>div]:rounded-none [&>div]:border-0">
           <CodeBlock code={code} language="html" />

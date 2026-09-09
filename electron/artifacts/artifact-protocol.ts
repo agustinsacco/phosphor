@@ -1,5 +1,6 @@
 import { protocol } from 'electron'
 import { createHash } from 'node:crypto'
+import { buildArtifactDocument } from './artifact-skeleton'
 
 /**
  * Serving model-authored HTML on its own origin, so it can run JavaScript
@@ -80,13 +81,23 @@ const staged = new Map<string, string>()
 /** Bounded so a long session full of large artifacts cannot grow main's heap. */
 const MAX_STAGED = 32
 
-export function stageArtifactHtml(html: string): string {
-  const key = createHash('sha256').update(html).digest('hex').slice(0, 32)
+/**
+ * Wrap markup in the house style and stage the result.
+ *
+ * Hashing the FINISHED document, not the model's markup, is what makes a theme
+ * switch reach an open artifact: same markup under a different theme is a
+ * different document, so it gets a different URL and the iframe reloads.
+ * Hashing the markup alone would leave the old theme on screen until the
+ * artifact itself changed.
+ */
+export function stageArtifactHtml(html: string, theme: 'light' | 'dark' = 'dark'): string {
+  const document = buildArtifactDocument(html, theme)
+  const key = createHash('sha256').update(document).digest('hex').slice(0, 32)
   // Re-insert so the eviction order below is least-recently-used, not
   // first-written: the artifact you are actually looking at must not be the
   // one evicted while you look at it.
   staged.delete(key)
-  staged.set(key, html)
+  staged.set(key, document)
   while (staged.size > MAX_STAGED) {
     const oldest = staged.keys().next().value
     if (oldest === undefined) break

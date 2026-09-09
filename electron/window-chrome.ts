@@ -47,6 +47,23 @@ export function resolveTheme(theme: ThemePreference): 'light' | 'dark' {
   return theme === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : theme
 }
 
+/**
+ * Point Chromium's `prefers-color-scheme` at Phosphor's preference.
+ *
+ * The app itself does not need this — it themes off a class on `<html>`. The
+ * artifact iframe does: it is a separate document on its own origin, so the
+ * only scheme signal it can see is Chromium's, and Chromium's default is the
+ * OS. Without this, Phosphor in light mode on a dark Mac rendered every
+ * artifact dark against a light app.
+ *
+ * Safe against a loop: the renderer consults `matchMedia` only while the
+ * preference is `system`, which is exactly the case that leaves this at
+ * `'system'` and changes nothing.
+ */
+export function applyThemeSource(theme: ThemePreference): void {
+  nativeTheme.themeSource = theme
+}
+
 export function backgroundFor(theme: ThemePreference): string {
   return CHROME[resolveTheme(theme)].color
 }

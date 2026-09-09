@@ -6,7 +6,7 @@ import { claudeProjectDirForCwd, sessionDirForCwd } from '../pi/pi-paths'
 import { registry } from '../registry'
 import { handle } from './handle'
 import { stageArtifactHtml } from '../artifacts/artifact-protocol'
-import { applyTitleBarOverlay, applyZoom } from '../window-chrome'
+import { applyThemeSource, applyTitleBarOverlay, applyZoom } from '../window-chrome'
 import { debugLogPath } from '../debug-log'
 import { externalUrl } from '../external-links'
 import { userInfo } from 'node:os'
@@ -82,13 +82,16 @@ export function registerAppHandlers(): void {
     setTheme(theme)
     // The OS-drawn window controls do not follow the page theme on their own.
     applyTitleBarOverlay(theme)
+    // Neither does an artifact iframe: it is its own document on its own
+    // origin, and reads Chromium's scheme rather than the app's theme class.
+    applyThemeSource(theme)
   })
 
   handle('app:setPinnedSessions', (_event, paths) => {
     setPinnedSessions(paths)
   })
 
-  handle('artifacts:stageHtml', (_event, html: string) => stageArtifactHtml(html))
+  handle('artifacts:stageHtml', (_event, html, theme) => stageArtifactHtml(html, theme))
 
   handle('app:setLanePrefs', (_event, lanes) => {
     setLanePrefs(lanes)

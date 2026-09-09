@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSettingsStore } from '@/stores/settings'
 
 /**
  * Model-authored HTML, rendered so it can actually run.
@@ -27,12 +28,16 @@ export function SandboxedHtml({
 }): React.JSX.Element {
   const [url, setUrl] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
+  // The house stylesheet is injected during staging, so the theme is baked
+  // into the staged document. It has to be a dependency of the effect, or a
+  // theme switch leaves the open artifact on the old one.
+  const theme = useSettingsStore((s) => s.resolvedTheme)
 
   useEffect(() => {
     let cancelled = false
     setFailed(false)
     void window.phosphor
-      .invoke('artifacts:stageHtml', html)
+      .invoke('artifacts:stageHtml', html, theme)
       .then((staged) => {
         if (!cancelled) setUrl(staged)
       })
@@ -42,7 +47,7 @@ export function SandboxedHtml({
     return () => {
       cancelled = true
     }
-  }, [html])
+  }, [html, theme])
 
   // Staging is a single synchronous main-process map write, so this is a frame
   // or two — a spinner here would flash rather than inform.
@@ -62,7 +67,7 @@ export function SandboxedHtml({
       sandbox="allow-scripts"
       src={url}
       title={title}
-      className={className ?? 'h-full min-h-[400px] w-full bg-white'}
+      className={className ?? 'bg-bg h-full min-h-[400px] w-full'}
     />
   )
 }

@@ -318,7 +318,7 @@ function ArtifactPreview({
         <SandboxedHtml
           html={content}
           title={artifact.title}
-          className="h-full min-h-[400px] w-full bg-white"
+          className="bg-bg h-full min-h-[400px] w-full"
         />
       )
     case 'svg':
