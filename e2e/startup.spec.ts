@@ -94,8 +94,8 @@ for (const theme of ['light', 'dark'] as const) {
       await h.page.emulateMedia({ reducedMotion: 'reduce' })
       expect(
         await screen
-          .locator('.startup-progress')
-          .evaluate((el) => getComputedStyle(el, '::after').animationName),
+          .locator('.phosphor-loader-orbit')
+          .evaluate((el) => getComputedStyle(el).animationName),
       ).toBe('none')
       await h.page.screenshot({ path: test.info().outputPath(`startup-${theme}.png`) })
       await h.app.evaluate(() => (globalThis as unknown as { scan: () => void }).scan())
@@ -106,6 +106,153 @@ for (const theme of ['light', 'dark'] as const) {
       // Subsequent workspace activity must not re-arm the launch screen.
       await h.page.getByRole('button', { name: /^New$/ }).click()
       await expect(screen).toHaveCount(0)
+    } finally {
+      await h.close()
+    }
+  })
+}
+
+for (const theme of ['light', 'dark'] as const) {
+  test(`lane beacon stays visible through starting, working and persistence in ${theme}`, async () => {
+    const h = await launch(theme)
+    try {
+      // Drive the real renderer/store through controlled IPC events, so no
+      // screenshot/assertion depends on catching a millisecond of the stub.
+      await h.app.evaluate(({ ipcMain }, workspace) => {
+        ipcMain.removeHandler('pi:createSession')
+        ipcMain.handle('pi:createSession', () => ({
+          sessionId: 'beacon-test',
+          workspacePath: workspace,
+        }))
+        ipcMain.removeHandler('pi:generateTitle')
+        ipcMain.handle('pi:generateTitle', () => null)
+        ipcMain.removeHandler('pi:command')
+        ipcMain.handle('pi:command', (_event, _id, command) =>
+          command.type === 'get_state'
+            ? {
+                success: true,
+                data: { sessionFile: `${workspace}/beacon.jsonl`, isStreaming: false },
+              }
+            : { success: command.type === 'prompt' },
+        )
+      }, h.workspace)
+      await h.page
+        .getByPlaceholder('Describe a task or ask a question')
+        .fill('Reimagine Phosphor loading')
+      await h.page.getByRole('button', { name: /Start session/i }).click()
+      const row = h.page.getByTestId('session-row')
+      await expect(row).toHaveAttribute('data-pending', 'true')
+      await expect(row).toHaveAttribute('data-activity', 'starting')
+      await expect(row.locator('.lane-activity-label')).toHaveText('Starting')
+      await expect(row.locator('.phosphor-loader')).toHaveCSS('width', '20px')
+      await expect(row.locator('.phosphor-loader-orbit')).toHaveCSS(
+        'animation-name',
+        'px-beacon-orbit',
+      )
+      const orbit = row.locator('.phosphor-loader-orbit')
+      const initialTransform = await orbit.evaluate((el) => getComputedStyle(el).transform)
+      await expect
+        .poll(() => orbit.evaluate((el) => getComputedStyle(el).transform))
+        .not.toBe(initialTransform)
+      await expect(
+        h.page.getByTestId('booting-indicator').locator('.phosphor-loader'),
+      ).toBeVisible()
+      await h.app.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0]!.webContents.send('pi:event:beacon-test', {
+          kind: 'event',
+          event: { type: 'agent_start' },
+        })
+      })
+      await expect(row).toHaveAttribute('data-activity', 'working')
+      await expect(row.locator('.lane-activity-label')).toHaveText('Working')
+      await expect(h.page.getByTestId('working-indicator')).toContainText('Working')
+      await expect(h.page.getByTestId('booting-indicator')).toHaveCount(0)
+
+      // Simulate the first session file becoming discoverable. The same
+      // working treatment must survive PendingSessionRow → SessionRow.
+      await h.app.evaluate(({ ipcMain, BrowserWindow }, workspace) => {
+        ipcMain.removeHandler('git:infoBatch')
+        ipcMain.handle('git:infoBatch', () => ({
+          [workspace]: {
+            isRepo: true,
+            isWorktree: true,
+            mainRepoPath: workspace,
+            branch: 'feature/appearance-aware-long-branch',
+            dirtyCount: 7,
+          },
+        }))
+        ipcMain.removeHandler('sessions:list')
+        ipcMain.handle('sessions:list', () => [
+          {
+            path: `${workspace}/beacon.jsonl`,
+            sessionId: 'beacon-test',
+            cwd: workspace,
+            createdAt: new Date().toISOString(),
+            mtimeMs: Date.now(),
+            firstUserText: 'Reimagine Phosphor loading',
+            userMessages: 1,
+            assistantMessages: 0,
+            toolCalls: 0,
+            totalTokens: 0,
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            cost: 0,
+            headroomSavedTokens: 0,
+            entryCount: 1,
+            branchCount: 0,
+          },
+        ])
+        BrowserWindow.getAllWindows()[0]!.webContents.send('sessions:changed', {
+          workspacePath: workspace,
+        })
+      }, h.workspace)
+      await expect(row).not.toHaveAttribute('data-pending')
+      await expect(row.locator('[data-segment="branch"]')).toBeVisible()
+      await expect(row).toHaveAttribute('data-activity', 'working')
+      await h.page.getByRole('button', { name: /^New$/ }).click()
+      await expect(row).toHaveAttribute('data-activity', 'working')
+      expect(await row.evaluate((el) => getComputedStyle(el, '::before').backgroundColor)).toBe(
+        theme === 'dark' ? 'rgb(236, 160, 61)' : 'rgb(179, 92, 15)',
+      )
+      // Both the icon gutter and checkbox reserve 20px: hovering doesn't
+      // nudge the title, or hide every working cue when the icon is replaced.
+      const title = row.getByTestId('session-title')
+      const before = await title.boundingBox()
+      await row.hover()
+      expect((await title.boundingBox())?.x).toBe(before?.x)
+      await expect(row.locator('.lane-activity-label')).toBeVisible()
+      await h.page.mouse.move(600, 400)
+      await h.page.emulateMedia({ reducedMotion: 'reduce' })
+      await expect(row.locator('.phosphor-loader-orbit')).toHaveCSS('animation-name', 'none')
+      await expect(row.locator('.phosphor-loader-core')).toHaveCSS('animation-name', 'none')
+      await h.page
+        .locator('aside')
+        .screenshot({ path: test.info().outputPath(`lane-beacon-${theme}.png`) })
+      // The aside's resize handle intentionally extends outside its box;
+      // the actual lane content, not that handle, must fit without overflow.
+      expect(await row.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+      const sidebar = await h.page.locator('aside').boundingBox()
+      await h.page.mouse.move(sidebar!.x + sidebar!.width - 1, sidebar!.y + 100)
+      await h.page.mouse.down()
+      await h.page.mouse.move(sidebar!.x + 200, sidebar!.y + 100)
+      await h.page.mouse.up()
+      await expect(h.page.locator('aside')).toHaveCSS('width', '208px')
+      expect(await row.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+      await expect(row.locator('.lane-activity-label')).toBeVisible()
+      await expect(row.locator('[data-segment="branch"]')).toBeVisible()
+
+      await h.app.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0]!.webContents.send('pi:event:beacon-test', {
+          kind: 'event',
+          event: { type: 'agent_end', messages: [] },
+        })
+      })
+      await expect(row).not.toHaveAttribute('data-activity')
+      await expect(row.locator('.phosphor-loader')).toHaveCount(0)
+      await expect(row.locator('.lane-activity-label')).toHaveCount(0)
+      await expect(h.page.getByTestId('startup-screen')).toHaveCount(0)
     } finally {
       await h.close()
     }
@@ -193,6 +340,7 @@ test('startup errors offer recovery instead of an endless loading screen', async
     })
     await h.page.reload()
     await expect(h.page.getByRole('alert')).toHaveText('Couldn’t restore your last session.')
+    await expect(h.page.locator('.phosphor-loader-orbit')).toHaveCSS('animation-name', 'none')
     await h.page.getByRole('button', { name: 'Continue without restoring' }).click()
     await expect(h.page.getByRole('button', { name: /Open Folder/ })).toBeVisible()
     await expect(h.page.getByTestId('startup-screen')).toHaveCount(0)

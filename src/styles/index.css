@@ -13,48 +13,6 @@
   color: var(--px-text);
 }
 
-.startup-mark {
-  display: grid;
-  place-items: center;
-  width: 6rem;
-  height: 6rem;
-  border: 1px solid var(--px-border);
-  border-radius: 1.75rem;
-  background: radial-gradient(circle, var(--px-accent-soft), var(--px-bg) 75%);
-}
-
-.startup-progress {
-  width: min(10rem, 100%);
-  height: 2px;
-  overflow: hidden;
-  border-radius: 1rem;
-  background: var(--px-border);
-}
-
-.startup-progress::after {
-  content: '';
-  display: block;
-  width: 40%;
-  height: 100%;
-  background: var(--px-accent);
-  animation: startup-progress 1.8s ease-in-out infinite alternate;
-}
-
-@keyframes startup-progress {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(150%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .startup-progress::after {
-    animation: none;
-  }
-}
-
 .startup-action {
   padding: 0.5rem 1rem;
   border: 1px solid var(--px-border-strong);
@@ -144,6 +102,7 @@
   --px-radius-sm: 6px;
   --px-radius: 10px;
   --px-radius-lg: 14px;
+  --px-beacon-duration: 2.4s;
 
   /* Font sizes driven by settings (see stores/settings.ts) */
   --px-chat-font-size: 14.5px;
@@ -853,42 +812,106 @@ select:focus:not(:focus-visible) {
 }
 
 /**
- * PiSpark — the "working" mark. The ray group turns slowly while each ray
- * pulses on its own stagger, so the mark shimmers outward rather than
- * blinking as a whole.
+ * Phosphor Beacon — shared agent/loading identity, from 20px lanes to 80px
+ * startup. A bright, persistent core and a single orbit: no fading the whole
+ * mark away, per-frame JS, SVG filters, or layout animation across busy lanes.
  */
-@keyframes px-spark-spin {
-  from {
-    transform: rotate(0deg);
-  }
+.phosphor-loader {
+  display: inline-flex;
+  flex-shrink: 0;
+  vertical-align: middle;
+  color: var(--px-accent);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--px-accent-soft) 25%, transparent 72%);
+}
+.phosphor-loader svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  stroke: currentColor;
+}
+.phosphor-loader-shell {
+  stroke-width: 1.5;
+  opacity: 0.35;
+}
+.phosphor-loader-inner {
+  stroke-width: 1;
+  opacity: 0.2;
+}
+.phosphor-loader-core {
+  fill: currentColor;
+  stroke: none;
+  transform-origin: 16px 16px;
+}
+.phosphor-loader-orbit {
+  transform-origin: 16px 16px;
+}
+.phosphor-loader[data-animated='true'] .phosphor-loader-orbit {
+  animation: px-beacon-orbit var(--px-beacon-duration) linear infinite;
+}
+.phosphor-loader[data-animated='true'] .phosphor-loader-core {
+  animation: px-beacon-core var(--px-beacon-duration) ease-in-out infinite;
+}
+@keyframes px-beacon-orbit {
   to {
     transform: rotate(360deg);
   }
 }
-@keyframes px-spark-ray {
+@keyframes px-beacon-core {
   0%,
   100% {
-    opacity: 0.35;
-    transform: scale(0.82);
-  }
-  50% {
     opacity: 1;
     transform: scale(1);
   }
+  50% {
+    opacity: 0.75;
+    transform: scale(0.85);
+  }
 }
-.pi-spark-rays {
-  animation: px-spark-spin 9s linear infinite;
+
+/* Working is NOT selection. Keep the neutral selected-row fill and add a
+   straight, inset beacon rail only while the lane is actually in flight. */
+.lane-row {
+  position: relative;
+  container-type: inline-size;
 }
-.pi-spark-ray {
-  transform-origin: 12px 12px;
-  animation: px-spark-ray 1.7s ease-in-out infinite;
+.lane-row[data-activity]::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 25%;
+  bottom: 25%;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--px-accent);
+  pointer-events: none;
+}
+.lane-activity-label {
+  color: var(--px-text);
+  background: var(--px-accent-soft);
+  border-radius: var(--px-radius-sm);
+  padding: 0 0.3rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Prioritize activity, branch and PR over secondary git chips in a narrow
+   working lane; never let the label push controls outside the sidebar. */
+@container (max-width: 16rem) {
+  .lane-row[data-activity] [data-segment='dirty'] {
+    display: none;
+  }
+}
+@container (max-width: 14rem) {
+  .lane-row[data-activity] [data-segment='worktree'] {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pi-spark-rays,
-  .pi-spark-ray {
+  .phosphor-loader[data-animated] .phosphor-loader-orbit,
+  .phosphor-loader[data-animated] .phosphor-loader-core {
     animation: none;
-    opacity: 1;
   }
 }
 

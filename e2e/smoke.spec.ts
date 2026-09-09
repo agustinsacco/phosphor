@@ -1238,7 +1238,7 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
       }
       const workingIndicator = () =>
         /\d[\d.]*(ms|s)\s*·\s*[\d.]+[kM]?\s*tokens/.test(document.body.innerText) &&
-        document.querySelector('.pi-spark') !== null
+        document.querySelector('[data-testid="working-indicator"] .phosphor-loader') !== null
       w.__sawRunning = document.querySelector('.tool-running-dot') !== null
       w.__sawWorkingIndicator = workingIndicator()
       new MutationObserver(() => {
