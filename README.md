@@ -396,8 +396,8 @@ docs/                living technical docs — one file per surface, each
                      rewritten in the same diff as the behaviour it describes;
                      plus known-issues.md, defects that reproduce today
 docs/img/            the screenshots above (assets, not documentation)
-site/                phosphor.saccolabs.com — the Astro landing page and its
-                     nginx image (site/README.md)
+site/                phosphor.saccolabs.com — the Astro landing page, real
+                     captures, nginx image and browser checks (site/README.md)
 .infra/phosphor-site/  the k3s manifests the Deploy Site workflow applies
 ```
 

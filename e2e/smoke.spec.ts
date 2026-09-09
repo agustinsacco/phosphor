@@ -1079,11 +1079,15 @@ test('settings modal switches theme and reports versions', async () => {
     await expect(page.locator('html')).not.toHaveClass(/dark/)
 
     await page.getByRole('button', { name: 'About', exact: true }).click()
-    await expect(page.getByRole('heading', { name: 'About Phosphor' })).toBeVisible()
+    // The heading is the brand lockup (mark + wordmark), so its accessible
+    // name is just "Phosphor" — the mark itself is decorative.
+    const aboutHeading = page.getByRole('heading', { name: 'Phosphor', exact: true })
+    await expect(aboutHeading).toBeVisible()
+    await expect(page.locator('.phosphor-mark')).toBeVisible()
     await expect(page.getByText('Phosphor version')).toBeVisible()
 
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('heading', { name: 'About Phosphor' })).toBeHidden()
+    await expect(aboutHeading).toBeHidden()
   } finally {
     await shutdown(harness)
   }

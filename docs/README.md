@@ -41,10 +41,9 @@ Start with [overview.md](overview.md) for what Phosphor is, or
 
 ## Visual identity
 
-| File                                           | Covers                                             |
-| ---------------------------------------------- | -------------------------------------------------- |
-| [style-guide.md](style-guide.md)               | Authoritative on all colour, type and voice        |
-| [brand-explorations.md](brand-explorations.md) | The sanctioned mark variations behind the app icon |
+| File                             | Covers                                                           |
+| -------------------------------- | ---------------------------------------------------------------- |
+| [style-guide.md](style-guide.md) | Authoritative on all colour, type, voice and the mark's geometry |
 
 ## Three rules that keep this workable
 

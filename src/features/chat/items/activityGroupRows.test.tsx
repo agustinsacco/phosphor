@@ -21,6 +21,8 @@ import { readFileSync } from 'node:fs'
 import { ActivityGroup, GUTTER_MARK, GUTTER_MARK_FILL, ROW_INSET } from './ActivityGroup'
 import type { ActivityStep } from './transcriptRows'
 import type { ToolState } from '../reducer'
+import { useExtensionUiStore } from '@/stores/extensionUi'
+import { SUBAGENTS_STATUS_KEY } from '../subagentStatus'
 
 /**
  * One activity group renders four different row shapes, and two of them only
@@ -56,7 +58,15 @@ afterEach(() => {
   root = null
   container = null
   document.body.innerHTML = ''
+  useExtensionUiStore.setState({ statuses: {} })
 })
+
+/** Publish a `claude-subagents` snapshot the way the provider does. */
+function publishAgents(sessionId: string, tasks: unknown[]): void {
+  useExtensionUiStore.setState({
+    statuses: { [sessionId]: { [SUBAGENTS_STATUS_KEY]: JSON.stringify({ tasks }) } },
+  })
+}
 
 const tool = (id: string): ToolState => ({
   toolCallId: id,
@@ -320,6 +330,113 @@ describe('ActivityGroup row shapes', () => {
     )
     const row = document.querySelector('[data-testid="subagent-row"]')!
     expect(row.textContent).toContain('stopped')
+  })
+
+  /**
+   * The markers arrive at the start and the end of a sub-agent, so without the
+   * live join every row in a fan-out says "running" and nothing else for the
+   * whole run — eight identical lines for eight minutes, in the turn that
+   * motivated this.
+   */
+  describe('live progress joined from the status channel', () => {
+    const running = (taskId: string, description: string): ActivityStep =>
+      step({
+        type: 'subagent',
+        index: 0,
+        status: 'running',
+        description,
+        taskId,
+        seen: new Set(['call', 'start']),
+      })
+
+    function renderRunning(steps: ActivityStep[]): void {
+      render(
+        <ActivityGroup
+          steps={steps}
+          tools={{}}
+          hideThinking={false}
+          sessionId="s1"
+          active={true}
+        />,
+      )
+    }
+
+    it("gives each running agent its OWN step, not the strip's single line", () => {
+      publishAgents('s1', [
+        { taskId: 'a1', status: 'running', currentStep: 'Running Read TRACKER.md' },
+        { taskId: 'a2', status: 'running', currentStep: 'Running Grep chat.md' },
+      ])
+      renderRunning([running('a1', 'Verify spec-drift'), running('a2', 'Verify perf findings')])
+
+      const steps = [...document.querySelectorAll('[data-testid="subagent-step"]')].map(
+        (el) => el.textContent,
+      )
+      expect(steps).toEqual(['Running Read TRACKER.md', 'Running Grep chat.md'])
+    })
+
+    it('falls back to the last tool when the step is cleared between calls', () => {
+      publishAgents('s1', [{ taskId: 'a1', status: 'running', lastToolName: 'Grep' }])
+      renderRunning([running('a1', 'Verify spec-drift')])
+      expect(document.querySelector('[data-testid="subagent-step"]')!.textContent).toBe('Grep')
+    })
+
+    it('shows cost climbing before any terminal marker arrives', () => {
+      publishAgents('s1', [
+        { taskId: 'a1', status: 'running', toolUses: 3, totalTokens: 12000, durationMs: 4000 },
+      ])
+      renderRunning([running('a1', 'Verify spec-drift')])
+      const row = document.querySelector('[data-testid="subagent-row"]')!
+      expect(row.textContent).toContain('3 tools')
+      expect(row.textContent).toContain('12.0k tokens')
+    })
+
+    it('leaves a settled row exactly as its markers left it', () => {
+      // The provider clears the key at the end of an episode. A terminal row
+      // must not blank out, and must not be re-dressed by a stale snapshot.
+      publishAgents('s1', [
+        { taskId: 'a1', status: 'running', currentStep: 'Running Read TRACKER.md', toolUses: 99 },
+      ])
+      render(
+        <ActivityGroup
+          steps={[
+            step({
+              type: 'subagent',
+              index: 0,
+              status: 'completed',
+              description: 'Verify spec-drift',
+              taskId: 'a1',
+              toolUses: 2,
+              seen: new Set(['call', 'start', 'end']),
+            }),
+          ]}
+          tools={{}}
+          hideThinking={false}
+          sessionId="s1"
+          active={false}
+        />,
+      )
+      const row = document.querySelector('[data-testid="subagent-row"]')!
+      expect(document.querySelector('[data-testid="subagent-step"]')).toBeNull()
+      expect(row.textContent).toContain('2 tools')
+      expect(row.textContent).not.toContain('99 tools')
+    })
+
+    it('says nothing extra for an agent the snapshot does not mention', () => {
+      publishAgents('s1', [{ taskId: 'somebody-else', status: 'running', currentStep: 'Running' }])
+      renderRunning([running('a1', 'Verify spec-drift')])
+      expect(document.querySelector('[data-testid="subagent-step"]')).toBeNull()
+      expect(document.querySelector('[data-testid="subagent-row"]')!.textContent).toContain(
+        'running',
+      )
+    })
+
+    it("does not read another session's agents", () => {
+      publishAgents('other', [
+        { taskId: 'a1', status: 'running', currentStep: 'Running Read TRACKER.md' },
+      ])
+      renderRunning([running('a1', 'Verify spec-drift')])
+      expect(document.querySelector('[data-testid="subagent-step"]')).toBeNull()
+    })
   })
 
   it('keeps trailing reasoning as its own row', () => {

@@ -1,0 +1,105 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+ * Phosphor design tokens — the dark "phosphor" theme from docs/style-guide.md,
+ * mirrored by hand (this site is a satellite of src/styles/index.css). Warm
+ * graphite neutrals under an amber phosphor accent. The site is dark only:
+ * dark is the brand's home turf, and the light theme is shown as a screenshot.
+ * ------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/fonts/InterVariable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono.ttf') format('truetype');
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --px-bg: #1e1c18;
+  --px-bg-secondary: #26231e;
+  --px-sidebar: #15130f;
+  --px-sidebar-hover: #221f19;
+  --px-sidebar-active: #2d2921;
+  --px-chip: rgb(236 231 219 / 0.11);
+  --px-surface: #2a2721;
+  --px-surface-raised: #322e27;
+  --px-border: #3a352c;
+  --px-border-strong: #4b453a;
+  --px-text: #ece7db;
+  --px-text-secondary: #aca496;
+  --px-text-tertiary: #7c766a;
+  --px-accent: #eca03d;
+  --px-accent-hover: #f2b158;
+  --px-accent-soft: #3d3220;
+  --px-accent-text: #241503;
+  --px-success: #7fbe88;
+  --px-warning: #d8ab52;
+  --px-danger: #dd7663;
+  --px-merged: #a98ce0;
+  --px-info: #82a9c9;
+  --px-code-bg: #24211c;
+
+  --px-font-sans:
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue',
+    sans-serif;
+  --px-font-mono:
+    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Monaco, 'Cascadia Code', monospace;
+
+  --px-radius-sm: 6px;
+  --px-radius: 10px;
+  --px-radius-lg: 14px;
+  --px-beacon-duration: 2.4s;
+}
+
+@theme inline {
+  --color-bg: var(--px-bg);
+  --color-bg-secondary: var(--px-bg-secondary);
+  --color-sidebar: var(--px-sidebar);
+  --color-sidebar-hover: var(--px-sidebar-hover);
+  --color-sidebar-active: var(--px-sidebar-active);
+  --color-chip: var(--px-chip);
+  --color-surface: var(--px-surface);
+  --color-surface-raised: var(--px-surface-raised);
+  --color-border: var(--px-border);
+  --color-border-strong: var(--px-border-strong);
+  --color-text: var(--px-text);
+  --color-text-secondary: var(--px-text-secondary);
+  --color-text-tertiary: var(--px-text-tertiary);
+  --color-accent: var(--px-accent);
+  --color-accent-hover: var(--px-accent-hover);
+  --color-accent-soft: var(--px-accent-soft);
+  --color-accent-text: var(--px-accent-text);
+  --color-success: var(--px-success);
+  --color-warning: var(--px-warning);
+  --color-danger: var(--px-danger);
+  --color-merged: var(--px-merged);
+  --color-info: var(--px-info);
+  --color-code-bg: var(--px-code-bg);
+
+  --font-sans: var(--px-font-sans);
+  --font-mono: var(--px-font-mono);
+
+  --radius-sm: var(--px-radius-sm);
+  --radius-DEFAULT: var(--px-radius);
+  --radius-lg: var(--px-radius-lg);
+
+  /* Marketing scale: larger than the app's nine steps, same voice. */
+  --text-2xs: 10px;
+  --text-xs: 11.5px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 26px;
+  --text-3xl: 34px;
+  --text-4xl: 46px;
+  --text-5xl: 64px;
+}

@@ -1,4 +1,5 @@
 import { Button, Row, SectionTitle } from '@/components/form'
+import { PhosphorLockup } from '@/components/PhosphorMark'
 import type { AboutInfo } from '@shared/models'
 import type { PiHealth, UpdateState } from '@shared/models'
 import { useEffect, useState } from 'react'
@@ -55,7 +56,13 @@ export function AboutTab(): React.JSX.Element {
 
   return (
     <div>
-      <SectionTitle>About Phosphor</SectionTitle>
+      {/* The only place the app draws its own mark. Every identity since
+          2026-08-07 specified an in-app variant and none shipped one. The
+          lockup IS the panel's heading — dropping the h2 for it would leave
+          this tab as the one settings panel with no heading. */}
+      <SectionTitle>
+        <PhosphorLockup />
+      </SectionTitle>
       <p className="text-text-secondary -mt-2 mb-4 text-base leading-relaxed">
         A desktop coding-agent app powered by the{' '}
         <span className="font-medium">pi coding agent</span>. Sessions run as real{' '}

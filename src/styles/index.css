@@ -812,11 +812,18 @@ select:focus:not(:focus-visible) {
 }
 
 /**
- * Phosphor Beacon — shared agent/loading identity, from 20px lanes to 80px
- * startup. A bright, persistent core and a single orbit: no fading the whole
- * mark away, per-frame JS, SVG filters, or layout animation across busy lanes.
+ * Phosphor Beacon — the brand mark, and the agent/loading identity, from 20px
+ * lanes to 80px startup. A bright, persistent core and a single orbit: no
+ * fading the whole mark away, per-frame JS, SVG filters, or layout animation
+ * across busy lanes.
+ *
+ * `.phosphor-mark` is the same glyph at rest (identity); `.phosphor-loader`
+ * is it turning (activity). Only the wrapper differs — the element rules
+ * below are deliberately unscoped so both get them. `build/icon.svg` is the
+ * same geometry at 28×.
  */
-.phosphor-loader {
+.phosphor-loader,
+.phosphor-mark {
   display: inline-flex;
   flex-shrink: 0;
   vertical-align: middle;
@@ -824,20 +831,18 @@ select:focus:not(:focus-visible) {
   border-radius: 50%;
   background: radial-gradient(circle, var(--px-accent-soft) 25%, transparent 72%);
 }
-.phosphor-loader svg {
+.phosphor-loader svg,
+.phosphor-mark svg {
   width: 100%;
   height: 100%;
   overflow: visible;
   stroke: currentColor;
 }
-.phosphor-loader-shell {
-  stroke-width: 1.5;
-  opacity: 0.35;
-}
-.phosphor-loader-inner {
-  stroke-width: 1;
-  opacity: 0.2;
-}
+/* Shell and inner-shell geometry is NOT here: radii, stroke widths and
+   opacities are all in `BEACON` in components/PhosphorMark.tsx, so one object
+   describes the mark and build/icon.svg can be diffed against it. A CSS
+   declaration beats a presentation attribute, so adding stroke-width back
+   here would silently override the component. */
 .phosphor-loader-core {
   fill: currentColor;
   stroke: none;

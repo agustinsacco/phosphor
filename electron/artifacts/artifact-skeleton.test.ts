@@ -95,6 +95,27 @@ describe('the injected stylesheet', () => {
     expect(ARTIFACT_STYLE).not.toContain('--px-')
   })
 
+  it('never lets a table demand more width than the panel has', () => {
+    // A flat `min-width:30rem` put the whole page into a horizontal scroll in
+    // the artifact panel, which is routinely narrower than that.
+    expect(ARTIFACT_STYLE).toContain('min-width:min(100%,30rem)')
+    expect(ARTIFACT_STYLE).not.toMatch(/min-width:\d+rem/)
+    expect(ARTIFACT_STYLE).toContain('overflow-wrap:anywhere')
+  })
+
+  it('engages a row grid only for rows built from its cells', () => {
+    // A .ledger/.steps/.rail row of free prose has one grid item per inline
+    // child, so an unguarded fixed track sliced sentences into word-wide
+    // columns. Every column track in those primitives must be :has()-guarded.
+    for (const rule of ARTIFACT_STYLE.split('\n')) {
+      if (!/^\.(ledger|steps|rail)\b/.test(rule)) continue
+      if (!rule.includes('grid-template-columns')) continue
+      expect(rule).toContain(':has(')
+    }
+    expect(ARTIFACT_STYLE).toContain('.ledger .row:has(>.idx,>.lab,>.bar,>.val)')
+    expect(ARTIFACT_STYLE).toContain('.steps .s:has(>.n)')
+  })
+
   it('loads no font over the network — the CSP allows none', () => {
     expect(ARTIFACT_STYLE).not.toContain('@import')
     expect(ARTIFACT_STYLE).not.toContain('@font-face')

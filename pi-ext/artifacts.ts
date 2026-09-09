@@ -190,9 +190,21 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
       'claim gets a table.data under it — that is the evidence and the ' +
       'accessible fallback. Set a short noun-phrase title (2–4 words, ' +
       'distinctive to the page); the explanation belongs in the title ' +
-      'parameter, not appended to the name. Stay responsive: relative units, ' +
-      'flex or grid, wide content (tables, code, diagrams) in its own ' +
-      'overflow-x: auto container — the body must never scroll horizontally. ' +
+      'parameter, not appended to the name. ' +
+      'TABLES — the reading panel is often only ~380px wide, so a table has to ' +
+      'earn every column: five columns at most, the first the label, numbers ' +
+      'right in td.num, and each cell a value or a short phrase. A sentence in ' +
+      'a cell belongs in the paragraph above the table instead; a wide matrix ' +
+      'of yes/no marks is a chart, a .kpis strip or a short list, not a table. ' +
+      'When a table genuinely needs more width, put it in ' +
+      '<div class="scroll"> so it scrolls on its own — the body must never ' +
+      'scroll horizontally. ' +
+      'THE ROW PRIMITIVES ARE COLUMN GRIDS, NOT PARAGRAPH STYLES: a ' +
+      '.ledger>.row is exactly .idx/.lab/.bar/.val, a .steps>.s is .n plus its ' +
+      'body, a .rail>.node is .gut plus .body. Free prose in one of those rows ' +
+      'is laid out as columns, one word wide. Prose goes in <p>, a <ul>, or a ' +
+      '.callout. Otherwise stay responsive: relative units, flex or grid, wide ' +
+      'content (code, diagrams, SVG) in its own overflow-x: auto container. ' +
       'Small snippets and inline code stay in chat, not artifacts.',
     promptSnippet:
       'Create a rich artifact (html / svg / markdown / mermaid / chart / code) in the side panel — dense, dark, chart-first house style',
@@ -201,6 +213,7 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
       'Never write a palette or a type scale: the viewer injects the house stylesheet at publish time (dark-first --art-* tokens plus .kpis / .panelbox / table.data / .rail / .ledger primitives). Write against those, and add CSS only for what they lack.',
       'House style is dense, dark and chart-first: verdict in the first sentence, numbers next, a chart wherever a shape beats a paragraph, and a table.data under any chart that carries a claim.',
       'Charts are hand-authored inline SVG. The artifact CSP grants no network, so Chart.js, a CDN script or a webfont renders nothing at all.',
+      'Tables hold values, not prose: five columns max (the panel is often ~380px wide), label first, numbers right in td.num, a wide one wrapped in <div class="scroll">. A broad matrix of yes/no marks is a chart or a list instead. And .ledger/.steps/.rail rows are fixed column grids — a row of free prose gets laid out as columns, one word wide, so prose goes in <p>, a list, or a .callout.',
       'To revise: prefer artifact_edit (exact-string replacement, lowest token cost) over artifact_update (full rewrite). If you no longer have the current content (after compaction or a resumed session), call artifact_list then artifact_read first. Never guess old_string — whitespace and indentation must match exactly.',
       'Hand over the finished artifact with a link: write [Title](artifact://<id>) in your reply (append #v2 for a specific version). The link opens the Artifacts pane on that artifact, so the reader does not have to go find it.',
       'Format: HTML artifacts are fragments — no <!DOCTYPE>, <html>, <head> or <body> tags. Markdown is only for documents; when a user shares markdown content meant as an artifact, author an HTML page based on its substance rather than transcribing it one-to-one.',

@@ -304,6 +304,15 @@ charts are **hand-authored inline SVG** (the artifact CSP grants no network, so
 a CDN chart library renders nothing at all), and any chart carrying a claim gets
 a `table.data` under it.
 
+**A row primitive is a column grid, and the sheet only engages it for its own
+cells.** `.ledger>.row`, `.steps>.s` and `.rail>.node` lay out one grid item per
+inline child, so a row of free prose was sliced into word-wide columns; each of
+those tracks is now behind a `:has()` guard on the cell classes, and a prose row
+degrades to a paragraph. `table.data` asks for `min-width:min(100%,30rem)` — the
+flat `30rem` it replaces forced a horizontal page scroll in a panel narrower
+than that. The width budget is the reason the tool description caps a table at
+five columns.
+
 `lane-loop.ts` used to sit here too — it ran a fixed ladder of checks when a
 turn settled and published the result to a banner above the composer. Both the
 extension and the banner were removed on 2026-08-28: it spent a typecheck, a
@@ -449,11 +458,23 @@ guards the behaviour (`items/claudeCliRendering.test.ts`).
   (0.4.14+), otherwise by pairing markers of each phase under one description,
   which keeps three same-named parallel agents as three rows.
 
-  **The row claims only what the markers prove.** `launched` means the model
-  called the tool and the CLI never confirmed anything; `running` means a
+  **The row's STATUS claims only what the markers prove.** `launched` means the
+  model called the tool and the CLI never confirmed anything; `running` means a
   `task_started` arrived; a terminal status carries the agent's tool count,
   tokens and duration. The sub-agent's own transcript is still not forwarded,
   so the expandable detail is the launch PROMPT, never the agent's work.
+
+  **Its PROGRESS is joined live from the status channel**, by `taskId`. A
+  sub-agent produces exactly two markers — start and terminal — so a
+  marker-only row cannot change for its whole life: an eight-agent fan-out
+  rendered as eight identical "running" lines for the eight minutes it ran,
+  while the step for every one of those agents was already being parsed and
+  dropped. `findLiveSubagent` (`chat/subagentStatus.ts`) is that join, and
+  `SubagentRow` renders the step on its own line plus the cost climbing in the
+  header. The overlay only ever ADDS to a LIVE row: it never moves a status (a
+  `launched` agent stays launched) and it is skipped once the row is terminal,
+  so the provider clearing the key at the end of an episode leaves settled rows
+  exactly as their markers left them. Guarded by `items/activityGroupRows.test.tsx`.
 
   **Background agents used to die, and old sessions still show it.** `Agent`
   backgrounds the sub-agent unless the caller passes `run_in_background:
@@ -478,7 +499,9 @@ false`, and its tool result promises "you will be notified automatically when
   `task_progress` fires once per sub-agent tool call (~700 times in the
   incident that motivated the channel), so the provider publishes a snapshot
   on `claude-subagents` instead. `chat/subagentStatus.ts` parses it into the
-  strip's agent chip. That key MUST stay in `STRUCTURED_STATUS_KEYS` — while
+  strip's agent chip (one line, the newest running agent) and — via
+  `findLiveSubagent` — into each transcript row's own step. That key MUST stay
+  in `STRUCTURED_STATUS_KEYS` — while
   it was missing, `StatusStrip` printed the whole JSON payload along the
   bottom of the window. The provider clears the key when the episode ends
   (0.4.14), so a finished turn leaves the chip empty rather than pinning dead
@@ -491,14 +514,34 @@ false`, and its tool result promises "you will be notified automatically when
   reported \$2.34 of a real \$24.
 
 **If you extend this** (tool request/response UX, live sub-agent trees): the
-provider still drops the two things you would need — the `tool_result`
-blocks the CLI feeds itself between cycles (so external tools have no result
-to show), and everything tagged `parent_tool_use_id` (the nested sub-agent
-episode). Both seams are named in that repo's `docs/ARCHITECTURE.md`;
-surfacing either needs a provider change first, then a step kind here. Do
-not attempt to infer either one from the marker stream — the argument
-preview is truncated and read best-effort precisely because nothing may
-depend on it parsing.
+provider drops the `tool_result` blocks the CLI feeds itself between cycles,
+so external tools have no result to show. That seam is named in that repo's
+`docs/ARCHITECTURE.md` and surfacing it needs a provider change first, then a
+step kind here. Do not attempt to infer it from the marker stream — the
+argument preview is truncated and read best-effort precisely because nothing
+may depend on it parsing.
+
+**The sub-agent's own work is NOT one of those seams — it is on disk.** The
+stream drops everything tagged `parent_tool_use_id`, but the CLI separately
+writes each sub-agent a complete, live-appended transcript at
+`~/.claude/projects/<mangled-cwd>/<session-id>/subagents/agent-<taskId>.jsonl`,
+with an `agent-<taskId>.meta.json` sidecar carrying `agentType`,
+`toolUseId`, `spawnDepth` and — for a nested agent — `parentAgentId`. So the
+tree the provider says it cannot build IS reconstructable; just not from the
+channel it reads. `taskId` is the join, and `pi-paths.ts` already exposes
+`claudeProjectDirForCwd()`. Two traps if you build this:
+
+- **Do not resolve the directory from the session's current
+  `claudeSessionId`.** That id rotates on resume, and the `subagents/` folder
+  keeps the id that was current when the agents SPAWNED — a project directory
+  can hold `<idA>.jsonl` beside an `<idB>/` whose own `.jsonl` is long gone.
+  Glob `<projectDir>/*/subagents/agent-<taskId>.jsonl` instead; task ids are
+  unique.
+- **`outputFile` only arrives at the terminal event**, so it cannot back a
+  live view. (It is a symlink into the durable path above; the `/tmp` side of
+  it gets reaped, the `~/.claude` side does not.) The provider publishes it on
+  the status snapshot, and `parseSubagentStatus` does not read it yet — adding
+  the field is the first line of that work.
 
 ## Sharp edges
 

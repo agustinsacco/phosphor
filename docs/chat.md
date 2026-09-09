@@ -67,12 +67,16 @@ frequently invalid JSON; `externalToolInfo` reads it **best-effort only**
 (JSON.parse, then a complete-`"key":"value"`-pairs fallback) to pick a human
 headline — `Agent`/`Task` markers instead fold into `subagent` steps, one per
 AGENT rather than one per marker (three markers describe each), and feed the
-composer's sub-agent strip (`trailingUnfinishedAgents`). **A sub-agent row
-claims only what its markers prove**: `launched` until the CLI confirms a
-start, and no completion until one is reported. Background agents ran to their
-death before provider 0.4.14, which stopped `SIGKILL`ing the CLI at each turn's
-`result` envelope; Phosphor pins no version, so both shapes are rendered from
-evidence and neither is assumed.
+composer's sub-agent strip (`trailingUnfinishedAgents`). **A sub-agent row's
+status claims only what its markers prove**: `launched` until the CLI confirms
+a start, and no completion until one is reported. Its live step and running
+cost come from elsewhere — the `claude-subagents` status channel, joined per
+row by `taskId`, because the two markers bracket the agent's whole life and
+say nothing in between
+([extensions.md](extensions.md#how-provider-transcripts-render)).
+Background agents ran to their death before provider 0.4.14, which stopped
+`SIGKILL`ing the CLI at each turn's `result` envelope; Phosphor pins no
+version, so both shapes are rendered from evidence and neither is assumed.
 Nothing may ever _depend_ on the preview parsing: a marker whose args are
 unreadable still renders as a plain named step.
 
@@ -184,6 +188,22 @@ the run is in flight, then the windows or the one-line reason there are none
 (`usageUnavailableReason`, shared with Settings → Claude Code). A section
 that disappears on failure is indistinguishable from a fetch that never
 happened, and the fetch never happening was the actual bug.
+
+**Not every provider reports usage while it streams**, and the live meter has
+to survive one that doesn't. `src/lib/liveStats.ts` takes the context estimate
+from the newest true reading: the streaming message when its deltas have
+reported anything, else the last message to have **ended** since the last poll.
+The second arm exists because the OpenAI Responses API (`openai-codex` —
+GPT-5.x/GPT-6 on a ChatGPT subscription) fills usage only on its terminal
+`response.completed` event, so its `message_update` frames carry a
+present-but-zeroed usage object. Present was enough to flip `hasUsageDeltas`
+and switch off mid-turn polling; zeroed was not enough to move the meter. A
+codex session then read **0% for a whole turn of 95 tool calls and 5.7M
+cache-read tokens**, and the composition rows were crushed ~100× with it,
+because they are clamped down to fit that total. `message_end` carries
+authoritative usage on every provider and pi emits one assistant message per
+tool hop, so the fallback costs no round trips. A poll clears the banked
+reading, which is what keeps a post-compaction reset from being overridden.
 
 **Context composition** answers "full of _what_" — messages, system prompt,
 tool schemas, MCP tool schemas — which pi's single `contextUsage.tokens`
