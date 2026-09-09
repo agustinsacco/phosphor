@@ -33,10 +33,15 @@ Not obvious from reading the code. Each has been violated at least once.
    CSS loads, so it can only be a literal — the two agreeing _is_ the contract.
 6. **Light neutrals stay cool.** Warming them without re-picking the accent is
    a change that has already been made and reverted.
-7. **The logo's shell geometry is chemistry, not taste.** Radii step evenly
-   (85px apart) and `2 · 8 · 5` is phosphorus's electron configuration —
-   "improving" either breaks what the mark says.
-8. **The logo's bloom must stay a `radialGradient`.** Stacked translucent
+7. **The logo's faint parts must stay faint and its bright parts bright.**
+   The shells are decoration and may vanish when small; the nucleus, orbit and
+   head are the mark. Two identities died by putting the concept in the faint
+   layer, where it composites to 1.18:1 and is simply not there at 32px.
+8. **The logo's geometry lives in `BEACON`**
+   (`src/components/PhosphorMark.tsx`), not in CSS and not in the SVG — a CSS
+   `stroke-width` beats a presentation attribute and silently wins.
+   `PhosphorMark.test.ts` fails when `build/icon.svg` drifts from it.
+9. **The logo's bloom must stay a `radialGradient`.** Stacked translucent
    circles rasterize into hard-edged discs and read as a bullseye.
 
 ## Color
@@ -240,8 +245,9 @@ markdown the _model_ authors; no Phosphor chrome uses it.
 `src/components/PhosphorLoader.tsx` is the shared **indeterminate activity**
 mark for app startup, starting/working lanes, and agent activity in chat. It
 replaces the eight-ray PiSpark everywhere; generic file/network button spinners
-remain generic. This is a motion companion to the electron-shell identity,
-not a replacement logo or a depiction of phosphorus's electron configuration.
+remain generic. As of 2026-09-09 it is **also the logo** — same glyph, orbit
+turning instead of at rest — so it draws `BeaconGlyph` from
+`components/PhosphorMark.tsx` rather than its own paths. See §Logo.
 
 - **Form:** a persistent nucleus, two quiet rings, one bright orbiting head
   and its short trail. The whole mark never fades away. The radial accent-soft
@@ -281,44 +287,60 @@ makes work visible without either problem.
 
 ## Logo
 
-`build/icon.svg` — the **electron shell**: a drawn "P" inside phosphorus's
-three electron shells, the configuration `2 · 8 · 5` set beneath in the mono
-face. Element 15 is the element that glows in air — the name, the chemistry
-and the CRT heritage in one mark. P in amber (`#f2ab4e → #e2922e` vertical),
-shells in faint `#eca03d`, tile in graphite `#1f1c18`, tile radius 228/1024.
+The **beacon**: a steady nucleus, two faint shells and one orbiting signal.
+Amber (`#f2ab4e → #e2922e`) on graphite `#1f1c18`, tile radius 228/1024. No
+letterform and no text — "Phosphor" is set separately, capitalized, in the
+mono face.
+
+**The mark and the working indicator are one object.** That is the whole
+point of it: the app has always drawn a beacon while an agent runs, and it
+survives at 20px in a lane, which no previous mark managed at 32px. Every
+surface renders the same glyph and none of them owns a second copy:
+
+| Surface         | File                                            | State           |
+| --------------- | ----------------------------------------------- | --------------- |
+| Geometry        | `BEACON` in `src/components/PhosphorMark.tsx`   | source of truth |
+| App icon        | `build/icon.svg` — `BEACON` × `ICON_SCALE` (28) | at rest         |
+| In-app identity | `<PhosphorMark>` / `<PhosphorLockup>`           | at rest         |
+| In-app activity | `<PhosphorLoader>`                              | orbit turning   |
+| Website + tab   | `site/public/favicon.svg` — generated           | at rest         |
+
+`src/components/PhosphorMark.test.ts` reads `build/icon.svg` back and fails if
+it drifts from `BEACON`; it also asserts the favicon is byte-identical to the
+icon and that `site/src/layouts/Page.astro` points an `<img>` at it rather than
+inlining an `<svg>` of its own. It exists because the mark before this one
+shipped as two different drawings — the app icon had bare shells, the website
+added animated electrons — and nothing compared them.
 
 - **App icon:** always the full tile. Dark on every OS.
 - **Light backgrounds:** `build/icon-light.svg` — same geometry, ember
-  (`#b35c0f → #9d500b`) on paper `#f7f7f8`, shell opacities bumped so the
-  thin lines survive paper. Documentation only; the README swaps the two on
+  (`#b35c0f → #9d500b`) on paper `#f7f7f8`, shell opacities bumped (.35→.5,
+  .2→.34) because a translucent line loses more contrast on paper than on
+  graphite. Documentation only; the README swaps the two on
   `prefers-color-scheme`. Hand-kept: edit both or neither.
-- **In-app / monochrome:** the P alone in one `currentColor`, shells and
-  bloom dropped. **Not built** — no component in `src/` draws the mark at
-  all. The previous two marks carried this same line unbuilt; don't repeat it.
-- **Clear space:** half the outer shell's diameter on all sides. No wordmark
-  in the mark — the only text is the `2 · 8 · 5` caption; "Phosphor" is set
-  separately, capitalized, in the mono face.
-- **Small sizes:** the P carries the mark alone. Shells fade out and the
-  caption reads as a baseline texture below ~48px — that is expected, not a
-  rendering bug to fix.
+- **Clear space:** the nucleus's diameter (`3/32` of the mark's width) on all
+  sides of the mark's bounding box.
+- **Small sizes:** the shells go first, then the inner shell entirely. That is
+  the design, not a rendering bug — see the contrast rule below.
 - Regenerate platform assets with `node scripts/generate-icons.mjs`
-  (Playwright-rendered; icns is darwin-only). It reads only `icon.svg`.
+  (Playwright-rendered; icns is darwin-only). It reads only `icon.svg`, and
+  also writes `site/public/favicon.svg`.
 
-Geometry that is chemistry, not taste: the shell radii step evenly
-(170 / 255 / 340 — 85px apart) fading outward (.16 / .13 / .10), and
-`2 · 8 · 5` is phosphorus's electron configuration — don't retune either for
-looks. The P is a drawn path (evenodd), not a font glyph; the caption is the
-only font-dependent element. The mark's center is (512, 470), not the canvas
-center — the caption occupies the bottom band, and the offset is what
-optically centers the composition. The mark keeps its own graphite `#1f1c18`,
-which is not `--px-bg` in either theme — it is a fixed brand asset, not a
-themed surface. Don't token-ize it.
+**The contrast hierarchy is the mark.** The shells sit at `.35` and `.2` and
+are _allowed_ to disappear when small, because the nucleus, the orbit and its
+head are full-strength and carry the mark alone. Inverting that is what broke
+the previous two identities: their concept lived in `.10` rings and a 64px
+caption, which composite to 1.18:1 and 2px in a 32px tile, so what shipped was
+never what was designed. If you add an element, decide which side of that line
+it is on before you pick its opacity.
 
-The mark was chosen from three exploration rounds (30 candidates: ten
-directions, ten flame descendants, ten Element-15 descendants). All of them
-live in [brand-explorations.md](brand-explorations.md) as the palette of
-sanctioned variations — pull from there for campaign art, easter eggs or a
-future revision rather than sketching from zero.
+Geometry lives in `BEACON`, not in `index.css` and not in the SVG. A CSS
+`stroke-width` beats a presentation attribute, so putting one back in the
+stylesheet silently overrides the component. The scale factor is 28 because
+every value stays a whole number at 1024 (11/6/3, stroke 1.5/1, orbit 2.5 →
+308/168/84, stroke 42/28, orbit 70). The mark keeps its own graphite
+`#1f1c18`, which is not `--px-bg` in either theme — it is a fixed brand asset,
+not a themed surface. Don't token-ize it.
 
 ## Voice
 
@@ -342,11 +364,12 @@ muted hints, never parentheticals.
 
 Why the current state is the current state. Details in the linked write-ups.
 
-| Date       | Change                                                                                                                                                                                         |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-08-07 | Phosphor replaced the Claude-study palette.                                                                                                                                                    |
-| 2026-08-10 | Light neutrals re-based warm → cool (`11a5d7c`), bundled in a QoL pass with no design note.                                                                                                    |
-| 2026-08-29 | [Doc reconciled with the code](log/2026-08-29-phosphor-light-palette-reconcile.md); 11 light tokens corrected, four satellites re-neutralized.                                                 |
-| 2026-08-29 | [Aperture mark](log/2026-08-29-aperture-mark.md) replaced the prompt bubble.                                                                                                                   |
-| 2026-09-08 | [The app itself was renamed](log/2026-09-08-rename-pidex-to-phosphor.md) from pidex to Phosphor, after its design system. Capital P; the lowercase-brand voice rule retired with the old name. |
-| 2026-09-08 | [Electron-shell mark](log/2026-09-08-electron-shell-mark.md) replaced the aperture, chosen from [30 explorations](brand-explorations.md).                                                      |
+| Date       | Change                                                                                                                                                                                              |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-08-07 | Phosphor replaced the Claude-study palette.                                                                                                                                                         |
+| 2026-08-10 | Light neutrals re-based warm → cool (`11a5d7c`), bundled in a QoL pass with no design note.                                                                                                         |
+| 2026-08-29 | [Doc reconciled with the code](log/2026-08-29-phosphor-light-palette-reconcile.md); 11 light tokens corrected, four satellites re-neutralized.                                                      |
+| 2026-08-29 | [Aperture mark](log/2026-08-29-aperture-mark.md) replaced the prompt bubble.                                                                                                                        |
+| 2026-09-08 | [The app itself was renamed](log/2026-09-08-rename-pidex-to-phosphor.md) from pidex to Phosphor, after its design system. Capital P; the lowercase-brand voice rule retired with the old name.      |
+| 2026-09-08 | [Electron-shell mark](log/2026-09-08-electron-shell-mark.md) replaced the aperture, chosen from 30 explorations.                                                                                    |
+| 2026-09-09 | [The beacon](log/2026-09-09-beacon-mark.md) replaced the electron shell — the working indicator promoted to the identity, after a [review](log/2026-09-09-logo-review.md) of what actually renders. |

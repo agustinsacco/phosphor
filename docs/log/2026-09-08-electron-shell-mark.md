@@ -8,9 +8,11 @@ itself.
 
 ## How it was chosen
 
-Three exploration rounds, 30 candidates total, all preserved as sanctioned
-variations in [brand-explorations.md](../brand-explorations.md) with their
-SVGs in `docs/img/brand/`:
+Three exploration rounds, 30 candidates total. They were kept as sanctioned
+variations in `docs/brand-explorations.md` with SVGs in `docs/img/brand/`;
+both were deleted on 2026-09-09 when [the beacon](2026-09-09-beacon-mark.md)
+replaced this mark. Recover them from git history if a future round wants
+them:
 
 1. **Ten directions** (match, strike, flame, ember ring, element 15, scanline
    flame, wick, spark, flame-in-aperture, ignition).
@@ -31,7 +33,8 @@ SVGs in `docs/img/brand/`:
   (icon.png, icons/, icon.icns, icon.ico, icon-dock.png).
 - `docs/style-guide.md` §Logo rewritten; breaking-rule #7 (the aperture's
   dash-pattern rule) replaced with the shell-geometry rule.
-- `docs/brand-explorations.md` + `docs/img/brand/*.svg` (30 files) added.
+- `docs/brand-explorations.md` + `docs/img/brand/*.svg` (30 files) added
+  (both removed again on 2026-09-09).
 
 ## What deliberately did not change
 

@@ -12,6 +12,12 @@
  *   build/icons/*.png  per-size linux set (electron-builder picks the best)
  *   build/icon.icns    macOS (via `iconutil`, so darwin-only)
  *   build/icon.ico     windows (via `npx png-to-ico`, network on first run)
+ *   site/public/favicon.svg  a copy of icon.svg
+ *
+ * The favicon is written here rather than kept by hand because it WAS kept by
+ * hand: it sat byte-identical to a superseded icon.svg with nothing comparing
+ * the two, so a mark revision would regenerate eight platform binaries and
+ * silently leave the browser tab on the old logo.
  *
  * macOS art is inset inside its canvas (MACOS_TILE_RATIO). icon.svg is a
  * full-bleed rounded tile, and macOS does NOT inset for you — shipping it
@@ -158,5 +164,10 @@ writeFileSync(
   Buffer.concat([header, ...entries, ...pngs.map((p) => p.data)]),
 )
 console.log(`✓ build/icon.ico (${ICO_SIZES.join(', ')})`)
+
+// site — the browser tab. A plain copy, so `git status` after a mark change
+// shows the site asset alongside the binaries instead of hiding the drift.
+copyFileSync(join(buildDir, 'icon.svg'), join(root, 'site', 'public', 'favicon.svg'))
+console.log('✓ site/public/favicon.svg')
 
 rmSync(tmp, { recursive: true, force: true })
