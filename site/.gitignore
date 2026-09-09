@@ -7,6 +7,9 @@ node_modules/
 # raw captures from scripts/capture-live-shots.mjs (OUT_DIR=site/shots-raw);
 # the committed sources are the .webp files in src/assets/shots/
 shots-raw/
+# browser test output
+test-results/
+playwright-report/
 # logs
 npm-debug.log*
 .DS_Store

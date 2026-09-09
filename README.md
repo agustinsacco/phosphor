@@ -386,8 +386,8 @@ scripts/             install.sh, icon + screenshot generation, release and
 docs/                how Phosphor works now; docs/log dated history;
                      docs/specs deferred work — see docs/README.md
 docs/img/            the screenshots above (assets, not documentation)
-site/                phosphor.saccolabs.com — the Astro landing page and its
-                     nginx image (site/README.md)
+site/                phosphor.saccolabs.com — the static Astro website, browser
+                     tests and nginx image (site/README.md)
 .infra/phosphor-site/  the k3s manifests the Deploy Site workflow applies
 ```
 

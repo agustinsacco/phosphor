@@ -338,6 +338,19 @@ muted hints, never parentheticals.
 - Don't mix the pre-Phosphor and Phosphor palettes in one surface. Change a
   surface atomically or not at all.
 
+## Website expression — The working record
+
+The marketing site uses the same brand colors, Inter / JetBrains Mono, and
+sanctioned monochrome P, but not the app's dense control scale or its panel
+layout. It opens on slate paper, uses graphite for working passages, and
+organizes evidence with numbered margins and rules rather than cards. Small
+accent links on paper use the existing darker ember hover value to meet AA.
+Website headline sizes are fluid and semantic, not the nine app-chrome steps.
+
+[site-design.md](site-design.md) owns the website's audience, composition,
+plain-language iteration process, and page contracts. The public reference is
+`/design`. The app and artifact house style are unchanged.
+
 ## History
 
 Why the current state is the current state. Details in the linked write-ups.

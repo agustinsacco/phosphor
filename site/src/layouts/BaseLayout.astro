@@ -1,13 +1,14 @@
 ---
 import '../styles/global.css'
-
+import Nav from '../components/Nav.astro'
+import Footer from '../components/Footer.astro'
 interface Props {
   title: string
   description: string
 }
-
 const { title, description } = Astro.props
-const canonical = new URL(Astro.url.pathname, Astro.site ?? Astro.url.origin)
+const path = Astro.url.pathname.replace(/\/$/, '') || '/'
+const canonical = new URL(path, Astro.site ?? Astro.url.origin)
 const ogImage = new URL('/og.png', Astro.site ?? Astro.url.origin)
 ---
 
@@ -18,17 +19,20 @@ const ogImage = new URL('/og.png', Astro.site ?? Astro.url.origin)
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{title}</title>
     <meta name="description" content={description} />
-    <meta name="theme-color" content="#1e1c18" />
+    <meta name="theme-color" content="#f7f7f8" />
     <link rel="canonical" href={canonical} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preload" href="/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="preload" href="/fonts/JetBrainsMono.ttf" as="font" type="font/ttf" crossorigin />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Phosphor" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonical} />
     <meta property="og:image" content={ogImage} />
+    <meta
+      property="og:image:alt"
+      content="Phosphor — keep the work in your hands. A desktop workspace for coding with agents."
+    />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
@@ -36,28 +40,8 @@ const ogImage = new URL('/og.png', Astro.site ?? Astro.url.origin)
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
-    <slot />
-    <script>
-      // Reveal-on-scroll. Elements start hidden via CSS only when this script
-      // runs, so a no-JS page still shows everything.
-      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      const items = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal]'))
-      if (reduce || !('IntersectionObserver' in window)) {
-        items.forEach((el) => el.classList.add('is-in'))
-      } else {
-        const io = new IntersectionObserver(
-          (entries) => {
-            for (const e of entries) {
-              if (e.isIntersecting) {
-                ;(e.target as HTMLElement).classList.add('is-in')
-                io.unobserve(e.target)
-              }
-            }
-          },
-          { rootMargin: '0px 0px -8% 0px', threshold: 0.08 },
-        )
-        items.forEach((el) => io.observe(el))
-      }
-    </script>
+    <Nav />
+    <main id="main" tabindex="-1"><slot /></main>
+    <Footer />
   </body>
 </html>

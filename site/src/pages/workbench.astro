@@ -1,0 +1,257 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro'
+import Shot from '../components/Shot.astro'
+import files from '../assets/shots/files.webp'
+import artifacts from '../assets/shots/artifacts.webp'
+import models from '../assets/shots/models.webp'
+import home from '../assets/shots/home.webp'
+import { providers, GITHUB, PI_CLAUDE_CLI } from '../lib/content'
+---
+
+<BaseLayout
+  title="The workbench — Phosphor"
+  description="A closer look at Phosphor: the transcript, file editor, terminal, reviewable changes, versioned artifacts, parallel sessions, and pi’s model ecosystem."
+>
+  <header class="page-intro container">
+    <p class="label muted">Phosphor / The workbench</p>
+    <h1 class="display">
+      Close to the code.<br /><span class="hero-title-end">Inside the conversation.</span>
+    </h1>
+    <p class="lede">
+      One session pairs a transcript with a working pane: Files, Changes, Terminal, or Artifacts.
+      Move the pane to either side. Take it fullscreen when the work needs the room.
+    </p>
+  </header>
+  <nav class="page-index container" aria-label="On this page">
+    <a href="#inspect">01 / Inspect</a><a href="#artifacts">02 / Artifacts</a><a href="#lanes"
+      >03 / Lanes</a
+    ><a href="#providers">04 / Providers</a><a href="#extend">05 / Extend</a>
+  </nav>
+
+  <section id="inspect" class="section container">
+    <div class="section-grid">
+      <div class="section-index">
+        <span class="number">01 /</span><p class="label">See the work</p>
+      </div>
+      <div class="section-content">
+        <h2 class="title">The answer is only<br />part of the record.</h2>
+        <p class="lede">
+          Activity unfolds into steps. A file edit opens onto its diff; a tool call opens onto its
+          arguments and output. The conversation is readable without hiding what happened.
+        </p>
+        <Shot
+          src={files}
+          alt="The workspace explorer and Monaco editor beside a README edit in Phosphor’s transcript"
+          caption="The file and the conversation share a workspace, not a browser-tab scavenger hunt."
+          priority
+          sizes="(min-width: 1440px) 1088px, 94vw"
+        />
+        <div class="detail-copy">
+          <div>
+            <h3 class="subhead">Review what changed.</h3><p>
+              The Changes pane tracks edits against the session baseline. Inspect the per-file diff
+              or revert a file. Open the editor to make your own adjustment.
+            </p>
+          </div>
+          <div>
+            <h3 class="subhead">Check it yourself.</h3><p>
+              Use real shell tabs in the workspace. A chat code block can be pasted into the
+              terminal without executing it, so you can read it before running it.
+            </p>
+          </div>
+        </div>
+        <dl class="fact-list">
+          <div>
+            <dt>A composer with context</dt><dd>
+              Reference workspace files with @, find commands with /, and add shell output to the
+              conversation. Drafts survive session switches.
+            </dd>
+          </div>
+          <div>
+            <dt>A turn you can redirect</dt><dd>
+              Steer while the agent works or queue a follow-up. Both queues are visible. Fork a
+              previous message when you want a different approach.
+            </dd>
+          </div>
+          <div>
+            <dt>A limit you can inspect</dt><dd>
+              See context usage and session cost. Composition is labelled as an estimate; supported
+              subscription providers also report their plan windows.
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <section id="artifacts" class="section work-surface">
+    <div class="container section-grid">
+      <div class="section-index">
+        <span class="number">02 /</span><p class="label">Keep the result</p>
+      </div>
+      <div class="section-content">
+        <h2 class="title">Some answers deserve<br />more than scrollback.</h2>
+        <p class="lede">
+          An implementation plan. A diagram. An interactive prototype. Artifacts give substantial
+          deliverables their own space, with previews, source, export, and diffs between versions.
+        </p>
+        <Shot
+          src={artifacts}
+          alt="An architecture document in Phosphor’s versioned Artifacts pane"
+          caption="The deliverable beside the discussion that shaped it. Reopen the session and its artifacts return too."
+          sizes="(min-width: 1440px) 1088px, 94vw"
+        />
+        <div class="detail-copy">
+          <div>
+            <h3 class="subhead">Revise, don’t replace.</h3><p>
+              Targeted edits update a region rather than rewriting the entire document. Compare
+              versions to see what the next turn actually changed.
+            </p>
+          </div>
+          <div>
+            <h3 class="subhead">A bounded preview.</h3><p>
+              Model-authored HTML runs in a sandboxed iframe. Scripts can work inside the artifact;
+              network access and access to the parent app cannot.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="lanes" class="section container">
+    <div class="section-grid">
+      <div class="section-index">
+        <span class="number">03 /</span><p class="label">Work in parallel</p>
+      </div>
+      <div class="section-content">
+        <h2 class="title">Separate the work.<br />Not your attention.</h2>
+        <p class="lede">
+          A lane brings a session, branch, worktree, and pull request into one place. Work on
+          several tasks independently; the home board makes their next actions legible.
+        </p>
+        <Shot
+          src={home}
+          alt="The home lane board and its project spend ledger"
+          caption="Ready to merge, in review, running, or waiting on you: states named for the next action."
+          sizes="(min-width: 1440px) 1088px, 94vw"
+        />
+        <dl class="fact-list">
+          <div>
+            <dt>Independent by construction</dt><dd>
+              Each live session is its own <code>pi --mode rpc</code> process. Worktree lanes have separate
+              working directories. There is no central agent directing the other sessions.
+            </dd>
+          </div>
+          <div>
+            <dt>Resume the thread</dt><dd>
+              Sessions live in pi’s files. Reopen a conversation, bookmark a point, or explore its
+              branch structure in the session tree.
+            </dd>
+          </div>
+          <div>
+            <dt>Keep parallelism visible</dt><dd>
+              The ledger shows spend, tokens, and live processes. The board uses state the app
+              already holds; rendering it does not spend model tokens.
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <section id="providers" class="section container">
+    <div class="section-grid">
+      <div class="section-index">
+        <span class="number">04 /</span><p class="label">Choose your engine</p>
+      </div>
+      <div class="section-content">
+        <h2 class="title">A model is a choice.<br />Not a commitment.</h2>
+        <p class="lede">
+          Search the models available through pi and your installed provider packages. Star the ones
+          you use. Switch mid-session with the conversation carried over.
+        </p>
+        <Shot
+          src={models}
+          alt="The model chooser with searchable models and provider filters"
+          caption="The picker shows the provider behind the model, including subscription-backed packages."
+          sizes="(min-width: 1440px) 1088px, 94vw"
+        />
+        <div class="table-scroll">
+          <table>
+            <caption
+              >Connection paths. Availability depends on your pi version, installed packages, and
+              provider account.</caption
+            >
+            <thead><tr><th scope="col">Provider</th><th scope="col">How you connect</th></tr></thead
+            >
+            <tbody
+              >{
+                providers.map((provider) => (
+                  <tr>
+                    <>
+                      <th scope="row">{provider.name}</th>
+                      <td>{provider.how}</td>
+                    </>
+                  </tr>
+                ))
+              }</tbody
+            >
+          </table>
+        </div>
+        <div class="prose" style="margin-top: 2rem">
+          <p>
+            Claude Pro / Max uses the <a href={PI_CLAUDE_CLI}>pi-claude-cli provider</a> and the official
+            Claude Code binary. It is a separately installed package, not Anthropic API access.
+          </p>
+          <p>
+            Phosphor is MIT-licensed software. Model usage is covered by your own provider
+            subscription or billing. Local files do not mean offline inference: your chosen provider
+            receives the requests.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="extend" class="section container">
+    <div class="section-grid">
+      <div class="section-index">
+        <span class="number">05 /</span><p class="label">Make it yours</p>
+      </div>
+      <div class="section-content">
+        <h2 class="title">Your tools belong<br />in the loop.</h2>
+        <dl class="fact-list">
+          <div>
+            <dt>MCP connectors</dt><dd>
+              Connect services such as Linear, Notion, and Supabase, or add a custom MCP server. The
+              adapter owns OAuth and its credential storage; Phosphor manages configuration and
+              connection status.
+            </dd>
+          </div>
+          <div>
+            <dt>Extensions and skills</dt><dd>
+              Manage pi packages and task-specific instructions. Extend the agent’s capabilities
+              without replacing the workspace around it.
+            </dd>
+          </div>
+          <div>
+            <dt>A workspace that fits</dt><dd>
+              Light and dark themes, configurable fonts, pane orientation, and keyboard shortcuts.
+              The site’s screenshots show a setup, not the only setup.
+            </dd>
+          </div>
+        </dl>
+        <a class="text-link" href={`${GITHUB}/blob/main/docs/README.md`}
+          >Read the technical documentation <span aria-hidden="true">↗</span></a
+        >
+      </div>
+    </div>
+  </section>
+  <section class="closing container">
+    <div>
+      <p class="label">Before your first session</p><h2 class="title">Set up your workspace.</h2>
+    </div><a class="text-link" href="/download"
+      >Installation and requirements <span aria-hidden="true">↗</span></a>
+  </section>
+</BaseLayout>

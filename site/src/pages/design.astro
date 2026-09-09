@@ -1,0 +1,209 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro'
+const translations = [
+  [
+    '“It feels too busy.”',
+    'Reduce competing emphasis before removing useful information. Replace a container with a rule. Keep one dominant element per section.',
+  ],
+  [
+    '“Make it feel more human.”',
+    'Name the person’s decision. Use a concrete sentence and a real example. Do not add a mascot, soft gradient, or a third font.',
+  ],
+  [
+    '“It needs more punch.”',
+    'Strengthen the claim and its typographic contrast. Give it more room. Do not make everything amber or heavier.',
+  ],
+  [
+    '“Show me what it actually does.”',
+    'Use a real capture, explain what to inspect, and let the reader open it at full size. Label any illustrative example.',
+  ],
+  [
+    '“This should feel like the rest.”',
+    'Reuse the same margin, index, type roles, action hierarchy, and evidence treatment. Reuse the grammar, not the entire layout.',
+  ],
+  [
+    '“Make it simpler.”',
+    'Shorten the route to the next decision. Move technical depth to the workbench or docs; keep important limitations visible.',
+  ],
+]
+---
+
+<BaseLayout
+  title="The working record — Phosphor’s design language"
+  description="A design language for human-agent iteration: clear hierarchy, real evidence, deliberate color, and a shared vocabulary for refining Phosphor in plain language."
+>
+  <header class="page-intro container">
+    <p class="label muted">Phosphor / Design language / Edition 01</p>
+    <h1 class="display">The working record.</h1>
+    <p class="lede">
+      A language for software made in conversation. Clear enough to direct. Concrete enough to
+      inspect. Consistent enough to revise without starting over.
+    </p>
+  </header>
+  <section class="section container">
+    <div class="section-grid">
+      <div class="section-index">
+        <span class="number">01 /</span><p class="label">Who it is for</p>
+      </div>
+      <div class="section-content prose">
+        <h2 class="title">People who delegate<br />work, not judgment.</h2>
+        <p>
+          Developers, technical founders, and small software teams working with coding agents. They
+          know what a branch and a diff are. They want to move between direction, implementation,
+          and review without losing the thread.
+        </p>
+        <p>
+          They do not need another promise of autonomous magic. They need to see what happened, know
+          what needs attention, and have a good place to make the next call.
+        </p>
+        <div class="language-example">
+          <p class="label">The central promise</p><p>Keep the work in your hands.</p>
+        </div>
+        <p>
+          This is not a claim that every tool call waits for approval. The agent executes with full
+          permissions. The promise is visibility and the ability to steer, inspect, revise, and
+          revert.
+        </p>
+      </div>
+    </div>
+  </section>
+  <section class="section work-surface">
+    <div class="container section-grid">
+      <div class="section-index">
+        <span class="number">02 /</span><p class="label">The grammar</p>
+      </div>
+      <div class="section-content">
+        <h2 class="title">A few rules.<br />A recognizable whole.</h2>
+        <dl class="fact-list">
+          <div>
+            <dt>Paper for reading. Graphite for work.</dt><dd>
+              The website opens on the brand’s cool slate-paper theme. Warm graphite marks a working
+              passage or holds the real app. Surface changes signal a change in purpose, not a
+              stripe pattern.
+            </dd>
+          </div>
+          <div>
+            <dt>Amber means something.</dt><dd>
+              Ember on paper; phosphor amber on graphite. Reserve it for the next action, a selected
+              view, or a directional cue. No glow behind screenshots, no gradient scenery.
+            </dd>
+          </div>
+          <div>
+            <dt>Two voices. Two jobs.</dt><dd>
+              Inter carries the argument. JetBrains Mono carries the index, label, and command.
+              Large headlines are sparse and sentence case. No ornamental serif, terminal cosplay,
+              or font per section.
+            </dd>
+          </div>
+          <div>
+            <dt>Margins, not containers.</dt><dd>
+              An index in the left margin. The argument and evidence in the main column. Hairline
+              rules separate ideas; spacing groups them. A box must contain a genuine object or
+              control, not just a paragraph.
+            </dd>
+          </div>
+          <div>
+            <dt>Proof has a caption.</dt><dd>
+              Real screenshots stay intact, with their own chrome and a description of what matters.
+              No fictional metrics, decorative dashboards, or made-up customer logos.
+            </dd>
+          </div>
+          <div>
+            <dt>Motion answers an action.</dt><dd>
+              The reader changes a view; the view changes. No entrance choreography, autoplay tour,
+              orbiting decoration, or hidden-until-scroll copy. Every page remains readable without
+              JavaScript.
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+  </section>
+  <section class="section container">
+    <div class="section-grid">
+      <div class="section-index">
+        <span class="number">03 /</span><p class="label">Talk in plain language</p>
+      </div>
+      <div class="section-content">
+        <h2 class="title">You describe the feeling.<br />We change the rule.</h2>
+        <p class="lede">
+          Feedback should not require design vocabulary. Translate a reaction into a specific
+          adjustment, try it in context, and keep the change only if the whole page gets clearer.
+        </p>
+        <div class="table-scroll">
+          <table>
+            <thead
+              ><tr><th scope="col">What you might say</th><th scope="col">What we change</th></tr
+              ></thead
+            ><tbody
+              >{
+                translations.map(([said, change]) => (
+                  <tr>
+                    <>
+                      <th scope="row">{said}</th>
+                      <td>{change}</td>
+                    </>
+                  </tr>
+                ))
+              }</tbody>
+          </table>
+        </div>
+        <div class="language-example">
+          <p class="label">The revision loop</p><p>
+            Describe → translate → compare → keep or revise.
+          </p>
+        </div>
+        <p class="muted">
+          Change one design variable at a time. Compare desktop and mobile. When a change works,
+          update the shared rule and every affected page—not just the screenshot under discussion.
+        </p>
+      </div>
+    </div>
+  </section>
+  <section class="section container">
+    <div class="section-grid">
+      <div class="section-index">
+        <span class="number">04 /</span><p class="label">Every page after</p>
+      </div>
+      <div class="section-content prose">
+        <h2 class="title">Same language.<br />Different conversations.</h2>
+        <p>
+          A homepage earns interest. A workbench page explains a workflow. A download page removes
+          uncertainty. A guide helps someone finish a task. Their purpose changes; their visual
+          grammar does not.
+        </p>
+        <ol>
+          <li>
+            <strong>Name the reader’s question.</strong> Write one sentence that the page must answer
+            before designing a section.
+          </li>
+          <li>
+            <strong>Choose the evidence.</strong> A capture for a workflow, a table for a comparison,
+            a command for setup. Never a card grid by default.
+          </li>
+          <li>
+            <strong>Use the shared composition.</strong> Header, generous opening, numbered margin, readable
+            main column, clear next action, quiet footer.
+          </li>
+          <li>
+            <strong>Keep the hierarchy honest.</strong> One filled action per viewport, ordinary navigation
+            as links, labels subordinate to the argument.
+          </li>
+          <li>
+            <strong>Check the edges.</strong> Keyboard, narrow screens, long labels, reduced motion, no
+            JavaScript, failed clipboard access, and accurate product claims.
+          </li>
+        </ol>
+        <p>
+          The existing Phosphor mark and brand colors remain the foundation. This is the website’s
+          expression of the identity, not a redesign of the desktop app.
+        </p>
+      </div>
+    </div>
+  </section>
+  <section class="closing container">
+    <div>
+      <p class="label">The language, in practice</p><h2 class="title">Start with the work.</h2>
+    </div><a class="text-link" href="/">See the homepage <span aria-hidden="true">↗</span></a>
+  </section>
+</BaseLayout>

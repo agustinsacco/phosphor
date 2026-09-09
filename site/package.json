@@ -9,9 +9,12 @@
     "start": "astro dev",
     "build": "astro build",
     "check": "astro check",
+    "test": "playwright test",
+    "social-image": "node scripts/social-image.mjs",
     "preview": "astro preview",
     "shots": "node scripts/import-shots.mjs",
-    "format": "prettier --write ."
+    "format": "prettier --plugin=prettier-plugin-astro --write 'src/**/*.astro'",
+    "format:check": "prettier --plugin=prettier-plugin-astro --check 'src/**/*.astro'"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
@@ -21,6 +24,8 @@
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.10",
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
     "prettier": "^3.9.6",
     "prettier-plugin-astro": "^0.14.1",
     "typescript": "^5.9.3"

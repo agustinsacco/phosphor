@@ -1,0 +1,47 @@
+---
+interface Props {
+  id: string
+  label: string
+  command: string
+}
+const { id, label, command } = Astro.props
+---
+
+<div class="command" data-command>
+  <div class="command-head">
+    <p class="label">{label}</p><button
+      type="button"
+      data-copy-command
+      aria-label={`Copy ${label}`}
+      hidden>Copy <span aria-hidden="true">↗</span></button>
+  </div>
+  <pre id={id} tabindex="0"><code>{command}</code></pre>
+</div>
+<p class="copy-status" role="status" aria-live="polite" data-copy-status={id}></p>
+<script>
+  document.querySelectorAll<HTMLElement>('[data-command]').forEach((root) => {
+    const button = root.querySelector<HTMLButtonElement>('[data-copy-command]')!
+    const pre = root.querySelector('pre')!
+    const code = root.querySelector('code')!
+    const status = document.querySelector<HTMLElement>(`[data-copy-status="${pre.id}"]`)!
+    button.hidden = false
+    button.addEventListener('click', async () => {
+      button.disabled = true
+      status.textContent = ''
+      try {
+        await navigator.clipboard.writeText(code.textContent ?? '')
+        status.textContent = 'Command copied.'
+      } catch {
+        pre.focus()
+        const range = document.createRange()
+        range.selectNodeContents(code)
+        const selection = window.getSelection()
+        selection?.removeAllRanges()
+        selection?.addRange(range)
+        status.textContent = 'Clipboard unavailable. Command selected — use your keyboard to copy.'
+      } finally {
+        button.disabled = false
+      }
+    })
+  })
+</script>

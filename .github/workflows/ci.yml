@@ -46,7 +46,7 @@ jobs:
   site:
     # phosphor.saccolabs.com is deployed from main by deploy-site.yml, which
     # only runs after a merge — this catches a broken page on the PR instead.
-    name: Site · astro check · build
+    name: Site · astro check · browser tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -63,8 +63,21 @@ jobs:
       - name: Astro check
         run: npm run check --prefix site
 
-      - name: Build site
-        run: npm run build --prefix site
+      - name: Astro format check
+        run: npm run format:check --prefix site
+
+      - name: Install browser
+        run: npm exec --prefix site -- playwright install --with-deps chromium
+
+      - name: Build and test site (desktop · mobile · accessibility)
+        run: npm test --prefix site
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: site-test-results
+          path: site/test-results/
+          retention-days: 7
 
   e2e:
     name: E2E smoke (${{ matrix.os }} ${{ matrix.shardIndex }}/${{ matrix.shardTotal }})

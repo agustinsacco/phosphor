@@ -17,23 +17,24 @@ Two neighbours hold other genres, and they are not interchangeable:
 Start with [overview.md](overview.md) for what Phosphor is, or
 [architecture.md](architecture.md) for how the processes fit together.
 
-| File                                           | Covers                                                                        |
-| ---------------------------------------------- | ----------------------------------------------------------------------------- |
-| [overview.md](overview.md)                     | Product definition, non-negotiables, engineering quality bar                  |
-| [architecture.md](architecture.md)             | Process model, IPC design, cross-cutting requirements                         |
-| [pi-integration.md](pi-integration.md)         | pi's RPC protocol and session format — the load-bearing document              |
-| [style-guide.md](style-guide.md)               | The Phosphor visual identity. Authoritative on all colour and type            |
-| [brand-explorations.md](brand-explorations.md) | The 30 mark candidates behind the electron-shell icon — sanctioned variations |
-| [ui-shell.md](ui-shell.md)                     | Window chrome, top bar, sidebar, pane system, theming                         |
-| [chat.md](chat.md)                             | Transcript rendering, composer, tool cards                                    |
-| [files.md](files.md)                           | Explorer file management, transfers, clipboard and editor behavior            |
-| [terminal.md](terminal.md)                     | PTY panes, clipboard, scrollback, per-session ownership                       |
-| [settings.md](settings.md)                     | The settings window and which config file each tab writes                     |
-| [updates.md](updates.md)                       | Update detection, the three install paths, and the macOS swap                 |
-| [worktrees.md](worktrees.md)                   | Git worktree lifecycle and the branch control                                 |
-| [mcp.md](mcp.md)                               | MCP servers via the pi-mcp-adapter config chain                               |
-| [extensions.md](extensions.md)                 | The bundled pi extensions; provider transcript shapes                         |
-| [cli-providers.md](cli-providers.md)           | Running sessions on external CLI providers (Claude Code)                      |
+| File                                           | Covers                                                                             |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [overview.md](overview.md)                     | Product definition, non-negotiables, engineering quality bar                       |
+| [architecture.md](architecture.md)             | Process model, IPC design, cross-cutting requirements                              |
+| [pi-integration.md](pi-integration.md)         | pi's RPC protocol and session format — the load-bearing document                   |
+| [style-guide.md](style-guide.md)               | The Phosphor visual identity. Authoritative on all colour and type                 |
+| [site-design.md](site-design.md)               | Website design language, audience, page structure, and human-agent iteration rules |
+| [brand-explorations.md](brand-explorations.md) | The 30 mark candidates behind the electron-shell icon — sanctioned variations      |
+| [ui-shell.md](ui-shell.md)                     | Window chrome, top bar, sidebar, pane system, theming                              |
+| [chat.md](chat.md)                             | Transcript rendering, composer, tool cards                                         |
+| [files.md](files.md)                           | Explorer file management, transfers, clipboard and editor behavior                 |
+| [terminal.md](terminal.md)                     | PTY panes, clipboard, scrollback, per-session ownership                            |
+| [settings.md](settings.md)                     | The settings window and which config file each tab writes                          |
+| [updates.md](updates.md)                       | Update detection, the three install paths, and the macOS swap                      |
+| [worktrees.md](worktrees.md)                   | Git worktree lifecycle and the branch control                                      |
+| [mcp.md](mcp.md)                               | MCP servers via the pi-mcp-adapter config chain                                    |
+| [extensions.md](extensions.md)                 | The bundled pi extensions; provider transcript shapes                              |
+| [cli-providers.md](cli-providers.md)           | Running sessions on external CLI providers (Claude Code)                           |
 
 ## Two rules that keep this workable
 

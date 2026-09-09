@@ -1,0 +1,120 @@
+---
+import Shot from './Shot.astro'
+import files from '../assets/shots/files.webp'
+import changes from '../assets/shots/changes.webp'
+import artifacts from '../assets/shots/artifacts.webp'
+const views = [
+  {
+    id: 'files',
+    label: 'Files',
+    src: files,
+    alt: 'Phosphor’s file explorer and editor beside the agent’s transcript',
+    caption:
+      'Read the conversation and the actual file side by side. The workspace stays within reach.',
+  },
+  {
+    id: 'changes',
+    label: 'Changes',
+    src: changes,
+    alt: 'An expanded README edit in the transcript, with the Changes pane open beside it',
+    caption:
+      'Inspect the edit, not just the agent’s account of it. Review or revert individual files.',
+  },
+  {
+    id: 'artifacts',
+    label: 'Artifacts',
+    src: artifacts,
+    alt: 'A versioned architecture document open beside the conversation that produced it',
+    caption:
+      'Give a deliverable room to breathe. Preview documents and compare their versions without losing the conversation.',
+  },
+]
+---
+
+<section class="evidence" aria-label="Inside Phosphor" data-evidence>
+  <div class="evidence-head">
+    <p class="label muted">The conversation, beside the work</p>
+    <div class="evidence-links" data-evidence-tabs>
+      {
+        views.map((view, i) => (
+          <a id={`tab-${view.id}`} href={`#view-${view.id}`} data-view={view.id}>
+            <span aria-hidden="true">0{i + 1}</span>
+            {view.label}
+          </a>
+        ))
+      }
+    </div>
+  </div>
+  {
+    views.map((view, i) => (
+      <div id={`view-${view.id}`} class="evidence-panel" data-evidence-panel={view.id}>
+        <Shot src={view.src} alt={view.alt} priority={i === 0} caption={view.caption} />
+      </div>
+    ))
+  }
+  <div class="evidence-note">
+    <p>
+      Not a concept render. These are sessions in the built app, running against real pi providers.
+    </p>
+    <a class="text-link" href="/workbench"
+      >Explore the workbench <span aria-hidden="true">↗</span></a
+    >
+  </div>
+</section>
+<script>
+  // Plain anchor links + visible figures without JS. Enhance only this component.
+  document.querySelectorAll<HTMLElement>('[data-evidence]').forEach((root) => {
+    const tabs = Array.from(root.querySelectorAll<HTMLAnchorElement>('[data-view]'))
+    const panels = Array.from(root.querySelectorAll<HTMLElement>('[data-evidence-panel]'))
+    const tablist = root.querySelector('[data-evidence-tabs]')
+    const activate = (index: number, focus = false) => {
+      tabs.forEach((tab, i) => {
+        tab.setAttribute('aria-selected', String(i === index))
+        tab.tabIndex = i === index ? 0 : -1
+        panels[i].hidden = i !== index
+      })
+      if (focus) tabs[index].focus()
+    }
+    tablist?.setAttribute('role', 'tablist')
+    tablist?.setAttribute('aria-label', 'Workbench views')
+    tabs.forEach((tab, i) => {
+      tab.setAttribute('role', 'tab')
+      tab.setAttribute('aria-controls', panels[i].id)
+      panels[i].setAttribute('role', 'tabpanel')
+      panels[i].setAttribute('aria-labelledby', tab.id)
+      panels[i].tabIndex = 0
+      tab.addEventListener('click', (event) => {
+        event.preventDefault()
+        activate(i)
+      })
+      tab.addEventListener('keydown', (event) => {
+        const next =
+          event.key === 'ArrowRight'
+            ? (i + 1) % tabs.length
+            : event.key === 'ArrowLeft'
+              ? (i - 1 + tabs.length) % tabs.length
+              : event.key === 'Home'
+                ? 0
+                : event.key === 'End'
+                  ? tabs.length - 1
+                  : -1
+        if (next >= 0) {
+          event.preventDefault()
+          activate(next, true)
+        } else if (event.key === ' ') {
+          event.preventDefault()
+          activate(i)
+        }
+      })
+    })
+    // Retain direct links into the no-JS page after enhancement.
+    const fromHash = () => {
+      const index = panels.findIndex((panel) => `#${panel.id}` === location.hash)
+      if (index >= 0) activate(index)
+    }
+    root.dataset.enhanced = ''
+    activate(0)
+    fromHash()
+    window.addEventListener('hashchange', fromHash)
+  })
+</script>
