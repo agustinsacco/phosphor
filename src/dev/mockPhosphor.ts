@@ -1249,6 +1249,14 @@ export function installMockPhosphor(): void {
             path: '/Users/dev/.pi/agent/mcp.json',
             content: '{\n  "mcpServers": {}\n}\n',
           })
+        case 'pi:commands':
+          return Promise.resolve({
+            commands: [
+              { name: 'review', description: 'Review the working tree', source: 'skill' },
+              { name: 'plan', description: 'Draft an implementation plan', source: 'prompt' },
+              { name: 'mcp-auth', description: 'Authenticate an MCP server', source: 'extension' },
+            ],
+          })
         case 'pi:catalogueModels':
           return Promise.resolve({
             source: 'pi',

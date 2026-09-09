@@ -17,9 +17,12 @@ import {
   type CatalogueResult,
 } from '../pi/model-catalogue'
 import { cachedPiHealth } from '../pi/health'
-import { createTtlCache } from '../pi/ttl-cache'
+import { probeCommands } from '../pi/commands'
+import { piProcessEnv } from '../pi/shell-env'
+import { createTtlCache, type TtlCache } from '../pi/ttl-cache'
 import { piStubPath } from '../pi/stub'
 import { type ConfigFileHealth } from '@shared/models'
+import type { RpcSlashCommand } from '@shared/rpc'
 
 /** How long pi's own answer stays believed without re-spawning pi. */
 const CATALOGUE_TTL_MS = 5 * 60_000
@@ -72,6 +75,50 @@ export function invalidateCatalogueModels(): void {
   catalogueCache.invalidate()
 }
 
+/**
+ * How long a folder's resolved command list is believed.
+ *
+ * Shorter than the catalogue's: a skill or prompt is a file the user just
+ * wrote, and "I added it and Phosphor still doesn't see it" is the failure
+ * that matters here. One spawn a minute per folder, only while someone is
+ * typing `/` on a home screen.
+ */
+const COMMANDS_TTL_MS = 60_000
+
+/**
+ * Per-workspace, because the answer is: project prompts and `<ws>/.pi/skills`
+ * differ by folder. Keyed by path, so two open workspaces keep two lists
+ * rather than fighting over one.
+ */
+const commandCaches = new Map<string, TtlCache<RpcSlashCommand[]>>()
+
+function commandsCacheFor(workspacePath: string | undefined): TtlCache<RpcSlashCommand[]> {
+  const key = workspacePath ?? ''
+  let cache = commandCaches.get(key)
+  if (!cache) {
+    cache = createTtlCache(async () => {
+      const stub = piStubPath()
+      if (stub) {
+        return probeCommands({
+          ...(workspacePath ? { workspacePath } : {}),
+          binaryPath: process.execPath,
+          prefixArgs: [stub],
+          env: { ELECTRON_RUN_AS_NODE: '1' },
+        })
+      }
+      const health = await cachedPiHealth()
+      if (!health.ok || !health.binaryPath) return []
+      return probeCommands({
+        ...(workspacePath ? { workspacePath } : {}),
+        binaryPath: health.binaryPath,
+        env: await piProcessEnv(),
+      })
+    }, COMMANDS_TTL_MS)
+    commandCaches.set(key, cache)
+  }
+  return cache
+}
+
 /** Reading and patching pi's own agent settings files. */
 export function registerPiConfigHandlers(): void {
   handle('pi:agentSettings', (_event, workspacePath?: string) => readAgentSettings(workspacePath))
@@ -97,6 +144,17 @@ export function registerPiConfigHandlers(): void {
       return await catalogueCache.get()
     } catch {
       return { models: [], source: 'config' as const }
+    }
+  })
+
+  // The home composer's `/` menu. Same throwaway-pi contract as the catalogue
+  // above, including the stub gate; a probe that failed answers with an empty
+  // list rather than an error, since "no menu" is a fine degradation.
+  handle('pi:commands', async (_event, workspacePath?: string) => {
+    try {
+      return { commands: await commandsCacheFor(workspacePath).get() }
+    } catch {
+      return { commands: [] }
     }
   })
 

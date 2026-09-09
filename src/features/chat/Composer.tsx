@@ -7,13 +7,8 @@ import { QueueChips } from './composer/QueueChips'
 import { ModelPicker } from './composer/ModelPicker'
 import { ContextMeter } from './composer/ContextMeter'
 import { submitBehavior } from './composer/submitBehavior'
-import {
-  buildCommandEntries,
-  CommandMenu,
-  filterCommandEntries,
-  type CommandEntry,
-  type NativeCommand,
-} from './composer/CommandMenu'
+import { buildCommandEntries, CommandMenu, type NativeCommand } from './composer/CommandMenu'
+import { useSlashMenu } from './composer/useSlashMenu'
 import { FileMentionMenu } from './composer/FileMentionMenu'
 import { RetryStrip } from './RetryStrip'
 import { recallNext, recallPrevious } from './promptHistory'
@@ -42,10 +37,6 @@ import { errorText } from '@shared/errors'
 interface MentionState {
   /** Index of the '@' in the textarea value. */
   anchor: number
-  query: string
-}
-
-interface CommandState {
   query: string
 }
 
@@ -91,7 +82,6 @@ export function Composer({
     }
   }, [draftKey])
   const [mention, setMention] = useState<MentionState | null>(null)
-  const [command, setCommand] = useState<CommandState | null>(null)
   const [activeIndex, setActiveIndex] = useState(0)
   const [workspaceFiles, setWorkspaceFiles] = useState<string[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -158,23 +148,19 @@ export function Composer({
     () => buildCommandEntries(piCommands, nativeCommands),
     [piCommands, nativeCommands],
   )
+  const slash = useSlashMenu({
+    entries: commandEntries,
+    setText,
+    focus: () => textareaRef.current?.focus(),
+  })
 
   const mentionMatches = useMemo(
     () => (mention ? fuzzyFilter(mention.query, workspaceFiles, (f) => f, 12) : []),
     [mention, workspaceFiles],
   )
-  const commandMatches = useMemo(
-    () => (command ? filterCommandEntries(command.query, commandEntries) : []),
-    [command, commandEntries],
-  )
 
   const updateOverlays = (value: string, caret: number): void => {
-    // '/' command menu: only when the input starts with '/' and has no spaces yet.
-    if (value.startsWith('/') && !/\s/.test(value)) {
-      setCommand({ query: value.slice(1) })
-    } else {
-      setCommand(null)
-    }
+    slash.sync(value)
     // '@' mention: the token containing the caret starts with '@'.
     const before = value.slice(0, caret)
     const atMatch = /(^|\s)@([^\s@]*)$/.exec(before)
@@ -248,7 +234,7 @@ export function Composer({
 
       useDraftsStore.getState().clear(draftKey)
       setAttachWarning(null)
-      setCommand(null)
+      slash.close()
       setMention(null)
       setHistoryIndex(null)
 
@@ -305,22 +291,13 @@ export function Composer({
     textareaRef.current?.focus()
   }
 
-  const pickCommand = (entry: CommandEntry): void => {
-    setCommand(null)
-    if (entry.native) {
-      setText('')
-      entry.native.run()
-      return
-    }
-    // pi commands: prefill "/name " so the user can add arguments, or send on Enter.
-    setText(`/${entry.name} `)
-    textareaRef.current?.focus()
-  }
-
   /** Runs before the field's own keymap; true means the key was consumed. */
   const handleKeyDownFirst = (event: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
-    // Popup navigation captures arrows/enter/escape while open.
-    const popupItems = command ? commandMatches.length : mention ? mentionMatches.length : 0
+    // Popup navigation captures arrows/enter/escape while open. The '/' menu
+    // goes first: both can match at once ("/foo@bar"), and it is the one that
+    // owns the whole value.
+    if (slash.handleKeyDown(event)) return true
+    const popupItems = slash.visible ? 0 : mention ? mentionMatches.length : 0
     if (popupItems > 0) {
       if (event.key === 'ArrowDown') {
         event.preventDefault()
@@ -334,18 +311,12 @@ export function Composer({
       }
       if ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Tab') {
         event.preventDefault()
-        if (command) {
-          const entry = commandMatches[activeIndex]
-          if (entry) pickCommand(entry)
-        } else if (mention) {
-          const file = mentionMatches[activeIndex]
-          if (file) pickMention(file)
-        }
+        const file = mentionMatches[activeIndex]
+        if (file) pickMention(file)
         return true
       }
       if (event.key === 'Escape') {
         event.preventDefault()
-        setCommand(null)
         setMention(null)
         return true
       }
@@ -415,17 +386,17 @@ export function Composer({
       <QueueChips sessionId={sessionId} />
 
       <div className="relative mx-auto max-w-3xl">
-        {command && commandMatches.length > 0 && (
+        {slash.visible && (
           <CommandMenu
-            query={command.query}
+            query={slash.query ?? ''}
             entries={commandEntries}
-            activeIndex={activeIndex}
-            onHover={setActiveIndex}
-            onPick={pickCommand}
-            onClose={() => setCommand(null)}
+            activeIndex={slash.activeIndex}
+            onHover={slash.setActiveIndex}
+            onPick={slash.pick}
+            onClose={slash.close}
           />
         )}
-        {mention && mentionMatches.length > 0 && (
+        {!slash.visible && mention && mentionMatches.length > 0 && (
           <FileMentionMenu
             files={mentionMatches}
             activeIndex={activeIndex}

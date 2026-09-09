@@ -17,8 +17,8 @@ export interface CommandEntry {
 }
 
 export function buildCommandEntries(
-  piCommands: RpcSlashCommand[],
-  nativeCommands: NativeCommand[],
+  piCommands: readonly RpcSlashCommand[],
+  nativeCommands: readonly NativeCommand[],
 ): CommandEntry[] {
   const native: CommandEntry[] = nativeCommands.map((command) => ({
     name: command.name,
