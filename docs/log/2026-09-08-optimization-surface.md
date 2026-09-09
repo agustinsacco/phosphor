@@ -21,8 +21,9 @@ the proxy supervisor that makes compression a toggle instead of an env var.
   resolves `headroom` on the login-shell PATH; it never starts the proxy and
   never installs anything.
 - **The Advisor** (`electron/optimization/advisor.ts`): four pure rules —
-  cache churn (cacheWrite > 50% of a ≥200k-token session), headroom coverage
-  (off / not installed / proxy down, graded), MCP schema weight (≥3 servers),
+  cache churn (cacheWrite > 50% of a lane's ≥200k of cached-context traffic),
+  headroom coverage (off / not installed / proxy down, graded), MCP schema
+  weight (≥3 servers),
   long-session drag (≥5M tokens → fork from a bookmark). Advice only, each
   with a pointer at the settings tab that owns the fix; nothing here acts.
 - **Ledger** (home screen): a Saved tile and a per-lane saved column, both
@@ -135,3 +136,21 @@ load-bearing:
 Fidelity, not just ratio: the captured session shows 120 of 120 records
 surviving the restructure, and the model answering `120` / `ISS-0119` exactly
 from the compressed text.
+
+## Correction, 2026-09-09: the cache-churn rule was measuring the wrong ratio
+
+Shipped as `cacheWrite ÷ totalTokens`. Wrong units: pi's per-message
+`usage.totalTokens` is the provider's own number, and on pi-claude-cli it
+tracks the request's context size and EXCLUDES `cacheRead`, so a sum of it
+across turns is not a quantity a cumulative `cacheWrite` can be divided by.
+
+Caught in the wild the day it shipped. A real lane with 528k written against
+13.4M read — 96% cache REUSE, which is as healthy as it gets — was reported
+SERIOUS as "96% of its tokens on cache writes" against a 549k totalTokens sum.
+
+Now `cacheWrite ÷ (cacheWrite + cacheRead)`, with the 200k floor moved onto the
+same denominator: the share of a lane's cached context that had to be rebuilt
+rather than reused. The same lane reads 3.8% and stays quiet. The detail text
+also stopped implying the only cause is an old pi-claude-cli; a long gap
+between turns expires the provider's prompt cache and looks identical.
+Regression test uses the real numbers.

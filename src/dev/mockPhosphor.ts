@@ -1411,7 +1411,7 @@ export function installMockPhosphor(): void {
                 severity: 'serious',
                 title: 'A lane is re-writing its context cache',
                 detail:
-                  '"Refactor auth module" spent 54% of its tokens on cache writes. Check the installed pi-claude-cli version (0.7.0+ keeps one CLI process per session).',
+                  '"Refactor auth module" re-wrote 54% of its cached context instead of reading it back. Check the installed pi-claude-cli version (0.7.0+ keeps one CLI process per session).',
                 settingsTab: 'claude-provider',
               },
               {

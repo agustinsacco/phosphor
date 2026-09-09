@@ -41,9 +41,10 @@ describe('adviseOptimization', () => {
     const findings = adviseOptimization(
       input({
         sessions: [
-          meta({ name: 'small churner', totalTokens: 50_000, cacheWriteTokens: 40_000 }),
-          meta({ name: 'big churner', totalTokens: 400_000, cacheWriteTokens: 300_000 }),
-          meta({ name: 'healthy lane', totalTokens: 400_000, cacheWriteTokens: 20_000 }),
+          // Churning, but too little cached traffic for the ratio to mean much.
+          meta({ name: 'small churner', cacheWriteTokens: 40_000, cacheReadTokens: 10_000 }),
+          meta({ name: 'big churner', cacheWriteTokens: 300_000, cacheReadTokens: 50_000 }),
+          meta({ name: 'healthy lane', cacheWriteTokens: 20_000, cacheReadTokens: 400_000 }),
         ],
       }),
     )
@@ -52,6 +53,29 @@ describe('adviseOptimization', () => {
     expect(churn[0]!.severity).toBe('serious')
     expect(churn[0]!.detail).toContain('big churner')
     expect(churn[0]!.settingsTab).toBe('claude-provider')
+  })
+
+  /**
+   * Real numbers from a pi-claude-cli lane on 0.7.0 (2026-09-09): 528k written
+   * against 13.4M read, which is healthy reuse. The first version of this rule
+   * divided cacheWrite by the summed `usage.totalTokens` (549k here, because
+   * that field excludes cacheRead on this provider) and reported "96% of its
+   * tokens on cache writes" as SERIOUS.
+   */
+  it('stays quiet on a heavily-cached lane that is reusing its context', () => {
+    const findings = adviseOptimization(
+      input({
+        sessions: [
+          meta({
+            name: 'Headroom Optimization',
+            totalTokens: 548_816,
+            cacheWriteTokens: 528_312,
+            cacheReadTokens: 13_452_649,
+          }),
+        ],
+      }),
+    )
+    expect(findings.map((f) => f.id)).not.toContain('cache-churn')
   })
 
   it('grades the headroom gap by which step is missing', () => {
