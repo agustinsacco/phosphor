@@ -27,6 +27,13 @@ export interface SubagentTask {
   status: string
   /** The step running right now, cleared when the task ends. */
   currentStep?: string
+  /**
+   * The last tool the agent invoked. A coarser fact than `currentStep` and it
+   * outlives it: the provider clears the step between tool calls but leaves
+   * this set, so it is the fallback that keeps a row from going blank
+   * mid-flight.
+   */
+  lastToolName?: string
   toolUses?: number
   totalTokens?: number
   durationMs?: number
@@ -70,6 +77,7 @@ export function parseSubagentStatus(statusText: string | undefined): SubagentSna
       subagentType: str(task.subagentType),
       status: str(task.status) ?? 'running',
       currentStep: str(task.currentStep),
+      lastToolName: str(task.lastToolName),
       toolUses: num(task.toolUses),
       totalTokens: num(task.totalTokens),
       durationMs: num(task.durationMs),
@@ -81,6 +89,40 @@ export function parseSubagentStatus(statusText: string | undefined): SubagentSna
   // renders them — so recompute rather than trusting two sources to agree.
   const active = tasks.filter((task) => task.status === 'running').length
   return { tasks, active, completed: tasks.length - active }
+}
+
+/**
+ * One agent's live state, for the transcript row that already knows its id.
+ *
+ * The transcript rows are fed by MARKERS, and a sub-agent produces exactly two
+ * of those — `task_started` and its terminal notification. Between them the row
+ * cannot change, which is why an eight-agent fan-out rendered as eight
+ * identical "running" lines for as long as it ran. The live step for every one
+ * of those agents was already being parsed here and then discarded, because
+ * `summarizeSubagents` keeps one line for the strip.
+ *
+ * The join is `taskId`, the CLI's own id, which both sides already carry
+ * (`SubagentBlock.taskId`). Returns undefined for an agent the snapshot does
+ * not mention — including every agent once the episode ends, since the
+ * provider CLEARS the key then. That is deliberate: a settled row must keep
+ * rendering from its markers rather than blanking when live state goes away.
+ *
+ * Parsing is memoized on the exact payload string because every row on screen
+ * asks the same question about the same blob on the same tick.
+ */
+let lastText: string | undefined
+let lastSnapshot: SubagentSnapshot | null = null
+
+export function findLiveSubagent(
+  statusText: string | undefined,
+  taskId: string | undefined,
+): SubagentTask | undefined {
+  if (!statusText || !taskId) return undefined
+  if (statusText !== lastText) {
+    lastText = statusText
+    lastSnapshot = parseSubagentStatus(statusText)
+  }
+  return lastSnapshot?.tasks.find((task) => task.taskId === taskId)
 }
 
 /** "3 agents · Running Read stream-parser.ts" — one line for the strip. */

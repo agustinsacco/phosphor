@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseSubagentStatus, summarizeSubagents } from './subagentStatus'
+import { findLiveSubagent, parseSubagentStatus, summarizeSubagents } from './subagentStatus'
 
 /**
  * The payload is a wire contract from another repo, so the tests are written
@@ -80,5 +80,57 @@ describe('parseSubagentStatus', () => {
       ],
     })
     expect(summarizeSubagents(parseSubagentStatus(finished)!)).toBe('2 agents done')
+  })
+
+  it('reads the last tool name, which outlives the step', () => {
+    const between = JSON.stringify({
+      tasks: [{ taskId: 'a', status: 'running', lastToolName: 'Read' }],
+    })
+    expect(parseSubagentStatus(between)!.tasks[0]).toMatchObject({
+      lastToolName: 'Read',
+      currentStep: undefined,
+    })
+  })
+})
+
+/**
+ * The join a transcript row makes to find its own live state. Every agent in a
+ * fan-out has a step; the strip renders one of them, so before this the other
+ * seven were parsed and dropped.
+ */
+describe('findLiveSubagent', () => {
+  const RUNNING = JSON.stringify({
+    tasks: [
+      { taskId: 'a1', status: 'running', currentStep: 'Running Read TRACKER.md', toolUses: 4 },
+      { taskId: 'a2', status: 'running', lastToolName: 'Grep' },
+    ],
+  })
+
+  it('finds an agent by its task id', () => {
+    expect(findLiveSubagent(RUNNING, 'a1')).toMatchObject({
+      currentStep: 'Running Read TRACKER.md',
+      toolUses: 4,
+    })
+    expect(findLiveSubagent(RUNNING, 'a2')).toMatchObject({ lastToolName: 'Grep' })
+  })
+
+  it('has nothing to say without both halves of the join', () => {
+    expect(findLiveSubagent(RUNNING, undefined)).toBeUndefined()
+    expect(findLiveSubagent(RUNNING, 'nobody')).toBeUndefined()
+    // The provider CLEARS the key when the episode ends. A row must fall back
+    // to its markers rather than blank out.
+    expect(findLiveSubagent(undefined, 'a1')).toBeUndefined()
+    expect(findLiveSubagent('not json', 'a1')).toBeUndefined()
+  })
+
+  it('re-parses when the payload changes', () => {
+    // The memo is keyed on the exact string; a stale hit here would freeze
+    // every row's step at the first tick of the turn.
+    expect(findLiveSubagent(RUNNING, 'a1')?.currentStep).toBe('Running Read TRACKER.md')
+    const moved = JSON.stringify({
+      tasks: [{ taskId: 'a1', status: 'running', currentStep: 'Running Bash npm test' }],
+    })
+    expect(findLiveSubagent(moved, 'a1')?.currentStep).toBe('Running Bash npm test')
+    expect(findLiveSubagent(RUNNING, 'a1')?.currentStep).toBe('Running Read TRACKER.md')
   })
 })
