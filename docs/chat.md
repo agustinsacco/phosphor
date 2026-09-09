@@ -185,6 +185,23 @@ the run is in flight, then the windows or the one-line reason there are none
 that disappears on failure is indistinguishable from a fetch that never
 happened, and the fetch never happening was the actual bug.
 
+**Not every provider reports usage while it streams**, and the live meter has
+to survive one that doesn't. `src/lib/liveStats.ts` takes the context estimate
+from the newest true reading: the streaming message when its deltas have
+reported anything, else the last message to have **ended** since the last poll.
+The second arm exists because the OpenAI Responses API (`openai-codex` —
+GPT-5.x/GPT-6 on a ChatGPT subscription) fills usage only on its terminal
+`response.completed` event, so its `message_update` frames carry a
+present-but-zeroed usage object. Present was enough to flip `hasUsageDeltas`
+and switch off mid-turn polling; zeroed was not enough to move the meter. A
+codex session then read **0% for a whole turn of 95 tool calls and 5.7M
+cache-read tokens**, and the composition rows were crushed ~100× with it,
+because they are clamped down to fit that total. `message_end` carries
+authoritative usage on every provider and pi emits one assistant message per
+tool hop, so the fallback costs no round trips. A poll clears the banked
+reading, which is what keeps a post-compaction reset from being overridden
+(2026-09-09, [log](log/2026-09-09-codex-context-meter-froze.md)).
+
 **Context composition** answers "full of _what_" — messages, system prompt,
 tool schemas, MCP tool schemas — which pi's single `contextUsage.tokens`
 number cannot. Only that **total is authoritative**: component sizes are
