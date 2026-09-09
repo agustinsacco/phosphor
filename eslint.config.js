@@ -14,6 +14,8 @@ export default tseslint.config(
       'site/.astro/**',
       'site/dist/**',
       'site/shots-raw/**',
+      'site/test-results/**',
+      'site/playwright-report/**',
       '**/*.cjs',
     ],
   },

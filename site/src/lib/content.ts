@@ -1,119 +1,126 @@
-/**
- * Copy and data for the landing page. Every claim here is checked against the
- * repo's docs (docs/*.md, README.md) — if a feature changes, this file is part
- * of the same diff.
- */
+import type { ImageMetadata } from 'astro'
 
-export const GITHUB = 'https://github.com/agustinsacco/Phosphor'
-export const RELEASES = `${GITHUB}/releases`
-export const LATEST = `${GITHUB}/releases/latest`
-export const INSTALL_SH = `${GITHUB}/releases/latest/download/install.sh`
-export const PI_NPM = 'https://www.npmjs.com/package/@earendil-works/pi-coding-agent'
-export const PI_CLAUDE_CLI = 'https://github.com/agustinsacco/pi-claude-cli'
+export const repo = 'https://github.com/agustinsacco/Phosphor'
+export const releases = `${repo}/releases`
+export const doc = (path: string) => `${repo}/blob/main/docs/${path}`
 
-export interface Provider {
-  name: string
-  mono: string
-  how: string
-  kind: 'plan' | 'key' | 'gateway' | 'local'
+const captures = import.meta.glob<{ default: ImageMetadata }>('../assets/shots/*.{webp,png}', {
+  eager: true,
+})
+export function shot(name: string): ImageMetadata {
+  const capture =
+    captures[`../assets/shots/${name}.webp`] ?? captures[`../assets/shots/${name}.png`]
+  if (!capture) throw new Error(`Missing real capture: ${name}`)
+  return capture.default
 }
 
-/** Everything pi speaks, plus the Claude subscription bridge. */
-export const providers: Provider[] = [
-  { name: 'ChatGPT · Codex', mono: 'GP', how: 'ChatGPT Plus / Pro sign-in', kind: 'plan' },
-  { name: 'Claude Pro / Max', mono: 'CL', how: 'via Claude Code, no API key', kind: 'plan' },
-  { name: 'GitHub Copilot', mono: 'GH', how: 'Copilot subscription sign-in', kind: 'plan' },
-  { name: 'Kimi For Coding', mono: 'KI', how: 'Kimi plan sign-in', kind: 'plan' },
-  { name: 'Anthropic', mono: 'AN', how: 'API key', kind: 'key' },
-  { name: 'OpenAI', mono: 'OA', how: 'API key', kind: 'key' },
-  { name: 'Google Gemini', mono: 'GE', how: 'API key', kind: 'key' },
-  { name: 'Google Vertex', mono: 'VX', how: 'GCP credentials', kind: 'key' },
-  { name: 'Azure OpenAI', mono: 'AZ', how: 'API key', kind: 'key' },
-  { name: 'Amazon Bedrock', mono: 'BR', how: 'AWS credentials', kind: 'key' },
-  { name: 'Mistral', mono: 'MI', how: 'API key', kind: 'key' },
-  { name: 'Groq', mono: 'GQ', how: 'API key', kind: 'key' },
-  { name: 'Cerebras', mono: 'CB', how: 'API key', kind: 'key' },
-  { name: 'xAI', mono: 'XA', how: 'sign-in, billed per token', kind: 'key' },
-  { name: 'OpenRouter', mono: 'OR', how: 'sign-in, billed per token', kind: 'gateway' },
-  { name: 'Cloudflare AI Gateway', mono: 'CF', how: 'gateway', kind: 'gateway' },
-  { name: 'Vercel AI Gateway', mono: 'VC', how: 'gateway', kind: 'gateway' },
-  { name: 'Local endpoints', mono: 'LO', how: 'any OpenAI-compatible server', kind: 'local' },
+// The original 6012 × 3322 capture supplied by the user: Headroom Optimization,
+// Claude Opus 5, Monaco left, results table and 35% context meter on the right.
+export const ideCapture = shot('ide-flex')
+
+export const subscriptions = [
+  {
+    mark: 'O',
+    name: 'ChatGPT',
+    plan: 'Plus or Pro',
+    route: 'Sign in with pi’s native Codex OAuth provider. No Codex CLI bridge required.',
+  },
+  {
+    mark: 'C',
+    name: 'Claude',
+    plan: 'Pro or Max',
+    route: 'Use the Claude Code provider extension and your authenticated Claude Code CLI.',
+  },
+  {
+    mark: 'G',
+    name: 'GitHub Copilot',
+    plan: 'Copilot subscription',
+    route: 'Sign in through pi. Enterprise Server accounts use pi’s terminal login route.',
+  },
+  {
+    mark: 'K',
+    name: 'Kimi',
+    plan: 'Kimi For Coding',
+    route: 'Sign in with your Kimi For Coding plan through pi’s account login.',
+  },
+]
+
+export const providers = [
+  'Anthropic',
+  'OpenAI',
+  'Gemini',
+  'Vertex AI',
+  'Azure OpenAI',
+  'Amazon Bedrock',
+  'Mistral',
+  'Groq',
+  'Cerebras',
+  'xAI',
+  'OpenRouter',
+  'Cloudflare AI Gateway',
+  'Vercel AI Gateway',
+  'Custom / local endpoints',
 ]
 
 export const connectors = [
-  { name: 'Linear', blurb: 'Issues, projects, cycles and comments.' },
-  { name: 'Notion', blurb: 'Pages and databases you can already access.' },
-  { name: 'Braintrust', blurb: 'Projects, experiments, datasets and logs.' },
-  { name: 'Datadog', blurb: 'Logs, metrics, traces, monitors and incidents.' },
-  { name: 'Supabase', blurb: 'Projects and SQL, read-only by default.' },
-  { name: 'Questrade', blurb: 'Brokerage data, read scopes only — never orders.' },
-  { name: 'Fellow', blurb: 'Meeting recaps, transcripts and action items.' },
-  { name: 'Slack', blurb: 'Channels and messages through your own Slack app.' },
+  'Linear',
+  'Notion',
+  'Braintrust',
+  'Datadog',
+  'Supabase',
+  'Questrade',
+  'Fellow',
+  'Slack',
 ]
 
-export const bundledExtensions = [
-  {
-    name: 'artifacts',
-    what: 'Registers artifact_create / edit / update / read / list — versioned documents in a side panel.',
-  },
-  {
-    name: 'context-breakdown',
-    what: 'Measures what the window is full of: messages, system prompt, tool schemas, MCP schemas per server.',
-  },
-  {
-    name: 'headroom',
-    what: 'Compresses large JSON tool results through a local Headroom proxy the moment they are produced.',
-  },
-  {
-    name: 'mcp-status',
-    what: 'Forwards the MCP adapter’s per-server state (connected, needs auth, failed) to the UI.',
-  },
-  {
-    name: 'tool-name-guard',
-    what: 'Rewrites a malformed tool call before pi persists it — the one that used to brick a thread forever.',
-  },
-  {
-    name: 'worktree-paths',
-    what: 'Refuses a file read that escaped a worktree into the main checkout on a different branch.',
-  },
+export const bundled = [
+  ['artifacts', 'Create and revise deliverables in the side panel.'],
+  ['context-breakdown', 'Estimate what occupies the context window.'],
+  ['headroom', 'Optionally compress eligible tool results through a local proxy.'],
+  ['mcp-status', 'Report connector state through pi’s status channel.'],
+  ['tool-name-guard', 'Repair malformed tool names before they enter saved history.'],
+  ['worktree-paths', 'Catch supported file-tool paths aimed at the wrong checkout.'],
 ]
 
-export const settingsTabs = [
-  'Appearance',
-  'Agent',
-  'Accounts',
-  'Extensions',
-  'MCP Connectors',
-  'Workspaces',
-  'Optimization',
-  'Advanced',
-  'Keybindings',
-  'About',
-]
-
-export const laneColumns = [
-  { name: 'Waiting on you', from: 'a dialog or approval an extension raised' },
-  { name: 'Ready to merge', from: 'open PR, checks green, not rejected' },
-  { name: 'Needs a push', from: 'failing checks, changes requested, or behind main' },
-  { name: 'In review', from: 'checks still running, or a draft' },
-  { name: 'Running', from: 'the agent is streaming right now' },
-]
-
-export const prChipStates = [
-  { label: '#412', tone: 'success', meaning: 'open, checks green' },
-  { label: '#412 ✓✓', tone: 'success', meaning: 'approved by a human' },
-  { label: '#412', tone: 'danger', meaning: 'checks failing' },
-  { label: '#412 ⚠', tone: 'danger', meaning: 'merge conflict' },
-  { label: '#412', tone: 'merged', meaning: 'merged — this lane is done' },
-  { label: '↑ no PR', tone: 'muted', meaning: 'a worktree lane with nothing open yet' },
-]
-
-export const installLines = [
-  '$ npm install -g @earendil-works/pi-coding-agent',
-  'added 1 package in 4s',
-  '$ curl -fsSL https://github.com/agustinsacco/Phosphor/releases/latest/download/install.sh | sh',
-  '==> Detected macOS arm64',
-  '==> Downloading Phosphor-0.1.240-arm64.dmg',
-  '==> Verified checksum',
-  '==> Installed /Applications/Phosphor.app',
+export const featureIndex = [
+  [
+    'Models & subscriptions',
+    'settings.md#accounts',
+    'Native and package providers; OAuth or API keys; custom endpoints; model and thinking-level controls.',
+  ],
+  [
+    'Accounts, MCP & context',
+    'chat.md#what-the-context-meters-popover-shows',
+    'Claude account routing and usage; estimated context composition; per-server MCP schema attribution.',
+  ],
+  [
+    'Lanes, branches & PRs',
+    'lanes.md',
+    'Searchable session identity, PR/check/review state, worktrees, naming, cleanup and lost-work warnings.',
+  ],
+  [
+    'Transcript & composer',
+    'chat.md',
+    'Streaming text, thinking, tool steps, rich output, file mentions, shell lines, steering and follow-ups.',
+  ],
+  [
+    'Files & terminal',
+    'files.md',
+    'Explorer transfers, Monaco tabs and dirty-buffer conflicts; a separate real-shell terminal pane.',
+  ],
+  [
+    'Artifacts & extensions',
+    'extensions.md',
+    'Versioned previews and diffs, sandboxed HTML, package management, tools, skills, prompts and themes.',
+  ],
+  [
+    'Sessions & layout',
+    'ui-shell.md',
+    'Independent concurrent sessions, per-session pane placement, fullscreen, global skills and artifacts pages.',
+  ],
+  [
+    'Install & updates',
+    'updates.md',
+    'pi on PATH, platform-specific release assets, packaged-app update checks and install-path-specific updates.',
+  ],
 ]

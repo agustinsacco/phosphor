@@ -1,51 +1,147 @@
 # phosphor.saccolabs.com
 
-The Phosphor landing page: one Astro 7 page, Tailwind 4 over the Phosphor design
-tokens (a hand-mirrored satellite of `src/styles/index.css` — see
-`docs/style-guide.md`), no client framework. Built into an nginx image and
-deployed to the k3s cluster by `.github/workflows/deploy-site.yml`.
+The production landing page in `site/`: Astro 7, Tailwind 4, static HTML, no
+client framework and **no shipped JavaScript**. The approved surface study now
+replaces the previous page at the canonical deployment path; there is no second
+site directory or deployment.
 
-## Local development
+## Run and check
 
 ```bash
 npm ci --prefix site
-npm run dev --prefix site        # http://localhost:4321
-npm run check --prefix site      # astro check
-npm run build --prefix site      # writes site/dist
+npm run dev --prefix site
+npm run check --prefix site
+npm run build --prefix site
+(cd site && npx playwright install chromium)
+npm test --prefix site
 ```
 
-The root `prettier --check .` covers this folder with the repo's config.
+Playwright serves the production build on `127.0.0.1:4322`. It checks desktop,
+mobile, JavaScript-disabled desktop/mobile and reduced motion; keyboard radio
+navigation, native disclosures, image/asset responses, console and page errors,
+internal anchors, 320–1920px overflow, enlarged layout, and zero client scripts.
+Screenshots and failure traces go to the ignored `test-results/` directory. CI
+runs this suite and uploads its evidence. Electron e2e is not the website's test
+harness; no app, IPC or session behavior changes here.
 
-## The screenshots
+Formatting Astro files explicitly loads the plugin:
 
-Every image under `src/assets/shots/` is a capture of the built app running
-against a **real pi** — the same runner the README uses, aimed here and kept at
-the display's native scale:
+```bash
+npm run format --prefix site
+```
+
+## The exact IDE capture
+
+`site/src/assets/shots/ide-flex.png` is the original **6012 × 3322** full-window
+capture supplied by the user during review, preserved unchanged in this
+site's self-contained asset directory. It shows the Headroom Optimization
+session: explorer and Monaco (`TopBar.tsx`) left, Claude Opus 5 transcript and
+results table right, Max thinking and a 35% context meter in the composer.
+The figures are historical session output, not a product benchmark.
+
+The original input checkout lacked this file. The supplied attachment resolved
+that dependency; the temporary GPT-5.5 fallback and its warning have been removed.
+Build and deployment require the real capture.
+
+Run `npm run shots --prefix site` to import new captures from `site/shots-raw/`.
+The importer converts other PNGs to WebP but preserves `ide-flex.png` byte-for-byte.
+Crop bounds are calibrated to this capture (explorer 0–15%, Monaco 15–69%,
+transcript 69–100%; top window chrome omitted in studies). Recheck these and
+re-run browser tests if the source changes. The original remains unmodified.
+
+## Design and interactions
+
+- An editorial opening and a signal schematic: several surfaces resolve to one
+  pi process plus extensions. Three surfaces cycle above the fixed pi engine;
+  signals travel to native providers or Claude Code through `pi-claude-cli`.
+  A keyboard-accessible native checkbox pauses/resumes the whole diagram.
+- The IDE view is a whole, unmodified real screenshot. Two native radio controls
+  select Claude Desktop–like and Codex app–like **layout studies** made from crops
+  of that same image. They are explicitly not third-party screenshots, integrations
+  or named presets that the app ships.
+- The app's actual contract is one auxiliary pane, left/right docking, resizing
+  and fullscreen, saved per session. Cropped layout studies illustrate that
+  flexibility; they do not promise arbitrary editor splitting.
+- Native radio controls also select real dark/light captures. Native `details`
+  elements hold additional screenshots and technical reference material.
+- CSS handles the surface cycle, provider signals, selection transitions and optional
+  scroll-linked entrances. Base content is visible without JavaScript or modern
+  animation support. Reduced motion removes animations and smooth scrolling.
+- Each screenshot links to its full original for inspection. Astro emits
+  responsive WebP variants; only the centrepiece is eager-loaded. Fonts are local.
+- `src/styles/tokens.css` holds the site's design tokens, inherited unchanged
+  from the previous page and aligned with `docs/style-guide.md`. The layout,
+  copy, components and animation CSS are original.
+
+## Feature / evidence map
+
+Current feature docs are the authority; historical build specs are not treated
+as shipped features. A reader-facing source index also lives at `#feature-index`.
+
+| Page section  | Scope                                                                                                              | Evidence                                                                                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Surface       | pi constant, per-session layout, left/right/fullscreen, independent panes                                          | [ui-shell](../docs/ui-shell.md), [architecture](../docs/architecture.md)                                                                                  |
+| Models        | Native/package providers, API keys, local endpoints, model switches, thinking levels                               | [README](../README.md), [pi-integration](../docs/pi-integration.md), [chat](../docs/chat.md)                                                              |
+| Subscriptions | ChatGPT Plus/Pro; Claude Pro/Max via Claude Code; Copilot; Kimi For Coding                                         | [settings / Accounts](../docs/settings.md#accounts), [CLI providers](../docs/cli-providers.md); checked against `electron/pi/auth-status.ts`              |
+| Accounts      | Multiple Claude logins; specific/ordered/round-robin new-session routing; moving a lane respawns it                | [settings / Accounts](../docs/settings.md#accounts)                                                                                                       |
+| MCP           | Curated/custom servers, adapter-owned OAuth, on-demand schema discovery, direct-tools exception                    | [MCP](../docs/mcp.md), [extensions](../docs/extensions.md)                                                                                                |
+| Context       | pi total, estimated components, unmeasured CLI overhead, MCP attribution, reported cost and Claude account windows | [chat / Context meter](../docs/chat.md#what-the-context-meters-popover-shows)                                                                             |
+| Lanes         | Board/ledger, sessions with branches/worktrees/PR status, search, local merge                                      | [README / Home](../README.md#home--where-a-session-starts), [overview](../docs/overview.md), [lanes](../docs/lanes.md), [worktrees](../docs/worktrees.md) |
+| Transcript    | Steps, diffs, rich content, steering/follow-up queues, mentions, commands, shell lines, drafts                     | [chat](../docs/chat.md), [extensions / Provider transcripts](../docs/extensions.md#how-provider-transcripts-render)                                       |
+| Files         | Explorer transfers, Monaco tabs, dirty/conflict states, fullscreen                                                 | [files](../docs/files.md), [ui-shell](../docs/ui-shell.md)                                                                                                |
+| Terminal      | Separate real PTY, shell tabs, search/clipboard/scrollback, paste-not-execute                                      | [terminal](../docs/terminal.md)                                                                                                                           |
+| Artifacts     | Versions/previews/diffs, replay, global index, networkless HTML sandbox                                            | [extensions](../docs/extensions.md), [ui-shell](../docs/ui-shell.md), [README](../README.md)                                                              |
+| Extensions    | npm/Git/local packages, project/global scope, tools/skills/prompts/themes, six bundled extensions                  | [extensions](../docs/extensions.md), [settings](../docs/settings.md)                                                                                      |
+| Sessions      | Real pi files/processes, tree/bookmark/fork/clone/export, concurrent streaming, compaction/retry                   | [README](../README.md), [pi-integration](../docs/pi-integration.md), [ui-shell](../docs/ui-shell.md)                                                      |
+| Themes        | Light/dark/system, fonts and sizing                                                                                | [style guide](../docs/style-guide.md), [settings](../docs/settings.md)                                                                                    |
+| Install       | Node/pi prerequisite, release assets and installer, Windows tagged releases, install-specific updates              | [README / Install](../README.md#install), [updates](../docs/updates.md)                                                                                   |
+
+### Deliberate limits in the copy
+
+No universal account failover, unlimited subscriptions, automatic GitHub PR
+merge, fully local inference, universal agent sandbox or guaranteed token
+savings. Component token sizes are estimates, not measurements. Claude-native
+markers do not carry result bodies. Account routing is Claude-specific; moving
+a live lane restarts it and re-reads saved history. PR integration uses `gh`
+read-only; the guided merge is local. Installed packages execute code with
+system access. Artifact isolation is a different boundary.
+
+## Assets
+
+Real screenshots live in `site/src/assets/shots/`. To reshoot, use the live
+capture runner from the repo root (it spends real tokens and leaves sessions):
 
 ```bash
 npm run build
-OUT_DIR=site/shots-raw MAX_WIDTH=0 WORKSPACE=~/src/agustinsacco/Phosphor \
+OUT_DIR=site/shots-raw MAX_WIDTH=0 WORKSPACE=/path/to/project \
   node scripts/capture-live-shots.mjs
-npm run shots --prefix site      # shots-raw/*.png → src/assets/shots/*.webp
+npm run shots --prefix site
 ```
 
-The run spends real tokens (two turns plus auto-naming) and leaves two sessions
-and one worktree behind, like the README runner does. `shots-raw/` is
-gitignored; the committed sources are the WebP files, and Astro's `<Image>`
-derives every responsive width from them at build time.
+Review/redact captures before importing or committing them. The Accounts image
+is already redacted; preserve that redaction. The full IDE capture is manually
+supplied rather than generated by the live runner. The brand favicon is
+`build/icon.svg`; fonts and their OFL licenses are bundled under `public/fonts/`
+from `src/assets/fonts/` in the repo root. Regenerate the social preview with:
 
-**Review the captures before committing them.** The sidebar shows the
-workspace's real lanes and the Accounts tab shows which account is signed in.
-The published `accounts.webp` has the account email blurred by hand
-(ImageMagick `-region … -blur`); redo that if you re-shoot it.
+```bash
+node site/scripts/social.mjs
+```
 
 ## Deployment
 
-Pushes to `main` that touch `site/**`, `.infra/phosphor-site/**` or the workflow
-build `saccodigital/phosphor-site:<sha>`, push it, then apply
-`.infra/phosphor-site` with the image pinned to the pushed digest and wait for
-the rollout. The Service is `type: LoadBalancer` on port **5015** (unique per
-site — k3s servicelb binds it on the node), so the edge needs a route from
-`phosphor.saccolabs.com` to that port. Secrets and the one-time edge setup are
-listed in the workflow header and in
-`docs/log/2026-09-09-landing-site.md`.
+The Docker builder now runs Astro check before building, in an isolated context
+without the repository root's dependencies. `nginx.conf` and
+`.infra/phosphor-site/` remain unchanged from the original deployment: same namespace, immutable image
+digest, port 5015, unprivileged nginx, read-only root filesystem, probes,
+resource limits and rollout verification. No second Service or hostname is created.
+
+`.github/workflows/deploy-site.yml` builds Docker context `./site` on pushes to
+`main` touching `site/**`, `.infra/phosphor-site/**` or the workflow. It pushes
+`saccodigital/phosphor-site:<sha>`, pins the k3s deployment to the image digest,
+and verifies rollout. The existing edge route for **phosphor.saccolabs.com**
+continues to point to the same Service on port 5015. Merging the PR updates the
+page at that address; no DNS or infrastructure migration is needed.
+
+CI installs, checks, builds and browser-tests this one canonical site. The
+previous implementation remains in Git history, not a second build directory.

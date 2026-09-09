@@ -1,0 +1,35 @@
+---
+import { Image } from 'astro:assets'
+import type { ImageMetadata } from 'astro'
+interface Props {
+  image: ImageMetadata
+  alt: string
+  caption: string
+  eager?: boolean
+  class?: string
+}
+const { image, alt, caption, eager = false, class: className = '' } = Astro.props
+---
+
+<figure class:list={['capture', className]}>
+  <a
+    class="capture-link"
+    href={image.src}
+    target="_blank"
+    rel="noopener"
+    aria-label={`Open full capture: ${caption}`}
+  >
+    <Image
+      src={image}
+      alt={alt}
+      widths={[480, 800, 1200, 1800, 2400]}
+      sizes="(max-width: 700px) 94vw, (max-width: 1100px) 90vw, 1200px"
+      format="webp"
+      quality={85}
+      loading={eager ? 'eager' : 'lazy'}
+      decoding="async"
+    />
+    <span class="capture-open" aria-hidden="true">↗</span>
+  </a>
+  <figcaption><span>{caption}</span><span>Real session ↗</span></figcaption>
+</figure>

@@ -1,0 +1,52 @@
+---
+import { doc } from '../lib/content'
+---
+
+<div
+  class="engine-drawing"
+  aria-label="Phosphor surfaces connect to pi, which can use native providers or drive Claude Code through its provider extension"
+>
+  <input class="sr-only" type="checkbox" id="diagram-paused" aria-label="Pause diagram animation" />
+  <div class="drawing-toolbar">
+    <div class="drawing-coordinate mono">SURFACE / VARIABLE</div>
+    <label class="motion-control" for="diagram-paused"
+      ><span class="pause-label">Ⅱ Pause motion</span><span class="resume-label"
+        >▷ Resume motion</span
+      ></label
+    >
+  </div>
+  <div class="diagram-flow">
+    <div class="wire-surfaces" aria-hidden="true">
+      <div class="wire-window">
+        <i></i><div class="wire-layout wire-layout-a"><b></b><b></b><b></b></div><span>CHAT</span>
+      </div>
+      <div class="wire-window">
+        <i></i><div class="wire-layout wire-layout-b"><b></b><b></b><b></b></div><span>WORK</span>
+      </div>
+      <div class="wire-window">
+        <i></i><div class="wire-layout wire-layout-c"><b></b><b></b><b></b></div><span>IDE</span>
+      </div>
+    </div>
+    <div class="signal-path" aria-hidden="true"><span></span></div>
+    <div class="engine-core">
+      <span class="engine-pi">π</span><div>
+        <strong>pi coding agent</strong><code>pi --mode rpc</code>
+      </div><span class="core-badge">CONSTANT</span>
+    </div>
+    <div class="extension-bus">
+      <span>Tools</span><span>Skills</span><span>MCP</span><span>Artifacts</span>
+    </div>
+    <div class="provider-path" aria-hidden="true"><i></i><i></i></div>
+    <div class="provider-routes">
+      <div><strong>Native providers</strong><span>APIs + account sign-in</span></div>
+      <div class="claude-route"><strong>Claude Code</strong><span>via pi-claude-cli</span></div>
+    </div>
+    <p class="drawing-explanation">
+      pi supplies project context, skills and extension tools. Its provider extension can drive
+      Claude Code underneath.
+    </p>
+    <a class="text-link drawing-source" href={doc('cli-providers.md#current-claude-integration')}
+      >How Claude runs under pi ↗</a
+    >
+  </div>
+</div>
