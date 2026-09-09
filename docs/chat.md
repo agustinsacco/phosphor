@@ -66,9 +66,14 @@ frequently invalid JSON; `externalToolInfo` reads it **best-effort only**
 (JSON.parse, then a complete-`"key":"value"`-pairs fallback) to pick a human
 headline — `Agent`/`Task` markers instead fold into `subagent` steps, one per
 AGENT rather than one per marker (three markers describe each), and feed the
-composer's sub-agent strip (`trailingUnfinishedAgents`). **A sub-agent row
-claims only what its markers prove**: `launched` until the CLI confirms a
-start, and no completion until one is reported. Background agents ran to their
+composer's sub-agent strip (`trailingUnfinishedAgents`). **A sub-agent row's
+status claims only what its markers prove**: `launched` until the CLI confirms
+a start, and no completion until one is reported. Its live step and running
+cost come from elsewhere — the `claude-subagents` status channel, joined per
+row by `taskId`, because the two markers bracket the agent's whole life and
+say nothing in between
+([extensions.md](extensions.md#how-provider-transcripts-render)).
+Background agents ran to their
 death before provider 0.4.14
 ([log/2026-08-22-claude-subagents-never-return.md](log/2026-08-22-claude-subagents-never-return.md),
 [log/2026-08-28-subagents-report-back.md](log/2026-08-28-subagents-report-back.md));

@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { ToolState } from '../reducer'
 import {
@@ -17,6 +17,8 @@ import { Markdown } from '@/components/markdown/Markdown'
 import { ChevronIcon } from '@/components/icons'
 import { formatDuration, formatTokens } from '@/lib/format'
 import { useChatUiStore } from '../uiState'
+import { useExtensionUiStore } from '@/stores/extensionUi'
+import { findLiveSubagent, SUBAGENTS_STATUS_KEY } from '../subagentStatus'
 
 /**
  * One run of agent activity — thinking and tool calls, merged across pi's
@@ -264,7 +266,7 @@ function ActivityRow({
   // provider. There is no pi tool result to show — only what was invoked —
   // so this is a compact, always-settled row rather than a ToolCard.
   if (step.block.type === 'subagent') {
-    return <SubagentRow agent={step.block} />
+    return <SubagentRow agent={step.block} sessionId={sessionId} />
   }
 
   if (step.block.type === 'externalTool') {
@@ -429,17 +431,48 @@ function ExternalToolRow({
  * so it must not be dressed up as running. The sub-agent's own transcript is
  * still not forwarded (docs/extensions.md), so the expandable
  * detail is the launch prompt, never the agent's work.
+ *
+ * STATUS is marker-fed; PROGRESS is joined live from the status channel by
+ * `taskId`. The two markers arrive at the start and the end, so without the
+ * join a running row has nothing to say for its whole life — eight of them
+ * said "running" and nothing else for the eight minutes of one fan-out. The
+ * overlay only ever ADDS to a live row: it cannot move a status (a `launched`
+ * agent stays launched) and it is ignored once the row is terminal, so the
+ * provider clearing the key at the end of an episode leaves settled rows
+ * exactly as their markers left them.
  */
-function SubagentRow({ agent }: { agent: SubagentBlock }): React.JSX.Element {
+function SubagentRow({
+  agent,
+  sessionId,
+}: {
+  agent: SubagentBlock
+  sessionId: string
+}): React.JSX.Element {
   const [open, setOpen] = useState(false)
   const expandable = Boolean(agent.prompt)
   const done = isTerminalAgentStatus(agent.status)
+
+  // The raw string, not a derived object: a selector that parsed here would
+  // return a fresh identity on every store tick and re-render every row.
+  const statusText = useExtensionUiStore((s) => s.statuses[sessionId]?.[SUBAGENTS_STATUS_KEY])
+  const live = useMemo(
+    () => (done ? undefined : findLiveSubagent(statusText, agent.taskId)),
+    [done, statusText, agent.taskId],
+  )
+  // "Running Read stream-parser.ts" while it runs; the tool name alone between
+  // steps, which is the only thing left when the provider clears the step.
+  const liveStep = live?.currentStep ?? live?.lastToolName
+
+  // Cost is a terminal fact in the markers, so a running agent has none of it
+  // until it finishes. The live snapshot carries it the whole way, which is
+  // what turns a silent row into one that visibly climbs.
+  const toolUses = agent.toolUses ?? live?.toolUses
+  const totalTokens = agent.totalTokens ?? live?.totalTokens
+  const durationMs = agent.durationMs ?? live?.durationMs
   const stats = [
-    agent.toolUses === undefined
-      ? undefined
-      : `${agent.toolUses} tool${agent.toolUses === 1 ? '' : 's'}`,
-    agent.totalTokens === undefined ? undefined : `${formatTokens(agent.totalTokens)} tokens`,
-    agent.durationMs === undefined ? undefined : formatDuration(agent.durationMs),
+    toolUses === undefined ? undefined : `${toolUses} tool${toolUses === 1 ? '' : 's'}`,
+    totalTokens === undefined ? undefined : `${formatTokens(totalTokens)} tokens`,
+    durationMs === undefined ? undefined : formatDuration(durationMs),
   ].filter(Boolean)
 
   return (
@@ -501,6 +534,17 @@ function SubagentRow({ agent }: { agent: SubagentBlock }): React.JSX.Element {
           <ChevronIcon expanded={open} size={9} strokeWidth={3} className="text-text-tertiary" />
         )}
       </button>
+      {/* Its own line rather than a third segment in the header: the
+          description already truncates there, and two competing truncating
+          segments meant a long step ate the agent's name. */}
+      {liveStep && (
+        <div
+          data-testid="subagent-step"
+          className="text-text-tertiary mb-1 ml-5 mr-2 truncate text-sm"
+        >
+          {liveStep}
+        </div>
+      )}
       {open && agent.prompt && (
         <div
           data-testid="subagent-prompt"
