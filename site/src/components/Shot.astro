@@ -1,0 +1,51 @@
+---
+/**
+ * A screenshot in a window frame. Every image on the site is a capture of
+ * the built app running against a real pi — see site/README.md for how they
+ * are regenerated. Astro's <Image> emits responsive WebP from the source.
+ */
+import { Image } from 'astro:assets'
+import type { ImageMetadata } from 'astro'
+
+interface Props {
+  src: ImageMetadata
+  alt: string
+  caption?: string
+  glow?: boolean
+  priority?: boolean
+  sizes?: string
+  widths?: number[]
+  class?: string
+}
+const {
+  src,
+  alt,
+  caption,
+  glow = false,
+  priority = false,
+  sizes = '(min-width: 1280px) 1200px, 94vw',
+  widths = [640, 960, 1280, 1800, 2400],
+  class: cls = '',
+} = Astro.props
+---
+
+<figure class={`frame-wrap m-0 ${cls}`}>
+  <div class={`frame ${glow ? 'frame--glow' : ''}`}>
+    <Image
+      src={src}
+      alt={alt}
+      widths={widths}
+      sizes={sizes}
+      format="webp"
+      quality={82}
+      loading={priority ? 'eager' : 'lazy'}
+      decoding="async"
+      fetchpriority={priority ? 'high' : 'auto'}
+    />
+  </div>
+  {
+    caption && (
+      <figcaption class="mt-3 text-center text-sm text-text-tertiary text-pretty">{caption}</figcaption>
+    )
+  }
+</figure>

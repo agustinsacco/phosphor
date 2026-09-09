@@ -43,6 +43,29 @@ jobs:
       - name: Build (main · preload · renderer)
         run: npm run build
 
+  site:
+    # phosphor.saccolabs.com is deployed from main by deploy-site.yml, which
+    # only runs after a merge — this catches a broken page on the PR instead.
+    name: Site · astro check · build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install site dependencies
+        run: npm ci --prefix site
+
+      - name: Astro check
+        run: npm run check --prefix site
+
+      - name: Build site
+        run: npm run build --prefix site
+
   e2e:
     name: E2E smoke (${{ matrix.os }} ${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
     runs-on: ${{ matrix.os }}
