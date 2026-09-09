@@ -34,6 +34,12 @@ and one worktree behind, like the README runner does. `shots-raw/` is
 gitignored; the committed sources are the WebP files, and Astro's `<Image>`
 derives every responsive width from them at build time.
 
+**One exception: `files.webp` is a hand-taken capture** of a real working
+session (Files docked left, Monaco on `TopBar.tsx`, a Claude Opus 5 transcript
+with a results table), resized to 2880 wide. The runner writes its own
+`shots-raw/files.png`, so after a re-shoot restore this one before importing,
+or it gets replaced by the scripted capture.
+
 **Review the captures before committing them.** The sidebar shows the
 workspace's real lanes and the Accounts tab shows which account is signed in.
 The published `accounts.webp` has the account email blurred by hand
