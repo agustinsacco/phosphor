@@ -188,10 +188,21 @@ happened, and the fetch never happening was the actual bug.
 **Context composition** answers "full of _what_" — messages, system prompt,
 tool schemas, MCP tool schemas — which pi's single `contextUsage.tokens`
 number cannot. Only that **total is authoritative**: component sizes are
-character-based estimates (no tokenizer is reachable from an extension), so
-`breakdownSlices` scales them onto pi's real total, free space is the honest
-remainder, and the popover labels them approximate. Never present an
-estimate as measured, and never let the parts sum past the total.
+character-based estimates (no tokenizer is reachable from an extension), the
+popover labels them approximate, and free space is the honest remainder.
+
+`breakdownSlices` scales estimates **down** to fit pi's total and never up.
+The extension can only measure pi's own state, and under a CLI provider that
+is a minority of the request: the Claude CLI sends its own system prompt and
+its own native tool schemas, and keeps native tool results in its own
+transcript. Scaling up assumed every token pi counts belonged to something we
+measured, so the CLI's hidden share was added to _our_ rows — a fixed
+9,914-token system prompt rendered as 44.1k then 22.5k across four turns of
+one session, while the same code stayed within ~8% on a native pi session
+(measured 2026-09-09,
+[log](log/2026-09-09-context-meter-provider-overhead.md)). The remainder is
+its own **Unmeasured** slice instead. Never fold provider-side context into a
+row that names something else, and never let the parts sum past the total.
 
 **MCP servers** breaks the MCP slice down per connector, as chips (name +
 tokens), because the single slice cannot say which server to disconnect. What
@@ -203,17 +214,19 @@ flat and every schema lands in the window, which is where a chip goes from
 hundreds of tokens to tens of thousands. See
 [mcp.md](mcp.md#the-claude-provider-reaches-mcp-through-pi-not-around-it).
 
-That scaling makes the total load-bearing twice over, and it is worth knowing
-how it failed. Until `pi-claude-cli` 0.4.10, a Claude session's
+The total stays load-bearing even now that estimates are no longer scaled up
+onto it — it sizes the Unmeasured slice — and it is worth knowing how it
+failed. Until `pi-claude-cli` 0.4.10, a Claude session's
 `contextUsage.tokens` was the episode's **summed billing**, not its context:
 pi derives context from `usage.totalTokens`, and the provider set that to
 input + output + cacheRead + cacheWrite across every cycle of the turn, so
 the cached prefix was counted once per API round trip. A 4-call turn read
 277k against a real 78k; a 26-call turn read 2.08M against a real 104k. The
-composition rows inherited the error exactly, because they are scaled onto
-that total — which is how a lane came to report a 146k system prompt. Both
-numbers are only as good as the provider's `totalTokens`, and a component
-row that looks absurd is evidence about the total, not about the estimate.
+composition rows inherited the error exactly, because they were scaled onto
+that total — which is how a lane came to report a 146k system prompt. Today
+that failure lands in Unmeasured instead: a component row is what the
+extension measured, so an absurd **total** or a dominant **Unmeasured** slice
+is evidence about the provider's `totalTokens`, not about the estimate.
 
 **Plan limits** is account state, not session state: the window
 (`five_hour`), when it resets, whether the account is capped or on overage,
