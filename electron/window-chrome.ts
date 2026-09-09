@@ -43,6 +43,14 @@ const CHROME = {
   light: { color: '#f7f7f8', symbolColor: '#66666e' },
 } as const
 
+export function resolveTheme(theme: ThemePreference): 'light' | 'dark' {
+  return theme === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : theme
+}
+
+export function backgroundFor(theme: ThemePreference): string {
+  return CHROME[resolveTheme(theme)].color
+}
+
 /** Must equal the renderer's `h-11` drag strip, or content sits off the controls. */
 export const TITLEBAR_HEIGHT = 44
 
@@ -51,7 +59,7 @@ export function overlayFor(theme: ThemePreference): {
   symbolColor: string
   height: number
 } {
-  const resolved = theme === 'system' ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light') : theme
+  const resolved = resolveTheme(theme)
   // The overlay height is device-independent pixels, which page zoom does not
   // touch — but the renderer's 44px drag strip is CSS pixels, which it does.
   // Without scaling here, the OS buttons stop lining up with the header the

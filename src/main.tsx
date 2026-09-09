@@ -1,6 +1,8 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from './app/App'
+import { LoadingScreen } from './app/LoadingScreen'
+import { useSettingsStore } from './stores/settings'
 import { hostPlatform } from './lib/shortcuts'
 import { loadBundledFonts } from './lib/fonts'
 import './styles/index.css'
@@ -10,6 +12,7 @@ async function bootstrap(): Promise<void> {
   if (import.meta.env.DEV && typeof window.phosphor === 'undefined') {
     const { installMockPhosphor } = await import('./dev/mockPhosphor')
     installMockPhosphor()
+    document.documentElement.classList.add('dark')
     // Debug access to stores from the browser console.
     void import('./stores/chat').then((m) => {
       ;(window as unknown as Record<string, unknown>).__chatStore = m.useChatStore
@@ -28,12 +31,25 @@ async function bootstrap(): Promise<void> {
   // has no bridge to ask.
   document.documentElement.classList.add(`platform-${hostPlatform()}`)
 
-  await loadBundledFonts()
-  ReactDOM.createRoot(document.getElementById('root')!).render(
-    <React.StrictMode>
-      <App />
-    </React.StrictMode>,
-  )
+  const root = ReactDOM.createRoot(document.getElementById('root')!)
+  root.render(<LoadingScreen />)
+  try {
+    // Show the startup surface while fonts settle, but keep metric-sensitive
+    // editors/terminals unmounted until then. Appearance loads in parallel.
+    await Promise.all([loadBundledFonts(), useSettingsStore.getState().hydrate()])
+    root.render(
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>,
+    )
+  } catch {
+    root.render(
+      <LoadingScreen
+        error="Couldn’t load your preferences."
+        onRetry={() => window.location.reload()}
+      />,
+    )
+  }
 }
 
 void bootstrap()
