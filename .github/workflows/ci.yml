@@ -70,8 +70,25 @@ jobs:
         working-directory: site
         run: npx playwright install --with-deps chromium
 
+      - name: Build production site image
+        run: docker build -t phosphor-site-ci ./site
+
+      - name: Serve production image
+        run: |
+          docker run -d --name phosphor-site-ci --read-only --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --tmpfs /var/cache/nginx:rw,uid=101,gid=101 --tmpfs /tmp:rw,uid=101,gid=101 \
+            -p 127.0.0.1:4322:5015 phosphor-site-ci
+          curl --fail --retry 10 --retry-connrefused --retry-delay 1 http://127.0.0.1:4322/ -o /dev/null
+
       - name: Browser checks (desktop, mobile, no JS, reduced motion)
+        env:
+          SITE_TEST_URL: http://127.0.0.1:4322
         run: npm test --prefix site
+
+      - name: Stop production image
+        if: always()
+        run: docker rm -f phosphor-site-ci || true
 
       - uses: actions/upload-artifact@v4
         if: always()

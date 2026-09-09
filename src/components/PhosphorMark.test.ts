@@ -85,6 +85,25 @@ describe('build/icon.svg tracks the BeaconGlyph geometry', () => {
   })
 })
 
+describe('light and dark marks share geometry', () => {
+  it('only changes colour and contrast, not circles or the orbit', () => {
+    const light = repoFile('build/icon-light.svg')
+    const geometry = (svg: string) => ({
+      circles: elements(svg, 'circle')
+        .filter((circle) => !circle.fill?.startsWith('url(#bloom'))
+        .map(({ cx, cy, r, 'stroke-width': strokeWidth }) => ({ cx, cy, r, strokeWidth })),
+      paths: elements(svg, 'path').map(
+        ({ d, 'stroke-width': strokeWidth, 'stroke-linecap': strokeLinecap }) => ({
+          d,
+          strokeWidth,
+          strokeLinecap,
+        }),
+      ),
+    })
+    expect(geometry(light)).toEqual(geometry(icon))
+  })
+})
+
 describe('site and app cannot drift apart', () => {
   it('the favicon is generated from icon.svg, not hand-kept', () => {
     expect(repoFile('site/public/favicon.svg')).toBe(icon)

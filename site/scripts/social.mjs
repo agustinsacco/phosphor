@@ -12,7 +12,8 @@ const token = (name) => {
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
 <rect width="1200" height="630" fill="${token('bg')}"/>
 <g fill="none" stroke="${token('border')}"><path d="M60 100H1140M60 540H1140"/><rect x="780" y="165" width="360" height="310"/></g>
-<g font-family="monospace" fill="${token('text-secondary')}" font-size="15"><text x="60" y="67">Phosphor</text><text x="60" y="583">BUILT BY ENGINEERS / FOR ENGINEERS</text><text x="780" y="583">pi + your extensions</text></g>
+<text x="140" y="63" font-family="monospace" font-size="24" fill="${token('text')}">Phosphor</text>
+<g font-family="monospace" fill="${token('text-secondary')}" font-size="15"><text x="60" y="583">BUILT BY ENGINEERS / FOR ENGINEERS</text><text x="780" y="583">pi + your extensions</text></g>
 <g font-family="sans-serif" font-size="84" font-weight="500" letter-spacing="-5"><text x="55" y="275" fill="${token('text')}">Same agent.</text><text x="55" y="375" fill="${token('accent')}">Your surface.</text></g>
 <text x="60" y="449" font-family="sans-serif" font-size="22" fill="${token('text-secondary')}">The desktop workspace for the pi coding agent.</text>
 <g fill="${token('sidebar')}" stroke="${token('border-strong')}"><rect x="805" y="200" width="93" height="94"/><rect x="914" y="200" width="93" height="94"/><rect x="1023" y="200" width="93" height="94"/></g>
@@ -21,7 +22,13 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" v
 <rect x="805" y="370" width="310" height="65" fill="${token('bg')}" stroke="${token('accent')}"/>
 <text x="960" y="411" text-anchor="middle" font-family="monospace" font-size="21" fill="${token('text')}">pi --mode rpc</text>
 </svg>`
+// Reuse the generated icon, never redraw the beacon in a second SVG.
+const mark = await sharp(new URL('../public/favicon.svg', import.meta.url).pathname)
+  .resize(64, 64)
+  .png()
+  .toBuffer()
 await sharp(Buffer.from(svg))
+  .composite([{ input: mark, left: 60, top: 20 }])
   .png()
   .toFile(new URL('../public/og.png', import.meta.url).pathname)
-console.log('Generated public/og.png from the site tokens')
+console.log('Generated public/og.png from the site tokens and canonical favicon')

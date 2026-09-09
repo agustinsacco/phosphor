@@ -37,7 +37,8 @@ export const BEACON = {
 export const BEACON_OPACITY = { shell: 0.35, inner: 0.2 } as const
 
 /**
- * 1024 ÷ 32. Chosen because every value above stays an integer at icon scale
+ * 28× maps the 32-unit glyph to 896px, with a 64px inset in the 1024px tile.
+ * Chosen because every value above stays an integer at icon scale
  * (11/6/3/1.5/1/2.5 → 308/168/84/42/28/70), so `build/icon.svg` holds no
  * rounded numbers to argue with.
  */

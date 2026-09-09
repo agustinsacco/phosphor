@@ -1,5 +1,8 @@
 import { defineConfig } from '@playwright/test'
 
+// CI exercises nginx's production image; local runs start Astro's preview.
+const externalURL = process.env.SITE_TEST_URL
+
 export default defineConfig({
   testDir: './tests',
   fullyParallel: true,
@@ -8,15 +11,17 @@ export default defineConfig({
   workers: process.env.CI ? 2 : undefined,
   reporter: 'list',
   use: {
-    baseURL: 'http://127.0.0.1:4322',
+    baseURL: externalURL || 'http://127.0.0.1:4322',
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
   },
-  webServer: {
-    command: 'npm run preview -- --host 127.0.0.1 --port 4322',
-    url: 'http://127.0.0.1:4322',
-    reuseExistingServer: !process.env.CI,
-  },
+  webServer: externalURL
+    ? undefined
+    : {
+        command: 'npm run preview -- --host 127.0.0.1 --port 4322',
+        url: 'http://127.0.0.1:4322',
+        reuseExistingServer: !process.env.CI,
+      },
   projects: [
     { name: 'desktop', use: { viewport: { width: 1440, height: 1000 } } },
     {
