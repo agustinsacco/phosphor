@@ -163,6 +163,124 @@ describe('context estimate', () => {
   })
 })
 
+/**
+ * The OpenAI Responses API (so `openai-codex`: GPT-5.x/GPT-6 on a ChatGPT
+ * subscription) fills usage ONLY on its terminal `response.completed` event,
+ * so every `message_update` carries a present-but-zeroed usage object. That
+ * combination froze the meter for a whole turn: the present field flipped
+ * `hasUsageDeltas` on — narrowing the caller's polling to `agent_end` — while
+ * the zeroed values gave the overlay nothing to move with.
+ *
+ * Numbers below are from the real session that surfaced this (2026-09-09,
+ * gpt-6-astra, one turn of 95 tool calls) and from an RPC capture of a live
+ * codex turn, so a regression reproduces the actual failure rather than a
+ * hypothetical one.
+ */
+describe('a provider that reports usage only at completion', () => {
+  const ZEROED = usage({})
+
+  it('still advertises usage deltas, because the field is present', () => {
+    recordPolledStats(SESSION, polled())
+    recordUsageDelta(SESSION, ZEROED)
+    expect(hasUsageDeltas(SESSION)).toBe(true)
+  })
+
+  it('takes the estimate from message_end when the deltas say nothing', () => {
+    recordPolledStats(
+      SESSION,
+      polled({ contextUsage: { tokens: 543, contextWindow: 272_000, percent: 0.2 } }),
+    )
+    // The whole stream: three deltas, none of them carrying a token count.
+    for (let i = 0; i < 3; i++) {
+      expect(recordUsageDelta(SESSION, ZEROED)?.contextUsage?.tokens).toBe(543)
+    }
+    // Completion. This is the first and only true reading of the hop.
+    const ended = recordMessageEnd(SESSION, usage({ input: 8_472, output: 5, totalTokens: 8_477 }))
+    expect(ended?.contextUsage).toEqual({
+      tokens: 8_477,
+      contextWindow: 272_000,
+      percent: (8_477 / 272_000) * 100,
+    })
+  })
+
+  it('keeps the banked reading across the next hop rather than snapping back', () => {
+    recordPolledStats(
+      SESSION,
+      polled({ contextUsage: { tokens: 543, contextWindow: 272_000, percent: 0.2 } }),
+    )
+    recordUsageDelta(SESSION, ZEROED)
+    recordMessageEnd(SESSION, usage({ totalTokens: 8_477 }))
+    // Hop 2 streams: zeroed deltas must not drop the meter to the stale poll.
+    expect(recordUsageDelta(SESSION, ZEROED)?.contextUsage?.tokens).toBe(8_477)
+    // ...and hop 2's completion advances it again.
+    expect(recordMessageEnd(SESSION, usage({ totalTokens: 12_500 }))?.contextUsage?.tokens).toBe(
+      12_500,
+    )
+  })
+
+  it('climbs across a tool-hop turn instead of sitting at the bootstrap poll', () => {
+    // Reproduces the reported shape: pi emits one assistant message per hop,
+    // and `agent_end` (the only remaining poll) does not fire until the end.
+    recordPolledStats(
+      SESSION,
+      polled({ contextUsage: { tokens: 543, contextWindow: 272_000, percent: 0.2 } }),
+    )
+    const seen: Array<number | null | undefined> = []
+    for (const total of [8_477, 46_741, 92_953, 128_736]) {
+      recordUsageDelta(SESSION, ZEROED)
+      seen.push(recordMessageEnd(SESSION, usage({ totalTokens: total }))?.contextUsage?.tokens)
+    }
+    expect(seen).toEqual([8_477, 46_741, 92_953, 128_736])
+  })
+
+  it('ignores an aborted message that ended having spent nothing', () => {
+    recordPolledStats(
+      SESSION,
+      polled({ contextUsage: { tokens: 543, contextWindow: 272_000, percent: 0.2 } }),
+    )
+    recordUsageDelta(SESSION, ZEROED)
+    recordMessageEnd(SESSION, usage({ totalTokens: 30_000 }))
+    // pi skips zero-usage assistants in its own estimate; so must this.
+    expect(recordMessageEnd(SESSION, ZEROED)?.contextUsage?.tokens).toBe(30_000)
+  })
+
+  it('yields to the next poll, so a compaction still resets the estimate', () => {
+    recordPolledStats(
+      SESSION,
+      polled({ contextUsage: { tokens: 543, contextWindow: 272_000, percent: 0.2 } }),
+    )
+    recordUsageDelta(SESSION, ZEROED)
+    recordMessageEnd(SESSION, usage({ totalTokens: 260_000 }))
+    // `compaction_end` polls, and pi reports null tokens until fresh usage
+    // arrives. A pre-compaction reading must not outlive that.
+    recordPolledStats(
+      SESSION,
+      polled({ contextUsage: { tokens: null, contextWindow: 272_000, percent: null } }),
+    )
+    expect(recordUsageDelta(SESSION, ZEROED)?.contextUsage).toEqual({
+      tokens: null,
+      contextWindow: 272_000,
+      percent: null,
+    })
+  })
+
+  it('leaves a streaming provider on its own deltas', () => {
+    // Anthropic sends input + cache reads on the first frame, so `current`
+    // must keep winning — including when it reads LOWER than the last hop,
+    // which is what a compaction mid-turn looks like from here.
+    recordPolledStats(SESSION, polled())
+    recordUsageDelta(SESSION, usage({ input: 100, cacheRead: 19_900 }))
+    recordMessageEnd(SESSION, usage({ input: 100, cacheRead: 49_900 }))
+    expect(recordUsageDelta(SESSION, usage({ input: 50, cacheRead: 9_950 }))?.contextUsage).toEqual(
+      {
+        tokens: 10_000,
+        contextWindow: 200_000,
+        percent: 5,
+      },
+    )
+  })
+})
+
 describe('liveBilledTokens', () => {
   it('is session-cumulative and monotonic across message boundaries', () => {
     recordPolledStats(SESSION, polled())
