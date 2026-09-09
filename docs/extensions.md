@@ -42,8 +42,11 @@ every mutation**, Phosphor only reads state and streams the CLI's output.
 - Renderer sends scope enums and spec strings; every path is resolved in
   `electron/pi/packages.ts`.
 - Packages execute arbitrary code in pi's process. The tab says so, the
-  catalogue pins reviewed versions, and project-scope packages ride pi's own
-  trust prompt.
+  catalogue is limited to specs whose source we have read, and project-scope
+  packages ride pi's own trust prompt. Note what the catalogue does **not**
+  do: every entry is a bare spec (`npm:pi-web-access`), so installing one
+  takes whatever `latest` is. The review is of a package, not of a version —
+  `pi install` is still the thing that decides which bytes arrive.
 
 ## Job streaming
 
@@ -58,9 +61,12 @@ packages:run(action, spec, scope, ws?) → { jobId }
 
 `usePackageJob` (renderer) owns one job at a time: `start()`, accumulated
 `output`, `exitCode`, `running`, and an on-exit callback that refreshes the
-list. `JobOutput` renders the stream with a state dot. The same hook powers
-the Extensions tab, the MCP adapter card, onboarding, and the Claude
-provider test — one mechanism, four surfaces.
+list. `JobOutput` renders the stream with a state dot. `start()` takes any
+call that returns a `{ jobId }`, so the hook is not actually package-specific:
+it powers the Extensions tab, the MCP adapter card in Connectors, the
+Optimization tab's Headroom install (`headroom:install`, not a pi package at
+all), onboarding, and the Claude provider test — one mechanism, five
+surfaces.
 
 `packages:installPi` runs `npm install -g @earendil-works/pi-coding-agent`
 through `piProcessEnv()` (login-shell PATH, so fnm/nvm work from a GUI
@@ -74,7 +80,8 @@ remove), then add-by-spec with a scope selector and "Update all". A link to
 [pi.dev/packages](https://pi.dev/packages) for the full ecosystem.
 
 **Curated catalogue** (`src/features/settings/catalogue.ts`): a static list
-of specs we have read the source of. Entries may declare
+of five specs we have read the source of — the Claude Code provider, the MCP
+adapter, web access, subagents, computer use. Entries may declare
 `requiresBinary: 'claude'`, which greys the card and explains why when the
 binary is missing (`packages:detect`).
 
@@ -90,11 +97,17 @@ stays highlighted while a sub-tab is active, and a stale sub-tab (package
 removed out-of-band) falls back to the Extensions list instead of rendering
 an orphaned panel.
 
-| Tab         | Package                    | Contents                                                                                                                       |
-| ----------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Claude Code | `@saccolabs/pi-claude-cli` | health card (package / `claude` binary / account), tested-version warning, **Test provider** one-click proof, failure playbook |
-| Web access  | `pi-web-access`            | seven common search-provider keys (password fields, `$ENV_VAR` support), raw JSON editor                                       |
-| MCP         | `pi-mcp-adapter`           | see [11-mcp.md](mcp.md)                                                                                                        |
+| Tab          | Package                      | Contents                                                                                                                       |
+| ------------ | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Claude Code  | `@saccolabs/pi-claude-cli`   | health card (package / `claude` binary / account), tested-version warning, **Test provider** one-click proof, failure playbook |
+| Web access   | `pi-web-access`              | seven common search-provider keys (password fields, `$ENV_VAR` support), raw JSON editor                                       |
+| Computer use | `@injaneity/pi-computer-use` | what the tools do and the OS accessibility permissions macOS will not grant silently                                           |
+
+**MCP Connectors renders in the same indented slot but is NOT in
+`EXTENSION_TABS`** — it is hard-coded after the gated list and shows
+unconditionally, because its Advanced disclosure is where `pi-mcp-adapter`
+gets installed. Gating it on the adapter would hide the only surface that can
+produce the adapter. See [11-mcp.md](mcp.md).
 
 `pi-subagents` deliberately has **no tab**: it is zero-config by design, so
 a catalogue card is the whole story.
@@ -169,14 +182,20 @@ package's own resolution rather than guessing:
   resolution, resource discovery, job runner, `claudeStatus`) — unit tests
   in `electron/pi/packages.test.ts` using fixture dirs via
   `PI_CODING_AGENT_DIR`.
-- IPC: `packages:list / run / installPi / detect / claudeStatus /
-testClaudeProvider` (`electron/ipc/packages-handlers.ts`);
+- IPC: `packages:list / run / installPi / checkUpdates / detect /
+claudeStatus / claudeCliLatest / updateClaudeCli / testClaudeProvider`
+  (`electron/ipc/packages-handlers.ts`, typed in `shared/ipc.ts`;
+  `claudeStatus`, `claudeCliLatest` and `updateClaudeCli` exist only because
+  the `claude` binary is not a pi package, so `checkUpdates` cannot see it —
+  see below);
   `pi:webSearchConfig / patchWebSearchConfig` and the widened
   `pi:readConfigFile|writeConfigFile` union (`pi-config-handlers.ts`).
 - Preload: `onPackagesJobOutput` / `onPackagesJobExit`.
-- UI: `tabs/ExtensionsTab.tsx` (+ exported `JobOutput`),
-  `tabs/ClaudeProviderTab.tsx`, `tabs/WebAccessTab.tsx`, `CatalogueCards.tsx`,
-  `catalogue.ts`, `usePackageJob.ts`; `app/PiMissingScreen.tsx`,
+- UI: `tabs/ExtensionsTab.tsx`, `tabs/ClaudeProviderTab.tsx`,
+  `tabs/WebAccessTab.tsx`, `tabs/ComputerUseTab.tsx`, `CatalogueCards.tsx`,
+  `catalogue.ts`, `usePackageJob.ts`, and `JobOutput.tsx` — which sits at the
+  settings root beside the hook, not inside a tab, because five surfaces
+  render the same stream; `app/PiMissingScreen.tsx`,
   `app/GettingStartedScreen.tsx`. Mock cases in `src/dev/mockPhosphor.ts`.
 - E2E (`e2e/smoke.spec.ts`): four tests — listing with a seeded fixture
   package, install/remove round-trip through the stub's package-manager
@@ -185,13 +204,13 @@ testClaudeProvider` (`electron/ipc/packages-handlers.ts`);
 ## Bundled extensions (Phosphor's own)
 
 Separate from packages the user installs, Phosphor ships its own pi extensions
-as TypeScript files in `pi-ext/`, loaded into **every** session via
+as **six** TypeScript files in `pi-ext/`, all six loaded into **every** session via
 `pi --mode rpc -e <path>` (`bundledExtensions()` in
 `electron/ipc/pi-session-handlers.ts`; the e2e stub gets none):
 
 | File                   | Why it must run inside pi                                                                    |
 | ---------------------- | -------------------------------------------------------------------------------------------- |
-| `artifacts.ts`         | registers the artifact tools (see below, and [07-artifacts.md](specs/build/07-artifacts.md)) |
+| `artifacts.ts`         | registers the artifact tools (see below)                                                     |
 | `context-breakdown.ts` | measures context composition — the parts are only visible in-process                         |
 | `worktree-paths.ts`    | refuses a file read that has escaped a worktree into the main checkout                       |
 | `tool-name-guard.ts`   | rewrites a malformed tool call before pi persists it and bricks the thread                   |
@@ -261,8 +280,7 @@ keeps the origin opaque. The result is measured, not assumed: scripts run;
 storage, cookies, parent and sibling DOM, top navigation, `fetch`,
 `sendBeacon`, WebSocket, remote images and form POSTs are all refused. Never
 add `allow-same-origin`, and never add a `connect-src` to that policy — either
-one hands model-authored HTML a channel out. See
-[docs/log/2026-08-28-lane-management-and-artifact-edits.md](log/2026-08-28-lane-management-and-artifact-edits.md).
+one hands model-authored HTML a channel out.
 
 **The look of an artifact is injected, not prompted.**
 `electron/artifacts/artifact-skeleton.ts` wraps the model's markup in a real
@@ -284,8 +302,7 @@ fragment and no palette at all. Three consequences worth knowing:
 Two rules the sheet cannot enforce, so the tool description carries them:
 charts are **hand-authored inline SVG** (the artifact CSP grants no network, so
 a CDN chart library renders nothing at all), and any chart carrying a claim gets
-a `table.data` under it. See
-[docs/log/2026-09-08-artifact-house-style.md](log/2026-09-08-artifact-house-style.md).
+a `table.data` under it.
 
 **A row primitive is a column grid, and the sheet only engages it for its own
 cells.** `.ledger>.row`, `.steps>.s` and `.rail>.node` lay out one grid item per
@@ -294,22 +311,23 @@ those tracks is now behind a `:has()` guard on the cell classes, and a prose row
 degrades to a paragraph. `table.data` asks for `min-width:min(100%,30rem)` — the
 flat `30rem` it replaces forced a horizontal page scroll in a panel narrower
 than that. The width budget is the reason the tool description caps a table at
-five columns. See
-[docs/log/2026-09-09-artifact-tables-narrow-panel.md](log/2026-09-09-artifact-tables-narrow-panel.md).
+five columns.
 
 `lane-loop.ts` used to sit here too — it ran a fixed ladder of checks when a
 turn settled and published the result to a banner above the composer. Both the
-extension and the banner were removed on 2026-08-28; the idea is meant to come
-back in a different shape. See
-[docs/log/2026-08-28-removing-the-lane-loop-pane.md](log/2026-08-28-removing-the-lane-loop-pane.md).
+extension and the banner were removed on 2026-08-28: it spent a typecheck, a
+test run and a lint on every settled turn, and held the strip directly above
+the composer — the most valuable in the window — to say what the terminal says
+on demand. The idea it encoded (a claim of "done" backed by prose is not
+evidence; only the harness may fill a rung) is meant to come back in a
+different shape; the lane charter still carries the surviving half of it.
 
 Every tool an extension registers should declare at least one **required**
 parameter. A tool call carrying no arguments reaches pi as `arguments: ""` on
 the Claude Code provider (no `input_json_delta` is streamed, so the bridge's
 accumulated JSON is empty), and pi validates before `execute` runs — so an
 empty-or-all-optional schema fails every call with `root: must be object` and
-the extension never runs. See
-[docs/log/2026-08-27-orchestrator-empty-tool-arguments.md](log/2026-08-27-orchestrator-empty-tool-arguments.md).
+the extension never runs.
 
 `worktree-paths.ts` is the only Phosphor code that can refuse a tool call. A
 session in `.phosphor/worktrees/<name>` was observed reading files out of the main
@@ -320,7 +338,6 @@ file is opened, which is why this runs in pi rather than in the main process.
 The rule is deliberately four-condition narrow (worktree session, path outside
 cwd, path inside the main checkout, counterpart exists in cwd) because pi's own
 system prompt sends the model to absolute paths outside the cwd for its docs.
-Full account: [log/2026-08-22-worktree-path-leak.md](log/2026-08-22-worktree-path-leak.md).
 
 `context-breakdown.ts` exists because pi reports context usage as one
 number. The composed system prompt and the active tool schemas are not
@@ -346,24 +363,30 @@ footer. It forwards the snapshot verbatim — no rewording, no inference.
 
 Both bundled extensions and provider packages talk to Phosphor's UI the same
 way: `ctx.ui.setStatus(key, text)` → pi's extension-UI request → the
-per-session map in `stores/extensionUi.ts`. Four keys are load-bearing today:
+per-session map in `stores/extensionUi.ts`. Five keys are load-bearing today,
+and the key strings are **case-sensitive literals on both sides** — a
+capitalised `Phosphor-` never matches the lowercase `phosphor-` the emitters
+send, and nothing fails to compile when it doesn't:
 
-| Key                          | Emitter                            | Consumer                                                                                                     |
-| ---------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `Phosphor-context-breakdown` | `pi-ext/context-breakdown.ts`      | `composer/contextBreakdown.ts` → ContextMeter                                                                |
-| `Phosphor-mcp-status`        | `pi-ext/mcp-status.ts`             | `connectors/mcpStatus.ts` → Connectors, footer                                                               |
-| `claude-rate-limit`          | `@saccolabs/pi-claude-cli` ≥ 0.4.5 | `composer/rateLimit.ts` → ContextMeter, RateLimitBanner; `shared/claude-limits.ts` → account routing in main |
-| `Phosphor-headroom`          | `pi-ext/headroom.ts`               | `composer/headroomStatus.ts` → ContextMeter (Optimization section)                                           |
+| Key                          | Emitter                             | Consumer                                                                                                          |
+| ---------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `phosphor-context-breakdown` | `pi-ext/context-breakdown.ts`       | `chat/composer/contextBreakdown.ts` → ContextMeter                                                                |
+| `phosphor-mcp-status`        | `pi-ext/mcp-status.ts`              | `connectors/mcpStatus.ts` → Connectors, footer                                                                    |
+| `phosphor-headroom`          | `pi-ext/headroom.ts`                | `chat/composer/headroomStatus.ts` → ContextMeter (Optimization section)                                           |
+| `claude-rate-limit`          | `@saccolabs/pi-claude-cli` ≥ 0.4.5  | `chat/composer/rateLimit.ts` → ContextMeter, RateLimitBanner; `shared/claude-limits.ts` → account routing in main |
+| `claude-subagents`           | `@saccolabs/pi-claude-cli` ≥ 0.4.13 | `chat/subagentStatus.ts` → the status strip's agent chip (see the sub-agent section below)                        |
 
-The last one crosses a repo boundary, so its shape is API — it is documented
-on the emitting side in that repo's `docs/ARCHITECTURE.md`, and changing it
-there breaks rendering here with no compile error. Rules for all three: the
-payload is JSON in a string, every parser returns `null` rather than
+The two `claude-*` keys cross a repo boundary, so their shape is API — it is
+documented on the emitting side in that repo's `docs/ARCHITECTURE.md`, and
+changing it there breaks rendering here with no compile error. Rules for all
+five: the payload is JSON in a string, every parser returns `null` rather than
 throwing on garbage, and a missing key means "render nothing", never an
 empty section. A structured key must also be listed in
 `STRUCTURED_STATUS_KEYS` (`features/extension-ui/ExtensionUiHosts.tsx`) or the
-status strip renders its JSON as prose. Status pushes must never be able to
-break a turn — the emitters swallow their own errors for that reason.
+status strip renders its JSON as prose — all five are, and that set is the
+authoritative count: an unlisted structured key is a visible bug, not a
+missing feature. Status pushes must never be able to break a turn — the
+emitters swallow their own errors for that reason.
 
 ## How provider transcripts render
 
@@ -545,8 +568,7 @@ Pro/Max subscription models available inside pi's own agent loop by running
 package — the abstraction holds, and `shared/rpc.ts` needed no changes.
 
 Its internals, and the compatibility fixes we shipped, are documented in
-that repo's `docs/ARCHITECTURE.md`. Landing log:
-[log/2026-08-21-claude-cli-provider-fixes.md](log/2026-08-21-claude-cli-provider-fixes.md).
+that repo's `docs/ARCHITECTURE.md`.
 
 ### Two versions go stale, and only one of them is pi's
 

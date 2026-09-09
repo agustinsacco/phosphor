@@ -7,8 +7,7 @@
  * produced, on pi's `tool_result` hook. A compressed result is written once
  * and never rewritten, so every earlier message keeps its exact bytes and
  * the provider's prefix cache cannot break — the reason this design was
- * chosen over routing model traffic through the proxy (see
- * docs/specs/headroom-compression.md).
+ * chosen over routing model traffic through the proxy.
  *
  * Inert by default: it does nothing unless `PHOSPHOR_HEADROOM_URL` is set
  * (Phosphor sets it per session spawn when the supervisor in
@@ -35,8 +34,7 @@
  *
  * Every accepted compression writes a receipt into the result's `details`
  * (`details.headroom`), which pi persists into the session file — that is
- * what the Optimization surface folds for per-lane savings
- * (docs/specs/optimization-surface.md).
+ * what the Optimization surface folds for per-lane savings.
  *
  * On the Claude Code provider only pi's own tools reach this hook (MCP and
  * custom tools, via the handoff broker); the CLI's built-ins never do.

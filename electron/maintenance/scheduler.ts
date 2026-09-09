@@ -27,8 +27,10 @@ export interface SchedulerDeps {
  *
  * Deliberately a plain interval in main rather than anything cleverer: the
  * reaper this replaces derived its schedule from the fleet hub, and went out
- * with it (docs/log/2026-09-03-remove-orchestration.md). A timer owns no
- * session state, so nothing here can hold a session open or read stale phase.
+ * with it when orchestration was removed on 2026-09-03 for touching session
+ * spawn, IPC, the sidebar, the home screen and settings all at once. A timer
+ * owns no session state, so nothing here can hold a session open or read
+ * stale phase.
  */
 export class MaintenanceScheduler {
   private handle: unknown = null

@@ -96,14 +96,27 @@ Three rules hold this together:
 3. **Phosphor never auto-answers the adapter's authorization prompt.** The adapter
    asks for the callback URL through `ctx.ui.input`, and Phosphor claims that
    request (`stores/extensionUi.ts` → `stores/connectors.ts`), opens the
-   browser and shows a card. pi's RPC has **no server→client cancel**, so when
-   the loopback callback wins the race the adapter abandons its prompt silently
-   — and an empty or cancelled answer sent "to tidy up" wins that race instead
-   and throws `OAuth authentication cancelled`, killing a flow that already
-   succeeded. A pending request is left pending; only an explicit user Cancel
-   answers it. The interception is global, not scoped to Settings, because the
-   adapter also auto-authenticates mid-turn when a model calls a tool whose
-   server has no token.
+   browser and shows a card. Then it waits, possibly forever.
+
+   This is a **permanent constraint, not a rough edge to tidy up later**, and
+   the reason is upstream: pi's RPC protocol has **no server→client cancel**.
+   An `extension_ui_request` can only be resolved by an answer, so when the
+   loopback callback wins the race the adapter abandons its prompt _silently_
+   — the request stays open on the wire with nobody left listening. There is
+   no signal that distinguishes that state from a prompt still genuinely
+   waiting on the user, and there is no message Phosphor can send to retract
+   the request. So the tempting cleanup — answering empty, or cancelling, to
+   clear a stale-looking prompt — is exactly the bug: it loses the race the
+   other way and throws `OAuth authentication cancelled`, killing a sign-in
+   that had **already succeeded** seconds earlier.
+
+   Therefore: a pending request is left pending, and only an explicit user
+   Cancel ever answers it. No timeout, no cleanup sweep, no "the flow settled
+   so we can close this" heuristic. The rule can only be revisited if pi gains
+   a server-initiated cancel — until then, an abandoned prompt is the correct
+   and harmless outcome. The interception is global, not scoped to Settings,
+   because the adapter also auto-authenticates mid-turn when a model calls a
+   tool whose server has no token.
 
 Slack is the one connector that cannot be one click, and its row carries the
 whole reason why. This is not a Phosphor shortcoming and cannot be designed away:
@@ -168,7 +181,8 @@ switch to Claude. Old, missing, unversioned, or mixed unsupported packages
 produce an update message rather than silently ignoring the policy. No package
 is automatically installed or upgraded. Start fresh sessions when adopting the
 policy; the provider refuses to reuse saved prompts from the previous policy.
-See [the context-alignment rollout](log/2026-09-09-claude-context-alignment.md).
+0.7.1 in turn needs Claude Code **2.1.263+**, the first release with the
+isolation controls the profile is built on.
 
 The gateway is also what keeps a session small: `mcp` + `mcpScript` cost ~3.9KB
 of schema no matter how many servers are configured, growing only by the server
@@ -179,8 +193,9 @@ worth ~80KB of schema for a server like Linear.
 ## Per-server status
 
 `pi-ext/mcp-status.ts` forwards the adapter's `pi-mcp-adapter/status/v1`
-snapshots to the renderer under status key `Phosphor-mcp-status`
-(`src/features/connectors/mcpStatus.ts`). That is the only structured source of
+snapshots to the renderer under status key `phosphor-mcp-status` — lowercase,
+a string literal matched on both sides with no type to catch a mismatch
+(`MCP_STATUS_STATUS_KEY` in `src/features/connectors/mcpStatus.ts`). That is the only structured source of
 per-server state: connected / needs-auth / failed / cached / disabled /
 not-connected, plus tool and resource counts. It needs a live session, since
 the adapter runs inside one — with no session a connector row reads

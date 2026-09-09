@@ -185,7 +185,6 @@ prints its title and then does not exit for ten minutes. The naming env
 passes `claudeOneShotEnv()` (`PI_CLAUDE_CLI_KEEPALIVE_MS=0`); a title run has
 no next turn to park for. `runPrintMode` also keeps whatever stdout arrived
 before a timeout, so a slow exit can no longer throw away a finished title.
-See [docs/log/2026-09-04-naming-hang-on-parked-cli.md](log/2026-09-04-naming-hang-on-parked-cli.md).
 
 ## Preferences
 
@@ -351,5 +350,4 @@ keeps moving.
 Sizes come from `du`, which Windows has not got; an unmeasured size reports
 "unknown" and the policy never depends on the number. The scheduler is a plain
 unref'd interval in main with a 5-minute warmup and a 15-minute floor, one
-sweep at a time. See
-[log/2026-09-07-lane-reclamation.md](log/2026-09-07-lane-reclamation.md).
+sweep at a time.

@@ -6,8 +6,7 @@ import { isNaming, isNamingInWorkspace, useNamingStore } from '@/stores/naming'
  *
  * A chat now starts before it is named — the branch is cut from a slug of the
  * first message so pi can spawn immediately, and the generated title arrives
- * ~13s later (see docs/log/2026-08-22-fast-session-start.md). That leaves two
- * moments worth showing rather than hiding:
+ * ~13s later. That leaves two moments worth showing rather than hiding:
  *
  * - `pending`: the title on screen is provisional. Shimmered, not skeletoned —
  *   it is real readable text, just not final. The top bar's title and both

@@ -4,10 +4,9 @@ import { create } from 'zustand'
  * Which sessions are still waiting on a generated name.
  *
  * A chat now starts before it is named — the branch is cut from a slug of the
- * first message so pi can spawn immediately, and the title arrives ~13s later
- * (docs/log/2026-08-22-fast-session-start.md). The title, the top bar and the
- * branch chip all show provisional values in the meantime, so they need to
- * know that.
+ * first message so pi can spawn immediately, and the title arrives ~13s later.
+ * The title, the top bar and the branch chip all show provisional values in
+ * the meantime, so they need to know that.
  *
  * **Its own store on purpose.** This lived in `stores/sessions.ts` first, which
  * is the busiest store in the app: the sidebar, the top bar and the resource

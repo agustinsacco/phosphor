@@ -175,7 +175,9 @@ export function App(): React.JSX.Element {
     />
   )
 
-  // Window title: workspace · session.
+  // Window title: "<project> — Phosphor", or "<repo> (<branch>) — Phosphor" in
+  // a worktree. The session is not in it — the OS title names the folder you
+  // are working in; the session already owns the top bar and its sidebar row.
   useEffect(() => {
     const name = currentWorkspace
       ? worktreeAwareName(currentWorkspace, currentWorkspaceGit)

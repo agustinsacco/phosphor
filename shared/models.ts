@@ -904,8 +904,7 @@ export interface ClaudeUsageSnapshot {
  * name from a config directory: `CLAUDE_SECURESTORAGE_CONFIG_DIR` appends a
  * hash of that directory to `Claude Code-credentials`, giving each account its
  * own credential while `~/.claude` (projects, settings, skills, plugins) stays
- * shared. Verified against Claude Code 2.1.260; see
- * docs/log/2026-09-04-claude-multi-account.md.
+ * shared. Verified against Claude Code 2.1.260.
  */
 export interface ClaudeAccount {
   /** Stable id; also the folder name under the accounts directory. */

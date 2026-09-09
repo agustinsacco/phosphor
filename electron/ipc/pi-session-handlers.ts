@@ -51,7 +51,12 @@ function bundledExtensionPath(file: string): string {
  * worktree-paths (refuses a file read that has escaped into the main
  * checkout of a worktree session), tool-name-guard (keeps a malformed
  * tool call out of the session file, where it would brick every later turn),
- * and mcp-status (per-server MCP state for the connectors UI).
+ * mcp-status (per-server MCP state for the connectors UI), and headroom
+ * (compresses large tool results through the local Headroom proxy as they
+ * are produced; inert unless PHOSPHOR_HEADROOM_URL is set at spawn).
+ *
+ * All six files in pi-ext/ are listed here — keep this comment and the array
+ * in step, since nothing else records why a given one is loaded.
  */
 function bundledExtensions(): string[] {
   return [
@@ -94,10 +99,12 @@ async function spawnSession(
   // outright) is ~12k tokens of context WINDOW, not cost — both modes are
   // cached — at the cost of losing Claude Code's own tuned guidance for the
   // native tools this provider actually runs. Not worth doubling the number
-  // of system-prompt code paths that have to reach the model correctly; see
-  // docs/log/2026-08-29-claude-cli-lifecycle-verification.md for how fragile
-  // that one path already turned out to be. The naming call below keeps its
-  // own internal `pi` override — a no-tools, no-guidance-needed case.
+  // of system-prompt code paths that have to reach the model correctly — the
+  // one path has already been silently broken twice: the CLI dropped
+  // `--system-prompt` across `--resume`, and it takes a literal string where
+  // the provider was passing a temp-file path, so pi's instructions never
+  // reached Claude Code at all. The naming call below keeps its own internal
+  // `pi` override — a no-tools, no-guidance-needed case.
   // Claude Code auto-compact window (Settings → Claude Code → Context
   // window). Read per spawn so a change applies to the next session started
   // without restarting Phosphor; unset means the provider's own default (200k),

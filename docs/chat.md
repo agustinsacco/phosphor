@@ -4,7 +4,7 @@
 
 - Multi-line input; Enter sends, Shift+Enter newline. IME candidate-confirmation keys never send, accept a suggestion or abort a run. Selected text uses the browser's normal Shift+Enter replacement, rather than list continuation.
 - Formatting/list transformations participate in Electron's native Undo/Redo. The shared textarea records minimal plain-text edits through Chromium's `insertText` editing API; it never inserts HTML. Unsupported browser harnesses retain controlled-value editing, without a native-undo guarantee.
-- **Markdown list primitives** ([2026-08-28-composer-list-primitives.md](log/2026-08-28-composer-list-primitives.md)). Shift+Enter continues the list the caret is on (renumbering as it goes; an empty item steps out a level, then exits), Tab/Shift+Tab nest and un-nest inside a list only, Cmd/Ctrl+Shift+8 and +7 toggle bullet/numbered, Cmd/Ctrl+B and +I wrap, Cmd/Ctrl+Shift+C fences. **Enter always sends** — continuation is deliberately not on it, or a one-line prompt starting with `- ` would stop sending. Logic is pure in `src/lib/composerText.ts`; the keymap lives in `composer/ComposerField.tsx`, which both composers share.
+- **Markdown list primitives.** Shift+Enter continues the list the caret is on (renumbering as it goes; an empty item steps out a level, then exits), Tab/Shift+Tab nest and un-nest inside a list only, Cmd/Ctrl+Shift+8 and +7 toggle bullet/numbered, Cmd/Ctrl+B and +I wrap, Cmd/Ctrl+Shift+C fences. **Enter always sends** — continuation is deliberately not on it, or a one-line prompt starting with `- ` would stop sending. Logic is pure in `src/lib/composerText.ts`; the keymap lives in `composer/ComposerField.tsx`, which both composers share.
 - **Formatting is keyboard-only**, in Home and live chat: bold, italic, inline code (Cmd/Ctrl+E), code block, bullet/numbered lists and links (Cmd/Ctrl+Shift+K). Inserting a link selects its URL placeholder. There is no toolbar strip — the composer is the field and its footer, nothing else. Key handling and Settings → Keybindings share `composer/formattingActions.ts`; the command palette uses plain Cmd/Ctrl+K, not the link chord.
 - **Long prompts:** Cmd/Ctrl+Shift+X opens the field up to half the window height, without replacing the textarea or losing its selection/draft. Collapse restores the 240px autogrow cap. This remains a Markdown textarea, not a WYSIWYG editor.
 - Sent user messages render their list runs as real lists (`UserText`), not as literal `- ` text. Deliberately not a full markdown renderer: the bubble also carries the `<attached-files>` block.
@@ -13,10 +13,10 @@
 - `queue_update` renders queued chips above the composer (steer = one color, follow-up = another). A chip exists only while pi has not read that message, so each carries a ✕ that undoes just that entry. pi has no per-entry command, so `composer/queueActions.ts` drains both queues with `clear_queue` (**pi 0.84.4+**, above `MIN_PI_VERSION` — on an older pi the drain is refused and the queue is left intact) and re-queues the survivors in order. The index a chip was rendered at is only trusted when the text at it still matches, because pi can deliver a queued message between render and click.
 - `@` → fuzzy file search across the workspace (gitignore-aware), inserts a path reference chip/text.
 - Images: paste or drag → thumbnails in composer → sent as `images[]` (base64) with the prompt.
-- **Drafts persist** ([2026-08-28-persisted-composer-drafts.md](log/2026-08-28-persisted-composer-drafts.md)). Text, pending attachments and the model a draft was composed against live in `src/stores/drafts.ts`, keyed `session:<sessionFilePath>` or `home:<workspacePath>`, and survive switching session (the composer subtree unmounts) and quitting. Image bytes go to `userData/drafts/` by blob id, never into prefs.
-- The model chip and the model menu have an explicit **loading** state; an empty list before the catalogue answers is never rendered as "no models configured" ([2026-08-28-model-catalogue-loading.md](log/2026-08-28-model-catalogue-loading.md)).
+- **Drafts persist.** Text, pending attachments and the model a draft was composed against live in `src/stores/drafts.ts`, keyed `session:<sessionFilePath>` or `home:<workspacePath>`, and survive switching session (the composer subtree unmounts) and quitting. Image bytes go to `userData/drafts/` by blob id, never into prefs.
+- The model chip and the model menu have an explicit **loading** state; an empty list before the catalogue answers is never rendered as "no models configured".
 - `!command` → RPC `bash` (output shown in chat, enters model context on next prompt). `!!command` → same with `excludeFromContext: true` and a "not sent to model" badge. Surface both in a composer hint.
-- `/` → command menu fed by `get_commands` (extension commands, prompt templates, `skill:*` — with source badges and descriptions) merged with Phosphor-native commands (new, fork, clone, compact, export, model, name, tree…). Sending an unknown `/x` still goes to pi as a prompt (pi expands templates/skills itself).
+- `/` → command menu fed by `get_commands` (extension commands, prompt templates, `skill:*` — with source badges and descriptions) merged with the Phosphor-native ones, of which there are exactly **three**: `/compact`, `/export`, `/name` (`nativeCommands` in `features/chat/Composer.tsx`). Everything else in that menu is pi's, so the list grows by installing an extension, not by editing Phosphor. Sending an unknown `/x` still goes to pi as a prompt (pi expands templates/skills itself).
 - Composer widget slots above/below for extension `setWidget`; `set_editor_text` prefills the input.
 
 ## Streaming rendering rules
@@ -31,22 +31,23 @@
 
 ## Message affordances
 
-- Copy message / copy as markdown; code blocks: copy, "open as file", "run in terminal", "open as artifact".
-- User messages: **fork from here** (`fork` entryId) and edit-and-refork.
+- Copy message: the raw markdown of the WHOLE turn, even from the pill on one prose block — that is what a reader means by "copy the answer" when a turn interleaves text with tool calls.
+- Code blocks carry exactly three hover actions (`components/markdown/CodeBlock.tsx`): **Open as artifact** (promotes the fence into a local artifact, typed from its language — html/svg/mermaid/chart/markdown, else `code`), **Run in terminal** — offered only for shell languages (`bash`, `sh`, `shell`, `zsh`, `console`, `terminal`, `fish`) and pasting without executing — and copy. (`CodeBlock` also takes an `actions` slot rendered ahead of them; no caller fills it today.)
+- User messages: **Rewind to here**, plus a branch button opening the multi-message rewind picker (Esc Esc). Both run pi's own `fork` RPC (`features/chat/rewind.ts`), and what that does is worth stating plainly: it branches the live session onto a **new session file** rooted just before that entry, and hands the original text back for the composer to edit and resend. The subprocess and the RPC connection carry on untouched, but `bootstrapSession` must re-run to relearn the new `sessionFile` — skip it and `live[sessionId].diskPath` still points at the abandoned pre-fork file, which reads in the sidebar as the chat having been duplicated. Attachments are restored from the transcript, not from pi: `fork` replies with text only, so the rendered message is the sole surviving copy of an image the user attached.
 - Error/abort stopReasons styled clearly (error banner with message; aborted = muted "stopped" divider).
 - Auto-retry: inline strip "Retrying (2/3) in 4s — <error>" with cancel (`abort_retry`).
 - Compaction: `compaction_start/end` render a system divider "Context compacted — N tokens summarized" (expandable summary). Branch summaries similar.
 
 ## Tool renderers
 
-| Tool               | Treatment                                                                                                                                                                                                                                                         |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `read`             | Collapsed file chip: path, line range, size; click opens the file in Files pane. Returned images render inline                                                                                                                                                    |
-| `bash`             | Terminal-styled block, streaming output, exit-code badge, duration; truncation notice links `fullOutputPath`                                                                                                                                                      |
-| `edit`             | Proper diff from `details.diff`/`details.patch` — green/red gutters, collapsed beyond ~40 lines, header shows path + hunk stats, click opens file at `details.firstChangedLine`; feeds Files Changed panel ([05-files-editor.md](specs/build/05-files-editor.md)) |
-| `write`            | "Created/Overwrote <path>" chip + collapsible content preview (highlighted)                                                                                                                                                                                       |
-| `grep`/`find`/`ls` | Compact result lists, match counts, truncation notices; rows click through to files                                                                                                                                                                               |
-| unknown/extension  | Generic: tool name, collapsed pretty-JSON args, streaming output area, error state. Must look polished with zero special-casing                                                                                                                                   |
+| Tool               | Treatment                                                                                                                                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `read`             | Collapsed file chip: path, line range, size; click opens the file in Files pane. Returned images render inline                                                                                             |
+| `bash`             | Terminal-styled block, streaming output, exit-code badge, duration; truncation notice names `fullOutputPath` (text, not a link)                                                                            |
+| `edit`             | Proper diff from `details.diff`/`details.patch` — green/red gutters, collapsed beyond ~40 lines, header shows path + hunk stats, click opens file at `details.firstChangedLine`; feeds Files Changed panel |
+| `write`            | "Created/Overwrote <path>" chip + collapsible content preview (highlighted)                                                                                                                                |
+| `grep`/`find`/`ls` | Compact result lists, match counts, truncation notices; rows click through to files                                                                                                                        |
+| unknown/extension  | Generic: tool name, collapsed pretty-JSON args, streaming output area, error state. Must look polished with zero special-casing                                                                            |
 
 ### Blocks from the Claude Code provider
 
@@ -73,47 +74,46 @@ cost come from elsewhere — the `claude-subagents` status channel, joined per
 row by `taskId`, because the two markers bracket the agent's whole life and
 say nothing in between
 ([extensions.md](extensions.md#how-provider-transcripts-render)).
-Background agents ran to their
-death before provider 0.4.14
-([log/2026-08-22-claude-subagents-never-return.md](log/2026-08-22-claude-subagents-never-return.md),
-[log/2026-08-28-subagents-report-back.md](log/2026-08-28-subagents-report-back.md));
-Phosphor pins no version, so both shapes are rendered from evidence and neither
-is assumed.
+Background agents ran to their death before provider 0.4.14, which stopped
+`SIGKILL`ing the CLI at each turn's `result` envelope; Phosphor pins no
+version, so both shapes are rendered from evidence and neither is assumed.
 Nothing may ever _depend_ on the preview parsing: a marker whose args are
 unreadable still renders as a plain named step.
 
 ## Rich content (first-class citizens)
 
-- GFM: headings, tables (copy as markdown/CSV), task lists, blockquote callouts, footnotes, autolinks.
-- Code: Shiki/hljs, language badge, copy, line numbers on hover, horizontal scroll contained inside the block.
-- ```mermaid → rendered diagram; click for pan/zoom lightbox; export PNG/SVG; parse errors fall back to code with an error note.
-
-  ```
-- `vega-lite / `chart → theme-aware rendered chart; invalid spec falls back to code.
-- ```html → Code/Preview toggle; preview in sandboxed iframe (`sandbox` attr, no network, inlined content only).
+- GFM (`remark-gfm`): headings, tables (hover → Copy MD / Copy CSV), task lists, footnotes, autolinks, styled blockquotes — plain ones; GitHub's `[!NOTE]` callout syntax is not special-cased.
+- Code: Shiki, language badge, the three hover actions above, horizontal scroll contained inside the block. One highlighter singleton carries BOTH themes (`vitesse-light`/`vitesse-dark`) with `defaultColor: false`, so switching theme re-paints from CSS variables and never re-highlights; a language outside the core set is `loadLanguage`d on demand and falls back to plain text if Shiki has none (`components/markdown/highlighter.ts`).
+- ` ```mermaid ` → diagram rendered against the Phosphor palette (`theme: 'base'` + explicit `themeVariables`, `securityLevel: 'strict'`), re-rendered on theme change. Click opens a **lightbox** — a scrollable, full-width copy of the same SVG, dismissed by click or Escape. There is no pan/zoom control and no PNG/SVG export. A parse error falls back to the code block with the mermaid error printed under it.
+- ` ```chart ` (a Chart.js config: `{ type, data, options? }`) and ` ```vega-lite ` → theme-aware rendered chart; invalid JSON or a spec the engine rejects falls back to the code block with the error.
+- ` ```html ` → Code/Preview toggle. The preview is `<iframe sandbox="allow-scripts" src=…>` — **`src`, never `srcDoc`**, and that is load-bearing: a `srcdoc` document inherits the embedder's policy container, so `script-src 'self'` from `src/index.html` refuses every inline script and the sandbox attribute becomes a no-op (measured on Electron 43: interactive artifacts rendered as a page of empty boxes, with Chromium logging the refusal; `blob:`/`data:` inherit the same way). So the HTML is staged in main and **served** over `phosphor-artifact://` under its own `default-src 'none'` policy, which permits inline script/style and `data:`/`blob:` media but no `connect-src`, no remote images, no `form-action`. `allow-same-origin` is deliberately absent, which is what keeps the document's origin opaque and its `localStorage`/parent DOM a `SecurityError`. Net: the artifact gains scripting and loses all network reach. `components/SandboxedHtml.tsx`; the measured containment table lives in `electron/artifacts/artifact-protocol.ts`.
 - KaTeX for `$…$` / `$$…$$`.
 - Images in content blocks inline with click-to-zoom.
 - **Links split by what they point at** (`components/markdown/MarkdownLink.tsx`,
   classified by `lib/markdownLink.ts`). An `http(s)` URL opens in the default
-  browser via `app:openExternal`. A path — `docs/specs/x.md`, `./README.md`,
+  browser via `app:openExternal`. A path — `docs/chat.md`, `./README.md`,
   `/abs/path`, `file://` — opens in the **Files pane**, at the line it names
   (`#L42` or `:42`); a path that cannot be read toasts and leaves the pane
   alone. A file link renders with no `href` at all, so no click can navigate
   the window away from the app. Other schemes (`mailto:`, custom) do nothing.
 
-## Session header / status strip (per session)
+## Session controls (per session)
 
-- Model picker (from `get_available_models`, grouped by provider — remember custom/local providers exist), thinking-level selector (off→xhigh, hidden if model lacks reasoning).
+Not a header strip: the model chip, thinking chip and context meter live in the
+**composer footer** (`Composer.tsx`, right of the attach button), and the
+session's ⋮ menu lives in the **top bar** (`app/TopBar.tsx` → `SessionMenu`).
+
+- Model picker (from `get_available_models`, grouped by **family** by default so every route to one model sits under one header — toggleable to provider grouping, with `provider:`/`id:`/`name:`/`is:` search qualifiers, starred and recent rows; remember custom/local providers exist).
+- Thinking-level selector: pi has **seven** levels — `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` (`ALL_THINKING_LEVELS`, ascending; the order is load-bearing because clamping walks it). Which ones a model offers is per-model, not universal: a non-reasoning model has only `off`, a `null` in its `thinkingLevelMap` marks a level explicitly unsupported, and `xhigh`/`max` are opt-in (absent means unsupported, whereas absent for `off…high` means "provider default", i.e. supported). A live session prefers pi's own `get_available_thinking_levels`; the home picker, which has no session to ask, derives the same answer from `shared/thinking.ts`. The chip is hidden unless the model has more than one level — a chip reading "No thinking" over a one-item menu is noise.
 - **Two owners, one chip.** `ModelPicker` drives a live session over RPC
   (`set_model`); `HomeModelPicker` has no process to talk to, so it reads and
   writes pi's own `defaultProvider` / `defaultModel` / `defaultThinkingLevel`.
   That split is deliberate. The chrome is not: both render
   `composer/ModelChip.tsx`, which owns the one-line layout and the rule that
   only a non-pi provider gets named. It was copy-pasted before, and drifted in
-  both directions — see
-  [docs/log/2026-09-07-composer-chip-dedup.md](log/2026-09-07-composer-chip-dedup.md).
+  both directions.
 - Context meter: % of window from `get_session_stats` (poll after each `agent_end` + on demand); warn state near compaction threshold. Token/cost readout (input/output/cache split in a popover), plus the two sections below.
-- Controls: Stop (`abort`), Compact now (`compact`, optional custom instructions input), auto-compaction toggle, auto-retry toggle, steering/follow-up mode toggles ("all" vs "one-at-a-time"), rename session, export HTML (save dialog → `export_html` → reveal/open).
+- Stop (`abort`) is the composer's send button while a turn runs. Everything else is in the ⋮ menu (`SessionMenu.tsx`): Export HTML… (save dialog → `export_html` → reveal/open), Compact now… (prompts for optional custom instructions; blank = default), then auto-compaction, auto-retry and the two queue-mode rows (Steering / Follow-ups, each showing its current mode — "All at once" / "One at a time" — and cycling to the other in place). Toggles keep the menu open — they are settings you may flip two of, not commands that take you elsewhere. Renaming is `/name` or the sidebar row, not this menu.
 
 ### Streaming text is paced, not rendered per delta
 
@@ -149,13 +149,12 @@ keep them distinguishable, because they are not equally trustworthy.
 | Section                 | Source                                                         | Shown for                         |
 | ----------------------- | -------------------------------------------------------------- | --------------------------------- |
 | Tokens / cost           | `get_session_stats`                                            | every session                     |
-| Context composition     | `Phosphor-context-breakdown` status key (bundled extension)    | every session                     |
-| Optimization · Headroom | `Phosphor-headroom` status key (bundled extension)             | sessions that compressed a result |
+| Context composition     | `phosphor-context-breakdown` status key (bundled extension)    | every session                     |
+| Optimization · Headroom | `phosphor-headroom` status key (bundled extension)             | sessions that compressed a result |
 | Plan usage              | `claude:usageSnapshot` IPC — `claude -p /usage`, live percents | Claude Code provider sessions     |
 | Plan limits             | `claude-rate-limit` status key (provider ≥0.4.5)               | Claude Code provider sessions     |
 
-**Wide, not tall** (redesigned
-[2026-09-07](log/2026-09-07-context-popover-redesign.md)). Six stacked
+**Wide, not tall** (redesigned 2026-09-07). Six stacked
 single-column sections grew the panel past 1000px on a real session, and it
 anchors upward from the composer — so the overflow clipped its own heading off
 the top of the window. It is now 27rem wide with the composition legend,
@@ -204,8 +203,7 @@ cache-read tokens**, and the composition rows were crushed ~100× with it,
 because they are clamped down to fit that total. `message_end` carries
 authoritative usage on every provider and pi emits one assistant message per
 tool hop, so the fallback costs no round trips. A poll clears the banked
-reading, which is what keeps a post-compaction reset from being overridden
-(2026-09-09, [log](log/2026-09-09-codex-context-meter-froze.md)).
+reading, which is what keeps a post-compaction reset from being overridden.
 
 **Context composition** answers "full of _what_" — messages, system prompt,
 tool schemas, MCP tool schemas — which pi's single `contextUsage.tokens`
@@ -221,8 +219,7 @@ transcript. Scaling up assumed every token pi counts belonged to something we
 measured, so the CLI's hidden share was added to _our_ rows — a fixed
 9,914-token system prompt rendered as 44.1k then 22.5k across four turns of
 one session, while the same code stayed within ~8% on a native pi session
-(measured 2026-09-09,
-[log](log/2026-09-09-context-meter-provider-overhead.md)). The remainder is
+(measured 2026-09-09). The remainder is
 its own **Unmeasured** slice instead. Never fold provider-side context into a
 row that names something else, and never let the parts sum past the total.
 
@@ -270,8 +267,7 @@ It reads the lane's OWN account (`claude:sessionAccount` →
 `claude:usageSnapshot <id>`) and names it once more than one Claude login is
 configured; the rate-limit banner names it too. Asking without an id read
 whichever credential the CLI keeps by default, which on a multi-account install
-is routinely a different plan than the lane is spending
-([2026-09-06](log/2026-09-06-claude-account-routing.md)). **Switch account**
+is routinely a different plan than the lane is spending. **Switch account**
 lists every other signed-in login and moves this lane to the one picked, held
 accounts included and marked — a hold comes from a cached reading, and the
 person watching a stuck lane knows more than the cache does. It is offered
@@ -279,8 +275,7 @@ whenever a second account exists, not only when the current one is spent; when
 it IS spent, the line above says which account new sessions go to instead. The
 move is a respawn, not a switch: a running lane's credential was fixed when pi
 spawned, so the lane is disposed and resumed from its own session file against
-the new account, and the next turn re-reads the whole thread
-([2026-09-06](log/2026-09-06-claude-account-gateway.md)). The target list is
+the new account, and the next turn re-reads the whole thread. The target list is
 fetched when the picker opens, never on popover open — `claude:accounts` runs
 `claude auth status` once per account.
 

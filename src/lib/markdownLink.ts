@@ -5,7 +5,7 @@ import { defaultUrlTransform } from 'react-markdown'
  *
  * Models link three very different things in the same syntax: a web URL
  * (`https://github.com/.../pull/214`), a file they just wrote
- * (`docs/specs/headroom-compression.md`), and an artifact of the current
+ * (`docs/architecture.md`), and an artifact of the current
  * session (`artifact://phosphor-beacon`). Before this split, every link went to
  * `window.open`, which meant the file link either navigated the app away (dev,
  * where the renderer is served over http) or did nothing at all (packaged,

@@ -130,18 +130,31 @@ node site/scripts/social.mjs
 
 ## Deployment
 
-The Docker builder now runs Astro check before building, in an isolated context
+The Docker builder runs Astro check before building, in an isolated context
 without the repository root's dependencies. `nginx.conf` and
-`.infra/phosphor-site/` remain unchanged from the original deployment: same namespace, immutable image
-digest, port 5015, unprivileged nginx, read-only root filesystem, probes,
-resource limits and rollout verification. No second Service or hostname is created.
+`.infra/phosphor-site/` are unchanged from the original deployment: same
+namespace, immutable image digest, port 5015, unprivileged nginx, read-only
+root filesystem, probes, resource limits and rollout verification. No second
+Service or hostname is created.
 
 `.github/workflows/deploy-site.yml` builds Docker context `./site` on pushes to
 `main` touching `site/**`, `.infra/phosphor-site/**` or the workflow. It pushes
 `saccodigital/phosphor-site:<sha>`, pins the k3s deployment to the image digest,
 and verifies rollout. The existing edge route for **phosphor.saccolabs.com**
-continues to point to the same Service on port 5015. Merging the PR updates the
-page at that address; no DNS or infrastructure migration is needed.
+continues to point to the same Service on port 5015, so merging updates the page
+at that address with no DNS or infrastructure migration.
+
+The workflow waits for the Service to get its node address and prints it,
+because a Pending Service means a port collision and `rollout status` cannot
+see one — without that wait the run reports a green deploy nobody can reach.
+
+Two things live outside the repo, both listed in the workflow header:
+
+1. Four repository secrets — `DOCKER_HUB_USER`, `DOCKER_HUB_PASSWORD`,
+   `TS_AUTH_KEY`, `ULTRON_KUBE_CONFIG`. The repo is public, but the workflow
+   only runs on pushes to `main`, so forks never see them.
+2. The edge route for `phosphor.saccolabs.com` → the node on port 5015, in
+   whatever fronts the cluster. Nothing in this repo can create it.
 
 CI installs, checks, builds and browser-tests this one canonical site. The
-previous implementation remains in Git history, not a second build directory.
+previous implementation is in git history, not a second build directory.

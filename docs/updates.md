@@ -32,8 +32,7 @@ signing requirement) and only for macOS builds where `MAC_CERT_P12` was set.
 
 `MacUpdater` delegates to Electron's `autoUpdater`, i.e. Squirrel.Mac, which
 validates the downloaded bundle against the **running** app's designated
-requirement. Phosphor ships ad-hoc signed — there is no Developer ID; see
-[2026-08-24-mac-adhoc-signing.md](log/2026-08-24-mac-adhoc-signing.md). The
+requirement. Phosphor ships ad-hoc signed — there is no Developer ID. The
 signer now pins that requirement to the bundle identifier rather than a
 per-build `cdhash` (see [TCC grants](#tcc-grants-survive-an-update) below), so
 the requirement check itself is no longer the blocker it was — but the bundle
@@ -127,9 +126,7 @@ That requirement needs a pass of its own. `--deep` applies `-r` to every nested
 Helper and Framework as well, and re-signing those after the parent has sealed
 them leaves a bundle that fails `codesign --verify --deep --strict` with
 "nested code is modified or invalid" — which killed every macOS release build
-for a day (see
-[2026-09-03-adhoc-sign-nested-code.md](log/2026-09-03-adhoc-sign-nested-code.md)).
-The hook seals nested code first, unrequirement-ed, then re-signs the outer
+for a day. The hook seals nested code first, unrequirement-ed, then re-signs the outer
 bundle alone with `-r`.
 
 This does not weaken the bundle in any real sense — an ad-hoc signature has no

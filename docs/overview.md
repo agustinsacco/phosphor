@@ -18,8 +18,8 @@ no orchestration agent, and the board spends nothing to render.
 
 1. **Coding first.** Every design decision optimizes for programming workflows.
 2. **Rich responses are first-class citizens.** Markdown, syntax-highlighted code, HTML previews, Mermaid diagrams, charts, and math render beautifully inline in chat — never as raw text fences.
-3. **YOLO execution.** pi runs in full-permission mode. There is **no permission system, no approval dialogs, no confirmation gates** on tool calls. Do not build any. Tool calls execute and stream results, period.
-4. **Feature-full.** Everything pi exposes (see [02-pi-integration.md](pi-integration.md)) is reachable from the UI. No capability of the underlying agent should require dropping back to the TUI, with the single exception of OAuth `/login` (see [08-sessions.md](specs/build/08-sessions.md) onboarding).
+3. **YOLO execution.** pi runs in full-permission mode and **Phosphor ships no permission system of its own** — no gate, no allow-list, no confirmation Phosphor invented. Tool calls execute and stream results, period. Do not build one. The only thing that can stop a tool call is a _user-installed_ permission-gate extension, which asks through `ctx.ui.select` / `confirm` — an ordinary `extension_ui_request` that non-negotiable 4 obliges Phosphor to answer. `src/features/extension-ui/CommandApprovalSheet.tsx` renders those legibly instead of dumping a 4000-character heredoc into a dialog title (see [extensions.md](extensions.md#command-approval-dialogs)); it decides nothing and adds no gate of its own. Build the surface that shows someone else's gate honestly, never the gate.
+4. **Feature-full.** Everything pi exposes (see [pi-integration.md](pi-integration.md)) is reachable from the UI. Even `/login`, which pi offers only as a TUI screen, is driven off-screen into a button and a browser tab (`pi:startLogin` → `electron/pi/login-flow.ts`; see [settings.md](settings.md)), with a hosted pi terminal (`pi:loginTerminal`) as the escape hatch for a provider that driver cannot answer. What is left unreached is `get_entries` / `get_tree`: mirrored in `shared/rpc.ts`, read by nothing yet.
 5. **Claude Desktop craft level.** Warm off-white light theme, comfortable dark theme, selectable in settings (plus "system").
 
 ## Visual & brand direction
@@ -55,11 +55,11 @@ implements:
 - Graceful subprocess handling: pi crash → toast + one-click resume (the session file survives); app quit → clean SIGTERM to all children.
 - Performance: virtualized chat list, debounced markdown re-parse, streaming without full-list re-render, 60fps pane dragging.
 - Tests: unit tests for RPC framing edge cases (U+2028 inside JSON strings, CRLF, chunk splits mid-line), session-file parser, diff reconstruction; Playwright-for-Electron smoke e2e (open workspace → new session → prompt → streamed response → edit diff renders → artifact renders).
-- CI: GitHub Actions — typecheck, lint, test on PR; release workflow producing builds for macOS/Linux/Windows + the install script ([10-packaging.md](specs/build/10-packaging.md)).
+- CI: GitHub Actions — typecheck, lint, test on PR; release workflow producing builds for macOS/Linux/Windows + the install script (`scripts/install.sh`).
 
 ## Reference material
 
-- Spec docs: this folder. Execution order and status: [TRACKER.md](specs/TRACKER.md).
+- Technical docs: this folder — one living contract per surface, indexed by [README.md](README.md). Defects that still reproduce are in [known-issues.md](known-issues.md).
 - pi local docs (verify against these before guessing pi behavior):
   `$(npm root -g)/@earendil-works/pi-coding-agent/docs/` — especially `rpc.md`, `session-format.md`, `settings.md`, `usage.md`, `extensions.md`, `skills.md`
   `$(npm root -g)/@earendil-works/pi-coding-agent/dist/modes/rpc/rpc-types.d.ts` — exact protocol types
