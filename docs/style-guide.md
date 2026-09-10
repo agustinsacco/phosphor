@@ -299,20 +299,23 @@ point of it: the app has always drawn a beacon while an agent runs, and it
 survives at 20px in a lane, which no previous mark managed at 32px. Every
 surface renders the same glyph and none of them owns a second copy:
 
-| Surface         | File                                            | State           |
-| --------------- | ----------------------------------------------- | --------------- |
-| Geometry        | `BEACON` in `src/components/PhosphorMark.tsx`   | source of truth |
-| App icon        | `build/icon.svg` — `BEACON` × `ICON_SCALE` (28) | at rest         |
-| In-app identity | `<PhosphorMark>` / `<PhosphorLockup>`           | at rest         |
-| In-app activity | `<PhosphorLoader>`                              | orbit turning   |
-| Website + tab   | `site/public/favicon.svg` — generated           | at rest         |
+| Surface         | File                                                         | State           |
+| --------------- | ------------------------------------------------------------ | --------------- |
+| Geometry        | `BEACON` in `src/components/PhosphorMark.tsx`                | source of truth |
+| App icon        | `build/icon.svg` — `BEACON` × `ICON_SCALE` (28)              | at rest         |
+| In-app identity | `<PhosphorMark>` / `<PhosphorLockup>`                        | at rest         |
+| In-app activity | `<PhosphorLoader>`                                           | orbit turning   |
+| Website + tab   | `site/public/favicon.svg` — generated                        | at rest         |
+| Social preview  | `site/public/og.png` — composites that favicon at build time | at rest         |
 
 `src/components/PhosphorMark.test.ts` reads `build/icon.svg` back and fails if
 it drifts from `BEACON`; it also asserts the favicon is byte-identical to the
 icon and that `site/src/layouts/Page.astro` points an `<img>` at it rather than
 inlining an `<svg>` of its own. It exists because the mark before this one
 shipped as two different drawings — the app icon had bare shells, the website
-added animated electrons — and nothing compared them.
+added animated electrons — and nothing compared them. The test also compares
+light/dark geometry, allowing their intentionally different contrast. Site
+browser tests compare the served social preview's mark pixels to the favicon.
 
 - **App icon:** always the full tile. Dark on every OS.
 - **Light backgrounds:** `build/icon-light.svg` — same geometry, ember
@@ -320,7 +323,7 @@ added animated electrons — and nothing compared them.
   .2→.34) because a translucent line loses more contrast on paper than on
   graphite. Documentation only; the README swaps the two on
   `prefers-color-scheme`. Hand-kept: edit both or neither.
-- **Clear space:** the nucleus's diameter (`3/32` of the mark's width) on all
+- **Clear space:** the nucleus's diameter (`6/32` of the mark's width) on all
   sides of the mark's bounding box.
 - **Small sizes:** the shells go first, then the inner shell entirely. That is
   the design, not a rendering bug — see the contrast rule below.

@@ -2,6 +2,9 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 ENV ASTRO_TELEMETRY_DISABLED=1
+# The social preview's SVG text needs fonts in this otherwise fontless builder.
+# These stay in the build stage; the nginx runtime remains unchanged.
+RUN apk add --no-cache font-dejavu
 
 COPY package*.json ./
 RUN npm ci
