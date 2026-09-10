@@ -286,6 +286,23 @@ export function StarIcon({
   )
 }
 
+/**
+ * Page with a folded corner and a down arrow inside it — "export this as a
+ * document". It sits next to `DownloadIcon` in the artifact toolbar, where the
+ * two used to be the same tray glyph twice and nothing said which one was the
+ * PDF. A literal "PDF" wordmark is unreadable at 13px, so the distinction is
+ * the silhouette: a tray saves the source, a page prints the document.
+ */
+export function PdfExportIcon({ size = 13, className }: IconProps): React.JSX.Element {
+  return (
+    <svg {...strokeProps(size)} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+      <polyline points="14 2 14 8 20 8" />
+      <path d="M12 11.5v5.5m0 0 2.1-2.1M12 17l-2.1-2.1" />
+    </svg>
+  )
+}
+
 /** Tray with a down arrow, for "save to disk". */
 export function DownloadIcon({ size = 12, className }: IconProps): React.JSX.Element {
   return (

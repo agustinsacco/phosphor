@@ -158,12 +158,19 @@ export interface IpcInvokeMap {
    * main process, or the caller has no dependency to re-stage on.
    */
   'artifacts:stageHtml': { args: [html: string, theme: 'light' | 'dark']; result: string }
-  /** Export an artifact's preview render to a single-page PDF saved to Downloads. */
+  /**
+   * Print an artifact's preview to a PDF in Downloads, and answer with where
+   * it landed. `html` is what the preview renders — the raw markup for an HTML
+   * artifact, the serialised preview DOM for the types the renderer draws
+   * (markdown, mermaid, chart, code) — so the PDF goes through the same
+   * staging path, and the same house sheet, as the iframe on screen.
+   *
+   * Rejects on failure rather than answering `null`: the caller has to have
+   * something to show, or the button reads as broken.
+   */
   'artifacts:exportPdf': {
-    args: [
-      { content: string; type: string; title: string; language?: string; theme?: 'light' | 'dark' },
-    ]
-    result: { savedTo: string } | null
+    args: [{ html: string; title: string; theme: 'light' | 'dark' }]
+    result: { savedTo: string }
   }
   'app:setPinnedSessions': { args: [string[]]; result: void }
   /** Explicit lane-marker choices, keyed by session file path. */

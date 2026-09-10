@@ -1456,6 +1456,12 @@ export function installMockPhosphor(): void {
           return Promise.resolve(
             URL.createObjectURL(new Blob([args[0] as string], { type: 'text/html' })),
           )
+        case 'artifacts:exportPdf':
+          // No Chromium print pipeline in the browser harness; the toolbar
+          // flow (switch to preview, serialise, toast) is what this exercises.
+          return Promise.resolve({
+            savedTo: `/Users/you/Downloads/${(args[0] as { title: string }).title}.pdf`,
+          })
         case 'app:setLanePrefs':
           return Promise.resolve(undefined)
         case 'app:setLaneMarkers':

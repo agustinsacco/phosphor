@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { drop, keyedSlice } from './keyedSlice'
 import { useLayoutStore } from './layout'
 import { useSessionsStore } from './sessions'
-import { errorText } from '@shared/errors'
+import { ipcErrorText } from '@shared/errors'
 
 export interface TerminalTab {
   ptyId: string
@@ -66,15 +66,6 @@ export function sessionTerminals(state: TerminalState, sessionId: string): Sessi
   return terminals.read(state.bySession, sessionId)
 }
 
-/**
- * Electron wraps handler rejections as "Error invoking remote method 'x': …";
- * strip that so the pane shows the shell's actual complaint.
- */
-function spawnErrorMessage(error: unknown): string {
-  const raw = errorText(error)
-  return raw.replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, '')
-}
-
 /** Apply a patch to one session's terminal slice. */
 function patchSession(
   state: TerminalState,
@@ -99,7 +90,7 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
       // ("+", first open, run-in-terminal) whose only sane response is to show
       // the message, and an unhandled rejection here is exactly how this used
       // to become a permanent "Starting shell…".
-      set((s) => patchSession(s, sessionId, (t) => ({ ...t, error: spawnErrorMessage(error) })))
+      set((s) => patchSession(s, sessionId, (t) => ({ ...t, error: ipcErrorText(error) })))
       return null
     }
     set((s) =>
