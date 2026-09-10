@@ -168,6 +168,15 @@ behaves differently on two machines. So every Claude-provider spawn gets
 `electron/pi/provider-detect.ts`), which passes the CLI `--strict-mcp-config`
 and drops chain (2) entirely.
 
+Every live pi spawn also receives `PI_CLAUDE_CLI_TOOL_RESULTS=1`, which is
+what lets a CLI-side tool row show an outcome at all: the provider then tags
+each call marker with its `tool_use_id` and follows it with a `result`
+marker, so the transcript can say "419 lines" or "exit 1 · No such file"
+instead of only naming the tool
+([extensions.md](extensions.md#how-provider-transcripts-render)). The metrics
+behind those lines need provider >= 0.8.0; below it the flag still yields a
+status and an expandable preview.
+
 Every live pi spawn also receives `PI_CLAUDE_CLI_CONTEXT=pi`, including native
 provider sessions so a later switch to Claude is consistent. pi retains its
 project-context loading; the provider suppresses Claude's second memory and

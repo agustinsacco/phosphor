@@ -19,7 +19,7 @@ vi.hoisted(() => {
 import { readFileSync } from 'node:fs'
 
 import { ActivityGroup, GUTTER_MARK, GUTTER_MARK_FILL, ROW_INSET } from './ActivityGroup'
-import type { ActivityStep } from './transcriptRows'
+import type { ActivityStep, ExternalToolResult } from './transcriptRows'
 import type { ToolState } from '../reducer'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { SUBAGENTS_STATUS_KEY } from '../subagentStatus'
@@ -264,6 +264,147 @@ describe('ActivityGroup row shapes', () => {
     expect(row.textContent).toContain('Ran')
     expect(row.textContent).toContain('bundledExtensions')
     expect(row.textContent).not.toContain('a command')
+  })
+
+  /**
+   * A CLI-side row's outcome (`PI_CLAUDE_CLI_TOOL_RESULTS=1`, provider
+   * >= 0.6.0; the metrics behind `summary` need >= 0.8.0).
+   *
+   * Before this the row could only name what was invoked, so a turn of 21
+   * CLI-side tools rendered as 21 lines that each stopped mid-sentence: no
+   * line counts, no exit codes, nothing to expand into, and a failed command
+   * indistinguishable from one that worked.
+   */
+  describe('a CLI-side tool that reported back', () => {
+    const withResult = (result: ExternalToolResult, streaming = false): void => {
+      render(
+        <ActivityGroup
+          steps={[
+            {
+              itemId: 'a1',
+              block: {
+                type: 'externalTool',
+                index: 0,
+                name: 'Bash',
+                args: '{"command":"ls /nope"}',
+                toolUseId: 't1',
+                result,
+              },
+              streaming,
+              isLastInItem: true,
+            },
+          ]}
+          tools={{}}
+          hideThinking={false}
+          sessionId="s1"
+          active={false}
+        />,
+      )
+    }
+
+    it('shows the outcome beside what ran', () => {
+      withResult({ status: 'ok', summary: '4 lines out', preview: 'a\nb\nc\nd', length: 7 })
+      const row = document.querySelector('[data-testid="external-tool-row"]')!
+      expect(row.textContent).toContain('Ran')
+      expect(row.textContent).toContain('ls /nope')
+      expect(document.querySelector('[data-testid="external-tool-outcome"]')!.textContent).toBe(
+        '4 lines out',
+      )
+    })
+
+    it('expands into the output the CLI actually returned', () => {
+      withResult({ status: 'ok', summary: '4 lines out', preview: 'a\nb\nc\nd', length: 7 })
+      expect(document.querySelector('[data-testid="external-tool-preview"]')).toBeNull()
+
+      const row = document.querySelector('[data-testid="external-tool-row"]') as HTMLElement
+      expect(row.tagName).toBe('BUTTON')
+      act(() => {
+        row.click()
+      })
+      expect(document.querySelector('[data-testid="external-tool-preview"]')!.textContent).toBe(
+        'a\nb\nc\nd',
+      )
+    })
+
+    it('marks a failure as failed and shows its message', () => {
+      withResult({
+        status: 'error',
+        summary: 'exit 1 · ls: /nope: No such file or directory',
+        error: 'ls: /nope: No such file or directory',
+        preview: 'Exit code 1\nls: /nope: No such file or directory',
+      })
+      const row = document.querySelector('[data-testid="external-tool-row"]')!
+      expect(row.textContent).toContain('failed')
+      expect(row.textContent).toContain('exit 1')
+      expect(row.querySelector('.text-danger')).not.toBeNull()
+    })
+
+    it('says how much of a long output it is showing', () => {
+      withResult({ status: 'ok', summary: '900 lines', preview: 'x'.repeat(2000), length: 48_000 })
+      act(() => {
+        ;(document.querySelector('[data-testid="external-tool-row"]') as HTMLElement).click()
+      })
+      // No `truncated` flag: the row must not claim a limit the payload did
+      // not report.
+      expect(document.body.textContent).not.toContain('48,000')
+
+      act(() => root?.unmount())
+      withResult({
+        status: 'ok',
+        summary: '900 lines',
+        preview: 'x'.repeat(2000),
+        length: 48_000,
+        truncated: true,
+      })
+      act(() => {
+        ;(document.querySelector('[data-testid="external-tool-row"]') as HTMLElement).click()
+      })
+      expect(document.body.textContent).toContain('48,000')
+    })
+
+    /**
+     * The provider tags a call it will report on. Between the two markers the
+     * tool is genuinely running, which is the first time a CLI-side row has
+     * had a live state to show.
+     */
+    it('shows a tagged call with no result yet as running', () => {
+      render(
+        <ActivityGroup
+          steps={[
+            {
+              itemId: 'a1',
+              block: {
+                type: 'externalTool',
+                index: 0,
+                name: 'WebSearch',
+                args: '{"query":"pi docs"}',
+                toolUseId: 't1',
+              },
+              streaming: true,
+              isLastInItem: true,
+            },
+          ]}
+          tools={{}}
+          hideThinking={false}
+          sessionId="s1"
+          active={true}
+        />,
+      )
+      expect(document.querySelector('[data-testid="external-tool-running"]')).not.toBeNull()
+    })
+
+    /**
+     * An older provider forwards no results at all. Its rows must keep the
+     * shape they always had — a chevron that opens onto nothing is a promise
+     * the transcript cannot keep.
+     */
+    it('leaves an untagged call as a plain settled row', () => {
+      renderMixed()
+      const row = document.querySelector('[data-testid="external-tool-row"]') as HTMLElement
+      expect(row.tagName).toBe('DIV')
+      expect(row.querySelector('svg')).toBeNull()
+      expect(document.querySelector('[data-testid="external-tool-running"]')).toBeNull()
+    })
   })
 
   it('renders a sub-agent launch with its own badge and headline', () => {

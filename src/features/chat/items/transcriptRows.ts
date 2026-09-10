@@ -33,20 +33,103 @@ export interface ExternalToolBlock {
   /** Tool name as Claude Code reported it, e.g. "WebSearch". */
   name: string
   /**
-   * Truncated argument preview, verbatim from the marker. Read best-effort
-   * by `externalToolInfo` (it survives truncation); never a hard dependency.
+   * Argument preview, verbatim from the marker. Read best-effort by
+   * `externalToolInfo`; never a hard dependency. Complete JSON on provider
+   * >= 0.8.0, a document cut at 120 characters below it.
    */
   args?: string
+  /**
+   * The CLI's `tool_use_id`, present only when the provider tagged the call
+   * — which it does when the host set `PI_CLAUDE_CLI_TOOL_RESULTS=1`. Its
+   * presence is what promises a result marker is coming.
+   */
+  toolUseId?: string
+  /** Folded in from the paired `result` marker, once it arrives. */
+  result?: ExternalToolResult
+}
+
+/**
+ * What came back from a tool the CLI ran itself.
+ *
+ * Everything here is the provider's own summary of the outcome — Phosphor
+ * measures nothing. `summary` is printable as-is ("419 lines", "+1 -1 in
+ * poem.txt", "exit 1 · No such file or directory"); the metric fields are
+ * whatever the tool made available, so a row must degrade when they are
+ * absent (a provider below 0.8.0 sends only `preview`/`length`).
+ */
+export interface ExternalToolResult {
+  status: 'ok' | 'error'
+  /** One-line outcome, ready to render. */
+  summary?: string
+  /** The failure message, when the call failed. */
+  error?: string
+  /** Output preview, capped by the provider at 2,000 characters. */
+  preview?: string
+  /** Full output size in characters, even when `preview` is shorter. */
+  length?: number
+  /** `preview` is shorter than `length`. */
+  truncated?: boolean
 }
 
 /** `[Claude Code · WebSearch {"query":"…"}]` → name + argument preview. */
 const EXTERNAL_TOOL_MARKER = /^\[Claude Code · ([^\s\]]+)(?:\s+([\s\S]*))?\]$/
 
-export function parseExternalToolMarker(text: string): { name: string; args?: string } | null {
+/**
+ * The id tag the provider puts in front of the arguments when result
+ * forwarding is on: `[Claude Code · Read #toolu_01A {"file_path":…}]`.
+ */
+const MARKER_ID_TAG = /^#(\S+)\s*([\s\S]*)$/
+
+/** The name a result marker wears: `[Claude Code · result #<id> {…}]`. */
+const RESULT_MARKER_NAME = 'result'
+
+export function parseExternalToolMarker(
+  text: string,
+): { name: string; toolUseId?: string; args?: string } | null {
   const match = EXTERNAL_TOOL_MARKER.exec(text.trim())
   if (!match) return null
-  const args = match[2]?.trim()
-  return { name: match[1]!, args: args && args.length > 0 ? args : undefined }
+  const rest = match[2]?.trim()
+  const tagged = rest ? MARKER_ID_TAG.exec(rest) : null
+  const args = (tagged ? tagged[2]?.trim() : rest) || undefined
+  return {
+    name: match[1]!,
+    toolUseId: tagged?.[1],
+    args,
+  }
+}
+
+export function isResultMarker(name: string): boolean {
+  return name === RESULT_MARKER_NAME
+}
+
+/**
+ * Read a result marker's payload.
+ *
+ * Unlike the call marker's arguments, this payload has always been complete
+ * JSON, so it is parsed strictly: a payload that does not parse is a provider
+ * this renderer does not understand, and inventing a status from fragments
+ * would put a wrong outcome on a row.
+ */
+export function parseResultPayload(args: string | undefined): ExternalToolResult | null {
+  if (!args) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(args)
+  } catch {
+    return null
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+  const payload = parsed as Record<string, unknown>
+  const str = (key: string): string | undefined =>
+    typeof payload[key] === 'string' && payload[key] !== '' ? (payload[key] as string) : undefined
+  return {
+    status: payload.status === 'error' ? 'error' : 'ok',
+    summary: str('summary'),
+    error: str('error'),
+    preview: typeof payload.preview === 'string' ? payload.preview : undefined,
+    length: typeof payload.length === 'number' ? payload.length : undefined,
+    truncated: payload.truncated === true,
+  }
 }
 
 /**
@@ -450,6 +533,15 @@ export function buildTranscriptRows(items: ChatItem[]): TranscriptRow[] {
   // One folder per transcript: an agent launched in one message finishes in
   // the next, so the join has to outlive a single item.
   const foldAgent = createAgentFolder()
+  /**
+   * Calls awaiting their result marker, by `tool_use_id`.
+   *
+   * A result marker is NOT a row: it is the second half of the row its call
+   * already produced, and the CLI can report it messages later (a tool called
+   * in one episode of a turn reports in the next). Same reason the agent
+   * folder outlives an item.
+   */
+  const awaitingResult = new Map<string, ExternalToolBlock>()
 
   /** Append to the open activity row, or start one. */
   const pushStep = (step: ActivityStep): void => {
@@ -489,9 +581,30 @@ export function buildTranscriptRows(items: ChatItem[]): TranscriptRow[] {
             }
             continue
           }
+          if (isResultMarker(marker.name)) {
+            // The outcome of a call that already has a row. Folded into that
+            // row wherever it is, never rendered as a row of its own — a
+            // `result` row would read as a tool named "result", and the
+            // marker exists to keep raw JSON out of the transcript.
+            const call = marker.toolUseId ? awaitingResult.get(marker.toolUseId) : undefined
+            const result = parseResultPayload(marker.args)
+            if (call && result) {
+              call.result = result
+              awaitingResult.delete(marker.toolUseId!)
+            }
+            continue
+          }
+          const external: ExternalToolBlock = {
+            type: 'externalTool',
+            index: block.index,
+            name: marker.name,
+            args: marker.args,
+            toolUseId: marker.toolUseId,
+          }
+          if (marker.toolUseId) awaitingResult.set(marker.toolUseId, external)
           pushStep({
             itemId: item.id,
-            block: { type: 'externalTool', index: block.index, ...marker },
+            block: external,
             streaming: item.streaming,
             isLastInItem,
           })
@@ -573,7 +686,14 @@ export function trailingUnfinishedAgents(rows: TranscriptRow[]): number {
 /** True while any step in the group is still producing output. */
 export function isActivityLive(steps: ActivityStep[], tools: Record<string, ToolState>): boolean {
   return steps.some((s) => {
-    if (s.block.type === 'externalTool') return false
+    if (s.block.type === 'externalTool') {
+      // A tagged call with no result yet is a CLI-side tool still running —
+      // but only while its message streams. Once the turn is settled an
+      // unanswered call means the CLI never reported (it died, or the host
+      // has result forwarding off), and a group that stays open forever is
+      // worse than a row that stops spinning.
+      return s.streaming && !!s.block.toolUseId && !s.block.result
+    }
     // A running sub-agent IS live work, and the group must stay open while it
     // is out there — that is the whole difference 0.4.14 made.
     if (s.block.type === 'subagent') return !isTerminalAgentStatus(s.block.status)
@@ -638,6 +758,10 @@ export function summarizeActivity(
       continue
     }
     if (step.block.type === 'externalTool') {
+      // A CLI-side failure counts in the head like a pi tool failure. It
+      // could not before: the marker carried no outcome, so a turn where
+      // three commands failed inside the CLI collapsed to a clean summary.
+      if (step.block.result?.status === 'error') failedCount++
       if (!counts.has('Claude Code')) order.push('Claude Code')
       counts.set('Claude Code', (counts.get('Claude Code') ?? 0) + 1)
       continue

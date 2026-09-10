@@ -51,21 +51,25 @@
 
 ### Blocks from the Claude Code provider
 
-Sessions on `@saccolabs/pi-claude-cli` carry two shapes no pi-native provider
-produces. Both are handled in `items/transcriptRows.ts`, so tool-UX work
-inherits them for free — but anything that re-derives rows from
+Sessions on `@saccolabs/pi-claude-cli` carry three shapes no pi-native
+provider produces. All are handled in `items/transcriptRows.ts`, so tool-UX
+work inherits them for free — but anything that re-derives rows from
 `AssistantBlock`s must handle them again.
 
-| Shape                                       | Where it comes from                                                                                                                                                             | Treatment                                                                                                                                                             |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[Claude Code · Name {args}]` text block    | Tools Claude Code ran **inside its own process** (WebSearch, WebFetch, ToolSearch, the user's MCP servers, sub-agents). pi cannot execute them, so they are never pi tool calls | Parsed into an `externalTool` activity step: grouped with pi's tools, counted in the summary, never markdown-rendered. There is **no result** — only what was invoked |
-| thinking block with a signature and no text | Encrypted thinking. Measured: fable-5, opus-5, sonnet-5 all do this; haiku-4-5 is the only family sending plaintext                                                             | Skipped on settled items. Provider ≥0.4.4 stops emitting them, but sessions recorded earlier are on disk forever                                                      |
+| Shape                                       | Where it comes from                                                                                                                                                             | Treatment                                                                                                                                                          |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `[Claude Code · Name {args}]` text block    | Tools Claude Code ran **inside its own process** (WebSearch, WebFetch, ToolSearch, the user's MCP servers, sub-agents). pi cannot execute them, so they are never pi tool calls | Parsed into an `externalTool` activity step: grouped with pi's tools, counted in the summary, never markdown-rendered                                              |
+| `[Claude Code · result #<id> {…}]`          | The outcome of one of those calls. Phosphor asks for these with `PI_CLAUDE_CLI_TOOL_RESULTS=1`, which also makes the call marker carry `#<tool_use_id>`                         | Folded into the row its call produced — **never a row of its own**. Gives that row a live state, an outcome line, a failure state and an expandable output preview |
+| thinking block with a signature and no text | Encrypted thinking. Measured: fable-5, opus-5, sonnet-5 all do this; haiku-4-5 is the only family sending plaintext                                                             | Skipped on settled items. Provider ≥0.4.4 stops emitting them, but sessions recorded earlier are on disk forever                                                   |
 
-The marker string is a **cross-repo wire contract**; the emitting side
-documents its shape. The argument preview is truncation-prone and therefore
-frequently invalid JSON; `externalToolInfo` reads it **best-effort only**
-(JSON.parse, then a complete-`"key":"value"`-pairs fallback) to pick a human
-headline — `Agent`/`Task` markers instead fold into `subagent` steps, one per
+The marker strings are a **cross-repo wire contract**; the emitting side
+documents their shape. A result payload is complete JSON and is parsed
+strictly (a payload that does not parse leaves the row settled with no
+outcome, rather than inventing one). The call marker's argument preview is
+complete JSON only on provider >= 0.8.0 — below that it is a document cut at
+120 characters, so `externalToolInfo` reads it **best-effort only**
+(JSON.parse, then a complete-`"key":"value"`-pairs fallback, then the final
+unterminated value) to pick a human headline — `Agent`/`Task` markers instead fold into `subagent` steps, one per
 AGENT rather than one per marker (three markers describe each), and feed the
 composer's sub-agent strip (`trailingUnfinishedAgents`). **A sub-agent row's
 status claims only what its markers prove**: `launched` until the CLI confirms

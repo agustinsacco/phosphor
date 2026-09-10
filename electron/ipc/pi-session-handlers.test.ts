@@ -70,6 +70,9 @@ describe('session context policy integration', () => {
       expect(options.env).toMatchObject({
         PI_CLAUDE_CLI_CONTEXT: 'pi',
         PI_CLAUDE_CLI_STRICT_MCP: '1',
+        // Results, not just invocations: a CLI-side tool row shows what came
+        // back only because the session asked for it.
+        PI_CLAUDE_CLI_TOOL_RESULTS: '1',
       })
       expect(options.env).not.toHaveProperty('PI_CLAUDE_CLI_SYSTEM_PROMPT')
       expect(options.env).not.toHaveProperty('PI_CLAUDE_CLI_KEEPALIVE_MS')

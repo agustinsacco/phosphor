@@ -56,9 +56,23 @@ export function assertClaudeContextProvider(
  * keeps its own default prompt and native tools; pi alone supplies project
  * files, skills and custom integrations. The provider aligns tool vocabulary
  * and disables duplicate discovery, while preserving explicit host guards.
+ *
+ * `PI_CLAUDE_CLI_TOOL_RESULTS` is what makes a CLI-side tool row show an
+ * OUTCOME. Without it the provider forwards the invocation and nothing else,
+ * so every `Read`, `Bash` and `Grep` the CLI ran itself rendered as a row
+ * that could never say whether it worked — 21 rows of "Ran ls" with no line
+ * counts, no exit codes and nothing to expand into. It is a provider opt-in
+ * because the flag changes the marker wire shapes (calls gain a `#<id>` tag,
+ * results arrive as their own markers); `items/transcriptRows.ts` parses
+ * both. Additive: a provider that predates the flag ignores it, and one
+ * between 0.6.0 and 0.7.1 sends the leaner payload the same code reads.
  */
 export function claudeProviderSpawnEnv(): Record<string, string> {
-  return { PI_CLAUDE_CLI_STRICT_MCP: '1', PI_CLAUDE_CLI_CONTEXT: 'pi' }
+  return {
+    PI_CLAUDE_CLI_STRICT_MCP: '1',
+    PI_CLAUDE_CLI_CONTEXT: 'pi',
+    PI_CLAUDE_CLI_TOOL_RESULTS: '1',
+  }
 }
 
 /**

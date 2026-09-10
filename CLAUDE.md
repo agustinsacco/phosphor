@@ -122,9 +122,12 @@ you want to watch.
   the Claude Code provider (`@saccolabs/pi-claude-cli`) contain block shapes
   pi itself never emits: CLI-side tools arrive as `[Claude Code · Name {…}]`
   marker text blocks (a wire contract — `parseExternalToolMarker` turns them
-  into activity steps), and some models emit thinking with a signature and no
-  plaintext. Before touching transcript rendering, tool UX or subagent UI,
-  read [docs/extensions.md](docs/extensions.md#how-provider-transcripts-render).
+  into activity steps), their outcomes as paired
+  `[Claude Code · result #<id> {…}]` markers that fold into the row the call
+  already made (never a row of their own), and some models emit thinking with
+  a signature and no plaintext. Before touching transcript rendering, tool UX
+  or subagent UI, read
+  [docs/extensions.md](docs/extensions.md#how-provider-transcripts-render).
 - **Claude sessions run through a SEPARATELY VERSIONED package**, and
   Phosphor pins nothing. `@saccolabs/pi-claude-cli` is installed into pi
   (`~/.pi/agent/npm/node_modules/`), so token behaviour, session resume and
@@ -154,6 +157,13 @@ you want to watch.
   vocabulary, while retaining Claude's default prompt, native tools and
   explicit host guards. It also implies strict MCP isolation. Start a fresh
   session across this policy change; old saved prompts are not migrated.
+  **`>= 0.8.0`** is what makes a CLI-side tool row say what came BACK —
+  Phosphor asks every session for results (`PI_CLAUDE_CLI_TOOL_RESULTS=1`),
+  and 0.8.0 is where the payload gained the CLI's own metrics (line counts,
+  diff stats, exit codes) and the call marker's arguments became complete
+  JSON instead of a document cut at 120 characters. Not a floor: on 0.6.0–
+  0.7.1 the rows still expand, they just show a status and a preview with no
+  outcome line, and paths in the label may be missing their filename.
   **`>= 0.6.1`** is required
   after a compaction: below it the first message (often the second too) does
   nothing, because the CLI answers its own queued `<task-notification>` first
