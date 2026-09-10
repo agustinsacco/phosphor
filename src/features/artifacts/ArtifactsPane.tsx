@@ -194,6 +194,23 @@ function ArtifactWorkspace({
             <DownloadIcon />
           </ActionIcon>
           <ActionIcon
+            title="Export preview to PDF (Downloads)"
+            onClick={async () => {
+              const result = await window.phosphor.invoke('artifacts:exportPdf', {
+                content: shown.content,
+                type: artifact.type,
+                title: shown.title,
+                language: artifact.language,
+                theme: 'dark',
+              })
+              if (result?.savedTo) {
+                // PDF saved; no dialog needed per spec (downloads folder).
+              }
+            }}
+          >
+            <DownloadIcon />
+          </ActionIcon>
+          <ActionIcon
             title="Write into workspace and open in Files"
             onClick={() => void openInFiles()}
           >
