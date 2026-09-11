@@ -103,7 +103,8 @@ as shipped features. A reader-facing source index also lives at `#feature-index`
 No universal account failover, unlimited subscriptions, automatic GitHub PR
 merge, fully local inference, universal agent sandbox or guaranteed token
 savings. Component token sizes are estimates, not measurements. Claude-native
-markers do not carry result bodies. Account routing is Claude-specific; moving
+tool rows show an outcome only on provider >= 0.8.0 (a status and preview
+below it). Account routing is Claude-specific; moving
 a live lane restarts it and re-reads saved history. PR integration uses `gh`
 read-only; the guided merge is local. Installed packages execute code with
 system access. Artifact isolation is a different boundary.

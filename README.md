@@ -7,8 +7,7 @@
 # Phosphor
 
 **The [pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent),
-extended into a desktop IDE for macOS, Linux and Windows — the most advanced
-multi-provider agentic IDE you can run on your own machine.**
+extended into a desktop IDE for macOS, Linux and Windows.**
 
 [![Website](https://img.shields.io/badge/phosphor.saccolabs.com-eca03d?label=web&labelColor=1e1c18)](https://phosphor.saccolabs.com)
 [![CI](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml/badge.svg)](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml)
@@ -16,17 +15,17 @@ multi-provider agentic IDE you can run on your own machine.**
 [![Downloads](https://img.shields.io/github/downloads/agustinsacco/Phosphor/total?label=downloads)](https://github.com/agustinsacco/Phosphor/releases)
 ![License: MIT](https://img.shields.io/badge/license-MIT-8ec9a0)
 
-Open a project folder, describe a task, and work alongside the agent — with a
-chat that renders what models actually produce (diffs, diagrams, charts,
-sandboxed HTML), the file explorer and terminal next to it, and every change the
-agent made available to review or revert.
+Open a folder, describe a task, work beside the agent. The chat renders what
+models actually produce (diffs, diagrams, charts, sandboxed HTML). The file
+explorer and terminal sit next to it. Every change the agent made is there to
+review or revert.
 
 One window, every provider pi speaks: Anthropic, OpenAI (API key or ChatGPT
 subscription), Google Gemini and Vertex, Azure OpenAI, Amazon Bedrock, Mistral,
-Groq, Cerebras, xAI, OpenRouter, the Cloudflare and Vercel gateways — plus your
+Groq, Cerebras, xAI, OpenRouter, the Cloudflare and Vercel gateways, plus your
 Claude Pro/Max subscription through
-[pi-claude-cli](https://github.com/agustinsacco/pi-claude-cli), no API key
-needed. Switch models mid-session and the conversation carries over.
+[pi-claude-cli](https://github.com/agustinsacco/pi-claude-cli). Switch models
+mid-session; the conversation comes along.
 
 |                                             |                                         |
 | ------------------------------------------- | --------------------------------------- |
@@ -47,77 +46,74 @@ npm install -g @earendil-works/pi-coding-agent
 curl -fsSL https://github.com/agustinsacco/Phosphor/releases/latest/download/install.sh | sh
 ```
 
-Launch Phosphor, open a project folder, and sign in to a provider: open the
-built-in terminal, run `pi`, and use `/login` — or configure API keys / a local
-endpoint in `~/.pi/agent/`. Then describe a task in the composer and press
-Enter. Details and alternative installs are under [Install](#install).
+Launch Phosphor, open a folder, sign in to a provider (run `pi` in the built-in
+terminal and use `/login`, or put API keys / a local endpoint in
+`~/.pi/agent/`). Describe a task, press Enter. Alternatives are under
+[Install](#install).
 
 ## What Phosphor does
 
 - **Sessions are real pi subprocesses.** One `pi --mode rpc` per live session,
-  spawned in the workspace folder. Everything pi exposes over RPC is reachable
-  from the UI — models, thinking levels, steering and follow-up queues,
-  compaction, auto-retry, forks, clones, session export.
-- **No permission prompts.** pi runs in full-permission mode; tool calls execute
-  and stream their results.
-- **Rich responses are first-class.** GFM markdown, syntax-highlighted code,
-  mermaid diagrams, Chart.js and Vega-Lite specs, KaTeX math, and model-authored
-  HTML rendered in a sandboxed iframe.
-- **Every change is reviewable.** The Changes panel accumulates the agent's
-  edits with per-file diffs against a session baseline, and per-file revert.
-- **Session tree.** Visualize the branch structure of a session, jump to any
-  point, fork from it, or bookmark it.
-- **Artifacts.** A bundled pi extension adds `artifact_create` /
-  `artifact_edit` / `artifact_update` tools; substantial deliverables land in a
-  versioned side panel with previews and diffs between versions, and survive app
-  restarts via session replay.
+  spawned in the workspace folder. Everything pi exposes over RPC is in the UI:
+  models, thinking levels, steering and follow-up queues, compaction,
+  auto-retry, forks, clones, export.
+- **No permission prompts.** pi runs in full-permission mode. Tool calls run and
+  stream their results.
+- **Rich responses are first-class.** GFM markdown, highlighted code, Mermaid,
+  Chart.js and Vega-Lite specs, KaTeX, and model-authored HTML in a sandboxed
+  iframe.
+- **Every change is reviewable.** The Changes panel holds the agent's edits as
+  per-file diffs against a session baseline, with per-file revert.
+- **Session tree.** See the branch structure, jump to any point, fork from it,
+  bookmark it.
+- **Artifacts.** A bundled extension adds `artifact_create` / `artifact_edit` /
+  `artifact_update`. Deliverables land in a versioned side panel with previews
+  and diffs, and survive restarts through session replay.
 - **Your machine, your models.** Sign in to providers, pick models, set themes,
-  and mount MCP servers from Settings. MCP OAuth is owned by the adapter, never
-  by Phosphor: [docs/mcp.md](docs/mcp.md).
+  mount MCP servers from Settings. MCP OAuth belongs to the adapter, never to
+  Phosphor: [docs/mcp.md](docs/mcp.md).
 
 ## The screens
 
-Every session pairs the transcript with one switchable pane — Files, Changes,
-Terminal or Artifacts. Each pane docks right or left of the chat (your pick,
-persisted per session) and can go fullscreen. Every shot below is a capture of
-the app running against a real pi instance — real providers, real sessions,
-real tokens — see
+Every session pairs the transcript with one switchable pane: Files, Changes,
+Terminal or Artifacts. The pane docks left or right (persisted per session) and
+can go fullscreen. Every shot below is the app against a real pi, real
+providers and real tokens; see
 [the screenshots in this README](#the-screenshots-in-this-readme).
 
 ### Home — where a session starts
 
-The home screen starts a session: pick the folder, the branch (or a fresh
-worktree branch off trunk), the model, and go. The sidebar carries every
-session — live state, edit counts, worktree badge, and the PR badge once one
-exists.
+Pick the folder, the branch (or a fresh worktree branch off trunk), the model,
+and go. The sidebar lists every session with live state, edit counts, a
+worktree badge and the PR badge once one exists.
 
-Above the composer sits the **lane board**: this project's lanes in columns by
-what they need from you — waiting on you, ready to merge, needs a push, in
-review, running — each card carrying the one action that unblocks it. Below it
+Above the composer is the **lane board**: this project's lanes in columns by
+what they need from you (waiting on you, ready to merge, needs a push, in
+review, running), each card carrying the one action that unblocks it. Below it,
 a **ledger** of what the parallelism costs: spend, tokens, live processes, and
 the account window that will stop you first.
 
 Nothing there polls or spends tokens. Every column is derived from state the
-renderer already holds (the session scan, git, `gh`, the dialog store), so the
-board is correct with no live session and after a restart.
+app already holds, so the board is right with no live session and after a
+restart.
 
 ![Home over the real sessions of a repo](docs/img/home.png)
 
 ### Chat — the transcript, not a blob
 
-Streaming assistant text with the run's activity folded into steps: file edits
-expand to their diff, tool calls to their arguments and output, thinking to its
-own block. The composer takes `@` file references, `/` commands, `!` shell
-lines, and queues follow-ups while a turn is running.
+Streaming text with the run's activity folded into steps: edits expand to their
+diff, tool calls to their arguments and output, thinking to its own block. The
+composer takes `@` file references, `/` commands, `!` shell lines, and queues
+follow-ups while a turn is running.
 
 ![A finished turn: the activity run expanded on the edit's diff, Changes panel open beside it](docs/img/changes.png)
 
 ### The composer — every model, every provider, one chip away
 
-The model chooser lists everything you are signed into — pi's native providers
-and installed provider packages alike — searchable, starrable, switchable
+The model chooser lists everything you are signed into, native providers and
+installed provider packages alike. Searchable, starrable, switchable
 mid-session. The chip names what actually serves the session (`via
-pi-claude-cli` when it is your Claude subscription, not the API):
+pi-claude-cli` when it is your Claude subscription):
 
 ![The model menu open over the composer](docs/img/models.png)
 
@@ -125,9 +121,9 @@ Models with a thinking ladder get a second chip for effort:
 
 ![The thinking-level menu](docs/img/thinking.png)
 
-The context meter opens into a live breakdown of the window — what the system
-prompt, tools and conversation actually cost, and your plan's rate-limit
-window on subscription providers:
+The context meter opens into a live breakdown of the window: what the system
+prompt, tools and conversation cost, and your plan's rate-limit window on
+subscription providers:
 
 ![The context meter popover](docs/img/context.png)
 
@@ -139,56 +135,53 @@ window on subscription providers:
 
 ### Files — explorer and editor, on whichever side you like
 
-A file explorer with creation, rename, Trash, multi-selection, copy/cut/paste,
-and file/folder drops, beside a Monaco editor. Switch it in from the session's
-top bar; docked on the right by default. [File management details](docs/files.md):
+Create, rename, Trash, multi-select, copy/cut/paste, drop files and folders
+in, all beside a Monaco editor. Docked right by default.
+[File management details](docs/files.md):
 
 ![The files pane on the right: explorer and Monaco editor beside the transcript](docs/img/files.png)
 
-One click moves the pane to the left of the transcript — the orientation is
-per-session and persists:
+One click moves the pane to the left. The choice is per session and persists:
 
 ![The same files pane docked on the left of the chat](docs/img/files-left.png)
 
-And any pane can take over the whole session region when the transcript is not
-the thing you're reading:
+Any pane can take the whole session region when the transcript is not the thing
+you are reading:
 
 ![The files pane fullscreened over the session](docs/img/files-full.png)
 
 ### Terminal — real shells in the workspace
 
-Real terminal tabs running against the workspace, keyed per workspace like the
-files pane, so the transcript never loses its place.
+Real terminal tabs against the workspace, owned by the session that opened
+them, so the transcript never loses its place.
 
 ![A terminal tab open against the workspace, beside the transcript](docs/img/terminal.png)
 
 ### Artifacts
 
-Long-form documents, HTML pages, SVG, mermaid and chart documents the model
-creates for you — versioned, previewable, diffable, and reconstructed from the
-session on reopen.
+Long documents, HTML pages, SVG, Mermaid and chart documents the model creates
+for you. Versioned, previewable, diffable, rebuilt from the session on reopen.
 
 ![A long document open in the artifacts pane](docs/img/artifacts.png)
 
 ### Settings — and it is not only dark
 
-Ten tabs: appearance (theme, UI scale, fonts), agent, accounts, extensions,
-connectors, MCP, workspaces, advanced, keybindings, about. Light theme
-included, because diff review at 2am is a real workflow.
+Appearance, agent, accounts, extensions, connectors, workspaces, optimization,
+advanced, keybindings, about. Light theme included, because diff review at 2am
+is a real workflow.
 
 ![The Appearance tab](docs/img/settings.png)
 
-Accounts is where providers sign in — subscription login or API key, per
-provider:
+Accounts is where providers sign in, subscription or API key, per provider:
 
 ![The Accounts tab with signed-in providers](docs/img/accounts.png)
 
-Connectors mounts MCP servers (Notion, Linear, and anything else with an MCP
-endpoint); OAuth is owned by the adapter, never by Phosphor:
+Connectors mounts MCP servers (Notion, Linear, anything with an MCP endpoint).
+OAuth is the adapter's, never Phosphor's:
 
 ![The Connectors tab](docs/img/connectors.png)
 
-And the light theme, on the artifact session:
+The light theme, on the artifact session:
 
 ![The session in the light theme](docs/img/light.png)
 
@@ -200,14 +193,13 @@ macOS and Linux:
 curl -fsSL https://github.com/agustinsacco/Phosphor/releases/latest/download/install.sh | sh
 ```
 
-The script installs the AppImage on Linux and the `.app` bundle on macOS,
-verifying the download against the release's `checksums.txt`. Binaries are also
-on the [Releases page](https://github.com/agustinsacco/Phosphor/releases) — DMG and
-ZIP for macOS, AppImage and `.deb` for Linux.
+The script installs the AppImage on Linux and the `.app` bundle on macOS, and
+verifies the download against the release's `checksums.txt`. Binaries are also
+on the [Releases page](https://github.com/agustinsacco/Phosphor/releases): DMG
+and ZIP for macOS, AppImage and `.deb` for Linux.
 
-Windows builds are produced by the tagged `Release` workflow rather than the
-per-merge one, so a `.exe` is only present on releases that were cut from a `v*`
-tag.
+Windows builds come from the tagged `Release` workflow, not the per-merge one,
+so a `.exe` is only on releases cut from a `v*` tag.
 
 Phosphor needs `pi` on your PATH:
 
@@ -215,28 +207,28 @@ Phosphor needs `pi` on your PATH:
 npm install -g @earendil-works/pi-coding-agent
 ```
 
-The app shows a setup screen until pi is available. Sign in to a provider by
-running `pi` in Phosphor's built-in terminal and using `/login`, or configure API
-keys / a local endpoint in `~/.pi/agent/`.
+The app shows a setup screen until pi is available. Sign in by running `pi` in
+Phosphor's built-in terminal and using `/login`, or configure API keys / a local
+endpoint in `~/.pi/agent/`.
 
 ### Updates
 
-Every merge to `main` that passes CI publishes a new release, versioned
-`0.1.<commit count>`. An installed app checks for one at launch and every 30
-minutes after; when it finds one, an update button appears in the sidebar
-footer, just above Settings.
+Every merge to `main` that passes CI publishes a release, versioned
+`0.1.<commit count>`. An installed app checks at launch and every 30 minutes;
+when there is something to do, an update button appears in the sidebar footer
+above Settings.
 
 Linux AppImage and signed macOS installs download in the background and offer
-"Restart to update". Unsigned macOS and `.deb` installs cannot replace their own
-files, so they link to the release page instead. Update checks are disabled
-entirely in development builds — they only run when packaged.
+"Restart to update". Unsigned macOS and `.deb` installs cannot replace their
+own files, so they link to the release page. Update checks only run when
+packaged. Details: [docs/updates.md](docs/updates.md).
 
 ## How it works
 
 One `pi --mode rpc` subprocess per live session, spoken to over JSONL on stdio.
-Phosphor never imports pi's code: the protocol is hand-mirrored in
-[`shared/rpc.ts`](shared/rpc.ts) with compile-time drift guards, so a change to
-pi's protocol that this file hasn't caught won't compile.
+Phosphor never imports pi's code. The protocol is hand-mirrored in
+[`shared/rpc.ts`](shared/rpc.ts) with compile-time drift guards, so a protocol
+change this file has not caught will not compile.
 
 ```mermaid
 flowchart LR
@@ -252,32 +244,30 @@ flowchart LR
 Six facts that explain the rest:
 
 1. **The main process owns all side effects.** The renderer runs sandboxed
-   (`contextIsolation`, no Node) and is pure UI over typed IPC. If a feature
-   needs disk, network, or a subprocess, it goes in `electron/`, not `src/`.
+   (`contextIsolation`, no Node) and is pure UI over typed IPC. Disk, network
+   or a subprocess means `electron/`, not `src/`.
 2. **IPC is a typed contract.** A new channel is an entry in `shared/ipc.ts`'s
-   `IpcInvokeMap`, a handler in the `electron/ipc/<prefix>-handlers.ts` module
-   matching the prefix, and a case in `src/dev/mockPhosphor.ts`.
-3. **Stores (`src/stores/`) are projections of main-process state**, not a second
-   source of truth. The zustand chat store is what keeps a session's live title,
-   tokens, and context meter honest while a turn is running.
-4. **Sessions are files.** pi writes a session's JSONL when a turn _ends_; the
-   sessions list is a scan of pi's session directory. Phosphor also appends to those
-   files for bookmarks, branch jumps and forks — which is only safe while no pi
-   process owns the file, and call sites enforce that by convention.
-5. **Six extensions run inside pi's process** (`pi-ext/`, loaded with `-e`
-   into every session): `artifacts`, `context-breakdown`, `headroom`,
-   `mcp-status`, `tool-name-guard`, `worktree-paths`. Two of them can change or refuse what
-   the model did — read
-   [docs/extensions.md](docs/extensions.md) first.
-6. **Failure is reported, not hidden.** Failures surface on the session's chat;
-   main-process detail goes to `phosphor.log`. When diagnosing a bad session,
+   `IpcInvokeMap`, a handler in the matching `electron/ipc/<prefix>-handlers.ts`,
+   and a case in `src/dev/mockPhosphor.ts`.
+3. **Stores (`src/stores/`) are projections of main-process state**, not a
+   second source of truth. The chat store keeps a session's live title, tokens
+   and context meter honest while a turn runs.
+4. **Sessions are files.** pi writes a session's JSONL when a turn _ends_. The
+   sessions list is a scan of pi's session directory. Phosphor appends to those
+   files for bookmarks, branch jumps and forks, which is only safe while no pi
+   process owns the file.
+5. **Six extensions run inside pi's process** (`pi-ext/`, loaded with `-e` into
+   every session): `artifacts`, `context-breakdown`, `headroom`, `mcp-status`,
+   `tool-name-guard`, `worktree-paths`. Two of them can change or refuse what
+   the model did: [docs/extensions.md](docs/extensions.md).
+6. **Failure is reported, not hidden.** Failures land on the session's chat;
+   main-process detail goes to `phosphor.log`. For a bad session,
    [CLAUDE.md](CLAUDE.md#debugging-a-failing-session) has the three layers of
    evidence and the one command that decides Phosphor-vs-pi.
 
 ## Development
 
-Requires Node 22+ (pi itself requires Node ≥ 22.19) and `pi` on PATH for
-`npm run dev`.
+Requires Node 22+ (pi itself needs ≥ 22.19) and `pi` on PATH for `npm run dev`.
 
 ```bash
 npm install
@@ -303,41 +293,37 @@ npm run dev
 Tests live beside their subject as `*.test.ts`, in `electron/`, `shared/` and
 `pi-ext/` included.
 
-**Conventions** (IPC channels, the `piCall` rule, modals, and the sharp edges
-worth knowing before you touch pi's session files) live in
-[CLAUDE.md](CLAUDE.md). It is written for coding agents, but it is the shortest
-accurate orientation for a human too.
+Conventions (IPC channels, the `piCall` rule, modals, and the sharp edges worth
+knowing before touching pi's session files) are in [CLAUDE.md](CLAUDE.md). It
+is written for coding agents and is the shortest accurate orientation for a
+human too.
 
 ### The screenshots in this README
 
-They are captures of the app running against a **real pi instance** — the
-developer's own `~/.pi`, real signed-in providers, a real repo as the
-workspace, and two genuinely metered model turns:
+They are captures of the app against a **real pi instance**: the developer's
+own `~/.pi`, real signed-in providers, a real repo, two metered model turns.
 
 ```bash
 npm run build && npm run shots:live
 ```
 
-The live runner (`scripts/capture-live-shots.mjs`) isolates app prefs (so it
-never fights an installed Phosphor) but deliberately not pi: it runs one small
-edit task in a disposable git worktree and one artifact task, then shoots the
-transcript, panes, menus and popovers those turns produced. It spends real
-tokens and leaves the two sessions and the worktree behind — that is the
-point; delete them like any other session. `ONLY=models,context` re-shoots a
-subset, `WORKSPACE=… TASK1=… MODEL2=…` re-aim it.
+The live runner (`scripts/capture-live-shots.mjs`) isolates app prefs but not
+pi. It runs one small edit task in a disposable worktree and one artifact task,
+then shoots the transcript, panes, menus and popovers. It spends real tokens
+and leaves the sessions and worktree behind; delete them like any other
+session. `ONLY=models,context` re-shoots a subset; `WORKSPACE=… TASK1=…
+MODEL2=…` re-aim it.
 
-There is also a deterministic runner, `npm run shots`
-(`scripts/capture-readme-shots.mjs`): same capture mechanics, but a scratch
-workspace and the CI e2e suite's `pi` stub — no key, no network, model chip
-reads _Stub Model_. Use it to verify UI changes reproducibly; use the live
-one to regenerate what this README shows.
+`npm run shots` (`scripts/capture-readme-shots.mjs`) is the deterministic
+sibling: same mechanics, scratch workspace, the e2e `pi` stub, no key, no
+network. Use it to verify UI changes; use the live one to regenerate what this
+README shows.
 
 ### Repo layout
 
 This tree is the single source of truth for "what lives where". `CLAUDE.md` and
-[docs/architecture.md](docs/architecture.md) link here
-rather than keeping their own copies — there used to be three, and all three had
-drifted.
+[docs/architecture.md](docs/architecture.md) link here rather than keeping
+copies.
 
 ```
 electron/            main process — owns every side effect
@@ -402,7 +388,7 @@ site/                phosphor.saccolabs.com — the Astro landing page, real
 ```
 
 The main process owns all side effects. The renderer runs with
-`contextIsolation`, no Node integration, and a strict CSP; model-authored HTML
+`contextIsolation`, no Node integration, and a strict CSP. Model-authored HTML
 only ever renders inside a sandboxed iframe.
 
 ## Documentation map
@@ -416,25 +402,17 @@ only ever renders inside a sandboxed iframe.
 | [docs/architecture.md](docs/architecture.md)     | Process model, IPC design, cross-cutting requirements     |
 | [docs/pi-integration.md](docs/pi-integration.md) | pi's RPC protocol and session format                      |
 
-`docs/` holds living technical docs — every file describes shipped behaviour,
-and a doc is part of the diff that changes its behaviour, not a follow-up.
-There is no dated log and no spec folder: history is the git log, and a doc
-kept as history is a doc someone will read as current. The one file that
-records what is _wrong_ rather than how something works is
-[docs/known-issues.md](docs/known-issues.md); a row leaves it in the same diff
-that fixes the code.
-
-Drift is this repo's recurring failure mode, and it is expensive. The style
-guide described a warm "bone paper" light theme for 19 days after a QoL commit
-had re-based every light neutral to a cool grey ramp — 11 of 22 tokens, and
-four satellite copies (xterm, Monaco, Mermaid, Chart) kept rendering warm
-inside a cool app before anyone noticed the doc and the CSS disagreed.
+`docs/` describes shipped behaviour, present tense. A doc is part of the diff
+that changes its behaviour, not a follow-up. There is no dated log and no spec
+folder; git is the history. The one file that records what is _wrong_ rather
+than how something works is [docs/known-issues.md](docs/known-issues.md), and a
+row leaves it in the same diff that fixes the code.
 
 ## Contributing
 
-Issues and PRs are welcome. Run `npm run validate` before opening a PR, and if
-your change moves behaviour a `docs/` file describes, update that file in the
-same diff — a doc corrected in a follow-up is a doc that ships wrong.
+Issues and PRs are welcome. Run `npm run validate` before opening a PR. If your
+change moves behaviour a `docs/` file describes, update that file in the same
+diff.
 
 ## License
 

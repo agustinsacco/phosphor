@@ -24,8 +24,8 @@ import {
       </p>
       <h1 id="hero-title">Same agent.<br />Your <span>surface.</span></h1>
       <p class="hero-lede">
-        Your models. Your extensions. Your way of working.<br class="desktop-break" /> Phosphor puts the
-        agent, the code and the result in one desktop workspace.
+        Your models. Your subscriptions. Your extensions.<br class="desktop-break" /> The agent, the code
+        and the result in one window.
       </p>
       <div class="hero-actions">
         <a class="action action-primary" href="#install"
@@ -41,7 +41,7 @@ import {
     <EngineDrawing />
     <div class="hero-baseline">
       <span class="mono">BUILT BY ENGINEERS / FOR ENGINEERS</span><p>
-        Not a new agent loop. A place to work with the one you chose.
+        Not another agent loop. A place to work with the one you already chose.
       </p><span aria-hidden="true">↓</span>
     </div>
   </section>
@@ -56,8 +56,8 @@ import {
             Use the plan<br />you already pay for.
           </h2>
         </div><p class="section-intro">
-          Sign in instead of reaching for an API key. Phosphor exposes pi’s account logins and
-          installed providers in the same workspace.
+          Sign in. Don’t paste keys. Every account login pi can drive is a button in Settings, next
+          to every provider you have installed.
         </p>
       </div>
       <div class="subscription-grid">
@@ -82,10 +82,10 @@ import {
         }
       </div>
       <p class="fineprint">
-        Your provider’s plan limits and billing rules still apply. Claude subscription sessions use <code
-          >@saccolabs/pi-claude-cli</code
-        >, not native Anthropic OAuth. <a class="text-link" href={doc('settings.md#accounts')}
-          >Sign-in routes ↗</a
+        Plan limits and billing are your provider’s, not ours. Claude subscription sessions run
+        through <code>@saccolabs/pi-claude-cli</code>, not native Anthropic OAuth. <a
+          class="text-link"
+          href={doc('settings.md#accounts')}>Sign-in routes ↗</a
         >
       </p>
       <div class="model-detail split">
@@ -93,12 +93,12 @@ import {
           <p class="eyebrow">Not tied to one provider</p><h3 class="subheading">
             Pick the model<br />for the next turn.
           </h3><p>
-            Search the models you have access to. Star the ones you use. Switch mid-session and
-            carry the conversation with you. Thinking levels appear when the model supports them.
+            Search what you have access to. Star what you use. Switch mid-session and the
+            conversation comes with you. Thinking levels appear when the model has them.
           </p><p>
-            API keys and custom or local endpoints work too. What is available depends on your pi
-            install, credentials and provider packages.
-          </p><a class="text-link" href={doc('chat.md#session-header--status-strip-per-session')}
+            API keys and custom or local endpoints work too. The list is whatever your pi install
+            can reach.
+          </p><a class="text-link" href={doc('chat.md#session-controls-per-session')}
             >Model controls ↗</a
           >
         </div>
@@ -139,8 +139,8 @@ import {
             Know what’s connected.<br />Know what it costs.
           </h2>
         </div><p class="section-intro">
-          An account can run out. A tool schema takes space. A long conversation fills the window.
-          Those should be visible facts, not surprises.
+          Accounts run out. Tool schemas take space. Long conversations fill the window. All three
+          are facts on screen, not surprises at the end of a turn.
         </p>
       </div>
       <div class="gateway-grid">
@@ -148,28 +148,28 @@ import {
           <div class="gateway-heading">
             <span class="mono">A / ACCOUNT</span><span aria-hidden="true">↳</span>
           </div><h3>Which account<br />is this lane using?</h3><p>
-            Keep several Claude logins. Pick one, route in order or round-robin new sessions. Open
-            an account to see its usage windows and the sessions spending it.
+            Keep several Claude logins. Send new sessions to one, in order, or round-robin. Open an
+            account to see its usage windows and which sessions are spending it.
           </p><div class="account-route" aria-label="Diagram of Claude account routing">
             <span>New session</span><i>↓</i><strong>Account routing</strong><div>
               <span>Specific</span><span>Ordered</span><span>Round-robin</span>
             </div>
           </div><p class="gateway-caveat">
-            Running sessions keep their account. Moving one to another account restarts it from its
-            saved session; the next turn re-reads the thread.
+            A running session keeps its account. Moving it respawns from the saved session, and the
+            next turn re-reads the thread.
           </p><a class="text-link" href={doc('settings.md#accounts')}>Account gateway ↗</a>
         </article>
         <article class="gateway">
           <div class="gateway-heading">
             <span class="mono">M / MCP</span><span aria-hidden="true">↳</span>
           </div><h3>Connect tools.<br />Load detail on demand.</h3><p>
-            The MCP gateway exposes a proxy per server. The agent discovers tool details when it
-            needs them, rather than carrying every schema in every request.
+            One proxy tool per server. The agent fetches a tool’s schema when it needs it, instead
+            of carrying every schema in every request.
           </p><div class="mcp-route" aria-label="Diagram of MCP discovery">
             <span>pi</span><b>→</b><span>MCP gateway</span><b>→</b><span>Server tools</span>
           </div><p class="gateway-caveat">
-            Direct tools are an explicit exception. MCP OAuth and credential storage belong to the
-            adapter, not Phosphor.
+            Direct tools opt out of that, and pay for it. OAuth and tokens live in the adapter,
+            never in Phosphor.
           </p><a
             class="text-link"
             href={doc('mcp.md#the-claude-provider-reaches-mcp-through-pi-not-around-it')}
@@ -180,14 +180,14 @@ import {
           <div class="gateway-heading">
             <span class="mono">C / CONTEXT</span><span aria-hidden="true">↳</span>
           </div><h3>Full of what,<br />exactly?</h3><p>
-            Open the live meter for messages, system prompt, tools and MCP schemas, alongside token
-            and cache counts and reported cost.
+            Open the meter: messages, system prompt, tools and MCP schemas, with token, cache and
+            cost counts beside them.
           </p><div class="context-key">
             <span>pi’s total <b>Authoritative</b></span><span>Component sizes <b>Estimated</b></span
             ><span>Provider overhead <b>Unmeasured</b></span>
           </div><p class="gateway-caveat">
-            Claude sessions add their own account’s usage windows and reported plan limits. Missing
-            telemetry is not shown as zero.
+            Claude sessions add the account’s usage windows and plan limits. Missing telemetry shows
+            as missing, never as zero.
           </p><a class="text-link" href={doc('chat.md#what-the-context-meters-popover-shows')}
             >Read the context meter ↗</a
           >
@@ -202,13 +202,12 @@ import {
           <p class="eyebrow">Tools from your actual stack</p><h3 class="subheading">
             Your services.<br />In the same session.
           </h3><p>
-            Mount a curated connector or add a custom URL or command-based MCP server. Inspect its
-            configuration, sign in, reconnect and test it without a model call.
+            Mount a curated connector, or add any MCP server by URL or command. Inspect it, sign in,
+            reconnect and test it. No model runs, so no tokens are spent.
           </p><ul class="connector-list">{connectors.map((name) => <li>{name}</li>)}</ul><p
             class="fineprint"
           >
-            Some services need extra setup. Slack, for example, requires your own registered app and
-            appropriate scopes.
+            Some services want more from you. Slack needs your own registered app and its scopes.
           </p><a class="text-link" href={doc('mcp.md')}>Connector setup and permissions ↗</a>
         </div>
       </div>
@@ -232,8 +231,8 @@ import {
             >
           </h2>
         </div><p class="section-intro">
-          A lane keeps a session, its worktree, branch and PR status together. Each live session
-          runs its own pi process. None is pretending to manage the others.
+          A lane is a session, its branch, its worktree and its PR on one row. Every live session is
+          its own pi process. None of them manages the others.
         </p>
       </div>
       <div
@@ -252,25 +251,25 @@ import {
       <div class="numbered-notes">
         <article>
           <span>01</span><h3>Start in a separate checkout.</h3><p>
-            New tasks can get a worktree and branch by default. Pick a branch prefix, let the first
-            task name the lane, or work on the main checkout deliberately.
+            A new task gets a worktree and a branch off the remote trunk by default. Pick a prefix,
+            let the first turn name it, or work in the main checkout on purpose.
           </p>
         </article><article>
           <span>02</span><h3>See the next action.</h3><p>
-            The home board groups lanes by what they need: waiting on you, ready to merge, needs a
-            push, in review or running. The ledger adds spend, tokens and live processes.
+            Home groups lanes by what they need: waiting on you, ready to merge, needs a push, in
+            review, running. The ledger shows spend, tokens and live processes.
           </p>
         </article><article>
-          <span>03</span><h3>Keep Git state in sight.</h3><p>
-            Search by title, branch or PR. Inspect checks and review state. Update from trunk and
-            use the guided local merge flow when the work is ready.
+          <span>03</span><h3>Keep Git in sight.</h3><p>
+            Search by title, branch or PR. See checks and review state. Update from trunk, then
+            merge locally when it is ready.
           </p>
         </article>
       </div>
       <p class="fineprint">
-        The board derives from existing state; no model runs to organize it. PR badges use <code
+        The board is drawn from state you already have. No model runs to organize it. PR badges read <code
           >gh</code
-        > read-only. The merge flow is local, not a GitHub PR merge. <a
+        > and never write. The merge is local, not a GitHub merge. <a
           class="text-link"
           href={doc('lanes.md')}>Lane behavior ↗</a
         >
@@ -287,8 +286,8 @@ import {
             Read the work.<br />Not just the answer.
           </h2>
         </div><p class="section-intro">
-          Text streams into the conversation. Thinking has its own block. Tool calls become steps
-          you can open. An edit leads to a diff, not a reassuring sentence.
+          Text streams in. Thinking gets its own block. Tool calls become steps you can open. An
+          edit shows its diff, not a sentence saying it went fine.
         </p>
       </div>
       <div class="split transcript-split">
@@ -299,17 +298,17 @@ import {
         /><div class="copy-column">
           <h3 class="subheading">A transcript you<br />can inspect.</h3><ul class="feature-lines">
             <li>
-              <strong>Open the activity.</strong> Inspect tool arguments and output. Claude-native tool
-              markers identify calls but do not expose their result bodies.
+              <strong>Open the activity.</strong> Arguments, output, exit codes. Tools Claude Code ran
+              itself show up as steps too, with what came back.
             </li><li>
-              <strong>Review what changed.</strong> Per-file diffs compare against the session baseline.
-              Revert a file from Changes.
+              <strong>Review what changed.</strong> Per-file diffs against the session baseline. Revert
+              a file from Changes.
             </li><li>
-              <strong>Read rich output.</strong> Tables, syntax-highlighted code, Mermaid, charts and
-              KaTeX render as content.
+              <strong>Read rich output.</strong> Tables, highlighted code, Mermaid, charts and KaTeX render
+              as content.
             </li><li>
-              <strong>Keep your place.</strong> Read back while the agent works; jump to the tail when
-              you are ready.
+              <strong>Keep your place.</strong> Scroll back while it works. Jump to the tail when you
+              are ready.
             </li>
           </ul><a class="text-link" href={doc('chat.md')}>Transcript behavior ↗</a>
         </div>
@@ -319,8 +318,8 @@ import {
           <p class="eyebrow">A small input. Several ways in.</p><h3>
             Keep working while it works.
           </h3><p>
-            Enter steers a running turn. A follow-up waits until the agent finishes. The two queues
-            stay distinct, and drafts survive session switches and restarts.
+            Enter steers the running turn. A follow-up waits for it to finish. Two queues, kept
+            apart. Drafts survive session switches and restarts.
           </p>
         </div><dl>
           <div><dt><code>@</code></dt><dd>Mention a workspace file</dd></div><div>
@@ -354,8 +353,8 @@ import {
         <div><p class="eyebrow">06 / The rest of the desk</p><h2>Use your hands, too.</h2></div><p
           class="section-intro"
         >
-          The agent is not the only one who can edit a file or run a command. The tools next to the
-          conversation are real tools.
+          The agent is not the only one allowed to edit a file or run a command. The tools beside
+          the conversation are real tools.
         </p>
       </div>
       <div class="workbench-grid">
@@ -367,9 +366,8 @@ import {
             alt="Workspace explorer and Monaco editor docked to the right of the transcript."
             caption="Explorer + editor tabs"
           /><h3>Open. Read. Edit. Save.</h3><p>
-            Create, rename, move, copy and import files or folders. Use multi-selection and
-            drag-and-drop. Monaco gives you tabs, syntax highlighting, dirty indicators and a
-            conflict bar when an external change meets unsaved work.
+            Create, rename, move, copy and import. Multi-select and drag. Monaco tabs, dirty
+            markers, and a conflict bar when an outside change meets unsaved work.
           </p><a class="text-link" href={doc('files.md')}>Files and editor details ↗</a>
         </article><article>
           <div class="tool-title">
@@ -378,10 +376,9 @@ import {
             image={shot('terminal')}
             alt="A real terminal tab open beside the Phosphor conversation in the workspace."
             caption="Your shell, next to the session"
-          /><h3>Run the command yourself.</h3><p>
-            Real shell tabs with search, clipboard and scrollback. The terminal is separate from the
-            agent’s bash activity. “Run in terminal” pastes a command; you decide when to execute
-            it.
+          /><h3>Run it yourself.</h3><p>
+            Real shell tabs with search, clipboard and scrollback, separate from the agent’s bash.
+            “Run in terminal” pastes the command. You press Enter.
           </p><a class="text-link" href={doc('terminal.md')}>Terminal behavior ↗</a>
         </article>
       </div>
@@ -401,8 +398,8 @@ import {
         <div>
           <p class="eyebrow">07 / Artifacts</p><h2>The result deserves<br />its own surface.</h2>
         </div><p class="section-intro">
-          A plan, a diagram or an interactive page should not disappear into chat history. Artifacts
-          give substantial deliverables a versioned side panel.
+          A plan, a diagram or an interactive page should not scroll away into chat history.
+          Artifacts give deliverables a versioned pane of their own.
         </p>
       </div>
       <Capture
@@ -415,14 +412,13 @@ import {
           <span>v1 <small>Create</small></span><b>→</b><span>v2 <small>Edit</small></span><b>↔</b
           ><span>Diff <small>Compare</small></span>
         </div><p>
-          Preview HTML, Markdown, SVG, Mermaid, code and chart documents. Compare revisions. Reopen
-          the session to recover them. The global Artifacts page indexes artifacts from open
-          sessions.
+          HTML, Markdown, SVG, Mermaid, code and charts. Diff any two versions. Reopen the session
+          and they are back. The Artifacts page indexes every open session.
         </p>
       </div>
       <p class="fineprint">
-        Model-authored HTML runs in an opaque-origin sandbox with no network access. This protects
-        the app from the document; it does not sandbox agent tools. <a
+        Model-authored HTML runs on an opaque origin with no network. That protects the app from the
+        document. It does not sandbox the agent’s tools. <a
           class="text-link"
           href={doc('extensions.md#the-artifact-tools-and-what-each-one-costs')}
           >Artifact tools and versioning ↗</a
@@ -439,8 +435,8 @@ import {
             The surface is flexible.<br />So is what runs in it.
           </h2>
         </div><p class="section-intro">
-          Install pi packages from npm, Git or a local path. Keep them global or project-specific.
-          Tools, skills, prompts and themes come through the same extension system.
+          Install pi packages from npm, Git or a local path, global or per project. Tools, skills,
+          prompts and themes all arrive through the same system.
         </p>
       </div>
       <div class="extension-layout">
@@ -452,18 +448,16 @@ import {
               ><br />pi + extensions</code
             >
           </div><p>
-            Phosphor talks to pi over RPC; it does not import pi’s implementation. Bundled
-            extensions run inside each session’s pi process.
+            Phosphor talks to pi over RPC and imports none of its code. The bundled extensions run
+            inside each session’s pi process.
           </p><h3>Claude Code can run under pi.</h3><p>
-            The provider extension drives the official Claude Code CLI and brings its stream back
-            into pi’s session. pi supplies project instructions, skills and extension tools; Claude
-            keeps its native tools, authenticated subscription and persistent process. You can use
-            Claude Code’s capabilities without giving up the rest of your pi setup.
+            The provider drives the official Claude Code CLI and streams it back into pi’s session.
+            pi supplies project instructions, skills and extension tools. Claude keeps its native
+            tools, your subscription and one persistent process.
           </p><a class="text-link" href={doc('cli-providers.md#current-claude-integration')}
             >The Claude provider boundary ↗</a
           ><p>
-            Browse and manage skills from their own page. Bring in optional web, MCP or subagent
-            packages when your workflow needs them.
+            Skills get their own page. Web access, MCP and subagent packages are one install away.
           </p><a class="text-link" href={doc('extensions.md')}>Read the extension contract ↗</a>
         </div><div class="extension-ledger">
           <p class="eyebrow">Six extensions ship with Phosphor</p>{
@@ -488,9 +482,8 @@ import {
       </div>
       <aside class="boundary-note">
         <span class="mono">TRUST BOUNDARY</span><p>
-          Agent tools run with your machine’s permissions. Installed extensions can execute code.
-          Use packages and workspaces you trust. Cloud providers and connected services still
-          receive the requests you send them.
+          Tools run with your permissions. Installed packages execute code. Trust what you install.
+          Providers and connected services see whatever you send them.
         </p>
       </aside>
     </div>
@@ -504,25 +497,25 @@ import {
             Real sessions.<br />Room for your habits.
           </h2>
         </div><p class="section-intro">
-          The session is a pi session, not a private format invented for the UI. Phosphor adds the
-          controls to navigate it and a layout that remembers how you work.
+          A session is a pi session file, not a format invented for a UI. Phosphor adds the controls
+          to move through it and a layout that remembers how you work.
         </p>
       </div>
       <div class="session-features">
         <article>
           <span class="mono">HISTORY</span><h3>Take another branch.</h3><p>
-            Inspect the session tree, jump to a point, bookmark it, fork or clone. Export the
+            See the session tree. Jump to a point, bookmark it, fork it or clone it. Export the
             conversation as HTML.
           </p>
         </article><article>
           <span class="mono">CONTINUITY</span><h3>Leave. Come back.</h3><p>
-            Resume saved sessions. Keep independent pane positions and drafts. Background sessions
-            continue streaming while you switch.
+            Resume saved sessions. Panes and drafts stay where you left them. Background sessions
+            keep streaming while you look elsewhere.
           </p>
         </article><article>
           <span class="mono">CONTROL</span><h3>Manage the long run.</h3><p>
-            Steer, queue follow-ups, stop, compact or configure auto-retry. Session files are
-            written when a turn ends, not on every token.
+            Steer, queue follow-ups, stop, compact, auto-retry. Session files are written when a
+            turn ends, not on every token.
           </p>
         </article>
       </div>
@@ -538,8 +531,7 @@ import {
         >
           <div>
             <h3>Dark. Light. Your eyes.</h3><p>
-              Light, dark or system. UI scale, fonts and chat, editor and terminal sizes are yours
-              to set.
+              Light, dark or system. UI scale, fonts, and separate chat, editor and terminal sizes.
             </p>
           </div><div class="theme-controls">
             <label for="theme-dark">Dark</label><label for="theme-light">Light</label>
@@ -574,8 +566,7 @@ import {
           <p class="eyebrow">10 / Run it on your machine</p><h2>
             Open a folder.<br />Give it a task.
           </h2><p class="install-lede">
-            Install pi, then Phosphor. Sign in to a provider in Settings, pick a model and start a
-            session.
+            Install pi, then Phosphor. Sign in, pick a model, open a folder, start a session.
           </p><a class="action action-primary" href={`${releases}/latest`}
             >Download a release <span aria-hidden="true">↗</span></a
           ><p class="fineprint">MIT licensed. Provider subscriptions and API usage are separate.</p>
@@ -589,9 +580,10 @@ import {
               tabindex="0"
               aria-label="Install Phosphor for macOS or Linux"><code>curl -fsSL https://github.com/agustinsacco/Phosphor/releases/latest/download/install.sh | sh</code></pre>
           </div><p>
-            The installer checks the download against the release checksums. Prefer to inspect it
-            first? <a class="text-link" href={`${repo}/blob/main/scripts/install.sh`}
-              >Read install.sh ↗</a
+            The installer verifies the download against the release checksums. Piping to sh is a
+            trust decision, so the script is short and public. <a
+              class="text-link"
+              href={`${repo}/blob/main/scripts/install.sh`}>Read install.sh ↗</a
             >
           </p>
         </div>
@@ -608,7 +600,7 @@ import {
             href={`${releases}/latest`}>Release assets ↗</a
           >
         </article><article>
-          <h3>Windows</h3><p>Installers ship on tagged releases, not every per-merge release.</p><a
+          <h3>Windows</h3><p>Installers ship on tagged releases, not on every merge.</p><a
             class="text-link"
             href={releases}>Find a tagged release ↗</a
           >
@@ -619,25 +611,25 @@ import {
           class="install-details"
         >
           <p>
-            <strong>pi must be on PATH.</strong> Until it is available, Phosphor shows a setup screen.
-            You can also run <code>pi</code> in the built-in terminal and use <code>/login</code>,
-            or configure keys and endpoints in <code>~/.pi/agent/</code>.
+            <strong>pi must be on PATH.</strong> Until it is, Phosphor shows a setup screen with the command.
+            Sign in by running <code>pi</code> in the built-in terminal and using <code>/login</code
+            >, or put keys and endpoints in <code>~/.pi/agent/</code>.
           </p><p>
-            <strong>Claude is a separate provider package.</strong> Subscription sessions require the
-            authenticated Claude Code CLI and <code>@saccolabs/pi-claude-cli</code> ≥ 0.7.1. <a
+            <strong>Claude is a separate package.</strong> Subscription sessions need the signed-in Claude
+            Code CLI and <code>@saccolabs/pi-claude-cli</code> ≥ 0.7.1. <a
               class="text-link"
               href={doc('cli-providers.md')}>Provider setup ↗</a
             >
           </p><p>
-            <strong>Updates depend on the install.</strong> Packaged apps check at launch and every 30
-            minutes. AppImage and eligible macOS installs offer restart-to-update; package-managed or
-            read-only installs link to releases. Finish the current turn before restarting. <a
+            <strong>Updates match the install.</strong> Packaged apps check at launch and every 30 minutes.
+            AppImage and eligible macOS installs restart to update. Package-managed or read-only installs
+            link to the release. Let the current turn finish first. <a
               class="text-link"
               href={doc('updates.md')}>Update paths ↗</a
             >
           </p><p>
-            <strong>A coding workspace, not a cloud service.</strong> No cloud sync or orchestration agent.
-            Monaco is an editor, not a promise of external language servers or a debugger. <a
+            <strong>A coding workspace, not a cloud service.</strong> No sync, no orchestrator agent.
+            Monaco is an editor, not a language server or a debugger. <a
               class="text-link"
               href={doc('overview.md')}>Product scope ↗</a
             >
@@ -647,7 +639,7 @@ import {
       <details id="feature-index" class="disclosure feature-index">
         <summary>The feature map, with sources <span>+</span></summary><p class="fineprint">
           Current behavior is documented under <code>docs/</code>. The layout studies above
-          illustrate that behavior; they do not add app features.
+          illustrate it; they do not add features.
         </p><div class="feature-map">
           {
             featureIndex.map(([name, path, description]) => (
