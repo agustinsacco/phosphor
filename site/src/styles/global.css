@@ -275,7 +275,7 @@ strong {
   grid-template-columns: 1.4fr 1fr;
   align-items: center;
   column-gap: 3.5rem;
-  padding-top: 6rem;
+  padding-top: 2rem;
 }
 .hero-copy {
   position: relative;
@@ -1682,13 +1682,13 @@ h1 span {
 
 @media (min-width: 1600px) {
   .hero {
-    padding-top: 7rem;
+    padding-top: 3rem;
   }
 }
 @media (max-width: 1100px) {
   .hero {
     column-gap: 2rem;
-    padding-top: 4rem;
+    padding-top: 1.75rem;
   }
   h1 {
     font-size: clamp(var(--text-5xl), 8vw, 90px);
@@ -1906,7 +1906,7 @@ h1 span {
     font-size: var(--text-xs);
   }
   .hero {
-    padding-top: 3rem;
+    padding-top: 1.5rem;
   }
   .hero .eyebrow {
     font-size: var(--text-2xs);
