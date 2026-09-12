@@ -45,15 +45,16 @@ export interface SessionDebugSource {
 }
 
 /**
- * pi mangles a cwd to `--home-user-project--`: segments joined by dashes,
- * wrapped in double dashes. Mirrors `electron/pi/pi-paths.ts`, which is the
- * source of truth on the main side; this is the renderer's read-only copy for
- * display, so it deliberately does not resolve symlinks (it has no fs access
- * and the value is a pointer for a human, not a lookup key).
+ * pi mangles a cwd to `--home-user-project--`: one leading separator dropped,
+ * then every `/`, `\\` and `:` becomes a dash, wrapped in double dashes — so
+ * `C:\\Users\\dev\\proj` is `--C--Users-dev-proj--`. Mirrors
+ * `electron/pi/pi-paths.ts`, which is the source of truth on the main side;
+ * this is the renderer's read-only copy for display, so it deliberately does
+ * not resolve symlinks (it has no fs access and the value is a pointer for a
+ * human, not a lookup key).
  */
 export function piSessionDirName(cwd: string): string {
-  const segments = cwd.split(/[/\\]/).filter(Boolean)
-  return `--${segments.join('-')}--`
+  return `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`
 }
 
 /**

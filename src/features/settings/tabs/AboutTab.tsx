@@ -1,7 +1,7 @@
 import { Button, Row, SectionTitle } from '@/components/form'
 import { PhosphorLockup } from '@/components/PhosphorMark'
 import type { AboutInfo } from '@shared/models'
-import type { PiHealth, UpdateState } from '@shared/models'
+import { piInstallLocation, type PiHealth, type UpdateState } from '@shared/models'
 import { useEffect, useState } from 'react'
 import { useUpdatesStore } from '@/features/updates/updatesStore'
 import { VERIFIED_PI_LINE, isPiNewerThanVerified } from '@/lib/piDrift'
@@ -91,7 +91,7 @@ export function AboutTab(): React.JSX.Element {
           </Button>
         )}
       </Row>
-      <Row title="pi version" description={health?.binaryPath}>
+      <Row title="pi version" description={health ? piInstallLocation(health) : undefined}>
         <span className="font-mono text-base">
           {health?.version ?? (health ? 'not found' : '…')}
         </span>

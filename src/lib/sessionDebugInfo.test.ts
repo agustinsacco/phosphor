@@ -39,7 +39,8 @@ describe('directory mangling', () => {
   })
 
   it('handles windows separators', () => {
-    expect(piSessionDirName('C:\\Users\\dev\\proj')).toBe('--C:-Users-dev-proj--')
+    // pi dashes the drive colon too: `C:` → `C-`, then the separator → `C--`.
+    expect(piSessionDirName('C:\\Users\\dev\\proj')).toBe('--C--Users-dev-proj--')
     expect(claudeProjectDirName('C:\\Users\\dev\\proj')).toBe('C--Users-dev-proj')
   })
 })

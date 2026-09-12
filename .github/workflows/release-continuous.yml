@@ -90,7 +90,7 @@ jobs:
           echo "should_release=true" >> "$GITHUB_OUTPUT"
           echo "::notice::Publishing ${TAG}."
 
-      # The macOS and Linux `build` jobs below both run
+      # The macOS, Linux and Windows `build` jobs below all run
       # `electron-builder --publish always` in parallel, and each
       # independently asks GitHub "does a release for this tag exist yet? if
       # not, create it" before uploading. When both land on "not yet" at the
@@ -104,7 +104,7 @@ jobs:
       # sequentially, before either matrix job starts, means every later
       # "does it exist" check from either platform's electron-builder answers
       # "yes" and goes straight to uploading — which each already does
-      # correctly and without clobbering the other's files.
+      # correctly and without clobbering the others' files.
       #
       # Uses the same `gh release create` → `POST .../releases` endpoint
       # electron-builder's own publisher calls, so this is not a different
@@ -151,6 +151,11 @@ jobs:
           - os: ubuntu-latest
             name: Linux
             args: --linux
+          - os: windows-latest
+            name: Windows
+            # NSIS x64 installer + latest.yml. Unsigned unless WIN_CERT_PFX is
+            # configured; see the signing block below.
+            args: --win
     steps:
       - uses: actions/checkout@v4
         with:
@@ -179,6 +184,9 @@ jobs:
       # manifests electron-updater polls) and the .blockmap files that make
       # updates differential instead of a full ~100MB re-download.
       - name: Package and publish
+        # The Windows runner's default shell is PowerShell; everything below is
+        # bash (arrays, `set -u`, `[ ]`), so pin it on every platform.
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Signing/notarization run only when the secrets exist; unsigned
@@ -189,6 +197,10 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Windows Authenticode, when a certificate exists. Separate secrets
+          # from the Mac ones on purpose — see the Windows block below.
+          WIN_CSC_LINK: ${{ secrets.WIN_CERT_PFX }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
         run: |
           set -euo pipefail
           SIGNED=false
@@ -199,6 +211,19 @@ jobs:
             # AppImage self-updates without any signing requirement.
             SIGNED=true
           fi
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            # electron-builder's Windows signer reads WIN_CSC_LINK and FALLS
+            # BACK to CSC_LINK, so the Mac .p12 above must never reach this
+            # runner: it would try to Authenticode-sign the installer with an
+            # Apple certificate and fail the build.
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+            # NSIS installs self-update signed or not: electron-updater only
+            # verifies the downloaded installer's signature when the running
+            # app has a publisherName to compare against, which an unsigned
+            # build does not. SmartScreen's "unknown publisher" interstitial
+            # is the only cost of shipping unsigned here.
+            SIGNED=true
+          fi
           # An EMPTY CSC_LINK is worse than an absent one: electron-builder reads
           # it as a certificate PATH, resolves it to the project dir, and dies
           # with "<projectDir> not a file". Missing secrets arrive as empty
@@ -206,6 +231,9 @@ jobs:
           if [ -z "${CSC_LINK:-}" ]; then
             unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
             export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          if [ -z "${WIN_CSC_LINK:-}" ]; then
+            unset WIN_CSC_LINK WIN_CSC_KEY_PASSWORD
           fi
           # `hardenedRuntime` is false in electron-builder.yml because it cannot
           # be satisfied by the ad-hoc signature scripts/adhoc-sign-mac.mjs
@@ -253,6 +281,24 @@ jobs:
             echo "   signature verified"
           done
           [ "$FOUND" -eq 1 ] || { echo "::error::no packaged .app found to verify"; exit 1; }
+
+      # The installer must exist under the exact name install docs, checksums
+      # and the finalize job's asset check use, and latest.yml — the manifest
+      # electron-updater polls on Windows — must name the same file. A publish
+      # that uploaded one without the other would leave every Windows install
+      # unable to self-update, silently.
+      - name: Verify the Windows installer
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.guard.outputs.version }}"
+          EXE="release/Phosphor-${VERSION}-x64.exe"
+          [ -f "$EXE" ] || { echo "::error::${EXE} was not produced"; ls release; exit 1; }
+          [ -f "release/latest.yml" ] || { echo "::error::release/latest.yml was not produced"; exit 1; }
+          grep -q "^version: ${VERSION}$" release/latest.yml || { echo "::error::latest.yml does not carry ${VERSION}"; cat release/latest.yml; exit 1; }
+          grep -q "Phosphor-${VERSION}-x64.exe" release/latest.yml || { echo "::error::latest.yml does not reference ${EXE}"; cat release/latest.yml; exit 1; }
+          echo "   $(du -h "$EXE" | cut -f1) installer, manifest names it"
 
   finalize:
     name: Attach installer script and notes
@@ -313,10 +359,12 @@ jobs:
             "Phosphor-${VERSION}-x86_64.AppImage" \
             "Phosphor-${VERSION}-arm64.AppImage" \
             "Phosphor-${VERSION}-x64.dmg" \
-            "Phosphor-${VERSION}-arm64.dmg"; do
+            "Phosphor-${VERSION}-arm64.dmg" \
+            "Phosphor-${VERSION}-x64.exe"; do
             case "$EXPECTED" in
               *.dmg) grep -q "\.dmg$" <<<"$AVAILABLE" || continue ;;   # mac did not build
               *.AppImage) grep -q "\.AppImage$" <<<"$AVAILABLE" || continue ;;
+              *.exe) grep -q "\.exe$" <<<"$AVAILABLE" || continue ;;   # windows did not build
             esac
             if ! grep -qx "$EXPECTED" <<<"$AVAILABLE"; then
               echo "::error::install.sh would request ${EXPECTED}, which this release does not contain."
@@ -342,6 +390,7 @@ jobs:
         run: |
           set -euo pipefail
           SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
+          VERSION="${{ needs.guard.outputs.version }}"
           NOTES=$(printf '%s\n' \
             "Automatic release from \`main\` @ \`${SHA:0:7}\`." \
             "" \
@@ -354,6 +403,8 @@ jobs:
             '```' \
             "" \
             "This replaces an existing install in place." \
+            "" \
+            "Windows: run \`Phosphor-${VERSION}-x64.exe\` below. The installer is not code-signed, so SmartScreen shows \"unknown publisher\" — choose **More info → Run anyway**. It installs per user and updates itself from then on." \
             "" \
             "Already running Phosphor? It will offer to update itself." \
             "" \

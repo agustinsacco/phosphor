@@ -75,7 +75,9 @@ export function registerMcpHandlers(): void {
 
     // Resolved here rather than inside the flow so the flow module stays
     // spawn-agnostic and testable against a fake pi.
-    const binaryPath = stub ? process.execPath : (await checkPiHealth()).binaryPath
+    const health = stub ? null : await checkPiHealth()
+    const binaryPath = stub ? process.execPath : health?.binaryPath
+    const prefixArgs = stub ? [stub] : health?.prefixArgs
     if (!binaryPath) {
       emit({ phase: 'failed', message: 'pi is not available.' })
       return
@@ -88,7 +90,7 @@ export function registerMcpHandlers(): void {
       serverName,
       cwd: workspacePath ?? homedir(),
       binaryPath,
-      ...(stub ? { prefixArgs: [stub] } : {}),
+      ...(prefixArgs ? { prefixArgs } : {}),
       env: stub ? { ELECTRON_RUN_AS_NODE: '1' } : await piProcessEnv(),
       onState: emit,
       openUrl: openAuthPage,
@@ -103,7 +105,9 @@ export function registerMcpHandlers(): void {
 
   handle('mcp:checkServer', async (_event, serverName, workspacePath) => {
     const stub = piStubPath()
-    const binaryPath = stub ? process.execPath : (await checkPiHealth()).binaryPath
+    const health = stub ? null : await checkPiHealth()
+    const binaryPath = stub ? process.execPath : health?.binaryPath
+    const prefixArgs = stub ? [stub] : health?.prefixArgs
     if (!binaryPath) {
       return { serverName, outcome: 'unknown' as const, detail: 'pi is not available.' }
     }
@@ -114,7 +118,7 @@ export function registerMcpHandlers(): void {
       serverName,
       cwd: workspacePath ?? homedir(),
       binaryPath,
-      ...(stub ? { prefixArgs: [stub] } : {}),
+      ...(prefixArgs ? { prefixArgs } : {}),
       env: stub ? { ELECTRON_RUN_AS_NODE: '1' } : await piProcessEnv(),
     })
   })

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { Button, Row, SectionTitle } from '@/components/form'
-import type { PiHealth } from '@shared/models'
+import { piInstallLocation, type PiHealth } from '@shared/models'
 import type { PiResources } from '@shared/models'
 import { ConfigFileEditor, piConfigFile } from '../ConfigFileEditor'
 import { MaintenanceSection } from './MaintenanceSection'
@@ -26,7 +26,7 @@ export function AdvancedTab(): React.JSX.Element {
         title="pi health"
         description={
           health
-            ? `${health.binaryPath ?? 'not found'} — minimum supported ${health.minVersion}`
+            ? `${piInstallLocation(health) ?? 'not found'} — minimum supported ${health.minVersion}`
             : 'checking…'
         }
       >

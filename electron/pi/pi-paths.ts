@@ -44,10 +44,20 @@ export function webSearchConfigPath(): string {
   return join(homedir(), '.pi', 'web-search.json')
 }
 
-/** `/Users/x/proj` → `--Users-x-proj--` (verified against real dirs). */
+/**
+ * `/Users/x/proj` → `--Users-x-proj--`; `C:\\Users\\x\\proj` → `--C--Users-x-proj--`.
+ *
+ * Transcribed from pi's own `getDefaultSessionDirPath` (session-manager.js,
+ * verified at 0.85.1): strip ONE leading separator, then every `/`, `\\` and
+ * `:` becomes a dash. The colon rule is what makes the Windows form — the
+ * drive's `:` turns into a dash of its own, so `C:\\` yields `C--`. A
+ * segments-split-and-join, which this used to be, produced `--C:-Users-…--`
+ * on Windows: a directory pi never writes, so the sidebar listed no sessions.
+ * The e2e stub duplicates this rule (`e2e/fixtures/pi-stub.cjs`); keep both
+ * in step.
+ */
 export function sessionDirNameForCwd(cwd: string): string {
-  const segments = cwd.split(/[/\\]/).filter(Boolean)
-  return `--${segments.join('-')}--`
+  return `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`
 }
 
 /**

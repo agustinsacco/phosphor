@@ -1,7 +1,7 @@
 import { homedir } from 'node:os'
 import { stripAnsi } from '@shared/ansi'
 import type { LoginFlowState, LoginProviderId } from '@shared/models'
-import { checkPiHealth } from './health'
+import { checkPiHealth, piArgs } from './health'
 import { piProcessEnv } from './shell-env'
 import { ptyManager } from '../pty/pty-manager'
 import { type AuthCheck, checkProviderAuth } from './auth-status'
@@ -285,7 +285,7 @@ export async function startLogin(
   // split it across three lines. Wider than any URL is the fix.
   const { ptyId } = ptyManager.create(homedir(), TERMINAL_COLS, 40, undefined, {
     file: health.binaryPath,
-    args: ['--no-session'],
+    args: piArgs(health, ['--no-session']),
     env: await piProcessEnv(),
   })
 

@@ -35,8 +35,10 @@ import {
  * Three paths, chosen at startup rather than by waiting for a failure:
  *
  *  - **`electron-updater`** where the platform can install for itself: a
- *    signed macOS build, or a Linux AppImage (which self-updates with no
- *    signing requirement at all).
+ *    signed macOS build, a Linux AppImage (which self-updates with no
+ *    signing requirement at all), or the Windows NSIS install (per-user, and
+ *    electron-updater only checks the downloaded installer's signature when
+ *    the running app has a publisherName — an unsigned build has none).
  *  - **macOS self-install** for the unsigned builds this repo actually ships.
  *    Squirrel.Mac refuses an ad-hoc signature, so `mac-installer.ts` does the
  *    download-verify-swap-relaunch by hand instead. Same one-click UX.

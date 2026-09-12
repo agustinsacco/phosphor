@@ -29,6 +29,19 @@ describe('sessionDirNameForCwd (pi)', () => {
       '--home-dev-proj-.claude-worktrees-wt--',
     )
   })
+
+  it("dashes the drive colon on Windows — pi's rule, not a segment join", () => {
+    // pi: strip one leading separator, then `/`, `\\` and `:` → `-`. The colon
+    // becomes its own dash, so the drive letter is followed by TWO dashes.
+    // The old segment-join produced `--C:-Users-dev-proj--`, a directory pi
+    // never writes, so a Windows sidebar listed no sessions at all.
+    expect(sessionDirNameForCwd('C:\\Users\\dev\\proj')).toBe('--C--Users-dev-proj--')
+  })
+
+  it('drops exactly one leading separator, as pi does', () => {
+    // A UNC path keeps its second leading backslash as a dash.
+    expect(sessionDirNameForCwd('\\\\server\\share\\proj')).toBe('---server-share-proj--')
+  })
 })
 
 describe('claudeProjectDirName (Claude Code CLI)', () => {

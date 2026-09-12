@@ -132,13 +132,19 @@ const SESSION_NAME =
 const path = require('node:path')
 const fs = require('node:fs')
 const os = require('node:os')
-// pi stores sessions under ~/.pi/agent/sessions/--<cwd with / as ->--/, and
+// pi stores sessions under ~/.pi/agent/sessions/--<mangled cwd>--/, and
 // Phosphor's sidebar scans exactly that path. Writing here (not into the
-// workspace) is what makes the session discoverable, mirroring real pi.
+// workspace) is what makes the session discoverable, mirroring real pi. The
+// mangling is pi's own rule, duplicated from electron/pi/pi-paths.ts
+// (`sessionDirNameForCwd`): one leading separator dropped, then `/`, `\` and
+// `:` each become a dash. Keep the two in step.
 const AGENT_DIR = process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), '.pi', 'agent')
 const SESSION_DIR = path.join(
   process.env.PI_CODING_AGENT_SESSION_DIR || path.join(AGENT_DIR, 'sessions'),
-  `--${fs.realpathSync.native(process.cwd()).split(path.sep).filter(Boolean).join('-')}--`,
+  `--${fs.realpathSync
+    .native(process.cwd())
+    .replace(/^[/\\]/, '')
+    .replace(/[/\\:]/g, '-')}--`,
 )
 const SESSION_FILE = path.join(SESSION_DIR, `2026-01-01T00-00-00-000Z_stub-${process.pid}.jsonl`)
 

@@ -173,6 +173,17 @@ describe('piProcessEnv', () => {
     shellReturns('/usr/bin')
     expect((await piProcessEnv()).SOME_MARKER).toBe('marker-value')
   })
+
+  it('leaves a Windows PATH exactly as inherited', async () => {
+    // Windows has no login shell to merge in, and a `:`-split de-dupe would
+    // shred `C:\\…` entries: `C:\\a;C:\\b` used to come back as `C;\\a;C;\\b`.
+    setPlatform('win32')
+    process.env.PATH = 'C:\\Program Files\\nodejs;C:\\Users\\dev\\AppData\\Roaming\\npm'
+    expect((await piProcessEnv()).PATH).toBe(
+      'C:\\Program Files\\nodejs;C:\\Users\\dev\\AppData\\Roaming\\npm',
+    )
+    expect(execFileMock).not.toHaveBeenCalled()
+  })
 })
 
 /** NUL-delimited `env -0` output from a fixture map. */
