@@ -6,6 +6,7 @@ import { claudeProjectDirForCwd, sessionDirForCwd } from '../pi/pi-paths'
 import { registry } from '../registry'
 import { handle } from './handle'
 import { stageArtifactHtml } from '../artifacts/artifact-protocol'
+import { exportArtifactPdf } from '../artifacts/artifact-pdf'
 import { applyThemeSource, applyTitleBarOverlay, applyZoom } from '../window-chrome'
 import { debugLogPath } from '../debug-log'
 import { externalUrl } from '../external-links'
@@ -93,136 +94,7 @@ export function registerAppHandlers(): void {
 
   handle('artifacts:stageHtml', (_event, html, theme) => stageArtifactHtml(html, theme))
 
-  handle(
-    'artifacts:exportPdf',
-    async (
-      _event,
-      payload: {
-        content: string
-        type: string
-        title: string
-        language?: string
-        theme?: 'light' | 'dark'
-      },
-    ) => {
-      const { content, type, title, language, theme = 'dark' } = payload
-      const downloadsDir = app.getPath('downloads')
-      const safeTitle = title.replace(/[^a-z0-9-]/gi, '-').slice(0, 60) || 'artifact'
-      const filePath = join(downloadsDir, `${safeTitle}.pdf`)
-      const skeletonCss = `
-      :root { color-scheme: dark; --art-bg: #0e0d0b; --art-panel: #14120f; --art-panel-2: #191713; --art-line: #2b2621; --art-line-soft: #201d18; --art-ink: #f1ede5; --art-ink-2: #a7a096; --art-ink-3: #6e6961; --art-accent: #f2ab4e; --art-accent-dim: #2a1f10; --art-sans: -apple-system, "Segoe UI", system-ui, sans-serif; --art-mono: ui-monospace, "SF Mono", Menlo, monospace; }
-      @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { color-scheme: light; --art-bg: #f6f5f2; --art-panel: #fff; --art-panel-2: #faf9f6; --art-line: #dedad2; --art-line-soft: #ebe8e1; --art-ink: #15130f; --art-ink-2: #55514a; --art-ink-3: #8b867d; --art-accent: #b26a12; --art-accent-dim: #f7eddc; } }
-      :root[data-theme="light"] { color-scheme: light; --art-bg: #f6f5f2; --art-panel: #fff; --art-panel-2: #faf9f6; --art-line: #dedad2; --art-line-soft: #ebe8e1; --art-ink: #15130f; --art-ink-2: #55514a; --art-ink-3: #8b867d; --art-accent: #b26a12; --art-accent-dim: #f7eddc; }
-      * { box-sizing: border-box; }
-      body { margin: 0; padding: clamp(1.5rem, 4vw, 3rem); background: var(--art-bg); color: var(--art-ink); font-family: var(--art-sans); font-size: 15px; line-height: 1.5; }
-      .wrap { max-width: 62rem; margin: 0 auto; }
-      h1, h2, h3, h4 { margin: 0; font-weight: 650; letter-spacing: -0.015em; }
-      h1 { font-size: clamp(1.8rem, 5vw, 2.6rem); line-height: 1.1; margin-bottom: 0.75rem; }
-      h2 { font-size: 1.2rem; margin-top: 2rem; }
-      h3 { font-size: 1.05rem; margin-top: 1.5rem; }
-      p { margin: 0 0 0.8rem; }
-      a { color: var(--art-accent); text-decoration: none; }
-      a:hover { text-decoration: underline; }
-      ul, ol { margin: 0.5rem 0 1rem; padding-left: 1.3rem; color: var(--art-ink-2); }
-      li { margin-bottom: 0.3rem; }
-      hr { border: 0; border-top: 1px solid var(--art-line); margin: 2rem 0; }
-      pre { background: var(--art-panel-2); border: 1px solid var(--art-line); border-radius: 4px; padding: 1rem 1.2rem; overflow-x: auto; font-family: var(--art-mono); font-size: 12.5px; line-height: 1.5; color: var(--art-ink-2); }
-      pre b, pre strong { color: var(--art-ink); }
-      code { font-family: var(--art-mono); font-size: 0.88em; }
-      .callout { border-left: 3px solid var(--art-accent); background: var(--art-accent-dim); padding: 0.75rem 1rem; border-radius: 0 4px 4px 0; margin: 1rem 0; }
-      img, svg, video { max-width: 100%; height: auto; display: block; }
-      .center { display: flex; justify-content: center; align-items: center; min-height: 85vh; }
-      .center-content { max-width: 100%; }
-      table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
-      th, td { padding: 0.5rem 0.6rem; text-align: left; border-bottom: 1px solid var(--art-line-soft); }
-      th { font-family: var(--art-mono); font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--art-ink-3); }
-      blockquote { margin: 1rem 0; padding-left: 1rem; border-left: 2px solid var(--art-line); color: var(--art-ink-2); }
-    `
-      function escapeHtml(str: string): string {
-        return str
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;')
-          .replace(/'/g, '&#39;')
-      }
-      let htmlContent: string
-      let extraHead = ''
-      let extraBody = ''
-      switch (type) {
-        case 'html':
-          htmlContent = `<div class="wrap">${content}</div>`
-          break
-        case 'svg':
-          htmlContent = `<div class="center"><div class="center-content">${content}</div></div>`
-          break
-        case 'markdown': {
-          // Put raw markdown in a hidden textarea so textContent returns it unmodified.
-          const escapedForTextArea = content.replace(/<\/textarea>/gi, '&lt;/textarea&gt;')
-          htmlContent = `<div class="wrap"><h1>${escapeHtml(title)}</h1><textarea id="md-source" style="display:none;">${escapedForTextArea}</textarea><div id="md-output"></div></div>`
-          extraHead = `<script src="https://cdn.jsdelivr.net/npm/marked@14/marked.min.js"></script>`
-          extraBody = `<script>document.getElementById('md-output').innerHTML = marked.parse(document.getElementById('md-source').value);</script>`
-          break
-        }
-        case 'mermaid': {
-          const escaped = escapeHtml(content)
-          htmlContent = `<div class="wrap"><h1>${escapeHtml(title)}</h1><pre class="mermaid">${escaped}</pre></div>`
-          extraHead = `<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>`
-          extraBody = `<script>mermaid.init({startOnLoad:true,theme:'dark'});</script>`
-          break
-        }
-        case 'chart': {
-          const escaped = escapeHtml(content)
-          htmlContent = `<div class="wrap"><h1>${escapeHtml(title)}</h1><div class="callout"><strong>Chart specification</strong> (JSON)</div><pre>${escaped}</pre></div>`
-          break
-        }
-        case 'code':
-        default: {
-          const langLabel = language
-            ? ` · <span style="font-family:var(--art-mono);font-size:11px;color:var(--art-ink-3);">${escapeHtml(language)}</span>`
-            : ''
-          htmlContent = `<div class="wrap"><h1>${escapeHtml(title)}${langLabel}</h1><pre><code>${escapeHtml(content)}</code></pre></div>`
-          break
-        }
-      }
-      const fullHtml = `<!doctype html><html lang="en" data-theme="${theme}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${skeletonCss}</style>${extraHead}</head><body>${htmlContent}${extraBody}</body></html>`
-      const win = new BrowserWindow({
-        show: false,
-        width: 1200,
-        height: 900,
-        webPreferences: { contextIsolation: true, sandbox: false },
-      })
-      const encoded = encodeURIComponent(fullHtml)
-      await win.loadURL(`data:text/html;charset=utf-8,${encoded}`)
-      await new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, 3000)
-        win.webContents.once('did-finish-load', () => {
-          clearTimeout(timer)
-          setTimeout(resolve, 800)
-        })
-      })
-      let scrollHeight = 1200
-      try {
-        const measured = await win.webContents.executeJavaScript(
-          `Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, document.body.offsetHeight, document.documentElement.offsetHeight, document.body.clientHeight, document.documentElement.clientHeight)`,
-        )
-        scrollHeight = Math.max(Number(measured) || 1200, 900)
-      } catch {
-        // Fallback: measurement failed; use fixed long page height.
-      }
-      const heightInches = Math.min(Math.max(scrollHeight / 96 + 1.5, 11), 200)
-      const pdfData = await win.webContents.printToPDF({
-        printBackground: true,
-        pageSize: { width: 8.5, height: heightInches },
-        margins: { marginType: 'none' },
-        preferCSSPageSize: false,
-      })
-      win.destroy()
-      const fs = await import('node:fs/promises')
-      await fs.writeFile(filePath, pdfData)
-      return { savedTo: filePath }
-    },
-  )
+  handle('artifacts:exportPdf', (_event, request) => exportArtifactPdf(request))
 
   handle('app:setLanePrefs', (_event, lanes) => {
     setLanePrefs(lanes)

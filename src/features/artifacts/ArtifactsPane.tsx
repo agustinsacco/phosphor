@@ -13,9 +13,19 @@ import { ChartBlock } from '@/components/markdown/ChartBlock'
 import { MonacoDiff } from '@/features/files/MonacoEditor'
 import { CopyButton } from '@/components/CopyButton'
 import { SandboxedHtml } from '@/components/SandboxedHtml'
-import { DownloadIcon, FileIcon } from '@/components/icons'
+import { DownloadIcon, FileIcon, PdfExportIcon } from '@/components/icons'
 import { relativeTimeShort } from '@/lib/time'
+import { useSettingsStore } from '@/stores/settings'
+import { useExtensionUiStore } from '@/stores/extensionUi'
+import { ipcErrorText } from '@shared/errors'
 import { artifactGlyph, artifactLanguage, suggestedFileName } from './artifactKinds'
+import {
+  needsRenderedPreview,
+  previewReadySelector,
+  printableHtml,
+  serializePreview,
+  waitForPreview,
+} from './previewHtml'
 
 type ViewMode = 'preview' | 'code' | 'diff'
 
@@ -100,6 +110,12 @@ function ArtifactWorkspace({
 }): React.JSX.Element {
   const latest = artifact.versions[artifact.versions.length - 1]!
   const [mode, setMode] = useState<ViewMode>('preview')
+  const [exporting, setExporting] = useState(false)
+  // The PDF prints the rendered preview, so the export reads this node for the
+  // types React draws — and the staged document carries the app's theme, the
+  // same way the preview iframe does.
+  const previewRef = useRef<HTMLDivElement>(null)
+  const theme = useSettingsStore((s) => s.resolvedTheme)
   const [versionIndex, setVersionIndex] = useState<number>(() => {
     const requested = artifact.versions.findIndex((v) => v.version === requestedVersion)
     return requested >= 0 ? requested : artifact.versions.length - 1
@@ -142,6 +158,43 @@ function ArtifactWorkspace({
     const target = `${workspacePath}/${suggestedFileName(artifact)}`
     await window.phosphor.invoke('fs:writeFile', target, shown.content)
     await openFileInWorkspace(workspacePath, target)
+  }
+
+  /**
+   * Print what the preview shows.
+   *
+   * The types the renderer draws (markdown, mermaid, chart, code) are
+   * serialised from the live DOM, so the pane has to be ON the preview tab and
+   * finished rendering — a click from the Code tab switches back and waits
+   * rather than exporting a blank page. Both outcomes speak: a silent success
+   * was indistinguishable from a dead button, which is how this shipped.
+   */
+  const exportPdf = async (): Promise<void> => {
+    if (exporting) return
+    setExporting(true)
+    try {
+      let rendered: string | undefined
+      if (needsRenderedPreview(artifact.type)) {
+        setMode('preview')
+        const node = await waitForPreview(
+          () => previewRef.current,
+          previewReadySelector(artifact.type),
+        )
+        if (!node) throw new Error('The preview is still rendering — try again in a moment.')
+        rendered = serializePreview(node)
+      }
+      const { savedTo } = await window.phosphor.invoke('artifacts:exportPdf', {
+        html: printableHtml(artifact.type, shown.content, rendered),
+        title: shown.title,
+        theme,
+      })
+      const fileName = savedTo.split(/[/\\]/).pop()
+      useExtensionUiStore.getState().pushToast(`PDF saved to Downloads — ${fileName}`)
+    } catch (error) {
+      useExtensionUiStore.getState().pushToast(ipcErrorText(error), 'error')
+    } finally {
+      setExporting(false)
+    }
   }
 
   return (
@@ -190,25 +243,15 @@ function ArtifactWorkspace({
             </select>
           )}
           <CopyButton text={shown.content} className="shrink-0" />
-          <ActionIcon title="Save to file…" onClick={() => void save()}>
+          <ActionIcon title="Save source to file…" onClick={() => void save()}>
             <DownloadIcon />
           </ActionIcon>
           <ActionIcon
-            title="Export preview to PDF (Downloads)"
-            onClick={async () => {
-              const result = await window.phosphor.invoke('artifacts:exportPdf', {
-                content: shown.content,
-                type: artifact.type,
-                title: shown.title,
-                language: artifact.language,
-                theme: 'dark',
-              })
-              if (result?.savedTo) {
-                // PDF saved; no dialog needed per spec (downloads folder).
-              }
-            }}
+            title={exporting ? 'Exporting PDF…' : 'Export preview to PDF (Downloads)'}
+            disabled={exporting}
+            onClick={() => void exportPdf()}
           >
-            <DownloadIcon />
+            <PdfExportIcon />
           </ActionIcon>
           <ActionIcon
             title="Write into workspace and open in Files"
@@ -220,7 +263,15 @@ function ArtifactWorkspace({
       }
     >
       <div className="min-h-0 flex-1 overflow-y-auto" data-testid="artifact-scroll">
-        {mode === 'preview' && <ArtifactPreview artifact={artifact} content={shown.content} />}
+        {mode === 'preview' && (
+          // `display:contents`: the export needs a node to read the rendered
+          // preview from, and this one must not become a box — the HTML
+          // preview's iframe sizes against the scroll container, so a real
+          // wrapper here would change what every artifact looks like.
+          <div ref={previewRef} className="contents">
+            <ArtifactPreview artifact={artifact} content={shown.content} />
+          </div>
+        )}
         {mode === 'code' && (
           <div className="[&_.code-block]:my-0 [&_.code-block]:rounded-none [&_.code-block]:border-0">
             <CodeBlock code={shown.content} language={artifactLanguage(artifact)} />
@@ -401,10 +452,12 @@ function Tab({
 function ActionIcon({
   title,
   onClick,
+  disabled = false,
   children,
 }: {
   title: string
   onClick: () => void
+  disabled?: boolean
   children: React.ReactNode
 }): React.JSX.Element {
   return (
@@ -412,7 +465,8 @@ function ActionIcon({
       title={title}
       aria-label={title}
       onClick={onClick}
-      className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 w-6 shrink-0 items-center justify-center rounded-sm transition-colors"
+      disabled={disabled}
+      className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 w-6 shrink-0 items-center justify-center rounded-sm transition-colors disabled:opacity-50"
     >
       {children}
     </button>

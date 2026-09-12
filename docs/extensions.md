@@ -239,6 +239,20 @@ and a chart carrying a claim gets a `table.data` under it. Row primitives
 cell classes, so a row of prose degrades to a paragraph instead of word-wide
 columns.
 
+**The PDF export prints the staged document, not a second one.**
+`electron/artifacts/artifact-pdf.ts` calls the same `stageArtifactHtml`, loads
+the `phosphor-artifact://` URL in a hidden sandboxed window and `printToPDF`s
+it, so the sheet, the theme stamp and the CSP are the preview's. The version it
+replaces built its own document: a hand-copied subset of the sheet that knew
+nothing of `.kpis`, `table.data` or `.ledger`, `marked` and `mermaid` from a CDN
+(the CSP refuses exactly that), a hardcoded dark theme, and a page measured
+1200px wide but printed 816px wide, which pushed the tail of a long artifact off
+the bottom. Two document builders is one too many. The types the renderer draws
+— markdown, mermaid, chart, code — have no main-process renderer at all, so the
+pane serialises its rendered preview instead
+(`src/features/artifacts/previewHtml.ts`: canvases become `data:` images,
+buttons are dropped) and hands that over as the markup to stage.
+
 Every tool an extension registers should declare at least one **required**
 parameter. A call with no arguments reaches pi as `arguments: ""` on the
 Claude Code provider, and pi validates before `execute`, so an all-optional

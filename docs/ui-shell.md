@@ -113,6 +113,12 @@ palette or the shortcuts above.
    pane, and a new version never steals selection from an artifact you are
    reading. The cross-session index is the global Artifacts _page_, below.
 
+The artifacts toolbar carries **two exports that are not the same thing**, and
+they no longer share a glyph: a tray saves the _source_ through a dialog, a page
+prints the _preview_ to a PDF in Downloads. The PDF prints what the preview
+renders, so it returns to the Preview tab and waits for an async render first,
+and it toasts either way — a silent success reads as a dead button.
+
 Rules:
 
 - Drag-to-resize at 60fps. Dragging is the only gesture; there is no

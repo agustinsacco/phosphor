@@ -25,3 +25,14 @@ export function errorText(error: unknown): string {
   }
   return String(error)
 }
+
+/**
+ * Message for an IPC rejection, without Electron's wrapper.
+ *
+ * A handler that throws reaches the renderer as
+ * `Error invoking remote method 'x': Error: …`, and every character before the
+ * real complaint is noise in a toast or a pane.
+ */
+export function ipcErrorText(error: unknown): string {
+  return errorText(error).replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, '')
+}
