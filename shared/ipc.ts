@@ -762,6 +762,14 @@ export interface IpcInvokeMap {
   }
   'fs:pickEntries': { args: [kind: 'file' | 'folder']; result: string[] }
   'fs:watchWorkspace': { args: [workspacePath: string]; result: void }
+  /**
+   * Lightweight fallback for workspace-watch failures. Only directory metadata
+   * is read; file contents (including large binaries) are never opened.
+   */
+  'fs:statDirs': {
+    args: [paths: string[]]
+    result: Array<{ path: string; mtimeMs: number | null }>
+  }
 
   'pty:create': {
     /**

@@ -459,6 +459,18 @@ function attachSessionPushHandler(phosphorId: string): void {
               ),
           )
         }
+        if (push.event.type === 'tool_execution_end') {
+          // Bash can move/delete/create arbitrary paths, so its result cannot
+          // name a safe minimal invalidation set. Re-read the root and loaded
+          // lazy directories immediately; the watcher remains the targeted
+          // fast path for ordinary external changes.
+          const workspacePath = useSessionsStore.getState().live[phosphorId]?.workspacePath
+          if (workspacePath) {
+            void import('./files').then(({ useFilesStore }) =>
+              useFilesStore.getState().refreshLoadedDirs(workspacePath),
+            )
+          }
+        }
         const { activeSessionId } = useSessionsStore.getState()
         if (
           activeSessionId !== phosphorId &&

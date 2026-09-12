@@ -20,10 +20,11 @@ export const FileExplorer = memo(function FileExplorer({
 
   useEffect(() => {
     const store = useFilesStore.getState()
-    if (!store.entries[workspacePath]) {
-      void store.refreshDir(workspacePath, workspacePath)
-      void store.refreshGitStatus(workspacePath)
-    }
+    // Always re-read on mount. A watcher event can legitimately arrive while
+    // this pane is closed, and keeping the old cached root made reopening show
+    // the same stale snapshot forever.
+    void store.refreshDir(workspacePath, workspacePath)
+    void store.refreshGitStatus(workspacePath)
   }, [workspacePath])
 
   return (
@@ -75,6 +76,13 @@ export const FileExplorer = memo(function FileExplorer({
               </svg>
             </IconToggle>
           ))}
+          <IconToggle
+            title="Refresh explorer"
+            active={false}
+            onClick={() => runFileAction(useFilesStore.getState().refreshLoadedDirs(workspacePath))}
+          >
+            <RefreshIcon />
+          </IconToggle>
           <IconToggle
             title="Show hidden files"
             active={showHidden}
@@ -327,6 +335,22 @@ function FolderGlyph({ open }: { open: boolean }): React.JSX.Element {
       ) : (
         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
       )}
+    </svg>
+  )
+}
+
+function RefreshIcon(): React.JSX.Element {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+    >
+      <path d="M20 6v5h-5M4 18v-5h5" />
+      <path d="M18.5 9a7 7 0 0 0-12-2L4 11m16 2-2.5 4a7 7 0 0 1-12-2" />
     </svg>
   )
 }

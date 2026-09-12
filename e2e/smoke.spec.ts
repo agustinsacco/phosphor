@@ -5,7 +5,7 @@ import {
   type ElectronApplication,
   type Page,
 } from '@playwright/test'
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
@@ -685,6 +685,67 @@ test('explorer creates entries from empty space and keeps renamed editor buffers
       .poll(() => readFile(join(workspace, 'docs/draft.md'), 'utf8'))
       .toBe('unsaved notes')
     expect(existsSync(join(workspace, 'notes'))).toBe(false)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('explorer follows external create, move and delete changes on disk', async () => {
+  const workspace = await mkdtemp(join(tmpdir(), 'phosphor-e2e-files-watch-'))
+  await writeFile(join(workspace, 'clip.mp4'), Buffer.from([0, 1, 2, 3]))
+  await writeFile(join(workspace, 'videos_stub_file'), '')
+  const harness = await launch({ workspace })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    await page.getByTitle(/^Files pane/).click()
+
+    const explorer = page.getByTestId('file-explorer')
+    const row = (name: string) => explorer.getByRole('button', { name, exact: true })
+    await expect(row('clip.mp4')).toBeVisible()
+    await expect(row('videos_stub_file')).toBeVisible()
+    await expect(explorer.getByRole('button', { name: 'Refresh explorer' })).toBeVisible()
+
+    // New directories arrive through chokidar and render as folder rows. A
+    // selection whose path still exists survives the directory patch.
+    await row('clip.mp4').click()
+    await mkdir(join(workspace, 'work', 'sheets'), { recursive: true })
+    await expect(row('work')).toBeVisible({ timeout: 4_000 })
+    await expect(row('work')).toHaveAttribute('data-directory', 'true')
+    await expect(row('clip.mp4')).toHaveAttribute('aria-pressed', 'true')
+    await row('work').click()
+    await expect(row('sheets')).toBeVisible()
+    await row('clip.mp4').click()
+
+    // Moving a file patches both parents: it disappears from root and appears
+    // under its new directory. The old selection clears with the old row.
+    await mkdir(join(workspace, 'videos'))
+    await rename(join(workspace, 'clip.mp4'), join(workspace, 'videos', 'clip.mp4'))
+    await expect(row('videos')).toBeVisible({ timeout: 4_000 })
+    await expect(row('clip.mp4')).toHaveCount(0)
+    await expect(explorer).not.toContainText('1 selected')
+    await row('videos').click()
+    await expect(row('clip.mp4')).toBeVisible()
+
+    await row('videos_stub_file').click()
+    await rm(join(workspace, 'videos_stub_file'))
+    await expect(row('videos_stub_file')).toHaveCount(0, { timeout: 4_000 })
+    await expect(explorer).not.toContainText('1 selected')
+
+    // Events emitted with the pane unmounted are repaired by the unconditional
+    // mount refresh (and, independently, the directory-mtime polling fallback).
+    await page.getByRole('button', { name: 'Changes', exact: true }).click()
+    await mkdir(join(workspace, 'late'))
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    await page.getByRole('button', { name: 'Files', exact: true }).click()
+    await expect(row('late')).toBeVisible({ timeout: 4_000 })
+
+    await writeFile(join(workspace, 'manual-refresh.txt'), 'ready')
+    await explorer.getByRole('button', { name: 'Refresh explorer' }).click()
+    await expect(row('manual-refresh.txt')).toBeVisible()
   } finally {
     await shutdown(harness)
   }
