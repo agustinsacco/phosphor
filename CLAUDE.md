@@ -234,7 +234,7 @@ you want to watch.
   And it must **never auto-answer** the adapter's "paste the callback URL"
   prompt: pi's RPC has no dialog cancel, so an empty answer wins the race
   against the loopback callback and kills a flow that already succeeded. See
-  [docs/mcp.md](docs/mcp.md#connectors-settings--connectors).
+  [docs/mcp.md](docs/mcp.md#settings--connectors).
 
 ## Conventions
 

@@ -23,25 +23,25 @@ export const subscriptions = [
     mark: 'O',
     name: 'ChatGPT',
     plan: 'Plus or Pro',
-    route: 'Sign in with pi’s native Codex OAuth provider. No Codex CLI bridge required.',
+    route: 'pi’s native Codex OAuth. No CLI bridge in the way.',
   },
   {
     mark: 'C',
     name: 'Claude',
     plan: 'Pro or Max',
-    route: 'Use the Claude Code provider extension and your authenticated Claude Code CLI.',
+    route: 'The Claude Code provider drives your signed-in Claude Code CLI.',
   },
   {
     mark: 'G',
     name: 'GitHub Copilot',
     plan: 'Copilot subscription',
-    route: 'Sign in through pi. Enterprise Server accounts use pi’s terminal login route.',
+    route: 'Sign in through pi. Enterprise Server uses pi’s terminal login.',
   },
   {
     mark: 'K',
     name: 'Kimi',
     plan: 'Kimi For Coding',
-    route: 'Sign in with your Kimi For Coding plan through pi’s account login.',
+    route: 'Sign in with your Kimi For Coding plan through pi.',
   },
 ]
 
@@ -74,29 +74,29 @@ export const connectors = [
 ]
 
 export const bundled = [
-  ['artifacts', 'Create and revise deliverables in the side panel.'],
-  ['context-breakdown', 'Estimate what occupies the context window.'],
-  ['headroom', 'Optionally compress eligible tool results through a local proxy.'],
-  ['mcp-status', 'Report connector state through pi’s status channel.'],
-  ['tool-name-guard', 'Repair malformed tool names before they enter saved history.'],
-  ['worktree-paths', 'Catch supported file-tool paths aimed at the wrong checkout.'],
+  ['artifacts', 'Versioned deliverables in their own pane.'],
+  ['context-breakdown', 'Estimates what is filling the context window.'],
+  ['headroom', 'Losslessly shrinks big tool results through a local proxy. Opt-in.'],
+  ['mcp-status', 'Per-server MCP state, straight from the adapter.'],
+  ['tool-name-guard', 'Repairs a malformed tool name before it bricks the thread.'],
+  ['worktree-paths', 'Refuses a file tool that wanders into the wrong checkout.'],
 ]
 
 export const featureIndex = [
   [
     'Models & subscriptions',
     'settings.md#accounts',
-    'Native and package providers; OAuth or API keys; custom endpoints; model and thinking-level controls.',
+    'Native and package providers. OAuth or API keys. Custom endpoints. Model and thinking controls.',
   ],
   [
     'Accounts, MCP & context',
     'chat.md#what-the-context-meters-popover-shows',
-    'Claude account routing and usage; estimated context composition; per-server MCP schema attribution.',
+    'Claude account routing and usage. Estimated context composition. MCP cost per server.',
   ],
   [
     'Lanes, branches & PRs',
     'lanes.md',
-    'Searchable session identity, PR/check/review state, worktrees, naming, cleanup and lost-work warnings.',
+    'One row per task: session, branch, worktree, PR state. Search, naming, cleanup, lost-work guards.',
   ],
   [
     'Transcript & composer',
@@ -106,21 +106,21 @@ export const featureIndex = [
   [
     'Files & terminal',
     'files.md',
-    'Explorer transfers, Monaco tabs and dirty-buffer conflicts; a separate real-shell terminal pane.',
+    'Explorer transfers, Monaco tabs, dirty-buffer conflicts. A real shell beside the chat.',
   ],
   [
     'Artifacts & extensions',
     'extensions.md',
-    'Versioned previews and diffs, sandboxed HTML, package management, tools, skills, prompts and themes.',
+    'Versioned previews and diffs, sandboxed HTML, packages, tools, skills, prompts and themes.',
   ],
   [
     'Sessions & layout',
     'ui-shell.md',
-    'Independent concurrent sessions, per-session pane placement, fullscreen, global skills and artifacts pages.',
+    'Independent concurrent sessions, per-session pane placement, fullscreen, global pages.',
   ],
   [
     'Install & updates',
     'updates.md',
-    'pi on PATH, platform-specific release assets, packaged-app update checks and install-path-specific updates.',
+    'pi on PATH, per-platform release assets, update checks that match how you installed.',
   ],
 ]
