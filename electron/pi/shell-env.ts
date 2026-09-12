@@ -1,5 +1,4 @@
 import { execFile } from 'node:child_process'
-import { delimiter } from 'node:path'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
@@ -192,18 +191,28 @@ export async function piProcessEnv(
   if (shellPath && process.platform !== 'win32') {
     // Prefer the shell's PATH, keeping any inherited entries as a fallback.
     const inherited = process.env.PATH ?? ''
-    const merged = inherited ? `${shellPath}${delimiter}${inherited}` : shellPath
+    const merged = inherited ? `${shellPath}${pathDelimiter()}${inherited}` : shellPath
     base.PATH = dedupePath(merged)
   }
   return { ...base, ...extra }
 }
 
+/**
+ * From `process.platform`, not `node:path`'s `delimiter`: the two agree in
+ * production, but the tests fake the platform, and `delimiter` is baked in
+ * from the HOST — on the Windows CI runner it is `;`, which made the POSIX
+ * cases produce `/opt/bin;/usr/bin:/bin`.
+ */
+function pathDelimiter(): string {
+  return process.platform === 'win32' ? ';' : ':'
+}
+
 function dedupePath(path: string): string {
   const seen = new Set<string>()
   return path
-    .split(delimiter)
+    .split(pathDelimiter())
     .filter((entry) => entry && !seen.has(entry) && (seen.add(entry), true))
-    .join(delimiter)
+    .join(pathDelimiter())
 }
 
 /** Test seam: forget the cached PATH and shell env. */

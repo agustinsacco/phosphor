@@ -55,6 +55,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # The Mac certificate must never reach the Windows runner:
+          # electron-builder's Windows signer reads WIN_CSC_LINK and falls back
+          # to CSC_LINK, so it would try to Authenticode-sign with an Apple
+          # .p12 and fail. Same rule as release-continuous.yml.
+          if [ "${RUNNER_OS}" = "Windows" ]; then
+            unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+          fi
           # An EMPTY CSC_LINK is worse than an absent one: electron-builder reads
           # it as a certificate PATH, resolves it to the project dir, and dies
           # with "<projectDir> not a file". Missing secrets arrive as empty
@@ -62,6 +69,9 @@ jobs:
           if [ -z "${CSC_LINK:-}" ]; then
             unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
             export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          if [ -z "${WIN_CSC_LINK:-}" ]; then
+            unset WIN_CSC_LINK WIN_CSC_KEY_PASSWORD
           fi
           npm run ${{ matrix.script }}
         env:
@@ -72,6 +82,8 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CERT_PFX }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
 
       - uses: actions/upload-artifact@v4
         with:
