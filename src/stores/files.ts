@@ -46,6 +46,8 @@ interface FilesState {
   // explorer — keyed by absolute dir path, so already collision-free
   entries: Record<string, DirEntry[] | undefined>
   expanded: Record<string, boolean>
+  /** Last directory mtimes seen by the low-frequency watcher fallback. */
+  directoryMtimes: Record<string, number | null | undefined>
   showHidden: boolean
   respectGitignore: boolean
   /** workspacePath → that workspace's editors and git status. */
@@ -53,6 +55,12 @@ interface FilesState {
 
   toggleDir: (workspacePath: string, dirPath: string) => Promise<void>
   refreshDir: (workspacePath: string, dirPath: string) => Promise<void>
+  /** Re-read loaded parents named by a debounced watcher batch. */
+  refreshChangedPaths: (workspacePath: string, paths: string[]) => Promise<void>
+  /** Re-read the root and every loaded directory (manual/tool-result backstop). */
+  refreshLoadedDirs: (workspacePath: string) => Promise<void>
+  /** Stat loaded directories and re-read only those whose membership may have changed. */
+  pollWorkspace: (workspacePath: string) => Promise<void>
   refreshGitStatus: (workspacePath: string) => Promise<void>
   setShowHidden: (workspacePath: string, value: boolean) => void
   setRespectGitignore: (workspacePath: string, value: boolean) => void
@@ -83,6 +91,17 @@ function relativeTo(workspacePath: string, path: string): string {
   return path.startsWith(prefix) ? path.slice(prefix.length) : path
 }
 
+function atOrBelow(path: string, root: string): boolean {
+  return path === root || path.startsWith(root + '/') || path.startsWith(root + '\\')
+}
+
+function parentDir(path: string): string {
+  const index = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  return index < 0 ? '' : path.slice(0, index)
+}
+
+const pollingWorkspaces = new Set<string>()
+
 /** Apply a patch to one workspace's slice, creating it if absent. */
 function patchWorkspace(
   state: FilesState,
@@ -107,6 +126,7 @@ function patchFile(w: WorkspaceFiles, path: string, fields: Partial<OpenFile>): 
 export const useFilesStore = create<FilesState>((set, get) => ({
   entries: {},
   expanded: {},
+  directoryMtimes: {},
   showHidden: false,
   respectGitignore: true,
   byWorkspace: {},
@@ -127,9 +147,82 @@ export const useFilesStore = create<FilesState>((set, get) => ({
         showHidden,
         respectGitignore,
       })
-      set((s) => ({ entries: { ...s.entries, [dirPath]: list } }))
+      set((s) => {
+        const entries = { ...s.entries, [dirPath]: list }
+        const expanded = { ...s.expanded }
+        const directoryMtimes = { ...s.directoryMtimes }
+        const nextPaths = new Set(list.map((entry) => entry.path))
+
+        // A removed or moved directory must not leave its old lazy subtree in
+        // memory. The row selection derives from these listings, so deleting a
+        // selected entry also clears the selection without disturbing one that
+        // still exists at the same path.
+        for (const old of s.entries[dirPath] ?? []) {
+          if (!old.isDirectory || nextPaths.has(old.path)) continue
+          for (const key of Object.keys(entries)) {
+            if (atOrBelow(key, old.path)) delete entries[key]
+          }
+          for (const key of Object.keys(expanded)) {
+            if (atOrBelow(key, old.path)) delete expanded[key]
+          }
+          for (const key of Object.keys(directoryMtimes)) {
+            if (atOrBelow(key, old.path)) delete directoryMtimes[key]
+          }
+        }
+        return { entries, expanded, directoryMtimes }
+      })
     } catch {
       set((s) => ({ entries: { ...s.entries, [dirPath]: [] } }))
+    }
+  },
+
+  refreshChangedPaths: async (workspacePath, paths) => {
+    const state = get()
+    const dirs = new Set(
+      paths.map((path) => (path === workspacePath ? workspacePath : parentDir(path))),
+    )
+    await Promise.all(
+      [...dirs]
+        .filter((dir) => atOrBelow(dir, workspacePath) && state.entries[dir] !== undefined)
+        .map((dir) => get().refreshDir(workspacePath, dir)),
+    )
+  },
+
+  refreshLoadedDirs: async (workspacePath) => {
+    const dirs = new Set([
+      workspacePath,
+      ...Object.keys(get().entries).filter((dir) => atOrBelow(dir, workspacePath)),
+    ])
+    await Promise.all([...dirs].map((dir) => get().refreshDir(workspacePath, dir)))
+  },
+
+  pollWorkspace: async (workspacePath) => {
+    if (pollingWorkspaces.has(workspacePath)) return
+    pollingWorkspaces.add(workspacePath)
+    try {
+      const state = get()
+      const dirs = [
+        workspacePath,
+        ...Object.keys(state.entries).filter(
+          (dir) => dir !== workspacePath && atOrBelow(dir, workspacePath),
+        ),
+      ]
+      const stats = await window.phosphor.invoke('fs:statDirs', dirs)
+      const changed: string[] = []
+      set((s) => {
+        const directoryMtimes = { ...s.directoryMtimes }
+        for (const item of stats) {
+          const previous = directoryMtimes[item.path]
+          directoryMtimes[item.path] = item.mtimeMs
+          // The first observation refreshes too. This repairs a snapshot that
+          // went stale while the Files pane (and its push listener) was closed.
+          if (item.mtimeMs !== null && previous !== item.mtimeMs) changed.push(item.path)
+        }
+        return { directoryMtimes }
+      })
+      await Promise.all(changed.map((dir) => get().refreshDir(workspacePath, dir)))
+    } finally {
+      pollingWorkspaces.delete(workspacePath)
     }
   },
 
@@ -139,12 +232,12 @@ export const useFilesStore = create<FilesState>((set, get) => ({
   },
 
   setShowHidden: (workspacePath, value) => {
-    set({ showHidden: value, entries: {} })
+    set({ showHidden: value, entries: {}, directoryMtimes: {} })
     void get().refreshDir(workspacePath, workspacePath)
   },
 
   setRespectGitignore: (workspacePath, value) => {
-    set({ respectGitignore: value, entries: {} })
+    set({ respectGitignore: value, entries: {}, directoryMtimes: {} })
     void get().refreshDir(workspacePath, workspacePath)
   },
 
@@ -259,7 +352,10 @@ export const useFilesStore = create<FilesState>((set, get) => ({
       const keep = (key: string): boolean => key !== workspacePath && !key.startsWith(prefix)
       const entries = Object.fromEntries(Object.entries(s.entries).filter(([k]) => keep(k)))
       const expanded = Object.fromEntries(Object.entries(s.expanded).filter(([k]) => keep(k)))
-      return { byWorkspace, entries, expanded }
+      const directoryMtimes = Object.fromEntries(
+        Object.entries(s.directoryMtimes).filter(([k]) => keep(k)),
+      )
+      return { byWorkspace, entries, expanded, directoryMtimes }
     })
     if (paths.length > 0) {
       void import('@/features/files/MonacoEditor').then(({ releaseFileModel }) => {

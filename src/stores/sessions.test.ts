@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SessionMeta } from '@shared/models'
+
+vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/features/files/MonacoEditor', () => ({ releaseFileModel: vi.fn() }))
+
+import type { SessionMeta, SessionPush } from '@shared/models'
 import { shouldRefreshStatsOn, useSessionsStore } from './sessions'
+import { useFilesStore } from './files'
 import { getActiveWorkspace } from './workspaces'
 
 const meta: SessionMeta = {
@@ -112,6 +117,41 @@ describe('adoptSession', () => {
     // get_state would let resumeTarget spawn a SECOND process on the file.
     await useSessionsStore.getState().adoptSession('orphan-1', '/repo', '/sessions/s1.jsonl')
     expect(useSessionsStore.getState().live['orphan-1']?.diskPath).toBe('/sessions/s1.jsonl')
+  })
+})
+
+describe('tool-result file invalidation', () => {
+  it('refreshes loaded explorer directories after Bash completes', async () => {
+    let listener: ((push: SessionPush) => void) | undefined
+    vi.stubGlobal('window', {
+      phosphor: {
+        invoke: vi.fn().mockResolvedValue(undefined),
+        piCommand: vi.fn().mockResolvedValue({ success: false }),
+        onSessionPush: (_sessionId: string, next: (push: SessionPush) => void) => {
+          listener = next
+          return () => {}
+        },
+      },
+    })
+    useSessionsStore.setState({ live: {}, unread: {}, activeSessionId: null })
+    await useSessionsStore.getState().adoptSession('bash-files', '/sandbox')
+    const refresh = vi
+      .spyOn(useFilesStore.getState(), 'refreshLoadedDirs')
+      .mockResolvedValue(undefined)
+
+    listener?.({
+      kind: 'event',
+      event: {
+        type: 'tool_execution_end',
+        toolCallId: 'bash-1',
+        toolName: 'bash',
+        result: { content: [{ type: 'text', text: 'ok' }] },
+        isError: false,
+      },
+    })
+
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledWith('/sandbox'))
+    refresh.mockRestore()
   })
 })
 

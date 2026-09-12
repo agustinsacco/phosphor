@@ -3,7 +3,8 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import { FileExplorer } from './FileExplorer'
 import { EditorPane } from './EditorPane'
 import { useFilesStore } from '@/stores/files'
-import { dirname } from '@/lib/path'
+
+const FALLBACK_POLL_MS = 2_000
 
 /** Files region: explorer tree + Monaco editor tabs, with live fs updates. */
 export const FilesPane = memo(function FilesPane({
@@ -12,20 +13,28 @@ export const FilesPane = memo(function FilesPane({
   workspacePath: string
 }): React.JSX.Element {
   useEffect(() => {
+    const store = useFilesStore.getState()
     void window.phosphor.invoke('fs:watchWorkspace', workspacePath)
     const unsubscribe = window.phosphor.onFsChanged((payload) => {
       if (payload.workspacePath !== workspacePath) return
-      const store = useFilesStore.getState()
-      void store.handleExternalChanges(workspacePath, payload.paths)
-      void store.refreshGitStatus(workspacePath)
-      // Refresh expanded dirs that contain changes.
-      const dirs = new Set(payload.paths.map(dirname))
-      for (const dir of dirs) {
-        if (store.entries[dir] !== undefined) void store.refreshDir(workspacePath, dir)
-      }
-      if (dirs.has(workspacePath)) void store.refreshDir(workspacePath, workspacePath)
+      const current = useFilesStore.getState()
+      void current.handleExternalChanges(workspacePath, payload.paths)
+      void current.refreshGitStatus(workspacePath)
+      void current.refreshChangedPaths(workspacePath, payload.paths)
     })
-    return unsubscribe
+
+    // Chokidar is the fast path. Directory mtimes are a cheap safety net for
+    // unavailable/exhausted native watchers and for events emitted while this
+    // pane was closed. Only a changed loaded directory is re-read.
+    void store.pollWorkspace(workspacePath)
+    const poll = window.setInterval(
+      () => void useFilesStore.getState().pollWorkspace(workspacePath),
+      FALLBACK_POLL_MS,
+    )
+    return () => {
+      window.clearInterval(poll)
+      unsubscribe()
+    }
   }, [workspacePath])
 
   return (

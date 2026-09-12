@@ -6,6 +6,22 @@ import type { DirEntry, FileContent } from '@shared/models'
 const ALWAYS_HIDDEN = new Set(['.git'])
 const MAX_FILE_BYTES = 4 * 1024 * 1024
 
+/** Read directory mtimes for the explorer's polling fallback. */
+export async function statDirectories(
+  paths: string[],
+): Promise<Array<{ path: string; mtimeMs: number | null }>> {
+  return Promise.all(
+    paths.map(async (path) => {
+      try {
+        const info = await stat(path)
+        return { path, mtimeMs: info.isDirectory() ? info.mtimeMs : null }
+      } catch {
+        return { path, mtimeMs: null }
+      }
+    }),
+  )
+}
+
 /**
  * List one directory level for the explorer tree (lazy loading).
  * Gitignore filtering uses `git check-ignore --stdin` when available.

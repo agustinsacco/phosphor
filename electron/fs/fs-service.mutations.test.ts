@@ -1,12 +1,32 @@
 import { afterEach, expect, it } from 'vitest'
-import { mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createDir, createFile, renamePath } from './fs-service'
+import { createDir, createFile, listDir, renamePath, statDirectories } from './fs-service'
 
 const roots: string[] = []
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((p) => rm(p, { recursive: true, force: true })))
+})
+
+it('lists and stats directories without opening multi-gigabyte files', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'phosphor-large-listing-'))
+  roots.push(root)
+  const videos = join(root, 'videos')
+  const movie = join(root, 'movie.mp4')
+  await mkdir(videos)
+  await writeFile(movie, '')
+  await truncate(movie, 5 * 1024 * 1024 * 1024)
+
+  await expect(listDir(root, root, { respectGitignore: false })).resolves.toMatchObject([
+    { name: 'videos', isDirectory: true },
+    { name: 'movie.mp4', isDirectory: false },
+  ])
+  await expect(statDirectories([root, videos, movie])).resolves.toEqual([
+    { path: root, mtimeMs: expect.any(Number) },
+    { path: videos, mtimeMs: expect.any(Number) },
+    { path: movie, mtimeMs: null },
+  ])
 })
 
 it('creates entries and refuses duplicate files, directories and rename collisions', async () => {

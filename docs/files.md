@@ -2,6 +2,10 @@
 
 The Files pane is a lazy workspace explorer beside Monaco editor tabs. Gitignore
 and hidden-file filters, git status dots and filesystem watching are always on.
+A 250 ms debounced watcher patches changed directory listings; agent tool results
+refresh every loaded listing immediately, and a two-second directory-mtime poll
+covers unavailable or missed watcher events. Reopening the pane re-reads its root,
+and the toolbar refresh button re-reads the visible lazy tree on demand.
 It exists so you can read and fix the thing the agent just touched without
 leaving the conversation.
 
@@ -25,7 +29,8 @@ leaving the conversation.
 - **Import:** right-click → Import files / Import folders opens a native
   picker.
 - **Navigate:** Up/Down and Home/End move focus, Left/Right collapse and
-  expand, Enter opens. Reveal and copy-path stay in the menu.
+  expand, Enter opens. Reveal and copy-path stay in the menu. Refresh preserves
+  a selected entry that still exists and clears the selection when it was removed.
 
 Existing destinations are refused, never merged or replaced. Transfers report
 partial failures, and a completed move retargets its open editors at once.

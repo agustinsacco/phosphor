@@ -1736,6 +1736,8 @@ export function installMockPhosphor(): void {
         case 'updates:check':
         case 'updates:restartAndInstall':
           return Promise.resolve(undefined)
+        case 'fs:statDirs':
+          return Promise.resolve((args[0] as string[]).map((path) => ({ path, mtimeMs: 1 })))
         case 'fs:watchWorkspace':
         case 'sessions:watch':
         case 'sessions:unwatch':

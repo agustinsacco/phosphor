@@ -9,6 +9,7 @@ import {
   listDir,
   readTextFile,
   renamePath,
+  statDirectories,
   writeTextFile,
 } from '../fs/fs-service'
 
@@ -49,4 +50,6 @@ export function registerFsHandlers(): void {
   handle('fs:watchWorkspace', (_event, workspacePath) => {
     watchWorkspace(workspacePath)
   })
+
+  handle('fs:statDirs', (_event, paths) => statDirectories(paths))
 }
