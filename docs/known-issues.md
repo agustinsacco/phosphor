@@ -52,6 +52,21 @@ and `assistantMessageEvent.partial` on all 193 `message_update` records and no
 top-level `usage`; `partial` alone is 42.8% of its bytes. `e2e/fixtures/pi-stub.cjs`
 emits the same dead shape. So no test exercises what pi actually sends now.
 
+## Windows
+
+pi itself is reached correctly on Windows — `electron/pi/win-launch.ts` reads
+npm's `.cmd` shim through to `node.exe` + `cli.js`, and every pi spawn goes
+through `PiHealth.prefixArgs`. The remaining gaps are the CLIs Phosphor runs
+_directly_, found through `resolveBinary` in `electron/pi/packages.ts`, which
+still returns a single path.
+
+| #   | Issue                                                                                                                                                                                                        | Where                                                                                     |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| W1  | An npm-installed Claude Code (`claude.cmd`) cannot be spawned for usage polling, status or sign-in; `spawn EINVAL`. The native `claude.exe` install is fine, and sessions are unaffected (pi spawns the CLI) | `electron/pi/packages.ts` `resolveBinary` → `electron/claude/usage.ts`, `claude-login.ts` |
+| W2  | Terminal busy detection is off (`isBusy` reads a POSIX process title); the tab count never shows a busy badge                                                                                                | `electron/pty/pty-manager.ts` — `process.platform !== 'win32' &&`                         |
+| W3  | Lane disk sizes report "unknown" (`du` has no Windows equivalent wired in)                                                                                                                                   | `electron/maintenance/sweep.ts`                                                           |
+| W4  | The installer is unsigned: SmartScreen shows "unknown publisher" on first install until `WIN_CERT_PFX` is configured in the release workflow                                                                 | `.github/workflows/release-continuous.yml`                                                |
+
 ## Losing an in-flight turn
 
 **pi persists a turn only when the turn ends**, so any exit during a turn

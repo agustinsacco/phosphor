@@ -87,6 +87,8 @@ async function spawnSession(
     const health = cachedHealth?.ok ? cachedHealth : (cachedHealth = await checkPiHealth())
     if (!health.ok) throw new Error(health.message ?? 'pi is not available')
     binaryPath = health.binaryPath
+    // Windows: node.exe + pi's entry script (see shared/models.ts PiHealth).
+    prefixArgs = health.prefixArgs
   }
 
   // pi is a `#!/usr/bin/env node` script: it needs the login shell's PATH
@@ -254,7 +256,15 @@ export function registerPiSessionHandlers(): void {
         minVersion: MIN_PI_VERSION,
       }
     }
-    if (!cachedHealth || !cachedHealth.ok) cachedHealth = await checkPiHealth()
+    if (!cachedHealth || !cachedHealth.ok) {
+      cachedHealth = await checkPiHealth()
+      // One line per fresh probe, beside the spawn argv this log already
+      // records: on Windows this is the only place that shows WHICH node.exe
+      // and entry script the launcher settled on (win-launch.ts), and it is
+      // what the packaged-app smoke in CI asserts on.
+      const { message: _message, ...facts } = cachedHealth
+      log('pi', 'health', facts)
+    }
     return cachedHealth
   })
 
@@ -303,7 +313,7 @@ export function registerPiSessionHandlers(): void {
       const lanePrefs = getLanePrefs()
       const stub = piStubPath()
       let binaryPath: string
-      let prefixArgs: string[] = []
+      let prefixArgs: string[]
       let env: NodeJS.ProcessEnv
       if (stub) {
         binaryPath = process.execPath
@@ -313,6 +323,7 @@ export function registerPiSessionHandlers(): void {
         const health = cachedHealth?.ok ? cachedHealth : (cachedHealth = await checkPiHealth())
         if (!health.ok || !health.binaryPath) return null
         binaryPath = health.binaryPath
+        prefixArgs = health.prefixArgs ?? []
         env = {
           ...process.env,
           ...(await piProcessEnv()),

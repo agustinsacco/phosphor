@@ -84,14 +84,30 @@ linux:
 
 win:
   icon: build/icon.ico
+  # Same shape as the mac/linux names, so checksums.txt, the release-notes
+  # link and the finalize job's asset check can all name it without a space:
+  # electron-builder's NSIS default is `Phosphor Setup 0.1.x.exe`.
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  # Unsigned unless WIN_CSC_LINK is set in CI (release-continuous.yml). An
+  # unsigned installer opens through SmartScreen's "More info → Run anyway";
+  # electron-updater still self-updates an unsigned install, because it only
+  # verifies the downloaded installer's signature when the running app has a
+  # publisherName to compare against — which an unsigned build has not.
   target:
     - target: nsis
       arch: [x64]
 
 nsis:
+  # Per-user (no UAC prompt), with the classic installer so the destination
+  # can be changed. `perMachine: false` is also what lets electron-updater
+  # replace the install without elevation.
   oneClick: false
   allowToChangeInstallationDirectory: true
   perMachine: false
+  shortcutName: Phosphor
+  # Uninstall leaves %APPDATA%\Phosphor (prefs, drafts, window state) alone,
+  # exactly as removing the macOS bundle does.
+  deleteAppDataOnUninstall: false
 
 publish:
   provider: github

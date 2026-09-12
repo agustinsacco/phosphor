@@ -100,6 +100,72 @@ jobs:
           path: site/test-results/
           retention-days: 7
 
+  windows:
+    # The only Windows runner in CI. Its job is to catch what no other runner
+    # can: that `electron-builder --win` still produces the NSIS installer and
+    # its update manifest, and that the PACKAGED app boots on Windows and runs
+    # an npm-installed pi — which reaches pi through node.exe + cli.js, not the
+    # `.cmd` shim Node refuses to spawn (electron/pi/win-launch.ts). The full
+    # unit and e2e suites stay on ubuntu/macOS; this runs in parallel with
+    # them and finishes inside the e2e shards' wall time.
+    name: Windows · package · packaged-app smoke
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # electron-builder downloads Electron and NSIS on every run otherwise.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: electron-builder-win-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The Windows-facing suites, on Windows. `win-launch.test.ts` runs
+      # everywhere; here it also proves node:path's win32 branch agrees with
+      # the host.
+      - name: Unit tests (Windows launcher, PATH handling)
+        run: npx vitest run electron/pi/win-launch.test.ts electron/pi/shell-env.test.ts
+
+      - name: Build (main · preload · renderer)
+        run: npm run build
+
+      # Same invocation as release-continuous.yml minus `--publish`: the
+      # native rebuild (node-pty against Electron's ABI), the NSIS pass and
+      # latest.yml all run for real.
+      - name: Package (electron-builder --win)
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          set -euo pipefail
+          npx electron-builder --win --publish never
+          ls release
+          [ -f release/Phosphor-0.1.0-x64.exe ] || { echo "::error::installer missing"; exit 1; }
+          [ -f release/latest.yml ] || { echo "::error::latest.yml missing"; exit 1; }
+
+      # pi from npm, exactly as a user installs it, then the packaged app.
+      - name: Install pi
+        run: npm install -g @earendil-works/pi-coding-agent
+
+      - name: Boot the packaged app and run pi
+        run: pwsh scripts/smoke-packaged-win.ps1
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-installer
+          path: release/Phosphor-*-x64.exe
+          retention-days: 7
+
   e2e:
     name: E2E smoke (${{ matrix.os }} ${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
     runs-on: ${{ matrix.os }}

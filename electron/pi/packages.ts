@@ -13,6 +13,8 @@ import type {
 import { piAgentDir } from './pi-paths'
 import { claudeOneShotEnv } from './provider-detect'
 import { getLoginShellPath, piProcessEnv } from './shell-env'
+import { cachedPiHealth } from './health'
+import { pickWhereMatch, resolveWindowsLaunch } from './win-launch'
 import { readJsonFile } from './json-config'
 
 const execFileAsync = promisify(execFile)
@@ -275,7 +277,12 @@ export async function resolveBinary(name: string): Promise<string | null> {
   if (process.platform === 'win32') {
     try {
       const { stdout } = await execFileAsync('where', [name], { timeout: 15_000 })
-      return stdout.trim().split(/\r?\n/)[0]?.trim() || null
+      // Not the first line: for an npm-installed CLI that is the POSIX sh
+      // shim, which nothing on Windows can run. A `.exe` is spawnable; a
+      // `.cmd` is returned as found and fails at spawn (EINVAL) — pi itself
+      // never comes through here (see resolvePiInvoker), and the callers that
+      // do (claude, npm, uv, pipx, headroom) mostly ship real executables.
+      return pickWhereMatch(stdout)
     } catch {
       return null
     }
@@ -329,8 +336,15 @@ async function resolvePiInvoker(stubPath?: string): Promise<PiInvoker | null> {
       env: { ...(process.env as Record<string, string>), ELECTRON_RUN_AS_NODE: '1' },
     }
   }
-  const pi = await resolveBinary('pi')
-  return pi ? { command: pi, prefixArgs: [], env: await piProcessEnv() } : null
+  // Through the health probe, not `resolveBinary('pi')`: on Windows the thing
+  // to spawn is node.exe plus pi's entry script (PiHealth.prefixArgs).
+  const health = await cachedPiHealth()
+  if (!health.ok || !health.binaryPath) return null
+  return {
+    command: health.binaryPath,
+    prefixArgs: health.prefixArgs ?? [],
+    env: await piProcessEnv(),
+  }
 }
 
 /** `pi install|remove|update` through pi's own package manager. */
@@ -361,16 +375,46 @@ export async function runPackageAction(
 
 /** One-click pi install/update via the user's own npm. */
 export async function runPiInstall(sender: JobSender): Promise<{ jobId: string }> {
-  const npm = await resolveBinary('npm')
+  const npm = await resolveLaunch('npm')
   if (!npm) {
     return failedJob(
       sender,
       'npm was not found on your PATH. Install Node.js 22+ first (https://nodejs.org), then retry.',
     )
   }
-  return startJob(sender, npm, ['install', '-g', '@earendil-works/pi-coding-agent'], {
-    env: await piProcessEnv(),
+  return startJob(
+    sender,
+    npm.file,
+    [...npm.prefixArgs, 'install', '-g', '@earendil-works/pi-coding-agent'],
+    { env: await piProcessEnv() },
+  )
+}
+
+/**
+ * A binary as something `spawn` accepts. Same as `resolveBinary` everywhere
+ * but Windows, where an npm CLI (`npm.cmd` itself included) is a shim that
+ * has to be run as node.exe plus its entry script — see win-launch.ts.
+ */
+async function resolveLaunch(name: string): Promise<{ file: string; prefixArgs: string[] } | null> {
+  if (process.platform !== 'win32') {
+    const file = await resolveBinary(name)
+    return file ? { file, prefixArgs: [] } : null
+  }
+  const where = async (bin: string): Promise<string> => {
+    const { stdout } = await execFileAsync('where', [bin], { timeout: 15_000 })
+    return stdout
+  }
+  const result = await resolveWindowsLaunch(await where(name).catch(() => ''), {
+    readShim: (path) => {
+      try {
+        return readFileSync(path, 'utf8')
+      } catch {
+        return null
+      }
+    },
+    whereNode: () => where('node'),
   })
+  return result.ok ? result.launch : null
 }
 
 /** Binary presence for catalogue recommendations. */

@@ -53,16 +53,17 @@ const CATALOGUE_FALLBACK_TTL_MS = 20_000
 const catalogueCache = createTtlCache(
   async (): Promise<CatalogueResult> => {
     const stub = piStubPath()
+    const health = stub ? null : await cachedPiHealth()
     const result = await resolveCatalogueModels(
       async () => {
         if (stub) return process.execPath
-        const health = await cachedPiHealth()
-        return health.ok ? (health.binaryPath ?? null) : null
+        return health?.ok ? (health.binaryPath ?? null) : null
       },
       listCatalogueModels,
       stub
         ? (binaryPath) => listModelsViaRpc(binaryPath, [stub])
-        : (binaryPath) => listModelsViaRpc(binaryPath),
+        : async (binaryPath) =>
+            listModelsViaRpc(binaryPath, health?.prefixArgs ?? [], await piProcessEnv()),
     )
     if (result.models.length === 0) throw new Error('no models available')
     return result
@@ -111,6 +112,7 @@ function commandsCacheFor(workspacePath: string | undefined): TtlCache<RpcSlashC
       return probeCommands({
         ...(workspacePath ? { workspacePath } : {}),
         binaryPath: health.binaryPath,
+        ...(health.prefixArgs ? { prefixArgs: health.prefixArgs } : {}),
         env: await piProcessEnv(),
       })
     }, COMMANDS_TTL_MS)

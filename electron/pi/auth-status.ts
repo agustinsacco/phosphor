@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { SubscriptionProvider, SubscriptionProviderStatus } from '@shared/models'
 import { accountFromCredential, credentialFingerprint } from './auth-identity'
-import { checkPiHealth } from './health'
+import { checkPiHealth, piArgs } from './health'
 import { piProcessEnv } from './shell-env'
 
 const execFileAsync = promisify(execFile)
@@ -162,11 +162,15 @@ export async function checkProviderAuth(providerId: string): Promise<AuthCheck> 
   if (!health.ok || !health.binaryPath) return { status: 'unknown' }
   const env = await piProcessEnv()
   try {
-    const { stdout } = await execFileAsync(health.binaryPath, AUTH_CHECK_ARGS(providerId), {
-      env,
-      timeout: 10_000,
-      encoding: 'utf8',
-    })
+    const { stdout } = await execFileAsync(
+      health.binaryPath,
+      piArgs(health, AUTH_CHECK_ARGS(providerId)),
+      {
+        env,
+        timeout: 10_000,
+        encoding: 'utf8',
+      },
+    )
     return parseAuthCheck(stdout)
   } catch (error) {
     const stdout = (error as { stdout?: string }).stdout
@@ -210,11 +214,15 @@ export async function checkSubscriptionAuth(): Promise<SubscriptionProviderStatu
   return Promise.all(
     SUBSCRIPTION_PROVIDERS.map(async (provider) => {
       try {
-        const { stdout } = await execFileAsync(binaryPath, AUTH_CHECK_ARGS(provider.id), {
-          env,
-          timeout: 10_000,
-          encoding: 'utf8',
-        })
+        const { stdout } = await execFileAsync(
+          binaryPath,
+          piArgs(health, AUTH_CHECK_ARGS(provider.id)),
+          {
+            env,
+            timeout: 10_000,
+            encoding: 'utf8',
+          },
+        )
         return { ...provider, ...forRenderer(parseAuthCheck(stdout)) }
       } catch (error) {
         // `pi auth check` exits 0 even for not_ready, so a throw here means the

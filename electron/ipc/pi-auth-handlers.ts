@@ -4,7 +4,7 @@ import type { LoginFlowState } from '@shared/models'
 import { handle } from './handle'
 import { checkSubscriptionAuth } from '../pi/auth-status'
 import { cancelLogin, startLogin } from '../pi/login-flow'
-import { checkPiHealth, invalidatePiHealth } from '../pi/health'
+import { checkPiHealth, invalidatePiHealth, piArgs } from '../pi/health'
 import { invalidateCatalogueModels } from './pi-config-handlers'
 import { piProcessEnv } from '../pi/shell-env'
 import { ptyManager } from '../pty/pty-manager'
@@ -73,7 +73,7 @@ export function registerPiAuthHandlers(): void {
      */
     return ptyManager.create(homedir(), cols, rows, undefined, {
       file: health.binaryPath,
-      args: ['--no-session'],
+      args: piArgs(health, ['--no-session']),
       env: await piProcessEnv(),
     })
   })

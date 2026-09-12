@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process'
+import { delimiter } from 'node:path'
 import { promisify } from 'node:util'
 
 const execFileAsync = promisify(execFile)
@@ -185,10 +186,13 @@ export async function piProcessEnv(
   for (const [name, value] of Object.entries(shellEnv)) {
     if (base[name] === undefined) base[name] = value
   }
-  if (shellPath) {
+  // Windows has no login shell to consult (`getLoginShellPath` hands back the
+  // inherited PATH), so there is nothing to merge — and merging would also
+  // have to survive `C:` drive colons, which `dedupePath` used to split on.
+  if (shellPath && process.platform !== 'win32') {
     // Prefer the shell's PATH, keeping any inherited entries as a fallback.
     const inherited = process.env.PATH ?? ''
-    const merged = inherited ? `${shellPath}:${inherited}` : shellPath
+    const merged = inherited ? `${shellPath}${delimiter}${inherited}` : shellPath
     base.PATH = dedupePath(merged)
   }
   return { ...base, ...extra }
@@ -197,9 +201,9 @@ export async function piProcessEnv(
 function dedupePath(path: string): string {
   const seen = new Set<string>()
   return path
-    .split(':')
+    .split(delimiter)
     .filter((entry) => entry && !seen.has(entry) && (seen.add(entry), true))
-    .join(':')
+    .join(delimiter)
 }
 
 /** Test seam: forget the cached PATH and shell env. */

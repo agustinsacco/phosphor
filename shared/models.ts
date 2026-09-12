@@ -3,14 +3,30 @@ import { type ExtensionUIRequest, type PiEvent } from './rpc'
 
 export interface PiHealth {
   ok: boolean
-  /** Absolute path to the pi binary, when found. */
+  /**
+   * What to spawn to run pi, when found. On macOS/Linux this is pi itself. On
+   * Windows npm installs pi as a `.cmd` shim that Node refuses to spawn, so
+   * this is `node.exe` and `prefixArgs` carries pi's entry script — every
+   * spawn must put `prefixArgs` before pi's own arguments
+   * (`electron/pi/win-launch.ts`).
+   */
   binaryPath?: string
+  /** Arguments that go before pi's own. Empty except on Windows. */
+  prefixArgs?: string[]
   /** Reported `pi --version`, when runnable. */
   version?: string
   /** Minimum version Phosphor supports. */
   minVersion: string
   reason?: 'not-found' | 'version-check-failed' | 'too-old'
   message?: string
+}
+
+/**
+ * Where pi is installed, for display. `binaryPath` is `node.exe` on Windows,
+ * which answers "what runs" but not "where is pi"; the entry script does.
+ */
+export function piInstallLocation(health: PiHealth): string | undefined {
+  return health.prefixArgs?.[0] ?? health.binaryPath
 }
 
 export interface WorkspaceInfo {

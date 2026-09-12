@@ -40,7 +40,13 @@ export function registerSkillsHandlers(): void {
     const binaryPath = health.ok ? health.binaryPath : undefined
     return resolveSkills({
       ...(workspacePath ? { workspacePath } : {}),
-      ...(binaryPath ? { binaryPath, env: await piProcessEnv() } : {}),
+      ...(binaryPath
+        ? {
+            binaryPath,
+            ...(health.prefixArgs ? { prefixArgs: health.prefixArgs } : {}),
+            env: await piProcessEnv(),
+          }
+        : {}),
     })
   })
 

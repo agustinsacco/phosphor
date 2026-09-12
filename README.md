@@ -42,7 +42,7 @@ mid-session; the conversation comes along.
 # 1. pi is the engine — Phosphor needs it on your PATH (Node ≥ 22.19)
 npm install -g @earendil-works/pi-coding-agent
 
-# 2. Install Phosphor (macOS / Linux; Windows builds are on tagged releases)
+# 2. Install Phosphor (macOS / Linux; Windows: run the .exe from the latest release)
 curl -fsSL https://github.com/agustinsacco/Phosphor/releases/latest/download/install.sh | sh
 ```
 
@@ -198,8 +198,16 @@ verifies the download against the release's `checksums.txt`. Binaries are also
 on the [Releases page](https://github.com/agustinsacco/Phosphor/releases): DMG
 and ZIP for macOS, AppImage and `.deb` for Linux.
 
-Windows builds come from the tagged `Release` workflow, not the per-merge one,
-so a `.exe` is only on releases cut from a `v*` tag.
+Windows: download `Phosphor-<version>-x64.exe` from the
+[latest release](https://github.com/agustinsacco/Phosphor/releases/latest) and
+run it. It installs per user (no administrator prompt) and picks its own
+install folder unless you change it. The installer is not code-signed, so
+SmartScreen shows "Windows protected your PC" — choose **More info → Run
+anyway**. Install pi with `npm install -g @earendil-works/pi-coding-agent` in
+any terminal; Phosphor finds it on the user PATH that npm sets up. A Node
+version manager that only configures PATH per terminal (fnm, nvm-windows
+without a system-wide link) is not visible to a desktop app, and the setup
+screen says so.
 
 Phosphor needs `pi` on your PATH:
 
@@ -218,9 +226,9 @@ Every merge to `main` that passes CI publishes a release, versioned
 when there is something to do, an update button appears in the sidebar footer
 above Settings.
 
-Linux AppImage and signed macOS installs download in the background and offer
-"Restart to update". Unsigned macOS and `.deb` installs cannot replace their
-own files, so they link to the release page. Update checks only run when
+Linux AppImage, Windows and signed macOS installs download in the background
+and offer "Restart to update". Unsigned macOS and `.deb` installs cannot
+replace their own files, so they link to the release page. Update checks only run when
 packaged. Details: [docs/updates.md](docs/updates.md).
 
 ## How it works
