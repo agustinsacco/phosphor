@@ -1677,6 +1677,9 @@ export function installMockPhosphor(): void {
         // Same reason: no provider sidecar to fork in the browser harness.
         case 'sessions:forkClaudeLedger':
           return Promise.resolve(false)
+        // …and none to un-pair, which is the "already reimports" outcome.
+        case 'sessions:resetClaudeContext':
+          return Promise.resolve({ cleared: false, claudeSessionId: null })
         case 'fs:readDir': {
           const dir = args[1] as string
           return Promise.resolve(mockDir(dir))

@@ -14,6 +14,7 @@ window.matchMedia = vi.fn().mockReturnValue({
 Element.prototype.scrollIntoView = vi.fn()
 
 const { ErrorBlock } = await import('./MessageItem')
+const { useSessionsStore } = await import('@/stores/sessions')
 
 let root: Root | null = null
 let container: HTMLDivElement | null = null
@@ -149,6 +150,60 @@ describe('ErrorBlock', () => {
     it('adds no toggle when there was no envelope to unwrap', () => {
       render(<ErrorBlock message={RETENTION_ERROR} />)
       expect(container?.querySelector('button[aria-expanded]')).toBeNull()
+    })
+  })
+
+  /**
+   * The one failure no command and no setting can fix: the Claude provider
+   * refusing to resume a transcript stamped with the other context policy.
+   * Phosphor does the fix itself, so what matters is that the button is there,
+   * that it names the token cost before it runs, and that it acts on the
+   * session's own file.
+   */
+  describe('Claude context policy', () => {
+    const POLICY_ERROR =
+      'Claude context policy changed (or its saved prompt is missing). Start a fresh pi session; the existing Claude transcript was not migrated.'
+    const SESSION_FILE = '/sessions/2026-09-13T11-44-59-655Z_01a09a95.jsonl'
+
+    function rebuildButton(): HTMLButtonElement | undefined {
+      return [...(container?.querySelectorAll('button') ?? [])].find((b) =>
+        /rebuild/i.test(b.textContent ?? ''),
+      ) as HTMLButtonElement | undefined
+    }
+
+    beforeEach(() => {
+      useSessionsStore.setState({
+        live: { s1: { phosphorId: 's1', workspacePath: '/w', diskPath: SESSION_FILE } },
+      })
+    })
+
+    it('explains the failure and the cache cost before offering the fix', () => {
+      render(<ErrorBlock message={POLICY_ERROR} sessionId="s1" />)
+      expect(text()).toMatch(/different context policy/i)
+      expect(text()).toMatch(/conversation is safe/i)
+      // The consequence the user cannot otherwise see coming.
+      expect(text()).toMatch(/cache write/i)
+      expect(rebuildButton()).toBeTruthy()
+    })
+
+    it('un-pairs the session it was rendered for, then says what to do next', async () => {
+      const invoke = vi.fn().mockResolvedValue({ awsProfile: undefined })
+      ;(globalThis as unknown as { window: { phosphor: unknown } }).window.phosphor = { invoke }
+
+      render(<ErrorBlock message={POLICY_ERROR} sessionId="s1" />)
+      await act(async () => {
+        rebuildButton()!.click()
+      })
+
+      expect(invoke).toHaveBeenCalledWith('sessions:resetClaudeContext', SESSION_FILE)
+      expect(text()).toMatch(/send your message again/i)
+    })
+
+    it('offers nothing to act on when the block has no session', () => {
+      render(<ErrorBlock message={POLICY_ERROR} />)
+      // The explanation still stands; only the button needs a session.
+      expect(text()).toMatch(/different context policy/i)
+      expect(rebuildButton()).toBeUndefined()
     })
   })
 })

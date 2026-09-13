@@ -44,8 +44,32 @@ What the adapter does, at the level Phosphor depends on:
 Phosphor checks the declared provider package version before creating a Claude
 session or forwarding a switch to Claude, and shows an update message rather
 than running under an older policy. Nothing is installed or upgraded for you.
-Start fresh sessions across a policy change. 0.7.1 in turn needs Claude Code
-**2.1.263+**.
+0.7.1 in turn needs Claude Code **2.1.263+**.
+
+### Resuming a session from before a context-policy change
+
+The provider stores the system prompt each CLI session was created with and
+compares its policy against the one Phosphor spawns with. A mismatch throws
+_before_ the model runs — so a session started under the other policy answers
+every message with the same error and cannot be talked out of it:
+
+> Claude context policy changed (or its saved prompt is missing). Start a fresh
+> pi session; the existing Claude transcript was not migrated.
+
+Every Claude session predating 2026-09-09 (when `PI_CLAUDE_CLI_CONTEXT=pi`
+arrived) is stamped with the old policy and hits this on its first turn
+afterwards. **Starting fresh is not required.** The error carries a **Rebuild
+the Claude session** button, which drops the session's entry from the
+provider's sidecar map (`resetClaudeLedgerPairing` in
+`electron/pi/claude-ledger.ts`), deletes the stored prompt and trashes the
+orphaned CLI transcript. pi is the system of record, so nothing is lost: the
+next turn is treated as a first turn and replays pi's full history into a new
+CLI session.
+
+The cost is one turn — the reimport is billed as a cache **write** over the
+whole conversation (1.25× input) where a resume would have been a cache read
+(0.1×), which is the same charge the clone fork exists to avoid. The panel
+says so before the user clicks, and every turn after it caches normally.
 
 Two version floors worth knowing because their failures are silent:
 **< 0.4.16** never received pi's system prompt at all; **< 0.6.1** ignored the

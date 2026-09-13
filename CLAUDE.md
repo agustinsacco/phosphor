@@ -155,8 +155,13 @@ you want to watch.
   for `PI_CLAUDE_CLI_CONTEXT=pi`: pi loads project context and skills, the
   provider suppresses duplicate Claude discovery and aligns native-tool
   vocabulary, while retaining Claude's default prompt, native tools and
-  explicit host guards. It also implies strict MCP isolation. Start a fresh
-  session across this policy change; old saved prompts are not migrated.
+  explicit host guards. It also implies strict MCP isolation. A session
+  created under the other policy cannot be resumed — the provider throws
+  before the model runs, on every message — so the error offers a **Rebuild
+  the Claude session** button that un-pairs it and reimports pi's history
+  (`resetClaudeLedgerPairing`, [cli-providers.md](docs/cli-providers.md#resuming-a-session-from-before-a-context-policy-change)).
+  Old saved prompts are still not migrated; the rebuild costs one turn billed
+  as a full-context cache write.
   **`>= 0.8.0`** is what makes a CLI-side tool row say what came BACK —
   Phosphor asks every session for results (`PI_CLAUDE_CLI_TOOL_RESULTS=1`),
   and 0.8.0 is where the payload gained the CLI's own metrics (line counts,

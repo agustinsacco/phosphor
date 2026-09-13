@@ -7,9 +7,18 @@
  * unrecognized still renders as plain text (never a guessed command).
  */
 
+/**
+ * A fix Phosphor performs itself, for failures that are neither a shell
+ * command nor a setting the user can reach — here, provider bookkeeping that
+ * only the app knows how to unpick.
+ */
+export type ErrorActionKind = 'resetClaudeContext'
+
 export interface ErrorRemedy {
   /** Short imperative label for the button. */
   label: string
+  /** In-app recovery, rendered instead of a command row. */
+  action?: ErrorActionKind
   /**
    * Shell command pasted into the session terminal. Omitted when the fix is
    * not a shell command at all (an AWS console setting, say) — inventing a
@@ -63,6 +72,22 @@ export function matchErrorRemedy(
 ): ErrorRemedy | null {
   if (!message) return null
   const text = message.toLowerCase()
+
+  // The Claude provider refusing to resume its own transcript. It stores the
+  // system prompt each CLI session was created with and compares that prompt's
+  // context policy against the one Phosphor spawns with; a mismatch throws
+  // before the model is ever called, so the session cannot take another
+  // message. Every Claude session predating 2026-09-09 is stamped with the old
+  // policy and hits this on its first turn after the upgrade. Phosphor can
+  // unpick it — pi holds the conversation, the CLI transcript is derived.
+  if (text.includes('context policy changed')) {
+    return {
+      label: 'Rebuild the Claude session',
+      action: 'resetClaudeContext',
+      hint: "This session's Claude transcript was written under a different context policy, and the provider will not resume it under the current one rather than mix two sets of instructions.",
+      retryAfter: true,
+    }
+  }
 
   // Bedrock data retention mode. An account/profile-level Bedrock setting that
   // newer Claude models refuse to run under; nothing about the session, the

@@ -34,6 +34,7 @@ import type {
   CheckoutResult,
   ClaudeAccountSessions,
   ClaudeAccountsResult,
+  ClaudeContextReset,
   ClaudeSessionAccount,
   ClaudeRoutingMode,
   ClaudeStatus,
@@ -637,6 +638,16 @@ export interface IpcInvokeMap {
    * recorded, false when there was nothing to do (which is normal).
    */
   'sessions:forkClaudeLedger': { args: [cloneSessionFile: string]; result: boolean }
+  /**
+   * Un-pair a session from its Claude CLI transcript, so the next turn
+   * reimports pi's history into a fresh one. The recovery offered on the
+   * error the provider raises when the stored prompt's context policy no
+   * longer matches the one Phosphor spawns with.
+   */
+  'sessions:resetClaudeContext': {
+    args: [sessionFilePath: string]
+    result: ClaudeContextReset
+  }
 
   /** PR for a branch via the `gh` CLI; null when gh/auth/remote is absent. */
   'gh:prForBranch': {

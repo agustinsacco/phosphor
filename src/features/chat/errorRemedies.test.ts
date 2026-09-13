@@ -26,6 +26,20 @@ describe('matchErrorRemedy', () => {
     ).toMatch(/aws sso login/)
   })
 
+  it('offers the in-app rebuild for a Claude context policy mismatch', () => {
+    // Verbatim from `context-policy.ts` in @saccolabs/pi-claude-cli.
+    const remedy = matchErrorRemedy(
+      'Claude context policy changed (or its saved prompt is missing). Start a fresh pi session; the existing Claude transcript was not migrated.',
+    )
+    expect(remedy?.action).toBe('resetClaudeContext')
+    expect(remedy?.retryAfter).toBe(true)
+    // No command and no docs link: Phosphor performs this one itself.
+    expect(remedy?.command).toBeUndefined()
+    expect(remedy?.docsUrl).toBeUndefined()
+    // Switching models would not help — the transcript is the problem.
+    expect(remedy?.suggestModelSwitch).toBeUndefined()
+  })
+
   it('suggests pi /login for OAuth failures', () => {
     const remedy = matchErrorRemedy('OAuth refresh token rejected')
     expect(remedy?.command).toBe('pi')
