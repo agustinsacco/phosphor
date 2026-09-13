@@ -981,6 +981,21 @@ export interface ClaudeAccountView {
 }
 
 /**
+ * Outcome of un-pairing a pi session from its Claude Code CLI session, the
+ * recovery for a transcript the provider refuses to resume.
+ *
+ * `cleared: false` is a success, not a failure: it means there was no pairing
+ * to remove, so the next turn already reimports pi's history — the state the
+ * reset exists to reach. A genuine failure rejects instead.
+ */
+export interface ClaudeContextReset {
+  /** True when a pairing was removed by this call. */
+  cleared: boolean
+  /** The CLI session that was un-paired, for the debug log. */
+  claudeSessionId: string | null
+}
+
+/**
  * Which Claude login a live session bills, for the surfaces that must say so.
  *
  * A lane's account is decided once, at spawn, and nothing downstream carried

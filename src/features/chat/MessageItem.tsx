@@ -15,6 +15,7 @@ import { UserText } from './UserText'
 import type { TranscriptRow } from './items/transcriptRows'
 import { RunCommandRow } from '@/components/RunCommandRow'
 import { matchErrorRemedy } from './errorRemedies'
+import { ClaudeContextRecovery } from './ClaudeContextRecovery'
 import { parseErrorMessage, type ParsedError } from './errorMessage'
 import { useActiveWorkspace } from '@/stores/workspaces'
 import { BranchIcon, RewindIcon } from '@/components/icons'
@@ -55,7 +56,7 @@ export const MessageItemView = memo(function MessageItemView({
     case 'text':
       return <AssistantText item={row.item} block={row.block} isLastInItem={row.isLastInItem} />
     case 'outcome':
-      return <AssistantOutcome item={row.item} />
+      return <AssistantOutcome item={row.item} sessionId={sessionId} />
     case 'item':
       switch (row.item.kind) {
         case 'user':
@@ -306,8 +307,15 @@ function AssistantText({
 }
 
 /** How an assistant turn ended, when it did not end cleanly. */
-function AssistantOutcome({ item }: { item: AssistantItem }): React.JSX.Element | null {
-  if (item.stopReason === 'error') return <ErrorBlock message={item.errorMessage} />
+function AssistantOutcome({
+  item,
+  sessionId,
+}: {
+  item: AssistantItem
+  sessionId: string
+}): React.JSX.Element | null {
+  if (item.stopReason === 'error')
+    return <ErrorBlock message={item.errorMessage} sessionId={sessionId} />
   if (item.stopReason === 'aborted') {
     return (
       <div className="text-text-tertiary my-1 flex items-center gap-2.5 text-sm">
@@ -324,11 +332,22 @@ function AssistantOutcome({ item }: { item: AssistantItem }): React.JSX.Element 
  * Failed turn. When the message names a failure Phosphor knows the fix for, that
  * fix is offered inline instead of leaving the user to go find it: a runnable
  * command for the shell-fixable ones (expired AWS SSO token, missing pi login),
- * and for configuration failures that no command can fix (Bedrock's
- * account-level data retention mode) a docs link plus a pointer at the model
- * menu, which is the actual workaround.
+ * for configuration failures that no command can fix (Bedrock's account-level
+ * data retention mode) a docs link plus a pointer at the model menu, and for
+ * the ones only Phosphor can unpick (a Claude transcript stamped with a context
+ * policy the provider will no longer resume) an in-app recovery.
+ *
+ * `sessionId` is optional so the standalone render paths keep working; without
+ * it the in-app recoveries — which all act on a specific session — stay hidden
+ * rather than offering a button with nothing to act on.
  */
-export function ErrorBlock({ message }: { message?: string }): React.JSX.Element {
+export function ErrorBlock({
+  message,
+  sessionId,
+}: {
+  message?: string
+  sessionId?: string
+}): React.JSX.Element {
   const workspacePath = useActiveWorkspace()
   const [awsProfile, setAwsProfile] = useState<string | undefined>(undefined)
 
@@ -349,6 +368,9 @@ export function ErrorBlock({ message }: { message?: string }): React.JSX.Element
       {remedy && (
         <>
           <div className="text-text-secondary mt-1.5 text-base leading-relaxed">{remedy.hint}</div>
+          {remedy.action === 'resetClaudeContext' && sessionId !== undefined && (
+            <ClaudeContextRecovery sessionId={sessionId} />
+          )}
           {remedy.command !== undefined && (
             <RunCommandRow
               command={remedy.command}
