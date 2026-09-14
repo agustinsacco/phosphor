@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { SandboxInfo, WorkspaceInfo } from '@shared/models'
-import { isWorktreeFolder } from '@/lib/path'
+import { basename, isWorktreeFolder } from '@/lib/path'
 import { useExtensionUiStore } from './extensionUi'
 import { useSessionsStore } from './sessions'
 
@@ -35,6 +35,11 @@ interface WorkspacesState {
   refreshSandboxes: () => Promise<void>
   /** Trash a sandbox (folder + transcripts) and drop it from every list. */
   deleteSandbox: (path: string) => Promise<{ ok: boolean; reason?: string }>
+  /**
+   * Rename a sandbox's folder and re-point every local reference to it.
+   * Resolves the new path, or null when main refused.
+   */
+  renameSandbox: (path: string, name: string) => Promise<string | null>
   /** Move a workspace in the user-defined sidebar/switcher order. */
   moveWorkspace: (path: string, direction: 'up' | 'down') => void
   hydrate: () => Promise<void>
@@ -128,6 +133,42 @@ export const useWorkspacesStore = create<WorkspacesState>((set, get) => ({
       else set({ homePath: null })
     }
     return result
+  },
+
+  renameSandbox: async (path, name) => {
+    const previous = basename(path)
+    const result = await window.phosphor.invoke('app:renameSandbox', path, name)
+    // Reported here rather than at each call site, same as `deleteSandbox`:
+    // main refuses for reasons every surface would otherwise have to explain.
+    if (!result.ok) {
+      const reason =
+        result.reason === 'in-use'
+          ? `${previous} has a session running in it`
+          : result.reason === 'exists'
+            ? `There is already a sandbox called ${name.trim()}`
+            : result.reason === 'invalid-name'
+              ? `${name.trim()} cannot be a folder name`
+              : `Could not rename ${previous}`
+      useExtensionUiStore.getState().pushToast(reason, 'error')
+      return null
+    }
+
+    const to = result.path
+    const renamed = basename(to)
+    // A workspace IS its path, so this is a re-point, not a relabel. Main has
+    // already done the persisted half; mirror it in memory rather than
+    // re-hydrating, and follow the home screen across if it was pointed here.
+    set((s) => ({
+      recents: s.recents.map((w) => (w.path === path ? { ...w, path: to, name: renamed } : w)),
+      homePath: s.homePath === path ? to : s.homePath,
+    }))
+    await get().refreshSandboxes()
+    // Both scans matter: the new path to pick the moved transcripts up, and
+    // the old one to empty a sidebar group that now points at nothing.
+    const sessions = useSessionsStore.getState()
+    await Promise.all([sessions.refreshDisk(to), sessions.refreshDisk(path)])
+    useExtensionUiStore.getState().pushToast(`Renamed to ${renamed}`, 'info')
+    return to
   },
 
   moveWorkspace: (path, direction) => {

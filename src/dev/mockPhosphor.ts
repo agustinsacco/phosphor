@@ -764,16 +764,22 @@ export function installMockPhosphor(): void {
         case 'app:selectFolder':
           return Promise.resolve('/Users/dev/projects/phosphor')
         case 'app:createSandbox':
-          return Promise.resolve('/Users/dev/sandboxes/sandbox-1')
+          return Promise.resolve('/Users/dev/sandboxes/quiet-otter')
         case 'app:listSandboxes':
           return Promise.resolve([
             {
-              path: '/Users/dev/sandboxes/sandbox-1',
-              name: 'sandbox-1',
+              path: '/Users/dev/sandboxes/quiet-otter',
+              name: 'quiet-otter',
               itemCount: 0,
               lastUsedAt: Date.now() - 3_600_000,
             },
           ])
+        case 'app:renameSandbox':
+          // Mirrors main's contract: a sandbox's path changes with its name.
+          return Promise.resolve({
+            ok: true,
+            path: `/Users/dev/sandboxes/${String(args[1]).trim()}`,
+          })
         case 'app:deleteSandbox':
           return Promise.resolve({ ok: true })
         case 'pi:createSession':

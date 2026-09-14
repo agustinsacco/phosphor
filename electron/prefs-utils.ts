@@ -117,3 +117,30 @@ export function pruneLaneMarkers(
   if (entries.length <= max) return markers
   return Object.fromEntries(entries.slice(entries.length - keep))
 }
+
+/** One directory move, as `repointPath` understands it. */
+export interface PathMove {
+  from: string
+  to: string
+}
+
+/**
+ * `path` with any move that covers it applied, or `path` unchanged.
+ *
+ * Renaming a sandbox moves two directories, not one: the folder itself, and
+ * pi's transcript directory, whose NAME is the mangled cwd (pi-paths.ts).
+ * Prefs hold absolute paths of both kinds — recents and the launch-resume pair
+ * point at the folder, while the pinned/seen/marker maps are keyed by session
+ * FILE, i.e. by a path INSIDE the transcript directory. So the match has to be
+ * a prefix, not an equality, and the separator guard is what stops `/a/box`
+ * from also claiming `/a/box-2`.
+ *
+ * `sep` is injected so the rule is testable under both platforms' separators.
+ */
+export function repointPath(path: string, moves: readonly PathMove[], sep: string): string {
+  for (const { from, to } of moves) {
+    if (path === from) return to
+    if (path.startsWith(from + sep)) return to + path.slice(from.length)
+  }
+  return path
+}

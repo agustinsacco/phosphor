@@ -1,7 +1,12 @@
 import { app, BrowserWindow, dialog, shell } from 'electron'
 import { basename, join } from 'node:path'
-import { listSandboxFolders, openSandboxFolder, resolveSandboxFolder } from '../sandbox'
-import { access } from 'node:fs/promises'
+import {
+  listSandboxFolders,
+  openSandboxFolder,
+  planSandboxRename,
+  resolveSandboxFolder,
+} from '../sandbox'
+import { access, rename } from 'node:fs/promises'
 import { claudeProjectDirForCwd, sessionDirForCwd } from '../pi/pi-paths'
 import { registry } from '../registry'
 import { handle } from './handle'
@@ -38,6 +43,7 @@ import {
   setDraft,
   clearDraft,
   setDrafts,
+  repointStoredPaths,
 } from '../store'
 
 /**
@@ -73,6 +79,22 @@ function sandboxBase(): string {
 async function trashIfPresent(path: string): Promise<void> {
   if (!(await pathExists(path))) return
   await shell.trashItem(path)
+}
+
+/**
+ * Move a transcript directory alongside its sandbox.
+ *
+ * A sandbox with no chats yet simply has no such directory, so a missing
+ * source is normal. An occupied destination is left alone rather than merged:
+ * it means history already exists under the new name (a sandbox that once had
+ * it was deleted or renamed away), and `rename` onto a non-empty directory
+ * fails anyway. The old transcripts stay where they are — orphaned, but not
+ * destroyed.
+ */
+async function moveIfPresent(from: string, to: string): Promise<void> {
+  if (!(await pathExists(from))) return
+  if (await pathExists(to)) return
+  await rename(from, to)
 }
 
 /** App preferences, native dialogs, and runtime info. */
@@ -252,6 +274,48 @@ export function registerAppHandlers(): void {
   handle('app:createSandbox', () => openSandboxFolder(sandboxBase()))
 
   handle('app:listSandboxes', () => listSandboxFolders(sandboxBase()))
+
+  /**
+   * Renaming a sandbox moves its folder, so it moves the sandbox's IDENTITY:
+   * a workspace is its path here, and pi names a transcript directory after
+   * the mangled cwd. Three things therefore have to move together, or the
+   * rename reads as data loss — the folder, pi's transcripts, and the CLI's.
+   *
+   * Refused outright while a session is live. Renaming a running pi's cwd out
+   * from under it leaves the process writing to a path that no longer exists,
+   * and nothing would put it back.
+   */
+  handle('app:renameSandbox', async (_event, path: string, name: string) => {
+    const plan = planSandboxRename(sandboxBase(), path, name)
+    if (!plan.ok) return { ok: false as const, reason: plan.reason }
+    // Same folder: a no-op submit, or a rename to the name it already has.
+    if (plan.from === plan.to) return { ok: true as const, path: plan.to }
+    if (registry.list().some((session) => session.workspacePath === plan.from)) {
+      return { ok: false as const, reason: 'in-use' as const }
+    }
+
+    // Resolved on either side of the move, and that order matters: both
+    // manglings run on the REAL path, so the source only resolves while the
+    // folder is still at `from`, and the destination only once it is at `to`.
+    const before = [sessionDirForCwd(plan.from), claudeProjectDirForCwd(plan.from)]
+    try {
+      await rename(plan.from, plan.to)
+    } catch {
+      return { ok: false as const, reason: 'failed' as const }
+    }
+    const after = [sessionDirForCwd(plan.to), claudeProjectDirForCwd(plan.to)]
+
+    // Best-effort, and after the folder: transcripts left behind cost history,
+    // which is worse than the folder not moving but not worth failing over —
+    // the folder has already moved and there is nothing to roll back to.
+    await Promise.allSettled(before.map((from, index) => moveIfPresent(from, after[index]!)))
+
+    repointStoredPaths([
+      { from: plan.from, to: plan.to },
+      ...before.map((from, index) => ({ from, to: after[index]! })),
+    ])
+    return { ok: true as const, path: plan.to }
+  })
 
   /**
    * A sandbox's transcripts go with it. They are scratch chats about a folder

@@ -37,12 +37,13 @@ export interface WorkspaceInfo {
 }
 
 /**
- * A `<userData>/sandboxes/sandbox-N` folder — the "No folder" scratch space.
+ * A `<userData>/sandboxes/<name>` folder — the "No folder" scratch space.
  * A sandbox is an ordinary workspace once opened; this is the extra state
  * Settings needs to say whether one is still worth keeping.
  */
 export interface SandboxInfo {
   path: string
+  /** The folder's basename: a minted `adjective-noun`, or whatever the user renamed it to. */
   name: string
   /** Entries the model wrote, dotfiles excluded. 0 means untouched. */
   itemCount: number

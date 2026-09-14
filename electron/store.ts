@@ -1,10 +1,13 @@
 import { existsSync } from 'node:fs'
+import { basename, sep } from 'node:path'
 import Store from 'electron-store'
 import {
   blobIdsOf,
+  type PathMove,
   pruneDrafts,
   pruneLaneMarkers,
   pruneSeenSessions,
+  repointPath,
   visibleWorkspaces,
 } from './prefs-utils'
 import {
@@ -255,6 +258,62 @@ export function setLastSession(sessionPath: string | undefined): void {
 
 export function setTheme(theme: ThemePreference): void {
   prefs().set('theme', theme)
+}
+
+/**
+ * Rewrite every persisted path that sits at or under one of `moves`.
+ *
+ * Left alone after a sandbox rename, each of these names something that no
+ * longer exists: the next launch resumes nothing, and every pin, marker and
+ * unseen-badge on that sandbox's chats silently drops. The matching rule (and
+ * why it is a prefix) is `repointPath`.
+ */
+export function repointStoredPaths(moves: readonly PathMove[]): void {
+  const s = prefs()
+  const remap = (path: string): string => repointPath(path, moves, sep)
+  const remapKeys = <T>(record: Record<string, T>): Record<string, T> =>
+    Object.fromEntries(Object.entries(record).map(([key, value]) => [remap(key), value]))
+
+  s.set(
+    'recentWorkspaces',
+    s.get('recentWorkspaces').map((workspace) => {
+      const path = remap(workspace.path)
+      // The display name is the basename, so a rename has to refresh it too.
+      return path === workspace.path ? workspace : { ...workspace, path, name: basename(path) }
+    }),
+  )
+
+  const lastWorkspace = s.get('lastWorkspacePath')
+  if (lastWorkspace) s.set('lastWorkspacePath', remap(lastWorkspace))
+  const lastSession = s.get('lastSessionPath')
+  if (lastSession) s.set('lastSessionPath', remap(lastSession))
+
+  s.set('pinnedSessions', (s.get('pinnedSessions') ?? []).map(remap))
+  s.set('collapsedWorkspaces', (s.get('collapsedWorkspaces') ?? []).map(remap))
+  s.set('seenSessions', remapKeys(s.get('seenSessions') ?? {}))
+  s.set('laneMarkers', remapKeys(s.get('laneMarkers') ?? {}))
+  s.set('agentDirectivesByProject', remapKeys(s.get('agentDirectivesByProject') ?? {}))
+
+  // A draft is keyed by the surface it belongs to and separately records its
+  // own workspace, so both sides need the rewrite or a sandbox's unsent
+  // message reappears under a folder that is gone.
+  const drafts = s.get('drafts') ?? {}
+  s.set(
+    'drafts',
+    Object.fromEntries(
+      Object.entries(drafts).map(([key, draft]) => {
+        const nextKey = remap(key)
+        return [
+          nextKey,
+          {
+            ...draft,
+            key: nextKey,
+            ...(draft.workspacePath ? { workspacePath: remap(draft.workspacePath) } : {}),
+          },
+        ]
+      }),
+    ),
+  )
 }
 
 export function recordWorkspace(path: string, name: string): void {

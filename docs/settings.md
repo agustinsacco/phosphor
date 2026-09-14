@@ -178,8 +178,12 @@ rather than a top-level app concern.
   touches nothing on disk. Reordering lives in the sidebar, on each workspace
   group's kebab, where you can see the order you are changing.
 - **Sandboxes**: the scratch folders behind "No folder", listed apart from
-  recents. Each shows its item count and last use; deleting moves the folder
-  _and its chats_ to the Trash. An empty sandbox is reused.
+  recents. Each is minted under a random `adjective-noun` name and shows its
+  item count and last use. **Rename** changes the folder on disk and moves its
+  chats with it — a sandbox IS its path, so the rename re-points recents, the
+  launch-resume pair, and every pin, marker and unseen badge on its sessions.
+  It is refused while a session is running in that sandbox. Deleting moves the
+  folder _and its chats_ to the Trash. An empty sandbox is reused.
 
 ## Optimization
 

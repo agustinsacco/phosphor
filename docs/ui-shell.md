@@ -77,8 +77,11 @@ screen.
 - **Group header toolbar**, always visible: the magnifier, a kebab, and `+`
   for a new session in that folder. The kebab holds Select all / Clear
   selection, **Move up / Move down** (this is where recents are reordered) and,
-  for a sandbox only, Delete sandbox behind a second click. A project folder is
-  only ever _forgotten_, from Settings → Workspaces.
+  for a sandbox only, Rename sandbox and Delete sandbox (the latter behind a
+  second click). A project folder is only ever _forgotten_, from
+  Settings → Workspaces; renaming is offered for a sandbox because the folder
+  is Phosphor's own. See [settings.md](settings.md#workspaces) for what a
+  rename moves.
 - **Loading states per group**: never attempted → skeleton rows; partly
   scanned → the rows we have plus `loading N more folders…`; errored →
   "Couldn't load sessions" with Retry. A group is the main repo plus every lane
