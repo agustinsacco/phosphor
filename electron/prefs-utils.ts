@@ -2,23 +2,42 @@
 import { MAX_DRAFTS, type ComposerDraftRecord, type WorkspaceInfo } from '@shared/models'
 
 /**
- * The recents worth answering with: real folders that still exist.
+ * The recents worth answering with: real folders that still exist, one entry
+ * per folder.
  *
- * Both filters keep the sidebar honest about what a "workspace" is. A
- * worktree is a branch of a project, not a project (a pre-fix install may
- * have persisted one per session). A folder that is gone is not a project at
- * all, and until this it kept its own sidebar header forever.
+ * Three rules keep the sidebar honest about what a "workspace" is. A worktree
+ * is a branch of a project, not a project (a pre-fix install may have persisted
+ * one per session). A folder that is gone is not a project at all, and until
+ * this it kept its own sidebar header forever.
+ *
+ * The third is identity. Phosphor keys a workspace by its path STRING, but one
+ * folder can be named by more than one string — any symlink on the way to it
+ * gives another. Two spellings meant two sidebar groups, and because pi derives
+ * a session directory from the REAL path, both groups scanned the same
+ * transcripts and listed the same lanes twice. `resolve` decides sameness, so
+ * the duplicates collapse; the first spelling wins, which keeps the user's
+ * sidebar order.
  *
  * Applied on READ only. Callers must not write the result back: a workspace
  * on an unmounted volume is missing today and back tomorrow, and forgetting
  * it on the strength of one boot loses the user's sidebar order for good.
+ * That is also why the surviving entry keeps its own stored path rather than
+ * being rewritten to the resolved one.
  */
 export function visibleWorkspaces(
   workspaces: WorkspaceInfo[],
   isWorktree: (path: string) => boolean,
-  exists: (path: string) => boolean,
+  /** The folder's real path, or null when it is gone (which also covers `exists`). */
+  resolve: (path: string) => string | null,
 ): WorkspaceInfo[] {
-  return workspaces.filter((ws) => !isWorktree(ws.path) && exists(ws.path))
+  const seen = new Set<string>()
+  return workspaces.filter((ws) => {
+    if (isWorktree(ws.path)) return false
+    const real = resolve(ws.path)
+    if (real === null || seen.has(real)) return false
+    seen.add(real)
+    return true
+  })
 }
 
 /**

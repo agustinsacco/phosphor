@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { mkdtempSync, rmSync, existsSync, mkdirSync, writeFileSync, utimesSync } from 'node:fs'
+import {
+  mkdtempSync,
+  rmSync,
+  existsSync,
+  mkdirSync,
+  realpathSync,
+  symlinkSync,
+  writeFileSync,
+  utimesSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import {
   createSandboxFolder,
   listSandboxFolders,
@@ -12,9 +21,16 @@ import {
   validateSandboxName,
 } from './sandbox'
 
-/** A scratch base directory, removed after `run`. */
+/**
+ * A scratch base directory, removed after `run`.
+ *
+ * Resolved, because macOS hands out `/var/folders/…` for a temp dir and `/var`
+ * is itself a symlink to `/private/var`. `resolveSandboxFolder` answers in real
+ * paths, so an unresolved base would make every comparison here spuriously
+ * fail on one platform and pass on the other.
+ */
 function withBase(run: (base: string) => void): void {
-  const scratch = mkdtempSync(join(tmpdir(), 'phosphor-sandbox-test-'))
+  const scratch = realpathSync.native(mkdtempSync(join(tmpdir(), 'phosphor-sandbox-test-')))
   try {
     run(join(scratch, 'sandboxes'))
   } finally {
@@ -181,6 +197,21 @@ describe('resolveSandboxFolder', () => {
     expect(resolveSandboxFolder(base, '/data/sandboxes/quiet-otter/../../quiet-otter')).toBeNull()
     expect(resolveSandboxFolder(base, '/data/sandboxes/nested/quiet-otter')).toBeNull()
     expect(resolveSandboxFolder(base, '/data/sandboxes/.hidden')).toBeNull()
+  })
+
+  it('accepts a sandbox named through, or despite, a symlinked base', () => {
+    // The shape that broke Delete on a real install: `<userData>/sandboxes`
+    // was a symlink, so recents held both spellings and the lexical compare
+    // called the folder's own real path "not a sandbox".
+    withBase((realBase) => {
+      const sandbox = createSandboxFolder(realBase)
+      const linkedBase = join(dirname(realBase), 'linked-sandboxes')
+      symlinkSync(realBase, linkedBase)
+
+      expect(resolveSandboxFolder(linkedBase, join(linkedBase, basename(sandbox)))).toBe(sandbox)
+      expect(resolveSandboxFolder(linkedBase, sandbox)).toBe(sandbox)
+      expect(resolveSandboxFolder(realBase, join(linkedBase, basename(sandbox)))).toBe(sandbox)
+    })
   })
 })
 

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import type { SandboxInfo } from '@shared/models'
 
@@ -196,13 +196,27 @@ export function openSandboxFolder(base: string): string {
  * folder directly inside `base`.
  *
  * These are the two sandbox operations that take a path FROM the renderer, so
- * the main process re-derives what is legal instead of trusting it. Purely
- * lexical, so it is testable without a filesystem — the caller still has to
- * cope with the folder being gone.
+ * the main process re-derives what is legal instead of trusting it.
+ *
+ * Both sides are compared as REAL paths, because one folder can be named by
+ * more than one string — a symlink anywhere on the way to the base gives
+ * another spelling, and a purely lexical compare refused the sandbox's own
+ * real path as "not a sandbox", which silently disabled Delete and Rename for
+ * it. Resolution is best-effort: a path that does not exist falls back to its
+ * lexical form, so a vanished folder is still judged rather than crashing, and
+ * the caller still has to cope with it being gone.
  */
+function realOrLexical(path: string): string {
+  try {
+    return realpathSync.native(path)
+  } catch {
+    return resolve(path)
+  }
+}
+
 export function resolveSandboxFolder(base: string, path: string): string | null {
-  const target = resolve(path)
-  if (dirname(target) !== resolve(base)) return null
+  const target = realOrLexical(path)
+  if (dirname(target) !== realOrLexical(base)) return null
   return isSandboxName(basename(target)) ? target : null
 }
 
@@ -241,7 +255,10 @@ export function planSandboxRename(base: string, path: string, raw: string): Sand
   const name = validateSandboxName(raw)
   if (!name) return { ok: false, reason: 'invalid-name' }
 
-  const to = join(resolve(base), name)
+  // Anchored to `from`, not to `base`: the guard above has already established
+  // that `from` sits directly inside the base, and `from` is resolved, so this
+  // cannot land in a different spelling of the base than the folder it moves.
+  const to = join(dirname(from), name)
   if (to === from) return { ok: true, from, to }
   if (existsSync(to) && !isSameFolder(to, from)) return { ok: false, reason: 'exists' }
   return { ok: true, from, to }
