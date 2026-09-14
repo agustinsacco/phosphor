@@ -6,6 +6,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useChatStore } from '@/stores/chat'
 import { useSessionBooting } from '@/features/chat/BootingIndicator'
+import { promptRenameSandbox } from '@/features/workspaces/promptRenameSandbox'
 import { showContextMenu } from '@/components/ContextMenu'
 import { isUnseen } from './unseen'
 import { sessionSubtitle, type SubtitleSegment } from './sessionSubtitle'
@@ -917,36 +918,48 @@ export function Sidebar({
                       >
                         Move down
                       </MenuRow>
-                      {/* Only a sandbox is deletable from here: it is Phosphor's
-                          own scratch folder, so removing it is ours to offer.
-                          A project folder is the user's and is only ever
-                          forgotten, in Settings. */}
+                      {/* Only a sandbox is renamed or deleted from here: it is
+                          Phosphor's own scratch folder, so its name and its
+                          removal are ours to offer. A project folder is the
+                          user's and is only ever forgotten, in Settings. */}
                       {sandboxPaths.has(group.workspacePath) && (
-                        <MenuRow
-                          active={false}
-                          testId="workspace-group-delete-sandbox"
-                          onClick={() => {
-                            // Second click confirms, in place — a sandbox goes
-                            // to the Trash, so a modal would cost more than the
-                            // mistake it prevents.
-                            if (confirmSandboxDelete !== group.workspacePath) {
-                              setConfirmSandboxDelete(group.workspacePath)
-                              return
-                            }
-                            closeWorkspaceMenu()
-                            void useWorkspacesStore.getState().deleteSandbox(group.workspacePath)
-                          }}
-                        >
-                          <span
-                            className={
-                              confirmSandboxDelete === group.workspacePath ? 'text-danger' : ''
-                            }
+                        <>
+                          <MenuRow
+                            active={false}
+                            testId="workspace-group-rename-sandbox"
+                            onClick={() => {
+                              closeWorkspaceMenu()
+                              void promptRenameSandbox(group.workspacePath)
+                            }}
                           >
-                            {confirmSandboxDelete === group.workspacePath
-                              ? 'Delete, with its chats?'
-                              : 'Delete sandbox…'}
-                          </span>
-                        </MenuRow>
+                            Rename sandbox…
+                          </MenuRow>
+                          <MenuRow
+                            active={false}
+                            testId="workspace-group-delete-sandbox"
+                            onClick={() => {
+                              // Second click confirms, in place — a sandbox goes
+                              // to the Trash, so a modal would cost more than the
+                              // mistake it prevents.
+                              if (confirmSandboxDelete !== group.workspacePath) {
+                                setConfirmSandboxDelete(group.workspacePath)
+                                return
+                              }
+                              closeWorkspaceMenu()
+                              void useWorkspacesStore.getState().deleteSandbox(group.workspacePath)
+                            }}
+                          >
+                            <span
+                              className={
+                                confirmSandboxDelete === group.workspacePath ? 'text-danger' : ''
+                              }
+                            >
+                              {confirmSandboxDelete === group.workspacePath
+                                ? 'Delete, with its chats?'
+                                : 'Delete sandbox…'}
+                            </span>
+                          </MenuRow>
+                        </>
                       )}
                     </PopupMenu>
                   )}

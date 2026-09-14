@@ -130,14 +130,33 @@ export interface IpcInvokeMap {
   'app:setTheme': { args: [ThemePreference]; result: void }
   'app:selectFolder': { args: []; result: string | null }
   /**
-   * The "No folder" option: the `<userData>/sandboxes/sandbox-N` folder a
-   * project-less session should run in. An empty sandbox is reused; a fresh
-   * one is minted only when every existing sandbox holds something. From then
-   * on it is an ordinary workspace (recents, sessions, removal).
+   * The "No folder" option: the `<userData>/sandboxes/<name>` folder a
+   * project-less session should run in, randomly named `adjective-noun`. An
+   * empty sandbox is reused; a fresh one is minted only when every existing
+   * sandbox holds something. From then on it is an ordinary workspace
+   * (recents, sessions, rename, removal).
    */
   'app:createSandbox': { args: []; result: string }
   /** Every sandbox on disk, most recently touched first (Settings lists it). */
   'app:listSandboxes': { args: []; result: SandboxInfo[] }
+  /**
+   * Rename a sandbox's folder, moving its transcripts with it and re-pointing
+   * every stored path. Returns the new path — a sandbox IS its path, so the
+   * caller has to re-point its own state too.
+   *
+   * Refused for a path that is not a sandbox, a name that cannot be a folder,
+   * a name already taken, or a sandbox with a live session in it (its cwd
+   * cannot move out from under a running pi).
+   */
+  'app:renameSandbox': {
+    args: [path: string, name: string]
+    result:
+      | { ok: true; path: string }
+      | {
+          ok: false
+          reason: 'not-a-sandbox' | 'invalid-name' | 'exists' | 'in-use' | 'failed'
+        }
+  }
   /**
    * Move one sandbox — folder and transcripts — to the Trash, and forget it.
    * Refused for a path that is not a sandbox, or one with a live session in

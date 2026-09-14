@@ -7,6 +7,7 @@ import {
   pruneSeenSessions,
   sweepDrafts,
   pruneLaneMarkers,
+  repointPath,
   visibleWorkspaces,
 } from './prefs-utils'
 
@@ -161,5 +162,47 @@ describe('visibleWorkspaces', () => {
     expect(
       visibleWorkspaces([ws('/b'), ws('/a')], isWorktree, () => true).map((w) => w.path),
     ).toEqual(['/b', '/a'])
+  })
+})
+
+describe('repointPath', () => {
+  const moves = [{ from: '/data/sandboxes/quiet-otter', to: '/data/sandboxes/my scratch' }]
+
+  it('rewrites the moved path itself', () => {
+    expect(repointPath('/data/sandboxes/quiet-otter', moves, '/')).toBe(
+      '/data/sandboxes/my scratch',
+    )
+  })
+
+  it('rewrites a path inside the moved directory', () => {
+    // How a session FILE follows its transcript directory across a rename.
+    expect(repointPath('/data/sandboxes/quiet-otter/chat.jsonl', moves, '/')).toBe(
+      '/data/sandboxes/my scratch/chat.jsonl',
+    )
+  })
+
+  it('leaves a sibling whose name merely starts the same alone', () => {
+    expect(repointPath('/data/sandboxes/quiet-otter-2', moves, '/')).toBe(
+      '/data/sandboxes/quiet-otter-2',
+    )
+  })
+
+  it('leaves an unrelated path alone', () => {
+    expect(repointPath('/Users/dev/phosphor', moves, '/')).toBe('/Users/dev/phosphor')
+  })
+
+  it('applies the first matching move and stops', () => {
+    const chained = [
+      { from: '/a', to: '/b' },
+      { from: '/b', to: '/c' },
+    ]
+    expect(repointPath('/a/x', chained, '/')).toBe('/b/x')
+  })
+
+  it('uses the separator it is given, so Windows paths work', () => {
+    const windows = [{ from: 'C:\\boxes\\otter', to: 'C:\\boxes\\scratch' }]
+    expect(repointPath('C:\\boxes\\otter\\chat.jsonl', windows, '\\')).toBe(
+      'C:\\boxes\\scratch\\chat.jsonl',
+    )
   })
 })

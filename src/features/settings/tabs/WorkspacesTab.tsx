@@ -6,6 +6,7 @@ import { Button, NumberField, Row, SectionTitle, TextField, Toggle } from '@/com
 import { normalizePrefix, slugifyTitle } from '@shared/branchName'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { relativeTime } from '@/lib/time'
+import { promptRenameSandbox } from '@/features/workspaces/promptRenameSandbox'
 import { LANE_PREF_LIMITS, type SandboxInfo, type WorkspaceInfo } from '@shared/models'
 
 /** How new chats get their branch, plus recent workspaces and layout reset. */
@@ -197,9 +198,10 @@ export function WorkspacesTab(): React.JSX.Element {
 
       <SectionTitle>Sandboxes</SectionTitle>
       <p className="text-text-tertiary mb-2 text-base">
-        Scratch folders behind “No folder”. An empty one is reused, so asking again lands you back
-        in the same place until something is written there. Deleting moves the folder and its chats
-        to the Trash.
+        Scratch folders behind “No folder”, each given a random name you can change. An empty one is
+        reused, so asking again lands you back in the same place until something is written there.
+        Renaming moves the folder on disk and takes its chats along; deleting moves both to the
+        Trash.
       </p>
       {sandboxes.length === 0 && <p className="text-text-tertiary text-base">No sandboxes yet.</p>}
       <div className="border-border divide-border divide-y overflow-hidden rounded-xl border">
@@ -252,12 +254,20 @@ function SandboxRow({ sandbox }: { sandbox: SandboxInfo }): React.JSX.Element {
           </Button>
         </>
       ) : (
-        <button
-          onClick={() => setConfirming(true)}
-          className="text-text-tertiary hover:text-danger shrink-0 rounded-md px-1.5 py-1 text-sm transition-colors"
-        >
-          Delete
-        </button>
+        <>
+          <button
+            onClick={() => void promptRenameSandbox(sandbox.path)}
+            className="text-text-tertiary hover:text-text shrink-0 rounded-md px-1.5 py-1 text-sm transition-colors"
+          >
+            Rename
+          </button>
+          <button
+            onClick={() => setConfirming(true)}
+            className="text-text-tertiary hover:text-danger shrink-0 rounded-md px-1.5 py-1 text-sm transition-colors"
+          >
+            Delete
+          </button>
+        </>
       )}
     </div>
   )
