@@ -20,24 +20,52 @@ import { stageArtifactHtml } from './artifact-protocol'
  * iframe uses, house sheet and theme stamp included — and prints that. There is
  * one document builder, not two, and a fix to the sheet reaches the PDF for
  * free.
+ *
+ * ## Why this prints Letter pages instead of one page as tall as the artifact
+ *
+ * The version this replaces measured the document and made the page that tall
+ * — a real export came out 8.5 x 39 INCHES. That was chosen to dodge
+ * pagination (nothing can break badly if there are no breaks), and it cost
+ * more than it saved:
+ *
+ * - It is not a document. No reader paginates it, no printer puts it on paper
+ *   without scaling it to nothing, and a thumbnail is a 1-inch-wide ribbon.
+ * - It did not even avoid the second page. The measurement happened in a
+ *   window; the print happened in Chromium's print layout, which is not the
+ *   same layout. A few pixels of disagreement put the last two lines on a
+ *   SECOND 39-inch page, 97% of it empty — the exact artifact that prompted
+ *   this rewrite. A one-page strategy has one break point and is fragile at
+ *   precisely that point; there was 0.5in of slack and the drift exceeded it.
+ * - The failure got worse as documents got longer, which is backwards.
+ *
+ * So the page is Letter, always, and the breaks are placed by rules rather
+ * than dodged: `ARTIFACT_PRINT_STYLE` in `artifact-skeleton.ts` keeps a KPI
+ * strip, a callout, a table row or a heading-plus-its-section from being split
+ * across one. That also deletes the measure step, and with it the entire class
+ * of bug where the measuring viewport and the printing viewport disagree.
  */
 
 /** CSS pixels per inch, as Chromium lays out for print. */
 const CSS_DPI = 96
 
-/** US Letter width. The print width the page is measured at, so the two agree. */
+/** US Letter. */
 const PAGE_WIDTH_INCHES = 8.5
-
-/** Letter height, used for the multi-page fallback. */
 const PAGE_HEIGHT_INCHES = 11
 
 /**
- * A single page taller than this becomes a multi-page Letter print instead.
- * Chromium accepts far taller, but a 30-foot page is not a document anyone can
- * open in a reader, and clipping the overflow (what the previous version did)
- * silently loses content.
+ * The gutter on every page, in inches.
+ *
+ * Set here rather than as an `@page` rule so paper geometry has one home, and
+ * so it cannot be overridden by a model that wrote its own `@page`.
+ *
+ * A margin is NOT painted with the artifact's ground — measured, not assumed;
+ * see the note in `ARTIFACT_PRINT_STYLE`. So a dark artifact prints its ground
+ * inside the margins with a faint frame around it. Zero margins would remove
+ * the frame and cost more than it saves: a physical printer cannot reach the
+ * sheet edge, so an edge-to-edge page comes out of one with its outermost
+ * content missing.
  */
-const MAX_SINGLE_PAGE_INCHES = 200
+const PAGE_MARGIN_INCHES = 0.5
 
 /** Bound on the load; a scripted artifact that never settles must not hang the call. */
 const LOAD_TIMEOUT_MS = 10_000
@@ -121,20 +149,6 @@ async function settle(win: BrowserWindow): Promise<void> {
   }
 }
 
-/** Full document height in CSS pixels, measured at the print width. */
-async function measureHeight(win: BrowserWindow): Promise<number> {
-  try {
-    const measured = await win.webContents.executeJavaScript(
-      `Math.max(document.body ? document.body.scrollHeight : 0, document.documentElement.scrollHeight, document.body ? document.body.offsetHeight : 0)`,
-      true,
-    )
-    const height = Number(measured)
-    return Number.isFinite(height) && height > 0 ? height : PAGE_HEIGHT_INCHES * CSS_DPI
-  } catch {
-    return PAGE_HEIGHT_INCHES * CSS_DPI
-  }
-}
-
 /**
  * Render an artifact to a PDF in the user's Downloads folder.
  *
@@ -144,12 +158,14 @@ async function measureHeight(win: BrowserWindow): Promise<number> {
  * no catch, no success path and no feedback of any kind).
  */
 export async function exportArtifactPdf(request: ArtifactPdfRequest): Promise<{ savedTo: string }> {
-  const url = stageArtifactHtml(request.html, request.theme)
+  const url = stageArtifactHtml(request.html, request.theme, { print: true })
 
   const win = new BrowserWindow({
     show: false,
-    // Measured at the width it prints at. A wider window measures a shorter
-    // page, and the difference is content missing from the bottom of the PDF.
+    // A Letter page at 96dpi. Nothing is measured here any more, so this only
+    // has to be close: it decides what `vw`-sized type resolves to, and a
+    // window shaped like the page is what makes `clamp(1.7rem,4.5vw,2.4rem)`
+    // print at the size the page was designed for.
     width: Math.round(PAGE_WIDTH_INCHES * CSS_DPI),
     height: Math.round(PAGE_HEIGHT_INCHES * CSS_DPI),
     webPreferences: {
@@ -170,19 +186,19 @@ export async function exportArtifactPdf(request: ArtifactPdfRequest): Promise<{ 
     await loadArtifact(win, url)
     await settle(win)
 
-    const heightPx = await measureHeight(win)
-    // The margin-free page needs a little slack, or a final line that ends
-    // flush with the measured height lands on a second, near-empty page.
-    const singlePageInches = heightPx / CSS_DPI + 0.5
-    const pageSize =
-      singlePageInches <= MAX_SINGLE_PAGE_INCHES
-        ? { width: PAGE_WIDTH_INCHES, height: Math.max(singlePageInches, PAGE_HEIGHT_INCHES) }
-        : { width: PAGE_WIDTH_INCHES, height: PAGE_HEIGHT_INCHES }
-
     const pdf = await win.webContents.printToPDF({
       printBackground: true,
-      pageSize,
-      margins: { marginType: 'none' },
+      pageSize: { width: PAGE_WIDTH_INCHES, height: PAGE_HEIGHT_INCHES },
+      margins: {
+        marginType: 'custom',
+        top: PAGE_MARGIN_INCHES,
+        bottom: PAGE_MARGIN_INCHES,
+        left: PAGE_MARGIN_INCHES,
+        right: PAGE_MARGIN_INCHES,
+      },
+      // The size above is the authority. `true` would hand page geometry to
+      // any `@page` rule a model happened to write, which is the one thing
+      // model-authored CSS must not be able to decide here.
       preferCSSPageSize: false,
     })
 

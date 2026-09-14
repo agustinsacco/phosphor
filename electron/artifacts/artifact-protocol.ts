@@ -89,9 +89,17 @@ const MAX_STAGED = 32
  * different document, so it gets a different URL and the iframe reloads.
  * Hashing the markup alone would leave the old theme on screen until the
  * artifact itself changed.
+ *
+ * `print` carries the same way — the print variant of an artifact is a
+ * different document, so it stages under its own key and can never be served
+ * to the preview iframe.
  */
-export function stageArtifactHtml(html: string, theme: 'light' | 'dark' = 'dark'): string {
-  const document = buildArtifactDocument(html, theme)
+export function stageArtifactHtml(
+  html: string,
+  theme: 'light' | 'dark' = 'dark',
+  options: { print?: boolean } = {},
+): string {
+  const document = buildArtifactDocument(html, theme, options)
   const key = createHash('sha256').update(document).digest('hex').slice(0, 32)
   // Re-insert so the eviction order below is least-recently-used, not
   // first-written: the artifact you are actually looking at must not be the
