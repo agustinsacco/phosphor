@@ -207,6 +207,72 @@ table.data tr:last-child td{border-bottom:0}
 footer{margin-top:2rem;padding-top:.9rem;border-top:1px solid var(--art-line);font-family:var(--art-mono);font-size:10.5px;color:var(--art-ink-3)}
 `.trim()
 
+/**
+ * The pagination layer, added only when the document is being printed.
+ *
+ * A screen artifact is one continuous column and has no page breaks to place.
+ * On paper it has a break every 11 inches whether or not anything asked for
+ * one, so the sheet above — which says nothing about printing — let Chromium
+ * put those breaks wherever the flow happened to land: through the middle of a
+ * KPI strip, between a heading and the section it titles, across a table row.
+ * The export dodged that by printing ONE page as tall as the whole document,
+ * which is not a fix, it is a document no reader paginates and no printer can
+ * put on paper. These rules are what make real Letter pages survivable.
+ *
+ * ## Why this is appended after the body, not merged into the sheet above
+ *
+ * The house sheet is a floor: it goes in `<head>` so the model's own `<style>`
+ * lands later in document order and wins. That is right for look, and wrong
+ * for pagination — a model writing `body{padding:2rem}` would beat the padding
+ * reset here and double the gutter the page margins already provide. So the
+ * print sheet is appended at the END of the document, where it is last. It is
+ * scoped to `@media print`, so it can only affect the PDF path; nothing here
+ * reaches the preview.
+ *
+ * The gutter itself is NOT here — page size and margins are set once, in
+ * `artifact-pdf.ts`, so there is one place that decides paper geometry.
+ */
+const ARTIFACT_PRINT_STYLE = `
+@media print{
+  /* The page margins own the gutter. Padding here would indent only the first
+     page's top and the last page's bottom, and inset every line on top of the
+     margin everywhere else.
+
+     A dark artifact therefore prints its ground INSIDE the margins only, with a
+     faint frame around it. That is a Chromium limit, not an oversight: measured
+     on Electron 43, a printToPDF margin is never painted with the document
+     background — not from body, not from the root element, with or without
+     color-scheme. All four combinations were rendered and sampled; the margin
+     came out #121212 (the UA dark canvas) under a dark color-scheme and bare
+     paper without one, while the content box stayed #0e0d0b in every one. The
+     margin cannot be won, so it is spent on something worth having: real
+     gutters, which physical printers require — they cannot print to the sheet
+     edge, and a full-bleed page loses its outermost content on paper. */
+  html,body{margin:0;padding:0}
+  /* 62rem is a reading measure for a wide window; the page is already 7.5in. */
+  .wrap{max-width:none;margin:0}
+
+  /* A heading must not be the last thing on a page. */
+  h1,h2,h3,h4{break-after:avoid-page;break-inside:avoid}
+  p,li{orphans:2;widows:2}
+
+  /* Each of these is read as one object, so it breaks as one object. An object
+     taller than a page still splits — the rule is a preference, and Chromium
+     ignores it rather than leaving a page blank. */
+  .kpis,.panelbox,.callout,.verdict,.chips,.legend,.rail .node,.ledger .row,
+  .steps .s,figure,pre,pre.code,svg,table.data tr{break-inside:avoid}
+
+  /* A table long enough to cross a break repeats its header on the next page,
+     or every column past the first is unlabelled numbers. */
+  table.data thead{display:table-header-group}
+
+  /* Paper does not scroll. Anything that clipped or scrolled on screen has to
+     wrap instead, or the overflow is simply gone from the PDF. */
+  .scroll{overflow:visible}
+  pre,pre.code{overflow-x:visible;white-space:pre-wrap;overflow-wrap:anywhere}
+}
+`.trim()
+
 const HEAD =
   '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
 
@@ -238,11 +304,18 @@ function stampHtmlTag(html: string, theme: 'light' | 'dark'): string {
  * attribute AND backed by `nativeTheme.themeSource` in the main process, so an
  * artifact follows the app in both the token path and the media-query path.
  */
-export function buildArtifactDocument(html: string, theme: 'light' | 'dark'): string {
+export function buildArtifactDocument(
+  html: string,
+  theme: 'light' | 'dark',
+  options: { print?: boolean } = {},
+): string {
   const style = `<style>${ARTIFACT_STYLE}</style>`
+  // Last in the document on purpose — see ARTIFACT_PRINT_STYLE. Empty for the
+  // preview, so a screen document is byte-identical to what it was before.
+  const printStyle = options.print ? `<style>${ARTIFACT_PRINT_STYLE}</style>` : ''
 
   if (looksLikeFullDocument(html)) {
-    const stamped = stampHtmlTag(html, theme)
+    const stamped = appendToBody(stampHtmlTag(html, theme), printStyle)
     // After <head> if there is one, else after <html>, else at the very front.
     // Either way the document's own styles still come later and still win.
     if (/<head\b[^>]*>/i.test(stamped)) {
@@ -254,8 +327,21 @@ export function buildArtifactDocument(html: string, theme: 'light' | 'dark'): st
     return `${style}${stamped}`
   }
 
-  return `<!doctype html><html lang="en" data-theme="${theme}"><head>${HEAD}${style}</head><body>${html}</body></html>`
+  return `<!doctype html><html lang="en" data-theme="${theme}"><head>${HEAD}${style}</head><body>${html}${printStyle}</body></html>`
+}
+
+/**
+ * Put `extra` at the end of a full document's body — after the model's own
+ * `<style>`, wherever in the body it wrote one.
+ *
+ * `</body>` is optional in HTML and plenty of model-authored documents omit it,
+ * so the fallback appends to the end of the string. A `<style>` after
+ * `</html>` is still parsed into the body, which is exactly where it is wanted.
+ */
+function appendToBody(html: string, extra: string): string {
+  if (!extra) return html
+  return /<\/body\s*>/i.test(html) ? html.replace(/<\/body\s*>/i, `${extra}$&`) : `${html}${extra}`
 }
 
 /** Exported for tests and for the docs that quote the token names. */
-export const __testing = { ARTIFACT_STYLE, looksLikeFullDocument }
+export const __testing = { ARTIFACT_STYLE, ARTIFACT_PRINT_STYLE, looksLikeFullDocument }

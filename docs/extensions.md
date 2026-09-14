@@ -253,6 +253,32 @@ pane serialises its rendered preview instead
 (`src/features/artifacts/previewHtml.ts`: canvases become `data:` images,
 buttons are dropped) and hands that over as the markup to stage.
 
+**It prints US Letter pages, and places the breaks rather than avoiding them.**
+The staged document gets one extra `<style>`, `ARTIFACT_PRINT_STYLE`, appended
+after the body — last in the document, so unlike the house sheet the model
+cannot override it, and scoped to `@media print`, so it cannot reach the
+preview. It keeps a `.kpis` strip, a `.panelbox`, a `.callout`, a `.verdict`, a
+`pre`, an `svg` and a table row whole across a break, repeats a long table's
+`thead` on each page it spans, keeps a heading attached to what it titles, and
+unwraps anything that scrolled on screen, because a clipped `.scroll` prints as
+missing content. Page size and margins are set once, in `artifact-pdf.ts`, and
+never from a model's `@page` rule.
+
+Before this, the export measured the document and made the page that tall — one
+page, 8.5 x 39 inches on a real walkthrough. It dodged pagination instead of
+solving it, and it did not even work: measuring happens in a window, printing
+happens in Chromium's print layout, and a few pixels of disagreement put the
+last two lines on a second 39-inch page that was 97% empty. There was 0.5in of
+slack and the drift exceeded it.
+
+**A printed margin is never painted with the artifact's ground.** Measured on
+Electron 43 with the background on `body` and on `html`, with `color-scheme`
+dark and absent: all four leave the margin at the UA canvas (#121212 under a
+dark scheme, bare paper without one) while the content box keeps `--art-bg`. So
+a dark artifact prints with a faint frame. That is the cost of having margins at
+all, and it is worth paying — physical printers cannot reach the sheet edge, so
+a full-bleed page loses its outermost content on paper.
+
 Every tool an extension registers should declare at least one **required**
 parameter. A call with no arguments reaches pi as `arguments: ""` on the
 Claude Code provider, and pi validates before `execute`, so an all-optional

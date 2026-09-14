@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildArtifactDocument, __testing } from './artifact-skeleton'
 
-const { ARTIFACT_STYLE } = __testing
+const { ARTIFACT_STYLE, ARTIFACT_PRINT_STYLE } = __testing
 
 describe('buildArtifactDocument — fragments', () => {
   it('wraps a fragment in a real document', () => {
@@ -120,5 +120,115 @@ describe('the injected stylesheet', () => {
     expect(ARTIFACT_STYLE).not.toContain('@import')
     expect(ARTIFACT_STYLE).not.toContain('@font-face')
     expect(ARTIFACT_STYLE).not.toMatch(/https?:/)
+  })
+
+  it('says nothing about printing — that is the print sheet’s job', () => {
+    // Keeping the two apart is what lets the print rules be appended LAST
+    // without also moving the look rules out from under the model's override.
+    expect(ARTIFACT_STYLE).not.toContain('@media print')
+  })
+})
+
+describe('the print stylesheet', () => {
+  it('reaches only the printed document', () => {
+    // Every rule lives inside the one @media print block, so staging with
+    // `print` cannot change how anything looks on screen.
+    expect(ARTIFACT_PRINT_STYLE.startsWith('@media print{')).toBe(true)
+    expect(ARTIFACT_PRINT_STYLE.endsWith('}')).toBe(true)
+    expect(ARTIFACT_PRINT_STYLE.match(/@media/g)).toHaveLength(1)
+  })
+
+  it('keeps each house primitive whole across a page break', () => {
+    // The reason a Letter page is survivable at all: without these, Chromium
+    // puts a break wherever the flow lands, including through a KPI strip.
+    for (const primitive of [
+      '.kpis',
+      '.panelbox',
+      '.callout',
+      '.verdict',
+      '.rail .node',
+      '.ledger .row',
+      '.steps .s',
+      'pre',
+      'svg',
+      'table.data tr',
+    ]) {
+      expect(ARTIFACT_PRINT_STYLE).toContain(primitive)
+    }
+    expect(ARTIFACT_PRINT_STYLE).toContain('break-inside:avoid')
+  })
+
+  it('never leaves a heading stranded at the foot of a page', () => {
+    expect(ARTIFACT_PRINT_STYLE).toMatch(/h1,h2,h3,h4\{break-after:avoid-page/)
+    expect(ARTIFACT_PRINT_STYLE).toContain('orphans:2')
+    expect(ARTIFACT_PRINT_STYLE).toContain('widows:2')
+  })
+
+  it('repeats a long table’s header on each page it spans', () => {
+    expect(ARTIFACT_PRINT_STYLE).toContain('table.data thead{display:table-header-group}')
+  })
+
+  it('wraps what scrolled on screen, because paper cannot scroll', () => {
+    // A .scroll wrapper or an overflowing <pre> would otherwise print clipped,
+    // and the clipped part is simply absent from the PDF.
+    expect(ARTIFACT_PRINT_STYLE).toContain('.scroll{overflow:visible}')
+    expect(ARTIFACT_PRINT_STYLE).toContain('white-space:pre-wrap')
+  })
+
+  it('leaves paper geometry to artifact-pdf.ts', () => {
+    // One home for page size and margins. An @page rule here would be a second
+    // one, and they would drift.
+    expect(ARTIFACT_PRINT_STYLE).not.toContain('@page')
+  })
+
+  it('drops the screen gutter, which the page margins now provide', () => {
+    expect(ARTIFACT_PRINT_STYLE).toContain('html,body{margin:0;padding:0}')
+    expect(ARTIFACT_PRINT_STYLE).toContain('.wrap{max-width:none')
+  })
+})
+
+describe('buildArtifactDocument — the print variant', () => {
+  it('is absent unless asked for, so a preview document is unchanged', () => {
+    expect(buildArtifactDocument('<p>hi</p>', 'dark')).not.toContain('@media print')
+    expect(buildArtifactDocument('<p>hi</p>', 'dark', {})).toBe(
+      buildArtifactDocument('<p>hi</p>', 'dark'),
+    )
+  })
+
+  it('lands after the model’s own styles, so pagination is not overridable', () => {
+    // The house sheet is a floor the model may override; the print rules are
+    // not, or a model writing body{padding:2rem} doubles every page gutter.
+    const doc = buildArtifactDocument('<style>body{padding:2rem}</style><p>hi</p>', 'dark', {
+      print: true,
+    })
+    expect(doc.indexOf('body{padding:2rem}')).toBeLessThan(doc.indexOf('@media print'))
+  })
+
+  it('still lands last in a document the model wrote in full', () => {
+    const full =
+      '<!doctype html><html><head><style>h1{color:red}</style></head>' +
+      '<body><style>body{padding:9rem}</style><p>hi</p></body></html>'
+    const doc = buildArtifactDocument(full, 'dark', { print: true })
+    expect(doc.indexOf('body{padding:9rem}')).toBeLessThan(doc.indexOf('@media print'))
+    expect(doc.indexOf('@media print')).toBeLessThan(doc.indexOf('</body>'))
+    expect(doc.match(/<body/gi)).toHaveLength(1)
+  })
+
+  it('appends to a full document that never closed its body', () => {
+    // </body> is optional in HTML and model-authored documents routinely omit
+    // it; a style after </html> still parses into the body.
+    const doc = buildArtifactDocument('<html><body><p>hi</p>', 'dark', { print: true })
+    expect(doc).toContain('@media print')
+    expect(doc.indexOf('<p>hi</p>')).toBeLessThan(doc.indexOf('@media print'))
+  })
+})
+
+describe('the print sheet’s page ground', () => {
+  it('does not try to paint the page margins', () => {
+    // Measured on Electron 43 across all four combinations (background on
+    // body / on html, color-scheme dark / absent): a printToPDF margin is
+    // never painted with the document background. A rule here claiming to fix
+    // that would be a comment that lies, so there isn't one.
+    expect(ARTIFACT_PRINT_STYLE).not.toContain('html{background')
   })
 })
