@@ -60,6 +60,16 @@ screen.
 
 - **Workspace switcher** at top: current workspace plus a dropdown of recents;
   "Open Folder…" via the native picker.
+- **A workspace is identified by its REAL path.** Main resolves a folder when
+  it is picked and when it is recorded (`realPathOrNull`, `electron/store.ts`),
+  and collapses recents that resolve to the same folder. Without this, one
+  folder reachable through a symlink — a linked checkout, a synced folder, a
+  relocated data directory — is two path strings, and the sidebar keys groups
+  by string: it showed two headers for one folder, each listing the SAME lanes,
+  because pi derives its session directory from the resolved cwd and both
+  scanned it. `resolveSandboxFolder` compares real paths for the same reason;
+  a lexical compare refused a sandbox's own real path and silently disabled
+  Delete and Rename for it.
 - **Flat nav rows**: `New`, `Artifacts`, `Skills`, `Routines`. `New` routes to the home
   screen; it does not spawn a session, because the folder and the first prompt
   are chosen there. Artifacts, Skills, and Routines open global pages (below).

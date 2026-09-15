@@ -5,8 +5,9 @@ import {
   type ElectronApplication,
   type Page,
 } from '@playwright/test'
-import { chmod, mkdir, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
-import { existsSync, mkdtempSync } from 'node:fs'
+import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { scratchDir, scratchDirSync } from './fixtures/scratch'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -29,7 +30,7 @@ interface Harness {
  * Scratch pi-agent dir for the whole e2e run, so stub sessions are never
  * written into the developer's real ~/.pi.
  */
-const agentDir = mkdtempSync(join(tmpdir(), 'phosphor-e2e-agent-'))
+const agentDir = scratchDirSync('phosphor-e2e-agent-')
 
 /**
  * A pi-agent dir of one test's own, for tests that seed `npm/node_modules`
@@ -47,7 +48,7 @@ const agentDir = mkdtempSync(join(tmpdir(), 'phosphor-e2e-agent-'))
  * fixture unreachable by any other test's installer, in either direction.
  */
 function privateAgentDir(): string {
-  return mkdtempSync(join(tmpdir(), 'phosphor-e2e-agent-solo-'))
+  return scratchDirSync('phosphor-e2e-agent-solo-')
 }
 
 /**
@@ -77,7 +78,7 @@ async function launch(
     env?: Record<string, string>
   } = {},
 ): Promise<Harness> {
-  const workspace = options.workspace ?? (await mkdtemp(join(tmpdir(), 'phosphor-e2e-')))
+  const workspace = options.workspace ?? (await scratchDir('phosphor-e2e-'))
   await writeFile(join(workspace, 'hello.ts'), 'export function hello() {\n  return "new"\n}\n')
 
   const app = await electron.launch({
@@ -556,7 +557,7 @@ test('work-area shortcuts work from chat without stealing dialog or editor input
 })
 
 test('steering controls and modified Enter send the intended RPC mode', async () => {
-  const workspace = await mkdtemp(join(tmpdir(), 'phosphor-queue-'))
+  const workspace = await scratchDir('phosphor-queue-')
   const log = join(workspace, 'commands.jsonl')
   const harness = await launch({ workspace, env: { PHOSPHOR_E2E_COMMAND_LOG: log } })
   const { page } = harness
@@ -691,7 +692,7 @@ test('explorer creates entries from empty space and keeps renamed editor buffers
 })
 
 test('explorer follows external create, move and delete changes on disk', async () => {
-  const workspace = await mkdtemp(join(tmpdir(), 'phosphor-e2e-files-watch-'))
+  const workspace = await scratchDir('phosphor-e2e-files-watch-')
   await writeFile(join(workspace, 'clip.mp4'), Buffer.from([0, 1, 2, 3]))
   await writeFile(join(workspace, 'videos_stub_file'), '')
   const harness = await launch({ workspace })
@@ -754,7 +755,7 @@ test('explorer follows external create, move and delete changes on disk', async 
 test('explorer copies, cuts, multi-drags and imports disk-backed files', async () => {
   const harness = await launch()
   const { page, workspace, app } = harness
-  const external = await mkdtemp(join(tmpdir(), 'phosphor-drop-'))
+  const external = await scratchDir('phosphor-drop-')
   const source = join(external, 'report.pdf')
   const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
   try {
@@ -1433,7 +1434,7 @@ test('tool run: grouping, in-flight animation, and clean streaming', async () =>
 
 test('worktree flow: create from the branch chip, session stays under the project group', async () => {
   // The workspace must be a git repo BEFORE the app queries git:info.
-  const workspace = await mkdtemp(join(tmpdir(), 'phosphor-e2e-wt-'))
+  const workspace = await scratchDir('phosphor-e2e-wt-')
   const { execFile } = await import('node:child_process')
   const { promisify } = await import('node:util')
   const run = promisify(execFile)
@@ -1538,7 +1539,7 @@ test('a session whose file lands late still becomes a real, right-clickable row'
   // The delay is what makes this a real test: with the stub writing its
   // session file synchronously the directory is always there before Phosphor can
   // attach, and this passes against the unfixed code too (confirmed).
-  const workspace = await mkdtemp(join(tmpdir(), 'phosphor-e2e-late-'))
+  const workspace = await scratchDir('phosphor-e2e-late-')
   await writeFile(join(workspace, 'hello.ts'), 'export function hello() {\n  return "new"\n}\n')
 
   const harness = await launch({
@@ -1623,7 +1624,7 @@ test('double-clicking a sidebar row renames the session inline', async () => {
 })
 
 test('new chat without isolation runs in the open workspace', async () => {
-  const workspace = await mkdtemp(join(tmpdir(), 'phosphor-e2e-nowt-'))
+  const workspace = await scratchDir('phosphor-e2e-nowt-')
   const { execFile } = await import('node:child_process')
   const { promisify } = await import('node:util')
   const run = promisify(execFile)
@@ -1669,7 +1670,7 @@ test('Connectors: resolved rows, disable toggle, add custom server', async () =>
   // workspace and send the write there.
   const harness = await launch({
     agentDir: soloAgentDir,
-    userDataDir: await mkdtemp(join(tmpdir(), 'phosphor-e2e-mcp-')),
+    userDataDir: await scratchDir('phosphor-e2e-mcp-'),
   })
   const { page, workspace } = harness
   try {
@@ -1727,7 +1728,7 @@ test('Connectors: adding a catalog connector writes a verified OAuth endpoint', 
   const soloAgentDir = privateAgentDir()
   const harness = await launch({
     agentDir: soloAgentDir,
-    userDataDir: await mkdtemp(join(tmpdir(), 'phosphor-e2e-connectors-')),
+    userDataDir: await scratchDir('phosphor-e2e-connectors-'),
   })
   const { page } = harness
   try {
@@ -1816,7 +1817,7 @@ test('Connectors: signing in works with no session open', async () => {
   )
   const harness = await launch({
     agentDir: soloAgentDir,
-    userDataDir: await mkdtemp(join(tmpdir(), 'phosphor-e2e-signin-')),
+    userDataDir: await scratchDir('phosphor-e2e-signin-'),
   })
   const { page } = harness
   try {
@@ -1853,8 +1854,8 @@ test('Connectors: signing in works with no session open', async () => {
 test('reopens the last session on relaunch instead of the picker', async () => {
   // Both launches share a userData dir so prefs survive the restart, while
   // staying isolated from the developer's real config.
-  const userDataDir = await mkdtemp(join(tmpdir(), 'phosphor-e2e-prefs-'))
-  const workspace = await mkdtemp(join(tmpdir(), 'phosphor-e2e-'))
+  const userDataDir = await scratchDir('phosphor-e2e-prefs-')
+  const workspace = await scratchDir('phosphor-e2e-')
 
   try {
     // First launch: open the workspace and start a session.
@@ -1905,8 +1906,8 @@ test('reopens the last session on relaunch instead of the picker', async () => {
 test('an unsent draft survives a session switch and a relaunch', async () => {
   // One userData dir across both launches so the draft has somewhere to live,
   // while staying out of the developer's real prefs.
-  const userDataDir = await mkdtemp(join(tmpdir(), 'phosphor-e2e-prefs-'))
-  const workspace = await mkdtemp(join(tmpdir(), 'phosphor-e2e-'))
+  const userDataDir = await scratchDir('phosphor-e2e-prefs-')
+  const workspace = await scratchDir('phosphor-e2e-')
 
   try {
     const first = await launch({ workspace, userDataDir })
@@ -2015,9 +2016,9 @@ test('lane rows carry no spend, and the row menu still offers it', async () => {
 
 test('sidebar groups sessions from several workspaces and badges pinned rows', async () => {
   // Two projects, one shared prefs store so both stay in "known workspaces".
-  const userDataDir = await mkdtemp(join(tmpdir(), 'phosphor-e2e-prefs-'))
-  const workspaceA = await mkdtemp(join(tmpdir(), 'phosphor-e2e-a-'))
-  const workspaceB = await mkdtemp(join(tmpdir(), 'phosphor-e2e-b-'))
+  const userDataDir = await scratchDir('phosphor-e2e-prefs-')
+  const workspaceA = await scratchDir('phosphor-e2e-a-')
+  const workspaceB = await scratchDir('phosphor-e2e-b-')
   const nameA = workspaceA.split('/').pop()!
   const nameB = workspaceB.split('/').pop()!
 
@@ -2744,7 +2745,7 @@ test('claude provider tab proves the chain end to end (stubbed claude + pi)', as
   // `auth status`, `auth login`, and `-p /usage` (the live-usage snapshot),
   // the surfaces the tab drives; the login branch reproduces the real CLI's
   // shape (URL on stdout, code read from stdin).
-  const claudeDir = await mkdtemp(join(tmpdir(), 'phosphor-e2e-claude-'))
+  const claudeDir = await scratchDir('phosphor-e2e-claude-')
   await writeFile(
     join(claudeDir, 'claude'),
     '#!/bin/sh\n' +
@@ -2830,7 +2831,7 @@ test('claude provider tab proves the chain end to end (stubbed claude + pi)', as
 
 test('the workspace header carries fixed search / new / menu controls', async () => {
   const harness = await launch({
-    userDataDir: await mkdtemp(join(tmpdir(), 'phosphor-e2e-header-')),
+    userDataDir: await scratchDir('phosphor-e2e-header-'),
   })
   const { page } = harness
   try {
@@ -2904,8 +2905,8 @@ test('a renderer reload re-adopts the live session instead of orphaning it', asy
   // re-navigation) used to hand the renderer an empty map while every
   // ~200 MB child kept running until quit — and resuming the same session
   // file then spawned a SECOND process against it.
-  const userDataDir = await mkdtemp(join(tmpdir(), 'phosphor-e2e-reload-'))
-  const workspace = await mkdtemp(join(tmpdir(), 'phosphor-e2e-'))
+  const userDataDir = await scratchDir('phosphor-e2e-reload-')
+  const workspace = await scratchDir('phosphor-e2e-')
 
   try {
     const harness = await launch({ workspace, userDataDir })
@@ -2971,7 +2972,7 @@ test('skills page lists a seeded skill, and creates a new one on disk', async ()
   )
   const harness = await launch({
     agentDir: soloAgentDir,
-    userDataDir: await mkdtemp(join(tmpdir(), 'phosphor-e2e-skills-')),
+    userDataDir: await scratchDir('phosphor-e2e-skills-'),
   })
   const { page } = harness
   try {

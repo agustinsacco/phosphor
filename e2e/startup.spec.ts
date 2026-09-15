@@ -1,10 +1,10 @@
 import { test, expect, _electron as electron, type ElectronApplication } from '@playwright/test'
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { scratchDir } from './fixtures/scratch'
 import { join, resolve } from 'node:path'
 
 async function launch(theme: 'light' | 'dark' | 'system') {
-  const scratch = await mkdtemp(join(tmpdir(), 'phosphor-startup-'))
+  const scratch = await scratchDir('phosphor-startup-')
   const workspace = join(scratch, 'workspace')
   const userData = join(scratch, 'prefs')
   await mkdir(workspace)

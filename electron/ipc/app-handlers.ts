@@ -44,6 +44,7 @@ import {
   clearDraft,
   setDrafts,
   repointStoredPaths,
+  realPathOrNull,
 } from '../store'
 
 /**
@@ -55,6 +56,17 @@ import {
 function e2eWorkspaceOverride(): string | undefined {
   if (app.isPackaged) return undefined
   return process.env.PHOSPHOR_E2E_WORKSPACE || undefined
+}
+
+/** The native folder dialog, or null when dismissed. */
+async function pickFolder(event: Electron.IpcMainInvokeEvent): Promise<string | null> {
+  const window = BrowserWindow.fromWebContents(event.sender)
+  const result = await dialog.showOpenDialog(window!, {
+    properties: ['openDirectory', 'createDirectory'],
+    title: 'Open Workspace Folder',
+  })
+  if (result.canceled) return null
+  return result.filePaths[0] ?? null
 }
 
 /** True when the path is reachable — used to validate persisted locations. */
@@ -70,9 +82,15 @@ async function pathExists(path: string): Promise<boolean> {
 /**
  * Where sandboxes live. userData, not homedir: E2E redirects userData
  * (PHOSPHOR_TEST_USER_DATA), so stub-driven runs never touch the real one.
+ *
+ * Resolved, so every sandbox path Phosphor hands out is the one pi will derive
+ * its session directory from. A userData directory reached through a symlink
+ * otherwise yields a second spelling of each sandbox, and the sidebar shows
+ * one folder as two groups listing the same lanes.
  */
 function sandboxBase(): string {
-  return join(app.getPath('userData'), 'sandboxes')
+  const base = join(app.getPath('userData'), 'sandboxes')
+  return realPathOrNull(base) ?? base
 }
 
 /** Trash a path if it is there — a missing one is not an error here. */
@@ -260,15 +278,14 @@ export function registerAppHandlers(): void {
 
   handle('app:selectFolder', async (event) => {
     // E2E hook: avoid the native (undriveable) dialog.
-    const override = e2eWorkspaceOverride()
-    if (override) return override
-    const window = BrowserWindow.fromWebContents(event.sender)
-    const result = await dialog.showOpenDialog(window!, {
-      properties: ['openDirectory', 'createDirectory'],
-      title: 'Open Workspace Folder',
-    })
-    if (result.canceled || result.filePaths.length === 0) return null
-    return result.filePaths[0] ?? null
+    const picked = e2eWorkspaceOverride() ?? (await pickFolder(event))
+    if (!picked) return null
+    // Resolved here, at the place a folder enters Phosphor by hand — the
+    // override included, since a temp dir is itself symlinked on macOS.
+    // Picking a project through a symlink (a linked checkout, a synced folder)
+    // is how a workspace acquires a second spelling, and two spellings are two
+    // sidebar groups over one set of sessions.
+    return realPathOrNull(picked) ?? picked
   })
 
   handle('app:createSandbox', () => openSandboxFolder(sandboxBase()))
