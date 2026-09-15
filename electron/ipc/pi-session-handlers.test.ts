@@ -46,6 +46,9 @@ vi.mock('../store', () => ({
   }),
   recordWorkspace: vi.fn(),
   getLanePrefs: vi.fn(),
+  // Identity: these fixtures use plain paths with no symlink to resolve, and
+  // the real one would hit the filesystem for a directory that is not there.
+  realPathOrNull: (path: string) => path,
 }))
 vi.mock('../debug-log', () => ({ log: vi.fn() }))
 import { registerPiSessionHandlers } from './pi-session-handlers'

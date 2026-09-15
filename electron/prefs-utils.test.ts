@@ -149,6 +149,7 @@ describe('visibleWorkspaces', () => {
 
   /** Identity resolver: every folder is its own real path, and all exist. */
   const itself = (p: string): string => p
+  const base = (p: string): string => p.split('/').pop() ?? p
 
   it('drops worktree folders and folders that are gone', () => {
     const alive = new Set(['/repo'])
@@ -157,33 +158,53 @@ describe('visibleWorkspaces', () => {
         [ws('/repo'), ws('/repo/.phosphor/worktrees/lane'), ws('/deleted')],
         isWorktree,
         (p) => (alive.has(p) ? p : null),
+        base,
       ).map((w) => w.path),
     ).toEqual(['/repo'])
   })
 
   it('keeps the caller order', () => {
-    expect(visibleWorkspaces([ws('/b'), ws('/a')], isWorktree, itself).map((w) => w.path)).toEqual([
-      '/b',
-      '/a',
-    ])
+    expect(
+      visibleWorkspaces([ws('/b'), ws('/a')], isWorktree, itself, base).map((w) => w.path),
+    ).toEqual(['/b', '/a'])
   })
 
-  it('collapses two spellings of one folder, keeping the first', () => {
+  it('collapses two spellings of one folder and answers with the resolved one', () => {
     // The shape that showed `sandbox-6` twice: a symlinked data directory, so
     // one folder is reachable by two paths and each opened its own group.
+    // Answering resolved is what lets Settings recognise it as a sandbox.
     const real = (p: string): string => p.replace('/Phosphor/sandboxes', '/pidex/sandboxes')
     expect(
       visibleWorkspaces(
         [ws('/Phosphor/sandboxes/sandbox-6'), ws('/pidex/sandboxes/sandbox-6')],
         isWorktree,
         real,
+        base,
       ).map((w) => w.path),
-    ).toEqual(['/Phosphor/sandboxes/sandbox-6'])
+    ).toEqual(['/pidex/sandboxes/sandbox-6'])
+  })
+
+  it('collapses entries that are already the same string', () => {
+    // `recordWorkspace` could rewrite one spelling to the other and leave the
+    // rest, so the stored list held one path verbatim twice.
+    expect(
+      visibleWorkspaces([ws('/a/box'), ws('/a/box')], isWorktree, itself, base).map((w) => w.path),
+    ).toEqual(['/a/box'])
+  })
+
+  it('renames the survivor to its resolved basename', () => {
+    const entry = { path: '/link/alias', name: 'alias', lastOpenedAt: 1 }
+    expect(visibleWorkspaces([entry], isWorktree, () => '/real/project', base)[0]).toMatchObject({
+      path: '/real/project',
+      name: 'project',
+    })
   })
 
   it('keeps folders that merely resolve near each other', () => {
     expect(
-      visibleWorkspaces([ws('/a/box'), ws('/a/box-2')], isWorktree, itself).map((w) => w.path),
+      visibleWorkspaces([ws('/a/box'), ws('/a/box-2')], isWorktree, itself, base).map(
+        (w) => w.path,
+      ),
     ).toEqual(['/a/box', '/a/box-2'])
   })
 })

@@ -18,7 +18,7 @@ import { readAgentSettings } from './agent-settings'
 import { listPackages } from './packages'
 import { headroomSupervisor } from '../headroom/proxy'
 import { sessionEventChannel } from '@shared/ipc'
-import { getPrefs, recordWorkspace } from '../store'
+import { getPrefs, recordWorkspace, realPathOrNull } from '../store'
 import { gitInfoBatch } from '../fs/git-info'
 import type { CreateSessionOptions, LiveSessionInfo, PiHealth, SessionPush } from '@shared/models'
 import { log } from '../debug-log'
@@ -63,10 +63,22 @@ function bundledExtensions(): string[] {
  * Spawn a live session and wire its push channels.
  */
 export async function spawnSession(
-  options: CreateSessionOptions,
+  rawOptions: CreateSessionOptions,
   target?: Electron.WebContents,
   execution: { unattended?: boolean; intent?: 'report' | 'code'; signal?: AbortSignal } = {},
 ): Promise<LiveSessionInfo> {
+  // Resolved before anything reads it. This one value becomes pi's cwd, the
+  // registry key, the recents entry and the `workspacePath` the renderer holds
+  // for a LIVE session — and the sidebar keys its groups by that string. A
+  // session started under a second spelling of a folder (any symlink on the
+  // way to it) therefore opened a second group listing the same lanes, even
+  // once recents themselves had been de-duplicated, because the live session
+  // put the other spelling back. pi resolves the cwd for its session directory
+  // regardless, so this only makes Phosphor agree with what pi already did.
+  const options: CreateSessionOptions = {
+    ...rawOptions,
+    workspacePath: realPathOrNull(rawOptions.workspacePath) ?? rawOptions.workspacePath,
+  }
   const stub = piStubPath()
   let binaryPath: string | undefined
   let prefixArgs: string[] | undefined
