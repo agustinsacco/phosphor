@@ -60,16 +60,27 @@ screen.
 
 - **Workspace switcher** at top: current workspace plus a dropdown of recents;
   "Open Folder…" via the native picker.
-- **A workspace is identified by its REAL path.** Main resolves a folder when
-  it is picked and when it is recorded (`realPathOrNull`, `electron/store.ts`),
-  and collapses recents that resolve to the same folder. Without this, one
-  folder reachable through a symlink — a linked checkout, a synced folder, a
-  relocated data directory — is two path strings, and the sidebar keys groups
-  by string: it showed two headers for one folder, each listing the SAME lanes,
-  because pi derives its session directory from the resolved cwd and both
-  scanned it. `resolveSandboxFolder` compares real paths for the same reason;
-  a lexical compare refused a sandbox's own real path and silently disabled
-  Delete and Rename for it.
+- **A workspace is identified by its REAL path.** One folder reachable through
+  a symlink — a linked checkout, a synced folder, a relocated data directory —
+  is two path strings, and the sidebar keys groups by string, so it showed two
+  headers for one folder, each listing the SAME lanes (pi derives its session
+  directory from the resolved cwd, so both scanned it). Main therefore resolves
+  a path at **every** point one enters (`realPathOrNull`, `electron/store.ts`),
+  and the renderer never sees an unresolved one — it has no filesystem and
+  could not collapse them itself. All four matter:
+  - the folder picker, so opening through a symlink cannot mint a spelling;
+  - `recordWorkspace`, which stores resolved and drops **every** other entry
+    for that folder — rewriting just the first match left the rest behind and
+    could persist one path twice, which no de-duplication on read can undo;
+  - `getPrefs`, which collapses recents by resolved path and answers under it,
+    so Settings can tell a sandbox from an ordinary recent by string;
+  - **session spawn**, which is the one that bites last: a live session's
+    `workspacePath` is unioned into the sidebar's group list, so a session
+    started under the other spelling put a second group back after recents
+    had already been cleaned.
+- `resolveSandboxFolder` compares real paths for the same reason; a lexical
+  compare refused a sandbox's own real path and silently disabled Delete and
+  Rename for it.
 - **Flat nav rows**: `New`, `Artifacts`, `Skills`, `Routines`. `New` routes to the home
   screen; it does not spawn a session, because the folder and the first prompt
   are chosen there. Artifacts, Skills, and Routines open global pages (below).

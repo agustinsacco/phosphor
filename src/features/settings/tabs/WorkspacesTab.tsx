@@ -21,6 +21,11 @@ export function WorkspacesTab(): React.JSX.Element {
   }, [])
   // A sandbox IS a recent workspace, but listing it twice would mean two
   // different Remove buttons for one folder. It belongs to its own section.
+  //
+  // Both sides are resolved paths — main answers recents that way and reads
+  // sandboxes straight off disk — so this exact-string match holds. It did not
+  // when recents kept whatever spelling was stored: a sandbox under a
+  // symlinked data directory matched nothing here and appeared in both lists.
   const recents = useMemo(() => {
     const sandboxPaths = new Set(sandboxes.map((sandbox) => sandbox.path))
     return allRecents.filter((workspace) => !sandboxPaths.has(workspace.path))
@@ -230,14 +235,22 @@ function SandboxRow({ sandbox }: { sandbox: SandboxInfo }): React.JSX.Element {
     <div className="bg-surface flex items-center gap-3 px-4 py-2.5">
       <span className="min-w-0 flex-1">
         <span className="block truncate text-lg font-medium">{sandbox.name}</span>
-        <span className="text-text-tertiary block truncate text-sm">
+        {/* The path, like every row in Workspaces above. A sandbox IS its
+            path — it is what rename moves and what the sidebar groups by —
+            and leaving it out made two sandboxes with similar names
+            indistinguishable here. */}
+        <span className="text-text-tertiary block truncate text-sm">{sandbox.path}</span>
+      </span>
+      {/* Hidden mid-confirm so Cancel/Confirm are not crowded off the row. */}
+      {!confirming && (
+        <span className="text-text-tertiary shrink-0 whitespace-nowrap text-sm">
           {sandbox.itemCount === 0
             ? 'Empty'
             : `${sandbox.itemCount} item${sandbox.itemCount === 1 ? '' : 's'}`}
           {' · '}
           {relativeTime(sandbox.lastUsedAt)}
         </span>
-      </span>
+      )}
       {confirming ? (
         <>
           <Button size="xs" onClick={() => setConfirming(false)} className="shrink-0">
