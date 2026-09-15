@@ -15,6 +15,7 @@ import type {
   ModelCost,
 } from './rpc'
 import type { ConnectorCheckResult } from './connectors'
+import type { RoutineInput, RoutineRun, RoutinesSnapshot } from './routines'
 import type {
   McpCacheEntry,
   McpConfigsResult,
@@ -105,6 +106,16 @@ export interface SessionTree {
 }
 
 export interface IpcInvokeMap {
+  'routines:list': { args: []; result: RoutinesSnapshot }
+  'routines:save': { args: [input: RoutineInput, id?: string, revision?: number]; result: void }
+  'routines:check': { args: [input: RoutineInput]; result: string }
+  'routines:history': { args: [routineId: string, offset: number]; result: RoutineRun[] }
+  'routines:run': { args: [routineId: string, requestId: string]; result: RoutineRun }
+  'routines:cancel': { args: [runId: string]; result: void }
+  'routines:skipNext': { args: [routineId: string]; result: void }
+  'routines:archive': { args: [routineId: string]; result: void }
+  'routines:pauseAll': { args: []; result: void }
+  'routines:background': { args: [enabled: boolean]; result: void }
   'pi:health': { args: []; result: PiHealth }
   'pi:createSession': { args: [CreateSessionOptions]; result: LiveSessionInfo }
   'pi:command': { args: [sessionId: string, command: RpcCommand]; result: RpcResponse }
@@ -867,6 +878,8 @@ export interface PhosphorApi {
 
   /** Session-dir change notifications (chokidar); returns unsubscribe. */
   onSessionsChanged(listener: (payload: { workspacePath: string }) => void): () => void
+  /** Invalidation only; reconnecting windows read an authoritative snapshot. */
+  onRoutinesChanged(listener: () => void): () => void
 
   /** Workspace file-change notifications; returns unsubscribe. */
   onFsChanged(listener: (payload: { workspacePath: string; paths: string[] }) => void): () => void

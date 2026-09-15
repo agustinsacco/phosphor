@@ -34,6 +34,15 @@ function strokeProps(size: number): {
   }
 }
 
+export function ClockIcon({ size = 16, className }: IconProps): React.JSX.Element {
+  return (
+    <svg {...strokeProps(size)} className={className} aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 6v6l4 2" />
+    </svg>
+  )
+}
+
 /** Git branch: three nodes and a merge curve. */
 export function BranchIcon({ size = 12, className }: IconProps): React.JSX.Element {
   return (

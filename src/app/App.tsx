@@ -14,6 +14,7 @@ import { WorkspaceHome } from '@/features/home/WorkspaceHome'
 import { StartingChat } from '@/features/home/StartingChat'
 import { Sidebar } from '@/features/sessions/Sidebar'
 import { SkillsPage } from '@/features/skills/SkillsPage'
+import { RoutinesPage } from '@/features/routines/RoutinesPage'
 import { ArtifactsPage } from '@/features/artifacts/ArtifactsPage'
 import { TopBar } from './TopBar'
 import { ContextMenuHost } from '@/components/ContextMenu'
@@ -253,7 +254,9 @@ export function App(): React.JSX.Element {
           */}
             {page && (
               <div data-testid="global-page" className="bg-bg absolute inset-0 z-30">
-                {page === 'skills' ? (
+                {page === 'routines' ? (
+                  <RoutinesPage workspacePath={currentWorkspace} />
+                ) : page === 'skills' ? (
                   <SkillsPage workspacePath={currentWorkspace} />
                 ) : (
                   <ArtifactsPage />

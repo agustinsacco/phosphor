@@ -60,9 +60,9 @@ screen.
 
 - **Workspace switcher** at top: current workspace plus a dropdown of recents;
   "Open Folder…" via the native picker.
-- **Flat nav rows**: `New`, `Artifacts`, `Skills`. `New` routes to the home
+- **Flat nav rows**: `New`, `Artifacts`, `Skills`, `Routines`. `New` routes to the home
   screen; it does not spawn a session, because the folder and the first prompt
-  are chosen there. Artifacts and Skills open global pages (below).
+  are chosen there. Artifacts, Skills, and Routines open global pages (below).
 - **Session list** for the active workspace: pinned, then recent, with group
   headers. Each row: name (or first-message preview), relative time, state.
   Starting/working lanes use the shared
@@ -149,12 +149,15 @@ All switch together, live, no reload.
 
 ## Global surfaces
 
-- **Global pages** — Artifacts and Skills (sidebar rows). Full-main-region
+- **Global pages** — Artifacts, Skills, and Routines (sidebar rows). Full-main-region
   overlays belonging to no session, so they work from the home screen; any
   session activation closes them. Skills lives only here: browse, create,
   import/export and install into pi's global or project roots. The Artifacts
   page indexes every open session's artifacts; opening one jumps to its
   session with the pane on it.
+- **Routines** — local scheduled tasks producing fresh lanes, with configuration,
+  next-run previews, history, and explicit unattended access. Runs are owned by
+  main, not this page; closing it never stops the scheduler. See [routines.md](routines.md).
 - **Toasts** (also used by extension `notify`).
 - **Status strip** — the bottom of the chat pane, only while a session has
   something to say: an MCP chip (`connected/enabled`, tool count, "N need

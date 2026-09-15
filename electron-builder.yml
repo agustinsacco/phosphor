@@ -14,6 +14,8 @@ files:
 # The bundled pi extension must be readable by the pi subprocess at runtime,
 # so it ships unpacked next to the app resources rather than inside the asar.
 extraResources:
+  - from: build/icons/32x32.png
+    to: routine-tray.png
   - from: pi-ext
     to: pi-ext
     filter: ['**/*.ts', '!**/*.test.ts']

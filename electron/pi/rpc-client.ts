@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { JsonlDecoder } from './jsonl'
 import type {
@@ -47,6 +47,8 @@ export interface PiSpawnOptions {
    * and pi's copy would bill the same file twice on every request.
    */
   noContextFiles?: boolean
+  /** Routine-owned process group: cancellation must also stop nested CLI/tools. */
+  ownProcessGroup?: boolean
   /** Extra environment variables. */
   env?: Record<string, string>
 }
@@ -118,6 +120,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
       cwd: o.cwd,
       env: { ...process.env, ...o.env },
       stdio: ['pipe', 'pipe', 'pipe'],
+      detached: o.ownProcessGroup && process.platform !== 'win32',
     })
     this.child = child
 
@@ -142,6 +145,8 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     })
 
     child.on('exit', (code, signal) => {
+      // The group can outlive pi (notably a parked Claude CLI).
+      if (o.ownProcessGroup && process.platform !== 'win32') this.signalChild(child, 'SIGKILL')
       if (this.killTimer) {
         clearTimeout(this.killTimer)
         this.killTimer = null
@@ -214,9 +219,9 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
 
     await new Promise<void>((resolve) => {
       child.once('exit', () => resolve())
-      child.kill('SIGTERM')
+      this.signalChild(child, 'SIGTERM')
       this.killTimer = setTimeout(() => {
-        if (child.exitCode === null) child.kill('SIGKILL')
+        if (child.exitCode === null) this.signalChild(child, 'SIGKILL')
       }, graceMs)
       // Don't hold the event loop open just for the escalation timer.
       this.killTimer.unref()
@@ -234,9 +239,28 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     if (!child || child.exitCode !== null) return
     this.shuttingDown = true
     try {
-      child.kill('SIGTERM')
+      this.signalChild(child, 'SIGTERM')
     } catch {
       // already gone
+    }
+  }
+
+  private signalChild(child: ChildProcessWithoutNullStreams, signal: NodeJS.Signals): void {
+    if (!this.options.ownProcessGroup || !child.pid) {
+      child.kill(signal)
+      return
+    }
+    if (process.platform === 'win32') {
+      // Windows has no POSIX groups. taskkill traverses the owned process tree.
+      execFile('taskkill', ['/pid', String(child.pid), '/T', '/F'], () => {
+        if (child.exitCode === null) child.kill(signal)
+      })
+    } else {
+      try {
+        process.kill(-child.pid, signal)
+      } catch {
+        /* already gone */
+      }
     }
   }
 

@@ -20,15 +20,16 @@ Start with [overview.md](overview.md) for what Phosphor is, or
 
 ## The surfaces
 
-| File                         | Covers                                                     |
-| ---------------------------- | ---------------------------------------------------------- |
-| [ui-shell.md](ui-shell.md)   | Window chrome, top bar, sidebar, the pane system, theming  |
-| [chat.md](chat.md)           | Transcript rendering, composer, tool cards, context meter  |
-| [files.md](files.md)         | Explorer file management, transfers, clipboard, the editor |
-| [terminal.md](terminal.md)   | PTY panes, clipboard, scrollback, per-session ownership    |
-| [lanes.md](lanes.md)         | The lane row, PR status, naming, search, delete, reclaim   |
-| [worktrees.md](worktrees.md) | Git worktree lifecycle and the branch control              |
-| [settings.md](settings.md)   | The settings modal and which config file each tab writes   |
+| File                         | Covers                                                              |
+| ---------------------------- | ------------------------------------------------------------------- |
+| [ui-shell.md](ui-shell.md)   | Window chrome, top bar, sidebar, the pane system, theming           |
+| [chat.md](chat.md)           | Transcript rendering, composer, tool cards, context meter           |
+| [files.md](files.md)         | Explorer file management, transfers, clipboard, the editor          |
+| [terminal.md](terminal.md)   | PTY panes, clipboard, scrollback, per-session ownership             |
+| [routines.md](routines.md)   | Local scheduled lanes, run history, catch-up, and unattended access |
+| [lanes.md](lanes.md)         | The lane row, PR status, naming, search, delete, reclaim            |
+| [worktrees.md](worktrees.md) | Git worktree lifecycle and the branch control                       |
+| [settings.md](settings.md)   | The settings modal and which config file each tab writes            |
 
 ## What Phosphor talks to
 

@@ -12,7 +12,7 @@ export type PaneSide = 'left' | 'right'
  * keeps its per-session pane (side-by-side viewing while the model iterates)
  * and the page is the cross-session index.
  */
-export type GlobalPage = 'artifacts' | 'skills'
+export type GlobalPage = 'artifacts' | 'skills' | 'routines'
 
 const PANE_IDS = ['files', 'changes', 'terminal', 'artifacts'] as const
 

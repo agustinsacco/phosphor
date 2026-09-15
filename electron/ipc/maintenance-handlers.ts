@@ -5,6 +5,7 @@ import { getPrefs, setMaintenancePrefs } from '../store'
 import { normalizeRealPath } from '../fs/git-worktrees'
 import { MaintenanceScheduler } from '../maintenance/scheduler'
 import { sweep } from '../maintenance/sweep'
+import { routineProtectedPaths } from '../routines'
 
 /**
  * Paths no sweep may touch: every live session's cwd, plus the workspaces the
@@ -15,7 +16,7 @@ import { sweep } from '../maintenance/sweep'
 function protectedPaths(): string[] {
   const live = registry.list().map((s) => s.workspacePath)
   const recent = getPrefs().recentWorkspaces.map((w) => w.path)
-  const all = [...live, ...recent]
+  const all = [...live, ...recent, ...routineProtectedPaths()]
   return [...new Set([...all, ...all.map(normalizeRealPath)])]
 }
 

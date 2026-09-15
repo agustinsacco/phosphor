@@ -371,7 +371,7 @@ function handle(cmd) {
       // Scenario switch, keyed off the prompt text: the default turn is what
       // most tests assert on, so extra scenarios must not change it.
       const message = typeof cmd.message === 'string' ? cmd.message : ''
-      if (message === 'queue-hold') {
+      if (message === 'queue-hold' || message.endsWith('\nroutine-e2e-hold')) {
         queueHold = true
         out({ type: 'agent_start' })
         break
