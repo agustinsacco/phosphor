@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { realpathSync } from 'node:fs'
 import { basename, sep } from 'node:path'
 import Store from 'electron-store'
 import {
@@ -35,6 +35,26 @@ import {
 const WORKTREE_SEGMENT = /[/\\]\.(?:phosphor|pidex)[/\\]worktrees[/\\]/
 function isWorktreeFolder(path: string): boolean {
   return WORKTREE_SEGMENT.test(path)
+}
+
+/**
+ * A folder's real path, or null when it is gone.
+ *
+ * `realpathSync.native` is deliberately the same rule pi uses (pi-paths.ts):
+ * pi names a session directory after the RESOLVED cwd, so two spellings of one
+ * folder share a transcript directory whether Phosphor notices or not. Storing
+ * the resolved path is how Phosphor comes to agree — one folder, one entry, one
+ * sidebar group.
+ *
+ * Doubles as the existence check, since resolving a path that is not there
+ * throws.
+ */
+export function realPathOrNull(path: string): string | null {
+  try {
+    return realpathSync.native(path)
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -85,7 +105,7 @@ export function getPrefs(): AppPrefs {
     recentWorkspaces: visibleWorkspaces(
       s.get('recentWorkspaces') ?? [],
       isWorktreeFolder,
-      existsSync,
+      realPathOrNull,
     ),
     lastWorkspacePath: s.get('lastWorkspacePath'),
     lastSessionPath: s.get('lastSessionPath'),
@@ -297,12 +317,18 @@ export function repointStoredPaths(moves: readonly PathMove[]): void {
   // A draft is keyed by the surface it belongs to and separately records its
   // own workspace, so both sides need the rewrite or a sandbox's unsent
   // message reappears under a folder that is gone.
+  // A draft key is `home:<workspace path>` or `session:<session file path>`
+  // (stores/drafts.ts), so the path starts AFTER the first colon — remapping
+  // the whole key would never match and the draft would be orphaned under a
+  // folder that no longer exists.
   const drafts = s.get('drafts') ?? {}
   s.set(
     'drafts',
     Object.fromEntries(
       Object.entries(drafts).map(([key, draft]) => {
-        const nextKey = remap(key)
+        const colon = key.indexOf(':')
+        const nextKey =
+          colon < 0 ? remap(key) : `${key.slice(0, colon + 1)}${remap(key.slice(colon + 1))}`
         return [
           nextKey,
           {
@@ -320,18 +346,32 @@ export function recordWorkspace(path: string, name: string): void {
   const s = prefs()
   const now = Date.now()
   const workspaces = s.get('recentWorkspaces')
+  // Stored resolved, so one folder has exactly one spelling here. Opening a
+  // project through a symlink used to append a second entry for a folder
+  // already listed, and the sidebar showed it as two groups listing the same
+  // lanes — pi resolves the cwd, so both scanned one transcript directory.
+  const real = realPathOrNull(path) ?? path
   // The last-opened workspace is always remembered (it drives launch resume),
   // but only real workspaces enter the recents list the sidebar orders by.
-  if (!isWorktreeFolder(path)) {
-    const entry: WorkspaceInfo = { path, name, lastOpenedAt: now }
+  if (!isWorktreeFolder(real)) {
+    const entry: WorkspaceInfo = { path: real, name: basename(real) || name, lastOpenedAt: now }
     // Recency is metadata for launch recovery, not sidebar order. Preserve an
     // existing workspace's position; only a newly opened folder is appended.
-    const index = workspaces.findIndex((workspace) => workspace.path === path)
+    // Matched on the resolved path so an entry stored under an older spelling
+    // is adopted rather than duplicated.
+    const index = workspaces.findIndex(
+      (workspace) => workspace.path === real || realPathOrNull(workspace.path) === real,
+    )
+    const previous = index < 0 ? undefined : workspaces[index]?.path
     const next =
       index < 0
         ? [...workspaces, entry].slice(-20)
-        : workspaces.map((workspace) => (workspace.path === path ? entry : workspace))
+        : workspaces.map((workspace, at) => (at === index ? entry : workspace))
     s.set('recentWorkspaces', next)
+    // Adopting an entry under a different spelling changes the key that
+    // workspace-scoped state hangs off — an unsent draft is `home:<path>`.
+    // Carry it across rather than stranding it under the old spelling.
+    if (previous && previous !== real) repointStoredPaths([{ from: previous, to: real }])
   }
-  s.set('lastWorkspacePath', path)
+  s.set('lastWorkspacePath', real)
 }

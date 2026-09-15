@@ -147,21 +147,44 @@ describe('visibleWorkspaces', () => {
   const ws = (path: string) => ({ path, name: path.split('/').pop()!, lastOpenedAt: 1 })
   const isWorktree = (p: string) => p.includes('/.phosphor/worktrees/')
 
+  /** Identity resolver: every folder is its own real path, and all exist. */
+  const itself = (p: string): string => p
+
   it('drops worktree folders and folders that are gone', () => {
     const alive = new Set(['/repo'])
     expect(
       visibleWorkspaces(
         [ws('/repo'), ws('/repo/.phosphor/worktrees/lane'), ws('/deleted')],
         isWorktree,
-        (p) => alive.has(p),
+        (p) => (alive.has(p) ? p : null),
       ).map((w) => w.path),
     ).toEqual(['/repo'])
   })
 
   it('keeps the caller order', () => {
+    expect(visibleWorkspaces([ws('/b'), ws('/a')], isWorktree, itself).map((w) => w.path)).toEqual([
+      '/b',
+      '/a',
+    ])
+  })
+
+  it('collapses two spellings of one folder, keeping the first', () => {
+    // The shape that showed `sandbox-6` twice: a symlinked data directory, so
+    // one folder is reachable by two paths and each opened its own group.
+    const real = (p: string): string => p.replace('/Phosphor/sandboxes', '/pidex/sandboxes')
     expect(
-      visibleWorkspaces([ws('/b'), ws('/a')], isWorktree, () => true).map((w) => w.path),
-    ).toEqual(['/b', '/a'])
+      visibleWorkspaces(
+        [ws('/Phosphor/sandboxes/sandbox-6'), ws('/pidex/sandboxes/sandbox-6')],
+        isWorktree,
+        real,
+      ).map((w) => w.path),
+    ).toEqual(['/Phosphor/sandboxes/sandbox-6'])
+  })
+
+  it('keeps folders that merely resolve near each other', () => {
+    expect(
+      visibleWorkspaces([ws('/a/box'), ws('/a/box-2')], isWorktree, itself).map((w) => w.path),
+    ).toEqual(['/a/box', '/a/box-2'])
   })
 })
 
