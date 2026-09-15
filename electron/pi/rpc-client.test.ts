@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { PiRpcClient } from './rpc-client'
@@ -122,6 +123,39 @@ describe('PiRpcClient', () => {
     expect(await exitPromise).toBe(true)
     expect(client.alive).toBe(false)
   })
+
+  it.skipIf(process.platform === 'win32')(
+    'disposes a routine process group including a stubborn nested provider',
+    async () => {
+      const client = track(
+        new PiRpcClient({
+          cwd: here,
+          binaryPath: process.execPath,
+          prefixArgs: [join(here, '__fixtures__', 'group-pi.cjs')],
+          ownProcessGroup: true,
+        }),
+      )
+      client.spawn()
+      const response = await client.request({ type: 'get_state' })
+      if (!response.success) throw new Error(response.error)
+      const childPid = Number(response.data?.sessionId)
+      expect(childPid).toBeGreaterThan(1)
+      await client.dispose()
+      await vi.waitFor(() => {
+        let state = ''
+        try {
+          state = execFileSync('ps', ['-o', 'stat=', '-p', String(childPid)], {
+            encoding: 'utf8',
+          }).trim()
+        } catch {
+          /* process absent */
+        }
+        // Linux containers can retain a zombie until PID 1 reaps it; it is no
+        // longer executing and is not a surviving provider.
+        expect(state === '' || state.startsWith('Z')).toBe(true)
+      })
+    },
+  )
 
   it('rejects requests when the process is not running', async () => {
     const client = track(makeClient())

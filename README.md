@@ -59,6 +59,10 @@ terminal and use `/login`, or put API keys / a local endpoint in
   auto-retry, forks, clones, export.
 - **No permission prompts.** pi runs in full-permission mode. Tool calls run and
   stream their results.
+- **Local routines.** Save instructions, choose a workspace/model and a preset or
+  cron schedule, and get a fresh lane per run. Persistent history, catch-up,
+  cancellation, and optional background operation. Requires the computer awake;
+  agents retain full tool permissions. [Routines](docs/routines.md).
 - **Rich responses are first-class.** GFM markdown, highlighted code, Mermaid,
   Chart.js and Vega-Lite specs, KaTeX, and model-authored HTML in a sandboxed
   iframe.
@@ -338,14 +342,16 @@ electron/            main process — owns every side effect
   main.ts            app lifecycle, window creation, quit teardown
   preload.ts         the contextBridge surface (one typed `subscribe` helper)
   ipc.ts             composition root: calls the per-domain handler registrars
-  ipc/               one module per channel-prefix family — 16 of them today
+  ipc/               one module per channel-prefix family — 17 of them today
                      (app, claude-auth, clipboard, fs, git, maintenance, mcp,
                       optimization, packages, pi-auth, pi-config, pi-session,
-                      pty, sessions, skills, updates) plus handle.ts, the
+                      pty, routines, sessions, skills, updates) plus handle.ts, the
                       envelope unwrapper. The contract lives in shared/ipc.ts;
                       ipc.ts is the composition root, so a handler module
                       never imports it back.
   registry.ts        the live pi session registry
+  routines/          local scheduler, SQLite run ledger, unattended execution,
+                     background tray; never manages interactive lanes
   broadcast.ts       send a push to every open window
   pi/                RPC client (strict LF JSONL framing), session scanner,
                      writer, paths, print mode, model catalogue, login flow
@@ -369,10 +375,10 @@ shared/              types and pure logic shared by main + renderer
   models.ts          model catalogue and shared app types
 src/                 renderer (React) — pure UI over typed IPC
   app/               shell: App, TopBar, workspace picker, global shortcuts
-  features/          one folder per surface (14): chat, sessions, files,
+  features/          one folder per surface (15): chat, sessions, files,
                      terminal, artifacts, settings, home, worktrees,
                      workspaces, palette, updates, connectors, extension-ui,
-                     skills
+                     skills, routines
   components/        cross-feature primitives (Modal, PopupMenu, form, icons,
                      markdown renderers)
   stores/            zustand stores — projections of main-process state

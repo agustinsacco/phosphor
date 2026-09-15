@@ -5,6 +5,7 @@
  * loaded lazily behind `import.meta.env.DEV && !window.phosphor`.
  */
 import type { PhosphorApi } from '@shared/ipc'
+import { mockRoutineCall, onMockRoutinesChanged } from './mockRoutines'
 import type { ConnectorAuthPush, ConnectorAuthState, SessionPush } from '@shared/models'
 import type { ConnectorCheckResult } from '@shared/connectors'
 import { DEFAULT_APP_PREFS, MIN_PI_VERSION } from '@shared/models'
@@ -702,6 +703,7 @@ export function installMockPhosphor(): void {
         : 'linux',
 
     invoke: (channel: string, ...args: unknown[]) => {
+      if (channel.startsWith('routines:')) return mockRoutineCall(channel, args)
       switch (channel) {
         case 'pi:health':
           return Promise.resolve({
@@ -1863,6 +1865,7 @@ export function installMockPhosphor(): void {
     },
 
     onSessionsChanged: () => () => {},
+    onRoutinesChanged: onMockRoutinesChanged,
 
     onFsChanged: () => () => {},
     onPackagesJobOutput: (jobId: string, listener: (data: string) => void) => {

@@ -42,6 +42,8 @@ const api: PhosphorApi = {
   onSessionPush: (sessionId, listener) =>
     subscribe<[SessionPush]>(sessionEventChannel(sessionId), listener),
 
+  onRoutinesChanged: (listener) => subscribe('routines:changed', listener),
+
   onSessionsChanged: (listener) =>
     subscribe<[{ workspacePath: string }]>('sessions:changed', listener),
 

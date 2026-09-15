@@ -49,7 +49,7 @@ users, `electron/fs/workspace-watcher.ts` for the file tree and
 
 - **Main process owns all side effects**: pi subprocesses, PTYs, filesystem, git, watchers, dialogs, app prefs.
 - **Renderer is pure UI** over typed IPC. `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` (`electron/main.ts`), strict CSP in `src/index.html`. Model-authored HTML renders only in the sandboxed iframe — and only via a `phosphor-artifact://` URL, because a `srcdoc` document inherits the embedder's policy container and the app's own `script-src 'self'` would silently refuse every inline script (`src/components/SandboxedHtml.tsx`).
-- **IPC design**: request/response methods (`invoke`) for commands, push channels (`send`) for streams. Namespace per domain, **17 prefixes today**: `pi:*` (session lifecycle, RPC passthrough, agent settings, provider login), `app:*` (prefs, dialogs, theme, drafts, sandboxes), `git:*` (including worktrees — there is no `worktrees:*`), `claude:*` (pi-claude-cli accounts, login, usage), `sessions:*` (on-disk scan, tree, fork/jump, delete), `mcp:*`, `fs:*`, `skills:*`, `packages:*`, `pty:*`, `headroom:*`, `updates:*`, `maintenance:*`, `gh:*`, `clipboard:*`, `optimization:*` (`optimization:stats`, one channel), `artifacts:*` (`artifacts:stageHtml`, one channel). Every message type is declared in [`shared/ipc.ts`](../shared/ipc.ts) — count prefixes there, not here, if the two ever disagree.
+- **IPC design**: request/response methods (`invoke`) for commands, push channels (`send`) for streams. Namespace per domain, **18 prefixes today**: `pi:*` (session lifecycle, RPC passthrough, agent settings, provider login), `app:*` (prefs, dialogs, theme, drafts, sandboxes), `git:*` (including worktrees — there is no `worktrees:*`), `claude:*` (pi-claude-cli accounts, login, usage), `sessions:*` (on-disk scan, tree, fork/jump, delete), `mcp:*`, `fs:*`, `skills:*`, `packages:*`, `pty:*`, `headroom:*`, `updates:*`, `maintenance:*`, `gh:*`, `clipboard:*`, `optimization:*` (`optimization:stats`, one channel), `artifacts:*`, and `routines:*` (local schedules, history, and execution controls). Every message type is declared in [`shared/ipc.ts`](../shared/ipc.ts) — count prefixes there, not here, if the two ever disagree.
 - **Data flow for one streamed prompt**: renderer `pi:command` with `{type:"prompt"}` → main writes one JSONL line to child stdin → child stdout events parsed by `PiRpcClient` → forwarded on `pi:event:<sessionId>` (`sessionEventChannel()` in `shared/ipc.ts`) → `reduceChatEvent` (`src/features/chat/reducer.ts`) folds events into message view-models → virtualized list renders deltas.
 
 ## Repo layout
@@ -57,14 +57,19 @@ users, `electron/fs/workspace-watcher.ts` for the file tree and
 **See the tree in [the README](../README.md#repo-layout).** It used to be
 duplicated here; the copy drifted (it named a `types/ipc.ts` that never existed,
 listed 6 of the feature folders, and 2 pi extensions), so this section is a
-pointer now. As of today `src/features/` has **14** folders (artifacts, chat,
+pointer now. As of today `src/features/` has **15** folders (artifacts, chat,
 connectors, extension-ui, files, home, palette, sessions, settings, skills,
-terminal, updates, workspaces, worktrees) and `pi-ext/` has **6** modules —
+terminal, updates, workspaces, worktrees, routines) and `pi-ext/` has **6** modules —
 `artifacts`, `context-breakdown`, `worktree-paths`, `tool-name-guard`,
 `mcp-status`, `headroom` — **all six** loaded into every session by
-`bundledExtensions()` in `electron/ipc/pi-session-handlers.ts`. Those two
+`bundledExtensions()` in `electron/pi/session-runtime.ts`. Those two
 numbers move; the tree in the README is the thing to re-read, not this
 paragraph.
+
+Local [routines](routines.md) reuse the window-independent session runtime and
+registry. A transactional SQLite ledger owns scheduled occurrences, not live
+processes. Its bounded scheduler manages only explicit routine executions;
+interactive sessions remain independent and are not reclaimed by it.
 
 ## Cross-cutting requirements
 

@@ -85,7 +85,7 @@ plan was built on `FleetHub`/`FleetPhase`, which were deleted with the
 orchestration removal. `SessionRegistry` tracks only
 `{sessionId, workspacePath, client}` — no phase, no streaming state. In-flight
 state has to be derived fresh, most likely from the pi event stream in
-`electron/ipc/pi-session-handlers.ts`, which already sees `agent_start` and
+`electron/pi/session-runtime.ts`, which already sees `agent_start` and
 `agent_end`.
 
 ## Tool and MCP row rendering

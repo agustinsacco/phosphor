@@ -20,9 +20,11 @@ import { formatCost } from '@/lib/format'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { usePullRequestsStore, pullRequestFor } from '@/stores/pullRequests'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
+import { makeRoutine } from '@/stores/routines'
 import {
   ArtifactsIcon,
   SkillsIcon,
+  ClockIcon,
   ChevronDownIcon,
   ChevronIcon,
   GearIcon,
@@ -140,6 +142,7 @@ export function Sidebar({
   }
   /** Which roots we already listed worktrees for (avoids re-listing on toggle). */
   const worktreeListedKey = useRef<string | null>(null)
+  const [worktreeDiscoveryEpoch, setWorktreeDiscoveryEpoch] = useState(0)
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>): void => {
     event.preventDefault()
@@ -217,6 +220,15 @@ export function Sidebar({
     const unsubscribe = window.phosphor.onSessionsChanged((payload) => {
       // Re-scan only the workspace that actually changed.
       void useSessionsStore.getState().refreshDisk(payload.workspacePath)
+      // A main-owned routine can create a lane without ever entering the
+      // renderer's live map. Discover it once so its finished transcript is
+      // visible under the project, not only in routine history.
+      if (
+        isWorktreeFolder(payload.workspacePath) &&
+        !knownWorkspaces.includes(payload.workspacePath)
+      ) {
+        setWorktreeDiscoveryEpoch((n) => n + 1)
+      }
     })
     return unsubscribe
   }, [knownWorkspaces, workspacesHydrated, collapsed])
@@ -253,7 +265,9 @@ export function Sidebar({
     // count of live-but-undiscovered lanes into the key re-lists once when one
     // appears; the next pass finds it, the count returns to zero, and the key
     // settles.
-    const key = [...roots, `lanes:${unknownLanes}`].join('\u0000')
+    const key = [...roots, `lanes:${unknownLanes}`, `changes:${worktreeDiscoveryEpoch}`].join(
+      '\u0000',
+    )
     if (worktreeListedKey.current === key) return
     setWorktreeDiscoverySettled(false)
     worktreeListedKey.current = key
@@ -287,7 +301,14 @@ export function Sidebar({
     return () => {
       cancelled = true
     }
-  }, [cleanRecents, workspacePath, collapsed, unknownLanes, workspacesHydrated])
+  }, [
+    cleanRecents,
+    workspacePath,
+    collapsed,
+    unknownLanes,
+    workspacesHydrated,
+    worktreeDiscoveryEpoch,
+  ])
 
   /**
    * First paint is atomic: do not replace the sidebar skeleton until prefs,
@@ -791,6 +812,12 @@ export function Sidebar({
           active={activePage === 'skills'}
           onClick={() => useLayoutStore.getState().togglePage('skills')}
           icon={<SkillsIcon />}
+        />
+        <NavRow
+          label="Routines"
+          active={activePage === 'routines'}
+          onClick={() => useLayoutStore.getState().togglePage('routines')}
+          icon={<ClockIcon />}
         />
       </nav>
 
@@ -1372,6 +1399,10 @@ function SessionRow({
     showContextMenu(event, [
       { label: 'Open', onClick: open },
       { label: 'Session tree…', onClick: onOpenTree },
+      {
+        label: 'Make routine…',
+        onClick: () => makeRoutine(workspacePath, meta.name ?? '', meta.firstUserText ?? ''),
+      },
       {
         label: isPinned ? 'Unpin' : 'Pin',
         onClick: () => store.togglePin(meta.path),

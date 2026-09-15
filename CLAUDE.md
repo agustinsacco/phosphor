@@ -52,7 +52,7 @@ you want to watch.
 2. **IPC is a typed contract.** A new channel = an entry in
    `shared/ipc.ts` `IpcInvokeMap` + a handler in
    `electron/ipc/<prefix>-handlers.ts` (the module matching the channel prefix
-   — 16 of them, listed in [README.md](README.md#repo-layout)) + a case in
+   — 17 of them, listed in [README.md](README.md#repo-layout)) + a case in
    `src/dev/mockPhosphor.ts` if the browser harness should exercise it.
    `electron/ipc.ts` is only the composition root; the session registry lives
    in `electron/registry.ts` so handlers never import their composition root.
@@ -66,8 +66,11 @@ you want to watch.
    it won't compile — that's intentional.
 5. **Every session is independent.** There is no cross-session manager: no
    fleet hub, no orchestrator thread, no automatic reclamation of an idle
-   session's subprocess. Sessions are created from the renderer, and
-   `electron/registry.ts` is the only thing that knows what is running. The
+   session's subprocess. Interactive sessions are created from the renderer;
+   explicit local routines also start sessions through main's shared runtime
+   ([routines.md](docs/routines.md)). Their bounded scheduler owns only those
+   executions, not an agent fleet. `electron/registry.ts` remains the only
+   live-process registry. The
    orchestration layer that used to do this was removed on 2026-09-03 for
    maintenance cost — it touched session spawn, IPC, the sidebar, the home
    screen and settings at once. Do not grow it back. The known cost of the
@@ -194,7 +197,7 @@ you want to watch.
 
 - **Phosphor ships six extensions that run inside pi's process** (`pi-ext/`,
   loaded with `-e` into every session; listed in `bundledExtensions()` in
-  `electron/ipc/pi-session-handlers.ts`). They are the only Phosphor code with a
+  `electron/pi/session-runtime.ts`). They are the only Phosphor code with a
   say inside a turn, and two of them can change or refuse what the model did:
   - **`worktree-paths.ts` can refuse a tool call.** It blocks a
     `read`/`write`/`edit`/`ls`/`grep`/`find` whose path escapes a worktree

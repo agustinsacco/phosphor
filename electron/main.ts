@@ -1,4 +1,6 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, shell, powerMonitor } from 'electron'
+import { startRoutines, stopRoutines, wakeRoutines, routineScheduler } from './routines'
+import { installRoutineBackground, routinesKeepRunning } from './routines/background'
 import { dirname, join } from 'node:path'
 import { existsSync, renameSync } from 'node:fs'
 import { registerIpcHandlers } from './ipc'
@@ -151,7 +153,8 @@ function createWindow(): BrowserWindow {
 // during Chromium's startup. See artifacts/artifact-protocol.ts.
 registerArtifactScheme()
 
-const singleInstance = process.env.PHOSPHOR_TEST_USER_DATA ? true : app.requestSingleInstanceLock()
+const singleInstance =
+  !app.isPackaged && process.env.PHOSPHOR_TEST_USER_DATA ? true : app.requestSingleInstanceLock()
 
 if (!singleInstance) {
   // Say so. `npm run dev` against an already-running installed Phosphor exits
@@ -170,10 +173,12 @@ if (!singleInstance) {
   app.quit()
 } else {
   app.on('second-instance', () => {
-    const [existing] = BrowserWindow.getAllWindows()
-    if (!existing) return
-    if (existing.isMinimized()) existing.restore()
-    existing.focus()
+    void app.whenReady().then(() => {
+      const existing = BrowserWindow.getAllWindows()[0] ?? createWindow()
+      if (existing.isMinimized()) existing.restore()
+      existing.show()
+      existing.focus()
+    })
   })
 
   app.whenReady().then(() => {
@@ -189,6 +194,16 @@ if (!singleInstance) {
     applyThemeSource(getPrefs().theme)
     registerIpcHandlers()
     createWindow()
+    installRoutineBackground(
+      () => {
+        const window = BrowserWindow.getAllWindows()[0] ?? createWindow()
+        window.show()
+        window.focus()
+      },
+      () => routineScheduler().pauseAll(),
+    )
+    startRoutines()
+    powerMonitor.on('resume', wakeRoutines)
     // No-op unless packaged: dev and E2E must never poll GitHub.
     startUpdateChecks()
     // Reclaims dead lanes on a timer. Unref'd, warms up before its first
@@ -211,7 +226,7 @@ if (!singleInstance) {
 }
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit()
+  if (process.platform !== 'darwin' && !routinesKeepRunning()) app.quit()
 })
 
 let quitting = false
@@ -230,9 +245,13 @@ app.on('before-quit', (event) => {
   // disposeAll below would not touch it, and it holds the OAuth callback port.
   disposeConnectorAuth()
   ptyManager.killAll()
-  void Promise.allSettled([registry.disposeAll(), unwatchAll(), unwatchAllWorkspaces()]).finally(
-    () => app.quit(),
-  )
+  // Stop admission and persist interrupted routine outcomes before disposing
+  // unrelated sessions. Routine cancellation owns its nested process tree.
+  void stopRoutines().finally(() => {
+    void Promise.allSettled([registry.disposeAll(), unwatchAll(), unwatchAllWorkspaces()]).finally(
+      () => app.quit(),
+    )
+  })
 })
 
 /**
