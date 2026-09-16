@@ -160,9 +160,9 @@ interface SessionsState {
   /**
    * Live progress of a bulk delete, or null when none is running.
    *
-   * Published rather than returned because the confirm dialog has to render
-   * it: a bulk delete disposes a subprocess and runs git per lane, so a
-   * ten-lane delete is seconds of apparently-frozen UI otherwise.
+   * Published rather than returned because the global progress notification
+   * renders it: a bulk delete disposes a subprocess and runs git per lane, so
+   * a ten-lane delete needs visible progress without blocking the workspace.
    */
   bulkDelete: BulkDeleteProgress | null
   /** Stop after the lane currently in flight. */
@@ -190,13 +190,15 @@ export interface BulkDeleteProgress {
   done: number
   /** Lane currently being deleted; empty once finished. */
   current: string
+  /** Session path of the current lane, so duplicate titles remain unambiguous. */
+  currentPath: string
   /**
    * Every selected lane, in run order, published up front.
    *
-   * The progress modal used to render only finished rows, so it grew by a row
-   * every time a lane completed — the panel crept downward for the whole run
-   * and the progress bar never sat still. Knowing the full list on the first
-   * frame lets it reserve its final height and fill rows in place.
+   * The progress surface used to render only finished rows, so it grew by a
+   * row every time a lane completed. Knowing the full list on the first frame
+   * lets the expanded notification reserve its final height and fill rows in
+   * place.
    */
   lanes: Array<{ path: string; title: string }>
   results: LaneDeleteResult[]
@@ -212,6 +214,17 @@ export interface BulkDeleteProgress {
  * depend on render timing.
  */
 let bulkDeleteCancelled = false
+
+/** Whether a sidebar lane must be inert while the bulk-delete loop owns it. */
+export function laneIsBeingDeleted(progress: BulkDeleteProgress | null, path: string): boolean {
+  if (!progress?.running || !progress.lanes.some((lane) => lane.path === path)) return false
+  const result = progress.results.find((item) => item.path === path)
+  // A successful row may remain in the last disk snapshot until the final
+  // refresh. A failed lane is safe to use again immediately.
+  if (result) return result.ok
+  // Stop skips queued lanes, but the current lane still finishes atomically.
+  return !progress.cancelled || progress.currentPath === path
+}
 
 const unsubscribers = new Map<string, () => void>()
 /** Workspaces already being watched, so repeat calls are no-ops. */
@@ -893,6 +906,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         total: lanes.length,
         done: 0,
         current: lanes[0]?.title ?? '',
+        currentPath: lanes[0]?.path ?? '',
         lanes: lanes.map((lane) => ({ path: lane.path, title: lane.title })),
         results: [],
         running: true,
@@ -900,11 +914,17 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       },
     })
 
-    const publish = (current: string): void =>
+    const publish = (current: { path: string; title: string }): void =>
       set((s) =>
         s.bulkDelete
           ? {
-              bulkDelete: { ...s.bulkDelete, done: results.length, current, results: [...results] },
+              bulkDelete: {
+                ...s.bulkDelete,
+                done: results.length,
+                current: current.title,
+                currentPath: current.path,
+                results: [...results],
+              },
             }
           : s,
       )
@@ -917,7 +937,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       // Checked between lanes, never mid-lane: stopping halfway through a
       // worktree removal is how you get a half-deleted lane.
       if (bulkDeleteCancelled) break
-      publish(lane.title)
+      publish(lane)
 
       const live = Object.values(get().live).find((l) => l.diskPath === lane.path)
       if (live) await get().disposeSession(live.phosphorId)
@@ -937,7 +957,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
                 outcome.dirtyCount === 1 ? '' : 's'
               }`,
             })
-            publish(lane.title)
+            publish(lane)
             continue
           }
           if (outcome.branchError) {
@@ -951,12 +971,12 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
               ok: true,
               error: outcome.branchError,
             })
-            publish(lane.title)
+            publish(lane)
             continue
           }
         } catch (error) {
           results.push({ path: lane.path, title: lane.title, ok: false, error: String(error) })
-          publish(lane.title)
+          publish(lane)
           continue
         }
       }
@@ -967,7 +987,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       } catch (error) {
         results.push({ path: lane.path, title: lane.title, ok: false, error: String(error) })
       }
-      publish(lane.title)
+      publish(lane)
     }
 
     // Forget markers for lanes that are actually gone, so the prefs map does
@@ -990,6 +1010,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
               ...s.bulkDelete,
               done: results.length,
               current: '',
+              currentPath: '',
               results,
               running: false,
             },

@@ -257,11 +257,18 @@ The loop is **sequential**: each lane disposes a subprocess and runs git, and N
 at once is how a worktree gets removed while its own pi is still writing.
 Cancellation is checked between lanes only.
 
-### Feedback is not a toast
+### Deletion stays out of the way
 
-`BulkDeleteProgressModal` shows per-lane outcomes. A worktree that would not
-remove is the common case, and that lane is still in the sidebar. "3 deleted"
-when four were selected is exactly the silent failure this prevents.
+After the destructive confirmation, progress moves to a compact notification
+at the top left. It has no backdrop, so the rest of Phosphor remains usable.
+The lanes owned by the delete loop are disabled until they are removed, fail,
+or are skipped after Stop; other lanes and the active workspace remain usable.
+A second bulk delete cannot start while the first one is running.
+
+The notification expands to show every per-lane outcome. That detail matters:
+a worktree that would not remove is the common case, and that lane remains in
+the sidebar. When processing finishes, the panel collapses to its summary,
+then fades away.
 
 ## Reclaiming lanes automatically
 
