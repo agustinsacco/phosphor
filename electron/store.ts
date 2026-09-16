@@ -3,6 +3,7 @@ import { basename, sep } from 'node:path'
 import Store from 'electron-store'
 import {
   blobIdsOf,
+  canonicalPaths,
   type PathMove,
   pruneDrafts,
   pruneLaneMarkers,
@@ -57,6 +58,11 @@ export function realPathOrNull(path: string): string | null {
   }
 }
 
+/** `realPathOrNull`, for a value that must survive the folder being gone. */
+function resolvedOrSame(path: string | undefined): string | undefined {
+  return path === undefined ? undefined : (realPathOrNull(path) ?? path)
+}
+
 /**
  * Constructed lazily, NOT at module scope.
  *
@@ -108,11 +114,15 @@ export function getPrefs(): AppPrefs {
       realPathOrNull,
       basename,
     ),
-    lastWorkspacePath: s.get('lastWorkspacePath'),
+    // Resolved on read, like recents. This is what launch resume hands to
+    // `openWorkspace`, which compares recents by exact string — a value stored
+    // by an older build under a symlinked spelling opened a second in-memory
+    // group beside the resolved one, for the whole of that launch.
+    lastWorkspacePath: resolvedOrSame(s.get('lastWorkspacePath')),
     lastSessionPath: s.get('lastSessionPath'),
     pinnedSessions: s.get('pinnedSessions') ?? [],
     modelPicks: { ...DEFAULT_MODEL_PICKS, ...s.get('modelPicks') },
-    collapsedWorkspaces: s.get('collapsedWorkspaces') ?? [],
+    collapsedWorkspaces: canonicalPaths(s.get('collapsedWorkspaces') ?? [], realPathOrNull),
     seenSessions: s.get('seenSessions') ?? {},
     laneMarkers: s.get('laneMarkers') ?? {},
     // Normalized on read as well as write: prefs are user-editable JSON, and

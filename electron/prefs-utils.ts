@@ -52,6 +52,33 @@ export function visibleWorkspaces(
 }
 
 /**
+ * A list of folder paths, each under its resolved spelling, one entry per
+ * folder. A path that does not resolve (gone, or on an unmounted volume) is
+ * kept as written — this is for lists whose entries are choices about a
+ * folder, where dropping one loses a choice but a stale spelling loses it
+ * just as surely.
+ *
+ * `collapsedWorkspaces` is the case: the sidebar keys a group by its resolved
+ * path and looks the collapse state up by that string, so an entry stored
+ * under a symlinked spelling was never consulted again — the user collapsed a
+ * sandbox and it came back open on the next launch, every launch.
+ */
+export function canonicalPaths(
+  paths: string[],
+  resolve: (path: string) => string | null,
+): string[] {
+  const seen = new Set<string>()
+  const canonical: string[] = []
+  for (const path of paths) {
+    const real = resolve(path) ?? path
+    if (seen.has(real)) continue
+    seen.add(real)
+    canonical.push(real)
+  }
+  return canonical
+}
+
+/**
  * Drop the oldest seen-markers once the map outgrows `max`, keeping the
  * `keep` newest. Hysteresis (500 → 400 by default) so the prune doesn't
  * rewrite the map on every mark.

@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { SessionMeta, WorkspaceSessionStats } from '@shared/models'
@@ -82,8 +83,47 @@ export function clearSessionCaches(): void {
   resumeCache.clear()
 }
 
+/**
+ * The sessions in `workspacePath`, with a stale recorded cwd corrected.
+ *
+ * A session file records the cwd pi ran in, and that value is FROZEN at write
+ * time — nothing rewrites history when the folder later moves. Renaming a
+ * sandbox moves its transcript directory (so the sessions are still found) but
+ * leaves every file inside naming the old folder, and the sidebar hands
+ * `meta.cwd` straight back to `createSession` when a row is opened. pi was
+ * then spawned in a directory that no longer exists.
+ *
+ * The directory is the authority: it is derived from `workspacePath` by a pure
+ * function of that path, so anything found inside belongs to this workspace.
+ * The recorded cwd is therefore only a hint, and it is replaced when it names
+ * a folder that is gone, or a second spelling of this one.
+ *
+ * Costs nothing in the healthy case — the strings match and the branch never
+ * runs. A moved or symlink-reached folder pays one `realpath` per DISTINCT
+ * recorded cwd, not one per session: every file in a renamed folder names the
+ * same dead path, and this scan runs on every sidebar refresh.
+ */
 export async function listSessions(workspacePath: string): Promise<SessionMeta[]> {
-  return listSessionsInDir(sessionDirForCwd(workspacePath))
+  const metas = await listSessionsInDir(sessionDirForCwd(workspacePath))
+  const decided = new Map<string, boolean>()
+  return metas.map((meta) => {
+    if (!meta.cwd || meta.cwd === workspacePath) return meta
+    let replace = decided.get(meta.cwd)
+    if (replace === undefined) {
+      replace = sameOrMissingFolder(meta.cwd, workspacePath)
+      decided.set(meta.cwd, replace)
+    }
+    return replace ? { ...meta, cwd: workspacePath } : meta
+  })
+}
+
+/** True when `recorded` is gone, or is another name for `workspacePath`. */
+function sameOrMissingFolder(recorded: string, workspacePath: string): boolean {
+  try {
+    return realpathSync.native(recorded) === workspacePath
+  } catch {
+    return true // Gone: the folder was renamed or moved out from under it.
+  }
 }
 
 async function listSessionsInDir(dir: string): Promise<SessionMeta[]> {

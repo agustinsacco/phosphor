@@ -721,16 +721,22 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }
   },
 
-  createSession: async (workspacePath, options = {}) => {
+  createSession: async (requestedPath, options = {}) => {
     set({ creating: true })
     try {
       const info = await window.phosphor.invoke('pi:createSession', {
-        workspacePath,
+        workspacePath: requestedPath,
         sessionPath: options.sessionPath,
         forkFrom: options.forkFrom,
         name: options.name,
       })
       const phosphorId = info.sessionId
+      // Main's answer, not the request. Main resolves the folder before pi is
+      // spawned (a symlinked spelling becomes the real one), and this entry is
+      // what `useActiveWorkspace` and the sidebar's group list read — keeping
+      // the requested spelling here put a second group beside the real one for
+      // as long as the session lived, undoing that resolution on arrival.
+      const workspacePath = info.workspacePath || requestedPath
       // Resuming from disk means history is on its way; the transcript shows a
       // skeleton instead of the "nothing here yet" empty state until it lands.
       useChatStore.getState().ensure(phosphorId, { resuming: Boolean(options.sessionPath) })

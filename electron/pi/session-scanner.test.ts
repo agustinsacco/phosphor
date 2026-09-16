@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest'
+import { realpathSync } from 'node:fs'
 import { mkdtemp, rm, writeFile, mkdir, utimes } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -143,6 +144,61 @@ describe('session scanner', () => {
     const jump = lines.at(-1)!
     expect(jump.type).toBe('branch_summary')
     expect(jump.parentId).toBe('aaaa0001')
+  })
+
+  it('reports the workspace folder when the recorded cwd is gone', async () => {
+    // Renaming a sandbox moves its transcript directory but cannot rewrite the
+    // cwd frozen inside each file. The sidebar hands `meta.cwd` back to
+    // createSession when a row is opened, so a stale one spawned pi in a
+    // directory that no longer existed.
+    //
+    // Resolved root: macOS temp dirs sit under the /var -> /private/var
+    // symlink, and the scanner derives its directory from the REAL path.
+    const root = realpathSync.native(await mkdtemp(join(tmpdir(), 'phosphor-scan-moved-')))
+    const previousRoot = process.env.PI_CODING_AGENT_SESSION_DIR
+    process.env.PI_CODING_AGENT_SESSION_DIR = root
+    try {
+      const renamed = join(root, 'games') // Exists; the header names sandbox-1.
+      await mkdir(renamed, { recursive: true })
+      const dir = join(root, sessionDirNameForCwd(renamed))
+      await mkdir(dir, { recursive: true })
+      await writeFile(join(dir, 'moved.jsonl'), SESSION_CONTENT, 'utf8')
+
+      const [session] = await listSessions(renamed)
+      expect(session?.cwd).toBe(renamed)
+    } finally {
+      if (previousRoot === undefined) delete process.env.PI_CODING_AGENT_SESSION_DIR
+      else process.env.PI_CODING_AGENT_SESSION_DIR = previousRoot
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('leaves a recorded cwd alone when that folder is still there', async () => {
+    const root = realpathSync.native(await mkdtemp(join(tmpdir(), 'phosphor-scan-kept-')))
+    const previousRoot = process.env.PI_CODING_AGENT_SESSION_DIR
+    process.env.PI_CODING_AGENT_SESSION_DIR = root
+    try {
+      // Both folders exist and are genuinely different, so which one the
+      // session ran in is not ours to guess — the header is the only thing
+      // that was actually there. This is why the directory does not simply
+      // overwrite the recorded cwd.
+      const lane = join(root, 'lane')
+      await mkdir(lane, { recursive: true })
+      const dir = join(root, sessionDirNameForCwd('/work/other'))
+      await mkdir(dir, { recursive: true })
+      await writeFile(
+        join(dir, 's.jsonl'),
+        SESSION_CONTENT.replace('"cwd":"/work/proj"', `"cwd":${JSON.stringify(lane)}`),
+        'utf8',
+      )
+
+      const [session] = await listSessions('/work/other')
+      expect(session?.cwd).toBe(lane)
+    } finally {
+      if (previousRoot === undefined) delete process.env.PI_CODING_AGENT_SESSION_DIR
+      else process.env.PI_CODING_AGENT_SESSION_DIR = previousRoot
+      await rm(root, { recursive: true, force: true })
+    }
   })
 
   it('orders sessions by immutable creation time, not changed-file mtime', async () => {

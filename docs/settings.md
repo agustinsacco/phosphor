@@ -184,6 +184,10 @@ rather than a top-level app concern.
   launch-resume pair, and every pin, marker and unseen badge on its sessions.
   It is refused while a session is running in that sandbox. Deleting moves the
   folder _and its chats_ to the Trash. An empty sandbox is reused.
+  What a rename **cannot** move is the cwd written inside each session file:
+  that value is frozen at write time and naming a folder that is now gone would
+  spawn pi in a directory that no longer exists. The scan corrects it instead —
+  see [ui-shell.md](ui-shell.md#left-sidebar-claude-desktop-style).
 
 ## Optimization
 
