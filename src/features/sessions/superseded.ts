@@ -1,7 +1,20 @@
 import type { SessionMeta } from '@shared/models'
 
-/** Set key for "this file, branched at this entry". */
-const key = (sessionPath: string, entryId: string): string => `${sessionPath}\u0000${entryId}`
+/**
+ * Set key for "this file, branched at this entry".
+ *
+ * Keyed on the FILE NAME, not the recorded path. `parentSession` is an
+ * absolute path frozen at write time, and renaming a workspace folder moves
+ * the whole transcript directory — so every recorded parent then names a
+ * directory that no longer exists, no link in the chain matches, and every
+ * abandoned rewind parent comes back as its own row. That is what produced
+ * five identical "Single-Player StarCraft Clone" rows after sandbox-1 was
+ * renamed to games. Names are `TIMESTAMP_UUID.jsonl` and these metas are one
+ * folder's scan, so the name identifies the file either way.
+ */
+const fileName = (sessionPath: string): string => sessionPath.split(/[/\\]/).pop() ?? sessionPath
+const key = (sessionPath: string, entryId: string): string =>
+  `${fileName(sessionPath)}\u0000${entryId}`
 
 /**
  * Drop session files that a rewind left behind.
