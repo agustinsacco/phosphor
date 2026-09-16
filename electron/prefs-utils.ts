@@ -15,29 +15,40 @@ import { MAX_DRAFTS, type ComposerDraftRecord, type WorkspaceInfo } from '@share
  * gives another. Two spellings meant two sidebar groups, and because pi derives
  * a session directory from the REAL path, both groups scanned the same
  * transcripts and listed the same lanes twice. `resolve` decides sameness, so
- * the duplicates collapse; the first spelling wins, which keeps the user's
+ * the duplicates collapse, keeping the first entry's position and the user's
  * sidebar order.
  *
- * Applied on READ only. Callers must not write the result back: a workspace
+ * The survivor is ANSWERED under its resolved path, not the one that happened
+ * to be stored. Every other surface names a workspace the resolved way — the
+ * sandbox list, a live session's cwd, pi's session directory — and Settings
+ * decides whether a recent IS a sandbox by comparing those strings. Answering
+ * with the stored spelling put one folder in both lists, each with its own
+ * Remove button, which is the exact confusion this function exists to prevent.
+ *
+ * Applied on READ only. Callers must not write the FILTERING back: a workspace
  * on an unmounted volume is missing today and back tomorrow, and forgetting
  * it on the strength of one boot loses the user's sidebar order for good.
- * That is also why the surviving entry keeps its own stored path rather than
- * being rewritten to the resolved one.
  */
 export function visibleWorkspaces(
   workspaces: WorkspaceInfo[],
   isWorktree: (path: string) => boolean,
   /** The folder's real path, or null when it is gone (which also covers `exists`). */
   resolve: (path: string) => string | null,
+  /** Trailing path segment, injected so this module stays free of `node:path`. */
+  basename: (path: string) => string,
 ): WorkspaceInfo[] {
   const seen = new Set<string>()
-  return workspaces.filter((ws) => {
-    if (isWorktree(ws.path)) return false
-    const real = resolve(ws.path)
-    if (real === null || seen.has(real)) return false
+  const visible: WorkspaceInfo[] = []
+  for (const workspace of workspaces) {
+    if (isWorktree(workspace.path)) continue
+    const real = resolve(workspace.path)
+    if (real === null || seen.has(real)) continue
     seen.add(real)
-    return true
-  })
+    visible.push(
+      real === workspace.path ? workspace : { ...workspace, path: real, name: basename(real) },
+    )
+  }
+  return visible
 }
 
 /**

@@ -106,6 +106,7 @@ export function getPrefs(): AppPrefs {
       s.get('recentWorkspaces') ?? [],
       isWorktreeFolder,
       realPathOrNull,
+      basename,
     ),
     lastWorkspacePath: s.get('lastWorkspacePath'),
     lastSessionPath: s.get('lastSessionPath'),
@@ -359,14 +360,23 @@ export function recordWorkspace(path: string, name: string): void {
     // existing workspace's position; only a newly opened folder is appended.
     // Matched on the resolved path so an entry stored under an older spelling
     // is adopted rather than duplicated.
-    const index = workspaces.findIndex(
-      (workspace) => workspace.path === real || realPathOrNull(workspace.path) === real,
-    )
+    const sameFolder = (workspace: WorkspaceInfo): boolean =>
+      workspace.path === real || realPathOrNull(workspace.path) === real
+    const index = workspaces.findIndex(sameFolder)
     const previous = index < 0 ? undefined : workspaces[index]?.path
+    // Every other entry for this folder goes, not just the one being replaced.
+    // Rewriting only the first match left the rest behind, and since the
+    // rewrite makes that entry canonical, a list holding both spellings ended
+    // up holding the SAME path twice — two identical sidebar groups that no
+    // amount of de-duplication on read could tell apart from one.
     const next =
       index < 0
         ? [...workspaces, entry].slice(-20)
-        : workspaces.map((workspace, at) => (at === index ? entry : workspace))
+        : // `index` survives the filter: it is the FIRST match, so nothing
+          // before it is dropped and its position does not shift.
+          workspaces
+            .filter((workspace, at) => at === index || !sameFolder(workspace))
+            .map((workspace, at) => (at === index ? entry : workspace))
     s.set('recentWorkspaces', next)
     // Adopting an entry under a different spelling changes the key that
     // workspace-scoped state hangs off — an unsent draft is `home:<path>`.
