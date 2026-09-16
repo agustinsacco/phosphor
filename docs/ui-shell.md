@@ -67,17 +67,27 @@ screen.
   directory from the resolved cwd, so both scanned it). Main therefore resolves
   a path at **every** point one enters (`realPathOrNull`, `electron/store.ts`),
   and the renderer never sees an unresolved one — it has no filesystem and
-  could not collapse them itself. All four matter:
+  could not collapse them itself. All five matter:
   - the folder picker, so opening through a symlink cannot mint a spelling;
   - `recordWorkspace`, which stores resolved and drops **every** other entry
     for that folder — rewriting just the first match left the rest behind and
     could persist one path twice, which no de-duplication on read can undo;
-  - `getPrefs`, which collapses recents by resolved path and answers under it,
-    so Settings can tell a sandbox from an ordinary recent by string;
+  - `getPrefs`, which answers recents, `lastWorkspacePath` **and**
+    `collapsedWorkspaces` under their resolved paths. Recents so Settings can
+    tell a sandbox from an ordinary recent by string; the resume target
+    because `openWorkspace` compares recents by exact string, and a stored
+    spelling from an older build opened a second in-memory group for the whole
+    launch; the collapse list because the sidebar looks a group's state up by
+    its resolved key, and a choice stored under the other spelling was simply
+    never consulted;
   - **session spawn**, which is the one that bites last: a live session's
     `workspacePath` is unioned into the sidebar's group list, so a session
     started under the other spelling put a second group back after recents
-    had already been cleaned.
+    had already been cleaned;
+  - and the renderer's `createSession`, which must record the path **main
+    answered with**, not the one it asked for. That entry is what
+    `useActiveWorkspace` and the group list read, so keeping the request
+    would undo the spawn-time resolution the moment it arrived.
 - `resolveSandboxFolder` compares real paths for the same reason; a lexical
   compare refused a sandbox's own real path and silently disabled Delete and
   Rename for it.

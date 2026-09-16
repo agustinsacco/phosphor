@@ -120,6 +120,37 @@ describe('adoptSession', () => {
   })
 })
 
+describe('createSession', () => {
+  const invoke = vi.fn()
+  const piCommand = vi.fn()
+
+  beforeEach(() => {
+    invoke
+      .mockReset()
+      .mockImplementation((channel: string) =>
+        Promise.resolve(
+          channel === 'pi:createSession'
+            ? { sessionId: 'new-1', workspacePath: '/pidex/sandboxes/box', pid: 1 }
+            : undefined,
+        ),
+      )
+    piCommand.mockReset().mockResolvedValue({ success: false })
+    vi.stubGlobal('window', {
+      phosphor: { invoke, piCommand, onSessionPush: () => () => {} },
+    })
+    useSessionsStore.setState({ live: {}, unread: {}, activeSessionId: null })
+  })
+
+  it('records the folder main answered with, not the spelling it was asked for', async () => {
+    // Main resolves symlinks before spawning pi. The sidebar groups by this
+    // entry, so keeping the requested spelling here reopened the duplicate
+    // group that resolution existed to remove.
+    await useSessionsStore.getState().createSession('/Phosphor/sandboxes/box')
+    expect(useSessionsStore.getState().live['new-1']?.workspacePath).toBe('/pidex/sandboxes/box')
+    expect(getActiveWorkspace()).toBe('/pidex/sandboxes/box')
+  })
+})
+
 describe('tool-result file invalidation', () => {
   it('refreshes loaded explorer directories after Bash completes', async () => {
     let listener: ((push: SessionPush) => void) | undefined

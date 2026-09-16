@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ComposerDraftRecord } from '@shared/models'
 import {
   blobIdsOf,
+  canonicalPaths,
   orphanBlobIds,
   pruneDrafts,
   pruneSeenSessions,
@@ -206,6 +207,32 @@ describe('visibleWorkspaces', () => {
         (w) => w.path,
       ),
     ).toEqual(['/a/box', '/a/box-2'])
+  })
+})
+
+describe('canonicalPaths', () => {
+  const real = (p: string): string | null =>
+    p.startsWith('/gone/') ? null : p.replace('/Phosphor/sandboxes', '/pidex/sandboxes')
+
+  it('answers every resolvable path under its resolved spelling', () => {
+    // The stored collapse for `Phosphor/sandboxes/sandbox-7` never matched the
+    // `pidex/…` group the sidebar actually drew, so the choice was ignored.
+    expect(canonicalPaths(['/Phosphor/sandboxes/sandbox-7', '/repo'], real)).toEqual([
+      '/pidex/sandboxes/sandbox-7',
+      '/repo',
+    ])
+  })
+
+  it('collapses two spellings of one folder, keeping the first position', () => {
+    expect(
+      canonicalPaths(['/pidex/sandboxes/box', '/other', '/Phosphor/sandboxes/box'], real),
+    ).toEqual(['/pidex/sandboxes/box', '/other'])
+  })
+
+  it('keeps a path that does not resolve, as written', () => {
+    // An unmounted volume is gone today and back tomorrow; its collapse state
+    // is not forfeit for that.
+    expect(canonicalPaths(['/gone/project'], real)).toEqual(['/gone/project'])
   })
 })
 
