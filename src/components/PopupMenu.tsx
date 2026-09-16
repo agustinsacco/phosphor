@@ -16,12 +16,26 @@ export function PopupMenu({
   className,
   triggerRef,
   fitViewport = false,
+  role,
+  id,
+  ariaLabel,
+  ariaActiveDescendant,
 }: {
   children: React.ReactNode
   onClose: () => void
   className?: string
   triggerRef?: React.RefObject<HTMLElement | null>
   fitViewport?: boolean
+  /**
+   * `listbox` for a typeahead list whose rows are `MenuRow role="option"`.
+   * Pair with `ariaActiveDescendant` so a screen reader follows the ↑/↓
+   * highlight, which lives on the rows and never moves DOM focus off the
+   * textarea.
+   */
+  role?: 'listbox'
+  id?: string
+  ariaLabel?: string
+  ariaActiveDescendant?: string
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   const [computedStyle, setComputedStyle] = useState<React.CSSProperties>({})
@@ -67,6 +81,10 @@ export function PopupMenu({
       // a menu opened from inside a window-drag region must stay clickable,
       // including its non-button rows (labels, separators).
       data-popup-menu
+      role={role}
+      id={id}
+      aria-label={ariaLabel}
+      aria-activedescendant={ariaActiveDescendant}
       className={`border-border bg-surface-raised z-30 overflow-hidden rounded-lg border shadow-lg ${className ?? ''}`}
     >
       {children}
@@ -82,9 +100,16 @@ export function MenuRow({
   title,
   trailing,
   testId,
+  id,
+  role,
+  ariaSelected,
   children,
 }: {
   active: boolean
+  /** `option` inside a `PopupMenu role="listbox"`; the id is what its `aria-activedescendant` names. */
+  id?: string
+  role?: 'option'
+  ariaSelected?: boolean
   /**
    * Renders the row inert: no click, no hover highlight, dimmed. Callers must
    * also skip disabled rows in their own ↑/↓ handling — this only stops the
@@ -115,6 +140,9 @@ export function MenuRow({
   const row = (
     <button
       ref={ref}
+      id={id}
+      role={role}
+      aria-selected={ariaSelected}
       onMouseMove={disabled ? undefined : onHover}
       onClick={disabled ? undefined : onClick}
       disabled={disabled}

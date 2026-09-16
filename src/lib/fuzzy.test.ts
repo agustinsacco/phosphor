@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fuzzyMatch, fuzzyFilter } from './fuzzy'
+import { commandScore, fuzzyMatch, fuzzyFilter } from './fuzzy'
 
 describe('fuzzyMatch', () => {
   it('scores an empty query as 0 without inspecting the target', () => {
@@ -82,5 +82,67 @@ describe('fuzzyFilter', () => {
   it('uses the key selector to read the match target', () => {
     const objects = [{ path: 'src/lib/fuzzy.ts' }, { path: 'README.md' }]
     expect(fuzzyFilter('fuzzy', objects, (o) => o.path)).toEqual([{ path: 'src/lib/fuzzy.ts' }])
+  })
+})
+
+describe('commandScore', () => {
+  it('matches everything on an empty query', () => {
+    expect(commandScore('', 'anything')).toBe(0)
+  })
+
+  it('returns null when neither the name nor the description contains the query', () => {
+    expect(commandScore('xyz', 'mcp', 'Show MCP server status')).toBeNull()
+  })
+
+  it('puts an exact name above every prefix, and a prefix above a segment', () => {
+    const exact = commandScore('mcp', 'mcp')!
+    const prefix = commandScore('mcp', 'mcp-auth')!
+    const longPrefix = commandScore('mcp', 'mcp__notion__make-this-a-notion-page')!
+    const segment = commandScore('mcp', 'pi-mcp')!
+    expect(exact).toBeGreaterThan(prefix)
+    expect(prefix).toBeGreaterThan(longPrefix)
+    expect(longPrefix).toBeGreaterThan(segment)
+  })
+
+  it('treats the colon in skill:<name> as a word boundary', () => {
+    // The bare skill name is a whole segment — the same tier `pi-mcp` gets for
+    // `mcp`, and far above a scattered subsequence.
+    const skill = commandScore('debug', 'skill:debug')!
+    const scattered = commandScore('debug', 'do-eat-bagels-ugh')!
+    expect(skill).toBeGreaterThan(scattered)
+    // Same tier, same length → same score as a `-` boundary.
+    expect(skill).toBe(commandScore('debug', 'xxxxx-debug')!)
+  })
+
+  it('prefers the shorter name within a tier', () => {
+    expect(commandScore('e2e', 'skill:e2e')!).toBeGreaterThan(
+      commandScore('e2e', 'skill:test-augie-e2e-slack')!,
+    )
+  })
+
+  it('ranks a segment prefix above a subsequence', () => {
+    expect(commandScore('scr', 'skill:mcp-scripting')!).toBeGreaterThan(
+      commandScore('scr', 'search-curator')!,
+    )
+  })
+
+  it('falls back to the description, below any name match', () => {
+    const fromDescription = commandScore('status', 'mcp', 'Show MCP server status')!
+    expect(fromDescription).toBe(100)
+    expect(fromDescription).toBeLessThan(commandScore('status', 'x-s-t-a-t-u-s')!)
+    expect(commandScore('STATUS', 'mcp', 'Show MCP server status')).toBe(100)
+  })
+
+  it('keeps a long scattered match out of the segment band', () => {
+    const scattered = commandScore(
+      'abcdefghijklmnopqrst',
+      'a-b-c-d-e-f-g-h-i-j-k-l-m-n-o-p-q-r-s-t',
+    )!
+    expect(scattered).toBeLessThan(500)
+  })
+
+  it('is case-insensitive', () => {
+    expect(commandScore('MCP', 'mcp')).toBe(1000)
+    expect(commandScore('mcp', 'MCP')).toBe(1000)
   })
 })

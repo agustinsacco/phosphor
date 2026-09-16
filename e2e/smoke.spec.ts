@@ -347,12 +347,29 @@ test('the / menu offers pi commands on the home screen and in a session', async 
     await openWorkspace(page)
     const field = page.getByPlaceholder('Describe a task or ask a question')
     // The list comes from a throwaway `pi --mode rpc --no-session`, not from a
-    // session: this screen has none yet.
-    await field.pressSequentially('/stub')
+    // session: this screen has none yet. Until it answers, the menu says so.
+    await field.pressSequentially('/')
+    const menu = page.getByRole('listbox', { name: 'Slash commands' })
+    await expect(menu).toBeVisible()
+    // Every command pi resolves is reachable: the stub answers 14 (13 rows
+    // once `/pi-mcp` folds into `/mcp`), and this last one sat past the cap
+    // of 12 the list used to have.
+    await expect(page.getByText('Draft release notes from the git log')).toBeVisible({
+      timeout: 30_000,
+    })
+    // Browsing is grouped; the alias is gone from the rows but not from the tooltip.
+    await expect(menu.getByText('Extensions', { exact: true })).toBeVisible()
+    await expect(menu.getByText('Prompts', { exact: true })).toBeVisible()
+    await expect(menu.getByText('/pi-mcp', { exact: true })).toHaveCount(0)
+    await expect(menu.getByTitle(/Also: \/pi-mcp/)).toBeVisible()
+    // The origin column answers "where is this from?" for a package command.
+    await expect(menu.getByText('pi-web-access', { exact: true }).first()).toBeVisible()
+
+    await field.pressSequentially('stub')
     // Matched on the description: the command's own name also appears in the
     // textarea's value once it is picked, which `getByText` would resolve to.
     const row = page.getByText('A stub command')
-    await expect(row).toBeVisible({ timeout: 30_000 })
+    await expect(row).toBeVisible()
     // Enter picks rather than sending, and leaves room for arguments.
     await field.press('Enter')
     await expect(field).toHaveValue('/stub-command ')
@@ -364,6 +381,15 @@ test('the / menu offers pi commands on the home screen and in a session', async 
     await field.press('Enter')
     const chat = page.getByPlaceholder(/Describe a task…/i)
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    // Nothing matches: the menu stays up and says what Enter would do, rather
+    // than vanishing as if it were broken.
+    await chat.pressSequentially('/zzz')
+    await expect(page.getByTestId('command-menu-empty')).toContainText('No command matches /zzz')
+    await chat.fill('')
+    // A word that appears in no name finds the commands whose description says it.
+    await chat.pressSequentially('/status')
+    await expect(page.getByText('Show MCP server status')).toBeVisible()
+    await chat.fill('')
     await chat.pressSequentially('/stub')
     await expect(row).toBeVisible()
     await chat.press('Escape')

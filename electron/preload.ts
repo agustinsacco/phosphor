@@ -47,6 +47,8 @@ const api: PhosphorApi = {
   onSessionsChanged: (listener) =>
     subscribe<[{ workspacePath: string }]>('sessions:changed', listener),
 
+  onPiCommandsChanged: (listener) => subscribe<[]>('pi:commandsChanged', listener),
+
   onFsChanged: (listener) =>
     subscribe<[{ workspacePath: string; paths: string[] }]>('fs:changed', listener),
 

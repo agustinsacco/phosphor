@@ -1257,14 +1257,93 @@ export function installMockPhosphor(): void {
             path: '/Users/dev/.pi/agent/mcp.json',
             content: '{\n  "mcpServers": {}\n}\n',
           })
-        case 'pi:commands':
+        // Shaped like a real pi answer: skills are `skill:<name>`, every entry
+        // carries `sourceInfo`, an MCP prompt uses the adapter's `mcp__` scheme
+        // and `/mcp` has its `/pi-mcp` alias — so the menu's grouping, origin
+        // labels and dedupe are all exercised in the browser harness.
+        case 'pi:commands': {
+          const pkg = (name: string, file: string) => ({
+            path: `/Users/dev/.pi/agent/npm/node_modules/${name}/${file}`,
+            source: `npm:${name}`,
+            scope: 'user' as const,
+            origin: 'package' as const,
+            baseDir: `/Users/dev/.pi/agent/npm/node_modules/${name}`,
+          })
           return Promise.resolve({
             commands: [
-              { name: 'review', description: 'Review the working tree', source: 'skill' },
-              { name: 'plan', description: 'Draft an implementation plan', source: 'prompt' },
-              { name: 'mcp-auth', description: 'Authenticate an MCP server', source: 'extension' },
+              {
+                name: 'websearch',
+                description: 'Open web search curator',
+                source: 'extension' as const,
+                sourceInfo: pkg('pi-web-access', 'index.ts'),
+              },
+              {
+                name: 'mcp__notion__make-this-a-notion-page',
+                description: 'MCP: Turn the current work into a durable Notion page.',
+                source: 'extension' as const,
+                sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
+              },
+              {
+                name: 'mcp',
+                description: 'Show MCP server status',
+                source: 'extension' as const,
+                sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
+              },
+              {
+                name: 'pi-mcp',
+                description: 'Show MCP server status',
+                source: 'extension' as const,
+                sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
+              },
+              {
+                name: 'mcp-auth',
+                description: 'Authenticate with an MCP server (OAuth)',
+                source: 'extension' as const,
+                sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
+              },
+              {
+                name: 'llama',
+                description: 'Manage llama.cpp router models',
+                source: 'extension' as const,
+                sourceInfo: {
+                  path: '<inline:llama.cpp>',
+                  source: 'inline',
+                  scope: 'temporary' as const,
+                  origin: 'top-level' as const,
+                },
+              },
+              {
+                name: 'plan',
+                description: 'Draft an implementation plan',
+                source: 'prompt' as const,
+                sourceInfo: {
+                  path: '/Users/dev/.pi/agent/prompts/plan.md',
+                  source: 'local',
+                  scope: 'user' as const,
+                  origin: 'top-level' as const,
+                },
+              },
+              {
+                name: 'skill:review',
+                description: 'Review the working tree and report what would block a merge.',
+                source: 'skill' as const,
+                sourceInfo: {
+                  path: '/mock/workspace/.claude/skills/review/SKILL.md',
+                  source: 'local',
+                  scope: 'project' as const,
+                  origin: 'top-level' as const,
+                },
+              },
+              {
+                name: 'skill:mcp-scripting',
+                description:
+                  'Write mcpScript JavaScript for discovering, inspecting, and calling MCP tools.',
+                source: 'skill' as const,
+                sourceInfo: pkg('pi-mcp-adapter', 'skills/mcp-scripting/SKILL.md'),
+              },
             ],
           })
+        }
         case 'pi:catalogueModels':
           return Promise.resolve({
             source: 'pi',
@@ -1866,6 +1945,8 @@ export function installMockPhosphor(): void {
 
     onSessionsChanged: () => () => {},
     onRoutinesChanged: onMockRoutinesChanged,
+
+    onPiCommandsChanged: () => () => {},
 
     onFsChanged: () => () => {},
     onPackagesJobOutput: (jobId: string, listener: (data: string) => void) => {

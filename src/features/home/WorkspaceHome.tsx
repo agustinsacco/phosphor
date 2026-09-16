@@ -76,6 +76,8 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
    * /compact, /export and /name all act on a session that does not exist.
    */
   const piCommands = usePiCommandsStore((s) => s.byWorkspace[workspacePath] ?? NO_COMMANDS)
+  const commandsStatus = usePiCommandsStore((s) => s.status[workspacePath] ?? 'idle')
+  const commandsError = usePiCommandsStore((s) => s.error[workspacePath])
   const commandEntries = useMemo(() => buildCommandEntries(piCommands, []), [piCommands])
   const slash = useSlashMenu({
     entries: commandEntries,
@@ -247,7 +249,9 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           {slash.visible && (
             <CommandMenu
               query={slash.query ?? ''}
-              entries={commandEntries}
+              entries={slash.matches}
+              status={commandsStatus}
+              errorMessage={commandsError}
               activeIndex={slash.activeIndex}
               onHover={slash.setActiveIndex}
               onPick={slash.pick}

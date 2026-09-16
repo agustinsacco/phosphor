@@ -298,12 +298,18 @@ export interface IpcInvokeMap {
    *
    * A session gets its own list from `get_commands` at bootstrap; the home
    * composer has no session to ask, so it asks a throwaway pi instead
-   * (`electron/pi/commands.ts`). Empty when pi cannot be run — the menu then
-   * simply never opens, which is what it did before.
+   * (`electron/pi/commands.ts`, cached a minute per folder). `error` is set,
+   * with an empty list, when pi could not be asked at all — pi missing, or
+   * the probe timed out — so the menu can say so instead of rendering the
+   * same nothing it renders while the answer is still on its way.
+   *
+   * Main broadcasts `pi:commandsChanged` (see `PhosphorApi.onPiCommandsChanged`)
+   * after anything that changes the answer; the renderer drops what it holds
+   * and asks again on the next `/`.
    */
   'pi:commands': {
     args: [workspacePath?: string]
-    result: { commands: RpcSlashCommand[] }
+    result: { commands: RpcSlashCommand[]; error?: string }
   }
   /**
    * pi's model catalogue, for pickers with no live session yet.
@@ -880,6 +886,14 @@ export interface PhosphorApi {
   onSessionsChanged(listener: (payload: { workspacePath: string }) => void): () => void
   /** Invalidation only; reconnecting windows read an authoritative snapshot. */
   onRoutinesChanged(listener: () => void): () => void
+
+  /**
+   * The set of slash commands pi would resolve has changed — a package was
+   * installed or removed, an MCP server added, a skill written. Fired from
+   * main after the mutation, for every window. Listeners drop their cached
+   * `pi:commands` answers and re-ask live sessions for `get_commands`.
+   */
+  onPiCommandsChanged(listener: () => void): () => void
 
   /** Workspace file-change notifications; returns unsubscribe. */
   onFsChanged(listener: (payload: { workspacePath: string; paths: string[] }) => void): () => void

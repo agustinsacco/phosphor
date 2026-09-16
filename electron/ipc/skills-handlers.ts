@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises'
 import { BrowserWindow, dialog } from 'electron'
 import { handle } from './handle'
+import { invalidatePiCommands } from './pi-config-handlers'
 import { cachedPiHealth } from '../pi/health'
 import { piProcessEnv } from '../pi/shell-env'
 import { piStubPath } from '../pi/stub'
@@ -52,13 +53,25 @@ export function registerSkillsHandlers(): void {
 
   handle('skills:readFile', (_event, dir, relPath) => readSkillFileEntry(dir, relPath))
 
-  handle('skills:create', (_event, options) => createSkill(options))
+  // Every mutation below changes which `skill:*` commands pi resolves, so each
+  // one drops the cached `/` list once it has landed on disk.
+  handle('skills:create', async (_event, options) => {
+    const result = await createSkill(options)
+    invalidatePiCommands()
+    return result
+  })
 
-  handle('skills:writeFile', (_event, dir, relPath, content, workspacePath) =>
-    writeSkillFileEntry(dir, relPath, content, workspacePath),
-  )
+  handle('skills:writeFile', async (_event, dir, relPath, content, workspacePath) => {
+    const result = await writeSkillFileEntry(dir, relPath, content, workspacePath)
+    invalidatePiCommands()
+    return result
+  })
 
-  handle('skills:delete', (_event, dir, workspacePath) => deleteSkill(dir, workspacePath))
+  handle('skills:delete', async (_event, dir, workspacePath) => {
+    const result = await deleteSkill(dir, workspacePath)
+    invalidatePiCommands()
+    return result
+  })
 
   handle('skills:export', async (event, dir) => {
     const { fileName, data } = await buildSkillZip(dir)
@@ -72,9 +85,11 @@ export function registerSkillsHandlers(): void {
     return { savedTo: result.filePath }
   })
 
-  handle('skills:install', (_event, libraryId, skillName, options) =>
-    installCatalogSkill({ libraryId, skillName, ...(options ?? {}) }),
-  )
+  handle('skills:install', async (_event, libraryId, skillName, options) => {
+    const result = await installCatalogSkill({ libraryId, skillName, ...(options ?? {}) })
+    invalidatePiCommands()
+    return result
+  })
 
   handle('skills:importPick', async (event) => {
     const window = BrowserWindow.fromWebContents(event.sender)
@@ -87,5 +102,9 @@ export function registerSkillsHandlers(): void {
     return previewSkillImport(sourcePath)
   })
 
-  handle('skills:importConfirm', (_event, options) => confirmSkillImport(options))
+  handle('skills:importConfirm', async (_event, options) => {
+    const result = await confirmSkillImport(options)
+    invalidatePiCommands()
+    return result
+  })
 }

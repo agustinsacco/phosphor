@@ -241,13 +241,27 @@ export function startJob(
   sender: JobSender,
   command: string,
   args: string[],
-  options: { cwd?: string; env: Record<string, string> },
+  options: {
+    cwd?: string
+    env: Record<string, string>
+    /**
+     * Runs in main when the job ends, before the renderer hears the exit —
+     * so a cache the job made stale is already dropped by the time the UI
+     * re-asks. Fires for a spawn failure too (code 127).
+     */
+    onExit?: (code: number) => void
+  },
 ): { jobId: string } {
   const jobId = randomUUID()
   const outputChannel = `packages:output:${jobId}`
   const exitChannel = `packages:exit:${jobId}`
   const emit = (channel: string, payload: unknown): void => {
     if (!sender.isDestroyed()) sender.send(channel, payload)
+  }
+  const finish = (code: number): void => {
+    activeJobs.delete(jobId)
+    options.onExit?.(code)
+    emit(exitChannel, code)
   }
 
   const child = spawn(command, args, {
@@ -261,13 +275,9 @@ export function startJob(
   child.stderr?.on('data', (chunk: Buffer) => emit(outputChannel, chunk.toString()))
   child.on('error', (error) => {
     emit(outputChannel, `${error.message}\n`)
-    emit(exitChannel, 127)
-    activeJobs.delete(jobId)
+    finish(127)
   })
-  child.on('close', (code) => {
-    emit(exitChannel, code ?? 1)
-    activeJobs.delete(jobId)
-  })
+  child.on('close', (code) => finish(code ?? 1))
 
   return { jobId }
 }
@@ -355,6 +365,8 @@ export async function runPackageAction(
   scope: 'global' | 'project',
   workspacePath?: string,
   stubPath?: string,
+  /** See `startJob`'s `onExit`. */
+  onExit?: (code: number) => void,
 ): Promise<{ jobId: string }> {
   const invoker = await resolvePiInvoker(stubPath)
   if (!invoker) return failedJob(sender, 'pi binary not found on PATH')
@@ -370,6 +382,7 @@ export async function runPackageAction(
   return startJob(sender, invoker.command, args, {
     cwd: scope === 'project' ? workspacePath : undefined,
     env: invoker.env,
+    ...(onExit ? { onExit } : {}),
   })
 }
 
