@@ -54,6 +54,19 @@ describe('dropSupersededSessions', () => {
     expect(paths(dropSupersededSessions([previous, fresh]))).toEqual(['/s/a.jsonl', '/s/b.jsonl'])
   })
 
+  /**
+   * Renaming a workspace folder moves the transcript directory, so every
+   * recorded `parentSession` names a directory that is gone. The chain still
+   * has to fold, or a rewound session reappears once per rewind.
+   */
+  it('folds a chain whose recorded parent paths name the old folder', () => {
+    const a = meta({ path: '/new/a.jsonl', firstEntryId: 'e1' })
+    const b = meta({ path: '/new/b.jsonl', firstEntryId: 'e1', parentSession: '/old/a.jsonl' })
+    const c = meta({ path: '/new/c.jsonl', firstEntryId: 'e1', parentSession: '/old/b.jsonl' })
+
+    expect(paths(dropSupersededSessions([a, b, c]))).toEqual(['/new/c.jsonl'])
+  })
+
   it('keeps a superseded file that is still marked live', () => {
     const parent = meta({ path: '/s/a.jsonl', firstEntryId: 'e1' })
     const branch = meta({ path: '/s/b.jsonl', firstEntryId: 'e1', parentSession: '/s/a.jsonl' })
