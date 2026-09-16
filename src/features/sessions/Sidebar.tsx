@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { GitInfo, SessionMeta, WorktreeInfo } from '@shared/models'
 import { compareSessionsByCreation } from '@shared/session-order'
-import { useSessionsStore } from '@/stores/sessions'
+import { laneIsBeingDeleted, useSessionsStore } from '@/stores/sessions'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useChatStore } from '@/stores/chat'
 import { useSessionBooting } from '@/features/chat/BootingIndicator'
@@ -13,7 +13,7 @@ import { sessionSubtitle, type SubtitleSegment } from './sessionSubtitle'
 import { PrBadge, openPullRequest } from './PrBadge'
 import { LaneMarker } from './LaneMarker'
 import { MarkerPickerModal } from './MarkerPickerModal'
-import { BulkDeleteModal, BulkDeleteProgressModal } from './BulkDeleteModal'
+import { BulkDeleteModal } from './BulkDeleteModal'
 import { classifyLane, summarizePreflight, type PreflightSummary } from './deletePreflight'
 import { laneMarker } from '@/lib/laneMarker'
 import { formatCost } from '@/lib/format'
@@ -82,6 +82,7 @@ export function Sidebar({
   const seenSessions = useSessionsStore((s) => s.seenSessions)
   const gitByCwd = useSessionsStore((s) => s.gitByCwd)
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
+  const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
   const activePage = useLayoutStore((s) => s.page)
   const recents = useWorkspacesStore((s) => s.recents)
   const workspacesHydrated = useWorkspacesStore((s) => s.hydrated)
@@ -1135,9 +1136,10 @@ export function Sidebar({
           <span className="flex-1" />
           <button
             onClick={openBulkDelete}
-            className="bg-danger rounded-md px-2.5 py-1 text-xs font-semibold text-white"
+            disabled={bulkDeleteRunning}
+            className="bg-danger rounded-md px-2.5 py-1 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Delete…
+            {bulkDeleteRunning ? 'Delete in progress' : 'Delete…'}
           </button>
           <button
             onClick={clearSelection}
@@ -1159,17 +1161,14 @@ export function Sidebar({
               worktreePath: lane.worktreePath,
               mainRepoPath: lane.mainRepoPath,
             }))
-            // The dialog stays up and switches to its progress view; the store
-            // publishes each lane as it goes. Clearing the selection now would
-            // empty the list the progress view is describing, so it waits
-            // until the run is dismissed.
+            // Progress owns its own lane snapshot, so select mode can end as
+            // soon as the non-blocking notification takes over.
             setPendingDelete(null)
+            clearSelection()
             void useSessionsStore.getState().deleteManySessions(workspacePath, lanes, options)
           }}
         />
       )}
-
-      <BulkDeleteProgressModal onDone={clearSelection} />
 
       {/* Width resize handle: an invisible strip over the right border. */}
       <div
@@ -1310,6 +1309,8 @@ function SessionRow({
   // a lane that is genuinely booting reads as idle in the list.
   const booting = useSessionBooting(livePhosphorId)
   const isSuspended = useSessionsStore((s) => s.suspendedPaths.includes(meta.path))
+  const deleting = useSessionsStore((s) => laneIsBeingDeleted(s.bulkDelete, meta.path))
+  const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
   // A worktree lane's PRs live under the MAIN repo, which is also the key the
   // sidebar group and `gh:prsForRepo` use. Derived here rather than threaded
   // through `rowProps` so a Pinned row — which may belong to a different
@@ -1462,9 +1463,10 @@ function SessionRow({
         : []),
       {
         label: 'Delete',
-        hint: 'to trash',
+        hint: bulkDeleteRunning ? 'another delete is running' : 'to trash',
         danger: true,
         separatorAbove: true,
+        disabled: bulkDeleteRunning,
         onClick: () => void store.deleteDiskSession(workspacePath, meta),
       },
     ])
@@ -1481,16 +1483,17 @@ function SessionRow({
         : 'disk'
 
   const rowClassName = clsx(
-    'lane-row group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors',
+    'lane-row group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-[color,background-color,opacity]',
     // Selection stays a neutral fill. Working gets a separate inset rail,
     // beacon and explicit label, even when the lane is not the active one.
-    active ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover',
+    active ? 'bg-sidebar-active' : !deleting && 'hover:bg-sidebar-hover',
     selected && 'bg-accent-soft',
+    deleting && 'cursor-wait opacity-45',
   )
 
   const body = (
     <>
-      {onToggleSelect ? (
+      {onToggleSelect && !deleting ? (
         /* The checkbox replaces the indicator in the SAME gutter, so entering
            select mode shifts nothing. Revealed on hover, or whenever the group
            already has a selection — a permanent column would cost every row
@@ -1515,7 +1518,11 @@ function SessionRow({
           {selected ? '✓' : ''}
         </span>
       ) : null}
-      <span className={clsx(onToggleSelect && (selecting ? 'hidden' : 'group-hover:hidden'))}>
+      <span
+        className={clsx(
+          onToggleSelect && !deleting && (selecting ? 'hidden' : 'group-hover:hidden'),
+        )}
+      >
         <SessionIndicator state={indicatorState} />
       </span>
       {markerMode !== 'off' && <LaneMarker marker={marker} />}
@@ -1569,6 +1576,11 @@ function SessionRow({
           {showChip && <PrBadge pr={pullRequest ?? null} />}
         </span>
       </span>
+      {deleting && (
+        <span className="bg-chip text-text-secondary shrink-0 rounded px-1.5 py-px text-2xs font-medium">
+          deleting
+        </span>
+      )}
       {showWorkspace && rowWorkspaceName && (
         <span
           data-testid="session-workspace-badge"
@@ -1611,6 +1623,8 @@ function SessionRow({
           data-testid="session-row"
           data-workspace={rowWorkspaceName}
           data-activity={activity}
+          data-deleting={deleting || undefined}
+          aria-disabled={deleting}
           className={rowClassName}
         >
           {body}
@@ -1626,10 +1640,19 @@ function SessionRow({
         onClick={open}
         onContextMenu={contextMenu}
         onDoubleClick={beginRename}
+        disabled={deleting}
+        aria-busy={deleting}
         data-testid="session-row"
         data-workspace={rowWorkspaceName}
         data-activity={activity}
-        title={meta.branchCount > 0 ? `${meta.branchCount + 1} branches` : undefined}
+        data-deleting={deleting || undefined}
+        title={
+          deleting
+            ? 'This lane is being deleted'
+            : meta.branchCount > 0
+              ? `${meta.branchCount + 1} branches`
+              : undefined
+        }
         className={rowClassName}
       >
         {body}

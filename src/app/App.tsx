@@ -13,6 +13,7 @@ import { ChatView } from '@/features/chat/ChatView'
 import { WorkspaceHome } from '@/features/home/WorkspaceHome'
 import { StartingChat } from '@/features/home/StartingChat'
 import { Sidebar } from '@/features/sessions/Sidebar'
+import { BulkDeleteProgressPopover } from '@/features/sessions/BulkDeleteModal'
 import { SkillsPage } from '@/features/skills/SkillsPage'
 import { RoutinesPage } from '@/features/routines/RoutinesPage'
 import { ArtifactsPage } from '@/features/artifacts/ArtifactsPage'
@@ -274,6 +275,7 @@ export function App(): React.JSX.Element {
         <ExtensionDialogHost />
         <PromptHost />
         <ToastHost />
+        <BulkDeleteProgressPopover />
         <CommandPalette workspacePath={currentWorkspace} />
         <SettingsModal />
       </div>

@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { ModalOverlay } from '@/components/Modal'
+import { ChevronIcon, Spinner } from '@/components/icons'
 import { useSessionsStore } from '@/stores/sessions'
 import { prChip } from './prChip'
 import { describeWarnings, type PreflightSummary } from './deletePreflight'
@@ -224,150 +226,184 @@ function Option({
   )
 }
 
+const COMPLETE_HOLD_MS = 4_000
+const FADE_MS = 250
+
 /**
- * The progress and summary view for a bulk delete in flight.
+ * Non-blocking progress for a bulk delete.
  *
- * Separate from `BulkDeleteModal` because it is driven by store state rather
- * than by props: the run outlives the confirm dialog, and a delete of ten
- * lanes disposes ten subprocesses and runs git ten times. Without this the
- * sidebar simply froze for several seconds and rows vanished in one jump,
- * which reads as a crash rather than as work.
- *
- * The summary is not a toast. Per-lane outcomes matter here — a worktree that
- * would not remove because a terminal is cwd'd into it is the common case, and
- * that lane is still in the sidebar. A toast that says "3 deleted" while four
- * were selected is exactly the silent-failure this is meant to prevent.
+ * The confirmation remains a modal because it authorizes destructive work.
+ * Once confirmed, progress moves into this fixed notification so the user can
+ * keep working. Its compact row expands to retain the per-lane outcomes that
+ * matter when a worktree or branch cannot be removed.
  */
-export function BulkDeleteProgressModal({
-  onDone,
-}: {
-  onDone: () => void
-}): React.JSX.Element | null {
+export function BulkDeleteProgressPopover(): React.JSX.Element | null {
   const progress = useSessionsStore((s) => s.bulkDelete)
+  const [expanded, setExpanded] = useState(false)
+  const [fading, setFading] = useState(false)
+
+  useEffect(() => {
+    if (!progress) return
+    if (progress.running) {
+      setFading(false)
+      return
+    }
+
+    setExpanded(false)
+    const fadeTimer = window.setTimeout(() => setFading(true), COMPLETE_HOLD_MS)
+    const dismissTimer = window.setTimeout(
+      () => useSessionsStore.getState().dismissBulkDelete(),
+      COMPLETE_HOLD_MS + FADE_MS,
+    )
+    return () => {
+      window.clearTimeout(fadeTimer)
+      window.clearTimeout(dismissTimer)
+    }
+  }, [progress?.running])
+
   if (!progress) return null
 
-  const { total, done, current, lanes, results, running, cancelled } = progress
+  const { total, done, current, currentPath, lanes, results, running, cancelled } = progress
   const failed = results.filter((r) => !r.ok)
   const warned = results.filter((r) => r.ok && r.error)
   const percent = total === 0 ? 0 : Math.round((done / total) * 100)
   const byPath = new Map(results.map((result) => [result.path, result]))
+  const title = running
+    ? cancelled
+      ? 'Stopping after current lane…'
+      : `Deleting ${Math.min(done + 1, total)} of ${total}`
+    : summaryTitle(results.length, failed.length, cancelled)
+  const subtitle = running
+    ? current || 'Starting…'
+    : failed.length > 0
+      ? `${failed.length} lane${failed.length === 1 ? '' : 's'} kept`
+      : warned.length > 0
+        ? 'Complete, with branches kept'
+        : 'Complete'
 
-  const close = (): void => {
-    useSessionsStore.getState().dismissBulkDelete()
-    onDone()
-  }
-
-  return (
-    <ModalOverlay
-      onClose={running ? () => undefined : close}
-      closeOnBackdrop={!running}
-      closeOnEscape={!running}
-    >
-      <div
+  return createPortal(
+    <div className="pointer-events-none fixed left-3 top-14 z-40 w-[min(22rem,calc(100vw-1.5rem))]">
+      <section
         data-testid="bulk-delete-progress"
-        className="bg-surface-raised border-border w-[min(34rem,94vw)] rounded-lg border shadow-2xl"
+        role="status"
+        aria-live="polite"
+        className={clsx(
+          'bg-surface-raised border-border pointer-events-auto overflow-hidden rounded-lg border shadow-xl transition-[opacity,transform] duration-200',
+          fading && '-translate-y-1 opacity-0',
+        )}
       >
-        <div className="border-border border-b px-5 py-4">
-          <h2 className="text-base font-semibold">
-            {running
-              ? cancelled
-                ? 'Finishing the current lane…'
-                : `Deleting ${done + 1} of ${total}`
-              : summaryTitle(results.length, failed.length, cancelled)}
-          </h2>
-          <p className="text-text-secondary mt-1 truncate text-sm">
-            {running ? current || 'Starting…' : 'Transcripts are in the Trash. Worktrees are gone.'}
-          </p>
+        <button
+          type="button"
+          data-testid="bulk-delete-toggle"
+          aria-expanded={expanded}
+          aria-controls="bulk-delete-details"
+          onClick={() => setExpanded((open) => !open)}
+          className="hover:bg-bg-secondary flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors"
+        >
+          <span
+            aria-hidden
+            className={clsx(
+              'flex size-5 shrink-0 items-center justify-center rounded-full',
+              running
+                ? 'bg-accent-soft text-accent'
+                : failed.length > 0
+                  ? 'bg-warning/15 text-warning'
+                  : 'bg-success/15 text-success',
+            )}
+          >
+            {running ? <Spinner /> : failed.length > 0 ? '!' : '✓'}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="text-text block truncate text-sm font-semibold">{title}</span>
+            <span className="text-text-secondary block truncate text-xs">{subtitle}</span>
+          </span>
+          {running && <span className="text-text-tertiary text-xs tabular-nums">{percent}%</span>}
+          <ChevronIcon expanded={expanded} className="text-text-tertiary" />
+        </button>
+
+        <div className="bg-chip h-1 w-full overflow-hidden">
+          <div
+            className={clsx(
+              'h-full transition-[width] duration-200',
+              failed.length > 0 ? 'bg-warning' : running ? 'bg-accent' : 'bg-success',
+            )}
+            style={{ width: `${running ? Math.max(percent, 4) : 100}%` }}
+          />
         </div>
 
-        <div className="px-5 pb-1 pt-4">
-          <div className="bg-chip h-1.5 w-full overflow-hidden rounded-full">
-            <div
-              className={clsx(
-                'h-full rounded-full transition-[width] duration-200',
-                failed.length > 0 ? 'bg-warning' : 'bg-accent',
-              )}
-              style={{ width: `${running ? Math.max(percent, 4) : 100}%` }}
-            />
-          </div>
-        </div>
-
-        {lanes.length > 0 && (
-          <div className="max-h-56 overflow-y-auto px-5 py-3">
-            <div className="border-border divide-border divide-y overflow-hidden rounded-md border">
-              {lanes.map((lane) => {
-                const result = byPath.get(lane.path)
-                const active = running && !result && lane.title === current
-                return (
-                  <div
-                    key={lane.path}
-                    className={clsx(
-                      'flex items-center gap-2 px-3 py-2 text-sm',
-                      !result && !active && 'opacity-45',
-                    )}
-                  >
-                    <span
-                      aria-hidden
+        {expanded && (
+          <div id="bulk-delete-details" className="border-border border-t">
+            <div className="max-h-56 overflow-y-auto p-2">
+              <div className="border-border divide-border divide-y overflow-hidden rounded-md border">
+                {lanes.map((lane) => {
+                  const result = byPath.get(lane.path)
+                  const active = running && !result && lane.path === currentPath
+                  return (
+                    <div
+                      key={lane.path}
                       className={clsx(
-                        'w-3 shrink-0 text-center',
-                        result
-                          ? result.ok
-                            ? 'text-success'
-                            : 'text-danger'
-                          : 'text-text-tertiary',
+                        'flex items-center gap-2 px-2.5 py-2 text-sm',
+                        !result && !active && 'opacity-45',
                       )}
                     >
-                      {result ? (result.ok ? '✓' : '✕') : active ? '…' : '·'}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate">{lane.title}</span>
-                    {result?.error && (
                       <span
-                        title={result.error}
+                        aria-hidden
                         className={clsx(
-                          'max-w-[14rem] shrink-0 truncate text-2xs',
-                          result.ok ? 'text-warning' : 'text-danger',
+                          'w-3 shrink-0 text-center',
+                          result
+                            ? result.ok
+                              ? 'text-success'
+                              : 'text-danger'
+                            : 'text-text-tertiary',
                         )}
                       >
-                        {result.error}
+                        {result ? (result.ok ? '✓' : '✕') : active ? '…' : '·'}
                       </span>
-                    )}
-                  </div>
-                )
-              })}
+                      <span className="min-w-0 flex-1 truncate">{lane.title}</span>
+                      {result?.error && (
+                        <span
+                          title={result.error}
+                          className={clsx(
+                            'max-w-40 shrink-0 truncate text-2xs',
+                            result.ok ? 'text-warning' : 'text-danger',
+                          )}
+                        >
+                          {result.error}
+                        </span>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+              {warned.length > 0 && (
+                <p className="text-text-tertiary mt-2 px-1 text-xs">
+                  Deleted, but the branch was kept because its work is not on the trunk. Phosphor
+                  never force-deletes commits.
+                </p>
+              )}
             </div>
-            {warned.length > 0 && (
-              <p className="text-text-tertiary mt-2 text-xs">
-                Deleted, but the branch was kept: its work is not on the trunk yet, and Phosphor
-                never force-deletes a branch that would lose commits.
-              </p>
-            )}
+
+            <div className="border-border bg-bg-secondary flex items-center gap-2 border-t px-3 py-2">
+              <span className="text-text-tertiary text-xs">
+                {running ? `${done} of ${total} done` : `${results.length} processed`}
+              </span>
+              <span className="flex-1" />
+              {running && (
+                <button
+                  type="button"
+                  onClick={() => useSessionsStore.getState().cancelBulkDelete()}
+                  disabled={cancelled}
+                  className="border-border text-text-secondary hover:text-text rounded-md border px-2.5 py-1 text-xs disabled:opacity-40"
+                >
+                  {cancelled ? 'Stopping…' : 'Stop'}
+                </button>
+              )}
+            </div>
           </div>
         )}
-
-        <div className="border-border bg-bg-secondary flex items-center gap-2 rounded-b-lg border-t px-5 py-3">
-          <span className="text-text-tertiary text-xs">
-            {running ? `${done} of ${total} done` : `${results.length} processed`}
-          </span>
-          <span className="flex-1" />
-          {running ? (
-            <button
-              onClick={() => useSessionsStore.getState().cancelBulkDelete()}
-              disabled={cancelled}
-              className="border-border text-text-secondary hover:text-text rounded-md border px-3 py-1 text-sm disabled:opacity-40"
-            >
-              {cancelled ? 'Stopping…' : 'Stop'}
-            </button>
-          ) : (
-            <button
-              onClick={close}
-              className="bg-accent text-accent-text rounded-md px-3 py-1 text-sm font-semibold"
-            >
-              Done
-            </button>
-          )}
-        </div>
-      </div>
-    </ModalOverlay>
+      </section>
+    </div>,
+    document.body,
   )
 }
 
