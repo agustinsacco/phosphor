@@ -19,7 +19,7 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
-import { probeCommands } from './commands'
+import { probeCommandsCached } from './commands'
 import { piAgentDir } from './pi-paths'
 import { readZipEntries, writeZipStore, type ZipEntry } from './zip'
 import {
@@ -135,7 +135,9 @@ async function probeSkillsViaRpc(
     source: string
     origin: 'package' | 'top-level'
   }> = []
-  for (const command of await probeCommands(options)) {
+  // `fresh`: the page re-lists after every mutation and must see it, TTL or
+  // not. The answer is stored, so the `/` menu's next open is free.
+  for (const command of await probeCommandsCached(options, { fresh: true })) {
     if (command.source !== 'skill' || !command.sourceInfo?.path) continue
     results.push({
       dir: dirname(command.sourceInfo.path),

@@ -17,12 +17,16 @@ import {
   type CatalogueResult,
 } from '../pi/model-catalogue'
 import { cachedPiHealth } from '../pi/health'
-import { probeCommands } from '../pi/commands'
+import {
+  invalidateCommandCaches,
+  probeCommandsCached,
+  type CommandProbeOptions,
+} from '../pi/commands'
 import { piProcessEnv } from '../pi/shell-env'
-import { createTtlCache, type TtlCache } from '../pi/ttl-cache'
+import { createTtlCache } from '../pi/ttl-cache'
 import { piStubPath } from '../pi/stub'
+import { broadcast } from '../broadcast'
 import { type ConfigFileHealth } from '@shared/models'
-import type { RpcSlashCommand } from '@shared/rpc'
 
 /** How long pi's own answer stays believed without re-spawning pi. */
 const CATALOGUE_TTL_MS = 5 * 60_000
@@ -77,48 +81,47 @@ export function invalidateCatalogueModels(): void {
 }
 
 /**
- * How long a folder's resolved command list is believed.
- *
- * Shorter than the catalogue's: a skill or prompt is a file the user just
- * wrote, and "I added it and Phosphor still doesn't see it" is the failure
- * that matters here. One spawn a minute per folder, only while someone is
- * typing `/` on a home screen.
+ * How to spawn the command probe for a folder. Throws when pi cannot be run
+ * at all, so the answer says so — an empty list here used to be
+ * indistinguishable from "pi resolved nothing".
  */
-const COMMANDS_TTL_MS = 60_000
+async function commandProbeOptions(
+  workspacePath: string | undefined,
+): Promise<CommandProbeOptions> {
+  const stub = piStubPath()
+  if (stub) {
+    return {
+      ...(workspacePath ? { workspacePath } : {}),
+      binaryPath: process.execPath,
+      prefixArgs: [stub],
+      env: { ELECTRON_RUN_AS_NODE: '1' },
+    }
+  }
+  const health = await cachedPiHealth()
+  if (!health.ok || !health.binaryPath) throw new Error(health.message ?? 'pi is not installed')
+  return {
+    ...(workspacePath ? { workspacePath } : {}),
+    binaryPath: health.binaryPath,
+    ...(health.prefixArgs ? { prefixArgs: health.prefixArgs } : {}),
+    env: await piProcessEnv(),
+  }
+}
 
 /**
- * Per-workspace, because the answer is: project prompts and `<ws>/.pi/skills`
- * differ by folder. Keyed by path, so two open workspaces keep two lists
- * rather than fighting over one.
+ * The set of commands pi resolves has changed: forget every folder's cached
+ * answer and tell every window, so the home composer re-asks on its next `/`
+ * and live sessions re-issue `get_commands`.
+ *
+ * Call this after the mutation, not before — the renderer re-asks right away.
+ * Callers: package install/remove/update, MCP server config writes, skill
+ * create/edit/delete/import, pi sign-in. A live pi does not load a newly
+ * installed extension until it restarts, so for packages the session refresh
+ * is a no-op and the home composer is what benefits; MCP prompt commands and
+ * skills, by contrast, DO appear in a running session.
  */
-const commandCaches = new Map<string, TtlCache<RpcSlashCommand[]>>()
-
-function commandsCacheFor(workspacePath: string | undefined): TtlCache<RpcSlashCommand[]> {
-  const key = workspacePath ?? ''
-  let cache = commandCaches.get(key)
-  if (!cache) {
-    cache = createTtlCache(async () => {
-      const stub = piStubPath()
-      if (stub) {
-        return probeCommands({
-          ...(workspacePath ? { workspacePath } : {}),
-          binaryPath: process.execPath,
-          prefixArgs: [stub],
-          env: { ELECTRON_RUN_AS_NODE: '1' },
-        })
-      }
-      const health = await cachedPiHealth()
-      if (!health.ok || !health.binaryPath) return []
-      return probeCommands({
-        ...(workspacePath ? { workspacePath } : {}),
-        binaryPath: health.binaryPath,
-        ...(health.prefixArgs ? { prefixArgs: health.prefixArgs } : {}),
-        env: await piProcessEnv(),
-      })
-    }, COMMANDS_TTL_MS)
-    commandCaches.set(key, cache)
-  }
-  return cache
+export function invalidatePiCommands(): void {
+  invalidateCommandCaches()
+  broadcast('pi:commandsChanged', {})
 }
 
 /** Reading and patching pi's own agent settings files. */
@@ -150,13 +153,14 @@ export function registerPiConfigHandlers(): void {
   })
 
   // The home composer's `/` menu. Same throwaway-pi contract as the catalogue
-  // above, including the stub gate; a probe that failed answers with an empty
-  // list rather than an error, since "no menu" is a fine degradation.
+  // above, including the stub gate. A probe that failed answers with an empty
+  // list AND the reason: the menu renders the reason where the rows would be,
+  // which is the difference between "still loading" and "pi is not installed".
   handle('pi:commands', async (_event, workspacePath?: string) => {
     try {
-      return { commands: await commandsCacheFor(workspacePath).get() }
-    } catch {
-      return { commands: [] }
+      return { commands: await probeCommandsCached(await commandProbeOptions(workspacePath)) }
+    } catch (cause) {
+      return { commands: [], error: cause instanceof Error ? cause.message : String(cause) }
     }
   })
 
@@ -164,11 +168,15 @@ export function registerPiConfigHandlers(): void {
 
   handle('pi:writeConfigFile', (_event, name, content) => writeConfigFile(name, content))
 
-  handle('pi:patchAgentSettings', (_event, scope, workspacePath, patch) => {
+  handle('pi:patchAgentSettings', async (_event, scope, workspacePath, patch) => {
     // Declaring a provider or a model in settings.json changes what pi will
-    // report, so the cached catalogue is stale the moment this lands.
+    // report, so the cached catalogue is stale the moment this lands — and so
+    // is the command list, since settings.json also declares packages, skills
+    // and extensions.
     invalidateCatalogueModels()
-    return patchAgentSettings(scope, workspacePath, patch)
+    const result = await patchAgentSettings(scope, workspacePath, patch)
+    invalidatePiCommands()
+    return result
   })
 
   handle('pi:checkAgentSettings', async (_event, workspacePath?: string) => {

@@ -21,6 +21,7 @@ import { checkPiHealth } from '../pi/health'
 import { piProcessEnv } from '../pi/shell-env'
 import { piStubPath } from '../pi/stub'
 import { broadcast } from '../broadcast'
+import { invalidatePiCommands } from './pi-config-handlers'
 
 /**
  * Open the adapter's authorization page.
@@ -48,25 +49,35 @@ function openAuthPage(url: string): void {
 export function registerMcpHandlers(): void {
   handle('mcp:readConfigs', (_event, workspacePath) => readMcpConfigs(workspacePath))
 
-  handle('mcp:upsertServer', (_event, scope, workspacePath, name, config) =>
-    upsertMcpServer(scope, workspacePath, name, config),
-  )
+  // Every write to the mcp.json chain changes which `mcp__<server>__*` prompt
+  // commands pi-mcp-adapter registers, so each one drops the cached `/` list.
+  handle('mcp:upsertServer', async (_event, scope, workspacePath, name, config) => {
+    const result = await upsertMcpServer(scope, workspacePath, name, config)
+    invalidatePiCommands()
+    return result
+  })
 
-  handle('mcp:removeServer', (_event, scope, workspacePath, name) =>
-    removeMcpServer(scope, workspacePath, name),
-  )
+  handle('mcp:removeServer', async (_event, scope, workspacePath, name) => {
+    const result = await removeMcpServer(scope, workspacePath, name)
+    invalidatePiCommands()
+    return result
+  })
 
-  handle('mcp:setDisabled', (_event, scope, workspacePath, name, disabled) =>
-    setMcpServerDisabled(scope, workspacePath, name, disabled),
-  )
+  handle('mcp:setDisabled', async (_event, scope, workspacePath, name, disabled) => {
+    const result = await setMcpServerDisabled(scope, workspacePath, name, disabled)
+    invalidatePiCommands()
+    return result
+  })
 
   handle('mcp:readCache', () => readMcpCache())
 
   handle('mcp:readFile', (_event, scope, workspacePath) => readMcpFile(scope, workspacePath))
 
-  handle('mcp:writeFile', (_event, scope, workspacePath, content) =>
-    writeMcpFile(scope, workspacePath, content),
-  )
+  handle('mcp:writeFile', async (_event, scope, workspacePath, content) => {
+    const result = await writeMcpFile(scope, workspacePath, content)
+    invalidatePiCommands()
+    return result
+  })
 
   handle('mcp:authorize', async (_event, serverName, workspacePath) => {
     const stub = piStubPath()

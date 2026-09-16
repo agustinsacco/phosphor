@@ -45,10 +45,51 @@ The composer is one small field with several ways in.
   prompt). `!!command` → same with `excludeFromContext: true` and a "not sent
   to model" badge.
 - `/` → command menu fed by `get_commands` (extension commands, prompt
-  templates, `skill:*`, with source badges) merged with exactly **three**
-  Phosphor-native ones: `/compact`, `/export`, `/name`. Everything else is
-  pi's, so the list grows by installing an extension. An unknown `/x` still
-  goes to pi as a prompt.
+  templates, `skill:*`) merged with exactly **three** Phosphor-native ones:
+  `/compact`, `/export`, `/name`. Everything else is pi's, so the list grows by
+  installing an extension. An unknown `/x` still goes to pi as a prompt.
+  - **Every command is listed** — the popup scrolls; there is no cap. (A cap
+    of 12 hid every skill behind the extension commands until 2026-09-16.)
+  - **Filtering happens once**, in `useSlashMenu`; `CommandMenu` renders the
+    array it is given. The highlighted row and the row Enter picks are the same
+    element by construction.
+  - **Search** (`commandScore` in `src/lib/fuzzy.ts`) ranks exact name, then
+    name prefix, then a whole segment (`/debug` → `skill:debug`), then a
+    segment prefix (`/mcp` → `pi-mcp`), then a subsequence, then a substring of
+    the description (`/status` → "Show MCP server status"). `:` is a word
+    boundary. Nothing typed: grouped Phosphor / Extensions / Prompts / Skills
+    with section headers, pi's registration order within a group.
+  - **Every row says where it comes from** (`commandCatalogue.ts`): pi's
+    `sourceInfo` becomes a short origin — the package name (`pi-web-access`),
+    `built into pi` for pi's inline extensions, `project · .claude/skills` for a
+    local skill — and the tooltip carries the whole description, the file
+    path and any aliases.
+  - **Aliases fold.** Two commands from the same file with the same description
+    are one row (pi-mcp-adapter's `/mcp` + `/pi-mcp`); the alias stays
+    searchable and is named in the tooltip. Matching is on payload equality,
+    never on a hardcoded name.
+  - **MCP prompts are badged PROMPT**, not EXTENSION, and their origin names
+    the server (`notion · MCP prompt`), detected from the adapter's
+    `mcp__<server>__<prompt>` naming.
+  - **`/mcp-auth` is demoted**: not in the browse list, still found when typed,
+    described with a pointer to Settings ▸ MCP Connectors (which drives it —
+    see [mcp.md](mcp.md#settings--connectors) for why a hand-run flow is the
+    dangerous one).
+  - **The list stays fresh.** Main broadcasts `pi:commandsChanged` after a
+    package install/remove/update, an mcp.json write, a skill mutation or a pi
+    sign-in; the renderer drops the home composer's per-folder cache and
+    re-issues `get_commands` on every live session. The chat composer also
+    re-asks its own session on `/`, throttled to once per 30 s, which is what
+    catches an in-chat `/mcp reconnect`. A live pi does not load a newly
+    installed extension until it restarts, so for packages only the home
+    composer changes.
+  - **The menu never silently vanishes.** With nothing to list it shows why:
+    loading (the home probe spawns a pi), pi unreachable (with the reason from
+    `pi:commands`' `error`), or no match — in which case Enter is not consumed
+    and sends the text to pi as a prompt, as the row says.
+  - Not possible today: argument completion (`/mcp ⇥` → `reconnect`,
+    `tools`, …). pi-mcp-adapter defines `getArgumentCompletions`, but pi's RPC
+    exposes no command for it.
 - Composer widget slots above/below for extension `setWidget`;
   `set_editor_text` prefills the input.
 

@@ -3,6 +3,7 @@ import type { GitInfo, SessionMeta, SessionScanStatus, SessionPush } from '@shar
 import type { ImageContent, PiEvent } from '@shared/rpc'
 import { useChatStore } from './chat'
 import { useNamingStore } from './naming'
+import { usePiCommandsStore } from './piCommands'
 import { drop } from './keyedSlice'
 import { piCallOk, rehydrateTranscript } from '@/lib/rpc'
 import { sessionTitle } from '@/lib/sessionTitle'
@@ -217,6 +218,54 @@ const unsubscribers = new Map<string, () => void>()
 /** Workspaces already being watched, so repeat calls are no-ops. */
 const watchedWorkspaces = new Set<string>()
 
+/** When each live session last had `get_commands` answered, for the throttle below. */
+const commandsRefreshedAt = new Map<string, number>()
+const COMMANDS_REFRESH_MIN_MS = 30_000
+
+/**
+ * Re-ask a live session for its slash commands.
+ *
+ * The list used to be fetched once, at bootstrap, and never again — so an MCP
+ * server connected mid-session, or `/mcp reconnect` registering that server's
+ * prompt commands, never reached the menu until the session was recreated.
+ * Two callers: the chat composer on every `/` (throttled, since the answer
+ * rarely changes) and `attachPiCommandsListener` when main says it did
+ * (`force`, since then it has).
+ *
+ * Raw envelope on purpose — the same exemption `bootstrapSession` claims: a
+ * refresh is opportunistic, and an older pi without the command must not put
+ * an error in the chat every time `/` is typed.
+ */
+export async function refreshSessionCommands(
+  phosphorId: string,
+  { force = false }: { force?: boolean } = {},
+): Promise<void> {
+  const last = commandsRefreshedAt.get(phosphorId) ?? 0
+  if (!force && Date.now() - last < COMMANDS_REFRESH_MIN_MS) return
+  commandsRefreshedAt.set(phosphorId, Date.now())
+  try {
+    const response = await window.phosphor.piCommand(phosphorId, { type: 'get_commands' })
+    if (response.success && response.data) {
+      useChatStore.getState().setCommands(phosphorId, response.data.commands)
+    }
+  } catch {
+    // Session disposed mid-request; the next `/` on a live one asks again.
+  }
+}
+
+/**
+ * Subscribe to main's `pi:commandsChanged`. Called once, from App. Drops the
+ * home composer's per-folder lists and re-asks every live session.
+ */
+export function attachPiCommandsListener(): () => void {
+  return window.phosphor.onPiCommandsChanged(() => {
+    usePiCommandsStore.getState().invalidateAll()
+    for (const phosphorId of Object.keys(useSessionsStore.getState().live)) {
+      void refreshSessionCommands(phosphorId, { force: true })
+    }
+  })
+}
+
 /**
  * (Re)learn this session's live state from pi — `sessionFile`, model
  * catalogue, commands, stats, thinking levels.
@@ -295,6 +344,7 @@ export async function bootstrapSession(phosphorId: string): Promise<void> {
   }
   if (commands.status === 'fulfilled' && commands.value.success && commands.value.data) {
     chat.setCommands(phosphorId, commands.value.data.commands)
+    commandsRefreshedAt.set(phosphorId, Date.now())
   }
   if (stats.status === 'fulfilled' && stats.value.success && stats.value.data) {
     recordPolledStats(phosphorId, stats.value.data)

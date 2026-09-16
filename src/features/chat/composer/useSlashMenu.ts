@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react'
-import { filterCommandEntries, type CommandEntry } from './CommandMenu'
+import { filterCommandEntries, type CommandEntry } from './commandCatalogue'
 
 /**
  * The `/` menu, shared by the chat composer and the home composer.
@@ -10,6 +10,10 @@ import { filterCommandEntries, type CommandEntry } from './CommandMenu'
  * Everything that would have been copied to fix that lives here instead: when
  * the menu is open, what it matches, keyboard navigation, and what picking
  * does.
+ *
+ * This hook is the ONLY place the list is filtered. `matches` is what the
+ * menu renders, verbatim, and what `activeIndex` indexes — one array, so the
+ * highlighted row and the picked row cannot drift apart.
  *
  * The two callers still differ in where the entries come from (a live session's
  * RPC list vs. `stores/piCommands`) and in whether native session commands
@@ -30,15 +34,24 @@ export function slashQuery(value: string): string | null {
 export interface SlashMenu {
   /** Null when closed. */
   query: string | null
+  /** Every row the menu shows, in display order. Uncapped; the popup scrolls. */
   matches: CommandEntry[]
-  /** True when the popup should render (open AND non-empty). */
+  /**
+   * True whenever the menu is open. It stays up with no matches too — the
+   * empty row then says why (still loading, nothing matched, pi unreachable)
+   * instead of the popup silently disappearing.
+   */
   visible: boolean
   activeIndex: number
   setActiveIndex: (index: number) => void
   close: () => void
   /** Recompute from the composer value; call on every change. */
   sync: (value: string) => void
-  /** Arrows/Enter/Tab/Escape while visible. True when the key was consumed. */
+  /**
+   * Arrows/Enter/Tab/Escape while visible. True when the key was consumed.
+   * With nothing to pick, Enter and Tab are NOT consumed: `/zzz` is a prompt
+   * pi accepts, and the empty row tells the user that is what Enter will do.
+   */
   handleKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => boolean
   pick: (entry: CommandEntry) => void
 }
@@ -62,7 +75,7 @@ export function useSlashMenu({
     () => (query === null ? [] : filterCommandEntries(query, entries)),
     [query, entries],
   )
-  const visible = query !== null && matches.length > 0
+  const visible = query !== null
 
   const close = useCallback(() => setQuery(null), [])
 
@@ -95,7 +108,13 @@ export function useSlashMenu({
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
       if (!visible) return false
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        setQuery(null)
+        return true
+      }
       const count = matches.length
+      if (count === 0) return false
       if (event.key === 'ArrowDown') {
         event.preventDefault()
         setActiveIndex((i) => (i + 1) % count)
@@ -108,13 +127,8 @@ export function useSlashMenu({
       }
       if ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Tab') {
         event.preventDefault()
-        const entry = matches[activeIndex]
+        const entry = matches[Math.min(activeIndex, count - 1)]
         if (entry) pick(entry)
-        return true
-      }
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        setQuery(null)
         return true
       }
       return false
@@ -122,15 +136,5 @@ export function useSlashMenu({
     [visible, matches, activeIndex, pick],
   )
 
-  return {
-    query,
-    matches,
-    visible,
-    activeIndex,
-    setActiveIndex,
-    close,
-    sync,
-    handleKeyDown,
-    pick,
-  }
+  return { query, matches, visible, activeIndex, setActiveIndex, close, sync, handleKeyDown, pick }
 }

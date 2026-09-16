@@ -31,7 +31,7 @@ import { AttachmentChips, DropOverlay } from './composer/AttachmentChips'
 import { useAttachments } from './composer/useAttachments'
 import { ComposerField } from './composer/ComposerField'
 import { sessionDraftKey, useDraftsStore } from '@/stores/drafts'
-import { useSessionsStore } from '@/stores/sessions'
+import { refreshSessionCommands, useSessionsStore } from '@/stores/sessions'
 import { errorText } from '@shared/errors'
 
 interface MentionState {
@@ -151,6 +151,9 @@ export function Composer({
   const slash = useSlashMenu({
     entries: commandEntries,
     setText,
+    // The session's list was fetched at bootstrap; `/mcp reconnect` since then
+    // may have registered prompt commands it does not have. Throttled inside.
+    onOpen: () => void refreshSessionCommands(sessionId),
     focus: () => textareaRef.current?.focus(),
   })
 
@@ -389,7 +392,7 @@ export function Composer({
         {slash.visible && (
           <CommandMenu
             query={slash.query ?? ''}
-            entries={commandEntries}
+            entries={slash.matches}
             activeIndex={slash.activeIndex}
             onHover={slash.setActiveIndex}
             onPick={slash.pick}

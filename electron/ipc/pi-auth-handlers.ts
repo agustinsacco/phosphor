@@ -5,7 +5,7 @@ import { handle } from './handle'
 import { checkSubscriptionAuth } from '../pi/auth-status'
 import { cancelLogin, startLogin } from '../pi/login-flow'
 import { checkPiHealth, invalidatePiHealth, piArgs } from '../pi/health'
-import { invalidateCatalogueModels } from './pi-config-handlers'
+import { invalidateCatalogueModels, invalidatePiCommands } from './pi-config-handlers'
 import { piProcessEnv } from '../pi/shell-env'
 import { ptyManager } from '../pty/pty-manager'
 
@@ -29,10 +29,13 @@ function openAuthPage(url: string): void {
 
 function broadcastLoginState(state: LoginFlowState): void {
   // Signing in adds providers, so the cached catalogue no longer describes
-  // what the user can pick.
+  // what the user can pick. The command list goes too: a probe that failed
+  // because pi was not ready is not cached, but one that ran against a
+  // half-configured install is.
   if (state.phase === 'signed-in') {
     invalidateCatalogueModels()
     invalidatePiHealth()
+    invalidatePiCommands()
   }
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) window.webContents.send('pi:loginState', state)

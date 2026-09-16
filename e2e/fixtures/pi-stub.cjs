@@ -324,17 +324,132 @@ function handle(cmd) {
       })
       break
 
-    case 'get_commands':
+    case 'get_commands': {
+      // Shaped like a real pi answer — enough rows that the menu's old cap of
+      // 12 would have hidden the last one, `/mcp` with its `/pi-mcp` alias,
+      // an MCP prompt command, pi's own inline extension, and prompt templates.
+      // Deliberately NO `source: 'skill'` entries: the skills e2e relies on
+      // this answer having none so it exercises the scan fallback. Skills in
+      // the menu are covered by the unit suite against a real payload.
+      const pkg = (name, file) => ({
+        path: `/stub/npm/node_modules/${name}/${file}`,
+        source: `npm:${name}`,
+        scope: 'user',
+        origin: 'package',
+        baseDir: `/stub/npm/node_modules/${name}`,
+      })
+      const prompt = (name) => ({
+        path: `/stub/agent/prompts/${name}.md`,
+        source: 'local',
+        scope: 'user',
+        origin: 'top-level',
+      })
       out({
         id: cmd.id,
         type: 'response',
         command: 'get_commands',
         success: true,
         data: {
-          commands: [{ name: 'stub-command', description: 'A stub command', source: 'extension' }],
+          commands: [
+            {
+              name: 'stub-command',
+              description: 'A stub command',
+              source: 'extension',
+              sourceInfo: {
+                path: '/stub/agent/extensions/stub.ts',
+                source: 'local',
+                scope: 'user',
+                origin: 'top-level',
+              },
+            },
+            {
+              name: 'websearch',
+              description: 'Open web search curator',
+              source: 'extension',
+              sourceInfo: pkg('pi-web-access', 'index.ts'),
+            },
+            {
+              name: 'curator',
+              description: 'Toggle or configure the search curator workflow',
+              source: 'extension',
+              sourceInfo: pkg('pi-web-access', 'index.ts'),
+            },
+            {
+              name: 'search',
+              description: 'Browse stored web search results',
+              source: 'extension',
+              sourceInfo: pkg('pi-web-access', 'index.ts'),
+            },
+            {
+              name: 'mcp__notion__make-this-a-notion-page',
+              description: 'MCP: Turn the current work into a durable Notion page.',
+              source: 'extension',
+              sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
+            },
+            {
+              name: 'mcp',
+              description: 'Show MCP server status',
+              source: 'extension',
+              sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
+            },
+            {
+              name: 'pi-mcp',
+              description: 'Show MCP server status',
+              source: 'extension',
+              sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
+            },
+            {
+              name: 'mcp-auth',
+              description: 'Authenticate with an MCP server (OAuth)',
+              source: 'extension',
+              sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
+            },
+            {
+              name: 'computer-use',
+              description: 'Show pi-computer-use configuration',
+              source: 'extension',
+              sourceInfo: pkg('@injaneity/pi-computer-use', 'extensions/computer-use.ts'),
+            },
+            {
+              name: 'llama',
+              description: 'Manage llama.cpp router models',
+              source: 'extension',
+              sourceInfo: {
+                path: '<inline:llama.cpp>',
+                source: 'inline',
+                scope: 'temporary',
+                origin: 'top-level',
+              },
+            },
+            {
+              name: 'plan',
+              description: 'Draft an implementation plan',
+              source: 'prompt',
+              sourceInfo: prompt('plan'),
+            },
+            {
+              name: 'fix-tests',
+              description: 'Fix the failing tests',
+              source: 'prompt',
+              sourceInfo: prompt('fix-tests'),
+            },
+            {
+              name: 'review',
+              description: 'Review the working tree',
+              source: 'prompt',
+              sourceInfo: prompt('review'),
+            },
+            {
+              name: 'release-notes',
+              description: 'Draft release notes from the git log',
+              source: 'prompt',
+              sourceInfo: prompt('release-notes'),
+            },
+          ],
         },
       })
       break
+    }
 
     case 'get_session_stats':
       out({

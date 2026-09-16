@@ -3,7 +3,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import type { PiHealth } from '@shared/models'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useStartingChatStore } from '@/stores/startingChat'
-import { useSessionsStore } from '@/stores/sessions'
+import { attachPiCommandsListener, useSessionsStore } from '@/stores/sessions'
 import { useActivePanes, useLayoutStore } from '@/stores/layout'
 import { PiMissingScreen } from './PiMissingScreen'
 import { LoadingScreen } from './LoadingScreen'
@@ -88,6 +88,10 @@ export function App(): React.JSX.Element {
   // Headless connector authorization runs in main (no session needed), so its
   // progress arrives as a broadcast rather than on a session's channel.
   useEffect(() => attachConnectorAuthListener(), [])
+
+  // Main says the slash-command set changed (package, MCP server, skill):
+  // drop the home composer's lists and re-ask every live session.
+  useEffect(() => attachPiCommandsListener(), [])
 
   // Land where the user left off. Main validates that the workspace and
   // session file still exist, so a deleted folder degrades to the picker

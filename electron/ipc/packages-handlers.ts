@@ -1,5 +1,6 @@
 import { app } from 'electron'
 import { handle } from './handle'
+import { invalidateCatalogueModels, invalidatePiCommands } from './pi-config-handlers'
 import {
   checkClaudeCliUpdate,
   checkPackageUpdates,
@@ -32,8 +33,16 @@ function claudeBinOverride(): string | undefined {
 export function registerPackagesHandlers(): void {
   handle('packages:list', async (_event, workspacePath?: string) => listPackages(workspacePath))
 
+  // A package can bring a provider (models) as well as extensions, skills and
+  // prompts (commands), so both caches are stale once the job ends — whatever
+  // its exit code: a failed install can still have changed settings.json.
+  // Neither was invalidated before; installing a provider left the model
+  // picker wrong for the catalogue's full five-minute TTL.
   handle('packages:run', (event, action, spec, scope, workspacePath) =>
-    runPackageAction(event.sender, action, spec, scope, workspacePath, piStubPath()),
+    runPackageAction(event.sender, action, spec, scope, workspacePath, piStubPath(), () => {
+      invalidateCatalogueModels()
+      invalidatePiCommands()
+    }),
   )
 
   handle('packages:installPi', (event) => runPiInstall(event.sender))
