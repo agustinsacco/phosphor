@@ -135,6 +135,16 @@ trap". The Changes pane was fixed; this was not.
 against a 4.5:1 bar for normal text (`src/styles/index.css`). Individual copy
 has been migrated to secondary ink, but the tokens themselves are unchanged.
 
+**R13 — deleting a session from a renamed folder orphans the Claude
+transcript.** `electron/pi/session-deleter.ts` derives the CLI's copy from the
+cwd frozen in pi's own header, and a renamed sandbox moved that transcript
+directory to the new name, so `trashIfPresent` looks where nothing is and
+leaves a megabytes-sized file behind. The sidebar no longer _shows_ a stale cwd
+(`listSessions` substitutes the folder it scanned), but the deleter reads the
+header directly and cannot: nothing can un-mangle a directory name back into a
+path. Fixing it means either passing the workspace path down through
+`sessions:delete` or rewriting the header at rename time.
+
 ## Code health
 
 | #   | Issue                                                                                                        | Where                                                                               |

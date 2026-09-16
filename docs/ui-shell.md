@@ -81,6 +81,19 @@ screen.
 - `resolveSandboxFolder` compares real paths for the same reason; a lexical
   compare refused a sandbox's own real path and silently disabled Delete and
   Rename for it.
+- **A session's recorded cwd is a hint; the directory it was found in is the
+  authority.** Each session file freezes the cwd pi ran in, and nothing
+  rewrites history when the folder later moves — so renaming a sandbox moved
+  its transcripts (they are still found) while every file inside kept naming
+  the old folder, and the sidebar hands that value straight to `createSession`.
+  Opening such a row spawned pi in a deleted directory, and the copied debug
+  block named a Claude transcript that had moved. `listSessions`
+  (`electron/pi/session-scanner.ts`) therefore substitutes the folder it
+  scanned whenever the recorded one is **gone** or is a second spelling of the
+  same folder, and leaves it alone when it names a different folder that still
+  exists — both are real, and guessing would be worse than reporting. This is
+  retroactive by construction: a folder renamed by an older build is corrected
+  on the next scan, with no migration.
 - **Flat nav rows**: `New`, `Artifacts`, `Skills`, `Routines`. `New` routes to the home
   screen; it does not spawn a session, because the folder and the first prompt
   are chosen there. Artifacts, Skills, and Routines open global pages (below).
