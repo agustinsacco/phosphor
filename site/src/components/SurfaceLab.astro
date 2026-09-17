@@ -1,181 +1,57 @@
 ---
-import { Image, getImage } from 'astro:assets'
-import { doc, ideCapture } from '../lib/content'
-const optimized = await getImage({ src: ideCapture, width: 1800, format: 'webp', quality: 90 })
-const variants = [
-  { id: 'ide', name: 'Your IDE', index: '01', detail: 'Files left. Conversation right.' },
+import Capture from './Capture.astro'
+import { doc, shot } from '../lib/content'
+const views = [
   {
-    id: 'claude',
-    name: 'Claude Desktop–like',
-    index: '02',
-    detail: 'Conversation first. Work beside it.',
+    id: 'right',
+    title: 'Pane right',
+    image: 'files',
+    caption: 'Files and Monaco beside the conversation',
   },
   {
-    id: 'codex',
-    name: 'Codex app–like',
-    index: '03',
-    detail: 'Project in view. A focused workspace.',
+    id: 'left',
+    title: 'Pane left',
+    image: 'files-left',
+    caption: 'The same pane docked to the left',
+  },
+  {
+    id: 'full',
+    title: 'Fullscreen',
+    image: 'files-full',
+    caption: 'Give the pane the session region',
   },
 ]
 ---
 
-<section id="surface" class="section surface-section">
-  <div class="container">
-    <div class="section-heading">
-      <div>
-        <p class="eyebrow">01 / IDE view</p><h2>Keep the session.<br />Change the surface.</h2>
-      </div>
-      <p class="section-intro">
-        Conversation first, like Claude Desktop. Task first, like the Codex app. Or an editor next
-        to the agent. The layout is a preference. The engine is not.
-      </p>
+<details id="surface" class="disclosure">
+  <summary>Same agent. Your surface. See the actual layouts <span>+</span></summary>
+  <p class="fineprint" id="tools">
+    Files, Changes, Terminal, or Artifacts: one auxiliary pane at a time. Dock it left or right,
+    resize it, or go fullscreen. Layout is saved per session.
+  </p>
+  <fieldset class="surface-lab">
+    <legend class="sr-only">Choose a real layout capture</legend>
+    {
+      views.map(({ id }, index) => (
+        <input
+          class="sr-only"
+          type="radio"
+          name="layout"
+          id={`layout-${id}`}
+          checked={index === 0}
+        />
+      ))
+    }
+    <div class="surface-tabs">
+      {views.map(({ id, title }) => <label for={`layout-${id}`}>{title}</label>)}
     </div>
-    <fieldset class="surface-lab">
-      <legend class="sr-only">Choose a layout study for the same Phosphor session</legend>
-      {
-        variants.map(({ id, name }) => (
-          <input
-            class="sr-only layout-radio"
-            type="radio"
-            name="surface"
-            id={`layout-${id}`}
-            value={id}
-            checked={id === 'ide'}
-            aria-label={name}
-            aria-controls={`view-${id}`}
-          />
-        ))
-      }
-      <div class="surface-controls">
-        <div class="surface-tabs">
-          {
-            variants.map(({ id, name, index }) => (
-              <label for={`layout-${id}`}>
-                <span>{index}</span>
-                {name}
-              </label>
-            ))
-          }
+    {
+      views.map(({ id, image, caption }) => (
+        <div class={`surface-view view-${id}`} id={`view-${id}`}>
+          <Capture image={shot(image)} alt={caption} caption={caption} />
         </div>
-        <span class="surface-hint">Same session / 3 arrangements</span>
-      </div>
-      <div class="surface-stage">
-        <div id="view-ide" class="surface-view view-ide">
-          <div class="view-caption">
-            <span class="status-dot"></span><span>Phosphor / actual capture</span><span
-              >Explorer + Monaco ↔ transcript</span
-            >
-          </div>
-          <a
-            href={ideCapture.src}
-            target="_blank"
-            rel="noopener"
-            class="ide-original"
-            aria-label="Open the full IDE capture"
-          >
-            <Image
-              src={ideCapture}
-              alt="The real Headroom Optimization session: file explorer and Monaco with TopBar.tsx docked left; Claude Opus 5 transcript and results table right; composer showing pi-claude-cli, Max thinking and 35% context usage."
-              widths={[800, 1200, 1800, 2400, 3600]}
-              sizes="(max-width: 700px) 94vw, 92vw"
-              format="webp"
-              quality={90}
-              loading="eager"
-            />
-          </a>
-        </div>
-        {
-          variants
-            .filter(({ id }) => id !== 'ide')
-            .map(({ id, name, detail }) => (
-              <div id={`view-${id}`} class:list={['surface-view', `view-${id}`]}>
-                <div class="view-caption">
-                  <>
-                    <span class="study-dot" />
-                    <span>{name} / layout study</span>
-                    <span>{detail}</span>
-                  </>
-                </div>
-                <div
-                  class:list={['replica', `replica-${id}`]}
-                  style={`--capture: url('${optimized.src}'); --source-ratio: ${ideCapture.width / ideCapture.height}`}
-                >
-                  <div class="replica-nav" aria-label="Explorer crop">
-                    <>
-                      <span class="region-label">Explorer</span>
-                      <div
-                        class="crop crop-explorer"
-                        role="img"
-                        aria-label="The same file explorer, cropped from the real capture"
-                      />
-                    </>
-                  </div>
-                  <div class="replica-chat" aria-label="Transcript crop">
-                    <>
-                      <span class="region-label">Same transcript + composer</span>
-                      <div
-                        class="crop crop-chat"
-                        role="img"
-                        aria-label="The unchanged conversation and composer, cropped from the real capture"
-                      />
-                    </>
-                  </div>
-                  <div class="replica-files" aria-label="Editor crop">
-                    <>
-                      <span class="region-label">Same Monaco editor</span>
-                      <div
-                        class="crop crop-files"
-                        role="img"
-                        aria-label="The same TopBar.tsx editor, cropped from the real capture"
-                      />
-                    </>
-                  </div>
-                </div>
-              </div>
-            ))
-        }
-      </div>
-      <div class="invariant-strip">
-        <span class="mono">UNCHANGED</span><strong>pi’s agent loop</strong><span>+</span><strong
-          >your extensions</strong
-        ><span class="invariant-tail">Layout moves. Work stays.</span>
-      </div>
-    </fieldset>
-    <div class="surface-notes">
-      <p>
-        <strong>Arrangements, not integrations.</strong> The two app-inspired views are crops of the one
-        capture above, rearranged. They are not screenshots of Claude Desktop or Codex, and not presets
-        Phosphor ships.
-      </p>
-      <p>
-        What ships: one pane, docked left or right, resizable, or fullscreen. Saved per session. <a
-          class="text-link"
-          href={doc('ui-shell.md#pane-system')}>How panes work ↗</a
-        >
-      </p>
-    </div>
-    <p class="capture-provenance">
-      Headroom Optimization · Claude Opus 5 via pi-claude-cli · Max thinking · 35% context at
-      capture. <a class="text-link" href={ideCapture.src} target="_blank" rel="noopener"
-        >Open the full IDE capture ↗</a
-      >
-    </p>
-    <div class="numbered-notes">
-      <article>
-        <span>01</span><h3>The project is right there.</h3><p>
-          Browse the tree and edit in Monaco without leaving the conversation.
-        </p>
-      </article>
-      <article>
-        <span>02</span><h3>The reply has structure.</h3><p>
-          Text, tables and tool activity in a readable transcript, not a terminal dump.
-        </p>
-      </article>
-      <article>
-        <span>03</span><h3>The controls stay close.</h3><p>
-          Model, thinking level and context usage sit beside the prompt.
-        </p>
-      </article>
-    </div>
-  </div>
-</section>
+      ))
+    }
+  </fieldset>
+  <a class="text-link" href={doc('ui-shell.md#pane-system')}>Pane behavior ↗</a>
+</details>

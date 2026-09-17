@@ -1,0 +1,158 @@
+---
+import Guide from '../../layouts/Guide.astro'
+import Capture from '../../components/Capture.astro'
+import { connectors, doc, shot } from '../../lib/content'
+const sections: [string, string][] = [
+  ['adapter', '1. Install the adapter'],
+  ['connect', '2. Connect a service'],
+  ['verify', '3. Test and use it'],
+  ['catalog', 'Connector requirements'],
+  ['custom', 'Custom MCP servers'],
+  ['permissions', 'Permissions and troubleshooting'],
+]
+---
+
+<Guide
+  title="Connect your services"
+  description="Give the agent access to the tools you choose. Install the MCP adapter, authorize a service, then verify the connection before using it in a task."
+  sections={sections}
+>
+  <section id="adapter">
+    <h2>1. Install the MCP adapter</h2>
+    <p>
+      MCP is the protocol; a connector is a configured MCP server. pi does not include MCP in its
+      core. Install <strong>MCP adapter</strong> from Settings → Extensions, or use:
+    </p>
+    <pre
+      tabindex="0"
+      aria-label="Install the MCP adapter"><code>pi install npm:pi-mcp-adapter</code></pre>
+    <p>
+      <strong>Settings → Extensions → MCP Connectors</strong> is visible even before installation. Its
+      Advanced section also exposes adapter installation. A package declaration alone is not a successful
+      service connection.
+    </p>
+  </section>
+  <section id="connect">
+    <h2>2. Add and authorize a service</h2>
+    <ol>
+      <li>Open <strong>MCP Connectors</strong>.</li><li>
+        Find the service under <strong>Add a connector</strong>. Supply any required fields, such as
+        the Datadog site or Slack client ID.
+      </li><li>
+        Choose <strong>Add</strong>. Phosphor writes the configuration and starts the adapter’s
+        authorization flow.
+      </li><li>
+        Finish authorization in the browser. Review the requested scopes and the account or
+        workspace you are granting access to.
+      </li><li>
+        Return to Phosphor. If the adapter explicitly asks for a callback URL, follow that prompt.
+        Do not publish the URL or its authorization code.
+      </li>
+    </ol>
+    <Capture
+      image={shot('guide-connectors')}
+      alt="MCP Connectors showing connected servers, Test controls, and a catalog of services in an example configuration."
+      caption="A connection has a status, a scope, and an explicit Test action"
+      provenance="Settings demo · example data"
+    />
+    <p>
+      The full-size capture also contains only example configuration. OAuth credentials belong to
+      the adapter and its credential store, not to Phosphor.
+    </p>
+  </section>
+  <section id="verify">
+    <h2>3. Test the connection, then the task</h2>
+    <p>
+      Choose <strong>Test</strong> on the connected-server row. It opens a fresh connection through the
+      adapter and can report Up with a tool count, Needs sign-in, Down, Disabled, Not in config, or Test
+      inconclusive.
+    </p>
+    <p>
+      Authorization and Test do not run a model, so they spend no model tokens. <strong
+        >State unknown</strong
+      > without a live session is not proof of failure. Cached tool names are not proof that a service
+      is reachable.
+    </p>
+    <p>
+      Start a new session after changing configuration. Ask for a narrow read-only action, such as
+      “Find the Linear issue I specify and summarize its acceptance criteria. Do not change it.”
+      Inspect the tool result and source, not just the answer. Model-driven tool use consumes normal
+      model usage and may use service quota.
+    </p>
+    <p>
+      By default, the gateway lets the agent discover tool details on demand rather than sending
+      every schema with every request. Direct-tool configuration bypasses that behavior and
+      increases context use.
+    </p>
+  </section>
+  <section id="catalog">
+    <h2>Choose the right access for each service</h2>
+    <div class="connector-requirements">
+      {
+        connectors.map(({ id, name, use, note, docs }) => (
+          <article id={id}>
+            <>
+              <p class="eyebrow">{use}</p>
+              <h3>{name}</h3>
+              <p>{note}</p>
+              <a href={docs}>{name} setup documentation ↗</a>
+            </>
+          </article>
+        ))
+      }
+    </div>
+    <p>
+      Available tools depend on the server, your account, and the scopes you authorize. Read-only
+      defaults for Supabase and Questrade do not make every connector read-only. Supabase’s
+      read-only endpoint does not narrow the OAuth grant: the token still carries write scopes.
+      Restrict the endpoint to a project and review its permissions separately.
+    </p>
+  </section>
+  <section id="custom">
+    <h2>Add a custom MCP server</h2>
+    <p>
+      Use the custom-server control in MCP Connectors to provide either a server URL or a local
+      command and arguments. Choose the intended scope. A command-based server executes a local
+      program, so review it as carefully as an installed package.
+    </p>
+    <p>
+      Test the server after saving. Start a new session to load it. Use Advanced for the raw
+      configuration and resolution chain when a project entry overrides a global server with the
+      same name.
+    </p>
+    <p>
+      For Claude subscription sessions, configure servers here. Phosphor deliberately isolates the
+      Claude CLI’s own MCP configuration and claude.ai connectors; they are not automatically
+      imported.
+    </p>
+  </section>
+  <section id="permissions">
+    <h2>Permissions and common failures</h2>
+    <ul>
+      <li><strong>Needs sign-in:</strong> use Sign in or Reconnect for the intended account.</li><li
+      >
+        <strong>Down or inconclusive:</strong> check the server URL, network access, installed adapter,
+        and local-command requirements; then Test again.
+      </li><li>
+        <strong>Slack Add is disabled:</strong> complete its registered-app setup, including client ID,
+        redirect URI, PKCE, and scopes. The card’s “Set up the app” disclosure provides the manifest.
+      </li><li>
+        <strong>Tools are missing in a running conversation:</strong> start a new session after adding
+        the server; the existing adapter read its config at startup.
+      </li><li>
+        <strong>The wrong configuration wins:</strong> inspect scope and shadowing in Advanced rather
+        than duplicating credentials across files.
+      </li>
+    </ul>
+    <p>
+      Authorize only the access needed. Some tools can modify external data. A worktree does not
+      restrict a connected service, and an artifact’s sandbox does not restrict tool calls. Do not
+      include credentials or private callback URLs in bug reports.
+    </p>
+    <p>
+      <a href={doc('mcp.md')}>MCP configuration, scope resolution, and OAuth reference</a> · <a
+        href="/guides/extensions/#mcp">MCP adapter package</a
+      >
+    </p>
+  </section>
+</Guide>

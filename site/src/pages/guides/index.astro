@@ -1,0 +1,184 @@
+---
+import Guide from '../../layouts/Guide.astro'
+import { doc, guides, releases, repo } from '../../lib/content'
+const sections: [string, string][] = [
+  ['install', '1. Install'],
+  ['sign-in', '2. Sign in'],
+  ['first-task', '3. Run a first task'],
+  ['extend', '4. Add capabilities'],
+  ['trust', 'Permissions and data'],
+  ['help', 'Troubleshooting'],
+]
+---
+
+<Guide
+  title="Install and start"
+  description="From a fresh install to your first reviewable task. Start with one provider, then add the extensions and services you need."
+  sections={sections}
+>
+  <section id="install">
+    <h2>1. Install the engine and desktop</h2>
+    <p>
+      You need Node.js 22.19 or newer and a provider account or API key. Install pi in a terminal:
+    </p>
+    <pre
+      tabindex="0"
+      aria-label="Install pi"><code>npm install -g @earendil-works/pi-coding-agent</code></pre>
+    <p>
+      <a href={`${releases}/latest`}>Download Phosphor from the latest release</a>. On macOS, open
+      the DMG and drag Phosphor to Applications. On Linux, choose the AppImage or .deb. On Windows,
+      run the x64 .exe installer.
+    </p>
+    <p>Alternatively, on macOS or Linux:</p>
+    <pre
+      tabindex="0"
+      aria-label="Install Phosphor on macOS or Linux"><code>curl -fsSL https://github.com/agustinsacco/Phosphor/releases/latest/download/install.sh | sh</code></pre>
+    <p>
+      The script verifies release checksums. Piping a script to a shell is a trust decision: <a
+        href={`${repo}/blob/main/scripts/install.sh`}>read the installer first</a
+      >. Windows releases are unsigned; SmartScreen may require More info → Run anyway after you
+      verify the source.
+    </p>
+    <p>
+      <strong>Check:</strong> launch Phosphor. If the setup screen says pi is missing, make sure <code
+        >pi --version</code
+      > works and that its directory is on the PATH available to desktop apps. Restart Phosphor after
+      changing PATH.
+    </p>
+  </section>
+  <section id="sign-in">
+    <h2>2. Choose a sign-in route</h2>
+    <ul>
+      <li>
+        <strong>ChatGPT Plus/Pro:</strong> Settings → Accounts → sign in to the ChatGPT/Codex provider.
+        This uses pi’s native OAuth; a Codex CLI bridge is not needed.
+      </li>
+      <li>
+        <strong>Claude Pro/Max:</strong> install the official Claude Code CLI and the pi provider package,
+        then manage logins under Settings → Extensions → Claude Code. <a href="/guides/claude-code/"
+          >Follow the screenshot guide</a
+        >.
+      </li>
+      <li>
+        <strong>GitHub Copilot or Kimi For Coding:</strong> use the corresponding sign-in in Settings
+        → Accounts. Copilot Enterprise Server uses pi’s terminal login.
+      </li>
+      <li>
+        <strong>API keys or custom endpoints:</strong> configure the provider in pi. <a
+          href="https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md"
+          >Provider authentication</a
+        > and <a
+          href="https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/models.md"
+          >custom model configuration</a
+        > describe the available routes.
+      </li>
+    </ul>
+    <p>
+      If a graphical sign-in cannot complete, open a terminal, run <code>pi</code>, and use <code
+        >/login</code
+      >. Claude Code logins are separate from pi’s provider credentials. Provider billing rules and
+      plan limits apply; installing Phosphor does not include model usage.
+    </p>
+  </section>
+  <section id="first-task">
+    <h2>3. Run one task you can verify</h2>
+    <ol>
+      <li>
+        Open a repository folder you trust. Use a disposable project for your first experiment.
+      </li>
+      <li>
+        Choose a model in the composer. For Claude subscription usage, select the <code
+          >pi-claude-cli</code
+        > provider, not an API-billed Anthropic entry.
+      </li>
+      <li>
+        Leave the new-worktree option enabled for a separate checkout, or deliberately choose the
+        main checkout. Git features require a Git repository.
+      </li>
+      <li>
+        Ask for a bounded change, for example: “Add a test for an empty input in this parser. Run
+        the relevant tests and show me the diff.”
+      </li>
+      <li>
+        Open tool activity to inspect the command and its result. Open Changes to review each file.
+        An agent saying “done” is not proof that its tests passed.
+      </li>
+      <li>
+        Ask for a short explanation as an artifact if you want a versioned document beside the chat.
+        Use Files or Terminal when you want to inspect or run something yourself.
+      </li>
+    </ol>
+    <p>
+      <strong>Check:</strong> you can identify the session’s branch, read its actual diff, and inspect
+      the test result. For a second independent task, start a new lane and worktree rather than asking
+      two sessions to edit the same checkout.
+    </p>
+    <p>
+      <a href={doc('worktrees.md')}>Worktree safeguards</a> · <a href={doc('chat.md')}
+        >Transcript and composer reference</a
+      > · <a href={doc('routines.md')}>Schedule a repeatable task with a local routine</a>
+    </p>
+  </section>
+  <section id="extend">
+    <h2>4. Add the capabilities you need</h2>
+    <p>
+      A working coding session is the starting point. pi packages add web research, MCP services,
+      subagents, and desktop interaction. Install only what serves your workflow, then start a new
+      session.
+    </p>
+    <div class="guide-grid">
+      {
+        guides.slice(1).map(({ href, title }) => (
+          <a href={href}>
+            <h3>{title} →</h3>
+          </a>
+        ))
+      }
+    </div>
+  </section>
+  <section id="trust">
+    <h2>Permissions and data</h2>
+    <p>
+      Phosphor runs locally, but that does not mean inference is local. Model providers receive the
+      prompts and tool results sent to them. Connected services have their own permissions and data
+      policies.
+    </p>
+    <p>
+      <strong>Tools run with full permissions by default.</strong> Phosphor does not add an approval system
+      or a universal agent sandbox. Worktrees separate Git checkouts, not filesystem or network access.
+      Packages execute code in pi’s process. Review package sources and connect only services you intend
+      to expose to the agent.
+    </p>
+    <p>
+      Model-authored HTML artifacts are isolated from the app and have no network access. That
+      boundary protects against the document, not against the agent’s tools. <a
+        href={doc('extensions.md')}>Read the extension and artifact contract</a
+      >.
+    </p>
+  </section>
+  <section id="help">
+    <h2>If setup stalls</h2>
+    <ul>
+      <li>
+        <strong>pi missing:</strong> check the desktop PATH, not only an interactive terminal’s PATH.
+      </li><li>
+        <strong>No models:</strong> confirm authentication and start a new session after changing provider
+        configuration.
+      </li><li>
+        <strong>Claude is unavailable:</strong> use the <a
+          href="/guides/claude-code/#troubleshooting">Claude troubleshooting checklist</a
+        >.
+      </li><li>
+        <strong>Connector cannot authenticate:</strong> check scopes and run <a
+          href="/guides/connectors/#verify">Test in MCP Connectors</a
+        >.
+      </li>
+    </ul>
+    <p>
+      <a href={doc('updates.md')}>Install-specific update behavior</a> · <a href={`${repo}/issues`}
+        >Report a problem</a
+      >. Include versions and the error, but remove tokens, account identifiers, private paths, and
+      sensitive project content from logs and screenshots.
+    </p>
+  </section>
+</Guide>

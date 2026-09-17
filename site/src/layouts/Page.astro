@@ -1,9 +1,14 @@
 ---
 import '../styles/global.css'
 import { repo } from '../lib/content'
-const title = 'Phosphor — Same agent. Your surface.'
-const description =
-  'A desktop workspace for the pi coding agent. Your models, your subscriptions, your extensions. Transcript, files, terminal and artifacts in one window.'
+interface Props {
+  title?: string
+  description?: string
+}
+const {
+  title = 'Phosphor | Parallel coding. Without losing the thread.',
+  description = 'Run independent pi sessions, review changes, and connect your tools. A desktop workspace for your models, subscriptions, and pi extensions.',
+} = Astro.props
 const canonical = new URL(Astro.url.pathname, Astro.site)
 ---
 
@@ -26,7 +31,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
     <meta property="og:image:height" content="630" />
     <meta
       property="og:image:alt"
-      content="Phosphor. Same agent. Your surface. A desktop workspace powered by pi."
+      content="Phosphor. Parallel coding. Without losing the thread. Powered by pi and your extensions."
     />
     <meta name="twitter:card" content="summary_large_image" />
     <title>{title}</title>
@@ -35,25 +40,30 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header">
       <div class="header-inner">
-        <a class="wordmark" href="#" aria-label="Phosphor home"
+        <a class="wordmark" href="/" aria-label="Phosphor home"
           ><img src="/favicon.svg" width="36" height="36" alt="" /><span>Phosphor</span></a
         >
         <nav aria-label="Main navigation">
-          <a href="#surface">The surface</a><a href="#models">Models</a><a href="#work">The work</a
-          ><a href={`${repo}#documentation-map`}>Docs ↗</a>
+          <a href="/guides/">Guides</a><a href="/#work">Workflow</a><a href="/#extensions"
+            >Extensions</a
+          ><a href="/#connectors">Connectors</a>
         </nav>
-        <a class="header-install" href="#install">Install <span aria-hidden="true">↘</span></a>
+        <a class="header-install" href="/guides/#install"
+          >Install <span aria-hidden="true">↘</span></a
+        >
       </div>
     </header>
     <main id="main"><slot /></main>
     <footer class="site-footer container">
-      <a class="wordmark" href="#"
+      <a class="wordmark" href="/"
         ><img src="/favicon.svg" alt="" width="32" height="32" /><span>Phosphor</span></a
       >
-      <p>Built by engineers. For engineers.</p>
+      <p>pi’s agent loop. Your workspace.</p>
       <div>
-        <a href={`${repo}/blob/main/LICENSE`}>MIT license</a><a href={repo}>Source ↗</a><a
-          href={`${repo}/issues`}>Issues ↗</a
+        <a href="/guides/">Guides</a><a href={`${repo}/blob/main/docs/README.md`}
+          >Technical docs ↗</a
+        ><a href={`${repo}/blob/main/LICENSE`}>MIT license</a><a href={repo}>Source ↗</a><a
+          href={`${repo}/issues`}>Get help ↗</a
         ><a href="#main">Back to top ↑</a>
       </div>
     </footer>

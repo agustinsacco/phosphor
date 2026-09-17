@@ -7,8 +7,18 @@ interface Props {
   caption: string
   eager?: boolean
   class?: string
+  provenance?: string
+  sizes?: string
 }
-const { image, alt, caption, eager = false, class: className = '' } = Astro.props
+const {
+  image,
+  alt,
+  caption,
+  eager = false,
+  class: className = '',
+  provenance = 'Real session',
+  sizes = '(max-width: 700px) 94vw, (max-width: 1100px) 90vw, 1200px',
+} = Astro.props
 ---
 
 <figure class:list={['capture', className]}>
@@ -23,7 +33,7 @@ const { image, alt, caption, eager = false, class: className = '' } = Astro.prop
       src={image}
       alt={alt}
       widths={[480, 800, 1200, 1800, 2400]}
-      sizes="(max-width: 700px) 94vw, (max-width: 1100px) 90vw, 1200px"
+      sizes={sizes}
       format="webp"
       quality={85}
       loading={eager ? 'eager' : 'lazy'}
@@ -31,5 +41,5 @@ const { image, alt, caption, eager = false, class: className = '' } = Astro.prop
     />
     <span class="capture-open" aria-hidden="true">↗</span>
   </a>
-  <figcaption><span>{caption}</span><span>Real session ↗</span></figcaption>
+  <figcaption><span>{caption}</span><span>{provenance} ↗</span></figcaption>
 </figure>

@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   site: 'https://phosphor.saccolabs.com',
   output: 'static',
-  trailingSlash: 'ignore',
+  trailingSlash: 'always',
   build: {
     // Hashed asset names under /_astro are immutable; nginx caches them forever.
     assets: '_astro',
