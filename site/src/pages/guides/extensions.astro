@@ -1,0 +1,145 @@
+---
+import Guide from '../../layouts/Guide.astro'
+import Capture from '../../components/Capture.astro'
+import { doc, packages, shot } from '../../lib/content'
+const sections: [string, string][] = [
+  ['included', 'What is included'],
+  ['install', 'Install a package'],
+  ...packages.map(({ id, name }): [string, string] => [id, name]),
+  ['maintain', 'Scope and updates'],
+]
+---
+
+<Guide
+  title="Build your pi extension setup"
+  description="Phosphor is the workspace. pi is the engine. Packages add the capabilities that make the agent useful across your actual workflow."
+  sections={sections}
+>
+  <section id="included">
+    <h2>Coding works first. Extensions take it further.</h2>
+    <p>
+      Start with a model and pi’s local coding tools. You do not need to install every package to
+      edit code. Add capabilities deliberately: research a library, read a ticket, query an
+      operational tool, or delegate an independent investigation.
+    </p>
+    <p>
+      Phosphor already bundles six extensions: artifacts, context breakdown, MCP status reporting,
+      opt-in Headroom integration, malformed tool-name repair, and a wrong-worktree path guard. <strong
+        >MCP status reporting is not the MCP adapter.</strong
+      > The adapter itself is a separate install.
+    </p>
+    <p>
+      Packages can contain executable extensions, reusable skills, prompt templates, and themes. A
+      skill describes a procedure; an extension can register tools or a provider. <a
+        href={doc('extensions.md#bundled-extensions-phosphors-own')}>Bundled extension reference</a
+      >.
+    </p>
+  </section>
+  <section id="install">
+    <h2>Install from Settings</h2>
+    <ol>
+      <li>Open <strong>Settings → Extensions</strong>.</li><li>
+        Review the Recommended catalog and the package’s source. Choose the capability you need,
+        then <strong>Add</strong>.
+      </li><li>Watch the job output and confirm the package appears in Installed.</li><li>
+        For a package outside the catalog, use Add by spec with an npm, Git, or local-path spec.
+        Choose global or workspace scope.
+      </li><li>
+        Start a new session so pi loads the package. Settings for Claude Code, Web access, and
+        Computer use appear as nested tabs when their packages are present.
+      </li>
+    </ol>
+    <Capture
+      image={shot('guide-extensions')}
+      alt="Phosphor Extensions settings displaying recommended and installed packages with example data."
+      caption="Install the capability, then configure it in its own tab"
+      provenance="Settings demo · example data"
+    />
+    <aside class="notice">
+      <strong>Install is a trust decision</strong><p>
+        Packages run code with full system access. The catalog is a starting point, not a sandbox or
+        a guarantee about future versions. Review source and requirements before installing. Tools
+        may use external services, require keys, or incur charges.
+      </p>
+    </aside>
+  </section>
+  {
+    packages.map(({ id, name, benefit, spec, url }) => (
+      <section id={id}>
+        <>
+          <h2>{name}</h2>
+          <p>{benefit}</p>
+          <pre tabindex="0" aria-label={`Install ${name}`}>
+            <code>pi install {spec}</code>
+          </pre>
+        </>
+        {id === 'claude' && (
+          <p>
+            Requires the official Claude Code CLI and an authorized account. Follow the{' '}
+            <a href="/guides/claude-code/">Claude setup and multiple-account tutorial</a>, including
+            its end-to-end provider check.
+          </p>
+        )}
+        {id === 'mcp' && (
+          <p>
+            Required for Phosphor’s connected-service tools. Installing it does not grant service
+            access. Next,{' '}
+            <a href="/guides/connectors/">add a connector, authorize it, and test it</a>.
+          </p>
+        )}
+        {id === 'web' && (
+          <p>
+            Open the Web access tab after installation and configure the search provider you intend
+            to use. Requirements vary by provider. Verify a small search and URL fetch in a new
+            session; request source links and inspect the tool results.
+          </p>
+        )}
+        {id === 'subagents' && (
+          <p>
+            There is no separate settings tab. Start a new session and use the package’s delegation
+            tools for bounded, independent work. Additional model calls consume tokens and quota;
+            delegation is not free parallelism.
+          </p>
+        )}
+        {id === 'computer' && (
+          <p>
+            Read the Computer use tab and the package’s platform requirements. Grant the required OS
+            accessibility permissions explicitly. Verify observation of a test window before
+            allowing clicks or typing in sensitive applications.
+          </p>
+        )}
+        <p>
+          <a href={url}>Package documentation and source ↗</a>
+        </p>
+      </section>
+    ))
+  }
+  <section id="maintain">
+    <h2>Scope, updates, and verification</h2>
+    <p>
+      Global installs apply across workspaces. A project install uses <code
+        >pi install -l npm:package-name</code
+      > from that project and writes project configuration. pi loads packages according to its scope and
+      project-trust rules; a declared package is not proof that a running session has loaded it.
+    </p>
+    <p>
+      Use Update all in Extensions, or update a specific package by spec. On current pi, <code
+        >pi update --extensions</code
+      > updates packages, while bare <code>pi update</code> updates pi itself. A pinned package may need
+      an explicit version change.
+    </p>
+    <p>
+      After any package change, start a new session. Give the new capability a small test and
+      inspect the actual tool output. Installing a package, authenticating a service, and completing
+      a successful model-driven call are three different checks.
+    </p>
+    <p>
+      <a
+        href="https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/packages.md"
+        >pi package installation and scope</a
+      > · <a href="https://pi.dev/packages">Browse the package ecosystem</a> · <a
+        href={doc('extensions.md')}>Phosphor extension contract</a
+      >
+    </p>
+  </section>
+</Guide>

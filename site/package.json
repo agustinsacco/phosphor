@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "version": "0.1.0",
-  "description": "phosphor.saccolabs.com — Phosphor. Same agent. Your surface.",
+  "description": "Phosphor: parallel coding, pi extensions, and practical setup guides.",
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
@@ -12,6 +12,8 @@
     "check": "astro check",
     "preview": "astro preview",
     "shots": "node scripts/import-shots.mjs",
+    "shots:guides": "node scripts/guide-shots.mjs",
+    "audit:links": "node scripts/audit-links.mjs",
     "test": "playwright test",
     "format": "prettier --plugin prettier-plugin-astro --write ."
   },
@@ -25,6 +27,7 @@
     "@astrojs/check": "^0.9.10",
     "@playwright/test": "^1.63.0",
     "@types/node": "^22.20.2",
+    "github-slugger": "^2.0.0",
     "prettier": "^3.9.6",
     "prettier-plugin-astro": "^0.14.1",
     "typescript": "^5.9.3"

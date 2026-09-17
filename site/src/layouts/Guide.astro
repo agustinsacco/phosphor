@@ -1,0 +1,39 @@
+---
+import Page from './Page.astro'
+import { guides } from '../lib/content'
+interface Props {
+  title: string
+  description: string
+  sections: [string, string][]
+}
+const { title, description, sections } = Astro.props
+---
+
+<Page title={`${title} | Phosphor guides`} description={description}>
+  <div class="container guide-layout">
+    <aside class="guide-nav">
+      <nav aria-label="Setup guides">
+        <p class="eyebrow">Phosphor guides</p>{
+          guides.map(({ href, title }) => (
+            <a href={href} aria-current={Astro.url.pathname === href ? 'page' : undefined}>
+              {title}
+            </a>
+          ))
+        }
+      </nav>
+      <nav aria-label="On this page">
+        <p class="eyebrow">On this page</p>{
+          sections.map(([id, label]) => <a href={`#${id}`}>{label}</a>)
+        }
+      </nav>
+    </aside>
+    <article class="guide-content">
+      <header>
+        <p class="eyebrow">Setup / step by step</p><h1>{title}</h1><p class="guide-lede">
+          {description}
+        </p>
+      </header>
+      <slot />
+    </article>
+  </div>
+</Page>

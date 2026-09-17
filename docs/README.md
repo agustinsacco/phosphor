@@ -7,6 +7,11 @@ change that broke it.
 One exception, and it is labelled: [known-issues.md](known-issues.md) describes
 what is _broken_ rather than how something works.
 
+For installation and task-oriented tutorials, start with the
+[Phosphor guides](https://phosphor.saccolabs.com/guides/): first task, Claude Code
+and multiple accounts, pi extensions, and MCP connectors. These guides explain
+how to use the UI; the contracts below own the technical behavior.
+
 Start with [overview.md](overview.md) for what Phosphor is, or
 [architecture.md](architecture.md) for how the processes fit together.
 

@@ -7,9 +7,11 @@ on purpose ([style-guide.md](style-guide.md)).
 
 ## Product definition
 
-Coding only. No "normal chat" mode, no routines, no cloud sync. You open a
-project folder, run agent sessions against it, and work beside the agent with a
-file explorer, a code/diff viewer, a full terminal and an artifacts pane.
+A local coding workspace, not a general-purpose chat service or cloud runner.
+Open a project folder, run agent sessions against it, and work beside the agent
+with a file explorer, a code/diff viewer, a full terminal and an artifacts pane.
+[Local routines](routines.md) can start fresh sessions on a schedule while the
+computer is awake, including analysis/report tasks. There is no cloud sync.
 
 **Many sessions at once is the normal case.** A project usually has several
 chats in flight, each on its own branch, and the product's job is to make that
