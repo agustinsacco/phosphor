@@ -195,6 +195,21 @@ you want to watch.
   the installed version before diagnosing anything on a Claude-provider
   session.
 
+- **On a Claude session the CLI owns compaction, and pi's is switched off.**
+  `electron/pi/compaction-ownership.ts` sends `set_auto_compaction: false` at
+  spawn and after `set_model` for any session whose live provider is
+  `pi-claude-cli`. pi's compaction there rewrites only pi's record (the resume
+  path sends the CLI a delta, never pi's history) and fires every turn once the
+  CLI's real context passes ~183k, whatever the CLI's own cap — a multi-day
+  session compacted pi's record nine times for nothing. The context meter
+  divides those sessions by the auto-compact budget (`autocompactTokens`), not
+  the model window, and does not cap the label; the `Context window` setting
+  takes bare numbers as thousands (`500` = 500k). Provider ≥ 0.8.3 resets the
+  reported context after a CLI compaction and emits a `[Claude Code · compact
+{…}]` marker that renders as the compaction divider; below that the meter keeps
+  the pre-compaction figure and no divider is drawn. See
+  [cli-providers.md](docs/cli-providers.md#compaction-has-one-owner).
+
 - **Phosphor ships six extensions that run inside pi's process** (`pi-ext/`,
   loaded with `-e` into every session; listed in `bundledExtensions()` in
   `electron/pi/session-runtime.ts`). They are the only Phosphor code with a

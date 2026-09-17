@@ -15,6 +15,7 @@ import {
   usesClaudeCliProvider,
 } from './provider-detect'
 import { readAgentSettings } from './agent-settings'
+import { applyCompactionOwnership } from './compaction-ownership'
 import { listPackages } from './packages'
 import { headroomSupervisor } from '../headroom/proxy'
 import { sessionEventChannel } from '@shared/ipc'
@@ -249,6 +250,21 @@ export async function spawnSession(
     }
     push({ kind: 'exit', code, signal: signal ?? null, expected })
   })
+
+  // One compactor per session (electron/pi/compaction-ownership.ts). Awaited
+  // on purpose: the renderer bootstraps from get_state the moment this
+  // returns, and the ⋮ menu must show the state this decided, not the one
+  // pi started with. Spawn-time provider prediction is deliberately not used
+  // here — pi's fuzzy model patterns resolve only once pi is up, and this
+  // asks pi. The stub speaks a fixed script and is left alone.
+  if (!stub) {
+    await applyCompactionOwnership(session.client).catch((error: unknown) => {
+      log('pi', 'compaction ownership not applied', {
+        sessionId: session.sessionId,
+        error: String(error),
+      })
+    })
+  }
 
   // Parked until the renderer learns the session's file path; see
   // electron/pi/session-accounts.ts.

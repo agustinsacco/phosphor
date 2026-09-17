@@ -42,10 +42,13 @@ import type {
 } from '@shared/models'
 import { useSessionClaudeAccount } from './useSessionAccount'
 import { useSessionsStore } from '@/stores/sessions'
+import { useClaudeAutocompactStore } from '@/stores/claudeAutocompactPref'
+import { autocompactTokens } from '@/lib/claudeAutocompact'
 
 export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats)
   const model = useChatStore((s) => s.sessions[sessionId]?.meta?.model)
+  const autocompactPref = useClaudeAutocompactStore((s) => s.claudeAutocompact)
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   // Pushed by the bundled context-breakdown extension, so it is present for
@@ -69,7 +72,27 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   // whenever the session has stats and show the ring unfilled instead.
   if (!stats) return null
 
-  const percent = usage?.percent == null ? null : Math.min(100, Math.round(usage.percent))
+  // On a Claude Code session the denominator is the auto-compact BUDGET, not
+  // the model window, and the label is not capped. The CLI's own compaction
+  // is the only thing that shrinks that context (pi's is switched off for
+  // these sessions — electron/pi/compaction-ownership.ts), so "how full is
+  // the budget" is the honest question. Against the model window a 500k
+  // budget read as critical at 65% of itself, and a 325k context in a 200k
+  // budget saturated at 100% instead of saying 163%. Other providers keep
+  // pi's window and pi's cap: pi compacts them, so >100% is transient there.
+  const budget = model?.provider === 'pi-claude-cli' ? autocompactTokens(autocompactPref) : null
+  const window = budget ?? usage?.contextWindow ?? 0
+  const rawPercent =
+    budget !== null && usage?.tokens != null && window > 0
+      ? (usage.tokens / window) * 100
+      : usage?.percent
+  const percent =
+    rawPercent == null
+      ? null
+      : budget !== null
+        ? Math.round(rawPercent)
+        : Math.min(100, Math.round(rawPercent))
+  const ringPercent = Math.min(100, percent ?? 0)
   const warn = percent !== null && percent >= 75
   const critical = percent !== null && percent >= 90
   // A loop that re-sends context it already delivered is invisible in the
@@ -85,7 +108,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
         title={
           percent === null
             ? 'Context: measuring — session usage'
-            : `Context: ${percent}% of ${formatTokens(usage?.contextWindow ?? 0)}`
+            : `Context: ${percent}% of ${formatTokens(window)}${budget !== null ? ' budget' : ''}`
         }
         className="hover:bg-bg-secondary flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors"
       >
@@ -107,7 +130,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
               critical ? 'var(--px-danger)' : warn ? 'var(--px-warning)' : 'var(--px-success)'
             }
             strokeWidth="2"
-            strokeDasharray={`${((percent ?? 0) / 100) * 40.8} 40.8`}
+            strokeDasharray={`${(ringPercent / 100) * 40.8} 40.8`}
             strokeLinecap="round"
           />
         </svg>
@@ -147,10 +170,10 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
               <span className="text-text text-lg font-medium">Session usage</span>
               <span className="text-text-secondary font-mono text-sm tabular-nums">
                 {percent === null
-                  ? usage?.contextWindow
-                    ? `measuring · ${formatTokens(usage.contextWindow)}`
+                  ? window
+                    ? `measuring · ${formatTokens(window)}`
                     : 'measuring'
-                  : `${formatTokens(usage?.tokens ?? 0)} / ${formatTokens(usage?.contextWindow ?? 0)} · ${percent}%`}
+                  : `${formatTokens(usage?.tokens ?? 0)} / ${formatTokens(window)}${budget !== null ? ' budget' : ''} · ${percent}%`}
               </span>
             </div>
             {burning && (
@@ -172,7 +195,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
             <ContextComposition
               statusText={breakdownStatus}
               total={usage?.tokens ?? 0}
-              window={usage?.contextWindow ?? 0}
+              window={window}
             />
             <div className="border-border/60 mt-2 grid grid-cols-2 gap-x-5 border-t pt-1.5 text-base">
               <div>

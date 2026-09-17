@@ -6,6 +6,7 @@ import { ContextMeter } from './ContextMeter'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { useExtensionUiStore } from '@/stores/extensionUi'
+import { useClaudeAutocompactStore } from '@/stores/claudeAutocompactPref'
 import type { SessionStats } from '@shared/rpc'
 
 beforeAll(() => {
@@ -123,6 +124,7 @@ beforeEach(() => {
   ;(globalThis as unknown as { window: { phosphor: unknown } }).window.phosphor = { invoke }
   useChatStore.setState({ sessions: {} })
   useExtensionUiStore.setState({ statuses: {} })
+  useClaudeAutocompactStore.setState({ claudeAutocompact: '' })
 })
 
 afterEach(() => {
@@ -152,6 +154,31 @@ describe('ContextMeter', () => {
     seed({ tokens: 50_000, contextWindow: 200_000, percent: 25 })
     render()
     expect(document.body.textContent).toContain('25%')
+  })
+
+  it('measures a Claude Code session against its auto-compact budget, uncapped', () => {
+    // The CLI owns compaction on these sessions, so a 325k context in the
+    // default 200k budget must read 163% — not a saturated 100% that looks
+    // the same as "just full". Captured: a session sat at 325k for an hour.
+    seed({ tokens: 325_000, contextWindow: 200_000, percent: 162.5 })
+    render()
+    expect(document.body.textContent).toContain('163%')
+  })
+
+  it('divides by the configured budget, not the model window', () => {
+    // "500" is the CLI's shorthand for 500k. Against the model window this
+    // session read as critical; against its own budget it is at 65%.
+    useClaudeAutocompactStore.setState({ claudeAutocompact: '500' })
+    seed({ tokens: 325_000, contextWindow: 200_000, percent: 162.5 })
+    render()
+    expect(document.body.textContent).toContain('65%')
+    expect(document.body.textContent).not.toContain('163%')
+  })
+
+  it('keeps pi window and cap for every other provider', () => {
+    seed({ tokens: 325_000, contextWindow: 200_000, percent: 162.5 }, 'openai-codex')
+    render()
+    expect(document.body.textContent).toContain('100%')
   })
 
   it('fetches and shows both plan windows for a Claude Code session', async () => {

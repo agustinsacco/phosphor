@@ -1,5 +1,36 @@
 import { describe, it, expect } from 'vitest'
-import { isValidAutocompactValue } from './claudeAutocompact'
+import {
+  DEFAULT_AUTOCOMPACT_TOKENS,
+  autocompactTokens,
+  isValidAutocompactValue,
+} from './claudeAutocompact'
+
+describe('autocompactTokens', () => {
+  it('resolves unset to the provider default', () => {
+    expect(autocompactTokens('')).toBe(DEFAULT_AUTOCOMPACT_TOKENS)
+    expect(autocompactTokens('   ')).toBe(DEFAULT_AUTOCOMPACT_TOKENS)
+  })
+
+  it('reads every accepted form as the token count the provider will pass', () => {
+    expect(autocompactTokens('300k')).toBe(300_000)
+    expect(autocompactTokens('0.5M')).toBe(500_000)
+    expect(autocompactTokens('400000')).toBe(400_000)
+    // Bare numbers are thousands — "500" is a 500k budget, which is the
+    // reading a meter must share with the provider or its percentages lie.
+    expect(autocompactTokens('500')).toBe(500_000)
+  })
+
+  it('has no fixed budget for auto or off', () => {
+    expect(autocompactTokens('auto')).toBeNull()
+    expect(autocompactTokens('OFF')).toBeNull()
+  })
+
+  it('falls back to the default for anything the provider would reject', () => {
+    expect(autocompactTokens('77k')).toBe(DEFAULT_AUTOCOMPACT_TOKENS)
+    expect(autocompactTokens('2M')).toBe(DEFAULT_AUTOCOMPACT_TOKENS)
+    expect(autocompactTokens('lots')).toBe(DEFAULT_AUTOCOMPACT_TOKENS)
+  })
+})
 
 describe('isValidAutocompactValue', () => {
   it('accepts keywords', () => {

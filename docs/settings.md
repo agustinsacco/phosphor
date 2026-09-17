@@ -56,7 +56,11 @@ project scope, an empty field's placeholder names what it inherits.
   `hideThinkingBlock`.
 - Steering / follow-up delivery ("all" vs "one-at-a-time").
 - Compaction (enabled, reserveTokens, keepRecentTokens) and retry (enabled,
-  maxRetries, baseDelayMs).
+  maxRetries, baseDelayMs). Compaction here governs every provider but Claude
+  Code: for those sessions Phosphor switches pi's auto-compaction off per
+  session over RPC, because the CLI compacts its own session and pi's pass
+  would only rewrite pi's record
+  ([cli-providers.md](cli-providers.md#compaction-has-one-owner)).
 - **Directives**: what Phosphor appends to every lane's system prompt, global
   or per project, shown composed before it is sent. A prompt you cannot read is
   one you cannot debug.
@@ -122,7 +126,10 @@ plan; its models appear in the picker under the `pi-claude-cli` provider. In
 order: **Health** (package present, CLI binary found, both versions, update
 rows), **Accounts**, **Context window** (the auto-compact size, passed as
 `PI_CLAUDE_CLI_AUTOCOMPACT` at spawn; smaller windows cost less because every
-request re-reads the whole context), **Prove it end to end** (one tiny
+request re-reads the whole context; bare numbers are thousands, and the custom
+field shows the resolved count — `500` is a 500k budget — because that reading
+once went unnoticed at 2.5× the default; the context meter divides Claude
+sessions by this budget), **Prove it end to end** (one tiny
 print-mode prompt through the CLI, the login and the extension at once, because
 "installed" and "working" are different claims), and **When it fails**. See
 [cli-providers.md](cli-providers.md).

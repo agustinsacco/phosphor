@@ -19,6 +19,7 @@ import {
   usesClaudeCliProvider,
 } from '../pi/provider-detect'
 import { readAgentSettings } from '../pi/agent-settings'
+import { applyCompactionOwnership } from '../pi/compaction-ownership'
 import { listPackages } from '../pi/packages'
 import { getLanePrefs } from '../store'
 import { MIN_PI_VERSION, type CreateSessionOptions, type PiHealth } from '@shared/models'
@@ -96,7 +97,19 @@ export function registerPiSessionHandlers(): void {
         }
       }
     }
-    return session.client.request(command)
+    const response = await session.client.request(command)
+    // The provider may have changed under the session, and with it who owns
+    // compaction (electron/pi/compaction-ownership.ts). Re-read rather than
+    // trust the command's own provider field: pi resolves fuzzy patterns.
+    if (command.type === 'set_model' && response.success && !piStubPath()) {
+      await applyCompactionOwnership(session.client).catch((error: unknown) => {
+        log('pi', 'compaction ownership not applied after set_model', {
+          sessionId,
+          error: String(error),
+        })
+      })
+    }
+    return response
   })
 
   handle('pi:extensionUiResponse', (_event, sessionId: string, response: ExtensionUIResponse) => {

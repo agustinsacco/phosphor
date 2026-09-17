@@ -46,6 +46,43 @@ session or forwarding a switch to Claude, and shows an update message rather
 than running under an older policy. Nothing is installed or upgraded for you.
 0.7.1 in turn needs Claude Code **2.1.263+**.
 
+### Compaction has one owner
+
+The CLI compacts its own session (`--autocompact`, the Context window setting)
+and continues the turn on the compacted context by itself. pi's compaction
+never touches the CLI session — on the resume path the provider sends only the
+delta — so on this provider it rewrites pi's record and nothing else. It also
+fires constantly: pi compacts when the reported context passes
+`contextWindow - reserveTokens` (~183k on a 200k model), a line a Claude
+session crosses long before a roomy CLI cap. Measured on a multi-day session:
+pi compacted its record nine times, the CLI four, and every pi pass was a lossy
+rewrite that bought nothing.
+
+So Phosphor switches pi's auto-compaction off per session, over RPC
+(`set_auto_compaction`), for any session whose live provider is `pi-claude-cli`
+(`electron/pi/compaction-ownership.ts`). It runs at spawn — awaited, so the
+renderer's bootstrap `get_state` already sees the final state — and again after
+`set_model`, and it reads the provider from pi rather than predicting it. It is
+a default, not a lock: the ⋮ menu toggle still works, and its tooltip says what
+turning pi's pass back on does (summarize pi's transcript; the model's context
+does not shrink).
+
+Two things make this honest rather than blind:
+
+- **The gauge reads the CLI's figure after a compaction.** The provider
+  (≥ 0.8.3) handles the CLI's `compact_boundary` envelope: it resets the
+  reported context to the compacted size — until then it kept reporting the
+  summarization pass's prompt, the whole pre-compaction conversation, so a
+  session the CLI had just cut to 37k read 316k, and pi compacted its own
+  record on the phantom — and it emits a `[Claude Code · compact {…}]` marker
+  the transcript draws as the compaction divider ([chat.md](chat.md)).
+- **The meter divides by the budget**, not the model window, and does not cap
+  the label ([chat.md](chat.md#session-controls-per-session)).
+
+Below provider 0.8.3 the ownership switch still holds (pi stops compacting),
+but the gauge keeps the stale figure across a CLI compaction and no divider is
+drawn for it.
+
 ### Resuming a session from before a context-policy change
 
 The provider stores the system prompt each CLI session was created with and
