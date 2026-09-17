@@ -16,8 +16,10 @@ import { isNewerVersion } from '@shared/version'
 import { JobOutput } from '../JobOutput'
 import { ClaudeAccountPanel } from './ClaudeAccountPanel'
 import { usageTextClass, windowResetLabel } from '@/lib/claudeUsage'
-import { isValidAutocompactValue } from '@/lib/claudeAutocompact'
+import { autocompactTokens, isValidAutocompactValue } from '@/lib/claudeAutocompact'
+import { formatTokens } from '@/lib/format'
 import { useSessionsStore } from '@/stores/sessions'
+import { useClaudeAutocompactStore } from '@/stores/claudeAutocompactPref'
 
 /** Claude Code line the extension is tested against (see the fork's CI). */
 const TESTED_CLI_LINE = '2.1'
@@ -803,8 +805,18 @@ function ContextWindowSection(): React.JSX.Element {
   const save = useCallback((next: string): void => {
     setValue(next)
     setCustomError(false)
+    // The context meter divides Claude sessions by this budget; keep its copy
+    // current without a second prefs round-trip.
+    useClaudeAutocompactStore.getState().applyClaudeAutocompact(next)
     void window.phosphor.invoke('app:setClaudeAutocompact', next)
   }, [])
+
+  // What a custom value MEANS, shown while it is typed: "500" is the CLI's
+  // shorthand for 500k, and a budget 2.5× the default was once set that way
+  // without anyone noticing until the bill did.
+  const customTokens = isValidAutocompactValue(customDraft.trim())
+    ? autocompactTokens(customDraft.trim())
+    : null
 
   const commitCustom = useCallback((): void => {
     const draft = customDraft.trim()
@@ -884,16 +896,22 @@ function ContextWindowSection(): React.JSX.Element {
               if (e.key === 'Enter') commitCustom()
             }}
           />
-          {customError && (
+          {customError ? (
             <span className="text-warning text-sm">
               Use a window from 100k to 1M (e.g. 300k), auto, or off.
             </span>
-          )}
+          ) : customTokens !== null && customDraft.trim() !== '' ? (
+            <span className="text-text-tertiary text-sm tabular-nums">
+              = {formatTokens(customTokens)} tokens
+            </span>
+          ) : null}
         </div>
       </div>
       <p className="text-text-tertiary mt-2 text-sm">
-        Needs pi-claude-cli 0.5.0 or newer; older versions ignore the setting. pi&apos;s own
-        transcript compaction is configured separately in the Agent tab.
+        Needs pi-claude-cli 0.5.0 or newer; older versions ignore the setting. On these sessions the
+        CLI is the only compactor: Phosphor switches pi&apos;s own transcript compaction off for
+        them (the Agent tab setting still applies to every other provider), and the context meter
+        measures them against this budget.
       </p>
     </>
   )

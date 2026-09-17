@@ -1,4 +1,5 @@
 import type { AssistantBlock, AssistantItem, ChatItem, ToolState } from '../reducer'
+import type { DividerItem } from '../chatItems'
 
 /**
  * Turn-level transcript grouping.
@@ -82,6 +83,62 @@ const MARKER_ID_TAG = /^#(\S+)\s*([\s\S]*)$/
 
 /** The name a result marker wears: `[Claude Code · result #<id> {…}]`. */
 const RESULT_MARKER_NAME = 'result'
+
+/**
+ * The CLI compacted its own session mid-turn:
+ * `[Claude Code · compact {"trigger":"auto","preTokens":…,"postTokens":…,"durationMs":…}]`
+ * (provider ≥ 0.8.3). Not a tool and never a tool row — it is the same event
+ * pi's own `compaction_end` announces, so it draws the same divider. On these
+ * sessions pi's compaction is switched off (the CLI owns it), which makes this
+ * marker the only place the transcript learns the model's context shrank.
+ */
+const COMPACT_MARKER_NAME = 'compact'
+
+export function isCompactMarker(name: string): boolean {
+  return name === COMPACT_MARKER_NAME
+}
+
+/**
+ * Read a compact marker's figures. Strict JSON like the result payload; a
+ * payload that does not parse still draws the divider, just without numbers —
+ * the cut happened whether or not the provider could describe it.
+ */
+export function compactDivider(id: string, args: string | undefined): DividerItem {
+  let payload: Record<string, unknown> = {}
+  if (args) {
+    try {
+      const parsed: unknown = JSON.parse(args)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        payload = parsed as Record<string, unknown>
+      }
+    } catch {
+      // Divider without figures, see above.
+    }
+  }
+  const num = (key: string): number | undefined =>
+    typeof payload[key] === 'number' && Number.isFinite(payload[key] as number)
+      ? (payload[key] as number)
+      : undefined
+  const preTokens = num('preTokens')
+  const postTokens = num('postTokens')
+  const durationMs = num('durationMs')
+  const detail: string[] = []
+  if (preTokens !== undefined && postTokens !== undefined) {
+    detail.push(`${preTokens.toLocaleString()} → ${postTokens.toLocaleString()} tokens`)
+  }
+  if (durationMs !== undefined) detail.push(`${Math.round(durationMs / 1000)} s`)
+  return {
+    id,
+    kind: 'divider',
+    variant: 'compaction',
+    tokensBefore: preTokens,
+    reason: payload.trigger === 'manual' ? 'manual' : 'threshold',
+    summary:
+      detail.length > 0
+        ? `Claude Code compacted its own session: ${detail.join(' in ')}.`
+        : 'Claude Code compacted its own session.',
+  }
+}
 
 export function parseExternalToolMarker(
   text: string,
@@ -565,6 +622,14 @@ export function buildTranscriptRows(items: ChatItem[]): TranscriptRow[] {
       if (block.type === 'text') {
         const marker = parseExternalToolMarker(block.text)
         if (marker) {
+          if (isCompactMarker(marker.name)) {
+            // A boundary, so it is its own row: the activity run before it
+            // and the one after it are different contexts, and folding them
+            // into one group would hide exactly the thing this marks.
+            const id = `${item.id}-compact${block.index}`
+            rows.push({ kind: 'item', id, item: compactDivider(id, marker.args) })
+            continue
+          }
           if (isAgentMarker(marker.name)) {
             // Three markers per agent, one row. A marker folded into an
             // agent that already has a row adds no step — which is the

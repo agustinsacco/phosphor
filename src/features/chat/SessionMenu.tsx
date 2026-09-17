@@ -93,7 +93,17 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
           <Separator />
           {/* Toggles and cycles keep the menu open: they are settings you may
               want to flip two of, not commands that take you elsewhere. */}
-          <MenuRow active={false} onClick={() => void toggleAutoCompaction()}>
+          <MenuRow
+            active={false}
+            onClick={() => void toggleAutoCompaction()}
+            title={
+              meta?.model?.provider === 'pi-claude-cli'
+                ? 'Off on Claude Code sessions: the CLI compacts its own session ' +
+                  '(Settings → Claude Code → Context window). Turning this on makes pi ' +
+                  "summarize its transcript as well; the model's context does not shrink."
+                : undefined
+            }
+          >
             <span className="flex-1">Auto-compaction</span>
             <ToggleDot on={meta?.autoCompactionEnabled ?? true} />
           </MenuRow>

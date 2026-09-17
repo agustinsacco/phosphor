@@ -279,3 +279,49 @@ describe('summarizeActivity', () => {
     expect(s.thinkingCount).toBe(2)
   })
 })
+
+describe('compact marker (the CLI compacted its own session)', () => {
+  const marker =
+    '[Claude Code · compact {"trigger":"auto","preTokens":360561,"postTokens":37239,"durationMs":166547}]'
+
+  it('draws a compaction divider between the activity before and after, never a tool row', () => {
+    const rows = buildTranscriptRows([
+      assistant([thinking(0), text(1, marker), thinking(2), text(3, 'done')]),
+    ])
+    expect(rows.map((r) => r.kind)).toEqual(['activity', 'item', 'activity', 'text'])
+    const divider = rows[1]!
+    if (divider.kind !== 'item') throw new Error('expected an item row')
+    expect(divider.item).toMatchObject({
+      kind: 'divider',
+      variant: 'compaction',
+      tokensBefore: 360561,
+      reason: 'threshold',
+    })
+    expect((divider.item as { summary?: string }).summary).toContain('compacted its own session')
+  })
+
+  it('reads a manual /compact as manual and survives a payload it cannot parse', () => {
+    const rows = buildTranscriptRows([
+      assistant([
+        text(0, '[Claude Code · compact {"trigger":"manual","preTokens":1000,"postTokens":100}]'),
+        text(1, '[Claude Code · compact not-json]'),
+      ]),
+    ])
+    expect(rows).toHaveLength(2)
+    const [manual, blind] = rows
+    if (manual?.kind !== 'item' || blind?.kind !== 'item') throw new Error('expected item rows')
+    expect(manual.item).toMatchObject({
+      variant: 'compaction',
+      reason: 'manual',
+      tokensBefore: 1000,
+    })
+    expect(blind.item).toMatchObject({ variant: 'compaction', reason: 'threshold' })
+    expect((blind.item as { tokensBefore?: number }).tokensBefore).toBeUndefined()
+  })
+
+  it('gives each divider a stable, distinct row id', () => {
+    const rows = buildTranscriptRows([assistant([text(0, marker), text(1, marker)])])
+    const ids = rows.map((r) => r.id)
+    expect(new Set(ids).size).toBe(2)
+  })
+})

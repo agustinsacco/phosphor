@@ -337,6 +337,16 @@ emits, so the transcript layer has provider-specific handling
 (`items/transcriptRows.ts`; contract table in
 [chat.md](chat.md#blocks-from-the-claude-code-provider)).
 
+- **The CLI compacting its own session** arrives as a
+  `[Claude Code · compact {"trigger","preTokens","postTokens","durationMs"}]`
+  marker (provider ≥ 0.8.3), no `#id` tag because nothing pairs with it.
+  `compactDivider` in `items/transcriptRows.ts` turns it into the same
+  compaction divider pi's `compaction_end` draws — its own row, never an
+  activity step — with `trigger: "manual"` read as a manual compaction and
+  anything else as threshold. A payload that does not parse still draws the
+  divider, without figures. Every key is optional and absent means "not
+  reported", never zero.
+
 - **CLI-side tools** (WebSearch, WebFetch, ToolSearch, the user's own MCP
   servers, sub-agents) run _inside_ the CLI, so pi never sees them as tool
   calls. The provider reports each as a `[Claude Code · Name {args}]` marker;
