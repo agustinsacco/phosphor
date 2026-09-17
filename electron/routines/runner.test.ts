@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
@@ -180,5 +180,23 @@ describe('window-independent routine execution', () => {
     expect(result.status).toBe('blocked')
     expect(result.reason).toContain('in use')
     expect(h.spawn).not.toHaveBeenCalled()
+  })
+  it('does not let a non-isolated code task write over uncommitted work', async () => {
+    run.definition.isolated = false
+    h.gitInfo.mockResolvedValue({ isRepo: true, dirtyCount: 6 })
+    const result = await executeRoutine(run, new AbortController().signal, () => {})
+    expect(result.status).toBe('blocked')
+    expect(result.reason).toContain('6 uncommitted changes')
+    expect(h.spawn).not.toHaveBeenCalled()
+  })
+  it('runs a non-isolated report against the dirty tree it was pointed at', async () => {
+    run.definition.isolated = false
+    run.definition.intent = 'report'
+    h.gitInfo.mockResolvedValue({ isRepo: true, dirtyCount: 6 })
+    const progress = vi.fn()
+    expect((await executeRoutine(run, new AbortController().signal, progress)).status).toBe(
+      'finished',
+    )
+    expect(progress).toHaveBeenCalledWith({ workspacePath: realpathSync.native(directory) })
   })
 })

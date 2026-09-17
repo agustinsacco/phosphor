@@ -29,7 +29,12 @@ is skipped. One-off times have one absolute timestamp and no next occurrence
 after firing.
 
 **Check setup** checks the workspace, pi availability, and whether Git isolation
-is possible, without running a model. Enable checks setup automatically.
+is possible, without running a model. It also runs the folder-task gates the
+runner will run and reports whichever would refuse the run right now as a
+warning rather than an error, because a live session or a dirty tree is
+transient and usually resolves before a scheduled occurrence fires. Only a
+permanent misconfiguration (missing pi, isolation without a repository) throws.
+Enable checks setup automatically and is likewise not blocked by a warning.
 Authentication, provider limits, and actual task results require a real run.
 **Run now is not a dry run:** it can change files and connected services.
 
@@ -52,9 +57,14 @@ instructions and configuration, not stored account credentials or run history.
   a fresh remote before every run. An isolation failure **blocks**; it never
   falls back into the main checkout. Worktree folders are never automatically
   deleted by the routine runner.
-- Folder tasks refuse a workspace held by a live session or a dirty Git
-  checkout. This protects against other Phosphor sessions, not unrelated
-  editors or terminal processes. Worktrees are not filesystem/network sandboxes.
+- Folder tasks refuse a workspace held by a live session, either intent. A
+  **code** folder task additionally refuses a dirty Git checkout, counting
+  untracked files, and the reason names the count. A **report** folder task
+  does not: reading a checkout you are still editing is the one thing a fresh
+  worktree cannot do, since it branches from trunk. Report is an instruction,
+  not enforced read-only access, so this is a deliberate relaxation. Both gates
+  protect against other Phosphor sessions, not unrelated editors or terminal
+  processes. Worktrees are not filesystem/network sandboxes.
 - Optional previous-day or previous-week reporting periods use the **scheduled
   time** in the pinned timezone, not the actual start time. Weeks are Monday–
   Sunday; the end timestamp is exclusive. The prompt receives both timestamps,
@@ -144,7 +154,9 @@ pending run workspaces are protected from automatic maintenance reclamation.
 - `shared/routines.ts`: schema validation, cron/timezone calculations, reporting
   periods, deterministic execution prompt. Uses cron-parser and Luxon.
 - `electron/routines/`: SQLite repository, routine-only scheduler, runner,
-  ownership guard, startup wiring, and background tray.
+  ownership guard, startup wiring, and background tray. `preflight.ts` holds
+  the folder-task gates so the runner and `routines:check` cannot disagree
+  about what blocks a run.
 - `electron/pi/session-runtime.ts`: shared window-independent session spawn;
   interactive IPC still calls this same provider-guarded runtime.
 - `electron/ipc/routines-handlers.ts`, `shared/ipc.ts`, `electron/preload.ts`:

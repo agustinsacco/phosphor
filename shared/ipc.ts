@@ -15,7 +15,7 @@ import type {
   ModelCost,
 } from './rpc'
 import type { ConnectorCheckResult } from './connectors'
-import type { RoutineInput, RoutineRun, RoutinesSnapshot } from './routines'
+import type { RoutineCheck, RoutineInput, RoutineRun, RoutinesSnapshot } from './routines'
 import type {
   McpCacheEntry,
   McpConfigsResult,
@@ -108,7 +108,7 @@ export interface SessionTree {
 export interface IpcInvokeMap {
   'routines:list': { args: []; result: RoutinesSnapshot }
   'routines:save': { args: [input: RoutineInput, id?: string, revision?: number]; result: void }
-  'routines:check': { args: [input: RoutineInput]; result: string }
+  'routines:check': { args: [input: RoutineInput]; result: RoutineCheck }
   'routines:history': { args: [routineId: string, offset: number]; result: RoutineRun[] }
   'routines:run': { args: [routineId: string, requestId: string]; result: RoutineRun }
   'routines:cancel': { args: [runId: string]; result: void }

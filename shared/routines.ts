@@ -31,6 +31,16 @@ export interface Routine extends RoutineInput {
   archived: boolean
 }
 
+/**
+ * Result of a setup check. `warning` names a condition that would refuse the
+ * run right now but may well have cleared by the scheduled time, so it never
+ * blocks a save — only a permanent misconfiguration throws.
+ */
+export interface RoutineCheck {
+  summary: string
+  warning: string | null
+}
+
 export type RoutineRunStatus =
   | 'queued'
   | 'running'

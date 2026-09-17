@@ -4,6 +4,7 @@ import {
   nextOccurrences,
   validateRoutine,
   type Routine,
+  type RoutineCheck,
   type RoutineInput,
   type RoutineSchedule,
 } from '@shared/routines'
@@ -47,11 +48,11 @@ export function RoutineEditor({
   const [preset, setPreset] = useState<Preset>(initialPreset(initial.schedule))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const [check, setCheck] = useState('')
+  const [check, setCheck] = useState<RoutineCheck | null>(null)
   const models = useModelCatalogueStore((s) => s.models)
   const update = (patch: Partial<RoutineInput>): void => {
     setDraft((r) => ({ ...r, ...patch, trusted: false }))
-    setCheck('')
+    setCheck(null)
   }
   const normalized = (enabled: boolean): RoutineInput =>
     validateRoutine({
@@ -455,9 +456,12 @@ export function RoutineEditor({
           </p>
         )}
         {check && (
-          <p role="status" className="text-text-secondary mt-4">
-            {check}
-          </p>
+          <div role="status" className="mt-4">
+            {check.warning && (
+              <p className="text-warning">Would not run right now: {check.warning}</p>
+            )}
+            <p className="text-text-secondary mt-1">{check.summary}</p>
+          </div>
         )}
         <div className="mt-5 flex flex-wrap justify-end gap-2">
           <Button disabled={busy} onClick={onClose}>
