@@ -26,9 +26,15 @@ export async function mockRoutineCall(channel: string, args: unknown[]): Promise
   switch (channel) {
     case 'routines:list':
       return structuredClone(snapshot)
-    case 'routines:check':
-      validateRoutine(args[0])
-      return 'Browser mock: setup checks are simulated. No model will run.'
+    case 'routines:check': {
+      const input = validateRoutine(args[0])
+      return {
+        summary: 'Browser mock: setup checks are simulated. No model will run.',
+        warning: input.isolated
+          ? null
+          : 'Browser mock: a folder task is checked against live sessions and, for code intent, uncommitted changes.',
+      }
+    }
     case 'routines:history':
       return structuredClone(
         snapshot.runs

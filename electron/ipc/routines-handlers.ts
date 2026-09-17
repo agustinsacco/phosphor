@@ -5,6 +5,7 @@ import { validateRoutine, type RoutineInput } from '@shared/routines'
 import { handle } from './handle'
 import { routineScheduler, routinesSnapshot } from '../routines'
 import { configureRoutineBackground } from '../routines/background'
+import { folderTaskObstacle } from '../routines/preflight'
 import { broadcast } from '../broadcast'
 import { checkPiHealth } from '../pi/health'
 import { piStubPath } from '../pi/stub'
@@ -43,7 +44,13 @@ export function registerRoutinesHandlers(): void {
       throw new Error(
         'Worktree isolation requires a Git repository. Choose Folder task for analysis outside Git.',
       )
-    return 'Folder and pi checked. Model identity is verified at execution. Connector access, account limits, and task results require a real test run, which can have side effects.'
+    // Report what the runner would refuse instead of only what is permanently
+    // misconfigured: these conditions used to be invisible until a run blocked.
+    return {
+      summary:
+        'Folder and pi checked. Model identity is verified at execution. Connector access, account limits, and task results require a real test run, which can have side effects.',
+      warning: r.isolated ? null : await folderTaskObstacle(r.workspacePath, r.intent),
+    }
   })
   handle('routines:run', (_event, routineId, requestId) =>
     routineScheduler().runNow(id(routineId), id(requestId)),

@@ -4,7 +4,6 @@ import { spawnSession } from '../pi/session-runtime'
 import { registry } from '../registry'
 import { createLaneWorkspace } from '../fs/lane-workspace'
 import { git } from '../fs/git-exec'
-import { gitInfo } from '../fs/git-info'
 import { bindSession } from '../claude/accounts'
 import { spawnAccountFor, forgetSpawnAccount } from '../pi/session-accounts'
 import { assertClaudeContextProvider } from '../pi/provider-detect'
@@ -15,6 +14,7 @@ import { routinePrompt, type RoutineRun } from '@shared/routines'
 import type { AgentMessage, RpcCommand, RpcResponse } from '@shared/rpc'
 import { ownRoutineSession, releaseRoutineSession, routineSessionObserved } from './ownership'
 import { outcomeForMessages, type RunOutcome } from './outcome'
+import { folderTaskObstacle } from './preflight'
 
 export type RunProgress = (patch: Partial<RoutineRun>) => void
 
@@ -49,14 +49,8 @@ export async function executeRoutine(
         baseCommit: (await git(workspacePath, ['rev-parse', 'HEAD'])).trim(),
       })
     } else {
-      // Do not let an unattended agent mutate a folder an interactive lane owns.
-      if (registry.list().some((s) => realpathSync.native(s.workspacePath) === workspacePath))
-        throw new Error(
-          'Workspace is in use by a live session. Suspend it or enable isolated worktrees.',
-        )
-      const info = await gitInfo(workspacePath)
-      if (info.isRepo && info.dirtyCount)
-        throw new Error('Workspace has uncommitted changes. Use an isolated worktree.')
+      const obstacle = await folderTaskObstacle(workspacePath, r.intent)
+      if (obstacle) throw new Error(obstacle)
       progress({ workspacePath })
     }
     signal.throwIfAborted()
