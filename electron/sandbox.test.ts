@@ -18,6 +18,7 @@ import {
   planSandboxRename,
   randomSandboxName,
   resolveSandboxFolder,
+  sandboxCwds,
   validateSandboxName,
 } from './sandbox'
 
@@ -261,6 +262,48 @@ describe('planSandboxRename', () => {
         ok: false,
         reason: 'not-a-sandbox',
       })
+    })
+  })
+})
+
+describe('sandboxCwds', () => {
+  it('is just the folder when it has no lanes', () => {
+    withBase((base) => {
+      const sandbox = createSandboxFolder(base)
+      expect(sandboxCwds(sandbox)).toEqual([sandbox])
+    })
+  })
+
+  it('lists every lane, under both the current and the pre-rename folder', () => {
+    withBase((base) => {
+      const sandbox = createSandboxFolder(base)
+      const current = join(sandbox, '.phosphor', 'worktrees', 'fix-the-thing')
+      const legacy = join(sandbox, '.pidex', 'worktrees', 'older-lane')
+      mkdirSync(current, { recursive: true })
+      mkdirSync(legacy, { recursive: true })
+      expect(sandboxCwds(sandbox).sort()).toEqual([current, legacy, sandbox].sort())
+    })
+  })
+
+  it('ignores files sitting where a lane would be', () => {
+    withBase((base) => {
+      const sandbox = createSandboxFolder(base)
+      const worktrees = join(sandbox, '.phosphor', 'worktrees')
+      mkdirSync(worktrees, { recursive: true })
+      writeFileSync(join(worktrees, 'notes.txt'), 'x')
+      expect(sandboxCwds(sandbox)).toEqual([sandbox])
+    })
+  })
+
+  it('never reaches into a sibling sandbox with a similar name', () => {
+    // The reason this enumerates disk instead of prefix-matching pi's mangled
+    // directory names: `box` and `box-2` mangle to names one of which is a
+    // prefix of the other.
+    withBase((base) => {
+      mkdirSync(join(base, 'box'), { recursive: true })
+      const sibling = join(base, 'box-2', '.phosphor', 'worktrees', 'lane')
+      mkdirSync(sibling, { recursive: true })
+      expect(sandboxCwds(join(base, 'box'))).toEqual([join(base, 'box')])
     })
   })
 })

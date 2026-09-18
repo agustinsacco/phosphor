@@ -9,6 +9,8 @@ import { useSessionBooting } from '@/features/chat/BootingIndicator'
 import { promptRenameSandbox } from '@/features/workspaces/promptRenameSandbox'
 import { showContextMenu } from '@/components/ContextMenu'
 import { isUnseen } from './unseen'
+import { SessionList, useSessionOrderActions } from './SessionList'
+import { orderedSessions } from './sessionOrder'
 import { sessionSubtitle, type SubtitleSegment } from './sessionSubtitle'
 import { PrBadge, openPullRequest } from './PrBadge'
 import { LaneMarker } from './LaneMarker'
@@ -80,6 +82,7 @@ export function Sidebar({
   const live = useSessionsStore((s) => s.live)
   const unread = useSessionsStore((s) => s.unread)
   const pinned = useSessionsStore((s) => s.pinned)
+  const sessionOrder = useSessionsStore((s) => s.sessionOrder)
   const seenSessions = useSessionsStore((s) => s.seenSessions)
   const gitByCwd = useSessionsStore((s) => s.gitByCwd)
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
@@ -411,8 +414,9 @@ export function Sidebar({
         workspacePath,
         scanStatus,
         worktreeRoots,
-      ),
+      ).map((group) => ({ ...group, metas: orderedSessions(group.metas, sessionOrder) })),
     [
+      sessionOrder,
       knownWorkspaces,
       disk,
       gitByCwd,
@@ -826,13 +830,18 @@ export function Sidebar({
         />
       </nav>
 
-      <div className="flex-1 overflow-y-auto px-2 pb-2">
+      <div data-session-scroll className="flex-1 overflow-y-auto px-2 pb-2">
         {!sidebarLoading && pinnedMetas.length > 0 && (
           <>
             <SectionLabel>Pinned</SectionLabel>
-            {pinnedMetas.map((meta) => (
-              <SessionRow key={meta.path} {...rowProps(meta)} isPinned showWorkspace />
-            ))}
+            <SessionList
+              disabled={bulkDeleteRunning}
+              items={pinnedMetas.map((meta) => ({
+                id: meta.path,
+                path: meta.path,
+                content: <SessionRow {...rowProps(meta)} isPinned showWorkspace />,
+              }))}
+            />
           </>
         )}
 
@@ -1028,36 +1037,51 @@ export function Sidebar({
                 {/* Placeholder rows carry no name, branch or PR yet, so a
                     filter can only ever be wrong about them. While one is on,
                     they stand aside. */}
-                {!isCollapsed &&
-                  terms.length === 0 &&
-                  (pendingByWorkspace.get(group.workspacePath) ?? []).map((phosphorId) => (
-                    <PendingSessionRow
-                      key={phosphorId}
-                      phosphorId={phosphorId}
-                      active={phosphorId === activeSessionId}
-                      onDelete={(title) =>
-                        setDeleteTarget({
-                          title,
-                          sessionId: phosphorId,
-                          workspacePath: live[phosphorId]!.workspacePath,
-                        })
-                      }
-                      git={gitByCwd[live[phosphorId]?.workspacePath ?? '']}
-                    />
-                  ))}
-                {!isCollapsed &&
-                  visible.map((meta) => (
-                    <SessionRow
-                      key={meta.path}
-                      {...rowProps(meta)}
-                      isPinned={false}
-                      selected={selection?.paths.includes(meta.path) === true && selectingThis}
-                      selecting={selectingThis}
-                      onToggleSelect={(shiftKey) =>
-                        toggleLaneSelection(group, visible, meta.path, shiftKey)
-                      }
-                    />
-                  ))}
+                {!isCollapsed && (
+                  <SessionList
+                    disabled={Boolean(query) || selectingThis || bulkDeleteRunning}
+                    items={[
+                      ...(terms.length
+                        ? []
+                        : (pendingByWorkspace.get(group.workspacePath) ?? [])
+                      ).map((phosphorId) => ({
+                        id: live[phosphorId]?.diskPath ?? phosphorId,
+                        path: live[phosphorId]?.diskPath,
+                        content: (
+                          <PendingSessionRow
+                            phosphorId={phosphorId}
+                            active={phosphorId === activeSessionId}
+                            onDelete={(title) =>
+                              setDeleteTarget({
+                                title,
+                                sessionId: phosphorId,
+                                workspacePath: live[phosphorId]!.workspacePath,
+                              })
+                            }
+                            git={gitByCwd[live[phosphorId]?.workspacePath ?? '']}
+                          />
+                        ),
+                      })),
+                      ...visible.map((meta) => ({
+                        id: meta.path,
+                        path: meta.path,
+                        content: (
+                          <SessionRow
+                            {...rowProps(meta)}
+                            isPinned={false}
+                            selected={
+                              selection?.paths.includes(meta.path) === true && selectingThis
+                            }
+                            selecting={selectingThis}
+                            onToggleSelect={(shiftKey) =>
+                              toggleLaneSelection(group, visible, meta.path, shiftKey)
+                            }
+                          />
+                        ),
+                      })),
+                    ]}
+                  />
+                )}
                 {!isCollapsed && group.metas.length > 0 && visible.length === 0 && (
                   <div
                     data-testid="lane-search-empty"
@@ -1318,6 +1342,7 @@ function SessionRow({
   onToggleSelect?: (shiftKey: boolean) => void
   onDelete: (title: string) => void
 }): React.JSX.Element {
+  const orderActions = useSessionOrderActions()
   const isStreaming = useChatStore((s) =>
     livePhosphorId ? (s.sessions[livePhosphorId]?.isStreaming ?? false) : false,
   )
@@ -1415,6 +1440,7 @@ function SessionRow({
     const store = useSessionsStore.getState()
     showContextMenu(event, [
       { label: 'Open', onClick: open },
+      ...orderActions,
       { label: 'Session tree…', onClick: onOpenTree },
       {
         label: 'Make routine…',
@@ -1745,6 +1771,7 @@ function PendingSessionRow({
   git?: GitInfo
   onDelete: (title: string) => void
 }): React.JSX.Element {
+  const orderActions = useSessionOrderActions()
   const isStreaming = useChatStore((s) => s.sessions[phosphorId]?.isStreaming ?? false)
   const booting = useSessionBooting(phosphorId)
   const activity = isStreaming ? 'working' : booting ? 'starting' : undefined
@@ -1794,6 +1821,7 @@ function PendingSessionRow({
   const contextMenu = (event: React.MouseEvent): void => {
     showContextMenu(event, [
       { label: 'Open', onClick: () => useSessionsStore.getState().activate(phosphorId) },
+      ...orderActions,
       { label: 'Rename…', onClick: beginRename },
       { label: 'Export HTML…', onClick: () => void exportSessionHtml(phosphorId, title) },
       {

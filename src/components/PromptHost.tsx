@@ -57,6 +57,7 @@ function PromptSheet({ request }: { request: PromptRequest }): React.JSX.Element
           ) : (
             <TextInput
               size="lg"
+              data-testid="prompt-input"
               autoFocus
               onFocus={(e) => e.target.select()}
               value={value}

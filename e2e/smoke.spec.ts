@@ -2077,6 +2077,89 @@ test('lane rows carry no spend, and the row menu still offers it', async () => {
   }
 })
 
+test('sidebar session drag, menu and keyboard order survives suspend and restart', async () => {
+  const userDataDir = await scratchDir('phosphor-e2e-order-')
+  const first = await launch({ userDataDir })
+  const { page, workspace } = first
+  let expected: string[]
+  try {
+    await openWorkspace(page)
+    for (let i = 1; i <= 3; i++) {
+      await page.getByPlaceholder('Describe a task or ask a question').fill(`Ordering session ${i}`)
+      await page.getByRole('button', { name: /Start session/i }).click()
+      await expect(page.locator('[data-testid="session-row"]:not([data-pending])')).toHaveCount(i, {
+        timeout: 30_000,
+      })
+      await page.getByRole('button', { name: /^New$/ }).click()
+    }
+    const rows = page.locator('[data-session-path]')
+    const order = () =>
+      rows.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-session-path')!))
+    const original = await order()
+    const last = page.locator(`[data-session-path="${original[2]}"]`)
+    const from = (await last.boundingBox())!
+    const to = (await rows.first().boundingBox())!
+    await page.mouse.move(from.x + 80, from.y + 10)
+    await page.mouse.down()
+    await page.mouse.move(to.x + 80, to.y + 2, { steps: 8 })
+    await page.mouse.move(to.x + 80, to.y + 3)
+    await expect(page.locator('[data-drop]')).toHaveCount(1)
+    expect(await order()).toEqual(original) // Hover paints an indicator, not a reordered tree.
+    await page.keyboard.press('Escape')
+    await page.mouse.up()
+    await expect(page.locator('[data-drop], [data-dragging]')).toHaveCount(0)
+    expect(await order()).toEqual(original)
+    await last.dragTo(rows.first(), { targetPosition: { x: 80, y: 2 } })
+    expected = [original[2]!, original[0]!, original[1]!]
+    await expect.poll(order).toEqual(expected)
+    // Dragging never activates or resumes a session.
+    await expect(page.getByPlaceholder('Describe a task or ask a question')).toBeVisible()
+    await last.getByTestId('session-row').click({ button: 'right' })
+    await page.getByRole('button', { name: /^Move down/ }).click()
+    await expect.poll(order).toEqual([original[0], original[2], original[1]])
+    await last.getByTestId('session-row').focus()
+    await page.keyboard.press('Alt+ArrowDown')
+    await expect.poll(order).toEqual(original)
+    await expect(last.getByTestId('session-row')).toBeFocused()
+    await last.getByTestId('session-row').click({ button: 'right' })
+    await page.getByRole('button', { name: /^Suspend/ }).click()
+    await expect(last).toContainText('suspended')
+    await last.dragTo(rows.first(), { targetPosition: { x: 80, y: 2 } })
+    await expect.poll(order).toEqual(expected)
+    await last.getByTestId('session-row').click()
+    await expect(last).not.toContainText('suspended')
+    await expect.poll(order).toEqual(expected)
+    // An external/other-section drag must not reorder the destination list.
+    const pinned = rows.last()
+    const pinnedPath = await pinned.getAttribute('data-session-path')
+    await pinned.getByTestId('session-row').click({ button: 'right' })
+    await page.getByRole('button', { name: /^Pin$/ }).click()
+    const before = await order()
+    await page.locator(`[data-session-path="${pinnedPath}"]`).dragTo(last)
+    await expect.poll(order).toEqual(before)
+    await page
+      .locator(`[data-session-path="${pinnedPath}"]`)
+      .getByTestId('session-row')
+      .click({ button: 'right' })
+    await page.getByRole('button', { name: /^Unpin$/ }).click()
+    await expect.poll(order).toEqual(expected)
+  } finally {
+    await first.app.close()
+  }
+  const second = await launch({ workspace, userDataDir })
+  try {
+    await expect(second.page.locator('[data-session-path]')).toHaveCount(3, { timeout: 30_000 })
+    expect(
+      await second.page
+        .locator('[data-session-path]')
+        .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-session-path'))),
+    ).toEqual(expected)
+  } finally {
+    await shutdown(second)
+    await rm(userDataDir, { recursive: true, force: true })
+  }
+})
+
 test('sidebar groups sessions from several workspaces and badges pinned rows', async () => {
   // Two projects, one shared prefs store so both stay in "known workspaces".
   const userDataDir = await scratchDir('phosphor-e2e-prefs-')
@@ -2889,6 +2972,62 @@ test('claude provider tab proves the chain end to end (stubbed claude + pi)', as
     await shutdown(harness)
     await rm(claudeDir, { recursive: true, force: true })
     await rm(soloAgentDir, { recursive: true, force: true })
+  }
+})
+
+test('a sandbox with a chat open in it can still be renamed, and keeps its chats', async () => {
+  const harness = await launch({
+    userDataDir: await scratchDir('phosphor-e2e-sandbox-rename-'),
+  })
+  const { page, workspace } = harness
+  try {
+    await openWorkspace(page)
+
+    // "No folder" mints a sandbox and points the home screen at it.
+    await page.getByTestId('workspace-chip').click()
+    await page.getByText('No folder').click()
+    await expect(page.getByPlaceholder('Describe a task or ask a question')).toBeVisible({
+      timeout: 20_000,
+    })
+    await page.getByPlaceholder('Describe a task or ask a question').fill('scratch work')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByPlaceholder(/Describe a task…/i)).toBeVisible({ timeout: 20_000 })
+
+    // Wait for the row to reach disk — a live session's transcript is what the
+    // rename has to carry across, and pi writes it only when the turn ends.
+    await expect(page.getByTestId('session-row').first()).toBeVisible({ timeout: 20_000 })
+
+    const sandboxGroup = page
+      .getByTestId('workspace-group')
+      .filter({ hasNotText: basename(workspace) })
+    const before = (await sandboxGroup.textContent()) ?? ''
+    expect(before).not.toBe('')
+
+    await sandboxGroup.locator('..').getByTestId('workspace-group-menu').click()
+    await page.getByTestId('workspace-group-rename-sandbox').click()
+
+    // The chat that has to close is stated before the user commits, not after.
+    await expect(page.getByText(/Closes 1 running chat/)).toBeVisible()
+
+    await page.getByTestId('prompt-input').fill('renamed-scratch')
+    await page.getByRole('button', { name: 'Rename', exact: true }).click()
+
+    // The regression this guards: nothing reclaims an idle pi, so the session
+    // started above stayed live forever and main refused the rename for the
+    // rest of the launch — from the one menu a user goes looking for it in.
+    // Verified to fail without the fix, on this very assertion.
+    await expect(
+      page.getByTestId('workspace-group').filter({ hasText: 'renamed-scratch' }),
+    ).toBeVisible({ timeout: 20_000 })
+    await expect(page.getByTestId('workspace-group').filter({ hasText: before })).toHaveCount(0)
+
+    // And the chat came with it: the transcript directory is named after the
+    // mangled cwd, so a rename that moves only the folder loses the history.
+    await expect(
+      page.locator('[data-testid="session-row"][data-workspace="renamed-scratch"]').first(),
+    ).toBeVisible({ timeout: 20_000 })
+  } finally {
+    await shutdown(harness)
   }
 })
 

@@ -724,6 +724,7 @@ export function installMockPhosphor(): void {
               },
             ],
             pinnedSessions: [],
+            sessionOrder: JSON.parse(localStorage.getItem('mock:sessionOrder') ?? '[]'),
             modelPicks: {
               starred: ['anthropic/claude-opus-5'],
               recent: ['anthropic/claude-sonnet-5'],
@@ -745,6 +746,9 @@ export function installMockPhosphor(): void {
             agentDirectivesByProject: {},
             worktrees: DEFAULT_APP_PREFS.worktrees,
           })
+        case 'app:setSessionOrder':
+          localStorage.setItem('mock:sessionOrder', JSON.stringify(args[0]))
+          return Promise.resolve(undefined)
         case 'app:setModelPicks':
           return Promise.resolve(undefined)
         // Drafts in the browser harness are in-memory only: there is no main

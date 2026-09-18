@@ -189,8 +189,16 @@ rather than a top-level app concern.
   item count and last use. **Rename** changes the folder on disk and moves its
   chats with it — a sandbox IS its path, so the rename re-points recents, the
   launch-resume pair, and every pin, marker and unseen badge on its sessions.
-  It is refused while a session is running in that sandbox. Deleting moves the
-  folder _and its chats_ to the Trash. An empty sandbox is reused.
+  "Its chats" means the whole subtree: a sandbox that is a git repo has lanes,
+  each its own cwd with its own pair of transcript directories, and moving only
+  the root's pair orphaned every lane chat. Running chats in the sandbox are
+  **closed** as part of the rename, and the prompt says how many before you
+  commit. They have to be — pi cannot keep working in a folder that has moved,
+  and since nothing reclaims an idle session's process, refusing instead meant
+  a sandbox you had actually used could not be renamed for the rest of the
+  launch. Deleting moves the folder _and its chats_ to the Trash, and is still
+  refused while anything is running anywhere inside it. An empty sandbox is
+  reused.
   What a rename **cannot** move is the cwd written inside each session file:
   that value is frozen at write time and naming a folder that is now gone would
   spawn pi in a directory that no longer exists. The scan corrects it instead —

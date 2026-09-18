@@ -205,6 +205,7 @@ export interface IpcInvokeMap {
     result: { savedTo: string }
   }
   'app:setPinnedSessions': { args: [string[]]; result: void }
+  'app:setSessionOrder': { args: [string[]]; result: void }
   /** Explicit lane-marker choices, keyed by session file path. */
   'app:setLaneMarkers': { args: [Record<string, string>]; result: void }
   /** How lanes name and brand themselves; clamped in the main process. */
