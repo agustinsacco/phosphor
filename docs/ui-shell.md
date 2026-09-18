@@ -91,6 +91,20 @@ screen.
 - `resolveSandboxFolder` compares real paths for the same reason; a lexical
   compare refused a sandbox's own real path and silently disabled Delete and
   Rename for it.
+- **A sandbox operation covers the folder's whole SUBTREE, never just the
+  folder.** A sandbox that is a git repo has lanes under it, and a lane is its
+  own cwd: its live session's `workspacePath` is a descendant of the sandbox,
+  and its transcripts sit in their own directory named after the mangled lane
+  path. An exact path compare therefore let a live lane through both the rename
+  and the delete guard, and the transcript move covered only the root — so
+  renaming a sandbox moved the folder out from under a running pi and orphaned
+  every lane chat at once. Containment is `isWithinFolder` (`shared/paths.ts`,
+  shared because main guards on it and the renderer picks the chats to close
+  with it), and the cwd list is `sandboxCwds` (`electron/sandbox.ts`). That
+  list is enumerated from DISK rather than by prefix-matching pi's mangled
+  directory names: the mangling joins segments with `-` and folder names
+  contain `-`, so `games` and `games-2` produce names one of which is a prefix
+  of the other, and nothing can un-mangle them back apart.
 - **A session's recorded cwd is a hint; the directory it was found in is the
   authority.** Each session file freezes the cwd pi ran in, and nothing
   rewrites history when the folder later moves — so renaming a sandbox moved
@@ -126,8 +140,9 @@ screen.
   for a sandbox only, Rename sandbox and Delete sandbox (the latter behind a
   second click). A project folder is only ever _forgotten_, from
   Settings → Workspaces; renaming is offered for a sandbox because the folder
-  is Phosphor's own. See [settings.md](settings.md#workspaces) for what a
-  rename moves.
+  is Phosphor's own. Rename closes the sandbox's running chats first and says
+  so in the prompt; see [settings.md](settings.md#workspaces) for what a rename
+  moves.
 - **Loading states per group**: never attempted → skeleton rows; partly
   scanned → the rows we have plus `loading N more folders…`; errored →
   "Couldn't load sessions" with Retry. A group is the main repo plus every lane

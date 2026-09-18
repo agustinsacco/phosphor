@@ -220,6 +220,44 @@ export function resolveSandboxFolder(base: string, path: string): string | null 
   return isSandboxName(basename(target)) ? target : null
 }
 
+/**
+ * Where Phosphor puts a lane inside a workspace. `.pidex` is the pre-rename
+ * (2026-09-08) folder; lanes created before then still live there.
+ */
+const WORKTREE_PARENTS = ['.phosphor', '.pidex']
+
+/**
+ * Every cwd a session could have been started in under `folder`: the folder
+ * itself, then each lane Phosphor has created inside it.
+ *
+ * A sandbox that is a git repo grows lanes like any other workspace, and each
+ * lane is its OWN cwd with its own transcript directory. Renaming or deleting
+ * the sandbox has to account for all of them or the lane chats are orphaned —
+ * the folder moves, and their transcripts keep naming a path that is gone.
+ *
+ * Enumerated from disk rather than by matching the mangled directory names
+ * under pi's sessions root, which looks cheaper and is wrong: the mangling
+ * joins path segments with `-` and folder names may contain `-`, so
+ * `<base>/games` and `<base>/games-2` mangle to `--…-games--` and
+ * `--…-games-2--`. The second starts with the first's prefix, nothing can
+ * un-mangle a directory name back into a path to tell them apart, and the
+ * mistake would move a bystander sandbox's history.
+ */
+export function sandboxCwds(folder: string): string[] {
+  const cwds = [folder]
+  for (const parent of WORKTREE_PARENTS) {
+    const root = join(folder, parent, 'worktrees')
+    try {
+      for (const entry of readdirSync(root, { withFileTypes: true })) {
+        if (entry.isDirectory()) cwds.push(join(root, entry.name))
+      }
+    } catch {
+      // No lanes of that vintage; the common case, not an error.
+    }
+  }
+  return cwds
+}
+
 /** Same directory on disk, rather than same string — see `planSandboxRename`. */
 function isSameFolder(a: string, b: string): boolean {
   try {
