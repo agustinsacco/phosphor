@@ -149,6 +149,11 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
     // The send is committed, so the draft is spent. A failure re-fills it
     // through `startingChat` below.
     useDraftsStore.getState().clear(draftKey)
+    // Claimed HERE, at the keystroke, not inside `createSession` several
+    // seconds of git later. Anything that would put this lane on screen checks
+    // the claim first, so clicking another lane while this one builds now
+    // sticks instead of being undone when the new process comes up.
+    const nav = useSessionsStore.getState().claimNav()
     try {
       // Resolves once the session is live and its first prompt is away (see
       // startChat) — the branch is cut from the message slug first because a
@@ -159,6 +164,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
         workspacePath,
         prompt,
         images: sent,
+        nav,
         onPhase: (next) => useStartingChatStore.getState().setPhase(next),
         // A toast, not an inline note under the composer: the session did
         // start, so this screen is already gone by the time the warning
@@ -166,6 +172,13 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
         onWarning: (reason) => useExtensionUiStore.getState().pushToast(reason, 'warning'),
       })
       useStartingChatStore.getState().finish()
+      // The lane came up behind whatever the user moved on to, so say so once
+      // rather than pulling them back to it.
+      if (useSessionsStore.getState().navSeq !== nav) {
+        useExtensionUiStore
+          .getState()
+          .pushToast('Your new lane is running. Open it from the sidebar.', 'info')
+      }
     } catch (error) {
       // The session never started, so the message would otherwise be gone.
       // This component is already unmounted (`begin` swapped the screen), so

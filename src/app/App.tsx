@@ -12,6 +12,7 @@ import { WorkspacePicker } from './WorkspacePicker'
 import { ChatView } from '@/features/chat/ChatView'
 import { WorkspaceHome } from '@/features/home/WorkspaceHome'
 import { StartingChat } from '@/features/home/StartingChat'
+import { OpeningLane } from '@/features/sessions/OpeningLane'
 import { Sidebar } from '@/features/sessions/Sidebar'
 import { BulkDeleteProgressPopover } from '@/features/sessions/BulkDeleteModal'
 import { SkillsPage } from '@/features/skills/SkillsPage'
@@ -38,6 +39,7 @@ export function App(): React.JSX.Element {
   const currentWorkspace = useActiveWorkspace()
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
   const starting = useStartingChatStore((s) => s.starting)
+  const opening = useSessionsStore((s) => s.opening)
   const sidebarVisible = useLayoutStore((s) => s.sidebarVisible)
   const page = useLayoutStore((s) => s.page)
   const currentWorkspaceGit = useSessionsStore((s) =>
@@ -252,6 +254,13 @@ export function App(): React.JSX.Element {
             ) : (
               <WorkspaceHome workspacePath={currentWorkspace} />
             )}
+            {/*
+            A lane the user asked for that is not up yet, over whichever of
+            the three states is showing. An overlay rather than a fourth
+            branch: the lane underneath keeps its tree, so an open that fails
+            leaves the user where they were. See OpeningLane.
+          */}
+            {opening && <OpeningLane lane={opening} />}
             {/*
             Global pages cover the main region as an overlay, like an expanded
             pane (z-20 inside MainWithPanes) but one level up and one z higher.

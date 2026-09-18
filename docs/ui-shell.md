@@ -205,7 +205,10 @@ Rules:
 - Fullscreen (↗) overlays the main region (sidebar and top bar stay) and never
   resizes the split underneath, so exiting restores the exact prior layout.
 - Sessions in a workspace run **concurrently**. The chat shows the active one;
-  switching is instant; background sessions keep streaming into their stores.
+  switching between live lanes is instant; background sessions keep streaming
+  into their stores. A lane whose process is not up yet has to be spawned and
+  replayed first, and that wait gets its own overlay — see
+  [lanes.md](lanes.md#switching-lanes).
 
 **Changes navigation:** each file has a keyboard-operable Open button, separate
 from Revert. A diff opens with focus on its Back button, and returning restores

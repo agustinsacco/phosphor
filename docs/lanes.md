@@ -189,6 +189,41 @@ the value it just wrote, so an out-of-range entry must be corrected locally too.
 `stores/settings.ts`, which calls `window.matchMedia` at creation and would
 break every non-jsdom suite that touches sessions.
 
+## Switching lanes
+
+Only a lane that is already live switches instantly. Every other lane has to
+spawn a pi process and replay its transcript first, and a new lane has to cut a
+branch before that. Two rules cover the wait.
+
+**The click is acknowledged before the process exists.** `openDiskSession`
+records the lane in `sessions.opening` synchronously, so on the same frame the
+sidebar row highlights and says `Opening`, and `OpeningLane` covers the main
+region with the lane's title. It is an overlay, not a fourth state of the main
+region, so the previous lane keeps its React tree and a failed open leaves the
+user exactly where they were. Clicking a lane whose open is already running
+still activates it rather than deduping to nothing.
+
+**Whatever finishes last does not win.** `sessions.navSeq` counts explicit
+navigations — a click, a palette entry, a send. Every step that would put a
+lane on screen carries the navigation it belongs to and checks it first:
+`createSession` activates only for a current claim, `startChat` takes its claim
+at the keystroke (not several seconds of git later) and skips re-pointing the
+window at the new worktree once the claim is stale.
+
+So sending a message to create a lane and then switching away to work in
+parallel now sticks. The new lane still gets its branch, its process, its
+generated name and its branch rename, in the background, and says so with a
+toast instead of stealing the screen back twice.
+
+The same claim is what lets a lane **restart** in place. `restartSession`
+disposes pi and resumes from the same session file, which is how a provider
+change (`ModelPicker`) and a Claude account change (`moveSessionToAccount`)
+take effect — disposing clears `activeSessionId`, so without this the user
+dropped to the greeting screen for the whole window. On screen it is
+`OpeningLane` with `reason: 'restart'`; the model chip reads
+`Switching to <model>…` and is inert until it settles. A restart of a lane the
+user is **not** looking at never takes the screen.
+
 ## Finding a lane
 
 A magnifier in the workspace header opens a search field **under** that
