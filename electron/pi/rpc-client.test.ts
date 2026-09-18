@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { PiRpcClient } from './rpc-client'
+import { shutdownApproval } from '../shutdown-approval'
 import type { PiEvent } from '@shared/rpc'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -28,6 +29,22 @@ afterEach(async () => {
 })
 
 describe('PiRpcClient', () => {
+  it('rejects new work during approved shutdown but permits inspection and abort', async () => {
+    const client = track(makeClient())
+    client.spawn()
+    const closing = vi.spyOn(shutdownApproval, 'closing', 'get').mockReturnValue(true)
+    try {
+      await expect(client.request({ type: 'prompt', message: 'not sent' })).rejects.toThrow(
+        'shutting down',
+      )
+      expect((await client.request({ type: 'get_state' })).success).toBe(true)
+      expect((await client.request({ type: 'abort' })).success).toBe(true)
+      expect(client.activity.busy).toBe(false)
+    } finally {
+      closing.mockRestore()
+    }
+  })
+
   it('correlates request and response by id', async () => {
     const client = track(makeClient())
     client.spawn()

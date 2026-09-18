@@ -2,6 +2,7 @@ import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child
 import { EventEmitter } from 'node:events'
 import { JsonlDecoder } from './jsonl'
 import { SessionActivity } from './session-activity'
+import { shutdownApproval } from '../shutdown-approval'
 import type {
   ExtensionUIRequest,
   ExtensionUIResponse,
@@ -188,6 +189,12 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     if (!child || !this.alive) {
       return Promise.reject(new Error('pi process is not running'))
     }
+    if (
+      shutdownApproval.closing &&
+      !command.type.startsWith('get_') &&
+      !['abort', 'abort_bash', 'abort_retry', 'clear_queue'].includes(command.type)
+    )
+      return Promise.reject(new Error('Phosphor is shutting down. New work cannot start.'))
     const id = `px-${this.nextRequestId++}`
     const payload = { ...command, id }
 

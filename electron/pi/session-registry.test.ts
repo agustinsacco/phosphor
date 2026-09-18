@@ -9,6 +9,18 @@ vi.mock('./rpc-client', () => ({
   },
 }))
 import { SessionRegistry } from './session-registry'
+import { shutdownApproval } from '../shutdown-approval'
+
+it('refuses new writers after shutdown approval', () => {
+  const closing = vi.spyOn(shutdownApproval, 'closing', 'get').mockReturnValue(true)
+  const registry = new SessionRegistry()
+  try {
+    expect(() => registry.create('/repo', {})).toThrow('shutting down')
+    expect(registry.list()).toEqual([])
+  } finally {
+    closing.mockRestore()
+  }
+})
 
 it('keeps ownership until disposal finishes and coalesces concurrent disposal', async () => {
   let release!: () => void
