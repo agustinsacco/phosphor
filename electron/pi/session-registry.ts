@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { EventEmitter } from 'node:events'
 import { PiRpcClient, type PiSpawnOptions } from './rpc-client'
 import type { LiveSessionInfo } from '@shared/models'
+import { shutdownApproval } from '../shutdown-approval'
 
 export interface LiveSession {
   sessionId: string
@@ -29,6 +30,7 @@ export class SessionRegistry extends EventEmitter<SessionRegistryEvents> {
   private readonly disposing = new Map<string, Promise<void>>()
 
   create(workspacePath: string, spawnOptions: Omit<PiSpawnOptions, 'cwd'>): LiveSession {
+    shutdownApproval.assertCanStart()
     const sessionId = randomUUID()
     const client = new PiRpcClient({ ...spawnOptions, cwd: workspacePath })
     const session: LiveSession = { sessionId, workspacePath, client }
