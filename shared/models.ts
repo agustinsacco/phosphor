@@ -525,6 +525,8 @@ export interface AppPrefs {
   lastSessionPath?: string
   /** Pinned session file paths. */
   pinnedSessions: string[]
+  /** Manual sidebar order by session file path; unseen paths stay newest-first. */
+  sessionOrder: string[]
   /**
    * Model picker memory, keyed `provider/id` (the same identity the picker
    * uses — a model is only ever "the same" if the route to it is too).
@@ -771,6 +773,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   theme: 'dark',
   recentWorkspaces: [],
   pinnedSessions: [],
+  sessionOrder: [],
   modelPicks: DEFAULT_MODEL_PICKS,
   collapsedWorkspaces: [],
   seenSessions: {},

@@ -121,6 +121,7 @@ export function getPrefs(): AppPrefs {
     lastWorkspacePath: resolvedOrSame(s.get('lastWorkspacePath')),
     lastSessionPath: s.get('lastSessionPath'),
     pinnedSessions: s.get('pinnedSessions') ?? [],
+    sessionOrder: s.get('sessionOrder') ?? [],
     modelPicks: { ...DEFAULT_MODEL_PICKS, ...s.get('modelPicks') },
     collapsedWorkspaces: canonicalPaths(s.get('collapsedWorkspaces') ?? [], realPathOrNull),
     seenSessions: s.get('seenSessions') ?? {},
@@ -252,6 +253,10 @@ export function setRecentWorkspaces(workspaces: AppPrefs['recentWorkspaces']): v
   prefs().set('recentWorkspaces', workspaces)
 }
 
+export function setSessionOrder(paths: string[]): void {
+  prefs().set('sessionOrder', [...new Set(paths)])
+}
+
 export function setPinnedSessions(paths: string[]): void {
   prefs().set('pinnedSessions', paths)
 }
@@ -320,6 +325,7 @@ export function repointStoredPaths(moves: readonly PathMove[]): void {
   if (lastSession) s.set('lastSessionPath', remap(lastSession))
 
   s.set('pinnedSessions', (s.get('pinnedSessions') ?? []).map(remap))
+  s.set('sessionOrder', (s.get('sessionOrder') ?? []).map(remap))
   s.set('collapsedWorkspaces', (s.get('collapsedWorkspaces') ?? []).map(remap))
   s.set('seenSessions', remapKeys(s.get('seenSessions') ?? {}))
   s.set('laneMarkers', remapKeys(s.get('laneMarkers') ?? {}))

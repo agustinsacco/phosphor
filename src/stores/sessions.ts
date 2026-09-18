@@ -76,6 +76,8 @@ interface SessionsState {
   /** phosphorId → git session baseline ref (null = not a repo). */
   baselines: Record<string, string | null>
   pinned: string[]
+  sessionOrder: string[]
+  setSessionOrder: (paths: string[]) => void
   /**
    * Session file path → EXPLICIT lane marker. Absent means "never chose" and
    * the row derives one from the branch; an empty string means "no marker, on
@@ -605,6 +607,18 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   unread: {},
   baselines: {},
   pinned: [],
+  sessionOrder: [],
+  setSessionOrder: (paths) => {
+    // Keep unscanned/collapsed groups, including their relative order.
+    const moved = new Set(paths)
+    const sessionOrder = [...paths, ...get().sessionOrder.filter((path) => !moved.has(path))]
+    set({ sessionOrder })
+    void window.phosphor.invoke('app:setSessionOrder', sessionOrder).catch(() => {
+      void import('./extensionUi').then(({ useExtensionUiStore }) =>
+        useExtensionUiStore.getState().pushToast('Could not save session order', 'error'),
+      )
+    })
+  },
   laneMarkers: {},
   bulkDelete: null,
   suspendedPaths: [],
@@ -616,6 +630,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     const prefs = await window.phosphor.invoke('app:getPrefs')
     set({
       pinned: prefs.pinnedSessions,
+      sessionOrder: prefs.sessionOrder ?? [],
       seenSessions: prefs.seenSessions ?? {},
       laneMarkers: prefs.laneMarkers ?? {},
     })
