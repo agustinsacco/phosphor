@@ -5,6 +5,7 @@ import { existsSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AddWorktreeBranch, BranchInfo, StartPoint, WorktreeInfo } from '@shared/models'
 import { abortMergeAndCollectConflicts, dirtyCount, git, gitErrorText } from './git-exec'
+import { gitInfoCache } from './git-info-cache'
 
 const execFileAsync = promisify(execFile)
 
@@ -508,10 +509,11 @@ export async function removeWorktree(
 
 export async function pruneWorktrees(repoPath: string): Promise<{ pruned: string[] }> {
   // --verbose reports removals on stderr.
+  gitInfoCache.invalidate()
   const { stdout, stderr } = await execFileAsync('git', ['worktree', 'prune', '--verbose'], {
     cwd: repoPath,
     timeout: 30_000,
-  })
+  }).finally(() => gitInfoCache.invalidate())
   const pruned = `${stdout}\n${stderr}`
     .split('\n')
     .map((l) => l.trim())
