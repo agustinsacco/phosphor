@@ -99,15 +99,19 @@ here".
 five seconds. Keys use canonical workspace paths and keep full and summary
 responses separate. Concurrent callers share one query per key, with a global
 limit of four display queries across batches. TTL starts when a query completes.
-The cache retains at most 128 entries once outstanding queries settle; failures
-and incomplete metadata are retried rather than cached.
+The cache retains at most 128 entries once outstanding queries settle. Rejected
+queries, non-repo fallbacks, and results missing branch, worktree, or dirty-count
+metadata are retried rather than cached.
 
 Debounced workspace changes invalidate that workspace before notifying the UI.
 Phosphor Git mutations conservatively invalidate all display entries before and
 after execution, including failures, because refs can affect sibling worktrees.
 An invalidated in-flight result cannot repopulate the cache; subsequent readers
-wait for it and share a replacement query. External changes outside watcher
-coverage become visible on a new query after TTL expiry.
+wait for it and share a replacement query. The branch control forces a fresh
+query on window focus and after worktree-store refreshes, covering external
+changes inside the unwatched `.git` directory even within the TTL. Its refresh
+sequence ignores older responses and hides the previous workspace's metadata
+immediately when switching folders.
 
 Routine preflight and lane setup still call uncached `gitInfo`. Display caches
 never decide whether uncommitted work is safe to modify. Other Git operations

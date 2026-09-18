@@ -35,12 +35,13 @@ describe('Git display cache integration', () => {
     const headerCalls = () =>
       spy.mock.calls.filter(([, args]) => args.join(' ') === 'rev-parse --abbrev-ref HEAD')
     expect(headerCalls()).toHaveLength(1)
+    await gitInfoBatch([repo])
     await writeFile(join(repo, 'file'), 'dirty')
     expect((await gitDisplayInfo(repo)).dirtyCount).toBe(0)
     expect((await gitInfo(repo)).dirtyCount).toBe(1)
     expect(headerCalls()).toHaveLength(2)
-    gitInfoCache.invalidate(repo)
-    expect((await gitDisplayInfo(repo)).dirtyCount).toBe(1)
+    expect((await gitDisplayInfo(repo, { force: true })).dirtyCount).toBe(1)
+    expect((await gitInfoBatch([repo]))[repo]?.dirtyCount).toBe(1)
     expect(headerCalls()).toHaveLength(3)
   })
 
