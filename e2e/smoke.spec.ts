@@ -8,6 +8,7 @@ import {
 import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { scratchDir, scratchDirSync } from './fixtures/scratch'
+import { configureTestTeardown } from './fixtures/shutdown'
 import { tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -93,6 +94,7 @@ async function launch(
       ...options.env,
     },
   })
+  configureTestTeardown(app)
   const page = await app.firstWindow()
   await page.waitForLoadState('domcontentloaded')
   return { app, page, workspace }
@@ -146,6 +148,51 @@ function scrollPosition(el: HTMLElement): { top: number; max: number } {
   el.scrollTop = top
   return { top, max }
 }
+
+test('cancelling quit preserves active sessions and coalesces repeated quit requests', async () => {
+  const h = await launch()
+  try {
+    const sessionId = await h.page.evaluate(async (workspacePath) => {
+      const session = await window.phosphor.invoke('pi:createSession', { workspacePath })
+      await window.phosphor.invoke('pi:command', session.sessionId, {
+        type: 'prompt',
+        message: 'queue-hold',
+      })
+      return session.sessionId
+    }, h.workspace)
+    await h.app.evaluate(({ app, dialog, BrowserWindow }) => {
+      const state = globalThis as unknown as { quitPrompts: number; cancelQuit: () => void }
+      state.quitPrompts = 0
+      dialog.showMessageBox = () =>
+        new Promise((resolve) => {
+          state.quitPrompts++
+          state.cancelQuit = () => resolve({ response: 0, checkboxChecked: false })
+        })
+      if (process.platform === 'darwin') app.quit()
+      else BrowserWindow.getAllWindows()[0]!.close()
+      app.quit()
+    })
+    await expect
+      .poll(() =>
+        h.app.evaluate(() => (globalThis as unknown as { quitPrompts: number }).quitPrompts),
+      )
+      .toBe(1)
+    await h.app.evaluate(() => (globalThis as unknown as { cancelQuit: () => void }).cancelQuit())
+    expect(h.page.isClosed()).toBe(false)
+    const alive = await h.page.evaluate(
+      (id) => window.phosphor.invoke('pi:command', id, { type: 'get_state' }),
+      sessionId,
+    )
+    expect(alive.success).toBe(true)
+    const another = await h.page.evaluate(
+      (workspacePath) => window.phosphor.invoke('pi:createSession', { workspacePath }),
+      h.workspace,
+    )
+    expect(another.sessionId).not.toBe(sessionId)
+  } finally {
+    await shutdown(h)
+  }
+})
 
 test('bundled fonts render offline before editor or terminal initialization', async () => {
   const harness = await launch()

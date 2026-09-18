@@ -4,6 +4,7 @@ import { basename } from 'node:path'
 import { BrowserWindow } from 'electron'
 import { isBusy } from './busy'
 import { ScrollbackBuffer } from './scrollback-buffer'
+import { shutdownApproval } from '../shutdown-approval'
 import { ensureSpawnHelperExecutable } from './spawn-helper'
 import { errorText } from '@shared/errors'
 
@@ -36,6 +37,10 @@ class PtyManager {
   private pollTimer: NodeJS.Timeout | null = null
   private helperChecked = false
 
+  get size(): number {
+    return this.sessions.size
+  }
+
   create(
     workspacePath: string,
     cols: number,
@@ -50,6 +55,7 @@ class PtyManager {
      */
     command?: { file: string; args: string[]; env?: NodeJS.ProcessEnv },
   ): { ptyId: string } {
+    shutdownApproval.assertCanStart()
     const ptyId = randomUUID()
     const shell = defaultShell()
     const file = command?.file ?? shell.command

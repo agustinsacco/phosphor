@@ -121,7 +121,10 @@ work. Startup and failed writes remain uncertain until a fresh state response.
 A state response issued before newer activity cannot overwrite newer facts.
 Older pi builds can establish idle state through a fresh `get_state`, but that
 response cannot clear retries, direct bash, or dialogs it does not describe.
-These facts do not themselves add quit confirmation or automatic suspension.
+Quit/update approval consumes these facts in main; unknown work is treated as
+busy. Approved shutdown rejects new work but permits inspection and aborts.
+This does not introduce automatic suspension. See [updates.md](updates.md) for
+confirmation behavior and remaining recovery limitations.
 
 ## Sessions on disk (drives the sidebar without spawning processes)
 

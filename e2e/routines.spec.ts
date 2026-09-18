@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { newRoutine, type RoutineInput } from '../shared/routines'
+import { configureTestTeardown } from './fixtures/shutdown'
 import type * as Sqlite from 'node:sqlite'
 import type * as NodePath from 'node:path'
 
@@ -36,6 +37,7 @@ async function launch(): Promise<void> {
       PI_CODING_AGENT_DIR: join(directory, 'agent'),
     },
   })
+  configureTestTeardown(app)
   page = await app.firstWindow()
   const routines = page.getByRole('button', { name: 'Routines', exact: true })
   const openFolder = page.getByRole('button', { name: 'Open Folder…', exact: true })

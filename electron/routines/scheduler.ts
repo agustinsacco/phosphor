@@ -1,6 +1,7 @@
 import type { RoutineInput, RoutineRun, RoutineRunStatus, RoutinesSnapshot } from '@shared/routines'
 import type { RoutineRepository } from './repository'
 import type { RunOutcome } from './outcome'
+import { shutdownApproval } from '../shutdown-approval'
 
 export type RoutineExecutor = (
   run: RoutineRun,
@@ -53,6 +54,7 @@ export class RoutineScheduler {
   }
 
   runNow(id: string, requestId: string): RoutineRun {
+    shutdownApproval.assertCanStart()
     if (this.stopping || this.error) throw new Error(this.error ?? 'Phosphor is shutting down.')
     const run = this.repository.manual(id, requestId, this.now())
     this.tick()
@@ -60,7 +62,7 @@ export class RoutineScheduler {
   }
 
   tick(): void {
-    if (this.stopping || this.error) return
+    if (this.stopping || this.error || shutdownApproval.closing) return
     try {
       this.repository.reconcile(this.now())
       for (const queued of this.repository.pending().filter((r) => r.status === 'queued')) {

@@ -1,5 +1,12 @@
-import { app, BrowserWindow, shell, powerMonitor } from 'electron'
-import { startRoutines, stopRoutines, wakeRoutines, routineScheduler } from './routines'
+import { app, BrowserWindow, shell, powerMonitor, dialog } from 'electron'
+import {
+  startRoutines,
+  stopRoutines,
+  wakeRoutines,
+  routineScheduler,
+  hasPendingRoutineWork,
+} from './routines'
+import { configureShutdownApproval, shutdownApproval } from './shutdown-approval'
 import { installRoutineBackground, routinesKeepRunning } from './routines/background'
 import { dirname, join } from 'node:path'
 import { existsSync, renameSync } from 'node:fs'
@@ -106,6 +113,18 @@ function createWindow(): BrowserWindow {
 
   window.on('ready-to-show', () => {
     if (!hideWindowsForE2E()) window.show()
+  })
+
+  window.on('close', (event) => {
+    if (
+      !quitComplete &&
+      process.platform !== 'darwin' &&
+      BrowserWindow.getAllWindows().length === 1 &&
+      !routinesKeepRunning()
+    ) {
+      event.preventDefault()
+      app.quit() // Ask before destroying the final renderer, so Cancel really preserves it.
+    }
   })
 
   // Chromium resets the zoom factor on every navigation, so the stored UI
@@ -229,10 +248,50 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin' && !routinesKeepRunning()) app.quit()
 })
 
+configureShutdownApproval({
+  needsConfirmation: () =>
+    ptyManager.size > 0 ||
+    hasPendingRoutineWork() ||
+    registry.list().some(({ sessionId }) => {
+      const client = registry.get(sessionId)?.client
+      return client?.alive && client.activity.busy
+    }),
+  confirm: async (intent) => {
+    const { response } = await dialog.showMessageBox({
+      type: 'warning',
+      message: intent === 'quit' ? 'Quit Phosphor?' : 'Restart to install the update?',
+      detail:
+        'There is active or unconfirmed work. Continuing stops all agents, routines, and terminals. Unfinished turns and terminal commands may be lost. Keep working to finish or save your work first.',
+      buttons: ['Keep working', intent === 'quit' ? 'Stop work and quit' : 'Stop work and restart'],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    })
+    return response === 1
+  },
+})
+
 let quitting = false
+let quitComplete = false
 app.on('before-quit', (event) => {
-  if (quitting) return
+  if (quitComplete) return
   event.preventDefault()
+  if (quitting) return
+  if (shutdownApproval.canQuit) {
+    beginQuit()
+    return
+  }
+  void shutdownApproval
+    .request('quit')
+    .then((approved) => {
+      if (approved) beginQuit()
+    })
+    .catch((error: unknown) => log('main', 'quit confirmation failed', { error: String(error) }))
+})
+
+function beginQuit(): void {
+  if (quitting) return
+  shutdownApproval.beginTeardown()
   quitting = true
   // Clean shutdown: SIGTERM to every pi child, kill all PTYs, close all
   // filesystem watchers so no chokidar handles or debounce timers outlive us.
@@ -249,10 +308,13 @@ app.on('before-quit', (event) => {
   // unrelated sessions. Routine cancellation owns its nested process tree.
   void stopRoutines().finally(() => {
     void Promise.allSettled([registry.disposeAll(), unwatchAll(), unwatchAllWorkspaces()]).finally(
-      () => app.quit(),
+      () => {
+        quitComplete = true
+        app.quit()
+      },
     )
   })
-})
+}
 
 /**
  * Teardown for shutdowns Electron does not route through `before-quit`.
