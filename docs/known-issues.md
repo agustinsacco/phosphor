@@ -112,18 +112,18 @@ than treating the test as an accident.
 
 Found in a 2026-09-05 workbench review; all still reproduce.
 
-| #   | Issue                                                                                                                    | Where                                                       |
-| --- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
-| R1  | A conflicting PR still classifies as ready/merge, and a PR with no CI reads "checks green"                               | `src/features/home/laneState.ts`                            |
-| R2  | The lane board's "Merge" is a local `--no-ff` merge, not a PR merge, and nothing in the label says so                    | `src/features/home/LaneBoard.tsx`, `MergeWorktreeModal.tsx` |
-| R3  | The Changes inventory is tool-call-only: every write is marked created, and counts accumulate rather than reflect        | `src/features/files/collectTouchedFiles.ts`                 |
-| R4  | Restore trashes a file when the baseline lookup **errors**, because `showFileAt` returns `null` for any failure          | `electron/fs/git-service.ts`                                |
-| R5  | A failed worktree creation silently starts the session in the original checkout — no retry, no cancel                    | `src/features/sessions/startChat.ts`                        |
-| R6  | A dirty lane with no PR classifies as idle; "Needs a push" also absorbs "changes requested" and "N checks failing"       | `src/features/home/laneState.ts`                            |
-| R7  | The model picked on Home is written to the drafts store and never passed into `createSession`                            | `WorkspaceHome.tsx` → `startChat.ts`                        |
-| R8  | Cmd+K lists only the first eight sessions from the current cwd                                                           | `src/features/palette/CommandPalette.tsx`                   |
-| R9  | Home stats cover one cwd while the Ledger beside them is project-wide; a `gh` failure is indistinguishable from "no PRs" | `WorkspaceHome.tsx`, `src/stores/pullRequests.ts`           |
-| R10 | "Resume session" disposes before it looks the session up, so it silently starts a fresh one                              | `src/features/chat/banners.tsx`                             |
+| #   | Issue                                                                                                              | Where                                                       |
+| --- | ------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| R1  | A conflicting PR still classifies as ready/merge, and a PR with no CI reads "checks green"                         | `src/features/home/laneState.ts`                            |
+| R2  | The lane board's "Merge" is a local `--no-ff` merge, not a PR merge, and nothing in the label says so              | `src/features/home/LaneBoard.tsx`, `MergeWorktreeModal.tsx` |
+| R3  | The Changes inventory is tool-call-only: every write is marked created, and counts accumulate rather than reflect  | `src/features/files/collectTouchedFiles.ts`                 |
+| R4  | Restore trashes a file when the baseline lookup **errors**, because `showFileAt` returns `null` for any failure    | `electron/fs/git-service.ts`                                |
+| R5  | A failed worktree creation silently starts the session in the original checkout — no retry, no cancel              | `src/features/sessions/startChat.ts`                        |
+| R6  | A dirty lane with no PR classifies as idle; "Needs a push" also absorbs "changes requested" and "N checks failing" | `src/features/home/laneState.ts`                            |
+| R7  | The model picked on Home is written to the drafts store and never passed into `createSession`                      | `WorkspaceHome.tsx` → `startChat.ts`                        |
+| R8  | Cmd+K lists only the first eight sessions from the current cwd                                                     | `src/features/palette/CommandPalette.tsx`                   |
+| R9  | Home stats cover one cwd while the Ledger beside them is project-wide                                              | `WorkspaceHome.tsx`                                         |
+| R10 | "Resume session" disposes before it looks the session up, so it silently starts a fresh one                        | `src/features/chat/banners.tsx`                             |
 
 **R11 — modals are not dialogs.** `src/components/Modal.tsx` has no
 `role="dialog"`, no `aria-modal`, no focus trap and no focus restoration, and

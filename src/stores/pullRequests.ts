@@ -12,19 +12,29 @@ import { keyedSlice } from './keyedSlice'
  * already joins git info — `SessionMeta` has no branch field to hang this on.
  *
  * Every failure mode of `gh` is a normal state, not an error: not installed,
- * not authenticated, no GitHub remote. Those all land here as an empty map and
- * render as no chip. Nothing in this store surfaces a toast.
+ * not authenticated, no GitHub remote. Failures preserve known PRs but cannot
+ * confirm absence. Nothing in this store surfaces a toast.
  */
 export interface RepoPullRequests {
-  /** headRefName → PR. Empty when gh is unavailable or the repo has none. */
+  /** headRefName → PR from the last successful fetch. */
   byBranch: Record<string, GhPullRequest>
   /** Epoch ms of the last completed refresh; 0 when never fetched. */
   fetchedAt: number
+  /** Only an untruncated successful listing can confirm a missing PR. */
+  complete: boolean
+  /** Last attempt, including failures, for retry throttling. */
+  attemptedAt: number
   /** A refresh is in flight — used to collapse concurrent triggers. */
   loading: boolean
 }
 
-const repos = keyedSlice<RepoPullRequests>({ byBranch: {}, fetchedAt: 0, loading: false })
+const repos = keyedSlice<RepoPullRequests>({
+  byBranch: {},
+  fetchedAt: 0,
+  attemptedAt: 0,
+  complete: false,
+  loading: false,
+})
 
 /** How stale a repo's PR map may be before an event-driven refresh refetches. */
 export const PR_STALE_MS = 60_000
@@ -52,34 +62,36 @@ export const usePullRequestsStore = create<PullRequestsState>((set, get) => ({
     if (!repoPath) return
     const current = repos.read(get().byRepo, repoPath)
     if (current.loading) return
-    if (!opts.force && current.fetchedAt > 0 && Date.now() - current.fetchedAt < PR_STALE_MS) return
-
-    let available = get().available
-    if (available === undefined) {
-      available = await window.phosphor.invoke('gh:available')
-      set({ available })
-    }
-    // No gh, no chips, no noise — and no repeated probe: the main-process
-    // side caches its own answer for the process lifetime.
-    if (!available) return
-
-    set((s) => ({ byRepo: repos.patch(s.byRepo, repoPath, (r) => ({ ...r, loading: true })) }))
-    let byBranch: Record<string, GhPullRequest> = {}
-    try {
-      byBranch = await window.phosphor.invoke('gh:prsForRepo', repoPath)
-    } catch {
-      // Handler already swallows gh's own failures; this catches IPC teardown
-      // during shutdown. Keep the previous map rather than blanking the chips.
-      set((s) => ({ byRepo: repos.patch(s.byRepo, repoPath, (r) => ({ ...r, loading: false })) }))
+    if (!opts.force && current.attemptedAt > 0 && Date.now() - current.attemptedAt < PR_STALE_MS)
       return
-    }
+
     set((s) => ({
-      byRepo: repos.patch(s.byRepo, repoPath, () => ({
-        byBranch,
-        fetchedAt: Date.now(),
-        loading: false,
+      byRepo: repos.patch(s.byRepo, repoPath, (r) => ({
+        ...r,
+        loading: true,
+        attemptedAt: Date.now(),
       })),
     }))
+    try {
+      let available = get().available
+      if (available === undefined) {
+        available = await window.phosphor.invoke('gh:available')
+        set({ available })
+      }
+      const result = available ? await window.phosphor.invoke('gh:prsForRepo', repoPath) : null
+      set((s) => ({
+        byRepo: repos.patch(s.byRepo, repoPath, (r) =>
+          result
+            ? { ...r, ...result, fetchedAt: Date.now(), loading: false }
+            : { ...r, complete: false, loading: false },
+        ),
+      }))
+    } catch {
+      // Keep known chips on IPC failure, but revoke any inferred absence.
+      set((s) => ({
+        byRepo: repos.patch(s.byRepo, repoPath, (r) => ({ ...r, complete: false, loading: false })),
+      }))
+    }
   },
 
   remove: (repoPath) =>

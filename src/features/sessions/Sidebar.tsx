@@ -459,7 +459,7 @@ export function Sidebar({
     (group.anyScanned ? false : !group.paths.includes(workspacePath))
 
   /**
-   * PR chips: one `gh` subprocess per EXPANDED group, never one per lane.
+   * PR chips: one batched lookup per EXPANDED group, never one per lane.
    *
    * Event-driven rather than on a timer — window focus and the disk listing
    * changing are the two moments a PR's state plausibly moved. The store
@@ -1319,15 +1319,13 @@ function SessionRow({
   const pullRequest = usePullRequestsStore((s) => pullRequestFor(s, repoPath, git?.branch))
   const showPrStatus = useLanePrefsStore((s) => s.lanes.prStatus)
   // "No PR yet" is inferred, not reported by gh, so it needs its own gate: only
-  // once a fetch for this repo has actually completed (never for gh missing /
-  // unauthenticated / no GitHub remote, which all land as the same empty map —
-  // see gh-cli.ts), and only for a worktree lane. A non-worktree branch (most
+  // once a successful, untruncated fetch for this repo has completed, and
+  // only for a worktree lane. Failures cannot prove absence, nor can a recent
+  // PR page that might omit older lanes. A non-worktree branch (most
   // commonly the trunk itself) is not "a lane" in the PR sense, and inferring
   // "you could open a PR" there is far more often wrong than right.
-  const ghCliAvailable = usePullRequestsStore((s) => s.available)
-  const prFetchedAt = usePullRequestsStore((s) => s.byRepo[repoPath]?.fetchedAt ?? 0)
-  const confirmedNoPr =
-    !pullRequest && Boolean(git?.isWorktree) && ghCliAvailable === true && prFetchedAt > 0
+  const prListingComplete = usePullRequestsStore((s) => s.byRepo[repoPath]?.complete ?? false)
+  const confirmedNoPr = !pullRequest && Boolean(git?.isWorktree && git.branch) && prListingComplete
   // Only render a chip that has something to say. A non-worktree branch with
   // no confirmed PR gets none — gating on the raw preference instead would put
   // an empty chip on every plain-main session the moment the flag is on.

@@ -41,6 +41,7 @@ function checkPhase(pr: GhPullRequest): 'pass' | 'fail' | 'pending' | 'none' {
 
 function describeChecks(pr: GhPullRequest): string {
   const checks = pr.checks
+  if (checks === null) return 'checks unavailable'
   if (!checks || checks.total === 0) return 'no checks'
   const parts: string[] = []
   if (checks.passed) parts.push(`${checks.passed} passed`)
@@ -104,9 +105,19 @@ export function prChip(pr: GhPullRequest): PrChip {
     }
   }
   if (pr.reviewDecision === 'APPROVED') {
-    return { variant: 'approved', label, glyph: '✓✓', title: `${base} — open, ${checks}, approved` }
+    return {
+      variant: 'approved',
+      label,
+      glyph: pr.checks === null ? '' : '✓✓',
+      title: `${base} — open, ${checks}, approved`,
+    }
   }
-  return { variant: 'open', label, glyph: '✓', title: `${base} — open, ${checks}` }
+  return {
+    variant: 'open',
+    label,
+    glyph: pr.checks === null ? '' : '✓',
+    title: `${base} — open, ${checks}`,
+  }
 }
 
 /**

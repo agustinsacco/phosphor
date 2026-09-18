@@ -258,6 +258,12 @@ export interface GhChecks {
  * Absent (null) whenever gh is missing, unauthenticated, or the repo has no
  * GitHub remote — all normal states, never surfaced as errors.
  */
+export interface GhRepoPullRequests {
+  byBranch: Record<string, GhPullRequest>
+  /** False when the bounded listing may have omitted older branches. */
+  complete: boolean
+}
+
 export interface GhPullRequest {
   number: number
   title: string
@@ -265,7 +271,8 @@ export interface GhPullRequest {
   url: string
   mergeable?: string
   mergeStateStatus?: string
-  checks?: GhChecks
+  /** null when check details could not be fetched; undefined when there are no checks. */
+  checks?: GhChecks | null
   /**
    * Review verdict. Distinct from `checks`: a PR can be fully green and still
    * blocked on a human, which is a different action for the reader than a red

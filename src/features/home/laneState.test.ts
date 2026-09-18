@@ -90,6 +90,16 @@ describe('classifyLane', () => {
     expect(out).toMatchObject({ state: 'review', detail: 'checks running', action: 'open' })
   })
 
+  it('keeps a PR with unavailable checks in review, never ready to merge', () => {
+    const missingChecks = pr({ checks: null, reviewDecision: 'APPROVED' })
+    expect(checksGreen(missingChecks)).toBe(false)
+    expect(classifyLane(lane({ pr: missingChecks }))).toMatchObject({
+      state: 'review',
+      detail: 'checks unavailable',
+      action: 'open',
+    })
+  })
+
   it('calls a green draft a draft, not something ready to merge', () => {
     const out = classifyLane(
       lane({ pr: pr({ state: 'DRAFT', checks: { passed: 2, failed: 0, pending: 0, total: 2 } }) }),
