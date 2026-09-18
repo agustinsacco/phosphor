@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import type { GhChecks, GhPullRequest } from '@shared/models'
+import type { GhChecks, GhPullRequest, GhRepoPullRequests } from '@shared/models'
 import { piProcessEnv } from '../pi/shell-env'
 
 const execFileAsync = promisify(execFile)
@@ -112,8 +112,42 @@ interface RawPr {
 }
 
 /** The `--json` field set both queries request. */
-const PR_FIELDS =
-  'number,title,state,url,isDraft,mergeable,mergeStateStatus,statusCheckRollup,reviewDecision'
+const PR_FIELDS = 'number,title,state,url,isDraft'
+const PR_DETAILS = 'mergeable,mergeStateStatus,reviewDecision,statusCheckRollup'
+
+/**
+ * CI-heavy repositories can exceed GitHub's GraphQL resource budget even
+ * with just 100 PRs. Retry with identity and state only, not with a smaller
+ * PR limit that would silently hide lanes. Both attempts use the caller's cwd.
+ */
+async function listPrs(
+  repoPath: string,
+  args: string[],
+  fields: string,
+): Promise<{ rows: RawPr[]; checksAvailable: boolean } | null> {
+  for (const checksAvailable of [true, false]) {
+    const raw = await gh(repoPath, [
+      'pr',
+      'list',
+      ...args,
+      '--json',
+      checksAvailable ? `${fields},${PR_DETAILS}` : fields,
+    ])
+    if (raw === null) continue
+    try {
+      const rows: unknown = JSON.parse(raw)
+      if (
+        Array.isArray(rows) &&
+        rows.every((row) => row && typeof row === 'object' && toPullRequest(row))
+      ) {
+        return { rows, checksAvailable }
+      }
+    } catch {
+      // Malformed output is unavailable, never proof of an empty repo.
+    }
+  }
+  return null
+}
 
 /** Shared shaping so the single-branch and whole-repo queries cannot diverge. */
 export function toPullRequest(pr: RawPr | undefined): GhPullRequest | null {
@@ -152,24 +186,14 @@ export async function ghPrForBranch(
   branch: string,
 ): Promise<GhPullRequest | null> {
   if (!branch) return null
-  const raw = await gh(repoPath, [
-    'pr',
-    'list',
-    '--head',
-    branch,
-    '--state',
-    'all',
-    '--limit',
-    '1',
-    '--json',
+  const result = await listPrs(
+    repoPath,
+    ['--head', branch, '--state', 'all', '--limit', '1'],
     PR_FIELDS,
-  ])
-  if (!raw) return null
-  try {
-    return toPullRequest((JSON.parse(raw) as RawPr[])[0])
-  } catch {
-    return null
-  }
+  )
+  const pr = toPullRequest(result?.rows[0])
+  if (pr && !result?.checksAvailable) pr.checks = null
+  return pr
 }
 
 /**
@@ -177,36 +201,27 @@ export async function ghPrForBranch(
  *
  * The sidebar shows a PR chip per lane, and a lane is a branch — so the naive
  * shape is one `ghPrForBranch` per row. That is 8-20 `gh` subprocesses per
- * refresh on a normal workspace. This is the batched sibling, the same way
- * `git:info` gained `git:infoBatch`: one subprocess for the whole group.
+ * refresh on a normal workspace. This is the batched sibling, with at most
+ * two queries for the whole group, regardless of the workspace or lane count.
  *
- * The `--limit` is a real cap, not a formality: a repo with more open+closed
- * PRs than this resolves only the most recent ones, and older lanes render
- * with no chip rather than a wrong one. gh sorts newest-first, which is the
- * order that matches what is still open in the sidebar.
+ * The limit is a real cap: a full page cannot prove absence for older lanes.
+ * A failed query returns null, which also must never imply "no PR".
  */
 export async function ghPrsForRepo(
   repoPath: string,
   limit = 100,
-): Promise<Record<string, GhPullRequest>> {
-  const raw = await gh(repoPath, [
-    'pr',
-    'list',
-    '--state',
-    'all',
-    '--limit',
-    String(limit),
-    '--json',
+): Promise<GhRepoPullRequests | null> {
+  const result = await listPrs(
+    repoPath,
+    ['--state', 'all', '--limit', String(limit)],
     `${PR_FIELDS},headRefName`,
-  ])
-  if (!raw) return {}
-  let parsed: RawPr[]
-  try {
-    parsed = JSON.parse(raw) as RawPr[]
-  } catch {
-    return {}
+  )
+  if (!result) return null
+  const byBranch = indexPrsByBranch(result.rows)
+  if (!result.checksAvailable) {
+    for (const pr of Object.values(byBranch)) pr.checks = null
   }
-  return indexPrsByBranch(parsed)
+  return { byBranch, complete: result.rows.length < limit }
 }
 
 /** Exported for tests: fixture JSON in, branch-keyed map out. */

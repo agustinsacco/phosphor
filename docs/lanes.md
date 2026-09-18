@@ -67,9 +67,17 @@ rather than a one-click create button.
 Two queries:
 
 - `ghPrForBranch` — one branch. Used by the top-bar branch popup.
-- `ghPrsForRepo` — the whole repo, indexed by `headRefName`. Used by the
+- `ghPrsForRepo`: a bounded repo listing, indexed by `headRefName`. Used by the
   sidebar. **Never fan the single-branch query across the sidebar**; that is
   8-20 subprocesses per refresh.
+
+Both queries resolve the repository from the supplied working directory, with
+no workspace or organization allowlist. They first request check details. If
+that fails (including GitHub GraphQL resource limits in CI-heavy repos), they
+retry once with identity and state only, keeping the same PR limit. A PR
+still shows its number and state. Check, review and mergeability details are
+unavailable in this fallback; it gets no green checkmark and cannot make a
+Home lane ready to merge.
 
 `stores/pullRequests.ts` is keyed by **repo path**, not session: a sidebar
 group is exactly one repo, because worktrees fold into their main checkout. A
@@ -80,19 +88,22 @@ Refresh is event-driven (window focus, disk listing change), only for
 from several triggers is free.
 
 Every `gh` failure is a normal state, not an error: not installed, not
-authenticated, no GitHub remote. All render as no chip. Nothing here toasts.
+authenticated, no GitHub remote. A failed listing returns `null`, preserves
+previously known PR chips, and revokes any inferred absence. Attempts,
+including failures, are throttled per repo. Nothing here toasts.
 
 Every `gh` run goes through `piProcessEnv`, so PATH is the login shell's. A GUI
 launch inherits launchd's PATH, which has no Homebrew in it, and a bare
 `execFile('gh', …)` would fail in the installed app while working in dev.
 
 **"No PR yet" is inferred, and inference needs a stricter gate than a real
-chip.** `gh` never reports absence; a branch with no PR simply does not appear
-in the map, which looks the same as gh being unavailable. The `↑ no PR`
-fallback renders only once a fetch for that repo has actually completed
-**and** the lane is a worktree. A trunk checked out directly is not "a lane",
-and guessing "you could open a PR" there is wrong more often than right. A
-**confirmed** chip has no such restriction.
+chip.** The `↑ no PR` fallback renders only after a successful, complete
+listing and only for a worktree with a known branch. The repo query is capped
+at 100 recent PRs; a full page cannot prove absence for an older branch, so it
+never produces this fallback. A failed query cannot prove absence either.
+A trunk checked out directly is not "a lane", and guessing "you could open a
+PR" there is wrong more often than right. A **confirmed** chip has no such
+restriction.
 
 ### The chip is one token carrying two signals
 

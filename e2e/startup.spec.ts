@@ -40,6 +40,90 @@ async function launch(theme: 'light' | 'dark' | 'system') {
   }
 }
 
+test('lane PR badges distinguish lightweight, unavailable and truncated results', async () => {
+  const h = await launch('light')
+  try {
+    await h.app.evaluate(({ ipcMain }, workspace) => {
+      const state = globalThis as unknown as { prResult: unknown }
+      state.prResult = {
+        byBranch: {
+          'team/service-update': {
+            number: 17006,
+            title: 'Service update',
+            state: 'OPEN',
+            url: 'https://github.com/example/service/pull/17006',
+            checks: null,
+          },
+        },
+        complete: false,
+      }
+      ipcMain.removeHandler('gh:available')
+      ipcMain.handle('gh:available', () => true)
+      ipcMain.removeHandler('gh:prsForRepo')
+      ipcMain.handle('gh:prsForRepo', (_event, repoPath) =>
+        repoPath === workspace ? state.prResult : null,
+      )
+      ipcMain.removeHandler('git:infoBatch')
+      ipcMain.handle('git:infoBatch', () => ({
+        [workspace]: {
+          isRepo: true,
+          isWorktree: true,
+          mainRepoPath: workspace,
+          branch: 'team/service-update',
+        },
+      }))
+      ipcMain.removeHandler('sessions:list')
+      ipcMain.handle('sessions:list', (_event, cwd) =>
+        cwd === workspace
+          ? [
+              {
+                path: `${workspace}/service.jsonl`,
+                sessionId: 'service',
+                cwd: workspace,
+                name: 'Service update',
+                createdAt: new Date().toISOString(),
+                lastActivityAt: new Date().toISOString(),
+                mtimeMs: Date.now(),
+                userMessages: 1,
+                assistantMessages: 1,
+                toolCalls: 0,
+                totalTokens: 0,
+                inputTokens: 0,
+                outputTokens: 0,
+                cacheReadTokens: 0,
+                cacheWriteTokens: 0,
+                cost: 0,
+                entryCount: 2,
+                branchCount: 0,
+              },
+            ]
+          : [],
+      )
+    }, h.workspace)
+    await h.page.reload()
+    const row = h.page.getByTestId('session-row')
+    const badge = row.getByTestId('session-pr-badge')
+    await expect(badge).toHaveText('#17006')
+    await expect(badge).toHaveAttribute('title', /checks unavailable/)
+
+    for (const result of [null, { byBranch: {}, complete: false }]) {
+      await h.app.evaluate((_electron, value) => {
+        ;(globalThis as unknown as { prResult: unknown }).prResult = value
+      }, result)
+      await h.page.reload()
+      await expect(row).toBeVisible()
+      await expect(badge).toHaveCount(0)
+    }
+    await h.app.evaluate(() => {
+      ;(globalThis as unknown as { prResult: unknown }).prResult = { byBranch: {}, complete: true }
+    })
+    await h.page.reload()
+    await expect(badge).toHaveText('↑ no PR')
+  } finally {
+    await h.close()
+  }
+})
+
 // Hold real IPC boundaries, not a UI timer: the screen must follow actual
 // readiness, and no production-only delay/test hook is needed.
 async function holdStartup(app: ElectronApplication, workspace: string) {

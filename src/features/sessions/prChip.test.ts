@@ -56,6 +56,15 @@ describe('prChip', () => {
     expect(prChip(pr()).title).toContain('no checks')
   })
 
+  it('never claims green checks when a lightweight query omitted them', () => {
+    for (const reviewDecision of [undefined, 'APPROVED'] as const) {
+      const chip = prChip(pr({ checks: null, reviewDecision }))
+      expect(chip.label).toBe('#412')
+      expect(chip.glyph).toBe('')
+      expect(chip.title).toContain('checks unavailable')
+    }
+  })
+
   it('always labels with the PR number', () => {
     expect(prChip(pr({ number: 7 })).label).toBe('#7')
   })

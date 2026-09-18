@@ -51,6 +51,7 @@ import type {
   PackageJobAction,
   PiPackageEntry,
   GhPullRequest,
+  GhRepoPullRequests,
   GitInfo,
   HeadroomStatus,
   OptimizationStats,
@@ -691,13 +692,13 @@ export interface IpcInvokeMap {
     result: GhPullRequest | null
   }
   /**
-   * Every recent PR in a repo, keyed by head branch — one `gh` subprocess for
-   * a whole sidebar group. `gh:prForBranch` stays for the single-branch popup;
-   * fanning it out across N lanes is N subprocesses per refresh.
+   * Bounded PR listing for a whole sidebar group, with a lighter fallback
+   * when check details fail. null means unavailable, not an empty repository.
+   * `gh:prForBranch` stays for the single-branch popup, never per-lane fanout.
    */
   'gh:prsForRepo': {
     args: [repoPath: string]
-    result: Record<string, GhPullRequest>
+    result: GhRepoPullRequests | null
   }
   'gh:available': { args: []; result: boolean }
 
