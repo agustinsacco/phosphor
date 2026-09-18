@@ -258,9 +258,9 @@ app.on('before-quit', (event) => {
  * Teardown for shutdowns Electron does not route through `before-quit`.
  *
  * Synchronous only: by the time these fire the parent is already going away,
- * so an awaited dispose would lose the race. Nothing here writes to disk (pi
- * owns its session files and gets a SIGTERM to flush), and watchers/timers die
- * with the process.
+ * so an awaited dispose would lose the race. Pi owns its session files, but
+ * SIGTERM does not guarantee persistence of an unfinished turn. Nothing here
+ * writes a recovery record; watchers and timers die with the process.
  */
 function hardShutdown(): never {
   quitting = true

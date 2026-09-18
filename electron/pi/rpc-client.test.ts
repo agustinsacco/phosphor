@@ -39,6 +39,30 @@ describe('PiRpcClient', () => {
     }
   })
 
+  it('tracks work before transport writes and before event consumers run', async () => {
+    const client = track(makeClient())
+    client.spawn()
+    expect(client.activity.busy).toBe(true)
+    await client.request({ type: 'get_state' })
+    expect(client.activity.busy).toBe(false)
+    const ended = new Promise<void>((resolve) => {
+      client.on('event', (event) => {
+        if (event.type === 'agent_end') {
+          expect(client.activity.busy).toBe(true)
+          resolve()
+        }
+      })
+    })
+    const prompt = client.request({ type: 'prompt', message: 'hi' })
+    expect(client.activity.busy).toBe(true)
+    await prompt
+    await ended
+    await client.request({ type: 'get_state' }) // This fixture predates agent_settled.
+    expect(client.activity.busy).toBe(false)
+    await client.dispose()
+    expect(client.activity.busy).toBe(false)
+  })
+
   it('resolves out-of-order responses to the right waiters', async () => {
     const client = track(makeClient())
     client.spawn()

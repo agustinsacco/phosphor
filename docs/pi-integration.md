@@ -109,6 +109,20 @@ pi's `ToolName` union (`dist/core/tools/index.d.ts`) has an **eighth**: `powersh
 
 Unknown/extension tools (MCP tools via pi-mcp-adapter, subagent tools, etc.) MUST render well generically: name, pretty-JSON args (collapsed), streaming output, error state. The exception proves the rule: Phosphor's own `artifact_create` / `artifact_update` / `artifact_edit` get cased cards in `ToolCard.tsx` because Phosphor ships the extension that emits them and therefore knows the shape.
 
+## Main-process activity facts
+
+Each `PiRpcClient` owns a `SessionActivity` tracker, updated before transport
+writes and before responses/events reach consumers. It includes renderer and
+routine requests, direct bash, compaction, retries, queued prompts, executing
+tools, and blocking extension dialogs. Display-only status does not count as
+work. Startup and failed writes remain uncertain until a fresh state response.
+
+`agent_end` is not treated as settled: recovery or queued work can follow it.
+A state response issued before newer activity cannot overwrite newer facts.
+Older pi builds can establish idle state through a fresh `get_state`, but that
+response cannot clear retries, direct bash, or dialogs it does not describe.
+These facts do not themselves add quit confirmation or automatic suspension.
+
 ## Sessions on disk (drives the sidebar without spawning processes)
 
 - JSONL tree files: `~/.pi/agent/sessions/--<cwd with / replaced by ->--/<timestamp>_<uuid>.jsonl`. Respect `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR`.
