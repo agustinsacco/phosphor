@@ -37,6 +37,7 @@ import {
   setLaneMarkers,
   setLanePrefs,
   setPinnedSessions,
+  setSessionOrder,
   setRecentWorkspaces,
   setTheme,
   setAgentDirectives,
@@ -129,6 +130,8 @@ export function registerAppHandlers(): void {
     // origin, and reads Chromium's scheme rather than the app's theme class.
     applyThemeSource(theme)
   })
+
+  handle('app:setSessionOrder', (_event, paths) => setSessionOrder(paths))
 
   handle('app:setPinnedSessions', (_event, paths) => {
     setPinnedSessions(paths)

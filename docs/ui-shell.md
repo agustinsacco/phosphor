@@ -121,8 +121,18 @@ screen.
 - **Flat nav rows**: `New`, `Artifacts`, `Skills`, `Routines`. `New` routes to the home
   screen; it does not spawn a session, because the folder and the first prompt
   are chosen there. Artifacts, Skills, and Routines open global pages (below).
-- **Session list** for the active workspace: pinned, then recent, with group
-  headers. Each row: name (or first-message preview), relative time, state.
+- **Session list**: pinned, then sessions grouped by project. Each row: name
+  (or first-message preview), relative time, state. Drag a row above or below
+  another in its section to reorder it, or use its context menu's **Move up /
+  Move down** or **Alt+↑ / Alt+↓** while focused. Open, suspended and closed
+  sessions share one order, persisted by session file path across restarts.
+  First-turn rows become reorderable once pi reports their file path, without
+  waiting for the transcript scan. New sessions appear above the saved order.
+  Pinned sessions reorder within Pinned; dragging never changes a session's
+  project, pin state or running process. Search and multi-select temporarily
+  disable reordering. A thin accent insertion line marks the drop position;
+  rows stay still until drop, the list scrolls near its edges, and Escape
+  cancels without saving.
   Starting/working lanes use the shared
   [Phosphor Beacon](style-guide.md#loading-identity--phosphor-beacon), an amber
   edge rail and a status chip in place of the timestamp. Context menu: open,

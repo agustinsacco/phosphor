@@ -146,7 +146,12 @@ const SESSION_DIR = path.join(
     .replace(/^[/\\]/, '')
     .replace(/[/\\:]/g, '-')}--`,
 )
-const SESSION_FILE = path.join(SESSION_DIR, `2026-01-01T00-00-00-000Z_stub-${process.pid}.jsonl`)
+// Resume keeps the file identity, just like pi, rather than minting a duplicate row.
+const RESUME_FLAG = process.argv.indexOf('--session')
+const SESSION_FILE =
+  RESUME_FLAG !== -1
+    ? process.argv[RESUME_FLAG + 1]
+    : path.join(SESSION_DIR, `2026-01-01T00-00-00-000Z_stub-${process.pid}.jsonl`)
 
 /**
  * Create the session directory and file, optionally late.
@@ -165,6 +170,7 @@ const SESSION_FILE = path.join(SESSION_DIR, `2026-01-01T00-00-00-000Z_stub-${pro
  * that covers it can actually fail when the fix is removed.
  */
 function writeSessionFile() {
+  if (RESUME_FLAG !== -1 && fs.existsSync(SESSION_FILE)) return
   try {
     fs.mkdirSync(SESSION_DIR, { recursive: true })
     fs.writeFileSync(

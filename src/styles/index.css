@@ -876,6 +876,26 @@ select:focus:not(:focus-visible) {
 
 /* Working is NOT selection. Keep the neutral selected-row fill and add a
    straight, inset beacon rail only while the lane is actually in flight. */
+.session-sort-row[data-dragging] {
+  opacity: 0.4;
+}
+.session-sort-row[data-drop]::after {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset-inline: 8px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--px-accent);
+  pointer-events: none;
+}
+.session-sort-row[data-drop='before']::after {
+  top: -1px;
+}
+.session-sort-row[data-drop='after']::after {
+  bottom: -1px;
+}
+
 .lane-row {
   position: relative;
   container-type: inline-size;
