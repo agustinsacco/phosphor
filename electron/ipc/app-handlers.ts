@@ -309,6 +309,12 @@ export function registerAppHandlers(): void {
    * left every lane chat pointing at a path that no longer existed, and they
    * vanished from the sidebar along with their pins, markers and badges.
    *
+   * What does NOT move here is the cwd pi froze inside each session file. That
+   * is realigned on the open path instead (`electron/pi/session-cwd.ts`), which
+   * covers every way a folder can move — this rename, a restored backup, the
+   * userData directory changing name — with one mechanism rather than one per
+   * cause, and repairs files an earlier rename already broke.
+   *
    * Refused while a session is live ANYWHERE inside the folder, for the same
    * subtree reason: a lane session's cwd is under the sandbox, so an exact
    * path compare passed it and renamed the folder out from under a running
