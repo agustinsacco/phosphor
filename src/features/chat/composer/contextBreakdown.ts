@@ -13,13 +13,25 @@
 
 export const CONTEXT_BREAKDOWN_STATUS_KEY = 'phosphor-context-breakdown'
 
+export interface McpServerCost {
+  /** Approximate tokens this server's schemas occupy in the window. */
+  tokens: number
+  /** Schemas in the window, the gateway proxy included. */
+  count: number
+  /** Of those, the server's own tools registered directly (not the proxy). */
+  direct: number
+  /** Tools the server offers, per the adapter; null when unknown. */
+  toolCount: number | null
+}
+
 export interface ContextBreakdown {
   totalTokens: number | null
   contextWindow: number | null
   parts: { messages: number; systemPrompt: number; tools: number; mcpTools: number }
+  /** `messages` is what is in context: entries since the last compaction. */
   counts: { tools: number; mcpTools: number; messages: number }
   /** Approximate MCP schema cost per server. Absent from older payloads. */
-  mcpByServer: Record<string, { tokens: number; count: number }>
+  mcpByServer: Record<string, McpServerCost>
   approximate: boolean
 }
 
@@ -48,29 +60,41 @@ export interface BreakdownSlice {
  * a Claude session and ~0.5k on a native one.
  *
  * It must be shown as its own slice, never spread across the measured ones.
- * See `scaleFor`.
  */
 export function measuredTokens(breakdown: ContextBreakdown): number {
   const p = breakdown.parts
   return p.messages + p.systemPrompt + p.tools + p.mcpTools
 }
 
+/** The parts that do not change between turns: prompt and schemas. */
+function fixedTokens(breakdown: ContextBreakdown): number {
+  const p = breakdown.parts
+  return p.systemPrompt + p.tools + p.mcpTools
+}
+
 /**
- * Estimates are scaled DOWN to fit pi's total, and never up.
+ * Estimates are fitted to pi's total, never inflated to it.
  *
- * Down is honest: `~4 characters per token` can overshoot, and a component
- * cannot occupy more of the window than the whole request does.
+ * Up is dishonest: it assumes every token pi counts belongs to something the
+ * extension measured, which is false for any CLI provider, so the provider's
+ * own prompt and tool schemas were silently added to *our* slices. A fixed
+ * 9,914-token system prompt rendered as 44.1k then 22.5k across four turns of
+ * one Claude session. The remainder is the `unmeasured` slice instead.
  *
- * Up is not. Scaling up assumes every token pi counts belongs to something
- * this extension measured, which is false for any CLI provider — so the
- * provider's own prompt and tool schemas were silently added to *our* slices.
- * A fixed 9,914-token system prompt rendered as 44.1k then 22.5k across four
- * turns of one Claude session, drifting with the provider's hidden share, while
- * the same code stayed within ~8% on a native pi session. The remainder is the
- * `unmeasured` slice instead.
+ * Down is taken from the MESSAGES first, and from the fixed parts only as a
+ * last resort. The prompt and the schemas are the same size on every turn and
+ * the extension measures them exactly (the text is in hand); the message
+ * estimate is the one that overshoots, and on a Claude Code session it is the
+ * one pi's record cannot follow at all once the CLI compacts. Scaling all four
+ * by one factor turned 4.6k of system prompt into 1.5k and 534 tokens of MCP
+ * proxies into 237, and made seven identical proxy schemas read as "34" on
+ * one session and "77" on the next.
  */
-function scaleFor(measured: number, total: number): number {
-  return measured > total && measured > 0 ? total / measured : 1
+function fit(breakdown: ContextBreakdown, total: number): { messages: number; fixed: number } {
+  const fixed = fixedTokens(breakdown)
+  if (total <= 0) return { messages: 0, fixed: 0 }
+  if (fixed > total) return { messages: 0, fixed: total / fixed }
+  return { messages: Math.min(breakdown.parts.messages, total - fixed), fixed: 1 }
 }
 
 /**
@@ -110,37 +134,41 @@ export function parseContextBreakdown(statusText: string | undefined): ContextBr
 /**
  * Per-server MCP cost, rebuilt defensively: the extension is a separate file
  * loaded into pi, so a session started by an older Phosphor build sends a payload
- * without this key. Missing means "no per-server detail", never zero cost.
+ * without this key, or one without `direct` / `toolCount`. Missing means "no
+ * per-server detail" or "unknown total", never zero cost.
  */
 function parseByServer(raw: unknown): ContextBreakdown['mcpByServer'] {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
   const out: ContextBreakdown['mcpByServer'] = {}
+  const num = (value: unknown): number => (typeof value === 'number' && value >= 0 ? value : 0)
   for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!name || !value || typeof value !== 'object') continue
-    const record = value as { tokens?: unknown; count?: unknown }
-    const tokens = typeof record.tokens === 'number' && record.tokens >= 0 ? record.tokens : 0
-    const count = typeof record.count === 'number' && record.count >= 0 ? record.count : 0
+    const record = value as Partial<McpServerCost>
+    const tokens = num(record.tokens)
+    const count = num(record.count)
     if (tokens === 0 && count === 0) continue
-    out[name] = { tokens, count }
+    out[name] = {
+      tokens,
+      count,
+      direct: Math.min(count, num(record.direct)),
+      toolCount:
+        typeof record.toolCount === 'number' && record.toolCount >= 0 ? record.toolCount : null,
+    }
   }
   return out
 }
 
 /**
- * Per-server MCP rows for the popover, largest first and scaled the same way
+ * Per-server MCP rows for the popover, largest first and fitted the same way
  * the slices are, so the numbers agree with the bar above them.
  */
 export function mcpServerRows(
   breakdown: ContextBreakdown,
   total: number,
-): Array<{ name: string; tokens: number; count: number }> {
-  const scale = scaleFor(measuredTokens(breakdown), total)
+): Array<{ name: string } & McpServerCost> {
+  const scale = fit(breakdown, total).fixed
   return Object.entries(breakdown.mcpByServer)
-    .map(([name, value]) => ({
-      name,
-      tokens: Math.round(value.tokens * scale),
-      count: value.count,
-    }))
+    .map(([name, value]) => ({ name, ...value, tokens: Math.round(value.tokens * scale) }))
     .sort((a, b) => b.tokens - a.tokens || a.name.localeCompare(b.name))
 }
 
@@ -148,11 +176,12 @@ export function mcpServerRows(
  * Turn a breakdown into rendered slices against the authoritative totals.
  *
  * `total` and `window` come from pi (not the extension), because pi's number
- * is the one that decides compaction. The measured components keep their own
- * size (clamped down to fit — see `scaleFor`), and whatever pi counts beyond
- * them becomes the `unmeasured` slice. Both remainders are honest: `unmeasured`
- * is the part of the request this process cannot see, "Free space" is the part
- * of the window nothing occupies yet.
+ * is the one that decides compaction. The fixed components keep their own
+ * size, the message estimate is clamped to what is left of the total (see
+ * `fit`), and whatever pi counts beyond them becomes the `unmeasured` slice.
+ * Both remainders are honest: `unmeasured` is the part of the request this
+ * process cannot see, "Free space" is the part of the window nothing occupies
+ * yet.
  */
 export function breakdownSlices(
   breakdown: ContextBreakdown,
@@ -160,37 +189,39 @@ export function breakdownSlices(
   window: number,
 ): BreakdownSlice[] {
   const parts = breakdown.parts
-  const scale = total > 0 ? scaleFor(measuredTokens(breakdown), total) : 0
+  const fitted = fit(breakdown, total)
   const pct = (tokens: number): number => (window > 0 ? (tokens / window) * 100 : 0)
 
-  const scaled = (tokens: number): number => Math.round(tokens * scale)
+  const fixed = (tokens: number): number => Math.round(tokens * fitted.fixed)
   const slices: BreakdownSlice[] = [
     {
       key: 'messages',
       label: 'Messages',
-      tokens: scaled(parts.messages),
+      tokens: Math.round(fitted.messages),
       color: 'var(--px-accent)',
       count: breakdown.counts.messages,
+      hint: 'Messages the model currently holds: everything since the last compaction, tool results included. The Session count below is every message in the file.',
     },
     {
       key: 'systemPrompt',
       label: 'System prompt',
-      tokens: scaled(parts.systemPrompt),
+      tokens: fixed(parts.systemPrompt),
       color: 'var(--px-success)',
     },
     {
       key: 'tools',
       label: 'Tools',
-      tokens: scaled(parts.tools),
+      tokens: fixed(parts.tools),
       color: 'var(--px-warning)',
       count: breakdown.counts.tools,
     },
     {
       key: 'mcpTools',
       label: 'MCP tools',
-      tokens: scaled(parts.mcpTools),
+      tokens: fixed(parts.mcpTools),
       color: 'var(--px-danger)',
       count: breakdown.counts.mcpTools,
+      hint: 'MCP schemas in the window: one gateway proxy per server plus any tools loaded directly. See the chips below for each server.',
     },
   ]
     .filter((slice) => slice.tokens > 0)
@@ -206,7 +237,7 @@ export function breakdownSlices(
       tokens: unmeasured,
       percent: pct(unmeasured),
       color: 'var(--px-text-tertiary)',
-      hint: "Counted by pi but not visible from inside it. On a CLI provider this is the CLI's own system prompt, its native tool schemas and results it keeps in its own transcript; elsewhere it is drift between the character estimate and the real tokenizer.",
+      hint: "Counted by pi but not visible from inside it. On a CLI provider this is the CLI's own system prompt, its native tool schemas, its compaction summary and results it keeps in its own transcript; elsewhere it is drift between the character estimate and the real tokenizer.",
     })
   }
 
