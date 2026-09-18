@@ -1,5 +1,5 @@
 import { handle } from './handle'
-import { gitInfo, gitInfoBatch } from '../fs/git-info'
+import { gitDisplayInfo, gitInfoBatch } from '../fs/git-info'
 import { ghAvailable, ghPrForBranch, ghPrsForRepo } from '../fs/gh-cli'
 import { createSessionBaseline, gitStatusMap, restoreFileTo, showFileAt } from '../fs/git-service'
 import {
@@ -25,7 +25,7 @@ export function registerGitHandlers(): void {
 
   handle('gh:prsForRepo', (_event, repoPath: string) => ghPrsForRepo(repoPath))
 
-  handle('git:info', (_event, workspacePath: string) => gitInfo(workspacePath))
+  handle('git:info', (_event, workspacePath: string) => gitDisplayInfo(workspacePath))
 
   handle('git:infoBatch', (_event, cwds: string[]) => gitInfoBatch(cwds))
 

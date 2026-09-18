@@ -37,13 +37,6 @@ Two more that are worth reading in full because their history is misleading:
   "there is no cross-session manager" (CLAUDE.md fact 5) as deliberate and this
   as the cost of it.
 
-**S12 — `git:info` is uncached**: four `git` spawns per debounced `fs:changed`,
-18 ms median on this repo, called from `BranchControl` on every file change.
-The TTL cache plus in-flight dedupe in `electron/fs/git-info.ts` is on
-`gitInfoBatch`, the **sibling** function. This was filed as fixed for thirteen
-days because a status note credited the wrong function — check which one you
-are looking at before concluding it is handled.
-
 **S13 — the captured reducer/e2e fixture uses the pre-0.84.0 wire shape.**
 `src/features/chat/__fixtures__/real-session-events.jsonl` carries `message`
 and `assistantMessageEvent.partial` on all 193 `message_update` records and no

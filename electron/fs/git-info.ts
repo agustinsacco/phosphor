@@ -1,6 +1,7 @@
 import { dirname, resolve } from 'node:path'
 import type { GitInfo } from '@shared/models'
 import { dirtyCount, git } from './git-exec'
+import { gitInfoCache } from './git-info-cache'
 
 /**
  * Detect a linked worktree from one `rev-parse` call: for a worktree the
@@ -64,15 +65,12 @@ export async function gitInfo(workspacePath: string): Promise<GitInfo> {
   }
 }
 
-// ---------- batched, cached summaries for the sidebar ----------
-
-interface CacheEntry {
-  at: number
-  value: Promise<GitInfo>
+/** Display queries only: routine preflight and lane setup use fresh gitInfo. */
+export function gitDisplayInfo(workspacePath: string): Promise<GitInfo> {
+  return gitInfoCache.get(workspacePath, 'full', gitInfo)
 }
 
-const CACHE_TTL_MS = 5_000
-const summaryCache = new Map<string, CacheEntry>()
+// ---------- batched, cached summaries for the sidebar ----------
 
 /**
  * Cheap per-cwd summary for sidebar rows: branch, worktree flag, dirty count.
@@ -108,7 +106,8 @@ async function gitSummary(cwd: string): Promise<GitInfo> {
 /**
  * Batch git summaries with a short TTL cache and in-flight dedupe. Sidebar
  * rows share cwds (sessions group by folder), so a large sidebar resolves to
- * a handful of actual git invocations, capped at 4 concurrent.
+ * a handful of actual git invocations. The cache caps display queries at four
+ * concurrent across all batches and full-info callers, not four per batch.
  */
 export async function gitInfoBatch(cwds: string[]): Promise<Record<string, GitInfo>> {
   const unique = [...new Set(cwds)].filter(Boolean)
@@ -116,15 +115,7 @@ export async function gitInfoBatch(cwds: string[]): Promise<Record<string, GitIn
   const queue = [...unique]
   const worker = async (): Promise<void> => {
     for (let cwd = queue.shift(); cwd !== undefined; cwd = queue.shift()) {
-      const cached = summaryCache.get(cwd)
-      let promise: Promise<GitInfo>
-      if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
-        promise = cached.value
-      } else {
-        promise = gitSummary(cwd)
-        summaryCache.set(cwd, { at: Date.now(), value: promise })
-      }
-      result[cwd] = await promise
+      result[cwd] = await gitInfoCache.get(cwd, 'summary', gitSummary)
     }
   }
   await Promise.all(Array.from({ length: Math.min(4, unique.length) }, worker))

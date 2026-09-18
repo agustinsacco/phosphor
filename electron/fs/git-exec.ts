@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 
 import { errorText } from '@shared/errors'
+import { gitInfoCache } from './git-info-cache'
 
 const execFileAsync = promisify(execFile)
 
@@ -39,7 +40,31 @@ export interface GitOptions {
 const TIMEOUT_MS = 30_000
 const MAX_BUFFER = 64 * 1024 * 1024
 
+const READ_ONLY = new Set([
+  'rev-parse',
+  'rev-list',
+  'status',
+  'diff',
+  'show',
+  'for-each-ref',
+  'merge-base',
+  'ls-files',
+  'check-ref-format',
+  'cat-file',
+  // These write unreachable objects, not HEAD, refs, or the working tree.
+  'write-tree',
+  'commit-tree',
+])
+
 export async function git(cwd: string, args: string[], options: GitOptions = {}): Promise<string> {
+  const readOnly =
+    READ_ONLY.has(args[0] ?? '') ||
+    (args[0] === 'worktree' && args[1] === 'list') ||
+    (args[0] === 'symbolic-ref' && args[1] === '--short' && args.length === 3) ||
+    (Boolean(options.env?.GIT_INDEX_FILE) && ['add', 'read-tree'].includes(args[0] ?? ''))
+  // Unknown commands conservatively invalidate. Shared refs affect sibling
+  // worktrees too, so mutations clear all display entries, before and after.
+  if (!readOnly) gitInfoCache.invalidate()
   try {
     const { stdout } = await execFileAsync('git', args, {
       cwd,
@@ -51,6 +76,9 @@ export async function git(cwd: string, args: string[], options: GitOptions = {})
   } catch (error) {
     if (options.allowFail) return ''
     throw error
+  } finally {
+    // Failed mutations can still leave changed state, e.g. a conflicted merge.
+    if (!readOnly) gitInfoCache.invalidate()
   }
 }
 

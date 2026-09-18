@@ -93,6 +93,26 @@ open workspace is itself a worktree, because a new chat means new work.
 Continuing on the branch you are looking at is the sidebar's "New session
 here".
 
+## Git display queries
+
+`git:info` caches full display metadata for one second; sidebar summaries use
+five seconds. Keys use canonical workspace paths and keep full and summary
+responses separate. Concurrent callers share one query per key, with a global
+limit of four display queries across batches. TTL starts when a query completes.
+The cache retains at most 128 entries once outstanding queries settle; failures
+and incomplete metadata are retried rather than cached.
+
+Debounced workspace changes invalidate that workspace before notifying the UI.
+Phosphor Git mutations conservatively invalidate all display entries before and
+after execution, including failures, because refs can affect sibling worktrees.
+An invalidated in-flight result cannot repopulate the cache; subsequent readers
+wait for it and share a replacement query. External changes outside watcher
+coverage become visible on a new query after TTL expiry.
+
+Routine preflight and lane setup still call uncached `gitInfo`. Display caches
+never decide whether uncommitted work is safe to modify. Other Git operations
+are not queued behind the display-query concurrency limit.
+
 ## Code map
 
 - `src/features/sessions/startChat.ts` — the home composer's send path:
