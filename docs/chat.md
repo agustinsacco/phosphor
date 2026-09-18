@@ -321,21 +321,42 @@ that. Only the **total is authoritative**: component sizes are character-based
 estimates (no tokenizer is reachable from an extension), labelled approximate,
 and free space is the honest remainder.
 
-`breakdownSlices` scales estimates **down** to fit pi's total and never up. The
-extension can only measure pi's own state, and under a CLI provider that is a
-minority of the request: the Claude CLI sends its own system prompt and native
-tool schemas and keeps native tool results in its own transcript. That
-remainder is its own **Unmeasured** slice. Never fold provider-side context
-into a row that names something else, and never let the parts sum past the
-total. An absurd total or a dominant Unmeasured slice is evidence about the
-provider's `totalTokens`, not about the estimate.
+**Messages means what the model holds now.** The extension walks pi's own
+`buildContextEntries()` (the last compaction's summary plus the kept tail),
+never the whole branch, and estimates each entry the way pi's `estimateTokens`
+does: user and tool-result text, images at pi's stand-in, assistant text,
+thinking and tool-call arguments, compaction and branch summaries. On a Claude
+Code session pi's record never compacts, so the provider's
+`[Claude Code · compact {…}]` marker is the cut instead: only what follows it
+counts, and the CLI's summary lands in Unmeasured. `Messages · N` in the legend
+is that in-context count; `Messages (all)` in the Session column is pi's count
+over the whole file. They differ on purpose.
 
-**MCP servers** breaks the MCP slice down per connector, as chips (name +
-tokens), because a single slice cannot say which server to disconnect. Under
-the gateway that is **one proxy tool per server** (`mcp__<server>`, ~700
-tokens); the server's own tools are fetched on demand and never carried in
-context. A server with `directTools` is the exception: every schema lands in
-the window, and its chip goes from hundreds of tokens to tens of thousands
+`breakdownSlices` fits estimates to pi's total and never inflates them. The
+fixed parts (system prompt, tool schemas, MCP schemas) are measured exactly
+and are **never scaled**; an overshoot comes off the message estimate, which
+is the one that can be wrong, and the fixed parts shrink only if they alone
+exceed pi's total (a stale poll). Scaling all four by one factor is the bug
+this replaces: 4.6k of system prompt read as 1.5k and the same seven proxy
+schemas read "34" on one session and "77" on another. The extension can only
+measure pi's own state, and under a CLI provider that is a minority of the
+request: the Claude CLI sends its own system prompt and native tool schemas
+and keeps native tool results and its compaction summary in its own
+transcript. That remainder is its own **Unmeasured** slice. Never fold
+provider-side context into a row that names something else, and never let
+the parts sum past the total. An absurd total or a dominant Unmeasured slice
+is evidence about the provider's `totalTokens`, not about the estimate.
+
+**MCP servers** breaks the MCP slice down per connector, as chips
+(`name  loaded/total  ~tokens`), because a single slice cannot say which
+server to disconnect. `loaded` is how many of the server's tools have a schema
+in the window right now, `total` is how many it offers (from the adapter's
+status snapshot; `?` until it reports), and the tokens are the schema cost.
+Under the gateway a server is **one proxy tool** (`mcp__<server>`, tens of
+tokens each, identical across servers) and reads `0/61`: its tools are fetched
+on demand and never carried in context. A server with `directTools`, or a
+search-mode activation, is the exception: those schemas land in the window and
+the chip reads `12/61` with a cost in the thousands
 ([mcp.md](mcp.md#the-claude-provider-reaches-mcp-through-pi-not-around-it)).
 
 **Plan usage vs Plan limits** answer different questions and are never merged.
