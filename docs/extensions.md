@@ -138,6 +138,32 @@ Rules the sheet keeps:
 `src/dev/mockPhosphor.ts` raises one in the browser harness when a prompt
 starts with `danger`.
 
+### Optional LocalStack permission gate
+
+`pi-ext/optional/permission-gate.ts` is an opt-in, standalone global gate,
+not one of Phosphor's six loaded extensions. To install it, review the file,
+back up any existing `~/.pi/agent/extensions/permission-gate.ts`, then copy it
+there. Use `/reload` in pi or start a new Phosphor session to load the change.
+
+It preserves the general dangerous-command prompts and hard blocks for
+`shred` and `truncate`. The AWS exception accepts only literal S3 reads:
+`list-objects-v2` and `s3 cp s3://bucket/key -`, optionally redirected to a
+simple `/tmp/filename`. Each invocation must start with `env -u AWS_PROFILE`,
+set `AWS_ACCESS_KEY_ID=test`, `AWS_SECRET_ACCESS_KEY=test`, and
+`AWS_DEFAULT_REGION=us-east-1`, then invoke `aws` with an explicit endpoint of
+`http://localhost:4566` or `http://127.0.0.1:4566`. The three assignments can
+appear in any order; the endpoint must precede the service name.
+
+Only a small allowlist of read options is accepted. Writes, profiles,
+endpoint overrides, dynamic shell syntax, and unsupported forms still prompt.
+Commands are checked individually, so a local read never approves a second
+real AWS invocation. Literal quoted Python heredocs can accompany reads.
+Other risky-command checks still examine the entire original script.
+
+This remains a `bash` tool confirmation heuristic, not a sandbox or a policy
+for SDK calls, other tools, aliases, or substituted executables. Phosphor's
+approval UI explains the request but does not enforce this exception itself.
+
 ## Foreign config files
 
 Some packages keep config outside pi's settings. Phosphor mirrors each
@@ -284,7 +310,7 @@ parameter. A call with no arguments reaches pi as `arguments: ""` on the
 Claude Code provider, and pi validates before `execute`, so an all-optional
 schema fails every call with `root: must be object`.
 
-`worktree-paths.ts` is the only Phosphor code that can refuse a tool call. A
+`worktree-paths.ts` is the only bundled extension that can refuse a tool call. A
 worktree session's cwd contains the main checkout as a prefix, and models
 rebuild absolute paths from what they think the project root is, so a session
 in `.phosphor/worktrees/<name>` was reading files off a different branch.
