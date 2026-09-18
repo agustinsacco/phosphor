@@ -321,11 +321,18 @@ system prompt sends the model to absolute paths outside the cwd for its docs.
 
 `context-breakdown.ts` exists because pi reports context usage as one number,
 and the composed system prompt and active tool schemas are not reachable from
-the renderer. Two traps: `getAllTools()` returns definitions (the schemas that
-occupy context) while `getActiveTools()` returns **names**; and it publishes at
-rest (`session_start`, `agent_settled`, `turn_end`), never mid-stream. It
-attributes MCP schema cost **per server** using the adapter's server names
-from pi's shared event bus (`pi-mcp-adapter/status/v1`).
+the renderer. Three traps: `getAllTools()` returns definitions (the schemas that
+occupy context) while `getActiveTools()` returns **names**; it publishes at
+rest (`session_start`, `agent_settled`, `turn_end`), never mid-stream; and
+messages are measured over `sessionManager.buildContextEntries()` with pi's
+own per-role `estimateTokens` rules, never over `getBranch()`, which still
+holds every compacted-away message (measured: 292k for a 151k context). On a
+Claude Code session the provider's `[Claude Code · compact {…}]` block is the
+cut point instead. It attributes MCP schema cost **per server** using the
+adapter's server names and `toolCount` from pi's shared event bus
+(`pi-mcp-adapter/status/v1`), and reports per server how many schemas are in
+the window and how many of those are the server's own tools rather than the
+gateway proxy.
 
 `mcp-status.ts` exists for the same reason in the other direction: the adapter
 publishes each server's state on that bus, but pi's RPC has no channel for it.

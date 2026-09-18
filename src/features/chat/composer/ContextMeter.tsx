@@ -226,7 +226,9 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
                 ) : (
                   <StatRow label="Cost" value={formatCost(stats.cost)} />
                 )}
-                <StatRow label="Messages" value={String(stats.totalMessages)} />
+                {/* pi's count over the whole file, compacted turns included.
+                    The composition legend above counts what is IN CONTEXT. */}
+                <StatRow label="Messages (all)" value={String(stats.totalMessages)} />
                 <StatRow label="Tool calls" value={String(stats.toolCalls)} />
               </div>
             </div>
@@ -308,15 +310,20 @@ function ContextComposition({
 }
 
 /**
- * Which connector is costing what.
+ * Which connector is costing what, and how much of it is actually loaded.
  *
  * Six connected servers with promoted tools can occupy more of the window than
  * the conversation does, and the single "MCP tools" slice cannot say which one
- * to disable. Absent until the adapter reports its servers, and hidden when
- * only one server exists — the slice above already answers that case.
+ * to disable. Absent until the adapter reports its servers.
  *
- * Chips rather than rows: what matters per server is a name and a number, and
- * a row each spent a line of height on 25 characters of it.
+ * Each chip is `name  loaded/total  ~tokens`: how many of the server's tools
+ * have a schema in the window right now (`directTools`, or a search-mode
+ * activation) out of how many it offers, then the schema cost. A bare token
+ * figure used to be the only number, and seven identical gateway proxies all
+ * reading "34" was taken for seven servers with 34 tools each.
+ *
+ * Chips rather than rows: what matters per server is a name and two numbers,
+ * and a row each spent a line of height on 25 characters of it.
  */
 function McpServers({
   breakdown,
@@ -326,24 +333,37 @@ function McpServers({
   total: number
 }): React.JSX.Element | null {
   const rows = mcpServerRows(breakdown, total)
-  if (rows.length < 2) return null
+  if (rows.length === 0) return null
   return (
     <div className="border-border/60 mt-2 border-t pt-1.5">
-      <SectionLabel>MCP servers</SectionLabel>
+      <SectionLabel>MCP servers · loaded/total tools · schema tokens</SectionLabel>
       <div className="flex flex-wrap gap-1">
         {rows.map((row) => (
           <span
             key={row.name}
-            title={`${row.name}: ${row.count} tool schema${row.count === 1 ? '' : 's'} in the window, ~${formatTokens(row.tokens)} tokens. One schema per server is the MCP gateway's proxy tool — that server's own tools are fetched on demand, not carried in context.`}
+            title={mcpServerTitle(row)}
             className="bg-bg-secondary text-text-secondary flex items-baseline gap-1.5 rounded px-1.5 py-0.5 font-mono text-sm"
           >
             <span className="max-w-[9rem] truncate">{row.name}</span>
-            <span className="text-text-tertiary tabular-nums">{formatTokens(row.tokens)}</span>
+            <span className="tabular-nums">
+              {row.direct}/{row.toolCount === null ? '?' : row.toolCount}
+            </span>
+            <span className="text-text-tertiary tabular-nums">~{formatTokens(row.tokens)}</span>
           </span>
         ))}
       </div>
     </div>
   )
+}
+
+function mcpServerTitle(row: ReturnType<typeof mcpServerRows>[number]): string {
+  const offered = row.toolCount === null ? 'an unknown number of' : String(row.toolCount)
+  const proxies = row.count - row.direct
+  const proxy =
+    proxies > 0
+      ? ` The MCP gateway's proxy tool for this server is in the window too; the rest of its tools are fetched through it on demand, not carried in context.`
+      : ''
+  return `${row.name}: ${row.direct} of ${offered} tools loaded as schemas in the window, ~${formatTokens(row.tokens)} tokens in all.${proxy}`
 }
 
 /**
