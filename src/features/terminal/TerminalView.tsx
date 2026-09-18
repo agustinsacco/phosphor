@@ -131,7 +131,7 @@ export const TerminalView = memo(function TerminalView({
     sendResize()
 
     // Cmd/Ctrl+F opens in-pane search; ⌘C/⌘V (Ctrl+Shift+C/V) work the
-    // clipboard, which xterm itself does not implement (see clipboardKeys.ts).
+    // clipboard via our explicit bindings (see clipboardKeys.ts).
     const platform = hostPlatform()
     term.attachCustomKeyEventHandler((event) => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'f' && event.type === 'keydown') {
@@ -143,6 +143,9 @@ export const TerminalView = memo(function TerminalView({
         return false
       }
       const action = clipboardActionFor(event, platform)
+      // Returning false only skips xterm's key handling, not the browser's
+      // default clipboard event. Cancel it so our paste is not sent twice.
+      if (action) event.preventDefault()
       if (action === 'copy') {
         copySelection(term)
         return false

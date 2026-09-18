@@ -1286,6 +1286,43 @@ test('terminal pane spawns a real shell, and reopening replays its scrollback', 
       })
       .toContain(marker)
 
+    // A clipboard shortcut must cancel the browser's native paste. Returning
+    // false from xterm's custom key handler alone only stops its key handling.
+    // Check the real shell's input too, not just text echoed into the viewport.
+    const pasted = 'phosphor_paste_8c2b'
+    await harness.app.evaluate(({ clipboard }, text) => clipboard.writeText(text), pasted)
+    await page.evaluate(() => {
+      document.querySelector('.xterm')!.addEventListener('keydown', (event) => {
+        if ((event as KeyboardEvent).code === 'KeyV') {
+          document
+            .querySelector('.xterm')!
+            .setAttribute('data-paste-prevented', String(event.defaultPrevented))
+        }
+      })
+    })
+    await page.keyboard.type("printf '%s' '")
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+v' : 'Control+Shift+V')
+    await expect(page.locator('.xterm-rows')).toContainText(pasted)
+    await page.keyboard.type("' > pasted.txt")
+    await page.keyboard.press('Enter')
+    await expect
+      .poll(() => readFile(join(harness.workspace, 'pasted.txt'), 'utf8').catch(() => null))
+      .toBe(pasted)
+    await expect(page.locator('.xterm')).toHaveAttribute('data-paste-prevented', 'true')
+
+    // Context-menu paste has no keyboard default to cancel and still works once.
+    const menuPasted = 'phosphor_menu_paste_9d3c'
+    await harness.app.evaluate(({ clipboard }, text) => clipboard.writeText(text), menuPasted)
+    await page.keyboard.type("printf '%s' '")
+    await page.locator('.xterm').first().click({ button: 'right' })
+    await page.getByRole('button', { name: /^Paste\s+(Ctrl\+Shift\+V|⌘V)$/ }).click()
+    await expect(page.locator('.xterm-rows')).toContainText(menuPasted)
+    await page.keyboard.type("' > menu-pasted.txt")
+    await page.keyboard.press('Enter')
+    await expect
+      .poll(() => readFile(join(harness.workspace, 'menu-pasted.txt'), 'utf8').catch(() => null))
+      .toBe(menuPasted)
+
     // Closing the pane disposes the xterm but keeps the PTY; reopening must
     // replay main's scrollback instead of showing a blank pane in front of a
     // live shell.
