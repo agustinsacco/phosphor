@@ -199,10 +199,13 @@ rather than a top-level app concern.
   launch. Deleting moves the folder _and its chats_ to the Trash, and is still
   refused while anything is running anywhere inside it. An empty sandbox is
   reused.
-  What a rename **cannot** move is the cwd written inside each session file:
-  that value is frozen at write time and naming a folder that is now gone would
-  spawn pi in a directory that no longer exists. The scan corrects it instead —
-  see [ui-shell.md](ui-shell.md#left-sidebar-claude-desktop-style).
+  What a rename does not move is the cwd written inside each session file: that
+  value is frozen at write time, and pi resumes into it rather than into the
+  cwd it is spawned with, so a renamed sandbox used to leave every chat inside
+  it unopenable. The scan corrects what the sidebar shows, and the header
+  itself is realigned to the folder it was found under just before the lane
+  resumes — which also repairs sandboxes an older build renamed. See
+  [ui-shell.md](ui-shell.md#left-sidebar-claude-desktop-style).
 
 ## Optimization
 

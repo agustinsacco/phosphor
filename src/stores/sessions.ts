@@ -1031,10 +1031,12 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }
     // Claimed BEFORE the first await, so the clicked row highlights and the
     // main region says what it is loading on the same frame as the click.
+    const title =
+      sessionTitle({ explicitName: meta.name, firstUserText: meta.firstUserText }) ?? 'lane'
     const nav = get().beginOpening({
       path: meta.path,
       workspacePath,
-      title: sessionTitle({ explicitName: meta.name, firstUserText: meta.firstUserText }) ?? 'lane',
+      title,
       reason: 'open',
     })
     // A repeat click on a lane whose open is already running must still land:
@@ -1048,6 +1050,23 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       const phosphorId = await operation
       if (get().opening?.nav === nav) get().activate(phosphorId)
       return phosphorId
+    } catch (error) {
+      // Say something. Most callers fire this without awaiting, so an open
+      // that fails used to clear the overlay and leave the user exactly where
+      // they were with no explanation — which reads as the click not landing,
+      // so they click again, and every retry spawns another pi that dies the
+      // same way. Only the call that STARTED the open reports it, so those
+      // retries produce one toast between them rather than one each.
+      if (!inFlight)
+        void import('./extensionUi').then(({ useExtensionUiStore }) =>
+          useExtensionUiStore
+            .getState()
+            .pushToast(
+              `Could not open "${title}". ${error instanceof Error ? error.message : String(error)}`,
+              'error',
+            ),
+        )
+      throw error
     } finally {
       if (!inFlight) pendingOpens.delete(meta.path)
       // A failed open must not leave the overlay up forever.
