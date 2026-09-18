@@ -64,20 +64,20 @@ still returns a single path.
 discards all of it — with no warning before and no trace after. The session is
 then indistinguishable from one the model never answered.
 
-| #   | Issue                                                                                                  | Where                                                       |
-| --- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
-| T1  | `updates:restartAndInstall` quits with zero checks on session state, from two UI entry points          | `electron/ipc/updates-handlers.ts`, `updater.ts`            |
-| T2  | `before-quit` has no in-flight check either, so Cmd+Q and window-close lose turns the same way         | `electron/main.ts` — straight to `registry.disposeAll()`    |
-| T3  | No confirmation before the quit and no interruption marker after it                                    | nothing exists in `electron/` or `src/`                     |
-| T4  | The "pi owns its session files and gets a SIGTERM to flush" comment is **wrong** for an in-flight turn | `electron/main.ts` and now also `electron/pi/rpc-client.ts` |
+| #   | Issue                                                                                          | Where                                                    |
+| --- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| T1  | `updates:restartAndInstall` quits with zero checks on session state, from two UI entry points  | `electron/ipc/updates-handlers.ts`, `updater.ts`         |
+| T2  | `before-quit` has no in-flight check either, so Cmd+Q and window-close lose turns the same way | `electron/main.ts` — straight to `registry.disposeAll()` |
+| T3  | No confirmation before the quit and no interruption marker after it                            | nothing exists in `electron/` or `src/`                  |
 
 **Before planning this: the obvious signal no longer exists.** The original
 plan was built on `FleetHub`/`FleetPhase`, which were deleted with the
 orchestration removal. `SessionRegistry` tracks only
 `{sessionId, workspacePath, client}` — no phase, no streaming state. In-flight
-state has to be derived fresh, most likely from the pi event stream in
-`electron/pi/session-runtime.ts`, which already sees `agent_start` and
-`agent_end`.
+state now comes from each client's `SessionActivity`, updated before RPC
+responses and events reach consumers. It includes pending commands, retries,
+queues, tools and dialogs. Quit/update confirmation and admission control are
+still missing; having these facts alone does not protect a running turn.
 
 ## Tool and MCP row rendering
 
