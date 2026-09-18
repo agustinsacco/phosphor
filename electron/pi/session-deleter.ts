@@ -82,8 +82,9 @@ async function claudeLedgerRef(sessionFilePath: string): Promise<ClaudeLedgerRef
 async function trashIfPresent(path: string): Promise<void> {
   try {
     await access(path)
-  } catch {
-    return
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+    throw error
   }
   await shell.trashItem(path)
 }
@@ -104,7 +105,9 @@ export async function deleteSession(sessionFilePath: string): Promise<void> {
     // the pointer to its counterpart.
   }
 
-  await shell.trashItem(sessionFilePath)
+  // A pending lane may never have flushed, or an older delete already removed
+  // its file while leaving another live writer. Both are successful deletes.
+  await trashIfPresent(sessionFilePath)
 
   if (!claudeRef) return
   try {

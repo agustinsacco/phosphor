@@ -1,24 +1,44 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type * as HealthModule from '../pi/health'
+import type * as FsPromises from 'node:fs/promises'
 
 const state = vi.hoisted(() => {
   const session = {
     sessionId: 'live-1',
     workspacePath: '/repo',
-    client: { pid: 123, on: vi.fn(), request: vi.fn().mockResolvedValue({ success: true }) },
+    client: {
+      pid: 123,
+      alive: true,
+      on: vi.fn(),
+      request: vi.fn().mockResolvedValue({ success: true }),
+    },
   }
   return {
     handlers: new Map<string, (...args: unknown[]) => unknown>(),
     session,
     create: vi.fn().mockReturnValue(session),
     listPackages: vi.fn(),
+    list: vi.fn(),
+    dispose: vi.fn(),
+    access: vi.fn(),
   }
 })
 vi.mock('electron', () => ({ app: { isPackaged: false, getAppPath: () => '/app' } }))
 vi.mock('./handle', () => ({
   handle: (name: string, cb: (...args: unknown[]) => unknown) => state.handlers.set(name, cb),
 }))
-vi.mock('../registry', () => ({ registry: { create: state.create, get: () => state.session } }))
+vi.mock('../registry', () => ({
+  registry: {
+    create: state.create,
+    get: () => state.session,
+    list: state.list,
+    dispose: state.dispose,
+  },
+}))
+vi.mock('node:fs/promises', async (original) => ({
+  ...(await original<typeof FsPromises>()),
+  access: state.access,
+}))
 vi.mock('../pi/health', async (original) => ({
   ...(await original<typeof HealthModule>()),
   checkPiHealth: vi.fn().mockResolvedValue({ ok: true, binaryPath: '/bin/pi' }),
@@ -52,6 +72,7 @@ vi.mock('../store', () => ({
 }))
 vi.mock('../debug-log', () => ({ log: vi.fn() }))
 import { registerPiSessionHandlers } from './pi-session-handlers'
+import { cancelSessionOpens } from '../pi/session-path-lock'
 
 const event = { sender: { isDestroyed: () => false, send: vi.fn() } }
 const pkg = (version: string) => [{ name: '@saccolabs/pi-claude-cli', version, installed: true }]
@@ -59,17 +80,75 @@ const pkg = (version: string) => [{ name: '@saccolabs/pi-claude-cli', version, i
 beforeEach(() => {
   vi.clearAllMocks()
   state.handlers.clear()
+  state.list.mockReturnValue([])
+  state.session.client.alive = true
+  state.session.client.request.mockReset().mockResolvedValue({ success: true })
+  state.dispose.mockReset().mockResolvedValue(undefined)
+  state.access.mockReset().mockResolvedValue(undefined)
+  state.create.mockReset().mockReturnValue(state.session)
   state.listPackages.mockResolvedValue(pkg('0.7.1'))
   registerPiSessionHandlers()
 })
 
 describe('session context policy integration', () => {
+  it('serializes concurrent resumes and reuses the first writer', async () => {
+    state.create.mockImplementation(() => {
+      state.list.mockReturnValue([
+        { sessionId: 'live-1', workspacePath: '/repo', diskPath: '/repo/session.jsonl' },
+      ])
+      return state.session
+    })
+    const open = () =>
+      state.handlers.get('pi:createSession')!(event, {
+        workspacePath: '/repo',
+        sessionPath: '/repo/session.jsonl',
+      })
+    await Promise.all([open(), open(), open()])
+    expect(state.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('interrupts startup RPC when deletion cancels a resume', async () => {
+    let reject!: (error: Error) => void
+    state.session.client.request.mockReturnValue(
+      new Promise((_resolve, fail) => {
+        reject = fail
+      }),
+    )
+    state.dispose.mockImplementation(async () => {
+      state.session.client.alive = false
+      reject(new Error('process stopped'))
+    })
+    const opening = Promise.resolve(
+      state.handlers.get('pi:createSession')!(event, {
+        workspacePath: '/repo',
+        sessionPath: '/repo/hung.jsonl',
+      }),
+    )
+    const result = opening.catch((error: Error) => error.name)
+    await vi.waitFor(() => expect(state.session.client.request).toHaveBeenCalled())
+    cancelSessionOpens('/repo/hung.jsonl')
+    expect(await result).toBe('AbortError')
+    expect(state.dispose).toHaveBeenCalledWith('live-1')
+  })
+
+  it('does not create a replacement when a queued resume finds a deleted file', async () => {
+    state.access.mockRejectedValue(new Error('ENOENT'))
+    await expect(
+      state.handlers.get('pi:createSession')!(event, {
+        workspacePath: '/repo',
+        sessionPath: '/repo/missing.jsonl',
+      }),
+    ).rejects.toThrow('ENOENT')
+    expect(state.create).not.toHaveBeenCalled()
+  })
+
   it.each(['pi-claude-cli', 'openai-codex'])(
     'retains pi project discovery and carries the context policy for %s',
     async (provider) => {
       await state.handlers.get('pi:createSession')!(event, { workspacePath: '/repo', provider })
       const options = state.create.mock.calls[0]![1]
       expect(options).not.toHaveProperty('noContextFiles')
+      expect(options.ownProcessGroup).toBe(true)
       expect(options.env).toMatchObject({
         PI_CLAUDE_CLI_CONTEXT: 'pi',
         PI_CLAUDE_CLI_STRICT_MCP: '1',

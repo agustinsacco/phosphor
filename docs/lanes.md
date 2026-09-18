@@ -221,6 +221,23 @@ mid-turn is findable under the name on screen.
 
 ## Deleting lanes
 
+Every sidebar session has **Delete**, including starting, running, crashed and
+live-only rows whose transcript is missing. Single-session deletion confirms
+that running work will stop, trashes any saved transcripts, and keeps the
+worktree, branch and project files. A missing transcript is not an error;
+other failures stay visible in the confirmation so deletion can be retried.
+Pending rows do not invent a timestamp from the current time.
+
+Concurrent opens of the same transcript share one process. Main serializes
+resume and deletion by transcript path, cancels queued or hung startup opens,
+and stops every matching writer (including
+handles not yet adopted by the renderer), then trashes the file. Deleting a
+routine-owned lane cancels its run through the scheduler first. Processes own
+their child process group so nested provider processes are stopped too.
+Late bootstrap responses cannot recreate deleted renderer state. On reload,
+main supplies known file identities; history replay does not block access to
+an unresponsive lane's Delete action.
+
 Selection is scoped to **one group**, which is one repo. A destructive confirm
 spanning two repos is how you delete the wrong branch. The Pinned list mixes
 projects and is not selectable.
@@ -245,16 +262,12 @@ goes.
 **Remote branch deletion is not offered.** A bulk flow is the worst place to
 introduce the least reversible operation.
 
-### Two tiers of guard
+### Lost-work acknowledgement
 
-- A **blocker** refuses: a turn in progress. Struck through in the confirm,
-  excluded from the count, reported afterwards.
-- A **warning** is lost work: uncommitted changes, unpushed commits, an open
-  PR. These raise **one** acknowledgement for the whole selection. A per-lane
-  confirm trains you to click through it.
-
-Warnings carried only by a _blocked_ lane do not count; it is not being
-deleted.
+Running turns are included, not refused. A turn in progress, uncommitted
+changes, unpushed commits, or an open PR raises **one** acknowledgement for the
+whole selection. Confirming stops those turns before deleting their lanes.
+A disposal failure is reported per lane and does not strand the progress loop.
 
 ### Ordering, and why it is that way
 

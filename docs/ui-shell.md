@@ -115,7 +115,9 @@ screen.
   session tree, pin, lane marker, open pull request (when the lane has one;
   this is the keyboard route, the chip is mouse-only), suspend (live lanes,
   labelled with the ~200 MB it reclaims), fork, clone, export HTML, copy debug
-  info, copy spend, delete (trash).
+  info, copy spend, delete (trash). Live-only rows offer Open, Rename, Export
+  HTML and Delete, even before a transcript exists. Delete confirms that any
+  running turn will stop; failures remain visible for retry.
 - **Per-workspace lane search**: a magnifier in each group header. See
   [lanes.md](lanes.md#finding-a-lane).
 - **Group header toolbar**, always visible: the magnifier, a kebab, and `+`

@@ -71,6 +71,8 @@ export interface LiveSessionInfo {
   sessionId: string
   workspacePath: string
   pid?: number
+  /** Known even when the transcript is missing or the process has crashed. */
+  diskPath?: string
 }
 
 /** Pushed on the per-session event channel. */
