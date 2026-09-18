@@ -161,7 +161,9 @@ needs a live session, since the adapter runs inside one; with none, a row reads
 session; only observing state does.
 
 The session footer renders it as a chip (`MCP 2/3 · 48 tools`) that opens
-Settings → Connectors; the context meter attributes MCP schema cost per server.
+Settings → Connectors; the context meter's chips show, per server, how many of
+its tools are loaded in the window against how many it offers, and the schema
+cost ([chat.md](chat.md#what-the-context-meters-popover-shows)).
 
 ## Config chain (adapter-documented, lowest → highest)
 

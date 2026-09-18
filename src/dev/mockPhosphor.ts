@@ -684,10 +684,10 @@ const MOCK_CONTEXT_BREAKDOWN = JSON.stringify({
   // One gateway proxy tool per server, which is what a real install reports
   // unless a server opts into `directTools` — see docs/mcp.md.
   mcpByServer: {
-    braintrust: { tokens: 700, count: 1 },
-    fellow: { tokens: 640, count: 1 },
-    linear: { tokens: 640, count: 1 },
-    notion: { tokens: 620, count: 1 },
+    braintrust: { tokens: 700, count: 1, direct: 0, toolCount: 34 },
+    fellow: { tokens: 640, count: 1, direct: 0, toolCount: 12 },
+    linear: { tokens: 640, count: 1, direct: 0, toolCount: 61 },
+    notion: { tokens: 620, count: 1, direct: 0, toolCount: 19 },
   },
   approximate: true,
 })
