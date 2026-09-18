@@ -18,8 +18,10 @@ without leaving the session, and so a shell always sits in the right checkout.
 - **Clipboard is ours.** xterm ships no copy binding and its selection is
   invisible to the browser, so nothing copies by default. Copy/paste are ⌘C/⌘V
   on macOS and Ctrl+Shift+C/V on Windows and Linux, where plain Ctrl+C must
-  stay SIGINT. Right-click opens Copy / Paste / Select all rather than pasting
-  blind (`src/features/terminal/clipboardKeys.ts`).
+  stay SIGINT. These bindings cancel the browser's default clipboard action so
+  each shortcut pastes only once, through xterm's bracketed-paste handling.
+  Right-click opens Copy / Paste / Select all rather than pasting blind
+  (`src/features/terminal/clipboardKeys.ts`).
 - **Scrollback** is 10,000 lines. Main also keeps a 256 KB output tail per PTY
   and replays it on reattach, so closing and reopening the pane shows the live
   shell's recent output instead of a blank.
