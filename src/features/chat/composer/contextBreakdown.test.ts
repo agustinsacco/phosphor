@@ -40,6 +40,18 @@ describe('parseContextBreakdown', () => {
       parseContextBreakdown('{"parts":{"messages":1},"mcpByServer":"nope"}')?.mcpByServer,
     ).toEqual({})
   })
+
+  it('reads an older per-server row as an unknown total, not zero tools', () => {
+    const parsed = parseContextBreakdown(
+      '{"parts":{"messages":1},"mcpByServer":{"linear":{"tokens":77,"count":1}}}',
+    )
+    expect(parsed?.mcpByServer.linear).toEqual({
+      tokens: 77,
+      count: 1,
+      direct: 0,
+      toolCount: null,
+    })
+  })
 })
 
 describe('mcpServerRows', () => {
@@ -48,8 +60,8 @@ describe('mcpServerRows', () => {
       parts: { messages: 100, systemPrompt: 100, tools: 100, mcpTools: 200 },
       counts: { tools: 4, mcpTools: 30, messages: 2 },
       mcpByServer: {
-        linear: { tokens: 50, count: 8 },
-        datadog: { tokens: 150, count: 22 },
+        linear: { tokens: 50, count: 8, direct: 7, toolCount: 61 },
+        datadog: { tokens: 150, count: 22, direct: 22, toolCount: 22 },
         empty: { tokens: 0, count: 0 },
       },
     }),
@@ -59,17 +71,20 @@ describe('mcpServerRows', () => {
     // Measured 500, pi says 1000. The extra 500 belongs to the provider, not
     // to these servers, so the rows report what they measured.
     expect(mcpServerRows(breakdown, 1000)).toEqual([
-      { name: 'datadog', tokens: 150, count: 22 },
-      { name: 'linear', tokens: 50, count: 8 },
+      { name: 'datadog', tokens: 150, count: 22, direct: 22, toolCount: 22 },
+      { name: 'linear', tokens: 50, count: 8, direct: 7, toolCount: 61 },
     ])
   })
 
-  it('scales down when the estimate overshoots pi', () => {
-    // Measured 500, pi says 250: chars/4 overshot, so halve.
-    expect(mcpServerRows(breakdown, 250)).toEqual([
-      { name: 'datadog', tokens: 75, count: 22 },
-      { name: 'linear', tokens: 25, count: 8 },
-    ])
+  it('keeps schema sizes steady while the message estimate overshoots', () => {
+    // Measured 500 against a real 450: the 50 comes off the messages, and the
+    // schemas, which the extension measured exactly, are untouched.
+    expect(mcpServerRows(breakdown, 450).map((r) => r.tokens)).toEqual([150, 50])
+  })
+
+  it('scales the schemas down only when they alone exceed pi', () => {
+    // Fixed parts total 400 against a real 200: halve them, as a last resort.
+    expect(mcpServerRows(breakdown, 200).map((r) => r.tokens)).toEqual([75, 25])
   })
 
   it('has nothing to say when no server reported', () => {
@@ -124,14 +139,34 @@ describe('breakdownSlices', () => {
     }
   })
 
-  it('scales down, never up, when the estimate overshoots pi', () => {
-    // Measured 500 against a real 250 — a component cannot outweigh the request.
+  /**
+   * The other regression. A message estimate that overshoots pi (a Claude
+   * Code session after the CLI compacted, which pi's record does not see)
+   * used to drag the fixed parts down with it: the same 30 tool schemas read
+   * 4.1k on a native session and 1.8k on a Claude one, and a 4.6k system
+   * prompt became 1.5k. Measured 2026-09-18 on sessions 01a0b4b0 and 01a0ab67.
+   */
+  it('takes an overshoot off the messages and leaves the fixed parts alone', () => {
+    // Measured 500 against a real 250: the prompt and schemas keep their 200,
+    // the messages get what is left.
     const byKey = Object.fromEntries(
       breakdownSlices(breakdown, 250, 10_000).map((s) => [s.key, s.tokens]),
     )
-    expect(byKey.messages).toBe(150)
-    expect(byKey.systemPrompt).toBe(50)
+    expect(byKey.messages).toBe(50)
+    expect(byKey.systemPrompt).toBe(100)
+    expect(byKey.tools).toBe(100)
     expect(byKey.unmeasured).toBeUndefined()
+  })
+
+  it('scales the fixed parts down only when they alone exceed pi', () => {
+    // A stale 100-token total against 200 tokens of prompt and schemas: the
+    // last resort, or the bar would overflow. Messages are already at zero.
+    const byKey = Object.fromEntries(
+      breakdownSlices(breakdown, 100, 10_000).map((s) => [s.key, s.tokens]),
+    )
+    expect(byKey.messages).toBeUndefined()
+    expect(byKey.systemPrompt).toBe(50)
+    expect(byKey.tools).toBe(50)
   })
 
   it('always ends with free space as the honest remainder', () => {
