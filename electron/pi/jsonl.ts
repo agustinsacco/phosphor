@@ -12,31 +12,39 @@ import { StringDecoder } from 'node:string_decoder'
  * StringDecoder.
  */
 export class JsonlDecoder {
-  private buffer = ''
+  private fragments: string[] = []
   private readonly decoder = new StringDecoder('utf8')
 
   /** Feed a chunk; returns zero or more complete lines (without delimiters). */
   push(chunk: Buffer | string): string[] {
-    this.buffer += typeof chunk === 'string' ? chunk : this.decoder.write(chunk)
-
+    const text = typeof chunk === 'string' ? chunk : this.decoder.write(chunk)
     const lines: string[] = []
+    let start = 0
     let newlineIndex: number
-    while ((newlineIndex = this.buffer.indexOf('\n')) !== -1) {
-      let line = this.buffer.slice(0, newlineIndex)
-      this.buffer = this.buffer.slice(newlineIndex + 1)
-      if (line.endsWith('\r')) line = line.slice(0, -1)
+    // Search only new input. Joining/rescanning an unfinished record on every
+    // push makes large tool results quadratic in the number of stdout chunks.
+    while ((newlineIndex = text.indexOf('\n', start)) !== -1) {
+      this.fragments.push(text.slice(start, newlineIndex))
+      const line = this.takeLine()
       if (line.length > 0) lines.push(line)
+      start = newlineIndex + 1
     }
+    if (start < text.length) this.fragments.push(text.slice(start))
     return lines
   }
 
   /** Flush any remaining buffered data as a final line (stream end). */
   end(): string[] {
-    this.buffer += this.decoder.end()
-    if (this.buffer.length === 0) return []
-    let line = this.buffer
-    this.buffer = ''
+    const lines = this.push(this.decoder.end())
+    const line = this.takeLine()
+    if (line.length > 0) lines.push(line)
+    return lines
+  }
+
+  private takeLine(): string {
+    let line = this.fragments.join('')
+    this.fragments = []
     if (line.endsWith('\r')) line = line.slice(0, -1)
-    return line.length > 0 ? [line] : []
+    return line
   }
 }

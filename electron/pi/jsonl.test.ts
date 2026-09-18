@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { JsonlDecoder } from './jsonl'
 
 const LS = '\u2028' // line separator — legal unescaped inside JSON strings
@@ -65,6 +65,60 @@ describe('JsonlDecoder', () => {
   it('end() with empty buffer returns nothing', () => {
     const decoder = new JsonlDecoder()
     decoder.push('{"a":1}\n')
+    expect(decoder.end()).toEqual([])
+  })
+
+  it('matches LF framing at every byte split, including CRLF and incomplete UTF-8', () => {
+    const bytes = Buffer.concat([
+      Buffer.from('\n\r\n{"text":"🎉é\\n\u2028\u2029"}\r\n{"end":true}\r'),
+      Buffer.from([0xf0, 0x9f]),
+    ])
+    const expected = bytes
+      .toString('utf8')
+      .split('\n')
+      .map((line) => line.replace(/\r$/, ''))
+      .filter(Boolean)
+    for (let split = 0; split <= bytes.length; split++) {
+      const decoder = new JsonlDecoder()
+      expect([
+        ...decoder.push(bytes.subarray(0, split)),
+        ...decoder.push(bytes.subarray(split)),
+        ...decoder.end(),
+      ]).toEqual(expected)
+      expect(decoder.end()).toEqual([])
+    }
+  })
+
+  it('flushes a fragmented final record and strips only one CR', () => {
+    const decoder = new JsonlDecoder()
+    for (const chunk of ['one', '\r', '\n', '', '\r', '\r']) decoder.push(chunk)
+    expect(decoder.end()).toEqual(['\r'])
+    expect(decoder.end()).toEqual([])
+  })
+
+  it('searches only new input when a large record spans many chunks', () => {
+    const decoder = new JsonlDecoder()
+    const record = 'x'.repeat(1024 * 1024)
+    const indexOf = String.prototype.indexOf
+    let searched = 0
+    const spy = vi.spyOn(String.prototype, 'indexOf').mockImplementation(function (
+      this: string,
+      search: string,
+      start = 0,
+    ) {
+      if (search === '\n') searched += this.length - start
+      return indexOf.call(this, search, start)
+    })
+    let lines: string[]
+    try {
+      for (let i = 0; i < record.length; i += 4096) decoder.push(record.slice(i, i + 4096))
+      lines = decoder.push('\n')
+    } finally {
+      spy.mockRestore()
+    }
+    expect(lines).toEqual([record])
+    // A deterministic complexity gate, independent of CI machine speed.
+    expect(searched).toBe(record.length + 1)
     expect(decoder.end()).toEqual([])
   })
 

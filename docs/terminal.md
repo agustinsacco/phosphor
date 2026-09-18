@@ -22,9 +22,12 @@ without leaving the session, and so a shell always sits in the right checkout.
   each shortcut pastes only once, through xterm's bracketed-paste handling.
   Right-click opens Copy / Paste / Select all rather than pasting blind
   (`src/features/terminal/clipboardKeys.ts`).
-- **Scrollback** is 10,000 lines. Main also keeps a 256 KB output tail per PTY
-  and replays it on reattach, so closing and reopening the pane shows the live
-  shell's recent output instead of a blank.
+- **Scrollback** is 10,000 lines. Main also keeps an output tail capped at
+  262,144 UTF-16 code units per PTY and replays it on reattach, so closing and
+  reopening the pane shows the live shell's recent output instead of a blank.
+  A chunk deque drops old output without copying the retained tail on each
+  append; only reattach joins the chunks. Retention happens before broadcasting
+  live output, preserving the attach replay ordering.
 - **Per session.** Terminals belong to the session that opened them, and so
   does the pane selection. A shell opened in one lane never appears in
   another, and never auto-spawns a second one. Its cwd is that session's own
