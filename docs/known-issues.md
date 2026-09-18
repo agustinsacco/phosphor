@@ -16,11 +16,9 @@ are unchanged.
 
 | #   | Issue                                                                                                       | Where                                                                     |
 | --- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| S1  | PTY scrollback re-copies the whole 256 KB cap on **every** data chunk (938 ms vs 1.3 ms per 10k chunks)     | `electron/pty/pty-manager.ts` — `session.scrollback + data`, then slice   |
 | S2  | The whole `tools` record is cloned on every tool-args/output delta (288 µs/event at 1600 tools)             | `src/features/chat/reducer.ts`, `toolIdentity.ts` `withExecutionIdentity` |
 | S3  | `buildTranscriptRows` rebuilds the entire transcript per token, defeating `memo` on every visible row       | `src/features/chat/MessageList.tsx` — `useMemo(..., [items])`             |
 | S4  | `summarizeTool` re-`JSON.parse`s the accumulated args on every delta — O(n²), 665 ms for one 488 KB `write` | `src/features/chat/tools/toolSummaries.ts` — `tryParseArgs`               |
-| S5  | `JsonlDecoder` is O(n²) when one record spans many stdout chunks (959 ms for a 15.3 MB record)              | `electron/pi/jsonl.ts` — `buffer += chunk`, `indexOf`, `slice`            |
 | S6  | `message_end` fold is O(items + tools), and pi emits one message per tool call ⇒ O(n²) per session          | `src/features/chat/toolIdentity.ts`, `messageContent.ts`                  |
 | S7  | `FilesChangedPane` re-derives every touched file (re-parsing every patch) on every tool delta               | `src/features/files/FilesChangedPane.tsx` — depends on `tools` (S2)       |
 | S8  | Artifact `versions[]` grows unbounded with full content per version, duplicated on the tool payload         | `src/stores/artifacts.ts`                                                 |
