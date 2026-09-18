@@ -72,12 +72,23 @@ describe('piCallOk', () => {
 
 describe('rehydrateTranscript', () => {
   it('replaces the rendered items and hands the messages back', async () => {
+    useChatStore.getState().ensure('s1')
     const messages = [{ role: 'user', content: 'hi' }]
     piCommand.mockResolvedValue({ success: true, data: { messages } })
 
     await expect(rehydrateTranscript('s1')).resolves.toBe(messages)
     expect(piCommand).toHaveBeenCalledWith('s1', { type: 'get_messages' })
     expect(useChatStore.getState().sessions.s1?.items).toHaveLength(1)
+  })
+
+  it('ignores history arriving after the session was removed', async () => {
+    useChatStore.getState().ensure('s1')
+    piCommand.mockImplementation(async () => {
+      useChatStore.getState().remove('s1')
+      return { success: true, data: { messages: [{ role: 'user', content: 'hi' }] } }
+    })
+    await expect(rehydrateTranscript('s1')).resolves.toBeUndefined()
+    expect(useChatStore.getState().sessions.s1).toBeUndefined()
   })
 
   it('reports the failure instead of leaving the old transcript in place silently', async () => {

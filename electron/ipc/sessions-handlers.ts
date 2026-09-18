@@ -1,12 +1,10 @@
 import { handle } from './handle'
 import { unwatchWorkspaceSessions, watchWorkspaceSessions } from '../pi/session-watcher'
 import { listSessions, readSessionTree, workspaceStats } from '../pi/session-scanner'
-import { deleteSession } from '../pi/session-deleter'
+import { deleteLane } from '../pi/delete-lane'
 import { appendBranchJump, appendLabel, forkSessionAt } from '../pi/session-writer'
 import { claudeSessionIdFor } from '../pi/claude-session-map'
 import { forkClaudeLedgerForClone, resetClaudeLedgerPairing } from '../pi/claude-ledger'
-import { clearDraft } from '../store'
-import { deleteDraftBlobs } from '../drafts-blobs'
 import { log } from '../debug-log'
 
 /** On-disk session discovery, tree reading and history rewrites. */
@@ -23,13 +21,9 @@ export function registerSessionsHandlers(): void {
     await unwatchWorkspaceSessions(workspacePath)
   })
 
-  handle('sessions:delete', async (_event, sessionFilePath: string) => {
-    await deleteSession(sessionFilePath)
-    // Its draft (and the draft's images) go with it. Nothing else keyed on a
-    // session path is reclaimed here — `seenSessions` and `pinnedSessions`
-    // still rely on their own prune plus the launch-time existence check.
-    await deleteDraftBlobs(clearDraft(`session:${sessionFilePath}`))
-  })
+  handle('sessions:delete', (_event, sessionFilePath, sessionId) =>
+    deleteLane(sessionFilePath, sessionId),
+  )
 
   handle('sessions:readTree', (_event, sessionFilePath: string) => readSessionTree(sessionFilePath))
 

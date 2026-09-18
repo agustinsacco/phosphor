@@ -62,6 +62,14 @@ export function routineProtectedPaths(): string[] {
   ]
 }
 
+/** Lane deletion uses the normal cancellation path and waits for its writer. */
+export async function cancelRoutineSession(sessionId: string): Promise<void> {
+  const owner = routineScheduler()
+  const run = owner.repository.pending().find((r) => r.sessionId === sessionId)
+  if (!run) throw new Error('Cannot find the active routine run for this lane.')
+  await owner.cancelAndWait(run.id)
+}
+
 export async function stopRoutines(): Promise<void> {
   await scheduler?.stop()
 }

@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { scratchDir } from './fixtures/scratch'
 import { join, resolve } from 'node:path'
 
-async function launch(theme: 'light' | 'dark' | 'system') {
+async function launch(theme: 'light' | 'dark' | 'system', extraEnv: Record<string, string> = {}) {
   const scratch = await scratchDir('phosphor-startup-')
   const workspace = join(scratch, 'workspace')
   const userData = join(scratch, 'prefs')
@@ -25,6 +25,7 @@ async function launch(theme: 'light' | 'dark' | 'system') {
       PHOSPHOR_PI_STUB: resolve('e2e/fixtures/pi-stub.cjs'),
       PHOSPHOR_TEST_USER_DATA: userData,
       PI_CODING_AGENT_DIR: join(scratch, 'agent'),
+      ...extraEnv,
     },
   })
   const page = await app.firstWindow()
@@ -361,6 +362,128 @@ test('startup errors offer recovery instead of an endless loading screen', async
     await h.page.getByRole('button', { name: 'Try again' }).click()
     await expect(h.page.getByTestId('startup-screen')).toHaveCount(0)
     await expect(h.page.getByRole('heading', { name: /pi/i }).first()).toBeVisible()
+  } finally {
+    await h.close()
+  }
+})
+
+test('pending session is deletable before persistence and a late bootstrap cannot restore it', async () => {
+  const h = await launch('dark', { PHOSPHOR_E2E_SESSION_WRITE_DELAY_MS: '60000' })
+  try {
+    const info = await h.page.evaluate(
+      (workspacePath) => window.phosphor.invoke('pi:createSession', { workspacePath }),
+      h.workspace,
+    )
+    // Hold only the renderer's state response. The real process and deletion
+    // handlers stay intact; releasing it reproduces the resurrection race.
+    await h.app.evaluate(({ ipcMain }, id) => {
+      const gates = globalThis as unknown as { releaseDeleteBootstrap: () => void }
+      const gate = new Promise<void>((resolve) => {
+        gates.releaseDeleteBootstrap = resolve
+      })
+      ipcMain.removeHandler('pi:command')
+      ipcMain.handle('pi:command', async (_event, sessionId, command) => {
+        if (sessionId === id && command.type === 'get_state') {
+          await gate
+          return { success: true, data: { sessionFile: '/late-deleted-session.jsonl' } }
+        }
+        return { success: false }
+      })
+    }, info.sessionId)
+    await h.page.reload()
+    const row = h.page.getByTestId('session-row')
+    await expect(row).toHaveAttribute('data-pending', 'true')
+    await expect(h.page.getByTestId('startup-screen')).toHaveCount(0)
+    await expect(row.locator('[data-segment="time"]')).toHaveCount(0)
+    await row.click({ button: 'right' })
+    await h.page
+      .getByTestId('context-menu')
+      .getByRole('button', { name: /^Delete/ })
+      .click()
+    await expect(h.page.getByRole('heading', { name: 'Delete session?' })).toBeVisible()
+    await h.page.getByRole('button', { name: 'Delete session', exact: true }).click()
+    await expect(row).toHaveCount(0)
+    expect(await h.page.evaluate(() => window.phosphor.invoke('pi:listLiveSessions'))).toEqual([])
+    await h.app.evaluate(() =>
+      (globalThis as unknown as { releaseDeleteBootstrap: () => void }).releaseDeleteBootstrap(),
+    )
+    // A round trip after release lets the pending renderer continuations run.
+    await h.page.evaluate(() => window.phosphor.invoke('pi:listLiveSessions'))
+    await expect(row).toHaveCount(0)
+    await h.page.reload()
+    await expect(h.page.getByTestId('session-row')).toHaveCount(0)
+  } finally {
+    await h.close()
+  }
+})
+
+test('a running session can be stopped and deleted from its row', async () => {
+  const h = await launch('dark')
+  try {
+    await h.page.getByPlaceholder('Describe a task or ask a question').fill('queue-hold')
+    await h.page.getByRole('button', { name: /Start session/i }).click()
+    const row = h.page.getByTestId('session-row')
+    await expect(row).toHaveAttribute('data-activity', 'working')
+    await row.click({ button: 'right' })
+    await h.page
+      .getByTestId('context-menu')
+      .getByRole('button', { name: /^Delete/ })
+      .click()
+    await expect(h.page.getByText(/Any running turn will be stopped/)).toBeVisible()
+    await h.page.getByRole('button', { name: 'Delete session', exact: true }).click()
+    await expect(row).toHaveCount(0)
+    expect(await h.page.evaluate(() => window.phosphor.invoke('pi:listLiveSessions'))).toEqual([])
+  } finally {
+    await h.close()
+  }
+})
+
+test('concurrent resumes share one writer and an orphan with a missing transcript is deletable', async () => {
+  const h = await launch('dark')
+  try {
+    const created = await h.page.evaluate(
+      (workspacePath) => window.phosphor.invoke('pi:createSession', { workspacePath }),
+      h.workspace,
+    )
+    const file = await h.page.evaluate(async (id) => {
+      const state = await window.phosphor.piCommand(id, { type: 'get_state' })
+      if (!state.success || !state.data?.sessionFile) throw new Error('No session file')
+      await window.phosphor.invoke('pi:disposeSession', id)
+      return state.data.sessionFile
+    }, created.sessionId)
+    const resumed = await h.page.evaluate(
+      async ({ workspacePath, sessionPath }) =>
+        Promise.all([
+          window.phosphor.invoke('pi:createSession', { workspacePath, sessionPath }),
+          window.phosphor.invoke('pi:createSession', { workspacePath, sessionPath }),
+          window.phosphor.invoke('pi:createSession', { workspacePath, sessionPath }),
+        ]),
+      { workspacePath: h.workspace, sessionPath: file },
+    )
+    expect(new Set(resumed.map((s) => s.sessionId)).size).toBe(1)
+    expect(await h.page.evaluate(() => window.phosphor.invoke('pi:listLiveSessions'))).toHaveLength(
+      1,
+    )
+    // The stub allocates a fresh file even for --session. Wait for it to be
+    // ready, then remove both fixture files to model an already-trashed lane.
+    const currentFile = await h.page.evaluate(async (id) => {
+      const state = await window.phosphor.piCommand(id, { type: 'get_state' })
+      if (!state.success || !state.data?.sessionFile) throw new Error('No resumed file')
+      return state.data.sessionFile
+    }, resumed[0]!.sessionId)
+    await rm(file, { force: true })
+    await rm(currentFile, { force: true })
+    await h.page.reload()
+    const row = h.page.getByTestId('session-row')
+    await expect(row).toHaveAttribute('data-pending', 'true')
+    await row.click({ button: 'right' })
+    await h.page
+      .getByTestId('context-menu')
+      .getByRole('button', { name: /^Delete/ })
+      .click()
+    await h.page.getByRole('button', { name: 'Delete session', exact: true }).click()
+    await expect(row).toHaveCount(0)
+    expect(await h.page.evaluate(() => window.phosphor.invoke('pi:listLiveSessions'))).toEqual([])
   } finally {
     await h.close()
   }

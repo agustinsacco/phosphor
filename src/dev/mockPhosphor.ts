@@ -1454,6 +1454,13 @@ export function installMockPhosphor(): void {
           const workspacePath = args[0] as string
           return Promise.resolve(MOCK_DISK_SESSIONS.filter((m) => m.cwd === workspacePath))
         }
+        case 'sessions:delete': {
+          const path = args[0] as string | undefined
+          const id = args[1] as string | undefined
+          const index = MOCK_DISK_SESSIONS.findIndex((m) => m.path === path)
+          if (index !== -1) MOCK_DISK_SESSIONS.splice(index, 1)
+          return Promise.resolve(id ? [id] : [])
+        }
         case 'sessions:stats':
           return Promise.resolve(mockStats())
         case 'headroom:status':

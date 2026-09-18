@@ -49,9 +49,6 @@ export function BulkDeleteModal({
         <div className="border-border border-b px-5 py-4">
           <h2 className="text-base font-semibold">
             Delete {count} lane{count === 1 ? '' : 's'}
-            {summary.blocked.length > 0 && (
-              <span className="text-danger font-normal"> · {summary.blocked.length} refused</span>
-            )}
           </h2>
           <p className="text-text-secondary mt-1 text-sm">
             Removing a lane can touch three things. Only the first two are on by default.
@@ -61,23 +58,10 @@ export function BulkDeleteModal({
         <div className="max-h-64 overflow-y-auto px-5 py-3">
           <div className="border-border divide-border divide-y overflow-hidden rounded-md border">
             {summary.lanes.map((lane) => (
-              <div
-                key={lane.path}
-                className={clsx(
-                  'flex items-center gap-2 px-3 py-2 text-sm',
-                  lane.blocker && 'bg-danger-soft',
-                )}
-              >
+              <div key={lane.path} className="flex items-center gap-2 px-3 py-2 text-sm">
                 <span className="w-[18px] shrink-0 text-center">{lane.marker || '•'}</span>
-                <span
-                  className={clsx(
-                    'min-w-0 flex-1 truncate',
-                    lane.blocker && 'line-through opacity-75',
-                  )}
-                >
-                  {lane.title}
-                </span>
-                {lane.blocker && <Badge tone="bad">turn in progress</Badge>}
+                <span className="min-w-0 flex-1 truncate">{lane.title}</span>
+                {lane.warnings.includes('running') && <Badge tone="warn">will stop</Badge>}
                 {lane.dirtyCount > 0 && <Badge tone="warn">±{lane.dirtyCount}</Badge>}
                 {lane.warnings.includes('unpushed') && <Badge tone="warn">unpushed</Badge>}
                 {lane.pr ? (

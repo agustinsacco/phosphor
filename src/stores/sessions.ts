@@ -151,6 +151,12 @@ interface SessionsState {
    */
   moveSessionToAccount: (sessionId: string, accountId: string) => Promise<string | null>
   deleteDiskSession: (workspacePath: string, meta: SessionMeta) => Promise<void>
+  deleteSession: (
+    workspacePath: string,
+    target: { path?: string; sessionId?: string },
+  ) => Promise<void>
+  /** File paths or live handles currently owned by a single-lane delete. */
+  deletingSessionKeys: string[]
   togglePin: (path: string) => void
   /**
    * Set or clear a lane's explicit marker. `null` forgets the choice, so the
@@ -228,6 +234,13 @@ export function laneIsBeingDeleted(progress: BulkDeleteProgress | null, path: st
 }
 
 const unsubscribers = new Map<string, () => void>()
+const pendingOpens = new Map<string, Promise<string>>()
+const closingSessions = new Set<string>()
+const pendingDeletes = new Map<string, Promise<void>>()
+
+function sessionIsOpen(id: string): boolean {
+  return Boolean(useSessionsStore.getState().live[id]) && !closingSessions.has(id)
+}
 /** Workspaces already being watched, so repeat calls are no-ops. */
 const watchedWorkspaces = new Set<string>()
 
@@ -258,7 +271,7 @@ export async function refreshSessionCommands(
   commandsRefreshedAt.set(phosphorId, Date.now())
   try {
     const response = await window.phosphor.piCommand(phosphorId, { type: 'get_commands' })
-    if (response.success && response.data) {
+    if (response.success && response.data && sessionIsOpen(phosphorId)) {
       useChatStore.getState().setCommands(phosphorId, response.data.commands)
     }
   } catch {
@@ -320,13 +333,17 @@ export async function bootstrapSession(phosphorId: string): Promise<void> {
     (reason: unknown) => ({ status: 'rejected' as const, reason }),
   )
   if (state.status === 'fulfilled' && state.value.success && state.value.data) {
+    if (!sessionIsOpen(phosphorId)) {
+      await restPromise
+      return
+    }
     chat.setMeta(phosphorId, state.value.data)
     const diskPath = state.value.data.sessionFile
     if (diskPath) {
       useSessionsStore.setState((s) => ({
         live: {
           ...s.live,
-          [phosphorId]: { ...(s.live[phosphorId] ?? { phosphorId, workspacePath: '' }), diskPath },
+          [phosphorId]: { ...s.live[phosphorId]!, diskPath },
         },
       }))
       // Same reason the Claude account binding happens here: main picked the
@@ -345,13 +362,14 @@ export async function bootstrapSession(phosphorId: string): Promise<void> {
       // by the time the watcher attaches raises no event, which is the normal
       // case for a brand-new worktree (the folder becomes watched only once
       // the session that created it exists). Without this the row stayed a
-      // `PendingSessionRow` — no context menu, no right-click — until some
+      // `PendingSessionRow` until some
       // unrelated re-render happened to re-scan.
       const workspacePath = useSessionsStore.getState().live[phosphorId]?.workspacePath
       if (workspacePath) void useSessionsStore.getState().refreshDisk(workspacePath)
     }
   }
   const [models, commands, stats, thinkingLevels] = await restPromise
+  if (!sessionIsOpen(phosphorId)) return
   if (models.status === 'fulfilled' && models.value.success && models.value.data) {
     chat.setModels(phosphorId, models.value.data.models)
   }
@@ -388,7 +406,7 @@ export async function refreshThinkingLevels(phosphorId: string): Promise<void> {
     const response = await window.phosphor.piCommand(phosphorId, {
       type: 'get_available_thinking_levels',
     })
-    if (response.success && response.data) {
+    if (response.success && response.data && sessionIsOpen(phosphorId)) {
       useChatStore.getState().setThinkingLevels(phosphorId, response.data.levels)
     }
   } catch {
@@ -409,6 +427,7 @@ async function autoNameSession(
   workspacePath: string,
   firstPrompt: string,
 ): Promise<void> {
+  if (!sessionIsOpen(phosphorId)) return
   const existing = (useSessionsStore.getState().disk[workspacePath] ?? [])
     .map((m) => sessionTitle({ explicitName: m.name, firstUserText: m.firstUserText }))
     .filter((t): t is string => Boolean(t))
@@ -419,7 +438,7 @@ async function autoNameSession(
   useNamingStore.getState().finish(phosphorId)
   if (!title) return
   if (useChatStore.getState().sessions[phosphorId]?.meta?.sessionName) return
-  if (!useSessionsStore.getState().live[phosphorId]) return
+  if (!sessionIsOpen(phosphorId)) return
   if (await piCallOk(phosphorId, { type: 'set_session_name', name: title })) {
     // The visible rename; the disk scan may not carry it for a while yet.
     // See the same call in features/sessions/startChat.ts.
@@ -436,7 +455,7 @@ async function autoNameSession(
 async function refreshStats(phosphorId: string): Promise<void> {
   try {
     const response = await window.phosphor.piCommand(phosphorId, { type: 'get_session_stats' })
-    if (response.success && response.data) {
+    if (response.success && response.data && sessionIsOpen(phosphorId)) {
       // Re-seed the live overlay's baseline BEFORE displaying, so a delta
       // arriving between here and the next poll stacks on current truth.
       recordPolledStats(phosphorId, response.data)
@@ -607,6 +626,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   pinned: [],
   laneMarkers: {},
   bulkDelete: null,
+  deletingSessionKeys: [],
   suspendedPaths: [],
   seenSessions: {},
   gitByCwd: {},
@@ -744,6 +764,10 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         name: options.name,
       })
       const phosphorId = info.sessionId
+      if (get().live[phosphorId]) {
+        get().activate(phosphorId)
+        return phosphorId
+      }
       // Main's answer, not the request. Main resolves the folder before pi is
       // spawned (a symlinked spelling becomes the real one), and this entry is
       // what `useActiveWorkspace` and the sidebar's group list read — keeping
@@ -758,12 +782,22 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       // Git baseline for the Files Changed panel ("changes since session start").
       void window.phosphor
         .invoke('git:sessionBaseline', workspacePath)
-        .then((ref) => set((s) => ({ baselines: { ...s.baselines, [phosphorId]: ref } })))
-        .catch(() => set((s) => ({ baselines: { ...s.baselines, [phosphorId]: null } })))
+        .then((ref) => {
+          if (sessionIsOpen(phosphorId))
+            set((s) => ({ baselines: { ...s.baselines, [phosphorId]: ref } }))
+        })
+        .catch(() => {
+          if (sessionIsOpen(phosphorId))
+            set((s) => ({ baselines: { ...s.baselines, [phosphorId]: null } }))
+        })
       set((s) => ({
         live: {
           ...s.live,
-          [phosphorId]: { phosphorId, workspacePath, diskPath: options.sessionPath },
+          [phosphorId]: {
+            phosphorId,
+            workspacePath,
+            diskPath: info.diskPath ?? options.sessionPath,
+          },
         },
         activeSessionId: phosphorId,
         unread: { ...s.unread, [phosphorId]: 0 },
@@ -791,6 +825,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           useChatStore.getState().doneResuming(phosphorId)
         }
       }
+      if (!sessionIsOpen(phosphorId)) return phosphorId
       // Never rejects (it wraps get_state and allSettles the rest), so the
       // naming chain below can hang off it safely.
       const bootstrapped = bootstrapSession(phosphorId)
@@ -859,6 +894,14 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   openDiskSession: async (workspacePath, meta) => {
+    if (
+      get().deletingSessionKeys.includes(meta.path) ||
+      laneIsBeingDeleted(get().bulkDelete, meta.path)
+    ) {
+      throw new Error('This lane is being deleted.')
+    }
+    const opening = pendingOpens.get(meta.path)
+    if (opening) return opening
     get().markSeen(meta.path)
     // Reopening clears the suspended marker; the resume path below re-spawns pi
     // and the transcript shows its skeleton while history replays.
@@ -871,7 +914,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       get().activate(existing.phosphorId)
       return existing.phosphorId
     }
-    return get().createSession(workspacePath, { sessionPath: meta.path })
+    const operation = get().createSession(workspacePath, { sessionPath: meta.path })
+    pendingOpens.set(meta.path, operation)
+    try {
+      return await operation
+    } finally {
+      pendingOpens.delete(meta.path)
+    }
   },
 
   activate: (sessionId) => {
@@ -899,8 +948,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   },
 
   disposeSession: async (sessionId) => {
-    await window.phosphor.invoke('pi:disposeSession', sessionId)
-    await cleanupLocalSessionState(sessionId)
+    closingSessions.add(sessionId)
+    try {
+      await window.phosphor.invoke('pi:disposeSession', sessionId)
+      await cleanupLocalSessionState(sessionId)
+    } finally {
+      closingSessions.delete(sessionId)
+    }
   },
 
   suspendSession: async (sessionId) => {
@@ -923,11 +977,59 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     return get().createSession(entry.workspacePath, { sessionPath: diskPath })
   },
 
-  deleteDiskSession: async (workspacePath, meta) => {
-    const live = Object.values(get().live).find((l) => l.diskPath === meta.path)
-    if (live) await get().disposeSession(live.phosphorId)
-    await window.phosphor.invoke('sessions:delete', meta.path)
-    await get().refreshDisk(workspacePath)
+  deleteDiskSession: (workspacePath, meta) =>
+    get().deleteSession(workspacePath, { path: meta.path }),
+
+  deleteSession: async (workspacePath, target) => {
+    const path = target.sessionId
+      ? (get().live[target.sessionId]?.diskPath ?? target.path)
+      : target.path
+    const key = path ?? target.sessionId
+    if (!key) return
+    const pending = pendingDeletes.get(key)
+    if (pending) return pending
+    set((s) => ({ deletingSessionKeys: [...s.deletingSessionKeys, key] }))
+    const operation = (async () => {
+      // Do not await history replay: a hung resume is exactly what Delete
+      // must be able to stop. Main cancels queued/in-flight opens by path.
+      const matches = Object.values(get().live).filter(
+        (l) => l.phosphorId === target.sessionId || (path && l.diskPath === path),
+      )
+      for (const entry of matches) closingSessions.add(entry.phosphorId)
+      try {
+        const disposed = await window.phosphor.invoke('sessions:delete', path, target.sessionId)
+        const ids = new Set([...matches.map((l) => l.phosphorId), ...(disposed ?? [])])
+        for (const id of ids) await cleanupLocalSessionState(id)
+        if (path) {
+          set((s) => {
+            const disk = Object.fromEntries(
+              Object.entries(s.disk).map(([cwd, metas]) => [
+                cwd,
+                metas.filter((m) => m.path !== path),
+              ]),
+            )
+            return {
+              disk,
+              pinned: s.pinned.filter((p) => p !== path),
+              laneMarkers: drop(s.laneMarkers, path),
+            }
+          })
+          void window.phosphor.invoke('app:setPinnedSessions', get().pinned)
+          void window.phosphor.invoke('app:setLaneMarkers', get().laneMarkers)
+        }
+        if (!get().activeSessionId) void window.phosphor.invoke('app:setLastSession', undefined)
+      } finally {
+        for (const entry of matches) closingSessions.delete(entry.phosphorId)
+        await get().refreshDisk(workspacePath)
+      }
+    })()
+    pendingDeletes.set(key, operation)
+    try {
+      await operation
+    } finally {
+      pendingDeletes.delete(key)
+      set((s) => ({ deletingSessionKeys: s.deletingSessionKeys.filter((k) => k !== key) }))
+    }
   },
 
   /**
@@ -955,6 +1057,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   dismissBulkDelete: () => set({ bulkDelete: null }),
 
   deleteManySessions: async (workspacePath, lanes, options) => {
+    if (get().bulkDelete?.running) throw new Error('Another delete is running.')
     const results: LaneDeleteResult[] = []
     bulkDeleteCancelled = false
     set({
@@ -995,51 +1098,39 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       if (bulkDeleteCancelled) break
       publish(lane)
 
-      const live = Object.values(get().live).find((l) => l.diskPath === lane.path)
-      if (live) await get().disposeSession(live.phosphorId)
-
-      if (options.removeWorktree && lane.worktreePath && lane.mainRepoPath) {
-        try {
+      try {
+        let branchError: string | undefined
+        if (options.removeWorktree && lane.worktreePath && lane.mainRepoPath) {
+          // Stop every writer, including handles a renderer reload has not
+          // adopted yet, before removing its working directory.
+          const mainLive = await window.phosphor.invoke('pi:listLiveSessions')
+          const ids = new Set([
+            ...Object.values(get().live)
+              .filter((l) => l.diskPath === lane.path)
+              .map((l) => l.phosphorId),
+            ...(mainLive ?? []).filter((l) => l.diskPath === lane.path).map((l) => l.sessionId),
+          ])
+          for (const id of ids) await get().disposeSession(id)
           const outcome = await removeWorktree(lane.mainRepoPath, lane.worktreePath, {
             force: options.discardChanges,
             deleteBranch: options.deleteBranch,
           })
           if (!outcome.removed) {
-            results.push({
-              path: lane.path,
-              title: lane.title,
-              ok: false,
-              error: `worktree kept, ${outcome.dirtyCount} uncommitted change${
-                outcome.dirtyCount === 1 ? '' : 's'
-              }`,
-            })
-            publish(lane)
-            continue
+            throw new Error(`worktree kept, ${outcome.dirtyCount} uncommitted changes`)
           }
-          if (outcome.branchError) {
-            // A branch that would not safe-delete is reported, but the lane is
-            // still gone: `git branch -d` refusing is not a reason to keep the
-            // transcript. Never escalate to -D here.
-            await window.phosphor.invoke('sessions:delete', lane.path)
-            results.push({
-              path: lane.path,
-              title: lane.title,
-              ok: true,
-              error: outcome.branchError,
-            })
-            publish(lane)
-            continue
-          }
-        } catch (error) {
-          results.push({ path: lane.path, title: lane.title, ok: false, error: String(error) })
-          publish(lane)
-          continue
+          branchError = outcome.branchError
         }
-      }
-
-      try {
-        await window.phosphor.invoke('sessions:delete', lane.path)
-        results.push({ path: lane.path, title: lane.title, ok: true })
+        const cwd =
+          Object.entries(get().disk).find(([, metas]) =>
+            metas.some((m) => m.path === lane.path),
+          )?.[0] ?? workspacePath
+        await get().deleteSession(cwd, { path: lane.path })
+        results.push({
+          path: lane.path,
+          title: lane.title,
+          ok: true,
+          ...(branchError ? { error: branchError } : {}),
+        })
       } catch (error) {
         results.push({ path: lane.path, title: lane.title, ok: false, error: String(error) })
       }

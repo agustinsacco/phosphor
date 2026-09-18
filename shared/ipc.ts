@@ -653,7 +653,11 @@ export interface IpcInvokeMap {
   'sessions:stats': { args: [workspacePath: string]; result: WorkspaceSessionStats }
   'sessions:watch': { args: [workspacePath: string]; result: void }
   'sessions:unwatch': { args: [workspacePath: string]; result: void }
-  'sessions:delete': { args: [sessionFilePath: string]; result: void }
+  /** Stops all matching writers, then trashes any transcript. Returns disposed handles. */
+  'sessions:delete': {
+    args: [sessionFilePath: string | undefined, sessionId?: string]
+    result: string[]
+  }
   'sessions:readTree': { args: [sessionFilePath: string]; result: SessionTree }
   'sessions:appendLabel': {
     args: [sessionFilePath: string, targetId: string, label: string | undefined]

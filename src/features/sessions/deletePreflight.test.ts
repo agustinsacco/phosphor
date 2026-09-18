@@ -36,9 +36,9 @@ const pr = (state: GhPullRequest['state']): GhPullRequest => ({
 })
 
 describe('classifyLane', () => {
-  it('refuses only a streaming lane, not a merely live one', () => {
-    expect(lane({ isLive: true, isStreaming: false }).blocker).toBeUndefined()
-    expect(lane({ isLive: true, isStreaming: true }).blocker).toBe('running')
+  it('warns that running turns will stop, without blocking deletion', () => {
+    expect(lane({ isLive: true, isStreaming: false }).warnings).toEqual([])
+    expect(lane({ isLive: true, isStreaming: true }).warnings).toEqual(['running'])
   })
 
   it('warns on uncommitted and unpushed work', () => {
@@ -68,23 +68,22 @@ describe('classifyLane', () => {
 })
 
 describe('summarizePreflight', () => {
-  it('splits blocked from deletable and does not count blocked lanes', () => {
+  it('includes running lanes in the deletable count', () => {
     const summary = summarizePreflight([
       lane({ meta: meta({ path: '/a' }) }),
       lane({ meta: meta({ path: '/b' }), isStreaming: true }),
     ])
-    expect(summary.deletable.map((l) => l.path)).toEqual(['/a'])
-    expect(summary.blocked.map((l) => l.path)).toEqual(['/b'])
+    expect(summary.deletable.map((l) => l.path)).toEqual(['/a', '/b'])
+    expect(summary.needsAcknowledgement).toBe(true)
   })
 
-  it('ignores warnings that only a blocked lane carries', () => {
-    // The blocked lane is not being deleted, so its dirty tree is not a reason
-    // to make the user acknowledge anything.
+  it('keeps lost-work warnings on running lanes', () => {
     const summary = summarizePreflight([
       lane({ meta: meta({ path: '/a' }) }),
       lane({ meta: meta({ path: '/b' }), isStreaming: true, git: git({ dirtyCount: 9 }) }),
     ])
-    expect(summary.needsAcknowledgement).toBe(false)
+    expect(summary.needsAcknowledgement).toBe(true)
+    expect(summary.warnings).toEqual(['running', 'uncommitted'])
   })
 
   it('deduplicates warnings across lanes', () => {

@@ -26,6 +26,7 @@ interface SessionRegistryEvents {
  */
 export class SessionRegistry extends EventEmitter<SessionRegistryEvents> {
   private readonly sessions = new Map<string, LiveSession>()
+  private readonly disposing = new Map<string, Promise<void>>()
 
   create(workspacePath: string, spawnOptions: Omit<PiSpawnOptions, 'cwd'>): LiveSession {
     const sessionId = randomUUID()
@@ -51,15 +52,28 @@ export class SessionRegistry extends EventEmitter<SessionRegistryEvents> {
       sessionId: s.sessionId,
       workspacePath: s.workspacePath,
       pid: s.client.pid,
+      diskPath: s.client.sessionFile,
     }))
   }
 
   async dispose(sessionId: string): Promise<void> {
+    const pending = this.disposing.get(sessionId)
+    if (pending) return pending
     const session = this.sessions.get(sessionId)
     if (!session) return
-    this.sessions.delete(sessionId)
-    this.emit('disposed', { sessionId })
-    await session.client.dispose()
+    // Keep ownership visible until exit. A concurrent delete must not trash a
+    // file while an earlier dispose is still waiting for its writer to stop.
+    const operation = Promise.resolve().then(async () => {
+      await session.client.dispose()
+      this.sessions.delete(sessionId)
+      this.emit('disposed', { sessionId })
+    })
+    this.disposing.set(sessionId, operation)
+    try {
+      await operation
+    } finally {
+      this.disposing.delete(sessionId)
+    }
   }
 
   async disposeAll(): Promise<void> {

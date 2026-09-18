@@ -33,6 +33,7 @@ describe('PiRpcClient', () => {
     client.spawn()
     const response = await client.request({ type: 'get_state' })
     expect(response.success).toBe(true)
+    expect(client.sessionFile).toBe('/fake/session.jsonl')
     if (response.success) {
       expect(response.data?.sessionId).toBe('fake-session')
     }
@@ -125,7 +126,7 @@ describe('PiRpcClient', () => {
   })
 
   it.skipIf(process.platform === 'win32')(
-    'disposes a routine process group including a stubborn nested provider',
+    'disposes an owned process group including a stubborn nested provider',
     async () => {
       const client = track(
         new PiRpcClient({
@@ -156,6 +157,13 @@ describe('PiRpcClient', () => {
       })
     },
   )
+
+  it('can dispose a failed spawn without waiting for an exit event that never comes', async () => {
+    const client = track(new PiRpcClient({ cwd: here, binaryPath: '/missing-phosphor-pi' }))
+    client.spawn()
+    await client.dispose()
+    expect(client.alive).toBe(false)
+  })
 
   it('rejects requests when the process is not running', async () => {
     const client = track(makeClient())

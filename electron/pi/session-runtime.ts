@@ -184,7 +184,7 @@ export async function spawnSession(
 
   execution.signal?.throwIfAborted()
   const session = registry.create(options.workspacePath, {
-    ownProcessGroup: execution.unattended,
+    ownProcessGroup: true,
     binaryPath,
     prefixArgs,
     sessionPath: options.sessionPath,
@@ -257,13 +257,27 @@ export async function spawnSession(
   // pi started with. Spawn-time provider prediction is deliberately not used
   // here — pi's fuzzy model patterns resolve only once pi is up, and this
   // asks pi. The stub speaks a fixed script and is left alone.
-  if (!stub) {
-    await applyCompactionOwnership(session.client).catch((error: unknown) => {
-      log('pi', 'compaction ownership not applied', {
-        sessionId: session.sessionId,
-        error: String(error),
+  const stopOnAbort = (): void => {
+    void registry.dispose(session.sessionId)
+  }
+  execution.signal?.addEventListener('abort', stopOnAbort, { once: true })
+  if (execution.signal?.aborted) stopOnAbort()
+  try {
+    if (!stub) {
+      await applyCompactionOwnership(session.client).catch((error: unknown) => {
+        log('pi', 'compaction ownership not applied', {
+          sessionId: session.sessionId,
+          error: String(error),
+        })
       })
-    })
+    }
+    execution.signal?.throwIfAborted()
+    if (!session.client.alive) {
+      await registry.dispose(session.sessionId)
+      throw new Error('Session stopped during startup.')
+    }
+  } finally {
+    execution.signal?.removeEventListener('abort', stopOnAbort)
   }
 
   // Parked until the renderer learns the session's file path; see
