@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
-import type { GitInfo, WorktreeInfo } from '@shared/models'
+import type { WorktreeInfo } from '@shared/models'
 import { BranchIcon, ChevronIcon } from '@/components/icons'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { revealLabel } from '@/lib/reveal'
@@ -13,6 +13,7 @@ import { BranchPicker } from './BranchPicker'
 import { PrRow } from './PrRow'
 import { workspaceName } from '@/lib/path'
 import { useWorkspaceNameTransition } from '@/features/sessions/nameTransition'
+import { useGitInfo } from './useGitInfo'
 
 /**
  * The top bar's branch control: which branch this workspace is on, and the
@@ -28,29 +29,11 @@ export function BranchControl({
 }: {
   workspacePath: string
 }): React.JSX.Element | null {
-  const [info, setInfo] = useState<GitInfo | null>(null)
+  const { info, refresh } = useGitInfo(workspacePath)
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const [mergeTarget, setMergeTarget] = useState<WorktreeInfo | null>(null)
   const [removeTarget, setRemoveTarget] = useState<WorktreeInfo | null>(null)
-
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null
-    const refresh = (): void => {
-      void window.phosphor.invoke('git:info', workspacePath).then(setInfo)
-    }
-    refresh()
-    void window.phosphor.invoke('fs:watchWorkspace', workspacePath)
-    const unsubscribe = window.phosphor.onFsChanged((payload) => {
-      if (payload.workspacePath !== workspacePath) return
-      if (timer) clearTimeout(timer)
-      timer = setTimeout(refresh, 500)
-    })
-    return () => {
-      unsubscribe()
-      if (timer) clearTimeout(timer)
-    }
-  }, [workspacePath])
 
   // In a worktree the repo of record is the main tree; in the main tree it is
   // this workspace. Either way the menu operates on the same repo, which is
@@ -81,8 +64,8 @@ export function BranchControl({
   const repoLoadedAt = useWorktreesStore((s) => repoWorktrees(s, repoPath).loadedAt)
   useEffect(() => {
     if (repoLoadedAt === 0) return
-    void window.phosphor.invoke('git:info', workspacePath).then(setInfo)
-  }, [repoLoadedAt, workspacePath])
+    refresh(true)
+  }, [repoLoadedAt, refresh])
 
   /**
    * A branch about to be renamed says so.

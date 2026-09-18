@@ -707,7 +707,7 @@ export interface IpcInvokeMap {
   }
   'gh:available': { args: []; result: boolean }
 
-  'git:info': { args: [workspacePath: string]; result: GitInfo }
+  'git:info': { args: [workspacePath: string, options?: { force?: boolean }]; result: GitInfo }
   /** Cheap cached summaries (branch/worktree/dirty) for many cwds at once. */
   'git:infoBatch': { args: [cwds: string[]]; result: Record<string, GitInfo> }
   'git:statusMap': { args: [workspacePath: string]; result: Record<string, string> }

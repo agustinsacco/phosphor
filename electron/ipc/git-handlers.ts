@@ -25,7 +25,7 @@ export function registerGitHandlers(): void {
 
   handle('gh:prsForRepo', (_event, repoPath: string) => ghPrsForRepo(repoPath))
 
-  handle('git:info', (_event, workspacePath: string) => gitDisplayInfo(workspacePath))
+  handle('git:info', (_event, workspacePath, options) => gitDisplayInfo(workspacePath, options))
 
   handle('git:infoBatch', (_event, cwds: string[]) => gitInfoBatch(cwds))
 

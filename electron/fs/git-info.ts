@@ -66,7 +66,11 @@ export async function gitInfo(workspacePath: string): Promise<GitInfo> {
 }
 
 /** Display queries only: routine preflight and lane setup use fresh gitInfo. */
-export function gitDisplayInfo(workspacePath: string): Promise<GitInfo> {
+export function gitDisplayInfo(
+  workspacePath: string,
+  options: { force?: boolean } = {},
+): Promise<GitInfo> {
+  if (options.force) gitInfoCache.invalidate(workspacePath)
   return gitInfoCache.get(workspacePath, 'full', gitInfo)
 }
 
