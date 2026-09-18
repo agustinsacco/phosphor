@@ -47,6 +47,7 @@ function handle(cmd) {
           steeringMode: 'all',
           followUpMode: 'one-at-a-time',
           sessionId: 'fake-session',
+          sessionFile: '/fake/session.jsonl',
           autoCompactionEnabled: true,
           messageCount: 0,
           pendingMessageCount: 0,

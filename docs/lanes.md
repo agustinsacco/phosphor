@@ -67,9 +67,17 @@ rather than a one-click create button.
 Two queries:
 
 - `ghPrForBranch` — one branch. Used by the top-bar branch popup.
-- `ghPrsForRepo` — the whole repo, indexed by `headRefName`. Used by the
+- `ghPrsForRepo`: a bounded repo listing, indexed by `headRefName`. Used by the
   sidebar. **Never fan the single-branch query across the sidebar**; that is
   8-20 subprocesses per refresh.
+
+Both queries resolve the repository from the supplied working directory, with
+no workspace or organization allowlist. They first request check details. If
+that fails (including GitHub GraphQL resource limits in CI-heavy repos), they
+retry once with identity and state only, keeping the same PR limit. A PR
+still shows its number and state. Check, review and mergeability details are
+unavailable in this fallback; it gets no green checkmark and cannot make a
+Home lane ready to merge.
 
 `stores/pullRequests.ts` is keyed by **repo path**, not session: a sidebar
 group is exactly one repo, because worktrees fold into their main checkout. A
@@ -80,19 +88,22 @@ Refresh is event-driven (window focus, disk listing change), only for
 from several triggers is free.
 
 Every `gh` failure is a normal state, not an error: not installed, not
-authenticated, no GitHub remote. All render as no chip. Nothing here toasts.
+authenticated, no GitHub remote. A failed listing returns `null`, preserves
+previously known PR chips, and revokes any inferred absence. Attempts,
+including failures, are throttled per repo. Nothing here toasts.
 
 Every `gh` run goes through `piProcessEnv`, so PATH is the login shell's. A GUI
 launch inherits launchd's PATH, which has no Homebrew in it, and a bare
 `execFile('gh', …)` would fail in the installed app while working in dev.
 
 **"No PR yet" is inferred, and inference needs a stricter gate than a real
-chip.** `gh` never reports absence; a branch with no PR simply does not appear
-in the map, which looks the same as gh being unavailable. The `↑ no PR`
-fallback renders only once a fetch for that repo has actually completed
-**and** the lane is a worktree. A trunk checked out directly is not "a lane",
-and guessing "you could open a PR" there is wrong more often than right. A
-**confirmed** chip has no such restriction.
+chip.** The `↑ no PR` fallback renders only after a successful, complete
+listing and only for a worktree with a known branch. The repo query is capped
+at 100 recent PRs; a full page cannot prove absence for an older branch, so it
+never produces this fallback. A failed query cannot prove absence either.
+A trunk checked out directly is not "a lane", and guessing "you could open a
+PR" there is wrong more often than right. A **confirmed** chip has no such
+restriction.
 
 ### The chip is one token carrying two signals
 
@@ -210,6 +221,23 @@ mid-turn is findable under the name on screen.
 
 ## Deleting lanes
 
+Every sidebar session has **Delete**, including starting, running, crashed and
+live-only rows whose transcript is missing. Single-session deletion confirms
+that running work will stop, trashes any saved transcripts, and keeps the
+worktree, branch and project files. A missing transcript is not an error;
+other failures stay visible in the confirmation so deletion can be retried.
+Pending rows do not invent a timestamp from the current time.
+
+Concurrent opens of the same transcript share one process. Main serializes
+resume and deletion by transcript path, cancels queued or hung startup opens,
+and stops every matching writer (including
+handles not yet adopted by the renderer), then trashes the file. Deleting a
+routine-owned lane cancels its run through the scheduler first. Processes own
+their child process group so nested provider processes are stopped too.
+Late bootstrap responses cannot recreate deleted renderer state. On reload,
+main supplies known file identities; history replay does not block access to
+an unresponsive lane's Delete action.
+
 Selection is scoped to **one group**, which is one repo. A destructive confirm
 spanning two repos is how you delete the wrong branch. The Pinned list mixes
 projects and is not selectable.
@@ -234,16 +262,12 @@ goes.
 **Remote branch deletion is not offered.** A bulk flow is the worst place to
 introduce the least reversible operation.
 
-### Two tiers of guard
+### Lost-work acknowledgement
 
-- A **blocker** refuses: a turn in progress. Struck through in the confirm,
-  excluded from the count, reported afterwards.
-- A **warning** is lost work: uncommitted changes, unpushed commits, an open
-  PR. These raise **one** acknowledgement for the whole selection. A per-lane
-  confirm trains you to click through it.
-
-Warnings carried only by a _blocked_ lane do not count; it is not being
-deleted.
+Running turns are included, not refused. A turn in progress, uncommitted
+changes, unpushed commits, or an open PR raises **one** acknowledgement for the
+whole selection. Confirming stops those turns before deleting their lanes.
+A disposal failure is reported per lane and does not strand the progress loop.
 
 ### Ordering, and why it is that way
 

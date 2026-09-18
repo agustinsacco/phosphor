@@ -1458,6 +1458,13 @@ export function installMockPhosphor(): void {
           const workspacePath = args[0] as string
           return Promise.resolve(MOCK_DISK_SESSIONS.filter((m) => m.cwd === workspacePath))
         }
+        case 'sessions:delete': {
+          const path = args[0] as string | undefined
+          const id = args[1] as string | undefined
+          const index = MOCK_DISK_SESSIONS.findIndex((m) => m.path === path)
+          if (index !== -1) MOCK_DISK_SESSIONS.splice(index, 1)
+          return Promise.resolve(id ? [id] : [])
+        }
         case 'sessions:stats':
           return Promise.resolve(mockStats())
         case 'headroom:status':
@@ -1561,20 +1568,23 @@ export function installMockPhosphor(): void {
           // Branch keys must match the mock git:infoBatch branches below, or
           // the harness renders a sidebar with no PR chips at all.
           return Promise.resolve({
-            'fix/phase0-chat-ux': {
-              number: 42,
-              title: 'Composer attachments and worktree controls',
-              state: 'OPEN',
-              url: 'https://github.com/agustinsacco/Phosphor/pull/42',
-              checks: { passed: 3, failed: 0, pending: 1, total: 4 },
-              reviewDecision: 'APPROVED',
-            },
-            main: {
-              number: 39,
-              title: 'Lane loop removal',
-              state: 'MERGED',
-              url: 'https://github.com/agustinsacco/Phosphor/pull/39',
-              checks: { passed: 4, failed: 0, pending: 0, total: 4 },
+            complete: true,
+            byBranch: {
+              'fix/phase0-chat-ux': {
+                number: 42,
+                title: 'Composer attachments and worktree controls',
+                state: 'OPEN',
+                url: 'https://github.com/agustinsacco/Phosphor/pull/42',
+                checks: { passed: 3, failed: 0, pending: 1, total: 4 },
+                reviewDecision: 'APPROVED',
+              },
+              main: {
+                number: 39,
+                title: 'Lane loop removal',
+                state: 'MERGED',
+                url: 'https://github.com/agustinsacco/Phosphor/pull/39',
+                checks: { passed: 4, failed: 0, pending: 0, total: 4 },
+              },
             },
           })
         case 'git:info':

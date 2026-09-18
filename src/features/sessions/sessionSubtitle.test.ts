@@ -27,7 +27,14 @@ const meta = (overrides: Partial<SessionMeta> = {}): SessionMeta => ({
 const git = (overrides: Partial<GitInfo> = {}): GitInfo => ({ isRepo: true, ...overrides })
 
 describe('sessionSubtitle', () => {
-  it('always starts with the timestamp', () => {
+  it('does not invent an age for pending or orphaned rows', () => {
+    expect(sessionSubtitle({}, undefined)).toEqual([])
+    expect(
+      sessionSubtitle({}, git({ isWorktree: true, branch: 'task' })).map((s) => s.key),
+    ).toEqual(['worktree', 'branch'])
+  })
+
+  it('starts with the timestamp when known', () => {
     const segments = sessionSubtitle(meta(), undefined)
     expect(segments[0]?.key).toBe('time')
     expect(segments).toHaveLength(1)

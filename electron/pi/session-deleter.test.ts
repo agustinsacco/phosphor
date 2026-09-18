@@ -190,6 +190,17 @@ describe('deleteSession', () => {
     expect(trashed).toEqual([piPath, claudeLedger])
   })
 
+  it('succeeds when an orphan transcript is already missing', async () => {
+    await expect(deleteSession(piPath)).resolves.toBeUndefined()
+    expect(trashItem).not.toHaveBeenCalled()
+  })
+
+  it('reports a real trash failure instead of claiming success', async () => {
+    await writeFile(piPath, transcript(workspace, 'anthropic'), 'utf8')
+    trashItem.mockRejectedValue(new Error('Trash unavailable'))
+    await expect(deleteSession(piPath)).rejects.toThrow('Trash unavailable')
+  })
+
   it('still deletes pi’s transcript when it is malformed', async () => {
     await writeFile(piPath, 'not json at all\n', 'utf8')
 

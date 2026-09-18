@@ -16,7 +16,7 @@ export interface SubtitleSegment {
  * ends, so that row is on screen for the length of the first turn.
  */
 export interface SubtitleSource {
-  mtimeMs: number
+  mtimeMs?: number
 }
 
 /**
@@ -31,7 +31,8 @@ export interface SubtitleSource {
  * Home ledger, and the context meter's Cost row.
  */
 export function sessionSubtitle(meta: SubtitleSource, git: GitInfo | undefined): SubtitleSegment[] {
-  const segments: SubtitleSegment[] = [{ key: 'time', text: relativeTimeShort(meta.mtimeMs) }]
+  const segments: SubtitleSegment[] =
+    meta.mtimeMs === undefined ? [] : [{ key: 'time', text: relativeTimeShort(meta.mtimeMs) }]
   if (git?.isRepo) {
     if (git.isWorktree) segments.push({ key: 'worktree', text: 'wt' })
     if (git.branch) segments.push({ key: 'branch', text: git.branch, truncate: true })

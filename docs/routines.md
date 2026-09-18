@@ -110,6 +110,8 @@ are due times, not exact-start guarantees. No random stagger is added.
 | Interrupted process/app              | Unknown outcome, paused, no automatic replay                         |
 
 A cancellation request holds the admission slot until execution cleanup returns.
+Deleting a running routine's session from the sidebar uses that same cancellation
+path and waits for cleanup before trashing the transcript.
 On POSIX, routine pi processes own a process group; cleanup signals that group,
 including nested providers that inherit it. Windows uses `taskkill /T /F`.
 This is process cleanup, not a containment guarantee for independently detached

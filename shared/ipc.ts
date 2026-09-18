@@ -51,6 +51,7 @@ import type {
   PackageJobAction,
   PiPackageEntry,
   GhPullRequest,
+  GhRepoPullRequests,
   GitInfo,
   HeadroomStatus,
   OptimizationStats,
@@ -654,7 +655,11 @@ export interface IpcInvokeMap {
   'sessions:stats': { args: [workspacePath: string]; result: WorkspaceSessionStats }
   'sessions:watch': { args: [workspacePath: string]; result: void }
   'sessions:unwatch': { args: [workspacePath: string]; result: void }
-  'sessions:delete': { args: [sessionFilePath: string]; result: void }
+  /** Stops all matching writers, then trashes any transcript. Returns disposed handles. */
+  'sessions:delete': {
+    args: [sessionFilePath: string | undefined, sessionId?: string]
+    result: string[]
+  }
   'sessions:readTree': { args: [sessionFilePath: string]; result: SessionTree }
   'sessions:appendLabel': {
     args: [sessionFilePath: string, targetId: string, label: string | undefined]
@@ -692,13 +697,13 @@ export interface IpcInvokeMap {
     result: GhPullRequest | null
   }
   /**
-   * Every recent PR in a repo, keyed by head branch — one `gh` subprocess for
-   * a whole sidebar group. `gh:prForBranch` stays for the single-branch popup;
-   * fanning it out across N lanes is N subprocesses per refresh.
+   * Bounded PR listing for a whole sidebar group, with a lighter fallback
+   * when check details fail. null means unavailable, not an empty repository.
+   * `gh:prForBranch` stays for the single-branch popup, never per-lane fanout.
    */
   'gh:prsForRepo': {
     args: [repoPath: string]
-    result: Record<string, GhPullRequest>
+    result: GhRepoPullRequests | null
   }
   'gh:available': { args: []; result: boolean }
 

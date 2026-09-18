@@ -81,6 +81,7 @@ export interface LaneInput {
  */
 export function checksGreen(pr: GhPullRequest): boolean {
   const checks = pr.checks
+  if (checks === null) return false
   if (!checks || checks.total === 0) return true
   return checks.failed === 0 && checks.pending === 0
 }
@@ -139,12 +140,16 @@ export function classifyLane(input: LaneInput): BoardLane | null {
     // An open PR that is neither mergeable nor broken is still in flight, and
     // dropping it off the board entirely is how a lane goes quiet on you: a
     // pending check resolves on its own, and you want to know it is close.
-    // Reaching here with an OPEN PR means checks are pending: a failing one
-    // was caught above, and a green one is already `ready`.
+    // Checks are pending or unavailable: neither is proof it is ready.
     return {
       ...base,
       state: 'review',
-      detail: pr.state === 'DRAFT' ? 'draft' : 'checks running',
+      detail:
+        pr.state === 'DRAFT'
+          ? 'draft'
+          : pr.checks === null
+            ? 'checks unavailable'
+            : 'checks running',
       action: 'open',
     }
   }

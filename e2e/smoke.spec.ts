@@ -2975,6 +2975,62 @@ test('claude provider tab proves the chain end to end (stubbed claude + pi)', as
   }
 })
 
+test('a sandbox with a chat open in it can still be renamed, and keeps its chats', async () => {
+  const harness = await launch({
+    userDataDir: await scratchDir('phosphor-e2e-sandbox-rename-'),
+  })
+  const { page, workspace } = harness
+  try {
+    await openWorkspace(page)
+
+    // "No folder" mints a sandbox and points the home screen at it.
+    await page.getByTestId('workspace-chip').click()
+    await page.getByText('No folder').click()
+    await expect(page.getByPlaceholder('Describe a task or ask a question')).toBeVisible({
+      timeout: 20_000,
+    })
+    await page.getByPlaceholder('Describe a task or ask a question').fill('scratch work')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByPlaceholder(/Describe a task…/i)).toBeVisible({ timeout: 20_000 })
+
+    // Wait for the row to reach disk — a live session's transcript is what the
+    // rename has to carry across, and pi writes it only when the turn ends.
+    await expect(page.getByTestId('session-row').first()).toBeVisible({ timeout: 20_000 })
+
+    const sandboxGroup = page
+      .getByTestId('workspace-group')
+      .filter({ hasNotText: basename(workspace) })
+    const before = (await sandboxGroup.textContent()) ?? ''
+    expect(before).not.toBe('')
+
+    await sandboxGroup.locator('..').getByTestId('workspace-group-menu').click()
+    await page.getByTestId('workspace-group-rename-sandbox').click()
+
+    // The chat that has to close is stated before the user commits, not after.
+    await expect(page.getByText(/Closes 1 running chat/)).toBeVisible()
+
+    await page.getByTestId('prompt-input').fill('renamed-scratch')
+    await page.getByRole('button', { name: 'Rename', exact: true }).click()
+
+    // The regression this guards: nothing reclaims an idle pi, so the session
+    // started above stayed live forever and main refused the rename for the
+    // rest of the launch — from the one menu a user goes looking for it in.
+    // Verified to fail without the fix, on this very assertion.
+    await expect(
+      page.getByTestId('workspace-group').filter({ hasText: 'renamed-scratch' }),
+    ).toBeVisible({ timeout: 20_000 })
+    await expect(page.getByTestId('workspace-group').filter({ hasText: before })).toHaveCount(0)
+
+    // And the chat came with it: the transcript directory is named after the
+    // mangled cwd, so a rename that moves only the folder loses the history.
+    await expect(
+      page.locator('[data-testid="session-row"][data-workspace="renamed-scratch"]').first(),
+    ).toBeVisible({ timeout: 20_000 })
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('the workspace header carries fixed search / new / menu controls', async () => {
   const harness = await launch({
     userDataDir: await scratchDir('phosphor-e2e-header-'),

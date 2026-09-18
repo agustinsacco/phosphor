@@ -66,6 +66,29 @@ describe('routine-only admission', () => {
     expect(h.repo.run(queued.id).status).toBe('cancelled')
     expect(execute).toHaveBeenCalledTimes(1)
   })
+  it('waits for routine cleanup before lane deletion may proceed', async () => {
+    let finish!: () => void
+    const h = harness(
+      (_run, signal) =>
+        new Promise((resolve) => {
+          signal.addEventListener('abort', () => {
+            finish = () => resolve({ status: 'cancelled', reason: 'Stopped' })
+          })
+        }),
+    )
+    const run = h.scheduler.runNow(h.add().id, 'run')
+    let completed = false
+    const cancelling = h.scheduler.cancelAndWait(run.id).then(() => {
+      completed = true
+    })
+    await Promise.resolve()
+    expect(completed).toBe(false)
+    expect(h.repo.run(run.id).status).toBe('running')
+    finish()
+    await cancelling
+    expect(h.repo.run(run.id).status).toBe('cancelled')
+  })
+
   it('records progress and a conservative finished result', async () => {
     const h = harness(async (_run, _signal, progress) => {
       progress({ sessionPath: '/pi/session', workspacePath: '/worktree' })

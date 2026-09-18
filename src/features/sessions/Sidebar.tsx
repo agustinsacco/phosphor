@@ -16,6 +16,7 @@ import { PrBadge, openPullRequest } from './PrBadge'
 import { LaneMarker } from './LaneMarker'
 import { MarkerPickerModal } from './MarkerPickerModal'
 import { BulkDeleteModal } from './BulkDeleteModal'
+import { DeleteSessionModal, type DeleteSessionTarget } from './DeleteSessionModal'
 import { classifyLane, summarizePreflight, type PreflightSummary } from './deletePreflight'
 import { laneMarker } from '@/lib/laneMarker'
 import { formatCost } from '@/lib/format'
@@ -109,6 +110,7 @@ export function Sidebar({
    */
   const [selection, setSelection] = useState<{ repoPath: string; paths: string[] } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<PreflightSummary | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<DeleteSessionTarget | null>(null)
   /**
    * Lane search, per workspace group: which bars are open, what each is being
    * typed into, and what each is actually filtering by.
@@ -463,7 +465,7 @@ export function Sidebar({
     (group.anyScanned ? false : !group.paths.includes(workspacePath))
 
   /**
-   * PR chips: one `gh` subprocess per EXPANDED group, never one per lane.
+   * PR chips: one batched lookup per EXPANDED group, never one per lane.
    *
    * Event-driven rather than on a timer — window focus and the disk listing
    * changing are the two moments a PR's state plausibly moved. The store
@@ -782,6 +784,8 @@ export function Sidebar({
           isUnseen(seenSessions, meta.path, meta.lastActivityAt)),
       git: gitByCwd[meta.cwd || workspacePath],
       onOpenTree: () => setTreeFor(meta),
+      onDelete: (title: string) =>
+        setDeleteTarget({ title, path: meta.path, workspacePath: meta.cwd || workspacePath }),
     }
   }
 
@@ -1047,6 +1051,13 @@ export function Sidebar({
                           <PendingSessionRow
                             phosphorId={phosphorId}
                             active={phosphorId === activeSessionId}
+                            onDelete={(title) =>
+                              setDeleteTarget({
+                                title,
+                                sessionId: phosphorId,
+                                workspacePath: live[phosphorId]!.workspacePath,
+                              })
+                            }
                             git={gitByCwd[live[phosphorId]?.workspacePath ?? '']}
                           />
                         ),
@@ -1174,6 +1185,9 @@ export function Sidebar({
         </div>
       )}
 
+      {deleteTarget && (
+        <DeleteSessionModal target={deleteTarget} onClose={() => setDeleteTarget(null)} />
+      )}
       {pendingDelete && (
         <BulkDeleteModal
           summary={pendingDelete}
@@ -1298,6 +1312,7 @@ function SessionRow({
   isPinned,
   showWorkspace = false,
   onOpenTree,
+  onDelete,
   selected = false,
   selecting = false,
   onToggleSelect,
@@ -1325,6 +1340,7 @@ function SessionRow({
    * projects, so a selection there would span repos.
    */
   onToggleSelect?: (shiftKey: boolean) => void
+  onDelete: (title: string) => void
 }): React.JSX.Element {
   const orderActions = useSessionOrderActions()
   const isStreaming = useChatStore((s) =>
@@ -1334,7 +1350,9 @@ function SessionRow({
   // a lane that is genuinely booting reads as idle in the list.
   const booting = useSessionBooting(livePhosphorId)
   const isSuspended = useSessionsStore((s) => s.suspendedPaths.includes(meta.path))
-  const deleting = useSessionsStore((s) => laneIsBeingDeleted(s.bulkDelete, meta.path))
+  const deleting = useSessionsStore(
+    (s) => laneIsBeingDeleted(s.bulkDelete, meta.path) || s.deletingSessionKeys.includes(meta.path),
+  )
   const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
   // A worktree lane's PRs live under the MAIN repo, which is also the key the
   // sidebar group and `gh:prsForRepo` use. Derived here rather than threaded
@@ -1344,15 +1362,13 @@ function SessionRow({
   const pullRequest = usePullRequestsStore((s) => pullRequestFor(s, repoPath, git?.branch))
   const showPrStatus = useLanePrefsStore((s) => s.lanes.prStatus)
   // "No PR yet" is inferred, not reported by gh, so it needs its own gate: only
-  // once a fetch for this repo has actually completed (never for gh missing /
-  // unauthenticated / no GitHub remote, which all land as the same empty map —
-  // see gh-cli.ts), and only for a worktree lane. A non-worktree branch (most
+  // once a successful, untruncated fetch for this repo has completed, and
+  // only for a worktree lane. Failures cannot prove absence, nor can a recent
+  // PR page that might omit older lanes. A non-worktree branch (most
   // commonly the trunk itself) is not "a lane" in the PR sense, and inferring
   // "you could open a PR" there is far more often wrong than right.
-  const ghCliAvailable = usePullRequestsStore((s) => s.available)
-  const prFetchedAt = usePullRequestsStore((s) => s.byRepo[repoPath]?.fetchedAt ?? 0)
-  const confirmedNoPr =
-    !pullRequest && Boolean(git?.isWorktree) && ghCliAvailable === true && prFetchedAt > 0
+  const prListingComplete = usePullRequestsStore((s) => s.byRepo[repoPath]?.complete ?? false)
+  const confirmedNoPr = !pullRequest && Boolean(git?.isWorktree && git.branch) && prListingComplete
   // Only render a chip that has something to say. A non-worktree branch with
   // no confirmed PR gets none — gating on the raw preference instead would put
   // an empty chip on every plain-main session the moment the flag is on.
@@ -1493,7 +1509,7 @@ function SessionRow({
         danger: true,
         separatorAbove: true,
         disabled: bulkDeleteRunning,
-        onClick: () => void store.deleteDiskSession(workspacePath, meta),
+        onClick: () => onDelete(title),
       },
     ])
   }
@@ -1729,9 +1745,9 @@ function RenameInput({
  * Row for a live session that has no session file yet.
  *
  * Deliberately not a `SessionRow`: most actions there are keyed on
- * `meta.path` (fork, delete, pin, lane marker, open-from-disk), and this
- * session has no path to act on. What it CAN do is everything routed through
- * the live pi process instead — rename and export — so those are here. They
+ * `meta.path` (fork, pin, lane marker, open-from-disk), and this
+ * session may have no path to act on. Rename and export use the live process.
+ * Delete uses its handle, stopping it even if no transcript was ever saved. They
  * used to be missing entirely, which made a session unrenameable for the
  * whole of its first turn: exactly the minutes when its name is still a
  * placeholder and the user most wants to fix it.
@@ -1748,10 +1764,12 @@ function PendingSessionRow({
   phosphorId,
   active,
   git,
+  onDelete,
 }: {
   phosphorId: string
   active: boolean
   git?: GitInfo
+  onDelete: (title: string) => void
 }): React.JSX.Element {
   const orderActions = useSessionOrderActions()
   const isStreaming = useChatStore((s) => s.sessions[phosphorId]?.isStreaming ?? false)
@@ -1763,9 +1781,16 @@ function PendingSessionRow({
   const explicitName = useChatStore((s) => s.sessions[phosphorId]?.meta?.sessionName)
   const naming = useNameTransition(phosphorId)
   const title = sessionTitle({ explicitName, firstUserText }, { elide: false }) ?? 'New session'
-  // Synthesised meta so this row and the disk-backed one format their
-  // subtitle through the same function. Created now, nothing spent yet.
-  const subtitle = sessionSubtitle({ mtimeMs: Date.now() }, git)
+  // No invented timestamp: this can be an old orphan, not a new session.
+  const subtitle = sessionSubtitle({}, git)
+  const deleting = useSessionsStore(
+    (s) =>
+      s.deletingSessionKeys.includes(phosphorId) ||
+      Boolean(
+        s.live[phosphorId]?.diskPath &&
+        s.deletingSessionKeys.includes(s.live[phosphorId]!.diskPath!),
+      ),
+  )
   // The marker slot has to be here too, and derived the same way. This row is
   // swapped for a real SessionRow the moment the session file lands, and a
   // slot that appeared only after the swap would shift the title mid-turn —
@@ -1799,6 +1824,13 @@ function PendingSessionRow({
       ...orderActions,
       { label: 'Rename…', onClick: beginRename },
       { label: 'Export HTML…', onClick: () => void exportSessionHtml(phosphorId, title) },
+      {
+        label: 'Delete',
+        danger: true,
+        separatorAbove: true,
+        disabled: deleting,
+        onClick: () => onDelete(title),
+      },
     ])
   }
 
@@ -1873,6 +1905,8 @@ function PendingSessionRow({
   return (
     <button
       onClick={() => useSessionsStore.getState().activate(phosphorId)}
+      disabled={deleting}
+      aria-busy={deleting}
       onContextMenu={contextMenu}
       onDoubleClick={beginRename}
       data-testid="session-row"
@@ -1899,8 +1933,14 @@ function SubtitleSegments({
   segments: SubtitleSegment[]
   activity?: 'starting' | 'working'
 }): React.JSX.Element {
+  const leadingActivity = activity && !segments.some((segment) => segment.key === 'time')
   return (
     <>
+      {leadingActivity && (
+        <span className="lane-activity-label shrink-0">
+          {activity === 'starting' ? 'Starting' : 'Working'}
+        </span>
+      )}
       {segments.map((segment, i) => (
         <span
           key={segment.key}
@@ -1915,7 +1955,7 @@ function SubtitleSegments({
             segment.truncate ? 'min-w-0 shrink' : 'shrink-0',
           )}
         >
-          {i > 0 && <span className="pr-1">·</span>}
+          {(i > 0 || leadingActivity) && <span className="pr-1">·</span>}
           {segment.key === 'time' && activity ? (
             <span className="lane-activity-label" title={`Last activity: ${segment.text}`}>
               {activity === 'starting' ? 'Starting' : 'Working'}

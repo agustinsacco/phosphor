@@ -47,7 +47,7 @@ export interface PiSpawnOptions {
    * and pi's copy would bill the same file twice on every request.
    */
   noContextFiles?: boolean
-  /** Routine-owned process group: cancellation must also stop nested CLI/tools. */
+  /** Owned process group: disposal must also stop nested CLI/tools. */
   ownProcessGroup?: boolean
   /** Extra environment variables. */
   env?: Record<string, string>
@@ -89,6 +89,13 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
 
   constructor(private readonly options: PiSpawnOptions) {
     super()
+  }
+
+  private learnedSessionFile: string | undefined
+
+  /** Updated before get_state reaches any caller, including routine execution. */
+  get sessionFile(): string | undefined {
+    return this.learnedSessionFile ?? this.options.sessionPath
   }
 
   get pid(): number | undefined {
@@ -218,7 +225,11 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     this.shuttingDown = true
 
     await new Promise<void>((resolve) => {
-      child.once('exit', () => resolve())
+      // Failed spawns emit error + close, not exit. They are deletable too.
+      child.once('close', () => resolve())
+      // A failed spawn has no PID. Never signal that handle: on some Node
+      // versions it can target the caller's process group instead.
+      if (!child.pid) return
       this.signalChild(child, 'SIGTERM')
       this.killTimer = setTimeout(() => {
         if (child.exitCode === null) this.signalChild(child, 'SIGKILL')
@@ -246,7 +257,8 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
   }
 
   private signalChild(child: ChildProcessWithoutNullStreams, signal: NodeJS.Signals): void {
-    if (!this.options.ownProcessGroup || !child.pid) {
+    if (!child.pid) return
+    if (!this.options.ownProcessGroup) {
       child.kill(signal)
       return
     }
@@ -281,6 +293,10 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
 
     if (record.type === 'response') {
       const response = record as unknown as RpcResponse
+      if (response.command === 'get_state' && response.success) {
+        const state = response.data as RpcResponseDataMap['get_state'] | undefined
+        if (state?.sessionFile) this.learnedSessionFile = state.sessionFile
+      }
       if (response.id && this.pending.has(response.id)) {
         const pending = this.pending.get(response.id)!
         this.pending.delete(response.id)

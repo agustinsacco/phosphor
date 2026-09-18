@@ -146,6 +146,12 @@ export class RoutineScheduler {
     this.changed()
   }
 
+  async cancelAndWait(id: string): Promise<void> {
+    const task = this.executions.get(id)?.task
+    this.cancel(id)
+    await task
+  }
+
   pauseAll(): void {
     for (const routine of this.repository.routines().filter((r) => r.enabled && !r.archived)) {
       this.repository.save({ ...routine, enabled: false }, this.now(), routine.id, routine.revision)

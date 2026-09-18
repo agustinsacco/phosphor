@@ -108,13 +108,16 @@ export function App(): React.JSX.Element {
         // to open. A renderer reload (HMR, crash, re-navigation) used to
         // orphan every one of them — ~200 MB each, stranded until quit — and
         // resuming a session an orphan still owned would have spawned a
-        // SECOND process against the same session file. `adoptSession` learns
-        // each one's session file from `get_state`, which is what the resume
-        // match below waits on.
+        // SECOND process against the same session file. Main now reports the
+        // known file identity. Adoption registers the handle synchronously;
+        // replay must not block the shell if an orphan no longer answers RPC.
         const orphans = await window.phosphor.invoke('pi:listLiveSessions').catch(() => [])
         for (const orphan of orphans) {
           if (cancelled) return
-          await useSessionsStore.getState().adoptSession(orphan.sessionId, orphan.workspacePath)
+          void useSessionsStore
+            .getState()
+            .adoptSession(orphan.sessionId, orphan.workspacePath, orphan.diskPath)
+            .catch(() => undefined)
         }
 
         const target = await window.phosphor.invoke('app:resumeTarget')

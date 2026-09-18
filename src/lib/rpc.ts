@@ -58,7 +58,7 @@ export async function piCallOk<T extends RpcCommand['type']>(
  */
 export async function rehydrateTranscript(sessionId: string): Promise<AgentMessage[] | undefined> {
   const data = await piCall(sessionId, { type: 'get_messages' })
-  if (!data) return undefined
+  if (!data || !useChatStore.getState().sessions[sessionId]) return undefined
   useChatStore.getState().hydrate(sessionId, data.messages)
   return data.messages
 }

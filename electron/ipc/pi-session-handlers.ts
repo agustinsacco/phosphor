@@ -1,4 +1,6 @@
+import { access } from 'node:fs/promises'
 import { registry } from '../registry'
+import { sessionPathKey, openSessionPath } from '../pi/session-path-lock'
 import { handle } from './handle'
 import { spawnSession } from '../pi/session-runtime'
 import {
@@ -62,7 +64,22 @@ export function registerPiSessionHandlers(): void {
         workspacePath: owned.workspacePath,
         pid: owned.client.pid,
       }
-    return spawnSession(options, event.sender)
+    if (!options.sessionPath) return spawnSession(options, event.sender)
+    const path = sessionPathKey(options.sessionPath)
+    return openSessionPath(path, async (signal) => {
+      const matches = registry
+        .list()
+        .filter((s) => s.diskPath && sessionPathKey(s.diskPath) === path)
+      const live = matches.find((s) => registry.get(s.sessionId)?.client.alive)
+      if (live) return live
+      // A crashed handle must not prevent a genuine resume.
+      for (const session of matches) await registry.dispose(session.sessionId)
+      // pi creates a new session for a missing --session file. After a delete,
+      // a queued open must fail instead of silently recreating that lane.
+      await access(path)
+      signal.throwIfAborted()
+      return spawnSession({ ...options, sessionPath: path }, event.sender, { signal })
+    })
   })
 
   handle('pi:command', async (_event, sessionId: string, command: RpcCommand) => {
@@ -119,8 +136,10 @@ export function registerPiSessionHandlers(): void {
   })
 
   handle('pi:disposeSession', async (_event, sessionId: string) => {
-    if (isRoutineSession(sessionId))
-      throw new Error('Cancel the active run from Routines before closing its lane.')
+    if (isRoutineSession(sessionId)) {
+      const { cancelRoutineSession } = await import('../routines')
+      await cancelRoutineSession(sessionId)
+    }
     forgetSpawnAccount(sessionId)
     await registry.dispose(sessionId)
   })
