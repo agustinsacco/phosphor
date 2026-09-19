@@ -8,8 +8,9 @@ import {
   sandboxCwds,
 } from '../sandbox'
 import { isWithinFolder, rebaseWithinFolder } from '@shared/paths'
-import { access, rename } from 'node:fs/promises'
+import { access, readdir, rename } from 'node:fs/promises'
 import { claudeProjectDirForCwd, sessionDirForCwd } from '../pi/pi-paths'
+import { repointSessionCwd } from '../pi/session-cwd'
 import { registry } from '../registry'
 import { handle } from './handle'
 import { stageArtifactHtml } from '../artifacts/artifact-protocol'
@@ -116,6 +117,31 @@ async function moveIfPresent(from: string, to: string): Promise<void> {
   if (!(await pathExists(from))) return
   if (await pathExists(to)) return
   await rename(from, to)
+}
+
+/**
+ * Point every transcript in `dir` at the cwd the folder now has.
+ *
+ * Moving the directory is not enough: pi stores the cwd INSIDE each session
+ * file and refuses to resume one whose stored cwd is gone, exiting 1 before
+ * the RPC loop starts (`electron/pi/session-cwd.ts`). Without this a renamed
+ * sandbox kept all its chats in the sidebar and none of them would open.
+ *
+ * Best-effort per file, like the moves above — one unreadable transcript is
+ * not a reason to fail a rename that has already happened on disk.
+ */
+async function repointTranscripts(dir: string, from: string, to: string): Promise<void> {
+  let names: string[]
+  try {
+    names = await readdir(dir)
+  } catch {
+    return // No chats in this cwd; the common case, not an error.
+  }
+  await Promise.allSettled(
+    names
+      .filter((name) => name.endsWith('.jsonl'))
+      .map((name) => repointSessionCwd(join(dir, name), from, to)),
+  )
 }
 
 /** App preferences, native dialogs, and runtime info. */
@@ -335,14 +361,23 @@ export function registerAppHandlers(): void {
     } catch {
       return { ok: false as const, reason: 'failed' as const }
     }
-    const after = cwds
-      .map((cwd) => rebaseWithinFolder(cwd, plan.from, plan.to))
-      .flatMap((cwd) => [sessionDirForCwd(cwd), claudeProjectDirForCwd(cwd)])
+    const movedCwds = cwds.map((cwd) => rebaseWithinFolder(cwd, plan.from, plan.to))
+    const after = movedCwds.flatMap((cwd) => [sessionDirForCwd(cwd), claudeProjectDirForCwd(cwd)])
 
     // Best-effort, and after the folder: transcripts left behind cost history,
     // which is worse than the folder not moving but not worth failing over —
     // the folder has already moved and there is nothing to roll back to.
     await Promise.allSettled(before.map((from, index) => moveIfPresent(from, after[index]!)))
+
+    // The cwd each moved transcript stores is still the old one, and pi will
+    // not resume a session whose stored cwd is gone. Runs on pi's directories
+    // only — the CLI's ledger records a cwd too, but it never refuses a resume
+    // over one, and its transcripts are the CLI's file format, not pi's.
+    await Promise.all(
+      cwds.map((cwd, index) =>
+        repointTranscripts(sessionDirForCwd(movedCwds[index]!), cwd, movedCwds[index]!),
+      ),
+    )
 
     repointStoredPaths([
       { from: plan.from, to: plan.to },
