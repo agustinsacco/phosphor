@@ -5,11 +5,11 @@ import {
   type ElectronApplication,
   type Page,
 } from '@playwright/test'
-import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { scratchDir, scratchDirSync } from './fixtures/scratch'
 import { tmpdir } from 'node:os'
-import { basename, join, resolve } from 'node:path'
+import { basename, join, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const repoRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..')
@@ -3026,6 +3026,27 @@ test('a sandbox with a chat open in it can still be renamed, and keeps its chats
     await expect(
       page.locator('[data-testid="session-row"][data-workspace="renamed-scratch"]').first(),
     ).toBeVisible({ timeout: 20_000 })
+
+    // The row being there is not the same as the chat opening. pi reads the
+    // cwd back out of the session header and exits 1 before the RPC loop when
+    // it no longer exists, so a rename that moved the file but not the value
+    // inside it left every chat in the sandbox listed and un-openable. Found
+    // in the wild; the transcript directory is located by suffix rather than
+    // by re-deriving pi's mangling here, which would just duplicate the rule.
+    const sessionsRoot = join(agentDir, 'sessions')
+    const movedDir = (await readdir(sessionsRoot)).find((name) =>
+      name.endsWith('renamed-scratch--'),
+    )
+    expect(movedDir).toBeDefined()
+    const transcripts = (await readdir(join(sessionsRoot, movedDir!))).filter((name) =>
+      name.endsWith('.jsonl'),
+    )
+    expect(transcripts.length).toBeGreaterThan(0)
+    for (const name of transcripts) {
+      const text = await readFile(join(sessionsRoot, movedDir!, name), 'utf8')
+      const header = JSON.parse(text.split('\n')[0]!)
+      expect(header.cwd.endsWith(`${sep}renamed-scratch`)).toBe(true)
+    }
   } finally {
     await shutdown(harness)
   }
