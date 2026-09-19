@@ -4,6 +4,7 @@ import { supportedThinkingLevels } from '@shared/thinking'
 import { useChatStore } from '@/stores/chat'
 import { piCall, piCallOk } from '@/lib/rpc'
 import { refreshThinkingLevels, useSessionsStore } from '@/stores/sessions'
+import { useExtensionUiStore } from '@/stores/extensionUi'
 import { ModelMenu } from './ModelMenu'
 import { ThinkingMenu, thinkingLabel } from './ThinkingMenu'
 import { ModelChip, ModelChipSkeleton, ThinkingChip } from './ModelChip'
@@ -24,6 +25,8 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
   const modelsLoaded = useChatStore((s) => s.sessions[sessionId]?.modelsLoaded ?? false)
   const thinkingLevels = useChatStore((s) => s.sessions[sessionId]?.thinkingLevels)
   const [open, setOpen] = useState<'model' | 'thinking' | null>(null)
+  /** Model name the chip is switching to, or null when settled. */
+  const [switchingTo, setSwitchingTo] = useState<string | null>(null)
 
   if (!meta) return null
   const currentModel = meta.model
@@ -36,12 +39,18 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
 
   const setModel = async (model: Model): Promise<void> => {
     setOpen(null)
-    const selected = await piCall(sessionId, {
-      type: 'set_model',
-      provider: model.provider,
-      modelId: model.id,
-    })
-    if (selected) {
+    // The chip reports the switch for its whole duration. `set_model` is a
+    // round trip, and a cross-provider one restarts the lane on top of that;
+    // until this existed the menu simply closed and the old model name sat
+    // there, so the click read as ignored and users clicked again.
+    setSwitchingTo(model.name)
+    try {
+      const selected = await piCall(sessionId, {
+        type: 'set_model',
+        provider: model.provider,
+        modelId: model.id,
+      })
+      if (!selected) return
       const chat = useChatStore.getState()
       // A provider quota failure is recorded on the session-wide error surface.
       // Once pi confirms a different model, that error is no longer actionable;
@@ -49,18 +58,28 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
       chat.setError(sessionId, null)
       // Use pi's response rather than the menu row: pi may normalize or enrich
       // the model record, and it is the authority for the live session.
-      const live = useSessionsStore.getState().live[sessionId]
       const crossedProvider = currentModel?.provider !== selected.provider
-      if (crossedProvider && live?.diskPath) {
+      if (crossedProvider) {
         // A provider switch changes more than the model record: provider
         // runtimes may have different context/message contracts. Rebind pi
         // from disk so the next turn starts with the persisted model change,
         // rather than asking the old process to reinterpret its in-memory
         // provider state (Claude CLI → Bedrock was the observed failure).
-        await useSessionsStore.getState().disposeSession(sessionId)
-        await useSessionsStore
+        //
+        // Through `restartSession` so the lane keeps the screen and says it is
+        // restarting: disposing clears `activeSessionId`, which used to drop
+        // the user on the greeting screen until the new process answered.
+        const restarted = await useSessionsStore
           .getState()
-          .createSession(live.workspacePath, { sessionPath: live.diskPath })
+          .restartSession(sessionId, { label: selected.name })
+        useExtensionUiStore
+          .getState()
+          .pushToast(
+            restarted
+              ? `Now running ${selected.name} via ${selected.provider}`
+              : `Switched to ${selected.name}. It takes effect on the next turn.`,
+            'info',
+          )
         return
       }
       chat.patchMeta(sessionId, { model: selected })
@@ -78,6 +97,8 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
           useChatStore.getState().patchMeta(sessionId, { thinkingLevel: state.thinkingLevel })
         }
       })
+    } finally {
+      setSwitchingTo(null)
     }
   }
 
@@ -92,12 +113,24 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
       <ModelChip
         testId="model-chip"
         active={open === 'model'}
+        // Inert while switching: a second pick against a session that is being
+        // disposed and respawned races the restart it would be re-entering.
+        disabled={switchingTo !== null}
+        loading={switchingTo !== null}
         onClick={() => setOpen(open === 'model' ? null : 'model')}
         title={
-          currentModel ? `${currentModel.name} · served by ${currentModel.provider}` : undefined
+          switchingTo
+            ? `Switching to ${switchingTo}…`
+            : currentModel
+              ? `${currentModel.name} · served by ${currentModel.provider}`
+              : undefined
         }
-        name={currentModel?.name ?? (modelsLoaded ? 'No model' : <ModelChipSkeleton />)}
-        provider={currentModel?.provider}
+        name={
+          switchingTo
+            ? `Switching to ${switchingTo}…`
+            : (currentModel?.name ?? (modelsLoaded ? 'No model' : <ModelChipSkeleton />))
+        }
+        provider={switchingTo ? undefined : currentModel?.provider}
       />
 
       {/* Gate on what the menu will actually render (pi's answer when

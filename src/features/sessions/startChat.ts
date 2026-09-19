@@ -4,6 +4,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useNamingStore } from '@/stores/naming'
 import { useChatStore } from '@/stores/chat'
 import { useWorkspacesStore } from '@/stores/workspaces'
+import { useExtensionUiStore } from '@/stores/extensionUi'
 import { repoWorktrees, useWorktreesStore } from '@/stores/worktrees'
 import { branchNameFor } from '@shared/branchName'
 import { lanePrefs } from '@/stores/lanePrefs'
@@ -63,6 +64,12 @@ export interface StartChatOptions {
   workspacePath: string
   prompt: string
   images?: ImageContent[]
+  /**
+   * Navigation this send belongs to (`claimNav`), taken when the user hit
+   * Enter. Everything that would take the screen is checked against it, so a
+   * lane the user has already navigated away from finishes in the background.
+   */
+  nav?: number
   /** Progress for the composer's button label. */
   onPhase?: (phase: StartChatPhase) => void
   /** Non-fatal problem to surface; the session still starts. */
@@ -84,14 +91,16 @@ export interface StartChatResult {
  * transcript streams in on its own after that, and so does the name.
  */
 export async function startChat(options: StartChatOptions): Promise<StartChatResult> {
-  const { workspacePath, prompt, images } = options
+  const { workspacePath, prompt, images, nav } = options
+  /** Is the user still waiting on this send, or have they moved on? */
+  const claimed = (): boolean => nav === undefined || useSessionsStore.getState().navSeq === nav
   const isolate = await shouldIsolate(workspacePath)
 
   if (!isolate) {
     options.onPhase?.('starting')
     const sessionId = await useSessionsStore
       .getState()
-      .createSession(workspacePath, { firstPrompt: prompt, firstImages: images })
+      .createSession(workspacePath, { firstPrompt: prompt, firstImages: images, nav })
     return { sessionId, workspacePath }
   }
 
@@ -113,7 +122,7 @@ export async function startChat(options: StartChatOptions): Promise<StartChatRes
     options.onPhase?.('starting')
     const sessionId = await useSessionsStore
       .getState()
-      .createSession(workspacePath, { firstPrompt: prompt, firstImages: images })
+      .createSession(workspacePath, { firstPrompt: prompt, firstImages: images, nav })
     return { sessionId, workspacePath }
   }
 
@@ -127,11 +136,16 @@ export async function startChat(options: StartChatOptions): Promise<StartChatRes
   // the app fell back to the greeting screen — which then re-rendered for the
   // brand-new, empty worktree ("Start your first session in hey-2") for a beat
   // before the chat replaced it.
-  useWorkspacesStore.getState().openWorkspace(cwd)
+  //
+  // Skipped once the user has navigated away: cutting the branch takes seconds,
+  // and re-pointing the window at this worktree after they opened another lane
+  // would move the file tree and top bar out from under them.
+  if (claimed()) useWorkspacesStore.getState().openWorkspace(cwd)
 
   const sessionId = await useSessionsStore.getState().createSession(cwd, {
     firstPrompt: prompt,
     firstImages: images,
+    nav,
     // The store's own auto-naming pass is suppressed because this flow owns
     // naming end to end: the title has to reach the branch as well as the
     // session, and two independent naming calls would mean two names.
@@ -224,6 +238,11 @@ async function applyGeneratedName({
   if (useChatStore.getState().sessions[sessionId]?.meta?.sessionName) return
   if (!useSessionsStore.getState().live[sessionId]) return
 
+  // Naming lands ~13s after the send, by which time the user may be working in
+  // another lane — where nothing on screen would otherwise show that their new
+  // lane finished setting itself up.
+  const watching = useSessionsStore.getState().activeSessionId === sessionId
+
   if (await piCallOk(sessionId, { type: 'set_session_name', name: title })) {
     // `patchMeta` is what the user actually sees. pi does not write a session
     // file until a turn ENDS (measured), so this rename reaches disk only when
@@ -235,6 +254,8 @@ async function applyGeneratedName({
     // on disk now and this is the scan that picks the name up. If it has not,
     // the folder watcher does it when pi writes.
     void useSessionsStore.getState().refreshDisk(cwd)
+    if (!watching)
+      useExtensionUiStore.getState().pushToast(`Named your new lane "${title}"`, 'info')
   }
 
   if (!branch) return

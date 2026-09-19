@@ -118,6 +118,21 @@ screen.
   exists — both are real, and guessing would be worse than reporting. This is
   retroactive by construction: a folder renamed by an older build is corrected
   on the next scan, with no migration.
+- **Correcting the hint is not enough to open the lane**, because pi reads the
+  header for itself: `--session` resumes into the cwd frozen in the file, NOT
+  the one pi is spawned with, and pi refuses outright when that folder is gone
+  (`Stored session working directory does not exist`, exit 1, before the
+  session starts). So a renamed sandbox left every chat inside it permanently
+  unopenable while the rows looked perfectly healthy. `realignSessionCwd`
+  (`electron/pi/session-cwd.ts`) points the header back at the folder the file
+  was found under, immediately before the spawn that resumes it — the one
+  moment no pi process owns the file. Same authority rule as above: a header
+  naming a second spelling of this folder is left alone, one naming a folder
+  that is gone or a different folder is rewritten. Sandbox numbers are reused,
+  so "different folder that exists" is a real case, not a hypothetical. Done on
+  the open path rather than inside the rename so one mechanism covers every way
+  a folder can move, and so chats an earlier rename already broke are repaired
+  on the next click.
 - **Flat nav rows**: `New`, `Artifacts`, `Skills`, `Routines`. `New` routes to the home
   screen; it does not spawn a session, because the folder and the first prompt
   are chosen there. Artifacts, Skills, and Routines open global pages (below).
@@ -205,7 +220,10 @@ Rules:
 - Fullscreen (↗) overlays the main region (sidebar and top bar stay) and never
   resizes the split underneath, so exiting restores the exact prior layout.
 - Sessions in a workspace run **concurrently**. The chat shows the active one;
-  switching is instant; background sessions keep streaming into their stores.
+  switching between live lanes is instant; background sessions keep streaming
+  into their stores. A lane whose process is not up yet has to be spawned and
+  replayed first, and that wait gets its own overlay — see
+  [lanes.md](lanes.md#switching-lanes).
 
 **Changes navigation:** each file has a keyboard-operable Open button, separate
 from Revert. A diff opens with focus on its Back button, and returning restores

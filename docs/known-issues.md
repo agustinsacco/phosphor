@@ -121,8 +121,11 @@ directory to the new name, so `trashIfPresent` looks where nothing is and
 leaves a megabytes-sized file behind. The sidebar no longer _shows_ a stale cwd
 (`listSessions` substitutes the folder it scanned), but the deleter reads the
 header directly and cannot: nothing can un-mangle a directory name back into a
-path. Fixing it means either passing the workspace path down through
-`sessions:delete` or rewriting the header at rename time.
+path. Narrower than it was: opening a lane now realigns its header to the
+folder it was found under (`electron/pi/session-cwd.ts`), so any session
+reopened since the rename deletes cleanly. One never reopened still orphans its
+CLI copy, and fixing that means passing the workspace path down through
+`sessions:delete`.
 
 ## Code health
 

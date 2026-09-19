@@ -86,6 +86,8 @@ export function Sidebar({
   const seenSessions = useSessionsStore((s) => s.seenSessions)
   const gitByCwd = useSessionsStore((s) => s.gitByCwd)
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
+  /** Session file of the lane being opened right now, if any. */
+  const openingPath = useSessionsStore((s) => s.opening?.path)
   const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
   const activePage = useLayoutStore((s) => s.page)
   const recents = useWorkspacesStore((s) => s.recents)
@@ -772,12 +774,22 @@ export function Sidebar({
 
   const rowProps = (meta: SessionMeta) => {
     const livePhosphorId = liveByDisk.get(meta.path)
-    const active = livePhosphorId === activeSessionId && activeSessionId !== null
+    // Selection follows the CLICK, not the process. A lane whose pi is still
+    // spawning is already the one the user is on, and leaving the previous row
+    // highlighted for the second or two that takes is what made switching read
+    // as a dropped click. Exclusive, so the list never shows two selected rows:
+    // while a lane is opening, it is the selection.
+    const opening = openingPath !== undefined && openingPath === meta.path
+    const active =
+      openingPath !== undefined
+        ? opening
+        : livePhosphorId === activeSessionId && activeSessionId !== null
     return {
       meta,
       workspacePath: meta.cwd || workspacePath,
       livePhosphorId,
       active,
+      opening,
       unseen:
         !active &&
         ((unread[livePhosphorId ?? ''] ?? 0) > 0 ||
@@ -1297,6 +1309,20 @@ function WorkspaceSwitcher(): React.JSX.Element {
   )
 }
 
+/**
+ * What a row says it is doing, in the subtitle's time slot.
+ *
+ * `opening` is the only one that is not about the agent: it covers the click
+ * → process-up window, which is otherwise a second or more of a row that
+ * looks exactly like every idle row beside it.
+ */
+type LaneActivity = 'opening' | 'starting' | 'working'
+const ACTIVITY_LABEL: Record<LaneActivity, string> = {
+  opening: 'Opening',
+  starting: 'Starting',
+  working: 'Working',
+}
+
 // One line, always. A narrow sidebar used to wrap every long title onto a
 // second line, so the list re-flowed as the user dragged the divider and a
 // lane stopped being a fixed-height row. The full title stays in the tooltip.
@@ -1307,6 +1333,7 @@ function SessionRow({
   workspacePath,
   livePhosphorId,
   active,
+  opening = false,
   unseen,
   git,
   isPinned,
@@ -1321,6 +1348,8 @@ function SessionRow({
   workspacePath: string
   livePhosphorId?: string
   active: boolean
+  /** This lane's process is still coming up for the click that just happened. */
+  opening?: boolean
   /** Activity the user hasn't viewed yet (persisted across restarts). */
   unseen: boolean
   git?: GitInfo
@@ -1515,7 +1544,7 @@ function SessionRow({
   }
 
   const subtitle = sessionSubtitle(meta, git)
-  const activity = isStreaming ? 'working' : booting ? 'starting' : undefined
+  const activity = isStreaming ? 'working' : opening ? 'opening' : booting ? 'starting' : undefined
   const indicatorState = activity
     ? 'streaming'
     : unseen
@@ -1931,15 +1960,13 @@ function SubtitleSegments({
   activity,
 }: {
   segments: SubtitleSegment[]
-  activity?: 'starting' | 'working'
+  activity?: LaneActivity
 }): React.JSX.Element {
   const leadingActivity = activity && !segments.some((segment) => segment.key === 'time')
   return (
     <>
       {leadingActivity && (
-        <span className="lane-activity-label shrink-0">
-          {activity === 'starting' ? 'Starting' : 'Working'}
-        </span>
+        <span className="lane-activity-label shrink-0">{ACTIVITY_LABEL[activity]}</span>
       )}
       {segments.map((segment, i) => (
         <span
@@ -1958,7 +1985,7 @@ function SubtitleSegments({
           {(i > 0 || leadingActivity) && <span className="pr-1">·</span>}
           {segment.key === 'time' && activity ? (
             <span className="lane-activity-label" title={`Last activity: ${segment.text}`}>
-              {activity === 'starting' ? 'Starting' : 'Working'}
+              {ACTIVITY_LABEL[activity]}
             </span>
           ) : segment.key === 'worktree' ? (
             <span
