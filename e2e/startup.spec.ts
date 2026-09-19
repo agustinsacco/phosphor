@@ -1,6 +1,7 @@
 import { test, expect, _electron as electron, type ElectronApplication } from '@playwright/test'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { scratchDir } from './fixtures/scratch'
+import { configureTestTeardown } from './fixtures/shutdown'
 import { join, resolve } from 'node:path'
 
 async function launch(theme: 'light' | 'dark' | 'system', extraEnv: Record<string, string> = {}) {
@@ -28,6 +29,7 @@ async function launch(theme: 'light' | 'dark' | 'system', extraEnv: Record<strin
       ...extraEnv,
     },
   })
+  configureTestTeardown(app)
   const page = await app.firstWindow()
   await expect(page.getByTestId('app-shell')).toBeVisible()
   return {

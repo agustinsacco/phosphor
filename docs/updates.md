@@ -106,8 +106,23 @@ Nothing persistent lives inside the bundle, so a swap resets no state:
 The only bundle-internal thing read at runtime is `process.resourcesPath/pi-ext`,
 the shipped extension sources, which the new version _should_ replace.
 
-One consequence that is inherent: **an in-flight turn is lost on restart.** pi
-writes a session file only when a turn ends. Finish the turn first.
+**An unfinished turn can be lost on restart.** Pi persists it only when the
+turn ends. Quit and update restart ask for confirmation when main observes
+active or unconfirmed session work, pending routines, or any open terminal.
+Keep working is the default; Stop work explicitly authorizes termination, not
+a guaranteed save. Cancel leaves processes, terminals, and watchers intact.
+
+Approval comes before a macOS bundle swap or `quitAndInstall`. New sessions,
+agent commands, terminals, and routine admission are blocked after approval;
+inspection and abort commands remain available. Duplicate quit/update requests
+cannot share an approval to launch competing installs. Failed update preparation
+reopens admission unless teardown has already begun.
+
+On Windows/Linux, closing the final window asks before destroying its renderer
+unless background routines keep the app alive. macOS window-close behavior is
+unchanged. This guard does not yet provide editor save/discard prompts, a
+wait-until-finished action, or an interruption recovery journal. OS signals and
+force-quit bypass confirmation.
 
 ### TCC grants survive an update
 

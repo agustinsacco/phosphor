@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { newRoutine } from '@shared/routines'
+import { shutdownApproval } from '../shutdown-approval'
 import { RoutineRepository } from './repository'
 import { RoutineScheduler, type RoutineExecutor } from './scheduler'
 
@@ -41,6 +42,25 @@ const pending: RoutineExecutor = (_run, signal) =>
   })
 
 describe('routine-only admission', () => {
+  it('pauses admission without consuming queued work while shutdown is approved', () => {
+    const execute = vi.fn(pending)
+    const h = harness(execute)
+    const definition = h.add()
+    const run = h.repo.manual(definition.id, 'queued', Date.parse('2026-09-21T08:00Z'))
+    const closing = vi.spyOn(shutdownApproval, 'closing', 'get').mockReturnValue(true)
+    try {
+      h.scheduler.tick()
+      expect(execute).not.toHaveBeenCalled()
+      expect(h.repo.run(run.id).status).toBe('queued')
+      expect(() => h.scheduler.runNow(definition.id, 'new')).toThrow('shutting down')
+      closing.mockReturnValue(false)
+      h.scheduler.tick()
+      expect(execute).toHaveBeenCalledTimes(1)
+    } finally {
+      closing.mockRestore()
+    }
+  })
+
   it('limits execution to two workers and serializes a shared workspace', async () => {
     const execute = vi.fn(pending)
     const h = harness(execute)

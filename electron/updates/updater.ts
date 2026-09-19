@@ -4,6 +4,7 @@ import { BrowserWindow, app, shell } from 'electron'
 // Type-only: erased at compile time, so the runtime import below stays lazy.
 import type * as ElectronUpdater from 'electron-updater'
 import { log } from '../debug-log'
+import { shutdownApproval } from '../shutdown-approval'
 import {
   IDLE,
   isNewerVersion,
@@ -372,15 +373,25 @@ export async function restartAndInstall(): Promise<void> {
   }
   if (state.phase !== 'downloaded') return
 
-  if (stagedMac) {
-    await installStagedMac(stagedMac)
-    return
+  if (!(await shutdownApproval.request('update'))) return
+  try {
+    // A background check may have changed availability while confirmation was open.
+    if (state.phase !== 'downloaded') {
+      shutdownApproval.releaseFailedUpdate()
+      return
+    }
+    if (stagedMac) {
+      if (!(await installStagedMac(stagedMac))) shutdownApproval.releaseFailedUpdate()
+      return
+    }
+    const { autoUpdater } = await importUpdater()
+    shutdownApproval.allowUpdateQuit()
+    // isSilent=false, isForceRunAfter=true: return to Phosphor after installation.
+    autoUpdater.quitAndInstall(false, true)
+  } catch (error) {
+    shutdownApproval.releaseFailedUpdate()
+    throw error
   }
-
-  const { autoUpdater } = await importUpdater()
-  // isSilent=false so the installer UI shows if the platform has one;
-  // isForceRunAfter=true so the user lands back in Phosphor, not on the desktop.
-  autoUpdater.quitAndInstall(false, true)
 }
 
 /**
@@ -390,18 +401,21 @@ export async function restartAndInstall(): Promise<void> {
  * it waits on — and it is spawned only after a successful swap, so a failed
  * swap leaves a running app rather than an app that quits into nothing.
  */
-async function installStagedMac(staged: StagedMacUpdate): Promise<void> {
+async function installStagedMac(staged: StagedMacUpdate): Promise<boolean> {
   const bundle = macBundlePath()
-  if (!bundle) return
+  if (!bundle) return false
   try {
     const backup = await swapBundle(bundle, staged)
     await spawnRelauncher(bundle, backup)
     stagedMac = null
     log('updates', 'installing macOS update', { version: staged.version })
+    shutdownApproval.allowUpdateQuit()
     app.quit()
+    return true
   } catch (error) {
     stagedMac = null
     log('updates', 'macOS swap failed', { message: String(error) })
     apply({ type: 'install-failed', version: staged.version, releaseUrl: RELEASES_LATEST })
+    return false
   }
 }

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { shutdownApproval } from '../shutdown-approval'
 
 /**
  * Covers the two contracts the terminal pane leans on:
@@ -60,6 +61,17 @@ beforeEach(() => {
 })
 
 describe('PtyManager.create — spawn failures', () => {
+  it('does not spawn a terminal after shutdown approval', () => {
+    const closing = vi.spyOn(shutdownApproval, 'closing', 'get').mockReturnValue(true)
+    try {
+      expect(() => ptyManager.create('/repo', 80, 24)).toThrow('shutting down')
+      expect(ptySpawn).not.toHaveBeenCalled()
+      expect(ptyManager.size).toBe(0)
+    } finally {
+      closing.mockRestore()
+    }
+  })
+
   it('wraps posix_spawnp failures with the likely cause', () => {
     // node-pty's message is just "posix_spawnp failed." — the actionable part
     // (a spawn-helper without its exec bit / built for the wrong arch) has to

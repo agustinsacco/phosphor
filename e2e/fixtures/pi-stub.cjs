@@ -110,7 +110,12 @@ process.stdin.on('data', (chunk) => {
   }
 })
 
-const out = (obj) => process.stdout.write(JSON.stringify(obj) + '\n')
+let agentStreaming = false
+const out = (obj) => {
+  if (obj.type === 'agent_start') agentStreaming = true
+  if (obj.type === 'agent_end' || obj.type === 'agent_settled') agentStreaming = false
+  process.stdout.write(JSON.stringify(obj) + '\n')
+}
 
 /**
  * Honour `-n <name>` the way real pi does, so a session Phosphor names up front
@@ -304,7 +309,7 @@ function handle(cmd) {
         data: {
           model: MODEL,
           thinkingLevel: 'off',
-          isStreaming: false,
+          isStreaming: agentStreaming,
           isCompacting: false,
           steeringMode: 'all',
           followUpMode: 'one-at-a-time',

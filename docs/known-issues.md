@@ -60,24 +60,12 @@ still returns a single path.
 
 ## Losing an in-flight turn
 
-**pi persists a turn only when the turn ends**, so any exit during a turn
-discards all of it — with no warning before and no trace after. The session is
-then indistinguishable from one the model never answered.
-
-| #   | Issue                                                                                          | Where                                                    |
-| --- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| T1  | `updates:restartAndInstall` quits with zero checks on session state, from two UI entry points  | `electron/ipc/updates-handlers.ts`, `updater.ts`         |
-| T2  | `before-quit` has no in-flight check either, so Cmd+Q and window-close lose turns the same way | `electron/main.ts` — straight to `registry.disposeAll()` |
-| T3  | No confirmation before the quit and no interruption marker after it                            | nothing exists in `electron/` or `src/`                  |
-
-**Before planning this: the obvious signal no longer exists.** The original
-plan was built on `FleetHub`/`FleetPhase`, which were deleted with the
-orchestration removal. `SessionRegistry` tracks only
-`{sessionId, workspacePath, client}` — no phase, no streaming state. In-flight
-state now comes from each client's `SessionActivity`, updated before RPC
-responses and events reach consumers. It includes pending commands, retries,
-queues, tools and dialogs. Quit/update confirmation and admission control are
-still missing; having these facts alone does not protect a running turn.
+**T3: no interruption recovery marker.** Pi persists a turn only when it ends.
+Quit and update restart now confirm active or unconfirmed work before teardown,
+but an explicitly stopped turn, OS termination, or crash can still leave no
+recoverable transcript for that turn. Main has activity facts and abort logs,
+not a durable interruption journal. Editor save/discard prompts and a
+wait-until-finished quit action are also still missing. See [updates.md](updates.md).
 
 ## Tool and MCP row rendering
 
