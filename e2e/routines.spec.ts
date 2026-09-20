@@ -141,6 +141,11 @@ test('create, preview, run in an isolated lane, review history, and persist acro
   )
   expect(await laneIndex()).not.toContain(run.sessionPath!)
   await page.getByRole('button', { name: 'Routines', exact: true }).click()
+  // Activity repeats the run on the overview, under today's heading.
+  await expect(page.getByRole('button', { name: 'Today 1 run' })).toBeVisible()
+  await expect(page.getByTestId('routine-run')).toHaveCount(1)
+  await page.getByRole('button', { name: 'Failed only' }).click()
+  await expect(page.getByTestId('routine-run')).toHaveCount(0)
   await page.getByTestId('routine-row').filter({ hasText: 'Weekly report' }).click()
   await page.getByRole('button', { name: 'Pause', exact: true }).click()
   await expect(page.getByText('Paused', { exact: true })).toBeVisible()
