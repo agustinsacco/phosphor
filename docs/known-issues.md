@@ -136,6 +136,16 @@ header directly and cannot: nothing can un-mangle a directory name back into a
 path. Fixing it means either passing the workspace path down through
 `sessions:delete` or rewriting the header at rename time.
 
+**R14 — a symlinked session directory gives a resumed session two sidebar
+rows.** Main resumes through `sessionPathKey` (`realpathSync.native`), so the
+live entry's `diskPath` is the resolved path, while the disk scan lists the
+file under the path it walked. When the two differ the renderer's
+`pendingSessionsByGroup` cannot match them, so the placeholder row never
+retires and sits beside the real one until the next scan that agrees. Only
+reproduces when the pi agent directory is reached through a symlink (`/tmp` on
+macOS, so the routines e2e hits it; a normal `~/.pi/agent` does not). Fixing it
+means picking one path identity for a session file and using it on both sides.
+
 ## Code health
 
 | #   | Issue                                                                                                        | Where                                                                               |

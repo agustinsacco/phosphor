@@ -46,6 +46,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
   const [history, setHistory] = useState<RoutineRun[]>([])
   const [loaded, setLoaded] = useState(50)
   const [importing, setImporting] = useState(false)
+  const [continuing, setContinuing] = useState<RoutineRun | null>(null)
   const [json, setJson] = useState('')
 
   useEffect(() => {
@@ -119,8 +120,17 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
       return rank(a) - rank(b) || a.name.localeCompare(b.name)
     })
 
+  /**
+   * Hand this run's lane back to its workspace, then open it.
+   *
+   * Opening is the promotion: there is no read-only transcript view in
+   * Phosphor — reopening a session file spawns a real pi process — so a lane
+   * you have opened is one you own, and it has to be reachable from the
+   * sidebar rather than only from this page.
+   */
   const openRun = async (run: RoutineRun): Promise<void> => {
     const store = useSessionsStore.getState()
+    if (run.sessionPath) await window.phosphor.invoke('routines:promoteRun', run.id)
     const live = (await window.phosphor.invoke('pi:listLiveSessions')).find(
       (s) => s.sessionId === run.sessionId,
     )
@@ -360,9 +370,9 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                     <Button
                       size="sm"
                       disabled={busy || (!run.sessionId && !run.sessionPath)}
-                      onClick={() => void act(() => openRun(run))}
+                      onClick={() => setContinuing(run)}
                     >
-                      Open lane
+                      {activeRun(run) ? 'Open running lane' : 'Continue lane'}
                     </Button>
                     {activeRun(run) && (
                       <Button
@@ -536,6 +546,49 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
             void useRoutinesStore.getState().refresh()
           }}
         />
+      )}
+      {continuing && (
+        <ModalOverlay onClose={() => setContinuing(null)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Continue routine lane"
+            className="bg-bg border-border w-[min(540px,90vw)] rounded-xl border p-5"
+          >
+            <h2 className="text-xl font-semibold">
+              {activeRun(continuing) ? 'Open this running lane?' : 'Continue this routine lane?'}
+            </h2>
+            <p className="text-text-secondary my-3">
+              {activeRun(continuing)
+                ? 'The routine keeps control until this run finishes. The lane appears in the workspace list so you can watch it, and stays there afterwards.'
+                : 'This transcript becomes an ordinary interactive session in the workspace list. The routine will not use it again.'}
+            </p>
+            <p className="border-border text-text-secondary mb-3 break-all border-l-2 pl-3">
+              {continuing.workspacePath ?? continuing.definition.workspacePath}
+              <br />
+              {continuing.branch
+                ? `Branch ${continuing.branch}`
+                : 'Folder task · it reopens in this checkout on whatever branch it is on now.'}
+            </p>
+            <p className="text-text-tertiary mb-4">
+              This run and its output stay in the routine&apos;s history either way.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button onClick={() => setContinuing(null)}>Cancel</Button>
+              <Button
+                variant="primary"
+                disabled={busy}
+                onClick={() => {
+                  const run = continuing
+                  setContinuing(null)
+                  void act(() => openRun(run))
+                }}
+              >
+                {activeRun(continuing) ? 'Open lane' : 'Continue'}
+              </Button>
+            </div>
+          </div>
+        </ModalOverlay>
       )}
       {importing && (
         <ModalOverlay onClose={() => setImporting(false)}>

@@ -71,8 +71,22 @@ instructions and configuration, not stored account credentials or run history.
   the period, timezone, and stable run ID.
 - History shows scheduled/started/ended times, trigger, revision, instructions,
   working folder, branch, base commit, account ID when known, reason, and a
-  bounded final summary. **Open lane** uses the ordinary transcript and artifact
-  UI. Older history is paginated; archiving never deletes history or worktrees.
+  bounded final summary. Older history is paginated; archiving never deletes
+  history or worktrees.
+- **A routine's lanes are not listed in the sidebar.** Run history is where
+  they live, so the workspace lane list stays the conversations you started.
+  Main keeps a lane index (session file path → run) covering every run ever
+  recorded, not just the snapshot's recent window; the sidebar hides exactly
+  those paths. A routines subsystem that failed to start returns an empty
+  index and hides nothing.
+- **Opening a lane from history promotes it.** There is no read-only
+  transcript view — reopening a session file spawns a real pi process — so
+  opening one hands it back to its workspace: it leaves the lane index, gains
+  an ordinary sidebar row, and the routine will not use it again. The
+  confirmation names the folder and branch, which is the one thing a folder
+  task can surprise you with. Promotion is one-way and never deletes history.
+  A lane promoted while its run is still executing stays owned by the routine
+  until that run ends; it is visible so you can watch it.
 - `Finished · unverified` means the agent returned a written outcome, **not**
   that its report, tests, or external deliveries were independently verified.
   Empty outcomes and provider errors fail. Tool errors remain visible even
@@ -164,6 +178,10 @@ pending run workspaces are protected from automatic maintenance reclamation.
 - `electron/ipc/routines-handlers.ts`, `shared/ipc.ts`, `electron/preload.ts`:
   typed operations and snapshot invalidations. `src/dev/mockRoutines.ts` is a
   clearly labelled browser simulation with no model execution.
+- `useRoutineLaneIndex` (`src/stores/routines.ts`) keeps the lane index fresh
+  for the sidebar, which needs it before Routines has ever been opened. The
+  sidebar passes it to `groupSessionsByProject`'s `isHidden` predicate, the
+  same one that moves pinned sessions out of their project group.
 - `src/features/routines/`, `src/stores/routines.ts`: editor, overview, history,
   and projection of main state. No renderer-owned scheduling.
 

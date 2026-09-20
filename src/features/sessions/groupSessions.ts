@@ -52,7 +52,11 @@ export function groupSessionsByProject(
   knownWorkspaces: string[],
   disk: Record<string, SessionMeta[]>,
   gitByCwd: Record<string, GitInfo | undefined>,
-  isPinned: (meta: SessionMeta) => boolean,
+  /**
+   * Sessions that belong somewhere other than a project group: pinned ones
+   * (their own section) and routine lanes (the Routines page's history).
+   */
+  isHidden: (meta: SessionMeta) => boolean,
   isLive: (meta: SessionMeta) => boolean,
   activeWorkspacePath: string,
   /** workspacePath → latest scan attempt; absence = never attempted. */
@@ -88,7 +92,7 @@ export function groupSessionsByProject(
     // `worktreeRoots` is what makes that true for a worktree living anywhere
     // on disk, not just under `<repo>/.phosphor/worktrees/`.
     const projectKey = projectPathFor(path, git, worktreeRoots[path])
-    const metas = dropSupersededSessions(disk[path] ?? [], isLive).filter((m) => !isPinned(m))
+    const metas = dropSupersededSessions(disk[path] ?? [], isLive).filter((m) => !isHidden(m))
     const liveCount = metas.filter(isLive).length
     const scanned = path in disk
     const attempted = path in scanStatus
