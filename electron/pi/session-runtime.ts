@@ -15,6 +15,7 @@ import {
   usesClaudeCliProvider,
 } from './provider-detect'
 import { readAgentSettings } from './agent-settings'
+import { healMissingSessionCwd } from './session-cwd'
 import { applyCompactionOwnership } from './compaction-ownership'
 import { listPackages } from './packages'
 import { headroomSupervisor } from '../headroom/proxy'
@@ -80,6 +81,19 @@ export async function spawnSession(
     ...rawOptions,
     workspacePath: realPathOrNull(rawOptions.workspacePath) ?? rawOptions.workspacePath,
   }
+  // A resume whose stored cwd has gone (a renamed or moved folder) makes pi
+  // exit 1 before the RPC loop starts, which reads as "the session will not
+  // open" with nothing on the chat to say why. Repoint the header first —
+  // a no-op unless the stored cwd is genuinely missing. Safe here because the
+  // caller (`openSessionPath`) has already disposed every handle on the path,
+  // so no pi owns the file.
+  if (options.sessionPath) {
+    const healed = await healMissingSessionCwd(options.sessionPath, options.workspacePath).catch(
+      () => false,
+    )
+    if (healed) log('pi', 'repointed session cwd', { path: options.sessionPath })
+  }
+
   const stub = piStubPath()
   let binaryPath: string | undefined
   let prefixArgs: string[] | undefined
