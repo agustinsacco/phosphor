@@ -138,6 +138,32 @@ Rules the sheet keeps:
 `src/dev/mockPhosphor.ts` raises one in the browser harness when a prompt
 starts with `danger`.
 
+### Optional LocalStack permission gate
+
+`pi-ext/optional/permission-gate.ts` is an opt-in, standalone global gate,
+not one of Phosphor's six loaded extensions. To install it, review the file,
+back up any existing `~/.pi/agent/extensions/permission-gate.ts`, then copy it
+there. Use `/reload` in pi or start a new Phosphor session to load the change.
+
+It preserves the general dangerous-command prompts and hard blocks for
+`shred` and `truncate`. The AWS exception accepts only literal S3 reads:
+`list-objects-v2` and `s3 cp s3://bucket/key -`, optionally redirected to a
+simple `/tmp/filename`. Each invocation must start with `env -u AWS_PROFILE`,
+set `AWS_ACCESS_KEY_ID=test`, `AWS_SECRET_ACCESS_KEY=test`, and
+`AWS_DEFAULT_REGION=us-east-1`, then invoke `aws` with an explicit endpoint of
+`http://localhost:4566` or `http://127.0.0.1:4566`. The three assignments can
+appear in any order; the endpoint must precede the service name.
+
+Only a small allowlist of read options is accepted. Writes, profiles,
+endpoint overrides, dynamic shell syntax, and unsupported forms still prompt.
+Commands are checked individually, so a local read never approves a second
+real AWS invocation. Literal quoted Python heredocs can accompany reads.
+Other risky-command checks still examine the entire original script.
+
+This remains a `bash` tool confirmation heuristic, not a sandbox or a policy
+for SDK calls, other tools, aliases, or substituted executables. Phosphor's
+approval UI explains the request but does not enforce this exception itself.
+
 ## Foreign config files
 
 Some packages keep config outside pi's settings. Phosphor mirrors each
@@ -284,7 +310,7 @@ parameter. A call with no arguments reaches pi as `arguments: ""` on the
 Claude Code provider, and pi validates before `execute`, so an all-optional
 schema fails every call with `root: must be object`.
 
-`worktree-paths.ts` is the only Phosphor code that can refuse a tool call. A
+`worktree-paths.ts` is the only bundled extension that can refuse a tool call. A
 worktree session's cwd contains the main checkout as a prefix, and models
 rebuild absolute paths from what they think the project root is, so a session
 in `.phosphor/worktrees/<name>` was reading files off a different branch.
@@ -295,11 +321,18 @@ system prompt sends the model to absolute paths outside the cwd for its docs.
 
 `context-breakdown.ts` exists because pi reports context usage as one number,
 and the composed system prompt and active tool schemas are not reachable from
-the renderer. Two traps: `getAllTools()` returns definitions (the schemas that
-occupy context) while `getActiveTools()` returns **names**; and it publishes at
-rest (`session_start`, `agent_settled`, `turn_end`), never mid-stream. It
-attributes MCP schema cost **per server** using the adapter's server names
-from pi's shared event bus (`pi-mcp-adapter/status/v1`).
+the renderer. Three traps: `getAllTools()` returns definitions (the schemas that
+occupy context) while `getActiveTools()` returns **names**; it publishes at
+rest (`session_start`, `agent_settled`, `turn_end`), never mid-stream; and
+messages are measured over `sessionManager.buildContextEntries()` with pi's
+own per-role `estimateTokens` rules, never over `getBranch()`, which still
+holds every compacted-away message (measured: 292k for a 151k context). On a
+Claude Code session the provider's `[Claude Code · compact {…}]` block is the
+cut point instead. It attributes MCP schema cost **per server** using the
+adapter's server names and `toolCount` from pi's shared event bus
+(`pi-mcp-adapter/status/v1`), and reports per server how many schemas are in
+the window and how many of those are the server's own tools rather than the
+gateway proxy.
 
 `mcp-status.ts` exists for the same reason in the other direction: the adapter
 publishes each server's state on that bus, but pi's RPC has no channel for it.

@@ -1,6 +1,8 @@
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { JsonlDecoder } from './jsonl'
+import { SessionActivity } from './session-activity'
+import { shutdownApproval } from '../shutdown-approval'
 import type {
   ExtensionUIRequest,
   ExtensionUIResponse,
@@ -79,6 +81,7 @@ interface PendingRequest {
  * - Everything without an `id` streams out via the typed event emitter.
  */
 export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
+  readonly activity = new SessionActivity()
   private child: ChildProcessWithoutNullStreams | null = null
   private readonly stdoutDecoder = new JsonlDecoder()
   private readonly stderrDecoder = new JsonlDecoder()
@@ -186,6 +189,12 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     if (!child || !this.alive) {
       return Promise.reject(new Error('pi process is not running'))
     }
+    if (
+      shutdownApproval.closing &&
+      !command.type.startsWith('get_') &&
+      !['abort', 'abort_bash', 'abort_retry', 'clear_queue'].includes(command.type)
+    )
+      return Promise.reject(new Error('Phosphor is shutting down. New work cannot start.'))
     const id = `px-${this.nextRequestId++}`
     const payload = { ...command, id }
 
@@ -198,10 +207,12 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     }
 
     return new Promise<RpcResponse<RpcResponseDataMap[T]>>((resolve, reject) => {
+      this.activity.requested(id, command.type)
       this.pending.set(id, { resolve: resolve as (r: RpcResponse) => void, reject })
       child.stdin.write(JSON.stringify(payload) + '\n', (error) => {
         if (error) {
           this.pending.delete(id)
+          this.activity.failed(id)
           reject(error)
         }
       })
@@ -212,7 +223,9 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
   respondToExtensionUI(response: ExtensionUIResponse): void {
     const child = this.child
     if (!child || !this.alive) return
-    child.stdin.write(JSON.stringify(response) + '\n')
+    child.stdin.write(JSON.stringify(response) + '\n', (error) => {
+      if (!error) this.activity.answered(response.id)
+    })
   }
 
   /**
@@ -242,8 +255,8 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
   /**
    * Immediate, synchronous kill for signal-initiated shutdown, where there is
    * no time to await an exit (the parent is already tearing the group down).
-   * SIGTERM lets pi flush its session file; the process is about to die
-   * anyway, so nothing waits for confirmation.
+   * An unfinished turn may not be persisted. SIGTERM does not guarantee a
+   * session flush; this path cannot wait for confirmation.
    */
   killNow(): void {
     const child = this.child
@@ -293,6 +306,7 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
 
     if (record.type === 'response') {
       const response = record as unknown as RpcResponse
+      this.activity.responded(response)
       if (response.command === 'get_state' && response.success) {
         const state = response.data as RpcResponseDataMap['get_state'] | undefined
         if (state?.sessionFile) this.learnedSessionFile = state.sessionFile
@@ -307,15 +321,18 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     }
 
     if (record.type === 'extension_ui_request') {
+      this.activity.dialog(record as unknown as ExtensionUIRequest)
       this.emit('extension-ui', record as unknown as ExtensionUIRequest)
       return
     }
 
+    this.activity.event(record as unknown as PiEvent)
     this.emit('event', record as unknown as PiEvent)
   }
 
   private failAllPending(error: Error): void {
     for (const [, pending] of this.pending) pending.reject(error)
     this.pending.clear()
+    this.activity.exited()
   }
 }

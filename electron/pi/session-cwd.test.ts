@@ -1,130 +1,187 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, mkdir, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
-import { realpathSync } from 'node:fs'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { realignSessionCwd } from './session-cwd'
+import { healMissingSessionCwd, repointSessionCwd } from './session-cwd'
+import { sessionDirNameForCwd } from './pi-paths'
+import { parseSessionFile } from './session-scanner'
 
-/** A session file shaped like pi's: header line, then entries. */
-function sessionFile(cwd: string, body: string[] = []): string {
-  const header = JSON.stringify({
+/**
+ * This module rewrites a line of the user's real transcript in place, so every
+ * test re-reads the whole file: the header must be the only thing that changed
+ * and the result must still parse as the JSONL pi wrote.
+ */
+
+let temp: string
+let sessionsRoot: string
+
+const OLD_CWD = '/work/sandbox-7'
+const NEW_CWD = '/work/knowledge & reporting'
+
+function line(obj: unknown): string {
+  return JSON.stringify(obj) + '\n'
+}
+
+function header(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
     type: 'session',
     version: 3,
-    id: '01a0b0b3-28d5-752d-a9bd-4685836bcb15',
-    timestamp: '2026-09-17T18:48:46.549Z',
-    cwd,
-  })
-  return [header, ...body, ''].join('\n')
+    id: 'sess-uuid-1',
+    timestamp: '2026-09-14T14:34:10.810Z',
+    cwd: OLD_CWD,
+    ...overrides,
+  }
 }
 
-function headerOf(text: string): Record<string, unknown> {
-  return JSON.parse(text.slice(0, text.indexOf('\n'))) as Record<string, unknown>
+const BODY =
+  line({
+    type: 'message',
+    id: 'aaaa0001',
+    parentId: null,
+    timestamp: '2026-09-14T14:34:11.000Z',
+    // Mentions the old path in CONTENT: history, not structure, and must not
+    // be rewritten — the model really did read that file at that path.
+    message: { role: 'user', content: `read ${OLD_CWD}/notes.md`, timestamp: 1 },
+  }) +
+  line({
+    type: 'message',
+    id: 'aaaa0002',
+    parentId: 'aaaa0001',
+    timestamp: '2026-09-14T14:34:12.000Z',
+    message: { role: 'assistant', content: 'done', timestamp: 2 },
+  })
+
+async function writeSession(name: string, content: string): Promise<string> {
+  const path = join(temp, name)
+  await writeFile(path, content)
+  return path
 }
 
-describe('realignSessionCwd', () => {
-  let root: string
-  let file: string
+beforeEach(async () => {
+  temp = await mkdtemp(join(tmpdir(), 'phosphor-session-cwd-'))
+  sessionsRoot = join(temp, 'sessions')
+  await mkdir(sessionsRoot, { recursive: true })
+  process.env.PI_CODING_AGENT_SESSION_DIR = sessionsRoot
+})
 
-  beforeEach(async () => {
-    // Resolved: macOS puts the real temp dir under /private, and this module
-    // compares against real paths on purpose.
-    root = realpathSync.native(await mkdtemp(join(tmpdir(), 'phosphor-session-cwd-')))
-    file = join(root, 'session.jsonl')
+afterEach(async () => {
+  delete process.env.PI_CODING_AGENT_SESSION_DIR
+  await rm(temp, { recursive: true, force: true })
+})
+
+describe('repointSessionCwd', () => {
+  it('rewrites the header cwd and leaves the transcript untouched', async () => {
+    const path = await writeSession('a.jsonl', line(header()) + BODY)
+
+    expect(await repointSessionCwd(path, OLD_CWD, NEW_CWD)).toBe(true)
+
+    const text = await readFile(path, 'utf8')
+    const [first, ...rest] = text.split('\n')
+    expect(JSON.parse(first!)).toEqual(header({ cwd: NEW_CWD }))
+    expect(rest.join('\n')).toBe(BODY)
+    // Still LF-terminated JSONL the real scanner can read back.
+    expect(await parseSessionFile(path, 0)).not.toBeNull()
   })
 
-  afterEach(async () => {
-    await rm(root, { recursive: true, force: true })
+  it('moves parentSession into the transcript directory the parent moved to', async () => {
+    const parent = join(sessionsRoot, sessionDirNameForCwd(OLD_CWD), 'parent.jsonl')
+    const path = await writeSession('a.jsonl', line(header({ parentSession: parent })) + BODY)
+
+    expect(await repointSessionCwd(path, OLD_CWD, NEW_CWD)).toBe(true)
+
+    const first = JSON.parse((await readFile(path, 'utf8')).split('\n')[0]!)
+    expect(first.parentSession).toBe(
+      join(sessionsRoot, sessionDirNameForCwd(NEW_CWD), 'parent.jsonl'),
+    )
   })
 
-  it('points a header at the folder it was found under when the old one is gone', async () => {
-    const gone = join(root, 'sandbox-7')
-    const here = join(root, 'knowledge & reporting')
-    await mkdir(here)
-    await writeFile(file, sessionFile(gone, ['{"type":"message","id":"a"}']), 'utf8')
+  it('leaves a parentSession in an unrelated transcript directory alone', async () => {
+    // `--work-sandbox-7--` is a prefix of `--work-sandbox-70--`; the separator
+    // guard is what stops a rename of the first from claiming the second.
+    const other = join(sessionsRoot, sessionDirNameForCwd('/work/sandbox-70'), 'parent.jsonl')
+    const path = await writeSession('a.jsonl', line(header({ parentSession: other })) + BODY)
 
-    expect(await realignSessionCwd(file, here)).toBe(true)
+    await repointSessionCwd(path, OLD_CWD, NEW_CWD)
 
-    const text = await readFile(file, 'utf8')
-    expect(headerOf(text).cwd).toBe(here)
-    // Everything else survives: the rest of the transcript byte for byte, and
-    // the header's own fields, which pi reads by name.
-    expect(text.endsWith('\n{"type":"message","id":"a"}\n')).toBe(true)
-    expect(headerOf(text).id).toBe('01a0b0b3-28d5-752d-a9bd-4685836bcb15')
-    expect(headerOf(text).version).toBe(3)
+    const first = JSON.parse((await readFile(path, 'utf8')).split('\n')[0]!)
+    expect(first.parentSession).toBe(other)
   })
 
-  it('rewrites a header naming a different folder that still exists', async () => {
-    // Sandbox numbers are reused, so a stale header can point at somebody
-    // else's folder rather than at nothing.
-    const other = join(root, 'sandbox-7')
-    const here = join(root, 'knowledge & reporting')
-    await mkdir(other)
-    await mkdir(here)
-    await writeFile(file, sessionFile(other), 'utf8')
+  it('ignores a session whose stored cwd is something else', async () => {
+    const content = line(header({ cwd: '/work/elsewhere' })) + BODY
+    const path = await writeSession('a.jsonl', content)
 
-    expect(await realignSessionCwd(file, here)).toBe(true)
-    expect(headerOf(await readFile(file, 'utf8')).cwd).toBe(here)
+    expect(await repointSessionCwd(path, OLD_CWD, NEW_CWD)).toBe(false)
+    expect(await readFile(path, 'utf8')).toBe(content)
   })
 
-  it('leaves a healthy header alone', async () => {
-    await writeFile(file, sessionFile(root), 'utf8')
-    const before = await readFile(file, 'utf8')
+  it('ignores a file whose first line is not a session header', async () => {
+    const content = line({ type: 'message', id: 'x' }) + BODY
+    const path = await writeSession('a.jsonl', content)
 
-    expect(await realignSessionCwd(file, root)).toBe(false)
-    expect(await readFile(file, 'utf8')).toBe(before)
+    expect(await repointSessionCwd(path, OLD_CWD, NEW_CWD)).toBe(false)
+    expect(await readFile(path, 'utf8')).toBe(content)
   })
 
-  it('leaves a second spelling of the same folder alone', async () => {
-    const real = join(root, 'real')
-    const link = join(root, 'link')
-    await mkdir(real)
-    await symlink(real, link)
-    await writeFile(file, sessionFile(link), 'utf8')
-    const before = await readFile(file, 'utf8')
+  it('ignores an unparseable first line rather than truncating the file', async () => {
+    const content = 'not json\n' + BODY
+    const path = await writeSession('a.jsonl', content)
 
-    expect(await realignSessionCwd(file, real)).toBe(false)
-    expect(await readFile(file, 'utf8')).toBe(before)
+    expect(await repointSessionCwd(path, OLD_CWD, NEW_CWD)).toBe(false)
+    expect(await readFile(path, 'utf8')).toBe(content)
   })
 
-  it('leaves a file with no session header alone', async () => {
-    await writeFile(file, '{"type":"message","id":"a"}\n', 'utf8')
-    const before = await readFile(file, 'utf8')
+  it('handles a header-only session with no trailing newline', async () => {
+    const path = await writeSession('a.jsonl', JSON.stringify(header()))
 
-    expect(await realignSessionCwd(file, root)).toBe(false)
-    expect(await readFile(file, 'utf8')).toBe(before)
+    expect(await repointSessionCwd(path, OLD_CWD, NEW_CWD)).toBe(true)
+    expect(JSON.parse(await readFile(path, 'utf8'))).toEqual(header({ cwd: NEW_CWD }))
   })
 
-  it('leaves a header with no recorded cwd alone', async () => {
-    await writeFile(file, '{"type":"session","version":3,"id":"x"}\n', 'utf8')
-    const before = await readFile(file, 'utf8')
-
-    expect(await realignSessionCwd(file, root)).toBe(false)
-    expect(await readFile(file, 'utf8')).toBe(before)
+  it('leaves no temp file behind', async () => {
+    const path = await writeSession('a.jsonl', line(header()) + BODY)
+    await repointSessionCwd(path, OLD_CWD, NEW_CWD)
+    expect((await readdir(temp)).filter((name) => name.endsWith('.tmp'))).toEqual([])
   })
 
-  it('reports no change for a file that is not there', async () => {
-    expect(await realignSessionCwd(join(root, 'missing.jsonl'), root)).toBe(false)
+  it('is a no-op when the two cwds are the same', async () => {
+    const path = await writeSession('a.jsonl', line(header()) + BODY)
+    expect(await repointSessionCwd(path, OLD_CWD, OLD_CWD)).toBe(false)
+  })
+})
+
+describe('healMissingSessionCwd', () => {
+  it('repoints a session whose stored cwd has gone', async () => {
+    const gone = join(temp, 'gone')
+    const live = join(temp, 'live')
+    await mkdir(live)
+    const path = await writeSession('a.jsonl', line(header({ cwd: gone })) + BODY)
+
+    expect(await healMissingSessionCwd(path, live)).toBe(true)
+    expect(JSON.parse((await readFile(path, 'utf8')).split('\n')[0]!).cwd).toBe(live)
   })
 
-  it('keeps multi-byte content intact on both sides of the header', async () => {
-    // The header is found and sliced in a byte buffer; a character-index slice
-    // would cut a UTF-8 sequence in half. Sandbox names are free text, so the
-    // header itself can carry one.
-    const gone = join(root, 'ラボ 🎉')
-    const body = ['{"type":"message","text":"日本語 ünïcode 🎉"}']
-    await writeFile(file, sessionFile(gone, body), 'utf8')
+  it('leaves a session whose stored cwd still exists alone', async () => {
+    const stored = join(temp, 'stored')
+    const live = join(temp, 'live')
+    await mkdir(stored)
+    await mkdir(live)
+    const content = line(header({ cwd: stored })) + BODY
+    const path = await writeSession('a.jsonl', content)
 
-    expect(await realignSessionCwd(file, root)).toBe(true)
-
-    const text = await readFile(file, 'utf8')
-    expect(headerOf(text).cwd).toBe(root)
-    expect(text).toContain('日本語 ünïcode 🎉')
+    expect(await healMissingSessionCwd(path, live)).toBe(false)
+    expect(await readFile(path, 'utf8')).toBe(content)
   })
 
-  it('leaves no temp files behind', async () => {
-    await writeFile(file, sessionFile(join(root, 'sandbox-7')), 'utf8')
-    await realignSessionCwd(file, root)
+  it('refuses to repoint at a cwd that does not exist either', async () => {
+    const content = line(header({ cwd: join(temp, 'gone') })) + BODY
+    const path = await writeSession('a.jsonl', content)
 
-    expect((await readdir(root)).filter((name) => name.endsWith('.tmp'))).toEqual([])
+    expect(await healMissingSessionCwd(path, join(temp, 'also-gone'))).toBe(false)
+    expect(await readFile(path, 'utf8')).toBe(content)
+  })
+
+  it('returns false for a missing session file', async () => {
+    expect(await healMissingSessionCwd(join(temp, 'nope.jsonl'), temp)).toBe(false)
   })
 })

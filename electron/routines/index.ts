@@ -70,6 +70,10 @@ export async function cancelRoutineSession(sessionId: string): Promise<void> {
   await owner.cancelAndWait(run.id)
 }
 
+export function hasPendingRoutineWork(): boolean {
+  return Boolean(scheduler?.repository.pending().length)
+}
+
 export async function stopRoutines(): Promise<void> {
   await scheduler?.stop()
 }

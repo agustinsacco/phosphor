@@ -5,11 +5,12 @@ import {
   type ElectronApplication,
   type Page,
 } from '@playwright/test'
-import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { scratchDir, scratchDirSync } from './fixtures/scratch'
+import { configureTestTeardown } from './fixtures/shutdown'
 import { tmpdir } from 'node:os'
-import { basename, join, resolve } from 'node:path'
+import { basename, join, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const repoRoot = resolve(fileURLToPath(new URL('.', import.meta.url)), '..')
@@ -93,6 +94,7 @@ async function launch(
       ...options.env,
     },
   })
+  configureTestTeardown(app)
   const page = await app.firstWindow()
   await page.waitForLoadState('domcontentloaded')
   return { app, page, workspace }
@@ -146,6 +148,51 @@ function scrollPosition(el: HTMLElement): { top: number; max: number } {
   el.scrollTop = top
   return { top, max }
 }
+
+test('cancelling quit preserves active sessions and coalesces repeated quit requests', async () => {
+  const h = await launch()
+  try {
+    const sessionId = await h.page.evaluate(async (workspacePath) => {
+      const session = await window.phosphor.invoke('pi:createSession', { workspacePath })
+      await window.phosphor.invoke('pi:command', session.sessionId, {
+        type: 'prompt',
+        message: 'queue-hold',
+      })
+      return session.sessionId
+    }, h.workspace)
+    await h.app.evaluate(({ app, dialog, BrowserWindow }) => {
+      const state = globalThis as unknown as { quitPrompts: number; cancelQuit: () => void }
+      state.quitPrompts = 0
+      dialog.showMessageBox = () =>
+        new Promise((resolve) => {
+          state.quitPrompts++
+          state.cancelQuit = () => resolve({ response: 0, checkboxChecked: false })
+        })
+      if (process.platform === 'darwin') app.quit()
+      else BrowserWindow.getAllWindows()[0]!.close()
+      app.quit()
+    })
+    await expect
+      .poll(() =>
+        h.app.evaluate(() => (globalThis as unknown as { quitPrompts: number }).quitPrompts),
+      )
+      .toBe(1)
+    await h.app.evaluate(() => (globalThis as unknown as { cancelQuit: () => void }).cancelQuit())
+    expect(h.page.isClosed()).toBe(false)
+    const alive = await h.page.evaluate(
+      (id) => window.phosphor.invoke('pi:command', id, { type: 'get_state' }),
+      sessionId,
+    )
+    expect(alive.success).toBe(true)
+    const another = await h.page.evaluate(
+      (workspacePath) => window.phosphor.invoke('pi:createSession', { workspacePath }),
+      h.workspace,
+    )
+    expect(another.sessionId).not.toBe(sessionId)
+  } finally {
+    await shutdown(h)
+  }
+})
 
 test('bundled fonts render offline before editor or terminal initialization', async () => {
   const harness = await launch()
@@ -2768,6 +2815,41 @@ test('the updater stays dormant in an unpackaged run', async () => {
   }
 })
 
+test('feedback is reachable from the sidebar and never nags a fresh install', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+
+    // A first-run profile has one launch and no history, so the row is the
+    // quiet variant: findable, no dot, no dismiss, no popup anywhere.
+    const button = page.getByTestId('feedback-button')
+    await expect(button).toHaveAttribute('data-nudge', 'false')
+    await expect(button).toContainText('Send feedback')
+    await expect(page.getByRole('button', { name: 'Dismiss' })).toHaveCount(0)
+
+    await button.click()
+    const submit = page.getByRole('button', { name: 'Open on GitHub' })
+    // A rating on its own says nothing, so submit stays shut until there is a
+    // sentence to go with it.
+    await expect(submit).toBeDisabled()
+
+    // Without a relay the app cannot post anonymously, and says so rather than
+    // offering a checkbox it could not honour.
+    await expect(page.getByRole('checkbox', { name: /Send anonymously/ })).toBeDisabled()
+
+    await page.getByPlaceholder('The good and the bad').fill('Lanes are the best part.')
+    await expect(submit).toBeEnabled()
+
+    // Not clicked: submitting here would open a real browser. The submit path
+    // itself is covered in electron/feedback/feedback-service.test.ts.
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await expect(submit).toHaveCount(0)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('extensions tab lists pi packages and reveals per-extension tabs', async () => {
   // A dir of this test's own: the fixture below is a hand-written
   // `node_modules` entry, and any real `npm install` into a shared agent dir
@@ -3026,6 +3108,27 @@ test('a sandbox with a chat open in it can still be renamed, and keeps its chats
     await expect(
       page.locator('[data-testid="session-row"][data-workspace="renamed-scratch"]').first(),
     ).toBeVisible({ timeout: 20_000 })
+
+    // The row being there is not the same as the chat opening. pi reads the
+    // cwd back out of the session header and exits 1 before the RPC loop when
+    // it no longer exists, so a rename that moved the file but not the value
+    // inside it left every chat in the sandbox listed and un-openable. Found
+    // in the wild; the transcript directory is located by suffix rather than
+    // by re-deriving pi's mangling here, which would just duplicate the rule.
+    const sessionsRoot = join(agentDir, 'sessions')
+    const movedDir = (await readdir(sessionsRoot)).find((name) =>
+      name.endsWith('renamed-scratch--'),
+    )
+    expect(movedDir).toBeDefined()
+    const transcripts = (await readdir(join(sessionsRoot, movedDir!))).filter((name) =>
+      name.endsWith('.jsonl'),
+    )
+    expect(transcripts.length).toBeGreaterThan(0)
+    for (const name of transcripts) {
+      const text = await readFile(join(sessionsRoot, movedDir!, name), 'utf8')
+      const header = JSON.parse(text.split('\n')[0]!)
+      expect(header.cwd.endsWith(`${sep}renamed-scratch`)).toBe(true)
+    }
   } finally {
     await shutdown(harness)
   }

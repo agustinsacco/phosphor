@@ -118,21 +118,22 @@ screen.
   exists — both are real, and guessing would be worse than reporting. This is
   retroactive by construction: a folder renamed by an older build is corrected
   on the next scan, with no migration.
-- **Correcting the hint is not enough to open the lane**, because pi reads the
-  header for itself: `--session` resumes into the cwd frozen in the file, NOT
-  the one pi is spawned with, and pi refuses outright when that folder is gone
-  (`Stored session working directory does not exist`, exit 1, before the
-  session starts). So a renamed sandbox left every chat inside it permanently
-  unopenable while the rows looked perfectly healthy. `realignSessionCwd`
-  (`electron/pi/session-cwd.ts`) points the header back at the folder the file
-  was found under, immediately before the spawn that resumes it — the one
-  moment no pi process owns the file. Same authority rule as above: a header
-  naming a second spelling of this folder is left alone, one naming a folder
-  that is gone or a different folder is rewritten. Sandbox numbers are reused,
-  so "different folder that exists" is a real case, not a hypothetical. Done on
-  the open path rather than inside the rename so one mechanism covers every way
-  a folder can move, and so chats an earlier rename already broke are repaired
-  on the next click.
+- **Substituting the cwd is not enough on its own — the file has to be
+  repaired too.** pi reads the stored cwd back out of the session header and
+  refuses to resume when it no longer exists, printing
+  `Stored session working directory does not exist` and exiting 1 before the
+  RPC loop starts (its `core/session-cwd.ts`; only interactive mode offers the
+  "continue in current cwd" prompt, and no flag answers it up front). So a
+  renamed sandbox listed all its chats, handed pi the right `cwd`, and every
+  one of them still died on click with nothing on the chat to say why.
+  `electron/pi/session-cwd.ts` rewrites the header: `app:renameSandbox` does it
+  for the whole subtree as part of the rename, and `spawnSession` repeats it on
+  resume for anything the rename never covered — a sandbox renamed by an older
+  build, or a folder moved in Finder. The resume-time pass fires only when the
+  stored cwd is genuinely absent and the replacement genuinely exists, so an
+  unmounted volume is left alone rather than rewritten somewhere else. A
+  fork's `parentSession` moves with it, since that path contains the parent's
+  own mangled cwd.
 - **Flat nav rows**: `New`, `Artifacts`, `Skills`, `Routines`. `New` routes to the home
   screen; it does not spawn a session, because the folder and the first prompt
   are chosen there. Artifacts, Skills, and Routines open global pages (below).

@@ -150,6 +150,33 @@ describe('durable routine ledger', () => {
     repo.reconcile(now + 2 * hour)
     expect(repo.history(r.id)).toHaveLength(1)
   })
+  it('indexes routine-owned lanes and releases a promoted one', () => {
+    const r = repo.save(input(), now)
+    const run = repo.manual(r.id, 'click', now)
+    // A run with no transcript yet cannot be hidden or handed back.
+    expect(repo.laneIndex()).toEqual({})
+    expect(() => repo.promote(run.id)).toThrow('no transcript')
+    repo.patchRun(run.id, { sessionPath: '/sessions/a.jsonl' })
+    expect(repo.laneIndex()).toEqual({
+      '/sessions/a.jsonl': { routineId: r.id, runId: run.id },
+    })
+    repo.promote(run.id)
+    expect(repo.laneIndex()).toEqual({})
+    expect(repo.run(run.id).promoted).toBe(true)
+  })
+  it('indexes lanes older than the snapshot window and survives restart', () => {
+    const r = repo.save(input(), now)
+    for (let i = 0; i < 205; i++) {
+      const run = repo.manual(r.id, `click-${i}`, now + i)
+      repo.patchRun(run.id, { sessionPath: `/sessions/${i}.jsonl` })
+      repo.finish(run.id, 'finished', '', now + i)
+    }
+    repo.close()
+    repo = new RoutineRepository(join(directory, 'routines.sqlite'))
+    const index = repo.laneIndex()
+    expect(Object.keys(index)).toHaveLength(205)
+    expect(index['/sessions/0.jsonl']).toEqual({ routineId: r.id, runId: expect.any(String) })
+  })
   it('persists opt-in background mode', () => {
     expect(repo.background()).toBe(false)
     repo.setBackground(true)

@@ -15,7 +15,13 @@ import type {
   ModelCost,
 } from './rpc'
 import type { ConnectorCheckResult } from './connectors'
-import type { RoutineCheck, RoutineInput, RoutineRun, RoutinesSnapshot } from './routines'
+import type {
+  RoutineCheck,
+  RoutineInput,
+  RoutineLaneIndex,
+  RoutineRun,
+  RoutinesSnapshot,
+} from './routines'
 import type {
   McpCacheEntry,
   McpConfigsResult,
@@ -24,6 +30,7 @@ import type {
   McpWriteScope,
 } from './mcp'
 import type { SkillImportPreview, SkillScope, SkillsListResult } from './skills'
+import type { FeedbackDraft, FeedbackState, FeedbackSubmitResult } from './feedback'
 import type {
   AddWorktreeBranch,
   AppPrefs,
@@ -111,6 +118,8 @@ export interface IpcInvokeMap {
   'routines:save': { args: [input: RoutineInput, id?: string, revision?: number]; result: void }
   'routines:check': { args: [input: RoutineInput]; result: RoutineCheck }
   'routines:history': { args: [routineId: string, offset: number]; result: RoutineRun[] }
+  'routines:laneIndex': { args: []; result: RoutineLaneIndex }
+  'routines:promoteRun': { args: [runId: string]; result: void }
   'routines:run': { args: [routineId: string, requestId: string]; result: RoutineRun }
   'routines:cancel': { args: [runId: string]; result: void }
   'routines:skipNext': { args: [routineId: string]; result: void }
@@ -707,7 +716,7 @@ export interface IpcInvokeMap {
   }
   'gh:available': { args: []; result: boolean }
 
-  'git:info': { args: [workspacePath: string]; result: GitInfo }
+  'git:info': { args: [workspacePath: string, options?: { force?: boolean }]; result: GitInfo }
   /** Cheap cached summaries (branch/worktree/dirty) for many cwds at once. */
   'git:infoBatch': { args: [cwds: string[]]; result: Record<string, GitInfo> }
   'git:statusMap': { args: [workspacePath: string]; result: Record<string, string> }
@@ -859,6 +868,16 @@ export interface IpcInvokeMap {
   'updates:state': { args: []; result: UpdateState }
   'updates:check': { args: []; result: void }
   'updates:restartAndInstall': { args: []; result: void }
+
+  /**
+   * App rating and feedback, filed as a GitHub issue. Main owns the network
+   * leg because the relay path is a request and the browser path is
+   * `shell.openExternal` — neither belongs in a sandboxed renderer.
+   */
+  'feedback:state': { args: []; result: FeedbackState }
+  'feedback:submit': { args: [draft: FeedbackDraft]; result: FeedbackSubmitResult }
+  /** Records the one-time "not now"; the nudge never returns after it. */
+  'feedback:dismiss': { args: []; result: void }
 }
 
 export type IpcInvokeChannel = keyof IpcInvokeMap

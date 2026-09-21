@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { PiRpcClient } from './rpc-client'
+import { shutdownApproval } from '../shutdown-approval'
 import type { PiEvent } from '@shared/rpc'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -28,6 +29,22 @@ afterEach(async () => {
 })
 
 describe('PiRpcClient', () => {
+  it('rejects new work during approved shutdown but permits inspection and abort', async () => {
+    const client = track(makeClient())
+    client.spawn()
+    const closing = vi.spyOn(shutdownApproval, 'closing', 'get').mockReturnValue(true)
+    try {
+      await expect(client.request({ type: 'prompt', message: 'not sent' })).rejects.toThrow(
+        'shutting down',
+      )
+      expect((await client.request({ type: 'get_state' })).success).toBe(true)
+      expect((await client.request({ type: 'abort' })).success).toBe(true)
+      expect(client.activity.busy).toBe(false)
+    } finally {
+      closing.mockRestore()
+    }
+  })
+
   it('correlates request and response by id', async () => {
     const client = track(makeClient())
     client.spawn()
@@ -37,6 +54,30 @@ describe('PiRpcClient', () => {
     if (response.success) {
       expect(response.data?.sessionId).toBe('fake-session')
     }
+  })
+
+  it('tracks work before transport writes and before event consumers run', async () => {
+    const client = track(makeClient())
+    client.spawn()
+    expect(client.activity.busy).toBe(true)
+    await client.request({ type: 'get_state' })
+    expect(client.activity.busy).toBe(false)
+    const ended = new Promise<void>((resolve) => {
+      client.on('event', (event) => {
+        if (event.type === 'agent_end') {
+          expect(client.activity.busy).toBe(true)
+          resolve()
+        }
+      })
+    })
+    const prompt = client.request({ type: 'prompt', message: 'hi' })
+    expect(client.activity.busy).toBe(true)
+    await prompt
+    await ended
+    await client.request({ type: 'get_state' }) // This fixture predates agent_settled.
+    expect(client.activity.busy).toBe(false)
+    await client.dispose()
+    expect(client.activity.busy).toBe(false)
   })
 
   it('resolves out-of-order responses to the right waiters', async () => {

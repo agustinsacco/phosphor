@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto'
 import { basename } from 'node:path'
 import { BrowserWindow } from 'electron'
 import { isBusy } from './busy'
+import { ScrollbackBuffer } from './scrollback-buffer'
+import { shutdownApproval } from '../shutdown-approval'
 import { ensureSpawnHelperExecutable } from './spawn-helper'
 import { errorText } from '@shared/errors'
 
@@ -11,7 +13,7 @@ import { errorText } from '@shared/errors'
  * show a blank rectangle in front of a live shell. Capped per PTY: a `npm
  * run build` can emit megabytes, and this is scrollback, not a transcript.
  */
-const SCROLLBACK_LIMIT = 256 * 1024
+const SCROLLBACK_LIMIT = 256 * 1024 // UTF-16 code units, matching xterm's string input.
 
 interface PtySession {
   ptyId: string
@@ -20,7 +22,7 @@ interface PtySession {
   shellName: string
   busy: boolean
   /** Recent output, replayed on reattach (see SCROLLBACK_LIMIT). */
-  scrollback: string
+  scrollback: ScrollbackBuffer
   /**
    * Owning chat session, when the caller knows it. Lets the resource monitor
    * charge a terminal's process tree (builds, tests, dev servers) to the right
@@ -34,6 +36,10 @@ class PtyManager {
   private readonly sessions = new Map<string, PtySession>()
   private pollTimer: NodeJS.Timeout | null = null
   private helperChecked = false
+
+  get size(): number {
+    return this.sessions.size
+  }
 
   create(
     workspacePath: string,
@@ -49,6 +55,7 @@ class PtyManager {
      */
     command?: { file: string; args: string[]; env?: NodeJS.ProcessEnv },
   ): { ptyId: string } {
+    shutdownApproval.assertCanStart()
     const ptyId = randomUUID()
     const shell = defaultShell()
     const file = command?.file ?? shell.command
@@ -82,11 +89,7 @@ class PtyManager {
 
     pty.onData((data) => {
       const session = this.sessions.get(ptyId)
-      if (session) {
-        const next = session.scrollback + data
-        session.scrollback =
-          next.length > SCROLLBACK_LIMIT ? next.slice(next.length - SCROLLBACK_LIMIT) : next
-      }
+      if (session) session.scrollback.append(data)
       broadcast(`pty:data:${ptyId}`, data)
     })
 
@@ -102,7 +105,7 @@ class PtyManager {
       workspacePath,
       shellName: basename(file),
       busy: false,
-      scrollback: '',
+      scrollback: new ScrollbackBuffer(SCROLLBACK_LIMIT),
       sessionId,
     })
     this.syncPolling()
@@ -132,7 +135,7 @@ class PtyManager {
    * than trying to de-duplicate a byte stream.
    */
   attach(ptyId: string): { scrollback: string } {
-    return { scrollback: this.sessions.get(ptyId)?.scrollback ?? '' }
+    return { scrollback: this.sessions.get(ptyId)?.scrollback.snapshot() ?? '' }
   }
 
   write(ptyId: string, data: string): void {

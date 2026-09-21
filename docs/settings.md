@@ -199,12 +199,12 @@ rather than a top-level app concern.
   launch. Deleting moves the folder _and its chats_ to the Trash, and is still
   refused while anything is running anywhere inside it. An empty sandbox is
   reused.
-  What a rename does not move is the cwd written inside each session file: that
-  value is frozen at write time, and pi resumes into it rather than into the
-  cwd it is spawned with, so a renamed sandbox used to leave every chat inside
-  it unopenable. The scan corrects what the sidebar shows, and the header
-  itself is realigned to the folder it was found under just before the lane
-  resumes — which also repairs sandboxes an older build renamed. See
+  A rename also **rewrites the cwd stored inside each session file**, because
+  pi refuses to resume a session whose stored cwd is gone — it prints
+  `Stored session working directory does not exist` and exits 1 before the RPC
+  loop starts, which reads as a chat that simply will not open. Correcting the
+  cwd on the scan is not enough: that fixes what Phosphor passes pi, not what
+  pi reads back out of the file. See
   [ui-shell.md](ui-shell.md#left-sidebar-claude-desktop-style).
 
 ## Optimization

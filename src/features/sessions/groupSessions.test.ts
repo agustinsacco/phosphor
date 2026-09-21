@@ -27,6 +27,33 @@ const meta = (overrides: Partial<SessionMeta> = {}): SessionMeta => ({
 const notPinned = (): boolean => false
 const notLive = (): boolean => false
 
+describe('hidden sessions', () => {
+  it('drops a routine lane but keeps the project group alive', () => {
+    const disk = {
+      '/repo': [meta({ path: '/repo/routine.jsonl' }), meta({ path: '/repo/mine.jsonl' })],
+    }
+    const groups = groupSessionsByProject(
+      ['/repo'],
+      disk,
+      {},
+      (m) => m.path === '/repo/routine.jsonl',
+      notLive,
+      '/repo',
+    )
+    expect(groups.map((g) => g.metas.map((m) => m.path))).toEqual([['/repo/mine.jsonl']])
+  })
+  it('drops a scanned project whose only sessions are routine lanes', () => {
+    // Same rule as a project with no sessions at all: hidden is hidden. The
+    // active workspace still keeps its header through the clause below.
+    const disk = { '/repo': [meta({ path: '/repo/routine.jsonl' })] }
+    const hideAll = (): boolean => true
+    expect(
+      groupSessionsByProject(['/repo'], disk, {}, hideAll, notLive, '/elsewhere'),
+    ).toHaveLength(0)
+    expect(groupSessionsByProject(['/repo'], disk, {}, hideAll, notLive, '/repo')).toHaveLength(1)
+  })
+})
+
 describe('groupSessionsByProject', () => {
   it('gives a plain workspace its own group', () => {
     const groups = groupSessionsByProject(

@@ -16,11 +16,9 @@ are unchanged.
 
 | #   | Issue                                                                                                       | Where                                                                     |
 | --- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| S1  | PTY scrollback re-copies the whole 256 KB cap on **every** data chunk (938 ms vs 1.3 ms per 10k chunks)     | `electron/pty/pty-manager.ts` — `session.scrollback + data`, then slice   |
 | S2  | The whole `tools` record is cloned on every tool-args/output delta (288 µs/event at 1600 tools)             | `src/features/chat/reducer.ts`, `toolIdentity.ts` `withExecutionIdentity` |
 | S3  | `buildTranscriptRows` rebuilds the entire transcript per token, defeating `memo` on every visible row       | `src/features/chat/MessageList.tsx` — `useMemo(..., [items])`             |
 | S4  | `summarizeTool` re-`JSON.parse`s the accumulated args on every delta — O(n²), 665 ms for one 488 KB `write` | `src/features/chat/tools/toolSummaries.ts` — `tryParseArgs`               |
-| S5  | `JsonlDecoder` is O(n²) when one record spans many stdout chunks (959 ms for a 15.3 MB record)              | `electron/pi/jsonl.ts` — `buffer += chunk`, `indexOf`, `slice`            |
 | S6  | `message_end` fold is O(items + tools), and pi emits one message per tool call ⇒ O(n²) per session          | `src/features/chat/toolIdentity.ts`, `messageContent.ts`                  |
 | S7  | `FilesChangedPane` re-derives every touched file (re-parsing every patch) on every tool delta               | `src/features/files/FilesChangedPane.tsx` — depends on `tools` (S2)       |
 | S8  | Artifact `versions[]` grows unbounded with full content per version, duplicated on the tool payload         | `src/stores/artifacts.ts`                                                 |
@@ -38,13 +36,6 @@ Two more that are worth reading in full because their history is misleading:
   is the sidebar menu, and every `disposeSession` caller is user-driven. Treat
   "there is no cross-session manager" (CLAUDE.md fact 5) as deliberate and this
   as the cost of it.
-
-**S12 — `git:info` is uncached**: four `git` spawns per debounced `fs:changed`,
-18 ms median on this repo, called from `BranchControl` on every file change.
-The TTL cache plus in-flight dedupe in `electron/fs/git-info.ts` is on
-`gitInfoBatch`, the **sibling** function. This was filed as fixed for thirteen
-days because a status note credited the wrong function — check which one you
-are looking at before concluding it is handled.
 
 **S13 — the captured reducer/e2e fixture uses the pre-0.84.0 wire shape.**
 `src/features/chat/__fixtures__/real-session-events.jsonl` carries `message`
@@ -69,24 +60,12 @@ still returns a single path.
 
 ## Losing an in-flight turn
 
-**pi persists a turn only when the turn ends**, so any exit during a turn
-discards all of it — with no warning before and no trace after. The session is
-then indistinguishable from one the model never answered.
-
-| #   | Issue                                                                                                  | Where                                                       |
-| --- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
-| T1  | `updates:restartAndInstall` quits with zero checks on session state, from two UI entry points          | `electron/ipc/updates-handlers.ts`, `updater.ts`            |
-| T2  | `before-quit` has no in-flight check either, so Cmd+Q and window-close lose turns the same way         | `electron/main.ts` — straight to `registry.disposeAll()`    |
-| T3  | No confirmation before the quit and no interruption marker after it                                    | nothing exists in `electron/` or `src/`                     |
-| T4  | The "pi owns its session files and gets a SIGTERM to flush" comment is **wrong** for an in-flight turn | `electron/main.ts` and now also `electron/pi/rpc-client.ts` |
-
-**Before planning this: the obvious signal no longer exists.** The original
-plan was built on `FleetHub`/`FleetPhase`, which were deleted with the
-orchestration removal. `SessionRegistry` tracks only
-`{sessionId, workspacePath, client}` — no phase, no streaming state. In-flight
-state has to be derived fresh, most likely from the pi event stream in
-`electron/pi/session-runtime.ts`, which already sees `agent_start` and
-`agent_end`.
+**T3: no interruption recovery marker.** Pi persists a turn only when it ends.
+Quit and update restart now confirm active or unconfirmed work before teardown,
+but an explicitly stopped turn, OS termination, or crash can still leave no
+recoverable transcript for that turn. Main has activity facts and abort logs,
+not a durable interruption journal. Editor save/discard prompts and a
+wait-until-finished quit action are also still missing. See [updates.md](updates.md).
 
 ## Tool and MCP row rendering
 
@@ -135,18 +114,26 @@ trap". The Changes pane was fixed; this was not.
 against a 4.5:1 bar for normal text (`src/styles/index.css`). Individual copy
 has been migrated to secondary ink, but the tokens themselves are unchanged.
 
-**R13 — deleting a session from a renamed folder orphans the Claude
-transcript.** `electron/pi/session-deleter.ts` derives the CLI's copy from the
-cwd frozen in pi's own header, and a renamed sandbox moved that transcript
-directory to the new name, so `trashIfPresent` looks where nothing is and
-leaves a megabytes-sized file behind. The sidebar no longer _shows_ a stale cwd
-(`listSessions` substitutes the folder it scanned), but the deleter reads the
-header directly and cannot: nothing can un-mangle a directory name back into a
-path. Narrower than it was: opening a lane now realigns its header to the
-folder it was found under (`electron/pi/session-cwd.ts`), so any session
-reopened since the rename deletes cleanly. One never reopened still orphans its
-CLI copy, and fixing that means passing the workspace path down through
-`sessions:delete`.
+**R13 — deleting a never-reopened session from a sandbox renamed by an older
+build orphans the Claude transcript.** `electron/pi/session-deleter.ts` derives
+the CLI's copy from the cwd frozen in pi's own header, so a stale header sends
+`trashIfPresent` where nothing is and leaves a megabytes-sized file behind.
+Mostly closed: `electron/pi/session-cwd.ts` now rewrites that header for the
+whole subtree during `app:renameSandbox`, and again on resume for anything the
+rename missed. What is left is the session that predates both and is deleted
+without ever being opened — its header is still stale and nothing can un-mangle
+a directory name back into a path. Closing it means passing the workspace path
+down through `sessions:delete`.
+
+**R14 — a symlinked session directory gives a resumed session two sidebar
+rows.** Main resumes through `sessionPathKey` (`realpathSync.native`), so the
+live entry's `diskPath` is the resolved path, while the disk scan lists the
+file under the path it walked. When the two differ the renderer's
+`pendingSessionsByGroup` cannot match them, so the placeholder row never
+retires and sits beside the real one until the next scan that agrees. Only
+reproduces when the pi agent directory is reached through a symlink (`/tmp` on
+macOS, so the routines e2e hits it; a normal `~/.pi/agent` does not). Fixing it
+means picking one path identity for a session file and using it on both sides.
 
 ## Code health
 

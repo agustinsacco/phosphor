@@ -2,6 +2,7 @@ import chokidar, { type FSWatcher } from 'chokidar'
 import { opendirSync, type Dir, type Stats } from 'node:fs'
 import { normalize, relative } from 'node:path'
 import { BrowserWindow } from 'electron'
+import { gitInfoCache } from './git-info-cache'
 
 const watchers = new Map<string, FSWatcher>()
 const watcherFilters = new Map<string, WatchFilter>()
@@ -297,6 +298,7 @@ export function watchWorkspace(workspacePath: string): void {
         const paths = [...(pending.get(workspacePath) ?? [])]
         pending.delete(workspacePath)
         timers.delete(workspacePath)
+        gitInfoCache.invalidate(workspacePath)
         for (const window of BrowserWindow.getAllWindows()) {
           if (!window.isDestroyed()) {
             window.webContents.send('fs:changed', { workspacePath, paths })
@@ -329,6 +331,7 @@ export async function unwatchAllWorkspaces(): Promise<void> {
   timers.clear()
   pending.clear()
   oversizedDirs.clear()
+  gitInfoCache.invalidate()
   await Promise.allSettled([...watchers.values()].map((w) => w.close()))
   for (const filter of watcherFilters.values()) filter.releaseAll()
   watcherFilters.clear()

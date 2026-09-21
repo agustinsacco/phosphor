@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { shutdownApproval } from '../shutdown-approval'
 
 /**
  * Covers the two contracts the terminal pane leans on:
@@ -12,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const sent: Array<{ channel: string; payload: unknown }> = []
 const ptySpawn = vi.fn()
+const onBroadcast = vi.hoisted(() => vi.fn())
 
 vi.mock('electron', () => ({
   BrowserWindow: {
@@ -19,7 +21,10 @@ vi.mock('electron', () => ({
       {
         isDestroyed: () => false,
         webContents: {
-          send: (channel: string, payload: unknown) => sent.push({ channel, payload }),
+          send: (channel: string, payload: unknown) => {
+            sent.push({ channel, payload })
+            onBroadcast(channel, payload)
+          },
         },
       },
     ],
@@ -52,9 +57,21 @@ beforeEach(() => {
   ptyManager.killAll()
   sent.length = 0
   ptySpawn.mockReset()
+  onBroadcast.mockReset()
 })
 
 describe('PtyManager.create — spawn failures', () => {
+  it('does not spawn a terminal after shutdown approval', () => {
+    const closing = vi.spyOn(shutdownApproval, 'closing', 'get').mockReturnValue(true)
+    try {
+      expect(() => ptyManager.create('/repo', 80, 24)).toThrow('shutting down')
+      expect(ptySpawn).not.toHaveBeenCalled()
+      expect(ptyManager.size).toBe(0)
+    } finally {
+      closing.mockRestore()
+    }
+  })
+
   it('wraps posix_spawnp failures with the likely cause', () => {
     // node-pty's message is just "posix_spawnp failed." — the actionable part
     // (a spawn-helper without its exec bit / built for the wrong arch) has to
@@ -103,6 +120,34 @@ describe('PtyManager.attach — scrollback replay', () => {
       .map((m) => m.payload)
       .join('')
     expect(ptyManager.attach(ptyId).scrollback).toContain(broadcast)
+  })
+
+  it('updates the snapshot before broadcasting each unchanged live chunk', () => {
+    const pty = fakePty()
+    const { ptyId } = ptyManager.create('/repo', 80, 24)
+    const snapshots: unknown[] = []
+    onBroadcast.mockImplementation((channel, payload) => {
+      if (channel === `pty:data:${ptyId}`) {
+        snapshots.push([payload, ptyManager.attach(ptyId).scrollback])
+      }
+    })
+    pty.emit('one')
+    pty.emit('\x1b[31mtwo')
+    expect(snapshots).toEqual([
+      ['one', 'one'],
+      ['\x1b[31mtwo', 'one\x1b[31mtwo'],
+    ])
+  })
+
+  it('keeps terminal tails independent', () => {
+    const first = fakePty()
+    const a = ptyManager.create('/repo', 80, 24)
+    const second = fakePty()
+    const b = ptyManager.create('/repo', 80, 24)
+    first.emit('first')
+    second.emit('second')
+    ptyManager.kill(a.ptyId)
+    expect(ptyManager.attach(b.ptyId).scrollback).toBe('second')
   })
 
   it('caps scrollback so a chatty build cannot grow it without bound', () => {

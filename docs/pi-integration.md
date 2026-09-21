@@ -19,7 +19,7 @@ Then run `node scripts/pi-live-smoke.mjs`, which drives a real `pi --mode rpc` t
 - Spawn `pi --mode rpc` with `cwd` = the workspace folder. **One subprocess per live session.** Idle/old sessions are read from disk (see §Sessions on disk), not kept as processes.
 - Useful flags, all of them assembled in `electron/pi/rpc-client.ts`: `--session <path|id>`, `--session-id <id>`, `--fork <path|id>`, `--no-session`, `--no-context-files`, `-n <name>`, `--model <pattern>` (supports `provider/id` and `:<thinking>` suffix), `--provider`, `--thinking <level>`, `-e <extension.ts>`, `--append-system-prompt <text|file>`.
 - `-e` is repeatable and every session gets **six** of them — `bundledExtensions()` in `electron/pi/session-runtime.ts` passes `artifacts.ts`, `context-breakdown.ts`, `worktree-paths.ts`, `tool-name-guard.ts`, `mcp-status.ts`, `headroom.ts` from `pi-ext/`. They ship unpacked next to the app resources (`extraResources` in `electron-builder.yml`) because the pi subprocess reads them off disk, not out of the asar. What each one is for: [extensions.md](extensions.md#bundled-extensions-phosphors-own).
-- **Framing is strict JSONL, LF only.** Do NOT use Node `readline` (it also splits on U+2028/U+2029, which are legal inside JSON strings). Buffer on `\n`, strip a trailing `\r`. Commands go to stdin one JSON object per line; responses and events stream from stdout.
+- **Framing is strict JSONL, LF only.** Do NOT use Node `readline` (it also splits on U+2028/U+2029, which are legal inside JSON strings). Buffer on `\n`, strip a trailing `\r`. `JsonlDecoder` scans only new chunks and joins an incomplete record's fragments once at its delimiter or stream end, so framing work is linear in input size. Commands go to stdin one JSON object per line; responses and events stream from stdout. The explicit `node scripts/perf/stream-buffers.mjs` benchmark measures framing and PTY-tail costs without running a model.
 - Commands accept optional `id` for correlation; responses echo it. Events never carry `id`.
 - pi requires Node ≥ 22.19 (it runs as its own process, so Electron's Node version is irrelevant).
 
@@ -108,6 +108,23 @@ Map to native Phosphor UI (`src/features/extension-ui/`): modal sheets for dialo
 pi's `ToolName` union (`dist/core/tools/index.d.ts`) has an **eighth**: `powershell`, the Windows shell tool, sharing `bash`'s input and details types exactly. `ToolCard.tsx` does not case on it, so it falls to the generic renderer — correct but plainer than the `bash` card it is a synonym for. Worth knowing before assuming a Windows transcript looks like a macOS one.
 
 Unknown/extension tools (MCP tools via pi-mcp-adapter, subagent tools, etc.) MUST render well generically: name, pretty-JSON args (collapsed), streaming output, error state. The exception proves the rule: Phosphor's own `artifact_create` / `artifact_update` / `artifact_edit` get cased cards in `ToolCard.tsx` because Phosphor ships the extension that emits them and therefore knows the shape.
+
+## Main-process activity facts
+
+Each `PiRpcClient` owns a `SessionActivity` tracker, updated before transport
+writes and before responses/events reach consumers. It includes renderer and
+routine requests, direct bash, compaction, retries, queued prompts, executing
+tools, and blocking extension dialogs. Display-only status does not count as
+work. Startup and failed writes remain uncertain until a fresh state response.
+
+`agent_end` is not treated as settled: recovery or queued work can follow it.
+A state response issued before newer activity cannot overwrite newer facts.
+Older pi builds can establish idle state through a fresh `get_state`, but that
+response cannot clear retries, direct bash, or dialogs it does not describe.
+Quit/update approval consumes these facts in main; unknown work is treated as
+busy. Approved shutdown rejects new work but permits inspection and aborts.
+This does not introduce automatic suspension. See [updates.md](updates.md) for
+confirmation behavior and remaining recovery limitations.
 
 ## Sessions on disk (drives the sidebar without spawning processes)
 

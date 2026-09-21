@@ -71,7 +71,23 @@ export interface RoutineRun {
   baseCommit: string | null
   accountId: string | null
   summary: string
+  /**
+   * Set once this run's lane has been opened from routine history.
+   *
+   * A promoted lane leaves the lane index, so the sidebar lists it as an
+   * ordinary session again. Absent on every run recorded before promotion
+   * existed, which is why it is optional rather than defaulted in `insert`.
+   */
+  promoted?: boolean
 }
+
+/**
+ * Session file path → the run that produced it, for every routine lane the
+ * routine still owns. Promoted lanes are deliberately absent: the sidebar
+ * hides exactly the paths in this index, so continuing a lane is the same
+ * operation as giving it back to its workspace.
+ */
+export type RoutineLaneIndex = Record<string, { routineId: string; runId: string }>
 
 export interface RoutinesSnapshot {
   routines: Routine[]

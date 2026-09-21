@@ -3,7 +3,6 @@ import { DateTime } from 'luxon'
 import {
   activeRun,
   newRoutine,
-  routinePeriod,
   RUN_LABELS,
   validateRoutine,
   type Routine,
@@ -14,10 +13,10 @@ import { PageShell } from '@/components/PageShell'
 import { PaneTitle } from '@/components/PaneShell'
 import { Button, TextInput } from '@/components/form'
 import { ModalOverlay } from '@/components/Modal'
-import { Markdown } from '@/components/markdown/Markdown'
 import { presentText } from '@/stores/prompt'
 import { useRoutinesStore } from '@/stores/routines'
 import { useSessionsStore } from '@/stores/sessions'
+import { ActivityAccordion } from './ActivityAccordion'
 import { RoutineEditor } from './RoutineEditor'
 
 function time(at: number | null, zone: string): string {
@@ -46,6 +45,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
   const [history, setHistory] = useState<RoutineRun[]>([])
   const [loaded, setLoaded] = useState(50)
   const [importing, setImporting] = useState(false)
+  const [continuing, setContinuing] = useState<RoutineRun | null>(null)
   const [json, setJson] = useState('')
 
   useEffect(() => {
@@ -119,8 +119,17 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
       return rank(a) - rank(b) || a.name.localeCompare(b.name)
     })
 
+  /**
+   * Hand this run's lane back to its workspace, then open it.
+   *
+   * Opening is the promotion: there is no read-only transcript view in
+   * Phosphor — reopening a session file spawns a real pi process — so a lane
+   * you have opened is one you own, and it has to be reachable from the
+   * sidebar rather than only from this page.
+   */
   const openRun = async (run: RoutineRun): Promise<void> => {
     const store = useSessionsStore.getState()
+    if (run.sessionPath) await window.phosphor.invoke('routines:promoteRun', run.id)
     const live = (await window.phosphor.invoke('pi:listLiveSessions')).find(
       (s) => s.sessionId === run.sessionId,
     )
@@ -337,94 +346,21 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
               Finished means the agent returned a written result—not that its claims or external
               deliveries were verified. A retry can repeat external changes.
             </p>
-            {!history.length && (
-              <p className="text-text-secondary">
-                No runs yet. Save with unattended access acknowledged, then use Run now for a real
-                test.
-              </p>
-            )}
-            {history.map((run) => (
-              <div
-                key={run.id}
-                data-testid="routine-run"
-                className="border-border mb-3 rounded-lg border p-4"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <strong>{RUN_LABELS[run.status]}</strong>
-                    <p className="text-text-secondary mt-1">
-                      Scheduled {time(run.scheduledAt, run.definition.timezone)} · {run.trigger}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      disabled={busy || (!run.sessionId && !run.sessionPath)}
-                      onClick={() => void act(() => openRun(run))}
-                    >
-                      Open lane
-                    </Button>
-                    {activeRun(run) && (
-                      <Button
-                        size="sm"
-                        disabled={busy}
-                        onClick={() =>
-                          void act(() => window.phosphor.invoke('routines:cancel', run.id))
-                        }
-                      >
-                        Cancel run
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                <p className="mt-2">
-                  {run.reason ||
-                    (run.status === 'queued'
-                      ? 'Waiting for an available routine worker.'
-                      : 'Executing saved instructions…')}
-                </p>
-                <details className="mt-2">
-                  <summary className="text-text-secondary cursor-pointer">
-                    Run details and result
-                  </summary>
-                  <div className="mt-3 space-y-2">
-                    <p>
-                      Started {time(run.startedAt, run.definition.timezone)} · Ended{' '}
-                      {time(run.endedAt, run.definition.timezone)}
-                    </p>
-                    <p>
-                      Reporting period:{' '}
-                      {(() => {
-                        const p = routinePeriod(run.definition, run.scheduledAt)
-                        return p ? `${p.start} → ${p.end} (end exclusive)` : 'From instructions'
-                      })()}
-                    </p>
-                    <p className="break-all">
-                      Run {run.id} · Revision {run.definition.revision}
-                      <br />
-                      {run.workspacePath}
-                      <br />
-                      {run.branch && `Branch ${run.branch}`}
-                      {run.baseCommit && ` · Base ${run.baseCommit}`}
-                    </p>
-                    <p>
-                      Model {run.definition.provider}/{run.definition.model}
-                      {run.accountId ? ` · Account ${run.accountId}` : ''}
-                    </p>
-                    <details>
-                      <summary className="cursor-pointer">Instructions used for this run</summary>
-                      <p className="mt-2 whitespace-pre-wrap">{run.definition.instructions}</p>
-                    </details>
-                    {run.summary && <Markdown text={run.summary} />}
-                  </div>
-                </details>
-              </div>
-            ))}
-            {history.length >= loaded && (
-              <Button disabled={busy} onClick={() => setLoaded((n) => n + 50)}>
-                Load older runs
-              </Button>
-            )}
+            <ActivityAccordion
+              runs={history}
+              routines={[routine]}
+              routineId={routine.id}
+              busy={busy}
+              onContinue={setContinuing}
+              onCancel={(run) => void act(() => window.phosphor.invoke('routines:cancel', run.id))}
+              footer={
+                history.length >= loaded && (
+                  <Button disabled={busy} onClick={() => setLoaded((n) => n + 50)}>
+                    Load older runs
+                  </Button>
+                )
+              }
+            />
           </>
         ) : (
           <>
@@ -523,6 +459,23 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                 </button>
               )
             })}
+            {!!snapshot?.runs.length && (
+              <>
+                <h2 className="mb-1 mt-7 text-lg font-semibold">Activity</h2>
+                <p className="text-text-secondary mb-3">
+                  Recent lanes from every routine. Open a routine for its full history.
+                </p>
+                <ActivityAccordion
+                  runs={snapshot.runs}
+                  routines={snapshot.routines}
+                  busy={busy}
+                  onContinue={setContinuing}
+                  onCancel={(run) =>
+                    void act(() => window.phosphor.invoke('routines:cancel', run.id))
+                  }
+                />
+              </>
+            )}
           </>
         )}
       </div>
@@ -536,6 +489,49 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
             void useRoutinesStore.getState().refresh()
           }}
         />
+      )}
+      {continuing && (
+        <ModalOverlay onClose={() => setContinuing(null)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Continue routine lane"
+            className="bg-bg border-border w-[min(540px,90vw)] rounded-xl border p-5"
+          >
+            <h2 className="text-xl font-semibold">
+              {activeRun(continuing) ? 'Open this running lane?' : 'Continue this routine lane?'}
+            </h2>
+            <p className="text-text-secondary my-3">
+              {activeRun(continuing)
+                ? 'The routine keeps control until this run finishes. The lane appears in the workspace list so you can watch it, and stays there afterwards.'
+                : 'This transcript becomes an ordinary interactive session in the workspace list. The routine will not use it again.'}
+            </p>
+            <p className="border-border text-text-secondary mb-3 break-all border-l-2 pl-3">
+              {continuing.workspacePath ?? continuing.definition.workspacePath}
+              <br />
+              {continuing.branch
+                ? `Branch ${continuing.branch}`
+                : 'Folder task · it reopens in this checkout on whatever branch it is on now.'}
+            </p>
+            <p className="text-text-tertiary mb-4">
+              This run and its output stay in the routine&apos;s history either way.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button onClick={() => setContinuing(null)}>Cancel</Button>
+              <Button
+                variant="primary"
+                disabled={busy}
+                onClick={() => {
+                  const run = continuing
+                  setContinuing(null)
+                  void act(() => openRun(run))
+                }}
+              >
+                {activeRun(continuing) ? 'Open lane' : 'Continue'}
+              </Button>
+            </div>
+          </div>
+        </ModalOverlay>
       )}
       {importing && (
         <ModalOverlay onClose={() => setImporting(false)}>

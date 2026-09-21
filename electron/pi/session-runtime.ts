@@ -15,8 +15,8 @@ import {
   usesClaudeCliProvider,
 } from './provider-detect'
 import { readAgentSettings } from './agent-settings'
+import { healMissingSessionCwd } from './session-cwd'
 import { applyCompactionOwnership } from './compaction-ownership'
-import { realignSessionCwd } from './session-cwd'
 import { listPackages } from './packages'
 import { headroomSupervisor } from '../headroom/proxy'
 import { sessionEventChannel } from '@shared/ipc'
@@ -81,6 +81,19 @@ export async function spawnSession(
     ...rawOptions,
     workspacePath: realPathOrNull(rawOptions.workspacePath) ?? rawOptions.workspacePath,
   }
+  // A resume whose stored cwd has gone (a renamed or moved folder) makes pi
+  // exit 1 before the RPC loop starts, which reads as "the session will not
+  // open" with nothing on the chat to say why. Repoint the header first —
+  // a no-op unless the stored cwd is genuinely missing. Safe here because the
+  // caller (`openSessionPath`) has already disposed every handle on the path,
+  // so no pi owns the file.
+  if (options.sessionPath) {
+    const healed = await healMissingSessionCwd(options.sessionPath, options.workspacePath).catch(
+      () => false,
+    )
+    if (healed) log('pi', 'repointed session cwd', { path: options.sessionPath })
+  }
+
   const stub = piStubPath()
   let binaryPath: string | undefined
   let prefixArgs: string[] | undefined
@@ -182,21 +195,6 @@ export async function spawnSession(
   // URL, and fails open even with a stale one. Env-only integration on
   // purpose: Phosphor never writes provider config for a proxy.
   if (!stub) Object.assign(spawnEnv, headroomSupervisor().sessionEnv())
-
-  // pi resumes into the cwd frozen in the session header, NOT the one it is
-  // spawned with, and refuses outright when that folder is gone. Renaming a
-  // sandbox moves every cwd under it, so this is the last moment the header
-  // can be pointed back at the folder the file actually lives in — and the
-  // only one where no pi process owns the file (see session-cwd.ts).
-  // Best-effort: a file we could not rewrite still resumes exactly as before.
-  if (options.sessionPath && !stub) {
-    await realignSessionCwd(options.sessionPath, options.workspacePath).catch((error: unknown) => {
-      log('pi', 'session cwd not realigned', {
-        path: options.sessionPath,
-        error: String(error),
-      })
-    })
-  }
 
   execution.signal?.throwIfAborted()
   const session = registry.create(options.workspacePath, {

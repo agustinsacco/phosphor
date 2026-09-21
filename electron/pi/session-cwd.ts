@@ -1,132 +1,158 @@
-import { createReadStream, createWriteStream, realpathSync } from 'node:fs'
-import { open, rename, unlink } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { randomBytes } from 'node:crypto'
-import { pipeline } from 'node:stream/promises'
+import { join } from 'node:path'
+import { isWithinFolder, rebaseWithinFolder } from '@shared/paths'
+import { piSessionsRoot, sessionDirNameForCwd } from './pi-paths'
 
 /**
- * Keep a session file's recorded cwd pointing at the folder it actually lives
- * under.
+ * A pi session records the cwd it was started in, in its header line, and pi
+ * REFUSES to resume a session whose stored cwd no longer exists: in RPC mode
+ * `getMissingSessionCwdIssue` (pi's `core/session-cwd.ts`) prints
+ * "Stored session working directory does not exist" and calls `process.exit(1)`
+ * before the RPC loop ever starts. Only interactive mode offers the "continue
+ * in current cwd" prompt, and there is no flag to answer it up front.
  *
- * pi writes the cwd it ran in into the session header and FREEZES it there;
- * nothing rewrites history when the folder later moves. Renaming a sandbox
- * moves the folder and both transcript directories, so the sessions are still
- * listed — but every file inside still names the old folder, and on resume pi
- * reads that header rather than the `--cwd` it was spawned with. It prints
- * `Stored session working directory does not exist: …` and exits 1 before the
- * session starts. Every chat in a renamed sandbox became permanently
- * unopenable, with nothing in the UI to say why.
+ * Renaming a sandbox moves the folder, so every session inside it stores a cwd
+ * that is now gone. The rename already moved the folder, pi's transcripts, the
+ * CLI's transcripts and the stored prefs — but not this, so the sessions stayed
+ * in the sidebar, looked fine, and died on click with pi exiting 1. That is the
+ * bug this module exists for.
  *
- * The directory is the authority, the same reasoning as in
- * `session-scanner.ts`: a session directory's name is a pure function of the
- * cwd, so a file found under this workspace's directory belongs to this
- * workspace whatever its header claims. Realigning the header to the folder it
- * was found under is a correction, not a guess — and it repairs sessions an
- * earlier rename already broke, not just the next one.
- *
- * Only safe while no pi process owns the file (the same rule as
- * `session-writer.ts`), which is why this runs immediately before the spawn
- * that resumes it.
+ * ONLY safe while no pi process owns the file — the same convention as
+ * `session-writer.ts`. Both call sites hold that: `app:renameSandbox` refuses
+ * while any session under the folder is live, and `spawnSession` runs inside
+ * `openSessionPath`, which has already disposed every handle on the path.
  */
 
-/**
- * How much of the file's start to read looking for the header.
- *
- * It is line 1 in every file pi writes. A legacy file whose first line is
- * longer than this, or that has no header at all, is left exactly as pi wrote
- * it: pi has its own fallback for those, and guessing is worse than the
- * behaviour we already have.
- */
-const HEADER_WINDOW_BYTES = 64 * 1024
-
-interface Header {
-  record: Record<string, unknown>
-  /** Byte offset of the first body line, i.e. just past the header's LF. */
-  bodyOffset: number
+/** The only fields of pi's header line this module touches. */
+interface SessionHeader {
+  type?: string
+  cwd?: string
+  parentSession?: string
 }
 
 /**
- * Point `path`'s header at `cwd`, unless it already resolves there.
- *
- * `cwd` must be the REAL path (symlinks resolved), because that is what pi
- * itself records and what the comparison below is against. Returns whether the
- * file was rewritten, for logging and tests.
+ * pi's JSONL is strictly LF-framed (see `jsonl.ts`), so the header is
+ * everything before the first `\n` — byte work rather than a decode of the
+ * whole transcript, which runs to megabytes.
  */
-export async function realignSessionCwd(path: string, cwd: string): Promise<boolean> {
-  const header = await readHeader(path)
-  if (!header) return false
-  const recorded = header.record.cwd
-  if (typeof recorded !== 'string' || recorded === cwd) return false
-  // A second spelling of this same folder (any symlink on the way to it)
-  // resumes fine, so it is not worth rewriting a multi-megabyte file over.
-  // A header naming a folder that is GONE, or a different folder that now
-  // holds the old name — sandbox numbers get reused — is.
-  if (resolvesTo(recorded, cwd)) return false
-  await rewriteHeader(path, { ...header.record, cwd }, header.bodyOffset)
-  return true
+function splitHeader(text: string): { header: string; rest: string } | null {
+  const end = text.indexOf('\n')
+  // No newline at all: a session whose header is the entire file, written
+  // before any entry landed.
+  if (end === -1) return text.trim() ? { header: text, rest: '' } : null
+  return { header: text.slice(0, end), rest: text.slice(end) }
 }
 
-async function readHeader(path: string): Promise<Header | null> {
-  const handle = await open(path, 'r').catch(() => null)
-  if (!handle) return null
-  try {
-    const buffer = Buffer.allocUnsafe(HEADER_WINDOW_BYTES)
-    const { bytesRead } = await handle.read(buffer, 0, HEADER_WINDOW_BYTES, 0)
-    // Searched as BYTES, not characters: a header carries arbitrary text and
-    // slicing a UTF-8 buffer at a character index would cut it mid-sequence.
-    const newline = buffer.subarray(0, bytesRead).indexOf(0x0a)
-    if (newline === -1) return null
-    const record = JSON.parse(buffer.subarray(0, newline).toString('utf8')) as Record<
-      string,
-      unknown
-    >
-    if (record.type !== 'session') return null
-    return { record, bodyOffset: newline + 1 }
-  } catch {
-    return null
-  } finally {
-    await handle.close()
-  }
+/** The transcript directory pi derives from a cwd, unresolved. */
+function transcriptDirFor(cwd: string): string {
+  // Deliberately NOT `sessionDirForCwd`: that resolves symlinks, and the cwd
+  // being moved away from no longer exists, so there is nothing to resolve.
+  // Both sides are compared as the literal strings pi itself mangled.
+  return join(piSessionsRoot(), sessionDirNameForCwd(cwd))
 }
 
 /**
- * True when `recorded` is another name for `cwd`; false when it is gone or is
- * a different folder.
+ * Replace the header line, atomically.
  *
- * Sync, and `.native`, to match every other real-path resolution here
- * (`pi-paths.ts`, `store.ts`) — the promise form has no `.native`, and the two
- * disagree about case on macOS, which would make a healthy header look stale.
+ * Temp-then-rename rather than a truncating write: the rest of the file is the
+ * user's whole conversation, and a crash between truncate and write would take
+ * it with it. The temp file sits in the session directory so the rename stays
+ * on one filesystem.
  */
-function resolvesTo(recorded: string, cwd: string): boolean {
-  try {
-    return realpathSync.native(recorded) === cwd
-  } catch {
-    return false
-  }
-}
-
-/**
- * Replace line 1 and keep the rest byte for byte.
- *
- * Streamed through a sibling temp file rather than read-modify-write: the
- * largest real session here is 3.5 MB and this runs on the open path of every
- * resume that needs it. The rename is atomic on the same filesystem, so a
- * crash mid-write leaves the original transcript intact.
- */
-async function rewriteHeader(
-  path: string,
-  record: Record<string, unknown>,
-  bodyOffset: number,
-): Promise<void> {
+async function writeHeader(path: string, header: string, rest: string): Promise<void> {
   const temp = `${path}.${randomBytes(4).toString('hex')}.tmp`
   try {
-    const out = createWriteStream(temp)
-    await new Promise<void>((resolve, reject) => {
-      out.write(JSON.stringify(record) + '\n', (error) => (error ? reject(error) : resolve()))
-    })
-    await pipeline(createReadStream(path, { start: bodyOffset }), out)
+    await writeFile(temp, header + rest)
     await rename(temp, path)
   } catch (error) {
     await unlink(temp).catch(() => undefined)
     throw error
   }
+}
+
+/**
+ * Point one session at `to` if its header still says `from`.
+ *
+ * `parentSession` moves with it. A forked session names its parent by full
+ * path, and that path contains the parent's own mangled cwd — so a rename that
+ * fixed only `cwd` would leave the fork pointing into a transcript directory
+ * that moved, and the branch it was forked from would read as gone.
+ *
+ * Returns whether anything was written, so a caller can log a repair rather
+ * than guess at one.
+ */
+export async function repointSessionCwd(
+  sessionPath: string,
+  from: string,
+  to: string,
+): Promise<boolean> {
+  if (from === to) return false
+
+  let text: string
+  try {
+    text = await readFile(sessionPath, 'utf8')
+  } catch {
+    return false // Deleted between the listing and here.
+  }
+
+  const split = splitHeader(text)
+  if (!split) return false
+
+  let header: SessionHeader
+  try {
+    header = JSON.parse(split.header) as SessionHeader
+  } catch {
+    return false // Not a session file, or a half-written one; leave it alone.
+  }
+  // A file whose first line is not the header is not a shape this understands.
+  if (header.type !== 'session' || header.cwd !== from) return false
+
+  header.cwd = to
+  // Prefix-anchored with a separator guard (`isWithinFolder`), so the parent of
+  // a session under `--…-games--` is never rewritten by a rename of `games-2`.
+  const oldParentDir = transcriptDirFor(from)
+  if (header.parentSession && isWithinFolder(header.parentSession, oldParentDir)) {
+    header.parentSession = rebaseWithinFolder(
+      header.parentSession,
+      oldParentDir,
+      transcriptDirFor(to),
+    )
+  }
+
+  // `JSON.stringify` of a parsed object preserves key order, so the header
+  // round-trips as pi wrote it apart from the two values above.
+  await writeHeader(sessionPath, JSON.stringify(header), split.rest)
+  return true
+}
+
+/**
+ * Repoint a session whose stored cwd has gone missing, on the way to resuming
+ * it. `cwd` is where Phosphor is about to run it, already resolved.
+ *
+ * This is the net that catches a folder that moved WITHOUT Phosphor's rename
+ * handler running — a sandbox renamed before this repair existed (which is how
+ * the bug was found), one moved in Finder, or a transcript the rename's
+ * best-effort pass did not reach. Narrow on purpose: it fires only when the
+ * stored cwd is genuinely absent from disk and the replacement genuinely
+ * exists, so a session opened while its folder is merely unmounted is left
+ * intact rather than rewritten to somewhere else.
+ */
+export async function healMissingSessionCwd(sessionPath: string, cwd: string): Promise<boolean> {
+  let header: SessionHeader
+  try {
+    const text = await readFile(sessionPath, 'utf8')
+    const split = splitHeader(text)
+    if (!split) return false
+    header = JSON.parse(split.header) as SessionHeader
+  } catch {
+    return false
+  }
+
+  const stored = header.cwd
+  if (header.type !== 'session' || !stored || stored === cwd) return false
+  if (existsSync(stored) || !existsSync(cwd)) return false
+
+  return repointSessionCwd(sessionPath, stored, cwd)
 }

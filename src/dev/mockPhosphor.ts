@@ -684,10 +684,10 @@ const MOCK_CONTEXT_BREAKDOWN = JSON.stringify({
   // One gateway proxy tool per server, which is what a real install reports
   // unless a server opts into `directTools` — see docs/mcp.md.
   mcpByServer: {
-    braintrust: { tokens: 700, count: 1 },
-    fellow: { tokens: 640, count: 1 },
-    linear: { tokens: 640, count: 1 },
-    notion: { tokens: 620, count: 1 },
+    braintrust: { tokens: 700, count: 1, direct: 0, toolCount: 34 },
+    fellow: { tokens: 640, count: 1, direct: 0, toolCount: 12 },
+    linear: { tokens: 640, count: 1, direct: 0, toolCount: 61 },
+    notion: { tokens: 620, count: 1, direct: 0, toolCount: 19 },
   },
   approximate: true,
 })
@@ -1839,6 +1839,14 @@ export function installMockPhosphor(): void {
           return Promise.resolve({ phase: 'idle' })
         case 'updates:check':
         case 'updates:restartAndInstall':
+          return Promise.resolve(undefined)
+        // Nudged on purpose: the harness exists to render the states that are
+        // hard to reach, and this one takes three days of real use.
+        case 'feedback:state':
+          return Promise.resolve({ mode: 'github', nudge: true, repo: 'agustinsacco/Phosphor' })
+        case 'feedback:submit':
+          return Promise.resolve({ ok: true, mode: 'github', url: 'https://github.com/' })
+        case 'feedback:dismiss':
           return Promise.resolve(undefined)
         case 'fs:statDirs':
           return Promise.resolve((args[0] as string[]).map((path) => ({ path, mtimeMs: 1 })))
