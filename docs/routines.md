@@ -73,6 +73,16 @@ instructions and configuration, not stored account credentials or run history.
   working folder, branch, base commit, account ID when known, reason, and a
   bounded final summary. Older history is paginated; archiving never deletes
   history or worktrees.
+- **Runs are grouped by day, newest first, and the most recent day starts
+  open.** The day heading uses your own clock, because routines pinned to
+  different timezones share one list; each run still prints its times in its
+  own routine's zone. A run belongs to the day it started, falling back to the
+  day it was scheduled. Filters narrow by routine, workspace, scheduled vs
+  one-off, and failures only. A one-off is a trigger, not a separate kind of
+  routine: Run now, or a routine whose whole schedule is a single time. The
+  same list appears twice — on the Routines page as **Activity** across every
+  routine (the recent-runs snapshot), and inside a routine scoped to it (its
+  full paginated history).
 - **A routine's lanes are not listed in the sidebar.** Run history is where
   they live, so the workspace lane list stays the conversations you started.
   Main keeps a lane index (session file path → run) covering every run ever
@@ -184,6 +194,9 @@ pending run workspaces are protected from automatic maintenance reclamation.
   same one that moves pinned sessions out of their project group.
 - `src/features/routines/`, `src/stores/routines.ts`: editor, overview, history,
   and projection of main state. No renderer-owned scheduling.
+  `ActivityAccordion.tsx` renders the run list for both scopes; the grouping
+  and filtering rules are pure functions in `runGroups.ts` so they can be
+  tested without a DOM.
 
 Tests cover calendar/DST behavior, validation, deduplication, transactional
 history, restarts, limits, cancellation, failure pauses, model/isolation refusal,
