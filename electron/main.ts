@@ -11,6 +11,7 @@ import { installRoutineBackground, routinesKeepRunning } from './routines/backgr
 import { dirname, join } from 'node:path'
 import { existsSync, renameSync } from 'node:fs'
 import { registerIpcHandlers } from './ipc'
+import { recordAppLaunch } from './feedback/feedback-service'
 import { maintenanceScheduler } from './ipc/maintenance-handlers'
 import { registry } from './registry'
 import { ptyManager } from './pty/pty-manager'
@@ -212,6 +213,9 @@ if (!singleInstance) {
     // the app's theme class, so this has to be right at first paint.
     applyThemeSource(getPrefs().theme)
     registerIpcHandlers()
+    // One count per app start, and the only thing gating the feedback nudge —
+    // it waits for real use rather than interrupting a fresh install.
+    recordAppLaunch()
     createWindow()
     installRoutineBackground(
       () => {

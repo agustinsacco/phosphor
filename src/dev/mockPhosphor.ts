@@ -1840,6 +1840,14 @@ export function installMockPhosphor(): void {
         case 'updates:check':
         case 'updates:restartAndInstall':
           return Promise.resolve(undefined)
+        // Nudged on purpose: the harness exists to render the states that are
+        // hard to reach, and this one takes three days of real use.
+        case 'feedback:state':
+          return Promise.resolve({ mode: 'github', nudge: true, repo: 'agustinsacco/Phosphor' })
+        case 'feedback:submit':
+          return Promise.resolve({ ok: true, mode: 'github', url: 'https://github.com/' })
+        case 'feedback:dismiss':
+          return Promise.resolve(undefined)
         case 'fs:statDirs':
           return Promise.resolve((args[0] as string[]).map((path) => ({ path, mtimeMs: 1 })))
         case 'fs:watchWorkspace':

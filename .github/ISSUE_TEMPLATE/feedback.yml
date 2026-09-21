@@ -1,0 +1,51 @@
+name: Feedback
+description: Rate Phosphor and tell us what to build next
+title: '[Feedback] '
+labels: ['feedback']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Phosphor's in-app form (sidebar → **Send feedback**) fills this in for
+        you. Filing by hand is fine too. Honest answers are the useful ones.
+  - type: dropdown
+    id: rating
+    attributes:
+      label: Rating
+      description: How is Phosphor going for you overall?
+      options:
+        - 5 - Love it
+        - 4 - Good
+        - 3 - Fine
+        - 2 - Rough
+        - 1 - Frustrating
+    validations:
+      required: true
+  - type: textarea
+    id: comment
+    attributes:
+      label: What's working, what isn't
+      description: The good and the bad. Specifics help more than politeness.
+    validations:
+      required: false
+  - type: textarea
+    id: wishlist
+    attributes:
+      label: Features you'd like to see
+      description: What would make Phosphor better for you?
+    validations:
+      required: false
+  - type: input
+    id: contact
+    attributes:
+      label: Contact (optional)
+      description: Leave blank to stay anonymous. Note that a hand-filed issue always shows your GitHub account.
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: Phosphor version (optional)
+      description: Settings → About, or leave blank.
+    validations:
+      required: false

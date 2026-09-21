@@ -26,6 +26,7 @@ import {
   type ThemePreference,
   type WorkspaceInfo,
 } from '@shared/models'
+import { type FeedbackPrefs, normalizeFeedbackPrefs } from '@shared/feedback'
 
 /**
  * True for a path inside a repo's internal worktree folder
@@ -146,6 +147,7 @@ export function getPrefs(): AppPrefs {
     ),
     worktrees: { ...DEFAULT_APP_PREFS.worktrees, ...s.get('worktrees') },
     headroom: { ...DEFAULT_APP_PREFS.headroom, ...s.get('headroom') },
+    feedback: normalizeFeedbackPrefs(s.get('feedback')),
     claudeAutocompact: s.get('claudeAutocompact') ?? '',
     drafts: s.get('drafts') ?? {},
   }
@@ -153,6 +155,17 @@ export function getPrefs(): AppPrefs {
 
 export function setHeadroomPrefs(headroom: AppPrefs['headroom']): void {
   prefs().set('headroom', headroom)
+}
+
+export function getFeedbackPrefs(): FeedbackPrefs {
+  return normalizeFeedbackPrefs(prefs().get('feedback'))
+}
+
+/** Merge a patch into the feedback prefs. Normalized on the way in and out. */
+export function patchFeedbackPrefs(patch: Partial<FeedbackPrefs>): FeedbackPrefs {
+  const next = normalizeFeedbackPrefs({ ...getFeedbackPrefs(), ...patch })
+  prefs().set('feedback', next)
+  return next
 }
 
 /**

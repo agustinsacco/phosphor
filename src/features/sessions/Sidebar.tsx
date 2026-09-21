@@ -43,6 +43,7 @@ import { LaneSearchBar } from './LaneSearchBar'
 import { laneHaystack, laneMatches, laneQueryTerms, type LaneSearchFields } from './laneSearch'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { UpdatePill } from '@/features/updates/UpdatePill'
+import { FeedbackButton } from '@/features/feedback/FeedbackButton'
 import { formatShortcut } from '@/lib/shortcuts'
 import { useLayoutStore } from '@/stores/layout'
 import { projectName, isWorktreeFolder } from '@/lib/path'
@@ -1143,6 +1144,7 @@ export function Sidebar({
 
       <div className="border-border border-t px-3 py-2">
         <UpdatePill />
+        <FeedbackButton />
         <button
           onClick={() => useSettingsUiStore.getState().setOpen(true)}
           className="text-text-secondary hover:text-text hover:bg-sidebar-hover -mx-1 flex w-[calc(100%+8px)] items-center gap-2 rounded-md px-1.5 py-1 text-base transition-colors"

@@ -8,6 +8,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsStore } from '@/stores/settings'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { useFeedbackStore } from '@/features/feedback/feedbackStore'
 import { useFinderStore } from '@/features/files/FuzzyFinder'
 import { useChatUiStore } from '@/features/chat/uiState'
 import { sessionTitle } from '@/lib/sessionTitle'
@@ -151,6 +152,11 @@ export function CommandPalette({
         label: 'Open settings',
         hint: formatShortcut('mod', ','),
         run: () => useSettingsUiStore.getState().setOpen(true),
+      },
+      {
+        id: 'feedback',
+        label: 'Send feedback',
+        run: () => useFeedbackStore.getState().setOpen(true),
       },
       {
         id: 'keybindings',
