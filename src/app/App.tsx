@@ -26,6 +26,7 @@ import { ExtensionDialogHost, ToastHost } from '@/features/extension-ui/Extensio
 import { PromptHost } from '@/components/PromptHost'
 import { CommandPalette } from '@/features/palette/CommandPalette'
 import { SettingsModal } from '@/features/settings/SettingsModal'
+import { FeedbackModal } from '@/features/feedback/FeedbackModal'
 import { useTerminalStore } from '@/stores/terminal'
 import { attachConnectorAuthListener } from '@/stores/connectors'
 import { useWorktreesStore } from '@/stores/worktrees'
@@ -281,6 +282,7 @@ export function App(): React.JSX.Element {
         <BulkDeleteProgressPopover />
         <CommandPalette workspacePath={currentWorkspace} />
         <SettingsModal />
+        <FeedbackModal />
       </div>
       {loading && loadingScreen}
     </>

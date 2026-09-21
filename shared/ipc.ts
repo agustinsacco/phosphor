@@ -30,6 +30,7 @@ import type {
   McpWriteScope,
 } from './mcp'
 import type { SkillImportPreview, SkillScope, SkillsListResult } from './skills'
+import type { FeedbackDraft, FeedbackState, FeedbackSubmitResult } from './feedback'
 import type {
   AddWorktreeBranch,
   AppPrefs,
@@ -867,6 +868,16 @@ export interface IpcInvokeMap {
   'updates:state': { args: []; result: UpdateState }
   'updates:check': { args: []; result: void }
   'updates:restartAndInstall': { args: []; result: void }
+
+  /**
+   * App rating and feedback, filed as a GitHub issue. Main owns the network
+   * leg because the relay path is a request and the browser path is
+   * `shell.openExternal` — neither belongs in a sandboxed renderer.
+   */
+  'feedback:state': { args: []; result: FeedbackState }
+  'feedback:submit': { args: [draft: FeedbackDraft]; result: FeedbackSubmitResult }
+  /** Records the one-time "not now"; the nudge never returns after it. */
+  'feedback:dismiss': { args: []; result: void }
 }
 
 export type IpcInvokeChannel = keyof IpcInvokeMap

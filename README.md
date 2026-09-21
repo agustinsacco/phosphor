@@ -342,10 +342,11 @@ electron/            main process — owns every side effect
   main.ts            app lifecycle, window creation, quit teardown
   preload.ts         the contextBridge surface (one typed `subscribe` helper)
   ipc.ts             composition root: calls the per-domain handler registrars
-  ipc/               one module per channel-prefix family — 17 of them today
-                     (app, claude-auth, clipboard, fs, git, maintenance, mcp,
-                      optimization, packages, pi-auth, pi-config, pi-session,
-                      pty, routines, sessions, skills, updates) plus handle.ts, the
+  ipc/               one module per channel-prefix family — 18 of them today
+                     (app, claude-auth, clipboard, feedback, fs, git,
+                      maintenance, mcp, optimization, packages, pi-auth,
+                      pi-config, pi-session, pty, routines, sessions, skills,
+                      updates) plus handle.ts, the
                       envelope unwrapper. The contract lives in shared/ipc.ts;
                       ipc.ts is the composition root, so a handler module
                       never imports it back.

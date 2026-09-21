@@ -2815,6 +2815,41 @@ test('the updater stays dormant in an unpackaged run', async () => {
   }
 })
 
+test('feedback is reachable from the sidebar and never nags a fresh install', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+
+    // A first-run profile has one launch and no history, so the row is the
+    // quiet variant: findable, no dot, no dismiss, no popup anywhere.
+    const button = page.getByTestId('feedback-button')
+    await expect(button).toHaveAttribute('data-nudge', 'false')
+    await expect(button).toContainText('Send feedback')
+    await expect(page.getByRole('button', { name: 'Dismiss' })).toHaveCount(0)
+
+    await button.click()
+    const submit = page.getByRole('button', { name: 'Open on GitHub' })
+    // A rating on its own says nothing, so submit stays shut until there is a
+    // sentence to go with it.
+    await expect(submit).toBeDisabled()
+
+    // Without a relay the app cannot post anonymously, and says so rather than
+    // offering a checkbox it could not honour.
+    await expect(page.getByRole('checkbox', { name: /Send anonymously/ })).toBeDisabled()
+
+    await page.getByPlaceholder('The good and the bad').fill('Lanes are the best part.')
+    await expect(submit).toBeEnabled()
+
+    // Not clicked: submitting here would open a real browser. The submit path
+    // itself is covered in electron/feedback/feedback-service.test.ts.
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await expect(submit).toHaveCount(0)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('extensions tab lists pi packages and reveals per-extension tabs', async () => {
   // A dir of this test's own: the fixture below is a hand-written
   // `node_modules` entry, and any real `npm install` into a shared agent dir

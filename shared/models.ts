@@ -1,5 +1,6 @@
 /** App-level domain types shared between main and renderer. */
 import { type ExtensionUIRequest, type PiEvent } from './rpc'
+import { DEFAULT_FEEDBACK_PREFS, type FeedbackPrefs } from './feedback'
 
 export interface PiHealth {
   ok: boolean
@@ -567,6 +568,8 @@ export interface AppPrefs {
   maintenance: MaintenancePrefs
   /** Headroom tool-result compression (Settings → Optimization). */
   headroom: HeadroomPrefs
+  /** Rating/feedback state: launch count, the one-time nudge, the relay. */
+  feedback: FeedbackPrefs
   /**
    * Claude Code auto-compact window for pi-claude-cli sessions, passed as
    * `PI_CLAUDE_CLI_AUTOCOMPACT` when a session spawns. Empty string means
@@ -794,6 +797,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   worktrees: DEFAULT_WORKTREE_PREFS,
   maintenance: DEFAULT_MAINTENANCE_PREFS,
   headroom: DEFAULT_HEADROOM_PREFS,
+  feedback: DEFAULT_FEEDBACK_PREFS,
   claudeAutocompact: '',
   claudeAccounts: DEFAULT_CLAUDE_ACCOUNT_PREFS,
   drafts: {},

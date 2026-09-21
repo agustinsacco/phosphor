@@ -35,6 +35,7 @@ Start with [overview.md](overview.md) for what Phosphor is, or
 | [lanes.md](lanes.md)         | The lane row, PR status, naming, search, delete, reclaim            |
 | [worktrees.md](worktrees.md) | Git worktree lifecycle and the branch control                       |
 | [settings.md](settings.md)   | The settings modal and which config file each tab writes            |
+| [feedback.md](feedback.md)   | In-app rating and feedback, filed as a labelled GitHub issue        |
 
 ## What Phosphor talks to
 
