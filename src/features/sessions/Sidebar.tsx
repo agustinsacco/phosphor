@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { GitInfo, SessionMeta, WorktreeInfo } from '@shared/models'
 import { compareSessionsByCreation } from '@shared/session-order'
@@ -23,7 +23,7 @@ import { formatCost } from '@/lib/format'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { usePullRequestsStore, pullRequestFor } from '@/stores/pullRequests'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
-import { makeRoutine } from '@/stores/routines'
+import { makeRoutine, useRoutineLaneIndex } from '@/stores/routines'
 import {
   ArtifactsIcon,
   SkillsIcon,
@@ -227,8 +227,9 @@ export function Sidebar({
       // Re-scan only the workspace that actually changed.
       void useSessionsStore.getState().refreshDisk(payload.workspacePath)
       // A main-owned routine can create a lane without ever entering the
-      // renderer's live map. Discover it once so its finished transcript is
-      // visible under the project, not only in routine history.
+      // renderer's live map. Still discover it: the row itself is hidden
+      // while the routine owns it, but the folder has to be scanned for the
+      // lane to reappear the moment that run is promoted.
       if (
         isWorktreeFolder(payload.workspacePath) &&
         !knownWorkspaces.includes(payload.workspacePath)
@@ -382,14 +383,26 @@ export function Sidebar({
 
   const pinnedSet = useMemo(() => new Set(pinned), [pinned])
 
+  /**
+   * Lanes a routine still owns. They are listed in the Routines page's run
+   * history instead of here, so the sidebar stays the set of conversations
+   * you started. Opening one from that history promotes it out of this index
+   * and the row reappears, which is the only way back in.
+   */
+  const routineLanes = useRoutineLaneIndex()
+  const isRoutineLane = useCallback(
+    (meta: SessionMeta) => meta.path in routineLanes,
+    [routineLanes],
+  )
+
   /** Pinned sessions across every workspace — this group deliberately mixes. */
   const pinnedMetas = useMemo(
     () =>
       Object.values(disk)
         .flat()
-        .filter((m) => pinnedSet.has(m.path))
+        .filter((m) => pinnedSet.has(m.path) && !isRoutineLane(m))
         .sort(compareSessionsByCreation),
-    [disk, pinnedSet],
+    [disk, pinnedSet, isRoutineLane],
   )
 
   /**
@@ -409,7 +422,7 @@ export function Sidebar({
         knownWorkspaces,
         disk,
         gitByCwd,
-        (m) => pinnedSet.has(m.path),
+        (m) => pinnedSet.has(m.path) || isRoutineLane(m),
         (m) => liveByDisk.has(m.path),
         workspacePath,
         scanStatus,
@@ -422,6 +435,7 @@ export function Sidebar({
       gitByCwd,
       scanStatus,
       pinnedSet,
+      isRoutineLane,
       liveByDisk,
       workspacePath,
       worktreeRoots,

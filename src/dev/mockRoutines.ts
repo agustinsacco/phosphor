@@ -35,6 +35,18 @@ export async function mockRoutineCall(channel: string, args: unknown[]): Promise
           : 'Browser mock: a folder task is checked against live sessions and, for code intent, uncommitted changes.',
       }
     }
+    case 'routines:laneIndex':
+      return Object.fromEntries(
+        snapshot.runs
+          .filter((r) => r.sessionPath && !r.promoted)
+          .map((r) => [r.sessionPath!, { routineId: r.routineId, runId: r.id }]),
+      )
+    case 'routines:promoteRun': {
+      const run = snapshot.runs.find((r) => r.id === args[0])
+      if (!run) throw new Error('Run not found.')
+      run.promoted = true
+      break
+    }
     case 'routines:history':
       return structuredClone(
         snapshot.runs

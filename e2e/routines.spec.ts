@@ -110,7 +110,6 @@ test('create, preview, run in an isolated lane, review history, and persist acro
   await expect(
     page.getByTestId('routine-run').getByText('Finished · unverified', { exact: true }),
   ).toBeVisible({ timeout: 30000 })
-  await expect(page.getByTestId('session-row').first()).toBeVisible()
   await page.screenshot({ path: test.info().outputPath('routine-history.png') })
   const snapshot = await page.evaluate(() => window.phosphor.invoke('routines:list'))
   const run = snapshot.runs[0]!
@@ -126,9 +125,29 @@ test('create, preview, run in an isolated lane, review history, and persist acro
   expect(
     await page.evaluate(() => window.phosphor.invoke('pi:listLiveSessions')),
   ).not.toContainEqual(expect.objectContaining({ sessionId: run.sessionId }))
-  await page.getByRole('button', { name: 'Open lane' }).click()
+  // The lane lives in run history, not the workspace list, until it is opened.
+  const laneIndex = async (): Promise<string[]> =>
+    Object.keys(await page.evaluate(() => window.phosphor.invoke('routines:laneIndex')))
+  expect(await laneIndex()).toContain(run.sessionPath!)
+  await expect(page.getByTestId('session-row')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Continue lane' }).click()
+  await page
+    .getByRole('dialog', { name: 'Continue routine lane' })
+    .getByRole('button', { name: 'Continue', exact: true })
+    .click()
   await expect(page.getByTestId('global-page')).toHaveCount(0)
+  // Opening promoted it: the row is back under its project. Counted by name,
+  // because the resumed session also gets a placeholder row here (R14).
+  await expect(page.getByTestId('session-row').filter({ hasText: 'Weekly report · ' })).toHaveCount(
+    1,
+  )
+  expect(await laneIndex()).not.toContain(run.sessionPath!)
   await page.getByRole('button', { name: 'Routines', exact: true }).click()
+  // Activity repeats the run on the overview, under today's heading.
+  await expect(page.getByRole('button', { name: 'Today 1 run' })).toBeVisible()
+  await expect(page.getByTestId('routine-run')).toHaveCount(1)
+  await page.getByRole('button', { name: 'Failed only' }).click()
+  await expect(page.getByTestId('routine-run')).toHaveCount(0)
   await page.getByTestId('routine-row').filter({ hasText: 'Weekly report' }).click()
   await page.getByRole('button', { name: 'Pause', exact: true }).click()
   await expect(page.getByText('Paused', { exact: true })).toBeVisible()

@@ -60,6 +60,20 @@ export function registerRoutinesHandlers(): void {
       throw new Error('Invalid history offset.')
     return routineScheduler().repository.history(id(routineId), offset, 50)
   })
+  // The sidebar calls this on every routine change, including at boot before
+  // the user has opened Routines. A routines subsystem that failed to start
+  // must not take the sidebar down with it — an empty index hides nothing.
+  handle('routines:laneIndex', () => {
+    try {
+      return routineScheduler().repository.laneIndex()
+    } catch {
+      return {}
+    }
+  })
+  handle('routines:promoteRun', (_event, runId) => {
+    routineScheduler().repository.promote(id(runId))
+    broadcast('routines:changed', {})
+  })
   handle('routines:cancel', (_event, runId) => routineScheduler().cancel(id(runId)))
   handle('routines:skipNext', (_event, routineId) => {
     routineScheduler().repository.skipNext(id(routineId), Date.now())

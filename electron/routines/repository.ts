@@ -6,6 +6,7 @@ import {
   nextOccurrences,
   type Routine,
   type RoutineInput,
+  type RoutineLaneIndex,
   type RoutineRun,
   type RoutineRunStatus,
 } from '@shared/routines'
@@ -84,6 +85,42 @@ export class RoutineRepository {
     const row = this.db.prepare('SELECT data FROM runs WHERE id=?').get(id)
     if (!row) throw new Error('Run not found.')
     return JSON.parse(row.data as string) as RoutineRun
+  }
+
+  /**
+   * Every lane a routine still owns, keyed by session file path.
+   *
+   * Deliberately not derived from the snapshot's recent-runs window: the
+   * sidebar hides exactly these paths, and a lane it must keep hiding can be
+   * arbitrarily old. Queried through `json_extract` rather than loading every
+   * run, since the whole history is scanned on each call.
+   */
+  laneIndex(): RoutineLaneIndex {
+    const index: RoutineLaneIndex = {}
+    const rows = this.db
+      .prepare(
+        `SELECT id, routine_id, json_extract(data,'$.sessionPath') AS session_path FROM runs
+         WHERE json_extract(data,'$.sessionPath') IS NOT NULL
+           AND json_extract(data,'$.promoted') IS NOT 1
+         ORDER BY created_at, rowid`,
+      )
+      .all()
+    // Ascending order so a reused path resolves to its most recent run.
+    for (const row of rows)
+      index[row.session_path as string] = {
+        routineId: row.routine_id as string,
+        runId: row.id as string,
+      }
+    return index
+  }
+
+  /** Hand a lane back to its workspace. History and output are unaffected. */
+  promote(id: string): RoutineRun {
+    return this.transaction(() => {
+      if (!this.run(id).sessionPath)
+        throw new Error('This run has no transcript yet. It may have stopped before pi wrote one.')
+      return this.patchRun(id, { promoted: true })
+    })
   }
 
   pending(): RoutineRun[] {
