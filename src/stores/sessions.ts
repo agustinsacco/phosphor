@@ -63,8 +63,65 @@ interface LiveSessionEntry {
   diskPath?: string
 }
 
+/**
+ * A lane the user has asked for that is not on screen yet.
+ *
+ * Opening a lane from disk spawns a pi process and replays its transcript —
+ * roughly a second, sometimes several. Until this existed nothing on screen
+ * changed in that window: the previous lane stayed fully rendered, the clicked
+ * row stayed unhighlighted, and the click read as dropped. A second click then
+ * did nothing either (the open is deduped by path), which is what made it look
+ * stuck rather than slow.
+ */
+export interface OpeningLane {
+  /** Session file being opened; absent for a lane that has none yet. */
+  path?: string
+  workspacePath: string
+  /** What to call it while it loads. */
+  title: string
+  /** `restart` is the same lane coming back (provider or account change). */
+  reason: 'open' | 'restart'
+  /** The navigation this open belongs to. See `navSeq`. */
+  nav: number
+}
+
+/**
+ * A claim that can never be the current navigation, for work that must never
+ * take the screen — restarting a lane the user is not looking at.
+ */
+const NO_ACTIVATION = -1
+
 interface SessionsState {
   activeSessionId: string | null
+  /**
+   * Monotonic count of EXPLICIT navigations (a click, a palette entry, a send).
+   *
+   * Session creation is asynchronous and slow enough to outlive the user's
+   * interest in it, so every activation that lands late is checked against
+   * this first. Without it, whatever finished last won: starting a chat and
+   * then switching to another lane to work in parallel yanked you back to the
+   * new lane the moment its pi process came up, and again when its branch was
+   * renamed. `beginOpening` and `claimNav` are the only ways to raise it
+   * besides `activate`.
+   */
+  navSeq: number
+  /** The lane being opened for the current navigation, or null. */
+  opening: OpeningLane | null
+  /**
+   * Claim the screen for a lane that is about to load. Returns the navigation
+   * id to hand to `createSession`, which activates only if it is still current.
+   */
+  beginOpening: (lane: Omit<OpeningLane, 'nav'>) => number
+  /**
+   * The same claim without the overlay, for a flow that draws its own waiting
+   * state — sending from the home composer, where `StartingChat` already shows
+   * the message in the place the transcript will use it.
+   *
+   * Taken when the user commits the send, NOT when `createSession` is finally
+   * reached: a new lane cuts a branch first, and a claim taken after that is a
+   * claim taken after the user has had seconds to click somewhere else.
+   */
+  claimNav: () => number
   /** phosphorId → live entry. */
   live: Record<string, LiveSessionEntry>
   /** workspacePath → on-disk metas (sidebar). */
@@ -119,6 +176,12 @@ interface SessionsState {
        * the session, and two naming passes would mean two different names.
        */
       autoName?: boolean
+      /**
+       * Navigation this session is being created for (`beginOpening`). The
+       * session is activated on arrival only while that navigation is still
+       * the current one. Omit to claim the screen for this call.
+       */
+      nav?: number
     },
   ) => Promise<string>
   openDiskSession: (workspacePath: string, meta: SessionMeta) => Promise<string>
@@ -141,6 +204,21 @@ interface SessionsState {
   suspendSession: (sessionId: string) => Promise<void>
   /** Session paths suspended this run, so the UI can label them. */
   suspendedPaths: string[]
+  /**
+   * Dispose a lane's pi process and resume it from the same session file.
+   *
+   * Some changes cannot be made to a running pi: the credential it was spawned
+   * with, and the provider runtime behind its model. Both are a dispose and a
+   * resume, and both used to drop the user on the greeting screen for the
+   * whole window (disposing clears `activeSessionId`) before snapping back —
+   * which reads as the app losing the lane. Routed through here instead, the
+   * lane keeps the screen, says what it is doing, and comes back activated
+   * unless the user navigated elsewhere meanwhile.
+   *
+   * Returns the new Phosphor session id, or null when the lane has no file to
+   * resume from.
+   */
+  restartSession: (sessionId: string, options: { label: string }) => Promise<string | null>
   /**
    * Restart a lane on a Claude account — the same one ("re-prime") or another.
    *
@@ -620,6 +698,18 @@ function attachSessionPushHandler(phosphorId: string): void {
 
 export const useSessionsStore = create<SessionsState>((set, get) => ({
   activeSessionId: null,
+  navSeq: 0,
+  opening: null,
+  beginOpening: (lane) => {
+    const nav = get().navSeq + 1
+    set({ navSeq: nav, opening: { ...lane, nav } })
+    return nav
+  },
+  claimNav: () => {
+    const nav = get().navSeq + 1
+    set({ navSeq: nav, opening: null })
+    return nav
+  },
   live: {},
   disk: {},
   scanStatus: {},
@@ -771,6 +861,12 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
 
   createSession: async (requestedPath, options = {}) => {
     set({ creating: true })
+    // A call that names no navigation is one the user just made, so it claims
+    // the screen; `openDiskSession` and `restartSession` pass their own.
+    const nav = options.nav ?? get().navSeq + 1
+    if (options.nav === undefined) set({ navSeq: nav })
+    /** Is this session still the one the user is waiting for? */
+    const claimed = (): boolean => get().navSeq === nav
     try {
       const info = await window.phosphor.invoke('pi:createSession', {
         workspacePath: requestedPath,
@@ -780,7 +876,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       })
       const phosphorId = info.sessionId
       if (get().live[phosphorId]) {
-        get().activate(phosphorId)
+        if (claimed()) get().activate(phosphorId)
         return phosphorId
       }
       // Main's answer, not the request. Main resolves the folder before pi is
@@ -805,6 +901,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           if (sessionIsOpen(phosphorId))
             set((s) => ({ baselines: { ...s.baselines, [phosphorId]: null } }))
         })
+      // Activation is CONDITIONAL. A session that arrives after the user has
+      // moved on still registers, streams and finishes its turn — it just does
+      // not take the screen back. Cleared together with `opening` in one `set`
+      // so the loading overlay and the transcript swap on the same frame.
+      const takesScreen = claimed()
       set((s) => ({
         live: {
           ...s.live,
@@ -814,12 +915,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
             diskPath: info.diskPath ?? options.sessionPath,
           },
         },
-        activeSessionId: phosphorId,
+        ...(takesScreen ? { activeSessionId: phosphorId } : {}),
+        opening: s.opening?.nav === nav ? null : s.opening,
         unread: { ...s.unread, [phosphorId]: 0 },
       }))
       // Resumed sessions already know their file; fresh ones learn it from
       // get_state in bootstrapSession, which persists it then.
-      if (options.sessionPath) {
+      if (options.sessionPath && takesScreen) {
         void window.phosphor.invoke('app:setLastSession', options.sessionPath)
       }
 
@@ -915,8 +1017,6 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     ) {
       throw new Error('This lane is being deleted.')
     }
-    const opening = pendingOpens.get(meta.path)
-    if (opening) return opening
     get().markSeen(meta.path)
     // Reopening clears the suspended marker; the resume path below re-spawns pi
     // and the transcript shows its skeleton while history replays.
@@ -929,12 +1029,48 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       get().activate(existing.phosphorId)
       return existing.phosphorId
     }
-    const operation = get().createSession(workspacePath, { sessionPath: meta.path })
-    pendingOpens.set(meta.path, operation)
+    // Claimed BEFORE the first await, so the clicked row highlights and the
+    // main region says what it is loading on the same frame as the click.
+    const title =
+      sessionTitle({ explicitName: meta.name, firstUserText: meta.firstUserText }) ?? 'lane'
+    const nav = get().beginOpening({
+      path: meta.path,
+      workspacePath,
+      title,
+      reason: 'open',
+    })
+    // A repeat click on a lane whose open is already running must still land:
+    // the running `createSession` captured an older claim and will decline to
+    // activate, so the decision is re-made here against the current one.
+    const inFlight = pendingOpens.get(meta.path)
+    const operation =
+      inFlight ?? get().createSession(workspacePath, { sessionPath: meta.path, nav })
+    if (!inFlight) pendingOpens.set(meta.path, operation)
     try {
-      return await operation
+      const phosphorId = await operation
+      if (get().opening?.nav === nav) get().activate(phosphorId)
+      return phosphorId
+    } catch (error) {
+      // Say something. Most callers fire this without awaiting, so an open
+      // that fails used to clear the overlay and leave the user exactly where
+      // they were with no explanation — which reads as the click not landing,
+      // so they click again, and every retry spawns another pi that dies the
+      // same way. Only the call that STARTED the open reports it, so those
+      // retries produce one toast between them rather than one each.
+      if (!inFlight)
+        void import('./extensionUi').then(({ useExtensionUiStore }) =>
+          useExtensionUiStore
+            .getState()
+            .pushToast(
+              `Could not open "${title}". ${error instanceof Error ? error.message : String(error)}`,
+              'error',
+            ),
+        )
+      throw error
     } finally {
-      pendingOpens.delete(meta.path)
+      if (!inFlight) pendingOpens.delete(meta.path)
+      // A failed open must not leave the overlay up forever.
+      if (get().opening?.nav === nav) set({ opening: null })
     }
   },
 
@@ -945,8 +1081,12 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     // page is up) changes no state a subscriber could see, but must still
     // bring the chat back.
     useLayoutStore.getState().setPage(null)
+    // Raises `navSeq`, so anything still loading for an earlier navigation
+    // registers quietly instead of pulling the screen back when it lands.
     set((s) => ({
       activeSessionId: sessionId,
+      navSeq: s.navSeq + 1,
+      opening: null,
       unread: sessionId ? { ...s.unread, [sessionId]: 0 } : s.unread,
     }))
     // Remember where to reopen next launch. Clearing the session (New) also
@@ -981,15 +1121,38 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     if (diskPath) markSuspended(diskPath)
   },
 
-  moveSessionToAccount: async (sessionId, accountId) => {
+  restartSession: async (sessionId, options) => {
     const entry = get().live[sessionId]
     const diskPath = entry?.diskPath
     if (!entry || !diskPath) return null
+    // Only the lane ON SCREEN takes the screen while it restarts. Restarting a
+    // background lane must not pull the user out of what they are reading, and
+    // `NO_ACTIVATION` can never match `navSeq`, so it never will.
+    const nav =
+      get().activeSessionId === sessionId
+        ? get().beginOpening({
+            path: diskPath,
+            workspacePath: entry.workspacePath,
+            title: options.label,
+            reason: 'restart',
+          })
+        : NO_ACTIVATION
+    try {
+      await get().disposeSession(sessionId)
+      return await get().createSession(entry.workspacePath, { sessionPath: diskPath, nav })
+    } finally {
+      if (get().opening?.nav === nav) set({ opening: null })
+    }
+  },
+
+  moveSessionToAccount: async (sessionId, accountId) => {
+    const entry = get().live[sessionId]
+    if (!entry?.diskPath) return null
     // Binding first: `pi:createSession` reads it while spawning, so a failure
     // here must abort the move rather than restart the lane where it was.
-    await window.phosphor.invoke('claude:assignSession', diskPath, accountId)
-    await get().disposeSession(sessionId)
-    return get().createSession(entry.workspacePath, { sessionPath: diskPath })
+    await window.phosphor.invoke('claude:assignSession', entry.diskPath, accountId)
+    const name = useChatStore.getState().sessions[sessionId]?.meta?.sessionName
+    return get().restartSession(sessionId, { label: name ?? 'this lane' })
   },
 
   deleteDiskSession: (workspacePath, meta) =>
