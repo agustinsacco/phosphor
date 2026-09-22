@@ -23,35 +23,49 @@ const views = [
 ]
 ---
 
-<details id="surface" class="disclosure">
-  <summary>Same agent. Your surface. See the actual layouts <span>+</span></summary>
-  <p class="fineprint" id="tools">
-    Files, Changes, Terminal, or Artifacts: one auxiliary pane at a time. Dock it left or right,
-    resize it, or go fullscreen. Layout is saved per session.
-  </p>
-  <fieldset class="surface-lab">
-    <legend class="sr-only">Choose a real layout capture</legend>
-    {
-      views.map(({ id }, index) => (
-        <input
-          class="sr-only"
-          type="radio"
-          name="layout"
-          id={`layout-${id}`}
-          checked={index === 0}
-        />
-      ))
-    }
-    <div class="surface-tabs">
-      {views.map(({ id, title }) => <label for={`layout-${id}`}>{title}</label>)}
-    </div>
-    {
-      views.map(({ id, image, caption }) => (
-        <div class={`surface-view view-${id}`} id={`view-${id}`}>
-          <Capture image={shot(image)} alt={caption} caption={caption} />
-        </div>
-      ))
-    }
-  </fieldset>
-  <a class="text-link" href={doc('ui-shell.md#pane-system')}>Pane behavior ↗</a>
-</details>
+<section id="surface" class="feature-detail" aria-labelledby="surface-title">
+  <div class="section-heading">
+    <h3 id="surface-title" class="subheading">Make room<br />for the code.</h3>
+    <p class="section-intro" id="tools">
+      Keep the conversation, open the editor, and give the code more room. The same session can feel
+      like a chat app or an IDE. You choose the layout.
+    </p>
+  </div>
+  <Capture
+    image={shot('ide-flex')}
+    alt="Phosphor’s IDE-style layout with a wide Monaco editor and file explorer on the left, the agent conversation on the right, and the session sidebar hidden."
+    caption="A full coding workspace when you need one"
+  />
+  <details class="disclosure">
+    <summary>Explore more layouts <span>+</span></summary>
+    <p class="fineprint">
+      Files, Changes, Terminal, or Artifacts: one auxiliary pane at a time. Dock it left or right,
+      resize it, or go fullscreen. Layout is saved per session.
+    </p>
+    <fieldset class="surface-lab">
+      <legend class="sr-only">Choose a real layout capture</legend>
+      {
+        views.map(({ id }, index) => (
+          <input
+            class="sr-only"
+            type="radio"
+            name="layout"
+            id={`layout-${id}`}
+            checked={index === 0}
+          />
+        ))
+      }
+      <div class="surface-tabs">
+        {views.map(({ id, title }) => <label for={`layout-${id}`}>{title}</label>)}
+      </div>
+      {
+        views.map(({ id, image, caption }) => (
+          <div class={`surface-view view-${id}`} id={`view-${id}`}>
+            <Capture image={shot(image)} alt={caption} caption={caption} />
+          </div>
+        ))
+      }
+    </fieldset>
+    <a class="text-link" href={doc('ui-shell.md#pane-system')}>Pane behavior ↗</a>
+  </details>
+</section>

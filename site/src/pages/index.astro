@@ -34,10 +34,10 @@ import { connectors, doc, packages, releases, repo, shot, subscriptions } from '
     </div>
     <div class="hero-proof">
       <Capture
-        image={shot('changes')}
-        alt="An agent edit expanded into a diff, with the Changes pane beside the conversation."
-        caption="The actual edit, not just the agent’s assurance"
-        sizes="(max-width: 480px) 225vw, 90vw"
+        image={shot('home')}
+        alt="Phosphor’s lane dashboard with parallel sessions, a ready-to-merge task, and project usage."
+        caption="See which task needs you next"
+        sizes="(max-width: 480px) 92vw, (max-width: 1422px) 90vw, 1280px"
         eager
       />
     </div>
@@ -48,14 +48,20 @@ import { connectors, doc, packages, releases, repo, shot, subscriptions } from '
       <div class="section-heading">
         <div>
           <p class="eyebrow">01 / Keep the work legible</p><h2>
-            Start a task.<br />Review what happened.
+            Start with<br />a conversation.
           </h2>
         </div>
         <p class="section-intro">
-          Every live session is its own pi process. Work in parallel without turning your project
-          into a pile of loose chats.
+          Describe the task in a familiar chat workspace. Follow the agent’s steps, inspect its
+          edits, and keep each conversation on its own branch.
         </p>
       </div>
+      <Capture
+        class="workflow-chat"
+        image={shot('chat')}
+        alt="Phosphor’s chat-focused layout with a session sidebar, conversation, inline edit, and composer, with no auxiliary pane open."
+        caption="The conversation first, with the agent’s work in reach"
+      />
       <div class="numbered-notes">
         <article>
           <span>01 / ISOLATE</span><h3>Give a task its own branch.</h3><p>
@@ -84,14 +90,15 @@ import { connectors, doc, packages, releases, repo, shot, subscriptions } from '
           >Artifact behavior ↗</a
         >
       </div>
+      <SurfaceLab />
       <details class="disclosure">
-        <summary>See the lane board and artifact pane <span>+</span></summary><div
+        <summary>Inspect changes and keep the result <span>+</span></summary><div
           class="capture-pair"
         >
           <Capture
-            image={shot('home')}
-            alt="Home showing project lanes and the new-session composer."
-            caption="See which task needs you next"
+            image={shot('changes')}
+            alt="An inline edit with the Changes pane beside the conversation."
+            caption="Inspect the agent’s edits"
           />
           <Capture
             image={shot('artifacts')}
@@ -103,7 +110,6 @@ import { connectors, doc, packages, releases, repo, shot, subscriptions } from '
           is isolated with no network; the agent’s tools are not sandboxed by that isolation.
         </p>
       </details>
-      <SurfaceLab />
       <p class="fineprint" id="sessions">
         Pick up saved sessions, fork a conversation, or queue a follow-up while the agent works. For
         repeatable tasks, <a class="text-link" href={doc('routines.md')}>local routines</a> create fresh

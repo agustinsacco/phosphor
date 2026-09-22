@@ -105,6 +105,37 @@ test('all local links resolve, including cross-page fragments and full-size capt
   }
 })
 
+test('landing leads with lanes, then chat, then the IDE layout without disclosures', async ({
+  page,
+}) => {
+  await page.goto('/')
+  const captures = page.locator('main .capture:visible')
+  for (const [index, asset] of ['home', 'chat', 'ide-flex'].entries()) {
+    const capture = captures.nth(index)
+    await expect(capture).toBeVisible()
+    await expect(capture.locator('.capture-link')).toHaveAttribute(
+      'href',
+      new RegExp(`/${asset}\\.[^/]+\\.(webp|png)$`),
+    )
+    await expect(capture.locator('figcaption')).toContainText('Real session')
+  }
+  await expect(page.locator('.hero-proof img')).toHaveAttribute('loading', 'eager')
+  await expect(page.locator('.workflow-chat img')).toHaveAttribute('loading', 'lazy')
+  await expect(page.locator('#surface > .capture img')).toHaveAttribute('loading', 'lazy')
+
+  // A crop tuned for the old diff hero must not cut off the dashboard.
+  const hero = page.locator('.hero-proof .capture-link')
+  const image = hero.locator('img')
+  await image.scrollIntoViewIfNeeded()
+  await expect
+    .poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0))
+    .toBe(true)
+  const frame = (await hero.boundingBox())!
+  const rendered = (await image.boundingBox())!
+  expect(Math.abs(frame.width - rendered.width - 2)).toBeLessThan(1)
+  expect(Math.abs(frame.height - rendered.height - 2)).toBeLessThan(1)
+})
+
 test('actual layouts use native controls and keyboard navigation', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('h1')).toHaveText('Parallel coding. Without losing the thread.')
