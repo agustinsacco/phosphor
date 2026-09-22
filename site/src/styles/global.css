@@ -290,17 +290,12 @@ a:hover {
 .hero-meta {
   color: var(--px-text-secondary);
 }
+/* Show the complete dashboard at every width; its link opens the original. */
 .hero-proof {
   grid-column: 1 / -1;
 }
-/* A bounded crop of the real capture draws attention to the diff. The link
-   and its full original remain intact; this is not a rearranged UI study. */
-.hero-proof .capture-link {
-  max-height: 620px;
-  overflow: hidden;
-}
-.hero-proof img {
-  width: 100%;
+.workflow-chat {
+  margin-bottom: 2.5rem;
 }
 
 .numbered-notes {
@@ -773,14 +768,6 @@ a:hover {
   }
   .hero-meta {
     font-size: 9px;
-  }
-  .hero-proof .capture-link {
-    height: 330px;
-  }
-  .hero-proof img {
-    width: 240%;
-    max-width: none;
-    margin-left: -45%;
   }
   .action {
     gap: 0.8rem;

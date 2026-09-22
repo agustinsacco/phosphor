@@ -55,10 +55,12 @@ and `docs/mcp.md` are the relevant contracts.
 
 ## Captures and privacy
 
-The landing's workflow/editor captures are real sessions. Native radios show
-actual right-docked, left-docked, and fullscreen pane captures. There are no
-third-party layout replicas or implied presets. The hero uses a bounded crop of
-the real Changes capture with its complete original available via the image link.
+The landing opens with the lane dashboard, then a chat-focused session, then
+an IDE-style editor-and-agent view to show the layout flexibility. All three
+are real captures, visible without opening a disclosure. The dashboard stays
+uncropped on desktop and mobile; every image links to its full-size original.
+Native radios in “Explore more layouts” show actual right-docked, left-docked,
+and fullscreen pane captures. There are no third-party replicas or implied presets.
 
 The four `guide-*.webp` files are actual settings UI rendered with **fictional
 browser-harness data**, labelled as demos on every use. No live account store,
@@ -83,9 +85,9 @@ responsive previews and the full-size linked originals use these safe files;
 there is no CSS-only blur concealing a downloadable unredacted original.
 
 Existing live captures can still be imported with `npm run shots --prefix site`.
-Review and redact new live captures before import. The unused historical
-`ide-flex.png` remains the original supplied capture; it is not the landing's
-hero or evidence for rearranged layouts.
+Review and redact new live captures before import. `ide-flex.png` is the original
+supplied editor-and-agent capture, shown after the chat-focused view. Its layout
+is not a composite or a rearranged screenshot.
 
 ## Behavior and limits
 

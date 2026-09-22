@@ -1,6 +1,8 @@
 import type { ImageMetadata } from 'astro'
 import changes from '../assets/shots/changes.webp'
 import home from '../assets/shots/home.webp'
+import chat from '../assets/shots/chat.webp'
+import ideFlex from '../assets/shots/ide-flex.png'
 import artifacts from '../assets/shots/artifacts.webp'
 import files from '../assets/shots/files.webp'
 import filesLeft from '../assets/shots/files-left.webp'
@@ -20,6 +22,8 @@ export const doc = (path: string) => `${repo}/blob/main/docs/${path}`
 const captures: Record<string, ImageMetadata> = {
   changes,
   home,
+  chat,
+  'ide-flex': ideFlex,
   artifacts,
   files,
   models,
