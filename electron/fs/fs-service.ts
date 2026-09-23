@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import { lstat, mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { join, relative, sep } from 'node:path'
+import { isTextPreview, previewKindForPath } from '@shared/file-kinds'
 import type { DirEntry, FileContent } from '@shared/models'
 
 const ALWAYS_HIDDEN = new Set(['.git'])
@@ -100,6 +101,12 @@ function checkIgnored(workspacePath: string, paths: string[]): Promise<Set<strin
 
 export async function readTextFile(path: string): Promise<FileContent> {
   const info = await stat(path)
+  // Media and PDFs are streamed to their viewer over phosphor-file://, so
+  // reading up to 4 MB of one here just to sniff a NUL byte is pure waste —
+  // and this runs again on every on-disk change to an open file.
+  if (previewKindForPath(path) && !isTextPreview(path)) {
+    return { path, content: '', binary: true, size: info.size, mtimeMs: info.mtimeMs }
+  }
   if (info.size > MAX_FILE_BYTES) {
     return { path, content: '', tooLarge: true, size: info.size, mtimeMs: info.mtimeMs }
   }

@@ -1,4 +1,4 @@
-import { protocol } from 'electron'
+import { protocol, type CustomScheme } from 'electron'
 import { createHash } from 'node:crypto'
 import { buildArtifactDocument } from './artifact-skeleton'
 
@@ -115,20 +115,17 @@ export function stageArtifactHtml(
 }
 
 /**
- * Must run BEFORE `app.whenReady()`.
+ * Registered BEFORE `app.whenReady()`, in main.ts's single
+ * `registerSchemesAsPrivileged` call (Electron honours only one).
  *
  * `standard` gives the scheme a parseable origin (without it the iframe is not
  * treated as an ordinary document); `secure` keeps it a secure context so it
  * is not downgraded as mixed content. CORS stays off — the document has no
  * network access to make cross-origin requests with.
  */
-export function registerArtifactScheme(): void {
-  protocol.registerSchemesAsPrivileged([
-    {
-      scheme: ARTIFACT_SCHEME,
-      privileges: { standard: true, secure: true, corsEnabled: false, supportFetchAPI: false },
-    },
-  ])
+export const artifactScheme: CustomScheme = {
+  scheme: ARTIFACT_SCHEME,
+  privileges: { standard: true, secure: true, corsEnabled: false, supportFetchAPI: false },
 }
 
 /** Must run AFTER `app.whenReady()`. */

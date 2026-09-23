@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, powerMonitor, dialog } from 'electron'
+import { app, BrowserWindow, shell, powerMonitor, dialog, protocol } from 'electron'
 import {
   startRoutines,
   stopRoutines,
@@ -30,7 +30,8 @@ import {
 } from './window-chrome'
 import { getPrefs } from './store'
 import { initDebugLog, log } from './debug-log'
-import { registerArtifactScheme, registerArtifactProtocol } from './artifacts/artifact-protocol'
+import { artifactScheme, registerArtifactProtocol } from './artifacts/artifact-protocol'
+import { fileScheme, isFrameEscape, registerFileProtocol } from './fs/file-protocol'
 import { externalUrl, isAppNavigation } from './external-links'
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
@@ -150,6 +151,13 @@ function createWindow(): BrowserWindow {
     if (external) void shell.openExternal(external)
   })
 
+  // An embedded document (a previewed workspace page, an artifact) must not
+  // navigate its own frame onto the web. index.html's frame-src refuses that
+  // today; this holds regardless of that policy. See isFrameEscape.
+  window.webContents.on('will-frame-navigate', (event) => {
+    if (!event.isMainFrame && isFrameEscape(event.url)) event.preventDefault()
+  })
+
   if (isDev) {
     void window.loadURL(process.env.ELECTRON_RENDERER_URL!)
   } else {
@@ -170,8 +178,10 @@ function createWindow(): BrowserWindow {
  * and the lock would make the second one exit instead of starting.
  */
 // Must precede app.whenReady(): privileged scheme registration is only read
-// during Chromium's startup. See artifacts/artifact-protocol.ts.
-registerArtifactScheme()
+// during Chromium's startup. ONE call with every scheme — Electron honours only
+// one, so a second call would silently drop the first's schemes. See
+// artifacts/artifact-protocol.ts and fs/file-protocol.ts.
+protocol.registerSchemesAsPrivileged([artifactScheme, fileScheme])
 
 const singleInstance =
   !app.isPackaged && process.env.PHOSPHOR_TEST_USER_DATA ? true : app.requestSingleInstanceLock()
@@ -209,6 +219,7 @@ if (!singleInstance) {
       app.dock?.setIcon(devIcon)
     }
     registerArtifactProtocol()
+    registerFileProtocol()
     // Before the first window: artifact iframes read Chromium's scheme, not
     // the app's theme class, so this has to be right at first paint.
     applyThemeSource(getPrefs().theme)

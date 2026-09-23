@@ -1,5 +1,7 @@
-import { dialog, shell } from 'electron'
+import { BrowserWindow, dialog, shell } from 'electron'
+import { grantPreview } from '../fs/file-protocol'
 import { transferEntry } from '../fs/file-transfer'
+import { openInDefaultApp } from '../fs/open-file'
 import { handle } from './handle'
 import { listWorkspaceFiles } from '../fs/list-files'
 import { watchWorkspace } from '../fs/workspace-watcher'
@@ -22,6 +24,17 @@ export function registerFsHandlers(): void {
   )
 
   handle('fs:readFile', (_event, path) => readTextFile(path))
+
+  handle('fs:previewUrl', (_event, workspacePath, path) => grantPreview(workspacePath, path))
+
+  handle('fs:openInDefaultApp', (_event, path) => openInDefaultApp(path))
+
+  // Quick Look renders from the OS's own previewers and never runs the file,
+  // so unlike `fs:openInDefaultApp` it needs no launch guard.
+  handle('fs:quickLook', (event, path) => {
+    if (process.platform !== 'darwin') return
+    BrowserWindow.fromWebContents(event.sender)?.previewFile(path)
+  })
 
   handle('fs:writeFile', (_event, path, content) => writeTextFile(path, content))
 

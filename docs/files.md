@@ -54,4 +54,30 @@ the editor.
 
 Binary files and files over 4 MB can be managed but not edited as text. Not
 included: a debugger, external language servers, split editors, bulk delete,
-transfer undo, native document previews.
+transfer undo, previews of Office documents or archives (use Open in default
+app or Quick Look).
+
+## Previews
+
+Images, video, audio, PDFs and HTML open in a viewer instead of Monaco. The
+extension decides (`shared/file-kinds.ts`); the size cap does not apply, so a
+multi-gigabyte video opens and seeks. HTML and SVG keep a Preview/Source
+toggle; the preview shows the saved file, and says so while the buffer has
+unsaved edits. Every other file that cannot be edited as text gets a card with
+**Open in default app**, **Quick Look** (macOS) and **Reveal**.
+
+The viewers load from `phosphor-file://`, which serves only what main granted
+by an unguessable token (`electron/fs/file-protocol.ts`): one file for media
+and PDFs, or the workspace for an HTML page, so its relative CSS, images and
+scripts resolve. Paths are realpath'd and must stay under the grant; `..` and
+symlinks out of it get 404. Video streams with Range requests.
+
+A previewed HTML page runs its scripts in `sandbox="allow-scripts"` under a
+policy with no network: it can show sibling files but not `fetch` them, and a
+page that loads a library from a CDN renders without it — open it externally
+for that. Any frame navigating to http(s) or `file:` is cancelled. PDFs use
+Chromium's built-in viewer; links in a PDF open in your browser.
+
+**Open in default app** refuses anything the OS would run rather than open —
+apps, installers, scripts, shortcuts, and on macOS/Linux any file with an
+execute bit — and does not follow symlinks. Reveal it and decide yourself.

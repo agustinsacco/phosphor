@@ -300,6 +300,16 @@ export interface FileContent {
   binary?: boolean
 }
 
+/**
+ * `launchable`: the OS would RUN it (script, installer, executable bit), so
+ * it is refused — see electron/fs/open-file.ts.
+ */
+export type OpenInDefaultAppResult =
+  | { ok: true }
+  | { ok: false; reason: 'launchable' }
+  | { ok: false; reason: 'not-a-file' }
+  | { ok: false; reason: 'failed'; message: string }
+
 export type ThemePreference = 'light' | 'dark' | 'system'
 
 export interface FontPrefs {

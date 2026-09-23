@@ -54,6 +54,7 @@ import type {
   DirEntry,
   FetchResult,
   FileContent,
+  OpenInDefaultAppResult,
   FontPrefs,
   PackageJobAction,
   PiPackageEntry,
@@ -818,7 +819,22 @@ export interface IpcInvokeMap {
     ]
     result: DirEntry[]
   }
+  /**
+   * Images, video, audio and PDFs come back `binary` WITHOUT being read: the
+   * viewer streams them over `fs:previewUrl` instead.
+   */
   'fs:readFile': { args: [path: string]; result: FileContent }
+  /**
+   * A `phosphor-file://` URL for the Files pane's viewer of `path` — a
+   * single-file grant for media/PDF, a workspace-scoped sandboxed document
+   * grant for HTML. Rejects for a type with no viewer.
+   * See electron/fs/file-protocol.ts.
+   */
+  'fs:previewUrl': { args: [workspacePath: string, path: string]; result: string }
+  /** Hand a file the pane cannot render to the OS. Refuses anything it would RUN. */
+  'fs:openInDefaultApp': { args: [path: string]; result: OpenInDefaultAppResult }
+  /** macOS Quick Look panel; a no-op elsewhere. Never executes the file. */
+  'fs:quickLook': { args: [path: string]; result: void }
   'fs:writeFile': { args: [path: string, content: string]; result: { mtimeMs: number } }
   'fs:createFile': { args: [path: string]; result: void }
   'fs:createDir': { args: [path: string]; result: void }

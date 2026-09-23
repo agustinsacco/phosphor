@@ -283,6 +283,12 @@ you want to watch.
   the iframe must never gain `allow-same-origin` (it is what keeps the origin
   opaque), and the served policy must never gain a `connect-src` (it is what
   denies the document any network reach). Widen neither.
+- Workspace files open in the Files pane's viewers over `phosphor-file://`
+  (`electron/fs/file-protocol.ts`). It serves only what `grantPreview` granted
+  by token, never a path named in the URL, and previewed HTML follows the same
+  two rules as artifacts. A new scheme goes into the single
+  `protocol.registerSchemesAsPrivileged` call in `electron/main.ts`: Electron
+  honours only one call, so a second one silently drops the first.
 - Renderer path aliases: `@/` → `src/`, `@shared/` → `shared/`.
 - Browser-only dev (vite without Electron) auto-installs
   `src/dev/mockPhosphor.ts` when `window.phosphor` is undefined — new IPC channels

@@ -1,7 +1,9 @@
 import { memo } from 'react'
 import clsx from 'clsx'
 import { useFilesStore, workspaceFiles, type OpenFile } from '@/stores/files'
+import { isTextPreview, previewKindForPath } from '@shared/file-kinds'
 import { MonacoEditor } from './MonacoEditor'
+import { FileFallback, FileViewer } from './FileViewer'
 import { basename } from '@/lib/path'
 import { CloseIcon } from '@/components/icons'
 import { formatShortcut } from '@/lib/shortcuts'
@@ -42,15 +44,48 @@ export const EditorPane = memo(function EditorPane({
       </div>
       {active?.diskConflict && <ConflictBar file={active} workspacePath={workspacePath} />}
       <div className="min-h-0 flex-1">
-        {active && !active.binary && !active.tooLarge && (
-          <ActiveEditor file={active} workspacePath={workspacePath} />
-        )}
-        {active?.binary && <CenterNote>Binary file — open it in your editor of choice.</CenterNote>}
-        {active?.tooLarge && <CenterNote>File is larger than 4 MB — not opened.</CenterNote>}
+        {active && <ActiveView file={active} workspacePath={workspacePath} />}
       </div>
     </div>
   )
 })
+
+/**
+ * A previewable file gets its viewer (HTML/SVG keep their source one click
+ * away); anything else is text in Monaco, or — binary or too large — a card
+ * that hands it to the OS.
+ */
+function ActiveView({
+  file,
+  workspacePath,
+}: {
+  file: OpenFile
+  workspacePath: string
+}): React.JSX.Element {
+  const kind = previewKindForPath(file.path)
+  const text = <TextView file={file} workspacePath={workspacePath} />
+  if (!kind) return text
+  return (
+    <FileViewer
+      file={file}
+      kind={kind}
+      textPreview={isTextPreview(file.path)}
+      workspacePath={workspacePath}
+      source={text}
+    />
+  )
+}
+
+function TextView({
+  file,
+  workspacePath,
+}: {
+  file: OpenFile
+  workspacePath: string
+}): React.JSX.Element {
+  if (file.binary || file.tooLarge) return <FileFallback file={file} />
+  return <ActiveEditor file={file} workspacePath={workspacePath} />
+}
 
 function ActiveEditor({
   file,
@@ -133,14 +168,6 @@ function ConflictBar({
       >
         Keep mine
       </button>
-    </div>
-  )
-}
-
-function CenterNote({ children }: { children: React.ReactNode }): React.JSX.Element {
-  return (
-    <div className="flex h-full items-center justify-center">
-      <div className="text-text-tertiary text-base">{children}</div>
     </div>
   )
 }

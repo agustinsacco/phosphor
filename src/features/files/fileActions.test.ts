@@ -43,6 +43,7 @@ it('retargets dirty descendants without losing buffers, and closes them after tr
     savedContent: 'disk',
     content: 'unsaved',
     mtimeMs: 1,
+    size: 0,
     dirty: true,
   })
   useFilesStore.setState({
