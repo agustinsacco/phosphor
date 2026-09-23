@@ -213,7 +213,21 @@ window at the new worktree once the claim is stale.
 So sending a message to create a lane and then switching away to work in
 parallel now sticks. The new lane still gets its branch, its process, its
 generated name and its branch rename, in the background, and says so with a
-toast instead of stealing the screen back twice.
+lane notice instead of stealing the screen back twice. Clicking the notice goes
+there.
+
+**A lane that finishes off screen says so.** When a lane's run settles
+(`isStreaming` goes false in the push handler) and that lane is not the one on
+screen, `noticeLaneSettled` puts up a notice with the first line of the final
+reply, or the error if the run stopped on one. An aborted run says nothing:
+only the stop control produces one. The lane on screen never gets a notice,
+even with the window in the background — its transcript already shows it.
+
+**The wait is animated, not flashed.** `OpeningLane` fades in after a 90ms
+beat, so opening a warm lane never flashes it, and fades out over the lane it
+revealed (`useLingering` keeps it mounted for the exit). A transcript rises in
+on every mount — a lane switch, or the skeleton giving way to history — and the
+skeleton carries the Phosphor beacon instead of a spinner.
 
 The same claim is what lets a lane **restart** in place. `restartSession`
 disposes pi and resumes from the same session file, which is how a provider

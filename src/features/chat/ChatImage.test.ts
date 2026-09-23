@@ -33,7 +33,7 @@ describe('copyChatImage', () => {
 
     expect(calls).toEqual([['clipboard:writeImage', { data: 'QUJD', mimeType: 'image/png' }]])
     expect(useExtensionUiStore.getState().toasts).toEqual([
-      { id: expect.any(Number), message: 'Image copied', kind: 'info' },
+      expect.objectContaining({ message: 'Image copied', kind: 'info' }),
     ])
   })
 
@@ -45,7 +45,7 @@ describe('copyChatImage', () => {
     await copyChatImage(image)
 
     expect(useExtensionUiStore.getState().toasts).toEqual([
-      { id: expect.any(Number), message: 'Copy failed: clipboard unavailable', kind: 'error' },
+      expect.objectContaining({ message: 'Copy failed: clipboard unavailable', kind: 'error' }),
     ])
   })
 })

@@ -12,7 +12,7 @@ import { WorkspacePicker } from './WorkspacePicker'
 import { ChatView } from '@/features/chat/ChatView'
 import { WorkspaceHome } from '@/features/home/WorkspaceHome'
 import { StartingChat } from '@/features/home/StartingChat'
-import { OpeningLane } from '@/features/sessions/OpeningLane'
+import { OPENING_LANE_EXIT_MS, OpeningLane } from '@/features/sessions/OpeningLane'
 import { Sidebar } from '@/features/sessions/Sidebar'
 import { BulkDeleteProgressPopover } from '@/features/sessions/BulkDeleteModal'
 import { SkillsPage } from '@/features/skills/SkillsPage'
@@ -24,6 +24,7 @@ import { RightPane } from '@/features/files/RightPane'
 import { FuzzyFinder } from '@/features/files/FuzzyFinder'
 import { useGlobalShortcuts } from './useGlobalShortcuts'
 import { ExtensionDialogHost, ToastHost } from '@/features/extension-ui/ExtensionUiHosts'
+import { useLingering } from '@/components/useLingering'
 import { PromptHost } from '@/components/PromptHost'
 import { CommandPalette } from '@/features/palette/CommandPalette'
 import { SettingsModal } from '@/features/settings/SettingsModal'
@@ -41,6 +42,8 @@ export function App(): React.JSX.Element {
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
   const starting = useStartingChatStore((s) => s.starting)
   const opening = useSessionsStore((s) => s.opening)
+  // Held for its exit so the overlay fades into the lane instead of cutting.
+  const openingShown = useLingering(opening, OPENING_LANE_EXIT_MS)
   const sidebarVisible = useLayoutStore((s) => s.sidebarVisible)
   const page = useLayoutStore((s) => s.page)
   const currentWorkspaceGit = useSessionsStore((s) =>
@@ -261,7 +264,9 @@ export function App(): React.JSX.Element {
             branch: the lane underneath keeps its tree, so an open that fails
             leaves the user where they were. See OpeningLane.
           */}
-            {opening && <OpeningLane lane={opening} />}
+            {openingShown.value && (
+              <OpeningLane lane={openingShown.value} leaving={openingShown.leaving} />
+            )}
             {/*
             Global pages cover the main region as an overlay, like an expanded
             pane (z-20 inside MainWithPanes) but one level up and one z higher.

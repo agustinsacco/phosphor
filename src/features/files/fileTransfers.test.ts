@@ -15,7 +15,7 @@ it('prunes duplicate and nested selections without confusing sibling prefixes', 
 it('reconciles successful moves and leaves only failures on the cut clipboard', async () => {
   const refresh = vi.spyOn(useFilesStore.getState(), 'refreshDir').mockResolvedValue()
   const reconcile = vi.spyOn(useFilesStore.getState(), 'reconcilePath').mockImplementation(() => {})
-  const toast = vi.spyOn(useExtensionUiStore.getState(), 'pushToast').mockImplementation(() => {})
+  const toast = vi.spyOn(useExtensionUiStore.getState(), 'pushToast').mockImplementation(() => 0)
   const paths = ['/repo/a', '/repo/b']
   const invoke = vi.fn(async (channel, ...args) => {
     if (channel === 'fs:transfer') {

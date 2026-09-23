@@ -3,6 +3,7 @@ import clsx from 'clsx'
 import type { WorkspaceSessionStats } from '@shared/models'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { prefetchTrunk, startChat } from '@/features/sessions/startChat'
+import { notifyLane } from '@/features/sessions/laneNotices'
 import { useStartingChatStore } from '@/stores/startingChat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { errorText } from '@shared/errors'
@@ -160,7 +161,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
       // session is bound to the cwd it spawns in. The generated name arrives
       // afterwards, on its own, and renames the branch to match; nothing here
       // waits for it.
-      await startChat({
+      const started = await startChat({
         workspacePath,
         prompt,
         images: sent,
@@ -175,9 +176,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
       // The lane came up behind whatever the user moved on to, so say so once
       // rather than pulling them back to it.
       if (useSessionsStore.getState().navSeq !== nav) {
-        useExtensionUiStore
-          .getState()
-          .pushToast('Your new lane is running. Open it from the sidebar.', 'info')
+        notifyLane(started.sessionId, { message: 'Your new lane is running.' })
       }
     } catch (error) {
       // The session never started, so the message would otherwise be gone.

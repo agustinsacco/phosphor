@@ -274,7 +274,7 @@ export const MessageList = memo(function MessageList({
 
   if (items.length === 0 && !error) {
     return (
-      <div className="flex flex-1 items-center justify-center">
+      <div className="transcript-enter flex flex-1 items-center justify-center">
         <div className="text-center">
           <div className="text-text-secondary text-2xl font-medium tracking-tight">
             Describe a task to begin
@@ -291,7 +291,9 @@ export const MessageList = memo(function MessageList({
   const virtualItems = virtualizer.getVirtualItems()
 
   return (
-    <div className="relative flex-1 overflow-hidden">
+    // `transcript-enter` plays once per mount: on a lane switch (ChatView is
+    // keyed by session) and when history replaces the skeleton.
+    <div className="transcript-enter relative flex-1 overflow-hidden">
       {/* tabIndex makes the scroller focusable so PageUp/ArrowUp/Home actually
           reach the keydown unpin listener (a plain div never receives keys).
 
