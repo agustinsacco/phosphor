@@ -549,19 +549,94 @@ body {
   animation: px-shimmer 2.2s linear infinite;
 }
 
-/* Toast entrance */
+/* Notifications (ToastHost).
+ *
+ * The ROW owns height and the CARD owns motion. A row grows its grid track
+ * from 0fr on entry and collapses back on exit, so the rest of the stack
+ * glides instead of jumping; the card slides in from the right edge it hangs
+ * off, and back out the same way. `TOAST_EXIT_MS` in stores/extensionUi.ts is
+ * the exit's total (card 180ms + row 200ms starting at 60ms). */
+@keyframes px-toast-row-in {
+  from {
+    grid-template-rows: 0fr;
+  }
+  to {
+    grid-template-rows: 1fr;
+  }
+}
 @keyframes px-toast-in {
   from {
     opacity: 0;
-    transform: translateX(12px);
+    transform: translateX(24px) scale(0.97);
   }
   to {
     opacity: 1;
     transform: none;
   }
 }
-.toast-slide {
-  animation: px-toast-in 0.18s ease-out;
+@keyframes px-toast-out {
+  to {
+    opacity: 0;
+    transform: translateX(24px) scale(0.97);
+  }
+}
+/* Two identical keyframes so a data-attribute flip replays the pulse on
+ * every in-place replacement without remounting the card. */
+@keyframes px-toast-bump-a {
+  40% {
+    transform: scale(1.025);
+  }
+}
+@keyframes px-toast-bump-b {
+  40% {
+    transform: scale(1.025);
+  }
+}
+.toast-row {
+  display: grid;
+  grid-template-rows: 1fr;
+  animation: px-toast-row-in 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  transition: grid-template-rows 200ms cubic-bezier(0.4, 0, 0.2, 1) 60ms;
+}
+.toast-row[data-leaving] {
+  grid-template-rows: 0fr;
+}
+/* Clips vertically only, so the collapsing track hides the card below it
+ * while the card's sideways exit and its shadow still paint past the edge.
+ * (`clip`, not `hidden`: `hidden` on one axis forces the other to clip too.) */
+.toast-row-inner {
+  min-height: 0;
+  overflow-x: visible;
+  overflow-y: clip;
+}
+.toast-card {
+  animation: px-toast-in 280ms cubic-bezier(0.21, 1.02, 0.73, 1) both;
+  transition: border-color 120ms ease-out;
+}
+.toast-card[data-bump='odd'] {
+  animation: px-toast-bump-a 260ms ease-out;
+}
+.toast-card[data-bump='even'] {
+  animation: px-toast-bump-b 260ms ease-out;
+}
+.toast-row[data-leaving] .toast-card {
+  animation: px-toast-out 180ms ease-in both;
+  pointer-events: none;
+}
+/* A clickable card says what the click does, but only when you are on it.
+ * Opacity only: a hint that took space would push every card below it down
+ * the moment the pointer arrived. */
+.toast-open-hint {
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity 140ms ease-out,
+    transform 140ms ease-out;
+}
+.toast-card:hover .toast-open-hint,
+.toast-card:focus-within .toast-open-hint {
+  opacity: 1;
+  transform: none;
 }
 
 /* ---------------------------------------------------------------------------
@@ -677,6 +752,51 @@ select:focus:not(:focus-visible) {
 }
 .message-enter {
   animation: px-message-in 180ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* Lane switching. Whatever the transcript area mounts — the history, its
+ * skeleton, the empty state — rises in, so a switch between two live lanes
+ * reads as the content changing under a stable frame (the composer and top
+ * bar do not move) rather than a hard cut. */
+@keyframes px-lane-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.transcript-enter {
+  animation: px-lane-in 220ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+/* OpeningLane. Transitions, not keyframes, so an exit that interrupts the
+ * entry reverses from wherever the fade has got to: a warm open that lands
+ * inside the 90ms beat never paints the overlay at all. The beat is a delay,
+ * not motion, so reduced motion keeps it. `OPENING_LANE_EXIT_MS` matches the
+ * exit. */
+.opening-lane {
+  opacity: 1;
+  transition: opacity 180ms ease-out 90ms;
+}
+.opening-lane-copy {
+  transform: none;
+  transition: transform 260ms cubic-bezier(0.22, 0.61, 0.36, 1) 90ms;
+}
+@starting-style {
+  .opening-lane {
+    opacity: 0;
+  }
+  .opening-lane-copy {
+    transform: translateY(6px);
+  }
+}
+.opening-lane[data-leaving] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease-in;
 }
 
 /* Activity groups animate their real height with a grid track. Unlike a

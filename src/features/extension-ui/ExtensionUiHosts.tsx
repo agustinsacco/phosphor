@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { useExtensionUiStore, type PendingDialog, type Toast } from '@/stores/extensionUi'
-import { CloseIcon } from '@/components/icons'
+import { CheckIcon, CloseIcon, WarningIcon } from '@/components/icons'
 import { ignoreShortcut } from '@/lib/shortcutContext'
 import { ModalPanel } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
@@ -202,52 +202,179 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
   )
 }
 
-/** Toast host (extension notify + app notices). */
+/**
+ * Notification stack (extension notify, app notices, lane completions).
+ *
+ * Top-right, hanging just below the title bar: that corner is empty in every
+ * layout, it is near where the eye rests on the top bar's session title, and
+ * nothing there is covered at the bottom edge where the composer lives.
+ *
+ * The clocks stop while the pointer is on a card (reading one should not make
+ * it vanish mid-sentence) and while the window is in the background (a lane
+ * that finishes while you are in another app is still waiting when you come
+ * back). Only blur/focus EVENTS pause — an unmapped E2E window never focuses,
+ * and reading `document.hasFocus()` at mount would freeze its notices forever.
+ */
 export function ToastHost(): React.JSX.Element {
   const toasts = useExtensionUiStore((s) => s.toasts)
+  useEffect(() => {
+    const { setToastsPaused } = useExtensionUiStore.getState()
+    const onBlur = (): void => setToastsPaused('blur', true)
+    const onFocus = (): void => setToastsPaused('blur', false)
+    window.addEventListener('blur', onBlur)
+    window.addEventListener('focus', onFocus)
+    return () => {
+      window.removeEventListener('blur', onBlur)
+      window.removeEventListener('focus', onFocus)
+      setToastsPaused('blur', false)
+      setToastsPaused('hover', false)
+    }
+  }, [])
   return createPortal(
-    <div className="pointer-events-none fixed bottom-4 right-4 z-50 flex w-80 flex-col gap-2">
+    // `pointer-events-none` so the gaps between cards never swallow a click
+    // meant for the pane underneath; each card opts back in.
+    <ol
+      aria-label="Notifications"
+      aria-live="polite"
+      data-testid="toast-stack"
+      className="pointer-events-none fixed top-12 right-2 z-[60] flex w-[22rem] max-w-[calc(100vw-1rem)] flex-col"
+    >
       {toasts.map((toast) => (
         <ToastCard key={toast.id} toast={toast} />
       ))}
-    </div>,
+    </ol>,
     document.body,
   )
 }
 
 function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
-  return (
-    <div
-      className={clsx(
-        'toast-slide pointer-events-auto flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 shadow-lg',
-        toast.kind === 'error'
-          ? 'bg-danger-soft border-danger/30'
-          : toast.kind === 'warning'
-            ? 'bg-warning/10 border-warning/30'
-            : 'bg-surface-raised border-border',
-      )}
-    >
-      <span
-        className={clsx(
-          'mt-1 h-2 w-2 shrink-0 rounded-full',
-          toast.kind === 'error'
-            ? 'bg-danger'
-            : toast.kind === 'warning'
-              ? 'bg-warning'
-              : 'bg-info',
+  const { dismissToast, setToastsPaused } = useExtensionUiStore.getState()
+  const hold = (): void => setToastsPaused('hover', true)
+  const release = (): void => setToastsPaused('hover', false)
+  const open = toast.onOpen
+    ? (): void => {
+        release()
+        toast.onOpen?.()
+        dismissToast(toast.id)
+      }
+    : undefined
+  const body = (
+    <>
+      <ToastGlyph toast={toast} />
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        {toast.title && (
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="text-text min-w-0 truncate text-base font-medium" title={toast.title}>
+              {toast.title}
+            </span>
+            {toast.openLabel && (
+              <span className="toast-open-hint text-text-tertiary ml-auto shrink-0 text-sm">
+                {toast.openLabel} →
+              </span>
+            )}
+          </span>
         )}
-      />
-      <span className="text-text min-w-0 flex-1 text-base leading-snug">
-        {stripAnsi(toast.message)}
+        <span
+          className={clsx(
+            'line-clamp-3 text-base leading-snug break-words',
+            toast.title ? 'text-text-secondary' : 'text-text',
+          )}
+        >
+          {stripAnsi(toast.message)}
+        </span>
       </span>
-      <button
-        onClick={() => useExtensionUiStore.getState().dismissToast(toast.id)}
-        className="text-text-tertiary hover:text-text shrink-0"
-      >
-        <CloseIcon size={11} strokeWidth={2.5} />
-      </button>
-    </div>
+    </>
   )
+  return (
+    // The row collapses its own height on exit, so the cards below glide up
+    // into the gap instead of jumping. Padding (not a flex gap) spaces the
+    // cards, because a gap would not collapse with the row.
+    <li
+      className="toast-row"
+      data-leaving={toast.leaving || undefined}
+      data-testid="toast"
+      data-kind={toast.kind}
+    >
+      <div className="toast-row-inner px-2 pb-2">
+        <div
+          role={toast.kind === 'error' ? 'alert' : undefined}
+          data-bump={toast.bump % 2 === 1 ? 'odd' : toast.bump > 0 ? 'even' : undefined}
+          onMouseEnter={hold}
+          onMouseLeave={release}
+          onFocus={hold}
+          onBlur={release}
+          className={clsx(
+            'toast-card group pointer-events-auto relative flex items-start rounded-xl border shadow-lg',
+            toast.kind === 'error'
+              ? 'bg-danger-soft border-danger/30'
+              : toast.kind === 'warning'
+                ? 'border-warning/30 bg-[color-mix(in_srgb,var(--px-warning)_10%,var(--px-surface-raised))]'
+                : 'bg-surface-raised border-border',
+            open && 'hover:border-[var(--px-border-strong)]',
+          )}
+        >
+          {open ? (
+            <button
+              type="button"
+              onClick={open}
+              aria-label={
+                toast.openLabel ? `${toast.openLabel}: ${toast.title ?? toast.message}` : undefined
+              }
+              data-testid="toast-open"
+              className="flex min-w-0 flex-1 cursor-pointer items-start gap-2.5 rounded-xl py-2.5 pl-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--px-accent)]/40"
+            >
+              {body}
+            </button>
+          ) : (
+            <div className="flex min-w-0 flex-1 items-start gap-2.5 py-2.5 pl-3.5">{body}</div>
+          )}
+          <button
+            type="button"
+            onClick={() => dismissToast(toast.id)}
+            aria-label="Dismiss"
+            className="text-text-tertiary hover:text-text shrink-0 px-3 py-3"
+          >
+            <CloseIcon size={11} strokeWidth={2.5} />
+          </button>
+        </div>
+      </div>
+    </li>
+  )
+}
+
+/**
+ * The card's leading mark. A lane notice leads with the lane's own marker —
+ * the same emoji as its sidebar row, which is how you recognise it — with the
+ * outcome as a small badge on it; everything else leads with the outcome.
+ */
+function ToastGlyph({ toast }: { toast: Toast }): React.JSX.Element {
+  const badge =
+    toast.kind === 'success' ? (
+      <span className="bg-success text-bg flex h-full w-full items-center justify-center rounded-full">
+        <CheckIcon size={toast.marker ? 7 : 10} />
+      </span>
+    ) : toast.kind === 'error' || toast.kind === 'warning' ? (
+      <WarningIcon
+        size={toast.marker ? 10 : 14}
+        className={toast.kind === 'error' ? 'text-danger' : 'text-warning'}
+      />
+    ) : null
+  if (toast.marker) {
+    return (
+      <span className="relative mt-px flex h-5 w-5 shrink-0 items-center justify-center text-base leading-none">
+        {toast.marker}
+        {badge && (
+          <span className="bg-surface-raised absolute -right-1 -bottom-1 flex h-3 w-3 items-center justify-center rounded-full">
+            {badge}
+          </span>
+        )}
+      </span>
+    )
+  }
+  if (badge) {
+    return <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">{badge}</span>
+  }
+  return <span className="bg-info mt-1.5 h-2 w-2 shrink-0 rounded-full" />
 }
 
 /**

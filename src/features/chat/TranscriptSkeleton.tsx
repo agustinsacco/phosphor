@@ -1,3 +1,5 @@
+import { PhosphorLoader } from '@/components/PhosphorLoader'
+
 /**
  * Placeholder shown while a session's history is being replayed from disk.
  *
@@ -25,13 +27,16 @@ export function TranscriptSkeleton({
     // see MessageList) — full-width bars made the loading state look like a
     // different screen, then everything jumped inward when content landed.
     <div
-      className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 overflow-hidden px-6 py-6"
+      className="transcript-enter mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 overflow-hidden px-6 py-6"
       data-testid="transcript-skeleton"
       aria-busy="true"
       aria-label="Loading session history"
     >
       <div className="text-text-tertiary flex items-center gap-2 text-base">
-        <span className="border-text-tertiary/40 border-t-text-tertiary h-3 w-3 animate-spin rounded-full border" />
+        {/* The beacon, not a generic spinner: this is the second half of the
+            same wait `OpeningLane` started, and one loader carried across the
+            handoff reads as one process instead of two. */}
+        <PhosphorLoader size={20} decorative />
         {message}
       </div>
       {SHAPES.map((shape, index) => (

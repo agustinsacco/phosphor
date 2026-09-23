@@ -248,7 +248,16 @@ All switch together, live, no reload.
 - **Routines** — local scheduled tasks producing fresh lanes, with configuration,
   next-run previews, history, and explicit unattended access. Runs are owned by
   main, not this page; closing it never stops the scheduler. See [routines.md](routines.md).
-- **Toasts** (also used by extension `notify`).
+- **Toasts** — a stack at the top right, under the top bar, newest first and
+  capped at four (also used by extension `notify`). A notice about a lane
+  names it the way its sidebar row does (marker and title) and clicking it
+  opens that lane; so does the lane's row, since any navigation to a lane
+  dismisses its notice. A lane holds one notice at a time: a lane that comes
+  up, is named and then finishes behind your back is one card that updates
+  (with a small bump), not three. Timers pause while a card is hovered or
+  focused and while the window is blurred, so a notice that lands while you
+  are in another app is still there when you come back. Errors stay 9s, cards
+  you can open 7s, the rest 5s.
 - **Status strip** — the bottom of the chat pane, only while a session has
   something to say: an MCP chip (`connected/enabled`, tool count, "N need
   attention"; opens Settings → MCP Connectors), a sub-agent chip, and whatever

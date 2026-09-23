@@ -4,7 +4,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useNamingStore } from '@/stores/naming'
 import { useChatStore } from '@/stores/chat'
 import { useWorkspacesStore } from '@/stores/workspaces'
-import { useExtensionUiStore } from '@/stores/extensionUi'
+import { notifyLane } from './laneNotices'
 import { repoWorktrees, useWorktreesStore } from '@/stores/worktrees'
 import { branchNameFor } from '@shared/branchName'
 import { lanePrefs } from '@/stores/lanePrefs'
@@ -254,8 +254,7 @@ async function applyGeneratedName({
     // on disk now and this is the scan that picks the name up. If it has not,
     // the folder watcher does it when pi writes.
     void useSessionsStore.getState().refreshDisk(cwd)
-    if (!watching)
-      useExtensionUiStore.getState().pushToast(`Named your new lane "${title}"`, 'info')
+    if (!watching) notifyLane(sessionId, { title, message: 'Named your new lane.' })
   }
 
   if (!branch) return

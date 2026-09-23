@@ -238,8 +238,11 @@ markdown the _model_ authors; no Phosphor chrome uses it.
   separates tools from content. Chat bubbles and dialogs keep their own shape.
 - Depth comes from borders and one-step background shifts. No drop shadow
   heavier than `0 1px 2px rgb(0 0 0 / 0.06)` in light; popovers excepted.
-- Motion: message-in 180ms, expand-in 140ms, beacon, shimmer. All token-driven
-  and all gated on `prefers-reduced-motion`. The streaming cursor `▍` and the
+- Motion: message-in 180ms, expand-in 140ms, lane-in 220ms (a transcript
+  mounting), the opening-lane overlay (180ms fade after a 90ms beat, 200ms
+  out), toasts (280ms slide from the right; on exit the card fades while its
+  row collapses so the stack closes up, never jumps), beacon, shimmer. All
+  token-driven and all gated on `prefers-reduced-motion`. The streaming cursor `▍` and the
   working beacon inherit phosphor automatically.
 
 ### Loading identity — Phosphor Beacon

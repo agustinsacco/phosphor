@@ -605,7 +605,17 @@ function attachSessionPushHandler(phosphorId: string): void {
     const chatStore = useChatStore.getState()
     switch (push.kind) {
       case 'event': {
+        const wasStreaming = chatStore.sessions[phosphorId]?.isStreaming ?? false
         chatStore.applyEvent(phosphorId, push.event)
+        // The run settled — `isStreaming` is the reducer's own verdict on
+        // "fully done", which already accounts for retries and queued
+        // follow-ups. A lane finishing off-screen says so, and clicking the
+        // notice goes there.
+        if (wasStreaming && !useChatStore.getState().sessions[phosphorId]?.isStreaming) {
+          void import('@/features/sessions/laneNotices').then(({ noticeLaneSettled }) =>
+            noticeLaneSettled(phosphorId),
+          )
+        }
         if (
           push.event.type === 'tool_execution_end' &&
           !push.event.isError &&
@@ -1091,6 +1101,11 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }))
     // Remember where to reopen next launch. Clearing the session (New) also
     // clears the memory, so we land on the home screen instead.
+    // Arriving at a lane answers its notice, however you got there.
+    if (sessionId)
+      void import('./extensionUi').then(({ useExtensionUiStore }) =>
+        useExtensionUiStore.getState().dismissSessionToast(sessionId),
+      )
     const live = sessionId ? get().live[sessionId] : undefined
     void window.phosphor.invoke('app:setLastSession', live?.diskPath)
     if (live?.diskPath) get().markSeen(live.diskPath)
