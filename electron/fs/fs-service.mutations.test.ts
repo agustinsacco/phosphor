@@ -2,7 +2,14 @@ import { afterEach, expect, it } from 'vitest'
 import { mkdir, mkdtemp, readFile, rm, symlink, truncate, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createDir, createFile, listDir, renamePath, statDirectories } from './fs-service'
+import {
+  createDir,
+  createFile,
+  listDir,
+  readTextFile,
+  renamePath,
+  statDirectories,
+} from './fs-service'
 
 const roots: string[] = []
 afterEach(async () => {
@@ -27,6 +34,26 @@ it('lists and stats directories without opening multi-gigabyte files', async () 
     { path: videos, mtimeMs: expect.any(Number) },
     { path: movie, mtimeMs: null },
   ])
+})
+
+it('hands media to its viewer without reading it, but still reads pages as text', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'phosphor-read-media-'))
+  roots.push(root)
+  const movie = join(root, 'movie.mp4')
+  const page = join(root, 'index.html')
+  await writeFile(movie, '')
+  await truncate(movie, 5 * 1024 * 1024 * 1024)
+  await writeFile(page, '<h1>hi</h1>')
+
+  // Past the 4 MB cap, so a read would have reported tooLarge instead.
+  await expect(readTextFile(movie)).resolves.toMatchObject({
+    binary: true,
+    content: '',
+    size: 5 * 1024 * 1024 * 1024,
+  })
+  expect((await readTextFile(movie)).tooLarge).toBeUndefined()
+  // HTML keeps a source view, so it is read like any text file.
+  await expect(readTextFile(page)).resolves.toMatchObject({ content: '<h1>hi</h1>' })
 })
 
 it('creates entries and refuses duplicate files, directories and rename collisions', async () => {

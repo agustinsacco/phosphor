@@ -12,6 +12,8 @@ export interface OpenFile {
   /** Editor buffer (== savedContent when clean). */
   content: string
   mtimeMs: number
+  /** Bytes on disk at load/save time. */
+  size: number
   dirty: boolean
   binary?: boolean
   tooLarge?: boolean
@@ -19,6 +21,12 @@ export interface OpenFile {
   diskConflict?: boolean
   /** Line to reveal when the editor mounts / re-focuses. */
   pendingRevealLine?: number
+  /**
+   * For files that are both text and previewable (HTML, SVG): which of the
+   * two is showing. Absent means the preview — opening one is usually to
+   * look at it.
+   */
+  view?: 'preview' | 'source'
 }
 
 /**
@@ -72,6 +80,7 @@ interface FilesState {
   /** Drop a workspace's editors/explorer state and release its Monaco models. */
   releaseWorkspace: (workspacePath: string) => void
   setActive: (workspacePath: string, path: string) => void
+  setView: (workspacePath: string, path: string, view: 'preview' | 'source') => void
   updateBuffer: (workspacePath: string, path: string, content: string) => void
   saveFile: (workspacePath: string, path: string) => Promise<void>
   consumeReveal: (workspacePath: string, path: string) => number | undefined
@@ -260,6 +269,7 @@ export const useFilesStore = create<FilesState>((set, get) => ({
       savedContent: file.content,
       content: file.content,
       mtimeMs: file.mtimeMs,
+      size: file.size,
       dirty: false,
       binary: file.binary,
       tooLarge: file.tooLarge,
@@ -368,6 +378,10 @@ export const useFilesStore = create<FilesState>((set, get) => ({
     set((s) => patchWorkspace(s, workspacePath, (w) => ({ ...w, activePath: path })))
   },
 
+  setView: (workspacePath, path, view) => {
+    set((s) => patchWorkspace(s, workspacePath, (w) => patchFile(w, path, { view })))
+  },
+
   updateBuffer: (workspacePath, path, content) => {
     set((s) =>
       patchWorkspace(s, workspacePath, (w) => ({
@@ -388,7 +402,14 @@ export const useFilesStore = create<FilesState>((set, get) => ({
         ...w,
         openFiles: w.openFiles.map((f) =>
           f.path === path
-            ? { ...f, savedContent: f.content, dirty: false, mtimeMs, diskConflict: false }
+            ? {
+                ...f,
+                savedContent: f.content,
+                dirty: false,
+                mtimeMs,
+                size: new TextEncoder().encode(f.content).length,
+                diskConflict: false,
+              }
             : f,
         ),
       })),
@@ -433,6 +454,9 @@ export const useFilesStore = create<FilesState>((set, get) => ({
             savedContent: file.content,
             content: file.content,
             mtimeMs: file.mtimeMs,
+            size: file.size,
+            binary: file.binary,
+            tooLarge: file.tooLarge,
             dirty: false,
             diskConflict: false,
           }),

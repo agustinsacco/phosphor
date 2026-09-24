@@ -1794,6 +1794,14 @@ export function installMockPhosphor(): void {
             mtimeMs: Date.now(),
           })
         }
+        // There is no phosphor-file:// server in a plain browser, so viewers
+        // fall back to their "open externally" card here.
+        case 'fs:previewUrl':
+          return Promise.reject(new Error('No file previews in the browser harness'))
+        case 'fs:openInDefaultApp':
+          return Promise.resolve({ ok: true })
+        case 'fs:quickLook':
+          return Promise.resolve(undefined)
         case 'fs:pickEntries':
           return Promise.resolve([])
         case 'fs:transfer': {

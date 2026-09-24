@@ -825,6 +825,78 @@ test('explorer follows external create, move and delete changes on disk', async 
   }
 })
 
+test('explorer previews images, pages and PDFs, and refuses to launch programs', async () => {
+  const workspace = await scratchDir('phosphor-e2e-files-preview-')
+  // 1×1 PNG.
+  const png =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+  await writeFile(join(workspace, 'dot.png'), Buffer.from(png, 'base64'))
+  await mkdir(join(workspace, 'site'))
+  await writeFile(
+    join(workspace, 'site', 'index.html'),
+    '<link rel="stylesheet" href="style.css"><p id="out">static</p><p id="net">pending</p>' +
+      '<script src="app.js"></script>',
+  )
+  await writeFile(join(workspace, 'site', 'style.css'), '#out { color: rgb(1, 2, 3) }')
+  await writeFile(
+    join(workspace, 'site', 'app.js'),
+    "document.getElementById('out').textContent = 'script ran';" +
+      "fetch('../.env').then(() => 'fetched', () => 'fetch blocked')" +
+      ".then((r) => { document.getElementById('net').textContent = r })",
+  )
+  await writeFile(join(workspace, '.env'), 'SECRET=1')
+  await writeFile(
+    join(workspace, 'doc.pdf'),
+    '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n' +
+      '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
+      '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\n' +
+      'trailer<</Root 1 0 R>>\n%%EOF\n',
+  )
+  await writeFile(join(workspace, 'Setup.exe'), Buffer.from([0x4d, 0x5a, 0, 0, 0]))
+  await writeFile(join(workspace, 'data.bin'), Buffer.from([0, 1, 2, 3]))
+  const harness = await launch({ workspace })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    await page.getByTitle(/^Files pane/).click()
+    const explorer = page.getByTestId('file-explorer')
+    const row = (name: string) => explorer.getByRole('button', { name, exact: true })
+
+    await row('dot.png').click()
+    await expect(page.locator('img[src^="phosphor-file://"]')).toBeVisible()
+    await expect(page.getByText('1 × 1 · 70 B')).toBeVisible()
+
+    // The page loads its own CSS and script, but cannot read a sibling file.
+    await row('site').click()
+    await row('index.html').click()
+    const frame = page.frameLocator('iframe[title="index.html"]')
+    await expect(frame.locator('#out')).toHaveText('script ran')
+    await expect(frame.locator('#out')).toHaveCSS('color', 'rgb(1, 2, 3)')
+    await expect(frame.locator('#net')).toHaveText('fetch blocked')
+    await page.getByRole('button', { name: 'Source', exact: true }).click()
+    await expect(page.locator('.monaco-editor .view-lines')).toContainText('stylesheet')
+
+    await row('doc.pdf').click()
+    await expect(page.locator('iframe[title="doc.pdf"]')).toHaveAttribute(
+      'src',
+      /^phosphor-file:\/\/[0-9a-f]{32}\/doc\.pdf/,
+    )
+
+    await row('data.bin').click()
+    await expect(page.getByText('No preview for .bin files.')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Open in default app' })).toBeVisible()
+
+    await row('Setup.exe').click()
+    await page.getByRole('button', { name: 'Open in default app' }).click()
+    await expect(page.getByText(/Setup\.exe would run a program if opened/)).toBeVisible()
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('explorer copies, cuts, multi-drags and imports disk-backed files', async () => {
   const harness = await launch()
   const { page, workspace, app } = harness

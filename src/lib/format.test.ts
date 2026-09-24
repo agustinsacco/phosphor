@@ -96,6 +96,14 @@ describe('formatBytes', () => {
     expect(formatBytes(input)).toBe(expected)
   })
 
+  // A video in the Files pane, not a tool payload.
+  it.each([
+    [1024 ** 3, '1.0 GB'],
+    [2_500_000_000, '2.3 GB'],
+  ])('renders %i in the GB tier', (input, expected) => {
+    expect(formatBytes(input)).toBe(expected)
+  })
+
   /*
    * This drives the streaming label on a tool card whose args are still
    * arriving, so it is called on every delta: it must never widen mid-stream in
