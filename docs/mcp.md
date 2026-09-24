@@ -12,11 +12,15 @@ sign in, see whether it is up, see what it costs.
 the `pi-global` scope of the same chain a custom server lives in, so they share
 a list. Sections, in order:
 
-1. **Connected** — one row per resolved server: scope badge, status chip,
-   transport, **Test**, Sign in / Reconnect / Connect now (URL servers),
-   enable toggle, Edit, Remove. Plus a cached-tool disclosure, shadow notes,
-   and a warning when `directTools` is set, since that opts the server out of
-   the `mcp` gateway and costs its full schema on every request.
+1. **Connected** — one card per resolved server. The header carries name,
+   scope badge, status chip, summary and transport on the left, with **Test**
+   and Sign in / Reconnect / Connect now (URL servers) pinned right so they
+   never wrap. The footer holds the tool disclosure, shadow notes, the enable
+   and keep-connected checkboxes, Edit and Remove. The disclosure lists each
+   cached tool by name and description (capped at 600 characters when read),
+   filterable past eight tools. A warning shows when `directTools` is set,
+   since that opts the server out of the `mcp` gateway and costs its full
+   schema on every request.
 2. **Add a connector** — the curated catalog, minus anything already
    configured.
 3. **Advanced** (collapsed) — adapter install state and the chain file list

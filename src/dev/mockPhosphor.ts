@@ -1249,7 +1249,14 @@ export function installMockPhosphor(): void {
 
         case 'mcp:readCache':
           return Promise.resolve([
-            { name: 'linear', tools: ['get_issue', 'save_issue', 'list_issues'] },
+            {
+              name: 'linear',
+              tools: [
+                { name: 'get_issue', description: 'Retrieve an issue by its ID or identifier.' },
+                { name: 'save_issue', description: 'Create or update an issue.' },
+                { name: 'list_issues', description: 'List issues matching a filter.' },
+              ],
+            },
           ])
         case 'mcp:upsertServer':
         case 'mcp:removeServer':

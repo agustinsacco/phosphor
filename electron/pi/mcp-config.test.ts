@@ -138,12 +138,29 @@ describe('readMcpCache', () => {
   it('scrapes tool lists tolerantly and returns [] for junk', async () => {
     await write(join(dirs.piAgent, 'mcp-cache.json'), {
       servers: {
-        linear: { tools: [{ name: 'get_issue' }, 'save_issue', 42] },
+        linear: {
+          tools: [
+            { name: 'get_issue', description: '  Fetch one issue.  ' },
+            { name: 'list_issues', description: 'x'.repeat(700) },
+            'save_issue',
+            42,
+            { description: 'no name' },
+          ],
+        },
         broken: { tools: 'nope' },
       },
     })
     const entries = await readMcpCache(dirs)
-    expect(entries).toEqual([{ name: 'linear', tools: ['get_issue', 'save_issue'] }])
+    expect(entries).toEqual([
+      {
+        name: 'linear',
+        tools: [
+          { name: 'get_issue', description: 'Fetch one issue.' },
+          { name: 'list_issues', description: `${'x'.repeat(600)}…` },
+          { name: 'save_issue' },
+        ],
+      },
+    ])
 
     await writeFile(join(dirs.piAgent, 'mcp-cache.json'), 'garbage')
     expect(await readMcpCache(dirs)).toEqual([])
