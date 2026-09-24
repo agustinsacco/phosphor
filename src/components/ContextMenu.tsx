@@ -33,6 +33,15 @@ export function showContextMenu(event: React.MouseEvent, items: ContextMenuItem[
   showMenu?.({ x: event.clientX, y: event.clientY, items })
 }
 
+/**
+ * The same menu, dropped from a button ("⋯") rather than at the pointer: a
+ * keyboard-activated click has no pointer position to open at.
+ */
+export function showMenuBelow(anchor: HTMLElement, items: ContextMenuItem[]): void {
+  const rect = anchor.getBoundingClientRect()
+  showMenu?.({ x: rect.left, y: rect.bottom + 4, items })
+}
+
 export function ContextMenuHost(): React.JSX.Element | null {
   const [state, setState] = useState<ContextMenuState | null>(null)
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null)

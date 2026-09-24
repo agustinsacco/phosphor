@@ -86,6 +86,11 @@ export async function mockRoutineCall(channel: string, args: unknown[]): Promise
     case 'routines:archive':
       Object.assign(routine(), { archived: true, enabled: false, nextAt: null })
       break
+    case 'routines:delete':
+      routine()
+      snapshot.routines = snapshot.routines.filter((r) => r.id !== args[0])
+      snapshot.runs = snapshot.runs.filter((r) => r.routineId !== args[0])
+      break
     case 'routines:skipNext': {
       const r = routine()
       r.nextAt = nextOccurrences(r.schedule, r.timezone, r.nextAt ?? Date.now(), 1)[0] ?? null

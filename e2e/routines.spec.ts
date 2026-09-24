@@ -13,6 +13,7 @@ import { newRoutine, type RoutineInput } from '../shared/routines'
 import { configureTestTeardown } from './fixtures/shutdown'
 import type * as Sqlite from 'node:sqlite'
 import type * as NodePath from 'node:path'
+import type * as NodeFs from 'node:fs'
 
 const root = resolve(import.meta.dirname, '..')
 let app: ElectronApplication
@@ -90,9 +91,18 @@ test('create, preview, run in an isolated lane, review history, and persist acro
   await editor.getByLabel('Name', { exact: false }).fill('Weekly report')
   await editor.getByLabel('What should happen?').fill('Create a report of repository health.')
   await editor.getByLabel('Workspace', { exact: true }).fill(workspace)
-  await editor
-    .getByRole('combobox', { name: 'Model', exact: true })
-    .selectOption({ label: 'Stub Model · stub' })
+  // The composer's searchable picker, not a native select.
+  await editor.getByTestId('routine-model-picker').click()
+  await page.getByTestId('model-search').fill('stub')
+  await page.getByTestId('model-search').press('Enter')
+  await expect(page.getByTestId('model-search')).toHaveCount(0)
+  const model = editor.getByRole('button', { name: /^Model Stub Model/ })
+  await expect(model).toBeVisible()
+  // Escape closes the picker, and only the picker.
+  await model.click()
+  await page.getByTestId('model-search').press('Escape')
+  await expect(page.getByTestId('model-search')).toHaveCount(0)
+  await expect(editor).toBeVisible()
   await editor.getByLabel('Task intent').selectOption('report')
   await editor.getByRole('button', { name: 'Weekly', exact: true }).click()
   await editor.getByLabel('Timezone', { exact: true }).fill('UTC')
@@ -149,7 +159,11 @@ test('create, preview, run in an isolated lane, review history, and persist acro
   await page.getByRole('button', { name: 'Failed only' }).click()
   await expect(page.getByTestId('routine-run')).toHaveCount(0)
   await page.getByTestId('routine-row').filter({ hasText: 'Weekly report' }).click()
-  await page.getByRole('button', { name: 'Pause', exact: true }).click()
+  await page.getByRole('button', { name: 'More actions' }).click()
+  await page
+    .getByTestId('context-menu')
+    .getByRole('button', { name: /^Pause/ })
+    .click()
   await expect(page.getByText('Paused', { exact: true })).toBeVisible()
   await app.close()
   await launch()
@@ -242,4 +256,62 @@ test('failed isolation blocks instead of silently running in the main checkout',
   expect(state.runs[0]?.sessionId).toBeNull()
   expect(state.routines[0]?.enabled).toBe(false)
   expect(state.routines[0]?.attention).toContain('Isolation required')
+})
+
+test('closing the editor keeps the draft until Reset', async () => {
+  await page.getByRole('button', { name: 'Routines', exact: true }).click()
+  await page.getByRole('button', { name: 'New routine', exact: true }).click()
+  let editor = page.getByRole('dialog', { name: 'New routine' })
+  await editor.getByLabel('What should happen?').fill('Summarise open pull requests.')
+  // A click on the backdrop is not a way out.
+  const height = await page.evaluate(() => window.innerHeight)
+  await page.mouse.click(8, height - 8)
+  await expect(editor).toBeVisible()
+  await editor.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(editor).toHaveCount(0)
+  await page.getByRole('button', { name: 'Resume draft', exact: true }).click()
+  editor = page.getByRole('dialog', { name: 'New routine' })
+  await expect(editor.getByLabel('What should happen?')).toHaveValue(
+    'Summarise open pull requests.',
+  )
+  await editor.getByRole('button', { name: 'Reset', exact: true }).click()
+  await expect(editor.getByLabel('What should happen?')).toHaveValue('')
+  await editor.getByRole('button', { name: 'Close', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'New routine', exact: true })).toBeVisible()
+})
+
+test('deleting a routine removes its history and trashes the lanes it still owns', async () => {
+  const id = await seed(definition({ name: 'Doomed' }))
+  await page.evaluate((routineId) => window.phosphor.invoke('routines:run', routineId, 'x'), id)
+  await expect
+    .poll(
+      async () =>
+        (await page.evaluate(() => window.phosphor.invoke('routines:list'))).runs[0]?.status,
+      { timeout: 30000 },
+    )
+    .toBe('finished')
+  const lane = (await page.evaluate(() => window.phosphor.invoke('routines:list'))).runs[0]!
+    .sessionPath!
+  expect(lane).toBeTruthy()
+  await page.getByRole('button', { name: 'Routines', exact: true }).click()
+  await page.getByTestId('routine-row').filter({ hasText: 'Doomed' }).click()
+  await page.getByRole('button', { name: 'More actions' }).click()
+  await page.getByTestId('context-menu').getByRole('button', { name: 'Delete…' }).click()
+  await page
+    .getByRole('alertdialog', { name: 'Delete routine' })
+    .getByRole('button', { name: 'Delete routine' })
+    .click()
+  await expect(page.getByTestId('routine-row')).toHaveCount(0)
+  const state = await page.evaluate(() => window.phosphor.invoke('routines:list'))
+  expect(state.routines).toHaveLength(0)
+  expect(state.runs).toHaveLength(0)
+  expect(
+    Object.keys(await page.evaluate(() => window.phosphor.invoke('routines:laneIndex'))),
+  ).not.toContain(lane)
+  expect(
+    await app.evaluate(
+      (_electron, path) => (process.getBuiltinModule('node:fs') as typeof NodeFs).existsSync(path),
+      lane,
+    ),
+  ).toBe(false)
 })

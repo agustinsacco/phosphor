@@ -11,7 +11,19 @@ orchestrator. Interactive sessions remain independent.
 where to run, which model to use, and when. The name is optional in the editor
 and derives from the first instruction line. Choose code/PR or analysis/report
 intent; report intent suppresses Phosphor's automatic worktree PR charter.
-Project rules and custom directives still apply.
+Project rules and custom directives still apply. The model field is the
+composer's searchable model menu (search, provider filters, starred and recent),
+not a flat list; a saved model the catalogue no longer lists stays selected and
+is flagged rather than silently replaced.
+
+The editor only closes on purpose: ✕ or Escape, never a click on the backdrop
+(Escape inside the model menu closes just the menu). Whatever it holds when it
+closes is kept in memory, per routine, and comes back the next time it opens —
+**New routine** reads **Resume draft** while one is waiting. **Reset** returns to
+a blank routine, or to the saved one when editing. Drafts do not survive a
+restart and never touch disk before Save. An edit draft started from an older
+revision is dropped, since saving it would be refused as stale. Starters,
+Duplicate, Import and Make routine… open fresh and replace a waiting new draft.
 
 The page includes starter instructions for weekly analysis, dependency audits,
 and cycle retros. A lane's context menu offers **Make routine…**: a reviewable
@@ -19,7 +31,7 @@ draft of its name, first user text, and workspace, not its running process or
 entire conversation. Choose the model explicitly before saving that draft.
 
 Schedules: Manual, Hourly, Daily, Weekdays, Weekly, Monthly (including last day),
-Once, or Custom five-field cron. The editor previews five occurrences in the
+Once, or Custom five-field cron. The editor previews the next three occurrences in the
 saved timezone, with offsets. Changing the machine timezone does not change
 existing schedules. Custom cron uses conventional day-of-month/weekday OR
 semantics; randomized `H` fields and six-field/seconds expressions are refused.
@@ -71,8 +83,19 @@ instructions and configuration, not stored account credentials or run history.
   the period, timezone, and stable run ID.
 - History shows scheduled/started/ended times, trigger, revision, instructions,
   working folder, branch, base commit, account ID when known, reason, and a
-  bounded final summary. Older history is paginated; archiving never deletes
-  history or worktrees.
+  bounded final summary. Older history is paginated.
+- A routine's page leads with its settings as one list (schedule, model,
+  workspace, execution and intent, limits, revision, instructions) and keeps
+  two buttons, Run now and Edit. Pause/Review and enable, Skip next run,
+  Duplicate, Export, Archive and Delete live in its **⋯** menu.
+- **Archive** hides the routine and keeps everything. **Delete** removes the
+  definition and its whole run history, after a confirmation. It is refused
+  while a run is executing; queued runs go with it. Lanes the routine still
+  owns (never continued) are trashed through the same path as deleting a lane
+  from the sidebar, so they are recoverable from the trash. Lanes you continued
+  already belong to their workspace and stay. Worktrees are not deleted: the
+  maintenance sweep reclaims them under its usual rules (never a dirty tree,
+  never an unlanded branch).
 - **Runs are grouped by day, newest first, and the most recent day starts
   open.** The day heading uses your own clock, because routines pinned to
   different timezones share one list; each run still prints its times in its
@@ -171,8 +194,8 @@ A normal dev launch cannot run the installed app's routines. Startup/storage
 errors stop routine scheduling rather than recreating an empty database or
 silently discarding history. Back up the database only while the app is quit
 (or with a SQLite-aware backup); do not copy a live WAL database file alone.
-History is retained until the app data is explicitly removed; automatic
-retention/deletion is not implemented. Non-archived routine source folders and
+History is retained until the routine is deleted or the app data is removed;
+automatic retention is not implemented. Non-archived routine source folders and
 pending run workspaces are protected from automatic maintenance reclamation.
 
 ## Code map and tests

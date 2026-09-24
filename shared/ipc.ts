@@ -125,6 +125,8 @@ export interface IpcInvokeMap {
   'routines:cancel': { args: [runId: string]; result: void }
   'routines:skipNext': { args: [routineId: string]; result: void }
   'routines:archive': { args: [routineId: string]; result: void }
+  /** Removes the routine and its history; trashes lanes it still owns. */
+  'routines:delete': { args: [routineId: string]; result: void }
   'routines:pauseAll': { args: []; result: void }
   'routines:background': { args: [enabled: boolean]; result: void }
   'pi:health': { args: []; result: PiHealth }
