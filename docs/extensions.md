@@ -214,11 +214,17 @@ resending a document to change part of it.
 
 | Tool              | Cost                             | Use                                       |
 | ----------------- | -------------------------------- | ----------------------------------------- |
+| `artifact_help`   | authoring guide, on demand       | load before creating or restyling         |
 | `artifact_create` | the whole document               | new artifact                              |
 | `artifact_edit`   | just the changed region          | **the default way to revise**             |
 | `artifact_update` | the whole document, again        | rewrites that touch most of the content   |
 | `artifact_read`   | the whole document, into context | recovering text after compaction, to edit |
 | `artifact_list`   | ids and sizes only               | recovering ids after compaction           |
+
+The style guide lives in `artifact_help` results, not in the always-loaded tool
+schema or system guidelines. Coding turns carry only a short instruction to
+load it before authoring. The guide preserves the stylesheet tokens, layout
+rules and network restrictions.
 
 One artifact plus two full rewrites costs ~55k output tokens; the same
 nine-line change through `artifact_edit` is ~116.

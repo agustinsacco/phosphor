@@ -88,6 +88,21 @@ const call = async (
 ): Promise<ToolResult> => h.tools.get(name)!.execute('call-1', params)
 
 describe('artifact tools', () => {
+  it('loads the style guide on demand rather than in every prompt', async () => {
+    const definitions: Record<string, unknown>[] = []
+    artifactsExtension({ registerTool: (tool) => definitions.push(tool), on: () => {} })
+    const create = definitions.find((tool) => tool.name === 'artifact_create')!
+    expect(String(create.description).length).toBeLessThan(400)
+    expect(JSON.stringify(create.promptGuidelines).length).toBeLessThan(250)
+    expect(create.description).toContain('artifact_help')
+    expect(create.description).not.toContain('--art-bg')
+    const guide = await call(harness(), 'artifact_help', {})
+    expect(guide.content[0]?.text).toContain('--art-bg')
+    expect(guide.content[0]?.text).toContain('.ledger>.row')
+    expect(guide.content[0]?.text).toContain('no network')
+    expect(guide.details).toBeUndefined()
+  })
+
   it('creates, edits and versions without resending content', async () => {
     const h = harness()
     const created = await call(h, 'artifact_create', {
