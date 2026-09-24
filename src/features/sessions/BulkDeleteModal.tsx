@@ -15,9 +15,10 @@ import { describeWarnings, type PreflightSummary } from './deletePreflight'
  * likely bug in this feature. Both refuse a dirty worktree unless the user
  * opts into discarding, and both delete a branch only when its work is already on the trunk.
  *
- * "Delete a lane" is three resources, and only the first two default on:
- * the session transcript (to the OS Trash, recoverable), the worktree
- * directory (gone), and the branch (only when it is proven merged). Remote branches are
+ * "Delete a lane" is three resources, and all three default on: the session
+ * transcript (to the OS Trash, recoverable), the worktree directory (gone),
+ * and the branch (only when it is proven merged, so an unmerged branch
+ * survives the default). Remote branches are
  * deliberately not offered — Phosphor has no channel for it, and a bulk flow is
  * the worst place to introduce the least reversible operation.
  */
@@ -35,7 +36,7 @@ export function BulkDeleteModal({
   }) => void
 }): React.JSX.Element {
   const [removeWorktree, setRemoveWorktree] = useState(true)
-  const [deleteBranch, setDeleteBranch] = useState(false)
+  const [deleteBranch, setDeleteBranch] = useState(true)
   const [acknowledged, setAcknowledged] = useState(false)
 
   const count = summary.deletable.length
@@ -51,7 +52,7 @@ export function BulkDeleteModal({
             Delete {count} lane{count === 1 ? '' : 's'}
           </h2>
           <p className="text-text-secondary mt-1 text-sm">
-            Removing a lane can touch three things. Only the first two are on by default.
+            Removing a lane can touch three things. All three are on by default.
           </p>
         </div>
 
@@ -93,7 +94,7 @@ export function BulkDeleteModal({
               : 'Deletes the working directory on disk. Not undoable.'}
           </Option>
           <Option
-            checked={deleteBranch}
+            checked={deleteBranch && removeWorktree && summary.worktreeCount > 0}
             onChange={setDeleteBranch}
             label="Also delete the branch"
             disabled={!removeWorktree || summary.worktreeCount === 0}
