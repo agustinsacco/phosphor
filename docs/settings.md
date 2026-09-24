@@ -11,21 +11,21 @@ package is installed**. The package list is re-read on every open, so a fresh
 install gets its tab without a restart, and a tab whose package vanished falls
 back to Extensions.
 
-| Tab              | What it is                                                       | Writes                                                  |
-| ---------------- | ---------------------------------------------------------------- | ------------------------------------------------------- |
-| Appearance       | Theme, UI scale, per-surface font sizes, mono font               | Phosphor prefs (electron-store)                         |
-| Agent            | pi's agent defaults, global or per project                       | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json` |
-| Accounts         | Subscription logins pi can drive                                 | nothing — pi owns the credentials                       |
-| Extensions       | pi package management                                            | shells out to `pi install` / `remove` / `update`        |
-| ↳ Claude Code    | The `pi-claude-cli` provider: health, accounts, context window   | Phosphor prefs + the package's own config               |
-| ↳ Web access     | The `pi-web-access` provider: search, fetch, PDF                 | `web-search.json`                                       |
-| ↳ Computer use   | Info page for `@injaneity/pi-computer-use`                       | nothing (read-only)                                     |
-| ↳ MCP Connectors | Curated OAuth catalog + custom servers                           | `mcp.json`, or the project's `.mcp.json`                |
-| Workspaces       | Lane naming/markers, new-session branching, recents, sandboxes   | Phosphor prefs; layout reset clears localStorage        |
-| Optimization     | Headroom tool-result compression + the Advisor                   | Phosphor prefs; `headroom:*` lifecycle in main          |
-| Advanced         | pi health, raw config editors, maintenance, discovered resources | the pi files it edits; maintenance prefs                |
-| Keybindings      | Static reference sheet                                           | nothing                                                 |
-| About            | Versions, update check, pi drift warning, font licenses          | nothing                                                 |
+| Tab              | What it is                                                           | Writes                                                  |
+| ---------------- | -------------------------------------------------------------------- | ------------------------------------------------------- |
+| Appearance       | Theme, UI scale, per-surface font sizes, mono font                   | Phosphor prefs (electron-store)                         |
+| Agent            | pi's agent defaults, global or per project                           | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json` |
+| Accounts         | Subscription logins pi can drive                                     | nothing — pi owns the credentials                       |
+| Extensions       | pi package management                                                | shells out to `pi install` / `remove` / `update`        |
+| ↳ Claude Code    | The `pi-claude-cli` provider: health, accounts, pi context ownership | Phosphor prefs + the package's own config               |
+| ↳ Web access     | The `pi-web-access` provider: search, fetch, PDF                     | `web-search.json`                                       |
+| ↳ Computer use   | Info page for `@injaneity/pi-computer-use`                           | nothing (read-only)                                     |
+| ↳ MCP Connectors | Curated OAuth catalog + custom servers                               | `mcp.json`, or the project's `.mcp.json`                |
+| Workspaces       | Lane naming/markers, new-session branching, recents, sandboxes       | Phosphor prefs; layout reset clears localStorage        |
+| Optimization     | Headroom tool-result compression + the Advisor                       | Phosphor prefs; `headroom:*` lifecycle in main          |
+| Advanced         | pi health, raw config editors, maintenance, discovered resources     | the pi files it edits; maintenance prefs                |
+| Keybindings      | Static reference sheet                                               | nothing                                                 |
+| About            | Versions, update check, pi drift warning, font licenses              | nothing                                                 |
 
 Phosphor's prefs live in electron-store. pi's config stays in pi's files. The
 two are never mixed.
@@ -56,11 +56,8 @@ project scope, an empty field's placeholder names what it inherits.
   `hideThinkingBlock`.
 - Steering / follow-up delivery ("all" vs "one-at-a-time").
 - Compaction (enabled, reserveTokens, keepRecentTokens) and retry (enabled,
-  maxRetries, baseDelayMs). Compaction here governs every provider but Claude
-  Code: for those sessions Phosphor switches pi's auto-compaction off per
-  session over RPC, because the CLI compacts its own session and pi's pass
-  would only rewrite pi's record
-  ([cli-providers.md](cli-providers.md#compaction-has-one-owner)).
+  maxRetries, baseDelayMs). Compaction applies to every provider, including
+  Claude Code; switching models does not override the user's choice.
 - **Directives**: what Phosphor appends to every lane's system prompt, global
   or per project, shown composed before it is sent. A prompt you cannot read is
   one you cannot debug.
@@ -77,7 +74,7 @@ The subscription routes are distinct (`SUBSCRIPTION_PROVIDERS` in
 | Account        | Route                                                                      | Requirement                  |
 | -------------- | -------------------------------------------------------------------------- | ---------------------------- |
 | ChatGPT        | pi's native `openai-codex` OAuth; no Codex CLI bridge                      | Plus or Pro                  |
-| Claude         | Authenticated Claude Code CLI through `@saccolabs/pi-claude-cli`           | Pro or Max; provider ≥ 0.7.1 |
+| Claude         | Authenticated Claude Code CLI through `@saccolabs/pi-claude-cli`           | Pro or Max; provider ≥ 0.9.0 |
 | GitHub Copilot | pi account login on github.com; Enterprise Server uses pi's terminal login | Copilot subscription         |
 | Kimi           | pi's `kimi-for-coding` account login                                       | Kimi For Coding plan         |
 
@@ -124,12 +121,7 @@ Three packages contribute a nested tab, shown only while installed:
 Routes model calls through the Claude Code CLI, billing your Claude Pro/Max
 plan; its models appear in the picker under the `pi-claude-cli` provider. In
 order: **Health** (package present, CLI binary found, both versions, update
-rows), **Accounts**, **Context window** (the auto-compact size, passed as
-`PI_CLAUDE_CLI_AUTOCOMPACT` at spawn; smaller windows cost less because every
-request re-reads the whole context; bare numbers are thousands, and the custom
-field shows the resolved count — `500` is a 500k budget — because that reading
-once went unnoticed at 2.5× the default; the context meter divides Claude
-sessions by this budget), **Prove it end to end** (one tiny
+rows), **Accounts**, pi context ownership guidance, **Prove it end to end** (one tiny
 print-mode prompt through the CLI, the login and the extension at once, because
 "installed" and "working" are different claims), and **When it fails**. See
 [cli-providers.md](cli-providers.md).

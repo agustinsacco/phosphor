@@ -136,8 +136,8 @@ A `pi-claude-cli` session has **two** possible sources of MCP servers, and
 only one of them is Phosphor's.
 
 1. **pi's chain** (table below), loaded by the adapter, which registers `mcp`
-   / `mcpScript` into pi's tool registry. pi-claude-cli snapshots every
-   non-built-in pi tool into a schema-only MCP server it hands the CLI as
+   / `mcpScript` into pi's tool registry. pi-claude-cli snapshots the current
+   request's tools into a schema-only MCP server it hands the CLI as
    `--mcp-config`, so the gateway arrives as `mcp__custom-tools__mcp`. The
    schema server proxies `tools/call` back to pi; pi runs the real tool and
    returns the result to the same persistent CLI process.
@@ -147,32 +147,18 @@ only one of them is Phosphor's.
 Servers from (2) are a problem, not a bonus: they never become pi tool events,
 so `worktree-paths.ts` cannot guard them, the footer chip and the context
 meter cannot see them, and the same project behaves differently on two
-machines. So every Claude-provider spawn gets `PI_CLAUDE_CLI_STRICT_MCP=1`
-(`claudeProviderSpawnEnv` in `electron/pi/provider-detect.ts`), which passes
-`--strict-mcp-config` and drops chain (2) entirely.
+machines. Every spawn enforces `PI_CLAUDE_CLI_CONTEXT=pi`, which implies strict
+MCP isolation and excludes chain (2). pi keeps its project and skill loading;
+the provider suppresses independent Claude discovery, replaces its system
+prompt and disables native tools. Explicit host guards and managed policy
+remain active. Tool calls and complete results are normal pi messages, not
+native Claude marker previews.
 
-Every live spawn also receives `PI_CLAUDE_CLI_TOOL_RESULTS=1`, which is what
-lets a CLI-side tool row show an outcome: the provider tags each call marker
-with its `tool_use_id` and follows it with a `result` marker, so the transcript
-can say "419 lines" or "exit 1 · No such file" instead of only naming the tool
-([extensions.md](extensions.md#how-provider-transcripts-render)). The metrics
-behind those lines need provider ≥ 0.8.0; below it the flag still yields a
-status and an expandable preview.
-
-Every live spawn also receives `PI_CLAUDE_CLI_CONTEXT=pi`, native-provider
-sessions included so a later switch to Claude is consistent. pi keeps its
-project-context loading; the provider suppresses Claude's second memory and
-skill loader, aligns generated tool guidance, and disables claude.ai
-connectors. Claude's default prompt and native tools remain, as do explicit
-host guards and administrator policy.
-
-**Requires an installed pi-claude-cli ≥ 0.7.1.** Phosphor checks declared
-global and project provider packages before creating a Claude session or
-forwarding a switch to Claude. Old, missing or mixed packages produce an update
-message rather than silently ignoring the policy. Nothing is installed or
-upgraded for you. Start fresh sessions when adopting the policy; the provider
-refuses saved prompts from the previous one. 0.7.1 in turn needs Claude Code
-**2.1.263+**.
+**Requires an installed pi-claude-cli ≥ 0.9.0.** Phosphor verifies the package
+before starting or switching to Claude. pi supplies and executes all tools,
+including the coding tools, over this bridge. The provider automatically
+reimports pi history instead of resuming an old-policy Claude transcript.
+Claude Code **2.1.263+** is required.
 
 The gateway is also what keeps a session small: `mcp` + `mcpScript` cost
 ~3.9KB of schema no matter how many servers are configured, growing only by

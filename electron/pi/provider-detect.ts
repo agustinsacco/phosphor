@@ -25,8 +25,8 @@ export function usesClaudeCliProvider(
   return defaultProvider === 'pi-claude-cli'
 }
 
-/** The first provider release supporting pi context with native Claude tools. */
-export const MIN_CLAUDE_CONTEXT_VERSION = '0.7.1'
+/** The first provider release with pi-owned tools, history and compaction. */
+export const MIN_CLAUDE_CONTEXT_VERSION = '0.9.0'
 
 /** Fail visibly rather than silently enabling two context loaders on old providers. */
 export function assertClaudeContextProvider(
@@ -45,34 +45,14 @@ export function assertClaudeContextProvider(
   ) {
     throw new Error(
       `Claude context alignment requires @saccolabs/pi-claude-cli ${MIN_CLAUDE_CONTEXT_VERSION}+ ` +
-        'as an installed pi package. Update it in Settings → Extensions, then start a fresh session.',
+        'as an installed pi package. Update it in Settings → Extensions, then reopen the session.',
     )
   }
 }
 
-/**
- * Sent to every pi spawn so switching from a native provider to Claude keeps
- * the same project context. Other providers ignore these variables. Claude
- * keeps its own default prompt and native tools; pi alone supplies project
- * files, skills and custom integrations. The provider aligns tool vocabulary
- * and disables duplicate discovery, while preserving explicit host guards.
- *
- * `PI_CLAUDE_CLI_TOOL_RESULTS` is what makes a CLI-side tool row show an
- * OUTCOME. Without it the provider forwards the invocation and nothing else,
- * so every `Read`, `Bash` and `Grep` the CLI ran itself rendered as a row
- * that could never say whether it worked — 21 rows of "Ran ls" with no line
- * counts, no exit codes and nothing to expand into. It is a provider opt-in
- * because the flag changes the marker wire shapes (calls gain a `#<id>` tag,
- * results arrive as their own markers); `items/transcriptRows.ts` parses
- * both. Additive: a provider that predates the flag ignores it, and one
- * between 0.6.0 and 0.7.1 sends the leaner payload the same code reads.
- */
+/** Enforce pi ownership even if the launcher inherited legacy provider settings. */
 export function claudeProviderSpawnEnv(): Record<string, string> {
-  return {
-    PI_CLAUDE_CLI_STRICT_MCP: '1',
-    PI_CLAUDE_CLI_CONTEXT: 'pi',
-    PI_CLAUDE_CLI_TOOL_RESULTS: '1',
-  }
+  return { PI_CLAUDE_CLI_CONTEXT: 'pi' }
 }
 
 /**

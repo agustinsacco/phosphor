@@ -86,7 +86,7 @@ beforeEach(() => {
   state.dispose.mockReset().mockResolvedValue(undefined)
   state.access.mockReset().mockResolvedValue(undefined)
   state.create.mockReset().mockReturnValue(state.session)
-  state.listPackages.mockResolvedValue(pkg('0.7.1'))
+  state.listPackages.mockResolvedValue(pkg('0.9.0'))
   registerPiSessionHandlers()
 })
 
@@ -151,14 +151,19 @@ describe('session context policy integration', () => {
       expect(options.ownProcessGroup).toBe(true)
       expect(options.env).toMatchObject({
         PI_CLAUDE_CLI_CONTEXT: 'pi',
-        PI_CLAUDE_CLI_STRICT_MCP: '1',
-        // Results, not just invocations: a CLI-side tool row shows what came
-        // back only because the session asked for it.
-        PI_CLAUDE_CLI_TOOL_RESULTS: '1',
       })
       expect(options.env).not.toHaveProperty('PI_CLAUDE_CLI_SYSTEM_PROMPT')
       expect(options.env).not.toHaveProperty('PI_CLAUDE_CLI_KEEPALIVE_MS')
       expect(options.appendSystemPrompt).toContain('pi subagent: follow its advertised schema')
+    },
+  )
+
+  it.each(['pi-claude-cli', 'openai-codex'])(
+    'does not override pi compaction when switching to %s',
+    async (provider) => {
+      const command = { type: 'set_model', provider, modelId: 'test-model' }
+      await state.handlers.get('pi:command')!(event, 'live-1', command)
+      expect(state.session.client.request).toHaveBeenCalledExactlyOnceWith(command)
     },
   )
 
@@ -169,7 +174,7 @@ describe('session context policy integration', () => {
         workspacePath: '/repo',
         provider: 'pi-claude-cli',
       }),
-    ).rejects.toThrow('0.7.1+')
+    ).rejects.toThrow('0.9.0+')
     expect(state.create).not.toHaveBeenCalled()
   })
 
@@ -181,7 +186,7 @@ describe('session context policy integration', () => {
         provider: 'pi-claude-cli',
         modelId: 'claude-opus-5',
       }),
-    ).rejects.toThrow('0.7.1+')
+    ).rejects.toThrow('0.9.0+')
     expect(state.session.client.request).not.toHaveBeenCalled()
   })
 
@@ -193,7 +198,7 @@ describe('session context policy integration', () => {
     })
     await expect(
       state.handlers.get('pi:command')!(event, 'live-1', { type: 'prompt', message: 'hi' }),
-    ).rejects.toThrow('0.7.1+')
+    ).rejects.toThrow('0.9.0+')
     expect(state.session.client.request).toHaveBeenCalledExactlyOnceWith({ type: 'get_state' })
   })
 

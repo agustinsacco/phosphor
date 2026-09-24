@@ -131,84 +131,16 @@ you want to watch.
   a signature and no plaintext. Before touching transcript rendering, tool UX
   or subagent UI, read
   [docs/extensions.md](docs/extensions.md#how-provider-transcripts-render).
-- **Claude sessions run through a SEPARATELY VERSIONED package**, and
-  Phosphor pins nothing. `@saccolabs/pi-claude-cli` is installed into pi
-  (`~/.pi/agent/npm/node_modules/`), so token behaviour, session resume and
-  filler bugs all live outside this repo. Check what is actually installed
-  before diagnosing a Claude-provider session:
-
-  ```bash
-  jq -r .version ~/.pi/agent/npm/node_modules/@saccolabs/pi-claude-cli/package.json
-  npm view @saccolabs/pi-claude-cli version   # what is published
-  ```
-
-  A fix merged there is NOT live until it is published _and_ reinstalled —
-  0.4.8 sat merged-but-unpublished for a day while sessions kept dying, because
-  the publish workflow only ships a version npm does not already have.
-  Rate-limit percentages need >= 0.4.9. **A session on < 0.4.16 never receives
-  pi's system prompt at all, on any turn** — `--system-prompt`/
-  `--append-system-prompt` take a literal string, and every version through
-  0.4.15 passed them a temp-file path instead, so the CLI ran on its own
-  default instructions from turn 1 onward. (0.4.15 also fixed a _cache-cost_
-  bug — the flag wasn't re-sent across `--resume` — but re-sent the same
-  broken flag, so it didn't fix the missing instructions.) If a session
-  doesn't honour its charter at all, or stops after turn 1, check the
-  installed version first: `>= 0.4.16` is required for both. **`>= 0.5.1`**
-  originally added MCP isolation. **Current Phosphor requires `>= 0.7.1`**
-  for `PI_CLAUDE_CLI_CONTEXT=pi`: pi loads project context and skills, the
-  provider suppresses duplicate Claude discovery and aligns native-tool
-  vocabulary, while retaining Claude's default prompt, native tools and
-  explicit host guards. It also implies strict MCP isolation. A session
-  created under the other policy cannot be resumed — the provider throws
-  before the model runs, on every message — so the error offers a **Rebuild
-  the Claude session** button that un-pairs it and reimports pi's history
-  (`resetClaudeLedgerPairing`, [cli-providers.md](docs/cli-providers.md#resuming-a-session-from-before-a-context-policy-change)).
-  Old saved prompts are still not migrated; the rebuild costs one turn billed
-  as a full-context cache write.
-  **`>= 0.8.0`** is what makes a CLI-side tool row say what came BACK —
-  Phosphor asks every session for results (`PI_CLAUDE_CLI_TOOL_RESULTS=1`),
-  and 0.8.0 is where the payload gained the CLI's own metrics (line counts,
-  diff stats, exit codes) and the call marker's arguments became complete
-  JSON instead of a document cut at 120 characters. Not a floor: on 0.6.0–
-  0.7.1 the rows still expand, they just show a status and a preview with no
-  outcome line, and paths in the label may be missing their filename.
-  **`>= 0.6.1`** is required
-  after a compaction: below it the first message (often the second too) does
-  nothing, because the CLI answers its own queued `<task-notification>` first
-  and the provider read that empty `result` as the end of the turn. The same
-  bug re-billed the whole conversation as a cache write on the next resume.
-  **`>= 0.7.0`** keeps ONE CLI
-  process per session (proxied tool handoffs, parked between turns); below
-  it every pi-side tool call and every turn restarts the CLI, and Claude
-  Code's system prompt embeds a git snapshot, so every commit or branch
-  rename in between re-bills the whole context as cache write. That park is
-  also why **every one-shot `pi -p` spawn must pass `claudeOneShotEnv()`**
-  (`PI_CLAUDE_CLI_KEEPALIVE_MS=0`): a parked child holds pi's event loop
-  open, so a naming run prints its title and then does not exit for ten
-  minutes. That silently killed session auto-naming, and with it every branch
-  rename, the hour 0.7.0 was installed.
-
-  The through-line across every version floor above: **this provider's failures
-  are silent and look like Phosphor bugs.** A missing system prompt, a dead
-  first message after compaction, a naming run that never exits, a whole
-  conversation re-billed as cache write — none of them raise an error. Check
-  the installed version before diagnosing anything on a Claude-provider
-  session.
-
-- **On a Claude session the CLI owns compaction, and pi's is switched off.**
-  `electron/pi/compaction-ownership.ts` sends `set_auto_compaction: false` at
-  spawn and after `set_model` for any session whose live provider is
-  `pi-claude-cli`. pi's compaction there rewrites only pi's record (the resume
-  path sends the CLI a delta, never pi's history) and fires every turn once the
-  CLI's real context passes ~183k, whatever the CLI's own cap — a multi-day
-  session compacted pi's record nine times for nothing. The context meter
-  divides those sessions by the auto-compact budget (`autocompactTokens`), not
-  the model window, and does not cap the label; the `Context window` setting
-  takes bare numbers as thousands (`500` = 500k). Provider ≥ 0.8.3 resets the
-  reported context after a CLI compaction and emits a `[Claude Code · compact
-{…}]` marker that renders as the compaction divider; below that the meter keeps
-  the pre-compaction figure and no divider is drawn. See
-  [cli-providers.md](docs/cli-providers.md#compaction-has-one-owner).
+- **Claude is a separately versioned provider, not an in-app model client.**
+  Phosphor requires `@saccolabs/pi-claude-cli >= 0.9.0`, installed in pi.
+  pi owns its prompt, tools, complete results and compaction. The CLI process
+  is a disposable cache, retired on switches/context changes; no new Claude
+  transcript or pairing is persisted. Native and Claude sessions use the same
+  pi compaction setting. Never reintroduce per-provider auto-compaction toggles.
+  The package must be published and reinstalled before a source fix is live.
+  Every one-shot host passes `claudeOneShotEnv()` to avoid a parked process
+  keeping `pi -p` alive after its answer. Existing Claude marker transcripts
+  remain supported. See [cli-providers.md](docs/cli-providers.md).
 
 - **Phosphor ships six extensions that run inside pi's process** (`pi-ext/`,
   loaded with `-e` into every session; listed in `bundledExtensions()` in

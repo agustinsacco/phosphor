@@ -249,16 +249,9 @@ in the **top bar** (`app/TopBar.tsx` → `SessionMenu`).
   that only a non-pi provider gets named.
 - **Context meter**: % of window from `get_session_stats` (polled after each
   `agent_end` and on demand), warn state near the compaction threshold, and
-  the popover below. On a Claude Code session the denominator is the
-  **auto-compact budget** (Settings → Claude Code → Context window, 200k
-  unless set; `autocompactTokens` in `lib/claudeAutocompact.ts`), not the
-  model window, and the label is not capped at 100% — the ring saturates, the
-  number keeps counting. The CLI's compaction is the only thing that shrinks
-  that context, so "how full is the budget" is the honest question: against
-  the model window a 500k budget read as critical at 65% of itself, and a
-  325k context in a 200k budget showed the same 100% as "just full". The
-  budget shown is the current setting; a session started before a change
-  keeps its old window until restarted.
+  the popover below. Every provider uses pi's context window and percentage,
+  capped at 100%. A saved legacy Claude-only budget does not affect the meter.
+
 - **Stop** (`abort`) is the send button while a turn runs. Everything else is
   in the ⋮ menu: Export HTML…, Compact now… (optional custom instructions),
   auto-compaction, auto-retry, and the two queue-mode rows (Steering /

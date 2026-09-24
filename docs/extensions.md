@@ -371,8 +371,9 @@ swallow their own errors.
 
 ## How provider transcripts render
 
-The Claude Code provider's sessions contain block shapes pi itself never
-emits, so the transcript layer has provider-specific handling
+Current Claude sessions use pi tools and pi compaction. Older provider sessions
+contain block shapes pi itself never emits, so the transcript layer retains
+provider-specific handling
 (`items/transcriptRows.ts`; contract table in
 [chat.md](chat.md#blocks-from-the-claude-code-provider)).
 
@@ -402,7 +403,7 @@ emits, so the transcript layer has provider-specific handling
   `mcp__linear__save_issue` says more than any verb we could invent.
 
   **What the row may claim is bounded by what the markers carry.** With
-  `PI_CLAUDE_CLI_TOOL_RESULTS=1` set on every session, the provider tags each
+  `PI_CLAUDE_CLI_TOOL_RESULTS=1` in legacy sessions, the provider tags each
   call with its `tool_use_id` and follows it with a
   `[Claude Code · result #<id> {…}]` marker. A tagged call is a promise of a
   result, so those rows go through the same three states a pi tool row does

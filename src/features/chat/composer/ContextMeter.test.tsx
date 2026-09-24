@@ -156,23 +156,12 @@ describe('ContextMeter', () => {
     expect(document.body.textContent).toContain('25%')
   })
 
-  it('measures a Claude Code session against its auto-compact budget, uncapped', () => {
-    // The CLI owns compaction on these sessions, so a 325k context in the
-    // default 200k budget must read 163% — not a saturated 100% that looks
-    // the same as "just full". Captured: a session sat at 325k for an hour.
-    seed({ tokens: 325_000, contextWindow: 200_000, percent: 162.5 })
-    render()
-    expect(document.body.textContent).toContain('163%')
-  })
-
-  it('divides by the configured budget, not the model window', () => {
-    // "500" is the CLI's shorthand for 500k. Against the model window this
-    // session read as critical; against its own budget it is at 65%.
+  it('uses pi metrics for Claude and ignores a saved legacy CLI budget', () => {
     useClaudeAutocompactStore.setState({ claudeAutocompact: '500' })
-    seed({ tokens: 325_000, contextWindow: 200_000, percent: 162.5 })
+    seed({ tokens: 50_000, contextWindow: 200_000, percent: 25 })
     render()
-    expect(document.body.textContent).toContain('65%')
-    expect(document.body.textContent).not.toContain('163%')
+    expect(document.body.textContent).toContain('25%')
+    expect(document.body.textContent).not.toContain('10%')
   })
 
   it('keeps pi window and cap for every other provider', () => {
