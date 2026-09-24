@@ -1,9 +1,10 @@
 import { shell } from 'electron'
 import { createReadStream } from 'node:fs'
-import { access } from 'node:fs/promises'
+import { access, rmdir } from 'node:fs/promises'
+import { dirname, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
-import { claudeSessionFileForCwd } from './pi-paths'
-import { claudeSessionIdFor } from './claude-session-map'
+import { claudeSessionFileForCwd, piSessionsRoot } from './pi-paths'
+import { forgetClaudePairing } from './claude-ledger'
 
 /**
  * Deleting a session means deleting every ledger it wrote.
@@ -17,6 +18,12 @@ import { claudeSessionIdFor } from './claude-session-map'
  * Both go to the trash rather than being unlinked: a transcript is the only
  * record of a conversation, and "delete" in the sidebar should be as
  * recoverable as deleting a file in a file manager.
+ *
+ * Each ledger also leaves bookkeeping that nothing reads once the session is
+ * gone, and all of it goes too: the CLI's `<id>/` sidecar directory (subagent
+ * transcripts, oversized tool results — it outlived every delete, jsonl or
+ * not), the provider's map entry and stored system prompt, and pi's session
+ * directory once its last transcript has left. Hundreds of each had piled up.
  *
  * The CLI copy is strictly best-effort. Its absence is the normal case for
  * every other provider and for sessions older than the provider itself, so a
@@ -108,6 +115,7 @@ export async function deleteSession(sessionFilePath: string): Promise<void> {
   // A pending lane may never have flushed, or an older delete already removed
   // its file while leaving another live writer. Both are successful deletes.
   await trashIfPresent(sessionFilePath)
+  await removePiSessionDirIfEmpty(sessionFilePath)
 
   if (!claudeRef) return
   try {
@@ -115,10 +123,30 @@ export async function deleteSession(sessionFilePath: string): Promise<void> {
     // so deleting by the pi id trashed nothing and left a transcript (often
     // megabytes) behind for every session ever deleted. The pi id remains the
     // right fallback for sessions recorded before that change.
-    const cliSessionId = (await claudeSessionIdFor(claudeRef.sessionId)) ?? claudeRef.sessionId
-    await trashIfPresent(claudeSessionFileForCwd(claudeRef.cwd, cliSessionId))
+    const { cliSessionId, shared } = await forgetClaudePairing(claudeRef.sessionId)
+    // A second pi session still resuming this CLI session means our own
+    // bookkeeping is wrong somewhere; leave its transcript alone.
+    if (shared) return
+    const ledger = claudeSessionFileForCwd(claudeRef.cwd, cliSessionId ?? claudeRef.sessionId)
+    await trashIfPresent(ledger)
+    await trashIfPresent(ledger.slice(0, -'.jsonl'.length))
   } catch {
     // Best-effort: the pi transcript is already gone, and failing the whole
     // delete over the second copy would be a worse outcome than an orphan.
   }
+}
+
+/**
+ * Drop pi's per-cwd session directory once its last transcript is gone — one
+ * empty directory per deleted lane otherwise, forever (516 of 607 on one
+ * install). `rmdir` refuses a non-empty directory, which is the whole safety
+ * check, and pi recreates the directory whenever it next writes there.
+ *
+ * Only a direct child of pi's sessions root is ever a candidate: a transcript
+ * passed from anywhere else must not get its parent folder removed.
+ */
+async function removePiSessionDirIfEmpty(sessionFilePath: string): Promise<void> {
+  const dir = dirname(resolve(sessionFilePath))
+  if (dirname(dir) !== resolve(piSessionsRoot())) return
+  await rmdir(dir).catch(() => undefined)
 }

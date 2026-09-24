@@ -364,7 +364,8 @@ the chip reads `12/61` with a cost in the thousands
 weekly), the same numbers the CLI's `/usage` and Claude Desktop show, fetched
 live (no quota, no key) when the popover opens and cached ~60 s in main
 (`electron/claude/usage.ts` parses the CLI's rendered text; a parse that yields
-nothing hides the section). **Plan limits** is the binding constraint as the
+nothing hides the section). The poll passes `--no-session-persistence`; without
+it every refresh left a transcript under `~/.claude/projects`. **Plan limits** is the binding constraint as the
 provider relays it mid-turn: one window, only once the CLI's warning threshold
 has crossed, but the only source that can say "capped now" between turns.
 All-day percent: Plan usage. The wall: Plan limits.

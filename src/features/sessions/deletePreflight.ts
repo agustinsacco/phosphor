@@ -42,6 +42,12 @@ export function classifyLane(input: {
   pr?: GhPullRequest
   isLive: boolean
   isStreaming: boolean
+  /**
+   * False when removing this lane's worktree would pull the directory out
+   * from under a session that is not being deleted — see
+   * {@link lanesOwningWorktree}. Defaults to true.
+   */
+  ownsWorktree?: boolean
 }): LanePreflight {
   const { meta, git, pr } = input
   const warnings: LanePreflight['warnings'] = []
@@ -57,12 +63,42 @@ export function classifyLane(input: {
     branch: git?.branch,
     // Only a linked worktree has a directory of its own to remove. Deleting a
     // session that runs in the MAIN checkout must never offer to remove it.
-    worktreePath: git?.isWorktree ? meta.cwd : undefined,
+    // Nor one another session is still using.
+    worktreePath: git?.isWorktree && input.ownsWorktree !== false ? meta.cwd : undefined,
     mainRepoPath: git?.mainRepoPath,
     warnings,
     pr,
     dirtyCount: git?.dirtyCount ?? 0,
   }
+}
+
+/**
+ * Which of the lanes being deleted may take their worktree with them.
+ *
+ * A worktree is one directory, but any number of sessions can run in it. The
+ * delete loop used to remove it with whichever selected lane got there first:
+ * a session left outside the selection lost its working directory, and a
+ * second selected lane in the same worktree failed on a directory that was
+ * already gone and kept its transcript.
+ *
+ * So a worktree goes only when every session using it is being deleted, and
+ * it goes with the LAST of them. The loop is sequential, so by then the
+ * others' transcripts are already in the Trash. A live session with no
+ * transcript yet is a user nobody can select, so it holds the worktree.
+ */
+export function lanesOwningWorktree(
+  selected: Array<{ path: string; cwd: string }>,
+  users: Array<{ path?: string; cwd: string }>,
+): Set<string> {
+  const selectedPaths = new Set(selected.map((lane) => lane.path))
+  const heldCwds = new Set(
+    users.filter((u) => !u.path || !selectedPaths.has(u.path)).map((u) => u.cwd),
+  )
+  const lastByCwd = new Map<string, string>()
+  for (const lane of selected) lastByCwd.set(lane.cwd, lane.path)
+  const owners = new Set<string>()
+  for (const [cwd, path] of lastByCwd) if (!heldCwds.has(cwd)) owners.add(path)
+  return owners
 }
 
 export function summarizePreflight(lanes: LanePreflight[]): PreflightSummary {

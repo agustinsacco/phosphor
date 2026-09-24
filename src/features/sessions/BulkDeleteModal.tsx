@@ -8,7 +8,8 @@ import { prChip } from './prChip'
 import { describeWarnings, type PreflightSummary } from './deletePreflight'
 
 /**
- * Confirm for deleting several lanes at once.
+ * Confirm for deleting lanes: several at once, or a single row's Delete when
+ * that lane is the only session in its own worktree.
  *
  * The single-lane equivalent is `RemoveWorktreeModal`, and the two must agree
  * about what "dirty" blocks — two confirms with different refusal rules is the
@@ -48,7 +49,7 @@ export function BulkDeleteModal({
       <div className="bg-surface-raised border-border w-[min(38rem,94vw)] rounded-lg border shadow-2xl">
         <div className="border-border border-b px-5 py-4">
           <h2 className="text-base font-semibold">
-            Delete {count} lane{count === 1 ? '' : 's'}
+            {count === 1 ? 'Delete lane' : `Delete ${count} lanes`}
           </h2>
           <p className="text-text-secondary mt-1 text-sm">
             Removing a lane can touch three things. Only the first two are on by default.
@@ -89,7 +90,7 @@ export function BulkDeleteModal({
             disabled={summary.worktreeCount === 0}
           >
             {summary.worktreeCount === 0
-              ? 'No selected lane runs in its own worktree.'
+              ? 'No worktree here is used only by the selected lanes.'
               : 'Deletes the working directory on disk. Not undoable.'}
           </Option>
           <Option
@@ -140,7 +141,7 @@ export function BulkDeleteModal({
             }
             className="bg-danger rounded-md px-3 py-1 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Delete {count} lane{count === 1 ? '' : 's'}
+            {count === 1 ? 'Delete lane' : `Delete ${count} lanes`}
           </button>
         </div>
       </div>

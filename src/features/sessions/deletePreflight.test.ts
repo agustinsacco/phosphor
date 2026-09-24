@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import type { GhPullRequest, GitInfo, SessionMeta } from '@shared/models'
-import { classifyLane, summarizePreflight, describeWarnings } from './deletePreflight'
+import {
+  classifyLane,
+  describeWarnings,
+  lanesOwningWorktree,
+  summarizePreflight,
+} from './deletePreflight'
 
 const meta = (over: Partial<SessionMeta> = {}): SessionMeta =>
   ({ path: '/s/a.jsonl', cwd: '/repo/.phosphor/worktrees/a', ...over }) as SessionMeta
@@ -60,6 +65,10 @@ describe('classifyLane', () => {
     expect(lane({ git: git({ isWorktree: false }) }).worktreePath).toBeUndefined()
   })
 
+  it('offers no worktree path for a worktree another session still uses', () => {
+    expect(lane({ ownsWorktree: false }).worktreePath).toBeUndefined()
+  })
+
   it('treats a lane with no git info as clean and unremovable', () => {
     const plain = lane({ git: undefined })
     expect(plain.warnings).toEqual([])
@@ -106,6 +115,41 @@ describe('summarizePreflight', () => {
       lane({ meta: meta({ path: '/c' }), git: git({ mainRepoPath: undefined }) }),
     ])
     expect(summary.worktreeCount).toBe(1)
+  })
+})
+
+describe('lanesOwningWorktree', () => {
+  const wt = '/repo/.phosphor/worktrees/a'
+
+  it('lets a lane that is alone in its worktree take it', () => {
+    expect(lanesOwningWorktree([{ path: '/a', cwd: wt }], [{ path: '/a', cwd: wt }])).toEqual(
+      new Set(['/a']),
+    )
+  })
+
+  it('keeps a worktree another, unselected session is using', () => {
+    // Removing it would pull the directory out from under /b.
+    const users = [
+      { path: '/a', cwd: wt },
+      { path: '/b', cwd: wt },
+    ]
+    expect(lanesOwningWorktree([{ path: '/a', cwd: wt }], users)).toEqual(new Set())
+  })
+
+  it('keeps a worktree a live session with no transcript yet is using', () => {
+    const users = [{ path: '/a', cwd: wt }, { cwd: wt }]
+    expect(lanesOwningWorktree([{ path: '/a', cwd: wt }], users)).toEqual(new Set())
+  })
+
+  it('removes a shared worktree once, with the last selected lane', () => {
+    // The loop is sequential: /a's transcript goes first, then /b takes the
+    // directory. Giving it to both failed /b on a directory already gone.
+    const selected = [
+      { path: '/a', cwd: wt },
+      { path: '/b', cwd: wt },
+      { path: '/c', cwd: '/repo/.phosphor/worktrees/c' },
+    ]
+    expect(lanesOwningWorktree(selected, selected)).toEqual(new Set(['/b', '/c']))
   })
 })
 

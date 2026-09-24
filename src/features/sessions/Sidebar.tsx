@@ -17,7 +17,12 @@ import { LaneMarker } from './LaneMarker'
 import { MarkerPickerModal } from './MarkerPickerModal'
 import { BulkDeleteModal } from './BulkDeleteModal'
 import { DeleteSessionModal, type DeleteSessionTarget } from './DeleteSessionModal'
-import { classifyLane, summarizePreflight, type PreflightSummary } from './deletePreflight'
+import {
+  classifyLane,
+  lanesOwningWorktree,
+  summarizePreflight,
+  type PreflightSummary,
+} from './deletePreflight'
 import { laneMarker } from '@/lib/laneMarker'
 import { formatCost } from '@/lib/format'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
@@ -564,19 +569,26 @@ export function Sidebar({
    * delete, and subscribing every row to them would re-render the sidebar on
    * every token.
    */
-  const openBulkDelete = (): void => {
-    if (!selection) return
+  const buildLaneDelete = (paths: string[]): PreflightSummary => {
     const chat = useChatStore.getState()
     const sessions = useSessionsStore.getState()
     const prState = usePullRequestsStore.getState()
     const markerPrefMode = useLanePrefsStore.getState().lanes.markers
-    const metaByPath = new Map(
-      Object.values(disk)
-        .flat()
-        .map((meta) => [meta.path, meta] as const),
+    const allMetas = Object.values(disk).flat()
+    const metaByPath = new Map(allMetas.map((meta) => [meta.path, meta] as const))
+    // A worktree goes only with the last session using it.
+    const owners = lanesOwningWorktree(
+      paths.flatMap((path) => {
+        const meta = metaByPath.get(path)
+        return meta ? [{ path, cwd: meta.cwd || workspacePath }] : []
+      }),
+      [
+        ...allMetas.map((m) => ({ path: m.path, cwd: m.cwd || workspacePath })),
+        ...Object.values(sessions.live).map((l) => ({ path: l.diskPath, cwd: l.workspacePath })),
+      ],
     )
 
-    const lanes = selection.paths.flatMap((path) => {
+    const lanes = paths.flatMap((path) => {
       const meta = metaByPath.get(path)
       if (!meta) return []
       const livePhosphorId = liveByDisk.get(path)
@@ -598,10 +610,29 @@ export function Sidebar({
           isStreaming: livePhosphorId
             ? (chat.sessions[livePhosphorId]?.isStreaming ?? false)
             : false,
+          ownsWorktree: owners.has(path),
         }),
       ]
     })
-    setPendingDelete(summarizePreflight(lanes))
+    return summarizePreflight(lanes)
+  }
+
+  const openBulkDelete = (): void => {
+    if (selection) setPendingDelete(buildLaneDelete(selection.paths))
+  }
+
+  /**
+   * A single row's Delete. A lane that is the only session in its own
+   * worktree gets the lane confirm, worktree removal on by default: deleting
+   * just the transcript left the directory (and its `node_modules`) behind
+   * with nothing in the sidebar pointing at it — 177 of them, 133 GB, on one
+   * install. Anything else — the main checkout, a shared worktree, a row with
+   * no git info yet — keeps the transcript-only confirm.
+   */
+  const deleteRow = (meta: SessionMeta, title: string): void => {
+    const summary = buildLaneDelete([meta.path])
+    if (summary.worktreeCount > 0) setPendingDelete(summary)
+    else setDeleteTarget({ title, path: meta.path, workspacePath: meta.cwd || workspacePath })
   }
 
   /**
@@ -811,8 +842,7 @@ export function Sidebar({
           isUnseen(seenSessions, meta.path, meta.lastActivityAt)),
       git: gitByCwd[meta.cwd || workspacePath],
       onOpenTree: () => setTreeFor(meta),
-      onDelete: (title: string) =>
-        setDeleteTarget({ title, path: meta.path, workspacePath: meta.cwd || workspacePath }),
+      onDelete: (title: string) => deleteRow(meta, title),
     }
   }
 

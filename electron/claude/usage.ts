@@ -167,11 +167,13 @@ export function parseUsageOutput(
 export type UsageRunner = (binaryPath: string, env: NodeJS.ProcessEnv) => Promise<string | null>
 
 async function defaultRunner(binaryPath: string, env: NodeJS.ProcessEnv): Promise<string | null> {
-  const result = await runPrintMode(binaryPath, ['-p', '/usage', '--output-format', 'json'], {
-    cwd: tmpdir(),
-    env,
-    timeoutMs: 20_000,
-  })
+  // `--no-session-persistence`: without it every poll saved a transcript under
+  // ~/.claude/projects/<tmpdir> — nearly a thousand of them on one install.
+  const result = await runPrintMode(
+    binaryPath,
+    ['-p', '/usage', '--output-format', 'json', '--no-session-persistence'],
+    { cwd: tmpdir(), env, timeoutMs: 20_000 },
+  )
   // runPrintMode never rejects; an error means "no answer" here.
   return result.error ? null : result.stdout
 }

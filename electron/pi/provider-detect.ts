@@ -90,7 +90,13 @@ export function claudeProviderSpawnEnv(): Record<string, string> {
  *
  * A one-shot has no next turn to park for, so `0` costs it nothing.
  * Harmless env for every other provider, and ignored below 0.7.0.
+ *
+ * `PI_CLAUDE_CLI_EPHEMERAL` is the same argument for disk: `pi --no-session`
+ * keeps pi's own transcript off disk, but the provider still saved a CLI
+ * transcript, a session-map entry and a stored system prompt for every naming
+ * run — none ever read again (238 orphaned transcripts on one install). Newer
+ * providers skip all three; older ones ignore the variable.
  */
 export function claudeOneShotEnv(): Record<string, string> {
-  return { PI_CLAUDE_CLI_KEEPALIVE_MS: '0' }
+  return { PI_CLAUDE_CLI_KEEPALIVE_MS: '0', PI_CLAUDE_CLI_EPHEMERAL: '1' }
 }
