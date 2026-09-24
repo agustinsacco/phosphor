@@ -534,6 +534,20 @@ function handle(cmd) {
         })
         break
       }
+      // An extension `notify` whose text is one unbreakable path, the shape of
+      // an ENOENT error — the widest thing a notice card is ever asked to hold.
+      if (message.includes('longnotify')) {
+        out({
+          type: 'extension_ui_request',
+          id: 'long-notify',
+          method: 'notify',
+          notifyType: 'error',
+          message:
+            'ENOENT: no such file or directory, open /Users/dev/projects/phosphor/.phosphor/' +
+            'worktrees/notifications-overflowing-the-right-edge/src/features/extension-ui/' +
+            'ExtensionUiHosts.tsx',
+        })
+      }
       if (message.includes('speclink')) runSpecLinkTurn()
       else if (message.includes('artifactlink')) runArtifactLinkTurn()
       else if (message.includes('longartifact')) runLongArtifactTurn()
