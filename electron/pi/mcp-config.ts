@@ -3,6 +3,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type {
   McpCacheEntry,
+  McpCachedTool,
   McpConfigsResult,
   McpFileState,
   McpResolvedServer,
@@ -238,8 +239,10 @@ export async function writeMcpFile(
 
 /**
  * Tolerant read of the adapter's metadata cache (display-only tool lists).
- * The cache shape is the adapter's own; we scrape name → tool names and drop
- * anything that doesn't look right.
+ * The cache shape is the adapter's own; we scrape name → tool names (and
+ * descriptions, when present) and drop anything that doesn't look right.
+ * Descriptions are capped: some servers ship a page of prompt per tool, and
+ * the settings list only ever shows the opening of one.
  */
 export async function readMcpCache(dirs?: McpDirs): Promise<McpCacheEntry[]> {
   const path = join((dirs ?? defaultDirs()).piAgent, 'mcp-cache.json')
@@ -255,14 +258,7 @@ export async function readMcpCache(dirs?: McpDirs): Promise<McpCacheEntry[]> {
     if (!value || typeof value !== 'object') return
     const tools = (value as { tools?: unknown }).tools
     if (Array.isArray(tools)) {
-      entries.push({
-        name,
-        tools: tools
-          .map((t) =>
-            typeof t === 'string' ? t : ((t as { name?: unknown })?.name as string | undefined),
-          )
-          .filter((t): t is string => typeof t === 'string'),
-      })
+      entries.push({ name, tools: tools.map(scrapeTool).filter((t) => t !== null) })
     }
   }
   const root = parsed as Record<string, unknown>
@@ -271,4 +267,20 @@ export async function readMcpCache(dirs?: McpDirs): Promise<McpCacheEntry[]> {
     for (const [name, value] of Object.entries(servers)) scrape(name, value)
   }
   return entries
+}
+
+const TOOL_DESCRIPTION_MAX = 600
+
+function scrapeTool(tool: unknown): McpCachedTool | null {
+  if (typeof tool === 'string') return { name: tool }
+  if (!tool || typeof tool !== 'object') return null
+  const { name, description } = tool as { name?: unknown; description?: unknown }
+  if (typeof name !== 'string') return null
+  const text = typeof description === 'string' ? description.trim() : ''
+  if (!text) return { name }
+  return {
+    name,
+    description:
+      text.length > TOOL_DESCRIPTION_MAX ? `${text.slice(0, TOOL_DESCRIPTION_MAX)}…` : text,
+  }
 }

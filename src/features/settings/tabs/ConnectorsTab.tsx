@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import type { McpCacheEntry, McpConfigsResult, McpResolvedServer, McpScope } from '@shared/mcp'
+import type {
+  McpCacheEntry,
+  McpCachedTool,
+  McpConfigsResult,
+  McpResolvedServer,
+  McpScope,
+} from '@shared/mcp'
 import type { ConnectorCheckResult } from '@shared/connectors'
 import { errorText } from '@shared/errors'
 import { stripAnsi } from '@shared/ansi'
@@ -155,7 +161,7 @@ export function ConnectorsTab(): React.JSX.Element {
   }, [configs])
 
   return (
-    <div className="max-w-xl">
+    <div className="max-w-2xl">
       <h2 className="text-xl font-semibold">MCP Connectors</h2>
       <p className="text-text-secondary mt-1 text-base">
         Services reachable over the Model Context Protocol, provided to sessions by the{' '}
@@ -213,7 +219,7 @@ export function ConnectorsTab(): React.JSX.Element {
           Add custom server…
         </Button>
       </div>
-      <div className="mt-2 space-y-1.5">
+      <div className="mt-2 space-y-2">
         {configs?.servers.map((server) => {
           const entry = connectorForUrl(server.config.url)
           const live = status?.servers.find((s) => s.name === server.name)
@@ -275,7 +281,7 @@ export function ConnectorsTab(): React.JSX.Element {
       {unconfigured.length > 0 && (
         <>
           <h3 className="mt-6 text-lg font-semibold">Add a connector</h3>
-          <div className="mt-2 space-y-1.5">
+          <div className="mt-2 space-y-2">
             {unconfigured.map((entry) => (
               <CatalogRow
                 key={entry.id}
@@ -465,182 +471,264 @@ function ConfiguredRow({
     server.config.lifecycle === 'eager'
   const directTools = server.config.directTools ?? []
   const checked = check?.status === 'done' ? check : undefined
+  const toolTotal = cache?.tools.length ?? 0
 
   return (
     <div
-      className="border-border rounded-lg border px-3 py-2"
+      className="border-border bg-surface rounded-xl border"
       data-testid={`connector-${entry?.id ?? server.name}`}
     >
-      <div className="flex items-center gap-2">
-        <span
-          className={clsx('text-lg font-medium', disabled && 'text-text-tertiary line-through')}
-        >
-          {server.name}
-        </span>
-        <span
-          className="bg-bg-secondary text-text-tertiary shrink-0 rounded px-1.5 py-px text-xs"
-          title={`Defined in ${SCOPE_LABELS[server.scope]}`}
-        >
-          {SCOPE_LABELS[server.scope]}
-        </span>
-        {checked && (
-          <span
-            className="text-text-secondary flex shrink-0 items-center gap-1.5 text-sm"
-            title={
-              'detail' in checked.result && checked.result.detail
-                ? `Last test — ${checked.result.detail}`
-                : 'Result of the last test, which reconnected the server'
-            }
-          >
-            <span className={clsx('h-1.5 w-1.5 rounded-full', CHECK_DOT[checked.result.outcome])} />
-            {checkResultLabel(checked.result)}
-          </span>
-        )}
-        {!checked && !state && !sessionId && (
-          <span
-            className="text-text-tertiary shrink-0 text-sm"
-            title="Per-server state comes from the MCP adapter, which runs inside a session"
-          >
-            state unknown
-          </span>
-        )}
-        {!checked && state && (
-          <span
-            className="text-text-tertiary flex shrink-0 items-center gap-1.5 text-sm"
-            title={`${server.name}: ${stateLabel(state)}`}
-          >
-            <span className={clsx('h-1.5 w-1.5 rounded-full', STATE_DOT[state])} />
-            {stateLabel(state)}
-            {state === 'connected' && toolCount > 0 && ` · ${toolCount} tools`}
-          </span>
-        )}
-        <span
-          className="text-text-tertiary min-w-0 flex-1 truncate font-mono text-sm"
-          title={transport}
-        >
-          {transport}
-        </span>
-        <Button
-          size="sm"
-          onClick={onCheck}
-          disabled={check?.status === 'running'}
-          title="Reconnect this server through the adapter and report what happened. No session needed, no tokens spent."
-        >
-          {check?.status === 'running' ? 'Testing…' : 'Test'}
-        </Button>
-        {signInable && (
+      {/* Identity on the left, the two actions on the right. The actions never
+          wrap: the left column is the one that gives up width. */}
+      <div className="flex items-start gap-3 px-3.5 pt-3 pb-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <span
+              className={clsx(
+                'min-w-0 truncate text-lg font-semibold',
+                disabled && 'text-text-tertiary line-through',
+              )}
+              title={server.name}
+            >
+              {server.name}
+            </span>
+            <span
+              className="bg-bg-secondary text-text-tertiary shrink-0 rounded px-1.5 py-px text-xs"
+              title={`Defined in ${SCOPE_LABELS[server.scope]}`}
+            >
+              {SCOPE_LABELS[server.scope]}
+            </span>
+            {checked && (
+              <span
+                className="text-text-secondary flex shrink-0 items-center gap-1.5 text-sm"
+                title={
+                  'detail' in checked.result && checked.result.detail
+                    ? `Last test — ${checked.result.detail}`
+                    : 'Result of the last test, which reconnected the server'
+                }
+              >
+                <span
+                  className={clsx('h-1.5 w-1.5 rounded-full', CHECK_DOT[checked.result.outcome])}
+                />
+                {checkResultLabel(checked.result)}
+              </span>
+            )}
+            {!checked && !state && !sessionId && (
+              <span
+                className="text-text-tertiary shrink-0 text-sm"
+                title="Per-server state comes from the MCP adapter, which runs inside a session"
+              >
+                state unknown
+              </span>
+            )}
+            {!checked && state && (
+              <span
+                className="text-text-tertiary flex shrink-0 items-center gap-1.5 text-sm"
+                title={`${server.name}: ${stateLabel(state)}`}
+              >
+                <span className={clsx('h-1.5 w-1.5 rounded-full', STATE_DOT[state])} />
+                {stateLabel(state)}
+                {state === 'connected' && toolCount > 0 && ` · ${toolCount} tools`}
+              </span>
+            )}
+          </div>
+          {entry && (
+            <div className="text-text-secondary mt-0.5 text-base leading-snug">{entry.summary}</div>
+          )}
+          <div className="text-text-tertiary mt-0.5 truncate font-mono text-sm" title={transport}>
+            {transport}
+          </div>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-1.5">
           <Button
             size="sm"
-            variant={action === 'sign-in' && state === 'needs-auth' ? 'primary' : undefined}
-            title={
-              action === 'connect'
-                ? 'Open a connection now. Already signed in — this does not re-authorize.'
-                : action === 'reconnect'
-                  ? 'Drop and re-open the connection. This does not re-authorize.'
-                  : undefined
-            }
-            onClick={() => {
-              const store = useConnectorsStore.getState()
-              // `connect` and `reconnect` both ride the adapter's own
-              // /mcp reconnect, which needs the process holding the
-              // connection. Signing in does not, and runs headless.
-              if (action === 'sign-in') {
-                void store.connect(server.name, sessionId ?? undefined)
-              } else if (sessionId) {
-                void store.reconnect(sessionId, server.name)
-              }
-            }}
+            className="whitespace-nowrap"
+            onClick={onCheck}
+            disabled={check?.status === 'running'}
+            title="Reconnect this server through the adapter and report what happened. No session needed, no tokens spent."
           >
-            {connectorActionLabel(action)}
+            {check?.status === 'running' ? 'Testing…' : 'Test'}
           </Button>
-        )}
-        <label className="flex shrink-0 items-center gap-1 text-sm">
-          <input
-            type="checkbox"
-            checked={!disabled}
-            onChange={(e) => onToggle(!e.target.checked)}
-          />
-          enabled
-        </label>
-        <button
-          onClick={onEdit}
-          className="text-text-tertiary hover:text-text shrink-0 text-sm underline-offset-2 hover:underline"
-        >
-          Edit
-        </button>
-        <button
-          onClick={() => {
-            if (signInable) {
-              void useConnectorsStore.getState().disconnect(server.name, sessionId ?? undefined)
-            }
-            onRemove()
-          }}
-          className="text-text-tertiary hover:text-danger shrink-0 text-sm underline-offset-2 hover:underline"
-        >
-          Remove
-        </button>
+          {signInable && (
+            <Button
+              size="sm"
+              className="whitespace-nowrap"
+              variant={action === 'sign-in' && state === 'needs-auth' ? 'primary' : undefined}
+              title={
+                action === 'connect'
+                  ? 'Open a connection now. Already signed in — this does not re-authorize.'
+                  : action === 'reconnect'
+                    ? 'Drop and re-open the connection. This does not re-authorize.'
+                    : undefined
+              }
+              onClick={() => {
+                const store = useConnectorsStore.getState()
+                // `connect` and `reconnect` both ride the adapter's own
+                // /mcp reconnect, which needs the process holding the
+                // connection. Signing in does not, and runs headless.
+                if (action === 'sign-in') {
+                  void store.connect(server.name, sessionId ?? undefined)
+                } else if (sessionId) {
+                  void store.reconnect(sessionId, server.name)
+                }
+              }}
+            >
+              {connectorActionLabel(action)}
+            </Button>
+          )}
+        </div>
       </div>
 
-      {entry && <div className="text-text-tertiary mt-0.5 text-sm">{entry.summary}</div>}
+      {(directTools.length > 0 ||
+        (checked && 'detail' in checked.result && checked.result.detail) ||
+        flow) && (
+        <div className="px-3.5 pb-2.5">
+          {directTools.length > 0 && (
+            <div className="text-warning text-sm">
+              direct: <span className="font-mono">{directTools.slice(0, 4).join(', ')}</span>
+              {directTools.length > 4 && ` +${directTools.length - 4}`} — these register as
+              top-level tools instead of going through the <span className="font-mono">mcp</span>{' '}
+              gateway, so they cost their full schema in every request.
+            </div>
+          )}
 
-      <div className="text-text-tertiary mt-1 flex flex-wrap items-center gap-2 text-sm">
-        {cache && cache.tools.length > 0 && (
-          <button onClick={() => setShowTools((s) => !s)} className="flex items-center gap-1">
+          {checked && 'detail' in checked.result && checked.result.detail && (
+            <div
+              className={clsx(
+                'mt-1 text-sm first:mt-0',
+                checked.result.outcome === 'failed' || checked.result.outcome === 'missing'
+                  ? 'text-danger'
+                  : 'text-text-tertiary',
+              )}
+            >
+              {checked.result.detail}
+            </div>
+          )}
+
+          {flow && <FlowCard serverName={server.name} flow={flow} />}
+        </div>
+      )}
+
+      {/* Settings for the row, and the tool disclosure. */}
+      <div className="border-border text-text-tertiary flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t px-3.5 py-2 text-sm">
+        {toolTotal > 0 ? (
+          <button
+            onClick={() => setShowTools((s) => !s)}
+            aria-expanded={showTools}
+            className="hover:text-text flex items-center gap-1.5"
+          >
             <ChevronIcon size={8} expanded={showTools} />
-            {cache.tools.length} cached tool{cache.tools.length === 1 ? '' : 's'}
+            {toolTotal} tool{toolTotal === 1 ? '' : 's'}
           </button>
+        ) : (
+          <span title="The adapter caches a server's tool list the first time it connects">
+            no tools cached yet
+          </span>
         )}
         {server.shadows.length > 0 && (
           <span title="Lower-precedence files also define this server">
             shadows {server.shadows.map((s) => SCOPE_LABELS[s]).join(', ')}
           </span>
         )}
-        {signInable && (
-          <label
-            className="flex items-center gap-1"
-            title={
-              keepAlive
-                ? 'Connection stays open after the first call of the session, so the row reads Connected once a tool has been used. Until then it stays idle.'
-                : 'Adapter default: connect per call, then drop. The row stays idle between uses.'
-            }
-          >
+
+        <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1.5">
+          <label className="hover:text-text flex items-center gap-1.5">
             <input
               type="checkbox"
-              checked={keepAlive}
-              onChange={(e) => onKeepAlive(e.target.checked)}
+              checked={!disabled}
+              onChange={(e) => onToggle(!e.target.checked)}
             />
-            keep connected
+            enabled
           </label>
-        )}
+          {signInable && (
+            <label
+              className="hover:text-text flex items-center gap-1.5"
+              title={
+                keepAlive
+                  ? 'Connection stays open after the first call of the session, so the row reads Connected once a tool has been used. Until then it stays idle.'
+                  : 'Adapter default: connect per call, then drop. The row stays idle between uses.'
+              }
+            >
+              <input
+                type="checkbox"
+                checked={keepAlive}
+                onChange={(e) => onKeepAlive(e.target.checked)}
+              />
+              keep connected
+            </label>
+          )}
+          <span className="bg-border h-3.5 w-px" aria-hidden />
+          <button onClick={onEdit} className="hover:text-text underline-offset-2 hover:underline">
+            Edit
+          </button>
+          <button
+            onClick={() => {
+              if (signInable) {
+                void useConnectorsStore.getState().disconnect(server.name, sessionId ?? undefined)
+              }
+              onRemove()
+            }}
+            className="hover:text-danger underline-offset-2 hover:underline"
+          >
+            Remove
+          </button>
+        </div>
       </div>
 
-      {directTools.length > 0 && (
-        <div className="text-warning mt-1 text-sm">
-          direct: <span className="font-mono">{directTools.slice(0, 4).join(', ')}</span>
-          {directTools.length > 4 && ` +${directTools.length - 4}`} — these register as top-level
-          tools instead of going through the <span className="font-mono">mcp</span> gateway, so they
-          cost their full schema in every request.
-        </div>
-      )}
+      {showTools && cache && cache.tools.length > 0 && <ToolList tools={cache.tools} />}
+    </div>
+  )
+}
 
-      {showTools && cache && (
-        <div className="text-text-secondary mt-1 font-mono text-sm">{cache.tools.join(' · ')}</div>
-      )}
+/**
+ * A server's cached tools, name and description each. Filterable once the
+ * list is long enough that scanning it is the slow way — Linear alone
+ * offers dozens.
+ */
+function ToolList({ tools }: { tools: McpCachedTool[] }): React.JSX.Element {
+  const [query, setQuery] = useState('')
+  const needle = query.trim().toLowerCase()
+  const shown = needle
+    ? tools.filter(
+        (tool) =>
+          tool.name.toLowerCase().includes(needle) ||
+          tool.description?.toLowerCase().includes(needle),
+      )
+    : tools
 
-      {checked && 'detail' in checked.result && checked.result.detail && (
-        <div
-          className={clsx(
-            'mt-1 text-sm',
-            checked.result.outcome === 'failed' || checked.result.outcome === 'missing'
-              ? 'text-danger'
-              : 'text-text-tertiary',
-          )}
-        >
-          {checked.result.detail}
-        </div>
+  return (
+    <div className="border-border border-t px-3.5 py-2.5">
+      {tools.length > 8 && (
+        <TextInput
+          size="sm"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={`Filter ${tools.length} tools`}
+          className="mb-2 w-full"
+        />
       )}
-
-      {flow && <FlowCard serverName={server.name} flow={flow} />}
+      <ul className="divide-border max-h-80 divide-y overflow-y-auto">
+        {shown.map((tool) => (
+          <li key={tool.name} className="py-1.5 first:pt-0 last:pb-0">
+            <div className="text-text font-mono text-sm break-all">{tool.name}</div>
+            {tool.description && (
+              <div
+                className="text-text-tertiary mt-0.5 line-clamp-2 text-sm leading-snug"
+                title={tool.description}
+              >
+                {tool.description}
+              </div>
+            )}
+          </li>
+        ))}
+        {shown.length === 0 && (
+          <li className="text-text-tertiary py-1.5 text-sm">No tool matches “{query.trim()}”.</li>
+        )}
+      </ul>
+      <div className="text-text-tertiary mt-2 text-xs">
+        Cached by the adapter from the server&apos;s last connection.
+      </div>
     </div>
   )
 }
@@ -660,19 +748,28 @@ function CatalogRow({
   const url = connectorUrl(entry, { variant, readOnly })
   const needsClientId = entry.authKind === 'preregistered'
 
+  const hasOptions = Boolean(entry.variants || entry.readOnlyUrl || needsClientId || entry.setup)
+
   return (
     <div
-      className="border-border rounded-lg border px-3 py-2"
+      className="border-border bg-surface rounded-xl border"
       data-testid={`connector-${entry.id}`}
     >
-      <div className="flex items-center gap-2">
-        <span className="text-lg font-medium">{entry.name}</span>
-        <span className="text-text-tertiary min-w-0 flex-1 truncate font-mono text-sm" title={url}>
-          {url}
-        </span>
+      <div className="flex items-start gap-3 px-3.5 pt-3 pb-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-lg font-semibold">{entry.name}</div>
+          <div className="text-text-secondary mt-0.5 text-base leading-snug">{entry.summary}</div>
+          {entry.caveat && (
+            <div className="text-text-tertiary mt-1 text-sm leading-snug">{entry.caveat}</div>
+          )}
+          <div className="text-text-tertiary mt-0.5 truncate font-mono text-sm" title={url}>
+            {url}
+          </div>
+        </div>
         <Button
           variant="primary"
           size="sm"
+          className="shrink-0 whitespace-nowrap"
           // Slack cannot be one click: it supports no dynamic registration and
           // requires its client id up front. Showing that as a disabled button
           // beats letting `buildConnectorConfig` throw into the error banner.
@@ -688,55 +785,57 @@ function CatalogRow({
         </Button>
       </div>
 
-      <div className="text-text-tertiary mt-0.5 text-sm">{entry.summary}</div>
-      {entry.caveat && <div className="text-text-tertiary mt-1 text-sm">{entry.caveat}</div>}
-
-      <div className="mt-1.5 flex flex-wrap items-center gap-3 text-sm">
-        {entry.variants && (
-          <label className="flex items-center gap-1.5">
-            {entry.variants.label}
-            <select
-              value={variant}
-              onChange={(e) => setVariant(e.target.value)}
-              className="border-border bg-bg-secondary rounded px-1.5 py-0.5"
-            >
-              {entry.variants.options.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        {entry.readOnlyUrl && (
-          <label className="flex items-center gap-1">
-            <input
-              type="checkbox"
-              checked={readOnly}
-              onChange={(e) => setReadOnly(e.target.checked)}
-            />
-            read-only
-          </label>
-        )}
-        {needsClientId && (
-          <>
-            <TextInput
-              value={clientId}
-              onChange={(e) => setClientId(e.target.value)}
-              placeholder="client ID"
-              className="w-40 font-mono"
-            />
-            <TextInput
-              value={clientSecret}
-              onChange={(e) => setClientSecret(e.target.value)}
-              placeholder="client secret (optional)"
-              className="w-48 font-mono"
-            />
-          </>
-        )}
-      </div>
-
-      {entry.setup && <SetupSteps setup={entry.setup} />}
+      {hasOptions && (
+        <div className="border-border text-text-secondary border-t px-3.5 py-2 text-sm">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            {entry.variants && (
+              <label className="flex items-center gap-1.5">
+                {entry.variants.label}
+                <select
+                  value={variant}
+                  onChange={(e) => setVariant(e.target.value)}
+                  className="border-border bg-bg-secondary rounded px-1.5 py-0.5"
+                >
+                  {entry.variants.options.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {entry.readOnlyUrl && (
+              <label className="flex items-center gap-1.5">
+                <input
+                  type="checkbox"
+                  checked={readOnly}
+                  onChange={(e) => setReadOnly(e.target.checked)}
+                />
+                read-only
+              </label>
+            )}
+            {needsClientId && (
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                <TextInput
+                  size="sm"
+                  value={clientId}
+                  onChange={(e) => setClientId(e.target.value)}
+                  placeholder="client ID"
+                  className="min-w-40 flex-1 font-mono"
+                />
+                <TextInput
+                  size="sm"
+                  value={clientSecret}
+                  onChange={(e) => setClientSecret(e.target.value)}
+                  placeholder="client secret (optional)"
+                  className="min-w-48 flex-1 font-mono"
+                />
+              </div>
+            )}
+          </div>
+          {entry.setup && <SetupSteps setup={entry.setup} />}
+        </div>
+      )}
     </div>
   )
 }
@@ -751,8 +850,11 @@ function SetupSteps({ setup }: { setup: ConnectorSetup }): React.JSX.Element {
   const [copied, setCopied] = useState(false)
 
   return (
-    <div className="text-text-tertiary mt-1.5 text-sm">
-      <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-1">
+    <div className="text-text-tertiary mt-1.5 text-sm first:mt-0">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="hover:text-text flex items-center gap-1.5"
+      >
         <ChevronIcon size={8} expanded={open} />
         Set up the app
       </button>

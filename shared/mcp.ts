@@ -72,5 +72,11 @@ export interface McpConfigsResult {
 /** Cached server metadata from the adapter's ~/.pi/agent/mcp-cache.json. */
 export interface McpCacheEntry {
   name: string
-  tools: string[]
+  tools: McpCachedTool[]
+}
+
+/** One cached tool. The description is the server's own, capped for display. */
+export interface McpCachedTool {
+  name: string
+  description?: string
 }
