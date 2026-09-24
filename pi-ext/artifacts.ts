@@ -43,6 +43,67 @@ interface PiExtensionApi {
 
 const ARTIFACT_TYPES = ['html', 'markdown', 'svg', 'mermaid', 'code', 'chart'] as const
 
+const ARTIFACT_GUIDE =
+  'Render a self-contained page as an artifact — a private web page shown ' +
+  'beside the chat. Use this when a visual or interactive deliverable is ' +
+  'clearer than terminal text: a report the team will read, a plan others ' +
+  'will follow, a reference document, a dashboard mockup, an interactive ' +
+  'prototype, or a decision case the team has not made yet. A finished ' +
+  'deliverable with an audience is not fully delivered while it lives only ' +
+  'in scrollback — finish it as an artifact, then link it in your reply as ' +
+  '[Title](artifact://<id>), which opens the panel on that artifact ' +
+  '(add #v2 to open one version). ' +
+  'When the user asks for such a page, offer it; when they ask only for ' +
+  'advice they will act on alone now, in the code at hand, no audience ' +
+  'exists — keep it as text. ' +
+  'Type is one of: ' +
+  ARTIFACT_TYPES.join(', ') +
+  '. ' +
+  'Author HTML as a FRAGMENT — no <!DOCTYPE>, <html>, <head>, or <body> ' +
+  'tags; the viewer wraps it and injects the house stylesheet at publish ' +
+  'time. Never write a palette: the sheet already defines dark-first ' +
+  'tokens, typography and layout primitives, and it follows the app theme. ' +
+  'Use its classes and tokens, add CSS only for what it lacks. ' +
+  'Tokens: --art-bg / --art-panel / --art-panel-2 (surfaces), --art-ink / ' +
+  '--art-ink-2 / --art-ink-3 (text), --art-line / --art-line-soft (rules), ' +
+  '--art-accent, --art-s1..--art-s5 (series, fixed order, never cycled), ' +
+  '--art-r1..--art-r5 (sequential ramp), --art-good / --art-warn / ' +
+  '--art-crit, --art-mono / --art-sans. ' +
+  'Classes: .wrap .eyebrow .kicker .deck .lede .chips>.chip · ' +
+  '.kpis>.kpi>(.k-label .k-val .k-sub) · .panelbox .grid .scroll · ' +
+  '.chart-title .chart-note .legend>span>i.swatch .grid-line .mark · ' +
+  'table.data (td.num) · .callout .pill.ok|.no · .rail>.node>(.gut>.dot, ' +
+  '.body) · .ledger>.row · .steps>.s · .blueprint .verdict · pre.code. ' +
+  'House style — dense, dark, chart-first, for readers who read diffs: ' +
+  'lead with the finding in one sentence, then the numbers; no abstract, ' +
+  'no closing summary. Charts are HAND-AUTHORED INLINE SVG — the artifact ' +
+  'CSP has no network at all, so a chart library, a CDN script or a ' +
+  'webfont renders nothing. Hairline solid gridlines, 2px lines, bars ' +
+  'under 24px with a 4px rounded data-end, markers at least 8px with a 2px ' +
+  'surface ring, area fills near 10% opacity. A legend for two or more ' +
+  'series; direct labels only at endpoints or extremes, never on every ' +
+  'point; text wears ink tokens, never a series colour. Cap scatter and ' +
+  'small multiples at three series (--art-s1..s3). Any chart carrying a ' +
+  'claim gets a table.data under it — that is the evidence and the ' +
+  'accessible fallback. Set a short noun-phrase title (2–4 words, ' +
+  'distinctive to the page); the explanation belongs in the title ' +
+  'parameter, not appended to the name. ' +
+  'TABLES — the reading panel is often only ~380px wide, so a table has to ' +
+  'earn every column: five columns at most, the first the label, numbers ' +
+  'right in td.num, and each cell a value or a short phrase. A sentence in ' +
+  'a cell belongs in the paragraph above the table instead; a wide matrix ' +
+  'of yes/no marks is a chart, a .kpis strip or a short list, not a table. ' +
+  'When a table genuinely needs more width, put it in ' +
+  '<div class="scroll"> so it scrolls on its own — the body must never ' +
+  'scroll horizontally. ' +
+  'THE ROW PRIMITIVES ARE COLUMN GRIDS, NOT PARAGRAPH STYLES: a ' +
+  '.ledger>.row is exactly .idx/.lab/.bar/.val, a .steps>.s is .n plus its ' +
+  'body, a .rail>.node is .gut plus .body. Free prose in one of those rows ' +
+  'is laid out as columns, one word wide. Prose goes in <p>, a <ul>, or a ' +
+  '.callout. Otherwise stay responsive: relative units, flex or grid, wide ' +
+  'content (code, diagrams, SVG) in its own overflow-x: auto container. ' +
+  'Small snippets and inline code stay in chat, not artifacts.'
+
 /** Longest single-line excerpt echoed back in an edit confirmation. */
 const EXCERPT_LIMIT = 80
 
@@ -144,79 +205,28 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
   }
 
   pi.registerTool({
+    name: 'artifact_help',
+    label: 'Artifact guide',
+    description:
+      'Load artifact authoring guidance, stylesheet tokens and layout examples before creating or restyling an artifact.',
+    promptSnippet: 'Load artifact authoring and styling guidance on demand',
+    parameters: Type.Object({}),
+    async execute() {
+      return { content: [{ type: 'text', text: ARTIFACT_GUIDE }], details: undefined }
+    },
+  })
+
+  pi.registerTool({
     name: 'artifact_create',
     label: 'Create artifact',
     description:
-      'Render a self-contained page as an artifact — a private web page shown ' +
-      'beside the chat. Use this when a visual or interactive deliverable is ' +
-      'clearer than terminal text: a report the team will read, a plan others ' +
-      'will follow, a reference document, a dashboard mockup, an interactive ' +
-      'prototype, or a decision case the team has not made yet. A finished ' +
-      'deliverable with an audience is not fully delivered while it lives only ' +
-      'in scrollback — finish it as an artifact, then link it in your reply as ' +
-      '[Title](artifact://<id>), which opens the panel on that artifact ' +
-      '(add #v2 to open one version). ' +
-      'When the user asks for such a page, offer it; when they ask only for ' +
-      'advice they will act on alone now, in the code at hand, no audience ' +
-      'exists — keep it as text. ' +
-      'Type is one of: ' +
-      ARTIFACT_TYPES.join(', ') +
-      '. ' +
-      'Author HTML as a FRAGMENT — no <!DOCTYPE>, <html>, <head>, or <body> ' +
-      'tags; the viewer wraps it and injects the house stylesheet at publish ' +
-      'time. Never write a palette: the sheet already defines dark-first ' +
-      'tokens, typography and layout primitives, and it follows the app theme. ' +
-      'Use its classes and tokens, add CSS only for what it lacks. ' +
-      'Tokens: --art-bg / --art-panel / --art-panel-2 (surfaces), --art-ink / ' +
-      '--art-ink-2 / --art-ink-3 (text), --art-line / --art-line-soft (rules), ' +
-      '--art-accent, --art-s1..--art-s5 (series, fixed order, never cycled), ' +
-      '--art-r1..--art-r5 (sequential ramp), --art-good / --art-warn / ' +
-      '--art-crit, --art-mono / --art-sans. ' +
-      'Classes: .wrap .eyebrow .kicker .deck .lede .chips>.chip · ' +
-      '.kpis>.kpi>(.k-label .k-val .k-sub) · .panelbox .grid .scroll · ' +
-      '.chart-title .chart-note .legend>span>i.swatch .grid-line .mark · ' +
-      'table.data (td.num) · .callout .pill.ok|.no · .rail>.node>(.gut>.dot, ' +
-      '.body) · .ledger>.row · .steps>.s · .blueprint .verdict · pre.code. ' +
-      'House style — dense, dark, chart-first, for readers who read diffs: ' +
-      'lead with the finding in one sentence, then the numbers; no abstract, ' +
-      'no closing summary. Charts are HAND-AUTHORED INLINE SVG — the artifact ' +
-      'CSP has no network at all, so a chart library, a CDN script or a ' +
-      'webfont renders nothing. Hairline solid gridlines, 2px lines, bars ' +
-      'under 24px with a 4px rounded data-end, markers at least 8px with a 2px ' +
-      'surface ring, area fills near 10% opacity. A legend for two or more ' +
-      'series; direct labels only at endpoints or extremes, never on every ' +
-      'point; text wears ink tokens, never a series colour. Cap scatter and ' +
-      'small multiples at three series (--art-s1..s3). Any chart carrying a ' +
-      'claim gets a table.data under it — that is the evidence and the ' +
-      'accessible fallback. Set a short noun-phrase title (2–4 words, ' +
-      'distinctive to the page); the explanation belongs in the title ' +
-      'parameter, not appended to the name. ' +
-      'TABLES — the reading panel is often only ~380px wide, so a table has to ' +
-      'earn every column: five columns at most, the first the label, numbers ' +
-      'right in td.num, and each cell a value or a short phrase. A sentence in ' +
-      'a cell belongs in the paragraph above the table instead; a wide matrix ' +
-      'of yes/no marks is a chart, a .kpis strip or a short list, not a table. ' +
-      'When a table genuinely needs more width, put it in ' +
-      '<div class="scroll"> so it scrolls on its own — the body must never ' +
-      'scroll horizontally. ' +
-      'THE ROW PRIMITIVES ARE COLUMN GRIDS, NOT PARAGRAPH STYLES: a ' +
-      '.ledger>.row is exactly .idx/.lab/.bar/.val, a .steps>.s is .n plus its ' +
-      'body, a .rail>.node is .gut plus .body. Free prose in one of those rows ' +
-      'is laid out as columns, one word wide. Prose goes in <p>, a <ul>, or a ' +
-      '.callout. Otherwise stay responsive: relative units, flex or grid, wide ' +
-      'content (code, diagrams, SVG) in its own overflow-x: auto container. ' +
-      'Small snippets and inline code stay in chat, not artifacts.',
-    promptSnippet:
-      'Create a rich artifact (html / svg / markdown / mermaid / chart / code) in the side panel — dense, dark, chart-first house style',
+      'Create a self-contained artifact in the side panel. Call artifact_help before authoring ' +
+      'to load formatting and style instructions. HTML is a fragment; no network is available. ' +
+      'Link the result as [Title](artifact://<id>). Small snippets stay in chat.',
+    promptSnippet: 'Create a side-panel artifact; load artifact_help before authoring',
     promptGuidelines: [
-      'Use artifact_create for substantial, self-contained deliverables — reports, walkthroughs, plans, mockups, diagrams, or complete code files meant for review. Small snippets stay inline in chat.',
-      'Never write a palette or a type scale: the viewer injects the house stylesheet at publish time (dark-first --art-* tokens plus .kpis / .panelbox / table.data / .rail / .ledger primitives). Write against those, and add CSS only for what they lack.',
-      'House style is dense, dark and chart-first: verdict in the first sentence, numbers next, a chart wherever a shape beats a paragraph, and a table.data under any chart that carries a claim.',
-      'Charts are hand-authored inline SVG. The artifact CSP grants no network, so Chart.js, a CDN script or a webfont renders nothing at all.',
-      'Tables hold values, not prose: five columns max (the panel is often ~380px wide), label first, numbers right in td.num, a wide one wrapped in <div class="scroll">. A broad matrix of yes/no marks is a chart or a list instead. And .ledger/.steps/.rail rows are fixed column grids — a row of free prose gets laid out as columns, one word wide, so prose goes in <p>, a list, or a .callout.',
-      'To revise: prefer artifact_edit (exact-string replacement, lowest token cost) over artifact_update (full rewrite). If you no longer have the current content (after compaction or a resumed session), call artifact_list then artifact_read first. Never guess old_string — whitespace and indentation must match exactly.',
-      'Hand over the finished artifact with a link: write [Title](artifact://<id>) in your reply (append #v2 for a specific version). The link opens the Artifacts pane on that artifact, so the reader does not have to go find it.',
-      'Format: HTML artifacts are fragments — no <!DOCTYPE>, <html>, <head> or <body> tags. Markdown is only for documents; when a user shares markdown content meant as an artifact, author an HTML page based on its substance rather than transcribing it one-to-one.',
+      'Use artifacts for requested pages or substantial deliverables, not routine updates. ' +
+        'Call artifact_help before authoring; prefer artifact_edit for revisions.',
     ],
     parameters: Type.Object({
       id: Type.Optional(
