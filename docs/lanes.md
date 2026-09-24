@@ -298,7 +298,8 @@ projects and is not selectable.
 The checkbox replaces the indicator dot in the same gutter, so entering select
 mode shifts nothing. "Select all lanes" lives in the workspace `⋯` menu.
 
-Deleting is three resources, and only the first two default on:
+Deleting is three resources, and all three default on. The branch default is
+safe because an unmerged branch is never deleted:
 
 1. the session transcript, to the OS Trash (recoverable): pi's `.jsonl`
    **and** its paired Claude Code transcript with its `<id>/` sidecar folder

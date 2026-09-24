@@ -10,7 +10,7 @@ import { workspaceName } from '@/lib/path'
 /**
  * Remove a linked worktree with the safety ladder: live-session guard →
  * clean removal → explicit "discard N changes" checkbox before force.
- * Branch deletion is offered but only for a branch whose work is
+ * Branch deletion defaults on but only applies to a branch whose work is
  * already on the trunk (unmerged branches survive and the reason is shown).
  */
 export function RemoveWorktreeModal({
@@ -27,7 +27,7 @@ export function RemoveWorktreeModal({
   const live = useSessionsStore((s) => s.live)
   const [dirtyCount, setDirtyCount] = useState<number>(Math.max(0, worktree.dirtyCount))
   const [discard, setDiscard] = useState(false)
-  const [deleteBranch, setDeleteBranch] = useState(false)
+  const [deleteBranch, setDeleteBranch] = useState(true)
   const { busy, error, run } = useAsyncAction()
   const [branchNote, setBranchNote] = useState<string | null>(null)
 
