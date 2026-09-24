@@ -11,12 +11,28 @@ import { useLayoutStore } from './layout'
 /** Shared frozen default: a selector must never return a fresh object. */
 const NO_LANES: RoutineLaneIndex = Object.freeze({})
 
+/** The `editorDrafts` key for a routine that has not been saved yet. */
+export const NEW_ROUTINE = 'new'
+
+/** Unsaved editor work, plus the revision it was started from. */
+export interface EditorDraft {
+  input: RoutineInput
+  revision: number | null
+}
+
 interface RoutinesState {
   snapshot: RoutinesSnapshot | null
   /** Lanes the routines still own; the sidebar hides exactly these paths. */
   laneIndex: RoutineLaneIndex
   error: string | null
   draft: RoutineInput | null
+  /**
+   * What the editor held when it closed, keyed by routine id or NEW_ROUTINE.
+   * Closing the editor, by Escape or Cancel or leaving the page, must not
+   * discard a half-written routine. Memory only: it does not survive a
+   * restart, and instructions never touch disk until they are saved.
+   */
+  editorDrafts: Record<string, EditorDraft>
   refresh: () => Promise<void>
   refreshLaneIndex: () => Promise<void>
 }
@@ -27,6 +43,7 @@ export const useRoutinesStore = create<RoutinesState>((set) => ({
   laneIndex: NO_LANES,
   error: null,
   draft: null,
+  editorDrafts: {},
   refresh: async () => {
     const request = ++sequence
     try {
@@ -64,6 +81,26 @@ export function useRoutineLaneIndex(): RoutineLaneIndex {
     return off
   }, [])
   return laneIndex
+}
+
+/** Remember (or with `null`, forget) the editor's unsaved work for `key`. */
+export function keepEditorDraft(key: string, draft: EditorDraft | null): void {
+  useRoutinesStore.setState((s) => {
+    const { [key]: _dropped, ...rest } = s.editorDrafts
+    return { editorDrafts: draft ? { ...rest, [key]: draft } : rest }
+  })
+}
+
+/**
+ * The draft to reopen for `key`, if it is still valid. An edit started from
+ * an older revision is dropped: saving it would be refused as stale anyway.
+ */
+export function editorDraft(key: string, revision: number | null): RoutineInput | null {
+  const draft = useRoutinesStore.getState().editorDrafts[key]
+  if (!draft) return null
+  if (draft.revision === revision) return draft.input
+  keepEditorDraft(key, null)
+  return null
 }
 
 /** Reviewable draft only: never schedules or copies an active conversation. */

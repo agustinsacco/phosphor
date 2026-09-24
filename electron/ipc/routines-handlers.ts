@@ -7,6 +7,8 @@ import { routineScheduler, routinesSnapshot } from '../routines'
 import { configureRoutineBackground } from '../routines/background'
 import { folderTaskObstacle } from '../routines/preflight'
 import { broadcast } from '../broadcast'
+import { log } from '../debug-log'
+import { deleteLane } from '../pi/delete-lane'
 import { checkPiHealth } from '../pi/health'
 import { piStubPath } from '../pi/stub'
 import { gitInfo } from '../fs/git-info'
@@ -81,6 +83,17 @@ export function registerRoutinesHandlers(): void {
   })
   handle('routines:archive', (_event, routineId) => {
     routineScheduler().repository.archive(id(routineId), Date.now())
+    broadcast('routines:changed', {})
+  })
+  handle('routines:delete', async (_event, routineId) => {
+    const lanes = routineScheduler().repository.delete(id(routineId))
+    // Trash the lanes BEFORE announcing the change: the sidebar keeps hiding
+    // them on its current lane index until the broadcast refreshes it, so
+    // they never flash into the workspace list on their way to the trash.
+    for (const lane of lanes)
+      await deleteLane(lane).catch((error: unknown) =>
+        log('routines', 'lane not trashed after delete', { lane, error: String(error) }),
+      )
     broadcast('routines:changed', {})
   })
   handle('routines:pauseAll', () => routineScheduler().pauseAll())

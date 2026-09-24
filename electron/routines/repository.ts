@@ -191,6 +191,29 @@ export class RoutineRepository {
     })
   }
 
+  /**
+   * Remove a routine and its whole run history.
+   *
+   * Returns the transcripts of lanes it still owns, so the caller can trash
+   * them: with their runs gone nothing would hide them any more, and they
+   * would surface in the sidebar as strays. Promoted lanes already belong to
+   * their workspace and are left alone. A running execution is refused, the
+   * same rule archive follows; queued ones simply go with the history.
+   */
+  delete(id: string): string[] {
+    return this.transaction(() => {
+      this.get(id)
+      if (this.pending().some((r) => r.routineId === id && r.status === 'running'))
+        throw new Error('Cancel the active run before deleting.')
+      const lanes = this.history(id, 0, -1)
+        .filter((r) => r.sessionPath && !r.promoted)
+        .map((r) => r.sessionPath!)
+      this.db.prepare('DELETE FROM runs WHERE routine_id=?').run(id)
+      this.db.prepare('DELETE FROM routines WHERE id=?').run(id)
+      return [...new Set(lanes)]
+    })
+  }
+
   private insert(
     routine: Routine,
     at: number,
