@@ -287,15 +287,17 @@ function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
   )
   return (
     // The row collapses its own height on exit, so the cards below glide up
-    // into the gap instead of jumping. Padding (not a flex gap) spaces the
-    // cards, because a gap would not collapse with the row.
+    // into the gap instead of jumping. The card's bottom margin (not a flex
+    // gap, not padding on the inner box) spaces the cards: a gap would not
+    // collapse with the row, and padding cannot shrink, so the stack would
+    // snap by that much when the row unmounts.
     <li
       className="toast-row"
       data-leaving={toast.leaving || undefined}
       data-testid="toast"
       data-kind={toast.kind}
     >
-      <div className="toast-row-inner px-2 pb-2">
+      <div className="toast-row-inner px-2">
         <div
           role={toast.kind === 'error' ? 'alert' : undefined}
           data-bump={toast.bump % 2 === 1 ? 'odd' : toast.bump > 0 ? 'even' : undefined}
@@ -304,7 +306,7 @@ function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
           onFocus={hold}
           onBlur={release}
           className={clsx(
-            'toast-card group pointer-events-auto relative flex items-start rounded-xl border shadow-lg',
+            'toast-card group pointer-events-auto relative mb-2 flex items-start rounded-xl border shadow-lg',
             toast.kind === 'error'
               ? 'bg-danger-soft border-danger/30'
               : toast.kind === 'warning'

@@ -1206,6 +1206,44 @@ test('a pasted long URL wraps inside its bubble instead of scrolling the transcr
   }
 })
 
+test('a notice with an unbreakable path stays inside the window', async () => {
+  // Regression: the card sat in a grid whose implicit `auto` column sized to
+  // the card's min-content, so one long path (or a nowrap lane title) widened
+  // it past the 22rem stack and off the window's right edge, taking the
+  // dismiss button with it.
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('longnotify')
+    await page.getByRole('button', { name: /Start session/i }).click()
+
+    const card = page.getByTestId('toast').filter({ hasText: 'ENOENT' }).locator('.toast-card')
+    await expect(card).toBeVisible({ timeout: 30_000 })
+    // Geometric: the card ends inside the stack, and the stack inside the
+    // window. Polled because the slide-in starts 24px to the right on purpose.
+    const rightEdge = async (el: typeof card): Promise<number> => {
+      const b = (await el.boundingBox())!
+      return b.x + b.width
+    }
+    const stackRight = await rightEdge(page.getByTestId('toast-stack'))
+    await expect.poll(() => rightEdge(card)).toBeLessThanOrEqual(stackRight)
+    const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth)
+    expect(stackRight).toBeLessThanOrEqual(viewportWidth)
+
+    const box = (await card.boundingBox())!
+    // Wrapped onto several lines, not clipped on one.
+    expect(box.height).toBeGreaterThan(60)
+    await expect(
+      page.getByTestId('toast').filter({ hasText: 'ENOENT' }).getByRole('button', {
+        name: 'Dismiss',
+      }),
+    ).toBeInViewport({ ratio: 1 })
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('right-hand pane controls stay clear of the OS window controls', async () => {
   // Regression: the pane header used to render its own expand/close buttons at
   // the top-right of the window, directly underneath the Window Controls
