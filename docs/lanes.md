@@ -382,7 +382,10 @@ Six conditions must all hold before a worktree is a candidate
 reason: not the main checkout, on a branch, clean, not a live session's cwd or
 an open workspace, **proven merged** (the same squash test as manual delete),
 and untouched for `minAgeHours`. Deletion goes through `removeWorktree`, which
-refuses a dirty tree on its own.
+refuses a dirty tree on its own. It gives `git worktree remove` fifteen minutes,
+not the 30s every other git call gets: git deletes each file itself, and killing
+it partway through a large `node_modules` left the tree half-deleted, still
+registered and reading as dirty, so no later sweep would ever finish it.
 
 The grace period exists because a branch can land while its lane is still
 being read. pi's session directory for that cwd counts as use, so a lane you

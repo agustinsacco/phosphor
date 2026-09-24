@@ -62,6 +62,14 @@ describe('git', () => {
     await expect(git(repo, ['rev-parse', 'no-such-ref'])).rejects.toThrow()
     expect(await git(repo, ['rev-parse', 'no-such-ref'], { allowFail: true })).toBe('')
   })
+
+  it('honours a per-call timeout', async () => {
+    // `hash-object --stdin` waits on execFile's open stdin forever, so only
+    // the timeout ends it. `worktree remove` relies on this to outlast 30s.
+    const started = Date.now()
+    await expect(git(repo, ['hash-object', '--stdin'], { timeoutMs: 200 })).rejects.toThrow()
+    expect(Date.now() - started).toBeLessThan(10_000)
+  })
 })
 
 describe('gitErrorText', () => {

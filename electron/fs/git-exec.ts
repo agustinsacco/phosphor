@@ -35,6 +35,13 @@ export interface GitOptions {
    * every other git call in the process must keep using the real index.
    */
   env?: Record<string, string>
+  /**
+   * Override the default timeout for one call whose run time scales with the
+   * working tree rather than the repo. `worktree remove` is the case: it
+   * deletes every file, `node_modules` included, and killing it partway leaves
+   * a half-deleted tree that is still registered and now reads as dirty.
+   */
+  timeoutMs?: number
 }
 
 const TIMEOUT_MS = 30_000
@@ -68,7 +75,7 @@ export async function git(cwd: string, args: string[], options: GitOptions = {})
   try {
     const { stdout } = await execFileAsync('git', args, {
       cwd,
-      timeout: TIMEOUT_MS,
+      timeout: options.timeoutMs ?? TIMEOUT_MS,
       maxBuffer: MAX_BUFFER,
       ...(options.env ? { env: { ...process.env, ...options.env } } : {}),
     })

@@ -456,6 +456,9 @@ export async function isBranchMerged(repoPath: string, branch: string): Promise<
   return false
 }
 
+/** Upper bound for deleting one worktree's files; see `removeWorktree`. */
+export const REMOVE_TIMEOUT_MS = 15 * 60_000
+
 export async function removeWorktree(
   repoPath: string,
   worktreePath: string,
@@ -478,7 +481,11 @@ export async function removeWorktree(
   const args = ['worktree', 'remove']
   if (options.force) args.push('--force')
   args.push(target.path)
-  await git(repoPath, args)
+  // Not the 30s default: git deletes every file itself, and a lane with a
+  // multi-GB `node_modules` takes longer than that. A kill partway left the
+  // tree half-deleted, still registered, and reading as dirty, so no later
+  // sweep would touch it (6 of 19 on one Reclaim run).
+  await git(repoPath, args, { timeoutMs: REMOVE_TIMEOUT_MS })
 
   let branchDeleted = false
   let branchError: string | undefined
