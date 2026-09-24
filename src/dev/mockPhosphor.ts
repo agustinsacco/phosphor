@@ -1729,29 +1729,35 @@ export function installMockPhosphor(): void {
           return Promise.resolve({ renamed: true, branch: args[2] as string })
         case 'maintenance:scan':
         case 'maintenance:run':
-          return {
-            ranAt: Date.now(),
-            workspacePath: String(args[0] ?? ''),
-            worktreeCount: 3,
-            candidates: [
-              {
-                path: '/repo/.phosphor/worktrees/merged-lane',
-                branch: 'phosphor/merged-lane',
-                bytes: 980 * 1024 * 1024,
-                reason: 'merged',
-              },
-            ],
-            held: [
-              { path: '/repo', branch: 'main', reason: 'main-checkout' },
-              { path: '/repo/.phosphor/worktrees/busy', branch: 'phosphor/busy', reason: 'dirty' },
-            ],
-            prunedRegistrations: [],
-            reclaimed: [],
-            reclaimableBytes: 980 * 1024 * 1024,
-            reclaimedBytes: 0,
-            liveSessionCount: 1,
-            errors: [],
-          }
+          return [
+            {
+              ranAt: Date.now(),
+              workspacePath: '/Users/dev/projects/phosphor',
+              worktreeCount: 3,
+              candidates: [
+                {
+                  path: '/repo/.phosphor/worktrees/merged-lane',
+                  branch: 'phosphor/merged-lane',
+                  bytes: 980 * 1024 * 1024,
+                  reason: 'merged',
+                },
+              ],
+              held: [
+                { path: '/repo', branch: 'main', reason: 'main-checkout' },
+                {
+                  path: '/repo/.phosphor/worktrees/busy',
+                  branch: 'phosphor/busy',
+                  reason: 'dirty',
+                },
+              ],
+              prunedRegistrations: [],
+              reclaimed: [],
+              reclaimableBytes: 980 * 1024 * 1024,
+              reclaimedBytes: 0,
+              liveSessionCount: 1,
+              errors: [],
+            },
+          ]
         case 'maintenance:setPrefs':
           return undefined
         case 'git:pruneWorktrees':

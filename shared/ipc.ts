@@ -770,12 +770,13 @@ export interface IpcInvokeMap {
   'git:pruneWorktrees': { args: [repoPath: string]; result: { pruned: string[] } }
 
   /**
-   * Measure what the janitor could reclaim in a workspace. Never deletes.
-   * `act` on `maintenance:run` is what deletes, and it still obeys the same
-   * policy — the button cannot reclaim anything a sweep would have held.
+   * Measure what the janitor could reclaim, one report per workspace the
+   * scheduled sweep covers (the recent-workspace list). Never deletes.
+   * `maintenance:run` is what deletes, and it still obeys the same policy —
+   * the button cannot reclaim anything a sweep would have held.
    */
-  'maintenance:scan': { args: [repoPath: string]; result: MaintenanceReport }
-  'maintenance:run': { args: [repoPath: string]; result: MaintenanceReport }
+  'maintenance:scan': { args: []; result: MaintenanceReport[] }
+  'maintenance:run': { args: []; result: MaintenanceReport[] }
   'maintenance:setPrefs': { args: [MaintenancePrefs]; result: void }
 
   // ---- Optimization (Settings → Optimization) ----

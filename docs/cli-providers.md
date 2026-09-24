@@ -25,7 +25,12 @@ What the adapter does, at the level Phosphor depends on:
   proxied back to pi, which runs the real tool and returns the result to the
   same process. Every one-shot `pi -p` spawn must pass `claudeOneShotEnv()`
   (`PI_CLAUDE_CLI_KEEPALIVE_MS=0`), or the parked child keeps the run alive
-  for ten minutes after it has printed its answer.
+  for ten minutes after it has printed its answer. The same env sets
+  `PI_CLAUDE_CLI_EPHEMERAL=1`: `pi --no-session` keeps only pi's own
+  transcript off disk, and without it the provider still saves a CLI
+  transcript, a session-map entry and a stored system prompt for every naming
+  run, none of them ever read again. Providers that predate the variable
+  ignore it and keep leaking.
 - **CLI-internal tools** (WebSearch, sub-agents, the CLI's native tools) are
   emitted as `[Claude Code · Name {args}]` marker text, a wire contract
   Phosphor parses into activity rows.

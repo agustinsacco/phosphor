@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { realpathSync } from 'node:fs'
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { claudeProjectDirName } from './pi-paths'
@@ -207,6 +207,99 @@ describe('deleteSession', () => {
     await deleteSession(piPath)
 
     expect(trashed).toEqual([piPath])
+  })
+
+  it('trashes the CLI session’s sidecar directory too', async () => {
+    // Subagent transcripts and oversized tool results live in `<cliId>/`
+    // beside the jsonl, and outlived every delete — even ones whose jsonl was
+    // already gone.
+    await writeFile(piPath, transcript(workspace, 'pi-claude-cli'), 'utf8')
+    await writeSessionMap(CLI_SESSION_ID)
+    const sidecar = join(claudeDir, CLI_SESSION_ID)
+    await mkdir(join(sidecar, 'subagents'), { recursive: true })
+
+    await deleteSession(piPath)
+
+    expect(trashed).toEqual([piPath, sidecar])
+  })
+
+  it('forgets the provider’s pairing and stored prompt', async () => {
+    await writeFile(piPath, transcript(workspace, 'pi-claude-cli'), 'utf8')
+    const state = process.env.PI_CLAUDE_CLI_STATE_DIR!
+    await mkdir(join(state, 'sysprompt'), { recursive: true })
+    const other = { '01a0ffff-0000-7000-8000-000000000000': 'other-cli-id' }
+    await writeFile(
+      join(state, 'session-map.json'),
+      JSON.stringify({ ...other, [SESSION_ID]: CLI_SESSION_ID }),
+      'utf8',
+    )
+    const prompt = join(state, 'sysprompt', `${CLI_SESSION_ID}.txt`)
+    await writeFile(prompt, 'context=pi', 'utf8')
+
+    await deleteSession(piPath)
+
+    // Every other session's pairing survives the rewrite.
+    expect(JSON.parse(await readFile(join(state, 'session-map.json'), 'utf8'))).toEqual(other)
+    await expect(access(prompt)).rejects.toThrow()
+  })
+
+  it('leaves a CLI transcript another pi session still resumes', async () => {
+    await writeFile(piPath, transcript(workspace, 'pi-claude-cli'), 'utf8')
+    const state = process.env.PI_CLAUDE_CLI_STATE_DIR!
+    await mkdir(state, { recursive: true })
+    await writeFile(
+      join(state, 'session-map.json'),
+      JSON.stringify({ [SESSION_ID]: CLI_SESSION_ID, other: CLI_SESSION_ID }),
+      'utf8',
+    )
+    const mappedLedger = join(claudeDir, `${CLI_SESSION_ID}.jsonl`)
+    await mkdir(claudeDir, { recursive: true })
+    await writeFile(mappedLedger, line({ type: 'summary', summary: 'shared' }), 'utf8')
+
+    await deleteSession(piPath)
+
+    expect(trashed).toEqual([piPath])
+  })
+
+  it('removes pi’s session directory once it is empty, and only then', async () => {
+    process.env.PI_CODING_AGENT_SESSION_DIR = join(root, 'sessions')
+    try {
+      const dir = join(root, 'sessions', '--proj--')
+      await mkdir(dir, { recursive: true })
+      const first = join(dir, `a_${SESSION_ID}.jsonl`)
+      const second = join(dir, 'b_other.jsonl')
+      await writeFile(first, transcript(workspace, 'anthropic'), 'utf8')
+      await writeFile(second, transcript(workspace, 'anthropic'), 'utf8')
+      // The mocked trash only records; unlink so the directory really empties.
+      trashItem.mockImplementation(async (path: string) => {
+        trashed.push(path)
+        await rm(path, { recursive: true, force: true })
+      })
+
+      await deleteSession(first)
+      await expect(access(dir)).resolves.toBeUndefined()
+
+      await deleteSession(second)
+      await expect(access(dir)).rejects.toThrow()
+      // The sessions root itself is never a candidate.
+      await expect(access(join(root, 'sessions'))).resolves.toBeUndefined()
+    } finally {
+      delete process.env.PI_CODING_AGENT_SESSION_DIR
+    }
+  })
+
+  it('never removes the folder of a transcript outside pi’s sessions root', async () => {
+    const dir = join(root, 'elsewhere')
+    await mkdir(dir)
+    const file = join(dir, `x_${SESSION_ID}.jsonl`)
+    await writeFile(file, transcript(workspace, 'anthropic'), 'utf8')
+    trashItem.mockImplementation(async (path: string) => {
+      await rm(path, { force: true })
+    })
+
+    await deleteSession(file)
+
+    await expect(access(dir)).resolves.toBeUndefined()
   })
 
   it('does not fail the delete when trashing the CLI copy throws', async () => {

@@ -212,6 +212,44 @@ export async function resetClaudeLedgerPairing(
   return { cleared: true, claudeSessionId: cliId }
 }
 
+// ---------------------------------------------------------------------------
+// Forget — drop a deleted pi session's pairing and stored prompt
+// ---------------------------------------------------------------------------
+
+/**
+ * Remove a deleted pi session from the provider's sidecar, returning the CLI
+ * session id it was paired with (null when there was no pairing) and whether
+ * another pi session still points at that CLI session.
+ *
+ * Deleting a session used to trash both transcripts and leave this
+ * bookkeeping behind: a map entry and a stored system prompt (~7 KB) per
+ * session ever deleted — 727 dead entries of 794 on one install. Nothing reads
+ * either once the pi session is gone, and the map is rewritten whole on every
+ * pairing, so it only grows.
+ *
+ * Same read-then-write discipline as the reset above. The caller has already
+ * stopped every process that could own the pi session, so no provider write
+ * for THIS entry can race us; one for another session can, and the short
+ * window is what limits it. Unlike the reset, a failed write is swallowed:
+ * the delete itself has already landed, and a stale entry is only clutter.
+ */
+export async function forgetClaudePairing(
+  piSessionId: string,
+): Promise<{ cliSessionId: string | null; shared: boolean }> {
+  const map = await readSessionMap()
+  const cliId = map[piSessionId]
+  if (!cliId) return { cliSessionId: null, shared: false }
+  delete map[piSessionId]
+  try {
+    await writeFile(sessionMapPath(), JSON.stringify(map, null, 2), 'utf-8')
+  } catch {
+    // Clutter, not corruption — carry on with the rest of the delete.
+  }
+  const shared = Object.values(map).includes(cliId)
+  if (!shared) await rm(storedPromptPath(cliId), { force: true }).catch(() => undefined)
+  return { cliSessionId: cliId, shared }
+}
+
 /** Trash a CLI transcript no pi session points at any more. */
 async function trashOrphanedLedger(
   map: Record<string, string>,

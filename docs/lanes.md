@@ -271,11 +271,15 @@ mid-turn is findable under the name on screen.
 ## Deleting lanes
 
 Every sidebar session has **Delete**, including starting, running, crashed and
-live-only rows whose transcript is missing. Single-session deletion confirms
-that running work will stop, trashes any saved transcripts, and keeps the
-worktree, branch and project files. A missing transcript is not an error;
-other failures stay visible in the confirmation so deletion can be retried.
-Pending rows do not invent a timestamp from the current time.
+live-only rows whose transcript is missing. A row that is the **only session
+in its own worktree** opens the lane confirm below, with worktree removal on
+by default — deleting just the transcript used to leave the directory, and its
+`node_modules`, on disk with nothing in the sidebar pointing at it. Every other
+row (the main checkout, a shared worktree, no git info yet) gets the
+session-only confirm: running work will stop, saved transcripts are trashed,
+and the worktree, branch and project files are kept. A missing transcript is
+not an error; other failures stay visible in the confirmation so deletion can
+be retried. Pending rows do not invent a timestamp from the current time.
 
 Concurrent opens of the same transcript share one process. Main serializes
 resume and deletion by transcript path, cancels queued or hung startup opens,
@@ -297,9 +301,20 @@ mode shifts nothing. "Select all lanes" lives in the workspace `⋯` menu.
 Deleting is three resources, and only the first two default on:
 
 1. the session transcript, to the OS Trash (recoverable): pi's `.jsonl`
-   **and** its paired Claude Code transcript
+   **and** its paired Claude Code transcript with its `<id>/` sidecar folder
+   (subagent transcripts, oversized tool results). The bookkeeping nothing
+   reads once the session is gone is removed with it: `pi-claude-cli`'s
+   session-map entry and stored system prompt, and pi's per-cwd session folder
+   once it is empty (`electron/pi/session-deleter.ts`)
 2. the worktree directory, gone
 3. the branch, only when its work is already on the trunk
+
+**A worktree goes only with the last session using it**
+(`lanesOwningWorktree`). One directory can hold several sessions. A worktree
+is offered for removal only when every session in it is being deleted, and it
+is removed with the last of them — the loop is sequential, so the others'
+transcripts are already in the Trash. A live session with no transcript yet
+counts as a user and holds the worktree.
 
 **A branch is deleted only when it is proven merged.** `git branch -d` tests
 ancestry, and a squash merge leaves no ancestry link, so `-d` refuses every
@@ -356,7 +371,11 @@ measuring and deleting are different risks:
 - **Delete automatically** (off) lets a sweep act.
 
 **Reclaim now** deletes without flipping the pref and cannot delete more than a
-sweep would; both run the same policy.
+sweep would; both run the same policy. Scan, **Reclaim now** and the scheduled
+sweep all cover every workspace in the recent-workspace list, one after
+another, and the section lists what each one could free. (The button once
+covered only the active workspace, so one click freed one repo and silently
+left the rest.)
 
 Six conditions must all hold before a worktree is a candidate
 (`electron/maintenance/policy.ts`), and every rejection is reported with its

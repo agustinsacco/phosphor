@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Button, NumberField, Row, SectionTitle, Toggle } from '@/components/form'
 import { DEFAULT_MAINTENANCE_PREFS } from '@shared/models'
 import type { MaintenancePrefs, MaintenanceReport } from '@shared/models'
-import { useActiveWorkspace } from '@/stores/workspaces'
+import { workspaceName } from '@/lib/path'
 
 /** Bytes as a short human string. `null` means the platform could not measure. */
 export function formatBytes(bytes: number | null): string {
@@ -18,17 +18,39 @@ export function formatBytes(bytes: number | null): string {
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`
 }
 
+/** One sweep's worth of numbers, summed across every workspace's report. */
+export function combineReports(reports: MaintenanceReport[]): {
+  worktreeCount: number
+  candidates: number
+  reclaimableBytes: number
+  reclaimed: number
+  reclaimedBytes: number
+  errors: string[]
+} {
+  return {
+    worktreeCount: reports.reduce((n, r) => n + r.worktreeCount, 0),
+    candidates: reports.reduce((n, r) => n + r.candidates.length, 0),
+    reclaimableBytes: reports.reduce((n, r) => n + r.reclaimableBytes, 0),
+    reclaimed: reports.reduce((n, r) => n + r.reclaimed.length, 0),
+    reclaimedBytes: reports.reduce((n, r) => n + r.reclaimedBytes, 0),
+    errors: reports.flatMap((r) => r.errors.map((e) => `${workspaceName(r.workspacePath)}: ${e}`)),
+  }
+}
+
 /**
  * Storage reclamation, in Settings → Advanced.
  *
  * Scanning is safe and runs on open; reclaiming is a separate, explicit button
  * that reports what it deleted. The numbers are the point — a lane costs its
  * own `node_modules`, and nothing here was visible before.
+ *
+ * Covers every workspace the scheduled sweep does. It used to cover only the
+ * active one, so "Reclaim now" freed one repo's lanes and silently left the
+ * rest — tens of gigabytes across six other repos on one install.
  */
 export function MaintenanceSection(): React.JSX.Element {
-  const repoPath = useActiveWorkspace()
   const [prefs, setPrefs] = useState<MaintenancePrefs>(DEFAULT_MAINTENANCE_PREFS)
-  const [report, setReport] = useState<MaintenanceReport | null>(null)
+  const [reports, setReports] = useState<MaintenanceReport[] | null>(null)
   const [busy, setBusy] = useState<'scan' | 'run' | null>(null)
 
   useEffect(() => {
@@ -36,14 +58,13 @@ export function MaintenanceSection(): React.JSX.Element {
   }, [])
 
   const scan = useCallback(async () => {
-    if (!repoPath) return
     setBusy('scan')
     try {
-      setReport(await window.phosphor.invoke('maintenance:scan', repoPath))
+      setReports(await window.phosphor.invoke('maintenance:scan'))
     } finally {
       setBusy(null)
     }
-  }, [repoPath])
+  }, [])
 
   useEffect(() => {
     void scan()
@@ -55,16 +76,17 @@ export function MaintenanceSection(): React.JSX.Element {
   }
 
   const reclaim = async (): Promise<void> => {
-    if (!repoPath) return
     setBusy('run')
     try {
-      setReport(await window.phosphor.invoke('maintenance:run', repoPath))
+      setReports(await window.phosphor.invoke('maintenance:run'))
     } finally {
       setBusy(null)
     }
   }
 
-  const candidates = report?.candidates.length ?? 0
+  const report = reports ? combineReports(reports) : null
+  const candidates = report?.candidates ?? 0
+  const withCandidates = (reports ?? []).filter((r) => r.candidates.length > 0)
 
   return (
     <div>
@@ -121,13 +143,13 @@ export function MaintenanceSection(): React.JSX.Element {
         description={
           report
             ? candidates > 0
-              ? `${formatBytes(report.reclaimableBytes)} on disk. Uncommitted, unmerged and in-use lanes are never touched.`
+              ? `${formatBytes(report.reclaimableBytes)} on disk across ${withCandidates.length} workspace${withCandidates.length === 1 ? '' : 's'}. Uncommitted, unmerged and in-use lanes are never touched.`
               : 'Nothing to reclaim. Every worktree is in use, unmerged, or holds uncommitted work.'
             : undefined
         }
       >
         <span className="flex gap-2">
-          <Button onClick={() => void scan()} disabled={!repoPath || busy !== null}>
+          <Button onClick={() => void scan()} disabled={busy !== null}>
             {busy === 'scan' ? 'Scanning…' : 'Rescan'}
           </Button>
           <Button onClick={() => void reclaim()} disabled={busy !== null || candidates === 0}>
@@ -136,10 +158,24 @@ export function MaintenanceSection(): React.JSX.Element {
         </span>
       </Row>
 
-      {report && report.reclaimed.length > 0 && (
+      {withCandidates.length > 0 && (
+        <ul className="text-text-secondary mt-2 space-y-0.5 text-sm">
+          {withCandidates.map((r) => (
+            <li key={r.workspacePath} className="flex gap-2">
+              <span className="min-w-0 flex-1 truncate" title={r.workspacePath}>
+                {workspaceName(r.workspacePath)}
+              </span>
+              <span>
+                {r.candidates.length} · {formatBytes(r.reclaimableBytes)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {report && report.reclaimed > 0 && (
         <p className="text-success mt-2 text-sm">
-          Reclaimed {report.reclaimed.length} worktree{report.reclaimed.length === 1 ? '' : 's'},
-          freeing {formatBytes(report.reclaimedBytes)}.
+          Reclaimed {report.reclaimed} worktree{report.reclaimed === 1 ? '' : 's'}, freeing{' '}
+          {formatBytes(report.reclaimedBytes)}.
         </p>
       )}
       {report && report.errors.length > 0 && (

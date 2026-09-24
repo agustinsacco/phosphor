@@ -32,24 +32,44 @@ async function runSweep(repoPath: string, act: boolean): Promise<MaintenanceRepo
 }
 
 /**
- * The periodic janitor. Sweeps the workspaces the user actually opens, since
+ * The repos a sweep covers: the workspaces the user actually opens, since
  * those are the repos whose lanes Phosphor created in the first place.
+ *
+ * Only the recent-workspace list, which `getPrefs` has already stripped of
+ * worktree folders. Sweeping from inside a worktree would let a sweep reclaim
+ * the directory it is running in.
  */
+function repoPaths(): string[] {
+  return [...new Set(getPrefs().recentWorkspaces.map((w) => w.path))]
+}
+
+/**
+ * Every repo, one after another. Sequential for the same reason the
+ * scheduler is: each sweep runs git and `du` over every worktree. A repo that
+ * fails reports its error and does not stop the rest.
+ */
+async function runAll(act: boolean): Promise<MaintenanceReport[]> {
+  const reports: MaintenanceReport[] = []
+  for (const repoPath of repoPaths()) reports.push(await runSweep(repoPath, act))
+  return reports
+}
+
+/** The periodic janitor. */
 export const maintenanceScheduler = new MaintenanceScheduler({
   getPrefs: () => getPrefs().maintenance,
-  // Only the recent-workspace list, which `getPrefs` has already stripped of
-  // worktree folders. Sweeping from inside a worktree would let a sweep
-  // reclaim the directory it is running in.
-  getRepoPaths: () => [...new Set(getPrefs().recentWorkspaces.map((w) => w.path))],
+  getRepoPaths: repoPaths,
   runSweep: (repoPath, prefs) => runSweep(repoPath, prefs.reclaimMergedWorktrees),
 })
 
 export function registerMaintenanceHandlers(): void {
-  handle('maintenance:scan', (_event, repoPath: string) => runSweep(repoPath, false))
+  // Every repo the scheduler covers, not just the one on screen: "Reclaim
+  // now" in one workspace used to leave every other workspace's dead lanes
+  // on disk, and nothing said so.
+  handle('maintenance:scan', () => runAll(false))
 
   // Explicit user action, so it acts regardless of the pref — but only on what
   // the same policy cleared, so the button can never delete more than a sweep.
-  handle('maintenance:run', (_event, repoPath: string) => runSweep(repoPath, true))
+  handle('maintenance:run', () => runAll(true))
 
   handle('maintenance:setPrefs', (_event, value: MaintenancePrefs) => {
     setMaintenancePrefs(value)

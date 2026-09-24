@@ -106,4 +106,10 @@ describe('claudeOneShotEnv', () => {
     // with it every branch rename, the day 0.7.0 was installed.
     expect(claudeOneShotEnv().PI_CLAUDE_CLI_KEEPALIVE_MS).toBe('0')
   })
+
+  it('keeps a one-shot’s CLI transcript and pairing off disk', () => {
+    // `pi --no-session` only covers pi's own file; every naming run still
+    // left a CLI transcript, map entry and stored prompt nothing reads.
+    expect(claudeOneShotEnv().PI_CLAUDE_CLI_EPHEMERAL).toBe('1')
+  })
 })
