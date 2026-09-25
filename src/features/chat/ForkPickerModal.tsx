@@ -1,42 +1,44 @@
 import { useEffect, useState } from 'react'
-import { piCall } from '@/lib/rpc'
-import { imagesForUserMessageOrdinal, rewindToEntry } from './rewind'
+import { currentBranchUserMessages, rewindToEntry, type BranchUserMessage } from './rewind'
 import { useChatUiStore } from './uiState'
 import { ModalOverlay } from '@/components/Modal'
 
-interface ForkCandidate {
-  entryId: string
-  text: string
-}
-
-/** Pick a past user message and fork the session from just before it. */
+/**
+ * Pick a past user message and fork the session from just before it.
+ *
+ * Lists the current branch only, oldest first — including messages a
+ * compaction summarised out of the transcript and image-only ones. NOT pi's
+ * `get_fork_messages`, which lists every branch the file has ever had in
+ * file order, so "the message before the last one" could sit on a thread
+ * the user abandoned days ago.
+ */
 export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const open = useChatUiStore((s) => s.forkPickerFor === sessionId)
-  const [candidates, setCandidates] = useState<ForkCandidate[] | null>(null)
+  // undefined while loading, null when the entries could not be read.
+  const [candidates, setCandidates] = useState<BranchUserMessage[] | null | undefined>(undefined)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
     if (!open) return
-    setCandidates(null)
-    void piCall(sessionId, { type: 'get_fork_messages' }).then((data) => {
-      setCandidates(data?.messages ?? [])
+    setCandidates(undefined)
+    let current = true
+    void currentBranchUserMessages(sessionId).then((messages) => {
+      if (current) setCandidates(messages)
     })
+    return () => {
+      current = false
+    }
   }, [open, sessionId])
 
   if (!open) return null
   const close = (): void => useChatUiStore.getState().closeForkPicker()
 
   // One mechanism with the per-message rewind button, including the image
-  // restore: `get_fork_messages` and the rendered transcript derive from the
-  // same on-disk entries, so a candidate's index IS its user-message ordinal.
-  const fork = async (candidate: ForkCandidate, ordinal: number): Promise<void> => {
+  // restore: both fork from an entry on the current branch, with its images.
+  const fork = async (candidate: BranchUserMessage): Promise<void> => {
     setBusy(true)
     try {
-      await rewindToEntry(
-        sessionId,
-        candidate.entryId,
-        imagesForUserMessageOrdinal(sessionId, ordinal),
-      )
+      await rewindToEntry(sessionId, candidate.entryId, candidate.images)
       close()
     } finally {
       setBusy(false)
@@ -59,9 +61,14 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
           </button>
         </div>
         <div className="max-h-[52vh] overflow-y-auto p-2">
-          {candidates === null && (
+          {candidates === undefined && (
             <div className="text-text-tertiary animate-pulse px-3 py-6 text-center text-base">
               Loading…
+            </div>
+          )}
+          {candidates === null && (
+            <div className="text-text-tertiary px-3 py-6 text-center text-base">
+              Couldn't read this session's messages.
             </div>
           )}
           {candidates?.length === 0 && (
@@ -73,13 +80,21 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
             <button
               key={candidate.entryId}
               disabled={busy}
-              onClick={() => void fork(candidate, index)}
+              onClick={() => void fork(candidate)}
               className="hover:bg-bg-secondary flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors disabled:opacity-50"
             >
               <span className="bg-bg-secondary text-text-tertiary mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold">
                 {index + 1}
               </span>
-              <span className="text-text line-clamp-2 text-lg">{candidate.text}</span>
+              {candidate.text ? (
+                <span className="text-text line-clamp-2 text-lg">{candidate.text}</span>
+              ) : (
+                <span className="text-text-tertiary text-lg italic">
+                  {candidate.images?.length === 1
+                    ? 'Image'
+                    : `${candidate.images?.length ?? 0} images`}
+                </span>
+              )}
             </button>
           ))}
         </div>

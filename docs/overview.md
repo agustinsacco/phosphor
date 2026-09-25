@@ -38,8 +38,9 @@ manager, no orchestration agent, and the board spends nothing to render.
    is reachable from the UI. Even `/login`, which pi offers only as a TUI, is
    driven off-screen into a button and a browser tab
    (`electron/pi/login-flow.ts`; see [settings.md](settings.md)), with a hosted
-   pi terminal as the escape hatch. Still unreached: `get_entries` /
-   `get_tree`, mirrored in `shared/rpc.ts` and read by nothing yet.
+   pi terminal as the escape hatch. Still unreached: `get_tree` (the tree view
+   reads the `.jsonl` instead) and `get_fork_messages` (rewind reads the
+   current branch from `get_entries`), both mirrored in `shared/rpc.ts`.
 5. **Claude Desktop craft level.** A light theme, a dark theme and "system",
    selectable in settings, sharing one component vocabulary.
 
