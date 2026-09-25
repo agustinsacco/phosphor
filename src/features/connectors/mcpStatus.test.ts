@@ -68,22 +68,26 @@ describe('connectorAction', () => {
     expect(connectorAction('needs-auth', true)).toBe('sign-in')
   })
 
-  it('offers connect, NOT sign-in, for a lazily-disconnected server', () => {
+  it('offers reload, NOT sign-in, for a lazily-disconnected server', () => {
     // The regression this guards. `cached` means tool metadata is on disk and
     // nothing has opened a connection this session — it says nothing about
     // credentials. Offering "Sign in" here made people re-authorize servers
     // whose tokens were sitting valid in the OS keychain.
-    expect(connectorAction('cached', true)).toBe('connect')
-    expect(connectorAction('not-connected', true)).toBe('connect')
-    expect(connectorAction('failed', true)).toBe('connect')
+    expect(connectorAction('cached', true)).toBe('reload')
+    expect(connectorAction('not-connected', true)).toBe('reload')
+    expect(connectorAction('failed', true)).toBe('reload')
   })
 
-  it('offers reconnect for a live connection', () => {
-    expect(connectorAction('connected', true)).toBe('reconnect')
+  it('offers reload for a live connection', () => {
+    expect(connectorAction('connected', true)).toBe('reload')
+  })
+
+  it('offers reload when the session has not reported this server yet', () => {
+    expect(connectorAction(null, true)).toBe('reload')
   })
 
   it('falls back to sign-in with no session, the only path that can run', () => {
-    // Connect rides /mcp reconnect, which needs the process holding the
+    // Reload rides /mcp reconnect, which needs the process holding the
     // connection. Sign-in has a headless route, so it is the honest offer.
     expect(connectorAction(null, false)).toBe('sign-in')
     expect(connectorAction('cached', false)).toBe('sign-in')
@@ -97,8 +101,7 @@ describe('connectorAction', () => {
 describe('connectorActionLabel', () => {
   it('names each action', () => {
     expect(connectorActionLabel('sign-in')).toBe('Sign in')
-    expect(connectorActionLabel('reconnect')).toBe('Reconnect')
-    expect(connectorActionLabel('connect')).toBe('Connect now')
+    expect(connectorActionLabel('reload')).toBe('Reload')
   })
 })
 
@@ -118,7 +121,7 @@ describe('checkResultLabel', () => {
 
   it('never renders an inconclusive test as up or down', () => {
     const label = checkResultLabel({ serverName: 'x', outcome: 'unknown', detail: 'timed out' })
-    expect(label).toBe('Test inconclusive')
+    expect(label).toBe('Inconclusive')
     expect(CHECK_DOT.unknown).not.toBe('bg-success')
     expect(CHECK_DOT.unknown).not.toBe('bg-danger')
   })

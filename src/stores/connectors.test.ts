@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useConnectorsStore } from './connectors'
+import { RELOAD_TIMEOUT_MS, useConnectorsStore } from './connectors'
 
 const invoke = vi.fn(async (..._args: unknown[]) => undefined)
 const piCommand = vi.fn(async () => ({ success: true, data: undefined }))
@@ -148,5 +148,76 @@ describe('connector flow — in a live session', () => {
   it('disconnecting with no session removes config without pretending to log out', async () => {
     await useConnectorsStore.getState().disconnect('slack')
     expect(piCommand).not.toHaveBeenCalled()
+  })
+})
+
+describe('reloading a server in a live session', () => {
+  it('reconnects through the adapter and resolves on its verdict, not the ack', async () => {
+    const store = useConnectorsStore.getState()
+    let settled = false
+    const reload = store.reload('s1', 'linear').then((result) => {
+      settled = true
+      return result
+    })
+    expect(piCommand).toHaveBeenCalledWith('s1', {
+      type: 'prompt',
+      message: '/mcp reconnect linear',
+    })
+    // pi acknowledges the prompt before the adapter has reconnected anything.
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    store.reloadNoticed('s1', { serverName: 'linear', outcome: 'connected', toolCount: 81 })
+    await expect(reload).resolves.toEqual({
+      serverName: 'linear',
+      outcome: 'connected',
+      toolCount: 81,
+    })
+  })
+
+  it('ignores a verdict from another session or about another server', async () => {
+    vi.useFakeTimers()
+    try {
+      const store = useConnectorsStore.getState()
+      const reload = store.reload('s1', 'linear')
+      store.reloadNoticed('s2', { serverName: 'linear', outcome: 'connected' })
+      store.reloadNoticed('s1', { serverName: 'notion', outcome: 'connected' })
+      store.reloadNoticed('s1', { serverName: 'linear', outcome: 'failed', detail: 'ECONNRESET' })
+      await expect(reload).resolves.toEqual({
+        serverName: 'linear',
+        outcome: 'failed',
+        detail: 'ECONNRESET',
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shares one reconnect between clicks while it is in flight', () => {
+    const store = useConnectorsStore.getState()
+    const first = store.reload('s1', 'linear')
+    expect(store.reload('s1', 'linear')).toBe(first)
+    expect(piCommand).toHaveBeenCalledTimes(1)
+    store.reloadNoticed('s1', { serverName: 'linear', outcome: 'connected' })
+  })
+
+  it('is inconclusive, never up or down, when the adapter stays silent', async () => {
+    vi.useFakeTimers()
+    try {
+      const reload = useConnectorsStore.getState().reload('s1', 'linear')
+      await vi.advanceTimersByTimeAsync(RELOAD_TIMEOUT_MS)
+      await expect(reload).resolves.toMatchObject({ serverName: 'linear', outcome: 'unknown' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('is inconclusive when pi refuses the command', async () => {
+    piCommand.mockResolvedValueOnce({ success: false, data: undefined })
+    await expect(useConnectorsStore.getState().reload('s1', 'linear')).resolves.toMatchObject({
+      serverName: 'linear',
+      outcome: 'unknown',
+    })
   })
 })

@@ -933,7 +933,7 @@ export interface PhosphorApi {
 
   /**
    * The set of slash commands pi would resolve has changed — a package was
-   * installed or removed, an MCP server added, a skill written. Fired from
+   * installed or removed, an MCP server added or reconnected, a skill written. Fired from
    * main after the mutation, for every window. Listeners drop their cached
    * `pi:commands` answers and re-ask live sessions for `get_commands`.
    */
@@ -957,6 +957,12 @@ export interface PhosphorApi {
   onUpdateEvent(listener: (state: UpdateState) => void): () => void
   /** Progress of a background `pi:startLogin`; returns unsubscribe. */
   onMcpAuthState(listener: (push: ConnectorAuthPush) => void): () => void
+  /**
+   * The adapter's `mcp-cache.json` now says something different — a server's
+   * tools or prompts changed on a fresh connection. Invalidation only; read
+   * `mcp:readCache` again.
+   */
+  onMcpCacheChanged(listener: () => void): () => void
   onPiLoginState(listener: (state: LoginFlowState) => void): () => void
   /** Progress of a background `claude:startLogin`; returns unsubscribe. */
   onClaudeLoginState(listener: (state: ClaudeLoginState) => void): () => void

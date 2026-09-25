@@ -112,33 +112,43 @@ export function ConnectorsTab(): React.JSX.Element {
     void refresh()
   }, [refresh])
 
+  // Test, Reload, a finished sign-in and a session's own lazy connects all
+  // rewrite the adapter's cache; main watches it so the tool lists follow.
+  useEffect(() => window.phosphor.onMcpCacheChanged(() => void refresh()), [refresh])
+
   const installJob = usePackageJob(() => void refresh())
   const adapterInstalled = packages?.some((p) => p.includes('pi-mcp-adapter')) ?? false
+
+  /** Run one reconnect for a row and keep its verdict. */
+  const track = async (
+    serverName: string,
+    via: CheckVia,
+    run: () => Promise<ConnectorCheckResult>,
+  ): Promise<void> => {
+    setChecks((c) => ({ ...c, [serverName]: { status: 'running', via } }))
+    let result: ConnectorCheckResult
+    try {
+      result = await run()
+    } catch (err) {
+      result = { serverName, outcome: 'unknown', detail: errorText(err) }
+    }
+    setChecks((c) => ({ ...c, [serverName]: { status: 'done', via, result } }))
+  }
 
   /**
    * Test one connector: the adapter reconnects it and reports what happened.
    * Needs no session, so this works from the home screen — which is where the
-   * question "is this thing up?" is actually asked.
+   * question "is this thing up?" is actually asked. It runs in a throwaway pi,
+   * so an open session's connection is untouched; Reload is the one for that.
    */
-  const runCheck = async (serverName: string): Promise<void> => {
-    setChecks((c) => ({ ...c, [serverName]: { status: 'running' } }))
-    try {
-      const result = await window.phosphor.invoke(
-        'mcp:checkServer',
-        serverName,
-        workspacePath ?? undefined,
-      )
-      setChecks((c) => ({ ...c, [serverName]: { status: 'done', result } }))
-    } catch (err) {
-      setChecks((c) => ({
-        ...c,
-        [serverName]: {
-          status: 'done',
-          result: { serverName, outcome: 'unknown', detail: errorText(err) },
-        },
-      }))
-    }
-  }
+  const runCheck = (serverName: string): Promise<void> =>
+    track(serverName, 'test', () =>
+      window.phosphor.invoke('mcp:checkServer', serverName, workspacePath ?? undefined),
+    )
+
+  /** Reload one server inside the active session. */
+  const runReload = (sessionId: string, serverName: string): Promise<void> =>
+    track(serverName, 'reload', () => useConnectorsStore.getState().reload(sessionId, serverName))
 
   const act = async (fn: () => Promise<unknown>): Promise<void> => {
     setError(null)
@@ -235,6 +245,9 @@ export function ConnectorsTab(): React.JSX.Element {
               sessionId={activeSessionId}
               check={checks[server.name]}
               onCheck={() => void runCheck(server.name)}
+              onReload={() => {
+                if (activeSessionId) void runReload(activeSessionId, server.name)
+              }}
               onToggle={(disabled) =>
                 void act(() =>
                   window.phosphor.invoke(
@@ -411,8 +424,16 @@ export function ConnectorsTab(): React.JSX.Element {
   )
 }
 
-/** One row's connection test: in flight, or the verdict it produced. */
-type ConnectorCheck = { status: 'running' } | { status: 'done'; result: ConnectorCheckResult }
+/**
+ * Which reconnect produced a row's verdict: Test, in a throwaway pi, or
+ * Reload, in the active session.
+ */
+type CheckVia = 'test' | 'reload'
+
+/** One row's reconnect: in flight, or the verdict it produced. */
+type ConnectorCheck =
+  | { status: 'running'; via: CheckVia }
+  | { status: 'done'; via: CheckVia; result: ConnectorCheckResult }
 
 const STATE_DOT: Record<McpServerState, string> = {
   connected: 'bg-success',
@@ -438,6 +459,7 @@ function ConfiguredRow({
   sessionId,
   check,
   onCheck,
+  onReload,
   onToggle,
   onKeepAlive,
   onRemove,
@@ -452,6 +474,7 @@ function ConfiguredRow({
   sessionId: string | null
   check?: ConnectorCheck
   onCheck: () => void
+  onReload: () => void
   onToggle: (disabled: boolean) => void
   onKeepAlive: (keep: boolean) => void
   onRemove: () => void
@@ -471,6 +494,10 @@ function ConfiguredRow({
     server.config.lifecycle === 'eager'
   const directTools = server.config.directTools ?? []
   const checked = check?.status === 'done' ? check : undefined
+  const running = check?.status === 'running' ? check.via : undefined
+  // Sign-in is an OAuth flow, so only a remote server has one. Reload is any
+  // server the session can reconnect — the adapter refuses a disabled one.
+  const showAction = action === 'sign-in' ? signInable : !disabled
   const toolTotal = cache?.tools.length ?? 0
 
   return (
@@ -503,8 +530,10 @@ function ConfiguredRow({
                 className="text-text-secondary flex shrink-0 items-center gap-1.5 text-sm"
                 title={
                   'detail' in checked.result && checked.result.detail
-                    ? `Last test — ${checked.result.detail}`
-                    : 'Result of the last test, which reconnected the server'
+                    ? `Last ${checked.via} — ${checked.result.detail}`
+                    : checked.via === 'reload'
+                      ? "Result of the last reload, which reconnected the session's connection"
+                      : 'Result of the last test, which reconnected the server'
                 }
               >
                 <span
@@ -545,36 +574,34 @@ function ConfiguredRow({
             size="sm"
             className="whitespace-nowrap"
             onClick={onCheck}
-            disabled={check?.status === 'running'}
-            title="Reconnect this server through the adapter and report what happened. No session needed, no tokens spent."
+            disabled={Boolean(running)}
+            title="Reconnect this server in a separate, throwaway pi and report what happened. Checks the server, not your open session. No session needed, no tokens spent."
           >
-            {check?.status === 'running' ? 'Testing…' : 'Test'}
+            {running === 'test' ? 'Testing…' : 'Test'}
           </Button>
-          {signInable && (
+          {showAction && (
             <Button
               size="sm"
               className="whitespace-nowrap"
               variant={action === 'sign-in' && state === 'needs-auth' ? 'primary' : undefined}
+              disabled={action === 'reload' && Boolean(running)}
               title={
-                action === 'connect'
-                  ? 'Open a connection now. Already signed in — this does not re-authorize.'
-                  : action === 'reconnect'
-                    ? 'Drop and re-open the connection. This does not re-authorize.'
-                    : undefined
+                action === 'reload'
+                  ? "Drop this session's connection to the server and open a fresh one, re-reading its tools. Uses the config the session started with, and does not re-authorize."
+                  : undefined
               }
               onClick={() => {
-                const store = useConnectorsStore.getState()
-                // `connect` and `reconnect` both ride the adapter's own
-                // /mcp reconnect, which needs the process holding the
-                // connection. Signing in does not, and runs headless.
+                // Reload rides the adapter's own /mcp reconnect, which needs
+                // the process holding the connection. Signing in does not,
+                // and runs headless.
                 if (action === 'sign-in') {
-                  void store.connect(server.name, sessionId ?? undefined)
-                } else if (sessionId) {
-                  void store.reconnect(sessionId, server.name)
+                  void useConnectorsStore.getState().connect(server.name, sessionId ?? undefined)
+                } else {
+                  onReload()
                 }
               }}
             >
-              {connectorActionLabel(action)}
+              {running === 'reload' ? 'Reloading…' : connectorActionLabel(action)}
             </Button>
           )}
         </div>

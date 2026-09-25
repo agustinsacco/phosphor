@@ -57,4 +57,19 @@ describe('extension UI requests', () => {
     expect(useConnectorsStore.getState().flows.linear).toEqual({ phase: 'connected' })
     expect(useExtensionUiStore.getState().toasts).toHaveLength(1)
   })
+
+  it('settles a Settings reload on the adapter reconnect notice, and still shows the toast', async () => {
+    const piCommand = vi.fn(async () => ({ success: true, data: undefined }))
+    // @ts-expect-error partial preload surface
+    window.phosphor = { invoke, piCommand }
+    const reload = useConnectorsStore.getState().reload('s1', 'linear')
+    useExtensionUiStore.getState().handleRequest('s1', {
+      type: 'extension_ui_request',
+      id: 'req-4',
+      method: 'notify',
+      message: 'MCP: Reconnected to linear (81 tools, 0 resources)',
+    })
+    await expect(reload).resolves.toMatchObject({ outcome: 'connected', toolCount: 81 })
+    expect(useExtensionUiStore.getState().toasts).toHaveLength(1)
+  })
 })

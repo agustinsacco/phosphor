@@ -128,7 +128,7 @@ export function checkResultLabel(result: ConnectorCheckResult): string {
     case 'missing':
       return 'Not in config'
     case 'unknown':
-      return 'Test inconclusive'
+      return 'Inconclusive'
   }
 }
 
@@ -143,7 +143,7 @@ export const CHECK_DOT: Record<ConnectorCheckResult['outcome'], string> = {
 }
 
 /** What the button on a connector row should actually offer. */
-export type ConnectorAction = 'sign-in' | 'reconnect' | 'connect'
+export type ConnectorAction = 'sign-in' | 'reload'
 
 /**
  * Pick the action for a row.
@@ -157,8 +157,10 @@ export type ConnectorAction = 'sign-in' | 'reconnect' | 'connect'
  * gone" and re-authorized servers whose tokens were in the keychain the whole
  * time.
  *
- * Without a live session only the headless sign-in path can run, so an
- * unknown state offers that rather than a connect that cannot work.
+ * Every other state in a live session gets Reload: the adapter's
+ * `/mcp reconnect`, which opens a fresh connection whether or not one was
+ * open. Without a live session only the headless sign-in path can run, so an
+ * unknown state offers that rather than a reload with nothing to reload.
  */
 export function connectorAction(
   state: McpServerState | null,
@@ -166,8 +168,7 @@ export function connectorAction(
 ): ConnectorAction {
   if (state === 'needs-auth') return 'sign-in'
   if (!hasSession) return 'sign-in'
-  if (state === 'connected') return 'reconnect'
-  return 'connect'
+  return 'reload'
 }
 
 /** Button text for an action. */
@@ -175,9 +176,7 @@ export function connectorActionLabel(action: ConnectorAction): string {
   switch (action) {
     case 'sign-in':
       return 'Sign in'
-    case 'reconnect':
-      return 'Reconnect'
-    case 'connect':
-      return 'Connect now'
+    case 'reload':
+      return 'Reload'
   }
 }

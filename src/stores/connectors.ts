@@ -31,6 +31,7 @@
  */
 import { create } from 'zustand'
 import type { ConnectorAuthState } from '@shared/models'
+import type { ConnectorCheckResult, ReconnectNotice } from '@shared/connectors'
 import { piCallOk } from '@/lib/rpc'
 
 export type ConnectFlow =
@@ -74,9 +75,31 @@ interface ConnectorsState {
   dismiss: (serverName: string) => void
   /** `/mcp logout <server>` — the adapter removes the stored credentials. */
   disconnect: (serverName: string, sessionId?: string) => Promise<void>
-  /** `/mcp reconnect <server>`, only meaningful for a live session. */
-  reconnect: (sessionId: string, serverName: string) => Promise<void>
+  /**
+   * Reload one server inside a live session: `/mcp reconnect <server>` closes
+   * the session's connection and opens a fresh one, re-reading the server's
+   * tools. pi acknowledges the command before the adapter has finished, so
+   * this resolves on the adapter's own notice (`reloadNoticed`), or as
+   * `unknown` when none arrives. Always resolves.
+   */
+  reload: (sessionId: string, serverName: string) => Promise<ConnectorCheckResult>
+  /** A reconnect notice from a live session. Settles a pending `reload`. */
+  reloadNoticed: (sessionId: string, notice: ReconnectNotice) => void
 }
+
+/** A reconnect that opens a fresh HTTP connection; slow servers exist. */
+export const RELOAD_TIMEOUT_MS = 45 * 1000
+
+/**
+ * Pending reloads, keyed by session and server. Outside the store because
+ * nothing renders from them — the tab renders the promise's result.
+ */
+const pendingReloads = new Map<
+  string,
+  { promise: Promise<ConnectorCheckResult>; settle: (result: ConnectorCheckResult) => void }
+>()
+
+const reloadKey = (sessionId: string, serverName: string): string => `${sessionId}/${serverName}`
 
 function setFlow(
   flows: Record<string, ConnectFlow>,
@@ -209,8 +232,41 @@ export const useConnectorsStore = create<ConnectorsState>((set, get) => ({
     set((s) => ({ flows: setFlow(s.flows, serverName, undefined) }))
   },
 
-  reconnect: async (sessionId, serverName) => {
-    await command(sessionId, `/mcp reconnect ${serverName}`)
+  reload: (sessionId, serverName) => {
+    const key = reloadKey(sessionId, serverName)
+    const pending = pendingReloads.get(key)
+    if (pending) return pending.promise
+
+    let settle!: (result: ConnectorCheckResult) => void
+    const promise = new Promise<ConnectorCheckResult>((resolve) => {
+      const timer = setTimeout(
+        () =>
+          settle({ serverName, outcome: 'unknown', detail: 'The adapter did not answer in time.' }),
+        RELOAD_TIMEOUT_MS,
+      )
+      settle = (result) => {
+        if (pendingReloads.get(key)?.promise !== promise) return
+        pendingReloads.delete(key)
+        clearTimeout(timer)
+        resolve(result)
+      }
+    })
+    pendingReloads.set(key, { promise, settle })
+
+    void command(sessionId, `/mcp reconnect ${serverName}`).then((ok) => {
+      if (!ok) {
+        settle({
+          serverName,
+          outcome: 'unknown',
+          detail: 'pi refused /mcp — is the pi-mcp-adapter package installed?',
+        })
+      }
+    })
+    return promise
+  },
+
+  reloadNoticed: (sessionId, notice) => {
+    pendingReloads.get(reloadKey(sessionId, notice.serverName))?.settle(notice)
   },
 }))
 

@@ -65,6 +65,8 @@ const api: PhosphorApi = {
 
   onMcpAuthState: (listener) => subscribe<[ConnectorAuthPush]>('mcp:authState', listener),
 
+  onMcpCacheChanged: (listener) => subscribe<[]>('mcp:cacheChanged', listener),
+
   onPiLoginState: (listener) => subscribe<[LoginFlowState]>('pi:loginState', listener),
 
   onClaudeLoginState: (listener) => subscribe<[ClaudeLoginState]>('claude:loginState', listener),
