@@ -14,8 +14,8 @@ a list. Sections, in order:
 
 1. **Connected** — one card per resolved server. The header carries name,
    scope badge, status chip, summary and transport on the left, with **Test**
-   and Sign in / Reconnect / Connect now (URL servers) pinned right so they
-   never wrap. The footer holds the tool disclosure, shadow notes, the enable
+   and **Sign in** (URL servers) or **Reload** (any enabled server, with a
+   session open) pinned right so they never wrap. The footer holds the tool disclosure, shadow notes, the enable
    and keep-connected checkboxes, Edit and Remove. The disclosure lists each
    cached tool by name and description (capped at 600 characters when read),
    filterable past eight tools. A warning shows when `directTools` is set,
@@ -53,8 +53,35 @@ a throwaway `pi --mode rpc --no-session` (`electron/pi/connector-check.ts`),
 which closes the connection, opens a fresh one, and reports the outcome.
 `parseReconnectNotice` (`shared/connectors.ts`) turns that into a verdict:
 `Up · N tools`, `Needs sign-in`, `Down`, `Disabled`, `Not in config`. It fails
-closed: anything unrecognised or timed out is `Test inconclusive`, never a
+closed: anything unrecognised or timed out is `Inconclusive`, never a
 wrong up-or-down. No model runs, so a test spends no tokens.
+
+**Test checks the server; Reload fixes the session.** Test's reconnect happens
+in its own process, so a session holding a stale or dead connection keeps it.
+**Reload** sends the same `/mcp reconnect <server>` to the active session,
+which drops that session's connection, opens a fresh one and re-reads the
+server's tools — for stdio servers too, which have no sign-in. pi acknowledges
+the command before the adapter finishes, so `reload` in `stores/connectors.ts`
+waits for the adapter's notice (routed from `stores/extensionUi.ts`) and shows
+it with the same verdict chip, `Inconclusive` after 45 s of silence. Reload
+uses the definition the session loaded at startup: an edited command, URL or
+header reaches new sessions, not this one.
+
+**What follows a fresh connection.** Every fresh connection — Test, Reload, a
+finished sign-in, a session's own lazy connect, even pi in a terminal —
+rewrites the adapter's `mcp-cache.json`, and none of those is a Phosphor
+config write that could invalidate what was read from it. So main watches the
+file (`electron/pi/mcp-cache-watcher.ts`) and, when what it says changes
+(`cachedAt` alone does not count; lazy servers re-cache on every call), it:
+
+- pushes `mcp:cacheChanged`, and the Connectors tab re-reads its tool lists;
+- runs `invalidatePiCommands`, because the cached prompts are the
+  `mcp__<server>__*` `/` commands. The home composer's per-folder list is
+  dropped and every live session re-asks `get_commands`.
+
+The context meter follows too: `pi-ext/context-breakdown.ts` re-measures when
+the adapter's status snapshot changes, since a reload runs no turn and would
+otherwise leave direct-tool costs stale until the next message.
 
 Three rules hold this together:
 
@@ -64,7 +91,7 @@ Three rules hold this together:
    nothing else. Two copies of a refresh token means one is always stale.
 2. **Auth is actuated by the adapter's own command,** `/mcp-auth <server>`. pi
    runs extension commands without an LLM call, so connecting spends **no
-   tokens**. Disconnect is `/mcp logout`, reconnect `/mcp reconnect`. Two
+   tokens**. Disconnect is `/mcp logout`, Reload `/mcp reconnect`. Two
    routes to that command:
    - **Headless** (`mcp:authorize`, the default): main spawns a throwaway
      `pi --mode rpc --no-session` (`electron/pi/connector-auth.ts`), drives the

@@ -113,7 +113,8 @@ async function commandProbeOptions(
  * and live sessions re-issue `get_commands`.
  *
  * Call this after the mutation, not before — the renderer re-asks right away.
- * Callers: package install/remove/update, MCP server config writes, skill
+ * Callers: package install/remove/update, MCP server config writes, a changed
+ * MCP metadata cache (its prompts are commands), skill
  * create/edit/delete/import, pi sign-in. A live pi does not load a newly
  * installed extension until it restarts, so for packages the session refresh
  * is a no-op and the home composer is what benefits; MCP prompt commands and

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
+import contextBreakdownExtension, {
   classifyToolServer,
   contextEntriesOf,
   entryChars,
@@ -160,5 +160,55 @@ describe('measureMessages', () => {
     const measured = measureMessages(entries)
     expect(measured.count).toBe(3)
     expect(measured.tokens).toBe(Math.ceil(('read'.length + 2 + 400 + 4) / 4))
+  })
+})
+
+describe('context breakdown extension', () => {
+  /** A pi stand-in that records handlers and lets a test fire them. */
+  function fakePi(tools: Array<{ name: string; description?: string }>) {
+    const lifecycle = new Map<string, (event: unknown, ctx: unknown) => unknown>()
+    const bus = new Map<string, (payload: unknown) => void>()
+    const pushed: string[] = []
+    const ctx = {
+      ui: { setStatus: (_key: string, text: string | undefined) => pushed.push(text ?? '') },
+      getSystemPrompt: () => '',
+      getContextUsage: () => ({ tokens: 100, contextWindow: 1000 }),
+      sessionManager: { buildContextEntries: () => [] },
+    }
+    contextBreakdownExtension({
+      on: (event, handler) => void lifecycle.set(event, handler),
+      getAllTools: () => tools,
+      getActiveTools: () => tools.map((tool) => tool.name),
+      events: { on: (event, handler) => void bus.set(event, handler) },
+    })
+    return {
+      pushed,
+      start: () => lifecycle.get('session_start')?.({}, ctx),
+      status: (servers: Array<{ name: string; toolCount?: number }>) =>
+        bus.get('pi-mcp-adapter/status/v1')?.({ servers }),
+    }
+  }
+
+  it('re-measures when a reconnect changes the servers, which runs no turn', () => {
+    const pi = fakePi([{ name: 'linear_list_issues', description: 'List issues' }])
+    pi.start()
+    expect(pi.pushed).toHaveLength(1)
+    pi.status([{ name: 'linear', toolCount: 81 }])
+    expect(pi.pushed).toHaveLength(2)
+    expect(JSON.parse(pi.pushed[1]!).mcpByServer.linear).toMatchObject({ toolCount: 81, count: 1 })
+  })
+
+  it('does not re-measure on a snapshot that changes nothing', () => {
+    const pi = fakePi([])
+    pi.start()
+    pi.status([{ name: 'linear', toolCount: 81 }])
+    pi.status([{ name: 'linear', toolCount: 81 }])
+    expect(pi.pushed).toHaveLength(2)
+  })
+
+  it('waits for a context before publishing anything', () => {
+    const pi = fakePi([])
+    pi.status([{ name: 'linear', toolCount: 81 }])
+    expect(pi.pushed).toHaveLength(0)
   })
 })

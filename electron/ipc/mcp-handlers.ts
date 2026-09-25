@@ -17,6 +17,7 @@ import {
   submitConnectorCallback,
 } from '../pi/connector-auth'
 import { checkConnector } from '../pi/connector-check'
+import { watchMcpCache } from '../pi/mcp-cache-watcher'
 import { checkPiHealth } from '../pi/health'
 import { piProcessEnv } from '../pi/shell-env'
 import { piStubPath } from '../pi/stub'
@@ -70,6 +71,14 @@ export function registerMcpHandlers(): void {
   })
 
   handle('mcp:readCache', () => readMcpCache())
+
+  // The adapter rewrites its cache on every fresh connection — Test, Reload,
+  // sign-in, a lazy connect mid-turn — none of which is a write of ours. The
+  // prompts in it are `/` commands, so the command lists go too.
+  watchMcpCache(() => {
+    invalidatePiCommands()
+    broadcast('mcp:cacheChanged', {})
+  })
 
   handle('mcp:readFile', (_event, scope, workspacePath) => readMcpFile(scope, workspacePath))
 

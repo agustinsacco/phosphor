@@ -20,6 +20,7 @@ import { cancelAllLogins } from './pi/login-flow'
 import { cancelAllClaudeLogins } from './pi/claude-login'
 import { unwatchAll } from './pi/session-watcher'
 import { unwatchAllWorkspaces } from './fs/workspace-watcher'
+import { unwatchMcpCache } from './pi/mcp-cache-watcher'
 import { startUpdateChecks, stopUpdateChecks } from './updates/updater'
 import {
   applyThemeSource,
@@ -322,12 +323,15 @@ function beginQuit(): void {
   // Stop admission and persist interrupted routine outcomes before disposing
   // unrelated sessions. Routine cancellation owns its nested process tree.
   void stopRoutines().finally(() => {
-    void Promise.allSettled([registry.disposeAll(), unwatchAll(), unwatchAllWorkspaces()]).finally(
-      () => {
-        quitComplete = true
-        app.quit()
-      },
-    )
+    void Promise.allSettled([
+      registry.disposeAll(),
+      unwatchAll(),
+      unwatchAllWorkspaces(),
+      unwatchMcpCache(),
+    ]).finally(() => {
+      quitComplete = true
+      app.quit()
+    })
   })
 }
 

@@ -312,10 +312,15 @@ export default function contextBreakdownExtension(pi: PiExtensionApi): void {
   // classification falls back to the `mcp__` namespace form and the chips
   // cannot say how many tools a server offers.
   const mcpServers = new Map<string, { toolCount: number | null }>()
+  // The bus handler gets no context, so the last lifecycle one is kept — the
+  // same arrangement as mcp-status.ts. Session replacement fires a fresh
+  // `session_start`, which replaces it.
+  let latestContext: ExtensionContext | undefined
   pi.events?.on(MCP_STATUS_EVENT, (payload) => {
     if (!payload || typeof payload !== 'object') return
     const servers = (payload as { servers?: unknown }).servers
     if (!Array.isArray(servers)) return
+    const before = JSON.stringify([...mcpServers])
     mcpServers.clear()
     for (const entry of servers) {
       const record = entry as { name?: unknown; toolCount?: unknown } | null
@@ -324,6 +329,19 @@ export default function contextBreakdownExtension(pi: PiExtensionApi): void {
       mcpServers.set(record.name, {
         toolCount: typeof toolCount === 'number' && toolCount >= 0 ? toolCount : null,
       })
+    }
+    // A `/mcp reconnect` runs no turn, so none of the lifecycle events below
+    // fire after it — yet it can change the servers' tools, and with them the
+    // direct-tool schemas this measures. The adapter publishes its snapshot
+    // after re-syncing that tool surface, so re-measure here, but only when
+    // the snapshot says something changed: it is also sent on every
+    // connection-state flip, and each publish walks the whole branch.
+    if (!latestContext || JSON.stringify([...mcpServers]) === before) return
+    try {
+      publish(latestContext)
+    } catch {
+      // A context from a replaced session; the next lifecycle event brings a
+      // fresh one.
     }
   })
 
@@ -412,7 +430,11 @@ export default function contextBreakdownExtension(pi: PiExtensionApi): void {
   // Publish at rest, not mid-stream: the numbers only change meaningfully
   // between turns, and a per-delta recompute would walk the whole branch on
   // every token.
-  pi.on('session_start', (_event, ctx) => publish(ctx as ExtensionContext))
-  pi.on('agent_settled', (_event, ctx) => publish(ctx as ExtensionContext))
-  pi.on('turn_end', (_event, ctx) => publish(ctx as ExtensionContext))
+  const remember = (_event: unknown, ctx: unknown): void => {
+    latestContext = ctx as ExtensionContext
+    publish(latestContext)
+  }
+  pi.on('session_start', remember)
+  pi.on('agent_settled', remember)
+  pi.on('turn_end', remember)
 }

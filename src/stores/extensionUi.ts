@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { ExtensionUIRequest } from '@shared/rpc'
-import { parseAuthNotice, parseOAuthPrompt } from '@shared/connectors'
+import { parseAuthNotice, parseOAuthPrompt, parseReconnectNotice } from '@shared/connectors'
 import { useConnectorsStore } from './connectors'
 
 export interface PendingDialog {
@@ -161,6 +161,9 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
         if (notice) {
           useConnectorsStore.getState().settle(notice.serverName, notice.outcome, notice.detail)
         }
+        // A Reload from Settings waits on the adapter's reconnect verdict.
+        const reconnect = parseReconnectNotice(request.message)
+        if (reconnect) useConnectorsStore.getState().reloadNoticed(sessionId, reconnect)
         get().pushToast(request.message, request.notifyType ?? 'info')
         break
       }

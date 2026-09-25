@@ -1990,6 +1990,7 @@ export function installMockPhosphor(): void {
     onRoutinesChanged: onMockRoutinesChanged,
 
     onPiCommandsChanged: () => () => {},
+    onMcpCacheChanged: () => () => {},
 
     onFsChanged: () => () => {},
     onPackagesJobOutput: (jobId: string, listener: (data: string) => void) => {
