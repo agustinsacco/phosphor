@@ -8,7 +8,7 @@ import { absoluteTime, relativeTime } from '@/lib/time'
 import { useChatStore } from '@/stores/chat'
 import { useChatUiStore } from './uiState'
 import { formatShortcut } from '@/lib/shortcuts'
-import { entryIdForUserMessageOrdinal, rewindToEntry } from './rewind'
+import { branchMessageForItem, rewindToEntry } from './rewind'
 import { ActivityGroup } from './items/ActivityGroup'
 import { ChatImage } from './ChatImage'
 import { UserText } from './UserText'
@@ -152,24 +152,15 @@ function UserMessage({
   const rewind = async (): Promise<void> => {
     setBusy(true)
     try {
-      // The ordinal is computed from the currently rendered items rather
-      // than carried on the item itself: `item.id` is a client-side counter
-      // (see `newItemId`), not pi's own entry id, so it can't be sent to pi
-      // directly. Non-optimistic user items map 1:1, in order, onto
-      // `get_fork_messages`'s list — both come from the same on-disk entries.
-      const items = useChatStore.getState().sessions[sessionId]?.items ?? []
-      let ordinal = -1
-      for (const it of items) {
-        if (it.kind !== 'user' || it.optimistic) continue
-        ordinal++
-        if (it.id === item.id) break
-      }
-      const entryId = ordinal >= 0 ? await entryIdForUserMessageOrdinal(sessionId, ordinal) : null
-      if (!entryId) {
+      // `item.id` is a client-side counter (see `newItemId`), not pi's entry
+      // id, so the entry is looked up on the current branch — by timestamp,
+      // never by position (see `currentBranchUserMessages`).
+      const target = await branchMessageForItem(sessionId, item)
+      if (!target) {
         useChatStore.getState().setError(sessionId, 'Could not locate this message to rewind.')
         return
       }
-      await rewindToEntry(sessionId, entryId, item.images)
+      await rewindToEntry(sessionId, target.entryId, target.images)
     } finally {
       setBusy(false)
     }

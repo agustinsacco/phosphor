@@ -546,7 +546,14 @@ function applyMessageEnd(state: ChatSessionState, message: AgentMessage): ChatSe
         if (item.kind === 'assistant') continue
         if (item.kind === 'user') {
           if (item.optimistic && item.text === text) {
-            const items = replaceItem(state.items, i, { ...item, optimistic: false })
+            // Take pi's timestamp: it is what rewind matches the row to its
+            // entry by (`matchRenderedUserMessage`), and the optimistic item
+            // never had one.
+            const items = replaceItem(state.items, i, {
+              ...item,
+              optimistic: false,
+              timestamp: message.timestamp,
+            })
             return { ...state, items }
           }
           break

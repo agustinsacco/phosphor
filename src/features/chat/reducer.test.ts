@@ -343,6 +343,19 @@ describe('chat reducer — user echo dedup', () => {
     expect(state.items[0]).toMatchObject({ kind: 'user', text: 'hi there', optimistic: false })
   })
 
+  /** Rewind finds a message's entry by this timestamp (`matchRenderedUserMessage`). */
+  it("takes pi's timestamp onto the confirmed item", () => {
+    const withOptimistic: ChatSessionState = {
+      ...emptyChatSession(),
+      items: [{ id: 'u1', kind: 'user', text: 'hi there', optimistic: true }],
+    }
+    const state = reduceChatEvent(withOptimistic, {
+      type: 'message_end',
+      message: { role: 'user', content: 'hi there', timestamp: 1_758_800_000_123 },
+    })
+    expect(state.items[0]).toMatchObject({ optimistic: false, timestamp: 1_758_800_000_123 })
+  })
+
   it('appends steering user messages that were not local', () => {
     const state = reduceChatEvent(emptyChatSession(), {
       type: 'message_end',

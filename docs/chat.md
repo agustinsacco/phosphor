@@ -130,8 +130,16 @@ The composer is one small field with several ways in.
   (`features/chat/rewind.ts`), which branches the live session onto a **new
   session file** rooted just before that entry and hands the original text
   back to the composer. `bootstrapSession` re-runs to learn the new file path.
-  Attachments are restored from the transcript, since `fork` replies with text
-  only.
+  The entry comes from the session's **current branch** (`get_entries` walked
+  from its `leafId`, `currentBranchUserMessages`). The button matches its row
+  to an entry by the message's own timestamp, never by position: the
+  transcript is pi's compaction-aware context, while `get_fork_messages` spans
+  every branch in the file and skips image-only messages, so the Nth of one is
+  not the Nth of the other. When no entry matches for certain, the button
+  refuses ("Could not locate this message to rewind.") rather than fork from a
+  guess. The picker lists the same current-branch messages, including those a
+  compaction summarised away. Attachments are restored from the entry, since
+  `fork` replies with text only.
 - Error and abort stop reasons are styled apart: an error banner with the
   message; aborted is a muted "stopped" divider.
 - Auto-retry: an inline strip "Retrying (2/3) in 4s — <error>" with cancel.
