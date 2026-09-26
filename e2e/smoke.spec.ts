@@ -671,6 +671,115 @@ test('steering controls and modified Enter send the intended RPC mode', async ()
   }
 })
 
+test('Agent settings persist a validated context budget', async () => {
+  const harness = await launch()
+  const { page } = harness
+  const budget = () =>
+    page.evaluate(async () => (await window.phosphor.invoke('app:getPrefs')).contextBudget)
+  try {
+    await openWorkspace(page)
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await page.getByRole('button', { name: 'Agent', exact: true }).click()
+    const custom = page.getByRole('textbox', { name: 'Custom context budget' })
+    await custom.fill('500')
+    await expect(page.getByText('= 500k tokens')).toBeVisible()
+    await custom.press('Enter')
+    await expect.poll(budget).toBe('500')
+    await custom.fill('77k')
+    await custom.press('Enter')
+    await expect(
+      page.getByText('Use a budget from 100k to 1M (e.g. 300k), auto, or off.'),
+    ).toBeVisible()
+    expect(await budget()).toBe('500')
+    await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await page.getByRole('button', { name: 'Agent', exact: true }).click()
+    await expect(page.getByRole('textbox', { name: 'Custom context budget' })).toHaveValue('500')
+    await page.getByRole('radio', { name: /^Default: 200k tokens/ }).click()
+    await expect.poll(budget).toBe('')
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('a large-window session over the context budget compacts, holding the next prompt', async () => {
+  // A 1M-window model whose context holds 250k after each turn: over the
+  // default 200k budget, far under pi's own ~984k line. pi rejects a prompt
+  // sent during a requested compaction, so the second message only runs if
+  // `pi:command` held it until the compaction finished.
+  const workspace = await scratchDir('phosphor-budget-')
+  const log = join(workspace, 'commands.jsonl')
+  const harness = await launch({
+    workspace,
+    env: {
+      PHOSPHOR_E2E_COMMAND_LOG: log,
+      PHOSPHOR_E2E_CONTEXT_WINDOW: '1000000',
+      PHOSPHOR_E2E_CONTEXT_TOKENS: '250000',
+      PHOSPHOR_E2E_COMPACT_MS: '2000',
+    },
+  })
+  const { page } = harness
+  const sent = async (): Promise<string[]> =>
+    (await readFile(log, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => (JSON.parse(line) as { type: string }).type)
+      .filter((type) => type === 'prompt' || type === 'compact')
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+
+    // The budget check runs once the turn settles.
+    await expect(page.getByText('compacting…')).toBeVisible()
+    await expect.poll(sent).toEqual(['prompt', 'compact'])
+
+    // Sent mid-compaction: held, not rejected.
+    const chat = page.getByRole('textbox', { name: 'Chat message' })
+    await chat.fill('and again')
+    await chat.press('Enter')
+    await expect(page.getByText(/Context compacted — 250k tokens summarized/).first()).toBeVisible()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toHaveCount(2, {
+      timeout: 30_000,
+    })
+    await expect(page.getByText(/Cannot submit a prompt/)).toHaveCount(0)
+    expect((await sent()).slice(0, 3)).toEqual(['prompt', 'compact', 'prompt'])
+  } finally {
+    await shutdown(harness)
+  }
+})
+
+test('a session within its window and the budget is never compacted by Phosphor', async () => {
+  // The stub's default 200k window is no larger than the budget, so pi's own
+  // threshold governs even with a context near the top of it.
+  const workspace = await scratchDir('phosphor-budget-small-')
+  const log = join(workspace, 'commands.jsonl')
+  const harness = await launch({
+    workspace,
+    env: { PHOSPHOR_E2E_COMMAND_LOG: log, PHOSPHOR_E2E_CONTEXT_TOKENS: '190000' },
+  })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    // The check ran (it reads get_state after the turn settles) and stopped there.
+    await expect
+      .poll(async () => (await readFile(log, 'utf8')).split('\n').filter(Boolean).length)
+      .toBeGreaterThan(0)
+    await page.waitForTimeout(500)
+    const types = (await readFile(log, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => (JSON.parse(line) as { type: string }).type)
+    expect(types).not.toContain('compact')
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('workspace → session → streamed answer, diff and artifact render', async () => {
   const harness = await launch()
   const { page } = harness
