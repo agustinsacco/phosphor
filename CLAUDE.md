@@ -202,7 +202,7 @@ you want to watch.
   path sends the CLI a delta, never pi's history) and fires every turn once the
   CLI's real context passes ~183k, whatever the CLI's own cap — a multi-day
   session compacted pi's record nine times for nothing. The context meter
-  divides those sessions by the auto-compact budget (`autocompactTokens`), not
+  divides those sessions by the auto-compact budget (`contextBudgetTokens`), not
   the model window, and does not cap the label; the `Context window` setting
   takes bare numbers as thousands (`500` = 500k). Provider ≥ 0.8.3 resets the
   reported context after a CLI compaction and emits a `[Claude Code · compact

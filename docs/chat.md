@@ -251,7 +251,7 @@ in the **top bar** (`app/TopBar.tsx` → `SessionMenu`).
   `agent_end` and on demand), warn state near the compaction threshold, and
   the popover below. On a Claude Code session the denominator is the
   **auto-compact budget** (Settings → Claude Code → Context window, 200k
-  unless set; `autocompactTokens` in `lib/claudeAutocompact.ts`), not the
+  unless set; `contextBudgetTokens` in `shared/context-budget.ts`), not the
   model window, and the label is not capped at 100% — the ring saturates, the
   number keeps counting. The CLI's compaction is the only thing that shrinks
   that context, so "how full is the budget" is the honest question: against

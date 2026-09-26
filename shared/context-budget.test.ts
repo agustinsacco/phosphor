@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
   DEFAULT_AUTOCOMPACT_TOKENS,
+  sessionContextBudget,
   autocompactTokens,
   isValidAutocompactValue,
-} from './claudeAutocompact'
+} from './context-budget'
 
 describe('autocompactTokens', () => {
   it('resolves unset to the provider default', () => {
@@ -63,5 +64,52 @@ describe('isValidAutocompactValue', () => {
     expect(isValidAutocompactValue('40%')).toBe(false)
     expect(isValidAutocompactValue('-200k')).toBe(false)
     expect(isValidAutocompactValue('0')).toBe(false)
+  })
+})
+
+describe('sessionContextBudget', () => {
+  const session = (over: Partial<Parameters<typeof sessionContextBudget>[0]>) =>
+    sessionContextBudget({
+      raw: '',
+      provider: 'openai-codex',
+      contextWindow: 1_000_000,
+      autoCompactionEnabled: true,
+      ...over,
+    })
+
+  it('caps a pi session whose window is larger than the budget', () => {
+    expect(session({})).toBe(200_000)
+    expect(session({ raw: '400k' })).toBe(400_000)
+    expect(session({ contextWindow: 272_000 })).toBe(200_000)
+  })
+
+  it("leaves pi's own threshold in charge when the window is no larger than the budget", () => {
+    // pi fires at window - reserveTokens (~183k here) before 200k is reached.
+    expect(session({ contextWindow: 200_000 })).toBeNull()
+    expect(session({ contextWindow: 128_000 })).toBeNull()
+    expect(session({ raw: '400k', contextWindow: 272_000 })).toBeNull()
+  })
+
+  it('has no budget without a known window', () => {
+    expect(session({ contextWindow: undefined })).toBeNull()
+    expect(session({ contextWindow: 0 })).toBeNull()
+  })
+
+  it('follows the ⋮ auto-compaction toggle on pi sessions', () => {
+    expect(session({ autoCompactionEnabled: false })).toBeNull()
+  })
+
+  it('has no budget for auto or off on pi sessions', () => {
+    expect(session({ raw: 'auto' })).toBeNull()
+    expect(session({ raw: 'off' })).toBeNull()
+  })
+
+  it('gives a Claude session the budget whatever its window or pi toggle', () => {
+    // pi's auto-compaction is always off there — the CLI owns compaction.
+    const claude = { provider: 'pi-claude-cli', autoCompactionEnabled: false }
+    expect(session({ ...claude })).toBe(200_000)
+    expect(session({ ...claude, contextWindow: 200_000 })).toBe(200_000)
+    expect(session({ ...claude, raw: '500' })).toBe(500_000)
+    expect(session({ ...claude, raw: 'auto' })).toBeNull()
   })
 })

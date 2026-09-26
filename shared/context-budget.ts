@@ -61,3 +61,28 @@ export function autocompactTokens(raw: string): number | null {
   }
   return tokens
 }
+
+// Shared names for consumers outside the Claude settings tab.
+export {
+  DEFAULT_AUTOCOMPACT_TOKENS as DEFAULT_CONTEXT_BUDGET_TOKENS,
+  autocompactTokens as contextBudgetTokens,
+  isValidAutocompactValue as isValidContextBudgetValue,
+}
+
+/**
+ * The configured budget, or null when this session uses only its native limit.
+ * Claude owns compaction regardless of pi's toggle. Other providers opt out
+ * when pi auto-compaction is disabled, or their window is no larger than the
+ * budget. Native reserveTokens can still cause pi to compact sooner.
+ */
+export function sessionContextBudget(session: {
+  raw: string
+  provider: string | null | undefined
+  contextWindow: number | null | undefined
+  autoCompactionEnabled: boolean
+}): number | null {
+  const budget = autocompactTokens(session.raw)
+  if (session.provider === 'pi-claude-cli') return budget
+  if (budget === null || !session.autoCompactionEnabled) return null
+  return (session.contextWindow ?? 0) > budget ? budget : null
+}

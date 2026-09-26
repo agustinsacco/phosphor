@@ -27,6 +27,7 @@ import {
   type WorkspaceInfo,
 } from '@shared/models'
 import { type FeedbackPrefs, normalizeFeedbackPrefs } from '@shared/feedback'
+import { migrateRenamedPrefs, type RawPrefs } from './prefs-migrations'
 
 /**
  * True for a path inside a repo's internal worktree folder
@@ -76,7 +77,10 @@ function resolvedOrSame(path: string | undefined): string | undefined {
 let store: Store<AppPrefs> | null = null
 
 function prefs(): Store<AppPrefs> {
-  store ??= new Store<AppPrefs>({ defaults: DEFAULT_APP_PREFS })
+  if (!store) {
+    store = new Store<AppPrefs>({ defaults: DEFAULT_APP_PREFS })
+    migrateRenamedPrefs(store as unknown as RawPrefs)
+  }
   return store
 }
 
@@ -148,7 +152,7 @@ export function getPrefs(): AppPrefs {
     worktrees: { ...DEFAULT_APP_PREFS.worktrees, ...s.get('worktrees') },
     headroom: { ...DEFAULT_APP_PREFS.headroom, ...s.get('headroom') },
     feedback: normalizeFeedbackPrefs(s.get('feedback')),
-    claudeAutocompact: s.get('claudeAutocompact') ?? '',
+    contextBudget: s.get('contextBudget') ?? '',
     drafts: s.get('drafts') ?? {},
   }
 }
@@ -214,9 +218,9 @@ export function setClaudeAccountPrefs(value: ClaudeAccountPrefs): void {
   prefs().set('claudeAccounts', value)
 }
 
-/** See AppPrefs.claudeAutocompact — stored trimmed; '' means provider default. */
-export function setClaudeAutocompact(value: string): void {
-  prefs().set('claudeAutocompact', value.trim())
+/** See AppPrefs.contextBudget — stored trimmed; '' means the default budget. */
+export function setContextBudget(value: string): void {
+  prefs().set('contextBudget', value.trim())
 }
 
 /** Record that the user has viewed a session's current state. */

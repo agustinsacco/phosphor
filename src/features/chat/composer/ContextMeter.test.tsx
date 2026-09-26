@@ -6,7 +6,7 @@ import { ContextMeter } from './ContextMeter'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { useClaudeAutocompactStore } from '@/stores/claudeAutocompactPref'
+import { useContextBudgetStore } from '@/stores/contextBudgetPref'
 import type { SessionStats } from '@shared/rpc'
 
 beforeAll(() => {
@@ -124,7 +124,7 @@ beforeEach(() => {
   ;(globalThis as unknown as { window: { phosphor: unknown } }).window.phosphor = { invoke }
   useChatStore.setState({ sessions: {} })
   useExtensionUiStore.setState({ statuses: {} })
-  useClaudeAutocompactStore.setState({ claudeAutocompact: '' })
+  useContextBudgetStore.setState({ contextBudget: '' })
 })
 
 afterEach(() => {
@@ -168,7 +168,7 @@ describe('ContextMeter', () => {
   it('divides by the configured budget, not the model window', () => {
     // "500" is the CLI's shorthand for 500k. Against the model window this
     // session read as critical; against its own budget it is at 65%.
-    useClaudeAutocompactStore.setState({ claudeAutocompact: '500' })
+    useContextBudgetStore.setState({ contextBudget: '500' })
     seed({ tokens: 325_000, contextWindow: 200_000, percent: 162.5 })
     render()
     expect(document.body.textContent).toContain('65%')

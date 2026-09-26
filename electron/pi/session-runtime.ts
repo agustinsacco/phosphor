@@ -129,7 +129,7 @@ export async function spawnSession(
   // window). Read per spawn so a change applies to the next session started
   // without restarting Phosphor; unset means the provider's own default (200k),
   // so the env var is only set when the user chose something.
-  const claudeAutocompact = getPrefs().claudeAutocompact
+  const claudeAutocompact = getPrefs().contextBudget
   const spawnEnv: Record<string, string> = stub
     ? { ELECTRON_RUN_AS_NODE: '1' }
     : {

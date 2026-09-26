@@ -745,7 +745,11 @@ export function installMockPhosphor(): void {
             agentDirectives: DEFAULT_APP_PREFS.agentDirectives,
             agentDirectivesByProject: {},
             worktrees: DEFAULT_APP_PREFS.worktrees,
+            contextBudget: localStorage.getItem('mock:contextBudget') ?? '',
           })
+        case 'app:setContextBudget':
+          localStorage.setItem('mock:contextBudget', (args[0] as string).trim())
+          return Promise.resolve(undefined)
         case 'app:setSessionOrder':
           localStorage.setItem('mock:sessionOrder', JSON.stringify(args[0]))
           return Promise.resolve(undefined)

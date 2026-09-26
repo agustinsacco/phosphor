@@ -581,16 +581,19 @@ export interface AppPrefs {
   /** Rating/feedback state: launch count, the one-time nudge, the relay. */
   feedback: FeedbackPrefs
   /**
-   * Claude Code auto-compact window for pi-claude-cli sessions, passed as
-   * `PI_CLAUDE_CLI_AUTOCOMPACT` when a session spawns. Empty string means
-   * "the provider's default" (200k as of pi-claude-cli 0.5.0). Other accepted
-   * values mirror the provider: a window from 100k to 1M (`400k`, `400000`,
-   * bare `400` = thousands), `auto` (the CLI's own default — effectively the
-   * model's full 1M window), or `off` (omit the flag, for CLIs that predate
-   * `--autocompact`). The provider validates again and falls back to its
-   * default rather than passing a bad value to the CLI.
+   * How large any session may grow before it is compacted, one token count for
+   * every provider (Settings → Agent → Context budget; grammar and owners in
+   * `shared/context-budget.ts`). Claude Code sessions get it as
+   * `PI_CLAUDE_CLI_AUTOCOMPACT` at spawn; other sessions are compacted by
+   * Phosphor when a turn settles over it (`electron/pi/context-budget.ts`).
+   * Empty string means the default (200k). Other accepted values: a budget
+   * from 100k to 1M (`400k`, `400000`, bare `400` = thousands), `auto` (each
+   * session uses its model's full window), or `off` (as `auto`, and the CLI
+   * flag is omitted too, for CLIs that predate `--autocompact`). Stored as
+   * `claudeAutocompact` before it applied to every provider
+   * (`electron/prefs-migrations.ts`).
    */
-  claudeAutocompact: string
+  contextBudget: string
   /**
    * Claude Code logins, their order, and how sessions are routed to them.
    *
@@ -808,7 +811,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   maintenance: DEFAULT_MAINTENANCE_PREFS,
   headroom: DEFAULT_HEADROOM_PREFS,
   feedback: DEFAULT_FEEDBACK_PREFS,
-  claudeAutocompact: '',
+  contextBudget: '',
   claudeAccounts: DEFAULT_CLAUDE_ACCOUNT_PREFS,
   drafts: {},
 }
