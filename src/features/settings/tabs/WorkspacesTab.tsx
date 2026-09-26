@@ -124,7 +124,7 @@ export function WorkspacesTab(): React.JSX.Element {
         </Row>
         <Row
           title="Lane markers"
-          description="The emoji left of each lane in the sidebar. Auto derives one from the branch name; Manual shows only the ones you pick; Off removes the column."
+          description="The emoji left of each lane. Click a marker or right-click a lane to pick a new one. Auto derives one from the branch name; Manual shows only your choices; Off hides markers and the picker without clearing choices."
         >
           <span className="flex items-center gap-1">
             {(['auto', 'manual', 'off'] as const).map((mode) => (

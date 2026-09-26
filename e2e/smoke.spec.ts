@@ -2198,6 +2198,78 @@ test('an unsent draft survives a session switch and a relaunch', async () => {
   }
 })
 
+test('lane marker picker works offline and persists choices across marker modes', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    const row = page.locator('[data-testid="session-row"]:not([data-pending])').first()
+    const marker = row.getByTestId('lane-marker')
+    await expect(marker).toBeVisible({ timeout: 20_000 })
+    const auto = await marker.textContent()
+    const picker = page.getByRole('dialog', { name: 'Lane marker', exact: true })
+    const setMode = async (mode: string): Promise<void> => {
+      await page.getByRole('button', { name: /^Settings/ }).click()
+      await page.getByRole('button', { name: 'Workspaces', exact: true }).click()
+      await page.getByRole('button', { name: mode, exact: true }).click()
+      await page.keyboard.press('Escape')
+    }
+    await page.context().setOffline(true)
+    await marker.click()
+    await expect(picker.getByRole('textbox', { name: 'Search icons' })).toBeFocused()
+    await expect(picker.locator('button[aria-pressed]')).toHaveCount(120)
+    await picker.getByRole('button', { name: 'Show more icons' }).click()
+    await expect(picker.locator('button[aria-pressed]')).toHaveCount(240)
+    await picker.getByRole('combobox').selectOption('Travel & Places')
+    await picker.getByRole('textbox').fill('not-an-emoji-name')
+    await expect(picker.getByRole('status')).toContainText('No icons found')
+    await picker.getByRole('textbox').fill('satellite')
+    await picker.getByRole('button', { name: 'satellite', exact: true }).click()
+    await expect(marker).toHaveText('🛰️')
+    await expect(picker).toHaveCount(0)
+    await expect
+      .poll(() =>
+        page.evaluate(async () =>
+          Object.values((await window.phosphor.invoke('app:getPrefs')).laneMarkers),
+        ),
+      )
+      .toContain('🛰️')
+    await page.reload()
+    await expect(marker).toHaveText('🛰️', { timeout: 30_000 })
+    await setMode('off')
+    await expect(marker).toHaveCount(0)
+    await page.reload()
+    await expect(row).toBeVisible({ timeout: 30_000 })
+    await expect(marker).toHaveCount(0)
+    await row.click({ button: 'right' })
+    await expect(page.getByRole('button', { name: 'Lane marker…', exact: true })).toHaveCount(0)
+    await page.keyboard.press('Escape')
+    await setMode('manual')
+    await expect(marker).toHaveText('🛰️')
+    await row.click({ button: 'right' })
+    await page.getByRole('button', { name: 'Lane marker…', exact: true }).click()
+    await picker.getByRole('button', { name: 'Default', exact: true }).click()
+    await expect(marker).toHaveText('•')
+    await setMode('auto')
+    await expect(marker).toHaveText(auto!)
+    await marker.click()
+    await picker.getByRole('button', { name: 'None', exact: true }).click()
+    await expect(marker).toHaveText('•')
+    await marker.click()
+    await page.keyboard.press('Escape')
+    await expect(picker).toHaveCount(0)
+    await expect(marker).toHaveText('•')
+    await marker.click()
+    await picker.getByRole('button', { name: /Auto/ }).click()
+    await expect(marker).toHaveText(auto!)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('lane rows carry no spend, and the row menu still offers it', async () => {
   const harness = await launch()
   const { page } = harness
