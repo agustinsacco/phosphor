@@ -42,13 +42,13 @@ import type {
 } from '@shared/models'
 import { useSessionClaudeAccount } from './useSessionAccount'
 import { useSessionsStore } from '@/stores/sessions'
-import { useClaudeAutocompactStore } from '@/stores/claudeAutocompactPref'
-import { autocompactTokens } from '@/lib/claudeAutocompact'
+import { useContextBudgetStore } from '@/stores/contextBudgetPref'
+import { contextBudgetTokens } from '@shared/context-budget'
 
 export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats)
   const model = useChatStore((s) => s.sessions[sessionId]?.meta?.model)
-  const autocompactPref = useClaudeAutocompactStore((s) => s.claudeAutocompact)
+  const autocompactPref = useContextBudgetStore((s) => s.contextBudget)
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   // Pushed by the bundled context-breakdown extension, so it is present for
@@ -80,7 +80,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   // budget read as critical at 65% of itself, and a 325k context in a 200k
   // budget saturated at 100% instead of saying 163%. Other providers keep
   // pi's window and pi's cap: pi compacts them, so >100% is transient there.
-  const budget = model?.provider === 'pi-claude-cli' ? autocompactTokens(autocompactPref) : null
+  const budget = model?.provider === 'pi-claude-cli' ? contextBudgetTokens(autocompactPref) : null
   const window = budget ?? usage?.contextWindow ?? 0
   const rawPercent =
     budget !== null && usage?.tokens != null && window > 0

@@ -43,7 +43,7 @@ import {
   setTheme,
   setAgentDirectives,
   setWorktreePrefs,
-  setClaudeAutocompact,
+  setContextBudget,
   setDraft,
   clearDraft,
   setDrafts,
@@ -283,8 +283,8 @@ export function registerAppHandlers(): void {
     setAgentDirectives(directives, projectPath)
   })
 
-  handle('app:setClaudeAutocompact', (_event, value: string) => {
-    setClaudeAutocompact(value)
+  handle('app:setContextBudget', (_event, value: string) => {
+    setContextBudget(value)
   })
 
   handle('app:markSessionSeen', (_event, sessionPath: string) => {

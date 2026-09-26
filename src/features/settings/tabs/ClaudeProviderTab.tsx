@@ -16,10 +16,10 @@ import { isNewerVersion } from '@shared/version'
 import { JobOutput } from '../JobOutput'
 import { ClaudeAccountPanel } from './ClaudeAccountPanel'
 import { usageTextClass, windowResetLabel } from '@/lib/claudeUsage'
-import { autocompactTokens, isValidAutocompactValue } from '@/lib/claudeAutocompact'
+import { contextBudgetTokens, isValidContextBudgetValue } from '@shared/context-budget'
 import { formatTokens } from '@/lib/format'
 import { useSessionsStore } from '@/stores/sessions'
-import { useClaudeAutocompactStore } from '@/stores/claudeAutocompactPref'
+import { useContextBudgetStore } from '@/stores/contextBudgetPref'
 
 /** Claude Code line the extension is tested against (see the fork's CI). */
 const TESTED_CLI_LINE = '2.1'
@@ -796,7 +796,7 @@ function ContextWindowSection(): React.JSX.Element {
 
   useEffect(() => {
     void window.phosphor.invoke('app:getPrefs').then((prefs) => {
-      const stored = prefs.claudeAutocompact ?? ''
+      const stored = prefs.contextBudget ?? ''
       setValue(stored)
       if (!AUTOCOMPACT_PRESETS.some((p) => p.value === stored)) setCustomDraft(stored)
     })
@@ -807,15 +807,15 @@ function ContextWindowSection(): React.JSX.Element {
     setCustomError(false)
     // The context meter divides Claude sessions by this budget; keep its copy
     // current without a second prefs round-trip.
-    useClaudeAutocompactStore.getState().applyClaudeAutocompact(next)
-    void window.phosphor.invoke('app:setClaudeAutocompact', next)
+    useContextBudgetStore.getState().applyContextBudget(next)
+    void window.phosphor.invoke('app:setContextBudget', next)
   }, [])
 
   // What a custom value MEANS, shown while it is typed: "500" is the CLI's
   // shorthand for 500k, and a budget 2.5× the default was once set that way
   // without anyone noticing until the bill did.
-  const customTokens = isValidAutocompactValue(customDraft.trim())
-    ? autocompactTokens(customDraft.trim())
+  const customTokens = isValidContextBudgetValue(customDraft.trim())
+    ? contextBudgetTokens(customDraft.trim())
     : null
 
   const commitCustom = useCallback((): void => {
@@ -824,7 +824,7 @@ function ContextWindowSection(): React.JSX.Element {
       save('')
       return
     }
-    if (!isValidAutocompactValue(draft)) {
+    if (!isValidContextBudgetValue(draft)) {
       setCustomError(true)
       return
     }
