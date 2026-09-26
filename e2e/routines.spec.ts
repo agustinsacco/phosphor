@@ -297,10 +297,11 @@ test('deleting a routine removes its history and trashes the lanes it still owns
   await page.getByTestId('routine-row').filter({ hasText: 'Doomed' }).click()
   await page.getByRole('button', { name: 'More actions' }).click()
   await page.getByTestId('context-menu').getByRole('button', { name: 'Delete…' }).click()
-  await page
-    .getByRole('alertdialog', { name: 'Delete routine' })
-    .getByRole('button', { name: 'Delete routine' })
-    .click()
+  const confirm = page.getByRole('alertdialog', { name: 'Delete routine' })
+  await confirm.getByRole('button', { name: 'Delete routine' }).click()
+  // The open routine's detail view replaces the list, so an empty list proves
+  // nothing. The dialog closes once routines:delete resolves, after the trash.
+  await expect(confirm).toHaveCount(0)
   await expect(page.getByTestId('routine-row')).toHaveCount(0)
   const state = await page.evaluate(() => window.phosphor.invoke('routines:list'))
   expect(state.routines).toHaveLength(0)
