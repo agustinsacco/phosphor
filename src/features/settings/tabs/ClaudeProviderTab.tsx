@@ -9,10 +9,11 @@ import type {
   ClaudeStatus,
   PiPackageEntry,
 } from '@shared/models'
+import { MIN_CLAUDE_CONTEXT_VERSION } from '@shared/models'
 import { Button, TextInput } from '@/components/form'
 import { ChevronIcon, Spinner } from '@/components/icons'
 import { usePackageJob } from '../usePackageJob'
-import { isNewerVersion } from '@shared/version'
+import { isNewerVersion, meetsMinimum } from '@shared/version'
 import { JobOutput } from '../JobOutput'
 import { ClaudeAccountPanel } from './ClaudeAccountPanel'
 import { usageTextClass, windowResetLabel } from '@/lib/claudeUsage'
@@ -77,6 +78,9 @@ export function ClaudeProviderTab(): React.JSX.Element {
   const testJob = usePackageJob()
   const updatable =
     latest !== null && pkg?.version !== undefined && isNewerVersion(latest, pkg.version)
+  // Main refuses a Claude session on this copy, so the row must not read as
+  // healthy beside it. Same rule as the refusal (provider-detect.ts).
+  const tooOld = pkg?.installed === true && !meetsMinimum(pkg.version, MIN_CLAUDE_CONTEXT_VERSION)
   const binaryOk = status?.binary.found === true
   const cliVersion = status?.binary.version
   const cliUpdatable =
@@ -95,7 +99,7 @@ export function ClaudeProviderTab(): React.JSX.Element {
       <div className="border-border mt-2 divide-y rounded-lg border">
         <StatusRow
           label="Extension package"
-          ok={pkg != null && pkg.installed}
+          ok={pkg != null && pkg.installed && !tooOld}
           detail={
             pkg === undefined
               ? 'checking…'
@@ -140,6 +144,12 @@ export function ClaudeProviderTab(): React.JSX.Element {
           />
         )}
       </div>
+      {tooOld && (
+        <p className="text-warning mt-2 text-sm" data-testid="claude-provider-too-old">
+          Claude sessions need {pkg.name} {MIN_CLAUDE_CONTEXT_VERSION} or newer; this is{' '}
+          {pkg.version ?? 'an unknown version'}. Update it, then reopen your Claude sessions.
+        </p>
+      )}
       {status?.binary.version && !status.binary.version.startsWith(`${TESTED_CLI_LINE}.`) && (
         <p className="text-warning mt-2 text-sm">
           This extension is tested against Claude Code {TESTED_CLI_LINE}.x; you have{' '}

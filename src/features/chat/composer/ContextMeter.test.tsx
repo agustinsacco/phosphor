@@ -6,7 +6,6 @@ import { ContextMeter } from './ContextMeter'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { useClaudeAutocompactStore } from '@/stores/claudeAutocompactPref'
 import type { SessionStats } from '@shared/rpc'
 
 beforeAll(() => {
@@ -124,7 +123,6 @@ beforeEach(() => {
   ;(globalThis as unknown as { window: { phosphor: unknown } }).window.phosphor = { invoke }
   useChatStore.setState({ sessions: {} })
   useExtensionUiStore.setState({ statuses: {} })
-  useClaudeAutocompactStore.setState({ claudeAutocompact: '' })
 })
 
 afterEach(() => {
@@ -156,16 +154,9 @@ describe('ContextMeter', () => {
     expect(document.body.textContent).toContain('25%')
   })
 
-  it('uses pi metrics for Claude and ignores a saved legacy CLI budget', () => {
-    useClaudeAutocompactStore.setState({ claudeAutocompact: '500' })
-    seed({ tokens: 50_000, contextWindow: 200_000, percent: 25 })
-    render()
-    expect(document.body.textContent).toContain('25%')
-    expect(document.body.textContent).not.toContain('10%')
-  })
-
-  it('keeps pi window and cap for every other provider', () => {
-    seed({ tokens: 325_000, contextWindow: 200_000, percent: 162.5 }, 'openai-codex')
+  // pi compacts every provider, so a Claude session has no budget of its own.
+  it.each(['pi-claude-cli', 'openai-codex'])("uses pi's window and cap for %s", (provider) => {
+    seed({ tokens: 325_000, contextWindow: 200_000, percent: 162.5 }, provider)
     render()
     expect(document.body.textContent).toContain('100%')
   })

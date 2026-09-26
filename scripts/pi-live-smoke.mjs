@@ -6,11 +6,11 @@
  * `e2e/fixtures/pi-stub.cjs`, which answers a fixed script and therefore
  * cannot notice that pi's real protocol moved. This spawns a REAL
  * `pi --mode rpc` the way `electron/pi/rpc-client.ts` spawns one — same argv
- * shape, all five bundled `pi-ext/` extensions, the Claude provider with
- * `PI_CLAUDE_CLI_STRICT_MCP=1` — and drives the commands, events and response
- * fields Phosphor actually reads.
+ * shape, all six bundled `pi-ext/` extensions, the Claude provider on pi's
+ * context (`PI_CLAUDE_CLI_CONTEXT=pi`) — and drives the commands, events and
+ * response fields Phosphor actually reads.
  *
- * It runs one real model turn, so it needs a working provider login and costs
+ * It sends one real prompt, so it needs a working provider login and costs
  * a few cents. Not part of `validate`, not part of CI; run it by hand when the
  * installed pi changes minor, then update `VERIFIED_PI_LINE` in
  * `src/lib/piDrift.ts`.
@@ -28,29 +28,23 @@ const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
 const MODEL = process.env.PI_SMOKE_MODEL ?? 'claude-haiku-4-5'
 const TURN_TIMEOUT_MS = 240_000
 
-// Kept in sync with bundledExtensions() in electron/ipc/pi-session-handlers.ts.
+// Kept in sync with bundledExtensions() in electron/pi/session-runtime.ts.
 const EXTENSIONS = [
   'artifacts.ts',
   'context-breakdown.ts',
   'worktree-paths.ts',
   'tool-name-guard.ts',
   'mcp-status.ts',
+  'headroom.ts',
 ]
 
-const args = [
-  '--mode',
-  'rpc',
-  '--no-context-files',
-  '--provider',
-  'pi-claude-cli',
-  '--model',
-  MODEL,
-]
+const args = ['--mode', 'rpc', '--provider', 'pi-claude-cli', '--model', MODEL]
 for (const ext of EXTENSIONS) args.push('-e', join(REPO, 'pi-ext', ext))
 
 const child = spawn('pi', args, {
   cwd: REPO,
-  env: { ...process.env, PI_CLAUDE_CLI_STRICT_MCP: '1' },
+  // What claudeProviderSpawnEnv() gives every session.
+  env: { ...process.env, PI_CLAUDE_CLI_CONTEXT: 'pi' },
   stdio: ['pipe', 'pipe', 'pipe'],
 })
 
@@ -151,9 +145,12 @@ try {
   )
 
   events.length = 0
-  const turnEnded = new Promise((resolve) => {
+  // A tool call splits the prompt into several turns, and pi runs every tool
+  // itself (Claude included, from pi-claude-cli 0.9.0). The run is over at
+  // agent_settled, which is what Phosphor waits for, not at the first turn_end.
+  const settled = new Promise((resolve) => {
     const poll = setInterval(() => {
-      if (events.includes('turn_end') || events.includes('turn_aborted')) {
+      if (events.includes('agent_settled')) {
         clearInterval(poll)
         resolve()
       }
@@ -168,11 +165,11 @@ try {
     message: 'Read package.json and report the "name" field. One line.',
   })
   check('prompt accepted', prompt.success)
-  await turnEnded
+  await settled
 
   check(
-    'turn lifecycle',
-    events.includes('turn_start') && events.includes('turn_end'),
+    'run lifecycle',
+    ['turn_start', 'turn_end', 'agent_end', 'agent_settled'].every((type) => events.includes(type)),
     [...new Set(events)].join(' '),
   )
   const deltas = events.filter((type) => type === 'message_update').length

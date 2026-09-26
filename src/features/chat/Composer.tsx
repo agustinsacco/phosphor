@@ -32,7 +32,7 @@ import { useAttachments } from './composer/useAttachments'
 import { ComposerField } from './composer/ComposerField'
 import { sessionDraftKey, useDraftsStore } from '@/stores/drafts'
 import { refreshSessionCommands, useSessionsStore } from '@/stores/sessions'
-import { errorText } from '@shared/errors'
+import { ipcErrorText } from '@shared/errors'
 
 interface MentionState {
   /** Index of the '@' in the textarea value. */
@@ -222,7 +222,7 @@ export function Composer({
           }
         } catch (error) {
           chat.updateBashItem(sessionId, itemId, {
-            output: errorText(error),
+            output: ipcErrorText(error),
             exitCode: -1,
             running: false,
           })
@@ -258,8 +258,9 @@ export function Composer({
         })
       } catch (error) {
         // `piCallOk` reports a rejected envelope; an IPC-level rejection (the
-        // session's process died mid-send) still lands here.
-        chat.setError(sessionId, errorText(error))
+        // session's process died mid-send, or main refused a Claude prompt on
+        // an outdated provider) still lands here.
+        chat.setError(sessionId, ipcErrorText(error))
       }
     },
     [sessionId, text, images, isStreaming, draftKey],
@@ -281,7 +282,7 @@ export function Composer({
         textareaRef.current?.focus()
       }
     } catch (error) {
-      chat.setError(sessionId, errorText(error))
+      chat.setError(sessionId, ipcErrorText(error))
     }
   }, [sessionId, draftKey, setText])
 

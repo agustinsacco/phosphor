@@ -54,8 +54,16 @@ upgrades nothing implicitly. Claude Code 2.1.263+ is required.
 pi owns compaction for every provider. Phosphor does not force a different
 setting at spawn or model switch. The Agent settings and session toggle apply
 to Claude too, and the context meter uses pi's model window. The old Claude-only
-context-window preference is retained for config compatibility but is no longer
-shown, passed to the provider, or used by the meter.
+context-window preference is gone.
+
+Older Phosphor sent `set_auto_compaction` at every spawn and model switch, off
+for Claude, and pi saves that command to its global `settings.json`. An install
+whose last session ran on Claude was left with `compaction.enabled: false`, so
+now that the CLI never compacts, nothing would compact on any provider.
+`electron/pi/compaction-reset.ts` turns that `false` back to `true` once,
+before the first pi spawn, and records the check in the `compactionResetChecked`
+pref. A later `false` is the user's and stays. A `settings.json` that does not
+parse is left alone and checked again next launch.
 
 ### Existing sessions
 

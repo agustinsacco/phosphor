@@ -16,6 +16,7 @@ import {
 } from './provider-detect'
 import { readAgentSettings } from './agent-settings'
 import { healMissingSessionCwd } from './session-cwd'
+import { ensureCompactionReset } from './compaction-reset'
 import { listPackages } from './packages'
 import { headroomSupervisor } from '../headroom/proxy'
 import { sessionEventChannel } from '@shared/ipc'
@@ -110,24 +111,6 @@ export async function spawnSession(
 
   // pi is a `#!/usr/bin/env node` script: it needs the login shell's PATH
   // to find node under a version manager, not the GUI-inherited one.
-  //
-  // No PI_CLAUDE_CLI_SYSTEM_PROMPT override here: real sessions always run
-  // pi-claude-cli's own default (`claude` mode, appends pi's prompt to Claude
-  // Code's own). This used to be a Phosphor setting; dropped because the only
-  // upside of the alternative (`pi` mode, replacing Claude Code's prompt
-  // outright) is ~12k tokens of context WINDOW, not cost — both modes are
-  // cached — at the cost of losing Claude Code's own tuned guidance for the
-  // native tools this provider actually runs. Not worth doubling the number
-  // of system-prompt code paths that have to reach the model correctly — the
-  // one path has already been silently broken twice: the CLI dropped
-  // `--system-prompt` across `--resume`, and it takes a literal string where
-  // the provider was passing a temp-file path, so pi's instructions never
-  // reached Claude Code at all. The naming call below keeps its own internal
-  // `pi` override — a no-tools, no-guidance-needed case.
-  // Claude Code auto-compact window (Settings → Claude Code → Context
-  // window). Read per spawn so a change applies to the next session started
-  // without restarting Phosphor; unset means the provider's own default (200k),
-  // so the env var is only set when the user chose something.
   const spawnEnv: Record<string, string> = stub
     ? { ELECTRON_RUN_AS_NODE: '1' }
     : {
@@ -163,10 +146,11 @@ export async function spawnSession(
       : {}),
   })
 
-  // pi loads project context for EVERY provider. The Claude context policy
-  // disables the CLI's second loader without replacing its native tools or
-  // default prompt. Gate the separately installed provider before relying on
-  // that policy; older versions silently ignore the new environment variable.
+  // pi loads project context for EVERY provider. From pi-claude-cli 0.9.0 a
+  // Claude session runs on that alone: pi's prompt, skills and tools, with the
+  // CLI's own loaders, tools and compaction off. Older providers read pi's
+  // prompt from a field pi 0.86+ leaves empty, so the separately installed
+  // package is checked before a Claude session starts.
   const claudeProvider = stub
     ? false
     : usesClaudeCliProvider(
@@ -192,6 +176,9 @@ export async function spawnSession(
   // URL, and fails open even with a stale one. Env-only integration on
   // purpose: Phosphor never writes provider config for a proxy.
   if (!stub) Object.assign(spawnEnv, headroomSupervisor().sessionEnv())
+
+  // Before pi starts, which is when it reads its settings.
+  if (!stub) await ensureCompactionReset()
 
   execution.signal?.throwIfAborted()
   const session = registry.create(options.workspacePath, {
@@ -262,7 +249,10 @@ export async function spawnSession(
     push({ kind: 'exit', code, signal: signal ?? null, expected })
   })
 
-  // Wait for pi startup without overriding the user's compaction preference.
+  // Wait for pi to answer before handing the session over; the renderer
+  // bootstraps from get_state the moment this returns. A pi that exits or is
+  // stopped during startup is disposed here, and the caller gets the reason,
+  // or the AbortError when a delete cancelled the open.
   const stopOnAbort = (): void => {
     void registry.dispose(session.sessionId)
   }
@@ -271,10 +261,7 @@ export async function spawnSession(
   try {
     if (!stub) await session.client.request({ type: 'get_state' })
     execution.signal?.throwIfAborted()
-    if (!session.client.alive) {
-      await registry.dispose(session.sessionId)
-      throw new Error('Session stopped during startup.')
-    }
+    if (!session.client.alive) throw new Error('Session stopped during startup.')
   } catch (error) {
     await registry.dispose(session.sessionId)
     execution.signal?.throwIfAborted()

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isNewerVersion } from './version'
+import { isNewerVersion, meetsMinimum } from './version'
 
 describe('isNewerVersion', () => {
   it('detects a newer release', () => {
@@ -48,5 +48,29 @@ describe('isNewerVersion — cases inherited from the updater', () => {
     expect(isNewerVersion('not-a-version', '0.1.0')).toBe(false)
     expect(isNewerVersion('', '0.1.0')).toBe(false)
     expect(isNewerVersion('0.1.1', 'garbage')).toBe(false)
+  })
+})
+
+describe('meetsMinimum', () => {
+  it('passes the minimum and anything after it, numerically', () => {
+    expect(meetsMinimum('0.9.0', '0.9.0')).toBe(true)
+    expect(meetsMinimum('0.9.1', '0.9.0')).toBe(true)
+    expect(meetsMinimum('0.10.0', '0.9.0')).toBe(true)
+    expect(meetsMinimum('1.0.0', '0.9.0')).toBe(true)
+  })
+
+  it('fails anything older', () => {
+    expect(meetsMinimum('0.8.3', '0.9.0')).toBe(false)
+    expect(meetsMinimum('0.8.10', '0.9.0')).toBe(false)
+  })
+
+  it('fails what it cannot vouch for, even when it looks newer', () => {
+    expect(meetsMinimum(undefined, '0.9.0')).toBe(false)
+    expect(meetsMinimum('', '0.9.0')).toBe(false)
+    expect(meetsMinimum('0.9.0-rc.1', '0.9.0')).toBe(false)
+    expect(meetsMinimum('1.0.0-beta', '0.9.0')).toBe(false)
+    expect(meetsMinimum('v1.0.0', '0.9.0')).toBe(false)
+    expect(meetsMinimum('1.0', '0.9.0')).toBe(false)
+    expect(meetsMinimum('latest', '0.9.0')).toBe(false)
   })
 })

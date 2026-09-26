@@ -332,13 +332,14 @@ occupy context) while `getActiveTools()` returns **names**; it publishes at
 rest (`session_start`, `agent_settled`, `turn_end`), never mid-stream; and
 messages are measured over `sessionManager.buildContextEntries()` with pi's
 own per-role `estimateTokens` rules, never over `getBranch()`, which still
-holds every compacted-away message (measured: 292k for a 151k context). On a
-Claude Code session the provider's `[Claude Code · compact {…}]` block is the
-cut point instead. It attributes MCP schema cost **per server** using the
-adapter's server names and `toolCount` from pi's shared event bus
-(`pi-mcp-adapter/status/v1`), and reports per server how many schemas are in
-the window and how many of those are the server's own tools rather than the
-gateway proxy.
+holds every compacted-away message (measured: 292k for a 151k context). That
+list is the only cut on every provider: from pi-claude-cli 0.9.0 the Claude
+Code provider replays it whole, so an old `[Claude Code · compact {…}]` marker
+is text in its message, not a cut point. It attributes MCP schema cost **per
+server** using the adapter's server names and `toolCount` from pi's shared
+event bus (`pi-mcp-adapter/status/v1`), and reports per server how many
+schemas are in the window and how many of those are the server's own tools
+rather than the gateway proxy.
 
 `mcp-status.ts` exists for the same reason in the other direction: the adapter
 publishes each server's state on that bus, but pi's RPC has no channel for it.
@@ -377,15 +378,17 @@ provider-specific handling
 (`items/transcriptRows.ts`; contract table in
 [chat.md](chat.md#blocks-from-the-claude-code-provider)).
 
-- **The CLI compacting its own session** arrives as a
+- **The CLI compacting its own session** was recorded as a
   `[Claude Code · compact {"trigger","preTokens","postTokens","durationMs"}]`
-  marker (provider ≥ 0.8.3), no `#id` tag because nothing pairs with it.
+  marker (provider 0.8.3–0.8.x), no `#id` tag because nothing pairs with it.
   `compactDivider` in `items/transcriptRows.ts` turns it into the same
   compaction divider pi's `compaction_end` draws — its own row, never an
   activity step — with `trigger: "manual"` read as a manual compaction and
   anything else as threshold. A payload that does not parse still draws the
   divider, without figures. Every key is optional and absent means "not
-  reported", never zero.
+  reported", never zero. The divider records that old cut only: from 0.9.0 the
+  provider replays pi's whole context, so the model holds both sides of it
+  again.
 
 - **CLI-side tools** (WebSearch, WebFetch, ToolSearch, the user's own MCP
   servers, sub-agents) run _inside_ the CLI, so pi never sees them as tool

@@ -1,5 +1,5 @@
-import type { PiPackageEntry } from '@shared/models'
-import { compareVersions } from './health'
+import { MIN_CLAUDE_CONTEXT_VERSION, type PiPackageEntry } from '@shared/models'
+import { meetsMinimum } from '@shared/version'
 
 /**
  * Will this spawn land on the Claude Code provider (`pi-claude-cli`)?
@@ -25,29 +25,35 @@ export function usesClaudeCliProvider(
   return defaultProvider === 'pi-claude-cli'
 }
 
-/** The first provider release with pi-owned tools, history and compaction. */
-export const MIN_CLAUDE_CONTEXT_VERSION = '0.9.0'
-
-/** Fail visibly rather than silently enabling two context loaders on old providers. */
+/**
+ * Refuse visibly rather than start Claude on an older provider. Before 0.9.0
+ * the CLI loads its own context beside pi's, and on pi 0.86+ it misses pi's
+ * prompt entirely, so the session would run without pi's instructions or skills.
+ */
 export function assertClaudeContextProvider(
   packages: Pick<PiPackageEntry, 'name' | 'version' | 'installed'>[],
 ): void {
   const providers = packages.filter((pkg) => pkg.name === '@saccolabs/pi-claude-cli')
-  if (
-    providers.length === 0 ||
-    providers.some(
-      (pkg) =>
-        !pkg.installed ||
-        !pkg.version ||
-        !/^\d+\.\d+\.\d+$/.test(pkg.version) ||
-        compareVersions(pkg.version, MIN_CLAUDE_CONTEXT_VERSION) < 0,
-    )
-  ) {
-    throw new Error(
-      `Claude context alignment requires @saccolabs/pi-claude-cli ${MIN_CLAUDE_CONTEXT_VERSION}+ ` +
-        'as an installed pi package. Update it in Settings → Extensions, then reopen the session.',
-    )
-  }
+  const unusable = providers.filter(
+    (pkg) => !pkg.installed || !meetsMinimum(pkg.version, MIN_CLAUDE_CONTEXT_VERSION),
+  )
+  if (providers.length > 0 && unusable.length === 0) return
+  // Name what is there, so "I already updated it" has an answer: a stale
+  // project-scope copy fails the check even beside a current global one.
+  const found =
+    providers.length === 0
+      ? 'it is not installed'
+      : unusable
+          .map((pkg) =>
+            pkg.installed
+              ? `found ${pkg.version ?? 'no version'}`
+              : 'it is listed but not installed',
+          )
+          .join('; ')
+  throw new Error(
+    `Claude sessions need @saccolabs/pi-claude-cli ${MIN_CLAUDE_CONTEXT_VERSION} or newer (${found}). ` +
+      'Update it in Settings → Extensions, then reopen the session.',
+  )
 }
 
 /** Enforce pi ownership even if the launcher inherited legacy provider settings. */

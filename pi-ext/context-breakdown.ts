@@ -96,13 +96,6 @@ const STATUS_KEY = 'phosphor-context-breakdown'
 const MCP_STATUS_EVENT = 'pi-mcp-adapter/status/v1'
 /** pi's `ESTIMATED_IMAGE_CHARS` (compaction.ts). */
 const ESTIMATED_IMAGE_CHARS = 4800
-/**
- * The Claude Code provider's compaction marker (provider >= 0.8.3), appended
- * as a text block to the assistant message that was streaming when the CLI
- * cut its own context. pi's record never compacts on those sessions, so this
- * block is the only place the cut is visible from inside pi.
- */
-const CLAUDE_COMPACT_MARKER = '[Claude Code · compact '
 
 /** The adapter's own prefix sanitizer (`types.ts: sanitizeServerPrefix`). */
 function sanitizeServerPrefix(serverName: string): string {
@@ -259,47 +252,19 @@ export function entryChars(entry: SessionEntryLike): number {
   }
 }
 
-function isClaudeCompactBlock(block: unknown): boolean {
-  if (!block || typeof block !== 'object') return false
-  const b = block as { type?: string; text?: string }
-  return b.type === 'text' && typeof b.text === 'string' && b.text.startsWith(CLAUDE_COMPACT_MARKER)
-}
-
 /**
  * Tokens and count of the messages the model currently holds.
  *
- * `entries` is pi's own context list, so a pi compaction is already applied.
- * A Claude Code session compacts inside the CLI instead, which pi's record
- * never reflects: its marker block is the cut point, and only what follows it
- * is still in the model's window (the CLI's summary is not visible here and
- * lands in the renderer's Unmeasured slice).
+ * `entries` is pi's own context list, so a pi compaction is already applied,
+ * and it is the only cut. The Claude Code provider replays this same list from
+ * 0.9.0 and never compacts inside the CLI, so a `[Claude Code · compact …]`
+ * marker an older provider left in the record is ordinary text now, counted
+ * with the rest of its message.
  */
 export function measureMessages(entries: SessionEntryLike[]): { tokens: number; count: number } {
-  let start = 0
-  let startBlock = -1
-  for (let i = entries.length - 1; i >= 0 && startBlock < 0; i--) {
-    const entry = entries[i]!
-    if (entry.type !== 'message' || entry.message?.role !== 'assistant') continue
-    const blocks = Array.isArray(entry.message.content) ? entry.message.content : []
-    for (let j = blocks.length - 1; j >= 0; j--) {
-      if (isClaudeCompactBlock(blocks[j])) {
-        start = i
-        startBlock = j
-        break
-      }
-    }
-  }
-
   let chars = 0
   let count = 0
-  for (let i = start; i < entries.length; i++) {
-    const entry = entries[i]!
-    if (i === start && startBlock >= 0) {
-      const blocks = entry.message?.content
-      chars += assistantBlocksChars(Array.isArray(blocks) ? blocks.slice(startBlock + 1) : [])
-      count++
-      continue
-    }
+  for (const entry of entries) {
     if (entry.type === 'message') count++
     chars += entryChars(entry)
   }

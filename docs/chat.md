@@ -144,14 +144,14 @@ The composer is one small field with several ways in.
   message; aborted is a muted "stopped" divider.
 - Auto-retry: an inline strip "Retrying (2/3) in 4s — <error>" with cancel.
 - Compaction: a system divider "Context compacted — N tokens summarized" with
-  an expandable summary. Two sources draw it. pi's own `compaction_end`, for
-  sessions pi compacts; and on Claude Code sessions the provider's
-  `[Claude Code · compact {…}]` marker (provider ≥ 0.8.3), emitted when the
-  CLI compacted its own session mid-turn — pi's compaction is switched off for
-  those sessions ([cli-providers.md](cli-providers.md#compaction-has-one-owner)),
-  so there the divider means the model's context actually shrank. The marker
-  is its own row, never folded into an activity group: the run before it and
-  the run after it are different contexts.
+  an expandable summary, drawn from pi's `compaction_end` on every provider,
+  Claude Code included ([cli-providers.md](cli-providers.md#compaction-has-one-owner)).
+  Sessions recorded on provider 0.8.3–0.8.x also carry its
+  `[Claude Code · compact {…}]` marker, emitted when the CLI compacted its own
+  session mid-turn, and draw the same divider there. It records that old cut
+  only: from 0.9.0 the provider replays pi's whole context, so the model holds
+  both sides of it again. The marker is its own row, never folded into an
+  activity group.
 
 ## Tool renderers
 
@@ -166,15 +166,17 @@ The composer is one small field with several ways in.
 
 ### Blocks from the Claude Code provider
 
-Sessions on `@saccolabs/pi-claude-cli` carry three shapes no pi-native provider
-produces. All are handled in `items/transcriptRows.ts`, so tool-UX work
+Sessions recorded on `@saccolabs/pi-claude-cli` before 0.9.0 carry three shapes
+no pi-native provider produces. From 0.9.0 the CLI runs no tools of its own and
+never compacts, so a new session produces none of them, but older transcripts
+still open. All are handled in `items/transcriptRows.ts`, so tool-UX work
 inherits them; anything that re-derives rows from `AssistantBlock`s must handle
 them again.
 
 | Shape                                       | Where it comes from                                                                                                                                                             | Treatment                                                                                                                                                          |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `[Claude Code · Name {args}]` text block    | Tools Claude Code ran **inside its own process** (WebSearch, WebFetch, ToolSearch, the user's MCP servers, sub-agents). pi cannot execute them, so they are never pi tool calls | Parsed into an `externalTool` activity step: grouped with pi's tools, counted in the summary, never markdown-rendered                                              |
-| `[Claude Code · result #<id> {…}]`          | The outcome of one of those calls. Phosphor asks for these with `PI_CLAUDE_CLI_TOOL_RESULTS=1`, which also makes the call marker carry `#<tool_use_id>`                         | Folded into the row its call produced — **never a row of its own**. Gives that row a live state, an outcome line, a failure state and an expandable output preview |
+| `[Claude Code · result #<id> {…}]`          | The outcome of one of those calls, in sessions run with `PI_CLAUDE_CLI_TOOL_RESULTS=1`, which also makes the call marker carry `#<tool_use_id>`                                 | Folded into the row its call produced — **never a row of its own**. Gives that row a live state, an outcome line, a failure state and an expandable output preview |
 | thinking block with a signature and no text | Encrypted thinking (fable-5, opus-5, sonnet-5; haiku-4-5 sends plaintext)                                                                                                       | Skipped on settled items. Provider ≥0.4.4 stops emitting them, but sessions recorded earlier are on disk forever                                                   |
 
 The marker strings are a **cross-repo wire contract**, documented on the
@@ -250,8 +252,7 @@ in the **top bar** (`app/TopBar.tsx` → `SessionMenu`).
 - **Context meter**: % of window from `get_session_stats` (polled after each
   `agent_end` and on demand), warn state near the compaction threshold, and
   the popover below. Every provider uses pi's context window and percentage,
-  capped at 100%. A saved legacy Claude-only budget does not affect the meter.
-
+  capped at 100%.
 - **Stop** (`abort`) is the send button while a turn runs. Everything else is
   in the ⋮ menu: Export HTML…, Compact now… (optional custom instructions),
   auto-compaction, auto-retry, and the two queue-mode rows (Steering /
@@ -326,12 +327,11 @@ and free space is the honest remainder.
 `buildContextEntries()` (the last compaction's summary plus the kept tail),
 never the whole branch, and estimates each entry the way pi's `estimateTokens`
 does: user and tool-result text, images at pi's stand-in, assistant text,
-thinking and tool-call arguments, compaction and branch summaries. On a Claude
-Code session pi's record never compacts, so the provider's
-`[Claude Code · compact {…}]` marker is the cut instead: only what follows it
-counts, and the CLI's summary lands in Unmeasured. `Messages · N` in the legend
-is that in-context count; `Messages (all)` in the Session column is pi's count
-over the whole file. They differ on purpose.
+thinking and tool-call arguments, compaction and branch summaries. That list
+is the only cut, Claude Code included: the provider replays it whole, so an
+old `[Claude Code · compact {…}]` marker counts as text in its message.
+`Messages · N` in the legend is that in-context count; `Messages (all)` in the
+Session column is pi's count over the whole file. They differ on purpose.
 
 `breakdownSlices` fits estimates to pi's total and never inflates them. The
 fixed parts (system prompt, tool schemas, MCP schemas) are measured exactly
@@ -340,13 +340,15 @@ is the one that can be wrong, and the fixed parts shrink only if they alone
 exceed pi's total (a stale poll). Scaling all four by one factor is the bug
 this replaces: 4.6k of system prompt read as 1.5k and the same seven proxy
 schemas read "34" on one session and "77" on another. The extension can only
-measure pi's own state, and under a CLI provider that is a minority of the
-request: the Claude CLI sends its own system prompt and native tool schemas
-and keeps native tool results and its compaction summary in its own
-transcript. That remainder is its own **Unmeasured** slice. Never fold
-provider-side context into a row that names something else, and never let
-the parts sum past the total. An absurd total or a dominant Unmeasured slice
-is evidence about the provider's `totalTokens`, not about the estimate.
+measure pi's own state. Whatever the provider wraps around it is its own
+**Unmeasured** slice, with the drift between the character estimate and the
+tokenizer: on Claude Code, the CLI's framing of pi's tools and history. Before
+provider 0.9.0 that slice was most of the request, because the CLI also sent
+its own system prompt and tool schemas and kept its tool results and
+compaction summary in its own transcript. Never fold provider-side context into
+a row that names something else, and never let the parts sum past the total.
+An absurd total or a dominant Unmeasured slice is evidence about the provider's
+`totalTokens`, not about the estimate.
 
 **MCP servers** breaks the MCP slice down per connector, as chips
 (`name  loaded/total  ~tokens`), because a single slice cannot say which

@@ -72,7 +72,16 @@ describe('Claude context provider version gate', () => {
   })
   it('does not mistake another package for the provider', () => {
     expect(() => assertClaudeContextProvider([{ ...pkg('99.0.0'), name: 'other' }])).toThrow(
-      '0.9.0+',
+      '0.9.0 or newer (it is not installed)',
+    )
+  })
+  it('names the copy that failed, not the one that passed', () => {
+    expect(() => assertClaudeContextProvider([pkg('0.8.3')])).toThrow(
+      'Claude sessions need @saccolabs/pi-claude-cli 0.9.0 or newer (found 0.8.3).',
+    )
+    expect(() => assertClaudeContextProvider([pkg('0.9.0'), pkg('0.8.0')])).toThrow('(found 0.8.0)')
+    expect(() => assertClaudeContextProvider([pkg('0.7.1', false)])).toThrow(
+      '(it is listed but not installed)',
     )
   })
 })

@@ -141,10 +141,11 @@ describe('breakdownSlices', () => {
 
   /**
    * The other regression. A message estimate that overshoots pi (a Claude
-   * Code session after the CLI compacted, which pi's record does not see)
-   * used to drag the fixed parts down with it: the same 30 tool schemas read
-   * 4.1k on a native session and 1.8k on a Claude one, and a 4.6k system
-   * prompt became 1.5k. Measured 2026-09-18 on sessions 01a0b4b0 and 01a0ab67.
+   * Code session after the CLI compacted, which pi's record did not see before
+   * provider 0.9.0) used to drag the fixed parts down with it: the same 30
+   * tool schemas read 4.1k on a native session and 1.8k on a Claude one, and
+   * a 4.6k system prompt became 1.5k. Measured 2026-09-18 on sessions
+   * 01a0b4b0 and 01a0ab67.
    */
   it('takes an overshoot off the messages and leaves the fixed parts alone', () => {
     // Measured 500 against a real 250: the prompt and schemas keep their 200,
