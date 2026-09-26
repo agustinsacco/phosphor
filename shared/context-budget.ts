@@ -1,7 +1,7 @@
 /**
- * The Claude Code auto-compact window setting (Settings → Claude Code →
- * Context window, stored as `AppPrefs.claudeAutocompact`, passed as
- * `PI_CLAUDE_CLI_AUTOCOMPACT`).
+ * The context budget (Settings → Agent → Context budget,
+ * `AppPrefs.contextBudget`). Claude receives PI_CLAUDE_CLI_AUTOCOMPACT;
+ * Phosphor checks pi-owned sessions at settlement.
  *
  * Mirrors how pi-claude-cli parses the value (`resolveAutocompact` in its
  * `src/autocompact.ts`): `auto`, `off`, or a token count from 100k to 1M —
@@ -34,7 +34,7 @@ function parseTokens(raw: string): number | undefined {
  * typed, so the range is enforced here too.
  */
 export function isValidAutocompactValue(raw: string): boolean {
-  const lowered = raw.toLowerCase()
+  const lowered = raw.trim().toLowerCase()
   if (lowered === 'auto' || lowered === 'off') return true
   const tokens = parseTokens(raw)
   return tokens !== undefined && tokens >= MIN_TOKENS && tokens <= MAX_TOKENS

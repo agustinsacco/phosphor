@@ -77,13 +77,18 @@ const stats = (contextUsage: SessionStats['contextUsage']): SessionStats => ({
   contextUsage,
 })
 
-function seed(contextUsage: SessionStats['contextUsage'], provider = 'pi-claude-cli'): void {
+function seed(
+  contextUsage: SessionStats['contextUsage'],
+  provider = 'pi-claude-cli',
+  autoCompactionEnabled?: boolean,
+): void {
   useChatStore.setState({
     sessions: {
       [SESSION]: {
         ...useChatStore.getState().sessions[SESSION],
         stats: stats(contextUsage),
         meta: {
+          ...(autoCompactionEnabled === undefined ? {} : { autoCompactionEnabled }),
           model: {
             id: 'claude-fable-5',
             name: 'Claude Fable 5',
@@ -175,10 +180,40 @@ describe('ContextMeter', () => {
     expect(document.body.textContent).not.toContain('163%')
   })
 
-  it('keeps pi window and cap for every other provider', () => {
+  it("keeps pi's window and cap when the window is no larger than the budget", () => {
+    // pi's own threshold (window - reserveTokens) comes first on this model.
     seed({ tokens: 325_000, contextWindow: 200_000, percent: 162.5 }, 'openai-codex')
     render()
     expect(document.body.textContent).toContain('100%')
+  })
+
+  it('measures a large-window pi session against the budget it compacts at', () => {
+    // 150k of a 1M window is 15% — but this session compacts at 200k, so it
+    // is three quarters of the way there.
+    seed({ tokens: 150_000, contextWindow: 1_000_000, percent: 15 }, 'openai-codex')
+    render()
+    expect(document.body.textContent).toContain('75%')
+    expect(document.querySelector('button')?.title).toMatch(/^Context: 75% of .* budget$/)
+  })
+
+  it('caps a pi session over its budget, since it compacts once the turn settles', () => {
+    seed({ tokens: 260_000, contextWindow: 1_000_000, percent: 26 }, 'openai-codex')
+    render()
+    expect(document.body.textContent).toContain('100%')
+    expect(document.body.textContent).not.toContain('130%')
+  })
+
+  it("falls back to pi's window when the session's auto-compaction is off", () => {
+    seed({ tokens: 150_000, contextWindow: 1_000_000, percent: 15 }, 'openai-codex', false)
+    render()
+    expect(document.body.textContent).toContain('15%')
+  })
+
+  it("falls back to pi's window when the budget is the model maximum", () => {
+    useContextBudgetStore.setState({ contextBudget: 'auto' })
+    seed({ tokens: 150_000, contextWindow: 1_000_000, percent: 15 }, 'openai-codex')
+    render()
+    expect(document.body.textContent).toContain('15%')
   })
 
   it('fetches and shows both plan windows for a Claude Code session', async () => {

@@ -61,13 +61,21 @@ project scope, an empty field's placeholder names what it inherits.
   session over RPC, because the CLI compacts its own session and pi's pass
   would only rewrite pi's record
   ([cli-providers.md](cli-providers.md#compaction-has-one-owner)).
+- **Context budget**: a shared target for interactive sessions (default 200k;
+  400k; model maximum; or custom, 100k–1M). Bare numbers are thousands:
+  `500` means 500k, previewed beside the field. This unscoped Phosphor pref
+  stays editable even when pi's settings file is broken. Claude reads it at
+  spawn; pi-owned sessions use it after settlement, including live sessions.
+  Smaller windows retain pi's native limit. See
+  [One context budget](cli-providers.md#one-context-budget).
 - **Directives**: what Phosphor appends to every lane's system prompt, global
   or per project, shown composed before it is sent. A prompt you cannot read is
   one you cannot debug.
 - If the target file is not valid JSON, editing is **disabled** rather than
   best-effort, and the banner routes to Advanced to repair it by hand. Main
   never overwrites a config it could not parse.
-- Changes apply to **new** sessions. pi reads config at spawn.
+- pi settings apply to **new** sessions. The context budget is the live-session
+  exception described above.
 
 ## Accounts
 
@@ -124,12 +132,9 @@ Three packages contribute a nested tab, shown only while installed:
 Routes model calls through the Claude Code CLI, billing your Claude Pro/Max
 plan; its models appear in the picker under the `pi-claude-cli` provider. In
 order: **Health** (package present, CLI binary found, both versions, update
-rows), **Accounts**, **Context window** (the auto-compact size, passed as
-`PI_CLAUDE_CLI_AUTOCOMPACT` at spawn; smaller windows cost less because every
-request re-reads the whole context; bare numbers are thousands, and the custom
-field shows the resolved count — `500` is a 500k budget — because that reading
-once went unnoticed at 2.5× the default; the context meter divides Claude
-sessions by this budget), **Prove it end to end** (one tiny
+rows), **Accounts**, **Context window** (a read-out of the context budget the
+CLI compacts at, passed as `PI_CLAUDE_CLI_AUTOCOMPACT` at spawn, with a button
+to the Agent tab where it is set), **Prove it end to end** (one tiny
 print-mode prompt through the CLI, the login and the extension at once, because
 "installed" and "working" are different claims), and **When it fails**. See
 [cli-providers.md](cli-providers.md).

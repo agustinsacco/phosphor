@@ -90,8 +90,8 @@ drawn for it.
 
 ### One context budget
 
-Interactive sessions share a **context budget** (Settings → Claude Code → Context
-window, `AppPrefs.contextBudget`, default 200k). The rule is
+Interactive sessions share a **context budget** (Settings → Agent → Context
+budget, `AppPrefs.contextBudget`, default 200k). The rule is
 `sessionContextBudget` in `shared/context-budget.ts`.
 
 - **Claude Code** receives `PI_CLAUDE_CLI_AUTOCOMPACT` at spawn. Changes apply
