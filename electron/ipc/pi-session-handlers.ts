@@ -22,6 +22,7 @@ import {
 } from '../pi/provider-detect'
 import { readAgentSettings } from '../pi/agent-settings'
 import { applyCompactionOwnership } from '../pi/compaction-ownership'
+import { withBudgetCompaction } from '../pi/context-budget'
 import { listPackages } from '../pi/packages'
 import { getLanePrefs } from '../store'
 import { MIN_PI_VERSION, type CreateSessionOptions, type PiHealth } from '@shared/models'
@@ -100,33 +101,35 @@ export function registerPiSessionHandlers(): void {
         'This lane is owned by a running routine. Cancel it from Routines before continuing manually.',
       )
     }
-    if (!piStubPath()) {
-      if (command.type === 'set_model' && command.provider === 'pi-claude-cli') {
-        assertClaudeContextProvider(await listPackages(session.workspacePath))
-      }
-      // Spawn-time prediction cannot resolve pi's fuzzy model patterns. Verify
-      // the actual provider before a prompt can run against an old package.
-      if (command.type === 'prompt') {
-        const state = await session.client.request({ type: 'get_state' })
-        if (!state.success || !state.data) throw new Error('Cannot verify the active pi model.')
-        if (state.data.model?.provider === 'pi-claude-cli') {
+    return withBudgetCompaction(sessionId, command.type, async () => {
+      if (!piStubPath()) {
+        if (command.type === 'set_model' && command.provider === 'pi-claude-cli') {
           assertClaudeContextProvider(await listPackages(session.workspacePath))
         }
+        // Spawn-time prediction cannot resolve pi's fuzzy model patterns. Verify
+        // the actual provider before a prompt can run against an old package.
+        if (command.type === 'prompt') {
+          const state = await session.client.request({ type: 'get_state' })
+          if (!state.success || !state.data) throw new Error('Cannot verify the active pi model.')
+          if (state.data.model?.provider === 'pi-claude-cli') {
+            assertClaudeContextProvider(await listPackages(session.workspacePath))
+          }
+        }
       }
-    }
-    const response = await session.client.request(command)
-    // The provider may have changed under the session, and with it who owns
-    // compaction (electron/pi/compaction-ownership.ts). Re-read rather than
-    // trust the command's own provider field: pi resolves fuzzy patterns.
-    if (command.type === 'set_model' && response.success && !piStubPath()) {
-      await applyCompactionOwnership(session.client).catch((error: unknown) => {
-        log('pi', 'compaction ownership not applied after set_model', {
-          sessionId,
-          error: String(error),
+      const response = await session.client.request(command)
+      // The provider may have changed under the session, and with it who owns
+      // compaction (electron/pi/compaction-ownership.ts). Re-read rather than
+      // trust the command's own provider field: pi resolves fuzzy patterns.
+      if (command.type === 'set_model' && response.success && !piStubPath()) {
+        await applyCompactionOwnership(session.client).catch((error: unknown) => {
+          log('pi', 'compaction ownership not applied after set_model', {
+            sessionId,
+            error: String(error),
+          })
         })
-      })
-    }
-    return response
+      }
+      return response
+    })
   })
 
   handle('pi:extensionUiResponse', (_event, sessionId: string, response: ExtensionUIResponse) => {

@@ -14,6 +14,7 @@ const state = vi.hoisted(() => {
     },
   }
   return {
+    contextBudget: '',
     handlers: new Map<string, (...args: unknown[]) => unknown>(),
     session,
     create: vi.fn().mockReturnValue(session),
@@ -44,7 +45,9 @@ vi.mock('../pi/health', async (original) => ({
   checkPiHealth: vi.fn().mockResolvedValue({ ok: true, binaryPath: '/bin/pi' }),
 }))
 vi.mock('../pi/stub', () => ({ piStubPath: () => undefined }))
-vi.mock('../pi/shell-env', () => ({ piProcessEnv: vi.fn().mockResolvedValue({ PATH: '/bin' }) }))
+vi.mock('../pi/shell-env', () => ({
+  piProcessEnv: vi.fn().mockResolvedValue({ PATH: '/bin', PI_CLAUDE_CLI_AUTOCOMPACT: 'auto' }),
+}))
 vi.mock('../pi/packages', () => ({ listPackages: state.listPackages }))
 vi.mock('../pi/agent-settings', () => ({
   readAgentSettings: vi.fn().mockResolvedValue({ defaultProvider: 'openai-codex' }),
@@ -61,6 +64,7 @@ vi.mock('../fs/git-info', () => ({
 }))
 vi.mock('../store', () => ({
   getPrefs: () => ({
+    contextBudget: state.contextBudget,
     agentDirectivesByProject: {},
     agentDirectives: { worktreeGuard: false, laneCharter: false, subagentPolicy: true, custom: '' },
   }),
@@ -80,6 +84,7 @@ const pkg = (version: string) => [{ name: '@saccolabs/pi-claude-cli', version, i
 beforeEach(() => {
   vi.clearAllMocks()
   state.handlers.clear()
+  state.contextBudget = ''
   state.list.mockReturnValue([])
   state.session.client.alive = true
   state.session.client.request.mockReset().mockResolvedValue({ success: true })
@@ -161,6 +166,18 @@ describe('session context policy integration', () => {
       expect(options.appendSystemPrompt).toContain('pi subagent: follow its advertised schema')
     },
   )
+
+  it.each([
+    ['', '200000'],
+    ['500', '500000'],
+    ['off', 'off'],
+    ['auto', 'auto'],
+    ['77k', '200000'],
+  ])('spawns with budget %s resolved as %s, overriding inherited env', async (raw, expected) => {
+    state.contextBudget = raw
+    await state.handlers.get('pi:createSession')!(event, { workspacePath: '/repo' })
+    expect(state.create.mock.calls[0]![1].env.PI_CLAUDE_CLI_AUTOCOMPACT).toBe(expected)
+  })
 
   it('refuses an old Claude package before creating a process', async () => {
     state.listPackages.mockResolvedValue(pkg('0.7.0'))

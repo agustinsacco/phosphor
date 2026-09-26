@@ -53,7 +53,7 @@ than running under an older policy. Nothing is installed or upgraded for you.
 
 ### Compaction has one owner
 
-The CLI compacts its own session (`--autocompact`, the Context window setting)
+The CLI compacts its own session (`--autocompact`, the context budget)
 and continues the turn on the compacted context by itself. pi's compaction
 never touches the CLI session — on the resume path the provider sends only the
 delta — so on this provider it rewrites pi's record and nothing else. It also
@@ -87,6 +87,28 @@ Two things make this honest rather than blind:
 Below provider 0.8.3 the ownership switch still holds (pi stops compacting),
 but the gauge keeps the stale figure across a CLI compaction and no divider is
 drawn for it.
+
+### One context budget
+
+Interactive sessions share a **context budget** (Settings → Claude Code → Context
+window, `AppPrefs.contextBudget`, default 200k). The rule is
+`sessionContextBudget` in `shared/context-budget.ts`.
+
+- **Claude Code** receives `PI_CLAUDE_CLI_AUTOCOMPACT` at spawn. Changes apply
+  to newly started sessions; the CLI can compact mid-turn.
+- **Other providers** are checked after `agent_settled` by
+  `electron/pi/context-budget.ts`. When idle and over budget, a session whose
+  model window is larger than the budget receives `compact`. Changes apply
+  on the next check. Long turns can overshoot; pi's native threshold
+  (`contextWindow - reserveTokens`) remains a backstop and may fire sooner.
+- The pi auto-compaction toggle opts pi-owned sessions out. `auto`/`off`
+  remove the fixed budget, not the owner's native compaction.
+
+RPC `compact` aborts a running turn, and pi rejects prompts during requested
+compaction. `withBudgetCompaction` serializes checks and state-changing
+commands through completion, including slow compactions. Reads and interrupts
+remain available; an interrupt cancels queued commands and pending checks.
+Unattended routines are not watched because their runner prompts pi directly.
 
 ### Resuming a session from before a context-policy change
 

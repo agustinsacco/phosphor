@@ -17,6 +17,8 @@ import {
 import { readAgentSettings } from './agent-settings'
 import { healMissingSessionCwd } from './session-cwd'
 import { applyCompactionOwnership } from './compaction-ownership'
+import { watchContextBudget } from './context-budget'
+import { contextBudgetTokens } from '@shared/context-budget'
 import { listPackages } from './packages'
 import { headroomSupervisor } from '../headroom/proxy'
 import { sessionEventChannel } from '@shared/ipc'
@@ -125,17 +127,20 @@ export async function spawnSession(
   // the provider was passing a temp-file path, so pi's instructions never
   // reached Claude Code at all. The naming call below keeps its own internal
   // `pi` override — a no-tools, no-guidance-needed case.
-  // Claude Code auto-compact window (Settings → Claude Code → Context
-  // window). Read per spawn so a change applies to the next session started
-  // without restarting Phosphor; unset means the provider's own default (200k),
-  // so the env var is only set when the user chose something.
-  const claudeAutocompact = getPrefs().contextBudget
+  // The context budget (Settings → Agent → Context budget), as the Claude
+  // Code provider's auto-compact window. Read per spawn so a change applies to
+  // the next session started without restarting Phosphor. Always send the
+  // resolved value so an inherited environment variable or a provider-default
+  // change cannot silently give Claude a different budget.
+  const contextBudget = getPrefs().contextBudget
   const spawnEnv: Record<string, string> = stub
     ? { ELECTRON_RUN_AS_NODE: '1' }
     : {
         ...(await piProcessEnv()),
         ...claudeProviderSpawnEnv(),
-        ...(claudeAutocompact ? { PI_CLAUDE_CLI_AUTOCOMPACT: claudeAutocompact } : {}),
+        PI_CLAUDE_CLI_AUTOCOMPACT: String(
+          contextBudgetTokens(contextBudget) ?? contextBudget.trim().toLowerCase(),
+        ),
       }
 
   const extensions = [...bundledExtensions()]
@@ -231,6 +236,14 @@ export async function spawnSession(
   // Trimmed, not forwarded whole: two of pi's events restate the entire run
   // after it has already streamed, and the renderer reads neither.
   session.client.on('event', (ev) => push({ kind: 'event', event: trimForRenderer(ev) }))
+  // Hold pi-owned sessions to the context budget (electron/pi/context-budget.ts).
+  // Not for unattended runs: the routine runner prompts pi directly, past the
+  // `pi:command` gate that keeps a prompt out of a compaction in progress, and
+  // a routine is one bounded task that pi's own threshold already covers.
+  // Registered for the stub too, which is how the e2e suite exercises it.
+  if (!execution.unattended) {
+    watchContextBudget(session.sessionId, session.client, () => getPrefs().contextBudget)
+  }
   session.client.on('extension-ui', (request) => {
     // The Claude provider reports its account's rate-limit state here, once
     // per change, for free. Routing listens because this is the only signal

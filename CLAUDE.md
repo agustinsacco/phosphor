@@ -202,13 +202,25 @@ you want to watch.
   path sends the CLI a delta, never pi's history) and fires every turn once the
   CLI's real context passes ~183k, whatever the CLI's own cap — a multi-day
   session compacted pi's record nine times for nothing. The context meter
-  divides those sessions by the auto-compact budget (`contextBudgetTokens`), not
-  the model window, and does not cap the label; the `Context window` setting
-  takes bare numbers as thousands (`500` = 500k). Provider ≥ 0.8.3 resets the
+  divides those sessions by the context budget (`contextBudgetTokens`), not
+  the model window, and does not cap the label; the budget setting takes bare
+  numbers as thousands (`500` = 500k). Provider ≥ 0.8.3 resets the
   reported context after a CLI compaction and emits a `[Claude Code · compact
 {…}]` marker that renders as the compaction divider; below that the meter keeps
   the pre-compaction figure and no divider is drawn. See
   [cli-providers.md](docs/cli-providers.md#compaction-has-one-owner).
+
+- **Interactive sessions share an absolute context budget (default 200k).**
+  `shared/context-budget.ts` (`sessionContextBudget`) is the rule; the pref is
+  `AppPrefs.contextBudget` (Settings → Claude Code → Context window). The Claude CLI
+  gets it as `PI_CLAUDE_CLI_AUTOCOMPACT` at spawn. pi has no RPC knob for its
+  threshold, so `electron/pi/context-budget.ts` checks after each
+  `agent_settled` and sends `compact` when a pi-owned session with a window
+  larger than the budget is over it. An RPC `compact` aborts a running turn,
+  and pi REJECTS a prompt sent during one, so `pi:command` serializes checks
+  and state-changing commands through `withBudgetCompaction`. Unattended
+  routine sessions are not watched (the runner prompts pi directly, past that
+  gate). See [cli-providers.md](docs/cli-providers.md#one-context-budget).
 
 - **Phosphor ships six extensions that run inside pi's process** (`pi-ext/`,
   loaded with `-e` into every session; listed in `bundledExtensions()` in
