@@ -55,7 +55,22 @@ does.
 
 `LanePrefs.markers`: `auto` derives for everyone, `manual` respects choices
 and derives nothing, `off` removes the column and reclaims its width. `off`
-wins over explicit choices.
+wins over explicit choices. This preference is the feature gate, available in
+Settings → Workspaces → Lane markers. Turning it off also hides the picker;
+existing choices are kept for when markers are enabled again.
+
+Click a saved lane's marker (including its empty placeholder), or right-click
+the row and choose **Lane marker…**, to change it. The picker bundles the
+Unicode emoji catalog locally, with name/emoji search and category filtering.
+**Suggested** keeps the original compact palette. Results load 120 at a time
+with **Show more icons**; rendering uses the OS emoji font, so newer emoji may
+not be supported by older systems. Skin-tone variations are consolidated into
+base emoji. No image CDN or network access is needed.
+
+**None** explicitly clears a lane. **Auto** removes its override and returns to
+the branch-derived marker; in Manual mode this action is labelled **Default**
+and leaves the lane unmarked. Escape or Cancel leaves the choice unchanged.
+Explicit choices persist across reloads and mode changes.
 
 ## PR status
 

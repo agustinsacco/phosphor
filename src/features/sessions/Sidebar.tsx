@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { GitInfo, SessionMeta, WorktreeInfo } from '@shared/models'
 import { compareSessionsByCreation } from '@shared/session-order'
@@ -14,7 +14,6 @@ import { orderedSessions } from './sessionOrder'
 import { sessionSubtitle, type SubtitleSegment } from './sessionSubtitle'
 import { PrBadge, openPullRequest } from './PrBadge'
 import { LaneMarker } from './LaneMarker'
-import { MarkerPickerModal } from './MarkerPickerModal'
 import { BulkDeleteModal } from './BulkDeleteModal'
 import { DeleteSessionModal, type DeleteSessionTarget } from './DeleteSessionModal'
 import {
@@ -64,6 +63,11 @@ import { cloneSession, exportSidebarSession, renameSidebarSession } from './side
 import { applySessionRename, copySessionDebugInfo, exportSessionHtml } from './sessionActions'
 import { RemoveWorktreeModal } from '@/features/worktrees/RemoveWorktreeModal'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
+
+// Keep the full emoji catalog out of startup and marker-disabled sessions.
+const MarkerPickerModal = lazy(() =>
+  import('./MarkerPickerModal').then((module) => ({ default: module.MarkerPickerModal })),
+)
 
 const SIDEBAR_WIDTH_KEY = 'phosphor:sidebarWidth'
 const SIDEBAR_MIN = 208
@@ -1642,7 +1646,9 @@ function SessionRow({
       >
         <SessionIndicator state={indicatorState} />
       </span>
-      {markerMode !== 'off' && <LaneMarker marker={marker} />}
+      {markerMode !== 'off' && (
+        <LaneMarker marker={marker} onPick={deleting ? undefined : () => setPickingMarker(true)} />
+      )}
       <span className="min-w-0 flex-1">
         {renaming ? (
           <RenameInput
@@ -1719,18 +1725,21 @@ function SessionRow({
   // `renaming ? undefined : open` and no stopPropagation on the input.
   // ModalOverlay portals, so this is a sibling of the row in the DOM rather
   // than a dialog nested inside a <button>.
-  const markerPicker = pickingMarker && (
-    <MarkerPickerModal
-      title={title}
-      current={explicitMarker}
-      autoKey={git?.branch || meta.cwd}
-      usedMarkers={takenMarkers}
-      onPick={(next) => {
-        useSessionsStore.getState().setLaneMarker(meta.path, next)
-        setPickingMarker(false)
-      }}
-      onClose={() => setPickingMarker(false)}
-    />
+  const markerPicker = pickingMarker && markerMode !== 'off' && (
+    <Suspense fallback={null}>
+      <MarkerPickerModal
+        title={title}
+        current={explicitMarker}
+        autoKey={git?.branch || meta.cwd}
+        mode={markerMode}
+        usedMarkers={takenMarkers}
+        onPick={(next) => {
+          useSessionsStore.getState().setLaneMarker(meta.path, next)
+          setPickingMarker(false)
+        }}
+        onClose={() => setPickingMarker(false)}
+      />
+    </Suspense>
   )
 
   if (renaming) {
