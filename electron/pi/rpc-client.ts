@@ -44,9 +44,9 @@ export interface PiSpawnOptions {
   /** Disable session persistence (`--no-session`). */
   noSession?: boolean
   /**
-   * Skip AGENTS.md/CLAUDE.md discovery (`--no-context-files`). Set for
-   * Claude-provider sessions, where the Claude CLI loads CLAUDE.md itself
-   * and pi's copy would bill the same file twice on every request.
+   * Skip AGENTS.md/CLAUDE.md discovery (`--no-context-files`). No session
+   * sets it, Claude ones included: from pi-claude-cli 0.9.0 the CLI loads no
+   * CLAUDE.md of its own, so pi's copy is the only one the model sees.
    */
   noContextFiles?: boolean
   /** Owned process group: disposal must also stop nested CLI/tools. */

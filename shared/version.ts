@@ -36,6 +36,20 @@ export function isNewerVersion(candidate: string, current: string): boolean {
   return a.pre > b.pre
 }
 
+/**
+ * Does an installed version meet a plain `x.y.z` minimum?
+ *
+ * Stricter than `isNewerVersion`, which only decides whether to offer an
+ * update: this one decides whether to run something. So only a plain release
+ * passes. A prerelease, a missing version or anything unparseable fails,
+ * since letting an unknown build through is how a gate ships the bug it
+ * exists to stop.
+ */
+export function meetsMinimum(version: string | undefined, minimum: string): boolean {
+  if (!version || !/^\d+\.\d+\.\d+$/.test(version)) return false
+  return !isNewerVersion(minimum, version)
+}
+
 interface ParsedVersion {
   nums: number[]
   pre: string

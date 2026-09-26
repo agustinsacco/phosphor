@@ -11,7 +11,7 @@ import type {
   PiPackageResources,
 } from '@shared/models'
 import { piAgentDir } from './pi-paths'
-import { claudeOneShotEnv } from './provider-detect'
+import { claudeOneShotEnv, claudeProviderSpawnEnv } from './provider-detect'
 import { getLoginShellPath, piProcessEnv } from './shell-env'
 import { cachedPiHealth } from './health'
 import { pickWhereMatch, resolveWindowsLaunch } from './win-launch'
@@ -605,9 +605,14 @@ export async function runClaudeProviderTest(
       'pi-claude-cli/claude-haiku-4-5',
       'Reply with exactly: phosphor-provider-ok',
     ],
-    // `claudeOneShotEnv` or the job never ends: 0.7.0 parks the CLI process
-    // after `result`, and startJob has no timeout — the test would print
-    // "phosphor-provider-ok" and then sit as a running job for ten minutes.
-    { cwd: tmpdir(), env: { ...invoker.env, ...claudeOneShotEnv() } },
+    // Under the context policy every session gets, so the proof is of the
+    // provider as sessions run it. And `claudeOneShotEnv` or the job never
+    // ends: 0.7.0 parks the CLI process after `result`, and startJob has no
+    // timeout — the test would print "phosphor-provider-ok" and then sit as a
+    // running job for ten minutes.
+    {
+      cwd: tmpdir(),
+      env: { ...invoker.env, ...claudeProviderSpawnEnv(), ...claudeOneShotEnv() },
+    },
   )
 }

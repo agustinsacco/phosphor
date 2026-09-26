@@ -42,13 +42,10 @@ import type {
 } from '@shared/models'
 import { useSessionClaudeAccount } from './useSessionAccount'
 import { useSessionsStore } from '@/stores/sessions'
-import { useClaudeAutocompactStore } from '@/stores/claudeAutocompactPref'
-import { autocompactTokens } from '@/lib/claudeAutocompact'
 
 export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats)
   const model = useChatStore((s) => s.sessions[sessionId]?.meta?.model)
-  const autocompactPref = useClaudeAutocompactStore((s) => s.claudeAutocompact)
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   // Pushed by the bundled context-breakdown extension, so it is present for
@@ -72,26 +69,9 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   // whenever the session has stats and show the ring unfilled instead.
   if (!stats) return null
 
-  // On a Claude Code session the denominator is the auto-compact BUDGET, not
-  // the model window, and the label is not capped. The CLI's own compaction
-  // is the only thing that shrinks that context (pi's is switched off for
-  // these sessions — electron/pi/compaction-ownership.ts), so "how full is
-  // the budget" is the honest question. Against the model window a 500k
-  // budget read as critical at 65% of itself, and a 325k context in a 200k
-  // budget saturated at 100% instead of saying 163%. Other providers keep
-  // pi's window and pi's cap: pi compacts them, so >100% is transient there.
-  const budget = model?.provider === 'pi-claude-cli' ? autocompactTokens(autocompactPref) : null
-  const window = budget ?? usage?.contextWindow ?? 0
-  const rawPercent =
-    budget !== null && usage?.tokens != null && window > 0
-      ? (usage.tokens / window) * 100
-      : usage?.percent
-  const percent =
-    rawPercent == null
-      ? null
-      : budget !== null
-        ? Math.round(rawPercent)
-        : Math.min(100, Math.round(rawPercent))
+  // Every provider follows pi's context window and compaction policy.
+  const window = usage?.contextWindow ?? 0
+  const percent = usage?.percent == null ? null : Math.min(100, Math.round(usage.percent))
   const ringPercent = Math.min(100, percent ?? 0)
   const warn = percent !== null && percent >= 75
   const critical = percent !== null && percent >= 90
@@ -108,7 +88,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
         title={
           percent === null
             ? 'Context: measuring — session usage'
-            : `Context: ${percent}% of ${formatTokens(window)}${budget !== null ? ' budget' : ''}`
+            : `Context: ${percent}% of ${formatTokens(window)}`
         }
         className="hover:bg-bg-secondary flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors"
       >
@@ -173,7 +153,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
                   ? window
                     ? `measuring · ${formatTokens(window)}`
                     : 'measuring'
-                  : `${formatTokens(usage?.tokens ?? 0)} / ${formatTokens(window)}${budget !== null ? ' budget' : ''} · ${percent}%`}
+                  : `${formatTokens(usage?.tokens ?? 0)} / ${formatTokens(window)} · ${percent}%`}
               </span>
             </div>
             {burning && (

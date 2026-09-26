@@ -41,8 +41,9 @@ export interface ExternalToolBlock {
   args?: string
   /**
    * The CLI's `tool_use_id`, present only when the provider tagged the call
-   * — which it does when the host set `PI_CLAUDE_CLI_TOOL_RESULTS=1`. Its
-   * presence is what promises a result marker is coming.
+   * — which it does when the host set `PI_CLAUDE_CLI_TOOL_RESULTS=1`, as
+   * Phosphor did before provider 0.9.0. Its presence is what promises a
+   * result marker is coming.
    */
   toolUseId?: string
   /** Folded in from the paired `result` marker, once it arrives. */
@@ -87,10 +88,11 @@ const RESULT_MARKER_NAME = 'result'
 /**
  * The CLI compacted its own session mid-turn:
  * `[Claude Code · compact {"trigger":"auto","preTokens":…,"postTokens":…,"durationMs":…}]`
- * (provider ≥ 0.8.3). Not a tool and never a tool row — it is the same event
- * pi's own `compaction_end` announces, so it draws the same divider. On these
- * sessions pi's compaction is switched off (the CLI owns it), which makes this
- * marker the only place the transcript learns the model's context shrank.
+ * (provider 0.8.3–0.8.x). Not a tool and never a tool row — it is the same
+ * event pi's own `compaction_end` announces, so it draws the same divider.
+ * Those sessions ran with pi's compaction off, so the marker was the only
+ * record of the cut. From 0.9.0 the provider never emits it and replays pi's
+ * whole context, so the model holds both sides of an old cut again.
  */
 const COMPACT_MARKER_NAME = 'compact'
 

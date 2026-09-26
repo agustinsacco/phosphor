@@ -17,11 +17,11 @@ import { claudeAccountEnv, primaryAccount } from '../claude/accounts'
 import { forgetSpawnAccount } from '../pi/session-accounts'
 import {
   claudeOneShotEnv,
+  claudeProviderSpawnEnv,
   assertClaudeContextProvider,
   usesClaudeCliProvider,
 } from '../pi/provider-detect'
 import { readAgentSettings } from '../pi/agent-settings'
-import { applyCompactionOwnership } from '../pi/compaction-ownership'
 import { listPackages } from '../pi/packages'
 import { getLanePrefs } from '../store'
 import { MIN_PI_VERSION, type CreateSessionOptions, type PiHealth } from '@shared/models'
@@ -115,17 +115,6 @@ export function registerPiSessionHandlers(): void {
       }
     }
     const response = await session.client.request(command)
-    // The provider may have changed under the session, and with it who owns
-    // compaction (electron/pi/compaction-ownership.ts). Re-read rather than
-    // trust the command's own provider field: pi resolves fuzzy patterns.
-    if (command.type === 'set_model' && response.success && !piStubPath()) {
-      await applyCompactionOwnership(session.client).catch((error: unknown) => {
-        log('pi', 'compaction ownership not applied after set_model', {
-          sessionId,
-          error: String(error),
-        })
-      })
-    }
     return response
   })
 
@@ -168,15 +157,10 @@ export function registerPiSessionHandlers(): void {
         env = {
           ...process.env,
           ...(await piProcessEnv()),
-          // Naming-only override: a title run through the Claude provider
-          // should not load Claude Code's own prompt, skills, MCP servers or
-          // settings — it never calls a tool, so there is no native-tool
-          // guidance to lose by replacing the prompt outright. Real sessions
-          // don't get this override; see the comment above spawnEnv. Harmless
-          // env for every other provider. Measured saving: ~8,000 tokens per
-          // run.
-          PI_CLAUDE_CLI_HERMETIC: '1',
-          PI_CLAUDE_CLI_SYSTEM_PROMPT: 'pi',
+          // The pi ownership every session gets, so a title run on the Claude
+          // provider loads none of Claude Code's own prompt, skills, MCP
+          // servers or settings either. Harmless env for every other provider.
+          ...claudeProviderSpawnEnv(),
           // Without this the run prints the title and then hangs until
           // runPrintMode kills it — see claudeOneShotEnv.
           ...claudeOneShotEnv(),

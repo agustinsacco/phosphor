@@ -19,6 +19,7 @@ import {
 import { isArtifactWriteTool } from '@/lib/artifactTools'
 import { useLayoutStore } from './layout'
 import { lanePrefs } from './lanePrefs'
+import { ipcErrorText } from '@shared/errors'
 
 /**
  * Whether an event should trigger a stats refresh.
@@ -1071,10 +1072,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         void import('./extensionUi').then(({ useExtensionUiStore }) =>
           useExtensionUiStore
             .getState()
-            .pushToast(
-              `Could not open "${title}". ${error instanceof Error ? error.message : String(error)}`,
-              'error',
-            ),
+            .pushToast(`Could not open "${title}". ${ipcErrorText(error)}`, 'error'),
         )
       throw error
     } finally {

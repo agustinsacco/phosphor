@@ -21,6 +21,8 @@ const state = vi.hoisted(() => {
     list: vi.fn(),
     dispose: vi.fn(),
     access: vi.fn(),
+    ensureCompactionReset: vi.fn(),
+    runPrintMode: vi.fn(),
   }
 })
 vi.mock('electron', () => ({ app: { isPackaged: false, getAppPath: () => '/app' } }))
@@ -46,6 +48,8 @@ vi.mock('../pi/health', async (original) => ({
 vi.mock('../pi/stub', () => ({ piStubPath: () => undefined }))
 vi.mock('../pi/shell-env', () => ({ piProcessEnv: vi.fn().mockResolvedValue({ PATH: '/bin' }) }))
 vi.mock('../pi/packages', () => ({ listPackages: state.listPackages }))
+vi.mock('../pi/compaction-reset', () => ({ ensureCompactionReset: state.ensureCompactionReset }))
+vi.mock('../pi/print-mode', () => ({ runPrintMode: state.runPrintMode }))
 vi.mock('../pi/agent-settings', () => ({
   readAgentSettings: vi.fn().mockResolvedValue({ defaultProvider: 'openai-codex' }),
 }))
@@ -65,7 +69,7 @@ vi.mock('../store', () => ({
     agentDirectives: { worktreeGuard: false, laneCharter: false, subagentPolicy: true, custom: '' },
   }),
   recordWorkspace: vi.fn(),
-  getLanePrefs: vi.fn(),
+  getLanePrefs: () => ({ nameMinWords: 2, nameMaxWords: 5, nameMaxLength: 60 }),
   // Identity: these fixtures use plain paths with no symlink to resolve, and
   // the real one would hit the filesystem for a directory that is not there.
   realPathOrNull: (path: string) => path,
@@ -86,7 +90,8 @@ beforeEach(() => {
   state.dispose.mockReset().mockResolvedValue(undefined)
   state.access.mockReset().mockResolvedValue(undefined)
   state.create.mockReset().mockReturnValue(state.session)
-  state.listPackages.mockResolvedValue(pkg('0.7.1'))
+  state.listPackages.mockResolvedValue(pkg('0.9.0'))
+  state.ensureCompactionReset.mockReset().mockResolvedValue(undefined)
   registerPiSessionHandlers()
 })
 
@@ -131,6 +136,40 @@ describe('session context policy integration', () => {
     expect(state.dispose).toHaveBeenCalledWith('live-1')
   })
 
+  it('repairs leftover compaction settings before pi starts', async () => {
+    let finish!: () => void
+    state.ensureCompactionReset.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finish = resolve
+      }),
+    )
+    const opening = state.handlers.get('pi:createSession')!(event, { workspacePath: '/repo' })
+    await vi.waitFor(() => expect(state.ensureCompactionReset).toHaveBeenCalled())
+    expect(state.create).not.toHaveBeenCalled()
+    finish()
+    await opening
+    expect(state.create).toHaveBeenCalledOnce()
+  })
+
+  it('disposes a pi that exits during startup and reports why', async () => {
+    state.session.client.request.mockRejectedValueOnce(new Error('pi exited (code=1, signal=null)'))
+    await expect(
+      state.handlers.get('pi:createSession')!(event, { workspacePath: '/repo' }),
+    ).rejects.toThrow('pi exited (code=1')
+    expect(state.dispose).toHaveBeenCalledExactlyOnceWith('live-1')
+  })
+
+  it('disposes a pi that is gone by the time it answers', async () => {
+    state.session.client.request.mockImplementationOnce(async () => {
+      state.session.client.alive = false
+      return { success: true }
+    })
+    await expect(
+      state.handlers.get('pi:createSession')!(event, { workspacePath: '/repo' }),
+    ).rejects.toThrow('Session stopped during startup.')
+    expect(state.dispose).toHaveBeenCalledExactlyOnceWith('live-1')
+  })
+
   it('does not create a replacement when a queued resume finds a deleted file', async () => {
     state.access.mockRejectedValue(new Error('ENOENT'))
     await expect(
@@ -151,14 +190,19 @@ describe('session context policy integration', () => {
       expect(options.ownProcessGroup).toBe(true)
       expect(options.env).toMatchObject({
         PI_CLAUDE_CLI_CONTEXT: 'pi',
-        PI_CLAUDE_CLI_STRICT_MCP: '1',
-        // Results, not just invocations: a CLI-side tool row shows what came
-        // back only because the session asked for it.
-        PI_CLAUDE_CLI_TOOL_RESULTS: '1',
       })
       expect(options.env).not.toHaveProperty('PI_CLAUDE_CLI_SYSTEM_PROMPT')
       expect(options.env).not.toHaveProperty('PI_CLAUDE_CLI_KEEPALIVE_MS')
       expect(options.appendSystemPrompt).toContain('pi subagent: follow its advertised schema')
+    },
+  )
+
+  it.each(['pi-claude-cli', 'openai-codex'])(
+    'does not override pi compaction when switching to %s',
+    async (provider) => {
+      const command = { type: 'set_model', provider, modelId: 'test-model' }
+      await state.handlers.get('pi:command')!(event, 'live-1', command)
+      expect(state.session.client.request).toHaveBeenCalledExactlyOnceWith(command)
     },
   )
 
@@ -169,7 +213,7 @@ describe('session context policy integration', () => {
         workspacePath: '/repo',
         provider: 'pi-claude-cli',
       }),
-    ).rejects.toThrow('0.7.1+')
+    ).rejects.toThrow('0.9.0 or newer (found 0.7.0)')
     expect(state.create).not.toHaveBeenCalled()
   })
 
@@ -181,7 +225,7 @@ describe('session context policy integration', () => {
         provider: 'pi-claude-cli',
         modelId: 'claude-opus-5',
       }),
-    ).rejects.toThrow('0.7.1+')
+    ).rejects.toThrow('0.9.0 or newer (found 0.7.0)')
     expect(state.session.client.request).not.toHaveBeenCalled()
   })
 
@@ -193,7 +237,7 @@ describe('session context policy integration', () => {
     })
     await expect(
       state.handlers.get('pi:command')!(event, 'live-1', { type: 'prompt', message: 'hi' }),
-    ).rejects.toThrow('0.7.1+')
+    ).rejects.toThrow('0.9.0 or newer (found 0.7.0)')
     expect(state.session.client.request).toHaveBeenCalledExactlyOnceWith({ type: 'get_state' })
   })
 
@@ -222,5 +266,16 @@ describe('session context policy integration', () => {
     await state.handlers.get('pi:command')!(event, 'live-1', command)
     expect(state.session.client.request).toHaveBeenCalledWith(command)
     expect(state.listPackages).not.toHaveBeenCalled()
+  })
+
+  it('names a session under pi ownership, in a run that exits once it answers', async () => {
+    state.runPrintMode.mockResolvedValue({ stdout: 'Fix Login Bug\n' })
+    const title = await state.handlers.get('pi:generateTitle')!(event, '/repo', 'fix login', [])
+    expect(title).toBe('Fix Login Bug')
+    expect(state.runPrintMode.mock.calls[0]![2].env).toMatchObject({
+      PI_CLAUDE_CLI_CONTEXT: 'pi',
+      PI_CLAUDE_CLI_KEEPALIVE_MS: '0',
+      PI_CLAUDE_CLI_EPHEMERAL: '1',
+    })
   })
 })

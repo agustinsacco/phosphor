@@ -148,7 +148,6 @@ export function getPrefs(): AppPrefs {
     worktrees: { ...DEFAULT_APP_PREFS.worktrees, ...s.get('worktrees') },
     headroom: { ...DEFAULT_APP_PREFS.headroom, ...s.get('headroom') },
     feedback: normalizeFeedbackPrefs(s.get('feedback')),
-    claudeAutocompact: s.get('claudeAutocompact') ?? '',
     drafts: s.get('drafts') ?? {},
   }
 }
@@ -214,9 +213,13 @@ export function setClaudeAccountPrefs(value: ClaudeAccountPrefs): void {
   prefs().set('claudeAccounts', value)
 }
 
-/** See AppPrefs.claudeAutocompact — stored trimmed; '' means provider default. */
-export function setClaudeAutocompact(value: string): void {
-  prefs().set('claudeAutocompact', value.trim())
+/** See AppPrefs.compactionResetChecked. */
+export function isCompactionResetChecked(): boolean {
+  return prefs().get('compactionResetChecked') === true
+}
+
+export function markCompactionResetChecked(): void {
+  prefs().set('compactionResetChecked', true)
 }
 
 /** Record that the user has viewed a session's current state. */

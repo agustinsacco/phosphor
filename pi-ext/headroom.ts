@@ -36,8 +36,9 @@
  * (`details.headroom`), which pi persists into the session file — that is
  * what the Optimization surface folds for per-lane savings.
  *
- * On the Claude Code provider only pi's own tools reach this hook (MCP and
- * custom tools, via the handoff broker); the CLI's built-ins never do.
+ * From pi-claude-cli 0.9.0 the Claude Code provider runs every tool in pi, so
+ * its results reach this hook like any other provider's. Older providers ran
+ * the CLI's built-ins inside the CLI, where this hook never saw them.
  */
 
 // Loose structural types: the real ones live in @earendil-works/pi-coding-agent,

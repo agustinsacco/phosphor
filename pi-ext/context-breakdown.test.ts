@@ -144,22 +144,26 @@ describe('measureMessages', () => {
     expect(measureMessages(entries)).toEqual({ tokens: 30, count: 2 })
   })
 
-  it("starts at the CLI's compaction marker on a Claude Code session", () => {
-    // pi's record never compacts on these sessions; the provider's marker is
-    // the cut. Only what follows it is still in the model's window.
+  it("counts through an old provider's compaction marker", () => {
+    // Recorded before pi-claude-cli 0.9.0, when the CLI compacted by itself.
+    // The provider now replays pi's whole context, so nothing before the
+    // marker has left the model's window.
+    const marker = '[Claude Code · compact {"trigger":"auto","postTokens":18013}]'
     const entries: SessionEntryLike[] = [
       user('u1', 'g'.repeat(4000)),
       assistant('a1', [
         { type: 'text', text: 'before '.repeat(100) },
-        { type: 'text', text: '[Claude Code · compact {"trigger":"auto","postTokens":18013}]' },
+        { type: 'text', text: marker },
         { type: 'toolCall', name: 'read', arguments: {} },
       ]),
       toolResult('t1', 'r'.repeat(400)),
       assistant('a2', [{ type: 'text', text: 'done' }]),
     ]
     const measured = measureMessages(entries)
-    expect(measured.count).toBe(3)
-    expect(measured.tokens).toBe(Math.ceil(('read'.length + 2 + 400 + 4) / 4))
+    expect(measured.count).toBe(4)
+    expect(measured.tokens).toBe(
+      Math.ceil((4000 + 700 + marker.length + 'read'.length + 2 + 400 + 4) / 4),
+    )
   })
 })
 

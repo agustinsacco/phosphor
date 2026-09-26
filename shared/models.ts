@@ -581,16 +581,11 @@ export interface AppPrefs {
   /** Rating/feedback state: launch count, the one-time nudge, the relay. */
   feedback: FeedbackPrefs
   /**
-   * Claude Code auto-compact window for pi-claude-cli sessions, passed as
-   * `PI_CLAUDE_CLI_AUTOCOMPACT` when a session spawns. Empty string means
-   * "the provider's default" (200k as of pi-claude-cli 0.5.0). Other accepted
-   * values mirror the provider: a window from 100k to 1M (`400k`, `400000`,
-   * bare `400` = thousands), `auto` (the CLI's own default — effectively the
-   * model's full 1M window), or `off` (omit the flag, for CLIs that predate
-   * `--autocompact`). The provider validates again and falls back to its
-   * default rather than passing a bad value to the CLI.
+   * Set once the one-time check for a leftover `compaction.enabled: false` in
+   * pi's global settings.json has run (`electron/pi/compaction-reset.ts`).
+   * Optional and not handed to the renderer: nothing there reads it.
    */
-  claudeAutocompact: string
+  compactionResetChecked?: boolean
   /**
    * Claude Code logins, their order, and how sessions are routed to them.
    *
@@ -808,13 +803,19 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   maintenance: DEFAULT_MAINTENANCE_PREFS,
   headroom: DEFAULT_HEADROOM_PREFS,
   feedback: DEFAULT_FEEDBACK_PREFS,
-  claudeAutocompact: '',
   claudeAccounts: DEFAULT_CLAUDE_ACCOUNT_PREFS,
   drafts: {},
 }
 
 /** Minimum pi version Phosphor is verified against. */
 export const MIN_PI_VERSION = '0.84.1'
+
+/**
+ * The first `@saccolabs/pi-claude-cli` release a Claude session starts on:
+ * the one that runs on pi's context alone. Main refuses anything older
+ * (`electron/pi/provider-detect.ts`) and Settings → Claude Code flags it.
+ */
+export const MIN_CLAUDE_CONTEXT_VERSION = '0.9.0'
 
 /**
  * Health of one pi config file. `malformed` distinguishes "present but

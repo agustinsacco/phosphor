@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Model, ThinkingLevel } from '@shared/rpc'
 import { supportedThinkingLevels } from '@shared/thinking'
+import { ipcErrorText } from '@shared/errors'
 import { useChatStore } from '@/stores/chat'
 import { piCall, piCallOk } from '@/lib/rpc'
 import { refreshThinkingLevels, useSessionsStore } from '@/stores/sessions'
@@ -97,6 +98,11 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
           useChatStore.getState().patchMeta(sessionId, { thinkingLevel: state.thinkingLevel })
         }
       })
+    } catch (error) {
+      // A rejection rather than a failed envelope: main refuses a switch to
+      // Claude on an outdated provider before pi sees it, and that refusal
+      // says what to update. Unreported, the chip just snapped back.
+      useChatStore.getState().setError(sessionId, ipcErrorText(error))
     } finally {
       setSwitchingTo(null)
     }

@@ -54,10 +54,11 @@ export interface BreakdownSlice {
  *
  * The extension measures pi's own state — its composed system prompt and its
  * active tool schemas. Under a CLI provider that is only part of the request:
- * the Claude Code CLI sends its own system prompt and its own native tool
- * schemas too, and keeps native tool results in its own transcript. Measured
- * live on 2026-09-09, that unattributable share was ~29k tokens on turn 1 of
- * a Claude session and ~0.5k on a native one.
+ * the provider wraps pi's context in its own framing. Before pi-claude-cli
+ * 0.9.0 the Claude Code CLI also sent its own system prompt and native tool
+ * schemas, and kept native tool results in its own transcript. Measured live
+ * on 2026-09-09, that unattributable share was ~29k tokens on turn 1 of a
+ * Claude session and ~0.5k on a native one.
  *
  * It must be shown as its own slice, never spread across the measured ones.
  */
@@ -84,8 +85,7 @@ function fixedTokens(breakdown: ContextBreakdown): number {
  * Down is taken from the MESSAGES first, and from the fixed parts only as a
  * last resort. The prompt and the schemas are the same size on every turn and
  * the extension measures them exactly (the text is in hand); the message
- * estimate is the one that overshoots, and on a Claude Code session it is the
- * one pi's record cannot follow at all once the CLI compacts. Scaling all four
+ * estimate is the one that overshoots. Scaling all four
  * by one factor turned 4.6k of system prompt into 1.5k and 534 tokens of MCP
  * proxies into 237, and made seven identical proxy schemas read as "34" on
  * one session and "77" on the next.
@@ -237,7 +237,7 @@ export function breakdownSlices(
       tokens: unmeasured,
       percent: pct(unmeasured),
       color: 'var(--px-text-tertiary)',
-      hint: "Counted by pi but not visible from inside it. On a CLI provider this is the CLI's own system prompt, its native tool schemas, its compaction summary and results it keeps in its own transcript; elsewhere it is drift between the character estimate and the real tokenizer.",
+      hint: "Counted by pi but not visible from inside it: whatever the provider wraps around pi's context (on Claude Code, the CLI's framing of pi's tools and history) and drift between the character estimate and the real tokenizer.",
     })
   }
 

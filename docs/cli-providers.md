@@ -8,114 +8,71 @@ Codex equivalent.
 
 ## Current Claude integration
 
-Phosphor requires **`pi-claude-cli >= 0.7.1`** and sets three environment
-variables on every live spawn (`claudeProviderSpawnEnv` in
-`electron/pi/provider-detect.ts`):
+Phosphor requires **`pi-claude-cli >= 0.9.0`**. pi owns the prompt, active tools,
+conversation and compaction. The official Claude Code CLI supplies model access
+and subscription authentication, not a second coding-agent configuration.
 
-| Variable                       | Effect                                                                                                                                                                                                                                          |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PI_CLAUDE_CLI_CONTEXT=pi`     | pi loads project instructions and skills; the provider suppresses Claude's duplicate memory/skill/MCP discovery and aligns tool vocabulary. Claude keeps its default prompt, native tools, persistent process and its own transcript/compaction |
-| `PI_CLAUDE_CLI_STRICT_MCP=1`   | `--strict-mcp-config`: the CLI's own MCP chain and claude.ai connectors are dropped. MCP reaches Claude through pi's gateway only ([mcp.md](mcp.md#the-claude-provider-reaches-mcp-through-pi-not-around-it))                                   |
-| `PI_CLAUDE_CLI_TOOL_RESULTS=1` | CLI-side tool calls are tagged and followed by a result marker, so a transcript row can say what came back ([extensions.md](extensions.md#how-provider-transcripts-render))                                                                     |
+`claudeProviderSpawnEnv` sets `PI_CLAUDE_CLI_CONTEXT=pi` on every pi spawn so an
+inherited legacy policy cannot change behavior when a session switches to Claude.
+The provider uses pi's system prompt, advertises only the request's tools through
+MCP, and executes every tool in pi, including read/edit/bash. Native Claude tools,
+independent memory/skill/MCP discovery and CLI compaction are disabled. Explicit
+host guards and managed policy remain in force; bare mode is not used.
 
-What the adapter does, at the level Phosphor depends on:
+One warm CLI process serves matching follow-ups and pi tool handoffs. It is a
+disposable cache: model switches, changed prompts/tools, branch rewrites and
+compaction retire it. Returning to Claude imports pi's current context, including
+native-provider turns. No new Claude transcript or resume sidecar is written.
+Imports use role-labelled text plus images because the CLI print interface is
+not a direct structured-history API; this is continuity, not identical wire input.
 
-- **One CLI process per session** (≥ 0.7.0), parked between turns. pi's tools
-  are advertised to the CLI through a schema-only MCP server; a call is
-  proxied back to pi, which runs the real tool and returns the result to the
-  same process. Every one-shot `pi -p` spawn must pass `claudeOneShotEnv()`
-  (`PI_CLAUDE_CLI_KEEPALIVE_MS=0`), or the parked child keeps the run alive
-  for ten minutes after it has printed its answer. The same env sets
-  `PI_CLAUDE_CLI_EPHEMERAL=1`: `pi --no-session` keeps only pi's own
-  transcript off disk, and without it the provider still saves a CLI
-  transcript, a session-map entry and a stored system prompt for every naming
-  run, none of them ever read again. Providers that predate the variable
-  ignore it and keep leaking.
-- **CLI-internal tools** (WebSearch, sub-agents, the CLI's native tools) are
-  emitted as `[Claude Code · Name {args}]` marker text, a wire contract
-  Phosphor parses into activity rows.
-- **Account state never enters turn content.** Rate limits arrive on the
-  `claude-rate-limit` status key, sub-agent progress on `claude-subagents`
-  ([extensions.md](extensions.md#the-status-channel-is-a-wire-contract)).
 - **An account is a config directory.** `CLAUDE_CONFIG_DIR` and
   `CLAUDE_SECURESTORAGE_CONFIG_DIR` scope the CLI's config and keychain entry,
   so Phosphor holds several Claude logins and picks one per session at spawn
   (`electron/claude/`; routing modes `specific | ordered | round-robin`, with
   cooldowns keyed off the window each account last exhausted). The credential
   is fixed for the life of the process; moving a lane is a respawn.
+- **Account state never enters turn content.** Rate limits arrive on the
+  `claude-rate-limit` status key
+  ([extensions.md](extensions.md#the-status-channel-is-a-wire-contract)).
 - **Model list comes from pi**, not the CLI
   ([extensions.md](extensions.md#updating-the-cli-does-not-add-new-models)).
+- **One-shots pass `claudeOneShotEnv()`.** Every `pi -p` spawn sets
+  `PI_CLAUDE_CLI_KEEPALIVE_MS=0`, or the warm child keeps the run alive for ten
+  minutes after it has printed its answer. The same env sets
+  `PI_CLAUDE_CLI_EPHEMERAL=1`. Under pi ownership the provider writes no CLI
+  transcript, session-map entry or stored prompt anyway; the flag stops a
+  provider running the legacy policy from saving all three for every naming
+  run.
 
-Phosphor checks the declared provider package version before creating a Claude
-session or forwarding a switch to Claude, and shows an update message rather
-than running under an older policy. Nothing is installed or upgraded for you.
-0.7.1 in turn needs Claude Code **2.1.263+**.
+Phosphor checks the package version before starting or switching to Claude.
+The provider must be published and installed separately; Phosphor installs or
+upgrades nothing implicitly. Claude Code 2.1.263+ is required.
 
 ### Compaction has one owner
 
-The CLI compacts its own session (`--autocompact`, the Context window setting)
-and continues the turn on the compacted context by itself. pi's compaction
-never touches the CLI session — on the resume path the provider sends only the
-delta — so on this provider it rewrites pi's record and nothing else. It also
-fires constantly: pi compacts when the reported context passes
-`contextWindow - reserveTokens` (~183k on a 200k model), a line a Claude
-session crosses long before a roomy CLI cap. Measured on a multi-day session:
-pi compacted its record nine times, the CLI four, and every pi pass was a lossy
-rewrite that bought nothing.
+pi owns compaction for every provider. Phosphor does not force a different
+setting at spawn or model switch. The Agent settings and session toggle apply
+to Claude too, and the context meter uses pi's model window. The old Claude-only
+context-window preference is gone.
 
-So Phosphor switches pi's auto-compaction off per session, over RPC
-(`set_auto_compaction`), for any session whose live provider is `pi-claude-cli`
-(`electron/pi/compaction-ownership.ts`). It runs at spawn — awaited, so the
-renderer's bootstrap `get_state` already sees the final state — and again after
-`set_model`, and it reads the provider from pi rather than predicting it. It is
-a default, not a lock: the ⋮ menu toggle still works, and its tooltip says what
-turning pi's pass back on does (summarize pi's transcript; the model's context
-does not shrink).
+Older Phosphor sent `set_auto_compaction` at every spawn and model switch, off
+for Claude, and pi saves that command to its global `settings.json`. An install
+whose last session ran on Claude was left with `compaction.enabled: false`, so
+now that the CLI never compacts, nothing would compact on any provider.
+`electron/pi/compaction-reset.ts` turns that `false` back to `true` once,
+before the first pi spawn, and records the check in the `compactionResetChecked`
+pref. A later `false` is the user's and stays. A `settings.json` that does not
+parse is left alone and checked again next launch.
 
-Two things make this honest rather than blind:
+### Existing sessions
 
-- **The gauge reads the CLI's figure after a compaction.** The provider
-  (≥ 0.8.3) handles the CLI's `compact_boundary` envelope: it resets the
-  reported context to the compacted size — until then it kept reporting the
-  summarization pass's prompt, the whole pre-compaction conversation, so a
-  session the CLI had just cut to 37k read 316k, and pi compacted its own
-  record on the phantom — and it emits a `[Claude Code · compact {…}]` marker
-  the transcript draws as the compaction divider ([chat.md](chat.md)).
-- **The meter divides by the budget**, not the model window, and does not cap
-  the label ([chat.md](chat.md#session-controls-per-session)).
-
-Below provider 0.8.3 the ownership switch still holds (pi stops compacting),
-but the gauge keeps the stale figure across a CLI compaction and no divider is
-drawn for it.
-
-### Resuming a session from before a context-policy change
-
-The provider stores the system prompt each CLI session was created with and
-compares its policy against the one Phosphor spawns with. A mismatch throws
-_before_ the model runs — so a session started under the other policy answers
-every message with the same error and cannot be talked out of it:
-
-> Claude context policy changed (or its saved prompt is missing). Start a fresh
-> pi session; the existing Claude transcript was not migrated.
-
-Every Claude session predating 2026-09-09 (when `PI_CLAUDE_CLI_CONTEXT=pi`
-arrived) is stamped with the old policy and hits this on its first turn
-afterwards. **Starting fresh is not required.** The error carries a **Rebuild
-the Claude session** button, which drops the session's entry from the
-provider's sidecar map (`resetClaudeLedgerPairing` in
-`electron/pi/claude-ledger.ts`), deletes the stored prompt and trashes the
-orphaned CLI transcript. pi is the system of record, so nothing is lost: the
-next turn is treated as a first turn and replays pi's full history into a new
-CLI session.
-
-The cost is one turn — the reimport is billed as a cache **write** over the
-whole conversation (1.25× input) where a resume would have been a cache read
-(0.1×), which is the same charge the clone fork exists to avoid. The panel
-says so before the user clicks, and every turn after it caches normally.
-
-Two version floors worth knowing because their failures are silent:
-**< 0.4.16** never received pi's system prompt at all; **< 0.6.1** ignored the
-first message after a compaction. CLAUDE.md carries the full list.
+The provider automatically detaches an old Claude pairing on the next default
+request and imports the current pi history. No manual reset or fresh pi session
+is needed. Old Claude transcripts are retained as archives, never resumed.
+Historical native-tool markers may contain only previews; missing historical
+results cannot be recovered from those pi records. New tool calls/results are
+normal pi messages. Legacy markers and rebuild UI remain readable for old records.
 
 ## Why a bridge for Claude, and not for Codex
 

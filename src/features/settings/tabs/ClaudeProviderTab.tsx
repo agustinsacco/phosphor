@@ -9,17 +9,15 @@ import type {
   ClaudeStatus,
   PiPackageEntry,
 } from '@shared/models'
+import { MIN_CLAUDE_CONTEXT_VERSION } from '@shared/models'
 import { Button, TextInput } from '@/components/form'
 import { ChevronIcon, Spinner } from '@/components/icons'
 import { usePackageJob } from '../usePackageJob'
-import { isNewerVersion } from '@shared/version'
+import { isNewerVersion, meetsMinimum } from '@shared/version'
 import { JobOutput } from '../JobOutput'
 import { ClaudeAccountPanel } from './ClaudeAccountPanel'
 import { usageTextClass, windowResetLabel } from '@/lib/claudeUsage'
-import { autocompactTokens, isValidAutocompactValue } from '@/lib/claudeAutocompact'
-import { formatTokens } from '@/lib/format'
 import { useSessionsStore } from '@/stores/sessions'
-import { useClaudeAutocompactStore } from '@/stores/claudeAutocompactPref'
 
 /** Claude Code line the extension is tested against (see the fork's CI). */
 const TESTED_CLI_LINE = '2.1'
@@ -80,6 +78,9 @@ export function ClaudeProviderTab(): React.JSX.Element {
   const testJob = usePackageJob()
   const updatable =
     latest !== null && pkg?.version !== undefined && isNewerVersion(latest, pkg.version)
+  // Main refuses a Claude session on this copy, so the row must not read as
+  // healthy beside it. Same rule as the refusal (provider-detect.ts).
+  const tooOld = pkg?.installed === true && !meetsMinimum(pkg.version, MIN_CLAUDE_CONTEXT_VERSION)
   const binaryOk = status?.binary.found === true
   const cliVersion = status?.binary.version
   const cliUpdatable =
@@ -98,7 +99,7 @@ export function ClaudeProviderTab(): React.JSX.Element {
       <div className="border-border mt-2 divide-y rounded-lg border">
         <StatusRow
           label="Extension package"
-          ok={pkg != null && pkg.installed}
+          ok={pkg != null && pkg.installed && !tooOld}
           detail={
             pkg === undefined
               ? 'checking…'
@@ -143,6 +144,12 @@ export function ClaudeProviderTab(): React.JSX.Element {
           />
         )}
       </div>
+      {tooOld && (
+        <p className="text-warning mt-2 text-sm" data-testid="claude-provider-too-old">
+          Claude sessions need {pkg.name} {MIN_CLAUDE_CONTEXT_VERSION} or newer; this is{' '}
+          {pkg.version ?? 'an unknown version'}. Update it, then reopen your Claude sessions.
+        </p>
+      )}
       {status?.binary.version && !status.binary.version.startsWith(`${TESTED_CLI_LINE}.`) && (
         <p className="text-warning mt-2 text-sm">
           This extension is tested against Claude Code {TESTED_CLI_LINE}.x; you have{' '}
@@ -756,163 +763,12 @@ function UpdateRow({
   )
 }
 
-/**
- * Presets for the auto-compact window. `''` is "provider default": the env
- * var is not set at all and pi-claude-cli applies its own 200k cap.
- */
-const AUTOCOMPACT_PRESETS = [
-  {
-    value: '',
-    title: 'Default — 200k tokens',
-    detail:
-      'The provider caps the Claude Code session at 200k and the CLI compacts it in-session. ' +
-      'Matches the budget these models run under everywhere the 1M beta is off.',
-  },
-  {
-    value: '400k',
-    title: '400k tokens',
-    detail:
-      'Roomier before each compaction, at roughly double the per-request cache cost once a ' +
-      'session grows past 200k.',
-  },
-  {
-    value: 'auto',
-    title: 'Model maximum',
-    detail:
-      'The CLI decides — on 1M-context models a long-lived session can grow toward a million ' +
-      'tokens, and every request re-reads all of it. The pre-0.5.0 behaviour.',
-  },
-] as const
-
-/**
- * Settings → Claude Code → Context window: the auto-compact window for
- * pi-claude-cli sessions (PI_CLAUDE_CLI_AUTOCOMPACT). Applies to sessions
- * started after the change; running sessions keep their window.
- */
+/** The provider follows pi's context policy; there is no second budget. */
 function ContextWindowSection(): React.JSX.Element {
-  const [value, setValue] = useState('')
-  const [customDraft, setCustomDraft] = useState('')
-  const [customError, setCustomError] = useState(false)
-
-  useEffect(() => {
-    void window.phosphor.invoke('app:getPrefs').then((prefs) => {
-      const stored = prefs.claudeAutocompact ?? ''
-      setValue(stored)
-      if (!AUTOCOMPACT_PRESETS.some((p) => p.value === stored)) setCustomDraft(stored)
-    })
-  }, [])
-
-  const save = useCallback((next: string): void => {
-    setValue(next)
-    setCustomError(false)
-    // The context meter divides Claude sessions by this budget; keep its copy
-    // current without a second prefs round-trip.
-    useClaudeAutocompactStore.getState().applyClaudeAutocompact(next)
-    void window.phosphor.invoke('app:setClaudeAutocompact', next)
-  }, [])
-
-  // What a custom value MEANS, shown while it is typed: "500" is the CLI's
-  // shorthand for 500k, and a budget 2.5× the default was once set that way
-  // without anyone noticing until the bill did.
-  const customTokens = isValidAutocompactValue(customDraft.trim())
-    ? autocompactTokens(customDraft.trim())
-    : null
-
-  const commitCustom = useCallback((): void => {
-    const draft = customDraft.trim()
-    if (draft === '') {
-      save('')
-      return
-    }
-    if (!isValidAutocompactValue(draft)) {
-      setCustomError(true)
-      return
-    }
-    save(draft)
-  }, [customDraft, save])
-
-  const isPreset = AUTOCOMPACT_PRESETS.some((p) => p.value === value)
-
   return (
-    <>
-      <h3 className="mt-6 text-lg font-semibold">Context window</h3>
-      <p className="text-text-secondary mt-1 text-base">
-        How large a Claude Code session may grow before the CLI compacts it. Smaller windows cost
-        less (every request re-reads the whole context) and keep the model focused; compaction
-        summarizes older turns in place. Applies to sessions you start from now on.
-      </p>
-      <div className="mt-2.5 space-y-2" role="radiogroup" aria-label="Auto-compact window">
-        {AUTOCOMPACT_PRESETS.map((preset) => {
-          const selected = value === preset.value
-          return (
-            <button
-              key={preset.value || 'default'}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              onClick={() => save(preset.value)}
-              className={clsx(
-                'flex w-full items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors',
-                selected ? 'border-accent bg-accent/5' : 'border-border hover:bg-bg-secondary',
-              )}
-            >
-              <span
-                className={clsx(
-                  'mt-1 h-3 w-3 shrink-0 rounded-full border-2',
-                  selected ? 'border-accent bg-accent' : 'border-border-strong',
-                )}
-                aria-hidden
-              />
-              <span className="min-w-0">
-                <span className="text-text block text-base font-medium">{preset.title}</span>
-                <span className="text-text-secondary block text-sm leading-snug">
-                  {preset.detail}
-                </span>
-              </span>
-            </button>
-          )
-        })}
-        <div className="flex items-center gap-2.5 px-3 py-1">
-          <span
-            className={clsx(
-              'h-3 w-3 shrink-0 rounded-full border-2',
-              !isPreset ? 'border-accent bg-accent' : 'border-border-strong',
-            )}
-            aria-hidden
-          />
-          <span className="text-text text-base font-medium">Custom</span>
-          <TextInput
-            size="sm"
-            className="w-32 font-mono"
-            placeholder="e.g. 300k"
-            aria-label="Custom auto-compact window"
-            value={customDraft}
-            onChange={(e) => {
-              setCustomDraft(e.target.value)
-              setCustomError(false)
-            }}
-            onBlur={commitCustom}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commitCustom()
-            }}
-          />
-          {customError ? (
-            <span className="text-warning text-sm">
-              Use a window from 100k to 1M (e.g. 300k), auto, or off.
-            </span>
-          ) : customTokens !== null && customDraft.trim() !== '' ? (
-            <span className="text-text-tertiary text-sm tabular-nums">
-              = {formatTokens(customTokens)} tokens
-            </span>
-          ) : null}
-        </div>
-      </div>
-      <p className="text-text-tertiary mt-2 text-sm">
-        Needs pi-claude-cli 0.5.0 or newer; older versions ignore the setting. On these sessions the
-        CLI is the only compactor: Phosphor switches pi&apos;s own transcript compaction off for
-        them (the Agent tab setting still applies to every other provider), and the context meter
-        measures them against this budget.
-      </p>
-    </>
+    <p className="text-text-secondary mt-6 text-base">
+      pi manages the system prompt, tools, conversation and compaction for Claude too. Use the Agent
+      tab and the session menu for compaction settings.
+    </p>
   )
 }

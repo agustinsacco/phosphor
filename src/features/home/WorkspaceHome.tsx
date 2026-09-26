@@ -6,7 +6,7 @@ import { prefetchTrunk, startChat } from '@/features/sessions/startChat'
 import { notifyLane } from '@/features/sessions/laneNotices'
 import { useStartingChatStore } from '@/stores/startingChat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { errorText } from '@shared/errors'
+import { ipcErrorText } from '@shared/errors'
 import { useSessionsStore } from '@/stores/sessions'
 import { AttachButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { HomeModelPicker } from './HomeModelPicker'
@@ -187,7 +187,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
         workspacePath,
         text: message,
         attachments: images,
-        message: `Couldn't start this session. ${errorText(error)}`,
+        message: `Couldn't start this session. ${ipcErrorText(error)}`,
       })
     }
   }
