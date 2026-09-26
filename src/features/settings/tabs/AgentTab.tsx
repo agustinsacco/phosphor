@@ -6,6 +6,7 @@ import { Row, SectionTitle, NumberField, TextField, Toggle } from '@/components/
 import type { ConfigFileHealth } from '@shared/models'
 import { useSettingsUiStore } from '../settingsUiStore'
 import { DirectivesSection } from './DirectivesSection'
+import { ContextBudgetSection } from './ContextBudgetSection'
 import { errorText } from '@shared/errors'
 
 /** Agent defaults written into pi's own settings.json (global or per project). */
@@ -205,7 +206,7 @@ export function AgentTab(): React.JSX.Element {
         <SectionTitle small>Compaction</SectionTitle>
         <Row
           title="Auto-compaction"
-          description="Compact context automatically near the window limit."
+          description="Compact context automatically near the window limit, or at the context budget below if that comes first."
         >
           <Toggle
             on={(compaction.enabled ?? inheritedCompaction.enabled) !== false}
@@ -235,7 +236,16 @@ export function AgentTab(): React.JSX.Element {
             onChange={(v) => void patch({ compaction: { keepRecentTokens: v } })}
           />
         </Row>
+      </fieldset>
 
+      {/* A Phosphor pref, not settings.json: unscoped, and still editable
+          while a broken file blocks the rows around it. */}
+      <ContextBudgetSection />
+
+      <fieldset
+        disabled={blocked}
+        className={clsx('contents', blocked && 'pointer-events-none opacity-50')}
+      >
         <SectionTitle small>Auto-retry</SectionTitle>
         <Row
           title="Retry on transient errors"

@@ -137,7 +137,8 @@ The composer is one small field with several ways in.
 - Auto-retry: an inline strip "Retrying (2/3) in 4s — <error>" with cancel.
 - Compaction: a system divider "Context compacted — N tokens summarized" with
   an expandable summary. Two sources draw it. pi's own `compaction_end`, for
-  sessions pi compacts; and on Claude Code sessions the provider's
+  sessions pi compacts (at its threshold or at the context budget,
+  [cli-providers.md](cli-providers.md#one-context-budget)); and on Claude Code sessions the provider's
   `[Claude Code · compact {…}]` marker (provider ≥ 0.8.3), emitted when the
   CLI compacted its own session mid-turn — pi's compaction is switched off for
   those sessions ([cli-providers.md](cli-providers.md#compaction-has-one-owner)),
@@ -241,16 +242,20 @@ in the **top bar** (`app/TopBar.tsx` → `SessionMenu`).
   that only a non-pi provider gets named.
 - **Context meter**: % of window from `get_session_stats` (polled after each
   `agent_end` and on demand), warn state near the compaction threshold, and
-  the popover below. On a Claude Code session the denominator is the
-  **auto-compact budget** (Settings → Claude Code → Context window, 200k
-  unless set; `contextBudgetTokens` in `shared/context-budget.ts`), not the
-  model window, and the label is not capped at 100% — the ring saturates, the
-  number keeps counting. The CLI's compaction is the only thing that shrinks
-  that context, so "how full is the budget" is the honest question: against
-  the model window a 500k budget read as critical at 65% of itself, and a
-  325k context in a 200k budget showed the same 100% as "just full". The
-  budget shown is the current setting; a session started before a change
-  keeps its old window until restarted.
+  the popover below. When a session compacts at the **context budget**
+  (Settings → Agent → Context budget, 200k unless set;
+  `sessionContextBudget` in `shared/context-budget.ts`) the denominator is the
+  budget, not the model window: every Claude Code session, and a pi session
+  whose window is larger than the budget
+  ([cli-providers.md](cli-providers.md#one-context-budget)). On Claude Code
+  the label is not capped at 100%: the ring saturates, the number keeps
+  counting. The CLI's compaction is the only thing that shrinks that context,
+  so "how full is the budget" is the honest question: against the model
+  window a 500k budget read as critical at 65% of itself, and a 325k context
+  in a 200k budget showed the same 100% as "just full". A pi session is capped
+  at 100%, since it compacts as soon as the turn ends. The budget shown is the
+  current setting; a Claude session started before a change keeps its old
+  window until restarted.
 - **Stop** (`abort`) is the send button while a turn runs. Everything else is
   in the ⋮ menu: Export HTML…, Compact now… (optional custom instructions),
   auto-compaction, auto-retry, and the two queue-mode rows (Steering /

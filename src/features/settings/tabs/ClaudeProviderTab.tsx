@@ -16,10 +16,11 @@ import { isNewerVersion } from '@shared/version'
 import { JobOutput } from '../JobOutput'
 import { ClaudeAccountPanel } from './ClaudeAccountPanel'
 import { usageTextClass, windowResetLabel } from '@/lib/claudeUsage'
-import { contextBudgetTokens, isValidContextBudgetValue } from '@shared/context-budget'
+import { contextBudgetTokens } from '@shared/context-budget'
 import { formatTokens } from '@/lib/format'
 import { useSessionsStore } from '@/stores/sessions'
 import { useContextBudgetStore } from '@/stores/contextBudgetPref'
+import { useSettingsUiStore } from '../settingsUiStore'
 
 /** Claude Code line the extension is tested against (see the fork's CI). */
 const TESTED_CLI_LINE = '2.1'
@@ -757,162 +758,27 @@ function UpdateRow({
 }
 
 /**
- * Presets for the auto-compact window. `''` is "provider default": the env
- * var is not set at all and pi-claude-cli applies its own 200k cap.
- */
-const AUTOCOMPACT_PRESETS = [
-  {
-    value: '',
-    title: 'Default — 200k tokens',
-    detail:
-      'The provider caps the Claude Code session at 200k and the CLI compacts it in-session. ' +
-      'Matches the budget these models run under everywhere the 1M beta is off.',
-  },
-  {
-    value: '400k',
-    title: '400k tokens',
-    detail:
-      'Roomier before each compaction, at roughly double the per-request cache cost once a ' +
-      'session grows past 200k.',
-  },
-  {
-    value: 'auto',
-    title: 'Model maximum',
-    detail:
-      'The CLI decides — on 1M-context models a long-lived session can grow toward a million ' +
-      'tokens, and every request re-reads all of it. The pre-0.5.0 behaviour.',
-  },
-] as const
-
-/**
- * Settings → Claude Code → Context window: the auto-compact window for
- * pi-claude-cli sessions (PI_CLAUDE_CLI_AUTOCOMPACT). Applies to sessions
- * started after the change; running sessions keep their window.
+ * Settings → Claude Code → Context window: a pointer, not a control. The
+ * budget these sessions compact at is the one every provider shares
+ * (Settings → Agent → Context budget, `ContextBudgetSection`).
  */
 function ContextWindowSection(): React.JSX.Element {
-  const [value, setValue] = useState('')
-  const [customDraft, setCustomDraft] = useState('')
-  const [customError, setCustomError] = useState(false)
-
-  useEffect(() => {
-    void window.phosphor.invoke('app:getPrefs').then((prefs) => {
-      const stored = prefs.contextBudget ?? ''
-      setValue(stored)
-      if (!AUTOCOMPACT_PRESETS.some((p) => p.value === stored)) setCustomDraft(stored)
-    })
-  }, [])
-
-  const save = useCallback((next: string): void => {
-    setValue(next)
-    setCustomError(false)
-    // The context meter divides Claude sessions by this budget; keep its copy
-    // current without a second prefs round-trip.
-    useContextBudgetStore.getState().applyContextBudget(next)
-    void window.phosphor.invoke('app:setContextBudget', next)
-  }, [])
-
-  // What a custom value MEANS, shown while it is typed: "500" is the CLI's
-  // shorthand for 500k, and a budget 2.5× the default was once set that way
-  // without anyone noticing until the bill did.
-  const customTokens = isValidContextBudgetValue(customDraft.trim())
-    ? contextBudgetTokens(customDraft.trim())
-    : null
-
-  const commitCustom = useCallback((): void => {
-    const draft = customDraft.trim()
-    if (draft === '') {
-      save('')
-      return
-    }
-    if (!isValidContextBudgetValue(draft)) {
-      setCustomError(true)
-      return
-    }
-    save(draft)
-  }, [customDraft, save])
-
-  const isPreset = AUTOCOMPACT_PRESETS.some((p) => p.value === value)
-
+  const budget = useContextBudgetStore((s) => s.contextBudget)
+  const tokens = contextBudgetTokens(budget)
   return (
     <>
       <h3 className="mt-6 text-lg font-semibold">Context window</h3>
       <p className="text-text-secondary mt-1 text-base">
-        How large a Claude Code session may grow before the CLI compacts it. Smaller windows cost
-        less (every request re-reads the whole context) and keep the model focused; compaction
-        summarizes older turns in place. Applies to sessions you start from now on.
+        The CLI compacts these sessions in place at the shared context budget, currently{' '}
+        <span className="text-text tabular-nums">
+          {tokens === null ? 'the model maximum' : `${formatTokens(tokens)} tokens`}
+        </span>
+        . On these sessions the CLI is the only compactor: Phosphor switches pi&apos;s own
+        transcript compaction off for them.
       </p>
-      <div className="mt-2.5 space-y-2" role="radiogroup" aria-label="Auto-compact window">
-        {AUTOCOMPACT_PRESETS.map((preset) => {
-          const selected = value === preset.value
-          return (
-            <button
-              key={preset.value || 'default'}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              onClick={() => save(preset.value)}
-              className={clsx(
-                'flex w-full items-start gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors',
-                selected ? 'border-accent bg-accent/5' : 'border-border hover:bg-bg-secondary',
-              )}
-            >
-              <span
-                className={clsx(
-                  'mt-1 h-3 w-3 shrink-0 rounded-full border-2',
-                  selected ? 'border-accent bg-accent' : 'border-border-strong',
-                )}
-                aria-hidden
-              />
-              <span className="min-w-0">
-                <span className="text-text block text-base font-medium">{preset.title}</span>
-                <span className="text-text-secondary block text-sm leading-snug">
-                  {preset.detail}
-                </span>
-              </span>
-            </button>
-          )
-        })}
-        <div className="flex items-center gap-2.5 px-3 py-1">
-          <span
-            className={clsx(
-              'h-3 w-3 shrink-0 rounded-full border-2',
-              !isPreset ? 'border-accent bg-accent' : 'border-border-strong',
-            )}
-            aria-hidden
-          />
-          <span className="text-text text-base font-medium">Custom</span>
-          <TextInput
-            size="sm"
-            className="w-32 font-mono"
-            placeholder="e.g. 300k"
-            aria-label="Custom auto-compact window"
-            value={customDraft}
-            onChange={(e) => {
-              setCustomDraft(e.target.value)
-              setCustomError(false)
-            }}
-            onBlur={commitCustom}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commitCustom()
-            }}
-          />
-          {customError ? (
-            <span className="text-warning text-sm">
-              Use a window from 100k to 1M (e.g. 300k), auto, or off.
-            </span>
-          ) : customTokens !== null && customDraft.trim() !== '' ? (
-            <span className="text-text-tertiary text-sm tabular-nums">
-              = {formatTokens(customTokens)} tokens
-            </span>
-          ) : null}
-        </div>
-      </div>
-      <p className="text-text-tertiary mt-2 text-sm">
-        Needs pi-claude-cli 0.5.0 or newer; older versions ignore the setting. On these sessions the
-        CLI is the only compactor: Phosphor switches pi&apos;s own transcript compaction off for
-        them (the Agent tab setting still applies to every other provider), and the context meter
-        measures them against this budget.
-      </p>
+      <Button className="mt-2" onClick={() => useSettingsUiStore.getState().setTab('agent')}>
+        Change in Agent settings
+      </Button>
     </>
   )
 }

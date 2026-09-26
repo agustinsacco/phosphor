@@ -43,12 +43,15 @@ import type {
 import { useSessionClaudeAccount } from './useSessionAccount'
 import { useSessionsStore } from '@/stores/sessions'
 import { useContextBudgetStore } from '@/stores/contextBudgetPref'
-import { contextBudgetTokens } from '@shared/context-budget'
+import { sessionContextBudget } from '@shared/context-budget'
 
 export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.Element | null {
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats)
   const model = useChatStore((s) => s.sessions[sessionId]?.meta?.model)
-  const autocompactPref = useContextBudgetStore((s) => s.contextBudget)
+  const autoCompactionEnabled = useChatStore(
+    (s) => s.sessions[sessionId]?.meta?.autoCompactionEnabled ?? true,
+  )
+  const budgetPref = useContextBudgetStore((s) => s.contextBudget)
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   // Pushed by the bundled context-breakdown extension, so it is present for
@@ -72,15 +75,24 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   // whenever the session has stats and show the ring unfilled instead.
   if (!stats) return null
 
-  // On a Claude Code session the denominator is the auto-compact BUDGET, not
-  // the model window, and the label is not capped. The CLI's own compaction
-  // is the only thing that shrinks that context (pi's is switched off for
-  // these sessions — electron/pi/compaction-ownership.ts), so "how full is
-  // the budget" is the honest question. Against the model window a 500k
-  // budget read as critical at 65% of itself, and a 325k context in a 200k
-  // budget saturated at 100% instead of saying 163%. Other providers keep
-  // pi's window and pi's cap: pi compacts them, so >100% is transient there.
-  const budget = model?.provider === 'pi-claude-cli' ? contextBudgetTokens(autocompactPref) : null
+  // The denominator is the context BUDGET wherever one applies
+  // (shared/context-budget.ts), not the model window: "how full is the line
+  // this session compacts at" is the honest question. Against the model window
+  // a 500k budget read as critical at 65% of itself, and a 1M-window session
+  // compacted at 200k read 20% the turn before it compacted.
+  //
+  // Only a Claude Code session's label goes past 100%. The CLI's own
+  // compaction is the only thing that shrinks that context (pi's is switched
+  // off for these sessions — electron/pi/compaction-ownership.ts), so a 325k
+  // context in a 200k budget says 163% instead of saturating. Everywhere else
+  // pi compacts once the turn settles, so >100% is transient and stays capped.
+  const budget = sessionContextBudget({
+    raw: budgetPref,
+    provider: model?.provider,
+    contextWindow: usage?.contextWindow,
+    autoCompactionEnabled,
+  })
+  const uncapped = budget !== null && model?.provider === 'pi-claude-cli'
   const window = budget ?? usage?.contextWindow ?? 0
   const rawPercent =
     budget !== null && usage?.tokens != null && window > 0
@@ -89,7 +101,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   const percent =
     rawPercent == null
       ? null
-      : budget !== null
+      : uncapped
         ? Math.round(rawPercent)
         : Math.min(100, Math.round(rawPercent))
   const ringPercent = Math.min(100, percent ?? 0)

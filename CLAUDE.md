@@ -212,7 +212,7 @@ you want to watch.
 
 - **Interactive sessions share an absolute context budget (default 200k).**
   `shared/context-budget.ts` (`sessionContextBudget`) is the rule; the pref is
-  `AppPrefs.contextBudget` (Settings → Claude Code → Context window). The Claude CLI
+  `AppPrefs.contextBudget` (Settings → Agent → Context budget). The Claude CLI
   gets it as `PI_CLAUDE_CLI_AUTOCOMPACT` at spawn. pi has no RPC knob for its
   threshold, so `electron/pi/context-budget.ts` checks after each
   `agent_settled` and sends `compact` when a pi-owned session with a window
