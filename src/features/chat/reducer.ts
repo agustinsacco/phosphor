@@ -29,7 +29,14 @@ import type {
   UserItem,
 } from './chatItems'
 import { emptyChatSession, newItemId } from './chatItems'
-import { SUBAGENT_NOTIFY_TYPE } from './subagentRuns'
+import {
+  mergeOmpSubagent,
+  OMP_TASK_TOOL,
+  ompSnapshotUpdate,
+  ompSubagentUpdate,
+  SUBAGENT_NOTIFY_TYPE,
+  type OmpSubagentUpdate,
+} from './subagentRuns'
 import {
   applyRevealedIdentity,
   pendingToolId,
@@ -274,6 +281,55 @@ export function reduceChatEvent(state: ChatSessionState, event: PiEvent): ChatSe
 
     default:
       return state
+  }
+}
+
+// ---------- omp subagent frames ----------
+
+/**
+ * One omp subagent frame, onto the `task` call that spawned it. A frame for a
+ * call this transcript does not hold (a subagent's own nested `task`, an
+ * `eval` bridge spawn, a call rewound away) is dropped; omp restates the
+ * subagent whole on every progress frame, so a call that is still here loses
+ * nothing.
+ */
+export function reduceSubagentFrame(state: ChatSessionState, frame: unknown): ChatSessionState {
+  const update = ompSubagentUpdate(frame)
+  return update ? applySubagentUpdate(state, update, true) : state
+}
+
+/**
+ * `get_subagents` at open: the subagents still running, for a view that was
+ * not watching when they started. A subagent a frame already reported is
+ * left alone, since that frame is newer.
+ */
+export function restoreSubagents(state: ChatSessionState, snapshots: unknown[]): ChatSessionState {
+  let next = state
+  for (const snapshot of snapshots) {
+    const update = ompSnapshotUpdate(snapshot)
+    if (update) next = applySubagentUpdate(next, update, false)
+  }
+  return next
+}
+
+function applySubagentUpdate(
+  state: ChatSessionState,
+  { parentToolCallId, live }: OmpSubagentUpdate,
+  replace: boolean,
+): ChatSessionState {
+  const tool = state.tools[parentToolCallId]
+  if (tool?.toolName !== OMP_TASK_TOOL) return state
+  const known = tool.subagents?.[live.id]
+  if (known && !replace) return state
+  return {
+    ...state,
+    tools: {
+      ...state.tools,
+      [parentToolCallId]: {
+        ...tool,
+        subagents: { ...tool.subagents, [live.id]: mergeOmpSubagent(known, live) },
+      },
+    },
   }
 }
 

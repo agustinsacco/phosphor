@@ -24,6 +24,10 @@
  *   —                       `ready` frame first, before any response
  *   —                       protocol v2: `negotiate_protocol`, `rpc_chunk`
  *   —                       `available_commands_update`, `prompt_result`
+ *   —                       subagents: `set_subagent_subscription` (sent at
+ *                           startup), `subagent_*` frames, `get_subagents`
+ *   a tool's updates stop   omp keeps updating a background `task` call
+ *   at its end              after it ended; dropped (`OmpEndedTools`)
  *   `--session <path>`      `--resume <path>`
  *   `--fork`, `-n`,
  *   `--session-id`,
@@ -40,6 +44,7 @@ import type {
   RpcSessionState,
   RpcSlashCommand,
 } from '@shared/rpc'
+import type { OmpSubagentSnapshot, OmpSubagentSubscriptionLevel } from '@shared/omp-subagents'
 import type { PiSpawnOptions } from './rpc-client'
 
 /** omp's `AvailableSlashCommandSource` (`slash-commands/available-commands.ts`). */
@@ -227,6 +232,75 @@ export function decodeOmpFrame(record: Record<string, unknown>): Record<string, 
         : record
     default:
       return record
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Subagents (`omp://rpc.md`, "Subagent subscriptions")
+//
+// omp delegates through its own `task` tool. With RPC's default of async
+// execution on, a `task` call returns as soon as its agents are scheduled;
+// what they do afterwards reaches a host only as subagent frames, and omp
+// forwards none until asked (the level starts at `off`).
+
+/**
+ * The level every omp session subscribes at. `progress` forwards the
+ * lifecycle frames (started, settled) and the coalesced `AgentProgress`
+ * frames, which carry everything a sub-agent row shows: status, current tool,
+ * tool count, tokens, time and the final `yield`. `events` would add every
+ * session event of every subagent, streamed tokens included, and no row reads
+ * them.
+ */
+export const OMP_SUBAGENT_LEVEL: OmpSubagentSubscriptionLevel = 'progress'
+
+export function ompSubagentSubscriptionCommand(id: string): Record<string, unknown> {
+  return { id, type: 'set_subagent_subscription', level: OMP_SUBAGENT_LEVEL }
+}
+
+/**
+ * The rows of a `get_subagents` answer that name a subagent. Anything else,
+ * a failure included (an omp that predates the command), reads as none.
+ */
+export function ompSubagentSnapshots(response: RpcResponse): OmpSubagentSnapshot[] {
+  if (!response.success) return []
+  const data: unknown = response.data
+  const rows = data && typeof data === 'object' && 'subagents' in data ? data.subagents : undefined
+  if (!Array.isArray(rows)) return []
+  // Only the id is checked here; the renderer reads every other field defensively.
+  return rows.filter(
+    (row): row is OmpSubagentSnapshot =>
+      !!row && typeof row === 'object' && 'id' in row && typeof row.id === 'string',
+  )
+}
+
+/** As many ended calls as omp itself remembers subagent transcripts for. */
+const MAX_ENDED_TOOLS = 256
+
+/**
+ * The tool calls omp has already ended, so a late update to one is dropped.
+ *
+ * A background `task` keeps calling its update callback after the call
+ * returned, and omp forwards each one as `tool_execution_update` for as long
+ * as the parent's run lasts (`task/index.ts` `#registerSpawnJob`). pi never
+ * updates a tool after its end; the reducer would reopen the finished row as
+ * running, with no second end to close it. The subagent frames carry the
+ * same progress.
+ */
+export class OmpEndedTools {
+  private readonly ended = new Set<string>()
+
+  /** False for an update to a call that already ended. */
+  admit(record: { type?: unknown; toolCallId?: unknown }): boolean {
+    const id = record.toolCallId
+    if (typeof id !== 'string') return true
+    if (record.type === 'tool_execution_update') return !this.ended.has(id)
+    if (record.type === 'tool_execution_end') {
+      this.ended.add(id)
+      if (this.ended.size > MAX_ENDED_TOOLS) {
+        this.ended.delete(this.ended.values().next().value!)
+      }
+    }
+    return true
   }
 }
 

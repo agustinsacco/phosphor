@@ -1,5 +1,6 @@
 /** App-level domain types shared between main and renderer. */
 import { type ExtensionUIRequest, type PiEvent } from './rpc'
+import type { OmpSubagentFrame } from './omp-subagents'
 import { DEFAULT_FEEDBACK_PREFS, type FeedbackPrefs } from './feedback'
 
 /**
@@ -138,6 +139,8 @@ export type SessionPush =
   | { kind: 'extension-ui'; request: ExtensionUIRequest }
   | { kind: 'stderr'; text: string }
   | { kind: 'exit'; code: number | null; signal: string | null; expected: boolean }
+  /** omp only: a subagent frame (`omp-subagents.ts`). pi sessions never push one. */
+  | { kind: 'subagent'; frame: OmpSubagentFrame }
 
 /** Parsed metadata for one on-disk session file (sidebar row + stats). */
 export interface SessionMeta {

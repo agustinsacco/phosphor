@@ -1,5 +1,6 @@
-import type { AssistantBlock, AssistantItem, ChatItem, ToolState } from '../reducer'
+import { isToolActive } from '../tools/toolSummaries'
 import type { DividerItem } from '../chatItems'
+import type { AssistantBlock, AssistantItem, ChatItem, ToolState } from '../reducer'
 
 /**
  * Turn-level transcript grouping.
@@ -767,8 +768,8 @@ export function isActivityLive(steps: ActivityStep[], tools: Record<string, Tool
     if (s.block.type === 'thinking') {
       return s.streaming && s.isLastInItem && !s.block.closed
     }
-    const status = tools[s.block.toolCallId]?.status
-    return status === 'starting' || status === 'running'
+    const tool = tools[s.block.toolCallId]
+    return tool ? isToolActive(tool) : false
   })
 }
 

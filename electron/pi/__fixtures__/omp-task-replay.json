@@ -1,0 +1,675 @@
+{
+  "source": "omp 18.4.2 stdout for one batch `task` call spawning two scouts, as RPC runs it by default (async.enabled: every non-blocking agent becomes a background job). Shapes follow @oh-my-pi/pi-coding-agent src/task/index.ts (#registerSpawnJob, buildAsyncDetails), src/task/executor.ts (emitProgressNow, the settled lifecycle payload), src/modes/rpc/rpc-subagents.ts (RpcSubagentRegistry) and src/session/async-job-delivery.ts (the async-result message); types from pi-tui src/tools/task.ts and src/overlays/session-observer-registry.ts. Replayed by fake-omp.cjs (FAKE_OMP_REPLAY): turn 0 on the first prompt, turn 1 on the second. Subagent frames are written only at the level the client subscribed at, the way omp's registry gates them.",
+  "turns": [
+    [
+      { "type": "agent_start" },
+      { "type": "turn_start" },
+      {
+        "type": "message_start",
+        "messageId": "msg-1",
+        "message": {
+          "role": "assistant",
+          "content": [],
+          "api": "anthropic-messages",
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0 }
+          },
+          "stopReason": "stop",
+          "timestamp": 1790600000000
+        }
+      },
+      {
+        "type": "message_end",
+        "messageId": "msg-1",
+        "message": {
+          "role": "assistant",
+          "content": [
+            { "type": "text", "text": "Sending two scouts." },
+            {
+              "type": "toolCall",
+              "id": "toolu_01TaskScouts",
+              "name": "task",
+              "arguments": {
+                "context": "List the top-level entries of one directory of this repository.",
+                "tasks": [
+                  {
+                    "name": "ListElectron",
+                    "agent": "scout",
+                    "task": "List electron/ and say what it holds.",
+                    "solutionSpace": "closed"
+                  },
+                  {
+                    "name": "ListSrc",
+                    "agent": "scout",
+                    "task": "List src/ and say what it holds.",
+                    "solutionSpace": "closed"
+                  }
+                ]
+              }
+            }
+          ],
+          "api": "anthropic-messages",
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "usage": {
+            "input": 5120,
+            "output": 210,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 5330,
+            "cost": {
+              "input": 0.01536,
+              "output": 0.00315,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.01851
+            }
+          },
+          "stopReason": "toolUse",
+          "timestamp": 1790600000000
+        }
+      },
+      {
+        "type": "tool_execution_start",
+        "toolCallId": "toolu_01TaskScouts",
+        "toolName": "task",
+        "args": {
+          "context": "List the top-level entries of one directory of this repository.",
+          "tasks": [
+            {
+              "name": "ListElectron",
+              "agent": "scout",
+              "task": "List electron/ and say what it holds.",
+              "solutionSpace": "closed"
+            },
+            {
+              "name": "ListSrc",
+              "agent": "scout",
+              "task": "List src/ and say what it holds.",
+              "solutionSpace": "closed"
+            }
+          ]
+        }
+      },
+      {
+        "type": "tool_execution_update",
+        "toolCallId": "toolu_01TaskScouts",
+        "toolName": "task",
+        "args": {},
+        "partialResult": {
+          "content": [{ "type": "text", "text": "Spawned 2 agents..." }],
+          "details": {
+            "projectAgentsDir": null,
+            "results": [],
+            "totalDurationMs": 4,
+            "progress": [
+              {
+                "index": 0,
+                "id": "ListElectron",
+                "agent": "scout",
+                "agentSource": "bundled",
+                "status": "pending",
+                "task": "List electron/ and say what it holds.",
+                "assignment": "List electron/ and say what it holds.",
+                "recentTools": [],
+                "recentOutput": [],
+                "toolCount": 0,
+                "requests": 0,
+                "tokens": 0,
+                "cost": 0,
+                "durationMs": 0
+              },
+              {
+                "index": 1,
+                "id": "ListSrc",
+                "agent": "scout",
+                "agentSource": "bundled",
+                "status": "pending",
+                "task": "List src/ and say what it holds.",
+                "assignment": "List src/ and say what it holds.",
+                "recentTools": [],
+                "recentOutput": [],
+                "toolCount": 0,
+                "requests": 0,
+                "tokens": 0,
+                "cost": 0,
+                "durationMs": 0
+              }
+            ],
+            "async": { "state": "running", "jobId": "ListElectron", "type": "task" }
+          }
+        }
+      },
+      {
+        "type": "tool_execution_end",
+        "toolCallId": "toolu_01TaskScouts",
+        "toolName": "task",
+        "result": {
+          "content": [
+            {
+              "type": "text",
+              "text": "Spawned 2 background agents using scout.\n- `ListElectron` (job `ListElectron`)\n- `ListSrc` (job `ListSrc`)\n\nResults auto-deliver; NEVER poll."
+            }
+          ],
+          "details": {
+            "projectAgentsDir": null,
+            "results": [],
+            "totalDurationMs": 5,
+            "progress": [
+              {
+                "index": 0,
+                "id": "ListElectron",
+                "agent": "scout",
+                "agentSource": "bundled",
+                "status": "pending",
+                "task": "List electron/ and say what it holds.",
+                "assignment": "List electron/ and say what it holds.",
+                "recentTools": [],
+                "recentOutput": [],
+                "toolCount": 0,
+                "requests": 0,
+                "tokens": 0,
+                "cost": 0,
+                "durationMs": 0
+              },
+              {
+                "index": 1,
+                "id": "ListSrc",
+                "agent": "scout",
+                "agentSource": "bundled",
+                "status": "pending",
+                "task": "List src/ and say what it holds.",
+                "assignment": "List src/ and say what it holds.",
+                "recentTools": [],
+                "recentOutput": [],
+                "toolCount": 0,
+                "requests": 0,
+                "tokens": 0,
+                "cost": 0,
+                "durationMs": 0
+              }
+            ],
+            "async": { "state": "running", "jobId": "ListElectron", "type": "task" }
+          }
+        },
+        "isError": false
+      },
+      {
+        "type": "message_start",
+        "messageId": "msg-2",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "toolu_01TaskScouts",
+          "toolName": "task",
+          "content": [],
+          "isError": false,
+          "timestamp": 1790600000005
+        }
+      },
+      {
+        "type": "message_end",
+        "messageId": "msg-2",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "toolu_01TaskScouts",
+          "toolName": "task",
+          "content": [
+            {
+              "type": "text",
+              "text": "Spawned 2 background agents using scout.\n- `ListElectron` (job `ListElectron`)\n- `ListSrc` (job `ListSrc`)\n\nResults auto-deliver; NEVER poll."
+            }
+          ],
+          "details": {
+            "projectAgentsDir": null,
+            "results": [],
+            "totalDurationMs": 5,
+            "progress": [
+              {
+                "index": 0,
+                "id": "ListElectron",
+                "agent": "scout",
+                "agentSource": "bundled",
+                "status": "pending",
+                "task": "List electron/ and say what it holds.",
+                "assignment": "List electron/ and say what it holds.",
+                "recentTools": [],
+                "recentOutput": [],
+                "toolCount": 0,
+                "requests": 0,
+                "tokens": 0,
+                "cost": 0,
+                "durationMs": 0
+              },
+              {
+                "index": 1,
+                "id": "ListSrc",
+                "agent": "scout",
+                "agentSource": "bundled",
+                "status": "pending",
+                "task": "List src/ and say what it holds.",
+                "assignment": "List src/ and say what it holds.",
+                "recentTools": [],
+                "recentOutput": [],
+                "toolCount": 0,
+                "requests": 0,
+                "tokens": 0,
+                "cost": 0,
+                "durationMs": 0
+              }
+            ],
+            "async": { "state": "running", "jobId": "ListElectron", "type": "task" }
+          },
+          "isError": false,
+          "timestamp": 1790600000005
+        }
+      },
+      {
+        "type": "subagent_lifecycle",
+        "payload": {
+          "id": "ListElectron",
+          "agent": "scout",
+          "parentToolCallId": "toolu_01TaskScouts",
+          "detached": true,
+          "agentSource": "bundled",
+          "status": "started",
+          "sessionFile": "/home/user/.omp/agent/sessions/-work-project/2026-09-28T10-00-00-000Z_0190f000/ListElectron.jsonl",
+          "index": 0
+        }
+      },
+      {
+        "type": "subagent_lifecycle",
+        "payload": {
+          "id": "ListSrc",
+          "agent": "scout",
+          "parentToolCallId": "toolu_01TaskScouts",
+          "detached": true,
+          "agentSource": "bundled",
+          "status": "started",
+          "sessionFile": "/home/user/.omp/agent/sessions/-work-project/2026-09-28T10-00-00-000Z_0190f000/ListSrc.jsonl",
+          "index": 1
+        }
+      },
+      {
+        "type": "subagent_progress",
+        "payload": {
+          "index": 0,
+          "agent": "scout",
+          "agentSource": "bundled",
+          "task": "List electron/ and say what it holds.",
+          "parentToolCallId": "toolu_01TaskScouts",
+          "detached": true,
+          "assignment": "List electron/ and say what it holds.",
+          "progress": {
+            "index": 0,
+            "id": "ListElectron",
+            "agent": "scout",
+            "agentSource": "bundled",
+            "status": "running",
+            "task": "List electron/ and say what it holds.",
+            "assignment": "List electron/ and say what it holds.",
+            "lastIntent": "Listing electron/",
+            "currentTool": "read",
+            "currentToolArgs": "electron",
+            "currentToolStartMs": 1790600002100,
+            "recentTools": [],
+            "recentOutput": ["I'll read the directory first."],
+            "toolCount": 1,
+            "requests": 1,
+            "tokens": 1840,
+            "cost": 0.0021,
+            "durationMs": 2300,
+            "resolvedModel": "anthropic/claude-haiku-4-5"
+          },
+          "sessionFile": "/home/user/.omp/agent/sessions/-work-project/2026-09-28T10-00-00-000Z_0190f000/ListElectron.jsonl"
+        }
+      },
+      {
+        "type": "subagent_progress",
+        "payload": {
+          "index": 1,
+          "agent": "scout",
+          "agentSource": "bundled",
+          "task": "List src/ and say what it holds.",
+          "parentToolCallId": "toolu_01TaskScouts",
+          "detached": true,
+          "assignment": "List src/ and say what it holds.",
+          "progress": {
+            "index": 1,
+            "id": "ListSrc",
+            "agent": "scout",
+            "agentSource": "bundled",
+            "status": "running",
+            "task": "List src/ and say what it holds.",
+            "assignment": "List src/ and say what it holds.",
+            "lastIntent": "Listing src/",
+            "currentTool": "find",
+            "currentToolArgs": "src/*",
+            "currentToolStartMs": 1790600002300,
+            "recentTools": [],
+            "recentOutput": ["Finding the top-level entries."],
+            "toolCount": 1,
+            "requests": 1,
+            "tokens": 1710,
+            "cost": 0.0019,
+            "durationMs": 2400,
+            "resolvedModel": "anthropic/claude-haiku-4-5"
+          },
+          "sessionFile": "/home/user/.omp/agent/sessions/-work-project/2026-09-28T10-00-00-000Z_0190f000/ListSrc.jsonl"
+        }
+      },
+      {
+        "type": "tool_execution_update",
+        "toolCallId": "toolu_01TaskScouts",
+        "toolName": "task",
+        "args": {},
+        "partialResult": {
+          "content": [{ "type": "text", "text": "Running background task ListElectron..." }],
+          "details": {
+            "projectAgentsDir": null,
+            "results": [],
+            "totalDurationMs": 2310,
+            "progress": [
+              {
+                "index": 0,
+                "id": "ListElectron",
+                "agent": "scout",
+                "agentSource": "bundled",
+                "status": "running",
+                "task": "List electron/ and say what it holds.",
+                "assignment": "List electron/ and say what it holds.",
+                "currentTool": "read",
+                "recentTools": [],
+                "recentOutput": ["I'll read the directory first."],
+                "toolCount": 1,
+                "requests": 1,
+                "tokens": 1840,
+                "cost": 0.0021,
+                "durationMs": 0
+              },
+              {
+                "index": 1,
+                "id": "ListSrc",
+                "agent": "scout",
+                "agentSource": "bundled",
+                "status": "running",
+                "task": "List src/ and say what it holds.",
+                "assignment": "List src/ and say what it holds.",
+                "recentTools": [],
+                "recentOutput": [],
+                "toolCount": 0,
+                "requests": 0,
+                "tokens": 0,
+                "cost": 0,
+                "durationMs": 0
+              }
+            ],
+            "async": { "state": "running", "jobId": "ListElectron", "type": "task" }
+          }
+        }
+      },
+      {
+        "type": "message_start",
+        "messageId": "msg-3",
+        "message": {
+          "role": "assistant",
+          "content": [],
+          "api": "anthropic-messages",
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0 }
+          },
+          "stopReason": "stop",
+          "timestamp": 1790600003000
+        }
+      },
+      {
+        "type": "message_end",
+        "messageId": "msg-3",
+        "message": {
+          "role": "assistant",
+          "content": [
+            { "type": "text", "text": "Both scouts are running; I will report when they finish." }
+          ],
+          "api": "anthropic-messages",
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "usage": {
+            "input": 5400,
+            "output": 18,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 5418,
+            "cost": {
+              "input": 0.0162,
+              "output": 0.00027,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.01647
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1790600003000
+        }
+      },
+      { "type": "agent_end", "messages": [], "isTerminal": true, "yielded": true }
+    ],
+    [
+      {
+        "type": "subagent_progress",
+        "payload": {
+          "index": 0,
+          "agent": "scout",
+          "agentSource": "bundled",
+          "task": "List electron/ and say what it holds.",
+          "parentToolCallId": "toolu_01TaskScouts",
+          "detached": true,
+          "assignment": "List electron/ and say what it holds.",
+          "progress": {
+            "index": 0,
+            "id": "ListElectron",
+            "agent": "scout",
+            "agentSource": "bundled",
+            "status": "completed",
+            "task": "List electron/ and say what it holds.",
+            "assignment": "List electron/ and say what it holds.",
+            "lastIntent": "Reporting",
+            "recentTools": [
+              { "tool": "yield", "args": "", "endMs": 1790600012300 },
+              { "tool": "read", "args": "electron/pi", "endMs": 1790600009100 },
+              { "tool": "read", "args": "electron", "endMs": 1790600004000 }
+            ],
+            "recentOutput": ["electron/ holds the main process."],
+            "toolCount": 3,
+            "requests": 3,
+            "tokens": 8421,
+            "cost": 0.0094,
+            "durationMs": 12400,
+            "resolvedModel": "anthropic/claude-haiku-4-5",
+            "extractedToolData": {
+              "yield": [
+                {
+                  "data": "electron/ holds the main process: IPC handlers, the pi and omp RPC clients, the session registry and the routines runner.",
+                  "status": "success"
+                }
+              ]
+            }
+          },
+          "sessionFile": "/home/user/.omp/agent/sessions/-work-project/2026-09-28T10-00-00-000Z_0190f000/ListElectron.jsonl"
+        }
+      },
+      {
+        "type": "subagent_lifecycle",
+        "payload": {
+          "id": "ListElectron",
+          "agent": "scout",
+          "parentToolCallId": "toolu_01TaskScouts",
+          "detached": true,
+          "agentSource": "bundled",
+          "status": "completed",
+          "sessionFile": "/home/user/.omp/agent/sessions/-work-project/2026-09-28T10-00-00-000Z_0190f000/ListElectron.jsonl",
+          "index": 0
+        }
+      },
+      {
+        "type": "subagent_progress",
+        "payload": {
+          "index": 1,
+          "agent": "scout",
+          "agentSource": "bundled",
+          "task": "List src/ and say what it holds.",
+          "parentToolCallId": "toolu_01TaskScouts",
+          "detached": true,
+          "assignment": "List src/ and say what it holds.",
+          "progress": {
+            "index": 1,
+            "id": "ListSrc",
+            "agent": "scout",
+            "agentSource": "bundled",
+            "status": "completed",
+            "task": "List src/ and say what it holds.",
+            "assignment": "List src/ and say what it holds.",
+            "lastIntent": "Reporting",
+            "recentTools": [
+              { "tool": "yield", "args": "", "endMs": 1790600010200 },
+              { "tool": "find", "args": "src/*", "endMs": 1790600004100 }
+            ],
+            "recentOutput": ["src/ holds the renderer."],
+            "toolCount": 2,
+            "requests": 2,
+            "tokens": 6130,
+            "cost": 0.0071,
+            "durationMs": 9800,
+            "resolvedModel": "anthropic/claude-haiku-4-5",
+            "extractedToolData": {
+              "yield": [
+                {
+                  "data": "src/ holds the renderer: the React app, its stores and the chat, settings and routines features.",
+                  "status": "success"
+                }
+              ]
+            }
+          },
+          "sessionFile": "/home/user/.omp/agent/sessions/-work-project/2026-09-28T10-00-00-000Z_0190f000/ListSrc.jsonl"
+        }
+      },
+      {
+        "type": "subagent_lifecycle",
+        "payload": {
+          "id": "ListSrc",
+          "agent": "scout",
+          "parentToolCallId": "toolu_01TaskScouts",
+          "detached": true,
+          "agentSource": "bundled",
+          "status": "completed",
+          "sessionFile": "/home/user/.omp/agent/sessions/-work-project/2026-09-28T10-00-00-000Z_0190f000/ListSrc.jsonl",
+          "index": 1
+        }
+      },
+      { "type": "agent_start" },
+      { "type": "turn_start" },
+      {
+        "type": "message_start",
+        "messageId": "msg-4",
+        "message": {
+          "role": "custom",
+          "customType": "async-result",
+          "content": "",
+          "display": true,
+          "timestamp": 1790600012500
+        }
+      },
+      {
+        "type": "message_end",
+        "messageId": "msg-4",
+        "message": {
+          "role": "custom",
+          "customType": "async-result",
+          "content": "<system-notice>\n2 background jobs have completed. Resume your work using the results below.\n\n── Job ListElectron (ListElectron) ──\nelectron/ holds the main process: IPC handlers, the pi and omp RPC clients, the session registry and the routines runner.\n── Job ListSrc (ListSrc) ──\nsrc/ holds the renderer: the React app, its stores and the chat, settings and routines features.\n</system-notice>",
+          "display": true,
+          "attribution": "agent",
+          "details": {
+            "meta": { "source": { "type": "report", "value": "background job delivery" } },
+            "jobs": [
+              {
+                "jobId": "ListElectron",
+                "type": "task",
+                "label": "ListElectron",
+                "durationMs": 12411
+              },
+              { "jobId": "ListSrc", "type": "task", "label": "ListSrc", "durationMs": 9812 }
+            ]
+          },
+          "timestamp": 1790600012500
+        }
+      },
+      {
+        "type": "message_start",
+        "messageId": "msg-5",
+        "message": {
+          "role": "assistant",
+          "content": [],
+          "api": "anthropic-messages",
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "usage": {
+            "input": 0,
+            "output": 0,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 0,
+            "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0, "total": 0 }
+          },
+          "stopReason": "stop",
+          "timestamp": 1790600013000
+        }
+      },
+      {
+        "type": "message_end",
+        "messageId": "msg-5",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "electron/ is the main process and src/ is the renderer."
+            }
+          ],
+          "api": "anthropic-messages",
+          "provider": "anthropic",
+          "model": "claude-sonnet-4-5",
+          "usage": {
+            "input": 5800,
+            "output": 16,
+            "cacheRead": 0,
+            "cacheWrite": 0,
+            "totalTokens": 5816,
+            "cost": {
+              "input": 0.0174,
+              "output": 0.00024,
+              "cacheRead": 0,
+              "cacheWrite": 0,
+              "total": 0.01764
+            }
+          },
+          "stopReason": "stop",
+          "timestamp": 1790600013000
+        }
+      },
+      { "type": "agent_end", "messages": [], "isTerminal": true, "yielded": true },
+      { "type": "session_settled" }
+    ]
+  ]
+}

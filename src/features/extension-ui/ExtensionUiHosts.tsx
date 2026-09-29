@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 import { useExtensionUiStore, type PendingDialog, type Toast } from '@/stores/extensionUi'
+import { useChatStore } from '@/stores/chat'
 import { CheckIcon, CloseIcon, WarningIcon } from '@/components/icons'
 import { ignoreShortcut } from '@/lib/shortcutContext'
 import { ModalPanel } from '@/components/Modal'
@@ -19,8 +20,10 @@ import {
 import {
   SUBAGENT_ASYNC_WIDGET_KEY,
   SUBAGENT_INSPECT_WIDGET_KEY,
+  ompFleet,
   parseFleetWidget,
   summarizeFleet,
+  type FleetSnapshot,
 } from '@/features/chat/subagentRuns'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { CommandApprovalSheet } from './CommandApprovalSheet'
@@ -460,21 +463,29 @@ const STRUCTURED_WIDGET_KEYS = new Set([SUBAGENT_ASYNC_WIDGET_KEY, SUBAGENT_INSP
  * Sub-agents as a chip: how many are out there, and what the newest one is
  * doing right now.
  *
- * Two sources, one chip. Sessions on pi-subagents (both providers) publish
+ * Three sources, one chip. Sessions on pi-subagents (both providers) publish
  * their background runs on the `subagent-async` widget, which the extension
- * removes once nothing runs. Sessions recorded on the Claude Code provider
+ * removes once nothing runs. omp sessions report theirs in subagent frames,
+ * kept on the `task` call that spawned them (`ompFleet`, shown only while one
+ * runs). Sessions recorded on the Claude Code provider
  * before 0.9.0 published `claude-subagents`, cleared at the end of the
  * episode (0.4.14; never on older providers, which is why that chip can say
  * "done"). Either way the chip is live state: the transcript's own rows are
  * what remain.
  */
-function SubagentChip({ sessionId }: { sessionId: string }): React.JSX.Element | null {
+function SubagentChip({
+  sessionId,
+  omp,
+}: {
+  sessionId: string
+  omp: FleetSnapshot | null
+}): React.JSX.Element | null {
   const statusText = useExtensionUiStore((s) => s.statuses[sessionId]?.[SUBAGENTS_STATUS_KEY])
   const fleetLines = useExtensionUiStore(
     (s) => s.widgets[sessionId]?.[SUBAGENT_ASYNC_WIDGET_KEY]?.lines,
   )
   const legacy = parseSubagentStatus(statusText)
-  const fleet = legacy ? null : parseFleetWidget(fleetLines)
+  const fleet = legacy ? null : (parseFleetWidget(fleetLines) ?? omp)
   if (!legacy && !fleet) return null
   const active = legacy ? legacy.active > 0 : fleet!.active > 0
   const title = legacy
@@ -505,15 +516,19 @@ export function StatusStrip({ sessionId }: { sessionId: string }): React.JSX.Ele
   const hasFleet = useExtensionUiStore(
     (s) => s.widgets[sessionId]?.[SUBAGENT_ASYNC_WIDGET_KEY] !== undefined,
   )
-  if (!statuses && !hasFleet) return null
+  // The tools record changes on tool events and subagent frames, not on
+  // streamed text, so the fleet is rebuilt only when it can have moved.
+  const tools = useChatStore((s) => s.sessions[sessionId]?.tools)
+  const omp = useMemo(() => (tools ? ompFleet(Object.values(tools)) : null), [tools])
+  if (!statuses && !hasFleet && !omp) return null
   const entries = Object.entries(statuses ?? {}).filter(([key]) => !STRUCTURED_STATUS_KEYS.has(key))
   const hasMcp = statuses?.[MCP_STATUS_STATUS_KEY] !== undefined
-  const hasAgents = hasFleet || statuses?.[SUBAGENTS_STATUS_KEY] !== undefined
+  const hasAgents = hasFleet || !!omp || statuses?.[SUBAGENTS_STATUS_KEY] !== undefined
   if (entries.length === 0 && !hasMcp && !hasAgents) return null
   return (
     <div className="border-border bg-bg-secondary/60 flex h-6 shrink-0 items-center gap-3 border-t px-3">
       <McpChip sessionId={sessionId} />
-      <SubagentChip sessionId={sessionId} />
+      <SubagentChip sessionId={sessionId} omp={omp} />
       {entries.map(([key, text]) => (
         <span
           key={key}

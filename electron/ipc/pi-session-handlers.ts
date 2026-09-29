@@ -137,6 +137,14 @@ export function registerPiSessionHandlers(): void {
 
   handle('pi:listLiveSessions', () => registry.list())
 
+  // A read, so a routine-owned lane answers it too. pi resolves empty in the
+  // client without being asked.
+  handle('pi:subagents', async (_event, sessionId: string) => {
+    const session = registry.get(sessionId)
+    if (!session) throw new Error(`Unknown session: ${sessionId}`)
+    return session.client.getSubagents()
+  })
+
   // Best-effort: naming is a nicety, so every failure path returns null and
   // the session keeps its first-message-derived title.
   handle(

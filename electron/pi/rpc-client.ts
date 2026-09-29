@@ -10,12 +10,21 @@ import {
   OMP_PROTOCOL_V2,
   OmpChunkDecoder,
   type OmpChunkError,
+  OmpEndedTools,
   offersProtocolV2,
   ompNegotiateCommand,
   ompRpcArgs,
+  ompSubagentSnapshots,
+  ompSubagentSubscriptionCommand,
   type OmpReadyFrame,
 } from './omp-dialect'
 import type { AgentKind } from '@shared/models'
+import {
+  isOmpSubagentFrame,
+  type OmpSubagentFrame,
+  type OmpSubagentSnapshot,
+  type OmpSubagentSubscriptionLevel,
+} from '@shared/omp-subagents'
 import type {
   ExtensionUIRequest,
   ExtensionUIResponse,
@@ -86,6 +95,8 @@ interface PiRpcClientEvents {
   'parse-error': [{ line: string; error: Error }]
   /** omp's startup frame, written before it answers any command. pi sends none. */
   ready: [OmpReadyFrame]
+  /** omp's forwarded subagent activity (`omp-dialect.ts`, "Subagents"). pi sends none. */
+  subagent: [OmpSubagentFrame]
 }
 
 interface PendingRequest {
@@ -125,6 +136,9 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
   /** omp only, from the `ready` frame on: reassembles v2 `rpc_chunk` runs. */
   private chunks: OmpChunkDecoder | null = null
   private negotiatedProtocol = 1
+  /** omp only: the subagent level omp confirmed, once it answered. */
+  private subagentLevel: OmpSubagentSubscriptionLevel | undefined
+  private readonly endedTools = new OmpEndedTools()
 
   constructor(private readonly options: PiSpawnOptions) {
     super()
@@ -146,6 +160,14 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
   /** omp's `ready` frame once it has arrived; always undefined for pi. */
   get readyFrame(): OmpReadyFrame | undefined {
     return this.startupFrame
+  }
+
+  /**
+   * The subagent level omp confirmed for this process. Undefined for pi, and
+   * for an omp that has not answered yet or refused.
+   */
+  get subagentSubscription(): OmpSubagentSubscriptionLevel | undefined {
+    return this.subagentLevel
   }
 
   /** Updated before get_state reaches any caller, including routine execution. */
@@ -293,7 +315,62 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
   private settleTransport(): void {
     const open = this.openOutbound
     this.openOutbound = null
+    if (open && this.agent === 'omp') this.subscribeSubagents()
     open?.()
+  }
+
+  /**
+   * Ask omp to forward subagent activity, written ahead of the held queue so
+   * it is in effect before any prompt can spawn a subagent. Every omp process,
+   * a new session or a resumed one, settles its transport exactly once.
+   */
+  private subscribeSubagents(): void {
+    const child = this.child
+    if (!child || !this.alive) return
+    const id = `px-subagents-${this.nextRequestId++}`
+    this.pending.set(id, {
+      resolve: (response) => {
+        const data: unknown = response.success ? response.data : undefined
+        const level = data && typeof data === 'object' && 'level' in data ? data.level : undefined
+        if (level === 'off' || level === 'progress' || level === 'events') {
+          this.subagentLevel = level
+        } else {
+          log('pi', 'omp subagent subscription refused', {
+            error: response.success ? 'no level in the answer' : response.error,
+          })
+        }
+      },
+      // The process went away; there is nothing left to subscribe to.
+      reject: () => undefined,
+    })
+    child.stdin.write(JSON.stringify(ompSubagentSubscriptionCommand(id)) + '\n', (error) => {
+      if (error) this.pending.delete(id)
+    })
+  }
+
+  /**
+   * omp's still-running subagents (`get_subagents`), for a view that opens
+   * onto a session after they started. Rejects when omp refuses (one that
+   * predates the command). pi has none and is never asked.
+   */
+  getSubagents(): Promise<OmpSubagentSnapshot[]> {
+    if (this.agent !== 'omp') return Promise.resolve([])
+    if (!this.child || !this.alive) return Promise.reject(new Error('pi process is not running'))
+    const id = `px-${this.nextRequestId++}`
+    return new Promise((resolve, reject) => {
+      this.pending.set(id, {
+        resolve: (response) =>
+          response.success
+            ? resolve(ompSubagentSnapshots(response))
+            : reject(new Error(`get_subagents failed: ${response.error}`)),
+        reject,
+      })
+      this.write(JSON.stringify({ id, type: 'get_subagents' }) + '\n', (error) => {
+        if (!error) return
+        this.pending.delete(id)
+        reject(error)
+      })
+    })
   }
 
   /**
@@ -453,6 +530,13 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
       this.agent === 'omp' ? decodeOmpFrame(frame as Record<string, unknown>) : frame
     if (translated === null) return
     const record = translated as { type?: string; id?: string }
+    if (this.agent === 'omp') {
+      if (isOmpSubagentFrame(record)) {
+        this.emit('subagent', record)
+        return
+      }
+      if (!this.endedTools.admit(record)) return
+    }
 
     if (record.type === 'response') {
       const raw = record as unknown as RpcResponse

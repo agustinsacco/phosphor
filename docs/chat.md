@@ -198,6 +198,7 @@ own panel. Each surface reaches its own text, and has its own limits.
 | `write`            | "Created/Overwrote <path>" chip + collapsible content preview (highlighted)                                                                                                                                                                                                                                                                                                    |
 | `grep`/`find`/`ls` | Compact result lists, match counts, truncation notices; rows click through to files                                                                                                                                                                                                                                                                                            |
 | `subagent`         | pi-subagents, in both providers. "Delegated to reviewer" with the child's current tool and tool count while it runs, tools · tokens · time once settled; "Started scout · in background" for a detached run; "Listed agents" / "Checked on" / "Stopped" for management actions. Opens onto the task, one card per child, or the agent catalogue. See [Sub-agents](#sub-agents) |
+| `task`             | omp's delegation, on an omp session. "Delegating to scout · 0/2 done" while any subagent runs (after the call itself returned, for a background spawn), "Delegated to scout · 2 agents" once all settled. Opens onto the task and one card per subagent. A `task` whose details are not omp's keeps the generic row. See [omp's `task`](#omps-task)                            |
 | unknown/extension  | Generic: tool name, collapsed pretty-JSON args, streaming output area, error state. Must look polished with zero special-casing                                                                                                                                                                                                                                                |
 
 ### Blocks from the Claude Code provider
@@ -274,6 +275,46 @@ Not here yet: an expandable fleet tree with stop and steer, opening a child's
 own session file as a transcript, and the parent-plus-child cost report.
 Stop, steer, inspect and cost exist in pi-subagents without a model turn (an
 extension command and an in-process RPC), which is the path for them.
+
+### omp's `task`
+
+omp does not run pi-subagents. It delegates through its own `task` tool, and
+its RPC reports the subagents in frames of its own (`omp://rpc.md`, "Subagent
+subscriptions"), which `electron/pi/omp-dialect.ts` handles. The rows reuse
+the model above (`subagentRuns.ts`, "omp's `task`"): one `task` call, one
+card per subagent, the same collapsed row vocabulary and the same chip.
+
+- **Every omp session subscribes at `progress`** when its transport settles,
+  ahead of anything queued, on a new session and a resumed one. That level
+  forwards `subagent_lifecycle` (started, settled) and the coalesced
+  `subagent_progress` frames, whose `AgentProgress` carries all a card shows.
+  `events` (every raw event of every subagent) has no reader. pi is never
+  sent the command.
+- **A card per subagent**, joined on omp's agent id from three sources: the
+  call's `TaskToolDetails` (`progress[]` per spawn, `results[]` once a blocking
+  call settles), the frames, which the reducer keeps on the call
+  (`ToolState.subagents`), and `get_subagents`. A card shows the agent, the
+  item name, the current tool with its argument, the last three tools and the
+  last line said; settled, the answer (the result's output, or the subagent's
+  final `yield`), tools · turns · tokens · time · cost and the model.
+- **A background spawn outlives its call.** Under RPC omp runs every agent not
+  declared `blocking` as a background job, so the call returns at once and the
+  row stays live until the frames settle every card; the status strip's
+  sub-agent chip counts the ones still running. omp keeps updating the call
+  after its end; the client drops those late updates so the finished call is
+  not reopened.
+- **Reopening.** When a view opens onto a session (a reload, a re-adopted
+  lane), `get_subagents` restores the cards of subagents still running; a live
+  frame already seen wins. A session reopened from disk holds only the
+  snapshot omp stored when the call returned, so its background cards read
+  `detached`, and omp's own `async-result` completion message in the
+  transcript reports the outcome.
+
+`scripts/omp-subagents.zsh` checks this without a model turn: a real
+`omp --mode rpc --no-session` accepts the subscription and answers
+`get_subagents`, recorded omp frames (`electron/pi/__fixtures__/omp-task-replay.json`)
+go through the client, store and row model to running and settled cards, and
+a recorded pi-subagents call still produces its rows.
 
 ## Rich content (first-class citizens)
 

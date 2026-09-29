@@ -1513,6 +1513,9 @@ export function installMockPhosphor(): void {
           // The harness owns no real subprocesses, so there is nothing to
           // re-adopt after a reload.
           return Promise.resolve([])
+        case 'pi:subagents':
+          // Its sessions speak pi's protocol, which has no omp subagents.
+          return Promise.resolve([])
         case 'pi:setActiveSession':
           return Promise.resolve(undefined)
         case 'app:setSessionReaperPrefs':

@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import clsx from 'clsx'
 import type { ToolState } from '../reducer'
-import { summarizeTool } from './toolSummaries'
+import { isToolActive, ompTaskView, summarizeTool } from './toolSummaries'
 import { ChevronIcon } from '@/components/icons'
 import {
   BashDetail,
@@ -13,7 +13,7 @@ import {
   WriteDetail,
 } from './toolDetails'
 import { ArtifactDetail } from './ArtifactDetail'
-import { SubagentDetail } from './SubagentDetail'
+import { OmpTaskDetail, SubagentDetail } from './SubagentDetail'
 import { useSessionsStore } from '@/stores/sessions'
 
 export const ToolCard = memo(function ToolCard({
@@ -34,7 +34,7 @@ export const ToolCard = memo(function ToolCard({
   // out of bash command labels; the expanded detail keeps the full command.
   const workspacePath = useSessionsStore((s) => s.live[sessionId]?.workspacePath ?? undefined)
   const summary = summarizeTool(tool, workspacePath)
-  const running = tool.status === 'starting' || tool.status === 'running'
+  const running = isToolActive(tool)
   const failed = tool.status === 'error'
 
   return (
@@ -126,6 +126,10 @@ export function ToolDetail({
       return <ArtifactDetail tool={tool} sessionId={sessionId} />
     case 'subagent':
       return <SubagentDetail tool={tool} />
+    case 'task': {
+      const omp = ompTaskView(tool)
+      return omp ? <OmpTaskDetail tool={tool} view={omp} /> : <GenericDetail tool={tool} />
+    }
     default:
       return <GenericDetail tool={tool} />
   }

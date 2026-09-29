@@ -10,6 +10,20 @@ import type { PiEvent } from '@shared/rpc'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fakePi = join(here, '__fixtures__', 'fake-pi.cjs')
+const ompReplay = join(here, '__fixtures__', 'omp-task-replay.json')
+const piReplay = join(here, '__fixtures__', 'pi-subagent-replay.json')
+
+/** Resolves with the first event of `type` the client emits. */
+function nextEvent(client: PiRpcClient, type: PiEvent['type']): Promise<PiEvent> {
+  return new Promise((resolve) => {
+    const listener = (event: PiEvent): void => {
+      if (event.type !== type) return
+      client.off('event', listener)
+      resolve(event)
+    }
+    client.on('event', listener)
+  })
+}
 
 function makeClient(): PiRpcClient {
   return new PiRpcClient({
@@ -244,6 +258,29 @@ describe('PiRpcClient', () => {
       process.off('uncaughtException', onUncaught)
     }
   })
+
+  it('never asks pi about subagents', async () => {
+    const client = track(
+      new PiRpcClient({
+        cwd: here,
+        binaryPath: process.execPath,
+        prefixArgs: [fakePi],
+        env: { FAKE_PI_REPLAY: piReplay },
+      }),
+    )
+    const frames: unknown[] = []
+    client.on('subagent', (frame) => frames.push(frame))
+    client.spawn()
+    const settled = nextEvent(client, 'agent_settled')
+    await client.request({ type: 'prompt', message: 'review' })
+    await settled
+    expect(await client.getSubagents()).toEqual([])
+    const state = await client.request({ type: 'get_state' })
+    const data = state.success ? (state.data as unknown as Record<string, unknown>) : {}
+    expect(data.received).toEqual(['prompt', 'get_state'])
+    expect(client.subagentSubscription).toBeUndefined()
+    expect(frames).toEqual([])
+  })
 })
 
 describe('PiRpcClient speaking omp', () => {
@@ -301,7 +338,8 @@ describe('PiRpcClient speaking omp', () => {
     const state = await client.request({ type: 'get_state' })
     expect(client.protocolVersion).toBe(2)
     const data = state.success ? (state.data as unknown as Record<string, unknown>) : {}
-    expect(data.received).toEqual(['negotiate_protocol', 'get_state'])
+    // The subagent subscription rides with the handshake, ahead of the queue.
+    expect(data.received).toEqual(['negotiate_protocol', 'set_subagent_subscription', 'get_state'])
     expect(data.sentBeforeNegotiation).toEqual([])
   })
 
@@ -343,5 +381,50 @@ describe('PiRpcClient speaking omp', () => {
       // The transport recovers: the next frame starts a clean sequence.
       expect((await client.request({ type: 'get_state' })).success).toBe(true)
     }
+  })
+
+  it('subscribes to subagent progress before any other command, on v1 too', async () => {
+    for (const env of [{}, { FAKE_OMP_NO_V2: '1' }] as Record<string, string>[]) {
+      const client = makeOmp(env)
+      client.spawn()
+      const state = await client.request({ type: 'get_state' })
+      const data = state.success ? (state.data as unknown as Record<string, unknown>) : {}
+      const received = data.received as string[]
+      expect(received.filter((type) => type !== 'negotiate_protocol')).toEqual([
+        'set_subagent_subscription',
+        'get_state',
+      ])
+      expect(client.subagentSubscription).toBe('progress')
+    }
+  })
+
+  it('passes subagent frames on apart from events and drops updates to an ended call', async () => {
+    const client = makeOmp({ FAKE_OMP_REPLAY: ompReplay })
+    const events: PiEvent[] = []
+    const frames: Array<{ type: string }> = []
+    client.on('event', (event) => events.push(event))
+    client.on('subagent', (frame) => frames.push(frame))
+    client.spawn()
+    const ended = nextEvent(client, 'agent_end')
+    await client.request({ type: 'prompt', message: 'send two scouts' })
+    await ended
+    expect(frames.map((frame) => frame.type)).toEqual([
+      'subagent_lifecycle',
+      'subagent_lifecycle',
+      'subagent_progress',
+      'subagent_progress',
+    ])
+    expect(events.some((event) => event.type.startsWith('subagent'))).toBe(false)
+    // omp keeps updating a background `task` after its end; the row must not reopen.
+    const end = events.findIndex((event) => event.type === 'tool_execution_end')
+    expect(end).toBeGreaterThan(-1)
+    expect(events.slice(end).some((event) => event.type === 'tool_execution_update')).toBe(false)
+    const running = await client.getSubagents()
+    expect(
+      running.map(({ id, status, parentToolCallId }) => ({ id, status, parentToolCallId })),
+    ).toEqual([
+      { id: 'ListElectron', status: 'running', parentToolCallId: 'toolu_01TaskScouts' },
+      { id: 'ListSrc', status: 'running', parentToolCallId: 'toolu_01TaskScouts' },
+    ])
   })
 })

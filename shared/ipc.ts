@@ -88,6 +88,7 @@ import type {
   ComposerDraftRecord,
   LanePrefs,
 } from './models'
+import type { OmpSubagentSnapshot } from './omp-subagents'
 
 /** Parsed session tree (subset of entries) for the tree view. */
 export interface SessionTreeEntry {
@@ -146,6 +147,12 @@ export interface IpcInvokeMap {
    * process for a session file an orphan still owns.
    */
   'pi:listLiveSessions': { args: []; result: LiveSessionInfo[] }
+  /**
+   * The session's still-running subagents, for a view that opens onto them
+   * after they started. omp's `get_subagents`; always empty on pi, which is
+   * never asked.
+   */
+  'pi:subagents': { args: [sessionId: string]; result: OmpSubagentSnapshot[] }
   /** One-shot `pi -p` completion that names a session after its first message. */
   'pi:generateTitle': {
     args: [workspacePath: string, message: string, existingNames: string[]]

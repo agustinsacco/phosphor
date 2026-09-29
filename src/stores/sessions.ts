@@ -396,6 +396,17 @@ export function attachPiCommandsListener(): () => void {
  */
 export async function bootstrapSession(phosphorId: string): Promise<void> {
   const chat = useChatStore.getState()
+  // Subagents that started before this view was watching (a reload, a
+  // re-adopted lane): omp's `get_subagents`, after the history the rows hang
+  // off has been hydrated. Always empty for pi, which main never asks.
+  void Promise.resolve()
+    .then(() => window.phosphor.invoke('pi:subagents', phosphorId))
+    .then((snapshots) => {
+      if (snapshots.length > 0 && sessionIsOpen(phosphorId)) {
+        useChatStore.getState().restoreSubagents(phosphorId, snapshots)
+      }
+    })
+    .catch(() => undefined)
   // get_state is awaited on its own, ahead of the rest: it carries
   // `sessionFile`, and "reopen my last session" depends on that path being
   // persisted. Batching it with the slower catalogue calls meant a window
@@ -701,6 +712,9 @@ function attachSessionPushHandler(phosphorId: string): void {
         void import('./extensionUi').then(({ useExtensionUiStore }) =>
           useExtensionUiStore.getState().handleRequest(phosphorId, push.request),
         )
+        break
+      case 'subagent':
+        chatStore.applySubagentFrame(phosphorId, push.frame)
         break
     }
   })

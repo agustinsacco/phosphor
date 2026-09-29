@@ -5,8 +5,10 @@ import {
   encodeOmpCommand,
   offersProtocolV2,
   OmpChunkDecoder,
+  OmpEndedTools,
   ompCommandsToSlashCommands,
   ompRpcArgs,
+  ompSubagentSnapshots,
   type OmpAvailableCommand,
 } from './omp-dialect'
 
@@ -144,6 +146,49 @@ describe('offersProtocolV2', () => {
       offersProtocolV2({ type: 'ready', protocolVersion: 1, supportedProtocolVersions: [1] }),
     ).toBe(false)
     expect(offersProtocolV2({ type: 'ready', protocolVersion: 1 })).toBe(false)
+  })
+})
+
+describe('ompSubagentSnapshots', () => {
+  const answer = (data: unknown): RpcResponse =>
+    ({ type: 'response', command: 'get_subagents', success: true, data }) as RpcResponse
+
+  it('keeps the rows that name a subagent', () => {
+    const row = { id: 'ListSrc', index: 1, agent: 'scout', status: 'running' }
+    expect(ompSubagentSnapshots(answer({ subagents: [row, null, { index: 2 }, 'x'] }))).toEqual([
+      row,
+    ])
+  })
+
+  it('reads a failure or a malformed answer as none running', () => {
+    const failed = {
+      type: 'response',
+      command: 'get_subagents',
+      success: false,
+      error: 'Unknown command: get_subagents',
+    } as RpcResponse
+    expect(ompSubagentSnapshots(failed)).toEqual([])
+    expect(ompSubagentSnapshots(answer(undefined))).toEqual([])
+    expect(ompSubagentSnapshots(answer({ subagents: {} }))).toEqual([])
+  })
+})
+
+describe('OmpEndedTools', () => {
+  it('drops an update only once its call ended', () => {
+    const ended = new OmpEndedTools()
+    const update = { type: 'tool_execution_update', toolCallId: 't1' }
+    expect(ended.admit(update)).toBe(true)
+    expect(ended.admit({ type: 'tool_execution_end', toolCallId: 't1' })).toBe(true)
+    expect(ended.admit(update)).toBe(false)
+    expect(ended.admit({ type: 'tool_execution_update', toolCallId: 't2' })).toBe(true)
+    expect(ended.admit({ type: 'agent_end' })).toBe(true)
+  })
+
+  it('forgets the oldest call past its bound', () => {
+    const ended = new OmpEndedTools()
+    for (let i = 0; i <= 256; i++) ended.admit({ type: 'tool_execution_end', toolCallId: `t${i}` })
+    expect(ended.admit({ type: 'tool_execution_update', toolCallId: 't0' })).toBe(true)
+    expect(ended.admit({ type: 'tool_execution_update', toolCallId: 't256' })).toBe(false)
   })
 })
 

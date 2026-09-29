@@ -9,7 +9,16 @@
 //   FAKE_OMP_NO_V2=1        ready frame offers only v1
 //   FAKE_OMP_REFUSE_V2=1    negotiate_protocol fails
 //   FAKE_OMP_CHUNK_FAULT    interleave | skip | length: break the chunk run
+//   FAKE_OMP_REPLAY=<file>  recorded stdout (`omp-task-replay.json`): the n-th
+//                           `prompt` writes `turns[n]`; `get_messages` answers
+//                           with the messages those turns ended
+//
+// Subagents as `modes/rpc/rpc-subagents.ts` keeps them: forwarding starts at
+// level `off`; `set_subagent_subscription` changes it; a subagent is in the
+// `get_subagents` registry from its `started` lifecycle frame to its terminal
+// one, and progress only updates one that is there.
 const readline = require('node:readline')
+const { readFileSync } = require('node:fs')
 
 const out = (obj) => process.stdout.write(JSON.stringify(obj) + '\n')
 const MAX_FRAME = 1024 * 1024
@@ -18,6 +27,59 @@ let negotiated = false
 let answeredNegotiation = false
 const early = []
 const received = []
+const replay = process.env.FAKE_OMP_REPLAY
+  ? JSON.parse(readFileSync(process.env.FAKE_OMP_REPLAY, 'utf8'))
+  : null
+let replayedTurns = 0
+const history = []
+let subagentLevel = 'off'
+const subagents = new Map()
+
+/** One recorded frame, through the registry and its subscription gate. */
+function emitRecorded(frame) {
+  if (frame.type === 'message_end') history.push(frame.message)
+  if (frame.type === 'subagent_lifecycle') {
+    const payload = frame.payload
+    const existing = subagents.get(payload.id)
+    if (!existing && payload.status !== 'started') return
+    if (payload.status === 'started') {
+      subagents.set(payload.id, {
+        id: payload.id,
+        index: payload.index,
+        agent: payload.agent,
+        agentSource: payload.agentSource,
+        description: payload.description ?? existing?.description,
+        status: 'running',
+        sessionFile: payload.sessionFile ?? existing?.sessionFile,
+        parentToolCallId: payload.parentToolCallId,
+        lastUpdate: 1,
+        progress: existing?.progress,
+      })
+    } else {
+      subagents.delete(payload.id)
+    }
+    if (subagentLevel !== 'off') out(frame)
+    return
+  }
+  if (frame.type === 'subagent_progress') {
+    const { progress } = frame.payload
+    const existing = subagents.get(progress.id)
+    if (!existing) return
+    subagents.set(progress.id, {
+      ...existing,
+      status: progress.status,
+      lastUpdate: existing.lastUpdate + 1,
+      progress,
+    })
+    if (subagentLevel !== 'off') out(frame)
+    return
+  }
+  if (frame.type === 'subagent_event') {
+    if (subagentLevel === 'events') out(frame)
+    return
+  }
+  out(frame)
+}
 
 out({
   type: 'ready',
@@ -94,21 +156,49 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
         sentBeforeNegotiation: early,
       })
     case 'get_messages':
+      if (replay) return ok({ messages: history })
       // One message well past the 1 MiB line cap, with multi-byte text so a
       // chunk boundary can land mid-character.
       return ok({
         messages: [{ role: 'user', content: 'é'.repeat(900 * 1024), timestamp: 1 }],
       })
+    case 'set_subagent_subscription':
+      if (!['off', 'progress', 'events'].includes(cmd.level)) {
+        return out({
+          id: cmd.id,
+          type: 'response',
+          command: cmd.type,
+          success: false,
+          error: `Invalid subagent subscription level: ${String(cmd.level)}`,
+        })
+      }
+      subagentLevel = cmd.level
+      return ok({ level: subagentLevel })
+    case 'get_subagents':
+      return ok({
+        subagents: [...subagents.values()].sort(
+          (a, b) => a.index - b.index || a.id.localeCompare(b.id),
+        ),
+      })
+    case 'prompt': {
+      const turn = replay?.turns[replayedTurns]
+      if (!turn) break
+      replayedTurns++
+      ok(undefined)
+      for (const frame of turn) emitRecorded(frame)
+      return
+    }
     case 'branch':
       out({ type: 'session_settled' })
       return ok({ text: 'rewound', cancelled: false })
     default:
-      return out({
-        id: cmd.id,
-        type: 'response',
-        command: cmd.type,
-        success: false,
-        error: `Unknown command: ${cmd.type}`,
-      })
+      break
   }
+  out({
+    id: cmd.id,
+    type: 'response',
+    command: cmd.type,
+    success: false,
+    error: `Unknown command: ${cmd.type}`,
+  })
 })

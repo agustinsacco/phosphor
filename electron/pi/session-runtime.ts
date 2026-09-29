@@ -214,6 +214,9 @@ export async function spawnSession(
   // Trimmed, not forwarded whole: two of pi's events restate the entire run
   // after it has already streamed, and the renderer reads neither.
   session.client.on('event', (ev) => push({ kind: 'event', event: trimForRenderer(ev) }))
+  // omp only (the client emits none for pi): what its subagents are doing,
+  // for the `task` call's rows (src/features/chat/subagentRuns.ts).
+  session.client.on('subagent', (frame) => push({ kind: 'subagent', frame }))
   // Hold every interactive session to the context budget, Claude Code ones
   // included (electron/pi/context-budget.ts). Paused while a routine owns the
   // session: its runner prompts pi directly, past the `pi:command` gate that
