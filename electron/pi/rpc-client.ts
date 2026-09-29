@@ -153,6 +153,13 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     child.stderr.on('data', (chunk: Buffer) => {
       for (const line of this.stderrDecoder.push(chunk)) this.emit('stderr', line)
     })
+    // A write to a child whose stdin already closed (EIO/EPIPE) fails its own
+    // callback, and the stream also emits 'error'. With no listener, Node
+    // raises that as an uncaughtException in main. The callback already
+    // rejects the request, and 'exit' fails the rest.
+    child.stdin.on('error', (error) => {
+      log('pi', 'stdin write failed', { pid: child.pid, message: error.message })
+    })
 
     child.on('exit', (code, signal) => {
       // The group can outlive pi (notably a parked Claude CLI).

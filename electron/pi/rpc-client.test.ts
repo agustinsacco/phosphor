@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { execFileSync } from 'node:child_process'
+import { once } from 'node:events'
+import { setImmediate } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { PiRpcClient } from './rpc-client'
@@ -211,5 +213,35 @@ describe('PiRpcClient', () => {
     client.spawn()
     await client.dispose()
     await expect(client.request({ type: 'get_state' })).rejects.toThrow(/not running/)
+  })
+
+  it('rejects a write to a live child whose stdin closed, without an uncaught error', async () => {
+    // The child stays alive but closes its read end, then says so on stderr,
+    // so the next write fails (EPIPE/EIO) on a stream nobody else listens to.
+    const client = track(
+      new PiRpcClient({
+        cwd: here,
+        binaryPath: process.execPath,
+        prefixArgs: [
+          '-e',
+          "process.stdin.destroy(); process.stderr.write('closed\\n'); setInterval(() => {}, 1e8)",
+        ],
+      }),
+    )
+    const uncaught: unknown[] = []
+    const onUncaught = (error: unknown): void => void uncaught.push(error)
+    process.on('uncaughtException', onUncaught)
+    try {
+      const closed = once(client, 'stderr')
+      client.spawn()
+      await closed
+      await expect(client.request({ type: 'get_state' })).rejects.toThrow()
+      // The stream's 'error' follows the failed write callback on nextTick;
+      // one event-loop turn delivers it before the assertion.
+      await setImmediate()
+      expect(uncaught).toEqual([])
+    } finally {
+      process.off('uncaughtException', onUncaught)
+    }
   })
 })
