@@ -139,6 +139,9 @@ checkoutBranch` (`shared/ipc.ts`, `electron/ipc/git-handlers.ts`).
 - UI: `src/features/worktrees/BranchControl.tsx`, `BranchPicker.tsx`,
   `RemoveWorktreeModal.tsx`, `MergeWorktreeModal.tsx`, `PrRow.tsx`; the sidebar
   group menu in `src/features/sessions/Sidebar.tsx`.
+- `src/features/sessions/useWorktreeDiscovery.ts` — lists the worktrees under
+  every known repo workspace so their sessions fold into the repo's sidebar
+  group; the sidebar's first paint waits for the listing to settle.
 - Worktree detection for any cwd: `GitInfo.isWorktree/mainRepoPath` from
   `git rev-parse --absolute-git-dir --git-common-dir`
   (`electron/fs/git-info.ts`).
