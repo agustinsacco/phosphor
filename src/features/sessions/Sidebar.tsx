@@ -5,6 +5,7 @@ import { compareSessionsByCreation } from '@shared/session-order'
 import { laneIsBeingDeleted, useSessionsStore } from '@/stores/sessions'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
 import { useChatStore } from '@/stores/chat'
+import { useWorktreeDiscovery, type WorktreeDir } from './useWorktreeDiscovery'
 import { useSessionBooting } from '@/features/chat/BootingIndicator'
 import { promptRenameSandbox } from '@/features/workspaces/promptRenameSandbox'
 import { showContextMenu } from '@/components/ContextMenu'
@@ -147,7 +148,7 @@ export function Sidebar({
    * project on the first render instead of waiting on `git:infoBatch`. See
    * `projectPathFor`.
    */
-  const [worktreeDirs, setWorktreeDirs] = useState<{ path: string; root: string }[]>([])
+  const [worktreeDirs, setWorktreeDirs] = useState<WorktreeDir[]>([])
   const [workspaceMenuFor, setWorkspaceMenuFor] = useState<string | null>(null)
   const workspaceMenuTriggerRef = useRef<HTMLButtonElement>(null)
   /** Which group's "Delete sandbox…" row is waiting for its second click. */
@@ -158,8 +159,6 @@ export function Sidebar({
     setWorkspaceMenuFor(null)
     setConfirmSandboxDelete(null)
   }
-  /** Which roots we already listed worktrees for (avoids re-listing on toggle). */
-  const worktreeListedKey = useRef<string | null>(null)
   const [worktreeDiscoveryEpoch, setWorktreeDiscoveryEpoch] = useState(0)
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>): void => {
@@ -261,73 +260,30 @@ export function Sidebar({
       .catch(() => setCollapsed({}))
   }, [])
 
-  /**
-   * Discover the worktree folders under each known repo workspace.
-   *
-   * Worktrees are not persisted as workspaces (they are branches of one), so
-   * the sidebar would otherwise never scan them and their sessions would
-   * vanish from the project group they fold into. Listing each known working
-   * tree restores them; the merge in `groupSessionsByProject` puts every one
-   * back under its main repo's header.
-   */
-  useEffect(() => {
-    // Wait for prefs hydration, and only list once per set of known roots —
-    // expanding/collapsing a group must not re-run a full `git:listWorktrees`
-    // per workspace.
-    if (collapsed === null || !workspacesHydrated) return
-    const roots = [...cleanRecents.map((ws) => ws.path), workspacePath].filter(
-      (p) => Boolean(p) && !isWorktreeFolder(p!),
-    )
-    // Starting a lane does not touch `recents` (worktrees are deliberately
-    // never persisted there), so a roots-only key never re-listed and a lane
-    // was visible only for as long as its session stayed live. Folding the
-    // count of live-but-undiscovered lanes into the key re-lists once when one
-    // appears; the next pass finds it, the count returns to zero, and the key
-    // settles.
-    const key = [...roots, `lanes:${unknownLanes}`, `changes:${worktreeDiscoveryEpoch}`].join(
-      '\u0000',
-    )
-    if (worktreeListedKey.current === key) return
-    setWorktreeDiscoverySettled(false)
-    worktreeListedKey.current = key
-    let cancelled = false
-    void (async () => {
-      const found = new Map<string, string>()
-      for (const root of roots) {
-        if (cancelled) return
-        try {
-          const worktrees = (await window.phosphor.invoke(
-            'git:listWorktrees',
-            root,
-          )) as WorktreeInfo[]
-          for (const wt of worktrees) {
-            // `prunable` is git's own answer for "this folder is gone". A
-            // deleted worktree is still listed until someone prunes it, and
-            // without this it became a sidebar group for a directory that
-            // does not exist.
-            if (wt.isMain || wt.prunable) continue
-            found.set(wt.realPath || wt.path, root!)
-          }
-        } catch {
-          // Not a repo, or git unavailable — nothing to discover there.
-        }
-      }
-      if (!cancelled) {
-        setWorktreeDirs([...found].map(([path, root]) => ({ path, root })))
-        setWorktreeDiscoverySettled(true)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [
-    cleanRecents,
-    workspacePath,
-    collapsed,
-    unknownLanes,
-    workspacesHydrated,
-    worktreeDiscoveryEpoch,
-  ])
+  // Wait for prefs hydration. Toggling a group changes `collapsed` but not
+  // the roots, so it never re-lists.
+  const prefsReady = collapsed !== null && workspacesHydrated
+  const discoveryRoots = useMemo(
+    () =>
+      prefsReady
+        ? [...cleanRecents.map((ws) => ws.path), workspacePath].filter(
+            (p) => Boolean(p) && !isWorktreeFolder(p),
+          )
+        : null,
+    [prefsReady, cleanRecents, workspacePath],
+  )
+  // Starting a lane does not touch `recents` (worktrees are deliberately
+  // never persisted there), so a roots-only key never re-listed and a lane
+  // was visible only for as long as its session stayed live. Folding the
+  // count of live-but-undiscovered lanes into the key re-lists once when one
+  // appears; the next pass finds it, the count returns to zero, and the key
+  // settles.
+  useWorktreeDiscovery(
+    discoveryRoots,
+    `lanes:${unknownLanes}\u0000changes:${worktreeDiscoveryEpoch}`,
+    setWorktreeDirs,
+    setWorktreeDiscoverySettled,
+  )
 
   /**
    * First paint is atomic: do not replace the sidebar skeleton until prefs,
