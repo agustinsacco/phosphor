@@ -1,7 +1,9 @@
 import { realpathSync } from 'node:fs'
-import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { homedir, tmpdir } from 'node:os'
+import { isAbsolute, join, relative } from 'node:path'
 import { claudeProjectDirName } from '@shared/claude-paths'
+import type { AgentKind } from '@shared/models'
+import { activeAgent } from './agent'
 
 /**
  * Single source of truth for pi's on-disk layout. Both the agent-settings
@@ -10,6 +12,11 @@ import { claudeProjectDirName } from '@shared/claude-paths'
  *
  * Layout (verified against the local install):
  *   ~/.pi/agent/sessions/--<cwd segments joined by dashes>--/<ts>_<uuid>.jsonl
+ *
+ * omp's session layout lives here too, because the sidebar reads whichever
+ * agent sessions run on (Settings → Advanced → Agent):
+ *   ~/.omp/agent/sessions/-<home-relative cwd, dashed>/<ts>_<uuid>.jsonl
+ * See `ompSessionDirNameForCwd` for the three shapes that name takes.
  *
  * The Claude Code CLI's layout lives here too. A session on the
  * `pi-claude-cli` provider is written to disk TWICE — once by pi and once by
@@ -26,6 +33,29 @@ export function piAgentDir(): string {
 /** Root directory holding one subdirectory of session files per workspace. */
 export function piSessionsRoot(): string {
   return process.env.PI_CODING_AGENT_SESSION_DIR ?? join(piAgentDir(), 'sessions')
+}
+
+/**
+ * omp's agent directory. Mirrors omp's `getAgentDir` (`pi-utils/src/dirs.ts`,
+ * 18.4.2) for its default profile: `PI_CODING_AGENT_DIR` — the same variable
+ * pi reads, so setting it moves both — else `~/<PI_CONFIG_DIR or .omp>/agent`.
+ * Named profiles (`--profile`, `OMP_PROFILE`) and Linux XDG relocation are not
+ * followed; point `PI_CODING_AGENT_DIR` at such a directory instead.
+ */
+export function ompAgentDir(): string {
+  return (
+    process.env.PI_CODING_AGENT_DIR ?? join(homedir(), process.env.PI_CONFIG_DIR || '.omp', 'agent')
+  )
+}
+
+/** omp's root holding one subdirectory of session files per workspace. */
+export function ompSessionsRoot(): string {
+  return join(ompAgentDir(), 'sessions')
+}
+
+/** The sessions root of the agent sessions run on — or of `agent`, when named. */
+export function agentSessionsRoot(agent: AgentKind = activeAgent().kind): string {
+  return agent === 'omp' ? ompSessionsRoot() : piSessionsRoot()
 }
 
 /**
@@ -95,9 +125,42 @@ export function clearRealCwdCache(): void {
   realCwdCache.clear()
 }
 
-/** Session directory for a workspace. */
-export function sessionDirForCwd(cwd: string): string {
-  return join(piSessionsRoot(), sessionDirNameForCwd(realCwd(cwd)))
+/**
+ * omp's session directory name for an already-resolved cwd, transcribed from
+ * `getDefaultSessionDirName` (`session/session-paths.ts`, omp 18.4.2). Three
+ * shapes, by where the cwd sits:
+ *
+ *   under home    `~/projects/app` → `-projects-app`   (home itself → `-`)
+ *   under tmpdir  `$TMPDIR/x/y`    → `-tmp-x-y`
+ *   anywhere else `/srv/app`       → `--srv-app--`     (pi's own rule)
+ *
+ * omp resolves home and tmpdir through `realpath` as well as the cwd, so on
+ * macOS `/var/folders/…/T` and `/private/var/folders/…/T` are the same tmpdir.
+ * The roots are parameters only so tests can place them.
+ */
+export function ompSessionDirNameForCwd(
+  cwd: string,
+  home: string = realCwd(homedir()),
+  temp: string = realCwd(tmpdir()),
+): string {
+  const under = (root: string): string | null => {
+    const rel = relative(root, cwd)
+    return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel)) ? rel : null
+  }
+  const dashed = (rel: string): string => rel.replace(/[/\\:]/g, '-')
+  const fromHome = under(home)
+  if (fromHome !== null) return `-${dashed(fromHome)}`
+  const fromTemp = under(temp)
+  if (fromTemp !== null) return fromTemp ? `-tmp-${dashed(fromTemp)}` : '-tmp'
+  return sessionDirNameForCwd(cwd)
+}
+
+/** Session directory for a workspace, in the layout of the agent sessions run on. */
+export function sessionDirForCwd(cwd: string, agent: AgentKind = activeAgent().kind): string {
+  const real = realCwd(cwd)
+  return agent === 'omp'
+    ? join(ompSessionsRoot(), ompSessionDirNameForCwd(real))
+    : join(piSessionsRoot(), sessionDirNameForCwd(real))
 }
 
 /**

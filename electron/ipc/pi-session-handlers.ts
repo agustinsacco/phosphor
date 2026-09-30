@@ -8,7 +8,8 @@ import {
   observeRoutineSession,
   routineSessionForPath,
 } from '../routines/ownership'
-import { checkPiHealth } from '../pi/health'
+import { cachedAgentHealth } from '../pi/health'
+import { OMP_TITLE_ARGS } from '../pi/omp-dialect'
 import { piStubPath } from '../pi/stub'
 import { runPrintMode } from '../pi/print-mode'
 import { piProcessEnv } from '../pi/shell-env'
@@ -26,33 +27,26 @@ import { syncContextBudget, withBudgetCompaction } from '../pi/context-budget'
 import { getPrefs } from '../store'
 import { listPackages } from '../pi/packages'
 import { getLanePrefs } from '../store'
-import { MIN_PI_VERSION, type CreateSessionOptions, type PiHealth } from '@shared/models'
+import { MIN_PI_VERSION, type AgentKind, type CreateSessionOptions } from '@shared/models'
 import type { ExtensionUIResponse, RpcCommand } from '@shared/rpc'
 import { log } from '../debug-log'
 
-let cachedHealth: PiHealth | null = null
-
-/** pi subprocess lifecycle: health, session create/dispose, RPC passthrough. */
+/** Agent subprocess lifecycle: health, session create/dispose, RPC passthrough. */
 export function registerPiSessionHandlers(): void {
+  // The agent sessions spawn (Settings → Advanced → Agent). The setup screen
+  // gates the whole app on this, so it is the SELECTED agent's health, never
+  // pi's when omp is chosen.
   handle('pi:health', async () => {
     if (piStubPath()) {
       return {
         ok: true,
+        agent: 'pi' as const,
         binaryPath: piStubPath(),
         version: MIN_PI_VERSION,
         minVersion: MIN_PI_VERSION,
       }
     }
-    if (!cachedHealth || !cachedHealth.ok) {
-      cachedHealth = await checkPiHealth()
-      // One line per fresh probe, beside the spawn argv this log already
-      // records: on Windows this is the only place that shows WHICH node.exe
-      // and entry script the launcher settled on (win-launch.ts), and it is
-      // what the packaged-app smoke in CI asserts on.
-      const { message: _message, ...facts } = cachedHealth
-      log('pi', 'health', facts)
-    }
-    return cachedHealth
+    return cachedAgentHealth()
   })
 
   handle('pi:createSession', (event, options: CreateSessionOptions) => {
@@ -143,6 +137,14 @@ export function registerPiSessionHandlers(): void {
 
   handle('pi:listLiveSessions', () => registry.list())
 
+  // A read, so a routine-owned lane answers it too. pi resolves empty in the
+  // client without being asked.
+  handle('pi:subagents', async (_event, sessionId: string) => {
+    const session = registry.get(sessionId)
+    if (!session) throw new Error(`Unknown session: ${sessionId}`)
+    return session.client.getSubagents()
+  })
+
   // Best-effort: naming is a nicety, so every failure path returns null and
   // the session keeps its first-message-derived title.
   handle(
@@ -153,15 +155,17 @@ export function registerPiSessionHandlers(): void {
       let binaryPath: string
       let prefixArgs: string[]
       let env: NodeJS.ProcessEnv
+      let agent: AgentKind = 'pi'
       if (stub) {
         binaryPath = process.execPath
         prefixArgs = [stub]
         env = { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
       } else {
-        const health = cachedHealth?.ok ? cachedHealth : (cachedHealth = await checkPiHealth())
+        const health = await cachedAgentHealth()
         if (!health.ok || !health.binaryPath) return null
         binaryPath = health.binaryPath
         prefixArgs = health.prefixArgs ?? []
+        agent = health.agent
         env = {
           ...process.env,
           ...(await piProcessEnv()),
@@ -181,9 +185,10 @@ export function registerPiSessionHandlers(): void {
       // context. Spawned through runPrintMode because `pi -p` blocks until
       // stdin hits EOF — see electron/pi/print-mode.ts, and never
       // reintroduce execFile here.
-      const claudeCli = stub
-        ? false
-        : usesClaudeCliProvider({}, (await readAgentSettings(workspacePath)).defaultProvider)
+      const claudeCli =
+        stub || agent === 'omp'
+          ? false
+          : usesClaudeCliProvider({}, (await readAgentSettings(workspacePath)).defaultProvider)
       // A naming run bills a plan too, so it goes to the account the user
       // pinned (or the first one) rather than to whatever the CLI's default
       // keychain entry happens to hold. Only asked for on the Claude path:
@@ -197,7 +202,7 @@ export function registerPiSessionHandlers(): void {
         binaryPath,
         [
           ...prefixArgs,
-          ...titleArgs({ claudeCli }),
+          ...(agent === 'omp' ? OMP_TITLE_ARGS : titleArgs({ claudeCli })),
           titlePrompt(message, existingNames, {
             min: lanePrefs.nameMinWords,
             max: lanePrefs.nameMaxWords,

@@ -22,12 +22,33 @@ interface HeaderFields {
   cwd?: string
   timestamp?: string
   parentSession?: string
+  /** omp only: the title the session was created with. */
+  title?: string
+}
+
+/** An assistant message's usage, or omp's `model_usage` entry's. */
+interface UsageFields {
+  totalTokens?: number
+  input?: number
+  output?: number
+  cacheRead?: number
+  cacheWrite?: number
+  cost?: { total?: number }
 }
 
 /** Everything the fold carries between lines. Mutated in place. */
 export interface FoldState {
   header: HeaderFields | null
+  /** The latest name: pi's `session_info`, or omp's `title_change`. */
   name?: string
+  /**
+   * omp's title slot: a fixed-width `{type:"title"}` record on LINE 1, before
+   * the `session` header, which omp rewrites in place whenever the title
+   * changes. Every rewrite also appends a `title_change` entry, so `name`
+   * is the fresher of the two on an incremental parse, which never re-reads
+   * line 1; this is the fallback for a file that has no change entries.
+   */
+  slotTitle?: string
   /**
    * Id of the first non-header entry. Together with `parentSession` it tells a
    * BRANCH (pi's `fork`, which copies the parent's entries and so repeats its
@@ -103,6 +124,11 @@ export function foldLine(state: FoldState, line: string): void {
     state.header = entry as unknown as HeaderFields
     return
   }
+  // Not an entry: no id, no parent, and rewritten in place.
+  if (type === 'title') {
+    state.slotTitle = typeof entry.title === 'string' && entry.title ? entry.title : undefined
+    return
+  }
   state.entryCount++
   if (!state.firstEntryId && typeof entry.id === 'string') state.firstEntryId = entry.id
   if (typeof entry.timestamp === 'string') state.lastTimestamp = entry.timestamp
@@ -116,6 +142,16 @@ export function foldLine(state: FoldState, line: string): void {
     state.name = (entry.name as string | undefined) || undefined
     return
   }
+  if (type === 'title_change') {
+    state.name = typeof entry.title === 'string' && entry.title ? entry.title : undefined
+    return
+  }
+  // omp bills calls that produce no message (cache warming, for one) as
+  // their own entry; they are spend all the same.
+  if (type === 'model_usage') {
+    if (entry.usage && typeof entry.usage === 'object') addUsage(state, entry.usage)
+    return
+  }
   if (type !== 'message') return
 
   const message = entry.message as
@@ -123,14 +159,7 @@ export function foldLine(state: FoldState, line: string): void {
         role?: string
         content?: unknown
         details?: { headroom?: { savedTokens?: unknown } }
-        usage?: {
-          totalTokens?: number
-          input?: number
-          output?: number
-          cacheRead?: number
-          cacheWrite?: number
-          cost?: { total?: number }
-        }
+        usage?: UsageFields
       }
     | undefined
   if (!message) return
@@ -153,8 +182,10 @@ export function foldLine(state: FoldState, line: string): void {
   if (Array.isArray(content)) {
     state.toolCalls += content.filter((b) => (b as { type?: string }).type === 'toolCall').length
   }
-  const usage = message.usage
-  if (!usage) return
+  if (message.usage) addUsage(state, message.usage)
+}
+
+function addUsage(state: FoldState, usage: UsageFields): void {
   state.totalTokens +=
     usage.totalTokens ??
     (usage.input ?? 0) + (usage.output ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0)
@@ -176,7 +207,7 @@ export function metaFromFold(state: FoldState, path: string, mtimeMs: number): S
     createdAt: header.timestamp ?? '',
     parentSession: header.parentSession,
     firstEntryId: state.firstEntryId,
-    name: state.name,
+    name: state.name ?? state.slotTitle ?? (header.title || undefined),
     firstUserText: state.firstUserText?.slice(0, 200),
     userMessages: state.userMessages,
     assistantMessages: state.assistantMessages,

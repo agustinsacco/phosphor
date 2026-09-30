@@ -43,7 +43,10 @@ vi.mock('node:fs/promises', async (original) => ({
 }))
 vi.mock('../pi/health', async (original) => ({
   ...(await original<typeof HealthModule>()),
-  checkPiHealth: vi.fn().mockResolvedValue({ ok: true, binaryPath: '/bin/pi' }),
+  cachedAgentHealth: vi.fn().mockResolvedValue({ ok: true, agent: 'pi', binaryPath: '/bin/pi' }),
+  checkActiveAgentHealth: vi
+    .fn()
+    .mockResolvedValue({ ok: true, agent: 'pi', binaryPath: '/bin/pi' }),
 }))
 vi.mock('../pi/stub', () => ({ piStubPath: () => undefined }))
 vi.mock('../pi/shell-env', () => ({ piProcessEnv: vi.fn().mockResolvedValue({ PATH: '/bin' }) }))

@@ -2,6 +2,7 @@ import { PiRpcClient } from './rpc-client'
 import { piProcessEnv } from './shell-env'
 import { log } from '../debug-log'
 import type { Model, ModelCost, RpcResponse, RpcResponseDataMap } from '@shared/rpc'
+import type { AgentKind } from '@shared/models'
 
 /** One selectable model, for pickers that have no live pi process to ask. */
 export interface CatalogueModel {
@@ -142,9 +143,11 @@ export async function listModelsViaRpc(
   binaryPath: string,
   prefixArgs?: string[],
   env?: Record<string, string>,
+  agent: AgentKind = 'pi',
 ): Promise<CatalogueModel[]> {
   const client = new PiRpcClient({
     cwd: process.cwd(),
+    agent,
     binaryPath,
     ...(prefixArgs?.length ? { prefixArgs } : {}),
     noSession: true,

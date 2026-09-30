@@ -16,6 +16,8 @@ import {
   DEFAULT_CLAUDE_ACCOUNT_PREFS,
   DEFAULT_MAINTENANCE_PREFS,
   DEFAULT_MODEL_PICKS,
+  normalizeAgentPrefs,
+  type AgentPrefs,
   type MaintenancePrefs,
   normalizeLanePrefs,
   type LanePrefs,
@@ -157,6 +159,8 @@ export function getPrefs(): AppPrefs {
     // `.trim()`, the settings tab and the context meter included. '' is the
     // default budget, the same as unset.
     contextBudget: stringOrEmpty(s.get('contextBudget')),
+    // Normalized on read: this decides which binary every session spawns.
+    agent: normalizeAgentPrefs(s.get('agent')),
     drafts: s.get('drafts') ?? {},
   }
 }
@@ -246,6 +250,13 @@ export function setContextBudget(value: string): void {
     throw new Error('Invalid context budget.')
   }
   prefs().set('contextBudget', trimmed)
+}
+
+/** Settings → Advanced → Agent. Stored normalized; returns what was stored. */
+export function setAgentPrefs(value: AgentPrefs): AgentPrefs {
+  const next = normalizeAgentPrefs(value)
+  prefs().set('agent', next)
+  return next
 }
 
 /** Record that the user has viewed a session's current state. */

@@ -755,6 +755,7 @@ export function installMockPhosphor(): void {
         case 'pi:health':
           return Promise.resolve({
             ok: true,
+            agent: 'pi' as const,
             version: MIN_PI_VERSION,
             binaryPath: '/mock/pi',
             minVersion: MIN_PI_VERSION,
@@ -793,6 +794,7 @@ export function installMockPhosphor(): void {
             agentDirectivesByProject: {},
             worktrees: DEFAULT_APP_PREFS.worktrees,
             contextBudget: localStorage.getItem('mock:contextBudget') ?? '',
+            agent: DEFAULT_APP_PREFS.agent,
           })
         case 'app:setContextBudget':
           localStorage.setItem('mock:contextBudget', (args[0] as string).trim())
@@ -802,6 +804,9 @@ export function installMockPhosphor(): void {
           return Promise.resolve(undefined)
         case 'app:setModelPicks':
           return Promise.resolve(undefined)
+        // No main process to switch agents in; echo the choice back.
+        case 'app:setAgent':
+          return Promise.resolve(args[0])
         // Drafts in the browser harness are in-memory only: there is no main
         // process to persist them to, and a fake blob store would only hide
         // that.
@@ -1507,6 +1512,9 @@ export function installMockPhosphor(): void {
         case 'pi:listLiveSessions':
           // The harness owns no real subprocesses, so there is nothing to
           // re-adopt after a reload.
+          return Promise.resolve([])
+        case 'pi:subagents':
+          // Its sessions speak pi's protocol, which has no omp subagents.
           return Promise.resolve([])
         case 'pi:setActiveSession':
           return Promise.resolve(undefined)

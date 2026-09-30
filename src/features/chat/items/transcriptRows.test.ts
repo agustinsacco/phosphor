@@ -190,6 +190,20 @@ describe('isActivityLive', () => {
       false,
     )
   })
+
+  it('keeps a settled OMP task group live while its children run', () => {
+    const task: ToolState = {
+      ...toolState('c1', 'task', 'done'),
+      subagents: {
+        child: {
+          id: 'child',
+          agent: 'scout',
+          status: 'running',
+        },
+      },
+    }
+    expect(isActivityLive([step(tool(0, 'c1'))], { c1: task })).toBe(true)
+  })
 })
 
 describe('summarizeActivity', () => {

@@ -3,7 +3,7 @@ import { createReadStream } from 'node:fs'
 import { access, rmdir } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { createInterface } from 'node:readline'
-import { claudeSessionFileForCwd, piSessionsRoot } from './pi-paths'
+import { agentSessionsRoot, claudeSessionFileForCwd } from './pi-paths'
 import { forgetClaudePairing } from './claude-ledger'
 
 /**
@@ -142,11 +142,12 @@ export async function deleteSession(sessionFilePath: string): Promise<void> {
  * install). `rmdir` refuses a non-empty directory, which is the whole safety
  * check, and pi recreates the directory whenever it next writes there.
  *
- * Only a direct child of pi's sessions root is ever a candidate: a transcript
- * passed from anywhere else must not get its parent folder removed.
+ * Only a direct child of the sessions root (of the agent sessions run on) is
+ * ever a candidate: a transcript passed from anywhere else must not get its
+ * parent folder removed.
  */
 async function removePiSessionDirIfEmpty(sessionFilePath: string): Promise<void> {
   const dir = dirname(resolve(sessionFilePath))
-  if (dirname(dir) !== resolve(piSessionsRoot())) return
+  if (dirname(dir) !== resolve(agentSessionsRoot())) return
   await rmdir(dir).catch(() => undefined)
 }

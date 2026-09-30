@@ -112,12 +112,23 @@ export async function appendBranchJump(path: string, targetId: string): Promise<
  * Fork a session AT a specific entry: copy the file into a new session
  * (fresh header id, parentSession = source) and move its leaf to `targetId`.
  * Returns the new session file path.
+ *
+ * An omp file opens with its fixed-width title slot (`{type:"title"}`) and
+ * has the header on line 2; the slot is carried over byte for byte, since omp
+ * rewrites it in place and relies on its width.
  */
 export async function forkSessionAt(path: string, targetId: string): Promise<string> {
   const raw = await readFile(path, 'utf8')
-  const newlineIndex = raw.indexOf('\n')
+  const firstNewline = raw.indexOf('\n')
+  if (firstNewline === -1) throw new Error('Malformed session file (no header line)')
+  const first = JSON.parse(raw.slice(0, firstNewline)) as Record<string, unknown>
+  const headerStart = first.type === 'title' ? firstNewline + 1 : 0
+  const newlineIndex = headerStart === 0 ? firstNewline : raw.indexOf('\n', headerStart)
   if (newlineIndex === -1) throw new Error('Malformed session file (no header line)')
-  const header = JSON.parse(raw.slice(0, newlineIndex)) as Record<string, unknown>
+  const header =
+    headerStart === 0
+      ? first
+      : (JSON.parse(raw.slice(headerStart, newlineIndex)) as Record<string, unknown>)
   if (header.type !== 'session') throw new Error('Malformed session file (bad header)')
 
   const now = new Date()
@@ -130,7 +141,22 @@ export async function forkSessionAt(path: string, targetId: string): Promise<str
   }
   const stamp = now.toISOString().replace(/[:.]/g, '-')
   const newPath = join(dirname(path), `${stamp}_${newId}.jsonl`)
-  await writeFile(newPath, JSON.stringify(newHeader) + '\n' + raw.slice(newlineIndex + 1), 'utf8')
+  await writeFile(
+    newPath,
+    raw.slice(0, headerStart) + JSON.stringify(newHeader) + '\n' + raw.slice(newlineIndex + 1),
+    'utf8',
+  )
   await appendBranchJump(newPath, targetId)
   return newPath
+}
+
+/**
+ * Fork a whole session: `forkSessionAt` its current leaf. What `pi --fork`
+ * does at launch, for an agent that has no such flag (omp) — the copy is then
+ * resumed like any other session file.
+ */
+export async function forkSessionFile(path: string): Promise<string> {
+  const leafId = await currentLeafId(path)
+  if (!leafId) throw new Error('Nothing to fork: the session has no entries yet.')
+  return forkSessionAt(path, leafId)
 }

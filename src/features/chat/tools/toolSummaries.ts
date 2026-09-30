@@ -3,7 +3,18 @@ import { basename } from '@/lib/path'
 import { formatBytes } from '@/lib/format'
 import type { ArtifactToolDetails } from '@/stores/artifacts'
 import { diffStats, parseDisplayDiff, unifiedPatchStats, type DiffStats } from '../diff'
-import { subagentCall, subagentRun, summarizeSubagentCall } from '../subagentRuns'
+import {
+  isChildLive,
+  OMP_TASK_TOOL,
+  ompTaskCall,
+  ompTaskRun,
+  subagentCall,
+  subagentRun,
+  summarizeOmpTask,
+  summarizeSubagentCall,
+  type SubagentCall,
+  type SubagentRun,
+} from '../subagentRuns'
 
 export interface EditDetails {
   diff?: string
@@ -26,6 +37,29 @@ export function toolText(tool: ToolState): string {
  */
 export function toolDetails<T>(tool: ToolState): T | undefined {
   return (tool.result?.details ?? tool.output?.details) as T | undefined
+}
+
+/**
+ * An omp `task` call read as a sub-agent run, or null for any other tool and
+ * for a `task` whose details are not omp's: that one keeps the generic row.
+ */
+export function ompTaskView(tool: ToolState): { call: SubagentCall; run: SubagentRun } | null {
+  if (tool.toolName !== OMP_TASK_TOOL) return null
+  const run = ompTaskRun(toolDetails(tool), tool.subagents, {
+    settled: tool.status === 'done' || tool.status === 'error',
+    // Set only by a live `tool_execution_start`, never by a replayed history.
+    watched: tool.startedAt !== undefined,
+  })
+  return run ? { call: ompTaskCall(tool.args ?? tryParseArgs(tool.argsText)), run } : null
+}
+
+/**
+ * Whether the tool is still at work: running itself, or an omp `task` whose
+ * background subagents outlive the call.
+ */
+export function isToolActive(tool: ToolState): boolean {
+  if (tool.status === 'starting' || tool.status === 'running') return true
+  return ompTaskView(tool)?.run.children.some(isChildLive) ?? false
 }
 
 export function editDiffStats(tool: ToolState): DiffStats | null {
@@ -150,6 +184,10 @@ function shortenWorkspacePaths(text: string, workspacePath?: string): string {
 export function summarizeTool(tool: ToolState, workspacePath?: string): ToolSummary {
   const args = tool.args ?? tryParseArgs(tool.argsText)
   const running = tool.status === 'starting' || tool.status === 'running'
+
+  // omp's delegation; a `task` tool that is not omp's falls to the generic row.
+  const omp = ompTaskView(tool)
+  if (omp) return summarizeOmpTask(omp.call, omp.run, running)
 
   // Identity not yet revealed by the provider (see toolIdentity.ts). Show that
   // args are still arriving instead of a fabricated name; large payloads like

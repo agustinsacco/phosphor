@@ -2,7 +2,8 @@ import { describe, expect, it, beforeAll, afterAll } from 'vitest'
 import { realpathSync } from 'node:fs'
 import { mkdtemp, rm, writeFile, mkdir, utimes } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   listSessions,
   parseSessionFile,
@@ -264,5 +265,44 @@ describe('session scanner', () => {
       if (prevEnv === undefined) delete process.env.PI_CODING_AGENT_SESSION_DIR
       else process.env.PI_CODING_AGENT_SESSION_DIR = prevEnv
     }
+  })
+})
+
+describe('omp session files', () => {
+  // Shaped from a real omp session's first lines: a line-1 title slot, the
+  // header on line 2, then OMP-native entries among the messages.
+  const fixture = join(dirname(fileURLToPath(import.meta.url)), '__fixtures__', 'omp-session.jsonl')
+
+  it('reads the header past the title slot and names the session from its title', async () => {
+    const meta = await parseSessionFile(fixture, 0)
+    expect(meta).toMatchObject({
+      sessionId: '0190f000-0000-7000-8000-00000000c0de',
+      cwd: '__WORKSPACE__',
+      createdAt: '2026-09-25T19:35:31.179Z',
+      name: 'Evaluating a GUI',
+      firstUserText: 'can we use this app as a gui',
+      userMessages: 1,
+      assistantMessages: 1,
+      toolCalls: 1,
+      // The assistant message's 100 plus omp's separately billed model_usage.
+      totalTokens: 106,
+      firstEntryId: 'a51ed8b7',
+    })
+  })
+
+  it('maps OMP-native entries onto the shapes the tree view reads', async () => {
+    const tree = await readSessionTree(fixture)
+    expect(tree.sessionId).toBe('0190f000-0000-7000-8000-00000000c0de')
+    expect(tree.leafId).toBe('6a1e0b7d')
+    const byId = new Map(tree.entries.map((entry) => [entry.id, entry]))
+    expect(byId.get('a51ed8b7')).toMatchObject({
+      type: 'model_change',
+      provider: 'anthropic',
+      modelId: 'claude-sonnet-5',
+    })
+    expect(byId.get('b75401d6')).toMatchObject({ type: 'session_info', name: 'Evaluating a GUI' })
+    expect(byId.get('5f871526')).toMatchObject({ type: 'message', role: 'user' })
+    // The title slot has no id and is not an entry.
+    expect(tree.entries).toHaveLength(7)
   })
 })

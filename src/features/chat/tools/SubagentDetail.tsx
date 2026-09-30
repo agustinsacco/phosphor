@@ -8,7 +8,9 @@ import {
   subagentCall,
   subagentRun,
   type SubagentAgentInfo,
+  type SubagentCall,
   type SubagentChild,
+  type SubagentRun,
 } from '../subagentRuns'
 import { Markdown } from '@/components/markdown/Markdown'
 import { ChevronIcon } from '@/components/icons'
@@ -54,10 +56,46 @@ export function SubagentDetail({ tool }: { tool: ToolState }): React.JSX.Element
     )
   }
 
-  const children = run?.children ?? []
   // A single foreground child's answer IS the tool's text; pi-subagents also
   // copies it into `finalOutput`, but older versions did not.
-  const fallbackOutput = children.length === 1 && settled && !tool.isError ? text : undefined
+  return <LaunchDetail tool={tool} call={call} run={run} answerIsText />
+}
+
+/**
+ * What an omp `task` call opens onto: the same task section and one card per
+ * subagent, read from omp's details and subagent frames
+ * (`subagentRuns.ts`, "omp's `task`"). Its text is omp's spawn notice or the
+ * merged results, never one child's answer, which each card carries itself.
+ */
+export function OmpTaskDetail({
+  tool,
+  view,
+}: {
+  tool: ToolState
+  view: { call: SubagentCall; run: SubagentRun }
+}): React.JSX.Element {
+  if (view.call.kind !== 'launch') return <></>
+  return <LaunchDetail tool={tool} call={view.call} run={view.run} answerIsText={false} />
+}
+
+function LaunchDetail({
+  tool,
+  call,
+  run,
+  answerIsText,
+}: {
+  tool: ToolState
+  call: Extract<SubagentCall, { kind: 'launch' }>
+  run: SubagentRun | null
+  /** A lone settled child's answer is the tool's text when it carries none. */
+  answerIsText: boolean
+}): React.JSX.Element {
+  const settled = tool.status === 'done' || tool.status === 'error'
+  const text = toolText(tool)
+  const running = !settled
+  const children = run?.children ?? []
+  const fallbackOutput =
+    answerIsText && children.length === 1 && settled && !tool.isError ? text : undefined
 
   return (
     <div data-testid="subagent-detail" data-mode={run?.async ? 'async' : (run?.mode ?? 'single')}>

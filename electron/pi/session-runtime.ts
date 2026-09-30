@@ -2,7 +2,9 @@ import { app } from 'electron'
 import { basename, join as joinPath } from 'node:path'
 import { registry } from '../registry'
 import { trimForRenderer } from '../ipc/event-trim'
-import { checkPiHealth } from './health'
+import { cachedAgentHealth } from './health'
+import { forkSessionFile } from './session-writer'
+import { BUNDLED_EXTENSION_FILES } from './bundled-extensions'
 import { piStubPath } from './stub'
 import { piProcessEnv } from './shell-env'
 import { composeDirectives } from './directives'
@@ -24,11 +26,9 @@ import { headroomSupervisor } from '../headroom/proxy'
 import { sessionEventChannel } from '@shared/ipc'
 import { getPrefs, recordWorkspace, realPathOrNull } from '../store'
 import { gitInfoBatch } from '../fs/git-info'
-import type { CreateSessionOptions, LiveSessionInfo, PiHealth, SessionPush } from '@shared/models'
+import type { AgentKind, CreateSessionOptions, LiveSessionInfo, SessionPush } from '@shared/models'
 import { log } from '../debug-log'
 import { broadcast } from '../broadcast'
-
-let cachedHealth: PiHealth | null = null
 
 /** Bundled Phosphor pi extension (dev: repo path; packaged: resources). */
 function bundledExtensionPath(file: string): string {
@@ -38,29 +38,9 @@ function bundledExtensionPath(file: string): string {
   return joinPath(app.getAppPath(), 'pi-ext', file)
 }
 
-/**
- * Extensions Phosphor loads into EVERY session, regardless of provider:
- * artifacts (tools the model can call), context-breakdown (context composition
- * and the session-local window cap used by pi's native compaction),
- * worktree-paths (refuses a file read that has escaped into the main
- * checkout of a worktree session), tool-name-guard (keeps a malformed
- * tool call out of the session file, where it would brick every later turn),
- * mcp-status (per-server MCP state for the connectors UI), and headroom
- * (compresses large tool results through the local Headroom proxy as they
- * are produced; inert unless PHOSPHOR_HEADROOM_URL is set at spawn).
- *
- * All six files in pi-ext/ are listed here — keep this comment and the array
- * in step, since nothing else records why a given one is loaded.
- */
+/** Every session's `-e` list (see `bundled-extensions.ts` for what each one is for). */
 function bundledExtensions(): string[] {
-  return [
-    bundledExtensionPath('artifacts.ts'),
-    bundledExtensionPath('context-breakdown.ts'),
-    bundledExtensionPath('worktree-paths.ts'),
-    bundledExtensionPath('tool-name-guard.ts'),
-    bundledExtensionPath('mcp-status.ts'),
-    bundledExtensionPath('headroom.ts'),
-  ]
+  return BUNDLED_EXTENSION_FILES.map(bundledExtensionPath)
 }
 
 /**
@@ -99,16 +79,29 @@ export async function spawnSession(
   const stub = piStubPath()
   let binaryPath: string | undefined
   let prefixArgs: string[] | undefined
+  // The stub speaks pi's protocol whatever agent is selected.
+  let agent: AgentKind = 'pi'
 
   if (stub) {
     binaryPath = process.execPath
     prefixArgs = [stub]
   } else {
-    const health = cachedHealth?.ok ? cachedHealth : (cachedHealth = await checkPiHealth())
-    if (!health.ok) throw new Error(health.message ?? 'pi is not available')
+    const health = await cachedAgentHealth()
+    if (!health.ok) throw new Error(health.message ?? `${health.agent} is not available`)
     binaryPath = health.binaryPath
     // Windows: node.exe + pi's entry script (see shared/models.ts PiHealth).
     prefixArgs = health.prefixArgs
+    agent = health.agent
+  }
+
+  // omp has no `--fork`: copy the file the way the tree view forks, then
+  // resume the copy. Same result on disk — a new session whose
+  // `parentSession` is the source.
+  let sessionPath = options.sessionPath
+  let forkFrom = options.forkFrom
+  if (agent === 'omp' && forkFrom) {
+    sessionPath = await forkSessionFile(forkFrom)
+    forkFrom = undefined
   }
 
   // pi is a `#!/usr/bin/env node` script: it needs the login shell's PATH
@@ -153,12 +146,14 @@ export async function spawnSession(
   // CLI's own loaders, tools and compaction off. Older providers read pi's
   // prompt from a field pi 0.86+ leaves empty, so the separately installed
   // package is checked before a Claude session starts.
-  const claudeProvider = stub
-    ? false
-    : usesClaudeCliProvider(
-        options,
-        (await readAgentSettings(options.workspacePath)).defaultProvider,
-      )
+  // `pi-claude-cli` is a pi package, so an omp session never runs on it.
+  const claudeProvider =
+    stub || agent === 'omp'
+      ? false
+      : usesClaudeCliProvider(
+          options,
+          (await readAgentSettings(options.workspacePath)).defaultProvider,
+        )
   if (claudeProvider) assertClaudeContextProvider(await listPackages(options.workspacePath))
 
   // Which Claude login bills this session (Settings -> Claude Code ->
@@ -179,16 +174,18 @@ export async function spawnSession(
   // purpose: Phosphor never writes provider config for a proxy.
   if (!stub) Object.assign(spawnEnv, headroomSupervisor().sessionEnv())
 
-  // Before pi starts, which is when it reads its settings.
-  if (!stub) await ensureCompactionReset()
+  // Before pi starts, which is when it reads its settings. The leftover it
+  // repairs is in pi's own settings.json, which omp never reads.
+  if (!stub && agent === 'pi') await ensureCompactionReset()
 
   execution.signal?.throwIfAborted()
   const session = registry.create(options.workspacePath, {
     ownProcessGroup: true,
+    agent,
     binaryPath,
     prefixArgs,
-    sessionPath: options.sessionPath,
-    forkFrom: options.forkFrom,
+    sessionPath,
+    forkFrom,
     name: options.name,
     model: options.model,
     provider: options.provider,
@@ -217,6 +214,9 @@ export async function spawnSession(
   // Trimmed, not forwarded whole: two of pi's events restate the entire run
   // after it has already streamed, and the renderer reads neither.
   session.client.on('event', (ev) => push({ kind: 'event', event: trimForRenderer(ev) }))
+  // omp only (the client emits none for pi): what its subagents are doing,
+  // for the `task` call's rows (src/features/chat/subagentRuns.ts).
+  session.client.on('subagent', (frame) => push({ kind: 'subagent', frame }))
   // Hold every interactive session to the context budget, Claude Code ones
   // included (electron/pi/context-budget.ts). Paused while a routine owns the
   // session: its runner prompts pi directly, past the `pi:command` gate that
@@ -275,6 +275,17 @@ export async function spawnSession(
   if (execution.signal?.aborted) stopOnAbort()
   try {
     if (!stub) await syncContextBudget(session.client, getPrefs().contextBudget)
+    // omp has no `-n`; the name pi takes at launch is set over RPC instead.
+    if (agent === 'omp' && options.name) {
+      await session.client
+        .request({ type: 'set_session_name', name: options.name })
+        .catch((error: unknown) => {
+          log('pi', 'session name not applied', {
+            sessionId: session.sessionId,
+            error: String(error),
+          })
+        })
+    }
     execution.signal?.throwIfAborted()
     if (!session.client.alive) throw new Error('Session stopped during startup.')
   } catch (error) {

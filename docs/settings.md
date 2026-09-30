@@ -11,21 +11,21 @@ package is installed**. The package list is re-read on every open, so a fresh
 install gets its tab without a restart, and a tab whose package vanished falls
 back to Extensions.
 
-| Tab              | What it is                                                           | Writes                                                  |
-| ---------------- | -------------------------------------------------------------------- | ------------------------------------------------------- |
-| Appearance       | Theme, UI scale, per-surface font sizes, mono font                   | Phosphor prefs (electron-store)                         |
-| Agent            | pi's agent defaults, global or per project                           | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json` |
-| Accounts         | Subscription logins pi can drive                                     | nothing — pi owns the credentials                       |
-| Extensions       | pi package management                                                | shells out to `pi install` / `remove` / `update`        |
-| ↳ Claude Code    | The `pi-claude-cli` provider: health, accounts, pi context ownership | Phosphor prefs + the package's own config               |
-| ↳ Web access     | The `pi-web-access` provider: search, fetch, PDF                     | `web-search.json`                                       |
-| ↳ Computer use   | Info page for `@injaneity/pi-computer-use`                           | nothing (read-only)                                     |
-| ↳ MCP Connectors | Curated OAuth catalog + custom servers                               | `mcp-adapter.json`, or the project's `.mcp.json`        |
-| Workspaces       | Lane naming/markers, new-session branching, recents, sandboxes       | Phosphor prefs; layout reset clears localStorage        |
-| Optimization     | Headroom tool-result compression + the Advisor                       | Phosphor prefs; `headroom:*` lifecycle in main          |
-| Advanced         | pi health, raw config editors, maintenance, discovered resources     | the pi files it edits; maintenance prefs                |
-| Keybindings      | Static reference sheet                                               | nothing                                                 |
-| About            | Versions, update check, pi drift warning, font licenses              | nothing                                                 |
+| Tab              | What it is                                                                            | Writes                                                  |
+| ---------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Appearance       | Theme, UI scale, per-surface font sizes, mono font                                    | Phosphor prefs (electron-store)                         |
+| Agent            | pi's agent defaults, global or per project                                            | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json` |
+| Accounts         | Subscription logins pi can drive                                                      | nothing — pi owns the credentials                       |
+| Extensions       | pi package management                                                                 | shells out to `pi install` / `remove` / `update`        |
+| ↳ Claude Code    | The `pi-claude-cli` provider: health, accounts, pi context ownership                  | Phosphor prefs + the package's own config               |
+| ↳ Web access     | The `pi-web-access` provider: search, fetch, PDF                                      | `web-search.json`                                       |
+| ↳ Computer use   | Info page for `@injaneity/pi-computer-use`                                            | nothing (read-only)                                     |
+| ↳ MCP Connectors | Curated OAuth catalog + custom servers                                                | `mcp-adapter.json`, or the project's `.mcp.json`        |
+| Workspaces       | Lane naming/markers, new-session branching, recents, sandboxes                        | Phosphor prefs; layout reset clears localStorage        |
+| Optimization     | Headroom tool-result compression + the Advisor                                        | Phosphor prefs; `headroom:*` lifecycle in main          |
+| Advanced         | agent (pi / omp), agent health, raw config editors, maintenance, discovered resources | the pi files it edits; agent and maintenance prefs      |
+| Keybindings      | Static reference sheet                                                                | nothing                                                 |
+| About            | Versions, update check, pi drift warning, font licenses                               | nothing                                                 |
 
 Phosphor's prefs live in electron-store. pi's config stays in pi's files. The
 two are never mixed.
@@ -232,8 +232,25 @@ installs anything. Every action is a button.
 
 ## Advanced
 
-- **pi health**: resolved binary path, version, and the minimum version
-  Phosphor supports.
+- **Agent**: which coding agent new sessions run on — **pi** (the default) or
+  **omp** (oh-my-pi, a pi fork) — plus an optional explicit binary path per
+  agent. Stored in Phosphor prefs (`AppPrefs.agent`, normalized on read: an
+  unknown agent reads as pi, paths are trimmed). An explicit path wins
+  outright and is reported as broken if it does not run — never swapped for a
+  PATH lookup; empty means the login shell's PATH, then the process PATH.
+  Changing either stores the choice (`app:setAgent`), drops every
+  agent-derived cache in main (health, `/` commands, model catalogue, session
+  folder watchers) and reloads the window. Running sessions keep the process
+  they spawned. Health, the `/` menu, the model catalogue, spawns and the
+  sidebar's session folders all follow the choice; pi's own CLI surfaces
+  (sign-in, `pi auth`, packages, MCP connectors, this tab's raw editors and
+  resource list) stay on pi. How omp is spoken to:
+  [pi-integration.md](pi-integration.md#omp-oh-my-pi).
+- **Agent health**: the selected agent's resolved binary, version, and — for
+  pi only — the minimum version Phosphor supports. omp numbers its own
+  releases, so `MIN_PI_VERSION` is never applied to it. When the selected agent
+  is unavailable the setup screen blocks the app; under omp it offers **Use pi
+  instead**, since Settings is behind it.
 - **Raw file editors** (Monaco JSON) for `~/.pi/agent/settings.json` and
   `models.json`, with a "restart sessions to apply" note. The escape hatch the
   Agent tab points at when a file is too broken to edit structurally.
@@ -259,7 +276,7 @@ copy/paste differs per platform because Ctrl+C must stay SIGINT off macOS.
 
 App version, an on-demand **Check now** for updates (the sidebar pill only
 appears once there is something to act on, so this is the way to ask "am I
-current?"), pi's version and path, platform/arch, Electron and Node versions,
-and the bundled font licenses. A pi newer than the line Phosphor is verified
-against gets a warning: newer minors usually work, but protocol additions may
-not be surfaced yet.
+current?"), the selected agent's version and path, platform/arch, Electron and
+Node versions, and the bundled font licenses. A pi newer than the line
+Phosphor is verified against gets a warning: newer minors usually work, but
+protocol additions may not be surfaced yet. omp gets no such warning.

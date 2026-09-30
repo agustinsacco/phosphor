@@ -32,7 +32,22 @@ function outChunked(obj) {
 
 let delayedResponse = null
 
+// FAKE_PI_REPLAY=<file> (`pi-subagent-replay.json`): the n-th `prompt` writes
+// the recorded `turns[n]`, and `get_state` lists every command received, so a
+// caller can prove what reached pi.
+const replay = process.env.FAKE_PI_REPLAY
+  ? JSON.parse(require('node:fs').readFileSync(process.env.FAKE_PI_REPLAY, 'utf8'))
+  : null
+let replayedTurns = 0
+const received = []
+
 function handle(cmd) {
+  received.push(cmd.type)
+  if (replay && cmd.type === 'prompt' && replay.turns[replayedTurns]) {
+    out({ id: cmd.id, type: 'response', command: 'prompt', success: true })
+    for (const frame of replay.turns[replayedTurns++]) out(frame)
+    return
+  }
   switch (cmd.type) {
     case 'get_state':
       out({
@@ -51,6 +66,7 @@ function handle(cmd) {
           autoCompactionEnabled: true,
           messageCount: 0,
           pendingMessageCount: 0,
+          ...(replay ? { received } : {}),
         },
       })
       break

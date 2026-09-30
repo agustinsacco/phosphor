@@ -4,7 +4,7 @@ import type { LoginFlowState } from '@shared/models'
 import { handle } from './handle'
 import { checkSubscriptionAuth } from '../pi/auth-status'
 import { cancelLogin, startLogin } from '../pi/login-flow'
-import { checkPiHealth, invalidatePiHealth, piArgs } from '../pi/health'
+import { checkPiHealth, invalidateAgentHealth, piArgs } from '../pi/health'
 import { invalidateCatalogueModels, invalidatePiCommands } from './pi-config-handlers'
 import { piProcessEnv } from '../pi/shell-env'
 import { ptyManager } from '../pty/pty-manager'
@@ -34,7 +34,7 @@ function broadcastLoginState(state: LoginFlowState): void {
   // half-configured install is.
   if (state.phase === 'signed-in') {
     invalidateCatalogueModels()
-    invalidatePiHealth()
+    invalidateAgentHealth()
     invalidatePiCommands()
   }
   for (const window of BrowserWindow.getAllWindows()) {

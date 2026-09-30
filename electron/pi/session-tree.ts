@@ -5,6 +5,15 @@ import { extractText } from './session-content'
 /**
  * Read a persisted session file into the branch structure the tree view
  * renders: one entry per JSONL record, with previews and tool names.
+ *
+ * omp writes the same tree (`id`/`parentId`, `message` entries) with a few
+ * OMP-native payloads, mapped here onto the pi shapes the view reads:
+ * a `title_change` is a `session_info` (a name, and never the leaf a jump
+ * lands on), and a `model_change` carries one `model: "provider/id"` string
+ * instead of `provider` + `modelId`. omp's line-1 title slot has no `id`, so
+ * it is skipped like every other non-entry. Entry types only omp writes
+ * (`model_usage`, `credential_pin`, `mode_change`, …) keep their own type and
+ * render as plain chain nodes.
  */
 
 export async function readSessionTree(path: string): Promise<SessionTree> {
@@ -66,9 +75,18 @@ export async function readSessionTree(path: string): Promise<SessionTree> {
       node.summary = (entry.summary as string | undefined)?.slice(0, 400)
     } else if (type === 'session_info') {
       node.name = entry.name as string | undefined
+    } else if (type === 'title_change') {
+      node.type = 'session_info'
+      node.name = typeof entry.title === 'string' ? entry.title : undefined
     } else if (type === 'model_change') {
-      node.provider = entry.provider as string | undefined
-      node.modelId = entry.modelId as string | undefined
+      if (typeof entry.model === 'string') {
+        const slash = entry.model.indexOf('/')
+        node.provider = slash > 0 ? entry.model.slice(0, slash) : undefined
+        node.modelId = slash > 0 ? entry.model.slice(slash + 1) : entry.model
+      } else {
+        node.provider = entry.provider as string | undefined
+        node.modelId = entry.modelId as string | undefined
+      }
     } else if (type === 'thinking_level_change') {
       node.thinkingLevel = entry.thinkingLevel as string | undefined
     }

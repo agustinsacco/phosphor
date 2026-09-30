@@ -30,6 +30,7 @@ import {
   overlayFor,
 } from './window-chrome'
 import { getPrefs } from './store'
+import { setActiveAgent } from './pi/agent'
 import { initDebugLog, log } from './debug-log'
 import { artifactScheme, registerArtifactProtocol } from './artifacts/artifact-protocol'
 import { fileScheme, isFrameEscape, registerFileProtocol } from './fs/file-protocol'
@@ -224,6 +225,9 @@ if (!singleInstance) {
     // Before the first window: artifact iframes read Chromium's scheme, not
     // the app's theme class, so this has to be right at first paint.
     applyThemeSource(getPrefs().theme)
+    // Before any handler can ask for health, a session dir or a spawn: all of
+    // them follow the agent chosen in Settings → Advanced → Agent.
+    setActiveAgent(getPrefs().agent)
     registerIpcHandlers()
     // One count per app start, and the only thing gating the feedback nudge —
     // it waits for real use rather than interrupting a fresh install.

@@ -34,12 +34,14 @@ export class SessionRegistry extends EventEmitter<SessionRegistryEvents> {
     const sessionId = randomUUID()
     const client = new PiRpcClient({ ...spawnOptions, cwd: workspacePath })
     const session: LiveSession = { sessionId, workspacePath, client }
+    // Spawn first: an argv the agent cannot take (omp has no launch-time
+    // fork) throws here, and must not leave an entry with no process behind.
+    client.spawn()
     this.sessions.set(sessionId, session)
 
     // No 'exit' listener on purpose: the entry outlives the child process so the
     // renderer can observe a crash and offer resume. dispose() removes it.
 
-    client.spawn()
     // After spawn, so a listener that immediately sends RPC has a live process.
     this.emit('created', session)
     return session

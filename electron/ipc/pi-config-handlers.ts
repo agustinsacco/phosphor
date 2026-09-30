@@ -16,7 +16,7 @@ import {
   resolveCatalogueModels,
   type CatalogueResult,
 } from '../pi/model-catalogue'
-import { cachedPiHealth } from '../pi/health'
+import { cachedAgentHealth } from '../pi/health'
 import {
   invalidateCommandCaches,
   probeCommandsCached,
@@ -57,7 +57,7 @@ const CATALOGUE_FALLBACK_TTL_MS = 20_000
 const catalogueCache = createTtlCache(
   async (): Promise<CatalogueResult> => {
     const stub = piStubPath()
-    const health = stub ? null : await cachedPiHealth()
+    const health = stub ? null : await cachedAgentHealth()
     const result = await resolveCatalogueModels(
       async () => {
         if (stub) return process.execPath
@@ -67,7 +67,12 @@ const catalogueCache = createTtlCache(
       stub
         ? (binaryPath) => listModelsViaRpc(binaryPath, [stub])
         : async (binaryPath) =>
-            listModelsViaRpc(binaryPath, health?.prefixArgs ?? [], await piProcessEnv()),
+            listModelsViaRpc(
+              binaryPath,
+              health?.prefixArgs ?? [],
+              await piProcessEnv(),
+              health?.agent,
+            ),
     )
     if (result.models.length === 0) throw new Error('no models available')
     return result
@@ -97,10 +102,13 @@ async function commandProbeOptions(
       env: { ELECTRON_RUN_AS_NODE: '1' },
     }
   }
-  const health = await cachedPiHealth()
-  if (!health.ok || !health.binaryPath) throw new Error(health.message ?? 'pi is not installed')
+  const health = await cachedAgentHealth()
+  if (!health.ok || !health.binaryPath) {
+    throw new Error(health.message ?? `${health.agent} is not installed`)
+  }
   return {
     ...(workspacePath ? { workspacePath } : {}),
+    agent: health.agent,
     binaryPath: health.binaryPath,
     ...(health.prefixArgs ? { prefixArgs: health.prefixArgs } : {}),
     env: await piProcessEnv(),

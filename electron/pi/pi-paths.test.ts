@@ -7,6 +7,7 @@ import {
   claudeProjectsRoot,
   claudeSessionFileForCwd,
   clearRealCwdCache,
+  ompSessionDirNameForCwd,
   piSessionsRoot,
   sessionDirForCwd,
   sessionDirNameForCwd,
@@ -41,6 +42,33 @@ describe('sessionDirNameForCwd (pi)', () => {
   it('drops exactly one leading separator, as pi does', () => {
     // A UNC path keeps its second leading backslash as a dash.
     expect(sessionDirNameForCwd('\\\\server\\share\\proj')).toBe('---server-share-proj--')
+  })
+})
+
+describe('ompSessionDirNameForCwd (omp)', () => {
+  // Transcribed from real directories under ~/.omp/agent/sessions (omp 18.4.2).
+  const home = '/Users/dev'
+  const temp = '/private/var/folders/xy/T'
+
+  it('names a folder under home by its home-relative path', () => {
+    expect(ompSessionDirNameForCwd('/Users/dev/projects/app', home, temp)).toBe('-projects-app')
+    expect(ompSessionDirNameForCwd('/Users/dev/.config/work', home, temp)).toBe('-.config-work')
+  })
+
+  it('names home itself a single dash', () => {
+    expect(ompSessionDirNameForCwd('/Users/dev', home, temp)).toBe('-')
+  })
+
+  it('names a folder under the temp dir by its temp-relative path', () => {
+    expect(ompSessionDirNameForCwd('/private/var/folders/xy/T/run/w', home, temp)).toBe(
+      '-tmp-run-w',
+    )
+    expect(ompSessionDirNameForCwd(temp, home, temp)).toBe('-tmp')
+  })
+
+  it("falls back to pi's rule anywhere else, and never mistakes a sibling for home", () => {
+    expect(ompSessionDirNameForCwd('/srv/app', home, temp)).toBe('--srv-app--')
+    expect(ompSessionDirNameForCwd('/Users/dev2/app', home, temp)).toBe('--Users-dev2-app--')
   })
 })
 

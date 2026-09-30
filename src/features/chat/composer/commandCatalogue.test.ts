@@ -253,3 +253,32 @@ describe('entryTooltip', () => {
 function info(path: string) {
   return { path, source: 'local', scope: 'user' as const, origin: 'top-level' as const }
 }
+
+describe('omp command lists', () => {
+  // The rows `electron/pi/omp-dialect.ts` makes of omp's get_available_commands.
+  const omp = (name: string, source: 'extension' | 'skill', builtin = false) => ({
+    name,
+    description: `${name} description`,
+    source,
+    ...(builtin
+      ? {
+          sourceInfo: {
+            path: '<omp:exit>',
+            source: 'omp',
+            scope: 'temporary' as const,
+            origin: 'top-level' as const,
+          },
+        }
+      : {}),
+  })
+
+  it('labels omp builtins as omp, not pi, and folds their aliases', () => {
+    const exit = { ...omp('exit', 'extension', true), description: 'Exit' }
+    const quit = { ...exit, name: 'quit' }
+    const entries = buildCommandEntries([exit, quit, omp('skill:save', 'skill')], [])
+    expect(entries.map((e) => [e.name, e.badge, e.origin, e.aliases])).toEqual([
+      ['exit', 'extension', 'built into omp', ['quit']],
+      ['skill:save', 'skill', 'skill', []],
+    ])
+  })
+})

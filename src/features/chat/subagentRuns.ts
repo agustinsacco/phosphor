@@ -20,6 +20,11 @@
  *    `display: false` when it simply succeeded, so a reply that quoted the
  *    result appeared with no visible cause.
  *
+ * omp does not run pi-subagents: it delegates through its own `task` tool and
+ * reports on the subagents in frames of its own. The last section maps those
+ * onto the same run and child model, so one row and one set of cards serve
+ * both agents.
+ *
  * Every reader here is defensive and degrades rather than throws: a payload
  * this side does not understand renders as the generic tool row it always
  * did, never as an invented state.
@@ -596,4 +601,391 @@ export function parseSubagentNotice(
     headline: `${who} ${STATUS_VERB[status]} ${where}`,
     body: rest,
   }
+}
+
+// ---------- omp's `task` ----------
+//
+// Three sources describe one omp subagent, joined on its id (omp's agent id,
+// the batch item's `name` or a generated one):
+//
+//  - the call's `details` (`TaskToolDetails`, pi-tui `tools/task.ts`):
+//    `progress[]` per spawn while the call streams, `results[]` once a
+//    blocking call settled. A background call (`details.async`, the RPC
+//    default for every agent not declared `blocking`) returns at once, with
+//    the progress of that moment;
+//  - `subagent_lifecycle` / `subagent_progress` frames, which the reducer
+//    keeps on the call's `ToolState.subagents` (`OmpSubagentLive`);
+//  - `get_subagents` when a view opens onto a running session, merged the
+//    same way.
+//
+// A settled result is the verdict; a live frame beats the call's snapshot.
+
+export const OMP_TASK_TOOL = 'task'
+
+/** One subagent as omp's frames last described it. Read by `ompTaskRun`. */
+export interface OmpSubagentLive {
+  id: string
+  index?: number
+  agent?: string
+  /** omp's word from the latest frame: a lifecycle `started` or a progress status. */
+  status?: string
+  description?: string
+  sessionFile?: string
+  /** A background spawn: the call returned while it ran. */
+  detached?: boolean
+  /** The latest `AgentProgress`, as sent. */
+  progress?: unknown
+}
+
+/** omp's `TaskToolDetails`, told apart by the fields every one of them carries. */
+export function isOmpTaskDetails(details: unknown): boolean {
+  const d = rec(details)
+  return (
+    !!d &&
+    Array.isArray(d.results) &&
+    typeof d.totalDurationMs === 'number' &&
+    'projectAgentsDir' in d
+  )
+}
+
+/** What one frame or snapshot says about one subagent, and whose it is. */
+export interface OmpSubagentUpdate {
+  /** The `task` call that spawned it. */
+  parentToolCallId: string
+  /** Only the fields this record carried; the rest stay as last known. */
+  live: OmpSubagentLive
+}
+
+/**
+ * A `subagent_lifecycle` or `subagent_progress` frame. Null for one that
+ * names no subagent or no parent call, and for `subagent_event`, which the
+ * `progress` subscription never asks for.
+ */
+export function ompSubagentUpdate(frame: unknown): OmpSubagentUpdate | null {
+  const f = rec(frame)
+  const payload = rec(f?.payload)
+  const parentToolCallId = str(payload?.parentToolCallId)
+  if (!payload || !parentToolCallId) return null
+  const progress = f?.type === 'subagent_progress' ? rec(payload.progress) : undefined
+  const id = f?.type === 'subagent_lifecycle' ? str(payload.id) : str(progress?.id)
+  if (!id) return null
+  return {
+    parentToolCallId,
+    live: {
+      id,
+      index: num(payload.index),
+      agent: str(payload.agent),
+      status: str(progress ? progress.status : payload.status),
+      description: str(progress ? progress.description : payload.description),
+      sessionFile: str(payload.sessionFile),
+      detached: payload.detached === true ? true : undefined,
+      progress,
+    },
+  }
+}
+
+/** One `get_subagents` row: a subagent still running when the view opened. */
+export function ompSnapshotUpdate(snapshot: unknown): OmpSubagentUpdate | null {
+  const s = rec(snapshot)
+  const parentToolCallId = str(s?.parentToolCallId)
+  const id = str(s?.id)
+  if (!s || !parentToolCallId || !id) return null
+  return {
+    parentToolCallId,
+    live: {
+      id,
+      index: num(s.index),
+      agent: str(s.agent),
+      status: str(s.status),
+      description: str(s.description),
+      sessionFile: str(s.sessionFile),
+      progress: rec(s.progress),
+    },
+  }
+}
+
+/** A newer record over an older one, field by field: frames restate what they carry. */
+export function mergeOmpSubagent(
+  known: OmpSubagentLive | undefined,
+  update: OmpSubagentLive,
+): OmpSubagentLive {
+  return {
+    id: update.id,
+    index: update.index ?? known?.index,
+    agent: update.agent ?? known?.agent,
+    status: update.status ?? known?.status,
+    description: update.description ?? known?.description,
+    sessionFile: update.sessionFile ?? known?.sessionFile,
+    detached: update.detached ?? known?.detached,
+    progress: update.progress ?? known?.progress,
+  }
+}
+
+/** A `task` call as the row's call: batch (`tasks[]`, `context`) or flat. */
+export function ompTaskCall(args: Rec | undefined): SubagentCall {
+  const items = list(args?.tasks)
+    .map(rec)
+    .filter((item): item is Rec => !!item)
+  if (items.length > 0) {
+    // omp's schema default when an item names no agent.
+    const agents = [...new Set(items.map((item) => str(item.agent) ?? 'task'))]
+    return {
+      kind: 'launch',
+      agent: agents.length === 1 ? agents[0] : undefined,
+      task: str(args?.context),
+      async: false,
+    }
+  }
+  return { kind: 'launch', agent: str(args?.agent), task: str(args?.task), async: false }
+}
+
+const OMP_CHILD_STATUS: Record<string, SubagentChildStatus> = {
+  pending: 'pending',
+  started: 'running',
+  running: 'running',
+  completed: 'completed',
+  failed: 'failed',
+  aborted: 'stopped',
+}
+
+interface OmpChildSources {
+  index: number
+  progress?: Rec
+  result?: Rec
+  live?: OmpSubagentLive
+}
+
+/** The call's state, and whether this view watched it run or replayed it. */
+export interface OmpTaskState {
+  settled: boolean
+  /**
+   * The call executed while this view was open. A call replayed from the
+   * session file holds, for a background spawn, only the snapshot taken when
+   * it returned, which says nothing about how the spawn ended.
+   */
+  watched: boolean
+}
+
+function ompChildStatus(
+  sources: OmpChildSources,
+  background: boolean,
+  state: OmpTaskState,
+): SubagentChildStatus {
+  const { result, live, progress } = sources
+  if (result) {
+    if (result.aborted === true) return 'stopped'
+    if (str(result.error) || (num(result.exitCode) ?? 0) !== 0) return 'failed'
+    return 'completed'
+  }
+  const word = str(live ? live.status : progress?.status)
+  const reported =
+    word && Object.hasOwn(OMP_CHILD_STATUS, word) ? OMP_CHILD_STATUS[word] : undefined
+  if (live && reported) return reported
+  // A snapshot with no matching live frame can only describe the moment a
+  // background call returned. Once the parent settles, it cannot prove that
+  // the child is still running — even when this view watched the call.
+  const stale = background && state.settled && (!state.watched || !live)
+  const unfinished = reported === 'pending' || reported === 'running'
+  if (reported && !(stale && unfinished)) return reported
+  // Ran in the background, outcome not recorded here: omp's completion card
+  // (`async-result`) in the transcript is what reports it.
+  if (stale) return 'detached'
+  return state.settled ? 'completed' : 'running'
+}
+
+/** The subagent's final `yield`, which is its answer when no result carries one. */
+function ompYieldText(progress: Rec | undefined): string | undefined {
+  const last = rec(list(rec(progress?.extractedToolData)?.yield).at(-1))
+  if (!last || last.status === 'aborted' || last.data === undefined || last.data === null) {
+    return undefined
+  }
+  if (typeof last.data === 'string') return last.data.trim() || undefined
+  return '```json\n' + JSON.stringify(last.data, null, 2) + '\n```'
+}
+
+function ompChild(
+  id: string,
+  sources: OmpChildSources,
+  background: boolean,
+  state: OmpTaskState,
+): SubagentChild {
+  const { result, live } = sources
+  const progress = rec(live?.progress) ?? sources.progress
+  const agent = str(result?.agent) ?? str(live?.agent) ?? str(progress?.agent) ?? 'agent'
+  const label =
+    str(live?.description) ?? str(result?.description) ?? str(progress?.description) ?? id
+  const currentTool = str(progress?.currentTool)
+  const currentToolArgs = str(progress?.currentToolArgs)
+  const cost = num(rec(rec(result?.usage)?.cost)?.total) ?? num(progress?.cost)
+  return {
+    index: sources.index,
+    agent,
+    label: label === agent ? undefined : label,
+    status: ompChildStatus(sources, background, state),
+    model: str(result?.resolvedModel) ?? str(progress?.resolvedModel),
+    currentTool: currentTool
+      ? currentToolArgs
+        ? `${currentTool} ${currentToolArgs}`
+        : currentTool
+      : undefined,
+    // omp keeps both newest first; the cards read oldest to newest.
+    recentTools: list(progress?.recentTools)
+      .slice(0, 3)
+      .reverse()
+      .map((entry) => {
+        const tool = rec(entry)
+        const name = str(tool?.tool)
+        const args = str(tool?.args)
+        return name ? (args ? `${name} ${args}` : name) : undefined
+      })
+      .filter((line): line is string => !!line),
+    recentOutput: list(progress?.recentOutput)
+      .filter((line): line is string => typeof line === 'string' && line.trim().length > 0)
+      .slice(0, 2)
+      .reverse(),
+    toolCount: num(progress?.toolCount),
+    // omp counts assistant requests, one per turn.
+    turnCount: num(result?.requests) ?? num(progress?.requests),
+    tokens: num(result?.tokens) ?? num(progress?.tokens),
+    costUsd: cost && cost > 0 ? cost : undefined,
+    durationMs: num(result?.durationMs) ?? num(progress?.durationMs),
+    error: str(result?.error) ?? (result?.aborted === true ? str(result.abortReason) : undefined),
+    output: str(result?.output) ?? ompYieldText(progress),
+    sessionFile: str(live?.sessionFile),
+    outputPath: str(result?.outputPath),
+  }
+}
+
+/**
+ * A `task` call's subagents as one run, one child per subagent. Null when
+ * neither the details are omp's nor any frame names the call: the row stays
+ * the generic one.
+ */
+export function ompTaskRun(
+  details: unknown,
+  live: Record<string, OmpSubagentLive> | undefined,
+  state: OmpTaskState,
+): SubagentRun | null {
+  const d = isOmpTaskDetails(details) ? rec(details) : undefined
+  const frames = Object.values(live ?? {}).filter((entry) => str(entry?.id))
+  if (!d && frames.length === 0) return null
+
+  const byId = new Map<string, OmpChildSources>()
+  const add = (id: string, index: number | undefined, patch: Partial<OmpChildSources>): void => {
+    const known = byId.get(id)
+    byId.set(id, { ...known, ...patch, index: known?.index ?? index ?? byId.size })
+  }
+  list(d?.progress).forEach((entry, position) => {
+    const progress = rec(entry)
+    const id = str(progress?.id)
+    if (progress && id) add(id, num(progress.index) ?? position, { progress })
+  })
+  list(d?.results).forEach((entry, position) => {
+    const result = rec(entry)
+    const id = str(result?.id)
+    if (result && id) add(id, num(result.index) ?? position, { result })
+  })
+  for (const entry of frames) add(entry.id, num(entry.index), { live: entry })
+
+  const background = d ? rec(d.async) !== undefined : frames.some((entry) => entry.detached)
+  const children = [...byId.entries()]
+    .map(([id, sources]) => ompChild(id, sources, background, state))
+    .sort((a, b) => a.index - b.index)
+  return {
+    mode: children.length > 1 ? 'parallel' : 'single',
+    runId: str(rec(d?.async)?.jobId),
+    // The children are here, live: the pi-subagents "reports back later" note does not apply.
+    async: false,
+    children,
+  }
+}
+
+/**
+ * The collapsed row for an omp `task` call. It stays live while any child
+ * runs, which for a background call is long after the call returned.
+ */
+export function summarizeOmpTask(
+  call: SubagentCall,
+  run: SubagentRun,
+  running: boolean,
+): SubagentRowSummary {
+  const children = run.children
+  const live = running || children.some(isChildLive)
+  const agents = [...new Set(children.map((child) => child.agent))]
+  const object =
+    agents.length > 0
+      ? agents.join(' · ')
+      : ((call.kind === 'launch' ? call.agent : undefined) ?? 'an agent')
+  const label = live ? 'Delegating to' : 'Delegated to'
+  if (children.length > 1) {
+    const done = children.filter((child) => !isChildLive(child)).length
+    const failed = children.filter((child) => child.status === 'failed').length
+    return {
+      label,
+      object,
+      hint: live
+        ? `${done}/${children.length} done`
+        : [plural(children.length, 'agent'), failed > 0 ? `${failed} failed` : undefined]
+            .filter(Boolean)
+            .join(' · '),
+    }
+  }
+  const child = children[0]
+  const hint = live
+    ? [
+        child?.currentTool,
+        child?.toolCount === undefined ? undefined : plural(child.toolCount, 'tool'),
+      ]
+        .filter(Boolean)
+        .join(' · ') || undefined
+    : child
+      ? childStats(child)
+      : undefined
+  return { label, object, hint }
+}
+
+/** Just what `ompFleet` reads of a tool call. */
+export interface OmpTaskCallLike {
+  toolName: string | null
+  subagents?: Record<string, OmpSubagentLive>
+  result?: { details?: unknown }
+  output?: { details?: unknown } | null
+}
+
+/**
+ * omp's background subagents that are still running, as the fleet the status
+ * strip's chip summarizes, or null when none is. A background spawn is one
+ * omp flagged `detached`, or one under a call that returned as a background
+ * job (a `get_subagents` row carries no flag).
+ */
+export function ompFleet(calls: Iterable<OmpTaskCallLike>): FleetSnapshot | null {
+  const runs: FleetNode[] = []
+  for (const call of calls) {
+    if (call.toolName !== OMP_TASK_TOOL || !call.subagents) continue
+    const details = call.result?.details ?? call.output?.details
+    const backgroundCall = isOmpTaskDetails(details) && rec(rec(details)?.async) !== undefined
+    for (const entry of Object.values(call.subagents)) {
+      const status = entry.status
+      const state: FleetState | undefined =
+        status === 'pending'
+          ? 'queued'
+          : status === 'started' || status === 'running'
+            ? 'running'
+            : undefined
+      if (!state || !(entry.detached || backgroundCall)) continue
+      const progress = rec(entry.progress)
+      runs.push({
+        id: entry.id,
+        kind: 'subagent',
+        label: entry.agent ?? 'agent',
+        state,
+        currentTool: str(progress?.currentTool),
+        toolCount: num(progress?.toolCount),
+        attention: false,
+        children: [],
+      })
+    }
+  }
+  if (runs.length === 0) return null
+  return { generatedAt: 0, runs, omittedRuns: 0, active: runs.length }
 }

@@ -9,7 +9,7 @@ import { folderTaskObstacle } from '../routines/preflight'
 import { broadcast } from '../broadcast'
 import { log } from '../debug-log'
 import { deleteLane } from '../pi/delete-lane'
-import { checkPiHealth } from '../pi/health'
+import { checkActiveAgentHealth } from '../pi/health'
 import { piStubPath } from '../pi/stub'
 import { gitInfo } from '../fs/git-info'
 
@@ -38,8 +38,8 @@ export function registerRoutinesHandlers(): void {
   handle('routines:check', async (_event, raw) => {
     const r = await input(raw)
     if (!piStubPath()) {
-      const health = await checkPiHealth()
-      if (!health.ok) throw new Error(health.message ?? 'pi is unavailable.')
+      const health = await checkActiveAgentHealth()
+      if (!health.ok) throw new Error(health.message ?? `${health.agent} is unavailable.`)
     }
     const info = await gitInfo(r.workspacePath)
     if (r.isolated && !info.isRepo)

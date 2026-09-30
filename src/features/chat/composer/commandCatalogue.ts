@@ -102,6 +102,8 @@ export function originLabel(command: RpcSlashCommand): string {
   const info = command.sourceInfo
   if (!info) return command.source
   if (info.origin === 'package') return info.source.replace(/^npm:/, '')
+  // omp's builtins (`electron/pi/omp-dialect.ts` gives them this source).
+  if (info.source === 'omp') return 'built into omp'
   if (info.source === 'inline' || info.scope === 'temporary') return 'built into pi'
   const scope = info.scope === 'project' ? 'project' : 'user'
   const hint = rootHint(info.path)

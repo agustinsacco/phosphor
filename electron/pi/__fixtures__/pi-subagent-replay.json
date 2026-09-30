@@ -1,0 +1,178 @@
+{
+  "source": "pi stdout for one foreground pi-subagents `subagent` launch. The `details` are the payloads src/features/chat/subagentRuns.test.ts captured from pi-subagents 0.73.1 (PARTIAL on tool_execution_update, FINAL on tool_execution_end). Replayed by fake-pi.cjs (FAKE_PI_REPLAY): turn 0 on the first prompt.",
+  "turns": [
+    [
+      { "type": "agent_start" },
+      { "type": "turn_start" },
+      { "type": "message_start", "message": { "role": "assistant", "content": [] } },
+      {
+        "type": "message_end",
+        "message": {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "toolCall",
+              "id": "call_subagent_1",
+              "name": "subagent",
+              "arguments": { "agent": "reviewer", "task": "Review the auth diff for regressions" }
+            }
+          ],
+          "stopReason": "toolUse",
+          "timestamp": 1790600000000
+        }
+      },
+      {
+        "type": "tool_execution_start",
+        "toolCallId": "call_subagent_1",
+        "toolName": "subagent",
+        "args": { "agent": "reviewer", "task": "Review the auth diff for regressions" }
+      },
+      {
+        "type": "tool_execution_update",
+        "toolCallId": "call_subagent_1",
+        "toolName": "subagent",
+        "args": { "agent": "reviewer", "task": "Review the auth diff for regressions" },
+        "partialResult": {
+          "content": [{ "type": "text", "text": "" }],
+          "details": {
+            "mode": "single",
+            "results": [
+              {
+                "index": 0,
+                "agent": "reviewer",
+                "task": "[prompt redacted]",
+                "sessionName": "reviewer: Review the auth diff for regressions",
+                "usage": {
+                  "input": 0,
+                  "output": 0,
+                  "cacheRead": 0,
+                  "cacheWrite": 0,
+                  "cost": 0,
+                  "turns": 1
+                }
+              }
+            ],
+            "progress": [
+              {
+                "index": 0,
+                "agent": "reviewer",
+                "status": "running",
+                "task": "[prompt redacted]",
+                "currentTool": "read",
+                "currentToolArgs": "src/auth.ts",
+                "recentTools": [
+                  { "tool": "read", "args": "SKILL.md", "endMs": 1 },
+                  { "tool": "bash", "args": "git diff main", "endMs": 2 }
+                ],
+                "recentOutput": ["Looking at the error branch."],
+                "toolCount": 3,
+                "turnCount": 2,
+                "tokens": 4200,
+                "durationMs": 9100,
+                "model": "openai-codex/gpt-6-astra"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "type": "tool_execution_end",
+        "toolCallId": "call_subagent_1",
+        "toolName": "subagent",
+        "result": {
+          "content": [{ "type": "text", "text": "No actionable regressions." }],
+          "details": {
+            "mode": "single",
+            "runId": "cc0f172e-5ef7-401b-9b89-8653e3185b00",
+            "results": [
+              {
+                "index": 0,
+                "agent": "reviewer",
+                "task": "[prompt redacted]",
+                "sessionName": "reviewer: Review the auth diff for regressions",
+                "exitCode": 0,
+                "usage": {
+                  "input": 73153,
+                  "output": 6845,
+                  "cacheRead": 0,
+                  "cacheWrite": 0,
+                  "cost": 1.9,
+                  "turns": 23
+                },
+                "model": "openai-codex/gpt-6-astra",
+                "finalOutput": "No actionable regressions.",
+                "sessionFile": "/home/user/.pi/agent/sessions/x/0b48d48b-1.jsonl"
+              }
+            ],
+            "progress": [
+              {
+                "index": 0,
+                "agent": "reviewer",
+                "status": "completed",
+                "task": "[prompt redacted]",
+                "recentTools": [],
+                "recentOutput": [],
+                "toolCount": 44,
+                "turnCount": 23,
+                "tokens": 79998,
+                "durationMs": 267277
+              }
+            ]
+          }
+        },
+        "isError": false
+      },
+      {
+        "type": "message_end",
+        "message": {
+          "role": "toolResult",
+          "toolCallId": "call_subagent_1",
+          "toolName": "subagent",
+          "content": [{ "type": "text", "text": "No actionable regressions." }],
+          "details": {
+            "mode": "single",
+            "runId": "cc0f172e-5ef7-401b-9b89-8653e3185b00",
+            "results": [
+              {
+                "index": 0,
+                "agent": "reviewer",
+                "task": "[prompt redacted]",
+                "sessionName": "reviewer: Review the auth diff for regressions",
+                "exitCode": 0,
+                "usage": {
+                  "input": 73153,
+                  "output": 6845,
+                  "cacheRead": 0,
+                  "cacheWrite": 0,
+                  "cost": 1.9,
+                  "turns": 23
+                },
+                "model": "openai-codex/gpt-6-astra",
+                "finalOutput": "No actionable regressions.",
+                "sessionFile": "/home/user/.pi/agent/sessions/x/0b48d48b-1.jsonl"
+              }
+            ],
+            "progress": [
+              {
+                "index": 0,
+                "agent": "reviewer",
+                "status": "completed",
+                "task": "[prompt redacted]",
+                "recentTools": [],
+                "recentOutput": [],
+                "toolCount": 44,
+                "turnCount": 23,
+                "tokens": 79998,
+                "durationMs": 267277
+              }
+            ]
+          },
+          "isError": false,
+          "timestamp": 1790600267300
+        }
+      },
+      { "type": "agent_end", "messages": [] },
+      { "type": "agent_settled" }
+    ]
+  ]
+}

@@ -94,10 +94,13 @@ async function unqueueFailureMessage(rejection: string | null): Promise<string> 
   ]
   if (rejection) parts.push('Your queued messages are unchanged.')
 
-  const installed = await window.phosphor
-    .invoke('pi:health')
-    .then((health) => health.version)
-    .catch(() => undefined)
+  const health = await window.phosphor.invoke('pi:health').catch(() => undefined)
+  // omp has no `clear_queue` at all, so no version would fix it.
+  if (health?.agent === 'omp') {
+    parts.push('omp has no command for removing a queued message.')
+    return parts.join(' ')
+  }
+  const installed = health?.version
   if (!installed || isNewerVersion(CLEAR_QUEUE_MIN_PI, installed)) {
     parts.push(
       `Removing a queued message needs pi ${CLEAR_QUEUE_MIN_PI} or newer${installed ? `; this machine has ${installed}` : ''}.`,

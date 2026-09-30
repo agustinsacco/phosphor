@@ -1,30 +1,87 @@
 /** App-level domain types shared between main and renderer. */
 import { type ExtensionUIRequest, type PiEvent } from './rpc'
+import type { OmpSubagentFrame } from './omp-subagents'
 import { DEFAULT_FEEDBACK_PREFS, type FeedbackPrefs } from './feedback'
+
+/**
+ * The coding agent every session runs on. Both speak pi's RPC family over
+ * stdio; `omp` (oh-my-pi) is a fork with its own dialect, translated in the
+ * main process (`electron/pi/omp-dialect.ts`) so the renderer only ever sees
+ * pi's protocol.
+ */
+export type AgentKind = 'pi' | 'omp'
+
+export const AGENT_KINDS: readonly AgentKind[] = ['pi', 'omp']
+
+/** How to install each agent, for the setup screen and health messages. */
+export const AGENT_INSTALL_COMMANDS: Record<AgentKind, string> = {
+  pi: 'npm install -g @earendil-works/pi-coding-agent',
+  omp: 'bun install -g @oh-my-pi/pi-coding-agent',
+}
+
+/** Settings → Advanced → Agent. */
+export interface AgentPrefs {
+  /** The agent new sessions spawn. pi unless the user chose otherwise. */
+  kind: AgentKind
+  /**
+   * An explicit executable per agent. Empty means "find it on the login
+   * shell's PATH". Kept per agent so switching back and forth never runs one
+   * agent's path as the other.
+   */
+  binaryPaths: Record<AgentKind, string>
+}
+
+export const DEFAULT_AGENT_PREFS: AgentPrefs = { kind: 'pi', binaryPaths: { pi: '', omp: '' } }
+
+/**
+ * Stored prefs are user-editable JSON: an unknown agent reads as pi (the
+ * default), and a binary path is trimmed, so a stray space never makes a
+ * spawn target that does not exist.
+ */
+export function normalizeAgentPrefs(stored: unknown): AgentPrefs {
+  const value = (stored && typeof stored === 'object' ? stored : {}) as Partial<AgentPrefs>
+  const kind = AGENT_KINDS.includes(value.kind as AgentKind)
+    ? (value.kind as AgentKind)
+    : DEFAULT_AGENT_PREFS.kind
+  const storedPaths: Partial<Record<AgentKind, unknown>> =
+    value.binaryPaths && typeof value.binaryPaths === 'object' ? value.binaryPaths : {}
+  const binaryPaths = { ...DEFAULT_AGENT_PREFS.binaryPaths }
+  for (const agent of AGENT_KINDS) {
+    const path = storedPaths[agent]
+    if (typeof path === 'string') binaryPaths[agent] = path.trim()
+  }
+  return { kind, binaryPaths }
+}
 
 export interface PiHealth {
   ok: boolean
+  /** Which agent this health describes — the one sessions will spawn. */
+  agent: AgentKind
   /**
-   * What to spawn to run pi, when found. On macOS/Linux this is pi itself. On
-   * Windows npm installs pi as a `.cmd` shim that Node refuses to spawn, so
-   * this is `node.exe` and `prefixArgs` carries pi's entry script — every
-   * spawn must put `prefixArgs` before pi's own arguments
-   * (`electron/pi/win-launch.ts`).
+   * What to spawn to run the agent, when found. On macOS/Linux this is the
+   * agent itself. On Windows npm installs pi as a `.cmd` shim that Node
+   * refuses to spawn, so this is `node.exe` and `prefixArgs` carries pi's
+   * entry script — every spawn must put `prefixArgs` before the agent's own
+   * arguments (`electron/pi/win-launch.ts`).
    */
   binaryPath?: string
-  /** Arguments that go before pi's own. Empty except on Windows. */
+  /** Arguments that go before the agent's own. Empty except on Windows. */
   prefixArgs?: string[]
-  /** Reported `pi --version`, when runnable. */
+  /** Reported `<agent> --version`, when runnable. */
   version?: string
-  /** Minimum version Phosphor supports. */
-  minVersion: string
+  /**
+   * Minimum version Phosphor supports. pi only: `MIN_PI_VERSION` is a pi
+   * version number and means nothing on omp's own version line.
+   */
+  minVersion?: string
   reason?: 'not-found' | 'version-check-failed' | 'too-old'
   message?: string
 }
 
 /**
- * Where pi is installed, for display. `binaryPath` is `node.exe` on Windows,
- * which answers "what runs" but not "where is pi"; the entry script does.
+ * Where the agent is installed, for display. `binaryPath` is `node.exe` on
+ * Windows, which answers "what runs" but not "where is pi"; the entry script
+ * does.
  */
 export function piInstallLocation(health: PiHealth): string | undefined {
   return health.prefixArgs?.[0] ?? health.binaryPath
@@ -82,6 +139,8 @@ export type SessionPush =
   | { kind: 'extension-ui'; request: ExtensionUIRequest }
   | { kind: 'stderr'; text: string }
   | { kind: 'exit'; code: number | null; signal: string | null; expected: boolean }
+  /** omp only: a subagent frame (`omp-subagents.ts`). pi sessions never push one. */
+  | { kind: 'subagent'; frame: OmpSubagentFrame }
 
 /** Parsed metadata for one on-disk session file (sidebar row + stats). */
 export interface SessionMeta {
@@ -600,6 +659,8 @@ export interface AppPrefs {
    * Optional and not handed to the renderer: nothing there reads it.
    */
   compactionResetChecked?: boolean
+  /** Which agent sessions run on, and where its binary is. See AgentPrefs. */
+  agent: AgentPrefs
   /**
    * Claude Code logins, their order, and how sessions are routed to them.
    *
@@ -818,6 +879,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   headroom: DEFAULT_HEADROOM_PREFS,
   feedback: DEFAULT_FEEDBACK_PREFS,
   contextBudget: '',
+  agent: DEFAULT_AGENT_PREFS,
   claudeAccounts: DEFAULT_CLAUDE_ACCOUNT_PREFS,
   drafts: {},
 }

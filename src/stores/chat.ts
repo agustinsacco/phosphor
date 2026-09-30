@@ -9,11 +9,14 @@ import type {
   SessionStats,
   ThinkingLevel,
 } from '@shared/rpc'
+import type { OmpSubagentFrame, OmpSubagentSnapshot } from '@shared/omp-subagents'
 import {
   emptyChatSession,
   hydrateFromMessages,
   newItemId,
   reduceChatEvent,
+  reduceSubagentFrame,
+  restoreSubagents,
   type BashItem,
   type ChatSessionState,
 } from '@/features/chat/reducer'
@@ -69,6 +72,10 @@ interface ChatStore {
   sessions: Record<string, ChatSession>
   ensure: (sessionId: string, options?: { resuming?: boolean }) => void
   applyEvent: (sessionId: string, event: PiEvent) => void
+  /** omp only: a forwarded subagent frame, onto its `task` call. */
+  applySubagentFrame: (sessionId: string, frame: OmpSubagentFrame) => void
+  /** omp only: `get_subagents` at open (see `restoreSubagents`). */
+  restoreSubagents: (sessionId: string, snapshots: OmpSubagentSnapshot[]) => void
   addUserMessage: (sessionId: string, text: string, images?: ImageContent[]) => void
   /** Drop the "waiting for pi to start" state without an agent event (abort). */
   clearPromptSent: (sessionId: string) => void
@@ -114,6 +121,24 @@ export const useChatStore = create<ChatStore>((set) => ({
     set((state) => {
       const session = chats.read(state.sessions, sessionId)
       const reduced = reduceChatEvent(session, event)
+      if (reduced === session) return state
+      return { sessions: { ...state.sessions, [sessionId]: { ...session, ...reduced } } }
+    })
+  },
+
+  applySubagentFrame: (sessionId, frame) => {
+    set((state) => {
+      const session = chats.read(state.sessions, sessionId)
+      const reduced = reduceSubagentFrame(session, frame)
+      if (reduced === session) return state
+      return { sessions: { ...state.sessions, [sessionId]: { ...session, ...reduced } } }
+    })
+  },
+
+  restoreSubagents: (sessionId, snapshots) => {
+    set((state) => {
+      const session = chats.read(state.sessions, sessionId)
+      const reduced = restoreSubagents(session, snapshots)
       if (reduced === session) return state
       return { sessions: { ...state.sessions, [sessionId]: { ...session, ...reduced } } }
     })

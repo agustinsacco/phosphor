@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { execFileSync } from 'node:child_process'
+import { once } from 'node:events'
+import { setImmediate } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { PiRpcClient } from './rpc-client'
@@ -8,6 +10,20 @@ import type { PiEvent } from '@shared/rpc'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const fakePi = join(here, '__fixtures__', 'fake-pi.cjs')
+const ompReplay = join(here, '__fixtures__', 'omp-task-replay.json')
+const piReplay = join(here, '__fixtures__', 'pi-subagent-replay.json')
+
+/** Resolves with the first event of `type` the client emits. */
+function nextEvent(client: PiRpcClient, type: PiEvent['type']): Promise<PiEvent> {
+  return new Promise((resolve) => {
+    const listener = (event: PiEvent): void => {
+      if (event.type !== type) return
+      client.off('event', listener)
+      resolve(event)
+    }
+    client.on('event', listener)
+  })
+}
 
 function makeClient(): PiRpcClient {
   return new PiRpcClient({
@@ -211,5 +227,204 @@ describe('PiRpcClient', () => {
     client.spawn()
     await client.dispose()
     await expect(client.request({ type: 'get_state' })).rejects.toThrow(/not running/)
+  })
+
+  it('rejects a write to a live child whose stdin closed, without an uncaught error', async () => {
+    // The child stays alive but closes its read end, then says so on stderr,
+    // so the next write fails (EPIPE/EIO) on a stream nobody else listens to.
+    const client = track(
+      new PiRpcClient({
+        cwd: here,
+        binaryPath: process.execPath,
+        prefixArgs: [
+          '-e',
+          "process.stdin.destroy(); process.stderr.write('closed\\n'); setInterval(() => {}, 1e8)",
+        ],
+      }),
+    )
+    const uncaught: unknown[] = []
+    const onUncaught = (error: unknown): void => void uncaught.push(error)
+    process.on('uncaughtException', onUncaught)
+    try {
+      const closed = once(client, 'stderr')
+      client.spawn()
+      await closed
+      await expect(client.request({ type: 'get_state' })).rejects.toThrow()
+      // The stream's 'error' follows the failed write callback on nextTick;
+      // one event-loop turn delivers it before the assertion.
+      await setImmediate()
+      expect(uncaught).toEqual([])
+    } finally {
+      process.off('uncaughtException', onUncaught)
+    }
+  })
+
+  it('never asks pi about subagents', async () => {
+    const client = track(
+      new PiRpcClient({
+        cwd: here,
+        binaryPath: process.execPath,
+        prefixArgs: [fakePi],
+        env: { FAKE_PI_REPLAY: piReplay },
+      }),
+    )
+    const frames: unknown[] = []
+    client.on('subagent', (frame) => frames.push(frame))
+    client.spawn()
+    const settled = nextEvent(client, 'agent_settled')
+    await client.request({ type: 'prompt', message: 'review' })
+    await settled
+    expect(await client.getSubagents()).toEqual([])
+    const state = await client.request({ type: 'get_state' })
+    const data = state.success ? (state.data as unknown as Record<string, unknown>) : {}
+    expect(data.received).toEqual(['prompt', 'get_state'])
+    expect(client.subagentSubscription).toBeUndefined()
+    expect(frames).toEqual([])
+  })
+})
+
+describe('PiRpcClient speaking omp', () => {
+  const fakeOmp = join(here, '__fixtures__', 'fake-omp.cjs')
+  const makeOmp = (env: Record<string, string> = {}): PiRpcClient =>
+    track(
+      new PiRpcClient({
+        cwd: here,
+        agent: 'omp',
+        binaryPath: process.execPath,
+        prefixArgs: [fakeOmp],
+        env,
+      }),
+    )
+
+  it('consumes the ready frame instead of forwarding it as an event', async () => {
+    const client = makeOmp()
+    const events: PiEvent[] = []
+    client.on('event', (event) => events.push(event))
+    const ready = new Promise((resolve) => client.once('ready', resolve))
+    client.spawn()
+    expect(await ready).toMatchObject({ type: 'ready', protocolVersion: 1 })
+    expect(client.readyFrame?.protocolVersion).toBe(1)
+    await client.request({ type: 'get_state' })
+    // Neither the handshake nor omp's command push reach event readers.
+    expect(events).toEqual([])
+  })
+
+  it('answers get_commands from omp get_available_commands', async () => {
+    const client = makeOmp()
+    client.spawn()
+    const response = await client.request({ type: 'get_commands' })
+    expect(response.success).toBe(true)
+    expect(response.command).toBe('get_commands')
+    const names = response.success ? response.data?.commands.map((c) => c.name) : []
+    expect(names).toEqual(['compact', 'c', 'skill:save'])
+  })
+
+  it('maps get_state queue counts and rewinds through branch', async () => {
+    const client = makeOmp()
+    const events: PiEvent[] = []
+    client.on('event', (event) => events.push(event))
+    client.spawn()
+    const state = await client.request({ type: 'get_state' })
+    expect(state.success && state.data?.pendingMessageCount).toBe(1)
+    const fork = await client.request({ type: 'fork', entryId: 'e1' })
+    expect(fork).toMatchObject({ command: 'fork', success: true, data: { text: 'rewound' } })
+    expect(events).toEqual([{ type: 'agent_settled' }])
+  })
+
+  it('negotiates v2 before any command reaches omp, even one sent before ready', async () => {
+    const client = makeOmp()
+    client.spawn()
+    // Issued at once: before the ready frame, let alone the 150 ms negotiation.
+    const state = await client.request({ type: 'get_state' })
+    expect(client.protocolVersion).toBe(2)
+    const data = state.success ? (state.data as unknown as Record<string, unknown>) : {}
+    // The subagent subscription rides with the handshake, ahead of the queue.
+    expect(data.received).toEqual(['negotiate_protocol', 'set_subagent_subscription', 'get_state'])
+    expect(data.sentBeforeNegotiation).toEqual([])
+  })
+
+  it('returns a history too big for one line whole, reassembled from chunks', async () => {
+    const client = makeOmp()
+    client.spawn()
+    const response = await client.request({ type: 'get_messages' })
+    expect(response.success).toBe(true)
+    const message = response.success ? response.data?.messages[0] : undefined
+    expect(message).toMatchObject({ role: 'user' })
+    expect((message as { content: string }).content).toBe('é'.repeat(900 * 1024))
+  })
+
+  it('stays on v1 when v2 is not offered or is refused', async () => {
+    const envs: Record<string, string>[] = [{ FAKE_OMP_NO_V2: '1' }, { FAKE_OMP_REFUSE_V2: '1' }]
+    for (const env of envs) {
+      const client = makeOmp(env)
+      client.spawn()
+      expect((await client.request({ type: 'get_state' })).success).toBe(true)
+      expect(client.protocolVersion).toBe(1)
+      // v1's own answer to an oversized frame, passed on unchanged.
+      expect(await client.request({ type: 'get_messages' })).toMatchObject({
+        success: false,
+        error: 'RPC response exceeded the transport limit',
+      })
+    }
+  })
+
+  it('fails the waiting request with the reason when a chunk run breaks', async () => {
+    for (const fault of ['interleave', 'skip', 'length']) {
+      const client = makeOmp({ FAKE_OMP_CHUNK_FAULT: fault })
+      const parseErrors: Error[] = []
+      client.on('parse-error', ({ error }) => parseErrors.push(error))
+      client.spawn()
+      await expect(client.request({ type: 'get_messages' })).rejects.toThrow(
+        /malformed chunked frame/,
+      )
+      expect(parseErrors).toHaveLength(1)
+      // The transport recovers: the next frame starts a clean sequence.
+      expect((await client.request({ type: 'get_state' })).success).toBe(true)
+    }
+  })
+
+  it('subscribes to subagent progress before any other command, on v1 too', async () => {
+    for (const env of [{}, { FAKE_OMP_NO_V2: '1' }] as Record<string, string>[]) {
+      const client = makeOmp(env)
+      client.spawn()
+      const state = await client.request({ type: 'get_state' })
+      const data = state.success ? (state.data as unknown as Record<string, unknown>) : {}
+      const received = data.received as string[]
+      expect(received.filter((type) => type !== 'negotiate_protocol')).toEqual([
+        'set_subagent_subscription',
+        'get_state',
+      ])
+      expect(client.subagentSubscription).toBe('progress')
+    }
+  })
+
+  it('passes subagent frames on apart from events and drops updates to an ended call', async () => {
+    const client = makeOmp({ FAKE_OMP_REPLAY: ompReplay })
+    const events: PiEvent[] = []
+    const frames: Array<{ type: string }> = []
+    client.on('event', (event) => events.push(event))
+    client.on('subagent', (frame) => frames.push(frame))
+    client.spawn()
+    const ended = nextEvent(client, 'agent_end')
+    await client.request({ type: 'prompt', message: 'send two scouts' })
+    await ended
+    expect(frames.map((frame) => frame.type)).toEqual([
+      'subagent_lifecycle',
+      'subagent_lifecycle',
+      'subagent_progress',
+      'subagent_progress',
+    ])
+    expect(events.some((event) => event.type.startsWith('subagent'))).toBe(false)
+    // omp keeps updating a background `task` after its end; the row must not reopen.
+    const end = events.findIndex((event) => event.type === 'tool_execution_end')
+    expect(end).toBeGreaterThan(-1)
+    expect(events.slice(end).some((event) => event.type === 'tool_execution_update')).toBe(false)
+    const running = await client.getSubagents()
+    expect(
+      running.map(({ id, status, parentToolCallId }) => ({ id, status, parentToolCallId })),
+    ).toEqual([
+      { id: 'ListElectron', status: 'running', parentToolCallId: 'toolu_01TaskScouts' },
+      { id: 'ListSrc', status: 'running', parentToolCallId: 'toolu_01TaskScouts' },
+    ])
   })
 })

@@ -221,7 +221,7 @@ export function App(): React.JSX.Element {
 
   if (!currentWorkspace) {
     if (loading) return loadingScreen
-    return <WorkspacePicker piVersion={health.version} />
+    return <WorkspacePicker agent={health.agent} piVersion={health.version} />
   }
 
   return (

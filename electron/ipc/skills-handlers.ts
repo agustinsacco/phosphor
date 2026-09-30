@@ -2,7 +2,7 @@ import { writeFile } from 'node:fs/promises'
 import { BrowserWindow, dialog } from 'electron'
 import { handle } from './handle'
 import { invalidatePiCommands } from './pi-config-handlers'
-import { cachedPiHealth } from '../pi/health'
+import { cachedAgentHealth } from '../pi/health'
 import { piProcessEnv } from '../pi/shell-env'
 import { piStubPath } from '../pi/stub'
 import {
@@ -37,8 +37,10 @@ export function registerSkillsHandlers(): void {
         env: { ELECTRON_RUN_AS_NODE: '1' },
       })
     }
-    const health = await cachedPiHealth()
-    const binaryPath = health.ok ? health.binaryPath : undefined
+    const health = await cachedAgentHealth()
+    // The page manages pi's skill roots. omp reports its skills without a
+    // path, so under omp the listing comes from scanning those roots instead.
+    const binaryPath = health.ok && health.agent === 'pi' ? health.binaryPath : undefined
     return resolveSkills({
       ...(workspacePath ? { workspacePath } : {}),
       ...(binaryPath

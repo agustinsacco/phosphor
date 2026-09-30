@@ -20,6 +20,7 @@
  */
 import { PiRpcClient } from './rpc-client'
 import { createTtlCache, type TtlCache } from './ttl-cache'
+import type { AgentKind } from '@shared/models'
 import type { RpcResponse, RpcResponseDataMap, RpcSlashCommand } from '@shared/rpc'
 
 const RPC_TIMEOUT_MS = 20_000
@@ -37,7 +38,12 @@ const COMMANDS_TTL_MS = 60_000
 
 export interface CommandProbeOptions {
   workspacePath?: string
-  /** Resolved pi binary; omitted (pi missing) means no list at all. */
+  /**
+   * Which agent `binaryPath` is. omp answers `get_commands` under another
+   * name and shape; the client translates (`omp-dialect.ts`). Defaults to pi.
+   */
+  agent?: AgentKind
+  /** Resolved agent binary; omitted (agent missing) means no list at all. */
   binaryPath?: string
   /** Stub prefix under e2e — same contract as every other pi spawn. */
   prefixArgs?: string[]
@@ -49,6 +55,7 @@ export async function probeCommands(options: CommandProbeOptions): Promise<RpcSl
   if (!options.binaryPath && !options.prefixArgs) return []
   const client = new PiRpcClient({
     cwd: options.workspacePath ?? process.cwd(),
+    ...(options.agent ? { agent: options.agent } : {}),
     ...(options.binaryPath ? { binaryPath: options.binaryPath } : {}),
     ...(options.prefixArgs ? { prefixArgs: options.prefixArgs } : {}),
     noSession: true,
