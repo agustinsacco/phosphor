@@ -136,22 +136,6 @@ reproduces when the pi agent directory is reached through a symlink (`/tmp` on
 macOS, so the routines e2e hits it; a normal `~/.pi/agent` does not). Fixing it
 means picking one path identity for a session file and using it on both sides.
 
-**R15 — the session a branch was taken from disappears from the sidebar,
-including the source of an explicit Fork or Clone.** Once it isn't live,
-`dropSupersededSessions` (`src/features/sessions/superseded.ts`) hides any
-file whose name and first entry id match a child's `parentSession` and first
-entry. It was written for rewind, but every branching path copies entries with
-their ids: pi's `fork`/`clone` (`createBranchedSession`), the sidebar's Fork
-(`pi --fork`, `SessionManager.forkFrom`) and the tree view's Fork here
-(`forkSessionAt`). So forking a session to try two directions hides the
-original as soon as it's closed, along with everything after the branch
-point. A rewind hides what it rewound past, which is the intent when the
-rewind hit the message the user meant. Before rewind matched rows by
-timestamp, it could hit one hundreds of turns earlier. The file is never
-touched. Pinned rows skip the filter, and Cmd+K lists the workspace's first
-eight disk sessions unfiltered, so opening the file there and pinning it
-brings it back.
-
 **R16 — jumping to another branch in the tree view leaves a Claude Code
 session answering from the old one.** `jumpHere`
 (`src/features/sessions/TreeViewModal.tsx`) appends the branch jump and

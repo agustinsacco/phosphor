@@ -55,6 +55,57 @@ describe('hidden sessions', () => {
 })
 
 describe('groupSessionsByProject', () => {
+  it.each([false, true])('keeps a fork and its source when the source is live: %s', (live) => {
+    const original = meta({
+      path: '/repo/original.jsonl',
+      firstEntryId: 'shared-entry',
+      name: 'Spreadsheet Writeback + Composio Integration',
+      lastActivityAt: '2026-08-12T00:00:00.000Z',
+    })
+    const fork = meta({
+      path: '/repo/fork.jsonl',
+      parentSession: original.path,
+      firstEntryId: original.firstEntryId,
+      name: 'Sharepoint Integration',
+      createdAt: '2026-08-10T00:00:00.000Z',
+    })
+    const groups = groupSessionsByProject(
+      ['/repo'],
+      { '/repo': [original, fork] },
+      {},
+      notPinned,
+      (session) => live && session.path === original.path,
+      '/repo',
+    )
+    expect(groups[0]?.metas).toEqual([fork, original])
+    expect(groups[0]?.liveCount).toBe(live ? 1 : 0)
+  })
+
+  it('keeps every saved session in a same-name rewind chain after a folder rename', () => {
+    const sessions = ['a', 'b', 'c'].map((id, index) =>
+      meta({
+        path: `/repo/${id}.jsonl`,
+        parentSession: index ? `/old/${['a', 'b'][index - 1]}.jsonl` : undefined,
+        firstEntryId: 'shared-entry',
+        name: 'Connector research',
+        createdAt: `2026-08-${10 + index}T00:00:00.000Z`,
+      }),
+    )
+    const groups = groupSessionsByProject(
+      ['/repo'],
+      { '/repo': sessions },
+      {},
+      notPinned,
+      notLive,
+      '/repo',
+    )
+    expect(groups[0]?.metas.map((session) => session.path)).toEqual([
+      '/repo/c.jsonl',
+      '/repo/b.jsonl',
+      '/repo/a.jsonl',
+    ])
+  })
+
   it('gives a plain workspace its own group', () => {
     const groups = groupSessionsByProject(
       ['/repo'],

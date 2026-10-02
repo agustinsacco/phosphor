@@ -1,5 +1,5 @@
 import { test, expect, _electron as electron, type ElectronApplication } from '@playwright/test'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, realpath, rm, writeFile } from 'node:fs/promises'
 import { scratchDir } from './fixtures/scratch'
 import { configureTestTeardown } from './fixtures/shutdown'
 import { join, resolve } from 'node:path'
@@ -36,12 +36,49 @@ async function launch(theme: 'light' | 'dark' | 'system', extraEnv: Record<strin
     app,
     page,
     workspace,
+    agentDir: join(scratch, 'agent'),
     close: async () => {
       await app.close()
       await rm(scratch, { recursive: true, force: true })
     },
   }
 }
+
+test('sidebar preserves a saved fork and its inactive source across reloads', async () => {
+  const h = await launch('light')
+  try {
+    const cwd = await realpath(h.workspace)
+    const dirName = `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`
+    const dir = join(h.agentDir, 'sessions', dirName)
+    await mkdir(dir, { recursive: true })
+    const originalPath = join(dir, 'original.jsonl')
+    for (const [id, name, timestamp, parentSession] of [
+      ['original', 'Spreadsheet Writeback + Composio Integration', '2026-09-30T21:08:21Z', null],
+      ['fork', 'Sharepoint Integration', '2026-10-01T17:39:13Z', originalPath],
+    ]) {
+      const entries = [
+        { type: 'session', version: 3, id, cwd, timestamp, parentSession },
+        { type: 'model_change', id: 'shared-entry', parentId: null, timestamp },
+        { type: 'session_info', id: `${id}-name`, parentId: 'shared-entry', timestamp, name },
+      ]
+      await writeFile(
+        join(dir, `${id}.jsonl`),
+        entries.map((e) => JSON.stringify(e)).join('\n') + '\n',
+      )
+    }
+    for (let reload = 0; reload < 2; reload++) {
+      await h.page.reload()
+      const rows = h.page.getByTestId('session-row')
+      await expect(
+        rows.filter({ hasText: 'Spreadsheet Writeback + Composio Integration' }),
+      ).toBeVisible()
+      await expect(rows.filter({ hasText: 'Sharepoint Integration' })).toBeVisible()
+      await expect(rows).toHaveCount(2)
+    }
+  } finally {
+    await h.close()
+  }
+})
 
 test('lane PR badges distinguish lightweight, unavailable and truncated results', async () => {
   const h = await launch('light')
