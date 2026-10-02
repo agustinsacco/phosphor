@@ -32,7 +32,7 @@ export interface FoldState {
    * Id of the first non-header entry. Together with `parentSession` it tells a
    * BRANCH (pi's `fork`, which copies the parent's entries and so repeats its
    * first id) apart from a plain successor session (`/new`, which also records
-   * a `parentSession` but shares no entries). See `dropSupersededSessions`.
+   * a `parentSession` but shares no entries). This is ancestry, not supersession.
    */
   firstEntryId?: string
   firstUserText?: string

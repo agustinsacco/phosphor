@@ -90,7 +90,7 @@ export interface SessionMeta {
   cwd: string
   createdAt: string
   parentSession?: string
-  /** Id of the first entry after the header; see `dropSupersededSessions`. */
+  /** Id of the first entry after the header, shared by forks that copy history. */
   firstEntryId?: string
   name?: string
   firstUserText?: string

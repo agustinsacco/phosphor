@@ -37,6 +37,14 @@ and a chip only renders once there is something to say: a known PR, or a
 confirmed absence on a worktree lane. Settings → Workspaces → "PR status on
 lanes".
 
+## Forks and saved history
+
+Fork, Clone and Rewind create a new session file. Both the source and the new
+session remain in the sidebar, even after their processes stop or the app
+restarts. Shared entry ids and `parentSession` describe ancestry, not permission
+to hide the source. A rewind can therefore leave two rows with the same title;
+rename or explicitly delete the older session if it is no longer needed.
+
 ## Markers
 
 An emoji pinned left of the title. Two rules, both about the **column**:
