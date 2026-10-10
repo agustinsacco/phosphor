@@ -27,6 +27,16 @@
           "VITEST_MAX_WORKERS": "2"
         }
       }
+    },
+    "build": {
+      "executor": "nx:run-commands",
+      "cache": false,
+      "inputs": ["default", "^default", "rootInstall"],
+      "options": {
+        "command": "node apps/host/scripts/build.mjs",
+        "cwd": "."
+      },
+      "outputs": ["{projectRoot}/dist"]
     }
   }
 }

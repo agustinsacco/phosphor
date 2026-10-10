@@ -28,11 +28,11 @@ async function run(argv: string[], context: Partial<CliContext> = {}) {
   return { code, ...out }
 }
 
-describe('phosphor-host', () => {
+describe('phosphor', () => {
   it('prints its version, plain or as JSON', async () => {
     expect(await run(['version'])).toEqual({
       code: 0,
-      stdout: 'phosphor-host 0.0.0-dev.source\n',
+      stdout: 'phosphor 0.0.0-dev.source\n',
       stderr: '',
     })
     expect(JSON.parse((await run(['version', '--json'])).stdout)).toEqual({
@@ -51,7 +51,14 @@ describe('phosphor-host', () => {
 
   it.each([
     [[], 'no command given'],
-    [['accept'], 'unknown command "accept"'],
+    [['serve'], 'unknown command "serve"'],
+    [['accept'], 'accept needs --repository DIR'],
+    [['accept', '--repository', 'repo'], '--repository needs an absolute path'],
+    [['accept', '--repository', '/repo', '--lane', 'both'], '--lane is native, claude or all'],
+    [['doctor', '--repository', '/repo'], 'doctor does not take --repository'],
+    [['doctor', '--model', 'm'], 'doctor does not take --model'],
+    [['doctor', '--claude-model', 'm'], 'doctor does not take --claude-model'],
+    [['version', '--keep-transcripts'], 'version does not take --keep-transcripts'],
     [['doctor', '--nope'], "Unknown option '--nope'"],
     [['doctor', 'extra'], 'unexpected argument "extra"'],
     [['doctor', '--config'], "Option '--config <value>' argument missing"],
@@ -76,6 +83,33 @@ describe('phosphor-host', () => {
       ok: true,
       config: { path: machine.configPath },
     })
+  })
+
+  it("passes accept's lane, models and transcript choice through, evidence alone on stdout", async () => {
+    machine = fakeMachine({ rpc: true })
+    machine.installClaude()
+    vi.stubEnv('PI_CODING_AGENT_DIR', machine.agentDir)
+    vi.stubEnv('PATH', process.env.PATH)
+    const argv = ['accept', '--json', '--config', machine.configPath, '--repository']
+    const result = await run(
+      [
+        ...argv,
+        machine.repository,
+        '--lane',
+        'claude',
+        '--claude-model',
+        'claude-test',
+        '--keep-transcripts',
+      ],
+      {
+        env: machine.hostEnv,
+        home: machine.home,
+      },
+    )
+    expect(result.code, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout).lanes).toEqual([
+      expect.objectContaining({ lane: 'claude', model: 'claude-test', transcriptDeleted: false }),
+    ])
   })
 
   it('looks for the config in the XDG folder by default', async () => {

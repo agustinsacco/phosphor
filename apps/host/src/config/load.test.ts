@@ -111,7 +111,7 @@ describe('loading the config', () => {
 
   it('refuses to run where files have no POSIX owner', async () => {
     expect(await messages(write(JSON.stringify(minimal)), { uid: undefined })).toEqual([
-      'phosphor-host runs on Linux and macOS',
+      'the Host runs on Linux and macOS',
     ])
   })
 })

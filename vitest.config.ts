@@ -16,6 +16,7 @@ export default defineConfig({
       'apps/desktop/scripts/**/*.test.ts',
       'apps/desktop/electron/**/*.test.ts',
       'apps/host/src/**/*.test.ts',
+      'apps/host/scripts/**/*.test.ts',
       'libs/session-runtime/src/**/*.test.ts',
       'libs/shared/src/**/*.test.ts',
       // Bundled pi extensions: pure rule logic lives beside the extension it

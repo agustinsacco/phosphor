@@ -19,7 +19,11 @@ const projects = {
 }
 const commands = {
   desktop: { build: 'npm run build', 'test:e2e': 'npm run test:e2e' },
-  host: { typecheck: 'tsc --noEmit -p apps/host/tsconfig.json', test: 'vitest run apps/host' },
+  host: {
+    typecheck: 'tsc --noEmit -p apps/host/tsconfig.json',
+    test: 'vitest run apps/host',
+    build: 'node apps/host/scripts/build.mjs',
+  },
   runtime: { test: 'vitest run libs/session-runtime' },
   shared: { test: 'vitest run libs/shared' },
   'pi-extensions': { test: 'vitest run libs/pi-extensions' },
@@ -79,6 +83,7 @@ const inputs: Record<string, Record<string, string[]>> = {
   host: {
     typecheck: ['default', '^default', 'rootInstall'],
     test: ['default', '^default', 'rootUnitRunner'],
+    build: ['default', '^default', 'rootInstall'],
   },
   runtime: { '*': ['default', '^default', 'rootUnitRunner'] },
   shared: { '*': ['default', '^default', 'rootUnitRunner'] },
@@ -284,6 +289,7 @@ describe('explicit Nx project contract', () => {
     ).toBe(true)
     expect(config.targetDefaults['nx:run-commands'].cache).toBe(false)
     expect(graph.nodes.desktop.data.targets.build.outputs).toEqual(['{projectRoot}/out'])
+    expect(graph.nodes.host.data.targets.build.outputs).toEqual(['{projectRoot}/dist'])
     expect(graph.nodes.site.data.targets.build.outputs).toEqual([
       '{projectRoot}/dist',
       '{projectRoot}/public/og.png',

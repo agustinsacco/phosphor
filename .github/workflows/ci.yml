@@ -63,6 +63,9 @@ jobs:
       - name: Build (main · preload · renderer)
         run: npm run build
 
+      - name: Build (host)
+        run: npm run build:host
+
   control-schema:
     name: Control schema · local Supabase · RLS
     runs-on: ubuntu-latest

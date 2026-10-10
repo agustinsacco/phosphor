@@ -7,7 +7,7 @@ import {
   type SessionPush,
 } from '@phosphor/shared/models'
 import { errorText } from '@phosphor/shared/errors'
-import type { RpcCommand, RpcCommandType } from '@phosphor/shared/rpc'
+import type { ExtensionUIRequest, RpcCommand, RpcCommandType } from '@phosphor/shared/rpc'
 import { gitInfo } from '@phosphor/session-runtime/git/git-info'
 import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { createContextBudgetRuntime } from '@phosphor/session-runtime/pi/context-budget'
@@ -62,6 +62,8 @@ export class RequestError extends Error {
 }
 
 const ignore: Delivery = () => {}
+/** The extension UI requests that wait for an answer. */
+const DIALOGS = new Set<ExtensionUIRequest['method']>(['select', 'confirm', 'input', 'editor'])
 const NO_ROUTINES = {
   owns: () => false,
   sessionForPath: () => undefined,
@@ -144,6 +146,7 @@ export function createHostRuntime(
       started.add(delivery)
       // A push arrives inside pi's output handler: a delivery that throws must not take the Host down.
       const sink = (sessionId: string) => (push: SessionPush) => {
+        if (push.kind === 'extension-ui') cancelDialog(sessionId, push.request)
         try {
           delivery(push)
         } catch (error) {
@@ -178,6 +181,26 @@ export function createHostRuntime(
     },
   })
   const drain = createDrain({ life, registry, groups, log: log.write, timings })
+
+  /**
+   * Until a client can reach the Host (07), nobody can answer an extension's
+   * dialog, and pi would wait on it until the dialog's own timeout, if it
+   * has one. Each is cancelled at once with pi's own reply, which pi turns
+   * into "no answer": undefined, or false for a confirm.
+   */
+  function cancelDialog(sessionId: string, request: ExtensionUIRequest): void {
+    if (!DIALOGS.has(request.method)) return
+    log.write('host', 'dialog cancelled', {
+      sessionId,
+      method: request.method,
+      title: 'title' in request ? request.title : undefined,
+    })
+    registry.get(sessionId)?.client.respondToExtensionUI({
+      type: 'extension_ui_response',
+      id: request.id,
+      cancelled: true,
+    })
+  }
   log.write('host', 'runtime', {
     pi: [machine.pi.binaryPath, ...machine.pi.prefixArgs],
     names: Object.keys(machine.env).sort(),

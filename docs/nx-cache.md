@@ -16,8 +16,8 @@ files it consumes. That is what makes affected mean something per app:
   files its release and install use (`release`: `fix-node-pty.mjs`,
   `install.sh`, the release guard scripts, `release-continuous.yml`). E2E adds
   its harness (`e2eHarness`). It does not depend on `tooling`.
-- `host`: libraries, plus the root install for `typecheck` and the unit runner
-  for `test`. Only `tooling` depends on it, so a Host-only change selects
+- `host`: libraries, plus the root install for `typecheck` and `build` and the
+  unit runner for `test`. Its build declares `apps/host/dist`. Only `tooling` depends on it, so a Host-only change selects
   `host` and `tooling` and never the Desktop release.
 - `site`: `apps/site` only, since its image is built from that directory alone.
   Its build adds `deploy`, which must equal `deploy-site.yml`'s path filter

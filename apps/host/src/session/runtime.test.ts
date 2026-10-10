@@ -103,6 +103,8 @@ function recorder() {
     stderr: (prefix: string) =>
       pushes.flatMap((p) => (p.kind === 'stderr' && p.text.startsWith(prefix) ? [p.text] : [])),
     events: (type: string) => pushes.filter((p) => p.kind === 'event' && p.event.type === type),
+    requests: (method: string) =>
+      pushes.filter((p) => p.kind === 'extension-ui' && p.request.method === method),
   }
 }
 
@@ -190,6 +192,26 @@ describe('the Host runtime', { timeout: 20_000 }, () => {
       reason: { message: 'the session is already running' },
     })
     expect(runtime.list()).toHaveLength(1)
+  })
+
+  it('cancels each dialog at once, since nothing can answer one yet, and still delivers it', async () => {
+    const { runtime, log } = boot()
+    const sink = recorder()
+    const { sessionId } = await runtime.start({ repository: repo }, sink.deliver)
+    // A status is not a dialog: it waits for nothing.
+    await until(() => sink.requests('setStatus').length === 1, 'the breakdown status')
+    const asked = await runtime.command(sessionId, { type: 'prompt', message: '/fake-ask' })
+    expect(asked.success).toBe(true)
+    // stderr is another pipe: it may land after the answer on stdout.
+    expect(await until(() => sink.stderr('FAKE_PI_DIALOG ').at(0), 'the dialog answer')).toBe(
+      'FAKE_PI_DIALOG {"cancelled":true}',
+    )
+    expect(sink.requests('confirm')).toHaveLength(1)
+    const written = readFileSync(log.path()!, 'utf8')
+    expect(written).toMatch(
+      /\[host\] dialog cancelled \{"sessionId":"[^"]+","method":"confirm","title":"Allow\?"\}/,
+    )
+    expect(written.match(/dialog cancelled/g)).toHaveLength(1)
   })
 
   it('deletes only a stopped session, and only by a request for its file', async () => {

@@ -18,9 +18,10 @@ and routine guards, interrupt bypass, crash resume, deletion and shutdown
 admission. `boundary.test.ts` rejects Electron/Desktop imports from every runtime
 entry. Neither test is real-provider or remote-host acceptance.
 
-The locks are process-local. The Host's entry point is `phosphor-host`
-([host.md](host.md)), a foreground CLI that checks a machine. It composes the
-session runtime with its own adapters, and no command starts a session yet.
+The locks are process-local. The Host's entry point is the `phosphor` CLI
+([host.md](host.md)), a foreground CLI that checks a machine and runs
+acceptance sessions on it. It composes the session runtime with its own
+adapters, and nothing reaches it over a network.
 There is no durable Host ownership, authenticated network API,
 snapshot/replay protocol, command receipt store or controller lease
 implementation. A Host supplies its own machine adapters and authorization: it

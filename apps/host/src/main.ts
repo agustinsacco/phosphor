@@ -1,19 +1,25 @@
-import { constants, homedir, hostname } from 'node:os'
+import { homedir, hostname } from 'node:os'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runCli } from './cli'
 import { stopProbes } from './machine/probe'
+import { createShutdown, flushStreams, SHUTDOWN_SIGNALS } from './shutdown'
 
-// Each probe leads its own process group, so a terminal's Ctrl-C never
-// reaches it. Take every probe down on the way out.
-for (const signal of ['SIGHUP', 'SIGINT', 'SIGTERM'] as const) {
-  process.once(signal, () => {
-    stopProbes()
-    process.exit(128 + constants.signals[signal])
-  })
-}
+// Each probe and each pi leads its own process group, so a terminal's Ctrl-C
+// reaches neither: the Host stops them on the way out. A second signal
+// kills every group at once. Every exit lets stdout and stderr flush first.
+const shutdown = createShutdown({
+  exit: (code) => process.exit(code),
+  stderr: (text) => process.stderr.write(text),
+  stopProbes,
+  flush: flushStreams([process.stdout, process.stderr]),
+})
+for (const signal of SHUTDOWN_SIGNALS) process.on(signal, () => void shutdown.signal(signal))
+process.on('uncaughtException', (error) => void shutdown.fatal(error))
+process.on('unhandledRejection', (error) => void shutdown.fatal(error))
 
-process.exitCode = await runCli(
+// The process ends with the command, even if a pipe of pi's is still open.
+const code = await runCli(
   process.argv.slice(2),
   {
     stdout: (text) => process.stdout.write(text),
@@ -28,5 +34,7 @@ process.exitCode = await runCli(
     nodeVersion: process.versions.node,
     // The bundle's own folder, which holds pi-ext/ beside it.
     defaultResourceRoot: dirname(fileURLToPath(import.meta.url)),
+    attach: shutdown.attach,
   },
 )
+shutdown.finish(code)
