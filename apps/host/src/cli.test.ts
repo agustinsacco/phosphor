@@ -57,6 +57,7 @@ describe('phosphor', () => {
     [['accept', '--repository', '/repo', '--lane', 'both'], '--lane is native, claude or all'],
     [['doctor', '--repository', '/repo'], 'doctor does not take --repository'],
     [['doctor', '--model', 'm'], 'doctor does not take --model'],
+    [['doctor', '--claude-model', 'm'], 'doctor does not take --claude-model'],
     [['version', '--keep-transcripts'], 'version does not take --keep-transcripts'],
     [['doctor', '--nope'], "Unknown option '--nope'"],
     [['doctor', 'extra'], 'unexpected argument "extra"'],
@@ -82,6 +83,33 @@ describe('phosphor', () => {
       ok: true,
       config: { path: machine.configPath },
     })
+  })
+
+  it("passes accept's lane, models and transcript choice through, evidence alone on stdout", async () => {
+    machine = fakeMachine({ rpc: true })
+    machine.installClaude()
+    vi.stubEnv('PI_CODING_AGENT_DIR', machine.agentDir)
+    vi.stubEnv('PATH', process.env.PATH)
+    const argv = ['accept', '--json', '--config', machine.configPath, '--repository']
+    const result = await run(
+      [
+        ...argv,
+        machine.repository,
+        '--lane',
+        'claude',
+        '--claude-model',
+        'claude-test',
+        '--keep-transcripts',
+      ],
+      {
+        env: machine.hostEnv,
+        home: machine.home,
+      },
+    )
+    expect(result.code, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout).lanes).toEqual([
+      expect.objectContaining({ lane: 'claude', model: 'claude-test', transcriptDeleted: false }),
+    ])
   })
 
   it('looks for the config in the XDG folder by default', async () => {

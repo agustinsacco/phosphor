@@ -169,7 +169,7 @@ describe('accept', { timeout: 30_000 }, () => {
 
   it.each([
     [
-      { provider: 'openai-codex' },
+      { provider: 'openai-codex', model: 'gpt-test' },
       { PI_FAKE_PROVIDER: 'another-native' },
       'runs on provider another-native, not openai-codex',
     ],
@@ -340,17 +340,50 @@ describe('accept', { timeout: 30_000 }, () => {
     expect(JSON.stringify(evidence) + progress.join('\n')).not.toContain(SECRET)
   })
 
-  it('runs the Claude lane on pi-claude-cli, after the native lane', async () => {
+  it('runs the Claude lane on pi-claude-cli and the model named, after the native lane', async () => {
     machine.installClaude()
-    const { outcome } = await accept({ lane: 'all' })
+    const { outcome } = await accept({ lane: 'all', claudeModel: 'claude-test' })
     const evidence = evidenceOf(outcome)
     expect(outcome.exitCode).toBe(0)
     expect(evidence.claude).toEqual({ cli: `${machine.bin}/claude`, version: '2.1.283' })
-    expect(evidence.lanes.map((lane) => [lane.lane, lane.verdict, lane.provider])).toEqual([
-      ['native', 'pass', 'fake'],
-      ['claude', 'pass', 'pi-claude-cli'],
+    expect(
+      evidence.lanes.map((lane) => [lane.lane, lane.verdict, lane.provider, lane.model]),
+    ).toEqual([
+      ['native', 'pass', 'fake', 'fake-model'],
+      ['claude', 'pass', 'pi-claude-cli', 'claude-test'],
     ])
     expect(JSON.stringify(evidence)).not.toContain('person@example.com')
+  })
+
+  it("runs the Claude lane on pi's default without --claude-model, failing when that is not Claude", async () => {
+    machine.installClaude()
+    const { outcome } = await accept({ lane: 'claude' })
+    expect(outcome.exitCode).toBe(1)
+    expect(evidenceOf(outcome).lanes[0]!.steps.at(-1)).toMatchObject({
+      name: 'state',
+      ok: false,
+      detail:
+        "the claude lane runs on provider fake, not pi-claude-cli: pi's default is not Claude, " +
+        "so name the lane's model with --claude-model",
+    })
+    const onClaude = await accept({
+      lane: 'claude',
+      env: { ...machine.hostEnv, PI_FAKE_PROVIDER: 'pi-claude-cli' },
+    })
+    expect(onClaude.outcome.exitCode).toBe(0)
+  })
+
+  it('fails the Claude lane on another model than --claude-model', async () => {
+    machine.installClaude()
+    const { outcome } = await accept({
+      lane: 'claude',
+      claudeModel: 'pi-claude-cli/claude-test:high',
+      env: { ...machine.hostEnv, PI_FAKE_MODEL: 'claude-other' },
+    })
+    expect(outcome.exitCode).toBe(1)
+    expect(evidenceOf(outcome).lanes[0]!.steps.at(-1)!.detail).toBe(
+      'the claude lane runs model claude-other, not claude-test',
+    )
   })
 
   it('records an unavailable Claude lane with its reason when running all lanes', async () => {
@@ -382,6 +415,7 @@ describe('accept', { timeout: 30_000 }, () => {
 
   it.each([
     [{ provider: 'pi-claude-cli' }, '--provider pi-claude-cli is the claude lane'],
+    [{ provider: 'openai-codex' }, '--provider needs --model: pi ignores it alone'],
     [{ provider: '-x' }, 'the native lane cannot start: /provider '],
     [{ repository: '/' }, 'the native lane cannot start: /repository '],
   ])(

@@ -13,22 +13,22 @@ export const FATAL_DRAIN_MS = 2000
 export const EXIT_FLUSH_MS = 1000
 
 /**
- * An exit that first lets what was written to `streams` reach its reader,
- * for `ms` at most: a reader that stopped reading must not keep the Host.
+ * A flush that calls `done` once what was written to `streams` has reached
+ * its reader, or after `ms`: a reader that stopped reading must not keep the
+ * Host.
  */
-export function exitWhenFlushed(
+export function flushStreams(
   streams: readonly { write(chunk: string, done: () => void): unknown }[],
-  exit: (code: number) => void,
   ms = EXIT_FLUSH_MS,
-): (code: number) => void {
-  return (code) => {
+): (done: () => void) => void {
+  return (done) => {
     let pending = streams.length
     let ended = false
     const end = () => {
       if (ended) return
       ended = true
       clearTimeout(timer)
-      exit(code)
+      done()
     }
     const timer = setTimeout(end, ms)
     for (const stream of streams) stream.write('', () => --pending === 0 && end())
@@ -47,6 +47,8 @@ export interface ShutdownIo {
   stderr(text: string): void
   /** Kill every version probe still running: each leads its own process group. */
   stopProbes(): void
+  /** Call `done` once stdout and stderr have flushed. Without it, an exit is immediate. */
+  flush?(done: () => void): void
 }
 
 /**
@@ -61,7 +63,9 @@ export interface ShutdownIo {
  * command can finish while a signal's drain still runs. A command's end
  * exits too, with its code, unless such a drain decides it: the pipes of a
  * pi whose stop never ended, held open by a process that left its group,
- * would otherwise keep the Host running.
+ * would otherwise keep the Host running. Every exit flushes first, and its
+ * code is read only once the flush ends, so a fatal error during it still
+ * exits 70, its message flushed too.
  */
 export function createShutdown(io: ShutdownIo, options: { fatalDrainMs?: number } = {}) {
   const fatalDrainMs = options.fatalDrainMs ?? FATAL_DRAIN_MS
@@ -70,13 +74,28 @@ export function createShutdown(io: ShutdownIo, options: { fatalDrainMs?: number 
   // drain, so a later signal or error must still reach it, to force it.
   let draining: Drainable | null = null
   const target = () => current ?? draining
+  // An exit was asked for, with this code; it happens once every flush ends.
   let exited = false
-  // Set by a fatal error, so that a signal's drain ending first exits 70 too.
+  let exitCode: number = EXIT.internal
+  let flushing = 0
+  let ended = false
+  // Set by a fatal error, so that any exit not yet made is 70.
   let fatal = false
+  const settle = () => {
+    if (--flushing > 0 || ended) return
+    ended = true
+    io.exit(fatal ? EXIT.internal : exitCode)
+  }
+  const flush = () => {
+    flushing++
+    if (io.flush) io.flush(settle)
+    else settle()
+  }
   const exit = (code: number) => {
     if (exited) return
     exited = true
-    io.exit(fatal ? EXIT.internal : code)
+    exitCode = code
+    flush()
   }
   async function drained(target: Drainable, reason: string): Promise<boolean> {
     draining = target
@@ -115,10 +134,14 @@ export function createShutdown(io: ShutdownIo, options: { fatalDrainMs?: number 
       const text = errorText(error)
       if (!host) {
         io.stderr(`phosphor: internal error: ${text}\n`)
+        // An exit already flushing waits for this message too, and exits 70.
+        if (exited) return flush()
         return exit(EXIT.internal)
       }
       host.log.write('host', 'fatal error', { error: text })
       io.stderr(`phosphor: internal error: ${host.log.hide(text)}\n`)
+      // An exit already flushing waits for this message too.
+      if (exited) flush()
       const hurry = setTimeout(() => void host.drain('fatal error, hurried'), fatalDrainMs)
       try {
         await drained(host, 'fatal error')

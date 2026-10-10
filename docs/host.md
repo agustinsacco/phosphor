@@ -19,7 +19,8 @@ every library import against the package's exports.
 ```
 phosphor doctor [--config FILE] [--json]
 phosphor accept --repository DIR [--lane native|claude|all] [--keep-transcripts]
-                [--provider NAME] [--model ID] [--config FILE] [--json]
+                [--model ID [--provider NAME]] [--claude-model ID]
+                [--config FILE] [--json]
 phosphor version [--json]
 ```
 
@@ -62,10 +63,13 @@ before the replacement. The build runs in a new folder beside the output
 (`apps/host/scripts/output.mjs`). At the end the earlier build is moved aside,
 the new one moved in, and the earlier one deleted only then; if the new one
 cannot take its place, the earlier one is moved back. A failure removes only the
-new folder and leaves the output as it was. An earlier build that cannot be
-deleted is left beside the output, and the build names it. A build killed
-outright can leave a `.phosphor-build-*` folder. Nothing is signed; real
-versions and signed bundles are component 23's.
+new folder and leaves the output as it was, with one exception: if the earlier
+build cannot be moved back either, the output is gone and the build names the
+folder beside it that holds the earlier one. An earlier build that cannot be
+deleted once the new one is in place is left beside the output, possibly in
+part, and the build names it. A build killed outright can leave a
+`.phosphor-build-*` folder. Nothing is signed; real versions and signed bundles
+are component 23's.
 
 `bundle.test.ts` builds into a scratch folder and checks `BUILD-INFO.json`
 against the files, the imports, and `pi-ext/`, and that a folder that is not an
@@ -194,13 +198,17 @@ empty one that Desktop never opens: nothing guards a transcript against a second
 runtime until component 06. accept runs doctor first, and if the machine fails
 it, prints doctor's report and exits with doctor's code.
 
-`--lane native` runs on pi's default provider and model, or on those
-`--provider` and `--model` name, and `claude` runs on `pi-claude-cli`. Name a
-native provider when pi's default is Claude. The lane must run on the provider
-named, or on pi's default when none is, which must be some provider other than
-`pi-claude-cli`. It must also run on the model named: pi's model id, which may
-carry a `:level` thinking suffix or be written `provider/id`, with the provider
-named or, when none is, the one the lane runs on.
+`--lane native` runs on pi's default provider and model, or on the model
+`--model` names, which `--provider` can narrow to one provider. pi ignores a
+provider named without a model, so `--provider` alone exits 64. Name a native
+model when pi's default is Claude. The lane must run on the provider named, or
+on pi's default when none is, which must be some provider other than
+`pi-claude-cli`. `claude` runs on `pi-claude-cli` and the model `--claude-model`
+names; without one it runs on pi's default, which must then be Claude, and the
+state step fails with a hint if it is not. Each lane must run on the model
+named: pi's model id, which may carry a `:level` thinking suffix or be written
+`provider/id`, with the provider named or, when none is, the one the lane runs
+on.
 `all`, the default, runs native and then Claude, if doctor finds the Claude lane
 available; otherwise that lane is recorded as unavailable with doctor's reason.
 Asked for alone, an unavailable Claude lane exits 69. Each lane's request is
@@ -380,9 +388,10 @@ forces the drain. An uncaught exception or unhandled rejection is logged,
 printed redacted and drained, with every group killed if the drain still runs 2
 s later, and the Host exits 70. One during a signal's drain forces that drain,
 and the Host exits 70, not the signal's code. Every exit first lets stdout and
-stderr flush, for 1 s at most. The Host exits when its command ends, unless a
-signal's drain is still running: a pipe of pi's held open by a process that left
-its group would otherwise keep it running.
+stderr flush, for 1 s at most. The code is read when the flush ends, so a fatal
+error during it still exits 70, after flushing its message too. The Host exits
+when its command ends, unless a signal's drain is still running: a pipe of pi's
+held open by a process that left its group would otherwise keep it running.
 
 ### Log
 

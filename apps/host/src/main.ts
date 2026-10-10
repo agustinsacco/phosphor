@@ -3,15 +3,16 @@ import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { runCli } from './cli'
 import { stopProbes } from './machine/probe'
-import { createShutdown, exitWhenFlushed, SHUTDOWN_SIGNALS } from './shutdown'
+import { createShutdown, flushStreams, SHUTDOWN_SIGNALS } from './shutdown'
 
 // Each probe and each pi leads its own process group, so a terminal's Ctrl-C
 // reaches neither: the Host stops them on the way out. A second signal
 // kills every group at once. Every exit lets stdout and stderr flush first.
 const shutdown = createShutdown({
-  exit: exitWhenFlushed([process.stdout, process.stderr], (code) => process.exit(code)),
+  exit: (code) => process.exit(code),
   stderr: (text) => process.stderr.write(text),
   stopProbes,
+  flush: flushStreams([process.stdout, process.stderr]),
 })
 for (const signal of SHUTDOWN_SIGNALS) process.on(signal, () => void shutdown.signal(signal))
 process.on('uncaughtException', (error) => void shutdown.fatal(error))

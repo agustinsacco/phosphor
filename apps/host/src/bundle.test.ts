@@ -283,16 +283,23 @@ describe('the Host bundle', () => {
         { env: { ...minimal(), FAKE_PI_ESCAPE: escaped }, stdio: 'ignore' },
       )
       const exited = once(host, 'exit')
-      const pid = Number(
-        await until(() => existsSync(escaped) && readFileSync(escaped, 'utf8'), 'pi'),
-      )
+      let pid: number | undefined
+      const late = new AbortController()
       try {
+        pid = Number(await until(() => existsSync(escaped) && readFileSync(escaped, 'utf8'), 'pi'))
         // The dispose step's stop never ends: a cleanup failure, after its 20 s.
-        expect(await exited).toEqual([70, null])
+        const ended = await Promise.race([
+          exited,
+          sleep(40_000, 'still running', { signal: late.signal }),
+        ])
+        expect(ended).toEqual([70, null])
         // It still holds the pipes, so they did not end the Host: its exit did.
         expect(isGone(pid)).toBe(false)
       } finally {
-        process.kill(pid, 'SIGKILL')
+        // A failed run must not leave the Host or the escaped process behind.
+        late.abort()
+        if (host.exitCode === null && host.signalCode === null) host.kill('SIGKILL')
+        if (pid) process.kill(pid, 'SIGKILL')
       }
     },
   )

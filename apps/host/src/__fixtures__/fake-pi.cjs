@@ -214,7 +214,8 @@ function prompt(message) {
 function state() {
   return {
     model: {
-      provider: process.env.PI_FAKE_PROVIDER ?? flag('--provider') ?? 'fake',
+      // Like pi, it takes --provider only together with --model.
+      provider: process.env.PI_FAKE_PROVIDER ?? (flag('--model') && flag('--provider')) ?? 'fake',
       id: process.env.PI_FAKE_MODEL ?? flag('--model') ?? 'fake-model',
       contextWindow: 200000,
     },

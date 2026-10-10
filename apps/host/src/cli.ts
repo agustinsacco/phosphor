@@ -13,11 +13,13 @@ export const USAGE = `usage: phosphor <command>
 
   doctor [--config FILE] [--json]   check that this machine can run a Host
   accept --repository DIR [--lane native|claude|all] [--keep-transcripts]
-         [--provider NAME] [--model ID] [--config FILE] [--json]
+         [--model ID [--provider NAME]] [--claude-model ID]
+         [--config FILE] [--json]
                                     run real sessions in DIR, an empty repository
                                     from the config, and report what they proved;
                                     --provider and --model choose what the native
-                                    lane runs on
+                                    lane runs on, --claude-model the Claude lane's
+                                    model
   version [--json]                  print the Host's version
 
 exit codes: 0 ok, 1 an acceptance check failed, 64 usage, 69 prerequisite unavailable,
@@ -37,7 +39,16 @@ export type CliContext = Omit<DoctorContext, 'configPath'> & {
 
 const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   doctor: ['config', 'json'],
-  accept: ['config', 'json', 'repository', 'lane', 'keep-transcripts', 'provider', 'model'],
+  accept: [
+    'config',
+    'json',
+    'repository',
+    'lane',
+    'keep-transcripts',
+    'provider',
+    'model',
+    'claude-model',
+  ],
   version: ['json'],
 }
 
@@ -96,6 +107,7 @@ export async function runCli(
         lane: lane as AcceptLane | 'all',
         keepTranscripts: values['keep-transcripts'] ?? false,
         provider: values.provider,
+        claudeModel: values['claude-model'],
         model: values.model,
         progress: (line) => io.stderr(`${line}\n`),
       })
@@ -132,6 +144,7 @@ function parse(argv: readonly string[]) {
       lane: { type: 'string' },
       'keep-transcripts': { type: 'boolean' },
       provider: { type: 'string' },
+      'claude-model': { type: 'string' },
       model: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
     },

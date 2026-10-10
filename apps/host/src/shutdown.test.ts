@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createShutdown, exitWhenFlushed, type Drainable } from './shutdown'
+import { createShutdown, flushStreams, type Drainable } from './shutdown'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -199,35 +199,72 @@ describe('shutdown', () => {
   })
 })
 
-describe('exitWhenFlushed', () => {
+describe('flushStreams', () => {
   /** A stream whose writes call back when the test says. */
   function stream() {
     const pending: (() => void)[] = []
     return { pending, write: (_: string, done: () => void) => void pending.push(done) }
   }
 
-  it('exits once every stream has flushed', () => {
-    const exit = vi.fn()
+  it('is done once every stream has flushed', () => {
+    const done = vi.fn()
     const [out, err] = [stream(), stream()]
-    exitWhenFlushed([out, err], exit)(3)
+    flushStreams([out, err])(done)
     out.pending[0]!()
-    expect(exit).not.toHaveBeenCalled()
+    expect(done).not.toHaveBeenCalled()
     err.pending[0]!()
-    expect(exit.mock.calls).toEqual([[3]])
+    expect(done).toHaveBeenCalledTimes(1)
   })
 
-  it('exits after its limit when a stream never flushes, and only once', () => {
+  it('is done after its limit when a stream never flushes, and only once', () => {
     vi.useFakeTimers()
-    const exit = vi.fn()
+    const done = vi.fn()
     const [out, err] = [stream(), stream()]
-    exitWhenFlushed([out, err], exit, 1000)(70)
+    flushStreams([out, err], 1000)(done)
     out.pending[0]!()
     vi.advanceTimersByTime(999)
-    expect(exit).not.toHaveBeenCalled()
+    expect(done).not.toHaveBeenCalled()
     vi.advanceTimersByTime(1)
-    expect(exit.mock.calls).toEqual([[70]])
-    // A flush that arrives late does not exit again.
+    expect(done).toHaveBeenCalledTimes(1)
+    // A flush that arrives late is not done again.
     err.pending[0]!()
-    expect(exit.mock.calls).toEqual([[70]])
+    expect(done).toHaveBeenCalledTimes(1)
   })
+})
+
+describe('an exit that flushes', () => {
+  /** A shutdown whose flushes end when the test says. */
+  function flushing() {
+    const flushes: (() => void)[] = []
+    const { calls, io } = harness()
+    const held = { ...io, flush: vi.fn((done: () => void) => void flushes.push(done)) }
+    return { calls, io: held, flushes, shutdown: createShutdown(held) }
+  }
+
+  it("exits with the command's code once its flush ends", () => {
+    const { io, flushes, shutdown } = flushing()
+    shutdown.finish(0)
+    expect(io.exit).not.toHaveBeenCalled()
+    flushes[0]!()
+    expect(io.exit.mock.calls).toEqual([[0]])
+  })
+
+  it.each([
+    ['a command', (shutdown: ReturnType<typeof createShutdown>) => void shutdown.finish(0)],
+    ['a signal', (shutdown: ReturnType<typeof createShutdown>) => void shutdown.signal('SIGTERM')],
+  ])(
+    'exits 70 on a fatal error while the exit of %s flushes, its message flushed too',
+    async (_, ending) => {
+      const { calls, io, flushes, shutdown } = flushing()
+      ending(shutdown)
+      await shutdown.fatal(new Error('boom'))
+      expect(calls).toContain('stderr phosphor: internal error: boom\n')
+      // The exit waits for a second flush, which carries the message.
+      expect(io.flush).toHaveBeenCalledTimes(2)
+      flushes[0]!()
+      expect(io.exit).not.toHaveBeenCalled()
+      flushes[1]!()
+      expect(io.exit.mock.calls).toEqual([[70]])
+    },
+  )
 })

@@ -48,6 +48,8 @@ export interface AcceptContext extends DoctorContext {
   /** The native lane's provider and model, when pi's defaults would not do: pi-claude-cli, say. */
   provider?: string
   model?: string
+  /** The Claude lane's model. Without it the lane runs on pi's default, which must be Claude. */
+  claudeModel?: string
   keepTranscripts: boolean
   /** One line of progress at a time, for stderr. */
   progress: (line: string) => void
@@ -142,6 +144,10 @@ export async function runAccept(context: AcceptContext): Promise<AcceptOutcome> 
       return { exitCode: EXIT.usage, problem: `the ${lane} lane cannot start: ${problems}` }
     }
   }
+  // pi starts on a named provider only together with a model: alone, it is ignored.
+  if (context.provider !== undefined && context.model === undefined) {
+    return { exitCode: EXIT.usage, problem: '--provider needs --model: pi ignores it alone' }
+  }
   const timings = { ...ACCEPT_TIMINGS, ...context.timings }
   const drainTimings = { ...DRAIN, ...context.drainTimings }
   const log = createHostLog(hostLogDirectory(context.env, context.home), secrets)
@@ -216,7 +222,13 @@ export function acceptExitCode(
 
 /** What a lane asks the runtime for: Claude through its provider, native on the defaults or as named. */
 function laneRequest(lane: AcceptLane, context: AcceptContext): HostSessionRequest {
-  if (lane === 'claude') return { repository: context.repository, provider: CLAUDE_PROVIDER }
+  if (lane === 'claude') {
+    return {
+      repository: context.repository,
+      provider: CLAUDE_PROVIDER,
+      ...(context.claudeModel !== undefined && { model: context.claudeModel }),
+    }
+  }
   return {
     repository: context.repository,
     ...(context.provider !== undefined && { provider: context.provider }),
@@ -360,11 +372,18 @@ async function runLane(
       const native = lane === 'native' && result.provider && result.provider !== CLAUDE_PROVIDER
       if (provider ? result.provider !== provider : !native) {
         const asked = provider ? `, not ${provider}` : ''
-        throw new Error(`the ${lane} lane runs on provider ${result.provider ?? 'none'}${asked}`)
+        // pi ignores --provider without --model, and runs on its own default.
+        const hint =
+          lane === 'claude' && !context.claudeModel
+            ? ": pi's default is not Claude, so name the lane's model with --claude-model"
+            : ''
+        throw new Error(
+          `the ${lane} lane runs on provider ${result.provider ?? 'none'}${asked}${hint}`,
+        )
       }
       // Without --provider, a model named provider/id is read against pi's provider.
-      const model =
-        lane === 'native' && context.model && modelId(context.model, provider ?? result.provider)
+      const named = lane === 'claude' ? context.claudeModel : context.model
+      const model = named && modelId(named, provider ?? result.provider)
       if (model && result.model !== model) {
         throw new Error(`the ${lane} lane runs model ${result.model ?? 'none'}, not ${model}`)
       }
