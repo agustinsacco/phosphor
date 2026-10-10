@@ -1,6 +1,12 @@
 import { useState } from 'react'
 import clsx from 'clsx'
-import type { McpResolvedServer, McpServerConfig, McpWriteScope } from '@shared/mcp'
+import {
+  directToolsText,
+  parseDirectToolsText,
+  type McpResolvedServer,
+  type McpServerConfig,
+  type McpWriteScope,
+} from '@shared/mcp'
 import { Button, TextInput } from '@/components/form'
 
 /**
@@ -24,7 +30,8 @@ export function ServerEditor({
   const [command, setCommand] = useState(
     [initial?.config.command, ...(initial?.config.args ?? [])].filter(Boolean).join(' '),
   )
-  const [directTools, setDirectTools] = useState((initial?.config.directTools ?? []).join(', '))
+  // `true` and "search" are adapter forms too; a list-only reading threw on them.
+  const [directTools, setDirectTools] = useState(directToolsText(initial?.config.directTools))
   const editableScope: McpWriteScope =
     initial?.scope === 'pi-global' || initial?.scope === 'pi-project' ? initial.scope : 'pi-global'
   const [scope, setScope] = useState<McpWriteScope>(editableScope)
@@ -42,11 +49,8 @@ export function ServerEditor({
       if (args.length) config.args = args
       else delete config.args
     }
-    const tools = directTools
-      .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean)
-    if (tools.length) config.directTools = tools
+    const tools = parseDirectToolsText(directTools)
+    if (tools !== undefined) config.directTools = tools
     else delete config.directTools
     onSave(scope, name.trim(), config)
   }
@@ -91,7 +95,7 @@ export function ServerEditor({
       <TextInput
         value={directTools}
         onChange={(e) => setDirectTools(e.target.value)}
-        placeholder="directTools (comma-separated, optional)"
+        placeholder="directTools: tool names, comma-separated, or all (optional)"
         className="w-full font-mono"
       />
       {initial === null && (

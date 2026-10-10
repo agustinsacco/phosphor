@@ -16,6 +16,7 @@ import type {
 } from './rpc'
 import type { ArtifactListing, ArtifactSnapshot } from './artifacts'
 import type { ConnectorCheckResult } from './connectors'
+import type { ContextFileKind } from './context-files'
 import type {
   RoutineCheck,
   RoutineInput,
@@ -271,6 +272,15 @@ export interface IpcInvokeMap {
     result: void
   }
   'app:setContextBudget': { args: [value: string]; result: void }
+  /**
+   * Include or leave out one kind of context file. Always updates the
+   * preference new lanes start with; with a `sessionId`, also that running
+   * lane (from its next model request). Other lanes are left alone.
+   */
+  'app:setContextFile': {
+    args: [kind: ContextFileKind, included: boolean, sessionId?: string]
+    result: void
+  }
   'app:setRecentWorkspaces': { args: [WorkspaceInfo[]]; result: void }
   /** Absolute path of the main-process debug log, or null if it could not be opened. */
   'app:debugLogPath': { args: []; result: string | null }

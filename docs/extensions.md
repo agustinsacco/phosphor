@@ -255,7 +255,7 @@ The private `@phosphor/pi-extensions` source package keeps these standalone
 files and adjacent tests together. Development resolves the resource root at
 `libs/pi-extensions`; packaged apps still read `resources/pi-ext`, outside the
 asar. The builder copies the same non-test TypeScript inventory, including
-`context-budget.ts` imported by `context-breakdown.ts`, `artifact-store.ts`
+`context-budget.ts` and `context-files.ts` imported by `context-breakdown.ts`, `artifact-store.ts`
 imported by `artifacts.ts`, and the optional gate.
 Optional Python helpers remain in the source tree, not the shipped resource filter.
 
@@ -452,6 +452,22 @@ system prompt sends the model to absolute paths outside the cwd for its docs.
 is cloned at idle or safe turn boundaries so pi performs native compaction
 without aborting a run. See [One context budget](cli-providers.md#one-context-budget).
 
+`context-breakdown.ts` also installs the per-lane CLAUDE.md / AGENTS.md filter
+from `context-files.ts` (the composer checkboxes, [chat.md](chat.md#context-files)).
+pi has no per-file switch (`--no-context-files` drops both, and only at
+startup), so the filter strips the disabled files' `<project_instructions>`
+blocks from the `project_context` section in `context_with_system`, before
+**every** model request. Not `before_agent_start`: a run that starts without a
+user prompt (a sub-agent's completion waking the parent) rebuilds the prompt
+from pi's unfiltered base options, which let a disabled file back in. The
+transcript keeps pi's own sections, so a file turned back on is sent again from
+the next request with no restart. The starting state arrives in
+`PHOSPHOR_CONTEXT_FILES` and changes as the host-only `/phosphor-context-files`
+command (`claude=off agents=on`), which pi runs at once, mid-turn included,
+with no model. Files are matched by name in every directory pi searched, its
+agent directory included (`AGENTS.override.md` counts as AGENTS.md). The
+parser expects pi's rendering verbatim; an unknown shape is sent unchanged.
+
 `context-breakdown.ts` exists because pi reports context usage as one number,
 and the composed system prompt and active tool schemas are not reachable from
 the renderer. Three traps: `getAllTools()` returns definitions (the schemas that
@@ -466,7 +482,9 @@ is text in its message, not a cut point. It attributes MCP schema cost **per
 server** using the adapter's server names and `toolCount` from pi's shared
 event bus (`pi-mcp-adapter/status/v1`), and reports per server how many
 schemas are in the window and how many of those are the server's own tools
-rather than the gateway proxy.
+rather than the gateway proxy. Its `contextFiles` field lists the
+CLAUDE.md / AGENTS.md files pi found, their approximate cost and which kinds
+the lane leaves out; the system-prompt estimate excludes the left-out ones.
 
 `mcp-status.ts` exists for the same reason in the other direction: the adapter
 publishes each server's state on that bus, but pi's RPC has no channel for it.
@@ -482,7 +500,7 @@ disagree.
 
 | Key                          | Emitter                                          | Consumer                                                                                                                   |
 | ---------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
-| `phosphor-context-breakdown` | `libs/pi-extensions/pi-ext/context-breakdown.ts` | `chat/composer/contextBreakdown.ts` → ContextMeter                                                                         |
+| `phosphor-context-breakdown` | `libs/pi-extensions/pi-ext/context-breakdown.ts` | `chat/composer/contextBreakdown.ts` → ContextMeter, context-file checkboxes                                                |
 | `phosphor-mcp-status`        | `libs/pi-extensions/pi-ext/mcp-status.ts`        | `connectors/mcpStatus.ts` → Connectors, footer                                                                             |
 | `phosphor-headroom`          | `libs/pi-extensions/pi-ext/headroom.ts`          | `chat/composer/headroomStatus.ts` → ContextMeter (Optimization section)                                                    |
 | `claude-rate-limit`          | `@saccolabs/pi-claude-cli` ≥ 0.4.5               | `chat/composer/rateLimit.ts` → ContextMeter, RateLimitBanner; `libs/shared/src/claude-limits.ts` → account routing in main |

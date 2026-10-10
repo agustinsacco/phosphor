@@ -52,6 +52,8 @@ export const BADGE_LABELS: Record<CommandBadge, string> = {
  * Commands kept out of the browse list, with what replaces them. They still
  * resolve when typed — the menu is a discovery surface, not a permission one.
  *
+ * `/phosphor-context-files` is a host control the composer's checkboxes send.
+ *
  * `/mcp-auth`: Phosphor drives this command itself from Settings ▸ MCP
  * Connectors, and docs/mcp.md is explicit about why a hand-run flow is the
  * dangerous one — pi's RPC has no dialog cancel, so the adapter's "paste the
@@ -60,6 +62,7 @@ export const BADGE_LABELS: Record<CommandBadge, string> = {
  */
 const DEMOTED: Record<string, string> = {
   'mcp-auth': 'Phosphor runs this for you from Settings ▸ MCP Connectors.',
+  'phosphor-context-files': 'Phosphor runs this for you from the CLAUDE.md / AGENTS.md checkboxes.',
 }
 
 /**

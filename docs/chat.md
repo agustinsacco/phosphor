@@ -362,10 +362,31 @@ never a polling transcript service.
   renders with no `href`, so no click can navigate the window away. Other
   schemes do nothing.
 
+## Context files
+
+Both composers carry two checkboxes beside the attach button, **CLAUDE.md**
+and **AGENTS.md** (`composer/ContextFileToggles.tsx`). Unchecked, the model is
+not sent the files of that name that pi found for the lane, which can be
+thousands of tokens on every request.
+
+- **Home composer:** sets what new lanes start with (`AppPrefs.contextFiles`,
+  default both on). Main hands it to pi at spawn.
+- **In a lane:** changes that lane from its next model request, mid-turn
+  included, with no restart, and also the starting state of new lanes, so the
+  last choice sticks. Other running lanes keep their own state. A lane's boxes
+  show what its pi reports, not the preference; the tooltip names each file
+  and its approximate cost, and a dimmed label means the lane has no such
+  file.
+
+The filter runs inside pi ([extensions.md](extensions.md#bundled-extensions-phosphors-own))
+and leaves the session file untouched. Shared rules live in
+`libs/shared/src/context-files.ts`; the IPC is `app:setContextFile`.
+
 ## Session controls (per session)
 
 The model chip, thinking chip and context meter live in the **composer
-footer** (`Composer.tsx`, right of the attach button); the session's ⋮ menu is
+footer** (`Composer.tsx`, on the right; the attach button and the
+[context-file checkboxes](#context-files) are on the left); the session's ⋮ menu is
 in the **top bar** (`app/TopBar.tsx` → `SessionMenu`).
 
 - **Model picker** (from `get_available_models`), grouped by **family** by

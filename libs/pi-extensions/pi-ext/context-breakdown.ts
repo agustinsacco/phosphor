@@ -27,6 +27,7 @@
  */
 
 import contextBudget, { type BudgetApi } from './context-budget'
+import contextFiles, { contextFilesIn, type ContextFileInfo } from './context-files'
 
 interface PiExtensionApi extends BudgetApi {
   on(event: string, handler: (event: unknown, ctx: unknown) => unknown): void
@@ -89,6 +90,8 @@ export interface ContextBreakdown {
   counts: { tools: number; mcpTools: number; messages: number }
   /** Approximate MCP schema cost per server — which connector costs what. */
   mcpByServer: Record<string, McpServerCost>
+  /** CLAUDE.md / AGENTS.md this lane found, and which it leaves out (context-files.ts). */
+  contextFiles: { off: string[]; files: ContextFileInfo[] }
   /** Always true — see the file header. Consumers must say so. */
   approximate: true
 }
@@ -275,6 +278,11 @@ export function measureMessages(entries: SessionEntryLike[]): { tokens: number; 
 
 export default function contextBreakdownExtension(pi: PiExtensionApi): void {
   contextBudget(pi)
+  // A toggle runs no turn, so publish from the command itself.
+  const files = contextFiles(pi, (ctx) => {
+    latestContext = ctx as ExtensionContext
+    publish(latestContext)
+  })
   // Server names and tool totals come from the MCP adapter's status snapshots
   // on pi's shared event bus. Absent (no adapter, or an older one),
   // classification falls back to the `mcp__` namespace form and the chips
@@ -373,18 +381,25 @@ export default function contextBreakdownExtension(pi: PiExtensionApi): void {
         ? manager.buildContextEntries()
         : contextEntriesOf((manager?.getBranch?.() ?? []) as SessionEntryLike[])
     const messages = measureMessages(rawEntries as SessionEntryLike[])
+    // pi's prompt still holds a file the lane leaves out; the model is not sent it.
+    const off = files.off()
+    const foundFiles = contextFilesIn(systemPrompt, off)
+    const omitted = foundFiles
+      .filter((file) => !file.included)
+      .reduce((sum, file) => sum + file.tokens, 0)
 
     const breakdown: ContextBreakdown = {
       totalTokens: typeof usage?.tokens === 'number' ? usage.tokens : null,
       contextWindow: typeof usage?.contextWindow === 'number' ? usage.contextWindow : null,
       parts: {
         messages: messages.tokens,
-        systemPrompt: estimateTokens(systemPrompt),
+        systemPrompt: Math.max(0, estimateTokens(systemPrompt) - omitted),
         tools: toolTokens,
         mcpTools: mcpToolTokens,
       },
       counts: { tools: tools.length - mcpCount, mcpTools: mcpCount, messages: messages.count },
       mcpByServer,
+      contextFiles: { off: [...off], files: foundFiles },
       approximate: true,
     }
 

@@ -182,7 +182,9 @@ you want to watch.
   loaded with `-e` into every session; listed in `bundledExtensions()` in
   `libs/session-runtime/src/bundled-extensions.ts`). They are the only Phosphor code with a
   say inside a turn. The context extension caps the session window for native
-  compaction; two others can change or refuse what the model did:
+  compaction and drops the CLAUDE.md / AGENTS.md files a lane has unchecked
+  from every request (`context-files.ts`, [chat.md](docs/chat.md#context-files));
+  two others can change or refuse what the model did:
   - **`worktree-paths.ts` can refuse a tool call.** It blocks a
     `read`/`write`/`edit`/`ls`/`grep`/`find` whose path escapes a worktree
     session into the repo's main checkout (a different branch) when the same

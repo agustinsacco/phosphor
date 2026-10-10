@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { DEFAULT_FONT_PREFS, type FontPrefs, type ThemePreference } from '@shared/models'
 import { useLanePrefsStore } from './lanePrefs'
 import { useContextBudgetStore } from './contextBudgetPref'
+import { useContextFilesPrefStore } from './contextFilesPref'
 
 interface SettingsState {
   theme: ThemePreference
@@ -89,6 +90,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
       // the one prefs round-trip, so it fills them too.
       useLanePrefsStore.getState().applyLanePrefs(prefs.lanes)
       useContextBudgetStore.getState().applyContextBudget(prefs.contextBudget)
+      useContextFilesPrefStore.getState().apply(prefs.contextFiles)
     },
   }
 })

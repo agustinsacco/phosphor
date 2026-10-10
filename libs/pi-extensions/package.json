@@ -20,6 +20,10 @@
       "types": "./pi-ext/context-budget.ts",
       "default": "./pi-ext/context-budget.ts"
     },
+    "./context-files": {
+      "types": "./pi-ext/context-files.ts",
+      "default": "./pi-ext/context-files.ts"
+    },
     "./headroom": {
       "types": "./pi-ext/headroom.ts",
       "default": "./pi-ext/headroom.ts"

@@ -26,13 +26,14 @@ const appRoot = resolve(import.meta.dirname, '../..')
 const root = resolve(appRoot, '../..')
 const library = join(root, 'libs/pi-extensions')
 // This is the existing unpacked production inventory, including the imported
-// budget helper, the artifact store format the artifacts extension reads, and
+// budget and context-file helpers, the artifact store format the artifacts extension reads, and
 // the optional gate. Python helpers remain source-only as before.
 const shippedFiles = [
   'artifact-store.ts',
   'artifacts.ts',
   'context-breakdown.ts',
   'context-budget.ts',
+  'context-files.ts',
   'headroom.ts',
   'mcp-status.ts',
   'optional/permission-gate.ts',
@@ -100,6 +101,7 @@ describe('standalone pi extension resources', () => {
         tsconfig: join(appRoot, 'tsconfig.node.json'),
       })
       expect(Object.keys(bundle.metafile.inputs)).toContain('resources/pi-ext/context-budget.ts')
+      expect(Object.keys(bundle.metafile.inputs)).toContain('resources/pi-ext/context-files.ts')
       expect(Object.keys(bundle.metafile.inputs)).toContain('resources/pi-ext/artifact-store.ts')
       expect(bundle.outputFiles).toHaveLength(6)
       for (const output of Object.values(bundle.metafile.outputs)) {

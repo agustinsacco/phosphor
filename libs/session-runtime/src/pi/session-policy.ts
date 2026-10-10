@@ -1,4 +1,5 @@
 import type { AppPrefs, CreateSessionOptions, GitInfo, PiPackageEntry } from '@shared/models'
+import { CONTEXT_FILES_ENV, contextFilesEnvValue } from '@shared/context-files'
 import { composeDirectives } from './directives'
 import { assertClaudeContextProvider, usesClaudeCliProvider } from './provider-detect'
 import type { PiSpawnOptions } from './rpc-client'
@@ -13,7 +14,8 @@ export interface SessionExecution {
 /** Machine-local inputs. These are trusted dependencies, never remote spawn options. */
 export interface SessionPolicyRuntime {
   git: (cwd: string) => Promise<GitInfo>
-  preferences: () => Pick<AppPrefs, 'agentDirectives' | 'agentDirectivesByProject'>
+  preferences: () => Pick<AppPrefs, 'agentDirectives' | 'agentDirectivesByProject'> &
+    Partial<Pick<AppPrefs, 'contextFiles'>>
   defaultProvider: (cwd: string) => Promise<string | undefined>
   packages: (cwd: string) => Promise<Pick<PiPackageEntry, 'name' | 'version' | 'installed'>[]>
   account: (options: { sessionPath?: string }) => Promise<{
@@ -58,6 +60,12 @@ export async function prepareSessionPolicy(
     : null
   if (account) Object.assign(env, account.env)
   if (!stub) Object.assign(env, runtime.compressionEnvironment())
+  // The lane's starting state for the bundled context-files filter. Always
+  // set, so a value inherited from Phosphor's own environment cannot leak in.
+  if (!stub)
+    env[CONTEXT_FILES_ENV] = prefs.contextFiles
+      ? (contextFilesEnvValue(prefs.contextFiles) ?? '')
+      : ''
   // pi reads its settings at process startup, so this must complete before create().
   if (!stub) await runtime.resetCompaction()
   return {

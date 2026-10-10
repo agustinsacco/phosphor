@@ -30,6 +30,11 @@ import {
 } from '@shared/models'
 import { type FeedbackPrefs, normalizeFeedbackPrefs } from '@shared/feedback'
 import { isValidContextBudgetValue } from '@shared/context-budget'
+import {
+  normalizeContextFilePrefs,
+  type ContextFileKind,
+  type ContextFilePrefs,
+} from '@shared/context-files'
 import { migrateRenamedPrefs, type RawPrefs } from './prefs-migrations'
 
 /**
@@ -160,6 +165,7 @@ export function getPrefs(): AppPrefs {
     // `.trim()`, the settings tab and the context meter included. '' is the
     // default budget, the same as unset.
     contextBudget: stringOrEmpty(s.get('contextBudget')),
+    contextFiles: normalizeContextFilePrefs(s.get('contextFiles')),
     drafts: s.get('drafts') ?? {},
   }
 }
@@ -249,6 +255,17 @@ export function setContextBudget(value: string): void {
     throw new Error('Invalid context budget.')
   }
   prefs().set('contextBudget', trimmed)
+}
+
+/** See AppPrefs.contextFiles. Sets one kind; the other keeps its stored value. */
+export function setContextFile(kind: ContextFileKind, included: boolean): ContextFilePrefs {
+  if (kind !== 'claude' && kind !== 'agents') throw new Error('Invalid context file kind.')
+  const next = {
+    ...normalizeContextFilePrefs(prefs().get('contextFiles')),
+    [kind]: included === true,
+  }
+  prefs().set('contextFiles', next)
+  return next
 }
 
 /** Record that the user has viewed a session's current state. */

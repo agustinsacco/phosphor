@@ -2649,8 +2649,9 @@ test('Connectors: resolved rows, disable toggle, add custom server', async () =>
 
     // The seeded global server resolves into the list. It is in the
     // "Connected" section, which renders BEFORE the catalog — so the
-    // first checkbox on the page is its own enabled toggle, not a
-    // read-only box belonging to some unconfigured catalog entry.
+    // first checkbox in the dialog is its own enabled toggle, not a
+    // read-only box belonging to some unconfigured catalog entry. Scoped to
+    // the dialog: the home composer behind it has checkboxes of its own.
     await expect(page.getByText('linear', { exact: true })).toBeVisible()
     await expect(page.getByText('https://mcp.linear.app/sse').first()).toBeVisible()
     await expect(page.getByRole('alert').filter({ hasText: 'does not migrate' })).toBeVisible()
@@ -2660,7 +2661,7 @@ test('Connectors: resolved rows, disable toggle, add custom server', async () =>
     // Disable writes `"disabled": true` into the owning file. Plain click:
     // the checkbox is controlled and only re-renders after the IPC round
     // trip, which uncheck()'s immediate post-click assertion would race.
-    await page.getByRole('checkbox').first().click()
+    await page.getByRole('dialog').getByRole('checkbox').first().click()
     await expect
       .poll(async () => {
         const raw = await readFile(join(soloAgentDir, 'mcp-adapter.json'), 'utf8')

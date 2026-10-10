@@ -89,6 +89,21 @@ describe('portable session policy', () => {
     },
   )
 
+  it('hands the lane its starting context-file state, and clears an inherited one', async () => {
+    const runtime = {
+      ...ports(),
+      preferences: () => ({
+        ...ports().preferences(),
+        contextFiles: { claude: false, agents: true },
+      }),
+    }
+    const off = await prepareSessionPolicy({ workspacePath: '/repo' }, {}, launch, runtime)
+    expect(off.spawnOptions.env?.PHOSPHOR_CONTEXT_FILES).toBe('claude=off')
+    const inherited = { ...launch, env: { ...launch.env, PHOSPHOR_CONTEXT_FILES: 'agents=off' } }
+    const on = await prepareSessionPolicy({ workspacePath: '/repo' }, {}, inherited, ports())
+    expect(on.spawnOptions.env?.PHOSPHOR_CONTEXT_FILES).toBe('')
+  })
+
   it('omits only the lane charter for report execution', async () => {
     const { spawnOptions } = await prepareSessionPolicy(
       { workspacePath: '/repo/lane' },

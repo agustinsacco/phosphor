@@ -10,6 +10,7 @@ import { bytesToBase64 } from '../lib/base64'
 import type { ConnectorAuthPush, ConnectorAuthState, SessionPush } from '@shared/models'
 import type { ConnectorCheckResult } from '@shared/connectors'
 import type { ArtifactListing, ArtifactSnapshot } from '@shared/artifacts'
+import { normalizeContextFilePrefs, type ContextFilePrefs } from '@shared/context-files'
 import { DEFAULT_APP_PREFS, MIN_PI_VERSION } from '@shared/models'
 import {
   compileSearch,
@@ -497,6 +498,14 @@ const MOCK_DISK_SESSIONS = [
   },
 ]
 
+function mockContextFiles(): ContextFilePrefs {
+  try {
+    return normalizeContextFilePrefs(JSON.parse(localStorage.getItem('mock:contextFiles') ?? '{}'))
+  } catch {
+    return normalizeContextFilePrefs(undefined)
+  }
+}
+
 function mockStats(): Record<string, unknown> {
   const activityByDay: Record<string, number> = {}
   for (let i = 0; i < 120; i++) {
@@ -788,6 +797,17 @@ const MOCK_CONTEXT_BREAKDOWN = JSON.stringify({
     linear: { tokens: 640, count: 1, direct: 0, toolCount: 61 },
     notion: { tokens: 620, count: 1, direct: 0, toolCount: 19 },
   },
+  contextFiles: {
+    off: [],
+    files: [
+      {
+        path: '/Users/demo/projects/phosphor/CLAUDE.md',
+        kind: 'claude',
+        tokens: 5500,
+        included: true,
+      },
+    ],
+  },
   approximate: true,
 })
 
@@ -846,7 +866,14 @@ export function installMockPhosphor(): void {
             agentDirectivesByProject: {},
             worktrees: DEFAULT_APP_PREFS.worktrees,
             contextBudget: localStorage.getItem('mock:contextBudget') ?? '',
+            contextFiles: mockContextFiles(),
           })
+        case 'app:setContextFile':
+          localStorage.setItem(
+            'mock:contextFiles',
+            JSON.stringify({ ...mockContextFiles(), [args[0] as string]: args[1] === true }),
+          )
+          return Promise.resolve(undefined)
         case 'app:setContextBudget':
           localStorage.setItem('mock:contextBudget', (args[0] as string).trim())
           return Promise.resolve(undefined)
