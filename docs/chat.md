@@ -426,7 +426,7 @@ holds the pure math. Rules:
 
 ### What the context meter's popover shows
 
-Five sources, three confidence levels, and the UI keeps them distinguishable
+Six sources, three confidence levels, and the UI keeps them distinguishable
 because they are not equally trustworthy.
 
 | Section                 | Source                                                         | Shown for                         |
@@ -436,6 +436,7 @@ because they are not equally trustworthy.
 | Optimization · Headroom | `phosphor-headroom` status key (bundled extension)             | sessions that compressed a result |
 | Plan usage              | `claude:usageSnapshot` IPC — `claude -p /usage`, live percents | Claude Code provider sessions     |
 | Plan limits             | `claude-rate-limit` status key (provider ≥0.4.5)               | Claude Code provider sessions     |
+| ChatGPT plan usage      | `pi:codexUsage` IPC → ChatGPT `/backend-api/wham/usage`        | `openai-codex` sessions           |
 
 **Wide, not tall.** The popover anchors upward from the composer, so a tall
 stack clips its own heading off the top of the window. It is 27rem wide, with
@@ -510,7 +511,28 @@ search-mode activation, is the exception: those schemas land in the window and
 the chip reads `12/61` with a cost in the thousands
 ([mcp.md](mcp.md#the-claude-provider-reaches-mcp-through-pi-not-around-it)).
 
-**Plan usage vs Plan limits** answer different questions and are never merged.
+**ChatGPT plan usage** uses the same dials for the account signed into pi's
+`openai-codex` provider. Main asks `pi auth check --provider openai-codex
+--json --credentials` (pi owns OAuth refresh), then sends the bearer token and
+its `chatgpt_account_id` claim to the fixed HTTPS endpoint used by
+[OpenAI's Codex client](https://github.com/openai/codex/blob/main/codex-rs/backend-client/src/client/rate_limit_resets.rs).
+No model call, Codex CLI, browser cookies or new login is needed. Credentials
+stay in main memory, never IPC, logs or Phosphor storage. Redirects are refused.
+
+Window labels come from `limit_window_seconds`, not primary/secondary order:
+some plans expose only a weekly primary. Dials show **percent used**, not the
+website's percent left, with reset countdowns. When supplied, workspace
+`spend_control.individual_limit` credit allowance renders remaining/total and
+its reset. Other credit balances, reset-credit redemption and model-specific
+additional limits are not displayed. These are account totals, not this
+session's consumption. Main shares concurrent reads and caches successful
+HTTP results for 60 seconds, keyed by the current credential's fingerprint;
+auth is resolved on each read so another login cannot inherit the cache.
+Refresh bypasses it. Missing/unsupported data, auth failures, rate limiting and
+network errors stay visible as a reason, never a fabricated zero. This is an
+internal upstream endpoint, so schema drift can make usage unavailable.
+
+**Claude Plan usage vs Plan limits** answer different questions and are never merged.
 **Plan usage** is the always-on percent per window (5-hour, weekly, per-model
 weekly), the same numbers the CLI's `/usage` and Claude Desktop show, fetched
 live (no quota, no key) when the popover opens and cached ~60 s in main

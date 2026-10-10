@@ -248,9 +248,11 @@ notice, so this is a watch item, not a reason to build defensive machinery.
   `claude` is not running bare, and a check that the plan-limits payload
   still describes subscription usage.
 
-Open: whether pi's native `openai-codex` provider can surface plan limits.
-`pi auth check --json` reports readiness and, for a token that says so, an
-account email, but nothing about a plan, for any provider.
+Codex plan usage is read directly from ChatGPT's usage endpoint, using the
+OAuth credential resolved by pi. The context popover shows the returned
+account windows and workspace credit allowance without a Codex CLI bridge.
+See [ChatGPT plan usage](chat.md#what-the-context-meters-popover-shows). This
+is an on-demand snapshot, not a mid-turn rate-limit status push.
 
 ## Sources
 

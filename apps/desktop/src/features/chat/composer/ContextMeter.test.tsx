@@ -39,6 +39,7 @@ const accountsResult = {
 }
 
 const invoke = vi.fn(async (channel: string, ..._args: unknown[]) => {
+  if (channel === 'pi:codexUsage') return usageResult ?? { ok: false, error: 'no-usage' }
   if (channel === 'claude:sessionAccount') return sessionAccount
   if (channel === 'claude:accounts') return accountsResult
   if (channel === 'claude:assignSession') return undefined
@@ -141,6 +142,49 @@ afterEach(() => {
 })
 
 describe('ContextMeter', () => {
+  it('fetches Codex usage only on open, reuses the dials, and refreshes past the cache', async () => {
+    usageResult = {
+      ok: true,
+      snapshot: {
+        fetchedAt: Date.now(),
+        windows: [
+          { label: 'Weekly', kind: 'weekly', percentUsed: 48, resetsAt: Date.now() + 86400000 },
+        ],
+        credits: { limit: 200, remaining: 56.15, resetsAt: Date.now() + 86400000 },
+      },
+    }
+    seed({ tokens: 50_000, contextWindow: 200_000, percent: 25 }, 'openai-codex')
+    render()
+    expect(invoke).not.toHaveBeenCalled()
+    click('25%')
+    expect(document.body.textContent).toContain('Checking…')
+    await act(async () => {})
+    expect(invoke).toHaveBeenCalledWith('pi:codexUsage', false)
+    expect(invoke).not.toHaveBeenCalledWith('claude:sessionAccount', SESSION)
+    expect(document.body.textContent).toContain('Plan usage · ChatGPT account')
+    expect(document.body.textContent).toContain('48%')
+    expect(document.body.textContent).toContain('Weekly')
+    expect(document.body.textContent).not.toContain('5-hour')
+    expect(document.body.textContent).toContain('56.2 of 200 credits left')
+    click('Refresh')
+    await act(async () => {})
+    expect(invoke).toHaveBeenLastCalledWith('pi:codexUsage', true)
+    act(() => seed({ tokens: 50_000, contextWindow: 200_000, percent: 25 }, 'anthropic'))
+    expect(document.body.textContent).not.toContain('ChatGPT account')
+  })
+
+  it('shows a Codex failure instead of hiding usage, including rejected IPC', async () => {
+    seed({ tokens: null, contextWindow: 200_000, percent: null }, 'openai-codex')
+    invoke.mockRejectedValueOnce(new Error('IPC failed'))
+    render()
+    click('—')
+    await act(async () => {})
+    expect(document.body.textContent).toContain('ChatGPT usage is unavailable')
+    click('Refresh')
+    await act(async () => {})
+    expect(document.body.textContent).toContain('ChatGPT returned no supported usage')
+  })
+
   it('still renders when pi has no context percentage yet', async () => {
     // pi reports null context tokens from the moment a session compacts until
     // fresh usage arrives. The meter used to unmount there, which took the

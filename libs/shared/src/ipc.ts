@@ -48,6 +48,7 @@ import type {
   ClaudeRoutingMode,
   ClaudeStatus,
   ClaudeUsageSnapshotResult,
+  CodexUsageResult,
   ConnectorAuthPush,
   ClaudeLoginState,
   AgentDirectivePrefs,
@@ -414,6 +415,7 @@ export interface IpcInvokeMap {
 
   /** Which subscription providers pi is signed into, via `pi auth check --json`. */
   'pi:subscriptionAuth': { args: []; result: SubscriptionProviderStatus[] }
+  'pi:codexUsage': { args: [force?: boolean]; result: CodexUsageResult }
   /**
    * A PTY running pi interactively so the user can complete `/login`.
    *

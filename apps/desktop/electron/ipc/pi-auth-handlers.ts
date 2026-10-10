@@ -2,6 +2,7 @@ import { BrowserWindow, shell } from 'electron'
 import type { LoginFlowState } from '@shared/models'
 import { handle } from './handle'
 import { checkSubscriptionAuth } from '../pi/auth-status'
+import { fetchCodexUsage } from '../pi/codex-usage'
 import { LOGIN_TERMINAL_ARGS, cancelLogin, signInCwd, startLogin } from '../pi/login-flow'
 import { checkPiHealth, invalidatePiHealth, piArgs } from '../pi/health'
 import { invalidateCatalogueModels, invalidatePiCommands } from './pi-config-handlers'
@@ -44,6 +45,7 @@ function broadcastLoginState(state: LoginFlowState): void {
 /** Signing into the subscription providers pi supports. */
 export function registerPiAuthHandlers(): void {
   handle('pi:subscriptionAuth', () => checkSubscriptionAuth())
+  handle('pi:codexUsage', (_event, force) => fetchCodexUsage(force === true))
 
   handle('pi:startLogin', async (_event, providerId) => {
     let opened = false

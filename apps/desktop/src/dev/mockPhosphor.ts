@@ -2063,6 +2063,22 @@ export function installMockPhosphor(): void {
             prompts: ['fix-tests.md'],
             themes: ['gruvbox.json'],
           })
+        case 'pi:codexUsage':
+          return {
+            ok: true,
+            snapshot: {
+              fetchedAt: Date.now(),
+              windows: [
+                {
+                  label: 'Weekly',
+                  kind: 'weekly',
+                  percentUsed: 47,
+                  resetsAt: Date.now() + 3 * 86_400_000,
+                },
+              ],
+              credits: { limit: 200, remaining: 57, resetsAt: Date.now() + 21 * 86_400_000 },
+            },
+          }
         // One of each state, so the Accounts tab's three badges are all
         // reachable in the browser harness without a pi install.
         case 'pi:subscriptionAuth':

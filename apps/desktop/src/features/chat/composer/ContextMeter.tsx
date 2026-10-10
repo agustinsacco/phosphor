@@ -38,7 +38,8 @@ import { moveTargets, type MoveTarget } from '@/lib/claudeGateway'
 import type {
   ClaudeSessionAccount,
   ClaudeUsageSnapshotResult,
-  ClaudeUsageWindow,
+  PlanUsageWindow,
+  CodexUsageResult,
 } from '@shared/models'
 import { useSessionClaudeAccount } from './useSessionAccount'
 import { useSessionsStore } from '@/stores/sessions'
@@ -254,6 +255,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
             </div>
             <HeadroomSavings statusText={headroomStatus} />
             {isClaudeCliModel(model) && <PlanUsage sessionId={sessionId} />}
+            {model?.provider === 'openai-codex' && <CodexPlanUsage />}
             <PlanLimits statusText={rateLimitStatus} />
           </div>
         </PopupMenu>
@@ -480,13 +482,82 @@ function PlanUsage({ sessionId }: { sessionId: string }): React.JSX.Element {
   )
 }
 
+const CODEX_USAGE_ERRORS = {
+  'auth-unavailable':
+    'Could not read ChatGPT usage. Check your Codex sign-in in Settings → Accounts.',
+  'request-failed': 'ChatGPT usage is unavailable. Try refreshing.',
+  'rate-limited': 'ChatGPT usage is rate limited. Try again later.',
+  'no-usage': 'ChatGPT returned no supported usage windows or credit allowance.',
+}
+
+function CodexPlanUsage(): React.JSX.Element {
+  const [state, setState] = useState<CodexUsageResult | null>(null)
+  const [reload, setReload] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    setState(null)
+    void window.phosphor
+      .invoke('pi:codexUsage', reload > 0)
+      .catch((): CodexUsageResult => ({ ok: false, error: 'request-failed' }))
+      .then((result) => {
+        if (!cancelled) setState(result)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [reload])
+  const credits = state?.ok ? state.snapshot.credits : null
+  return (
+    <section className="border-border/60 mt-2 border-t pt-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <SectionLabel>Plan usage · ChatGPT account</SectionLabel>
+        <button
+          onClick={() => setReload((n) => n + 1)}
+          disabled={state === null}
+          title="Re-read this account's usage from ChatGPT"
+          className="text-text-tertiary hover:text-text hover:bg-bg-secondary -mr-1 flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-sm transition-colors disabled:opacity-50"
+        >
+          {state === null ? <Spinner className="text-text-tertiary" /> : <RefreshIcon />}
+          Refresh
+        </button>
+      </div>
+      {state === null ? (
+        <div className="text-text-tertiary text-sm">Checking…</div>
+      ) : !state.ok ? (
+        <div className="text-text-tertiary text-sm">{CODEX_USAGE_ERRORS[state.error]}</div>
+      ) : (
+        <div className="grid grid-cols-3 gap-x-3 gap-y-2">
+          {state.snapshot.windows.map((window, index) => (
+            <UsageDial key={index} window={window} />
+          ))}
+          {credits && (
+            <div
+              className="text-text-secondary col-span-3 text-sm"
+              title={windowResetLabel(credits.resetsAt) ?? undefined}
+            >
+              {credits.remaining.toLocaleString(undefined, { maximumFractionDigits: 1 })} of{' '}
+              {credits.limit.toLocaleString()} credits left
+              {compactReset(credits.resetsAt) && (
+                <span className="text-text-tertiary">
+                  {' '}
+                  · resets in {compactReset(credits.resetsAt)}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  )
+}
+
 /**
  * One window as a dial: the arc carries the proportion, the number in the
  * middle carries the value, and the caption under it says which window and
  * when it clears. Three of these occupy one row where three labelled bars
  * occupied three, and the arc reads at a glance from across a desk.
  */
-function UsageDial({ window }: { window: ClaudeUsageWindow }): React.JSX.Element {
+function UsageDial({ window }: { window: PlanUsageWindow }): React.JSX.Element {
   const percent = Math.round(window.percentUsed)
   const reset = compactReset(window.resetsAt)
   const full = windowResetLabel(window.resetsAt)

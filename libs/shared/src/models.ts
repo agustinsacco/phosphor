@@ -935,24 +935,32 @@ export interface ClaudeStatus {
   auth: ClaudeAuthStatus
 }
 
-/**
- * One plan-usage window, as the CLI renders it in `claude -p /usage`.
- *
- * The CLI prints Claude Desktop's own live numbers (fed by the internal
- * `/api/oauth/usage` endpoint) as text; these are the parsed windows of that
- * text. The percent is the server's own accounting — always visible, not
- * gated on any warning threshold like `rate_limit_event`'s `utilization`.
- */
-export interface ClaudeUsageWindow {
-  /** The CLI's rendered label, e.g. "Current session" (the 5-hour block). */
+/** Account-reported usage, shared by Claude's CLI panel and ChatGPT's API.
+ * Percent consumed, not remaining; never estimated from session token counts. */
+export interface PlanUsageWindow {
+  /** Provider label, e.g. "Current session" or "Weekly". */
   label: string
-  /** Window family, derived from the label; `other` for kinds Phosphor doesn't know. */
+  /** Derived from Claude's label or Codex's window duration. */
   kind: 'five_hour' | 'weekly' | 'weekly_model' | 'other'
-  /** Fraction of the window consumed, 0–100 (the CLI prints whole percents). */
+  /** Percentage of the window consumed. */
   percentUsed: number
   /** When the window resets, Unix ms; null when the reset didn't parse. */
   resetsAt: number | null
 }
+
+export type ClaudeUsageWindow = PlanUsageWindow
+
+/** Sanitized ChatGPT subscription usage. No credentials or upstream body cross IPC. */
+export type CodexUsageResult =
+  | {
+      ok: true
+      snapshot: {
+        fetchedAt: number
+        windows: PlanUsageWindow[]
+        credits: { limit: number; remaining: number; resetsAt: number | null } | null
+      }
+    }
+  | { ok: false; error: 'auth-unavailable' | 'request-failed' | 'rate-limited' | 'no-usage' }
 
 /** Result of one `claude -p /usage` run. */
 export interface ClaudeUsageSnapshot {

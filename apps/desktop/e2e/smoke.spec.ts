@@ -788,6 +788,51 @@ test('Agent settings persist a validated context budget', async () => {
   }
 })
 
+test('Codex context popover reads account usage and refreshes through main', async () => {
+  const harness = await launch({ env: { PHOSPHOR_E2E_MODEL_PROVIDER: 'openai-codex' } })
+  const { page, app } = harness
+  try {
+    // Stub only the HTTP boundary. The real IPC, pi auth subprocess, parser,
+    // cache and renderer run together, without a real credential or network.
+    await app.evaluate(() => {
+      let reads = 0
+      const original = globalThis.fetch
+      globalThis.fetch = async (url, options) => {
+        if (url !== 'https://chatgpt.com/backend-api/wham/usage') return original(url, options)
+        const headers = new Headers(options?.headers)
+        if (headers.get('ChatGPT-Account-Id') !== 'stub-account') throw new Error('Wrong account')
+        reads++
+        return new Response(
+          JSON.stringify({
+            rate_limit: {
+              primary_window: {
+                used_percent: reads === 1 ? 48 : 49,
+                limit_window_seconds: 604800,
+                reset_at: Date.now() / 1000 + 86400,
+              },
+            },
+            spend_control: {
+              individual_limit: { unit: 'credit', limit: '200', remaining: '56.15' },
+            },
+          }),
+        )
+      }
+    })
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    await page.getByTitle(/^Context:/).click()
+    await expect(page.getByText('Plan usage · ChatGPT account')).toBeVisible()
+    await expect(page.getByTitle(/^Weekly window — 48% used/)).toBeVisible()
+    await expect(page.getByText('56.2 of 200 credits left')).toBeVisible()
+    await page.getByTitle("Re-read this account's usage from ChatGPT").click()
+    await expect(page.getByTitle(/^Weekly window — 49% used/)).toBeVisible()
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 // Once as a plain pi session and once as a Claude Code one: pi owns
 // compaction on every provider, and most Claude models have a 1M window.
 for (const provider of ['stub', 'pi-claude-cli'] as const) {

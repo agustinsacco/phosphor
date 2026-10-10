@@ -17,6 +17,22 @@
 {
   const argv = process.argv.slice(2)
   const sub = argv[0]
+  if (sub === 'auth') {
+    const codex = process.env.PHOSPHOR_E2E_MODEL_PROVIDER === 'openai-codex'
+    const claims = Buffer.from(
+      JSON.stringify({
+        'https://api.openai.com/auth': { chatgpt_account_id: 'stub-account' },
+      }),
+    ).toString('base64url')
+    process.stdout.write(
+      JSON.stringify(
+        codex
+          ? { status: 'ready', authType: 'oauth', credentials: `stub.${claims}.stub` }
+          : { status: 'not_ready' },
+      ) + '\n',
+    )
+    process.exit(0)
+  }
   if (sub === 'install' || sub === 'remove' || sub === 'update' || argv.includes('-p')) {
     const path = require('node:path')
     const fs = require('node:fs')
