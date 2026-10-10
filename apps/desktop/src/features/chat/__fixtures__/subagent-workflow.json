@@ -1,0 +1,116 @@
+{
+  "source": "pi-subagents 0.76.1: recorded workflow notices; snapshot projected by the installed package from captured run statuses. Paths and IDs redacted.",
+  "messages": [
+    {
+      "role": "custom",
+      "customType": "subagent-incremental-child-notify",
+      "content": "Workflow child completed: **reviewer**\nWorkflow run: 10000000-0000-4000-8000-000000000000\nChild run: 10000001-0000-4000-8000-000000000000\nOutput: /tmp/subagent-artifacts/reviewer_output.md\nStatus: workflow still running",
+      "display": false,
+      "timestamp": 1791664074378
+    },
+    {
+      "role": "custom",
+      "customType": "subagent_control_notice",
+      "content": "Subagent needs attention: worker\nRun: 10000002-0000-4000-8000-000000000000 step 1\nSignal: worker has had tool 'bash' open for 240s\nFacts: 10 turns | 4301 tokens | 11 tools | tool bash 240s\nHint: Inspect the running command and recent output before nudging. A queued steer does not cancel an in-flight bash call. A dev server or watch command may intentionally never return. Elapsed time alone does not prove the command is stuck.\nRecovery: For a local Pi child explicitly granted subagent_command, yield a needed persistent command or cancel the exact incorrect command, then steer the child. Query command.status to confirm the result. If command controls are unavailable, inspect partial changes and interruption scope before interrupt/resume; interrupt is run-scoped and may affect siblings.\nCommand: subagent({\"action\":\"command.status\",\"id\":\"10000002-0000-4000-8000-000000000000\",\"index\":0,\"toolCallId\":\"tool-validation\"})\nYield: subagent({\"action\":\"command.yield\",\"id\":\"10000002-0000-4000-8000-000000000000\",\"index\":0,\"toolCallId\":\"tool-validation\"})\nCancel: subagent({\"action\":\"command.cancel\",\"id\":\"10000002-0000-4000-8000-000000000000\",\"index\":0,\"toolCallId\":\"tool-validation\"})\nStatus: subagent({ action: \"status\", id: \"10000002-0000-4000-8000-000000000000\" })\nTranscript: subagent({ action: \"status\", id: \"10000002-0000-4000-8000-000000000000\", view: \"transcript\", index: 0 })",
+      "display": true,
+      "details": {
+        "event": {
+          "type": "needs_attention",
+          "from": "active_long_running",
+          "to": "needs_attention",
+          "ts": 1791664110555,
+          "runId": "10000002-0000-4000-8000-000000000000",
+          "agent": "worker",
+          "index": 0,
+          "message": "worker has had tool 'bash' open for 240s",
+          "reason": "tool_open_threshold",
+          "turns": 10,
+          "tokens": 4301,
+          "toolCount": 11,
+          "currentTool": "bash",
+          "toolCallId": "tool-validation",
+          "currentToolDurationMs": 240167,
+          "workflowKey": "validation",
+          "taskPreview": "[prompt redacted]"
+        },
+        "source": "async",
+        "asyncDir": "/tmp/async-subagent-runs/10000002-0000-4000-8000-000000000000",
+        "childIntercomTarget": "subagent-worker-10000002-0000-4000-8000-000000000000-1",
+        "noticeText": "Subagent needs attention: worker\nRun: 10000002-0000-4000-8000-000000000000 step 1\nSignal: worker has had tool 'bash' open for 240s\nFacts: 10 turns | 4301 tokens | 11 tools | tool bash 240s\nHint: Inspect the running command and recent output before nudging. A queued steer does not cancel an in-flight bash call. A dev server or watch command may intentionally never return. Elapsed time alone does not prove the command is stuck.\nRecovery: For a local Pi child explicitly granted subagent_command, yield a needed persistent command or cancel the exact incorrect command, then steer the child. Query command.status to confirm the result. If command controls are unavailable, inspect partial changes and interruption scope before interrupt/resume; interrupt is run-scoped and may affect siblings.\nCommand: subagent({\"action\":\"command.status\",\"id\":\"10000002-0000-4000-8000-000000000000\",\"index\":0,\"toolCallId\":\"tool-validation\"})\nYield: subagent({\"action\":\"command.yield\",\"id\":\"10000002-0000-4000-8000-000000000000\",\"index\":0,\"toolCallId\":\"tool-validation\"})\nCancel: subagent({\"action\":\"command.cancel\",\"id\":\"10000002-0000-4000-8000-000000000000\",\"index\":0,\"toolCallId\":\"tool-validation\"})\nStatus: subagent({ action: \"status\", id: \"10000002-0000-4000-8000-000000000000\" })\nTranscript: subagent({ action: \"status\", id: \"10000002-0000-4000-8000-000000000000\", view: \"transcript\", index: 0 })"
+      },
+      "timestamp": 1791664115327
+    }
+  ],
+  "snapshot": {
+    "kind": "pi-subagents.async-status-snapshot",
+    "version": 1,
+    "generatedAt": 1791665343571,
+    "caps": {
+      "maxRuns": 20,
+      "maxChildrenPerNode": 8,
+      "maxDepth": 3,
+      "maxStringLength": 160,
+      "maxSerializedBytes": 32768
+    },
+    "omitted": {
+      "runs": 0,
+      "children": 0,
+      "byteLimitExceeded": false
+    },
+    "runs": [
+      {
+        "id": "10000000-0000-4000-8000-000000000000",
+        "kind": "workflow",
+        "label": "reviewer, worker, worker",
+        "state": "running",
+        "startedAt": 1791663799624,
+        "updatedAt": 1791664074374,
+        "children": [
+          {
+            "id": "reviewer",
+            "kind": "step",
+            "label": "reviewer",
+            "state": "complete",
+            "startedAt": 1791663800592,
+            "updatedAt": 1791664073892,
+            "endedAt": 1791664073892,
+            "activity": {
+              "state": "active_long_running",
+              "lastActivityAt": 1791664073537,
+              "turnCount": 33,
+              "toolCount": 46
+            }
+          },
+          {
+            "id": "validation",
+            "kind": "step",
+            "label": "validation",
+            "state": "running",
+            "startedAt": 1791663800592,
+            "updatedAt": 1791664861386,
+            "activity": {
+              "state": "needs_attention",
+              "lastActivityAt": 1791664861386,
+              "turnCount": 23,
+              "toolCount": 24
+            }
+          },
+          {
+            "id": "qa",
+            "kind": "step",
+            "label": "qa",
+            "state": "running",
+            "startedAt": 1791663800592,
+            "updatedAt": 1791664862582,
+            "activity": {
+              "state": "active_long_running",
+              "lastActivityAt": 1791664862582,
+              "turnCount": 42,
+              "toolCount": 46
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

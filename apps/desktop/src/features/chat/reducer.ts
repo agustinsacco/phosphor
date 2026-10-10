@@ -29,7 +29,7 @@ import type {
   UserItem,
 } from './chatItems'
 import { emptyChatSession, newItemId } from './chatItems'
-import { SUBAGENT_NOTIFY_TYPE, SUBAGENT_SLASH_RESULT_TYPE } from './subagentRuns'
+import { isSubagentNotice } from './subagentRuns'
 import {
   applyRevealedIdentity,
   pendingToolId,
@@ -612,14 +612,9 @@ function applyMessageEnd(state: ChatSessionState, message: AgentMessage): ChatSe
  * Returns null when the extension marked it non-displayable.
  */
 function customItemFrom(message: CustomMessage): CustomItem | null {
-  // Keep native completions and final control receipts as evidence, even
-  // when Pi's TUI hides them (see `CustomItem.quiet`).
-  if (
-    message.display === false &&
-    message.customType !== SUBAGENT_NOTIFY_TYPE &&
-    message.customType !== SUBAGENT_SLASH_RESULT_TYPE
-  )
-    return null
+  // Coordination is evidence even when Pi's TUI hides it. Use the same
+  // allowlist as branch-history replay, including incremental workflow results.
+  if (message.display === false && !isSubagentNotice(message.customType)) return null
   const content = message.content
   const text =
     typeof content === 'string'

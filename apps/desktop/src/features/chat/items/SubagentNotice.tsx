@@ -13,10 +13,16 @@ import { SEGMENT } from '../transcriptFind'
  * success `display: false` so its TUI does not badge an idle tab. Phosphor
  * shows it anyway, compactly: the reply that follows quotes this result, and
  * a reader could not see why the model spoke again. A success stays folded;
- * a failure, a stop, or an attention notice opens, because those are the ones
- * that need a decision.
+ * failures and stops open. Structured attention notices keep their signal
+ * visible while folding the original diagnostic commands underneath.
  */
-export function SubagentNoticeItem({ item }: { item: CustomItem }): React.JSX.Element {
+export function SubagentNoticeItem({
+  item,
+  onInspect,
+}: {
+  item: CustomItem
+  onInspect?: (runId: string) => void
+}): React.JSX.Element {
   const notice: SubagentNotice = parseSubagentNotice(item.customType, item.text, item.details) ?? {
     kind: 'completion' as const,
     agents: [],
@@ -26,7 +32,7 @@ export function SubagentNoticeItem({ item }: { item: CustomItem }): React.JSX.El
   const timestamp = item.timestamp === undefined ? undefined : new Date(item.timestamp)
   const validTime = timestamp && Number.isFinite(timestamp.getTime()) ? timestamp : undefined
   const calm = notice.kind === 'completion' && notice.status === 'completed'
-  const [open, setOpen] = useState(!calm)
+  const [open, setOpen] = useState(!calm && !notice.summary)
   const expandable = notice.body.length > 0
   const tone =
     notice.kind === 'attention' || notice.kind === 'question' || notice.status === 'failed'
@@ -68,7 +74,7 @@ export function SubagentNoticeItem({ item }: { item: CustomItem }): React.JSX.El
         >
           agent
         </span>
-        <span className="text-text min-w-0 truncate font-medium">{notice.headline}</span>
+        <span className="text-text min-w-0 break-words font-medium">{notice.headline}</span>
         {expandable && (
           <ChevronIcon
             expanded={open}
@@ -78,13 +84,27 @@ export function SubagentNoticeItem({ item }: { item: CustomItem }): React.JSX.El
           />
         )}
       </button>
-      {open && (notice.runId || notice.requestId) && (
+      {notice.summary && (
+        <p className="text-text-secondary px-1 py-1 text-base">{notice.summary}</p>
+      )}
+      {(notice.runId || notice.requestId) && (
         <div className="text-text-secondary flex flex-wrap gap-x-3 px-1 py-1 font-mono text-sm">
           {notice.runId && (
             <span title={notice.runId}>
               run {shortId(notice.runId)}
               {notice.childIndex !== undefined ? ` · child ${notice.childIndex}` : ''}
             </span>
+          )}
+          {notice.workflowRunId && (
+            <span title={notice.workflowRunId}>workflow {shortId(notice.workflowRunId)}</span>
+          )}
+          {notice.runId && onInspect && (
+            <button
+              className="text-accent hover:underline"
+              onClick={() => onInspect(notice.runId!)}
+            >
+              Inspect run
+            </button>
           )}
           {notice.requestId && (
             <span title={notice.requestId}>request {shortId(notice.requestId)}</span>
