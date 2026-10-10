@@ -39,14 +39,25 @@ export function directToolsSummary(value: unknown): string | null {
   return names.slice(0, 4).join(', ') + (names.length > 4 ? ` +${names.length - 4}` : '')
 }
 
-/** The server editor's text for a `directTools` value. */
+const DIRECT_TOOLS_KEYWORDS = new Set(['all', 'search'])
+
+/**
+ * The server editor's text for a `directTools` value. A list holding one tool
+ * that happens to be named `all` or `search` gets a trailing comma, so saving
+ * it again keeps a list instead of switching the server to that mode.
+ */
 export function directToolsText(value: unknown): string {
   if (value === true) return 'all'
   if (value === 'search') return 'search'
-  return Array.isArray(value) ? value.filter((name) => typeof name === 'string').join(', ') : ''
+  if (!Array.isArray(value)) return ''
+  const text = value.filter((name) => typeof name === 'string').join(', ')
+  return DIRECT_TOOLS_KEYWORDS.has(text.trim().toLowerCase()) ? `${text},` : text
 }
 
-/** The editor's text back to a `directTools` value; undefined means unset. */
+/**
+ * The editor's text back to a `directTools` value; undefined means unset. Only
+ * the bare words `all` and `search` are modes; any comma makes a tool list.
+ */
 export function parseDirectToolsText(text: string): McpDirectTools | undefined {
   const trimmed = text.trim()
   if (trimmed.toLowerCase() === 'all') return true

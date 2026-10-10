@@ -377,10 +377,17 @@ thousands of tokens on every request.
   show what its pi reports, not the preference; the tooltip names each file
   and its approximate cost, and a dimmed label means the lane has no such
   file.
+- **Routines** always send every context file, whatever the preference: an
+  unattended run keeps the project's rules ([routines.md](routines.md)). A
+  routine-owned lane refuses a toggle, like any other manual command, until
+  the routine lets it go. The Host CLI has no such preference and sends every
+  file.
 
 The filter runs inside pi ([extensions.md](extensions.md#bundled-extensions-phosphors-own))
 and leaves the session file untouched. Shared rules live in
-`libs/shared/src/context-files.ts`; the IPC is `app:setContextFile`.
+`libs/shared/src/context-files.ts`; the IPC is `app:setContextFile`
+(`apps/desktop/electron/pi/context-files.ts`); spawn-time state is set in
+`libs/session-runtime/src/pi/session-policy.ts`.
 
 ## Session controls (per session)
 

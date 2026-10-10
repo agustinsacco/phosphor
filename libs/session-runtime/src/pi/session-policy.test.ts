@@ -90,18 +90,47 @@ describe('portable session policy', () => {
   )
 
   it('hands the lane its starting context-file state, and clears an inherited one', async () => {
-    const runtime = {
+    const withFiles = (contextFiles: { claude: boolean; agents: boolean }) => ({
       ...ports(),
-      preferences: () => ({
-        ...ports().preferences(),
-        contextFiles: { claude: false, agents: true },
-      }),
-    }
-    const off = await prepareSessionPolicy({ workspacePath: '/repo' }, {}, launch, runtime)
+      preferences: () => ({ ...ports().preferences(), contextFiles }),
+    })
+    const off = await prepareSessionPolicy(
+      { workspacePath: '/repo' },
+      {},
+      launch,
+      withFiles({ claude: false, agents: true }),
+    )
     expect(off.spawnOptions.env?.PHOSPHOR_CONTEXT_FILES).toBe('claude=off')
     const inherited = { ...launch, env: { ...launch.env, PHOSPHOR_CONTEXT_FILES: 'agents=off' } }
-    const on = await prepareSessionPolicy({ workspacePath: '/repo' }, {}, inherited, ports())
-    expect(on.spawnOptions.env?.PHOSPHOR_CONTEXT_FILES).toBe('')
+    const on = await prepareSessionPolicy(
+      { workspacePath: '/repo' },
+      {},
+      inherited,
+      withFiles({ claude: true, agents: true }),
+    )
+    expect(on.spawnOptions.env).not.toHaveProperty('PHOSPHOR_CONTEXT_FILES')
+    // A routine keeps the project's rules whatever the composer says.
+    const routine = await prepareSessionPolicy(
+      { workspacePath: '/repo' },
+      { unattended: true },
+      inherited,
+      withFiles({ claude: false, agents: false }),
+    )
+    expect(routine.spawnOptions.env).not.toHaveProperty('PHOSPHOR_CONTEXT_FILES')
+  })
+
+  it('leaves the environment alone for an owner without the preference (the Host)', async () => {
+    const { spawnOptions } = await prepareSessionPolicy(
+      { workspacePath: '/repo' },
+      {},
+      launch,
+      ports(),
+    )
+    expect(spawnOptions.env).toEqual({
+      PI_CLAUDE_CLI_CONTEXT: 'pi',
+      ORDER: 'proxy',
+      CLAUDE_CONFIG_DIR: '/account',
+    })
   })
 
   it('omits only the lane charter for report execution', async () => {

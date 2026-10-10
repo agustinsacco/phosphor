@@ -35,9 +35,11 @@ export function ConnectorsMenu({
     }
   }, [workspacePath])
 
+  // Settings → Connectors writes the same files; re-read once it closes.
+  const settingsOpen = useSettingsUiStore((s) => s.open)
   useEffect(() => {
-    void refresh()
-  }, [refresh])
+    if (!settingsOpen) void refresh()
+  }, [refresh, settingsOpen])
 
   if (!servers || servers.length === 0) return null
   const enabled = servers.filter((server) => server.config.disabled !== true).length

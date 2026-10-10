@@ -4,6 +4,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import type { McpResolvedServer } from '@shared/mcp'
 import { ConnectorsMenu } from './ConnectorsMenu'
+import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 
 beforeAll(() => {
   ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -65,5 +66,15 @@ describe('ConnectorsMenu', () => {
     await act(async () => row.querySelector('input')!.click())
     expect(invoke).toHaveBeenCalledWith('mcp:setDisabled', 'pi-global', '/repo', 'knowledge', true)
     expect(trigger.textContent).toBe('MCP 1/2')
+  })
+
+  it('re-reads the servers when Settings closes, since it edits the same files', async () => {
+    servers = [server('linear', { url: 'https://mcp.linear.app/mcp' })]
+    await act(async () => root.render(<ConnectorsMenu workspacePath="/repo" />))
+    expect(container.textContent).toBe('MCP 1/1')
+    await act(async () => useSettingsUiStore.getState().setOpen(true))
+    servers = [server('linear', { url: 'https://mcp.linear.app/mcp', disabled: true })]
+    await act(async () => useSettingsUiStore.getState().setOpen(false))
+    expect(container.textContent).toBe('MCP 0/1')
   })
 })

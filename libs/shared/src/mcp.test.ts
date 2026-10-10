@@ -15,4 +15,11 @@ describe('directTools', () => {
     }
     expect(parseDirectToolsText('  ')).toBeUndefined()
   })
+
+  it('keeps a lone tool named like a mode a list across an edit', () => {
+    for (const value of [['search'], ['all'], ['Search']]) {
+      expect(parseDirectToolsText(directToolsText(value))).toEqual(value)
+    }
+    expect(directToolsText(['search'])).toBe('search,')
+  })
 })

@@ -60,12 +60,17 @@ export async function prepareSessionPolicy(
     : null
   if (account) Object.assign(env, account.env)
   if (!stub) Object.assign(env, runtime.compressionEnvironment())
-  // The lane's starting state for the bundled context-files filter. Always
-  // set, so a value inherited from Phosphor's own environment cannot leak in.
-  if (!stub)
-    env[CONTEXT_FILES_ENV] = prefs.contextFiles
-      ? (contextFilesEnvValue(prefs.contextFiles) ?? '')
-      : ''
+  // The lane's starting state for the bundled context-files filter, from an
+  // owner that has the preference (Desktop). Absent when every file is sent,
+  // so an inherited value cannot leak in. Unattended runs (routines) always
+  // send the project's rules: the composer checkboxes are for interactive
+  // lanes. An owner without the preference (the Host) keeps its environment
+  // exactly as it built it.
+  if (!stub && prefs.contextFiles) {
+    const value = execution.unattended ? undefined : contextFilesEnvValue(prefs.contextFiles)
+    if (value) env[CONTEXT_FILES_ENV] = value
+    else delete env[CONTEXT_FILES_ENV]
+  }
   // pi reads its settings at process startup, so this must complete before create().
   if (!stub) await runtime.resetCompaction()
   return {

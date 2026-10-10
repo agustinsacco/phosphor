@@ -14,7 +14,8 @@ import { repointSessionCwd } from '../pi/session-cwd'
 import { registry } from '../registry'
 import { syncContextBudget, withBudgetCompaction } from '../pi/context-budget'
 import { piStubPath } from '../pi/stub'
-import { contextFileCommand } from '@shared/context-files'
+import { setLaneContextFile } from '../pi/context-files'
+import { isRoutineSession } from '../routines/ownership'
 import { handle } from './handle'
 import { applyThemeSource, applyTitleBarOverlay, applyZoom } from '../window-chrome'
 import { debugLogPath } from '../debug-log'
@@ -299,20 +300,19 @@ export function registerAppHandlers(): void {
     )
   })
 
-  handle('app:setContextFile', async (_event, kind, included: boolean, sessionId?: string) => {
-    // Validates the kind before it reaches a command line.
-    const prefs = setContextFile(kind, included)
-    // The stub runs no extensions; it would answer the command as a prompt.
-    if (!sessionId || piStubPath()) return
-    const session = registry.get(sessionId)
-    if (!session) return
-    // An extension command: pi runs it at once, mid-turn included, with no model.
-    const result = await session.client.request({
-      type: 'prompt',
-      message: contextFileCommand(kind, prefs[kind]),
-    })
-    if (!result.success) throw new Error(result.error ?? 'Could not update this lane.')
-  })
+  handle('app:setContextFile', (_event, kind, included: boolean, sessionId?: string) =>
+    setLaneContextFile(
+      {
+        save: setContextFile,
+        isStub: () => Boolean(piStubPath()),
+        ownedByRoutine: isRoutineSession,
+        session: (id) => registry.get(id),
+      },
+      kind,
+      included,
+      sessionId,
+    ),
+  )
 
   handle('app:markSessionSeen', (_event, sessionPath: string) => {
     markSessionSeen(sessionPath)
