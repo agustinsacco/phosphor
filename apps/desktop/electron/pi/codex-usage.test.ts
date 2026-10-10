@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createCodexUsageReader, parseCodexUsage } from './codex-usage'
 
-vi.mock('./health', () => ({ checkPiHealth: vi.fn(), piArgs: vi.fn() }))
+vi.mock('./health', () => ({ checkPiHealth: vi.fn() }))
+vi.mock('./stub', () => ({ piStubPath: () => undefined }))
 vi.mock('./shell-env', () => ({ piProcessEnv: vi.fn() }))
 
 const window = (used_percent = 48, limit_window_seconds = 604800) => ({
