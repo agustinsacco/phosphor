@@ -1,6 +1,7 @@
 import type { GitInfo, SessionMeta, SessionScanStatus } from '@shared/models'
 import { compareSessionsByCreation } from '@shared/session-order'
 import { projectPathFor, workspaceName } from '@/lib/path'
+import { latestRewoundVersion, presentSessionFiles, type RewoundSessions } from './rewound'
 
 export interface GroupedSessions {
   /**
@@ -69,7 +70,17 @@ export function groupSessionsByProject(
    * `git:infoBatch` and opened its own branch-named group in the meantime.
    */
   worktreeRoots: Record<string, string> = {},
+  /** Files a rewind replaced (see `rewound.ts`); folded under their successor. */
+  rewound: RewoundSessions = {},
+  /** Live sessions' files, which may not be on disk yet (`presentSessionFiles`). */
+  livePaths: Iterable<string | undefined> = [],
 ): GroupedSessions[] {
+  const present = presentSessionFiles(disk, livePaths)
+  // Display only, and only for a rewind Phosphor recorded: never a live row
+  // (the one the user may be looking at), and never while no later version
+  // exists, on disk or live: the chat must never be left with no row at all.
+  const rewoundAway = (meta: SessionMeta): boolean =>
+    !isLive(meta) && latestRewoundVersion(rewound, meta.path, present) !== null
   const byProject = new Map<
     string,
     {
@@ -91,9 +102,10 @@ export function groupSessionsByProject(
     // `worktreeRoots` is what makes that true for a worktree living anywhere
     // on disk, not just under `<repo>/.phosphor/worktrees/`.
     const projectKey = projectPathFor(path, git, worktreeRoots[path])
-    // Shared ancestry does not mean a session was replaced. Forks, clones and
-    // rewinds all copy entries; each saved file must remain independently reachable.
-    const metas = (disk[path] ?? []).filter((m) => !isHidden(m))
+    // Shared ancestry does not mean a session was replaced: forks and clones
+    // copy entries too, and each saved file stays reachable. Only a recorded
+    // rewind folds its old file away.
+    const metas = (disk[path] ?? []).filter((m) => !isHidden(m) && !rewoundAway(m))
     const liveCount = metas.filter(isLive).length
     const scanned = path in disk
     const attempted = path in scanStatus

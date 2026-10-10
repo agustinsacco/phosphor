@@ -156,7 +156,10 @@ The composer is one small field with several ways in.
   multi-message rewind picker (Esc Esc). Both run pi's `fork` RPC
   (`features/chat/rewind.ts`), which branches the live session onto a **new
   session file** rooted just before that entry and hands the original text
-  back to the composer. `bootstrapSession` re-runs to learn the new file path.
+  back to the composer. `bootstrapSession` re-runs to learn the new file path,
+  and the abandoned file is recorded as rewound, so the sidebar folds it away
+  and, if it is opened anyway, a banner links to where the chat continues
+  ([lanes.md](lanes.md#forks-and-saved-history)).
   The entry comes from the session's **current branch** (`get_entries` walked
   from its `leafId`, `currentBranchUserMessages`). The button matches its row
   to an entry by the message's own timestamp, never by position: the

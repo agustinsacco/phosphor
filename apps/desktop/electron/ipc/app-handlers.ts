@@ -38,6 +38,7 @@ import {
   setLaneMarkers,
   setLanePrefs,
   setPinnedSessions,
+  setRewoundSessions,
   setSessionOrder,
   setRecentWorkspaces,
   setTheme,
@@ -161,6 +162,10 @@ export function registerAppHandlers(): void {
 
   handle('app:setPinnedSessions', (_event, paths) => {
     setPinnedSessions(paths)
+  })
+
+  handle('app:setRewoundSessions', (_event, record) => {
+    setRewoundSessions(record)
   })
 
   handle('app:setLanePrefs', (_event, lanes) => {

@@ -2,7 +2,7 @@ import { MessageList } from './MessageList'
 import { Composer } from './Composer'
 import { ForkPickerModal } from './ForkPickerModal'
 import { StatusStrip } from '@/features/extension-ui/ExtensionUiHosts'
-import { CrashBanner, NoModelsBanner } from './banners'
+import { CrashBanner, NoModelsBanner, RewoundBanner } from './banners'
 import { RateLimitBanner } from './composer/RateLimitBanner'
 
 /**
@@ -25,6 +25,7 @@ export function ChatView({
     <div className="flex h-full min-w-0 flex-col">
       <CrashBanner sessionId={sessionId} workspacePath={workspacePath} />
       <NoModelsBanner sessionId={sessionId} />
+      <RewoundBanner sessionId={sessionId} />
       <MessageList sessionId={sessionId} />
       {/* Both share the composer's horizontal gutter and maximum width: a
           right pane must narrow every surface above the composer together. */}

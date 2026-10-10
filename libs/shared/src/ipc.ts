@@ -238,6 +238,8 @@ export interface IpcInvokeMap {
   /** Remove a deleted session's artifact. False (and nothing removed) otherwise. */
   'artifacts:remove': { args: [key: string]; result: boolean }
   'app:setPinnedSessions': { args: [string[]]; result: void }
+  /** Replace the rewind record (AppPrefs.rewoundSessions); main bounds it. */
+  'app:setRewoundSessions': { args: [Record<string, string>]; result: void }
   'app:setSessionOrder': { args: [string[]]; result: void }
   /** Explicit lane-marker choices, keyed by session file path. */
   'app:setLaneMarkers': { args: [Record<string, string>]; result: void }

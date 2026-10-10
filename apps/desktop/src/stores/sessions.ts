@@ -5,6 +5,12 @@ import { useChatStore } from './chat'
 import { useNamingStore } from './naming'
 import { usePiCommandsStore } from './piCommands'
 import { drop } from './keyedSlice'
+import {
+  withoutRewindOf,
+  withoutSession,
+  withRewind,
+  type RewoundSessions,
+} from '@/features/sessions/rewound'
 import { piCallOk, rehydrateTranscript } from '@/lib/rpc'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { clearBurnSamples, recordBurnSample } from '@/lib/burnRate'
@@ -134,6 +140,12 @@ interface SessionsState {
   /** phosphorId → git session baseline ref (null = not a repo). */
   baselines: Record<string, string | null>
   pinned: string[]
+  /** Mirrors AppPrefs.rewoundSessions: old file name → the name a rewind replaced it with. */
+  rewound: RewoundSessions
+  /** Record that a rewind moved a session from one file onto another. */
+  recordRewind: (fromPath: string, toPath: string) => void
+  /** A turn ended in this file: if a rewind replaced it, it is its own chat again. */
+  keepRewoundVersion: (sessionPath: string) => void
   sessionOrder: string[]
   setSessionOrder: (paths: string[]) => void
   /**
@@ -644,6 +656,12 @@ function attachSessionPushHandler(phosphorId: string): void {
             )
           }
         }
+        // Someone reopened a version a rewind replaced and carried on in it.
+        // Folding it away again once closed would hide their newest work.
+        if (push.event.type === 'agent_end') {
+          const diskPath = useSessionsStore.getState().live[phosphorId]?.diskPath
+          if (diskPath) useSessionsStore.getState().keepRewoundVersion(diskPath)
+        }
         const { activeSessionId } = useSessionsStore.getState()
         if (
           activeSessionId !== phosphorId &&
@@ -708,7 +726,7 @@ function attachSessionPushHandler(phosphorId: string): void {
 }
 
 /** The prefs-backed sidebar fields `hydratePinned` reads back from main. */
-type HydratedField = 'pinned' | 'sessionOrder' | 'seenSessions' | 'laneMarkers'
+type HydratedField = 'pinned' | 'rewound' | 'sessionOrder' | 'seenSessions' | 'laneMarkers'
 
 /**
  * How many times each of those fields has been changed HERE, by the user.
@@ -723,6 +741,7 @@ type HydratedField = 'pinned' | 'sessionOrder' | 'seenSessions' | 'laneMarkers'
  */
 const localEdits: Record<HydratedField, number> = {
   pinned: 0,
+  rewound: 0,
   sessionOrder: 0,
   seenSessions: 0,
   laneMarkers: 0,
@@ -751,6 +770,21 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   unread: {},
   baselines: {},
   pinned: [],
+  rewound: {},
+  recordRewind: (fromPath, toPath) => {
+    const rewound = withRewind(get().rewound, fromPath, toPath)
+    if (rewound === get().rewound) return
+    edited('rewound')
+    set({ rewound })
+    void window.phosphor.invoke('app:setRewoundSessions', rewound)
+  },
+  keepRewoundVersion: (sessionPath) => {
+    const rewound = withoutRewindOf(get().rewound, sessionPath)
+    if (rewound === get().rewound) return
+    edited('rewound')
+    set({ rewound })
+    void window.phosphor.invoke('app:setRewoundSessions', rewound)
+  },
   sessionOrder: [],
   setSessionOrder: (paths) => {
     // Keep unscanned/collapsed groups, including their relative order.
@@ -779,6 +813,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     const fresh = (field: HydratedField): boolean => localEdits[field] === before[field]
     set({
       ...(fresh('pinned') ? { pinned: prefs.pinnedSessions } : {}),
+      ...(fresh('rewound') ? { rewound: prefs.rewoundSessions ?? {} } : {}),
       ...(fresh('sessionOrder') ? { sessionOrder: prefs.sessionOrder ?? [] } : {}),
       ...(fresh('seenSessions') ? { seenSessions: prefs.seenSessions ?? {} } : {}),
       ...(fresh('laneMarkers') ? { laneMarkers: prefs.laneMarkers ?? {} } : {}),
@@ -1229,7 +1264,9 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         const ids = new Set([...matches.map((l) => l.phosphorId), ...(disposed ?? [])])
         for (const id of ids) await cleanupLocalSessionState(id)
         if (path) {
-          edited('pinned', 'laneMarkers')
+          edited('pinned', 'laneMarkers', 'rewound')
+          const rewoundBefore = get().rewound
+          const rewound = withoutSession(rewoundBefore, path)
           set((s) => {
             const disk = Object.fromEntries(
               Object.entries(s.disk).map(([cwd, metas]) => [
@@ -1241,8 +1278,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
               disk,
               pinned: s.pinned.filter((p) => p !== path),
               laneMarkers: drop(s.laneMarkers, path),
+              rewound,
             }
           })
+          // A deleted successor must not keep its old file folded away.
+          if (rewound !== rewoundBefore) {
+            void window.phosphor.invoke('app:setRewoundSessions', rewound)
+          }
           void window.phosphor.invoke('app:setPinnedSessions', get().pinned)
           void window.phosphor.invoke('app:setLaneMarkers', get().laneMarkers)
         }

@@ -106,6 +106,95 @@ describe('groupSessionsByProject', () => {
     ])
   })
 
+  describe('recorded rewinds', () => {
+    // Same shape for every case: the child names its source and repeats its
+    // first entry, exactly as a fork or clone would. Only the record differs.
+    const chain = (dir: string) =>
+      ['a', 'b', 'c'].map((id, index) =>
+        meta({
+          path: `${dir}/2026-10-1${index}T00-00-00-000Z_${id}.jsonl`,
+          parentSession: index ? `${dir}/2026-10-1${index - 1}T00-00-00-000Z_x.jsonl` : undefined,
+          firstEntryId: 'shared-entry',
+          name: 'Phosphor Remote Hosts',
+          createdAt: `2026-10-1${index}T00:00:00.000Z`,
+        }),
+      )
+    const names = chain('/x').map((m) => m.path.slice(3))
+    const visible = (
+      metas: SessionMeta[],
+      rewound: Record<string, string>,
+      isLive: (m: SessionMeta) => boolean = notLive,
+      livePaths: string[] = [],
+    ): string[] =>
+      groupSessionsByProject(
+        ['/repo'],
+        { '/repo': metas },
+        {},
+        notPinned,
+        isLive,
+        '/repo',
+        {},
+        {},
+        rewound,
+        livePaths,
+      )[0]!.metas.map((m) => m.path.split('/').pop()!)
+
+    it('hides the file a rewind replaced', () => {
+      const [a, b] = chain('/repo')
+      expect(visible([a!, b!], { [names[0]!]: names[1]! })).toEqual([names[1]])
+    })
+
+    it('shows a rewound file while it is live', () => {
+      const [a, b] = chain('/repo')
+      expect(visible([a!, b!], { [names[0]!]: names[1]! }, (m) => m.path === a!.path)).toEqual([
+        names[1],
+        names[0],
+      ])
+    })
+
+    it('shows the old file until its successor is on disk', () => {
+      const [a] = chain('/repo')
+      expect(visible([a!], { [names[0]!]: names[1]! })).toEqual([names[0]])
+    })
+
+    it('hides the old file while its live successor is not on disk yet', () => {
+      // A rewind to before any reply: pi writes the new file only when the
+      // next turn ends. The live session's placeholder row is the chat's row.
+      const [a] = chain('/repo')
+      const live = [`/repo/${names[1]!}`]
+      expect(visible([a!], { [names[0]!]: names[1]! }, notLive, live)).toEqual([])
+      // The process went away before writing it: the old row comes back.
+      expect(visible([a!], { [names[0]!]: names[1]! }, notLive, [])).toEqual([names[0]])
+    })
+
+    it('keeps both files of a fork or clone, which records nothing', () => {
+      const [a, b] = chain('/repo')
+      expect(visible([a!, b!], {})).toEqual([names[1], names[0]])
+    })
+
+    it('keeps only the last file of a chain', () => {
+      const record = { [names[0]!]: names[1]!, [names[1]!]: names[2]! }
+      expect(visible(chain('/repo'), record)).toEqual([names[2]])
+      // A deleted middle link must not bring the first file back.
+      const [a, , c] = chain('/repo')
+      expect(visible([a!, c!], record)).toEqual([names[2]])
+    })
+
+    it('hides nothing in a hand-edited cycle', () => {
+      const [a, b] = chain('/repo')
+      expect(visible([a!, b!], { [names[0]!]: names[1]!, [names[1]!]: names[0]! })).toEqual([
+        names[1],
+        names[0],
+      ])
+    })
+
+    it('still matches after the folder is renamed', () => {
+      // Recorded under the old folder; the scan now reports the new one.
+      const record = { [names[0]!]: names[1]! }
+      expect(visible(chain('/renamed').slice(0, 2), record)).toEqual([names[1]])
+    })
+  })
+
   it('gives a plain workspace its own group', () => {
     const groups = groupSessionsByProject(
       ['/repo'],

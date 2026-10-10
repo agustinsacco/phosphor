@@ -1,7 +1,7 @@
 import type { ImageContent } from '@shared/rpc'
 import { sessionBranch } from '@shared/session-branch'
 import { useChatStore } from '@/stores/chat'
-import { bootstrapSession } from '@/stores/sessions'
+import { bootstrapSession, useSessionsStore } from '@/stores/sessions'
 import { piCall, rehydrateTranscript } from '@/lib/rpc'
 import type { ChatItem, UserItem } from './chatItems'
 import { userMessageImages, userMessageText } from './messageContent'
@@ -29,20 +29,68 @@ import { useChatUiStore } from './uiState'
  *
  * `entryId` must come from `currentBranchUserMessages`, never from a
  * position in some other list — see that function for what went wrong.
+ *
+ * The abandoned file is then recorded as replaced (`features/sessions/rewound.ts`),
+ * so the sidebar folds it under the new one instead of showing two rows with
+ * one title. This is the ONLY place that records: Fork and Clone produce files
+ * of exactly the same shape, and both of theirs must stay visible.
+ *
+ * Rewinds on one session run one at a time. Each reads the file it starts
+ * from, and a second one started before the first had relearned its file
+ * recorded from the same old file too, overwriting the first link and leaving
+ * the middle version as a stray duplicate row.
  */
-export async function rewindToEntry(
+export function rewindToEntry(
   sessionId: string,
   entryId: string,
   images?: ImageContent[],
 ): Promise<void> {
+  const run = (inFlight.get(sessionId) ?? Promise.resolve()).then(() =>
+    rewindOnce(sessionId, entryId, images),
+  )
+  const settled = run.then(
+    () => undefined,
+    () => undefined,
+  )
+  inFlight.set(sessionId, settled)
+  void settled.then(() => {
+    if (inFlight.get(sessionId) === settled) inFlight.delete(sessionId)
+  })
+  return run
+}
+
+const inFlight = new Map<string, Promise<void>>()
+
+async function rewindOnce(
+  sessionId: string,
+  entryId: string,
+  images?: ImageContent[],
+): Promise<void> {
+  const before = useSessionsStore.getState().live[sessionId]?.diskPath
   const fork = await piCall(sessionId, { type: 'fork', entryId })
   if (!fork) return
   if (fork.cancelled) {
     useChatStore.getState().setError(sessionId, 'Rewind was cancelled by an extension.')
     return
   }
-  // Rebuild the transcript from the new branch point and relearn its file.
-  await Promise.all([rehydrateTranscript(sessionId), bootstrapSession(sessionId)])
+  // Recorded in the same update that moves `diskPath`, not after
+  // `bootstrapSession` returns: it keeps loading models and commands after
+  // learning the file, and for that whole round trip the old file was neither
+  // live nor recorded, so the sidebar showed it beside the new one.
+  let recorded = false
+  const record = (after: string | undefined): void => {
+    if (recorded || !before || !after || after === before) return
+    recorded = true
+    useSessionsStore.getState().recordRewind(before, after)
+  }
+  const unsubscribe = useSessionsStore.subscribe((s) => record(s.live[sessionId]?.diskPath))
+  try {
+    // Rebuild the transcript from the new branch point and relearn its file.
+    await Promise.all([rehydrateTranscript(sessionId), bootstrapSession(sessionId)])
+  } finally {
+    unsubscribe()
+  }
+  record(useSessionsStore.getState().live[sessionId]?.diskPath)
   if (fork.text || images?.length) {
     useChatUiStore.getState().setPrefill(sessionId, fork.text, images)
   }

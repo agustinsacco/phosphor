@@ -1,7 +1,15 @@
+import { useMemo } from 'react'
+import type { SessionMeta } from '@shared/models'
 import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
+import { sessionTitle } from '@/lib/sessionTitle'
+import {
+  latestRewoundVersion,
+  presentSessionFiles,
+  sessionFileName,
+} from '@/features/sessions/rewound'
 
-/** Inline banners: pi crashed, and no models configured. */
+/** Inline banners: pi crashed, no models configured, and an old version of a rewound chat. */
 
 export function CrashBanner({
   sessionId,
@@ -82,6 +90,75 @@ export function NoModelsBanner({ sessionId }: { sessionId: string }): React.JSX.
           </code>
           .
         </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * This file is what a chat looked like before a rewind, and the chat carries
+ * on in another file.
+ *
+ * The sidebar folds such a file away, but it can still be opened from the
+ * command palette, a pin or a restored last session. Without this banner it
+ * looked exactly like the live chat: a user typed "continue" into one, and a
+ * second agent started working in the same worktree as the first.
+ */
+export function RewoundBanner({ sessionId }: { sessionId: string }): React.JSX.Element | null {
+  const diskPath = useSessionsStore((s) => s.live[sessionId]?.diskPath)
+  const rewound = useSessionsStore((s) => s.rewound)
+  const disk = useSessionsStore((s) => s.disk)
+  const live = useSessionsStore((s) => s.live)
+  const successor = useMemo(() => {
+    if (!diskPath) return null
+    const liveByName = new Map<string, string>()
+    for (const entry of Object.values(live)) {
+      if (entry.diskPath) liveByName.set(sessionFileName(entry.diskPath), entry.phosphorId)
+    }
+    const latest = latestRewoundVersion(
+      rewound,
+      diskPath,
+      presentSessionFiles(
+        disk,
+        Object.values(live).map((entry) => entry.diskPath),
+      ),
+    )
+    if (!latest) return null
+    let found: { workspacePath: string; meta: SessionMeta } | undefined
+    for (const [workspacePath, metas] of Object.entries(disk)) {
+      const meta = metas.find((m) => sessionFileName(m.path) === latest)
+      if (meta) found = { workspacePath, meta }
+    }
+    return { ...found, livePhosphorId: liveByName.get(latest) }
+  }, [diskPath, rewound, disk, live])
+  // A live version's title leads its file by a whole turn (CLAUDE.md).
+  const liveName = useChatStore((s) =>
+    successor?.livePhosphorId ? s.sessions[successor.livePhosphorId]?.meta?.sessionName : undefined,
+  )
+  if (!successor) return null
+
+  const { workspacePath, meta, livePhosphorId } = successor
+  const name =
+    sessionTitle({ explicitName: liveName ?? meta?.name, firstUserText: meta?.firstUserText }) ??
+    'its newer version'
+  const open = (): void => {
+    const store = useSessionsStore.getState()
+    if (livePhosphorId) store.activate(livePhosphorId)
+    else if (meta && workspacePath) void store.openDiskSession(workspacePath, meta).catch(() => {})
+  }
+  return (
+    <div className="mx-auto w-full max-w-3xl px-6 pt-2" data-testid="rewound-banner">
+      <div className="bg-warning/10 border-warning/30 text-text-secondary rounded-lg border px-3.5 py-2.5 text-base">
+        This is the chat before a rewind. It continues in{' '}
+        {/* Body-coloured, not accent: the accent link measured 3.96:1 on this
+            tint in the light theme, under the 4.5:1 minimum for text. */}
+        <button
+          onClick={open}
+          className="text-text hover:text-accent font-medium underline underline-offset-2"
+        >
+          {name}
+        </button>
+        .
       </div>
     </div>
   )

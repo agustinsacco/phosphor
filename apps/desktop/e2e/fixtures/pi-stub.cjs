@@ -153,7 +153,8 @@ const SESSION_DIR = path.join(
 )
 // Resume keeps the file identity, just like pi, rather than minting a duplicate row.
 const RESUME_FLAG = process.argv.indexOf('--session')
-const SESSION_FILE =
+// `let`: a `fork` (rewind) moves the session onto a new file, as in pi.
+let SESSION_FILE =
   RESUME_FLAG !== -1
     ? process.argv[RESUME_FLAG + 1]
     : path.join(SESSION_DIR, `2026-01-01T00-00-00-000Z_stub-${process.pid}.jsonl`)
@@ -316,7 +317,44 @@ const CATALOGUE = [
 const DIFF = ' 1 export function hello() {\n-2   return "old"\n+2   return "new"\n 3 }'
 const PATCH = `--- a/hello.ts\n+++ b/hello.ts\n@@ -1,3 +1,3 @@\n export function hello() {\n-  return "old"\n+  return "new"\n }`
 
+/**
+ * A forked branch pi has not written yet (header first), or null.
+ *
+ * pi's `createBranchedSession` writes the new file at once only when the
+ * copied branch holds an assistant reply; a rewind to the first message leaves
+ * nothing on disk until the next turn ends. Mirrored here so e2e sees the same
+ * window in which the new file does not exist yet.
+ */
+let unwrittenFork = null
+/** After a fork, the id the next entry chains from (the branch's leaf). */
+let forkLeaf
+function flushFork() {
+  if (!unwrittenFork) return
+  fs.writeFileSync(SESSION_FILE, unwrittenFork.map((e) => JSON.stringify(e)).join('\n') + '\n')
+  unwrittenFork = null
+}
+
+/** pi's `fork`: copy the branch up to just before `entryId` into a new file. */
+function forkSession(entryId) {
+  const entries = sessionEntries()
+  const target = entries.find((entry) => entry.id === entryId)
+  if (!target) return null
+  const byId = new Map(entries.map((entry) => [entry.id, entry]))
+  const branch = []
+  for (let at = byId.get(target.parentId); at; at = byId.get(at.parentId)) branch.unshift(at)
+  const timestamp = new Date().toISOString()
+  const id = `stub-fork-${process.pid}-${Date.now()}`
+  const header = { type: 'session', version: 3, id, timestamp, cwd: process.cwd() }
+  unwrittenFork = [{ ...header, parentSession: SESSION_FILE }, ...branch]
+  SESSION_FILE = path.join(SESSION_DIR, `${timestamp.replace(/[:.]/g, '-')}_${id}.jsonl`)
+  forkLeaf = branch.at(-1)?.id ?? null
+  if (branch.some((entry) => entry.message?.role === 'assistant')) flushFork()
+  const content = target.message?.content
+  return typeof content === 'string' ? content : ''
+}
+
 function sessionEntries() {
+  if (unwrittenFork) return unwrittenFork.filter((entry) => entry.type !== 'session')
   return fs
     .readFileSync(SESSION_FILE, 'utf8')
     .trim()
@@ -695,6 +733,22 @@ function handle(cmd) {
       break
     }
 
+    case 'fork': {
+      const text = forkSession(cmd.entryId)
+      out(
+        text === null
+          ? { id: cmd.id, type: 'response', command: 'fork', success: false, error: 'not found' }
+          : {
+              id: cmd.id,
+              type: 'response',
+              command: 'fork',
+              success: true,
+              data: { text, cancelled: false },
+            },
+      )
+      break
+    }
+
     case 'abort':
       out({ id: cmd.id, type: 'response', command: 'abort', success: true })
       if (queueHold) {
@@ -709,16 +763,16 @@ function handle(cmd) {
     // directory refresh, and no rename could be asserted end to end.
     case 'set_session_name':
       try {
-        fs.appendFileSync(
-          SESSION_FILE,
-          JSON.stringify({
-            type: 'session_info',
-            id: `cccc${String(entrySeq).padStart(4, '0')}`,
-            parentId: sessionEntries().at(-1)?.id ?? null,
-            timestamp: new Date().toISOString(),
-            name: cmd.name,
-          }) + '\n',
-        )
+        const entry = {
+          type: 'session_info',
+          id: `cccc${String(entrySeq).padStart(4, '0')}`,
+          parentId: sessionEntries().at(-1)?.id ?? null,
+          timestamp: new Date().toISOString(),
+          name: cmd.name,
+        }
+        // An unwritten fork keeps it in memory, as pi does until a reply lands.
+        if (unwrittenFork) unwrittenFork.push(entry)
+        else fs.appendFileSync(SESSION_FILE, JSON.stringify(entry) + '\n')
       } catch {
         /* best effort */
       }
@@ -735,16 +789,22 @@ let entrySeq = 1
  * sidebar scanner and Usage view read usage/cost from disk, not RPC. */
 function persist(message) {
   try {
+    flushFork()
+    const id = `bbbb${String(entrySeq).padStart(4, '0')}`
+    const sequential = entrySeq === 1 ? 'aaaa0001' : `bbbb${String(entrySeq - 1).padStart(4, '0')}`
     fs.appendFileSync(
       SESSION_FILE,
       JSON.stringify({
         type: 'message',
-        id: `bbbb${String(entrySeq).padStart(4, '0')}`,
-        parentId: entrySeq === 1 ? 'aaaa0001' : `bbbb${String(entrySeq - 1).padStart(4, '0')}`,
+        id,
+        // After a fork, chain from the branch's leaf, as pi does, so a second
+        // rewind walks a real branch rather than a link into the old file.
+        parentId: forkLeaf === undefined ? sequential : forkLeaf,
         timestamp: new Date().toISOString(),
         message,
       }) + '\n',
     )
+    if (forkLeaf !== undefined) forkLeaf = id
     entrySeq++
   } catch {
     /* best effort */

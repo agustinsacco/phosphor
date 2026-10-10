@@ -8,6 +8,7 @@ import {
   pruneSeenSessions,
   sweepDrafts,
   pruneLaneMarkers,
+  pruneRewoundSessions,
   repointPath,
   resumeTargetRemoved,
   visibleWorkspaces,
@@ -124,6 +125,28 @@ describe('orphanBlobIds', () => {
 
   it('returns nothing when the directory is empty', () => {
     expect(orphanBlobIds(byKey(draft('a', 1, ['x'])), [])).toEqual([])
+  })
+})
+
+describe('pruneRewoundSessions', () => {
+  it('leaves a small, valid record identical', () => {
+    const record = { 'a.jsonl': 'b.jsonl' }
+    expect(pruneRewoundSessions(record)).toBe(record)
+  })
+
+  it('keeps the newest rewinds by successor name and drops malformed pairs', () => {
+    const record = {
+      'a.jsonl': '2026-10-01T00-00-00-000Z_b.jsonl',
+      'c.jsonl': '2026-10-03T00-00-00-000Z_d.jsonl',
+      'e.jsonl': '2026-10-02T00-00-00-000Z_f.jsonl',
+      'g.jsonl': 7 as unknown as string,
+      'h.jsonl': 'h.jsonl',
+    }
+    expect(pruneRewoundSessions(record, 2)).toEqual({
+      'c.jsonl': '2026-10-03T00-00-00-000Z_d.jsonl',
+      'e.jsonl': '2026-10-02T00-00-00-000Z_f.jsonl',
+    })
+    expect(pruneRewoundSessions('junk' as unknown as Record<string, string>)).toEqual({})
   })
 })
 

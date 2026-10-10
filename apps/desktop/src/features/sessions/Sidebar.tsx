@@ -95,6 +95,7 @@ export function Sidebar({
   const live = useSessionsStore((s) => s.live)
   const unread = useSessionsStore((s) => s.unread)
   const pinned = useSessionsStore((s) => s.pinned)
+  const rewound = useSessionsStore((s) => s.rewound)
   const sessionOrder = useSessionsStore((s) => s.sessionOrder)
   const seenSessions = useSessionsStore((s) => s.seenSessions)
   const gitByCwd = useSessionsStore((s) => s.gitByCwd)
@@ -400,9 +401,12 @@ export function Sidebar({
         workspacePath,
         scanStatus,
         worktreeRoots,
+        rewound,
+        liveByDisk.keys(),
       ).map((group) => ({ ...group, metas: orderedSessions(group.metas, sessionOrder) })),
     [
       sessionOrder,
+      rewound,
       knownWorkspaces,
       disk,
       gitByCwd,

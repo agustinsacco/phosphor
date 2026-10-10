@@ -205,6 +205,27 @@ export function pruneLaneMarkers(
   return Object.fromEntries(entries.slice(entries.length - keep))
 }
 
+/**
+ * Bound the rewind record (AppPrefs.rewoundSessions) and drop anything that is
+ * not a name → name pair, since prefs are user-editable JSON.
+ *
+ * Keeps the newest rewinds. A successor's name starts with the ISO time pi
+ * created it, i.e. when the rewind happened, so it sorts by recency as is.
+ * Losing an old entry only brings an old duplicate row back; it hides nothing.
+ */
+export function pruneRewoundSessions(
+  record: Record<string, string>,
+  max = 500,
+): Record<string, string> {
+  if (typeof record !== 'object' || record === null || Array.isArray(record)) return {}
+  const entries = Object.entries(record).filter(
+    ([from, to]) => typeof to === 'string' && from !== '' && to !== '' && from !== to,
+  )
+  if (entries.length <= max && entries.length === Object.keys(record).length) return record
+  entries.sort((a, b) => (a[1] < b[1] ? 1 : a[1] > b[1] ? -1 : 0))
+  return Object.fromEntries(entries.slice(0, max))
+}
+
 /** One directory move, as `repointPath` understands it. */
 export interface PathMove {
   from: string

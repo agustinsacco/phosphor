@@ -545,6 +545,13 @@ export interface AppPrefs {
   lastSessionPath?: string
   /** Pinned session file paths. */
   pinnedSessions: string[]
+  /**
+   * Session FILE NAME a rewind replaced → the file name that replaced it.
+   * Written only by a rewind (never a fork or clone); the sidebar folds the
+   * old file away while its successor is on disk. Names, not paths, so a
+   * folder rename cannot break it. Bounded in the store.
+   */
+  rewoundSessions: Record<string, string>
   /** Manual sidebar order by session file path; unseen paths stay newest-first. */
   sessionOrder: string[]
   /**
@@ -804,6 +811,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   theme: 'dark',
   recentWorkspaces: [],
   pinnedSessions: [],
+  rewoundSessions: {},
   sessionOrder: [],
   modelPicks: DEFAULT_MODEL_PICKS,
   collapsedWorkspaces: [],

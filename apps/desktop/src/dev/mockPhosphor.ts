@@ -823,6 +823,7 @@ export function installMockPhosphor(): void {
               },
             ],
             pinnedSessions: [],
+            rewoundSessions: {},
             sessionOrder: JSON.parse(localStorage.getItem('mock:sessionOrder') ?? '[]'),
             modelPicks: {
               starred: ['anthropic/claude-opus-5'],
@@ -1724,6 +1725,8 @@ export function installMockPhosphor(): void {
         case 'app:setLanePrefs':
           return Promise.resolve(undefined)
         case 'app:setLaneMarkers':
+          return Promise.resolve(undefined)
+        case 'app:setRewoundSessions':
           return Promise.resolve(undefined)
         case 'gh:prsForRepo':
           // Branch keys must match the mock git:infoBatch branches below, or

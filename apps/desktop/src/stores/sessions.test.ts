@@ -186,6 +186,36 @@ describe('tool-result file invalidation', () => {
   })
 })
 
+describe('carrying on in a rewound version', () => {
+  it('drops its record when a turn ends in it, so it keeps its row', async () => {
+    let listener: ((push: SessionPush) => void) | undefined
+    const invoke = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('window', {
+      phosphor: {
+        invoke,
+        piCommand: vi.fn().mockResolvedValue({ success: false }),
+        onSessionPush: (_sessionId: string, next: (push: SessionPush) => void) => {
+          listener = next
+          return () => {}
+        },
+      },
+    })
+    useSessionsStore.setState({
+      live: {},
+      unread: {},
+      activeSessionId: null,
+      rewound: { 'a.jsonl': 'b.jsonl', 'b.jsonl': 'c.jsonl' },
+    })
+    await useSessionsStore.getState().adoptSession('old-a', '/repo', '/sessions/a.jsonl')
+
+    listener?.({ kind: 'event', event: { type: 'agent_end', messages: [] } })
+
+    // Only the link OUT of `a` goes; `b` stays folded under `c`.
+    expect(useSessionsStore.getState().rewound).toEqual({ 'b.jsonl': 'c.jsonl' })
+    expect(invoke).toHaveBeenCalledWith('app:setRewoundSessions', { 'b.jsonl': 'c.jsonl' })
+  })
+})
+
 describe('session scan status', () => {
   const invoke = vi.fn()
 

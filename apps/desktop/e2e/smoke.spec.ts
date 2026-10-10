@@ -2827,6 +2827,67 @@ test('reopens the last session on relaunch instead of the picker', async () => {
   }
 })
 
+/**
+ * pi's `fork` never edits a session in place: a rewind moves the chat onto a
+ * new file and leaves the old one on disk, with the same title. Phosphor
+ * records the rewind and folds the old file away; opened some other way, the
+ * old file says where the chat went. Fork and Clone keep both files (see the
+ * startup spec's "saved fork" test).
+ */
+test('a rewind leaves one sidebar row, and its old file points at the new one', async () => {
+  const h = await launch()
+  const { page } = h
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    const reply = page.getByText(/Done:\s*hello\.ts\s*updated\./)
+    await expect(reply).toBeVisible({ timeout: 30_000 })
+    const rows = page.getByTestId('session-row')
+    const saved = page.locator('[data-testid="session-row"]:not([data-pending])')
+    await expect(saved).toHaveCount(1, { timeout: 20_000 })
+
+    // Rewind to the first message, then resend it: pi writes the new file
+    // only when that turn ends.
+    const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
+    await page.keyboard.press(`${mod}+k`)
+    await page.getByPlaceholder('Type a command…').fill('Rewind')
+    await page.getByText('Rewind to an earlier message…').click()
+    await page.getByRole('button', { name: /stub session/ }).click()
+    const composer = page.getByPlaceholder(/Describe a task…/i)
+    await expect(composer).toHaveText('stub session')
+    // Before the resend the new file is not on disk yet. The live session's
+    // placeholder is the chat's one row; the old file must not sit beside it.
+    await expect(saved).toHaveCount(0)
+    await expect(rows).toHaveCount(1)
+    await composer.press('Enter')
+    await expect(reply).toHaveCount(1, { timeout: 30_000 })
+
+    for (let reload = 0; reload < 2; reload++) {
+      await expect(saved).toHaveCount(1, { timeout: 20_000 })
+      await expect(rows).toHaveCount(1)
+      await page.reload()
+    }
+    await expect(saved).toHaveCount(1, { timeout: 20_000 })
+
+    // The old file still carries the stub's auto-name (the rewind went back
+    // past it), is still reachable, and says where the chat went.
+    await page.keyboard.press(`${mod}+k`)
+    await page.getByPlaceholder('Type a command…').fill('Open session: Stub Session Title')
+    await page.getByText('Open session: Stub Session Title', { exact: true }).click()
+    const banner = page.getByTestId('rewound-banner')
+    await expect(banner).toContainText('This is the chat before a rewind. It continues in', {
+      timeout: 20_000,
+    })
+    // Live again, so it is listed again: never hide the row being looked at.
+    await expect(saved).toHaveCount(2)
+    await banner.getByRole('button').click()
+    await expect(banner).toBeHidden()
+  } finally {
+    await shutdown(h)
+  }
+})
+
 test('an unsent draft survives a session switch and a relaunch', async () => {
   // One userData dir across both launches so the draft has somewhere to live,
   // while staying out of the developer's real prefs.

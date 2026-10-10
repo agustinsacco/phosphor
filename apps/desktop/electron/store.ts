@@ -7,6 +7,7 @@ import {
   type PathMove,
   pruneDrafts,
   pruneLaneMarkers,
+  pruneRewoundSessions,
   pruneSeenSessions,
   repointPath,
   resumeTargetRemoved,
@@ -128,6 +129,7 @@ export function getPrefs(): AppPrefs {
     lastWorkspacePath: resolvedOrSame(s.get('lastWorkspacePath')),
     lastSessionPath: s.get('lastSessionPath'),
     pinnedSessions: s.get('pinnedSessions') ?? [],
+    rewoundSessions: pruneRewoundSessions(s.get('rewoundSessions') ?? {}),
     sessionOrder: s.get('sessionOrder') ?? [],
     modelPicks: { ...DEFAULT_MODEL_PICKS, ...s.get('modelPicks') },
     collapsedWorkspaces: canonicalPaths(s.get('collapsedWorkspaces') ?? [], realPathOrNull),
@@ -310,6 +312,14 @@ export function setSessionOrder(paths: string[]): void {
 
 export function setPinnedSessions(paths: string[]): void {
   prefs().set('pinnedSessions', paths)
+}
+
+/**
+ * Keyed by file name, so a folder rename (`repointStoredPaths`) has nothing to
+ * rewrite here: the record keeps matching the moved transcripts as is.
+ */
+export function setRewoundSessions(record: Record<string, string>): void {
+  prefs().set('rewoundSessions', pruneRewoundSessions(record))
 }
 
 export function setLaneMarkers(markers: Record<string, string>): void {
