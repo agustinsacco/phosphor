@@ -5,9 +5,9 @@ on. Its command is `phosphor`; its config and logs live in `phosphor-host`
 folders, apart from Desktop's own. Today it is a foreground CLI that checks
 whether a machine can run sessions. Its session runtime is built and tested
 ([Sessions](#sessions)), but no command starts a session yet, and it listens on
-nothing. Nothing builds, installs or publishes it yet: it runs from its tests,
-and from a scratch bundle during development. Desktop never runs a Host, and
-offline Desktop never needs one ([remote-access.md](remote-access.md)).
+nothing. `npm run build:host` builds it ([Build](#build)); nothing installs or
+publishes it yet. Desktop never runs a Host, and offline Desktop never needs one
+([remote-access.md](remote-access.md)).
 
 The source is `apps/host/src/`. It imports Node builtins and the exported
 subpaths of `@phosphor/session-runtime` and `@phosphor/shared`, nothing else:
@@ -33,6 +33,35 @@ not stamp a commit.
 | 70            | internal error                                                           |
 | 78            | the config is invalid                                                    |
 | 129, 130, 143 | ended by SIGHUP, SIGINT or SIGTERM, after killing any running probe      |
+
+## Build
+
+`npm run build:host` writes `apps/host/dist/`, which git ignores. It runs
+`node apps/host/scripts/build.mjs`, which also takes `--out DIR` and `--sha SHA`:
+
+- `phosphor.mjs` and its linked source map: one ESM file for Node 22, built by
+  esbuild from `src/main.ts`. Run it as `node phosphor.mjs <command>`.
+- `pi-ext/`: the bundled extensions, copied with Desktop's filter (every `.ts`
+  file but tests). A session loads them from beside the bundle unless the config
+  sets `resourceRoot`.
+- `BUILD-INFO.json`: the version, the source commit, whether the tree had
+  uncommitted changes, the Node target, and every file with its size and sha256.
+
+The version is `0.0.0-dev.<sha7>` of the source commit, HEAD unless `--sha`
+names another. The build fails if the bundle reaches Electron, `electron-store`,
+`electron-updater`, `node-pty`, Desktop or the site, imports anything but a Node
+builtin, or lacks one of the six extensions. It builds in a new folder beside
+the output and moves it into place only at the end, so a failure leaves the
+output as it was and removes only what the build made. It only replaces an empty
+folder or an earlier build: a real folder whose `BUILD-INFO.json` is a regular
+file naming `phosphor`, schema 1, that lists every other file in it. Anything
+else, a link inside included, is refused and left alone. Nothing is signed; real
+versions and signed bundles are component 23's.
+
+`bundle.test.ts` builds into a scratch folder and checks `BUILD-INFO.json`
+against the files, the imports, and `pi-ext/`. It then runs the built file under
+a minimal environment (`HOME`, `USER`, `LOGNAME` and `PATH=/usr/bin:/bin`):
+`version`, and `doctor` on the extensions beside it.
 
 ## Config
 
@@ -282,9 +311,11 @@ session's delivery redacted the same way.
 
 ## Nx and CI
 
-The Nx project `host` has `typecheck` (`tsc --noEmit -p apps/host/tsconfig.json`)
-and `test` (`vitest run apps/host`), both uncached. It depends on the runtime,
+The Nx project `host` has `typecheck` (`tsc --noEmit -p apps/host/tsconfig.json`),
+`test` (`vitest run apps/host`) and `build` (`node apps/host/scripts/build.mjs`,
+output `apps/host/dist`), all uncached. It depends on the runtime,
 shared and pi-extensions libraries, and only `tooling` depends on it, so a
 Host-only change selects `host` and `tooling` and never releases Desktop. Root
-`npm run typecheck:host` runs the typecheck in the validator and in CI's checks
-job; the unit tests run with every other suite in `npm test`.
+`npm run typecheck:host` and `npm run build:host` run in the validator and in
+CI's checks job; the unit tests, the bundle's included, run with every other
+suite in `npm test`.

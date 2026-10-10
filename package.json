@@ -16,6 +16,7 @@
     "preview": "npm run preview --prefix apps/desktop --",
     "typecheck": "npm run typecheck --prefix apps/desktop --",
     "typecheck:host": "tsc --noEmit -p apps/host/tsconfig.json",
+    "build:host": "node apps/host/scripts/build.mjs",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",

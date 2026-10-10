@@ -13,6 +13,7 @@ export default tseslint.config(
       '.pidex/**',
       'apps/site/.astro/**',
       'apps/site/dist/**',
+      'apps/host/dist/**',
       'apps/site/shots-raw/**',
       'apps/site/test-results/**',
       'apps/site/playwright-report/**',
@@ -73,6 +74,7 @@ export default tseslint.config(
     files: [
       'tools/scripts/**/*.mjs',
       'apps/desktop/scripts/**/*.mjs',
+      'apps/host/scripts/**/*.mjs',
       'apps/site/scripts/**/*.mjs',
     ],
     languageOptions: {

@@ -488,7 +488,8 @@ libs/pi-extensions/pi-ext/  the six pi extensions that run inside pi's process,
                      bundled into every session: artifacts, context-breakdown,
                      headroom, mcp-status, tool-name-guard, worktree-paths
 apps/desktop/e2e/                 Playwright-Electron smoke tests + deterministic pi stub
-apps/host/src/       the plain-Node Host and its `phosphor` CLI: its config, pi's
+apps/host/           the plain-Node Host and its `phosphor` CLI (src/, and
+                     scripts/build.mjs for the bundle): its config, pi's
                      environment, the machine checks and the session runtime
                      (docs/host.md)
 tools/scripts/             install.sh, icon + screenshot generation, release and
