@@ -249,6 +249,32 @@ describe('an exit that flushes', () => {
     expect(io.exit.mock.calls).toEqual([[0]])
   })
 
+  it('keeps the first code asked for while its flush runs', () => {
+    const { io, flushes, shutdown } = flushing()
+    shutdown.finish(1)
+    void shutdown.signal('SIGTERM')
+    shutdown.finish(0)
+    for (const done of flushes) done()
+    expect(io.exit.mock.calls).toEqual([[1]])
+  })
+
+  it("waits for a fatal error's message when a signal's drain has ended and its exit flushes", async () => {
+    const { calls, io, flushes, shutdown } = flushing()
+    const { target, end } = host()
+    shutdown.attach(target)
+    const signalled = shutdown.signal('SIGTERM')
+    end('stopped')
+    await signalled
+    expect(io.flush).toHaveBeenCalledTimes(1)
+    await shutdown.fatal(new Error('boom'))
+    expect(calls).toContain('stderr phosphor: internal error: boom\n')
+    expect(io.flush).toHaveBeenCalledTimes(2)
+    flushes[0]!()
+    expect(io.exit).not.toHaveBeenCalled()
+    flushes[1]!()
+    expect(io.exit.mock.calls).toEqual([[70]])
+  })
+
   it.each([
     ['a command', (shutdown: ReturnType<typeof createShutdown>) => void shutdown.finish(0)],
     ['a signal', (shutdown: ReturnType<typeof createShutdown>) => void shutdown.signal('SIGTERM')],
