@@ -312,7 +312,9 @@ letting it land in `~/Phosphor/release/`.
 `apps/desktop/electron/debug-log.ts` — always on, no flag, rotating at 5MB. It records pi's
 spawn argv, pi's stderr, unexpected exits, and main-process crashes, plus the
 inherited `PATH` (a GUI app gets launchd's, not your login shell's, so `pi` and
-`claude` can resolve to different binaries than in a terminal).
+`claude` can resolve to different binaries than in a terminal). An e2e run
+(`PHOSPHOR_TEST_USER_DATA`) writes its log under `<userData>/logs/` instead, so
+a suite's stub spawns cannot rotate the real log away.
 
 **Three layers keep evidence, and the useful one is usually the deepest.** An
 assistant message with empty content and `totalTokens: 0` in pi's session JSONL

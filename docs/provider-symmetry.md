@@ -102,6 +102,14 @@ How each level maps onto the request is in pi-claude-cli's
   tokens on gpt-6-astra and 23k on Claude. One conversation fills the context
   meter and reaches the budget at different points on each provider, so
   percentages do not compare across providers.
+- **Claude reports a smaller context than it holds** (an open break,
+  [known-issues.md](known-issues.md#context-budget-and-compaction) C1). pi reads
+  `usage.totalTokens` as the context after a response, and its own providers
+  include that response's output. pi-claude-cli leaves the output out, so the
+  budget check and the meter lag by one response: tens of thousands of tokens
+  after a long thinking turn. Compare `totalTokens` with
+  `input + output + cacheRead + cacheWrite` on any assistant message in the
+  session file; on Codex they are equal.
 
 ### Where Phosphor branches on the provider
 

@@ -121,6 +121,9 @@ to cut it.
   are never enlarged, and opting out restores the catalogue capacity.
 - The settlement check remains an idle fallback, not the primary enforcement.
   A single response/tool batch may overshoot; the next model request compacts.
+  On Claude the overshoot can be one response larger, because the provider
+  reports context without its output
+  ([known-issues.md](known-issues.md#context-budget-and-compaction) C1).
 - **Smaller windows keep pi's native limit**: on a 200k model (Claude Haiku
   4.5, for one) pi fires at `contextWindow - reserveTokens`, ~183k with the
   default reserve, before the default budget would.

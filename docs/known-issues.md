@@ -67,6 +67,28 @@ recoverable transcript for that turn. Main has activity facts and abort logs,
 not a durable interruption journal. Editor save/discard prompts and a
 wait-until-finished quit action are also still missing. See [updates.md](updates.md).
 
+## Context budget and compaction
+
+Found on 2026-10-10 by replaying the compactions in twelve lanes' session
+files. Every one of them is upstream of Phosphor (in pi or pi-claude-cli). The
+budget rule itself holds: native sessions compact at pi's own threshold when
+the model window is below the budget, Claude sessions at `budget − reserve`
+(383,616 for 400k), mid-run between tool cycles, and the next request always
+continued.
+
+| #   | Issue                                                                                                                                                                                                                                                                                                                         | Where                                                                                      |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| C1  | A Claude session under-counts its context by the last response's output. The provider reports `usage.totalTokens` without output; pi's Anthropic provider includes it, and pi's threshold check trusts that field. A 20-53k thinking response let requests through at 401k and 415k on a 400k budget, and the meter reads low | pi-claude-cli `src/event-bridge.ts` `recomputeUsage`                                       |
+| C2  | Compaction runs at the session's thinking level, and the Claude provider never sends pi's summary cap (`maxTokens`, 0.8 × reserve). At `max`, a Claude compaction wrote 46-72k output tokens and blocked the session for 6-10 minutes                                                                                         | pi `agent-session.js` (`compact(…, this.thinkingLevel)`); pi-claude-cli `src/provider.ts`  |
+| C3  | Chained summaries only grow and drift. pi's update prompt preserves everything, and appends cumulative read/modified file lists it never prunes. Over 17 compactions one summary grew from 4k to 25k tokens, with 420 listed paths (122 gone after a relocation), while two early user constraints dropped out                | pi `compaction/compaction.js` `UPDATE_SUMMARIZATION_INSTRUCTIONS`, `extractFileOperations` |
+
+C1 is a symmetry break: fixing it means `totalTokens` = the last cycle's
+context plus its output, as
+[provider-symmetry.md](provider-symmetry.md#cost-and-process-lifetime) now
+records. Long lanes survive C3 because they keep their plan on disk (a tracker
+or plan file the agent re-reads after compaction), not because the summary
+keeps it.
+
 ## Tool and MCP row rendering
 
 The bash half of this was fixed — rows are now labelled by their operative
