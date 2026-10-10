@@ -40,6 +40,41 @@ export function withRewind(
 }
 
 /**
+ * Forget the link OUT of one file, because a turn ended in it: the user
+ * reopened an old version and carried on, so it is a chat of its own again and
+ * must not fold away under a version that is now older than its own work.
+ * Links INTO it stay, so whatever it replaced remains folded under it.
+ */
+export function withoutRewindOf(record: RewoundSessions, sessionPath: string): RewoundSessions {
+  const name = sessionFileName(sessionPath)
+  if (!(name in record)) return record
+  const next = { ...record }
+  delete next[name]
+  return next
+}
+
+/**
+ * Every file name a rewind's successor can be found under: each scanned file,
+ * plus each live session's file. pi writes a rewound branch with no reply yet
+ * only when its next turn ends, so for that whole turn the live session (shown
+ * by its placeholder row) is the successor's only trace. Counting it is what
+ * stops the old row from sitting there, unmarked, inviting a second agent.
+ * Once the process is gone, so is the entry, and an unwritten successor
+ * brings the old row back: the chat never ends up with no row at all.
+ */
+export function presentSessionFiles(
+  disk: Record<string, ReadonlyArray<{ path: string }>>,
+  livePaths: Iterable<string | undefined>,
+): Set<string> {
+  const present = new Set<string>()
+  for (const metas of Object.values(disk)) {
+    for (const meta of metas) present.add(sessionFileName(meta.path))
+  }
+  for (const path of livePaths) if (path) present.add(sessionFileName(path))
+  return present
+}
+
+/**
  * Forget a deleted file, keeping its chain intact: after A → B → C, deleting
  * B leaves A → C, so A stays folded under the version that carries on.
  */

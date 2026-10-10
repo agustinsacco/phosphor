@@ -402,6 +402,7 @@ export function Sidebar({
         scanStatus,
         worktreeRoots,
         rewound,
+        liveByDisk.keys(),
       ).map((group) => ({ ...group, metas: orderedSessions(group.metas, sessionOrder) })),
     [
       sessionOrder,

@@ -92,6 +92,66 @@ describe('rewindToEntry', () => {
     expect(rewindRecords()).toEqual([['app:setRewoundSessions', record]])
   })
 
+  /**
+   * `bootstrapSession` keeps loading models and commands after it learns the
+   * file. Recording only after it returned left the old file neither live nor
+   * recorded for that round trip, and the sidebar showed both rows.
+   */
+  it('records in the same update that moves the session onto its new file', async () => {
+    let releaseMessages: () => void = () => {}
+    piCommand.mockImplementation((_sessionId: string, command: RpcCommand) => {
+      switch (command.type) {
+        case 'fork':
+          return Promise.resolve({ success: true, data: { text: 'x', cancelled: false } })
+        case 'get_messages':
+          return new Promise((resolve) => {
+            releaseMessages = () => resolve({ success: true, data: { messages: [] } })
+          })
+        case 'get_state':
+          return Promise.resolve({
+            success: true,
+            data: sessionState('/repo/.pi/sessions/b.jsonl'),
+          })
+        default:
+          return Promise.resolve({ success: false })
+      }
+    })
+
+    const rewind = rewindToEntry('s1', 'entry-2')
+    await vi.waitFor(() =>
+      expect(useSessionsStore.getState().live.s1?.diskPath).toBe('/repo/.pi/sessions/b.jsonl'),
+    )
+    expect(useSessionsStore.getState().rewound).toEqual({ 'old.jsonl': 'b.jsonl' })
+    releaseMessages()
+    await rewind
+    expect(rewindRecords()).toHaveLength(1)
+  })
+
+  it('runs two rewinds on one session in turn, so the chain keeps every link', async () => {
+    const files = ['/repo/.pi/sessions/b.jsonl', '/repo/.pi/sessions/c.jsonl']
+    let forks = 0
+    piCommand.mockImplementation((_sessionId: string, command: RpcCommand) => {
+      switch (command.type) {
+        case 'fork':
+          forks++
+          return Promise.resolve({ success: true, data: { text: 'x', cancelled: false } })
+        case 'get_messages':
+          return Promise.resolve({ success: true, data: { messages: [] } })
+        case 'get_state':
+          return Promise.resolve({ success: true, data: sessionState(files[forks - 1]!) })
+        default:
+          return Promise.resolve({ success: false })
+      }
+    })
+
+    await Promise.all([rewindToEntry('s1', 'entry-2'), rewindToEntry('s1', 'entry-1')])
+
+    expect(useSessionsStore.getState().rewound).toEqual({
+      'old.jsonl': 'b.jsonl',
+      'b.jsonl': 'c.jsonl',
+    })
+  })
+
   it('records nothing when pi stays on the same file', async () => {
     piCommand.mockImplementation((_sessionId: string, command: RpcCommand) => {
       switch (command.type) {
@@ -143,9 +203,17 @@ describe('rewindToEntry', () => {
   })
 
   it('does not touch diskPath or the transcript when an extension cancels the fork', async () => {
+    // get_state would report a new file, so a record here could only come
+    // from treating the cancelled fork as a rewind.
     piCommand.mockImplementation((_sessionId: string, command: RpcCommand) => {
       if (command.type === 'fork') {
         return Promise.resolve({ success: true, data: { text: '', cancelled: true } })
+      }
+      if (command.type === 'get_state') {
+        return Promise.resolve({
+          success: true,
+          data: sessionState('/repo/.pi/sessions/new.jsonl'),
+        })
       }
       return Promise.resolve({ success: false })
     })

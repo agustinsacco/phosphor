@@ -57,15 +57,20 @@ describe ancestry, not permission to hide the source):
   processes stop or the app restarts.
 - **Rewind** records `old file → new file` (`AppPrefs.rewoundSessions`, keyed
   by file name so a folder rename cannot break it; written by `rewindToEntry`
-  only). The sidebar folds the old file away while its successor is on disk
-  and the old file is not live, following chains (A → B → C shows only C).
-  The new file is written only when a turn ends if the rewound branch had no
-  reply yet, so until then the old row stays. A pinned old file stays pinned.
-  Deleting the successor brings the old row back. Nothing is deleted or
-  written to pi's files.
+  only, in the same store update that moves the session onto its new file).
+  The sidebar folds the old file away while the old file is not live and a
+  later version exists, following chains (A → B → C shows only C). "Exists"
+  means on disk **or live**: pi writes a rewound branch with no reply yet only
+  when its next turn ends, and until then the live session's placeholder row
+  is the chat's one row. If the app quits before that file is written, the old
+  row comes back. A pinned old file stays pinned. Deleting the successor
+  brings the old row back. Nothing is deleted or written to pi's files.
 - Opened some other way (palette, pin, restored session), an old version shows
   a banner, "This is the chat before a rewind. It continues in <name>", linking
   to the live version, so nobody resumes it by mistake.
+- **Carrying on in an old version** makes it a chat of its own again: when a
+  turn ends in it, its record is dropped and it keeps its row, beside the
+  version that replaced it. Hiding it again would hide the newest work.
 
 Rewinds made before this record existed are not folded: their duplicate rows
 stay until you rename or delete one.

@@ -2856,6 +2856,10 @@ test('a rewind leaves one sidebar row, and its old file points at the new one', 
     await page.getByRole('button', { name: /stub session/ }).click()
     const composer = page.getByPlaceholder(/Describe a task…/i)
     await expect(composer).toHaveText('stub session')
+    // Before the resend the new file is not on disk yet. The live session's
+    // placeholder is the chat's one row; the old file must not sit beside it.
+    await expect(saved).toHaveCount(0)
+    await expect(rows).toHaveCount(1)
     await composer.press('Enter')
     await expect(reply).toHaveCount(1, { timeout: 30_000 })
 

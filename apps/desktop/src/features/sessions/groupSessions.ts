@@ -1,7 +1,7 @@
 import type { GitInfo, SessionMeta, SessionScanStatus } from '@shared/models'
 import { compareSessionsByCreation } from '@shared/session-order'
 import { projectPathFor, workspaceName } from '@/lib/path'
-import { latestRewoundVersion, sessionFileName, type RewoundSessions } from './rewound'
+import { latestRewoundVersion, presentSessionFiles, type RewoundSessions } from './rewound'
 
 export interface GroupedSessions {
   /**
@@ -72,15 +72,13 @@ export function groupSessionsByProject(
   worktreeRoots: Record<string, string> = {},
   /** Files a rewind replaced (see `rewound.ts`); folded under their successor. */
   rewound: RewoundSessions = {},
+  /** Live sessions' files, which may not be on disk yet (`presentSessionFiles`). */
+  livePaths: Iterable<string | undefined> = [],
 ): GroupedSessions[] {
-  const present = new Set<string>()
-  for (const metas of Object.values(disk)) {
-    for (const meta of metas) present.add(sessionFileName(meta.path))
-  }
+  const present = presentSessionFiles(disk, livePaths)
   // Display only, and only for a rewind Phosphor recorded: never a live row
-  // (the one the user may be looking at), and never before the successor's
-  // file is on disk. pi writes a rewound branch with no reply yet only when
-  // its next turn ends, and the chat must never be left with no row at all.
+  // (the one the user may be looking at), and never while no later version
+  // exists, on disk or live: the chat must never be left with no row at all.
   const rewoundAway = (meta: SessionMeta): boolean =>
     !isLive(meta) && latestRewoundVersion(rewound, meta.path, present) !== null
   const byProject = new Map<

@@ -124,6 +124,7 @@ describe('groupSessionsByProject', () => {
       metas: SessionMeta[],
       rewound: Record<string, string>,
       isLive: (m: SessionMeta) => boolean = notLive,
+      livePaths: string[] = [],
     ): string[] =>
       groupSessionsByProject(
         ['/repo'],
@@ -135,6 +136,7 @@ describe('groupSessionsByProject', () => {
         {},
         {},
         rewound,
+        livePaths,
       )[0]!.metas.map((m) => m.path.split('/').pop()!)
 
     it('hides the file a rewind replaced', () => {
@@ -153,6 +155,16 @@ describe('groupSessionsByProject', () => {
     it('shows the old file until its successor is on disk', () => {
       const [a] = chain('/repo')
       expect(visible([a!], { [names[0]!]: names[1]! })).toEqual([names[0]])
+    })
+
+    it('hides the old file while its live successor is not on disk yet', () => {
+      // A rewind to before any reply: pi writes the new file only when the
+      // next turn ends. The live session's placeholder row is the chat's row.
+      const [a] = chain('/repo')
+      const live = [`/repo/${names[1]!}`]
+      expect(visible([a!], { [names[0]!]: names[1]! }, notLive, live)).toEqual([])
+      // The process went away before writing it: the old row comes back.
+      expect(visible([a!], { [names[0]!]: names[1]! }, notLive, [])).toEqual([names[0]])
     })
 
     it('keeps both files of a fork or clone, which records nothing', () => {

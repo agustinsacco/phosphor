@@ -326,6 +326,8 @@ const PATCH = `--- a/hello.ts\n+++ b/hello.ts\n@@ -1,3 +1,3 @@\n export function
  * window in which the new file does not exist yet.
  */
 let unwrittenFork = null
+/** After a fork, the id the next entry chains from (the branch's leaf). */
+let forkLeaf
 function flushFork() {
   if (!unwrittenFork) return
   fs.writeFileSync(SESSION_FILE, unwrittenFork.map((e) => JSON.stringify(e)).join('\n') + '\n')
@@ -345,6 +347,7 @@ function forkSession(entryId) {
   const header = { type: 'session', version: 3, id, timestamp, cwd: process.cwd() }
   unwrittenFork = [{ ...header, parentSession: SESSION_FILE }, ...branch]
   SESSION_FILE = path.join(SESSION_DIR, `${timestamp.replace(/[:.]/g, '-')}_${id}.jsonl`)
+  forkLeaf = branch.at(-1)?.id ?? null
   if (branch.some((entry) => entry.message?.role === 'assistant')) flushFork()
   const content = target.message?.content
   return typeof content === 'string' ? content : ''
@@ -787,16 +790,21 @@ let entrySeq = 1
 function persist(message) {
   try {
     flushFork()
+    const id = `bbbb${String(entrySeq).padStart(4, '0')}`
+    const sequential = entrySeq === 1 ? 'aaaa0001' : `bbbb${String(entrySeq - 1).padStart(4, '0')}`
     fs.appendFileSync(
       SESSION_FILE,
       JSON.stringify({
         type: 'message',
-        id: `bbbb${String(entrySeq).padStart(4, '0')}`,
-        parentId: entrySeq === 1 ? 'aaaa0001' : `bbbb${String(entrySeq - 1).padStart(4, '0')}`,
+        id,
+        // After a fork, chain from the branch's leaf, as pi does, so a second
+        // rewind walks a real branch rather than a link into the old file.
+        parentId: forkLeaf === undefined ? sequential : forkLeaf,
         timestamp: new Date().toISOString(),
         message,
       }) + '\n',
     )
+    if (forkLeaf !== undefined) forkLeaf = id
     entrySeq++
   } catch {
     /* best effort */

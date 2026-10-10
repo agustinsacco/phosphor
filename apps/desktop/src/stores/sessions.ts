@@ -5,7 +5,12 @@ import { useChatStore } from './chat'
 import { useNamingStore } from './naming'
 import { usePiCommandsStore } from './piCommands'
 import { drop } from './keyedSlice'
-import { withoutSession, withRewind, type RewoundSessions } from '@/features/sessions/rewound'
+import {
+  withoutRewindOf,
+  withoutSession,
+  withRewind,
+  type RewoundSessions,
+} from '@/features/sessions/rewound'
 import { piCallOk, rehydrateTranscript } from '@/lib/rpc'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { clearBurnSamples, recordBurnSample } from '@/lib/burnRate'
@@ -139,6 +144,8 @@ interface SessionsState {
   rewound: RewoundSessions
   /** Record that a rewind moved a session from one file onto another. */
   recordRewind: (fromPath: string, toPath: string) => void
+  /** A turn ended in this file: if a rewind replaced it, it is its own chat again. */
+  keepRewoundVersion: (sessionPath: string) => void
   sessionOrder: string[]
   setSessionOrder: (paths: string[]) => void
   /**
@@ -649,6 +656,12 @@ function attachSessionPushHandler(phosphorId: string): void {
             )
           }
         }
+        // Someone reopened a version a rewind replaced and carried on in it.
+        // Folding it away again once closed would hide their newest work.
+        if (push.event.type === 'agent_end') {
+          const diskPath = useSessionsStore.getState().live[phosphorId]?.diskPath
+          if (diskPath) useSessionsStore.getState().keepRewoundVersion(diskPath)
+        }
         const { activeSessionId } = useSessionsStore.getState()
         if (
           activeSessionId !== phosphorId &&
@@ -760,6 +773,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
   rewound: {},
   recordRewind: (fromPath, toPath) => {
     const rewound = withRewind(get().rewound, fromPath, toPath)
+    if (rewound === get().rewound) return
+    edited('rewound')
+    set({ rewound })
+    void window.phosphor.invoke('app:setRewoundSessions', rewound)
+  },
+  keepRewoundVersion: (sessionPath) => {
+    const rewound = withoutRewindOf(get().rewound, sessionPath)
     if (rewound === get().rewound) return
     edited('rewound')
     set({ rewound })
