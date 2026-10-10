@@ -4,6 +4,7 @@ import { HOST_PROTOCOL_VERSION } from '@phosphor/shared/remote-host'
 import { EXIT } from './checks'
 import { renderDoctor, runDoctor, type DoctorContext } from './commands/doctor'
 import { defaultConfigPath } from './config/load'
+import type { Drainable } from './shutdown'
 import { HOST_SOURCE_SHA, HOST_VERSION } from './version'
 
 export const USAGE = `usage: phosphor <command>
@@ -20,7 +21,10 @@ export interface CliIo {
   stderr(text: string): void
 }
 
-export type CliContext = Omit<DoctorContext, 'configPath'>
+export type CliContext = Omit<DoctorContext, 'configPath'> & {
+  /** Drain a running Host on a signal or a fatal error, until the returned function detaches it. */
+  attach?: (target: Drainable) => () => void
+}
 
 const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   doctor: ['config', 'json'],
