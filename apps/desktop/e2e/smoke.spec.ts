@@ -3852,7 +3852,12 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
       'PI_SUBAGENT_ASYNC_JSON',
     )
 
-    await chip.click()
+    const background = page.getByTestId('background-work-indicator')
+    await expect(background).toContainText('scout: running · grep')
+    await expect(background).toContainText('The parent is idle')
+    await expect(page.getByTestId('working-indicator')).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
+    await background.getByRole('button', { name: 'View subagents' }).click()
     const inspector = page.getByRole('dialog', { name: 'Subagents', exact: true })
     await expect(inspector).toBeVisible()
     await inspector.getByRole('button', { name: 'scout running', exact: true }).click()
@@ -3906,6 +3911,7 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
     await expect(page.getByTestId('subagent-notice-body')).toContainText('login.ts')
     await expect(page.getByText('Scout reports: the auth flow enters at login.ts.')).toBeVisible()
     await expect(chip).toHaveText('Subagents')
+    await expect(background).toHaveCount(0)
     await chip.click()
     await inspector.getByRole('button', { name: 'Recorded coordination' }).click()
     await expect(inspector).toContainText('worker asked the parent for guidance')
@@ -3944,6 +3950,19 @@ test('recorded workflow completions and attention stay visible, attributable and
     await expect(notices.nth(1)).toContainText('Elapsed time alone does not prove a stall')
     await expect(page.getByTestId('subagent-notice-body')).toHaveCount(0)
     await expect(page.getByTestId('subagent-chip')).toContainText('1 background run active')
+    const background = page.getByTestId('background-work-indicator')
+    await expect(background).toContainText('Working in the background')
+    await expect(background).toContainText(
+      'validation: running · needs parent attention; qa: running',
+    )
+    await expect(background).not.toContainText('reviewer')
+    await expect(background).toContainText('The parent is idle. You can still message it.')
+    await expect(page.getByTestId('working-indicator')).toHaveCount(0)
+    const sidebarWorking = page.getByTestId('session-row').getByText('Working', { exact: true })
+    await expect(sidebarWorking).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
+    await page.getByPlaceholder('Describe a task…', { exact: false }).fill('Draft for the parent')
+    await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeEnabled()
 
     // Real captured notices and an extension-projected three-child tree, not
     // just the previous single-scout happy path. Inspector replies below are scripted.
@@ -3965,6 +3984,8 @@ test('recorded workflow completions and attention stay visible, attributable and
         expect(
           await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
         ).toBe(true)
+        await expect(background).toBeInViewport()
+        expect(await background.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
         await screenshot(`workflow-notices-${theme}-${width}`)
         await notices.nth(0).getByRole('button', { name: 'Inspect run' }).click()
         const panel = page.getByRole('dialog', { name: 'Subagents', exact: true })
@@ -3999,7 +4020,32 @@ test('recorded workflow completions and attention stay visible, attributable and
       .getByRole('button', { name: /validation · worker/ })
       .click()
     await expect(notices.nth(1).getByTestId('subagent-notice-body')).toContainText('command.cancel')
+    // The in-lane entry opens the same native inspector, with exact root + step identity.
+    await background.getByRole('button', { name: 'View subagents' }).click()
+    await panel
+      .getByRole('button', { name: 'validation running needs parent attention', exact: true })
+      .click()
+    await expect(panel).toContainText('Validation: full suite is running')
+    const settled = await page.evaluate(async () => {
+      const live = await window.phosphor.invoke('pi:listLiveSessions')
+      if (live.length !== 1) throw new Error('Expected one isolated stub session')
+      return window.phosphor.piCommand(live[0].sessionId, {
+        type: 'prompt',
+        message: '/stub-settle-workflow',
+      })
+    })
+    expect(settled.success).toBe(true)
+    await expect(background).toHaveCount(0)
+    await expect(sidebarWorking).toHaveCount(0)
+    // Live completion does not dismiss an inspection or rewrite historical warnings.
+    await expect(panel).toBeVisible()
+    await panel.getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(notices.nth(1)).toContainText('validation · worker needs parent attention')
+    await expect(page.getByPlaceholder('Describe a task…', { exact: false })).toHaveValue(
+      'Draft for the parent',
+    )
     await page.reload()
+    await expect(background).toHaveCount(0)
     await expect(page.getByTestId('subagent-notice')).toHaveCount(2)
     await expect(page.getByTestId('subagent-notice').first()).toContainText('reviewer completed')
     expect(await page.evaluate(() => document.body.innerText)).not.toContain('PI_SUBAGENT_')
@@ -4010,13 +4056,18 @@ test('recorded workflow completions and attention stay visible, attributable and
     const inspected = sent.filter(
       (c) => c.type === 'prompt' && c.message.startsWith('/subagents-inspect-rpc '),
     )
-    expect(inspected).toHaveLength(6)
+    expect(inspected).toHaveLength(7)
+    expect(inspected.at(-1).message).toMatch(
+      /^\/subagents-inspect-rpc [\w-]+ 10000000-0000-4000-8000-000000000000 validation --lines 100$/,
+    )
     expect(
-      inspected.every((c) =>
-        /^\/subagents-inspect-rpc [\w-]+ 1000000[12]-0000-4000-8000-000000000000 --lines 100$/.test(
-          c.message,
+      inspected
+        .slice(0, 6)
+        .every((c) =>
+          /^\/subagents-inspect-rpc [\w-]+ 1000000[12]-0000-4000-8000-000000000000 --lines 100$/.test(
+            c.message,
+          ),
         ),
-      ),
     ).toBe(true)
     expect(sent.some((c) => c.type === 'prompt' && c.message.startsWith('/subagents-stop'))).toBe(
       false,

@@ -275,7 +275,16 @@ scout · grep`) and which is **never printed as widget lines**
   `subagent-inspect` reply key the protocol says a host must not render). The
   extension removes the widget when nothing runs. A session with the command
   installed or a recorded delegation keeps a quiet Subagents chip for inspection.
-  The chip opens a tree of background runs and children. Selecting a node asks
+  **Above the composer, a persistent background-work strip** uses that same
+  snapshot to name active steps and their reported tools, queued/running state
+  and parent-facing attention. It stays visible after the parent stops generating,
+  with its own beacon only while the parent is idle. It explains that messages
+  still go to the parent; it does not extend the parent's timer/token count,
+  change Send into Stop, or redirect the composer to a child. Active descendants
+  keep it visible even if a root settles. An incomplete snapshot is qualified,
+  never presented as proof of completion or unreported active work. It disappears
+  when the snapshot settles or is removed, without dismissing an open inspection.
+  **View subagents** and the footer chip open a tree of background runs and children. Selecting a node asks
   the installed `/subagents-inspect-rpc` command for a bounded, read-only task,
   transcript window and result. Replies are correlated to the exact session,
   request and child, including emit-then-retract replies. No child session is

@@ -607,9 +607,10 @@ function handle(cmd) {
             {
               role: 'assistant',
               kind: 'text',
-              text: asyncId.startsWith('10000002')
-                ? 'Validation: full suite is running. The previous bash command has finished.'
-                : 'Inspection: following login.ts to verify.ts.',
+              text:
+                asyncId.startsWith('10000002') || childId === 'validation'
+                  ? 'Validation: full suite is running. The previous bash command has finished.'
+                  : 'Inspection: following login.ts to verify.ts.',
             },
           ],
           truncated: { task: false, messages: 2, finalOutput: false },
@@ -627,6 +628,10 @@ function handle(cmd) {
           method: 'setWidget',
           widgetKey: 'subagent-inspect',
         })
+        break
+      }
+      if (message === '/stub-settle-workflow') {
+        publishWorkflowFleet(true)
         break
       }
       // Release only the stub's scripted child, after the test inspects it.
@@ -1543,14 +1548,27 @@ function runWorkflowEvidenceTurn() {
     parentId = entry.id
     out({ type: 'message_end', message })
   })
+  publishWorkflowFleet()
+  runTextTurn('Reviewer reported; validation and QA continue independently.')
+}
+
+function publishWorkflowFleet(settled = false) {
+  const snapshot = structuredClone(
+    require('../../src/features/chat/__fixtures__/subagent-workflow.json').snapshot,
+  )
+  if (settled) {
+    for (const run of snapshot.runs) {
+      run.state = 'complete'
+      for (const child of run.children) child.state = 'complete'
+    }
+  }
   out({
     type: 'extension_ui_request',
     id: 'workflow-fleet',
     method: 'setWidget',
     widgetKey: 'subagent-async',
-    widgetLines: [`PI_SUBAGENT_ASYNC_JSON:${JSON.stringify(fixture.snapshot)}`],
+    widgetLines: [`PI_SUBAGENT_ASYNC_JSON:${JSON.stringify(snapshot)}`],
   })
-  runTextTurn('Reviewer reported; validation and QA continue independently.')
 }
 
 /**

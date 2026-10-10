@@ -264,7 +264,10 @@ turning instead of at rest — so it draws `BeaconGlyph` from
   opacity and 85–100% scale. `--px-beacon-duration` owns the shared cadence.
   Only transform/opacity animate: no per-frame JavaScript or layout work.
 - **State:** Starting means a prompt is sent but the agent has not started;
-  Working follows the existing streaming state, including tool activity.
+  Working follows streaming or live delegated work, including active descendants.
+  In chat, an idle parent with background work gets a named activity strip above
+  the composer; it does not reuse the parent's timer or imply the parent is generating.
+  Incomplete snapshots say so, with a static mark when no active work is reported.
   Idle/completed lanes lose the beacon, label and rail; green unread/live
   dots retain their existing meaning. Selection remains the neutral row fill.
 - **Lane recipe:** beacon + straight, inset 2px amber rail + Starting/Working
@@ -279,8 +282,10 @@ turning instead of at rest — so it draws `BeaconGlyph` from
   holds a SEAT for the content — the same blinking `.streaming-cursor` the
   streaming tail paints, so prose grows from where the caret sat. An empty
   streaming turn must never render a second beacon in the message list: two
-  identical orbiting marks for one turn read as two things loading. Same rule
-  as a running tool, whose label shimmers instead of adding a circle.
+  identical orbiting marks for one turn read as two things loading. The background
+  strip also yields its beacon while the parent is starting or working, retaining
+  its readable activity and inspection action. Same rule as a running tool,
+  whose label shimmers instead of adding a circle.
 - **Accessibility:** pair the mark with readable status text; set `decorative`
   when that text already names the state. Standalone marks receive a label.
   No fake percentage or per-lane live-announcement loop. Reduced motion stops
