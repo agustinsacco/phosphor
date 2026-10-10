@@ -39,6 +39,7 @@ it.each([
       'prettier --check .',
       'test',
       'run build',
+      'run build:host',
     ]
     if (skip !== '1') expected.push('run test:e2e -- --reporter=dot')
     expect(readFileSync(calls, 'utf8').trim().split('\n')).toEqual(expected)

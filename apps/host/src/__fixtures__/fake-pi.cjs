@@ -1,11 +1,17 @@
 #!/usr/bin/env node
 /**
  * The Host's fake pi: `--version`, and enough of `--mode rpc` for the
- * composition tests. Like pi, it saves a turn to its session file when the
- * turn ends, in the folder pi would use for its cwd.
+ * composition tests and accept. Like pi, it saves a turn to its session file
+ * when the turn ends, in the folder pi would use for its cwd, and a resumed
+ * session starts with the messages of its file.
  *
- * A prompt holding "stream" streams until aborted; any other answers with
- * the first PHX-... token it holds, or "ok". "/fake-clone" is an extension
+ * Loaded with context-breakdown.ts (`-e`), it publishes that extension's
+ * status at startup and lists phosphor-context-budget among its commands.
+ * A prompt holding "stream" or "count" streams until aborted; one holding
+ * "recall" answers with the last PHX-... token of the session; any other
+ * answers with the first PHX-... token it holds, or "ok". "/fake-ask" asks
+ * a confirm dialog and answers once the dialog is answered, printing the
+ * answer on stderr as FAKE_PI_DIALOG <json>. "/fake-clone" is an extension
  * command that does what pi's clone does: copy the session to a new file and
  * move onto it, before it answers. "/fake-clone-fails" does the same, then
  * fails. "/fake-clone-hold-reply <file>" moves and holds its answer, and
@@ -19,6 +25,16 @@
  *   FAKE_PI_IGNORE_TERM=1  ignore SIGTERM, so only SIGKILL stops it
  *   FAKE_PI_CHILD=1        start a child in its process group that ignores SIGTERM
  *   FAKE_PI_LEAK=1         print ANTHROPIC_API_KEY on stderr at startup, as a failing provider might
+ *   FAKE_PI_FORGET=1       answer a recall with "ok", as a model that lost the context would
+ *   FAKE_PI_STALL=<file>   stream every prompt until aborted, writing pi's pid to <file> as each starts
+ *   PI_FAKE_PROVIDER=<p>   report provider <p> whatever pi was started with, as pi's default would
+ *                          (a PI_ name: pi receives it unpassed, and its value is no secret)
+ *   PI_FAKE_MODEL=<m>      report model <m> whatever pi was started with
+ *   PI_FAKE_SILENT=<type>  never answer a command of that type, as a pi that hangs on it would
+ *   FAKE_PI_TURN=wrong     answer every prompt with "ok"
+ *   FAKE_PI_TURN=fail      end every turn in an error that holds ANTHROPIC_API_KEY
+ *   FAKE_PI_TURN=exit      answer a prompt, then exit with code 3
+ *   FAKE_PI_HIDE=status    publish no breakdown status; =budget lists no budget command
  * At startup it prints, on stderr, the names in its environment, its PATH
  * and its child's pid.
  */
@@ -48,7 +64,16 @@ const folder = join(
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-')
 let sessionFile = flag('--session') ?? join(folder, `${stamp()}_${randomUUID()}.jsonl`)
 let id = randomUUID()
-let messages = 0
+/** The session's messages: those of a resumed file, then every turn saved. */
+const messages = existsSync(sessionFile)
+  ? readFileSync(sessionFile, 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+      .flatMap((entry) => (entry.type === 'message' ? [entry.message] : []))
+  : []
+const extensions = args.flatMap((arg, at) => (arg === '-e' ? [args[at + 1]] : []))
+const breakdown = extensions.some((path) => path.endsWith('/context-breakdown.ts'))
 
 console.error(`FAKE_PI_ENV ${Object.keys(process.env).sort().join(',')}`)
 console.error(`FAKE_PI_PATH ${process.env.PATH ?? ''}`)
@@ -68,6 +93,16 @@ process.on('SIGTERM', () => {
 })
 
 const out = (record) => process.stdout.write(JSON.stringify(record) + '\n')
+// What context-breakdown.ts publishes on session_start.
+if (breakdown && process.env.FAKE_PI_HIDE !== 'status') {
+  out({
+    type: 'extension_ui_request',
+    id: randomUUID(),
+    method: 'setStatus',
+    statusKey: 'phosphor-context-breakdown',
+    statusText: '{"components":[]}',
+  })
+}
 const respond = (cmd, data) =>
   out({ id: cmd.id, type: 'response', command: cmd.type, success: true, data })
 const fail = (cmd, error) =>
@@ -94,7 +129,7 @@ function save(user, reply) {
       sessionFile,
       JSON.stringify({ type: 'message', id: randomUUID(), message }) + '\n',
     )
-    messages++
+    messages.push(message)
   }
 }
 
@@ -121,6 +156,8 @@ function holdUntil(file, then) {
 
 // The file whose existence lets the next get_state be answered, if one is held.
 let heldState = null
+// Each dialog asked and not yet answered: what to do with its answer.
+const dialogs = new Map()
 // How get_state answers once a move has made it lose its file: 'fails' or 'hides'.
 let lostState = null
 
@@ -128,8 +165,8 @@ let streaming = null
 function delta(value) {
   out({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: value } })
 }
-function finish(user, reply, stopReason) {
-  const message = { ...text(reply), stopReason }
+function finish(user, reply, stopReason, errorMessage) {
+  const message = { ...text(reply), stopReason, ...(errorMessage && { errorMessage }) }
   out({ type: 'message_end', message })
   save(user, message)
   out({ type: 'agent_end', messages: [message] })
@@ -138,7 +175,8 @@ function finish(user, reply, stopReason) {
 function prompt(message) {
   out({ type: 'agent_start' })
   out({ type: 'message_start', message: text('') })
-  if (message.includes('stream')) {
+  if (/stream|count/i.test(message) || process.env.FAKE_PI_STALL) {
+    if (process.env.FAKE_PI_STALL) writeFileSync(process.env.FAKE_PI_STALL, String(process.pid))
     let count = 0
     streaming = { user: message, reply: '' }
     streaming.timer = setInterval(() => {
@@ -148,8 +186,17 @@ function prompt(message) {
     }, 20)
     return
   }
-  const reply = (/PHX-[A-Za-z0-9]+/.exec(message) ?? ['ok'])[0]
+  const tokens =
+    /recall/i.test(message) && !process.env.FAKE_PI_FORGET
+      ? messages.flatMap((m) => JSON.stringify(m.content).match(/PHX-[A-Za-z0-9]+/g) ?? [])
+      : /PHX-[A-Za-z0-9]+/.exec(message)
+  const reply = (process.env.FAKE_PI_TURN !== 'wrong' && tokens?.at(-1)) || 'ok'
   delta(reply)
+  if (process.env.FAKE_PI_TURN === 'fail') {
+    const error = `401: invalid x-api-key ${process.env.ANTHROPIC_API_KEY}`
+    return setTimeout(() => finish(message, '', 'error', error), 10)
+  }
+  if (process.env.FAKE_PI_TURN === 'exit') return setTimeout(() => process.exit(3), 50)
   setTimeout(() => finish(message, reply, 'stop'), 10)
 }
 
@@ -157,8 +204,8 @@ function prompt(message) {
 function state() {
   return {
     model: {
-      provider: flag('--provider') ?? 'fake',
-      id: flag('--model') ?? 'fake-model',
+      provider: process.env.PI_FAKE_PROVIDER ?? flag('--provider') ?? 'fake',
+      id: process.env.PI_FAKE_MODEL ?? flag('--model') ?? 'fake-model',
       contextWindow: 200000,
     },
     thinkingLevel: flag('--thinking') ?? 'off',
@@ -170,12 +217,13 @@ function state() {
     sessionId: id,
     sessionName: flag('-n'),
     autoCompactionEnabled: true,
-    messageCount: messages,
+    messageCount: messages.length,
     pendingMessageCount: 0,
   }
 }
 
 function handle(cmd) {
+  if (cmd.type === process.env.PI_FAKE_SILENT) return
   switch (cmd.type) {
     case 'get_state': {
       const answer = () => {
@@ -216,6 +264,20 @@ function handle(cmd) {
         case '/fake-find-file':
           lostState = null
           return respond(cmd)
+        case '/fake-ask': {
+          const dialog = randomUUID()
+          dialogs.set(dialog, (answer) => {
+            console.error(`FAKE_PI_DIALOG ${JSON.stringify(answer)}`)
+            respond(cmd)
+          })
+          return out({
+            type: 'extension_ui_request',
+            id: dialog,
+            method: 'confirm',
+            title: 'Allow?',
+            message: 'The fake asks',
+          })
+        }
       }
       respond(cmd)
       // The context-budget extension's command: no model turn.
@@ -229,6 +291,25 @@ function handle(cmd) {
       clearInterval(timer)
       streaming = null
       return finish(user, reply, 'aborted')
+    }
+    case 'extension_ui_response': {
+      const answered = dialogs.get(cmd.id)
+      dialogs.delete(cmd.id)
+      const { type: _, id: __, ...answer } = cmd
+      return answered?.(answer)
+    }
+    case 'get_commands':
+      return respond(cmd, {
+        commands:
+          breakdown && process.env.FAKE_PI_HIDE !== 'budget'
+            ? [{ name: 'phosphor-context-budget', source: 'extension', sourceInfo: {} }]
+            : [],
+      })
+    case 'get_messages':
+      return respond(cmd, { messages })
+    case 'get_last_assistant_text': {
+      const last = messages.findLast((m) => m.role === 'assistant')
+      return respond(cmd, { text: last ? last.content.map((block) => block.text).join('') : null })
     }
     default:
       fail(cmd, 'unsupported in fake')

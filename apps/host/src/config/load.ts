@@ -37,7 +37,7 @@ export async function loadHostConfig(
     path: file,
     errors: messages.map((message) => ({ pointer: '', message })),
   })
-  if (uid === undefined) return failed('phosphor-host runs on Linux and macOS')
+  if (uid === undefined) return failed('the Host runs on Linux and macOS')
 
   let real: string
   try {

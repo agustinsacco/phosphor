@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import {
   chmodSync,
+  copyFileSync,
   mkdirSync,
   mkdtempSync,
   realpathSync,
@@ -13,6 +14,9 @@ import { dirname, join, resolve } from 'node:path'
 
 /** The real bundled extensions, so resource checks see what Desktop ships. */
 export const EXTENSIONS_ROOT = resolve(import.meta.dirname, '../../../../libs/pi-extensions')
+
+/** The RPC fake: sessions, turns and transcripts, as pi 0.87.1 runs them. */
+export const FAKE_PI = resolve(import.meta.dirname, 'fake-pi.cjs')
 
 /** A value no report may ever contain. */
 export const SECRET = 'sk-ant-test-0123456789abcdef'
@@ -33,6 +37,8 @@ export interface FakeMachine {
   writeConfig(config: Record<string, unknown>): void
   /** An executable `#!/bin/sh` script in bin/. */
   script(name: string, body: string): string
+  /** Make the Claude lane available: the provider package in pi, and a logged-in claude on PATH. */
+  installClaude(): void
   /** The Host environment tests start from: poisoned, with one secret. */
   hostEnv: Record<string, string>
   cleanup(): void
@@ -43,10 +49,11 @@ export interface FakeMachine {
  * shebang and a package.json, like pi 0.87.1), a real git repository, an
  * agent folder and a valid config. The fake pi answers `--version`; with
  * `PI_FAKE_MODE=leak` it fails and prints the secret on stderr instead,
- * after `PI_FAKE_PAD` x's.
+ * after `PI_FAKE_PAD` x's. With `rpc`, pi is the RPC fake instead, which
+ * runs sessions.
  */
 export function fakeMachine(
-  options: { piVersion?: string; manifestVersion?: string; engines?: unknown } = {},
+  options: { piVersion?: string; manifestVersion?: string; engines?: unknown; rpc?: boolean } = {},
 ) {
   const dir = mkdtempSync(join(realpathSync(tmpdir()), 'phosphor-host-'))
   const version = options.piVersion ?? '0.87.1'
@@ -73,6 +80,7 @@ if (process.env.PI_FAKE_MODE === 'hang') setInterval(() => {}, 1000)
 else console.log(${JSON.stringify(version)})
 `,
   )
+  if (options.rpc) copyFileSync(FAKE_PI, cli)
   chmodSync(cli, 0o755)
   const bin = join(dir, 'bin')
   mkdirSync(bin)
@@ -115,6 +123,23 @@ else console.log(${JSON.stringify(version)})
       writeFileSync(file, `#!/bin/sh\n${body}\n`, { mode: 0o755 })
       chmodSync(file, 0o755)
       return file
+    },
+    installClaude() {
+      const provider = join(agentDir, 'npm/node_modules/@saccolabs/pi-claude-cli')
+      mkdirSync(provider, { recursive: true })
+      writeFileSync(
+        join(provider, 'package.json'),
+        JSON.stringify({ name: '@saccolabs/pi-claude-cli', version: '0.10.0' }),
+      )
+      writeFileSync(
+        join(agentDir, 'settings.json'),
+        JSON.stringify({ packages: ['npm:@saccolabs/pi-claude-cli'] }),
+      )
+      machine.script(
+        'claude',
+        `case "$1" in --version) echo 2.1.283 ;; auth) echo '{"loggedIn":true,"email":"person@example.com"}' ;; esac`,
+      )
+      machine.writeConfig({ ...machine.config, environment: { path: [bin] } })
     },
     hostEnv: {
       HOME: home,

@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { validateHostHello } from '@phosphor/shared/remote-host'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -187,21 +187,7 @@ describe('doctor', () => {
   })
 
   it('reports the Claude lane available with the provider package and a logged-in claude', async () => {
-    const provider = join(machine.agentDir, 'npm/node_modules/@saccolabs/pi-claude-cli')
-    mkdirSync(provider, { recursive: true })
-    writeFileSync(
-      join(provider, 'package.json'),
-      JSON.stringify({ name: '@saccolabs/pi-claude-cli', version: '0.10.0' }),
-    )
-    writeFileSync(
-      join(machine.agentDir, 'settings.json'),
-      JSON.stringify({ packages: ['npm:@saccolabs/pi-claude-cli'] }),
-    )
-    machine.script(
-      'claude',
-      `case "$1" in --version) echo 2.1.283 ;; auth) echo '{"loggedIn":true,"email":"person@example.com"}' ;; esac`,
-    )
-    machine.writeConfig({ ...machine.config, environment: { path: [machine.bin] } })
+    machine.installClaude()
     const report = await runDoctor(context())
     expect(report.lanes.claude).toEqual({
       available: true,
@@ -212,7 +198,7 @@ describe('doctor', () => {
 
   it('renders a readable report', async () => {
     const text = renderDoctor(await runDoctor(context()))
-    expect(text).toMatch(/^phosphor-host 0\.0\.0-dev\.source · node 22\.22\.3 · linux\n/)
+    expect(text).toMatch(/^phosphor 0\.0\.0-dev\.source · node 22\.22\.3 · linux\n/)
     expect(text).toContain(`  ok    pi              ${machine.cli} 0.87.1, started with node\n`)
     expect(text).toContain('\nlanes\n  native  available\n  claude  unavailable: ')
     expect(text.endsWith('\nready\n')).toBe(true)

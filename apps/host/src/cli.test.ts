@@ -28,11 +28,11 @@ async function run(argv: string[], context: Partial<CliContext> = {}) {
   return { code, ...out }
 }
 
-describe('phosphor-host', () => {
+describe('phosphor', () => {
   it('prints its version, plain or as JSON', async () => {
     expect(await run(['version'])).toEqual({
       code: 0,
-      stdout: 'phosphor-host 0.0.0-dev.source\n',
+      stdout: 'phosphor 0.0.0-dev.source\n',
       stderr: '',
     })
     expect(JSON.parse((await run(['version', '--json'])).stdout)).toEqual({
@@ -51,7 +51,13 @@ describe('phosphor-host', () => {
 
   it.each([
     [[], 'no command given'],
-    [['accept'], 'unknown command "accept"'],
+    [['serve'], 'unknown command "serve"'],
+    [['accept'], 'accept needs --repository DIR'],
+    [['accept', '--repository', 'repo'], '--repository needs an absolute path'],
+    [['accept', '--repository', '/repo', '--lane', 'both'], '--lane is native, claude or all'],
+    [['doctor', '--repository', '/repo'], 'doctor does not take --repository'],
+    [['doctor', '--model', 'm'], 'doctor does not take --model'],
+    [['version', '--keep-transcripts'], 'version does not take --keep-transcripts'],
     [['doctor', '--nope'], "Unknown option '--nope'"],
     [['doctor', 'extra'], 'unexpected argument "extra"'],
     [['doctor', '--config'], "Option '--config <value>' argument missing"],

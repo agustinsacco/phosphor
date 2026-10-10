@@ -17,20 +17,20 @@ Start with [overview.md](overview.md) for what Phosphor is, or
 
 ## The system
 
-| File                                   | Covers                                                         |
-| -------------------------------------- | -------------------------------------------------------------- |
-| [overview.md](overview.md)             | Product definition, non-negotiables, engineering quality bar   |
-| [architecture.md](architecture.md)     | Process model, the IPC prefixes, cross-cutting requirements    |
-| [desktop-build.md](desktop-build.md)   | Desktop paths, native install ownership and packaging          |
-| [installations.md](installations.md)   | Dependency domains, scoped source closure and bundling         |
-| [nx-cache.md](nx-cache.md)             | Local check cache inputs, exclusions and task resource bounds  |
-| [pi-integration.md](pi-integration.md) | pi's RPC protocol and session format                           |
-| [host.md](host.md)                     | `phosphor-host`: config, pi's environment, doctor and sessions |
+| File                                   | Covers                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------ |
+| [overview.md](overview.md)             | Product definition, non-negotiables, engineering quality bar             |
+| [architecture.md](architecture.md)     | Process model, the IPC prefixes, cross-cutting requirements              |
+| [desktop-build.md](desktop-build.md)   | Desktop paths, native install ownership and packaging                    |
+| [installations.md](installations.md)   | Dependency domains, scoped source closure and bundling                   |
+| [nx-cache.md](nx-cache.md)             | Local check cache inputs, exclusions and task resource bounds            |
+| [pi-integration.md](pi-integration.md) | pi's RPC protocol and session format                                     |
+| [host.md](host.md)                     | The Host's `phosphor` CLI: config, environment, doctor, accept, sessions |
 
 The [remote-access foundation](remote-access.md) documents the control-directory
 schema, isolated local tests and an opt-in private-transport probe. It does not
 enable remote execution, and neither does the [Host](host.md), which so far only
-checks a machine.
+checks a machine and runs acceptance sessions on it.
 
 ## The surfaces
 
