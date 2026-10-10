@@ -168,6 +168,10 @@ It asks for `sudo`/`su`/`doas`, `shred`, `truncate`, `git push --force`
   Scripts containing `ln`/`mv` (including child shells), `eval`/`source`, remote
   commands, traps and `find -exec` get no lane exemption. Other findings in the
   same script still ask, even alongside a lane-local delete.
+- A lane may also delete, unasked, a literal absolute or `~/` path to a
+  pi-scratch job (`~/.pi/agent/scratch/job-<32 hex>`, the names the helper
+  below creates) or anything inside one. The scratch root, other names in it,
+  a symlinked root, symlinks out of the job and variable targets still ask.
 - Outside a linked worktree, the existing `rm -r` exemptions remain: literal
   paths under `/tmp`, `/private/tmp`, `/var/folders` or `~/.pi/agent/scratch`,
   and relative build-output directories such as `node_modules`, `dist` or

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { execFileSync } from 'node:child_process'
 import {
   mkdirSync,
@@ -204,6 +204,57 @@ describe.skipIf(process.platform === 'win32')('lane-local recursive deletion', (
       'rm -rf src; echo "unterminated',
     ])
       expect(permissionFindings(command, lane), command).toContain('rm -r')
+  })
+
+  describe('pi-scratch jobs', () => {
+    const job = `job-${'a'.repeat(32)}`
+    let home: string
+    let scratch: string
+    beforeAll(() => {
+      home = join(dir, 'home')
+      scratch = join(home, '.pi', 'agent', 'scratch')
+      mkdirSync(join(scratch, job, 'out'), { recursive: true })
+      mkdirSync(join(scratch, 'notes'))
+      symlinkSync(main, join(scratch, job, 'escape'))
+      // A second home whose scratch root is itself a symlink.
+      mkdirSync(join(dir, 'linked-home', '.pi', 'agent'), { recursive: true })
+      symlinkSync(scratch, join(dir, 'linked-home', '.pi', 'agent', 'scratch'))
+    })
+    afterEach(() => vi.unstubAllEnvs())
+
+    it('allows literal paths in a job from a lane', () => {
+      vi.stubEnv('HOME', home)
+      for (const command of [
+        `rm -rf '${scratch}/${job}'`,
+        `rm -rf '${scratch}/${job}/out'`,
+        `rm -rf ~/.pi/agent/scratch/${job}/missing/deep`,
+        `cd /; rm -rf '${scratch}/${job}/out'`,
+        `rm -rf src '${scratch}/${job}/out'`,
+      ])
+        expect(permissionFindings(command, lane), command).toEqual([])
+    })
+
+    it('asks for the root, non-jobs, escapes and unknown targets', () => {
+      vi.stubEnv('HOME', home)
+      for (const command of [
+        `rm -rf '${scratch}'`,
+        `rm -rf '${scratch}/'`,
+        `rm -rf '${scratch}/notes'`,
+        `rm -rf '${scratch}/job-1234'`,
+        `rm -rf '${scratch}/${job}/escape/src'`,
+        `rm -rf '${scratch}/${job}/../notes'`,
+        `rm -rf '${scratch}/${job}/*'`,
+        `rm -rf "$T/${job}"`,
+        `ln -s ~ x; rm -rf '${scratch}/${job}/out'`,
+        `echo '${scratch}/${job}' | xargs rm -rf`,
+      ])
+        expect(permissionFindings(command, lane), command).toContain('rm -r')
+    })
+
+    it('asks when the scratch root is a symlink', () => {
+      vi.stubEnv('HOME', join(dir, 'linked-home'))
+      expect(permissionDecision(`rm -rf ~/.pi/agent/scratch/${job}/out`, lane)).toBe('ask')
+    })
   })
 
   it('does not exempt other dangerous commands in the same script', () => {

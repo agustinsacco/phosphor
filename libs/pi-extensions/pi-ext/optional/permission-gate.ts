@@ -13,7 +13,8 @@
  * AWS authorization belongs to this machine's credentials and IAM policy, and
  * no command (scratch cleanup included) exempts the rest of a shell script.
  * A linked-worktree session may recursively delete literal descendants of its
- * lane without asking. Root/outside paths and unresolved shell targets ask.
+ * lane, or of a pi-scratch job, without asking. Root/outside paths and
+ * unresolved shell targets ask.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -76,6 +77,25 @@ function inLane({ text, dynamic }: Word, scope: LaneScope): boolean {
   const target = canonicalTarget(resolve(scope.cwd ?? scope.root, text))
   // The lane root itself still asks. Only its descendants are unasked.
   return !!target && target.startsWith(scope.root + sep)
+}
+
+/** A pi-scratch job (`~/.pi/agent/scratch/job-<32 hex>`) or a path inside one. */
+function inScratchJob({ text, dynamic }: Word): boolean {
+  if (dynamic || /[*?[\]{}]/.test(text) || text.split('/').includes('..')) return false
+  const home = homedir()
+  const path = text.startsWith('~/') ? home + text.slice(1) : text
+  if (!isAbsolute(path)) return false
+  try {
+    const root = resolve(home, '.pi', 'agent', 'scratch')
+    // pi-scratch.py refuses a symlinked root; so does this.
+    if (lstatSync(root).isSymbolicLink()) return false
+    const target = canonicalTarget(resolve(path))
+    if (!target) return false
+    const job = relative(realpathSync(root), target).split(sep)[0] ?? ''
+    return /^job-[0-9a-f]{32}$/.test(job)
+  } catch {
+    return false
+  }
 }
 
 interface Word {
@@ -461,7 +481,9 @@ function recursiveDelete(args: Word[], viaXargs: boolean, scope?: LaneScope | nu
     recursive &&
     (viaXargs ||
       !targets.every((word) =>
-        scope === undefined ? disposable(word) : !!scope && inLane(word, scope),
+        scope === undefined
+          ? disposable(word)
+          : !!scope && (inLane(word, scope) || inScratchJob(word)),
       ))
   )
 }
