@@ -13,11 +13,12 @@ import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
 import { EXIT, exitCodeFor, fail, info, pass, warn, type Check } from '../checks'
 import { loadHostConfig } from '../config/load'
 import { resolveHostId, type ConfigError } from '../config/schema'
-import { checkClaudeLane } from '../machine/claude'
+import { checkClaudeLane, type ClaudeLane } from '../machine/claude'
 import { buildPiEnvironment, redact, type PiEnvironment } from '../machine/environment'
 import { checkGit, checkHostNode, resolvePi } from '../machine/executables'
 import { checkRepositories } from '../machine/repositories'
 import { checkExtensions } from '../machine/resources'
+import type { HostMachine } from '../session/runtime'
 import { HOST_VERSION } from '../version'
 
 /** What a Host will offer once it can be reached (component 21). */
@@ -64,6 +65,19 @@ export interface DoctorReport {
   hello?: HostHello
 }
 
+/** What doctor found, for a command that goes on to run sessions. */
+export interface HostInspection {
+  report: DoctorReport
+  /** What the session runtime needs, unredacted, when the native lane is available. */
+  machine: Omit<HostMachine, 'log'> | null
+  /** The values to hide in anything that leaves the Host. */
+  secrets: readonly string[]
+  /** pi's version, once resolved. */
+  piVersion: string | null
+  /** The Claude lane as checked, with its claude and version. */
+  claude: ClaudeLane | null
+}
+
 const unavailable = (reason: string): Lane => ({ available: false, reason })
 
 /**
@@ -73,12 +87,17 @@ const unavailable = (reason: string): Lane => ({ available: false, reason })
  * replaced, so it is safe to paste.
  */
 export async function runDoctor(context: DoctorContext): Promise<DoctorReport> {
+  return (await inspectHost(context)).report
+}
+
+/** doctor's checks, with what a session needs when the machine passes them. */
+export async function inspectHost(context: DoctorContext): Promise<HostInspection> {
   const host = { version: HOST_VERSION, node: context.nodeVersion, platform: context.platform }
   const checks: Check[] = [checkHostNode(context.nodeVersion)]
   const loaded = await loadHostConfig(context.configPath, context.uid)
   if (!loaded.ok) {
     checks.push(fail('config', `${loaded.path} is not usable`, EXIT.config))
-    return {
+    const report: DoctorReport = {
       ok: false,
       exitCode: EXIT.config,
       host,
@@ -86,6 +105,7 @@ export async function runDoctor(context: DoctorContext): Promise<DoctorReport> {
       checks,
       lanes: { native: unavailable('no usable config'), claude: unavailable('no usable config') },
     }
+    return { report, machine: null, secrets: [], piVersion: null, claude: null }
   }
   const { config } = loaded
   checks.push(pass('config', loaded.path))
@@ -132,9 +152,11 @@ export async function runDoctor(context: DoctorContext): Promise<DoctorReport> {
   const native: Lane =
     failed.length === 0 ? { available: true } : unavailable(`failed: ${failed.join(', ')}`)
   let claude = unavailable('needs the native lane')
+  let claudeLane: ClaudeLane | null = null
   if (native.available) {
     try {
       const lane = await checkClaudeLane(await listPackages(), environment, { timeoutMs })
+      claudeLane = lane
       claude = lane.available
         ? { available: true, detail: `${lane.claude} ${lane.version}, logged in` }
         : unavailable(lane.reason)
@@ -144,7 +166,7 @@ export async function runDoctor(context: DoctorContext): Promise<DoctorReport> {
   }
 
   const exitCode = exitCodeFor(checks)
-  return redactStrings(
+  const report = redactStrings(
     {
       ok: exitCode === EXIT.ok,
       exitCode,
@@ -157,6 +179,23 @@ export async function runDoctor(context: DoctorContext): Promise<DoctorReport> {
     },
     environment.secrets,
   )
+  const machine =
+    native.available && pi.launch
+      ? {
+          pi: { binaryPath: pi.launch.binaryPath, prefixArgs: pi.launch.prefixArgs },
+          env: environment.env,
+          roots: repositories.roots,
+          resourceRoot: config.resourceRoot ?? context.defaultResourceRoot,
+          contextBudget: config.contextBudget ?? '',
+        }
+      : null
+  return {
+    report,
+    machine,
+    secrets: environment.secrets,
+    piVersion: pi.launch?.version ?? null,
+    claude: claudeLane,
+  }
 }
 
 /** The hello this Host would present, checked with validateHostHello. */
@@ -226,7 +265,7 @@ function budgetCheck(raw: string): Check {
 }
 
 /** Every string in a JSON-shaped value, with each secret value replaced. */
-function redactStrings<T>(value: T, secrets: readonly string[]): T {
+export function redactStrings<T>(value: T, secrets: readonly string[]): T {
   if (secrets.length === 0) return value
   return JSON.parse(JSON.stringify(value), (_key, item: unknown) =>
     typeof item === 'string' ? redact(item, secrets) : item,

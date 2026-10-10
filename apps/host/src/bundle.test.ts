@@ -1,7 +1,8 @@
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import {
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -15,9 +16,13 @@ import {
 import { isBuiltin } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { once } from 'node:events'
+import { setTimeout as sleep } from 'node:timers/promises'
+import { sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
 import { BUNDLED_EXTENSION_FILES } from '@phosphor/session-runtime/bundled-extensions'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { fakeMachine, SECRET, type FakeMachine } from './__fixtures__/machine'
+import { isGone } from './session/lifecycle'
 
 const BUILD = resolve(import.meta.dirname, '../scripts/build.mjs')
 const SHA = 'a'.repeat(40)
@@ -33,22 +38,43 @@ beforeAll(() => {
     encoding: 'utf8',
   })
   expect(built.status, built.stderr).toBe(0)
-  machine = fakeMachine()
+  machine = fakeMachine({ rpc: true })
   // No resourceRoot: the bundle finds pi-ext/ beside itself.
   const { resourceRoot: _, ...config } = machine.config
-  machine.writeConfig(config)
+  machine.writeConfig({
+    ...config,
+    environment: { pass: ['FAKE_PI_STALL', 'FAKE_PI_IGNORE_TERM'] },
+  })
 })
 afterAll(() => {
+  vi.unstubAllEnvs()
   machine?.cleanup()
   rmSync(dir, { recursive: true, force: true })
 })
 
-/** The built file under a minimal environment, as a service manager or `env -i` would start it. */
+/** A minimal environment, as a service manager or `env -i` would start the Host with. */
+const minimal = () => ({
+  HOME: machine.home,
+  USER: 'tester',
+  LOGNAME: 'tester',
+  PATH: '/usr/bin:/bin',
+})
+
+/** The built file under a minimal environment. */
 function run(args: string[], env: Record<string, string> = {}) {
   return spawnSync(process.execPath, [join(out, 'phosphor.mjs'), ...args], {
     encoding: 'utf8',
-    env: { HOME: machine.home, USER: 'tester', LOGNAME: 'tester', PATH: '/usr/bin:/bin', ...env },
+    env: { ...minimal(), ...env },
   })
+}
+
+async function until<T>(find: () => T | undefined | false, what: string): Promise<T> {
+  for (let i = 0; i < 1000; i++) {
+    const found = find()
+    if (found) return found
+    await sleep(10)
+  }
+  throw new Error(`timed out waiting for ${what}`)
 }
 
 describe('the Host bundle', () => {
@@ -184,5 +210,64 @@ describe('the Host bundle', () => {
       report.checks.find((check: { id: string }) => check.id === 'extensions').summary,
     ).toContain(join(out, 'pi-ext'))
     expect(result.stdout + result.stderr).not.toContain(SECRET)
+  })
+
+  it('passes accept on the fake pi, with JSON evidence on stdout and progress on stderr', () => {
+    const args = ['accept', '--json', '--lane', 'native', '--repository', machine.repository]
+    const result = run([...args, '--config', machine.configPath], { ANTHROPIC_API_KEY: SECRET })
+    expect(result.status, result.stderr).toBe(0)
+    const evidence = JSON.parse(result.stdout)
+    expect(evidence).toMatchObject({
+      verdict: 'pass',
+      host: { version: '0.0.0-dev.aaaaaaa', sourceSha: SHA },
+      drain: { state: 'stopped' },
+    })
+    expect(evidence.lanes[0]).toMatchObject({ lane: 'native', extensionsLoaded: true })
+    expect(result.stderr).toMatch(/^native: close ok \(\d+ ms\)$/m)
+    expect(result.stdout + result.stderr).not.toContain(SECRET)
+  })
+
+  it('drains on SIGTERM in the middle of a turn, saving it, and exits 143 with no pi left', async () => {
+    const stall = join(dir, 'stalled')
+    const args = ['accept', '--lane', 'native', '--keep-transcripts', '--repository']
+    const host = spawn(
+      process.execPath,
+      [join(out, 'phosphor.mjs'), ...args, machine.repository, '--config', machine.configPath],
+      { env: { ...minimal(), FAKE_PI_STALL: stall }, stdio: 'ignore' },
+    )
+    const exited = once(host, 'exit')
+    const pi = Number(await until(() => existsSync(stall) && readFileSync(stall, 'utf8'), 'a turn'))
+    host.kill('SIGTERM')
+    expect(await exited).toEqual([143, null])
+    expect(isGone(pi)).toBe(true)
+    // The drain aborted the turn first, so pi saved it before it stopped.
+    vi.stubEnv('PI_CODING_AGENT_DIR', machine.agentDir)
+    const folder = sessionDirForCwd(machine.repository)
+    const [file] = readdirSync(folder)
+    const last = readFileSync(join(folder, file!), 'utf8').trim().split('\n').at(-1)!
+    expect(JSON.parse(last)).toMatchObject({ message: { stopReason: 'aborted' } })
+  })
+
+  it('kills every group at once on a second signal during the drain', async () => {
+    const stall = join(dir, 'stalled-twice')
+    const log = join(machine.home, '.local/state/phosphor-host/logs/phosphor.log')
+    const drains = () =>
+      existsSync(log) ? readFileSync(log, 'utf8').split('[host] draining').length - 1 : 0
+    const before = drains()
+    const args = ['accept', '--lane', 'native', '--keep-transcripts', '--repository']
+    const host = spawn(
+      process.execPath,
+      [join(out, 'phosphor.mjs'), ...args, machine.repository, '--config', machine.configPath],
+      // A pi that ignores SIGTERM keeps the drain waiting out its grace period.
+      { env: { ...minimal(), FAKE_PI_STALL: stall, FAKE_PI_IGNORE_TERM: '1' }, stdio: 'ignore' },
+    )
+    const exited = once(host, 'exit')
+    const pi = Number(await until(() => existsSync(stall) && readFileSync(stall, 'utf8'), 'a turn'))
+    host.kill('SIGTERM')
+    await until(() => drains() > before, 'the drain')
+    host.kill('SIGTERM')
+    expect(await exited).toEqual([143, null])
+    expect(isGone(pi)).toBe(true)
+    expect(readFileSync(log, 'utf8')).toContain('[host] drain forced {"cause":"hurried"}')
   })
 })

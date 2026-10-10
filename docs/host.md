@@ -2,11 +2,11 @@
 
 The Host is Phosphor's plain-Node application for machines Desktop does not run
 on. Its command is `phosphor`; its config and logs live in `phosphor-host`
-folders, apart from Desktop's own. Today it is a foreground CLI that checks
-whether a machine can run sessions. Its session runtime is built and tested
-([Sessions](#sessions)), but no command starts a session yet, and it listens on
-nothing. `npm run build:host` builds it ([Build](#build)); nothing installs or
-publishes it yet. Desktop never runs a Host, and offline Desktop never needs one
+folders, apart from Desktop's own. Today it is a foreground CLI: `doctor` checks
+whether a machine can run sessions, and `accept` runs real ones there to prove
+it ([accept](#accept)). It listens on nothing. `npm run build:host` builds it
+([Build](#build)); nothing installs or publishes it yet. Desktop never runs a
+Host, and offline Desktop never needs one
 ([remote-access.md](remote-access.md)).
 
 The source is `apps/host/src/`. It imports Node builtins and the exported
@@ -18,21 +18,25 @@ every library import against the package's exports.
 
 ```
 phosphor doctor [--config FILE] [--json]
+phosphor accept --repository DIR [--lane native|claude|all] [--keep-transcripts]
+                [--provider NAME] [--model ID] [--config FILE] [--json]
 phosphor version [--json]
 ```
 
-stdout carries only the report or the JSON. Usage errors go to stderr.
+stdout carries only the report or the JSON. Usage errors and accept's progress
+go to stderr.
 `version` prints `0.0.0-dev.<sha7>`, or `0.0.0-dev.source` when the build did
 not stamp a commit.
 
 | Exit          | Meaning                                                                  |
 | ------------- | ------------------------------------------------------------------------ |
 | 0             | success                                                                  |
+| 1             | an acceptance check failed; its transcript is kept                       |
 | 64            | usage error                                                              |
 | 69            | a prerequisite is unavailable: node, pi, git, extensions or a repository |
-| 70            | internal error                                                           |
+| 70            | internal error, a failed cleanup or the drain deadline                   |
 | 78            | the config is invalid                                                    |
-| 129, 130, 143 | ended by SIGHUP, SIGINT or SIGTERM, after killing any running probe      |
+| 129, 130, 143 | ended by SIGHUP, SIGINT or SIGTERM, after stopping probes and sessions   |
 
 ## Build
 
@@ -61,7 +65,9 @@ versions and signed bundles are component 23's.
 `bundle.test.ts` builds into a scratch folder and checks `BUILD-INFO.json`
 against the files, the imports, and `pi-ext/`. It then runs the built file under
 a minimal environment (`HOME`, `USER`, `LOGNAME` and `PATH=/usr/bin:/bin`):
-`version`, and `doctor` on the extensions beside it.
+`version`, `doctor` on the extensions beside it, and `accept` on a fake pi. A
+second `accept` gets SIGTERM in the middle of a turn: it exits 143, pi's group
+is gone, and the aborted turn is saved.
 
 ## Config
 
@@ -171,6 +177,60 @@ capabilities `sessions.read` and `sessions.control`. It is checked with
 `validateHostHello` before it is printed, and left out when it would show a
 secret value (the `hello` check).
 
+## accept
+
+`phosphor accept --repository DIR` runs real sessions on this machine and
+reports what they proved. DIR must be inside a configured repository. Use an
+empty one that Desktop never opens: nothing guards a transcript against a second
+runtime until component 06. accept runs doctor first, and if the machine fails
+it, prints doctor's report and exits with doctor's code.
+
+`--lane native` runs on pi's default provider and model, or on those
+`--provider` and `--model` name, and `claude` runs on `pi-claude-cli`. Name a
+native provider when pi's default is Claude. The lane must then run on that
+provider, and on that model when one is named: pi's model id, which may be
+written `provider/id` or carry a `:level` thinking suffix. On pi's default, the
+native lane must run on some provider other than `pi-claude-cli`.
+`all`, the default, runs native and then Claude, if doctor finds the Claude lane
+available; otherwise that lane is recorded as unavailable with doctor's reason.
+Asked for alone, an unavailable Claude lane exits 69. Each lane's request is
+checked before any session starts, and one that cannot run exits 64.
+
+Each lane runs these steps and stops at the first that fails:
+
+1. **start**: start a session through the request parser, wait for the
+   `phosphor-context-breakdown` status, and find `phosphor-context-budget` in
+   `get_commands`. Together they prove the bundled extensions loaded in pi.
+2. **state**: `get_state` gives the provider, model, thinking level and session
+   file. The provider and model must match the lane.
+3. **prompt**: ask for a fresh `PHX-` token back. `get_last_assistant_text` must
+   hold it.
+4. **abort**: ask for a long count, abort at the first text delta, and expect
+   `agent_end` within 10 s and pi no longer streaming.
+5. **dispose**: stop the session. Its process group must be gone.
+6. **resume**: start again from the session file. `get_messages` must hold the
+   token reply and the aborted turn, and a recall prompt must return the token,
+   so the provider received pi's context.
+7. **close**: stop again, check that the transcript parses as JSONL, and delete
+   it through the deletion service unless `--keep-transcripts` is set.
+
+Only the token and the recall depend on the model. A start may take 60 s,
+extension status included, and a turn 180 s from its prompt; the abort's 10 s
+count from sending it, and pi must answer any other command within 30 s. A
+failed step exits 1 and keeps its transcript; the session it left running is
+stopped. A failed cleanup exits 70 instead: a process group still there after a
+stop, or a transcript the deletion could not remove, which is kept. accept then
+drains the runtime and exits 70 if the drain failed.
+
+stdout gets the evidence, as JSON with `--json`, with every secret value of pi's
+environment hidden: the verdict; the machine; the Host, pi and Claude versions;
+the names in pi's environment; for each lane its provider, model, thinking
+level, each step with its time, whether the extensions loaded, any group left
+and whether the transcript was deleted; the drain result; and the log path.
+stderr gets the log path and one line per step, redacted the same way, so a
+passed `XDG_STATE_HOME` or `HOME` is hidden in the path. An error accept did not
+expect is printed as an internal error, redacted too.
+
 ## Running other programs
 
 Every program a check runs goes through `machine/probe.ts`:
@@ -187,17 +247,25 @@ Every program a check runs goes through `machine/probe.ts`:
   secret, the piece it kept is hidden too.
 
 SIGHUP, SIGINT and SIGTERM kill every running probe before the Host exits,
-because a terminal's Ctrl-C does not reach another process group.
+because a terminal's Ctrl-C does not reach another process group. While
+sessions run, a signal drains them first ([Lifecycle](#lifecycle)).
 
 ## Sessions
 
 `session/runtime.ts` composes the session runtime for this machine:
 `createHostRuntime` takes what doctor validated and binds every port the
-library asks for. No command calls it yet; `accept` will be the first.
+library asks for. `accept` is its only caller.
 
 - **One service, one lock domain.** Starts, resumes and deletions go through
   the library's service and deletion, which share one registry and one
   path-lock domain, as on Desktop.
+- **Dialogs are cancelled.** Nothing can reach the Host to answer one until
+  component 07, so each `select`, `confirm`, `input` or `editor` request from
+  an extension is answered at once with pi's own cancel, which the extension
+  reads as no answer: undefined, or false for a confirm. The log records
+  `dialog cancelled`, and the request still reaches the session's delivery. A
+  flow that needs a person, such as the MCP adapter's callback paste, fails on
+  a Host for now.
 - **pi as pinned.** pi starts from `pi.node` and `pi.executable`, never a stub,
   with exactly the environment built above plus `PI_CLAUDE_CLI_CONTEXT=pi`:
   nothing the Host inherited reaches it. It loads the six extensions from
@@ -293,6 +361,13 @@ under way and the last check then share one more second, so a drain returns
 within 16 s. It counts the sessions, the turns saved and the turns that did not
 end in time, and it ends `failed` on a cleanup error, at the deadline, or with a
 group left; otherwise `stopped`.
+
+accept drains when it finishes. A signal drains the sessions of a running accept
+first, then exits 128 + its number, or 70 if the drain failed; a second signal
+forces the drain. An uncaught exception or unhandled rejection is logged,
+printed redacted and drained, with every group killed if the drain still runs 2
+s later, and the Host exits 70. One during a signal's drain forces that drain,
+and the Host exits 70, not the signal's code.
 
 ### Log
 
