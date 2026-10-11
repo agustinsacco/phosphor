@@ -79,6 +79,10 @@ if (!app.isPackaged && process.env.PHOSPHOR_TEST_USER_DATA) {
       ? process.env.PHOSPHOR_TEST_USER_DATA
       : join(app.getPath('temp'), `phosphor-e2e-${process.pid}`)
   app.setPath('userData', dir)
+  // The debug log too: logs live outside userData, and a suite's ~1,800 stub
+  // spawns otherwise rotate the real log within hours, erasing the evidence
+  // (pi's argv, budget compactions) of the sessions it was meant to explain.
+  app.setAppLogsPath(join(dir, 'logs'))
 }
 
 function createWindow(): BrowserWindow {
