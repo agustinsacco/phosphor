@@ -75,12 +75,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+      # For the sign-in test below, which runs Desktop's account code (vitest).
+      - name: Install dependencies
+        run: npm ci
       # A dedicated local project, never linked to a hosted database. Suppress
       # the CLI's development-key output; startup errors still reach stderr.
       - name: Start isolated Supabase
         run: npm run db:start --silent > /dev/null
       - name: Database authorization tests
         run: npm run test:control-db
+      # Real Supabase Auth, GitHub played by a local fixture container.
+      - name: Desktop sign-in against Supabase Auth
+        run: npm run test:auth-stack
       - name: Remove only this test stack
         if: always()
         run: npm run db:stop
