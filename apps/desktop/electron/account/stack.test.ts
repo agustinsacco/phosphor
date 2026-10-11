@@ -104,6 +104,7 @@ describe.runIf(STACK)('sign-in against a real Supabase Auth with a fake GitHub',
     const { id } = signedIn.user
     expect(id).toMatch(/^[0-9a-f-]{36}$/)
     expect(await seen.pages[0]).toContain('Signed in as @phosphor-e2e')
+    const signedInToken = vault.readToken(id)
 
     // The access token is Supabase's own, for this user.
     const access = await first.accessToken()
@@ -114,6 +115,10 @@ describe.runIf(STACK)('sign-in against a real Supabase Auth with a fake GitHub',
     const refreshed = await first.accessToken()
     expect(refreshed).not.toBe(access)
     expect(await whoIs(refreshed!)).toEqual({ status: 200, id })
+    // Checked on disk: Supabase would also accept the old token once (it
+    // answers a reused parent with the current session), hiding a lost save.
+    const refreshedToken = vault.readToken(id)
+    expect(refreshedToken).not.toBe(signedInToken)
 
     // A restart reads only the profile, then refreshes with the saved token.
     const second = account(createVault(join(dir, 'account'), cipher))
@@ -124,6 +129,7 @@ describe.runIf(STACK)('sign-in against a real Supabase Auth with a fake GitHub',
     })
     const restarted = await second.accessToken()
     expect(await whoIs(restarted!)).toEqual({ status: 200, id })
+    expect(vault.readToken(id)).not.toBe(refreshedToken)
 
     // Sign-out revokes the session Supabase-side: its refresh token is dead.
     const saved = vault.readToken(id)

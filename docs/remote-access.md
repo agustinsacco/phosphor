@@ -80,11 +80,13 @@ production setup information.
 `npm run test:auth-stack` (`tools/scripts/auth-stack.mjs`) runs Desktop's
 sign-in code (`apps/desktop/electron/account/`) against this stack's real
 Supabase Auth. It starts the fake GitHub in a container on the stack's network,
-and removes only that container. The test signs in through PKCE and the loopback
-callback, refreshes, restarts from the saved token, and signs out, then checks
-that Supabase revoked the session. It also covers a denial in the browser, a
-wrong verifier and a reused code. The runner fails if any test was skipped. CI
-runs it in the Control job, and `CONTROL_DB=1 npm run validate` runs it after
+and removes only that container, also when the test hangs (it runs in its own
+process group, killed after 3 minutes) or the run is cancelled. The test signs
+in through PKCE and the loopback callback, refreshes (checking the new token was
+saved), restarts from the saved token, and signs out, then checks that Supabase
+revoked the session. It also covers a denial in the browser, a wrong verifier
+and a reused code. The runner fails if any test was skipped. CI runs it in the
+Control job, and `CONTROL_DB=1 npm run validate` runs it after
 `test:control-db`.
 
 ## Opt-in transport probe
