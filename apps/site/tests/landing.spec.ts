@@ -136,6 +136,37 @@ test('landing leads with lanes, then chat, then the IDE layout without disclosur
   expect(Math.abs(frame.height - rendered.height - 2)).toBeLessThan(1)
 })
 
+test('landing states the problem, answers questions, and ends on the install commands', async ({
+  page,
+}) => {
+  await page.goto('/')
+  // One filled button in the hero; it lands on the commands at the bottom.
+  await expect(page.locator('.hero .action-primary')).toHaveCount(1)
+  await expect(page.locator('.hero .action-primary')).toHaveAttribute('href', '#install')
+  await expect(page.locator('#why h2')).toContainText('Five is a mess.')
+  const faq = page.locator('#faq details')
+  await expect(faq).toHaveCount(9)
+  await expect(faq.first().locator('p')).toBeHidden()
+  await faq.first().locator('summary').click()
+  await expect(faq.first().locator('p')).toBeVisible()
+  const commands = page.locator('#install pre')
+  await expect(commands).toHaveCount(2)
+  await expect(commands.first()).toHaveText('npm install -g @earendil-works/pi-coding-agent')
+  await expect(commands.nth(1)).toHaveText(
+    'curl -fsSL https://github.com/agustinsacco/Phosphor/releases/latest/download/install.sh | sh',
+  )
+})
+
+// Prettier can wrap `</a>` and the next word onto separate lines, and Astro
+// then drops the space between them ("local routines</a>start").
+for (const path of routes) {
+  test(`${path}: no word is glued to the end of a link or emphasis`, async ({ page }) => {
+    await page.goto(path)
+    const html = await page.locator('main').innerHTML()
+    expect(html.match(/<\/(a|strong|code|em)>[A-Za-z][^<]{0,30}/g) ?? []).toEqual([])
+  })
+}
+
 test('header links go to the repo and straight to the latest release', async ({ page }) => {
   await page.goto('/')
   const header = page.locator('.site-header')

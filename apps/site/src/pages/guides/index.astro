@@ -136,15 +136,15 @@ const sections: [string, string][] = [
   <section id="trust">
     <h2>Permissions and data</h2>
     <p>
-      Phosphor runs on your machine. Unless you point it at a local model, the model doesn’t: your
+      Phosphor runs on your machine, but unless you use a local model, the model doesn’t. Your
       provider receives every prompt and tool result sent to it. Connected services have their own
       permissions and data policies.
     </p>
     <p>
-      <strong>Tools run with full permissions by default.</strong> There’s no approval prompt by default
-      and no sandbox around the agent. A worktree separates Git checkouts; it doesn’t limit file or network
-      access. Packages run code inside pi’s process. Read a package’s source before installing it, and
-      only connect services you’re comfortable handing to the agent.
+      <strong>Tools run with full permissions by default.</strong> There are no approval prompts unless
+      you install a permission gate, and no sandbox around the agent. A worktree separates Git checkouts;
+      it doesn’t limit file or network access. Packages run code inside pi’s process. Read a package’s
+      source before installing it, and only connect services you’re comfortable handing to the agent.
     </p>
     <p>
       HTML artifacts the model writes are isolated from the app and have no network access. That

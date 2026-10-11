@@ -67,10 +67,9 @@ const sections: [string, string][] = [
       and reports Up with a tool count, Needs sign-in, Down, Disabled, Not in config, or Test inconclusive.
     </p>
     <p>
-      Signing in and testing don’t call a model, so they cost no tokens. <strong
-        >State unknown</strong
-      >
-      with no live session doesn’t mean it’s broken, and cached tool names don’t mean the service is reachable.
+      Signing in and testing don’t call a model, so they cost no tokens. With no live session, a
+      <strong>State unknown</strong> result doesn’t mean it’s broken. Cached tool names don’t mean the
+      service is reachable either.
     </p>
     <p>
       Start a new session after changing config. Ask for something small and read-only, like “Find

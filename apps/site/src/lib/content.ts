@@ -8,6 +8,8 @@ import files from '../assets/shots/files.webp'
 import filesLeft from '../assets/shots/files-left.webp'
 import filesFull from '../assets/shots/files-full.webp'
 import models from '../assets/shots/models.webp'
+import modelsPicker from '../assets/shots/models-picker.webp'
+import contextMeter from '../assets/shots/context-meter.webp'
 import guideClaude from '../assets/shots/guide-claude.webp'
 import guideRouting from '../assets/shots/guide-routing.webp'
 import guideExtensions from '../assets/shots/guide-extensions.webp'
@@ -27,6 +29,8 @@ const captures: Record<string, ImageMetadata> = {
   artifacts,
   files,
   models,
+  'models-picker': modelsPicker,
+  'context-meter': contextMeter,
   'files-left': filesLeft,
   'files-full': filesFull,
   'guide-claude': guideClaude,
@@ -155,6 +159,6 @@ export const connectors = [
 export const guides = [
   { href: '/guides/', title: 'Install and start' },
   { href: '/guides/claude-code/', title: 'Claude Code + accounts' },
-  { href: '/guides/extensions/', title: 'Pi extensions' },
+  { href: '/guides/extensions/', title: 'Extensions' },
   { href: '/guides/connectors/', title: 'MCP connectors' },
 ]

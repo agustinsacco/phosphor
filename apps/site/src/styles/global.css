@@ -537,6 +537,115 @@ a:hover {
 .install-section {
   background: radial-gradient(ellipse at 5% 15%, var(--px-accent-soft), transparent 50%);
 }
+.hero-meta a {
+  color: var(--px-accent);
+}
+/* The problem statement reads as prose, not as a feature heading. */
+.problem-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 4rem;
+  align-items: start;
+}
+.problem-grid > * {
+  min-width: 0;
+}
+.problem-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+.problem-lede {
+  font-size: var(--text-xl);
+  line-height: 1.5;
+  color: var(--px-text);
+}
+/* One control per row, text beside it; the second row puts the image left. */
+.closeup {
+  grid-template-columns: 1fr 1fr;
+}
+.closeup .capture {
+  width: 100%;
+  max-width: 560px;
+  justify-self: center;
+}
+.closeup-flip > .copy-column {
+  order: 2;
+}
+.proof-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+.faq-layout {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: 4rem;
+  align-items: start;
+}
+.faq-layout > * {
+  min-width: 0;
+}
+.faq-layout > :first-child {
+  position: sticky;
+  top: 7rem;
+}
+.faq details {
+  border-bottom: 1px solid var(--px-border);
+}
+.faq details:first-child {
+  border-top: 1px solid var(--px-border-strong);
+}
+.faq summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  list-style: none;
+  cursor: pointer;
+  padding-block: 1.1rem;
+  color: var(--px-text);
+}
+.faq summary::-webkit-details-marker {
+  display: none;
+}
+.faq summary > span {
+  flex: none;
+  color: var(--px-accent);
+  font-family: var(--px-font-mono);
+  font-size: var(--text-xl);
+}
+.faq details[open] summary > span {
+  transform: rotate(45deg);
+}
+.faq details p {
+  max-width: 44rem;
+  padding-bottom: 1.3rem;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+}
+.install-steps {
+  display: grid;
+  gap: 1rem;
+}
+.install-steps li {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.install-steps .mono {
+  color: var(--px-accent);
+}
+.install-steps pre {
+  padding: 1rem 1.2rem;
+  background: var(--px-bg);
+  border: 1px solid var(--px-border-strong);
+  border-radius: 3px;
+  font-size: var(--text-sm);
+  color: var(--px-text);
+  overflow-x: auto;
+}
+.install-section .source-line + .guide-grid {
+  margin-top: 2.5rem;
+}
 .site-footer {
   display: flex;
   justify-content: space-between;
@@ -685,11 +794,20 @@ a:hover {
     gap: 2rem;
     grid-template-columns: 180px minmax(0, 1fr);
   }
-  .package-grid {
+  .package-grid,
+  .proof-grid {
     grid-template-columns: 1fr 1fr;
   }
   .site-header nav {
     gap: 1rem;
+  }
+  .faq-layout,
+  .problem-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  .faq-layout > :first-child {
+    position: static;
   }
 }
 @media (max-width: 760px) {
@@ -697,6 +815,19 @@ a:hover {
   .section-heading,
   .split {
     grid-template-columns: 1fr;
+  }
+  .closeup-flip > .copy-column {
+    order: 0;
+  }
+  /* A soft wrap shows the whole command and still copies as one line. */
+  .install-steps pre {
+    white-space: pre-wrap;
+  }
+  .install-steps pre code {
+    overflow-wrap: anywhere;
+  }
+  .problem-lede {
+    font-size: var(--text-lg);
   }
   .hero h1 {
     font-size: clamp(46px, 9vw, 70px);
@@ -804,6 +935,7 @@ a:hover {
     font-size: var(--text-xs);
   }
   .package-grid,
+  .proof-grid,
   .capture-pair,
   .connector-requirements {
     grid-template-columns: 1fr;
