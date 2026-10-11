@@ -271,6 +271,16 @@ a:hover {
 .header-link:hover {
   border-color: var(--px-text-secondary);
 }
+/* A mask, not an inline <svg>: the layout must not draw marks of its own
+   (PhosphorMark.test.ts), and the mask still follows the link colour. */
+.github-mark {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  background: currentColor;
+  -webkit-mask: url('/github-mark.svg') center / contain no-repeat;
+  mask: url('/github-mark.svg') center / contain no-repeat;
+}
 .hero {
   display: grid;
   grid-template-columns: 1.3fr 1fr;
