@@ -22,11 +22,12 @@ Three commands, in order. Each ends with a `next:` line naming the one after it.
 1. `phosphor doctor` checks the machine: node, the config, pi, git, the
    extensions and the repositories. Fix what fails and run it again.
 2. `phosphor providers` lists what pi can sign into and whether each is signed in
-   on this machine, with the Claude lane beside them. Until one is, it shows how
-   to sign in: in a terminal on the Host (over SSH is fine), run `pi`, type
-   `/login` and pick a provider; for the Claude lane, run `claude auth login`.
-   Open the link either prints on any computer. The login is made on the Host and
-   stays there: Phosphor never copies one between machines.
+   on this machine, with the Claude lane beside them. Until one is, its `next:`
+   line says to sign in with `phosphor providers login PROVIDER`, in a terminal on
+   the Host (`ssh -t` is fine): a pi provider id from the list, or `claude` for
+   the Claude lane. It prints the steps, runs the provider's own login, and shows
+   the list again. Open the link the login prints on any computer. The login is
+   made on the Host and stays there: Phosphor never copies one between machines.
 3. `phosphor accept --repository DIR` runs real sessions there. Use the exact
    command the `next:` line names, with DIR an empty repository from the config:
    it picks the lane and, when that lane cannot run on pi's default, the provider
@@ -37,6 +38,7 @@ Three commands, in order. Each ends with a `next:` line naming the one after it.
 ```
 phosphor doctor [--config FILE] [--json]
 phosphor providers [--config FILE] [--json]
+phosphor providers login PROVIDER [--config FILE]
 phosphor accept --repository DIR [--lane native|claude|all] [--keep-transcripts]
                 [--model ID [--provider NAME]] [--claude-model ID]
                 [--config FILE] [--json]
@@ -240,8 +242,41 @@ could not read its models or credentials, or the check did not finish. pi's
 default is marked.
 
 It exits 0 when a provider is signed in or the Claude lane is available, and 69
-when neither is, with the sign-in steps as `next`. When pi itself fails doctor,
-nothing is asked: it prints doctor's report and exits with doctor's code.
+when neither is, with `phosphor providers login` as `next`. When pi itself fails
+doctor, nothing is asked: it prints doctor's report and exits with doctor's code.
+
+### providers login
+
+`phosphor providers login PROVIDER` signs in to one provider on this Host with
+that provider's own login, then prints `phosphor providers` again. PROVIDER is an
+id the list shows, pi's default included, or `claude` for the Claude lane. It
+needs a terminal (stdin and stdout), and exits 64 without one; over SSH, use
+`ssh -t`. The steps go to stderr first:
+
+- **A pi provider** runs this Host's pi, in pi's environment plus the terminal's
+  `TERM`, in a new empty folder that is deleted afterwards, with `--no-session
+--no-approve --no-extensions`: no session file, no project trust question, no
+  extension. There you type `/login PROVIDER` and press Enter (pi's completion can
+  take the first Enter), choose to sign in with an account if pi asks, and follow
+  it. A device-code
+  provider shows a link and a code; a loopback provider shows a link, and when the
+  browser on your computer ends on a `localhost` address that does not load, you
+  paste that address into pi. Then `/quit`. pi has no login command outside its
+  screen, which is why the steps are typed.
+- **`claude`** runs `claude auth login` from pi's PATH: open the link, paste back
+  the code the page shows.
+
+The program shares the terminal and the Host's process group, so it can read
+what you type; a signal to the Host (a closed SSH session) stops it, with SIGKILL
+after 2 s or at a second signal. The credential is written by pi or claude, in
+their own stores, and never passes through the Host. Afterwards the Host asks
+again, as `providers` does, or with `claude auth status` for `claude`: it exits 0
+when the provider is signed in and 69 when it is not, saying which on stderr.
+Signing in to a provider that already is, `claude` included, replaces that login,
+and the Host says so before starting. If it is still signed in afterwards, the Host
+cannot tell the new login from the earlier one (it never reads a credential), so
+it says that the earlier one is still there if the login did not finish. An
+unknown provider exits 64 and starts nothing.
 
 ## accept
 

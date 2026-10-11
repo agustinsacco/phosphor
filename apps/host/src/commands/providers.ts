@@ -2,13 +2,10 @@ import { EXIT } from '../checks'
 import { describeProvider, type ProviderState } from '../machine/providers'
 import { inspectHost, type DoctorContext, type DoctorReport, type Lane } from './doctor'
 
-/** How to sign in on a Host today: pi's and Claude Code's own logins, in a terminal on it. */
-export const SIGN_IN_STEPS = [
-  'on this machine, run pi, type /login and pick a provider; for the claude lane,',
-  'run claude auth login. Open the link it prints on any computer, and paste back',
-  'the code the page shows, or the address of a page that does not load.',
-  'Then run phosphor providers again.',
-].join(' ')
+/** How to sign in on a Host: the provider's own login, in a terminal on it. */
+export const SIGN_IN_STEPS =
+  'sign in to one, in a terminal on this machine: phosphor providers login PROVIDER ' +
+  '(an id above, or claude for the claude lane)'
 
 export interface ProvidersReport {
   /** Something a session can run on: a signed-in provider, or the claude lane. */
