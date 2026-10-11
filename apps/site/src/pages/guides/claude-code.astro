@@ -15,34 +15,33 @@ const sections: [string, string][] = [
 
 <Guide
   title="Claude Code and multiple accounts"
-  description="Use your Claude subscription through pi-claude-cli, verify the provider, and choose which account new sessions use."
+  description="Use your Claude Pro or Max plan through pi-claude-cli, check that it works, and choose which account new sessions use."
   sections={sections}
 >
   <aside class="notice">
     <strong>About these screenshots</strong><p>
-      These are captures of Phosphor’s actual settings UI in the isolated demo harness. Account
-      names, masked addresses, versions, and usage are example data. No personal accounts or
-      credentials were loaded, including in the full-size images.
+      These are real Phosphor settings screens, captured in a demo harness. Account names, masked
+      addresses, versions, and usage are made up. No personal accounts or credentials were loaded,
+      including in the full-size images.
     </p>
   </aside>
   <section id="prerequisites">
     <h2>Before you begin</h2>
     <p>
-      Complete <a href="/guides/#install">Phosphor and pi installation</a>. You also need the
-      official Claude Code CLI and a Claude plan that permits the usage you intend. This guide
-      describes the Pro/Max route; provider terms, limits, and any extra-usage charges still apply.
+      Finish <a href="/guides/#install">installing Phosphor and pi</a> first. You also need the official
+      Claude Code CLI and a Claude plan that covers how you plan to use it. This guide covers Pro and
+      Max. Anthropic’s terms, limits, and extra-usage charges still apply.
     </p>
     <p>
-      Install Claude Code using its <a href="https://code.claude.com/docs/en/setup"
-        >official setup instructions for your platform</a
-      >. Confirm <code>claude --version</code> works. Phosphor’s current integration requires <code
-        >pi-claude-cli ≥ 0.7.1</code
-      > and Claude Code <code>2.1.263+</code>; use a current compatible package. Provider 0.8.0+
-      also supplies richer tool-result details.
+      Install Claude Code with its <a href="https://code.claude.com/docs/en/setup"
+        >official setup instructions</a
+      > and check that <code>claude --version</code> works. Phosphor needs <code
+        >pi-claude-cli 0.10.0</code
+      > or newer and Claude Code <code>2.1.263</code> or newer.
     </p>
     <p>
-      The provider drives the official CLI. Do not extract a Claude subscription token or paste one
-      into pi’s API-key settings.
+      The provider drives the official CLI for you. Don’t pull a token out of your Claude
+      subscription or paste one into pi’s API key settings.
     </p>
   </section>
   <section id="install">
@@ -54,11 +53,10 @@ const sections: [string, string][] = [
         > and choose <strong>Add</strong>. If the card says it needs the Claude CLI on your PATH,
         install the CLI and make it visible to Phosphor before testing the provider.
       </li><li>
-        Wait for the installation job to succeed. The nested <strong>Claude Code</strong> settings tab
-        appears when the package is present.
+        Wait for the install job to finish. A <strong>Claude Code</strong> tab then shows up under Extensions.
       </li>
     </ol>
-    <p>The terminal equivalent is:</p><pre
+    <p>Or from a terminal:</p><pre
       tabindex="0"
       aria-label="Install the Claude Code provider"><code>pi install npm:@saccolabs/pi-claude-cli</code></pre>
     <Capture
@@ -68,9 +66,9 @@ const sections: [string, string][] = [
       provenance="Settings demo · example data"
     />
     <p>
-      Use a global install for a first setup. A project-scoped installation belongs to that
-      workspace. Avoid conflicting global and project provider versions. Finish existing work and
-      start a new session after installing or updating a package.
+      Install globally the first time. A project install only applies to that workspace, and
+      different global and project versions get confusing fast. After installing or updating, let
+      running work finish and start a new session.
     </p>
   </section>
   <section id="sign-in">
@@ -79,13 +77,13 @@ const sections: [string, string][] = [
       <li>Open <strong>Settings → Extensions → Claude Code</strong>.</li><li>
         Check the Health rows: the extension must be installed and the <code>claude</code> binary found.
       </li><li>
-        If your existing Claude CLI login is listed, check that it is the intended account.
-        Otherwise choose <strong>Add account</strong>.
+        If your existing Claude CLI login shows up, make sure it’s the account you want. If not,
+        choose <strong>Add account</strong>.
       </li><li>
-        Complete Claude’s sign-in in your browser. If Phosphor asks for a code, paste the code shown
-        by Claude into <strong>Paste code</strong> and select Continue. Never share this code.
+        Finish signing in to Claude in your browser. If Phosphor asks for a code, paste the one
+        Claude shows you into <strong>Paste code</strong> and choose Continue. Don’t share that code.
       </li><li>
-        Confirm the account row appears. Use <strong>Sign in again</strong> to renew an expired login.
+        Check that the account row appears. Use <strong>Sign in again</strong> to renew an expired login.
       </li>
     </ol>
     <Capture
@@ -95,8 +93,8 @@ const sections: [string, string][] = [
       provenance="Settings demo · masked examples"
     />
     <p>
-      <strong>Two different account surfaces:</strong> the top-level Accounts tab manages pi’s provider
-      sign-ins. The nested Claude Code tab manages the CLI-backed Claude logins used by this package.
+      <strong>Two places, two kinds of account:</strong> Settings → Accounts holds pi’s provider sign-ins.
+      The Claude Code tab holds the Claude CLI logins this package uses.
     </p>
   </section>
   <section id="verify">
@@ -105,8 +103,8 @@ const sections: [string, string][] = [
       <li>
         Scroll to <strong>Prove it end to end</strong> and choose <strong>Test provider</strong>.
       </li><li>
-        Inspect the job output. A successful round trip shows <code>phosphor-provider-ok</code> and a
-        confirmation message. This sends a small real prompt and uses plan quota.
+        Check the job output. A working round trip prints <code>phosphor-provider-ok</code> and a confirmation.
+        This sends a small real prompt, so it uses a little plan quota.
       </li><li>
         Start a new session. In the composer’s model menu, choose a Claude model under <code
           >pi-claude-cli</code
@@ -117,27 +115,25 @@ const sections: [string, string][] = [
       </li>
     </ol>
     <p>
-      Leave the context-window setting at its default initially. Increasing it allows longer
-      histories before compaction, but can increase the amount of context re-read per request. It
-      does not increase your plan’s allowance.
+      Leave the context window setting at its default for now. A bigger window means more history
+      before compaction, but each request can re-read more context. It doesn’t raise your plan’s
+      limits.
     </p>
   </section>
   <section id="multiple-accounts">
     <h2>4. Add another authorized account</h2>
     <p>
-      In the same Claude Code tab, choose <strong>Add account</strong> again. Each login is kept separately,
-      rather than overwriting the previous one.
+      In the same tab, choose <strong>Add account</strong> again. Each login is stored separately, so
+      adding one doesn’t replace another.
     </p>
     <p>
-      If the browser immediately signs you into the first account, sign out at claude.ai before
-      starting the second login. Signing in with an address already listed renews that row; it does
-      not create another account.
+      If the browser signs you straight back into the first account, sign out at claude.ai and try
+      again. Signing in with an address that’s already listed just renews that row.
     </p>
     <p>
-      Only add accounts you are authorized to use. Routing organizes legitimate usage across them;
-      it does not remove provider limits or change account terms. Choose <strong
-        >Refresh usage</strong
-      > to update the figures used for the next routing decision.
+      Only add accounts you’re allowed to use. Routing spreads your sessions across them. It doesn’t
+      lift provider limits or change anyone’s terms. Choose <strong>Refresh usage</strong> to update the
+      numbers routing uses for its next pick.
     </p>
   </section>
   <section id="routing">
@@ -149,25 +145,24 @@ const sections: [string, string][] = [
       provenance="Settings demo · masked examples"
     />
     <ul>
-      <li><strong>One account:</strong> choose the account that should bill new sessions.</li><li>
-        <strong>In order, top to bottom:</strong> choose the first eligible account in the list. Use the
-        arrows to change priority. Accounts reported unavailable, exhausted, or spending overage credits
-        can be held back.
+      <li><strong>One account:</strong> every new session uses the account you pick.</li><li>
+        <strong>In order, top to bottom:</strong> new sessions use the first eligible account. Reorder
+        with the arrows. Accounts that are unavailable, out of quota, or spending overage credits can
+        be skipped.
       </li><li>
-        <strong>Round robin:</strong> rotate new sessions across eligible accounts rather than always
-        choosing the first.
+        <strong>Round robin:</strong> new sessions take turns across eligible accounts.
       </li>
     </ul>
     <p>
-      Quota readings may be cached. Missing or stale telemetry is not proof that an account has
-      capacity. Check its usage and provider billing settings when the numbers matter.
+      Usage numbers can be cached. If they’re missing or stale, don’t assume the account has room.
+      When it matters, check usage and billing with the provider.
     </p>
     <aside class="notice">
-      <strong>No silent mid-session failover</strong><p>
-        A running session keeps the account assigned at spawn. Open an account row to inspect its
-        usage and live sessions. Moving a lane to another account respawns it from saved history;
-        the next turn re-reads that history and can incur additional context cost. Let the current
-        turn finish before moving it.
+      <strong>No switching accounts mid-session</strong><p>
+        A running session keeps the account it started with. Open an account row to see its usage
+        and live sessions. Moving a lane to another account restarts it from saved history, and the
+        next turn re-reads all of it, which costs context. Let the current turn finish before you
+        move it.
       </p>
     </aside>
   </section>
@@ -175,26 +170,26 @@ const sections: [string, string][] = [
     <h2>Troubleshooting and updates</h2>
     <ul>
       <li>
-        <strong>Claude Code tab missing:</strong> confirm the provider is installed in the applicable
-        scope, then reopen settings.
+        <strong>Claude Code tab missing:</strong> check the provider is installed in the right scope,
+        then reopen Settings.
       </li><li>
-        <strong>CLI not found:</strong> use Health to check the path. A desktop launch may not inherit
-        a terminal-only Node or shell setup.
+        <strong>CLI not found:</strong> check the path under Health. Apps launched from the desktop don’t
+        always get the Node or shell setup your terminal has.
       </li><li>
-        <strong>Package or CLI is old:</strong> use the separate Update controls. The terminal equivalents
-        are <code>pi update npm:@saccolabs/pi-claude-cli</code> and <code>claude update</code>.
-        Updating one does not update the other.
+        <strong>Package or CLI is old:</strong> each has its own Update control. From a terminal: <code
+          >pi update npm:@saccolabs/pi-claude-cli</code
+        > and <code>claude update</code>. Updating one doesn’t update the other.
       </li><li>
-        <strong>A new model is missing:</strong> the provider’s model catalog comes from pi, not the CLI.
-        Update pi as well; a Claude CLI update alone is not enough.
+        <strong>A new model is missing:</strong> the model list comes from pi, not the Claude CLI, so
+        update pi too.
       </li><li>
-        <strong>Old session reports a context-policy change:</strong> use the offered <strong
+        <strong>Old session reports a context-policy change:</strong> choose <strong
           >Rebuild the Claude session</strong
-        > action. The next turn imports saved history and incurs a full-context cache write.
+        >. The next turn reloads saved history, which costs one full-context cache write.
       </li><li>
-        <strong>Claude cannot see your existing MCP servers:</strong> Phosphor deliberately uses pi’s
-        MCP adapter, not Claude’s independent MCP configuration. <a href="/guides/connectors/"
-          >Configure those services in MCP Connectors</a
+        <strong>Claude can’t see your existing MCP servers:</strong> that’s on purpose. Phosphor uses
+        pi’s MCP adapter, not Claude’s own MCP config. <a href="/guides/connectors/"
+          >Add those services in MCP Connectors</a
         >.
       </li>
     </ul>

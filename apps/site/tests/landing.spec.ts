@@ -136,9 +136,22 @@ test('landing leads with lanes, then chat, then the IDE layout without disclosur
   expect(Math.abs(frame.height - rendered.height - 2)).toBeLessThan(1)
 })
 
+test('header links go to the repo and straight to the latest release', async ({ page }) => {
+  await page.goto('/')
+  const header = page.locator('.site-header')
+  await expect(header.getByRole('link', { name: 'GitHub' })).toHaveAttribute(
+    'href',
+    'https://github.com/agustinsacco/Phosphor',
+  )
+  await expect(header.getByRole('link', { name: 'Releases' })).toHaveAttribute(
+    'href',
+    'https://github.com/agustinsacco/Phosphor/releases/latest',
+  )
+})
+
 test('actual layouts use native controls and keyboard navigation', async ({ page }) => {
   await page.goto('/')
-  await expect(page.locator('h1')).toHaveText('Parallel coding. Without losing the thread.')
+  await expect(page.locator('h1')).toHaveText('Ten agents. Ten branches. One window.')
   await expect(page.locator('.package-card')).toHaveCount(5)
   await expect(page.locator('.connector-grid > a')).toHaveCount(8)
   await page.locator('#surface summary').click()

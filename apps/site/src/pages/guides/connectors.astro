@@ -14,39 +14,39 @@ const sections: [string, string][] = [
 
 <Guide
   title="Connect your services"
-  description="Give the agent access to the tools you choose. Install the MCP adapter, authorize a service, then verify the connection before using it in a task."
+  description="Let the agent use the services you pick. Install the MCP adapter, sign in to a service, and test the connection before you rely on it."
   sections={sections}
 >
   <section id="adapter">
     <h2>1. Install the MCP adapter</h2>
     <p>
-      MCP is the protocol; a connector is a configured MCP server. pi does not include MCP in its
-      core. Install <strong>MCP adapter</strong> from Settings → Extensions, or use:
+      MCP is the protocol. A connector is one configured MCP server. pi doesn’t ship MCP support
+      itself, so install the <strong>MCP adapter</strong> from Settings → Extensions, or run:
     </p>
     <pre
       tabindex="0"
       aria-label="Install the MCP adapter"><code>pi install npm:pi-mcp-adapter</code></pre>
     <p>
-      <strong>Settings → Extensions → MCP Connectors</strong> is visible even before installation. Its
-      Advanced section also exposes adapter installation. A package declaration alone is not a successful
-      service connection.
+      <strong>Settings → Extensions → MCP Connectors</strong> shows up before the adapter is installed,
+      and its Advanced section can install it too. Installing the adapter doesn’t connect any service
+      by itself.
     </p>
   </section>
   <section id="connect">
     <h2>2. Add and authorize a service</h2>
     <ol>
       <li>Open <strong>MCP Connectors</strong>.</li><li>
-        Find the service under <strong>Add a connector</strong>. Supply any required fields, such as
+        Find the service under <strong>Add a connector</strong> and fill in any required fields, like
         the Datadog site or Slack client ID.
       </li><li>
         Choose <strong>Add</strong>. Phosphor writes the configuration and starts the adapter’s
         authorization flow.
       </li><li>
-        Finish authorization in the browser. Review the requested scopes and the account or
-        workspace you are granting access to.
+        Finish signing in through your browser. Check the scopes and which account or workspace
+        you’re granting.
       </li><li>
-        Return to Phosphor. If the adapter explicitly asks for a callback URL, follow that prompt.
-        Do not publish the URL or its authorization code.
+        Go back to Phosphor. If the adapter asks for a callback URL, follow its prompt. Don’t share
+        that URL or its code anywhere else.
       </li>
     </ol>
     <Capture
@@ -56,37 +56,36 @@ const sections: [string, string][] = [
       provenance="Settings demo · example data"
     />
     <p>
-      The full-size capture also contains only example configuration. OAuth credentials belong to
-      the adapter and its credential store, not to Phosphor.
+      The full-size image only has example config too. OAuth credentials live in the adapter’s
+      credential store, not in Phosphor.
     </p>
   </section>
   <section id="verify">
     <h2>3. Test the connection, then the task</h2>
     <p>
-      Choose <strong>Test</strong> on the connected-server row. It opens a fresh connection through the
-      adapter and can report Up with a tool count, Needs sign-in, Down, Disabled, Not in config, or Test
-      inconclusive.
+      Choose <strong>Test</strong> on the server’s row. It opens a fresh connection through the adapter
+      and reports Up with a tool count, Needs sign-in, Down, Disabled, Not in config, or Test inconclusive.
     </p>
     <p>
-      Authorization and Test do not run a model, so they spend no model tokens. <strong
+      Signing in and testing don’t call a model, so they cost no tokens. <strong
         >State unknown</strong
-      > without a live session is not proof of failure. Cached tool names are not proof that a service
-      is reachable.
+      >
+      with no live session doesn’t mean it’s broken, and cached tool names don’t mean the service is reachable.
     </p>
     <p>
-      Start a new session after changing configuration. Ask for a narrow read-only action, such as
-      “Find the Linear issue I specify and summarize its acceptance criteria. Do not change it.”
-      Inspect the tool result and source, not just the answer. Model-driven tool use consumes normal
-      model usage and may use service quota.
+      Start a new session after changing config. Ask for something small and read-only, like “Find
+      the Linear issue I specify and summarize its acceptance criteria. Do not change it.” Check the
+      tool result, not just the answer. Tool calls during a task use normal model tokens and may
+      count against the service’s quota.
     </p>
     <p>
-      By default, the gateway lets the agent discover tool details on demand rather than sending
-      every schema with every request. Direct-tool configuration bypasses that behavior and
-      increases context use.
+      By default the gateway lets the agent look up tool details when it needs them, instead of
+      sending every schema with every request. Configuring tools as direct skips that and uses more
+      context.
     </p>
   </section>
   <section id="catalog">
-    <h2>Choose the right access for each service</h2>
+    <h2>What each service needs</h2>
     <div class="connector-requirements">
       {
         connectors.map(({ id, name, use, note, docs }) => (
@@ -95,59 +94,57 @@ const sections: [string, string][] = [
               <p class="eyebrow">{use}</p>
               <h3>{name}</h3>
               <p>{note}</p>
-              <a href={docs}>{name} setup documentation ↗</a>
+              <a href={docs}>{name} setup docs ↗</a>
             </>
           </article>
         ))
       }
     </div>
     <p>
-      Available tools depend on the server, your account, and the scopes you authorize. Read-only
-      defaults for Supabase and Questrade do not make every connector read-only. Supabase’s
-      read-only endpoint does not narrow the OAuth grant: the token still carries write scopes.
-      Restrict the endpoint to a project and review its permissions separately.
+      The tools you get depend on the server, your account, and the scopes you grant. Supabase and
+      Questrade default to read-only; other connectors don’t. Supabase’s read-only endpoint also
+      doesn’t shrink the OAuth grant, so the token still has write scopes. Pin it to a project and
+      review its permissions.
     </p>
   </section>
   <section id="custom">
     <h2>Add a custom MCP server</h2>
     <p>
-      Use the custom-server control in MCP Connectors to provide either a server URL or a local
-      command and arguments. Choose the intended scope. A command-based server executes a local
-      program, so review it as carefully as an installed package.
+      In MCP Connectors, add a custom server with either a URL or a local command and its arguments,
+      and pick a scope. A command-based server runs a program on your machine, so review it like any
+      package you install.
     </p>
     <p>
-      Test the server after saving. Start a new session to load it. Use Advanced for the raw
-      configuration and resolution chain when a project entry overrides a global server with the
-      same name.
+      Test it after saving, then start a new session to load it. If a project server overrides a
+      global one with the same name, Advanced shows the raw config and which one wins.
     </p>
     <p>
-      For Claude subscription sessions, configure servers here. Phosphor deliberately isolates the
-      Claude CLI’s own MCP configuration and claude.ai connectors; they are not automatically
-      imported.
+      Using your Claude subscription? Add servers here too. Phosphor keeps the Claude CLI’s own MCP
+      config and claude.ai connectors out on purpose, so they aren’t imported.
     </p>
   </section>
   <section id="permissions">
-    <h2>Permissions and common failures</h2>
+    <h2>Permissions and troubleshooting</h2>
     <ul>
-      <li><strong>Needs sign-in:</strong> use Sign in or Reconnect for the intended account.</li><li
+      <li><strong>Needs sign-in:</strong> use Sign in or Reconnect for the account you want.</li><li
       >
-        <strong>Down or inconclusive:</strong> check the server URL, network access, installed adapter,
-        and local-command requirements; then Test again.
+        <strong>Down or inconclusive:</strong> check the server URL, your network, that the adapter is
+        installed, and anything a local command needs. Then Test again.
       </li><li>
-        <strong>Slack Add is disabled:</strong> complete its registered-app setup, including client ID,
-        redirect URI, PKCE, and scopes. The card’s “Set up the app” disclosure provides the manifest.
+        <strong>Slack’s Add is disabled:</strong> finish setting up your Slack app first: client ID, redirect
+        URI, PKCE, and scopes. “Set up the app” on the card has the manifest.
       </li><li>
-        <strong>Tools are missing in a running conversation:</strong> start a new session after adding
-        the server; the existing adapter read its config at startup.
+        <strong>Tools missing from a running chat:</strong> start a new session. The adapter only reads
+        its config at startup.
       </li><li>
-        <strong>The wrong configuration wins:</strong> inspect scope and shadowing in Advanced rather
-        than duplicating credentials across files.
+        <strong>The wrong config wins:</strong> check scope and overrides in Advanced instead of copying
+        credentials into more files.
       </li>
     </ul>
     <p>
-      Authorize only the access needed. Some tools can modify external data. A worktree does not
-      restrict a connected service, and an artifact’s sandbox does not restrict tool calls. Do not
-      include credentials or private callback URLs in bug reports.
+      Grant only the access the agent needs. Some tools can change data in the service. Worktrees
+      and the artifact sandbox don’t limit what a connected service can do. Keep credentials and
+      callback URLs out of bug reports.
     </p>
     <p>
       <a href={doc('mcp.md')}>MCP configuration, scope resolution, and OAuth reference</a> · <a
