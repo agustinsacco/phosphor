@@ -22,8 +22,7 @@ import { composePrompt, toImageContents, type PendingAttachment } from '@/featur
 import { AttachmentChips, DropOverlay } from '@/features/chat/composer/AttachmentChips'
 import { useAttachments } from '@/features/chat/composer/useAttachments'
 import { ComposerField } from '@/features/chat/composer/ComposerField'
-import { ContextFileToggles } from '@/features/chat/composer/ContextFileToggles'
-import { ConnectorsMenu } from '@/features/connectors/ConnectorsMenu'
+import { ContextSourcesMenu } from '@/features/chat/composer/ContextSourcesMenu'
 import { buildCommandEntries, CommandMenu } from '@/features/chat/composer/CommandMenu'
 import { useSlashMenu } from '@/features/chat/composer/useSlashMenu'
 import { NO_COMMANDS, usePiCommandsStore } from '@/stores/piCommands'
@@ -311,8 +310,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 pb-2">
               <div className="flex min-w-0 flex-wrap items-center gap-1">
                 <AttachButton onFiles={attachments.addFiles} />
-                <ContextFileToggles />
-                <ConnectorsMenu workspacePath={workspacePath} />
+                <ContextSourcesMenu workspacePath={workspacePath} />
               </div>
 
               <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-1.5">

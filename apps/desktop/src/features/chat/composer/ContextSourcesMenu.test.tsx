@@ -2,11 +2,13 @@
 import { describe, it, expect, vi, afterEach, beforeAll, beforeEach } from 'vitest'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { ContextFileToggles } from './ContextFileToggles'
+import type { McpResolvedServer } from '@shared/mcp'
+import { ContextSourcesMenu } from './ContextSourcesMenu'
 import { contextFileToggleState } from './contextFileToggle'
 import { CONTEXT_BREAKDOWN_STATUS_KEY } from './contextBreakdown'
 import { useContextFilesPrefStore } from '@/stores/contextFilesPref'
 import { useExtensionUiStore } from '@/stores/extensionUi'
+import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 
 beforeAll(() => {
   ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -20,11 +22,19 @@ const LANE = {
   ],
 }
 
+const server = (name: string, config: McpResolvedServer['config']): McpResolvedServer => ({
+  name,
+  config,
+  scope: 'pi-global',
+  shadows: [],
+})
+
 describe('contextFileToggleState', () => {
   it('follows the preference on the home composer', () => {
     expect(contextFileToggleState('claude', false, null, undefined)).toMatchObject({
       checked: false,
       missing: false,
+      tokens: null,
     })
     expect(contextFileToggleState('claude', true, null, undefined).title).toMatch(/New lanes send/)
   })
@@ -32,6 +42,7 @@ describe('contextFileToggleState', () => {
   it('follows what the lane reports over the preference, and names the files', () => {
     const claude = contextFileToggleState('claude', false, LANE, undefined)
     expect(claude.checked).toBe(true)
+    expect(claude.tokens).toBe(5500)
     expect(claude.title).toContain('~5.5k tokens')
     expect(claude.title).toContain('/r/CLAUDE.md')
     expect(contextFileToggleState('agents', true, LANE, undefined).checked).toBe(false)
@@ -47,13 +58,26 @@ describe('contextFileToggleState', () => {
   })
 })
 
-describe('ContextFileToggles', () => {
+describe('ContextSourcesMenu', () => {
   let container: HTMLDivElement
   let root: Root
-  const invoke = vi.fn(async () => undefined)
+  let servers: McpResolvedServer[]
+  let failContextFile = false
+  const invoke = vi.fn(async (channel: string, ...args: unknown[]) => {
+    if (channel === 'mcp:readConfigs') return { servers, files: [] }
+    if (channel === 'mcp:setDisabled') {
+      servers = servers.map((s) =>
+        s.name === args[2] ? { ...s, config: { ...s.config, disabled: args[3] as boolean } } : s,
+      )
+    }
+    if (channel === 'app:setContextFile' && failContextFile) throw new Error('lane gone')
+    return undefined
+  })
 
   beforeEach(() => {
     invoke.mockClear()
+    failContextFile = false
+    servers = []
     ;(globalThis as unknown as { window: { phosphor: unknown } }).window.phosphor = { invoke }
     useContextFilesPrefStore.setState({ prefs: { claude: true, agents: true } })
     useExtensionUiStore.setState({ statuses: {} })
@@ -67,26 +91,42 @@ describe('ContextFileToggles', () => {
     container.remove()
   })
 
-  const box = (label: string): HTMLInputElement =>
+  const trigger = (): HTMLButtonElement =>
+    container.querySelector('[data-testid="context-sources"]')!
+  const box = (text: string): HTMLInputElement =>
     [...container.querySelectorAll('label')]
-      .find((el) => el.textContent === label)!
+      .find((el) => el.textContent?.includes(text))!
       .querySelector('input')!
+  const render = async (sessionId?: string): Promise<void> => {
+    await act(async () =>
+      root.render(<ContextSourcesMenu workspacePath="/repo" sessionId={sessionId} />),
+    )
+    await act(async () => trigger().click())
+  }
+
+  it('shows only the rules when no connector is configured', async () => {
+    await render()
+    expect(trigger().textContent).toBe('Rules 2/2')
+    expect(container.textContent).not.toContain('Connectors')
+  })
 
   it('sets the preference for new lanes from the home composer', async () => {
-    act(() => root.render(<ContextFileToggles />))
+    await render()
     await act(async () => box('CLAUDE.md').click())
     expect(invoke).toHaveBeenCalledWith('app:setContextFile', 'claude', false, undefined)
     expect(useContextFilesPrefStore.getState().prefs).toEqual({ claude: false, agents: true })
+    expect(trigger().textContent).toBe('Rules 1/2')
   })
 
-  it('shows the lane’s own state and changes that lane', async () => {
+  it('shows the lane’s own state and cost, and changes that lane', async () => {
     useExtensionUiStore.setState({
       statuses: {
         s1: { [CONTEXT_BREAKDOWN_STATUS_KEY]: JSON.stringify({ parts: {}, contextFiles: LANE }) },
       },
     })
-    act(() => root.render(<ContextFileToggles sessionId="s1" />))
+    await render('s1')
     expect(box('CLAUDE.md').checked).toBe(true)
+    expect(box('CLAUDE.md').closest('label')!.textContent).toContain('~5.5k')
     expect(box('AGENTS.md').checked).toBe(false)
     await act(async () => box('AGENTS.md').click())
     expect(invoke).toHaveBeenCalledWith('app:setContextFile', 'agents', true, 's1')
@@ -94,11 +134,40 @@ describe('ContextFileToggles', () => {
   })
 
   it('puts the box back and says so when the change fails', async () => {
-    invoke.mockRejectedValueOnce(new Error('lane gone'))
+    failContextFile = true
     const toast = vi.spyOn(useExtensionUiStore.getState(), 'pushToast')
-    act(() => root.render(<ContextFileToggles sessionId="s1" />))
+    await render('s1')
     await act(async () => box('CLAUDE.md').click())
     expect(box('CLAUDE.md').checked).toBe(true)
     expect(toast).toHaveBeenCalledWith(expect.stringContaining('lane gone'), 'error')
+  })
+
+  it('turns a server off for new lanes and flags one that skips the gateway', async () => {
+    servers = [
+      server('linear', { url: 'https://mcp.linear.app/mcp' }),
+      server('knowledge', { url: 'https://k.local/mcp', directTools: true }),
+    ]
+    await render()
+    expect(trigger().textContent).toBe('Rules 2/2 · MCP 2/2')
+    expect(box('knowledge').closest('label')!.textContent).toContain('direct')
+    await act(async () => box('knowledge').click())
+    expect(invoke).toHaveBeenCalledWith('mcp:setDisabled', 'pi-global', '/repo', 'knowledge', true)
+    expect(trigger().textContent).toBe('Rules 2/2 · MCP 1/2')
+  })
+
+  it('says inside a lane that connector changes reach new lanes only', async () => {
+    servers = [server('linear', { url: 'https://mcp.linear.app/mcp' })]
+    await render('s1')
+    expect(container.textContent).toContain('this lane keeps its own')
+  })
+
+  it('re-reads the servers when Settings closes, since it edits the same files', async () => {
+    servers = [server('linear', { url: 'https://mcp.linear.app/mcp' })]
+    await render()
+    expect(trigger().textContent).toBe('Rules 2/2 · MCP 1/1')
+    await act(async () => useSettingsUiStore.getState().setOpen(true))
+    servers = [server('linear', { url: 'https://mcp.linear.app/mcp', disabled: true })]
+    await act(async () => useSettingsUiStore.getState().setOpen(false))
+    expect(trigger().textContent).toBe('Rules 2/2 · MCP 0/1')
   })
 })
