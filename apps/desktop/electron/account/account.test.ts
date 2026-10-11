@@ -46,7 +46,10 @@ function setup(options: Options = {}) {
     auth: options.auth ?? auth(),
     vault,
     openExternal: options.openExternal ?? browser.open,
-    onChange: (state: AccountState) => states.push(state.status),
+    onChange: (state: AccountState) => {
+      states.push(state.status)
+      options.onChange?.(state)
+    },
     log: (message: string) => logs.push(message),
     ...(options.now ? { now: options.now } : {}),
     ...(options.callbackMs ? { callbackMs: options.callbackMs } : {}),
@@ -144,6 +147,17 @@ describe('signing in', () => {
     account.cancel()
   })
 
+  it('opens no tab for a sign-in cancelled before its listener was up', async () => {
+    const { account, browser } = setup({ browser: fakeBrowser(() => null) })
+    void account.signIn()
+    account.cancel()
+    void account.signIn()
+    await until(() => browser.opened.length === 1)
+    await new Promise((r) => setTimeout(r, 30))
+    expect(browser.opened).toHaveLength(1)
+    account.cancel()
+  })
+
   it('starts a fresh sign-in straight after a cancel, without joining the old one', async () => {
     const { account, browser } = setup({ browser: fakeBrowser(() => null) })
     const first = account.signIn()
@@ -157,20 +171,38 @@ describe('signing in', () => {
     expect(await second).toEqual({ status: 'signed-out' })
   })
 
-  it('revokes, and does not keep, a session whose exchange lands after a cancel', async () => {
+  it('finishes an exchange a cancel overtook, then revokes what it brought', async () => {
+    // Like the real client, this exchange dies if it is handed a signal that aborts.
     const late = deferred<AuthSession>()
-    const ports = auth({ exchange: vi.fn(() => late.promise) })
+    const exchange = vi.fn<GoTrue['exchange']>(
+      (_code, _verifier, signal) =>
+        new Promise((resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason))
+          void late.promise.then(resolve)
+        }),
+    )
+    const ports = auth({ exchange })
     const { account, vault, browser } = setup({ auth: ports })
     const flow = account.signIn()
-    await until(() => ports.exchange.mock.calls.length === 1)
+    await until(() => exchange.mock.calls.length === 1)
     account.cancel()
+    // The tab hears at once, not when Supabase answers.
+    expect((await browser.pages[0]!).body).toContain('Sign-in cancelled')
     late.resolve(session(1))
     expect(await flow).toEqual({ status: 'signed-out' })
     await until(() => ports.revoke.mock.calls.length === 1)
     expect(ports.revoke.mock.calls[0]![0]).toBe('access-1')
     expect(vault.readProfile()).toBeNull()
     expect(account.state()).toEqual({ status: 'signed-out' })
-    expect((await browser.pages[0]!).body).toContain('Sign-in cancelled')
+  })
+
+  it('says why Supabase refused when it gives only a code', async () => {
+    const browser = fakeBrowser(() => 'error=access_denied&error_code=signup_disabled')
+    const { account } = setup({ browser })
+    expect(await account.signIn()).toEqual({
+      status: 'signed-out',
+      error: 'GitHub sign-in did not finish: signup_disabled',
+    })
   })
 
   it('holds the session in memory only when the OS has no secure storage', async () => {
@@ -278,10 +310,35 @@ describe('signing out', () => {
     gate.resolve(session(1))
     expect(await token).toBeNull()
     await until(() => ports.revoke.mock.calls.length === 1)
-    expect(ports.revoke.mock.calls[0]![0]).toBe('access-1')
+    await new Promise((r) => setTimeout(r, 20))
+    // The refresh owned the revocation: sign-out neither refreshed nor revoked again.
+    expect(ports.revoke.mock.calls.map(([revoked]) => revoked)).toEqual(['access-1'])
+    expect(ports.refresh).toHaveBeenCalledTimes(1)
     expect(account.state()).toEqual({ status: 'signed-out' })
     expect(vault.readProfile()).toBeNull()
     expect(states).toEqual(['signed-in', 'signed-out'])
+  })
+
+  it('revokes a refresh that landed just before it, and hands that token to nobody', async () => {
+    const { vault } = remembered()
+    let loaded = false
+    let out: Promise<AccountState> | null = null
+    const made = setup({
+      vault,
+      // Runs inside the refresh, right after it kept the new session and
+      // before its promise settles: the narrowest window there is.
+      onChange: (state) => {
+        if (loaded && state.status === 'signed-in' && !out) out = made.account.signOut()
+      },
+    })
+    const { account } = made
+    account.load()
+    loaded = true
+    expect(await account.accessToken()).toBeNull()
+    expect(await out).toEqual({ status: 'signed-out' })
+    expect(made.ports.auth.revoke.mock.calls.map(([token]) => token)).toEqual(['access-1'])
+    expect(made.ports.auth.refresh).toHaveBeenCalledTimes(1)
+    expect(vault.readProfile()).toBeNull()
   })
 
   it('revokes with the fresh access token it holds', async () => {
@@ -312,6 +369,24 @@ describe('signing out', () => {
     expect(await account.signOut()).toEqual({ status: 'signed-out' })
     expect(vault.readProfile()).toBeNull()
     expect(logs.join('\n')).toMatch(/server session was not revoked/)
+  })
+
+  it('says so when the saved sign-in could not be deleted', async () => {
+    const real = createVault(join(root, 'account'), fakeCipher().cipher)
+    const vault: Vault = {
+      ...real,
+      clear: () => {
+        real.clear()
+        throw new Error('could not delete profile.json (EBUSY)')
+      },
+    }
+    const { account } = setup({ vault })
+    await account.signIn()
+    expect(await account.signOut()).toEqual({
+      status: 'signed-out',
+      error:
+        'Signed out, but: The saved sign-in could not be deleted (could not delete profile.json (EBUSY)).',
+    })
   })
 
   it('stops a sign-in that is still waiting on the browser', async () => {

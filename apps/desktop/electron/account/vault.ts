@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import type { AccountUser } from './gotrue'
 
 /**
@@ -31,6 +31,7 @@ export interface Vault {
   readToken(userId: string): string
   /** False when the OS offers no secure storage: nothing is written then. */
   save(user: AccountUser, refreshToken: string): boolean
+  /** Throws, after trying both files, when either could not be deleted. */
   clear(): void
 }
 
@@ -87,10 +88,18 @@ export function createVault(dir: string, cipher: Cipher): Vault {
     }
   }
 
+  /** Both files are attempted whatever the other did; any failure is thrown after. */
   function clear(): void {
-    // Profile first: without it the token is never read.
-    rmSync(profilePath, { force: true })
-    rmSync(tokenPath, { force: true })
+    const failures: string[] = []
+    // The credential first: if only one goes, it should be the secret.
+    for (const path of [tokenPath, profilePath]) {
+      try {
+        rmSync(path, { force: true })
+      } catch (error) {
+        failures.push(`${basename(path)} (${(error as NodeJS.ErrnoException).code ?? 'error'})`)
+      }
+    }
+    if (failures.length > 0) throw new Error(`could not delete ${failures.join(' and ')}`)
   }
 
   return {

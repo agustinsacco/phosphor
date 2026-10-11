@@ -75,7 +75,11 @@ export function createAccount(ports: AccountPorts): Account {
     return set(error ? { status: 'signed-out', error } : { status: 'signed-out' })
   }
 
-  /** Forget the session here; the server copy is the caller's business. */
+  /**
+   * Forget the session here; the server copy is the caller's business. A file
+   * that could not be deleted is said out loud: a profile left behind would
+   * sign the next launch back in.
+   */
   function forget(error?: string): AccountState {
     generation++
     session = null
@@ -83,6 +87,8 @@ export function createAccount(ports: AccountPorts): Account {
       ports.vault.clear()
     } catch (problem) {
       ports.log(`could not delete the saved sign-in: ${reason(problem)}`)
+      const note = `The saved sign-in could not be deleted (${reason(problem)}).`
+      return signedOut(error ? `${error} ${note}` : `Signed out, but: ${note}`)
     }
     return signedOut(error)
   }
@@ -117,6 +123,7 @@ export function createAccount(ports: AccountPorts): Account {
     let listener: CallbackListener | null = null
     try {
       listener = await listenForCallback(ports.callbackMs ?? CALLBACK_MS, signal)
+      if (!live()) return current
       await ports.openExternal(ports.auth.authorizeUrl(listener.url, challenge))
       const outcome = await listener.outcome
       if (!live() || outcome.kind === 'cancelled') {
@@ -126,9 +133,12 @@ export function createAccount(ports: AccountPorts): Account {
       if (outcome.kind === 'timeout') return signedOut('Sign-in timed out. Try again.')
       if (outcome.kind === 'denied') {
         listener.finish(CANCELLED)
-        return signedOut(`GitHub sign-in did not finish: ${outcome.description || outcome.error}`)
+        const why = outcome.description || outcome.errorCode || outcome.error
+        return signedOut(`GitHub sign-in did not finish: ${why}`)
       }
-      const fresh = await ports.auth.exchange(outcome.code, verifier, signal)
+      // Never aborted: Supabase may already have issued the session, and only a
+      // finished exchange can be revoked below. REQUEST_MS bounds it.
+      const fresh = await ports.auth.exchange(outcome.code, verifier)
       if (!live()) {
         listener.finish(CANCELLED)
         void revoke(fresh.accessToken)
@@ -237,11 +247,18 @@ export function createAccount(ports: AccountPorts): Account {
       }
       const inFlight = refreshing !== null
       const result = forget()
-      // An in-flight refresh revokes its own result when it lands (see refresh()).
-      if (was.status !== 'signed-in' || inFlight) return result
-      const signal = AbortSignal.timeout(ports.revokeMs ?? REVOKE_MS)
+      if (was.status !== 'signed-in') return result
+      // One owner per session. A session this side holds is revoked here, with
+      // its access token while that outlives the request; that includes one a
+      // refresh kept a moment ago, whose promise has not settled yet. Holding
+      // nothing usable while a refresh is in flight, that refresh owns the
+      // revocation: it lands on a stale generation and revokes what it got.
+      const revokeMs = ports.revokeMs ?? REVOKE_MS
+      const usable = held && held.expiresAt - now() > revokeMs ? held.accessToken : null
+      if (!usable && inFlight) return result
+      const signal = AbortSignal.timeout(revokeMs)
       try {
-        let access = held && held.expiresAt - now() > EARLY_MS ? held.accessToken : null
+        let access = usable
         if (!access && token) access = (await ports.auth.refresh(token, signal)).accessToken
         if (access) await ports.auth.revoke(access, signal)
       } catch (problem) {
@@ -253,7 +270,9 @@ export function createAccount(ports: AccountPorts): Account {
     async accessToken() {
       if (current.status !== 'signed-in') return null
       if (session && session.expiresAt - now() > EARLY_MS) return session.accessToken
-      return (await refresh())?.accessToken ?? null
+      const gen = generation
+      const fresh = await refresh()
+      return fresh && gen === generation ? fresh.accessToken : null
     },
   }
 }

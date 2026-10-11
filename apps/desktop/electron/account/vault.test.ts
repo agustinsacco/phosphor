@@ -1,4 +1,5 @@
 import {
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -75,6 +76,15 @@ describe('createVault', () => {
     expect(vault.readProfile()).toBeNull()
     writeFileSync(join(dir, 'profile.json'), JSON.stringify({ v: 1, user: { id: 'x' } }))
     expect(vault.readProfile()).toEqual({ id: 'x', login: null, name: null, email: null })
+  })
+
+  it('still deletes the token when the profile will not go, and says so', () => {
+    const vault = createVault(dir, fakeCipher().cipher)
+    vault.save(USER, 'refresh-1')
+    rmSync(join(dir, 'profile.json'))
+    mkdirSync(join(dir, 'profile.json', 'held'), { recursive: true })
+    expect(() => vault.clear()).toThrow(/^could not delete profile\.json \(\w+\)$/)
+    expect(readdirSync(dir)).toEqual(['profile.json'])
   })
 
   it('clears both files, and clearing nothing is fine', () => {
