@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
-import type {
-  McpCacheEntry,
-  McpCachedTool,
-  McpConfigsResult,
-  McpResolvedServer,
-  McpScope,
+import {
+  directToolsSummary,
+  type McpCacheEntry,
+  type McpCachedTool,
+  type McpConfigsResult,
+  type McpResolvedServer,
+  type McpScope,
 } from '@shared/mcp'
 import type { ConnectorCheckResult } from '@shared/connectors'
 import { errorText } from '@shared/errors'
@@ -502,7 +503,7 @@ function ConfiguredRow({
     server.config.lifecycle === 'lazy-keep-alive' ||
     server.config.lifecycle === 'keep-alive' ||
     server.config.lifecycle === 'eager'
-  const directTools = server.config.directTools ?? []
+  const directTools = directToolsSummary(server.config.directTools)
   const checked = check?.status === 'done' ? check : undefined
   const running = check?.status === 'running' ? check.via : undefined
   // Sign-in is an OAuth flow, so only a remote server has one. Reload is any
@@ -617,16 +618,15 @@ function ConfiguredRow({
         </div>
       </div>
 
-      {(directTools.length > 0 ||
+      {(directTools ||
         (checked && 'detail' in checked.result && checked.result.detail) ||
         flow) && (
         <div className="px-3.5 pb-2.5">
-          {directTools.length > 0 && (
+          {directTools && (
             <div className="text-warning text-sm">
-              direct: <span className="font-mono">{directTools.slice(0, 4).join(', ')}</span>
-              {directTools.length > 4 && ` +${directTools.length - 4}`} — these register as
-              top-level tools instead of going through the <span className="font-mono">mcp</span>{' '}
-              gateway, so they cost their full schema in every request.
+              direct: <span className="font-mono">{directTools}</span> — these register as top-level
+              tools instead of going through the <span className="font-mono">mcp</span> gateway, so
+              they cost their full schema in every request.
             </div>
           )}
 

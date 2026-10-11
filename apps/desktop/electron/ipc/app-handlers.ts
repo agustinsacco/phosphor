@@ -14,6 +14,8 @@ import { repointSessionCwd } from '../pi/session-cwd'
 import { registry } from '../registry'
 import { syncContextBudget, withBudgetCompaction } from '../pi/context-budget'
 import { piStubPath } from '../pi/stub'
+import { setLaneContextFile } from '../pi/context-files'
+import { isRoutineSession } from '../routines/ownership'
 import { handle } from './handle'
 import { applyThemeSource, applyTitleBarOverlay, applyZoom } from '../window-chrome'
 import { debugLogPath } from '../debug-log'
@@ -45,6 +47,7 @@ import {
   setAgentDirectives,
   setWorktreePrefs,
   setContextBudget,
+  setContextFile,
   setDraft,
   clearDraft,
   setDrafts,
@@ -296,6 +299,20 @@ export function registerAppHandlers(): void {
       ),
     )
   })
+
+  handle('app:setContextFile', (_event, kind, included: boolean, sessionId?: string) =>
+    setLaneContextFile(
+      {
+        save: setContextFile,
+        isStub: () => Boolean(piStubPath()),
+        ownedByRoutine: isRoutineSession,
+        session: (id) => registry.get(id),
+      },
+      kind,
+      included,
+      sessionId,
+    ),
+  )
 
   handle('app:markSessionSeen', (_event, sessionPath: string) => {
     markSessionSeen(sessionPath)

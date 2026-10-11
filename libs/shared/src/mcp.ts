@@ -24,6 +24,51 @@ export type McpScope = (typeof MCP_SCOPES)[number]
 /** Scopes the UI offers for writes (the chain's global + project overrides). */
 export type McpWriteScope = 'pi-global' | 'pi-project'
 
+/** The adapter's `directTools` forms. */
+export type McpDirectTools = string[] | boolean | 'search'
+
+/**
+ * What `directTools` puts in front of the model on every request, or null when
+ * the server stays behind the `mcp` gateway (unset, `false`, `"search"`).
+ */
+export function directToolsSummary(value: unknown): string | null {
+  if (value === true) return 'all tools'
+  if (!Array.isArray(value)) return null
+  const names = value.filter((name): name is string => typeof name === 'string' && name !== '')
+  if (names.length === 0) return null
+  return names.slice(0, 4).join(', ') + (names.length > 4 ? ` +${names.length - 4}` : '')
+}
+
+const DIRECT_TOOLS_KEYWORDS = new Set(['all', 'search'])
+
+/**
+ * The server editor's text for a `directTools` value. A list holding one tool
+ * that happens to be named `all` or `search` gets a trailing comma, so saving
+ * it again keeps a list instead of switching the server to that mode.
+ */
+export function directToolsText(value: unknown): string {
+  if (value === true) return 'all'
+  if (value === 'search') return 'search'
+  if (!Array.isArray(value)) return ''
+  const text = value.filter((name) => typeof name === 'string').join(', ')
+  return DIRECT_TOOLS_KEYWORDS.has(text.trim().toLowerCase()) ? `${text},` : text
+}
+
+/**
+ * The editor's text back to a `directTools` value; undefined means unset. Only
+ * the bare words `all` and `search` are modes; any comma makes a tool list.
+ */
+export function parseDirectToolsText(text: string): McpDirectTools | undefined {
+  const trimmed = text.trim()
+  if (trimmed.toLowerCase() === 'all') return true
+  if (trimmed.toLowerCase() === 'search') return 'search'
+  const names = trimmed
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean)
+  return names.length > 0 ? names : undefined
+}
+
 /** One server entry as stored in adapter config (`mcpServers.<name>`). */
 export interface McpServerConfig {
   /** Remote server URL (exactly one of url/command). */
@@ -32,8 +77,11 @@ export interface McpServerConfig {
   command?: string
   args?: string[]
   env?: Record<string, string>
-  /** Tools promoted to first-class pi tools instead of the lazy proxy. */
-  directTools?: string[]
+  /**
+   * Tools promoted to first-class pi tools instead of the lazy proxy: a list,
+   * `true` for every tool, or `"search"` to load them through tool search.
+   */
+  directTools?: McpDirectTools
   /**
    * Adapter connection lifecycle. Defaults to `lazy` — connect on first tool
    * call, drop afterwards — which leaves an authenticated server reporting

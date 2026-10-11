@@ -40,6 +40,10 @@
       "types": "./src/context-budget.ts",
       "default": "./src/context-budget.ts"
     },
+    "./context-files": {
+      "types": "./src/context-files.ts",
+      "default": "./src/context-files.ts"
+    },
     "./errors": {
       "types": "./src/errors.ts",
       "default": "./src/errors.ts"

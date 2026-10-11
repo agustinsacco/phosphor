@@ -34,10 +34,24 @@ a list. Sections, in order:
    filterable past eight tools. A warning shows when `directTools` is set,
    since that opts the server out of the `mcp` gateway and costs its full
    schema on every request.
+   The warning covers every adapter form: a tool list, or `true` for all of
+   a server's tools (`"search"` loads them through tool search instead, so it
+   costs nothing up front). The editor writes the same forms (`all`, `search`
+   or comma-separated names; `directToolsText` / `parseDirectToolsText` in
+   `libs/shared/src/mcp.ts`).
 2. **Add a connector** — the curated catalog, minus anything already
    configured.
 3. **Advanced** (collapsed) — adapter install state and the chain file list
    with the raw JSON editor. Repair tools, not daily controls.
+
+**Shortcut on the new-lane composer.** The home composer's `MCP 7/8` chip
+(`features/connectors/ConnectorsMenu.tsx`) lists the resolved servers with the
+same enabled checkbox, writing `disabled` through `mcp:setDisabled` to the
+server's own file, and flags any server whose `directTools` skips the gateway.
+It is on the new-lane composer only: the adapter reads its config when a lane
+starts, so a running lane keeps the servers it started with. A disabled server
+is not loaded, so the `mcp` tool's description and search cover only what is
+left.
 
 Eight curated OAuth connectors: Linear, Notion, Braintrust, Datadog, Supabase,
 Questrade, Fellow, Slack. Each endpoint is checked against the vendor's docs
@@ -206,7 +220,8 @@ cost ([chat.md](chat.md#what-the-context-meters-popover-shows)).
 | `project`    | `<workspace>/.mcp.json`                                            |
 | `pi-project` | `<workspace>/.pi/mcp-adapter.json`                                 |
 
-Shape: `{"mcpServers": {name: {url | command+args+env, directTools?, disabled?}}}`.
+Shape: `{"mcpServers": {name: {url | command+args+env, directTools?, disabled?}}}`,
+where `directTools` is a tool list, `true` (every tool) or `"search"`.
 Later files win per server name; Phosphor records shadowed scopes.
 
 ## Rules

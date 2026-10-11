@@ -292,8 +292,9 @@ library asks for. `accept` is its only caller.
   `<resourceRoot>/pi-ext/` and leads its own process group.
 - **Fixed policy.** The default agent directives, with no per-project
   overrides; pi's own settings for the default provider, and pi's packages for
-  the Claude gate; the config's context budget, never paused. There are no
-  accounts, no Headroom, no routines and no recents.
+  the Claude gate; the config's context budget, never paused; every
+  CLAUDE.md / AGENTS.md pi finds. There are no accounts, no Headroom, no
+  routines and no recents.
 - **The same git.** Creating the runtime sets the Host's own PATH to pi's, so
   the git the Host asks about a repository is the git pi runs.
 

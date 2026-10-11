@@ -11,6 +11,24 @@ const LIVE = JSON.stringify({
 })
 
 describe('parseContextBreakdown', () => {
+  it('reads a lane’s context files, and treats an older payload as unknown', () => {
+    const withFiles = JSON.stringify({
+      ...JSON.parse(LIVE),
+      contextFiles: {
+        off: ['claude', 'readme'],
+        files: [
+          { path: '/r/CLAUDE.md', kind: 'claude', tokens: 5500, included: false },
+          { path: '/r/notes.md', kind: 'notes', tokens: 1, included: true },
+        ],
+      },
+    })
+    expect(parseContextBreakdown(withFiles)?.contextFiles).toEqual({
+      off: ['claude'],
+      files: [{ path: '/r/CLAUDE.md', kind: 'claude', tokens: 5500, included: false }],
+    })
+    expect(parseContextBreakdown(LIVE)?.contextFiles).toBeNull()
+  })
+
   it('parses the live payload', () => {
     const parsed = parseContextBreakdown(LIVE)
     expect(parsed?.parts).toEqual({ messages: 0, systemPrompt: 728, tools: 638, mcpTools: 0 })

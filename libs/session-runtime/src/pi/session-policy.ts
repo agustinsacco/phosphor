@@ -1,4 +1,5 @@
 import type { AppPrefs, CreateSessionOptions, GitInfo, PiPackageEntry } from '@shared/models'
+import { CONTEXT_FILES_ENV, contextFilesEnvValue } from '@shared/context-files'
 import { composeDirectives } from './directives'
 import { assertClaudeContextProvider, usesClaudeCliProvider } from './provider-detect'
 import type { PiSpawnOptions } from './rpc-client'
@@ -13,7 +14,8 @@ export interface SessionExecution {
 /** Machine-local inputs. These are trusted dependencies, never remote spawn options. */
 export interface SessionPolicyRuntime {
   git: (cwd: string) => Promise<GitInfo>
-  preferences: () => Pick<AppPrefs, 'agentDirectives' | 'agentDirectivesByProject'>
+  preferences: () => Pick<AppPrefs, 'agentDirectives' | 'agentDirectivesByProject'> &
+    Partial<Pick<AppPrefs, 'contextFiles'>>
   defaultProvider: (cwd: string) => Promise<string | undefined>
   packages: (cwd: string) => Promise<Pick<PiPackageEntry, 'name' | 'version' | 'installed'>[]>
   account: (options: { sessionPath?: string }) => Promise<{
@@ -58,6 +60,17 @@ export async function prepareSessionPolicy(
     : null
   if (account) Object.assign(env, account.env)
   if (!stub) Object.assign(env, runtime.compressionEnvironment())
+  // The lane's starting state for the bundled context-files filter, from an
+  // owner that has the preference (Desktop). Absent when every file is sent,
+  // so an inherited value cannot leak in. Unattended runs (routines) always
+  // send the project's rules: the composer checkboxes are for interactive
+  // lanes. An owner without the preference (the Host) keeps its environment
+  // exactly as it built it.
+  if (!stub && prefs.contextFiles) {
+    const value = execution.unattended ? undefined : contextFilesEnvValue(prefs.contextFiles)
+    if (value) env[CONTEXT_FILES_ENV] = value
+    else delete env[CONTEXT_FILES_ENV]
+  }
   // pi reads its settings at process startup, so this must complete before create().
   if (!stub) await runtime.resetCompaction()
   return {

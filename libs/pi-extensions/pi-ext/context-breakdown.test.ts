@@ -169,13 +169,14 @@ describe('measureMessages', () => {
 
 describe('context breakdown extension', () => {
   /** A pi stand-in that records handlers and lets a test fire them. */
-  function fakePi(tools: Array<{ name: string; description?: string }>) {
+  function fakePi(tools: Array<{ name: string; description?: string }>, systemPrompt = '') {
     const lifecycle = new Map<string, (event: unknown, ctx: unknown) => unknown>()
     const bus = new Map<string, (payload: unknown) => void>()
     const pushed: string[] = []
+    let command: ((args: string, ctx: unknown) => Promise<void>) | undefined
     const ctx = {
       ui: { setStatus: (_key: string, text: string | undefined) => pushed.push(text ?? '') },
-      getSystemPrompt: () => '',
+      getSystemPrompt: () => systemPrompt,
       getContextUsage: () => ({ tokens: 100, contextWindow: 1000 }),
       sessionManager: { buildContextEntries: () => [] },
     }
@@ -184,10 +185,15 @@ describe('context breakdown extension', () => {
       getAllTools: () => tools,
       getActiveTools: () => tools.map((tool) => tool.name),
       events: { on: (event, handler) => void bus.set(event, handler) },
+      registerCommand: (name, spec) => {
+        if (name === 'phosphor-context-files')
+          command = spec.handler as (args: string, ctx: unknown) => Promise<void>
+      },
     })
     return {
       pushed,
       start: () => lifecycle.get('session_start')?.({}, ctx),
+      toggle: (args: string) => command!(args, ctx),
       status: (servers: Array<{ name: string; toolCount?: number }>) =>
         bus.get('pi-mcp-adapter/status/v1')?.({ servers }),
     }
@@ -208,6 +214,30 @@ describe('context breakdown extension', () => {
     pi.status([{ name: 'linear', toolCount: 81 }])
     pi.status([{ name: 'linear', toolCount: 81 }])
     expect(pi.pushed).toHaveLength(2)
+  })
+
+  it('reports the context files and bills only the ones the lane sends', async () => {
+    const block = `<project_instructions path="/r/CLAUDE.md">\n${'c'.repeat(4000)}\n</project_instructions>`
+    const prompt = `pre\n\n<project_context>\nProject-specific instructions and guidelines:\n\n${block}\n</project_context>`
+    const pi = fakePi([], prompt)
+    pi.start()
+    const before = JSON.parse(pi.pushed[0]!)
+    expect(before.contextFiles).toEqual({
+      off: [],
+      files: [
+        {
+          path: '/r/CLAUDE.md',
+          kind: 'claude',
+          tokens: Math.ceil(block.length / 4),
+          included: true,
+        },
+      ],
+    })
+    // The toggle runs no turn, so the command itself re-publishes.
+    await pi.toggle('claude=off')
+    const after = JSON.parse(pi.pushed[1]!)
+    expect(after.contextFiles.off).toEqual(['claude'])
+    expect(before.parts.systemPrompt - after.parts.systemPrompt).toBe(Math.ceil(block.length / 4))
   })
 
   it('waits for a context before publishing anything', () => {

@@ -1,6 +1,7 @@
 /** App-level domain types shared between main and renderer. */
 import { type ExtensionUIRequest, type PiEvent } from './rpc'
 import { DEFAULT_FEEDBACK_PREFS, type FeedbackPrefs } from './feedback'
+import { DEFAULT_CONTEXT_FILE_PREFS, type ContextFilePrefs } from './context-files'
 
 export interface PiHealth {
   ok: boolean
@@ -602,6 +603,12 @@ export interface AppPrefs {
    */
   contextBudget: string
   /**
+   * Whether new lanes send the CLAUDE.md / AGENTS.md files pi finds. The
+   * composer checkboxes write it; a running lane keeps its own state
+   * (`shared/context-files.ts`).
+   */
+  contextFiles: ContextFilePrefs
+  /**
    * Set once the one-time check for a leftover `compaction.enabled: false` in
    * pi's global settings.json has run (`electron/pi/compaction-reset.ts`).
    * Optional and not handed to the renderer: nothing there reads it.
@@ -826,6 +833,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   headroom: DEFAULT_HEADROOM_PREFS,
   feedback: DEFAULT_FEEDBACK_PREFS,
   contextBudget: '',
+  contextFiles: DEFAULT_CONTEXT_FILE_PREFS,
   claudeAccounts: DEFAULT_CLAUDE_ACCOUNT_PREFS,
   drafts: {},
 }

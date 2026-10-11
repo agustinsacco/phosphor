@@ -11,7 +11,17 @@
  * for local models, native Anthropic and the Claude Code CLI provider alike.
  */
 
+import type { ContextFileKind } from '@shared/context-files'
+
 export const CONTEXT_BREAKDOWN_STATUS_KEY = 'phosphor-context-breakdown'
+
+/** One CLAUDE.md / AGENTS.md the lane's pi found (`pi-ext/context-files.ts`). */
+export interface ContextFileEntry {
+  path: string
+  kind: ContextFileKind
+  tokens: number
+  included: boolean
+}
 
 export interface McpServerCost {
   /** Approximate tokens this server's schemas occupy in the window. */
@@ -32,6 +42,8 @@ export interface ContextBreakdown {
   counts: { tools: number; mcpTools: number; messages: number }
   /** Approximate MCP schema cost per server. Absent from older payloads. */
   mcpByServer: Record<string, McpServerCost>
+  /** Which kinds this lane leaves out, and the files it found. Null from older payloads. */
+  contextFiles: { off: ContextFileKind[]; files: ContextFileEntry[] } | null
   approximate: boolean
 }
 
@@ -124,11 +136,34 @@ export function parseContextBreakdown(statusText: string | undefined): ContextBr
         messages: num(parsed.counts?.messages),
       },
       mcpByServer: parseByServer(parsed.mcpByServer),
+      contextFiles: parseContextFiles(parsed.contextFiles),
       approximate: parsed.approximate !== false,
     }
   } catch {
     return null
   }
+}
+
+const isKind = (value: unknown): value is ContextFileKind =>
+  value === 'claude' || value === 'agents'
+
+/** Rebuilt defensively, like the rest: absent means "this lane cannot say". */
+function parseContextFiles(raw: unknown): ContextBreakdown['contextFiles'] {
+  if (!raw || typeof raw !== 'object') return null
+  const record = raw as { off?: unknown; files?: unknown }
+  if (!Array.isArray(record.off) || !Array.isArray(record.files)) return null
+  const files: ContextFileEntry[] = []
+  for (const entry of record.files) {
+    const file = entry as Partial<ContextFileEntry> | null
+    if (!file || typeof file.path !== 'string' || !isKind(file.kind)) continue
+    files.push({
+      path: file.path,
+      kind: file.kind,
+      tokens: typeof file.tokens === 'number' && file.tokens >= 0 ? file.tokens : 0,
+      included: file.included !== false,
+    })
+  }
+  return { off: record.off.filter(isKind), files }
 }
 
 /**

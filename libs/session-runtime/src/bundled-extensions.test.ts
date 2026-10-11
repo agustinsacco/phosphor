@@ -8,8 +8,8 @@ const root = resolve(import.meta.dirname, '../../..')
 describe('bundledExtensions', () => {
   it('includes production extension entry points, without helpers, tests or optional packages', () => {
     // Modules imported by an extension, not loaded separately with -e:
-    // context-budget by context-breakdown, artifact-store by artifacts.
-    const imported = new Set(['context-budget.ts', 'artifact-store.ts'])
+    // context-budget and context-files by context-breakdown, artifact-store by artifacts.
+    const imported = new Set(['context-budget.ts', 'context-files.ts', 'artifact-store.ts'])
     const files = readdirSync(join(root, 'libs/pi-extensions/pi-ext')).filter(
       (name) => name.endsWith('.ts') && !name.endsWith('.test.ts') && !imported.has(name),
     )

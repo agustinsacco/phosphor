@@ -6,6 +6,7 @@ import { fuzzyFilter } from '@/lib/fuzzy'
 import { QueueChips } from './composer/QueueChips'
 import { ModelPicker } from './composer/ModelPicker'
 import { ContextMeter } from './composer/ContextMeter'
+import { ContextFileToggles } from './composer/ContextFileToggles'
 import { submitBehavior } from './composer/submitBehavior'
 import { buildCommandEntries, CommandMenu, type NativeCommand } from './composer/CommandMenu'
 import { useSlashMenu } from './composer/useSlashMenu'
@@ -492,8 +493,9 @@ export function Composer({
               thinking + meter on the right, submit/stop as a quiet icon at
               the far right — never a filled pill. */}
           <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 pb-2">
-            <div className="flex min-w-0 items-center gap-1.5">
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
               <AttachButton onFiles={attachments.addFiles} />
+              <ContextFileToggles sessionId={sessionId} />
               {isCompacting && (
                 <span className="text-text-secondary flex items-center gap-1.5 px-1 text-base">
                   <Spinner /> compacting…
