@@ -15,10 +15,15 @@
  * A linked-worktree session may recursively delete literal descendants of its
  * lane, or of a pi-scratch job, without asking. Root/outside paths and
  * unresolved shell targets ask.
+ *
+ * A lane listed by its worktree root in `~/.pi/agent/permission-gate.json`
+ * (`{ "unguardedDeleteLanes": ["/abs/worktree"] }`) is never asked about
+ * `rm -r`, wherever it points. Every other finding still asks there. The file
+ * is re-read on every command, so removing an entry restores the question.
  */
 
 import { execFileSync } from 'node:child_process'
-import { lstatSync, realpathSync } from 'node:fs'
+import { lstatSync, readFileSync, realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 
@@ -47,6 +52,32 @@ function laneScope(cwd?: string): LaneScope | undefined {
     return { root, cwd: current }
   } catch {
     return undefined
+  }
+}
+
+/**
+ * Whether the user exempted this lane from the `rm -r` question. Only a linked
+ * worktree can qualify, matched by its real root; a missing or malformed file
+ * exempts nothing.
+ */
+function deleteUnguarded(scope: LaneScope | undefined): boolean {
+  if (!scope) return false
+  try {
+    const config = JSON.parse(
+      readFileSync(resolve(homedir(), '.pi', 'agent', 'permission-gate.json'), 'utf8'),
+    ) as { unguardedDeleteLanes?: unknown }
+    const lanes = config.unguardedDeleteLanes
+    if (!Array.isArray(lanes)) return false
+    return lanes.some((path) => {
+      if (typeof path !== 'string' || !isAbsolute(path)) return false
+      try {
+        return realpathSync(path) === scope.root
+      } catch {
+        return false
+      }
+    })
+  } catch {
+    return false
   }
 }
 
@@ -646,7 +677,10 @@ function analyze(script: string, depth: number, scope?: LaneScope | null): strin
 
 /** Why a command needs approval, as short labels. Empty means it runs unasked. */
 export function permissionFindings(command: string, cwd?: string): string[] {
-  return [...new Set(analyze(command, 0, laneScope(cwd)))]
+  const scope = laneScope(cwd)
+  const findings = new Set(analyze(command, 0, scope))
+  if (findings.has('rm -r') && deleteUnguarded(scope)) findings.delete('rm -r')
+  return [...findings]
 }
 
 export function permissionDecision(command: string, cwd?: string): 'allow' | 'ask' {

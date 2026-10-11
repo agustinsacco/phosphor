@@ -172,6 +172,13 @@ It asks for `sudo`/`su`/`doas`, `shred`, `truncate`, `git push --force`
   pi-scratch job (`~/.pi/agent/scratch/job-<32 hex>`, the names the helper
   below creates) or anything inside one. The scratch root, other names in it,
   a symlinked root, symlinks out of the job and variable targets still ask.
+- A lane can be taken off the `rm -r` question entirely by listing its
+  worktree root in `~/.pi/agent/permission-gate.json`:
+  `{ "unguardedDeleteLanes": ["/abs/path/to/worktree"] }`. That lane then
+  deletes anything recursively, home and root included, without asking; every
+  other finding still asks. Only a linked worktree matches (by its real root),
+  never a main checkout, and a missing or malformed file exempts nothing. The
+  file is read on every command, so deleting the entry restores the question.
 - Outside a linked worktree, the existing `rm -r` exemptions remain: literal
   paths under `/tmp`, `/private/tmp`, `/var/folders` or `~/.pi/agent/scratch`,
   and relative build-output directories such as `node_modules`, `dist` or
