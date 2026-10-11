@@ -86,3 +86,14 @@ export async function signOut(): Promise<AccountView> {
   await current().signOut()
   return accountSnapshot()
 }
+
+/**
+ * Quit waits here: the sign-out shows at once, but its revocation is a request
+ * still on its way, and quitting under it would leave the session alive on
+ * Supabase. Capped (QUIT_WAIT_MS); nothing built means nothing to wait for.
+ */
+export async function settleAccount(): Promise<void> {
+  if (account && !(await account.settled())) {
+    log('account', 'quit before Supabase answered; a session may outlive this sign-out')
+  }
+}

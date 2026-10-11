@@ -3,7 +3,14 @@ import { mkdtempSync, readdirSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createAccount, EARLY_MS, REVOKE_MS, type AccountPorts, type AccountState } from './account'
+import {
+  createAccount,
+  EARLY_MS,
+  QUIT_WAIT_MS,
+  REVOKE_MS,
+  type AccountPorts,
+  type AccountState,
+} from './account'
 import { AuthRefused, AuthUnavailable, createGoTrue, type AuthSession, type GoTrue } from './gotrue'
 import { createVault, type Vault } from './vault'
 import { deferred, fakeBrowser, fakeCipher, session, USER } from './__fixtures__/fakes'
@@ -449,5 +456,96 @@ describe('signing out', () => {
     expect(await account.signOut()).toEqual({ status: 'signed-out' })
     expect(await flow).toEqual({ status: 'signed-out' })
     expect(ports.auth.revoke).not.toHaveBeenCalled()
+  })
+})
+
+describe('quitting', () => {
+  /** Whether a promise is still pending after the queue has drained. */
+  const pending = async (promise: Promise<unknown>): Promise<boolean> => {
+    let done = false
+    void promise.then(() => (done = true))
+    await new Promise((r) => setTimeout(r, 20))
+    return !done
+  }
+
+  it('has nothing to wait for when nothing is in flight', async () => {
+    const { account } = setup()
+    expect(await account.settled()).toBe(true)
+    await account.signIn()
+    expect(await account.settled()).toBe(true)
+  })
+
+  it("waits for a sign-out's refresh and revoke, though the person already sees signed out", async () => {
+    const { vault } = remembered()
+    const refreshed = deferred<AuthSession>()
+    const revoked = deferred<void>()
+    const ports = auth({
+      refresh: vi.fn(() => refreshed.promise),
+      revoke: vi.fn(() => revoked.promise),
+    })
+    const { account } = setup({ vault, auth: ports })
+    account.load()
+    const out = account.signOut()
+    expect(account.state()).toEqual({ status: 'signed-out' })
+    const quit = account.settled()
+    expect(await pending(quit)).toBe(true)
+    refreshed.resolve(session(1))
+    await until(() => ports.revoke.mock.calls.length === 1)
+    expect(await pending(quit)).toBe(true)
+    revoked.resolve()
+    expect(await quit).toBe(true)
+    expect(await out).toEqual({ status: 'signed-out' })
+  })
+
+  it('waits for the revoke a late refresh leads to', async () => {
+    const { vault } = remembered()
+    const refreshed = deferred<AuthSession>()
+    const revoked = deferred<void>()
+    const ports = auth({
+      refresh: vi.fn(() => refreshed.promise),
+      revoke: vi.fn(() => revoked.promise),
+    })
+    const { account } = setup({ vault, auth: ports })
+    account.load()
+    void account.accessToken()
+    await until(() => ports.refresh.mock.calls.length === 1)
+    // The refresh owns the revocation, so sign-out returns before it lands.
+    await account.signOut()
+    const quit = account.settled()
+    refreshed.resolve(session(1))
+    await until(() => ports.revoke.mock.calls.length === 1)
+    expect(await pending(quit)).toBe(true)
+    revoked.resolve()
+    expect(await quit).toBe(true)
+  })
+
+  it('waits for an exchange a cancel overtook, and the revoke it leads to', async () => {
+    const exchanged = deferred<AuthSession>()
+    const revoked = deferred<void>()
+    const ports = auth({
+      exchange: vi.fn(() => exchanged.promise),
+      revoke: vi.fn(() => revoked.promise),
+    })
+    const { account } = setup({ auth: ports })
+    const flow = account.signIn()
+    await until(() => ports.exchange.mock.calls.length === 1)
+    account.cancel()
+    const quit = account.settled()
+    expect(await pending(quit)).toBe(true)
+    exchanged.resolve(session(1))
+    await until(() => ports.revoke.mock.calls.length === 1)
+    expect(await pending(quit)).toBe(true)
+    revoked.resolve()
+    expect(await quit).toBe(true)
+    expect(await flow).toEqual({ status: 'signed-out' })
+  })
+
+  it('gives up at its deadline rather than hold the quit', async () => {
+    const ports = auth({ revoke: vi.fn(() => new Promise<void>(() => {})) })
+    const { account } = setup({ auth: ports })
+    await account.signIn()
+    void account.signOut()
+    expect(await account.settled(30)).toBe(false)
+    expect(QUIT_WAIT_MS).toBeGreaterThan(REVOKE_MS)
   })
 })
