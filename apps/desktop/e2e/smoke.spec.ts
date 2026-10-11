@@ -3931,9 +3931,10 @@ test('a Claude fan-out is one row per sub-agent, with the ones that died named',
     await expect(strip).toBeVisible()
     await expect(strip).toContainText('A sub-agent never reported back')
 
-    // The live channel was cleared when the turn ended, so no chip remains —
-    // and at no point was its raw JSON printed into the status strip.
-    await expect(page.getByTestId('subagent-chip')).toHaveCount(0)
+    // The legacy live channel cleared. Native inspection is still advertised
+    // by this fixture, so only its neutral history entry remains, not activity.
+    await expect(page.getByTestId('subagent-chip')).toHaveText('Subagents')
+    await expect(page.getByTestId('background-work-indicator')).toHaveCount(0)
     expect(await page.evaluate(() => document.body.innerText)).not.toContain('currentStep')
   } finally {
     await shutdown(harness)
@@ -4267,10 +4268,31 @@ test('subagent inspection, steering and saved snapshots survive compaction and a
       .getByRole('button', { name: 'validation running needs parent attention', exact: true })
       .click()
     await expect(panel).toContainText('Validation: full suite is running')
-    await panel.getByRole('button', { name: 'Steer…' }).click()
-    await panel
-      .getByLabel('Steering message', { exact: true })
-      .fill('Check the focused parser tests.')
+    for (const width of [1440, 900]) {
+      await first.app.evaluate(
+        ({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0].setSize(width, 900),
+        width,
+      )
+      for (const theme of ['dark', 'light']) {
+        await panel.getByRole('button', { name: 'Close', exact: true }).click()
+        await page.getByRole('button', { name: 'Settings', exact: true }).click()
+        await page
+          .getByRole('button', { name: theme === 'dark' ? 'Dark' : 'Light', exact: true })
+          .click()
+        await page.getByRole('button', { name: 'Close settings' }).click()
+        await page.getByTestId('subagent-chip').click()
+        await expect(panel).toContainText('child validation')
+        await panel.getByRole('button', { name: 'Steer…' }).click()
+        await panel
+          .getByLabel('Steering message', { exact: true })
+          .fill('Check the focused parser tests.')
+        expect(await panel.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+        await page.screenshot({
+          path: test.info().outputPath(`subagent-steer-${theme}-${width}.png`),
+          animations: 'disabled',
+        })
+      }
+    }
     await panel.getByRole('button', { name: 'Send steering message' }).click()
     await expect(panel).toContainText('Steering requested')
     await panel.getByRole('button', { name: 'Save snapshot', exact: true }).click()
