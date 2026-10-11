@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./account": {
+      "types": "./src/account.ts",
+      "default": "./src/account.ts"
+    },
     "./agent-directives": {
       "types": "./src/agent-directives.ts",
       "default": "./src/agent-directives.ts"

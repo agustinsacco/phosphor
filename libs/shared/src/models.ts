@@ -625,6 +625,12 @@ export interface AppPrefs {
    */
   claudeAccounts?: ClaudeAccountPrefs
   /**
+   * Settings → Advanced → Phosphor account (preview): shows the optional
+   * GitHub sign-in under Accounts. Off unless set. Not handed to the
+   * renderer through `app:getPrefs`; `account:get` carries it.
+   */
+  accountPreview?: boolean
+  /**
    * Unsent composer drafts, keyed by `session:<phosphorId>` or
    * `home:<workspacePath>`.
    *

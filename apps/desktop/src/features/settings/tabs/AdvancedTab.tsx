@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { Button, Row, SectionTitle } from '@/components/form'
+import { Button, Row, SectionTitle, Toggle } from '@/components/form'
 import { piInstallLocation, type PiHealth } from '@shared/models'
 import type { PiResources } from '@shared/models'
 import { ConfigFileEditor, piConfigFile } from '../ConfigFileEditor'
 import { MaintenanceSection } from './MaintenanceSection'
+import { ipcErrorText } from '@shared/errors'
+import { useAccount } from '../useAccount'
 
 /** pi install health, discovered resources, and raw config file editing. */
 
@@ -12,6 +14,19 @@ export function AdvancedTab(): React.JSX.Element {
   const [health, setHealth] = useState<PiHealth | null>(null)
   const [resources, setResources] = useState<PiResources | null>(null)
   const [editing, setEditing] = useState<'settings' | 'models' | null>(null)
+  const [account, setAccount] = useAccount()
+  // One change at a time: turning it off waits for the sign-out, and a quick
+  // second click must not land first and then be overwritten.
+  const [previewBusy, setPreviewBusy] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const togglePreview = (on: boolean): void => {
+    setPreviewBusy(true)
+    setPreviewError(null)
+    window.phosphor
+      .invoke('account:setPreview', on)
+      .then(setAccount, (caught: unknown) => setPreviewError(ipcErrorText(caught)))
+      .finally(() => setPreviewBusy(false))
+  }
 
   useEffect(() => {
     void window.phosphor.invoke('pi:health').then(setHealth)
@@ -52,6 +67,18 @@ export function AdvancedTab(): React.JSX.Element {
       >
         <Button onClick={() => setEditing('models')}>Edit…</Button>
       </Row>
+
+      <Row
+        title="Phosphor account (preview)"
+        description="Shows an optional GitHub sign-in under Accounts. It does nothing else yet; your machines come later. Turning it off signs you out."
+      >
+        <Toggle
+          on={account?.preview ?? false}
+          disabled={account === null || previewBusy}
+          onChange={togglePreview}
+        />
+      </Row>
+      {previewError && <p className="text-danger -mt-1 mb-2 text-sm">{previewError}</p>}
 
       <MaintenanceSection />
 

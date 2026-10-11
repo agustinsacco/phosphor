@@ -4,6 +4,7 @@
  * pi event stream with realistic pacing. Never bundled in production:
  * loaded lazily behind `import.meta.env.DEV && !window.phosphor`.
  */
+import type { AccountView } from '@shared/account'
 import type { PhosphorApi } from '@shared/ipc'
 import { mockRoutineCall, onMockRoutinesChanged } from './mockRoutines'
 import { bytesToBase64 } from '../lib/base64'
@@ -257,6 +258,21 @@ function mockAccountViews(): unknown {
 }
 const mockConnectorAuthListeners = new Set<(push: ConnectorAuthPush) => void>()
 const mockClaudeLoginListeners = new Set<(state: never) => void>()
+const mockAccountListeners = new Set<(view: AccountView) => void>()
+let mockAccountTimer: ReturnType<typeof setTimeout> | undefined
+let mockAccount: AccountView['account'] = { status: 'signed-out' }
+
+/** The Phosphor account, signed in after a pretend browser round trip. */
+function mockAccountView(): AccountView {
+  return { preview: localStorage.getItem('mock:accountPreview') === '1', account: mockAccount }
+}
+
+function setMockAccount(next: AccountView['account']): AccountView {
+  mockAccount = next
+  const view = mockAccountView()
+  for (const listener of mockAccountListeners) listener(view)
+  return view
+}
 let mockClaudeLoginTimer: ReturnType<typeof setTimeout> | undefined
 
 function emitClaudeLoginState(state: never): void {
@@ -1293,6 +1309,26 @@ export function installMockPhosphor(): void {
         case 'claude:logout':
           mockClaudeAuth = { loggedIn: false }
           return Promise.resolve(undefined as never)
+        case 'account:get':
+          return Promise.resolve(mockAccountView() as never)
+        case 'account:setPreview':
+          localStorage.setItem('mock:accountPreview', args[0] ? '1' : '0')
+          if (!args[0]) clearTimeout(mockAccountTimer)
+          return Promise.resolve(
+            setMockAccount(args[0] ? mockAccount : { status: 'signed-out' }) as never,
+          )
+        case 'account:signIn':
+          mockAccountTimer = setTimeout(() => {
+            const user = { login: 'octo', name: 'Octo Cat', email: 'octo@example.com' }
+            setMockAccount({ status: 'signed-in', user, remembered: true })
+          }, 1500)
+          return Promise.resolve(setMockAccount({ status: 'signing-in' }) as never)
+        case 'account:cancelSignIn':
+          clearTimeout(mockAccountTimer)
+          setMockAccount({ status: 'signed-out' })
+          return Promise.resolve(undefined as never)
+        case 'account:signOut':
+          return Promise.resolve(setMockAccount({ status: 'signed-out' }) as never)
         case 'pi:webSearchConfig':
           return Promise.resolve({
             path: '/Users/dev/.pi/web-search.json',
@@ -2232,6 +2268,11 @@ export function installMockPhosphor(): void {
     onClaudeLoginState: (listener) => {
       mockClaudeLoginListeners.add(listener)
       return () => mockClaudeLoginListeners.delete(listener)
+    },
+
+    onAccountChanged: (listener) => {
+      mockAccountListeners.add(listener)
+      return () => mockAccountListeners.delete(listener)
     },
 
     // Replay a full update lifecycle so the pill is developable in the

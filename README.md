@@ -426,8 +426,8 @@ apps/desktop/electron/            main process — owns every side effect
   main.ts            app lifecycle, window creation, quit teardown
   preload.ts         the contextBridge surface (one typed `subscribe` helper)
   ipc.ts             composition root: calls the per-domain handler registrars
-  ipc/               one module per channel-prefix family — 19 of them today
-                     (app, artifacts, claude-auth, clipboard, feedback, fs, git,
+  ipc/               one module per channel-prefix family — 20 of them today
+                     (account, app, artifacts, claude-auth, clipboard, feedback, fs, git,
                       maintenance, mcp, optimization, packages, pi-auth,
                       pi-config, pi-session, pty, routines, sessions, skills,
                       updates) plus handle.ts, the
@@ -443,6 +443,9 @@ apps/desktop/electron/            main process — owns every side effect
   claude/            pi-claude-cli: several Claude Code logins side by side,
                      which one bills a session (decided once, at spawn), and
                      live subscription usage
+  account/           optional Phosphor sign-in: GitHub through Supabase Auth
+                     (PKCE, a one-shot loopback callback, the session in the
+                     OS keychain); the renderer never sees a token
   headroom/          Headroom proxy supervisor (adopt/spawn/kill) + install job
   optimization/      the Advisor rules engine (pure functions, advice only)
   pty/               node-pty manager + spawn-helper repair

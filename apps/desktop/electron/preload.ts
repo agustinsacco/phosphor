@@ -8,6 +8,7 @@ import type {
   ClaudeLoginState,
   ConnectorAuthPush,
 } from '@shared/models'
+import type { AccountView } from '@shared/account'
 import type { RpcCommand } from '@shared/rpc'
 import { applyStartupAppearance } from './startup-appearance'
 
@@ -70,6 +71,8 @@ const api: PhosphorApi = {
   onPiLoginState: (listener) => subscribe<[LoginFlowState]>('pi:loginState', listener),
 
   onClaudeLoginState: (listener) => subscribe<[ClaudeLoginState]>('claude:loginState', listener),
+
+  onAccountChanged: (listener) => subscribe<[AccountView]>('account:changed', listener),
 
   onPtyStatus: (listener) => subscribe<[Record<string, boolean>]>('pty:status', listener),
 

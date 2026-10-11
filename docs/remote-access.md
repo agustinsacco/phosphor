@@ -1,6 +1,8 @@
 # Remote-access foundation
 
 Remote execution is not enabled. Local Electron still needs no Phosphor login.
+Desktop has an optional GitHub sign-in behind a preview switch
+([settings.md](settings.md#phosphor-account-preview)); it unlocks nothing yet.
 The shared host handshake and control-directory schema are foundations, not a
 running control plane or an exposed host API.
 

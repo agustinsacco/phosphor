@@ -14,6 +14,7 @@ import type {
   ThinkingLevelMap,
   ModelCost,
 } from './rpc'
+import type { AccountView } from './account'
 import type { ArtifactListing, ArtifactSnapshot } from './artifacts'
 import type { ConnectorCheckResult } from './connectors'
 import type { ContextFileKind } from './context-files'
@@ -566,6 +567,20 @@ export interface IpcInvokeMap {
   'claude:logout': { args: []; result: void }
 
   /**
+   * Desktop's optional Phosphor sign-in (Settings → Accounts, behind Settings
+   * → Advanced → Phosphor account (preview)). Main owns the session; these
+   * carry no token and no account id. See `electron/account/`.
+   */
+  'account:get': { args: []; result: AccountView }
+  /** Opens the browser and resolves at once; the outcome arrives on `account:changed`. */
+  'account:signIn': { args: []; result: AccountView }
+  'account:cancelSignIn': { args: []; result: void }
+  /** Signs out here even when Supabase cannot be told. */
+  'account:signOut': { args: []; result: AccountView }
+  /** Turning the preview off signs out first. */
+  'account:setPreview': { args: [enabled: boolean]; result: AccountView }
+
+  /**
    * Every Claude login Phosphor knows about, in routing order, with each one's
    * live auth state and cached usage.
    *
@@ -1008,6 +1023,8 @@ export interface PhosphorApi {
   onPiLoginState(listener: (state: LoginFlowState) => void): () => void
   /** Progress of a background `claude:startLogin`; returns unsubscribe. */
   onClaudeLoginState(listener: (state: ClaudeLoginState) => void): () => void
+  /** The Phosphor account changed: signing in, signed in or out, preview toggled. */
+  onAccountChanged(listener: (view: AccountView) => void): () => void
 
   /**
    * Absolute path for a dropped File (Electron `webUtils`). Non-image
