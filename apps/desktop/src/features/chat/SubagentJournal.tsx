@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/form'
 import { errorText } from '@shared/errors'
-import { subagentHistory } from './subagentHistory'
+import { recordedReply, subagentHistory } from './subagentHistory'
+import { SUBAGENT_SUPERVISOR_REPLY_TYPE } from './subagentRuns'
 import { SubagentNoticeItem } from './items/SubagentNotice'
 
 /** Explicit read, not a second journal or a polling full-transcript service. */
@@ -59,10 +60,50 @@ export function SubagentJournal({
               Showing the newest 200 records; {history.omitted} earlier records omitted.
             </p>
           )}
+          {history.launches.length > 0 && (
+            <section className="mb-4 space-y-2">
+              <h3 className="font-medium">Recorded launches and resumes</h3>
+              <p className="text-text-secondary">
+                Historical receipts, not current liveness.{' '}
+                {history.omittedLaunches > 0 &&
+                  `${history.omittedLaunches} earlier launches omitted.`}
+              </p>
+              {history.launches.map((run) => (
+                <div key={run.id} className="border-border rounded border p-2">
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <span>{run.label}</span>
+                    {run.runId && (
+                      <Button size="sm" onClick={() => onInspect(run.runId!)}>
+                        Inspect run
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-text-secondary">{run.outcome}</p>
+                  {run.task && (
+                    <details>
+                      <summary className="cursor-pointer">Delegated task</summary>
+                      <pre className="whitespace-pre-wrap break-words">{run.task}</pre>
+                    </details>
+                  )}
+                </div>
+              ))}
+            </section>
+          )}
           <div className="space-y-2">
-            {history.items.map((item) => (
-              <SubagentNoticeItem key={item.id} item={item} onInspect={onInspect} />
-            ))}
+            {history.items
+              .filter(
+                (item) =>
+                  item.customType !== SUBAGENT_SUPERVISOR_REPLY_TYPE ||
+                  !history.items.some((question) => recordedReply(question, [item]) !== undefined),
+              )
+              .map((item) => (
+                <SubagentNoticeItem
+                  key={item.id}
+                  item={item}
+                  reply={recordedReply(item, history.items)}
+                  onInspect={onInspect}
+                />
+              ))}
           </div>
           {!history.items.length && (
             <p className="text-text-secondary">

@@ -293,6 +293,16 @@ scout · grep`) and which is **never printed as widget lines**
   request and child, including emit-then-retract replies. No child session is
   opened for writing. Missing commands, expired artifacts and foreign-session
   targets show explicit errors; no model fallback or file scraping is used.
+  The selected active node refreshes every five seconds while the inspector and
+  window are visible/focused, with one request in flight. Failures back off and
+  pause after three attempts; Refresh retries explicitly. Selection changes and
+  closing cancel outstanding reads. A settled node gets a final read, not an
+  endless poll. Reported tool/turn counts and elapsed time from a native start
+  appear below tree rows; absent figures stay absent.
+  The last view and exact target are remembered against Pi's durable session ID,
+  not a process ID. Reopening checks current-branch history or a current native
+  snapshot before restoring selection. A clone does not inherit preferences.
+  This never reopens the dialog automatically or restores an old running state.
 - **The completion is a card where the model woke up.** pi-subagents delivers
   it as a `subagent-notify` custom message and marks a plain success
   `display: false` so its own TUI does not badge an idle tab; Phosphor keeps
@@ -328,7 +338,15 @@ abandoned branches, and includes pre-compaction questions and plain
 `subagent_supervisor_reply` entries. It shows at most 200 records and reports
 omissions. Plain state remains outside model context; Phosphor writes no
 journal and never appends to a live session file. Older extensions can lack
-reply records. The view describes evidence at read time, not current liveness.
+reply records. The view also derives launch/resume receipts from the branch's
+native tool calls/results, including before compaction, with a separate
+200-launch bound. Detached launch receipts never imply current activity.
+Questions pair with parent replies by exact request/run identity, not agent
+names. Live pairing requires a successful native reply result; arguments alone
+are not delivery evidence. Paired cards fold when a reply arrives unless the
+reader chose their disclosure state. The original question notice remains
+available. A recorded reply does not prove the child acted on it.
+The view describes evidence at read time, not current liveness.
 
 **Stop run** is available on a root inspection when the session advertises the
 extension's Stop command. It asks for confirmation, rechecks that the exact
@@ -337,13 +355,33 @@ A notice-linked child inspection is not offered Stop unless that exact run is
 also a root in the current snapshot.
 Pi checks ownership again. The UI reports only that Stop was requested; native
 `subagent-slash-result` receipts, including hidden final receipts, remain in
-the conversation and recorded coordination. No optimistic stopped state or
+the conversation and recorded coordination. Placeholder/final command receipts
+with the same native request ID fold into one presentation, live and on replay;
+Pi's original entries remain untouched. No optimistic stopped state or
 process-exit proof is invented. Stop does not remove partial file changes.
 
-Not here yet: steer/reply buttons, profile discovery/editing, the
-parent-plus-child cost report and descendant-aware lane deletion. Those need
-additional capability/ownership integration. Inspection remains on demand,
-never a polling transcript service.
+**Steer…** addresses the exact selected active root or child through the
+advertised extension command, rechecking capability and current-session activity
+at send time. The extension checks ownership and records the delivery result.
+The UI never claims the instruction was applied, never falls back to a model
+prompt, and never redirects the ordinary composer. Steering does not answer a
+supervisor question. The extension flattens message whitespace.
+
+**Save snapshot** explicitly retains the displayed inspection window in
+Artifacts. It includes native session/run/child identities, read time, reported
+state and truncation, with all captured text preserved literally. It is not a
+full transcript or live state. The bundled artifact extension owns the save:
+`/phosphor-save-subagent-snapshot` appends a non-context entry through Pi and
+returns a correlated receipt. Existing sessions without the command need a Pi
+restart. Saving alone neither switches panes nor closes inspection. The saved
+artifact survives compaction and native child-artifact expiry; failed later
+reads leave any last successful preview labelled as such. Reopening an expired
+unsaved inspection cannot recover its output. There is no automatic archive of
+all child transcripts and no renderer-maintained execution journal.
+
+Not here yet: human supervisor reply buttons, profile discovery/editing, the
+parent-plus-child cost report and descendant-aware lane deletion. There is no
+automatic continuation or new global delegation directive.
 
 ## Rich content (first-class citizens)
 

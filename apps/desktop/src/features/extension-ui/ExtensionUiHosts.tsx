@@ -456,7 +456,11 @@ function McpChip({ sessionId }: { sessionId: string }): React.JSX.Element | null
  * `subagent-inspect` replies are correlated by request id and, per the same
  * protocol, must never be rendered.
  */
-const STRUCTURED_WIDGET_KEYS = new Set([SUBAGENT_ASYNC_WIDGET_KEY, SUBAGENT_INSPECT_WIDGET_KEY])
+const STRUCTURED_WIDGET_KEYS = new Set([
+  SUBAGENT_ASYNC_WIDGET_KEY,
+  SUBAGENT_INSPECT_WIDGET_KEY,
+  'phosphor-subagent-save',
+])
 
 /**
  * Sub-agents as a chip: how many are out there, and what the newest one is
@@ -527,7 +531,11 @@ export function StatusStrip({ sessionId }: { sessionId: string }): React.JSX.Ele
     const session = s.sessions[sessionId]
     return (
       !!session &&
-      (session.commands.some((c) => c.name === 'subagents') ||
+      (session.commands.some(
+        (c) =>
+          c.source === 'extension' &&
+          (c.name === 'subagents' || c.name === 'subagents-inspect-rpc'),
+      ) ||
         Object.values(session.tools).some((t) => t.toolName === 'subagent'))
     )
   })

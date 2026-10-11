@@ -255,8 +255,8 @@ The private `@phosphor/pi-extensions` source package keeps these standalone
 files and adjacent tests together. Development resolves the resource root at
 `libs/pi-extensions`; packaged apps still read `resources/pi-ext`, outside the
 asar. The builder copies the same non-test TypeScript inventory, including
-`context-budget.ts` and `context-files.ts` imported by `context-breakdown.ts`, `artifact-store.ts`
-imported by `artifacts.ts`, and the optional gate.
+`context-budget.ts` and `context-files.ts` imported by `context-breakdown.ts`,
+`artifact-store.ts` and `subagent-snapshot.ts` imported by `artifacts.ts`, and the optional gate.
 Optional Python helpers remain in the source tree, not the shipped resource filter.
 
 | File                   | Why it must run inside pi                                                                    |
@@ -313,6 +313,20 @@ an edit has to apply to the live text in a resumed session. `session_tree`
 and `session_compact` rebuild it too, so tree navigation lands on that
 branch's versions.
 
+The explicit subagent **Save snapshot** action uses the extension command
+`phosphor-save-subagent-snapshot`, not a model turn. It validates a bounded,
+URI-encoded inspection against the native session ID and uses `pi.appendEntry`
+to save `phosphor-saved-artifact`. These plain custom entries never enter model
+context on their own. The extension reconstructs them alongside tool results,
+including in the pre-compaction artifact index. Main indexes them in the same
+branch-aware blob/catalogue store; index format 2 rebuilds older indexes when
+the source file exists, while keeping deleted-session v1 artifacts readable.
+Saving refuses an unpersisted session instead of claiming an in-memory entry is
+durable; the first parent turn must finish before that session can save.
+The correlated `phosphor-subagent-save` widget is a machine receipt suppressed
+from the composer. The renderer subscribes before dispatch because the receipt
+is immediately retracted. Saving alone never opens an artifact pane.
+
 ### The artifact store
 
 Artifacts outlive their session's context. Compaction drops old tool results
@@ -331,8 +345,8 @@ still holds every version; the store indexes it.
   (resuming at the last byte read, rescanning when the file was rewritten or
   the branch moved under old versions) on `agent_end`, `compaction_end` and pi
   exit, when a pane asks, right before a delete, and in a one-file-at-a-time
-  backfill of `~/.pi/agent/sessions` 20s after launch. It reads only results
-  pi wrote, so native and Claude sessions, forks, routines and sessions run
+  backfill of `~/.pi/agent/sessions` 20s after launch. It reads only results and
+  explicit snapshot entries Pi wrote, so native and Claude sessions, forks, routines and sessions run
   outside Phosphor all index the same way.
 - **The session file stays the source of truth.** The store is a rebuildable
   cache, with one exception: a session whose file is gone, however it went

@@ -85,6 +85,30 @@ describe('indexSessionFile', () => {
     expect(readFileSync(blobFile(root, guide.versions[1]!.sha256), 'utf8')).toBe('two')
   })
 
+  it('indexes Pi-owned saved snapshots before compaction and tracks their branch membership', async () => {
+    write([
+      header(),
+      entry('custom', '1', null, {
+        customType: 'phosphor-saved-artifact',
+        data: v(1, 'saved preview', 'markdown'),
+      }),
+      entry('compaction', '2', '1', { firstKeptEntryId: '2' }),
+    ])
+    const first = (await indexSessionFile(root, file, null))!
+    expect(first.artifacts.guide!.type).toBe('markdown')
+    // A v1 scan may have passed the new custom entry without understanding it.
+    const upgraded = await indexSessionFile(root, file, { ...first, format: 1, artifacts: {} })
+    expect(upgraded?.format).toBe(2)
+    expect(upgraded?.artifacts.guide).toEqual(first.artifacts.guide)
+    expect(currentVersion(first.artifacts.guide!)?.toolCallId).toBe('entry:1')
+    expect(
+      readFileSync(blobFile(root, currentVersion(first.artifacts.guide!)!.sha256), 'utf8'),
+    ).toBe('saved preview')
+    append([entry('message', '3', null, { message: { role: 'user', content: 'other branch' } })])
+    const moved = (await indexSessionFile(root, file, first))!
+    expect(currentVersion(moved.artifacts.guide!)).toBeUndefined()
+  })
+
   it('ignores reads, lists, failures and malformed details, and drops the legacy type', async () => {
     write([
       header(),
