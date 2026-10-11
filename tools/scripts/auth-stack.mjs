@@ -35,8 +35,15 @@ function run(program, args) {
 }
 
 function removeFake() {
-  // Only this exact name: never another stack's containers.
-  spawnSync('docker', ['rm', '--force', container], { stdio: 'ignore' })
+  // Only this exact name: never another stack's containers. Bounded like every
+  // other command here, so a stuck Docker cannot hang the cleanup. A missing
+  // container is the usual case and not worth a word; a timeout is.
+  const result = spawnSync('docker', ['rm', '--force', container], {
+    stdio: 'ignore',
+    timeout: 60_000,
+  })
+  if (result.error)
+    console.error(`auth-stack: could not remove ${container}: ${result.error.message}`)
 }
 
 function localStack() {
