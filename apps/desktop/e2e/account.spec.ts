@@ -27,8 +27,11 @@ interface Call {
 
 async function fakeSupabase() {
   const calls: Call[] = []
-  const state = { challenge: '' }
+  /** answered: per logout, whether Phosphor was still connected to hear the reply. */
+  const state = { challenge: '', logoutDelayMs: 0, answered: [] as boolean[] }
   const server = createServer((req, res) => {
+    let gone = false
+    res.on('close', () => (gone ||= !res.writableFinished))
     let raw = ''
     req.on('data', (chunk) => (raw += chunk))
     req.on('end', () => {
@@ -59,8 +62,12 @@ async function fakeSupabase() {
         })
       }
       if (url.pathname === '/auth/v1/logout') {
-        res.writeHead(204)
-        return res.end()
+        setTimeout(() => {
+          state.answered.push(!gone && !req.socket.destroyed)
+          res.writeHead(204)
+          res.end()
+        }, state.logoutDelayMs)
+        return
       }
       json(404, { msg: 'not here' })
     })
@@ -133,6 +140,7 @@ test('signs in with GitHub through Supabase and out again, never handing the ren
   const auth = await fakeSupabase()
   const h = await launch(auth.url)
   const { page } = h
+  let closed = false
   const section = page.locator('section', {
     has: page.getByRole('heading', { name: 'Phosphor account', exact: true }),
   })
@@ -218,8 +226,20 @@ test('signs in with GitHub through Supabase and out again, never handing the ren
     expect(logouts()).toHaveLength(2)
     await setPreview(true)
     await expect(signInButton).toBeVisible()
-  } finally {
+
+    // Quitting straight after a sign-out still reaches Supabase: the revoke is
+    // in flight when the UI says signed out, and quit waits for it.
+    expect(await returnFromBrowser(await startSignIn(5), `code=${CODE}`)).toContain('@octo')
+    await expect(section.getByText('@octo')).toBeVisible()
+    auth.state.logoutDelayMs = 2_000
+    await section.getByRole('button', { name: 'Sign out' }).click()
+    await expect(signInButton).toBeVisible()
+    closed = true
     await h.close()
+    await expect.poll(() => auth.state.answered.length, { timeout: 5_000 }).toBe(3)
+    expect(auth.state.answered).toEqual([true, true, true])
+  } finally {
+    if (!closed) await h.close()
     await auth.close()
   }
 })

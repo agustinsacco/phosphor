@@ -38,10 +38,18 @@ export interface Account {
   signOut(): Promise<AccountState>
   /** Null when signed out; rejects with AuthUnavailable when Supabase cannot be reached. */
   accessToken(): Promise<string | null>
+  /**
+   * Resolves once every request to Supabase already started has finished, and
+   * any revocation it led to: quit waits on this, so a sign-out the person just
+   * made still reaches Supabase. True when all settled, false at `timeoutMs`.
+   */
+  settled(timeoutMs?: number): Promise<boolean>
 }
 
 export const CALLBACK_MS = 5 * 60_000
 export const REVOKE_MS = 8_000
+/** The most quitting waits on Supabase: a revocation's own bound, and some. */
+export const QUIT_WAIT_MS = REVOKE_MS + 2_000
 /** Refresh this long before the access token expires. */
 export const EARLY_MS = 60_000
 
@@ -64,6 +72,15 @@ export function createAccount(ports: AccountPorts): Account {
   let generation = 0
   let signing: { promise: Promise<AccountState>; abort: AbortController } | null = null
   let refreshing: Promise<AuthSession | null> | null = null
+  /** Requests to Supabase in flight, each bounded by REQUEST_MS or REVOKE_MS. */
+  const inFlight = new Set<Promise<unknown>>()
+
+  function track<T>(work: Promise<T>): Promise<T> {
+    inFlight.add(work)
+    const done = (): void => void inFlight.delete(work)
+    work.then(done, done)
+    return work
+  }
 
   function set(next: AccountState): AccountState {
     current = next
@@ -95,9 +112,11 @@ export function createAccount(ports: AccountPorts): Account {
 
   function revoke(accessToken: string): Promise<void> {
     const signal = AbortSignal.timeout(ports.revokeMs ?? REVOKE_MS)
-    return ports.auth
-      .revoke(accessToken, signal)
-      .catch((problem: unknown) => ports.log(`could not revoke a session: ${reason(problem)}`))
+    return track(
+      ports.auth
+        .revoke(accessToken, signal)
+        .catch((problem: unknown) => ports.log(`could not revoke a session: ${reason(problem)}`)),
+    )
   }
 
   /** Keep a fresh session; false when it lives in memory only. */
@@ -138,7 +157,7 @@ export function createAccount(ports: AccountPorts): Account {
       }
       // Never aborted: Supabase may already have issued the session, and only a
       // finished exchange can be revoked below. REQUEST_MS bounds it.
-      const fresh = await ports.auth.exchange(outcome.code, verifier)
+      const fresh = await track(ports.auth.exchange(outcome.code, verifier))
       if (!live()) {
         listener.finish(CANCELLED)
         void revoke(fresh.accessToken)
@@ -175,7 +194,7 @@ export function createAccount(ports: AccountPorts): Account {
       }
       let fresh: AuthSession
       try {
-        fresh = await ports.auth.refresh(token)
+        fresh = await track(ports.auth.refresh(token))
       } catch (problem) {
         if (!live()) return null
         if (problem instanceof AuthRefused) {
@@ -248,7 +267,7 @@ export function createAccount(ports: AccountPorts): Account {
           // Nothing to revoke with; the local copy goes regardless.
         }
       }
-      const inFlight = refreshing !== null
+      const refreshInFlight = refreshing !== null
       const result = forget()
       if (was.status !== 'signed-in') return result
       // Someone always revokes. A session this side holds, including one a
@@ -259,15 +278,19 @@ export function createAccount(ports: AccountPorts): Account {
       // refresh; when both act, the session is revoked twice, which is harmless.
       const revokeMs = ports.revokeMs ?? REVOKE_MS
       const usable = held && held.expiresAt - now() > revokeMs ? held.accessToken : null
-      if (!usable && inFlight) return result
+      if (!usable && refreshInFlight) return result
       const signal = AbortSignal.timeout(revokeMs)
-      try {
-        let access = usable
-        if (!access && token) access = (await ports.auth.refresh(token, signal)).accessToken
-        if (access) await ports.auth.revoke(access, signal)
-      } catch (problem) {
-        ports.log(`signed out here; the server session was not revoked: ${reason(problem)}`)
-      }
+      await track(
+        (async () => {
+          try {
+            let access = usable
+            if (!access && token) access = (await ports.auth.refresh(token, signal)).accessToken
+            if (access) await ports.auth.revoke(access, signal)
+          } catch (problem) {
+            ports.log(`signed out here; the server session was not revoked: ${reason(problem)}`)
+          }
+        })(),
+      )
       return result
     },
 
@@ -277,6 +300,23 @@ export function createAccount(ports: AccountPorts): Account {
       const gen = generation
       const fresh = await refresh()
       return fresh && gen === generation ? fresh.accessToken : null
+    },
+
+    async settled(timeoutMs = QUIT_WAIT_MS) {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const deadline = new Promise<false>((resolve) => {
+        timer = setTimeout(() => resolve(false), timeoutMs)
+      })
+      const drained = (async () => {
+        // A request that lands may start a revocation; wait for that one too.
+        while (inFlight.size > 0) await Promise.allSettled([...inFlight])
+        return true as const
+      })()
+      try {
+        return await Promise.race([drained, deadline])
+      } finally {
+        clearTimeout(timer)
+      }
     },
   }
 }

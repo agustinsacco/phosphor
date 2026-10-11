@@ -23,6 +23,7 @@ function harness(options: { preview?: boolean; built?: boolean } = {}) {
       return signOut.promise.then((out) => (state = out))
     }),
     accessToken: async () => null,
+    settled: async () => true,
   }
   const build = vi.fn(() => {
     if (broken) throw broken

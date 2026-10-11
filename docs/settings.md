@@ -168,7 +168,9 @@ first time it is needed with the preview on.
   sign-in lasts until Phosphor quits, and the section says why.
 - **Sign-out always works here** and tells Supabase when it can. A sign-out or
   cancel wins over anything still in flight: a session that arrives late is
-  revoked, not kept.
+  revoked, not kept. The screen shows signed out at once, while the revocation
+  is still on its way, so quitting waits for requests to Supabase already
+  started (up to 10 s, then quits anyway and logs it).
 - **Turning the preview off** closes sign-in in every window first, then signs
   out. Changes to the switch go one at a time. If the saved sign-in cannot be
   deleted, the switch stays on and says so, since the next launch would load it

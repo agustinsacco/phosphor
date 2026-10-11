@@ -22,6 +22,7 @@ import { cancelAllClaudeLogins } from './pi/claude-login'
 import { unwatchAll } from './pi/session-watcher'
 import { unwatchAllWorkspaces } from './fs/workspace-watcher'
 import { unwatchMcpCache } from './pi/mcp-cache-watcher'
+import { settleAccount } from './account'
 import { startUpdateChecks, stopUpdateChecks } from './updates/updater'
 import {
   applyThemeSource,
@@ -334,6 +335,7 @@ function beginQuit(): void {
   void stopRoutines().finally(() => {
     void Promise.allSettled([
       registry.disposeAll(),
+      settleAccount(),
       unwatchAll(),
       unwatchAllWorkspaces(),
       unwatchMcpCache(),
