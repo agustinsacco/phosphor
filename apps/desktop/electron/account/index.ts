@@ -7,14 +7,15 @@ import { externalUrl } from '../external-links'
 import { getAccountPreview, setAccountPreview } from '../store'
 import { createAccount, type Account, type AccountState } from './account'
 import { keychainOff, supabaseTarget } from './config'
+import { createAccountControls } from './controls'
 import { createGoTrue } from './gotrue'
 import { createVault, safeStorageCipher, type Cipher, type Vault } from './vault'
 import { accountView } from './view'
 
 /**
  * Electron's half of the account: the real browser, keychain, userData and
- * window broadcast. Built on first use, never at startup, so a launch that
- * never opens Settings → Accounts never reads the file either.
+ * window broadcast. Built on first use with the preview on, never at startup,
+ * so a launch never reads its files and neither does Settings while it is off.
  */
 
 let vault: Vault | null = null
@@ -42,9 +43,11 @@ const view = (state: AccountState): AccountView => accountView(state, getAccount
 
 function current(): Account {
   if (account) return account
+  // The target first: a bad override throws before anything is half built.
+  const auth = createGoTrue(supabaseTarget(app.isPackaged, process.env))
   vault = createVault(join(app.getPath('userData'), 'account'), cipher())
   const built = createAccount({
-    auth: createGoTrue(supabaseTarget(app.isPackaged, process.env)),
+    auth,
     vault,
     // Looked up per call, not captured: e2e replaces shell.openExternal.
     openExternal: async (url) => {
@@ -60,33 +63,26 @@ function current(): Account {
   return built
 }
 
-export function accountSnapshot(): AccountView {
-  return view(current().state())
-}
+const controls = createAccountControls({
+  account: current,
+  isBuilt: () => account !== null,
+  getPreview: getAccountPreview,
+  setPreview: setAccountPreview,
+  view,
+  publish: (next) => broadcast('account:changed', next),
+})
 
-export function signIn(): AccountView {
-  if (!getAccountPreview()) {
-    throw new Error('Phosphor sign-in is a preview: turn it on in Settings → Advanced.')
-  }
-  // Resolves when the browser comes back; windows hear the outcome on account:changed.
-  void current().signIn()
-  return accountSnapshot()
-}
+export const accountSnapshot = (): AccountView => controls.snapshot()
+export const signIn = (): AccountView => controls.signIn()
+/** Turning the preview off signs out first: no session outlives its only control. */
+export const setPreview = (enabled: boolean): Promise<AccountView> => controls.setPreview(enabled)
 
 export function cancelSignIn(): void {
-  current().cancel()
+  // Nothing built means nothing in flight.
+  account?.cancel()
 }
 
 export async function signOut(): Promise<AccountView> {
   await current().signOut()
   return accountSnapshot()
-}
-
-/** Turning the preview off signs out first: no session outlives its only control. */
-export async function setPreview(enabled: boolean): Promise<AccountView> {
-  if (!enabled) await current().signOut()
-  setAccountPreview(enabled)
-  const next = accountSnapshot()
-  broadcast('account:changed', next)
-  return next
 }

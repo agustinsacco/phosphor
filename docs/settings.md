@@ -149,9 +149,10 @@ Code** provider keeps its own set of logins under Extensions → Claude Code.
 
 An optional sign-in to Phosphor itself, for the remote machines to come
 ([remote-access.md](remote-access.md)). It does nothing else yet, so it shows
-only while Settings → Advanced → Phosphor account (preview) is on. Local work
-never needs it, and a launch never touches it: the account is built the first
-time Settings asks.
+only while Settings → Advanced → Phosphor account (preview) is on, and main
+refuses a sign-in while it is off. Local work never needs it. Neither a launch
+nor Settings with the preview off reads its files: the account is built the
+first time it is needed with the preview on.
 
 - **GitHub through Supabase Auth**, with no email. Main runs PKCE: the system
   browser opens Supabase's authorize page, and Supabase sends it back to a
@@ -167,7 +168,13 @@ time Settings asks.
   sign-in lasts until Phosphor quits, and the section says why.
 - **Sign-out always works here** and tells Supabase when it can. A sign-out or
   cancel wins over anything still in flight: a session that arrives late is
-  revoked, not kept. Turning the preview off signs out.
+  revoked, not kept.
+- **Turning the preview off** closes sign-in in every window first, then signs
+  out. Changes to the switch go one at a time. If the saved sign-in cannot be
+  deleted, the switch stays on and says so, since the next launch would load it
+  again.
+- **Every window shows what main pushes** on `account:changed`. An action's own
+  reply is not applied, because it can be older than a push from another window.
 - **Unpackaged builds only:** `PHOSPHOR_SUPABASE_URL` and
   `PHOSPHOR_SUPABASE_KEY` point at a local stack, and
   `PHOSPHOR_ACCOUNT_NO_KEYCHAIN=1` keeps e2e runs off the keychain. A packaged
@@ -333,7 +340,7 @@ installs anything. Every action is a button.
   Agent tab points at when a file is too broken to edit structurally.
 - **Phosphor account (preview)**: shows the optional GitHub sign-in under
   Accounts ([above](#phosphor-account-preview)). Off by default; turning it off
-  signs out.
+  signs out, and stays on if the saved sign-in cannot be deleted.
 - **Maintenance**: a periodic sweep for worktrees whose branch already landed.
   It always _measures_ ("N of M worktrees reclaimable") and only deletes once
   "Delete automatically" is on. Interval (≥15 min) and a grace period (a merged

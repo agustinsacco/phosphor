@@ -14,7 +14,7 @@ export function AdvancedTab(): React.JSX.Element {
   const [health, setHealth] = useState<PiHealth | null>(null)
   const [resources, setResources] = useState<PiResources | null>(null)
   const [editing, setEditing] = useState<'settings' | 'models' | null>(null)
-  const [account, setAccount] = useAccount()
+  const { view: account, error: accountError } = useAccount()
   // One change at a time: turning it off waits for the sign-out, and a quick
   // second click must not land first and then be overwritten.
   const [previewBusy, setPreviewBusy] = useState(false)
@@ -24,7 +24,8 @@ export function AdvancedTab(): React.JSX.Element {
     setPreviewError(null)
     window.phosphor
       .invoke('account:setPreview', on)
-      .then(setAccount, (caught: unknown) => setPreviewError(ipcErrorText(caught)))
+      // The new state arrives as a push, so only a failure is read here.
+      .catch((caught: unknown) => setPreviewError(ipcErrorText(caught)))
       .finally(() => setPreviewBusy(false))
   }
 
@@ -78,7 +79,9 @@ export function AdvancedTab(): React.JSX.Element {
           onChange={togglePreview}
         />
       </Row>
-      {previewError && <p className="text-danger -mt-1 mb-2 text-sm">{previewError}</p>}
+      {(previewError ?? accountError) && (
+        <p className="text-danger -mt-1 mb-2 text-sm">{previewError ?? accountError}</p>
+      )}
 
       <MaintenanceSection />
 
