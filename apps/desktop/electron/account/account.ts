@@ -189,6 +189,9 @@ export function createAccount(ports: AccountPorts): Account {
         void revoke(fresh.accessToken)
         return null
       }
+      // Landed: no longer in flight. From here the session is held, so a
+      // sign-out (even one this set() triggers) revokes it, not this refresh.
+      refreshing = null
       const remembered = keep(fresh)
       set({ status: 'signed-in', user: fresh.user, remembered })
       return fresh
@@ -248,11 +251,12 @@ export function createAccount(ports: AccountPorts): Account {
       const inFlight = refreshing !== null
       const result = forget()
       if (was.status !== 'signed-in') return result
-      // One owner per session. A session this side holds is revoked here, with
-      // its access token while that outlives the request; that includes one a
-      // refresh kept a moment ago, whose promise has not settled yet. Holding
-      // nothing usable while a refresh is in flight, that refresh owns the
-      // revocation: it lands on a stale generation and revokes what it got.
+      // Someone always revokes. A session this side holds, including one a
+      // refresh kept a moment ago, is revoked here: with its access token while
+      // that outlives the request, else by refreshing it first. A refresh still
+      // waiting on Supabase revokes whatever it gets back, since it lands on a
+      // stale generation. Holding nothing usable, this side leaves it to that
+      // refresh; when both act, the session is revoked twice, which is harmless.
       const revokeMs = ports.revokeMs ?? REVOKE_MS
       const usable = held && held.expiresAt - now() > revokeMs ? held.accessToken : null
       if (!usable && inFlight) return result

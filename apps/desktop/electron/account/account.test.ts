@@ -3,7 +3,7 @@ import { mkdtempSync, readdirSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createAccount, EARLY_MS, type AccountPorts, type AccountState } from './account'
+import { createAccount, EARLY_MS, REVOKE_MS, type AccountPorts, type AccountState } from './account'
 import { AuthRefused, AuthUnavailable, createGoTrue, type AuthSession, type GoTrue } from './gotrue'
 import { createVault, type Vault } from './vault'
 import { deferred, fakeBrowser, fakeCipher, session, USER } from './__fixtures__/fakes'
@@ -339,6 +339,59 @@ describe('signing out', () => {
     expect(made.ports.auth.revoke.mock.calls.map(([token]) => token)).toEqual(['access-1'])
     expect(made.ports.auth.refresh).toHaveBeenCalledTimes(1)
     expect(vault.readProfile()).toBeNull()
+  })
+
+  it('refreshes to revoke a just-landed session whose access token is too short-lived', async () => {
+    const { vault } = remembered()
+    const start = 1_000_000
+    let clock = start
+    let loaded = false
+    let out: Promise<AccountState> | null = null
+    const refresh = vi.fn<GoTrue['refresh']>(async (token) =>
+      token === 'refresh-0' ? session(1, start + 3_600_000) : session(2, start + 7_200_000),
+    )
+    const made = setup({
+      vault,
+      auth: auth({ refresh }),
+      now: () => clock,
+      // The refresh has kept its session and not settled; the clock has just
+      // moved (a wall-clock correction, or a short-lived token) to the point
+      // where its access token cannot outlive a revocation request.
+      onChange: (state) => {
+        if (!loaded || state.status !== 'signed-in' || out) return
+        clock = start + 3_600_000 - REVOKE_MS
+        out = made.account.signOut()
+      },
+    })
+    const { account } = made
+    account.load()
+    loaded = true
+    expect(await account.accessToken()).toBeNull()
+    expect(await out).toEqual({ status: 'signed-out' })
+    expect(refresh.mock.calls.map(([token]) => token)).toEqual(['refresh-0', 'refresh-1'])
+    expect(made.ports.auth.revoke.mock.calls.map(([token]) => token)).toEqual(['access-2'])
+    expect(vault.readProfile()).toBeNull()
+  })
+
+  it('revokes a usable session at once, without waiting on a refresh in flight', async () => {
+    const clock = 1_000_000
+    const gate = deferred<AuthSession>()
+    const ports = auth({
+      // Inside the early-refresh window, yet good for longer than a revocation.
+      exchange: vi.fn(async () => session(1, clock + EARLY_MS / 2)),
+      refresh: vi.fn(() => gate.promise),
+    })
+    const { account } = setup({ auth: ports, now: () => clock })
+    await account.signIn()
+    const token = account.accessToken()
+    await until(() => ports.refresh.mock.calls.length === 1)
+    expect(await account.signOut()).toEqual({ status: 'signed-out' })
+    expect(ports.revoke.mock.calls.map(([revoked]) => revoked)).toEqual(['access-1'])
+    gate.resolve(session(2))
+    expect(await token).toBeNull()
+    // The refresh still revokes what it brought back: the same session, twice.
+    await until(() => ports.revoke.mock.calls.length === 2)
+    expect(ports.revoke.mock.calls[1]![0]).toBe('access-2')
   })
 
   it('revokes with the fresh access token it holds', async () => {
