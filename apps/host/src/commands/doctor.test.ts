@@ -1,4 +1,4 @@
-import { rmSync } from 'node:fs'
+import { rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { validateHostHello } from '@phosphor/shared/remote-host'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -34,6 +34,7 @@ const statuses = (report: DoctorReport) =>
 
 describe('doctor', () => {
   it('passes a healthy machine: native lane, names-only environment, a valid hello', async () => {
+    machine.signIn('openai-codex')
     const report = await runDoctor(context())
     expect(report).toMatchObject({ ok: true, exitCode: 0, config: { hostId: 'test-host' } })
     expect(statuses(report)).toEqual([
@@ -45,10 +46,26 @@ describe('doctor', () => {
       'pass extensions',
       'pass repository',
       'pass agent-dir',
+      'pass providers',
       'info context-budget',
       'info accounts',
       'info compression',
     ])
+    expect(report.checks).toContainEqual({
+      id: 'providers',
+      status: 'pass',
+      summary: 'signed in: ChatGPT (Codex)',
+    })
+    expect(report.providers?.map((provider) => `${provider.id} ${provider.status}`)).toEqual([
+      'openai-codex ready',
+      'anthropic not_ready',
+      'github-copilot not_ready',
+      'kimi-for-coding not_ready',
+      'xai not_ready',
+      'openrouter not_ready',
+      'radius not_ready',
+    ])
+    expect(report.next).toBe('run real sessions: phosphor accept --repository DIR')
     expect(report.lanes.native).toEqual({ available: true })
     expect(report.lanes.claude.reason).toContain('(it is not installed)')
     expect(report.environment?.names).toEqual([
@@ -183,7 +200,41 @@ describe('doctor', () => {
         status: 'warn',
         summary: `${machine.agentDir} does not exist yet: run pi once as this user and log in`,
       },
+      { id: 'providers', status: 'warn', summary: 'none is signed in: phosphor providers' },
     ])
+    expect(report.next).toBe('sign in to a provider: phosphor providers')
+  })
+
+  it("warns when pi's default provider is not signed in, whatever else is", async () => {
+    machine.signIn('openai-codex')
+    writeFileSync(join(machine.agentDir, 'settings.json'), '{"defaultProvider":"openai"}')
+    const report = await runDoctor(context())
+    expect(report.exitCode).toBe(0)
+    expect(report.checks).toContainEqual({
+      id: 'providers',
+      status: 'warn',
+      summary: "pi's default, openai, is not signed in: phosphor providers",
+    })
+    expect(report.providers?.at(-1)).toEqual({
+      id: 'openai',
+      name: 'openai',
+      status: 'not_ready',
+      reason: 'credentials_not_configured',
+      default: true,
+    })
+    // Signed in to something, so setup moves on; the warning stays.
+    expect(report.next).toBe('run real sessions: phosphor accept --repository DIR')
+  })
+
+  it('counts the claude lane as something to run on, and asks pi nothing when pi is unusable', async () => {
+    machine.installClaude()
+    expect((await runDoctor(context())).next).toBe(
+      'run real sessions: phosphor accept --repository DIR',
+    )
+    const unusable = await runDoctor(context({ env: { ...machine.hostEnv, PI_FAKE_MODE: 'leak' } }))
+    expect(unusable.providers).toBeUndefined()
+    expect(unusable.next).toBeUndefined()
+    expect(statuses(unusable)).not.toContain('warn providers')
   })
 
   it('reports the Claude lane available with the provider package and a logged-in claude', async () => {
@@ -201,6 +252,6 @@ describe('doctor', () => {
     expect(text).toMatch(/^phosphor 0\.0\.0-dev\.source · node 22\.22\.3 · linux\n/)
     expect(text).toContain(`  ok    pi              ${machine.cli} 0.87.1, started with node\n`)
     expect(text).toContain('\nlanes\n  native  available\n  claude  unavailable: ')
-    expect(text.endsWith('\nready\n')).toBe(true)
+    expect(text.endsWith('\nready\nnext: sign in to a provider: phosphor providers\n')).toBe(true)
   })
 })

@@ -59,6 +59,8 @@ describe('phosphor', () => {
     [['doctor', '--model', 'm'], 'doctor does not take --model'],
     [['doctor', '--claude-model', 'm'], 'doctor does not take --claude-model'],
     [['version', '--keep-transcripts'], 'version does not take --keep-transcripts'],
+    [['providers', '--repository', '/repo'], 'providers does not take --repository'],
+    [['providers', 'login'], 'unexpected argument "login"'],
     [['doctor', '--nope'], "Unknown option '--nope'"],
     [['doctor', 'extra'], 'unexpected argument "extra"'],
     [['doctor', '--config'], "Option '--config <value>' argument missing"],
@@ -82,6 +84,32 @@ describe('phosphor', () => {
     expect(JSON.parse(result.stdout)).toMatchObject({
       ok: true,
       config: { path: machine.configPath },
+    })
+  })
+
+  it("runs providers, with the report alone on stdout, or doctor's when pi is unusable", async () => {
+    machine = fakeMachine()
+    vi.stubEnv('PI_CODING_AGENT_DIR', machine.agentDir)
+    const options = { env: machine.hostEnv, home: machine.home }
+    const none = await run(['providers', '--json', '--config', machine.configPath], options)
+    expect(none).toMatchObject({ code: 69, stderr: '' })
+    expect(JSON.parse(none.stdout)).toMatchObject({ ok: false, hostId: 'test-host' })
+    machine.signIn('openai-codex')
+    const plain = await run(['providers', '--config', machine.configPath], options)
+    expect(plain).toMatchObject({ code: 0, stderr: '' })
+    expect(plain.stdout).toMatch(/^phosphor providers · test-host\n/)
+    const env = { ...machine.hostEnv, PI_FAKE_MODE: 'leak' }
+    const unusable = await run(['providers', '--json', '--config', machine.configPath], {
+      ...options,
+      env,
+    })
+    expect(unusable.code).toBe(69)
+    expect(unusable.stderr).toBe(
+      'phosphor: pi is not usable here, so it was not asked about providers\n',
+    )
+    expect(JSON.parse(unusable.stdout)).toMatchObject({
+      ok: false,
+      lanes: { native: { reason: 'failed: pi' } },
     })
   })
 

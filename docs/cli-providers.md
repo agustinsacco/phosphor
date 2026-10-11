@@ -209,7 +209,7 @@ rendering into structured state. Two sign-in shapes are handled: device code
 (the user is shown a code) and loopback redirect (pi runs its own callback
 server, no code at all). `pi:loginTerminal` is the escape hatch for a provider
 whose prompts the driver does not recognise. The provider list is hand-curated
-in `apps/desktop/electron/pi/auth-status.ts`, each id verified against
+in `libs/session-runtime/src/pi/provider-auth.ts`, each id verified against
 `pi auth check --provider`.
 
 Claude logins are a separate set, under Extensions → Claude Code

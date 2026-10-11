@@ -8,6 +8,7 @@ import {
   type HostCapability,
   type HostHello,
 } from '@phosphor/shared/remote-host'
+import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
 import { EXIT, exitCodeFor, fail, info, pass, warn, type Check } from '../checks'
@@ -16,6 +17,7 @@ import { resolveHostId, type ConfigError } from '../config/schema'
 import { checkClaudeLane, type ClaudeLane } from '../machine/claude'
 import { buildPiEnvironment, redact, type PiEnvironment } from '../machine/environment'
 import { checkGit, checkHostNode, resolvePi } from '../machine/executables'
+import { checkProviders, describeProvider, type ProviderState } from '../machine/providers'
 import { checkRepositories } from '../machine/repositories'
 import { checkExtensions } from '../machine/resources'
 import type { HostMachine } from '../session/runtime'
@@ -63,6 +65,10 @@ export interface DoctorReport {
   environment?: { names: string[]; path: string[] }
   /** The hello this Host would present once component 21 can serve it. */
   hello?: HostHello
+  /** What pi can sign into, and its default provider, once pi itself is usable. */
+  providers?: ProviderState[]
+  /** The next setup step, when the machine is ready. */
+  next?: string
 }
 
 /** What doctor found, for a command that goes on to run sessions. */
@@ -144,6 +150,15 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
   })
   checks.push(...repositories.checks)
   checks.push(await checkAgentDir())
+  let providers: ProviderState[] | undefined
+  if (pi.launch) {
+    const { defaultProvider } = await readAgentSettings()
+    providers = await checkProviders(pi.launch, environment, {
+      defaultProvider: typeof defaultProvider === 'string' ? defaultProvider : undefined,
+      timeoutMs,
+    })
+    checks.push(providersCheck(providers))
+  }
   checks.push(budgetCheck(config.contextBudget ?? ''))
   checks.push(info('accounts', 'unavailable on a Host: pi uses the logins of the user running it'))
   checks.push(info('compression', 'unavailable on a Host: there is no Headroom proxy'))
@@ -176,6 +191,8 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
       lanes: { native, claude },
       environment: { names: environment.names, path: environment.env.PATH!.split(':') },
       ...(exposed ? {} : { hello }),
+      ...(providers ? { providers } : {}),
+      ...(exitCode === EXIT.ok ? { next: nextStep(providers ?? [], claude) } : {}),
     },
     environment.secrets,
   )
@@ -244,6 +261,26 @@ function helloExposure(hello: HostHello, environment: PiEnvironment): Check | nu
   return fail('hello', summary, EXIT.config)
 }
 
+/** Signed in to something pi runs on, with its default first: a session naming no model uses it. */
+function providersCheck(providers: readonly ProviderState[]): Check {
+  const fallback = providers.find((provider) => provider.default)
+  if (fallback && fallback.status !== 'ready') {
+    const state = describeProvider(fallback)
+    return warn('providers', `pi's default, ${fallback.name}, is ${state}: phosphor providers`)
+  }
+  const ready = providers.filter((provider) => provider.status === 'ready')
+  if (ready.length === 0) return warn('providers', 'none is signed in: phosphor providers')
+  return pass('providers', `signed in: ${ready.map((provider) => provider.name).join(', ')}`)
+}
+
+/** Setup is doctor, then a provider, then real sessions: what is left of it. */
+export function nextStep(providers: readonly ProviderState[], claude: Lane): string {
+  const ready = providers.some((provider) => provider.status === 'ready') || claude.available
+  return ready
+    ? 'run real sessions: phosphor accept --repository DIR'
+    : 'sign in to a provider: phosphor providers'
+}
+
 async function checkAgentDir(): Promise<Check> {
   const dir = piAgentDir()
   const exists = await stat(dir).then(
@@ -294,5 +331,6 @@ export function renderDoctor(report: DoctorReport): string {
     lines.push(`pi environment, names only`, `  ${report.environment.names.join(' ')}`)
   }
   lines.push(report.ok ? 'ready' : `not ready (exit ${report.exitCode})`)
+  if (report.next) lines.push(`next: ${report.next}`)
   return `${lines.join('\n')}\n`
 }

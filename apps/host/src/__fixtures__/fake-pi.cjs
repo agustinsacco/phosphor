@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * The Host's fake pi: `--version`, and enough of `--mode rpc` for the
+ * The Host's fake pi: `--version`, `auth check` (every provider is ready, as
+ * the sessions it runs need one), and enough of `--mode rpc` for the
  * composition tests and accept. Like pi, it saves a turn to its session file
  * when the turn ends, in the folder pi would use for its cwd, and a resumed
  * session starts with the messages of its file.
@@ -52,6 +53,10 @@ if (args.includes('--version')) {
   process.exit(0)
 }
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
+if (args[0] === 'auth') {
+  console.log(JSON.stringify({ status: 'ready', provider: flag('--provider'), authType: 'oauth' }))
+  process.exit(0)
+}
 
 // pi's layout, as libs/session-runtime/src/pi/pi-paths.ts mangles it: keep the two in step.
 const agentDir = process.env.PI_CODING_AGENT_DIR ?? join(process.env.HOME ?? '/', '.pi', 'agent')

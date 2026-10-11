@@ -66,6 +66,6 @@ export async function checkClaudeLane(
     return { available: false, reason: `${claude} auth status was unreadable${failure}` }
   }
   if (!loggedIn)
-    return { available: false, reason: 'claude is not logged in: run claude, then /login' }
+    return { available: false, reason: 'claude is not logged in: run claude auth login' }
   return { available: true, claude, version }
 }

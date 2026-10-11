@@ -6,7 +6,8 @@ import type { LoginFlowState, LoginProviderId } from '@shared/models'
 import { checkPiHealth, piArgs } from './health'
 import { piProcessEnv } from './shell-env'
 import { ptyManager } from '../pty/pty-manager'
-import { type AuthCheck, checkProviderAuth } from './auth-status'
+import type { AuthCheck } from '@phosphor/session-runtime/pi/provider-auth'
+import { checkProviderAuth } from './auth-status'
 import { log } from '../debug-log'
 
 /**
@@ -421,7 +422,7 @@ export async function startLogin(
       // Copilot asks for a GitHub Enterprise host, and blank means github.com —
       // which is the account almost everyone signing in here has. An Enterprise
       // host cannot be guessed, so that case takes the login-terminal escape
-      // hatch, and the provider's caveat in auth-status.ts says so.
+      // hatch, and the provider's caveat in provider-auth.ts says so.
       ptyManager.write(ptyId, CR)
     } else if (step === 'awaiting-auth') {
       const auth = parseAuthPrompt(screen)
