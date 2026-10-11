@@ -231,6 +231,15 @@ export function setClaudeAccountPrefs(value: ClaudeAccountPrefs): void {
   prefs().set('claudeAccounts', value)
 }
 
+/** See AppPrefs.accountPreview. */
+export function getAccountPreview(): boolean {
+  return prefs().get('accountPreview') === true
+}
+
+export function setAccountPreview(enabled: boolean): void {
+  prefs().set('accountPreview', enabled)
+}
+
 /** See AppPrefs.compactionResetChecked. */
 export function isCompactionResetChecked(): boolean {
   return prefs().get('compactionResetChecked') === true

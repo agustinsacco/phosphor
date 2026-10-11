@@ -11,6 +11,15 @@ export const HOSTED_SUPABASE: SupabaseTarget = {
   key: 'sb_publishable_FAfhFtw4XYaHXjJzGG7Ttg_1PJBlgab',
 }
 
+/**
+ * E2E keeps the keychain out of a sign-in, since a prompt would stall a hidden
+ * window. Unpackaged only, like every env hook, and it can only make storage
+ * stricter: the session then lives in memory, as with no keyring at all.
+ */
+export function keychainOff(packaged: boolean, env: NodeJS.ProcessEnv): boolean {
+  return !packaged && env.PHOSPHOR_ACCOUNT_NO_KEYCHAIN === '1'
+}
+
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]'])
 
 /**

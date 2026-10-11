@@ -104,6 +104,7 @@ describe('SETTINGS_INDEX against the tab sources', () => {
     KeybindingsTab: 'keybindings',
     MaintenanceSection: 'advanced',
     OptimizationTab: 'optimization',
+    PhosphorAccountSection: 'accounts',
     SubagentsTab: 'subagents',
     WebAccessTab: 'web-access',
     WorkspacesTab: 'workspaces',

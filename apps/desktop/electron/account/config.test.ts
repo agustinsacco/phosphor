@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { HOSTED_SUPABASE, supabaseTarget } from './config'
+import { HOSTED_SUPABASE, keychainOff, supabaseTarget } from './config'
 
 const local = { PHOSPHOR_SUPABASE_URL: 'http://127.0.0.1:54351/', PHOSPHOR_SUPABASE_KEY: 'k' }
+
+describe('keychainOff', () => {
+  it('keeps the keychain only for an unpackaged build that asks', () => {
+    const asked = { PHOSPHOR_ACCOUNT_NO_KEYCHAIN: '1' }
+    expect(keychainOff(false, asked)).toBe(true)
+    expect(keychainOff(true, asked)).toBe(false)
+    expect(keychainOff(false, {})).toBe(false)
+    expect(keychainOff(false, { PHOSPHOR_ACCOUNT_NO_KEYCHAIN: 'true' })).toBe(false)
+  })
+})
 
 describe('supabaseTarget', () => {
   it('always signs a packaged build in to the hosted project', () => {

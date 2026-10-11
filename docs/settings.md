@@ -16,7 +16,7 @@ and a tab whose package vanished falls back to Extensions.
 | ---------------- | -------------------------------------------------------------------- | ------------------------------------------------------- |
 | Appearance       | Theme, UI scale, per-surface font sizes, mono font                   | Phosphor prefs (electron-store)                         |
 | Agent            | pi's agent defaults, global or per project                           | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json` |
-| Accounts         | Subscription logins pi can drive                                     | nothing — pi owns the credentials                       |
+| Accounts         | Subscription logins pi can drive; the optional Phosphor sign-in      | nothing of pi's; Phosphor's in `<userData>/account/`    |
 | Extensions       | pi package management                                                | shells out to `pi install` / `remove` / `update`        |
 | ↳ Claude Code    | The `pi-claude-cli` provider: health, accounts, pi context ownership | Phosphor prefs + the package's own config               |
 | ↳ Web access     | The `pi-web-access` provider: search, fetch, PDF                     | `web-search.json`                                       |
@@ -142,8 +142,43 @@ balance, not an included allowance.
   _changes_, not when `pi auth check` first reports ready: the old credential
   already answers ready a second after pi prints the URL.
 
-This tab is pi's own `auth`, nothing more. The **Claude Code** provider keeps
-its own set of logins under Extensions → Claude Code.
+Apart from the Phosphor account below, this tab is pi's own `auth`. The **Claude
+Code** provider keeps its own set of logins under Extensions → Claude Code.
+
+### Phosphor account (preview)
+
+An optional sign-in to Phosphor itself, for the remote machines to come
+([remote-access.md](remote-access.md)). It does nothing else yet, so it shows
+only while Settings → Advanced → Phosphor account (preview) is on, and main
+refuses a sign-in while it is off. Local work never needs it. Neither a launch
+nor Settings with the preview off reads its files: the account is built the
+first time it is needed with the preview on.
+
+- **GitHub through Supabase Auth**, with no email. Main runs PKCE: the system
+  browser opens Supabase's authorize page, and Supabase sends it back to a
+  one-shot server on `127.0.0.1`, at a port the OS picks and a random path only
+  that sign-in knows. Main exchanges the code with its verifier
+  (`apps/desktop/electron/account/`).
+- **The renderer sees who, never a token.** `account:get` and `account:changed`
+  carry the GitHub login, name, email and whether the sign-in is remembered.
+  GitHub's own token is dropped on arrival.
+- **Remembered with the OS keychain** (`safeStorage`): the refresh token is
+  encrypted in `<userData>/account/session.bin`, beside a plain `profile.json`,
+  both readable by the user alone. With no keyring (Linux's `basic_text`), the
+  sign-in lasts until Phosphor quits, and the section says why.
+- **Sign-out always works here** and tells Supabase when it can. A sign-out or
+  cancel wins over anything still in flight: a session that arrives late is
+  revoked, not kept.
+- **Turning the preview off** closes sign-in in every window first, then signs
+  out. Changes to the switch go one at a time. If the saved sign-in cannot be
+  deleted, the switch stays on and says so, since the next launch would load it
+  again.
+- **Every window shows what main pushes** on `account:changed`. An action's own
+  reply is not applied, because it can be older than a push from another window.
+- **Unpackaged builds only:** `PHOSPHOR_SUPABASE_URL` and
+  `PHOSPHOR_SUPABASE_KEY` point at a local stack, and
+  `PHOSPHOR_ACCOUNT_NO_KEYCHAIN=1` keeps e2e runs off the keychain. A packaged
+  build always signs in to the hosted project.
 
 ## Extensions
 
@@ -303,6 +338,9 @@ installs anything. Every action is a button.
 - **Raw file editors** (Monaco JSON) for `~/.pi/agent/settings.json` and
   `models.json`, with a "restart sessions to apply" note. The escape hatch the
   Agent tab points at when a file is too broken to edit structurally.
+- **Phosphor account (preview)**: shows the optional GitHub sign-in under
+  Accounts ([above](#phosphor-account-preview)). Off by default; turning it off
+  signs out, and stays on if the saved sign-in cannot be deleted.
 - **Maintenance**: a periodic sweep for worktrees whose branch already landed.
   It always _measures_ ("N of M worktrees reclaimable") and only deletes once
   "Delete automatically" is on. Interval (≥15 min) and a grace period (a merged
