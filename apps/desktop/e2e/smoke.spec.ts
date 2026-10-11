@@ -2236,6 +2236,65 @@ test('terminal pane spawns a real shell, and reopening replays its scrollback', 
   }
 })
 
+test('terminal web and OSC 8 links open externally with Control or Command click', async () => {
+  const h = await launch()
+  const { page } = h
+  try {
+    // Observe the real main-process boundary without launching the user's browser.
+    await h.app.evaluate(({ shell }) => {
+      const state = globalThis as unknown as { openedUrls: string[] }
+      state.openedUrls = []
+      shell.openExternal = async (url) => {
+        state.openedUrls.push(url)
+      }
+    })
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    await page.keyboard.press(process.platform === 'darwin' ? 'Meta+`' : 'Control+`')
+    const terminal = page.locator('.xterm').first()
+    await expect(terminal).toBeVisible()
+    await terminal.click()
+    const url = 'http://localhost:3000/test?q=1'
+    const oscUrl = 'https://example.com/terminal?from=osc8'
+    await page.keyboard.type(
+      `printf '\\033[2J\\033[H${url}\\n\\033]8;;${oscUrl}\\007Open browser\\033]8;;\\007\\n\\033]8;;file:///tmp/blocked\\007Blocked link\\033]8;;\\007\\n'`,
+    )
+    await page.keyboard.press('Enter')
+    const rows = page.locator('.xterm-rows > div')
+    const detected = rows.filter({ hasText: /^http:\/\/localhost:3000\/test/ })
+    const osc = rows.filter({ hasText: /^Open\s+browser/ })
+    await expect(osc).toBeVisible()
+    const opened = (): Promise<string[]> =>
+      h.app.evaluate(() => (globalThis as unknown as { openedUrls: string[] }).openedUrls)
+    const expected: string[] = []
+    for (const row of [detected, osc]) {
+      for (const modifiers of [[], ['Control'], ['Meta']] as ('Control' | 'Meta')[][]) {
+        // Rows are pointer-events:none; the xterm screen handles the real mouse
+        // events at these cell coordinates instead of the text div itself.
+        await row.hover({ position: { x: 20, y: 8 }, force: true })
+        await expect(terminal.locator('.xterm-screen')).toHaveClass(/xterm-cursor-pointer/)
+        await row.click({ position: { x: 20, y: 8 }, modifiers, force: true })
+        expected.push(row === detected ? url : oscUrl)
+        await expect.poll(opened).toEqual(expected)
+        await expect(page.getByRole('button', { name: 'Select all' })).toBeHidden()
+      }
+    }
+    // Ordinary right-click still offers the clipboard menu, never navigation.
+    await osc.click({ position: { x: 20, y: 8 }, button: 'right', force: true })
+    await expect(page.getByRole('button', { name: 'Select all' })).toBeVisible()
+    await page.keyboard.press('Escape')
+    await rows
+      .filter({ hasText: /^Blocked\s+link/ })
+      .click({ position: { x: 20, y: 8 }, force: true })
+    expect(await opened()).toEqual(expected)
+    expect(h.app.windows()).toHaveLength(1)
+  } finally {
+    await shutdown(h)
+  }
+})
+
 test('the right pane is per session, so a terminal does not follow you', async () => {
   const harness = await launch()
   const { page } = harness

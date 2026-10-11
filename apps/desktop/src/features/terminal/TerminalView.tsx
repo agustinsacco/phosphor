@@ -1,7 +1,6 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
-import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import '@xterm/xterm/css/xterm.css'
 import { useSettingsStore } from '@/stores/settings'
@@ -10,6 +9,7 @@ import { showContextMenu } from '@/components/ContextMenu'
 import { formatShortcut, hostPlatform } from '@/lib/shortcuts'
 import { clipboardActionFor, clipboardModifiers } from './clipboardKeys'
 import { xtermTheme } from './xtermTheme'
+import { installTerminalLinks } from './terminalLinks'
 
 /** Copy the current selection, then hand focus back to the shell. */
 function copySelection(term: Terminal): void {
@@ -67,12 +67,7 @@ export const TerminalView = memo(function TerminalView({
     const search = new SearchAddon()
     term.loadAddon(fit)
     term.loadAddon(search)
-    term.loadAddon(
-      new WebLinksAddon((event, uri) => {
-        event.preventDefault()
-        window.open(uri) // main denies + opens externally
-      }),
-    )
+    const links = installTerminalLinks(term, container)
     term.open(container)
     fit.fit()
     termRef.current = term
@@ -171,6 +166,7 @@ export const TerminalView = memo(function TerminalView({
       dataDisposable.dispose()
       unsubscribeData()
       unsubscribeExit()
+      links.dispose()
       term.dispose()
       termRef.current = null
     }

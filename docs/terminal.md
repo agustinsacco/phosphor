@@ -15,6 +15,12 @@ without leaving the session, and so a shell always sits in the right checkout.
   from settings, ligature-capable mono.
 - **Addons:** fit (follows pane dragging), clickable web links, search
   (Cmd/Ctrl+F inside the pane).
+- **Links open in the default browser.** Detected HTTP(S) URLs and OSC 8
+  hyperlinks emitted by terminal programs share the main-process URL allowlist.
+  Click, Ctrl-click, and Cmd-click open the link without navigating the app or
+  creating an app window. On macOS, Ctrl-click over a link does not open the
+  clipboard menu; ordinary right-click still does. Non-HTTP(S) OSC 8 links
+  cannot launch files or custom protocol handlers.
 - **Clipboard is ours.** xterm ships no copy binding and its selection is
   invisible to the browser, so nothing copies by default. Copy/paste are ⌘C/⌘V
   on macOS and Ctrl+Shift+C/V on Windows and Linux, where plain Ctrl+C must
