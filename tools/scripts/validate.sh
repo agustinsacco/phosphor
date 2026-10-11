@@ -32,6 +32,7 @@ step host-build npm run build:host
 # Requires `npm run db:start`; CI runs this suite in its own isolated job.
 if [[ "${CONTROL_DB:-}" == "1" ]]; then
   step control-db npm run test:control-db
+  step auth-stack npm run test:auth-stack
 fi
 if [[ "${SKIP_E2E:-}" != "1" ]]; then
   step e2e npm run test:e2e -- --reporter=dot

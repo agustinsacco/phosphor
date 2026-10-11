@@ -61,18 +61,31 @@ to a hosted project and must not reuse another application's stack.
 ```bash
 npm run db:start
 npm run test:control-db
+npm run test:auth-stack
 CONTROL_DB=1 npm run validate
 npm run db:stop
 ```
 
 `db:stop` removes this disposable test stack and its data. Never put real
 sessions or credentials in it. Other Supabase stacks are not stopped.
-Local signup is disabled; tests insert synthetic users inside a transaction
-and roll back. The pgTAP suite exercises real Supabase roles and `auth.uid()`,
-including anonymous access, ownership isolation, disabled accounts, forbidden
-client writes and server-role access. CI starts/tests/stops its own stack and
-never receives hosted database credentials. Local CLI output includes test
-keys; do not publish it as production setup information.
+Only GitHub can sign up, and GitHub here is a local fixture
+(`supabase/tests/fixtures/fake-github.cjs`); email sign-up is off. The pgTAP
+tests insert synthetic users inside a transaction and roll back. The pgTAP suite
+exercises real Supabase roles and `auth.uid()`, including anonymous access,
+ownership isolation, disabled accounts, forbidden client writes and server-role
+access. CI starts/tests/stops its own stack and never receives hosted database
+credentials. Local CLI output includes test keys; do not publish it as
+production setup information.
+
+`npm run test:auth-stack` (`tools/scripts/auth-stack.mjs`) runs Desktop's
+sign-in code (`apps/desktop/electron/account/`) against this stack's real
+Supabase Auth. It starts the fake GitHub in a container on the stack's network,
+and removes only that container. The test signs in through PKCE and the loopback
+callback, refreshes, restarts from the saved token, and signs out, then checks
+that Supabase revoked the session. It also covers a denial in the browser, a
+wrong verifier and a reused code. The runner fails if any test was skipped. CI
+runs it in the Control job, and `CONTROL_DB=1 npm run validate` runs it after
+`test:control-db`.
 
 ## Opt-in transport probe
 

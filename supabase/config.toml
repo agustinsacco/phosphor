@@ -38,4 +38,18 @@ enabled = false
 enabled = true
 site_url = "http://127.0.0.1:3000"
 additional_redirect_urls = []
+# GitHub sign-in creates the account; email sign-up stays off.
+enable_signup = true
+
+[auth.email]
 enable_signup = false
+
+# GitHub here is supabase/tests/fixtures/fake-github.cjs, which
+# tools/scripts/auth-stack.mjs starts on this stack's network. Never a real
+# client: the id and secret are the fixture's own.
+[auth.external.github]
+enabled = true
+client_id = "phosphor-fake-github"
+secret = "phosphor-fake-github-secret"
+redirect_uri = "http://127.0.0.1:54351/auth/v1/callback"
+url = "http://fake-github:54353"
