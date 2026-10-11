@@ -44,14 +44,47 @@ a list. Sections, in order:
 3. **Advanced** (collapsed) — adapter install state and the chain file list
    with the raw JSON editor. Repair tools, not daily controls.
 
-**Shortcut on the new-lane composer.** The home composer's `MCP 7/8` chip
-(`features/connectors/ConnectorsMenu.tsx`) lists the resolved servers with the
-same enabled checkbox, writing `disabled` through `mcp:setDisabled` to the
-server's own file, and flags any server whose `directTools` skips the gateway.
-It is on the new-lane composer only: the adapter reads its config when a lane
-starts, so a running lane keeps the servers it started with. A disabled server
-is not loaded, so the `mcp` tool's description and search cover only what is
-left.
+**Shortcut in both composers.** The `Rules 2/2 · MCP 7/8` chip
+(`features/chat/composer/ContextSourcesMenu.tsx`) lists the resolved servers
+with the same enabled checkbox, writing `disabled` through `mcp:setDisabled` to
+the server's own file, and flags any server whose `directTools` skips the
+gateway. Inside a lane it reads the lane's own folder, so a worktree lane's
+project scope is the worktree's `.mcp.json`, the one its adapter loads. A
+disabled server is not loaded, so the `mcp` tool's description and search
+cover only what is left.
+
+**Running lanes pick changes up before their next turn.** The adapter reads
+its config only when it starts, so main reloads a lane's extensions right
+before a prompt whose lane config changed since the lane last loaded it
+(`libs/session-runtime/src/pi/lane-reload.ts`, inside pi
+`libs/pi-extensions/pi-ext/lane-reload.ts`). The process, transcript, model
+and thinking level stay; the reload took 30 to 450 ms on pi 0.87.1 with
+pi-mcp-adapter 5.2.0.
+
+- **When.** Only before a prompt that starts a turn: not mid-run (a steer or
+  follow-up joins the running turn), not for host controls, not for routine
+  lanes. Turns the agent starts itself (a sub-agent's completion waking the
+  parent) wait for your next message.
+- **What counts as a change.** A fingerprint of the eight files the adapter
+  reads for that lane: Phosphor's chain above plus `<agentDir>/mcp.json` and
+  `<lane>/.pi/mcp.json` (`apps/desktop/electron/pi/lane-config.ts`). Files are
+  re-read only when their stat changes, and hashed as canonical JSON, so a
+  reformat or an unchanged save is not a change. Configs the adapter imports
+  from other clients or packages are not watched.
+- **Refusals wait, they never force.** pi-subagents keeps background children
+  across a reload but stops a running async workflow and detached foreground
+  children, and a pending completion must reach the parent first. The
+  extension asks pi-subagents through the liveness registry pi-web defines
+  (`Symbol.for('@agegr/pi-web/session-liveness/v1')`, which it provides) and
+  skips the reload while any work is live; the next prompt tries again.
+- **What a reload resets.** Every extension starts over. The context budget is
+  re-sent after the reload, before every prompt as always; the lane's
+  CLAUDE.md / AGENTS.md choice is restored from the session
+  ([chat.md](chat.md#context-files)). The next request misses the prompt
+  cache because the tools changed, which any way of changing them would.
+- **Unsupported pi.** Main asks `get_commands` first and never sends
+  `/phosphor-reload` to a pi without it, where it would reach the model as
+  text.
 
 Eight curated OAuth connectors: Linear, Notion, Braintrust, Datadog, Supabase,
 Questrade, Fellow, Slack. Each endpoint is checked against the vendor's docs

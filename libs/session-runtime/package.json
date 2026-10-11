@@ -52,6 +52,10 @@
       "types": "./src/pi/jsonl.ts",
       "default": "./src/pi/jsonl.ts"
     },
+    "./pi/lane-reload": {
+      "types": "./src/pi/lane-reload.ts",
+      "default": "./src/pi/lane-reload.ts"
+    },
     "./pi/package-resources": {
       "types": "./src/pi/package-resources.ts",
       "default": "./src/pi/package-resources.ts"

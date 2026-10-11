@@ -11,6 +11,7 @@ import { formatTokens } from '@/lib/format'
 import { PopupMenu } from '@/components/PopupMenu'
 import { useContextFilesPrefStore } from '@/stores/contextFilesPref'
 import { useExtensionUiStore } from '@/stores/extensionUi'
+import { useSessionsStore } from '@/stores/sessions'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { useMcpServers } from '@/features/connectors/useMcpServers'
 import { CONTEXT_BREAKDOWN_STATUS_KEY, parseContextBreakdown } from './contextBreakdown'
@@ -27,8 +28,11 @@ import { contextFileToggleState } from './contextFileToggle'
  * which may have moved on since the lane started.
  *
  * Connectors: the servers' own `disabled` flag, as in Settings. The adapter
- * reads it when a lane starts, so inside a lane it says that it applies to
- * new lanes.
+ * reads it when a lane starts; a running lane picks a change up right before
+ * its next turn, when Phosphor reloads its extensions
+ * (`libs/session-runtime/src/pi/lane-reload.ts`). Inside a lane the files are
+ * read from the lane's own folder, a worktree's included, since that is the
+ * `.mcp.json` its adapter loads.
  */
 export function ContextSourcesMenu({
   workspacePath,
@@ -40,7 +44,10 @@ export function ContextSourcesMenu({
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const rules = useRuleToggles(sessionId)
-  const mcp = useMcpServers(workspacePath)
+  const laneFolder = useSessionsStore((s) =>
+    sessionId ? s.live[sessionId]?.workspacePath : undefined,
+  )
+  const mcp = useMcpServers(laneFolder ?? workspacePath)
   const servers = mcp.servers ?? []
 
   const rulesOn = rules.filter((rule) => rule.state.checked).length
@@ -115,7 +122,7 @@ export function ContextSourcesMenu({
             <>
               <SectionHeading
                 title="Connectors"
-                note={sessionId ? 'new lanes; this lane keeps its own' : 'new lanes'}
+                note={sessionId ? 'from your next message' : 'new lanes'}
                 divided
               />
               <div className="max-h-60 overflow-y-auto" role="group" aria-label="Connectors">

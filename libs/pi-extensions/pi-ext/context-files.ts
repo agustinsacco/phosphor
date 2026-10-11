@@ -17,6 +17,12 @@
  * Wire contract with Phosphor main (`libs/shared/src/context-files.ts`):
  * the starting state arrives in `PHOSPHOR_CONTEXT_FILES`, later changes as
  * `/phosphor-context-files`, both in the grammar `claude=off agents=on`.
+ *
+ * A change is also written to the session as a custom entry, and the newest
+ * one on the branch wins over the environment at `session_start`. Without it
+ * a reload (`lane-reload.ts`, which rebuilds every extension) or a lane
+ * reopened later would fall back to the preference new lanes start with.
+ *
  * Self-contained because pi loads this file on its own, outside Phosphor's
  * module graph.
  */
@@ -25,6 +31,8 @@ export type ContextFileKind = 'claude' | 'agents'
 
 export const CONTEXT_FILES_ENV = 'PHOSPHOR_CONTEXT_FILES'
 export const CONTEXT_FILES_COMMAND = 'phosphor-context-files'
+/** The session entry a toggle leaves behind; `data` is `{ off: ContextFileKind[] }`. */
+export const CONTEXT_FILES_ENTRY = 'phosphor-context-files'
 
 /** Which toggle a discovered file belongs to, by its file name. */
 export function contextFileKind(path: string): ContextFileKind | null {
@@ -176,8 +184,23 @@ export function contextFilesIn(
   return files
 }
 
+/** The lane's last toggle on this branch, or null when it never toggled. */
+export function savedContextFiles(branch: readonly unknown[]): Set<ContextFileKind> | null {
+  for (let i = branch.length - 1; i >= 0; i--) {
+    const entry = branch[i] as { type?: unknown; customType?: unknown; data?: unknown } | null
+    if (entry?.type !== 'custom' || entry.customType !== CONTEXT_FILES_ENTRY) continue
+    const saved = (entry.data as { off?: unknown } | null)?.off
+    if (!Array.isArray(saved)) return null
+    return new Set(
+      saved.filter((kind): kind is ContextFileKind => kind === 'claude' || kind === 'agents'),
+    )
+  }
+  return null
+}
+
 interface ContextFilesApi {
   on(event: string, handler: (event: unknown, ctx: unknown) => unknown): void
+  appendEntry?(customType: string, data: unknown): void
   registerCommand?(
     name: string,
     command: { description: string; handler(args: string, ctx: unknown): Promise<void> },
@@ -200,8 +223,17 @@ export default function contextFiles(
     description: 'Host control: include or leave out CLAUDE.md / AGENTS.md without running a model',
     async handler(args, ctx) {
       off = applyContextFileArgs(off, args)
+      pi.appendEntry?.(CONTEXT_FILES_ENTRY, { off: [...off] })
       onChange(ctx)
     },
+  })
+  // Registered before the breakdown's own session_start handler, which
+  // publishes what this restores.
+  pi.on('session_start', (_event, ctx) => {
+    const manager = (ctx as { sessionManager?: { getBranch?: () => unknown[] } } | undefined)
+      ?.sessionManager
+    const saved = savedContextFiles(manager?.getBranch?.() ?? [])
+    if (saved) off = saved
   })
   pi.on('context_with_system', (event) => {
     if (off.size === 0) return undefined

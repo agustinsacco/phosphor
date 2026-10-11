@@ -18,6 +18,18 @@ import {
 import { getPrefs, recordWorkspace, realPathOrNull } from '../store'
 import type { CreateSessionOptions, LiveSessionInfo } from '@shared/models'
 import { log } from '../debug-log'
+import { createLaneReload } from '@phosphor/session-runtime/pi/lane-reload'
+import { createLaneConfigFingerprint } from './lane-config'
+
+/** MCP config changes reach running lanes before their next turn. */
+const laneReload = createLaneReload({
+  fingerprint: createLaneConfigFingerprint(),
+  log,
+  // A reload can change the lane's commands (MCP prompts are commands).
+  onApplied: () => {
+    void import('../ipc/pi-config-handlers').then((m) => m.invalidatePiCommands())
+  },
+})
 
 const spawn = createSessionStartup({
   registry,
@@ -32,6 +44,7 @@ const spawn = createSessionStartup({
   },
   accounts: { remember: rememberSpawnAccount, forget: forgetSpawnAccount, hold: holdAccount },
   recordWorkspace,
+  laneReload,
 })
 
 export const desktopSessions = createSessionService<Electron.WebContents>({
@@ -48,6 +61,7 @@ export const desktopSessions = createSessionService<Electron.WebContents>({
   readBudget: () => getPrefs().contextBudget,
   withBudgetCompaction,
   forgetAccount: forgetSpawnAccount,
+  laneReload,
   routines: {
     owns: isRoutineSession,
     sessionForPath: routineSessionForPath,

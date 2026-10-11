@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import contextBreakdownExtension, {
   classifyToolServer,
   contextEntriesOf,
@@ -168,6 +168,8 @@ describe('measureMessages', () => {
 })
 
 describe('context breakdown extension', () => {
+  afterEach(() => vi.unstubAllEnvs())
+
   /** A pi stand-in that records handlers and lets a test fire them. */
   function fakePi(tools: Array<{ name: string; description?: string }>, systemPrompt = '') {
     const lifecycle = new Map<string, (event: unknown, ctx: unknown) => unknown>()
@@ -217,6 +219,8 @@ describe('context breakdown extension', () => {
   })
 
   it('reports the context files and bills only the ones the lane sends', async () => {
+    // A run inside Phosphor inherits the lane's own setting.
+    vi.stubEnv('PHOSPHOR_CONTEXT_FILES', '')
     const block = `<project_instructions path="/r/CLAUDE.md">\n${'c'.repeat(4000)}\n</project_instructions>`
     const prompt = `pre\n\n<project_context>\nProject-specific instructions and guidelines:\n\n${block}\n</project_context>`
     const pi = fakePi([], prompt)

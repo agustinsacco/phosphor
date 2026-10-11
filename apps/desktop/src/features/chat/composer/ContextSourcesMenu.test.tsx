@@ -9,6 +9,7 @@ import { CONTEXT_BREAKDOWN_STATUS_KEY } from './contextBreakdown'
 import { useContextFilesPrefStore } from '@/stores/contextFilesPref'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { useSessionsStore } from '@/stores/sessions'
 
 beforeAll(() => {
   ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -155,10 +156,23 @@ describe('ContextSourcesMenu', () => {
     expect(trigger().textContent).toBe('Rules 2/2 · MCP 1/2')
   })
 
-  it('says inside a lane that connector changes reach new lanes only', async () => {
+  it('reads the lane’s own folder and says a change applies from the next message', async () => {
     servers = [server('linear', { url: 'https://mcp.linear.app/mcp' })]
+    useSessionsStore.setState({
+      live: { s1: { workspacePath: '/repo/.phosphor/worktrees/lane' } } as never,
+    })
     await render('s1')
-    expect(container.textContent).toContain('this lane keeps its own')
+    expect(container.textContent).toContain('from your next message')
+    expect(invoke).toHaveBeenCalledWith('mcp:readConfigs', '/repo/.phosphor/worktrees/lane')
+    await act(async () => box('linear').click())
+    expect(invoke).toHaveBeenCalledWith(
+      'mcp:setDisabled',
+      'pi-global',
+      '/repo/.phosphor/worktrees/lane',
+      'linear',
+      true,
+    )
+    useSessionsStore.setState({ live: {} })
   })
 
   it('re-reads the servers when Settings closes, since it edits the same files', async () => {

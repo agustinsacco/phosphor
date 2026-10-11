@@ -19,7 +19,7 @@ describe('bundledExtensions', () => {
       (name) => name.endsWith('.ts') && !name.endsWith('.test.ts') && !imported.has(name),
     )
     expect([...BUNDLED_EXTENSION_FILES].sort()).toEqual(files.sort())
-    expect(BUNDLED_EXTENSION_FILES).toHaveLength(6)
+    expect(BUNDLED_EXTENSION_FILES).toHaveLength(7)
   })
 
   it('uses the supplied development, packaged or standalone resource root', () => {
@@ -36,6 +36,6 @@ describe('bundledExtensions', () => {
 
   it('returns a new array so a caller cannot change later sessions', () => {
     bundledExtensions(root).pop()
-    expect(bundledExtensions(root)).toHaveLength(6)
+    expect(bundledExtensions(root)).toHaveLength(7)
   })
 })

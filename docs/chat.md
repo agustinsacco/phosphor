@@ -425,8 +425,9 @@ automatic continuation or new global delegation directive.
 
 ## Context files
 
-Both composers carry two checkboxes beside the attach button, **CLAUDE.md**
-and **AGENTS.md** (`composer/ContextFileToggles.tsx`). Unchecked, the model is
+Both composers carry a **Rules · MCP** chip beside the attach button
+(`composer/ContextSourcesMenu.tsx`); its popover holds two checkboxes,
+**CLAUDE.md** and **AGENTS.md**, and the MCP connectors ([mcp.md](mcp.md)). Unchecked, the model is
 not sent the files of that name that pi found for the lane, which can be
 thousands of tokens on every request.
 
@@ -445,7 +446,11 @@ thousands of tokens on every request.
   file.
 
 The filter runs inside pi ([extensions.md](extensions.md#bundled-extensions-phosphors-own))
-and leaves the session file untouched. Shared rules live in
+and leaves the transcript untouched. Each in-lane toggle also appends a
+`phosphor-context-files` custom entry (`{ off: [...] }`, never sent to the
+model); the newest one on the branch wins over the spawn-time value at
+`session_start`, so a lane keeps its choice across an extension reload and
+when it is reopened later. Shared rules live in
 `libs/shared/src/context-files.ts`; the IPC is `app:setContextFile`
 (`apps/desktop/electron/pi/context-files.ts`); spawn-time state is set in
 `libs/session-runtime/src/pi/session-policy.ts`.
@@ -454,7 +459,7 @@ and leaves the session file untouched. Shared rules live in
 
 The model chip, thinking chip and context meter live in the **composer
 footer** (`Composer.tsx`, on the right; the attach button and the
-[context-file checkboxes](#context-files) are on the left); the session's ⋮ menu is
+[Rules · MCP chip](#context-files) are on the left); the session's ⋮ menu is
 in the **top bar** (`app/TopBar.tsx` → `SessionMenu`).
 
 - **Model picker** (from `get_available_models`), grouped by **family** by
