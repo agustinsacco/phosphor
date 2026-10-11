@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SUBSCRIPTION_PROVIDERS, parseAuthCheck } from './auth-status'
+import { SUBSCRIPTION_PROVIDERS, authCheckArgs, parseAuthCheck } from './provider-auth'
 
 describe('parseAuthCheck', () => {
   it('reads the shapes pi actually emits', () => {
@@ -78,6 +78,14 @@ describe('parseAuthCheck', () => {
   it('never reports ready for anything but an explicit ready', () => {
     expect(parseAuthCheck('{"status":"READY"}').status).toBe('unknown')
     expect(parseAuthCheck('{"ready":true}').status).toBe('unknown')
+  })
+})
+
+describe('authCheckArgs', () => {
+  it('asks pi for the credential only when told to', () => {
+    const base = ['auth', 'check', '--provider', 'xai', '--json', '--no-refresh']
+    expect(authCheckArgs('xai', { credentials: false })).toEqual(base)
+    expect(authCheckArgs('xai', { credentials: true })).toEqual([...base, '--credentials'])
   })
 })
 

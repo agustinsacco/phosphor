@@ -28,6 +28,10 @@
       "types": "./src/pi/agent-settings.ts",
       "default": "./src/pi/agent-settings.ts"
     },
+    "./pi/auth-identity": {
+      "types": "./src/pi/auth-identity.ts",
+      "default": "./src/pi/auth-identity.ts"
+    },
     "./pi/context-budget": {
       "types": "./src/pi/context-budget.ts",
       "default": "./src/pi/context-budget.ts"
@@ -59,6 +63,10 @@
     "./pi/pi-paths": {
       "types": "./src/pi/pi-paths.ts",
       "default": "./src/pi/pi-paths.ts"
+    },
+    "./pi/provider-auth": {
+      "types": "./src/pi/provider-auth.ts",
+      "default": "./src/pi/provider-auth.ts"
     },
     "./pi/provider-detect": {
       "types": "./src/pi/provider-detect.ts",

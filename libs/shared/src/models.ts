@@ -1219,7 +1219,7 @@ export interface SubscriptionProviderStatus extends SubscriptionProvider {
   status: 'ready' | 'not_ready' | 'unknown'
   /**
    * Which account the credential belongs to — an email, when the provider's
-   * token says so (`electron/pi/auth-identity.ts`). Absent for an opaque
+   * token says so (`libs/session-runtime/src/pi/auth-identity.ts`). Absent for an opaque
    * credential, which is most of them, so the UI must read fine without it.
    * Never the credential itself.
    */

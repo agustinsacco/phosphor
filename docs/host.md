@@ -3,8 +3,9 @@
 The Host is Phosphor's plain-Node application for machines Desktop does not run
 on. Its command is `phosphor`; its config and logs live in `phosphor-host`
 folders, apart from Desktop's own. Today it is a foreground CLI: `doctor` checks
-whether a machine can run sessions, and `accept` runs real ones there to prove
-it ([accept](#accept)). It listens on nothing. `npm run build:host` builds it
+whether a machine can run sessions, `providers` which models pi can use there,
+and `accept` runs real sessions to prove it ([accept](#accept)). It listens on
+nothing. `npm run build:host` builds it
 ([Build](#build)); nothing installs or publishes it yet. Desktop never runs a
 Host, and offline Desktop never needs one
 ([remote-access.md](remote-access.md)).
@@ -14,10 +15,28 @@ subpaths of `@phosphor/session-runtime` and `@phosphor/shared`, nothing else:
 ESLint refuses Electron, `@shared/*` and `@/*`, and `boundary.test.ts` checks
 every library import against the package's exports.
 
+## Setting up a Host
+
+Three commands, in order. Each ends with a `next:` line naming the one after it.
+
+1. `phosphor doctor` checks the machine: node, the config, pi, git, the
+   extensions and the repositories. Fix what fails and run it again.
+2. `phosphor providers` lists what pi can sign into and whether each is signed in
+   on this machine, with the Claude lane beside them. Until one is, it shows how
+   to sign in: in a terminal on the Host (over SSH is fine), run `pi`, type
+   `/login` and pick a provider; for the Claude lane, run `claude auth login`.
+   Open the link either prints on any computer. The login is made on the Host and
+   stays there: Phosphor never copies one between machines.
+3. `phosphor accept --repository DIR` runs real sessions there. Use the exact
+   command the `next:` line names, with DIR an empty repository from the config:
+   it picks the lane and, when that lane cannot run on pi's default, the provider
+   and model (`ID`, which `pi --list-models` lists).
+
 ## Commands
 
 ```
 phosphor doctor [--config FILE] [--json]
+phosphor providers [--config FILE] [--json]
 phosphor accept --repository DIR [--lane native|claude|all] [--keep-transcripts]
                 [--model ID [--provider NAME]] [--claude-model ID]
                 [--config FILE] [--json]
@@ -29,15 +48,15 @@ go to stderr.
 `version` prints `0.0.0-dev.<sha7>`, or `0.0.0-dev.source` when the build did
 not stamp a commit.
 
-| Exit          | Meaning                                                                  |
-| ------------- | ------------------------------------------------------------------------ |
-| 0             | success                                                                  |
-| 1             | an acceptance check failed; its transcript is kept                       |
-| 64            | usage error                                                              |
-| 69            | a prerequisite is unavailable: node, pi, git, extensions or a repository |
-| 70            | internal error, a failed cleanup or the drain deadline                   |
-| 78            | the config is invalid                                                    |
-| 129, 130, 143 | ended by SIGHUP, SIGINT or SIGTERM, after stopping probes and sessions   |
+| Exit          | Meaning                                                                                                         |
+| ------------- | --------------------------------------------------------------------------------------------------------------- |
+| 0             | success                                                                                                         |
+| 1             | an acceptance check failed; its transcript is kept                                                              |
+| 64            | usage error                                                                                                     |
+| 69            | a prerequisite is unavailable: node, pi, git, extensions or a repository; for `providers`, nothing is signed in |
+| 70            | internal error, a failed cleanup or the drain deadline                                                          |
+| 78            | the config is invalid                                                                                           |
+| 129, 130, 143 | ended by SIGHUP, SIGINT or SIGTERM, after stopping probes and sessions                                          |
 
 ## Build
 
@@ -172,6 +191,7 @@ fail, a config problem (78) outranks a missing prerequisite (69).
 | `extensions`              | The six bundled extensions, and every helper they import from beside themselves, are under `<resourceRoot>/pi-ext/`.                                                                                                                                                                                                | 69         |
 | `repository`              | Each root resolves to an existing folder other than `/`. A root holding the home folder, or one level under `/`, warns; one that is not a git repository is noted.                                                                                                                                                  | 69         |
 | `agent-dir`               | pi's agent folder exists, meaning pi has run as this user.                                                                                                                                                                                                                                                          | warning    |
+| `providers`               | Once pi itself passes: a provider is signed in, and pi's default provider is, when it has one ([providers](#providers)).                                                                                                                                                                                            | warning    |
 | `context-budget`          | The budget sessions will be held to.                                                                                                                                                                                                                                                                                | never      |
 | `accounts`, `compression` | Unavailable on a Host: pi uses the logins of the user running it, and there is no Headroom proxy.                                                                                                                                                                                                                   | never      |
 
@@ -184,11 +204,44 @@ Two lanes come out of the checks:
   `loggedIn` is read from that output, and a failure is described from stderr
   alone: the email and organization beside it identify a person.
 
+When nothing failed, the report ends with the next setup step (`next` in
+`--json`, beside `providers`). While nothing is signed in and the Claude lane is
+unavailable, it is `phosphor providers`. Otherwise it is an accept that passes as
+written, since a lane runs on pi's default unless told otherwise and pi ignores
+a provider named without a model:
+
+| When                                                             | next                                               |
+| ---------------------------------------------------------------- | -------------------------------------------------- |
+| pi's default is `pi-claude-cli` and the Claude lane is available | `accept --repository DIR --lane claude`            |
+| pi's default is another provider, signed in                      | `accept --repository DIR --lane native`            |
+| another provider is signed in (the first in the list)            | `accept ... --lane native --provider P --model ID` |
+| only the Claude lane is available                                | `accept ... --lane claude --claude-model ID`       |
+
 `--json` adds `hello`, the HostHello this Host would present: its host id and
 version, protocol 1, a `runtimeEpoch` that is new on every run, and the
 capabilities `sessions.read` and `sessions.control`. It is checked with
 `validateHostHello` before it is printed, and left out when it would show a
 secret value (the `hello` check).
+
+## providers
+
+`phosphor providers` runs doctor's checks, then asks this Host's pi, in pi's
+environment, about each provider it can sign into: the list Desktop's Accounts
+tab shows (`SUBSCRIPTION_PROVIDERS` in
+`libs/session-runtime/src/pi/provider-auth.ts`), plus pi's default provider from
+its `settings.json` when that is another, such as an API key the config passes.
+`pi-claude-cli` is left to the Claude lane.
+
+Each check is `pi auth check --provider ID --json --no-refresh`: no network, and
+never `--credentials`, so pi prints a status and no credential. Nothing says
+which account is signed in, so no report holds an email. A row is `signed in`,
+`not signed in`, or why the check failed: pi does not offer the provider, pi
+could not read its models or credentials, or the check did not finish. pi's
+default is marked.
+
+It exits 0 when a provider is signed in or the Claude lane is available, and 69
+when neither is, with the sign-in steps as `next`. When pi itself fails doctor,
+nothing is asked: it prints doctor's report and exits with doctor's code.
 
 ## accept
 

@@ -64,7 +64,7 @@ describe('the Claude lane', () => {
     const env = claude('{"loggedIn": false}', 1)
     expect(await checkClaudeLane([provider('0.10.0')], env)).toEqual({
       available: false,
-      reason: 'claude is not logged in: run claude, then /login',
+      reason: 'claude is not logged in: run claude auth login',
     })
     const bare = { env: { PATH: '/usr/bin:/bin' }, secrets: [] }
     expect(await checkClaudeLane([provider('0.10.0')], bare)).toEqual({

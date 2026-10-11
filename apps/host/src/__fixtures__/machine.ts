@@ -39,6 +39,8 @@ export interface FakeMachine {
   script(name: string, body: string): string
   /** Make the Claude lane available: the provider package in pi, and a logged-in claude on PATH. */
   installClaude(): void
+  /** Store a credential for each provider in pi's auth.json, as `/login` would. */
+  signIn(...providers: string[]): void
   /** The Host environment tests start from: poisoned, with one secret. */
   hostEnv: Record<string, string>
   cleanup(): void
@@ -47,10 +49,12 @@ export interface FakeMachine {
 /**
  * A scratch machine: a fake npm install of pi (a Node script with a node
  * shebang and a package.json, like pi 0.87.1), a real git repository, an
- * agent folder and a valid config. The fake pi answers `--version`; with
- * `PI_FAKE_MODE=leak` it fails and prints the secret on stderr instead,
- * after `PI_FAKE_PAD` x's. With `rpc`, pi is the RPC fake instead, which
- * runs sessions.
+ * agent folder and a valid config. The fake pi answers `--version`, and
+ * `auth check` as pi 0.87.1 does, from the providers in the agent folder's
+ * auth.json (`signIn`); `PI_FAKE_AUTH=invalid` answers invalid, `=garbage`
+ * prints no JSON. With `PI_FAKE_MODE=leak` it fails and prints the secret on
+ * stderr instead, after `PI_FAKE_PAD` x's. With `rpc`, pi is the RPC fake
+ * instead, which runs sessions.
  */
 export function fakeMachine(
   options: { piVersion?: string; manifestVersion?: string; engines?: unknown; rpc?: boolean } = {},
@@ -77,7 +81,23 @@ if (process.env.PI_FAKE_MODE === 'leak') {
   process.exit(1)
 }
 if (process.env.PI_FAKE_MODE === 'hang') setInterval(() => {}, 1000)
-else console.log(${JSON.stringify(version)})
+else if (process.argv[2] === 'auth' && process.argv[3] === 'check') {
+  const args = process.argv.slice(4)
+  const provider = args[args.indexOf('--provider') + 1]
+  let stored = {}
+  try {
+    const file = require('node:path').join(process.env.PI_CODING_AGENT_DIR, 'auth.json')
+    stored = JSON.parse(require('node:fs').readFileSync(file, 'utf8'))
+  } catch {}
+  const mode = process.env.PI_FAKE_AUTH
+  const result =
+    mode === 'invalid' ? { status: 'invalid', provider, reason: 'invalid_state' }
+    : stored[provider] ? { status: 'ready', provider, authType: stored[provider].type }
+    : { status: 'not_ready', provider, reason: 'credentials_not_configured' }
+  if (args.includes('--credentials') && stored[provider]) result.credentials = stored[provider].access
+  console.log(mode === 'garbage' ? 'something went wrong' : JSON.stringify(result))
+  process.exitCode = { ready: 0, not_ready: 1 }[result.status] ?? 2
+} else console.log(${JSON.stringify(version)})
 `,
   )
   if (options.rpc) copyFileSync(FAKE_PI, cli)
@@ -140,6 +160,12 @@ else console.log(${JSON.stringify(version)})
         `case "$1" in --version) echo 2.1.283 ;; auth) echo '{"loggedIn":true,"email":"person@example.com"}' ;; esac`,
       )
       machine.writeConfig({ ...machine.config, environment: { path: [bin] } })
+    },
+    signIn(...providers) {
+      const stored = Object.fromEntries(
+        providers.map((id) => [id, { type: 'oauth', access: `${SECRET}-${id}` }]),
+      )
+      writeFileSync(join(agentDir, 'auth.json'), JSON.stringify(stored), { mode: 0o600 })
     },
     hostEnv: {
       HOME: home,

@@ -5,13 +5,19 @@ import { HOST_PROTOCOL_VERSION } from '@phosphor/shared/remote-host'
 import { EXIT } from './checks'
 import { renderAccept, runAccept, type AcceptLane } from './commands/accept'
 import { renderDoctor, runDoctor, type DoctorContext } from './commands/doctor'
+import { renderProviders, runProviders } from './commands/providers'
 import { defaultConfigPath } from './config/load'
 import type { Drainable } from './shutdown'
 import { HOST_SOURCE_SHA, HOST_VERSION } from './version'
 
 export const USAGE = `usage: phosphor <command>
 
+Set up a Host in three steps: doctor, then providers, then accept.
+
   doctor [--config FILE] [--json]   check that this machine can run a Host
+  providers [--config FILE] [--json]
+                                    show which providers pi can use here, and how
+                                    to sign in to one
   accept --repository DIR [--lane native|claude|all] [--keep-transcripts]
          [--model ID [--provider NAME]] [--claude-model ID]
          [--config FILE] [--json]
@@ -39,6 +45,7 @@ export type CliContext = Omit<DoctorContext, 'configPath'> & {
 
 const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   doctor: ['config', 'json'],
+  providers: ['config', 'json'],
   accept: [
     'config',
     'json',
@@ -122,6 +129,18 @@ export async function runCli(
         io.stdout(values.json ? `${JSON.stringify(evidence, null, 2)}\n` : renderAccept(evidence))
       }
       return outcome.exitCode
+    }
+    if (command === 'providers') {
+      const outcome = await runProviders({ ...context, configPath })
+      if ('problem' in outcome) {
+        io.stderr(`phosphor: ${outcome.problem}\n`)
+        const { doctor } = outcome
+        io.stdout(values.json ? `${JSON.stringify(doctor, null, 2)}\n` : renderDoctor(doctor))
+        return outcome.exitCode
+      }
+      const { report } = outcome
+      io.stdout(values.json ? `${JSON.stringify(report, null, 2)}\n` : renderProviders(report))
+      return report.exitCode
     }
     const report = await runDoctor({ ...context, configPath })
     io.stdout(values.json ? `${JSON.stringify(report, null, 2)}\n` : renderDoctor(report))
