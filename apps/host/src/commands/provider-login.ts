@@ -58,6 +58,8 @@ export async function runProviderLogin(context: LoginContext): Promise<LoginOutc
   const terminalEnv = context.env.TERM ? { ...env, TERM: context.env.TERM } : env
   let file: string
   let args: string[]
+  // Signed in before the login: afterwards, "signed in" may be that login still.
+  let before: boolean
   if (isClaude) {
     const claude = await which('claude', env.PATH ?? '')
     if (!claude) {
@@ -66,13 +68,21 @@ export async function runProviderLogin(context: LoginContext): Promise<LoginOutc
     }
     file = claude
     args = ['auth', 'login']
+    const status = await claudeLoggedIn(claude, pi.environment, {
+      timeoutMs: context.probeTimeoutMs,
+    })
+    before = 'loggedIn' in status && status.loggedIn
+    if (before) {
+      progress('Claude Code is already logged in here; logging in again replaces that login.')
+    }
     progress(`Signing in to Claude Code on ${host}. claude auth login runs next:`)
     progress('  1. open the link it prints, on any computer, and sign in')
     progress('  2. paste the code the page shows here, and press Enter')
   } else {
     file = pi.launch.binaryPath
     args = [...pi.launch.prefixArgs, ...PI_LOGIN_ARGS]
-    if (row!.status === 'ready') {
+    before = row!.status === 'ready'
+    if (before) {
       progress(`${row!.name} is already signed in here; signing in again replaces that login.`)
     }
     progress(`Signing in to ${row!.name} on ${host}. pi opens next:`)
@@ -104,6 +114,10 @@ export async function runProviderLogin(context: LoginContext): Promise<LoginOutc
   }
 
   const after = await runProviders(context)
+  const note = (signedIn: boolean) =>
+    signedIn && before
+      ? ' It already was, so if the login did not finish, this is the earlier one.'
+      : ''
   let signedIn: boolean
   let state: string
   if (isClaude) {
@@ -115,13 +129,13 @@ export async function runProviderLogin(context: LoginContext): Promise<LoginOutc
         : auth.loggedIn
           ? 'logged in'
           : 'not logged in'
-    progress(`Claude Code on ${host}: ${state}.`)
+    progress(`Claude Code on ${host}: ${state}.${note(signedIn)}`)
   } else {
     const now =
       'report' in after ? after.report.providers.find((p) => p.id === provider) : undefined
     signedIn = now?.status === 'ready'
     state = now ? describeProvider(now) : 'unknown'
-    progress(`${row!.name} on ${host}: ${state}.`)
+    progress(`${row!.name} on ${host}: ${state}.${note(signedIn)}`)
   }
   return { exitCode: signedIn ? EXIT.ok : EXIT.unavailable, after }
 }

@@ -123,7 +123,25 @@ describe('phosphor providers login', () => {
     const { run } = fakeLogin()
     const { outcome, progress } = await login('xai', { run })
     expect(progress[0]).toBe('xAI is already signed in here; signing in again replaces that login.')
+    // Still signed in, but the login may not have finished: say which login that can be.
+    expect(progress.at(-1)).toBe(
+      'xAI on test-host: signed in. It already was, so if the login did not finish, this is the earlier one.',
+    )
     expect(outcome.exitCode).toBe(0)
+  })
+
+  it('says the same for claude, already logged in before its login', async () => {
+    writeFileSync(installSwitchableClaude(), '')
+    const { run } = fakeLogin()
+    const { outcome, progress } = await login('claude', { run })
+    expect(progress[0]).toBe(
+      'Claude Code is already logged in here; logging in again replaces that login.',
+    )
+    expect(progress.at(-1)).toBe(
+      'Claude Code on test-host: logged in. It already was, so if the login did not finish, this is the earlier one.',
+    )
+    expect(outcome.exitCode).toBe(0)
+    expect(JSON.stringify({ outcome, progress })).not.toContain('person@example.com')
   })
 
   it("signs in pi's default provider too, when it is not in the list", async () => {

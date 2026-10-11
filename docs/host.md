@@ -272,8 +272,11 @@ after 2 s or at a second signal. The credential is written by pi or claude, in
 their own stores, and never passes through the Host. Afterwards the Host asks
 again, as `providers` does, or with `claude auth status` for `claude`: it exits 0
 when the provider is signed in and 69 when it is not, saying which on stderr.
-Signing in to a provider that already is replaces that login, and the Host says
-so before starting. An unknown provider exits 64 and starts nothing.
+Signing in to a provider that already is, `claude` included, replaces that login,
+and the Host says so before starting. If it is still signed in afterwards, the Host
+cannot tell the new login from the earlier one (it never reads a credential), so
+it says that the earlier one is still there if the login did not finish. An
+unknown provider exits 64 and starts nothing.
 
 ## accept
 
