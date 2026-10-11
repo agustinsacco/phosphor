@@ -27,7 +27,10 @@ Three commands, in order. Each ends with a `next:` line naming the one after it.
    `/login` and pick a provider; for the Claude lane, run `claude auth login`.
    Open the link either prints on any computer. The login is made on the Host and
    stays there: Phosphor never copies one between machines.
-3. `phosphor accept --repository DIR` runs real sessions there.
+3. `phosphor accept --repository DIR` runs real sessions there. Use the exact
+   command the `next:` line names, with DIR an empty repository from the config:
+   it picks the lane and, when that lane cannot run on pi's default, the provider
+   and model (`ID`, which `pi --list-models` lists).
 
 ## Commands
 
@@ -201,10 +204,18 @@ Two lanes come out of the checks:
   `loggedIn` is read from that output, and a failure is described from stderr
   alone: the email and organization beside it identify a person.
 
-When nothing failed, the report ends with the next setup step: `phosphor
-providers` while nothing is signed in and the Claude lane is unavailable,
-otherwise `phosphor accept`. `--json` carries it as `next`, and the providers as
-`providers`.
+When nothing failed, the report ends with the next setup step (`next` in
+`--json`, beside `providers`). While nothing is signed in and the Claude lane is
+unavailable, it is `phosphor providers`. Otherwise it is an accept that passes as
+written, since a lane runs on pi's default unless told otherwise and pi ignores
+a provider named without a model:
+
+| When                                                             | next                                               |
+| ---------------------------------------------------------------- | -------------------------------------------------- |
+| pi's default is `pi-claude-cli` and the Claude lane is available | `accept --repository DIR --lane claude`            |
+| pi's default is another provider, signed in                      | `accept --repository DIR --lane native`            |
+| another provider is signed in (the first in the list)            | `accept ... --lane native --provider P --model ID` |
+| only the Claude lane is available                                | `accept ... --lane claude --claude-model ID`       |
 
 `--json` adds `hello`, the HostHello this Host would present: its host id and
 version, protocol 1, a `runtimeEpoch` that is new on every run, and the

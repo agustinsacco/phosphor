@@ -1,3 +1,5 @@
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fakeMachine, type FakeMachine } from './__fixtures__/machine'
 import { runCli, USAGE, type CliContext } from './cli'
@@ -139,6 +141,78 @@ describe('phosphor', () => {
       expect.objectContaining({ lane: 'claude', model: 'claude-test', transcriptDeleted: false }),
     ])
   })
+
+  // The setup steps end in an accept: the one doctor names must pass as written.
+  it.each([
+    {
+      setup: "pi's default is Claude",
+      claude: true,
+      settings: { defaultProvider: 'pi-claude-cli' },
+      signedIn: ['openai-codex'],
+      // The fake pi's stand-in for pi running on its default.
+      env: { PI_FAKE_PROVIDER: 'pi-claude-cli' },
+      lane: 'claude',
+    },
+    {
+      setup: "pi's default is a signed-in provider, with the claude lane available",
+      claude: true,
+      settings: { defaultProvider: 'openai-codex' },
+      signedIn: ['openai-codex'],
+      env: { PI_FAKE_PROVIDER: 'openai-codex' },
+      lane: 'native',
+    },
+    {
+      setup: 'pi has no default provider',
+      claude: false,
+      settings: {},
+      signedIn: ['xai'],
+      env: {},
+      lane: 'native',
+      model: 'grok-test',
+    },
+    {
+      setup: "only the claude lane can run, pi's default being signed out",
+      claude: true,
+      settings: { defaultProvider: 'openai' },
+      signedIn: [],
+      env: {},
+      lane: 'claude',
+      model: 'claude-test',
+    },
+  ])(
+    'recommends an accept that passes as written when $setup',
+    { timeout: 30_000 },
+    async ({ claude, settings, signedIn, env, lane, model }) => {
+      machine = fakeMachine({ rpc: true })
+      if (claude) machine.installClaude()
+      const packages = claude ? { packages: ['npm:@saccolabs/pi-claude-cli'] } : {}
+      writeFileSync(
+        join(machine.agentDir, 'settings.json'),
+        JSON.stringify({ ...packages, ...settings }),
+      )
+      machine.signIn(...signedIn)
+      vi.stubEnv('PI_CODING_AGENT_DIR', machine.agentDir)
+      vi.stubEnv('PATH', process.env.PATH)
+      const options = { env: { ...machine.hostEnv, ...env }, home: machine.home }
+      const config = ['--json', '--config', machine.configPath]
+      const doctor = await run(['doctor', ...config], options)
+      const next: string = JSON.parse(doctor.stdout).next
+      const command = next.slice(next.indexOf('phosphor ') + 'phosphor '.length)
+      const argv = command
+        .replace(/ \(pi --list-models [^)]+\)$/, '')
+        .split(' ')
+        .map((word) => (word === 'DIR' ? machine!.repository : word === 'ID' ? model! : word))
+      expect(argv.includes('ID') || argv.includes('DIR')).toBe(false)
+      expect(argv.slice(0, 4)).toEqual(['accept', '--repository', machine.repository, '--lane'])
+      expect(argv[4]).toBe(lane)
+      expect(next.includes(' ID ')).toBe(model !== undefined)
+      const result = await run([...argv, ...config], options)
+      expect(result.code, `${next}\n${result.stderr}`).toBe(0)
+      expect(JSON.parse(result.stdout).lanes).toEqual([
+        expect.objectContaining({ lane, verdict: 'pass' }),
+      ])
+    },
+  )
 
   it('looks for the config in the XDG folder by default', async () => {
     const result = await run(['doctor'], { env: { XDG_CONFIG_HOME: '/nonexistent/xdg' } })

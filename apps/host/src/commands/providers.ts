@@ -1,6 +1,6 @@
 import { EXIT } from '../checks'
 import { describeProvider, type ProviderState } from '../machine/providers'
-import { inspectHost, nextStep, type DoctorContext, type DoctorReport, type Lane } from './doctor'
+import { inspectHost, type DoctorContext, type DoctorReport, type Lane } from './doctor'
 
 /** How to sign in on a Host today: pi's and Claude Code's own logins, in a terminal on it. */
 export const SIGN_IN_STEPS = [
@@ -39,11 +39,8 @@ export async function runProviders(context: DoctorContext): Promise<ProvidersOut
   const { providers } = report
   const claude = report.lanes.claude
   const ok = providers.some((provider) => provider.status === 'ready') || claude.available
-  const next = !ok
-    ? SIGN_IN_STEPS
-    : report.ok
-      ? nextStep(providers, claude)
-      : 'fix what phosphor doctor reports'
+  // doctor names the accept that passes here, whenever its checks did.
+  const next = !ok ? SIGN_IN_STEPS : (report.next ?? 'fix what phosphor doctor reports')
   return {
     report: {
       ok,

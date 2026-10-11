@@ -4,7 +4,15 @@ import { validateHostHello } from '@phosphor/shared/remote-host'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EXTENSIONS_ROOT, fakeMachine, SECRET, type FakeMachine } from '../__fixtures__/machine'
 import { HOST_VERSION } from '../version'
-import { renderDoctor, runDoctor, type DoctorContext, type DoctorReport } from './doctor'
+import {
+  nextStep,
+  renderDoctor,
+  runDoctor,
+  type DoctorContext,
+  type DoctorReport,
+  type Lane,
+} from './doctor'
+import type { ProviderState } from '../machine/providers'
 
 let machine: FakeMachine
 beforeEach(() => {
@@ -65,7 +73,11 @@ describe('doctor', () => {
       'openrouter not_ready',
       'radius not_ready',
     ])
-    expect(report.next).toBe('run real sessions: phosphor accept --repository DIR')
+    // pi has no default provider here, so the lane is told which to run on.
+    expect(report.next).toBe(
+      'run real sessions on ChatGPT (Codex): phosphor accept --repository DIR --lane native ' +
+        '--provider openai-codex --model ID (pi --list-models openai-codex lists them)',
+    )
     expect(report.lanes.native).toEqual({ available: true })
     expect(report.lanes.claude.reason).toContain('(it is not installed)')
     expect(report.environment?.names).toEqual([
@@ -222,14 +234,18 @@ describe('doctor', () => {
       reason: 'credentials_not_configured',
       default: true,
     })
-    // Signed in to something, so setup moves on; the warning stays.
-    expect(report.next).toBe('run real sessions: phosphor accept --repository DIR')
+    // Signed in to something else, so setup moves on there; the warning stays.
+    expect(report.next).toBe(
+      'run real sessions on ChatGPT (Codex): phosphor accept --repository DIR --lane native ' +
+        '--provider openai-codex --model ID (pi --list-models openai-codex lists them)',
+    )
   })
 
   it('counts the claude lane as something to run on, and asks pi nothing when pi is unusable', async () => {
     machine.installClaude()
     expect((await runDoctor(context())).next).toBe(
-      'run real sessions: phosphor accept --repository DIR',
+      'run real sessions on the claude lane: phosphor accept --repository DIR --lane claude ' +
+        '--claude-model ID (pi --list-models pi-claude-cli lists them)',
     )
     const unusable = await runDoctor(context({ env: { ...machine.hostEnv, PI_FAKE_MODE: 'leak' } }))
     expect(unusable.providers).toBeUndefined()
@@ -253,5 +269,59 @@ describe('doctor', () => {
     expect(text).toContain(`  ok    pi              ${machine.cli} 0.87.1, started with node\n`)
     expect(text).toContain('\nlanes\n  native  available\n  claude  unavailable: ')
     expect(text.endsWith('\nready\nnext: sign in to a provider: phosphor providers\n')).toBe(true)
+  })
+})
+
+describe('nextStep', () => {
+  const row = (id: string, status: ProviderState['status'], isDefault = false): ProviderState => ({
+    id,
+    name: id.toUpperCase(),
+    status,
+    ...(isDefault ? { default: true as const } : {}),
+  })
+  const claude: Lane = { available: true }
+  const noClaude: Lane = { available: false, reason: 'not installed' }
+  const ACCEPT = 'phosphor accept --repository DIR'
+
+  it.each([
+    [
+      "pi's default is Claude and the claude lane is available",
+      [row('xai', 'ready')],
+      claude,
+      'pi-claude-cli',
+      `run real sessions on pi's default, the claude lane: ${ACCEPT} --lane claude`,
+    ],
+    [
+      "pi's default is a signed-in provider, the claude lane aside",
+      [row('xai', 'ready'), row('openai', 'ready', true)],
+      claude,
+      'openai',
+      `run real sessions on pi's default, OPENAI: ${ACCEPT} --lane native`,
+    ],
+    [
+      "pi's default is Claude, which is unavailable",
+      [row('anthropic', 'not_ready'), row('xai', 'ready')],
+      noClaude,
+      'pi-claude-cli',
+      `run real sessions on XAI: ${ACCEPT} --lane native --provider xai --model ID ` +
+        '(pi --list-models xai lists them)',
+    ],
+    [
+      "pi's default is not signed in, nor anything but the claude lane",
+      [row('openai', 'not_ready', true)],
+      claude,
+      'openai',
+      `run real sessions on the claude lane: ${ACCEPT} --lane claude --claude-model ID ` +
+        '(pi --list-models pi-claude-cli lists them)',
+    ],
+    [
+      'nothing is signed in',
+      [row('xai', 'unknown'), row('openai', 'not_ready', true)],
+      noClaude,
+      'openai',
+      'sign in to a provider: phosphor providers',
+    ],
+  ])('names an accept that runs as written when %s', (_when, providers, lane, piDefault, step) => {
+    expect(nextStep(providers, lane, piDefault)).toBe(step)
   })
 })

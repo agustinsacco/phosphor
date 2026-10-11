@@ -7,7 +7,7 @@ import type { PiLaunch } from './executables'
 import { probe, probeFailure, type ProbeEnvironment } from './probe'
 
 /** The Claude lane's provider: checked as a lane, through `claude`, not here. */
-const CLAUDE_CLI_PROVIDER = 'pi-claude-cli'
+export const CLAUDE_CLI_PROVIDER = 'pi-claude-cli'
 
 /** What a provider id from pi's settings may look like before it reaches an argv. */
 const PROVIDER_ID = /^[a-z0-9][a-z0-9._-]{0,63}$/i

@@ -47,7 +47,10 @@ describe('phosphor providers', () => {
     machine.signIn('github-copilot', 'xai')
     const result = await report()
     expect(result).toMatchObject({ ok: true, exitCode: 0 })
-    expect(result.next).toBe('run real sessions: phosphor accept --repository DIR')
+    expect(result.next).toBe(
+      'run real sessions on GitHub Copilot: phosphor accept --repository DIR --lane native ' +
+        '--provider github-copilot --model ID (pi --list-models github-copilot lists them)',
+    )
     const ready = result.providers.filter((provider) => provider.status === 'ready')
     expect(ready.map((provider) => provider.id)).toEqual(['github-copilot', 'xai'])
     for (const text of [JSON.stringify(result), renderProviders(result)]) {
@@ -115,8 +118,6 @@ describe('phosphor providers', () => {
     expect(text).toContain('\n  ok    ChatGPT (Codex)  signed in (openai-codex)\n')
     expect(text).toContain('\n  -     Claude Pro/Max   not signed in (anthropic)\n')
     expect(text).toContain('\nclaude lane: unavailable: ')
-    expect(text.endsWith('\nnext: run real sessions: phosphor accept --repository DIR\n')).toBe(
-      true,
-    )
+    expect(text).toMatch(/\nnext: run real sessions on ChatGPT \(Codex\): phosphor accept .+\n$/)
   })
 })
