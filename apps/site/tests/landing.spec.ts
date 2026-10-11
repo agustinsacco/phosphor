@@ -151,7 +151,7 @@ test('header links go to the repo and straight to the latest release', async ({ 
 
 test('actual layouts use native controls and keyboard navigation', async ({ page }) => {
   await page.goto('/')
-  await expect(page.locator('h1')).toHaveText('Ten agents. Ten branches. One window.')
+  await expect(page.locator('h1')).toHaveText('An IDE built around the agent.')
   await expect(page.locator('.package-card')).toHaveCount(5)
   await expect(page.locator('.connector-grid > a')).toHaveCount(8)
   await page.locator('#surface summary').click()
