@@ -16,7 +16,7 @@ import { loadHostConfig } from '../config/load'
 import { resolveHostId, type ConfigError } from '../config/schema'
 import { checkClaudeLane, type ClaudeLane } from '../machine/claude'
 import { buildPiEnvironment, redact, type PiEnvironment } from '../machine/environment'
-import { checkGit, checkHostNode, resolvePi } from '../machine/executables'
+import { checkGit, checkHostNode, resolvePi, type PiLaunch } from '../machine/executables'
 import {
   CLAUDE_CLI_PROVIDER,
   checkProviders,
@@ -87,6 +87,8 @@ export interface HostInspection {
   piVersion: string | null
   /** The Claude lane as checked, with its claude and version. */
   claude: ClaudeLane | null
+  /** pi and its environment whenever pi itself passed, even when another check failed. */
+  pi: { launch: PiLaunch; environment: PiEnvironment } | null
 }
 
 const unavailable = (reason: string): Lane => ({ available: false, reason })
@@ -116,7 +118,7 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
       checks,
       lanes: { native: unavailable('no usable config'), claude: unavailable('no usable config') },
     }
-    return { report, machine: null, secrets: [], piVersion: null, claude: null }
+    return { report, machine: null, secrets: [], piVersion: null, claude: null, pi: null }
   }
   const { config } = loaded
   checks.push(pass('config', loaded.path))
@@ -219,6 +221,7 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
     secrets: environment.secrets,
     piVersion: pi.launch?.version ?? null,
     claude: claudeLane,
+    pi: pi.launch ? { launch: pi.launch, environment } : null,
   }
 }
 

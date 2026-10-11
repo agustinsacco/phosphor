@@ -5,7 +5,9 @@ import { HOST_PROTOCOL_VERSION } from '@phosphor/shared/remote-host'
 import { EXIT } from './checks'
 import { renderAccept, runAccept, type AcceptLane } from './commands/accept'
 import { renderDoctor, runDoctor, type DoctorContext } from './commands/doctor'
+import type { LoginContext } from './commands/provider-login'
 import { renderProviders, runProviders } from './commands/providers'
+import { runProviderLogin } from './commands/provider-login'
 import { defaultConfigPath } from './config/load'
 import type { Drainable } from './shutdown'
 import { HOST_SOURCE_SHA, HOST_VERSION } from './version'
@@ -16,8 +18,11 @@ Set up a Host in three steps: doctor, then providers, then accept.
 
   doctor [--config FILE] [--json]   check that this machine can run a Host
   providers [--config FILE] [--json]
-                                    show which providers pi can use here, and how
-                                    to sign in to one
+                                    show which providers pi can use here
+  providers login PROVIDER [--config FILE]
+                                    sign in to PROVIDER here, in this terminal, with
+                                    its own login: a pi provider id, or claude for
+                                    the claude lane
   accept --repository DIR [--lane native|claude|all] [--keep-transcripts]
          [--model ID [--provider NAME]] [--claude-model ID]
          [--config FILE] [--json]
@@ -41,6 +46,10 @@ export interface CliIo {
 export type CliContext = Omit<DoctorContext, 'configPath'> & {
   /** Drain a running Host on a signal or a fatal error, until the returned function detaches it. */
   attach?: (target: Drainable) => () => void
+  /** stdin and stdout are a terminal, which a login needs. */
+  terminal?: boolean
+  /** Replaced in tests: hands the terminal to a login. */
+  runInTerminal?: LoginContext['run']
 }
 
 const COMMAND_OPTIONS: Record<string, readonly string[]> = {
@@ -81,11 +90,20 @@ export async function runCli(
     return EXIT.ok
   }
   if (command === undefined) return usage('no command given')
-  const allowed = COMMAND_OPTIONS[command]
+  const login = command === 'providers' && extra[0] === 'login'
+  const name = login ? 'providers login' : command
+  const allowed = login ? ['config'] : COMMAND_OPTIONS[command]
   if (!allowed) return usage(`unknown command "${command}"`)
-  if (extra.length > 0) return usage(`unexpected argument "${extra[0]}"`)
+  if (login && extra.length === 1) {
+    return usage('providers login needs a provider: an id phosphor providers lists, or claude')
+  }
+  const unexpected = extra[login ? 2 : 0]
+  if (unexpected !== undefined) return usage(`unexpected argument "${unexpected}"`)
   const refused = Object.keys(values).find((option) => !allowed.includes(option))
-  if (refused) return usage(`${command} does not take --${refused}`)
+  if (refused) return usage(`${name} does not take --${refused}`)
+  if (login && !context.terminal) {
+    return usage('providers login needs a terminal: over SSH, run ssh -t HOST phosphor ...')
+  }
   if (values.config === '') return usage('--config needs a file')
   const lane = values.lane ?? 'all'
   if (!['native', 'claude', 'all'].includes(lane)) return usage('--lane is native, claude or all')
@@ -127,6 +145,23 @@ export async function runCli(
       } else {
         const { evidence } = outcome
         io.stdout(values.json ? `${JSON.stringify(evidence, null, 2)}\n` : renderAccept(evidence))
+      }
+      return outcome.exitCode
+    }
+    if (login) {
+      const outcome = await runProviderLogin({
+        ...context,
+        configPath,
+        provider: extra[1]!,
+        progress: (line) => io.stderr(`${line}\n`),
+        run: context.runInTerminal,
+      })
+      const shown = 'problem' in outcome ? outcome : outcome.after
+      if ('problem' in shown) {
+        io.stderr(`phosphor: ${shown.problem}\n`)
+        if (shown.doctor) io.stdout(renderDoctor(shown.doctor))
+      } else {
+        io.stdout(renderProviders(shown.report))
       }
       return outcome.exitCode
     }

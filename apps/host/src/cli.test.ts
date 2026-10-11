@@ -62,7 +62,11 @@ describe('phosphor', () => {
     [['doctor', '--claude-model', 'm'], 'doctor does not take --claude-model'],
     [['version', '--keep-transcripts'], 'version does not take --keep-transcripts'],
     [['providers', '--repository', '/repo'], 'providers does not take --repository'],
-    [['providers', 'login'], 'unexpected argument "login"'],
+    [['providers', 'status'], 'unexpected argument "status"'],
+    [['providers', 'login'], 'providers login needs a provider: an id phosphor providers lists'],
+    [['providers', 'login', 'xai', 'extra'], 'unexpected argument "extra"'],
+    [['providers', 'login', 'xai', '--json'], 'providers login does not take --json'],
+    [['providers', 'login', 'xai'], 'providers login needs a terminal: over SSH, run ssh -t'],
     [['doctor', '--nope'], "Unknown option '--nope'"],
     [['doctor', 'extra'], 'unexpected argument "extra"'],
     [['doctor', '--config'], "Option '--config <value>' argument missing"],
@@ -140,6 +144,33 @@ describe('phosphor', () => {
     expect(JSON.parse(result.stdout).lanes).toEqual([
       expect.objectContaining({ lane: 'claude', model: 'claude-test', transcriptDeleted: false }),
     ])
+  })
+
+  it('signs in on the terminal: steps on stderr, then the providers report on stdout', async () => {
+    machine = fakeMachine()
+    vi.stubEnv('PI_CODING_AGENT_DIR', machine.agentDir)
+    const signIn = machine.signIn.bind(machine)
+    const result = await run(['providers', 'login', 'xai', '--config', machine.configPath], {
+      env: machine.hostEnv,
+      home: machine.home,
+      terminal: true,
+      runInTerminal: async () => {
+        signIn('xai')
+        return { code: 0 }
+      },
+    })
+    expect(result.code).toBe(0)
+    expect(result.stderr).toMatch(/^Signing in to xAI on test-host\. pi opens next:\n/)
+    expect(result.stderr.endsWith('xAI on test-host: signed in.\n')).toBe(true)
+    expect(result.stdout).toMatch(/^phosphor providers · test-host\n/)
+    expect(result.stdout).toContain('  ok    xAI              signed in (xai)\n')
+    const unknown = await run(['providers', 'login', 'nope', '--config', machine.configPath], {
+      env: machine.hostEnv,
+      home: machine.home,
+      terminal: true,
+    })
+    expect(unknown).toMatchObject({ code: 64, stdout: '' })
+    expect(unknown.stderr).toMatch(/^phosphor: unknown provider "nope": one of openai-codex, /)
   })
 
   // The setup steps end in an accept: the one doctor names must pass as written.

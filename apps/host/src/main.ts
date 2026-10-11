@@ -35,6 +35,7 @@ const code = await runCli(
     // The bundle's own folder, which holds pi-ext/ beside it.
     defaultResourceRoot: dirname(fileURLToPath(import.meta.url)),
     attach: shutdown.attach,
+    terminal: process.stdin.isTTY === true && process.stdout.isTTY === true,
   },
 )
 shutdown.finish(code)
