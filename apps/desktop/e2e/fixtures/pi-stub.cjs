@@ -453,6 +453,16 @@ function handle(cmd) {
               source: 'extension',
             },
             {
+              name: 'subagents-steer',
+              description: 'Steer an owned async run',
+              source: 'extension',
+            },
+            {
+              name: 'phosphor-save-subagent-snapshot',
+              description: 'Save an inspection snapshot',
+              source: 'extension',
+            },
+            {
               name: 'subagents-inspect-rpc',
               description: 'Read-only child inspection',
               source: 'extension',
@@ -607,7 +617,12 @@ function handle(cmd) {
         success: true,
         data: {
           messages: sessionEntries()
-            .filter((e) => e.id.startsWith('workflow-evidence-'))
+            .filter(
+              (e) =>
+                !sessionEntries().some(
+                  (entry) => entry.type === 'compaction' && entry.id === 'stub-workflow-compact',
+                ) && e.id.startsWith('workflow-evidence-'),
+            )
             .map((e) => ({ ...e, role: 'custom' })),
         },
       })
@@ -640,6 +655,89 @@ function handle(cmd) {
       // Scenario switch, keyed off the prompt text: the default turn is what
       // most tests assert on, so extra scenarios must not change it.
       const message = typeof cmd.message === 'string' ? cmd.message : ''
+      if (message.startsWith('/subagents-steer ')) {
+        const requestId = `steer-${Date.now()}`
+        for (const [i, content] of [
+          'Running subagent...',
+          'Steering delivered to the addressed child.',
+        ].entries()) {
+          const notice = {
+            role: 'custom',
+            customType: 'subagent-slash-result',
+            content,
+            display: i === 0,
+            details: { requestId },
+          }
+          fs.appendFileSync(
+            SESSION_FILE,
+            JSON.stringify({
+              ...notice,
+              type: 'custom_message',
+              id: `${requestId}-${i}`,
+              parentId: sessionEntries().at(-1)?.id ?? null,
+              timestamp: new Date().toISOString(),
+            }) + '\n',
+          )
+          out({ type: 'message_end', message: notice })
+        }
+        break
+      }
+      if (message.startsWith('/phosphor-save-subagent-snapshot ')) {
+        // This is still a stubbed receipt. The shared formatter avoids a second
+        // Markdown protocol; native appendEntry is tested separately with real Pi.
+        const {
+          snapshotContent,
+        } = require('../../../../libs/pi-extensions/pi-ext/subagent-snapshot.ts')
+        const [, requestId, payload] = message.split(' ')
+        const artifact = {
+          id: `subagent-${require('node:crypto').randomUUID()}`,
+          title: 'Saved subagent snapshot',
+          type: 'markdown',
+          version: 1,
+          content: snapshotContent(JSON.parse(decodeURIComponent(payload)), 'stub-session'),
+        }
+        fs.appendFileSync(
+          SESSION_FILE,
+          JSON.stringify({
+            type: 'custom',
+            customType: 'phosphor-saved-artifact',
+            id: artifact.id,
+            parentId: sessionEntries().at(-1)?.id ?? null,
+            timestamp: new Date().toISOString(),
+            data: artifact,
+          }) + '\n',
+        )
+        out({
+          type: 'extension_ui_request',
+          id: requestId,
+          method: 'setWidget',
+          widgetKey: 'phosphor-subagent-save',
+          widgetLines: [`PHOSPHOR_SUBAGENT_SAVE:${JSON.stringify({ requestId, artifact })}`],
+        })
+        out({
+          type: 'extension_ui_request',
+          id: `${requestId}-clear`,
+          method: 'setWidget',
+          widgetKey: 'phosphor-subagent-save',
+        })
+        break
+      }
+      if (message === '/stub-expire-and-compact-workflow') {
+        fs.appendFileSync(
+          SESSION_FILE,
+          JSON.stringify({
+            type: 'compaction',
+            id: 'stub-workflow-compact',
+            parentId: sessionEntries().at(-1)?.id ?? null,
+            timestamp: new Date().toISOString(),
+            summary: 'Workflow evidence compacted.',
+            firstKeptEntryId: 'stub-workflow-compact',
+            tokensBefore: 1000,
+          }) + '\n',
+        )
+        publishWorkflowFleet(true)
+        break
+      }
       if (message.startsWith('/subagents-inspect-rpc ')) {
         const [, requestId, asyncId, childId] = message.split(' ')
         const reply = {
@@ -668,6 +766,9 @@ function handle(cmd) {
             },
           ],
           truncated: { task: false, messages: 2, finalOutput: false },
+          ...(sessionEntries().some((e) => e.id === 'stub-workflow-compact')
+            ? { error: { code: 'not_found', message: 'Native inspection artifacts expired.' } }
+            : {}),
         }
         out({
           type: 'extension_ui_request',

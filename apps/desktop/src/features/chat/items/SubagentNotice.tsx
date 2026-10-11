@@ -19,9 +19,11 @@ import { SEGMENT } from '../transcriptFind'
 export function SubagentNoticeItem({
   item,
   onInspect,
+  reply,
 }: {
   item: CustomItem
   onInspect?: (runId: string) => void
+  reply?: string
 }): React.JSX.Element {
   const notice: SubagentNotice = parseSubagentNotice(item.customType, item.text, item.details) ?? {
     kind: 'completion' as const,
@@ -32,7 +34,13 @@ export function SubagentNoticeItem({
   const timestamp = item.timestamp === undefined ? undefined : new Date(item.timestamp)
   const validTime = timestamp && Number.isFinite(timestamp.getTime()) ? timestamp : undefined
   const calm = notice.kind === 'completion' && notice.status === 'completed'
-  const [open, setOpen] = useState(!calm && !notice.summary)
+  const [chosen, setChosen] = useState<boolean>()
+  const open = chosen ?? (reply === undefined && !calm && !notice.summary)
+  const request = item.details as { requestBody?: unknown } | undefined
+  const questionBody =
+    notice.kind === 'question' && typeof request?.requestBody === 'string'
+      ? request.requestBody
+      : undefined
   const expandable = notice.body.length > 0
   const tone =
     notice.kind === 'attention' || notice.kind === 'question' || notice.status === 'failed'
@@ -54,7 +62,7 @@ export function SubagentNoticeItem({
       )}
     >
       <button
-        onClick={() => expandable && setOpen((o) => !o)}
+        onClick={() => expandable && setChosen(!open)}
         aria-expanded={expandable ? open : undefined}
         disabled={!expandable}
         className={clsx(
@@ -74,7 +82,10 @@ export function SubagentNoticeItem({
         >
           agent
         </span>
-        <span className="text-text min-w-0 break-words font-medium">{notice.headline}</span>
+        <span className="text-text min-w-0 break-words font-medium">
+          {notice.headline}
+          {reply !== undefined ? ' · parent replied' : ''}
+        </span>
         {expandable && (
           <ChevronIcon
             expanded={open}
@@ -120,7 +131,20 @@ export function SubagentNoticeItem({
           data-find-segment={SEGMENT.body}
           className="border-accent/30 mt-1 mb-1 ml-1 max-h-[28rem] overflow-auto border-l-2 pl-3 text-base"
         >
-          <Markdown text={notice.body} />
+          <Markdown text={questionBody ?? notice.body} />
+          {reply !== undefined && (
+            <section className="border-border mt-3 border-t pt-2">
+              <h4 className="font-medium">Parent’s recorded reply</h4>
+              <Markdown text={reply} />
+              <p className="text-text-secondary">A reply is not proof the child acted on it.</p>
+            </section>
+          )}
+          {questionBody && (
+            <details className="mt-2">
+              <summary className="cursor-pointer">Original notice</summary>
+              <Markdown text={notice.body} />
+            </details>
+          )}
         </div>
       )}
     </div>

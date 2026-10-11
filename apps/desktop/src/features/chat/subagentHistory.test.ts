@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import request from './__fixtures__/subagent-supervisor-request.json'
-import { subagentHistory } from './subagentHistory'
+import { recordedReply, subagentHistory } from './subagentHistory'
+import type { CustomItem, ToolState } from './chatItems'
+import { hydrateFromMessages, emptyChatSession, reduceChatEvent } from './reducer'
+import type { AgentMessage } from '@shared/rpc'
 import { hasDelegatedWork, parseFleetWidget, summarizeFleet } from './subagentRuns'
 
 const ask = { type: 'custom_message', id: 'ask', parentId: null, ...request }
@@ -24,6 +27,100 @@ describe('branch-aware recorded coordination', () => {
       text: 'Use the shared parser.',
     })
     expect(subagentHistory([ask, reply], 'ask').items.map((i) => i.id)).toEqual(['ask'])
+  })
+  it('pairs recorded replies after compaction without joining different runs or absent receipts', () => {
+    const history = subagentHistory([ask, reply], 'reply')
+    expect(recordedReply(history.items[0]!, history.items)).toBe('Use the shared parser.')
+    expect(
+      recordedReply(history.items[0]!, [
+        { ...history.items[1]!, details: { ...reply.data, runId: 'foreign' } },
+      ]),
+    ).toBeUndefined()
+    const tool = {
+      toolName: 'subagent_supervisor',
+      status: 'done',
+      args: { replyTo: 'question-a', message: 'Live answer' },
+      result: { details: { replyTo: 'question-a', runId: 'run-a' } },
+    } as unknown as ToolState
+    expect(recordedReply(history.items[0]!, [], { tool })).toBe('Live answer')
+    expect(
+      recordedReply(history.items[0]!, [], { tool: { ...tool, isError: true } }),
+    ).toBeUndefined()
+    expect(
+      recordedReply(history.items[0]!, [], { tool: { ...tool, result: undefined } }),
+    ).toBeUndefined()
+  })
+  it('includes pre-compaction launch/resume receipts without turning detached launches into live work', () => {
+    const entries = [
+      {
+        id: 'call',
+        parentId: null,
+        type: 'message',
+        message: {
+          role: 'assistant',
+          content: [
+            {
+              type: 'toolCall',
+              id: 't1',
+              name: 'subagent',
+              arguments: { agent: 'worker', task: 'Inspect only', async: true },
+            },
+          ],
+        },
+      },
+      {
+        id: 'result',
+        parentId: 'call',
+        type: 'message',
+        message: {
+          role: 'toolResult',
+          toolName: 'subagent',
+          toolCallId: 't1',
+          details: { mode: 'single', asyncId: 'run-a', async: true },
+        },
+      },
+      { id: 'compact', parentId: 'result', type: 'compaction' },
+    ]
+    const history = subagentHistory(entries, 'compact')
+    expect(history.launches[0]).toMatchObject({
+      label: 'Launch request: worker',
+      task: 'Inspect only',
+      runId: 'run-a',
+      outcome: 'Detached launch receipt, not current running status.',
+    })
+    expect(history.runIds.has('run-a')).toBe(true)
+    expect(subagentHistory(entries, 'call').launches[0]?.runId).toBeUndefined()
+  })
+  it('folds slash placeholders into their exact final receipts live, on hydration and in branch history', () => {
+    const messages = ['Running subagent...', 'Message delivered.'].map((content, i) => ({
+      role: 'custom',
+      customType: 'subagent-slash-result',
+      content,
+      display: i === 0,
+      details: { requestId: 'same-request' },
+    })) as AgentMessage[]
+    let state = emptyChatSession()
+    for (const message of messages) state = reduceChatEvent(state, { type: 'message_end', message })
+    const entries = messages.map((message, i) => ({
+      type: 'message',
+      id: String(i),
+      parentId: i ? '0' : null,
+      message,
+    }))
+    for (const items of [
+      state.items,
+      hydrateFromMessages(messages).items,
+      subagentHistory(entries, '1').items,
+    ]) {
+      expect(items).toHaveLength(1)
+      expect((items[0] as CustomItem).text).toBe('Message delivered.')
+    }
+    expect(
+      hydrateFromMessages([
+        ...messages,
+        { ...messages[1]!, details: { requestId: 'other' } } as AgentMessage,
+      ]).items,
+    ).toHaveLength(2)
   })
   it('fails closed for missing leaves, empty branches and cycles', () => {
     expect(() => subagentHistory([ask, reply], 'missing')).toThrow('unavailable')

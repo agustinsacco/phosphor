@@ -3,6 +3,7 @@ import { access, mkdir, rename, stat, unlink, writeFile } from 'node:fs/promises
 import { dirname } from 'node:path'
 import {
   ARTIFACT_INDEX_FORMAT,
+  ARTIFACT_ENTRY_TYPE,
   ARTIFACT_TYPES,
   ARTIFACT_WRITE_TOOLS,
   blobFile,
@@ -104,7 +105,8 @@ export function scanLine(state: ScanState, line: string): void {
     state.name = typeof name === 'string' && name ? name : undefined
     return
   }
-  if (type !== 'message') return
+  const saved = type === 'custom' && line.includes(ARTIFACT_ENTRY_TYPE)
+  if (type !== 'message' && !saved) return
 
   if (!state.firstUserText && line.includes('"role":"user"')) {
     parsed ??= tryParse(line)
@@ -112,9 +114,14 @@ export function scanLine(state: ScanState, line: string): void {
     if (message?.role === 'user') state.firstUserText = extractText(message.content)?.slice(0, 200)
   }
 
-  if (!line.includes('"toolName":"artifact_')) return
+  if (!saved && !line.includes('"toolName":"artifact_')) return
   parsed ??= tryParse(line)
-  const message = parsed?.message as
+  if (saved && parsed?.customType !== ARTIFACT_ENTRY_TYPE) return
+  const message = (
+    saved
+      ? { role: 'toolResult', toolName: 'artifact_create', details: parsed?.data }
+      : parsed?.message
+  ) as
     | {
         role?: string
         toolName?: string

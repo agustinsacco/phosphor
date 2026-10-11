@@ -30,6 +30,7 @@ import type {
 } from './chatItems'
 import { emptyChatSession, newItemId } from './chatItems'
 import { isSubagentNotice } from './subagentRuns'
+import { appendCustomItem } from './subagentReceipts'
 import {
   applyRevealedIdentity,
   pendingToolId,
@@ -599,7 +600,10 @@ function applyMessageEnd(state: ChatSessionState, message: AgentMessage): ChatSe
     case 'customMessage': {
       const item = customItemFrom(message as CustomMessage)
       // `display: false` means the extension wants it hidden from the UI.
-      return item ? { ...state, items: [...state.items, item] } : state
+      if (!item) return state
+      const items = [...state.items]
+      appendCustomItem(items, item)
+      return { ...state, items }
     }
 
     default:
@@ -738,7 +742,7 @@ export function hydrateFromMessages(messages: AgentMessage[]): ChatSessionState 
       case 'custom':
       case 'customMessage': {
         const item = customItemFrom(message as CustomMessage)
-        if (item) items.push(item)
+        if (item) appendCustomItem(items, item)
         break
       }
       default:

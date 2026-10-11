@@ -24,6 +24,7 @@ import { Divider } from './items/Divider'
 import { SubagentNoticeItem } from './items/SubagentNotice'
 import { SubagentPanel } from './SubagentPanel'
 import { isSubagentNotice } from './subagentRuns'
+import { recordedReply } from './subagentHistory'
 import type { FindReveal } from './useTranscriptFind'
 import { SEGMENT } from './transcriptFind'
 
@@ -96,9 +97,10 @@ function InspectableSubagentNotice({
   sessionId: string
 }): React.JSX.Element {
   const [runId, setRunId] = useState<string>()
+  const tools = useChatStore((s) => s.sessions[sessionId]?.tools)
   return (
     <>
-      <SubagentNoticeItem item={item} onInspect={setRunId} />
+      <SubagentNoticeItem item={item} reply={recordedReply(item, [], tools)} onInspect={setRunId} />
       {runId && (
         <SubagentPanel
           key={`${sessionId}:${runId}`}

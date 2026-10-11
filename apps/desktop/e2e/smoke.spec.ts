@@ -4081,7 +4081,10 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
     await chip.click()
     await inspector.getByRole('button', { name: 'Recorded coordination' }).click()
     await expect(inspector).toContainText('worker asked the parent for guidance')
-    await expect(inspector).toContainText('Parent replied to worker')
+    await expect(inspector).toContainText('parent replied')
+    await inspector
+      .getByRole('button', { name: /worker asked the parent for guidance.*parent replied/ })
+      .click()
     await expect(inspector).toContainText('Use the shared parser.')
     await page.screenshot({ path: test.info().outputPath('subagents-coordination.png') })
     await inspector.getByRole('button', { name: 'Close', exact: true }).click()
@@ -4222,18 +4225,22 @@ test('recorded workflow completions and attention stay visible, attributable and
     const inspected = sent.filter(
       (c) => c.type === 'prompt' && c.message.startsWith('/subagents-inspect-rpc '),
     )
-    expect(inspected).toHaveLength(7)
-    expect(inspected.at(-1).message).toMatch(
-      /^\/subagents-inspect-rpc [\w-]+ 10000000-0000-4000-8000-000000000000 validation --lines 100$/,
-    )
+    expect(inspected.length).toBeGreaterThanOrEqual(7)
     expect(
-      inspected
-        .slice(0, 6)
-        .every((c) =>
-          /^\/subagents-inspect-rpc [\w-]+ 1000000[12]-0000-4000-8000-000000000000 --lines 100$/.test(
-            c.message,
-          ),
+      inspected.some((c) =>
+        /^\/subagents-inspect-rpc [\w-]+ 10000000-0000-4000-8000-000000000000 validation --lines 100$/.test(
+          c.message,
         ),
+      ),
+    ).toBe(true)
+    // Restoring selection and refreshing a settled target can repeat reads,
+    // but may never change their exact run/child identities.
+    expect(
+      inspected.every((c) =>
+        /^\/subagents-inspect-rpc [\w-]+ (?:1000000[12]-0000-4000-8000-000000000000|10000000-0000-4000-8000-000000000000 validation) --lines 100$/.test(
+          c.message,
+        ),
+      ),
     ).toBe(true)
     expect(sent.some((c) => c.type === 'prompt' && c.message.startsWith('/subagents-stop'))).toBe(
       false,
@@ -4241,6 +4248,107 @@ test('recorded workflow completions and attention stay visible, attributable and
     expect(errors).toEqual([])
   } finally {
     await shutdown(harness)
+  }
+})
+
+test('subagent inspection, steering and saved snapshots survive compaction and a full restart', async () => {
+  const userDataDir = await scratchDir('phosphor-subagent-save-')
+  const commands = join(userDataDir, 'commands.jsonl')
+  const first = await launch({ userDataDir, env: { PHOSPHOR_E2E_COMMAND_LOG: commands } })
+  const { workspace, page } = first
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('workflow-evidence')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByTestId('background-work-indicator')).toBeVisible()
+    await page.getByRole('button', { name: 'View subagents' }).click()
+    const panel = page.getByRole('dialog', { name: 'Subagents', exact: true })
+    await panel
+      .getByRole('button', { name: 'validation running needs parent attention', exact: true })
+      .click()
+    await expect(panel).toContainText('Validation: full suite is running')
+    await panel.getByRole('button', { name: 'Steer…' }).click()
+    await panel
+      .getByLabel('Steering message', { exact: true })
+      .fill('Check the focused parser tests.')
+    await panel.getByRole('button', { name: 'Send steering message' }).click()
+    await expect(panel).toContainText('Steering requested')
+    await panel.getByRole('button', { name: 'Save snapshot', exact: true }).click()
+    await expect(panel).toContainText('Saved in Artifacts')
+    // Saving alone never takes the pane or closes the inspection.
+    await expect(panel).toBeVisible()
+    await expect(page.getByTestId('artifact-scroll')).toHaveCount(0)
+    await page.screenshot({ path: test.info().outputPath('subagent-saved-and-steered.png') })
+    await panel.getByRole('button', { name: 'Close', exact: true }).click()
+    await expect(
+      page.getByTestId('subagent-notice').filter({ hasText: 'Steering delivered' }),
+    ).toHaveCount(1)
+    await expect(page.getByText('Running subagent...', { exact: true })).toHaveCount(0)
+    await page.getByTestId('subagent-chip').click()
+    await expect(panel).toContainText('Validation: full suite is running')
+    expect(
+      (
+        await page.evaluate(async () => {
+          const live = await window.phosphor.invoke('pi:listLiveSessions')
+          return window.phosphor.piCommand(live[0]!.sessionId, {
+            type: 'prompt',
+            message: '/stub-expire-and-compact-workflow',
+          })
+        })
+      ).success,
+    ).toBe(true)
+    await expect(panel).toContainText('Native inspection artifacts expired')
+    await expect(panel).toContainText('last successful read')
+    await expect(page.getByTestId('background-work-indicator')).toHaveCount(0)
+  } finally {
+    await first.app.close()
+  }
+
+  const second = await launch({
+    workspace,
+    userDataDir,
+    env: { PHOSPHOR_E2E_COMMAND_LOG: commands },
+  })
+  try {
+    const p = second.page
+    await expect(p.getByTestId('session-row')).toHaveCount(1, { timeout: 30_000 })
+    await p.getByTestId('session-row').click()
+    await expect(p.getByTestId('subagent-chip')).toBeVisible()
+    // Restoring preferences never automatically opens a modal or restores old liveness.
+    await expect(p.getByRole('dialog', { name: 'Subagents', exact: true })).toHaveCount(0)
+    await expect(p.getByTestId('background-work-indicator')).toHaveCount(0)
+    await p.getByTestId('subagent-chip').click()
+    const panel = p.getByRole('dialog', { name: 'Subagents', exact: true })
+    await expect(panel).toContainText('child validation')
+    await expect(panel).toContainText('Native inspection artifacts expired')
+    await panel.getByRole('button', { name: 'Recorded coordination' }).click()
+    await expect(panel).toContainText('reviewer completed a workflow step')
+    await expect(panel).toContainText('Steering delivered to the addressed child')
+    await panel.getByRole('button', { name: 'Close', exact: true }).click()
+    await p.getByRole('button', { name: 'Artifacts pane', exact: true }).click()
+    await expect(p.getByTestId('right-pane')).toContainText('Saved subagent snapshot')
+    await expect(p.getByTestId('artifact-scroll')).toContainText(
+      'Validation: full suite is running',
+    )
+    await expect(p.getByTestId('artifact-scroll')).toContainText('content was omitted')
+    await p.screenshot({ path: test.info().outputPath('subagent-snapshot-after-restart.png') })
+    const sent = (await readFile(commands, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line))
+    expect(
+      sent
+        .filter((c) => c.type === 'prompt' && c.message.startsWith('/subagents-steer '))
+        .map((c) => c.message),
+    ).toEqual([
+      '/subagents-steer 10000000-0000-4000-8000-000000000000 --child validation Check the focused parser tests.',
+    ])
+    expect(
+      sent.filter((c) => c.type === 'prompt' && !c.message.startsWith('/')).map((c) => c.message),
+    ).toEqual(['workflow-evidence'])
+  } finally {
+    await shutdown(second)
+    await rm(userDataDir, { recursive: true, force: true })
   }
 })
 

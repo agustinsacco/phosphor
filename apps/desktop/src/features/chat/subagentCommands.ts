@@ -1,4 +1,5 @@
-export type SubagentCommand = 'subagents-inspect-rpc' | 'subagents-stop'
+export type SubagentCommand =
+  'subagents-inspect-rpc' | 'subagents-stop' | 'subagents-steer' | 'phosphor-save-subagent-snapshot'
 
 /** Do not let a missing extension command fall through to a model prompt. */
 export async function requireSubagentCommand(

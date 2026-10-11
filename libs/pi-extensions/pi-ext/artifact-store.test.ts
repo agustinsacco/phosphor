@@ -91,6 +91,19 @@ describe('reading indexes', () => {
     expect(readAllIndexes(root).map((i) => i.sessionId)).toEqual([SESSION])
   })
 
+  it('keeps v1 artifacts readable when the source session was deleted', () => {
+    write(root, {
+      ...index(SESSION),
+      format: 1,
+      deleted: true,
+      artifacts: { a: { slug: 'a', title: 'A', type: 'markdown', versions: [version(1, true)] } },
+    })
+    const old = readAllIndexes(root)[0]!
+    expect(old.format).toBe(1)
+    expect(old.deleted).toBe(true)
+    expect(currentVersion(old.artifacts.a!)?.version).toBe(1)
+  })
+
   it('treats a store that does not exist yet as empty', () => {
     expect(readAllIndexes(join(root, 'missing'))).toEqual([])
   })

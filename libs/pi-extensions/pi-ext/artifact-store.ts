@@ -25,9 +25,11 @@ import { join } from 'node:path'
 
 /** The env var a Phosphor-spawned pi gets, naming the store root. */
 export const ARTIFACT_STORE_ENV = 'PHOSPHOR_ARTIFACT_STORE'
+/** Pi-owned, non-context artifact created by an explicit host save command. */
+export const ARTIFACT_ENTRY_TYPE = 'phosphor-saved-artifact'
 
-/** Bumped when an index stops being readable by older code; a mismatch is reindexed. */
-export const ARTIFACT_INDEX_FORMAT = 1
+/** Indexer revision: older readable indexes are rescanned when their session file exists. */
+export const ARTIFACT_INDEX_FORMAT = 2
 
 export const ARTIFACT_TYPES = ['html', 'markdown', 'svg', 'mermaid', 'code', 'chart'] as const
 export type StoredArtifactType = (typeof ARTIFACT_TYPES)[number]
@@ -75,7 +77,8 @@ export interface ArtifactIndexScan {
 }
 
 export interface SessionArtifactIndex {
-  format: typeof ARTIFACT_INDEX_FORMAT
+  /** V1 remains readable, especially when its source session was deleted. */
+  format: 1 | typeof ARTIFACT_INDEX_FORMAT
   sessionId: string
   sessionFile: string
   cwd: string
@@ -124,7 +127,7 @@ export function indexFile(root: string, sessionId: string): string {
 export function parseIndex(text: string): SessionArtifactIndex | null {
   try {
     const value = JSON.parse(text) as Partial<SessionArtifactIndex>
-    if (value?.format !== ARTIFACT_INDEX_FORMAT) return null
+    if (value?.format !== 1 && value?.format !== ARTIFACT_INDEX_FORMAT) return null
     if (typeof value.sessionId !== 'string' || !isSessionId(value.sessionId)) return null
     if (typeof value.sessionFile !== 'string' || !value.scan || !value.artifacts) return null
     return value as SessionArtifactIndex

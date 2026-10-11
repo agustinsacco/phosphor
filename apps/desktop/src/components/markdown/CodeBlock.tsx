@@ -63,12 +63,22 @@ export const CodeBlock = memo(function CodeBlock({
   const requestRef = useRef(0)
 
   useEffect(() => {
-    if (streaming) return
+    if (streaming || !language || ['text', 'plaintext', 'txt'].includes(language.toLowerCase())) {
+      setHtml(null)
+      return
+    }
     const request = ++requestRef.current
     let cancelled = false
-    void highlightCode(code, language || 'text').then((result) => {
-      if (!cancelled && request === requestRef.current) setHtml(result)
-    })
+    void highlightCode(code, language).then(
+      (result) => {
+        if (!cancelled && request === requestRef.current) setHtml(result)
+      },
+      () => {
+        // A missing grammar or unavailable engine must leave safe plaintext,
+        // not an unhandled rejection (Electron's CSP can refuse WASM).
+        if (!cancelled && request === requestRef.current) setHtml(null)
+      },
+    )
     return () => {
       cancelled = true
     }

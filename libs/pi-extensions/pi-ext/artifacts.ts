@@ -24,7 +24,18 @@
  * Imports resolve against pi's own runtime when it loads the extension.
  */
 import { Type } from 'typebox'
+import { randomUUID } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import {
+  SNAPSHOT_COMMAND,
+  SNAPSHOT_WIDGET,
+  SNAPSHOT_PREFIX,
+  SNAPSHOT_LIMIT,
+  snapshotContent,
+  validTargetId,
+} from './subagent-snapshot'
+import {
+  ARTIFACT_ENTRY_TYPE,
   ARTIFACT_STORE_ENV,
   ARTIFACT_TYPES,
   branchVersion,
@@ -70,6 +81,8 @@ interface BranchEntry {
   type?: string
   id?: string
   firstKeptEntryId?: string
+  customType?: string
+  data?: Partial<ArtifactDetails>
   message?: { role?: string; toolName?: string; details?: Partial<ArtifactDetails> }
 }
 
@@ -87,6 +100,20 @@ interface AgentMessageLike {
 interface PiExtensionApi {
   registerTool(definition: Record<string, unknown>): void
   on(event: string, handler: (event: unknown, ctx: unknown) => unknown): void
+  appendEntry?(type: string, data: unknown): void
+  registerCommand?(
+    name: string,
+    command: {
+      description: string
+      handler: (
+        args: string,
+        ctx: {
+          sessionManager: { getSessionId(): string; getSessionFile(): string | undefined }
+          ui: { setWidget(key: string, lines: string[] | undefined): void }
+        },
+      ) => Promise<void>
+    },
+  ): void
 }
 
 /** Entries in the post-compaction note before it says "and N more". */
@@ -183,9 +210,15 @@ type BranchRecord = Partial<ArtifactDetails> & Pick<ArtifactDetails, 'id' | 'ver
  */
 function branchRecord(entry: unknown): BranchRecord | null {
   const record = entry as BranchEntry
-  if (record.type !== 'message' || record.message?.role !== 'toolResult') return null
-  if (!record.message.toolName?.startsWith('artifact_')) return null
-  const details = record.message.details
+  const saved = record.type === 'custom' && record.customType === ARTIFACT_ENTRY_TYPE
+  if (
+    !saved &&
+    (record.type !== 'message' ||
+      record.message?.role !== 'toolResult' ||
+      !record.message.toolName?.startsWith('artifact_'))
+  )
+    return null
+  const details = saved ? record.data : record.message?.details
   if (!details?.id || typeof details.version !== 'number') return null
   if (typeof details.content !== 'string') return null
   return details as BranchRecord
@@ -447,6 +480,43 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
     }
     throw new Error(`${id} has no v${version} on this branch (current is v${current.version}).`)
   }
+
+  pi.registerCommand?.(SNAPSHOT_COMMAND, {
+    description: 'Save a bounded subagent inspection as an artifact, without a model turn',
+    async handler(args, ctx) {
+      const [requestId, encoded, ...extra] = args.trim().split(/\s+/)
+      if (!validTargetId(requestId)) throw new Error('Invalid save request.')
+      let reply: object
+      try {
+        if (!encoded || extra.length || encoded.length > SNAPSHOT_LIMIT * 9)
+          throw new Error('Invalid snapshot payload.')
+        const content = snapshotContent(
+          JSON.parse(decodeURIComponent(encoded)),
+          ctx.sessionManager.getSessionId(),
+        )
+        if (!pi.appendEntry) throw new Error('This Pi cannot save artifacts.')
+        const sessionFile = ctx.sessionManager.getSessionFile()
+        if (!sessionFile || !existsSync(sessionFile))
+          throw new Error(
+            'This session is not persisted yet. Complete its first parent turn before saving.',
+          )
+        const record: ArtifactDetails = {
+          id: `subagent-${randomUUID()}`,
+          title: 'Saved subagent snapshot',
+          type: 'markdown',
+          content,
+          version: 1,
+        }
+        pi.appendEntry(ARTIFACT_ENTRY_TYPE, record)
+        commit(record, '')
+        reply = { requestId, artifact: record }
+      } catch (error) {
+        reply = { requestId, error: error instanceof Error ? error.message : String(error) }
+      }
+      ctx.ui.setWidget(SNAPSHOT_WIDGET, [`${SNAPSHOT_PREFIX}${JSON.stringify(reply)}`])
+      ctx.ui.setWidget(SNAPSHOT_WIDGET, undefined)
+    },
+  })
 
   pi.registerTool({
     name: 'artifact_help',
