@@ -257,6 +257,46 @@ describe.skipIf(process.platform === 'win32')('lane-local recursive deletion', (
     })
   })
 
+  describe('lanes the user unguarded', () => {
+    let home: string
+    const config = (lanes: unknown) => {
+      mkdirSync(join(home, '.pi', 'agent'), { recursive: true })
+      writeFileSync(
+        join(home, '.pi', 'agent', 'permission-gate.json'),
+        typeof lanes === 'string' ? lanes : JSON.stringify({ unguardedDeleteLanes: lanes }),
+      )
+    }
+    beforeAll(() => {
+      home = join(dir, 'unguarded-home')
+      symlinkSync(lane, join(dir, 'lane-link'))
+    })
+    afterEach(() => {
+      vi.unstubAllEnvs()
+      rmSync(home, { recursive: true, force: true })
+    })
+
+    it('stops asking about rm -r anywhere, but keeps every other question', () => {
+      vi.stubEnv('HOME', home)
+      config([join(dir, 'lane-link')])
+      for (const command of ['rm -rf ~', 'rm -rf "$t"', `rm -rf '${main}/src'`, 'rm -rf ..'])
+        expect(permissionFindings(command, lane), command).toEqual([])
+      expect(permissionFindings('rm -rf src', join(lane, 'src'))).toEqual([])
+      expect(permissionFindings('rm -rf ~; sudo true', lane)).toEqual(['sudo'])
+    })
+
+    it('exempts nothing for another lane, the main checkout or a bad file', () => {
+      vi.stubEnv('HOME', home)
+      config([lane])
+      expect(permissionDecision('rm -rf src', main)).toBe('ask')
+      for (const lanes of [[main], ['lane'], [join(dir, 'missing')], 'not json', [42]]) {
+        config(lanes)
+        expect(permissionDecision('rm -rf ~', lane), JSON.stringify(lanes)).toBe('ask')
+      }
+      rmSync(home, { recursive: true, force: true })
+      expect(permissionDecision('rm -rf ~', lane)).toBe('ask')
+    })
+  })
+
   it('does not exempt other dangerous commands in the same script', () => {
     expect(permissionFindings('rm -rf src; sudo true', lane)).toEqual(['sudo'])
     expect(permissionFindings('rm -rf src; git push -f', lane)).toEqual(['git push --force'])
