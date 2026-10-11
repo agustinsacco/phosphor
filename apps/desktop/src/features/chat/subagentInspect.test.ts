@@ -96,6 +96,31 @@ describe('read-only subagent inspection', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
+  it.each([
+    [{ asyncId: 'different-run' }, 'did not match'],
+    [{ childId: 'different-child' }, 'did not match'],
+    [{ version: 2 }, 'version'],
+    [{ error: { code: 'foreign_session', message: 'Not owned by this session' } }, 'Not owned'],
+  ])('fails closed on a correlated but unusable reply %j', async (override, error) => {
+    piCommand.mockImplementationOnce(async () => ({
+      success: true,
+      data: { commands: [{ name: 'subagents-inspect-rpc', source: 'extension' }] },
+    }))
+    piCommand.mockImplementationOnce(async (_id, command) => {
+      publish('lane-a', {
+        kind: 'pi-subagents.inspect-reply',
+        version: 1,
+        requestId: command.message.split(' ')[1],
+        asyncId: 'run-a',
+        childId: 'child-a',
+        ...override,
+      })
+      return { success: true }
+    })
+    await expect(request()).rejects.toThrow(error)
+    expect(piCommand).toHaveBeenCalledTimes(2)
+  })
+
   it('cancels outstanding subscriptions when the panel closes', async () => {
     vi.useFakeTimers()
     piCommand.mockResolvedValue({

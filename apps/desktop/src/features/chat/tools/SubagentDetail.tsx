@@ -69,7 +69,7 @@ export function SubagentDetail({ tool }: { tool: ToolState }): React.JSX.Element
           data-testid="subagent-async-note"
           className="text-text-secondary border-border flex flex-wrap items-baseline gap-x-2 border-b px-3 py-2 text-base"
         >
-          <span>Running in the background</span>
+          <span>Launched in the background</span>
           {run.runId && (
             <span className="text-text-tertiary font-mono text-sm" title={run.runId}>
               {shortId(run.runId)}

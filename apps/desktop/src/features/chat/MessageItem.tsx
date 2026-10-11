@@ -22,6 +22,7 @@ import { BranchIcon, RewindIcon } from '@/components/icons'
 import { BashExecution } from './items/BashExecution'
 import { Divider } from './items/Divider'
 import { SubagentNoticeItem } from './items/SubagentNotice'
+import { SubagentPanel } from './SubagentPanel'
 import { isSubagentNotice } from './subagentRuns'
 import type { FindReveal } from './useTranscriptFind'
 import { SEGMENT } from './transcriptFind'
@@ -79,13 +80,36 @@ export const MessageItemView = memo(function MessageItemView({
           return <Divider item={row.item} />
         case 'custom':
           return isSubagentNotice(row.item.customType) ? (
-            <SubagentNoticeItem item={row.item} />
+            <InspectableSubagentNotice item={row.item} sessionId={sessionId} />
           ) : (
             <CustomMessageItem item={row.item} />
           )
       }
   }
 })
+
+function InspectableSubagentNotice({
+  item,
+  sessionId,
+}: {
+  item: CustomItem
+  sessionId: string
+}): React.JSX.Element {
+  const [runId, setRunId] = useState<string>()
+  return (
+    <>
+      <SubagentNoticeItem item={item} onInspect={setRunId} />
+      {runId && (
+        <SubagentPanel
+          key={`${sessionId}:${runId}`}
+          sessionId={sessionId}
+          initialRunId={runId}
+          onClose={() => setRunId(undefined)}
+        />
+      )}
+    </>
+  )
+}
 
 /**
  * An assistant turn that exists but has produced nothing yet.

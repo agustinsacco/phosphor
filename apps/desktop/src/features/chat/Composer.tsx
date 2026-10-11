@@ -13,6 +13,7 @@ import { FileMentionMenu } from './composer/FileMentionMenu'
 import { RetryStrip } from './RetryStrip'
 import { recallNext, recallPrevious } from './promptHistory'
 import { AgentLaunchStrip, WorkingIndicator } from './WorkingIndicator'
+import { BackgroundWorkIndicator } from './BackgroundWorkIndicator'
 import { BootingIndicator, useSessionBooting } from './BootingIndicator'
 import { Spinner } from '@/components/icons'
 import { AttachButton, StopIconButton, SubmitIconButton } from '@/components/ComposerButtons'
@@ -389,6 +390,7 @@ export function Composer({
     <div className="shrink-0 px-3 pb-4 pt-1 sm:px-5">
       <WorkingIndicator sessionId={sessionId} />
       <BootingIndicator sessionId={sessionId} />
+      <BackgroundWorkIndicator sessionId={sessionId} />
       <AgentLaunchStrip sessionId={sessionId} />
       <RetryStrip sessionId={sessionId} />
       <WidgetSlot sessionId={sessionId} placement="aboveEditor" />

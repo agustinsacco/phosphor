@@ -605,7 +605,11 @@ function handle(cmd) {
         type: 'response',
         command: 'get_messages',
         success: true,
-        data: { messages: [] },
+        data: {
+          messages: sessionEntries()
+            .filter((e) => e.id.startsWith('workflow-evidence-'))
+            .map((e) => ({ ...e, role: 'custom' })),
+        },
       })
       break
 
@@ -644,14 +648,23 @@ function handle(cmd) {
           requestId,
           asyncId,
           ...(childId !== '--lines' ? { childId } : {}),
-          label: 'scout',
-          status: 'running',
-          task: 'Map the auth flow',
+          ...(asyncId.startsWith('1000000')
+            ? {
+                label: asyncId.startsWith('10000001') ? 'reviewer' : 'validation',
+                status: asyncId.startsWith('10000001') ? 'complete' : 'running',
+                finalOutput: asyncId.startsWith('10000001')
+                  ? 'CHANGES_REQUESTED: the review ran successfully, but found a regression.'
+                  : undefined,
+              }
+            : { label: 'scout', status: 'running', task: 'Map the auth flow' }),
           messages: [
             {
               role: 'assistant',
               kind: 'text',
-              text: 'Inspection: following login.ts to verify.ts.',
+              text:
+                asyncId.startsWith('10000002') || childId === 'validation'
+                  ? 'Validation: full suite is running. The previous bash command has finished.'
+                  : 'Inspection: following login.ts to verify.ts.',
             },
           ],
           truncated: { task: false, messages: 2, finalOutput: false },
@@ -669,6 +682,10 @@ function handle(cmd) {
           method: 'setWidget',
           widgetKey: 'subagent-inspect',
         })
+        break
+      }
+      if (message === '/stub-settle-workflow') {
+        publishWorkflowFleet(true)
         break
       }
       // Release only the stub's scripted child, after the test inspects it.
@@ -740,6 +757,7 @@ function handle(cmd) {
       else if (message.includes('artifactlink')) runArtifactLinkTurn()
       else if (message.includes('longartifact')) runLongArtifactTurn()
       else if (message.includes('manyitems')) runManyItemsTurn()
+      else if (message.includes('workflow-evidence')) runWorkflowEvidenceTurn()
       else if (message.includes('delegate')) runNativeSubagentTurn()
       else if (message.includes('fanout')) runSubagentTurn()
       else if (message.includes('longstream')) runLongStreamTurn()
@@ -1596,20 +1614,43 @@ function runSubagentTurn() {
   play(steps)
 }
 
+/** Replay recorded 0.76.1 workflow notices without a model or live child. */
+function runWorkflowEvidenceTurn() {
+  const fixture = require('../../src/features/chat/__fixtures__/subagent-workflow.json')
+  let parentId = sessionEntries().at(-1)?.id ?? null
+  fixture.messages.forEach((message, i) => {
+    const entry = { ...message, type: 'custom_message', id: `workflow-evidence-${i}`, parentId }
+    fs.appendFileSync(SESSION_FILE, JSON.stringify(entry) + '\n')
+    parentId = entry.id
+    out({ type: 'message_end', message })
+  })
+  publishWorkflowFleet()
+  runTextTurn('Reviewer reported; validation and QA continue independently.')
+}
+
+function publishWorkflowFleet(settled = false) {
+  const snapshot = structuredClone(
+    require('../../src/features/chat/__fixtures__/subagent-workflow.json').snapshot,
+  )
+  if (settled) {
+    for (const run of snapshot.runs) {
+      run.state = 'complete'
+      for (const child of run.children) child.state = 'complete'
+    }
+  }
+  out({
+    type: 'extension_ui_request',
+    id: 'workflow-fleet',
+    method: 'setWidget',
+    widgetKey: 'subagent-async',
+    widgetLines: [`PI_SUBAGENT_ASYNC_JSON:${JSON.stringify(snapshot)}`],
+  })
+}
+
 /**
- * A native delegation through pi-subagents — the live sub-agent path for BOTH
- * providers now that pi owns the tools on a Claude session. Three wire facts
- * Phosphor depends on, each captured from a real session (01a0e90a,
- * 2026-09-28, pi-subagents 0.73.1):
- *
- *  - a foreground `subagent` call streams its child's progress in
- *    `tool_execution_update.partialResult.details` (`progress[]`) and settles
- *    with the child's answer as the tool text plus `results[]`;
- *  - a detached (`async: true`) call returns at once, and the run's tree then
- *    rides the `subagent-async` widget as one `PI_SUBAGENT_ASYNC_JSON:` line.
- *    Unparsed, that line was printed verbatim above the composer;
- *  - the run reports back as a `subagent-notify` custom message with
- *    `display: false`, and the model is woken for a new turn to read it.
+ * Native delegation through pi-subagents, for both providers. Three wire facts
+ * captured from session 01a0e90a (0.73.1): foreground progress/results,
+ * the detached run's structured widget, and its hidden completion notice.
  */
 function runNativeSubagentTurn() {
   // CI rendering speed must not decide whether the child can be inspected.

@@ -268,8 +268,9 @@ every reader defensive, a payload it cannot read leaving the generic row).
   redacts the task in its details, so the card shows the one from the call.
   `action: "list"` renders the agent catalogue with the ones that cannot run
   struck through and the reason beside them.
-- **A detached run has no child here.** The tool returns at once; the run's
-  tree then rides the `subagent-async` widget (one line of
+- **A detached run has no child here.** Its launch row is a historical
+  receipt, not a live status. The tool returns at once; the run's tree then
+  rides the `subagent-async` widget (one line of
   `PI_SUBAGENT_ASYNC_JSON:`, pi-subagents' documented host protocol), which the
   status strip's sub-agent chip summarizes (`1 background run active ·
 scout · grep`) and which is **never printed as widget lines**
@@ -277,7 +278,16 @@ scout · grep`) and which is **never printed as widget lines**
   `subagent-inspect` reply key the protocol says a host must not render). The
   extension removes the widget when nothing runs. A session with the command
   installed or a recorded delegation keeps a quiet Subagents chip for inspection.
-  The chip opens a tree of background runs and children. Selecting a node asks
+  **Above the composer, a persistent background-work strip** uses that same
+  snapshot to name active steps and their reported tools, queued/running state
+  and parent-facing attention. It stays visible after the parent stops generating,
+  with its own beacon only while the parent is idle. It explains that messages
+  still go to the parent; it does not extend the parent's timer/token count,
+  change Send into Stop, or redirect the composer to a child. Active descendants
+  keep it visible even if a root settles. An incomplete snapshot is qualified,
+  never presented as proof of completion or unreported active work. It disappears
+  when the snapshot settles or is removed, without dismissing an open inspection.
+  **View subagents** and the footer chip open a tree of background runs and children. Selecting a node asks
   the installed `/subagents-inspect-rpc` command for a bounded, read-only task,
   transcript window and result. Replies are correlated to the exact session,
   request and child, including emit-then-retract replies. No child session is
@@ -286,11 +296,22 @@ scout · grep`) and which is **never printed as widget lines**
 - **The completion is a card where the model woke up.** pi-subagents delivers
   it as a `subagent-notify` custom message and marks a plain success
   `display: false` so its own TUI does not badge an idle tab; Phosphor keeps
-  that one hidden message (`CustomItem.quiet`) because the reply after it
-  quotes the result and a reader could not see why the model spoke again.
+  native coordination messages (`CustomItem.quiet`) because the reply after
+  them quotes evidence that would otherwise be invisible. This includes hidden
+  `subagent-incremental-child-notify` records: a completed workflow child stays
+  visible even while its siblings run. Explicit child/workflow IDs remain distinct;
+  completion does not mean acceptance, and sibling status is labelled as of that
+  update. Recognized notices with a run ID offer
+  **Inspect run**, including from Recorded coordination. This uses the same
+  ownership-checked extension command, never a writable child session.
   `items/SubagentNotice.tsx` reads the header (`Background task completed:
 **scout**`) into "scout finished in the background" and folds the output
-  under it; a failure, a stop, or a `subagent_control_notice` opens by default.
+  under it; a failure, a stop, or an unfamiliar control notice opens by default.
+  Structured attention notices show the workflow key, profile, exact run and
+  signal compactly, with the full original diagnostics behind the disclosure.
+  A long-running tool warning is parent-facing, not proof of a stall or a human
+  blocker. Historical signals remain historical; Phosphor does not mark them
+  resolved merely because a later notice arrives.
 
 - **Questions name the parent, not the user.** Native
   `subagent_supervisor_request` messages render as "asked the parent for
@@ -312,6 +333,8 @@ reply records. The view describes evidence at read time, not current liveness.
 **Stop run** is available on a root inspection when the session advertises the
 extension's Stop command. It asks for confirmation, rechecks that the exact
 root is still active in this session, and calls `/subagents-stop <full-id>`.
+A notice-linked child inspection is not offered Stop unless that exact run is
+also a root in the current snapshot.
 Pi checks ownership again. The UI reports only that Stop was requested; native
 `subagent-slash-result` receipts, including hidden final receipts, remain in
 the conversation and recorded coordination. No optimistic stopped state or

@@ -31,6 +31,7 @@ export const SUBAGENT_ASYNC_WIDGET_KEY = 'subagent-async'
 /** Replies to `/subagents-inspect-rpc`, correlated by request id. Never rendered. */
 export const SUBAGENT_INSPECT_WIDGET_KEY = 'subagent-inspect'
 export const SUBAGENT_NOTIFY_TYPE = 'subagent-notify'
+export const SUBAGENT_CHILD_NOTIFY_TYPE = 'subagent-incremental-child-notify'
 export const SUBAGENT_CONTROL_NOTICE_TYPE = 'subagent_control_notice'
 export const SUBAGENT_STEERING_NOTICE_TYPE = 'subagent_steering_notice'
 export const SUBAGENT_SUPERVISOR_REQUEST_TYPE = 'subagent_supervisor_request'
@@ -52,6 +53,7 @@ const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : [])
 export function isSubagentNotice(customType: string | undefined): boolean {
   return (
     customType === SUBAGENT_NOTIFY_TYPE ||
+    customType === SUBAGENT_CHILD_NOTIFY_TYPE ||
     customType === SUBAGENT_CONTROL_NOTICE_TYPE ||
     customType === SUBAGENT_STEERING_NOTICE_TYPE ||
     customType === SUBAGENT_SUPERVISOR_REQUEST_TYPE ||
@@ -583,6 +585,9 @@ export function summarizeFleet(snapshot: FleetSnapshot): string {
 export interface SubagentNotice {
   kind: 'completion' | 'attention' | 'steering' | 'question' | 'reply'
   runId?: string
+  workflowRunId?: string
+  /** Compact native signal; the full diagnostic stays in body. */
+  summary?: string
   requestId?: string
   childIndex?: number
   status?: 'completed' | 'failed' | 'stopped' | 'paused'
@@ -639,6 +644,44 @@ export function parseSubagentNotice(
   const rest = newline === -1 ? '' : trimmed.slice(newline + 1).trim()
   const plain = first.replace(/\*\*/g, '')
 
+  if (customType === SUBAGENT_CHILD_NOTIFY_TYPE) {
+    // 0.76.1 has no details on this notice. Read only its explicit correlation
+    // lines, never infer identity from the profile name or an artifact path.
+    const id = (label: string): string | undefined =>
+      new RegExp(`^${label}: ([a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12})$`, 'mi').exec(
+        trimmed,
+      )?.[1]
+    const match = /^Workflow child completed: \*\*([^*]+)\*\*$/.exec(first)
+    return {
+      kind: 'completion',
+      ...(match ? { status: 'completed' as const } : {}),
+      agents: match ? [match[1]!] : [],
+      headline: match ? `${match[1]} completed a workflow step` : plain,
+      summary: match
+        ? `${/^Status: workflow still running$/m.test(rest) ? 'Workflow was still running at this update. ' : ''}Execution completion is not acceptance.`
+        : undefined,
+      runId: id('Child run'),
+      workflowRunId: id('Workflow run'),
+      body: rest,
+    }
+  }
+  const event = rec(rec(details)?.event)
+  if (customType === SUBAGENT_CONTROL_NOTICE_TYPE && event?.type === 'needs_attention') {
+    const agent = str(event.agent) ?? 'A sub-agent'
+    const key = str(event.workflowKey)
+    const signal = str(event.message)
+    return {
+      kind: 'attention',
+      agents: [agent],
+      headline: `${key && key !== agent ? `${key} · ` : ''}${agent} needs parent attention`,
+      runId: str(event.runId),
+      childIndex: num(event.index),
+      summary: signal
+        ? `${signal}${event.reason === 'tool_open_threshold' ? '. Elapsed time alone does not prove a stall.' : ''}`
+        : undefined,
+      body: text,
+    }
+  }
   if (customType !== SUBAGENT_NOTIFY_TYPE) {
     return {
       kind: customType === SUBAGENT_STEERING_NOTICE_TYPE ? 'steering' : 'attention',

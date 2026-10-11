@@ -5,7 +5,13 @@ import { subagentHistory } from './subagentHistory'
 import { SubagentNoticeItem } from './items/SubagentNotice'
 
 /** Explicit read, not a second journal or a polling full-transcript service. */
-export function SubagentJournal({ sessionId }: { sessionId: string }): React.JSX.Element {
+export function SubagentJournal({
+  sessionId,
+  onInspect,
+}: {
+  sessionId: string
+  onInspect: (runId: string) => void
+}): React.JSX.Element {
   const [history, setHistory] = useState<ReturnType<typeof subagentHistory>>()
   const [error, setError] = useState<string>()
   const [refresh, setRefresh] = useState(0)
@@ -55,7 +61,7 @@ export function SubagentJournal({ sessionId }: { sessionId: string }): React.JSX
           )}
           <div className="space-y-2">
             {history.items.map((item) => (
-              <SubagentNoticeItem key={item.id} item={item} />
+              <SubagentNoticeItem key={item.id} item={item} onInspect={onInspect} />
             ))}
           </div>
           {!history.items.length && (

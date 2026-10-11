@@ -12,14 +12,18 @@ import { SubagentStop } from './SubagentStopControl'
 export function SubagentPanel({
   sessionId,
   onClose,
+  initialRunId,
 }: {
   sessionId: string
   onClose: () => void
+  initialRunId?: string
 }): React.JSX.Element {
   const lines = useExtensionUiStore((s) => s.widgets[sessionId]?.[SUBAGENT_ASYNC_WIDGET_KEY]?.lines)
   const fleet = parseFleetWidget(lines)
   const [view, setView] = useState<'live' | 'history'>('live')
-  const [target, setTarget] = useState<{ runId: string; childId?: string }>()
+  const [target, setTarget] = useState<{ runId: string; childId?: string } | undefined>(
+    initialRunId ? { runId: initialRunId } : undefined,
+  )
   const [inspection, setInspection] = useState<SubagentInspection>()
   const [error, setError] = useState<string>()
   const [refresh, setRefresh] = useState(0)
@@ -83,7 +87,15 @@ export function SubagentPanel({
               Recorded coordination
             </Button>
           </div>
-          {view === 'history' && <SubagentJournal sessionId={sessionId} />}
+          {view === 'history' && (
+            <SubagentJournal
+              sessionId={sessionId}
+              onInspect={(runId) => {
+                setTarget({ runId })
+                setView('live')
+              }}
+            />
+          )}
           <div
             className={
               view === 'live'
@@ -126,6 +138,10 @@ export function SubagentPanel({
                       Refresh
                     </Button>
                   </div>
+                  <p className="text-text-secondary mb-3 break-all font-mono text-sm">
+                    Run {target.runId}
+                    {target.childId ? ` · child ${target.childId}` : ''}
+                  </p>
                   {error ? (
                     <p role="alert" className="text-danger">
                       {error}
@@ -135,8 +151,10 @@ export function SubagentPanel({
                   ) : (
                     <>
                       <p className="text-text-secondary mb-3">
-                        Last read: {inspection.status ?? 'state unavailable'}. Refresh to check
-                        again.
+                        Run state at last read: {inspection.status ?? 'unavailable'}.{' '}
+                        {target.childId &&
+                          'This can describe the containing run, not the selected step. '}
+                        Refresh to check again.
                       </p>
                       {inspection.task && (
                         <details className="mb-3">
@@ -160,7 +178,7 @@ export function SubagentPanel({
                           Bounded preview: some content was omitted.
                         </p>
                       )}
-                      {!target.childId && (
+                      {!target.childId && fleet?.runs.some((run) => run.id === target.runId) && (
                         <SubagentStop
                           key={target.runId}
                           sessionId={sessionId}
