@@ -66,6 +66,7 @@ export const SkillsPage = memo(function SkillsPage({
       <div className="mx-auto flex h-full min-h-0 w-full max-w-4xl flex-col">
         {selected ? (
           <SkillDetail
+            key={selected.dir}
             skill={selected}
             workspacePath={workspacePath}
             onBack={() => useSkillsStore.getState().select(null)}
@@ -91,13 +92,16 @@ export const SkillsPage = memo(function SkillsPage({
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
               {tab === 'yours' ? (
-                <YoursList
-                  skills={skills}
-                  search={search}
-                  loading={loading}
-                  error={error}
-                  probe={result?.probe}
-                />
+                <>
+                  <BundledSkillNotice workspacePath={workspacePath} />
+                  <YoursList
+                    skills={skills}
+                    search={search}
+                    loading={loading}
+                    error={error}
+                    probe={result?.probe}
+                  />
+                </>
               ) : (
                 <DiscoverList skills={skills} search={search} workspacePath={workspacePath} />
               )}
@@ -129,6 +133,39 @@ export const SkillsPage = memo(function SkillsPage({
     </PageShell>
   )
 })
+
+function BundledSkillNotice({ workspacePath }: { workspacePath: string }): React.JSX.Element {
+  const [busy, setBusy] = useState(false)
+  const [failure, setFailure] = useState<string | null>(null)
+  const restore = async (): Promise<void> => {
+    setBusy(true)
+    setFailure(null)
+    try {
+      await window.phosphor.invoke('skills:restoreBundled')
+      await useSkillsStore.getState().refresh(workspacePath)
+    } catch (error) {
+      setFailure(error instanceof Error ? error.message : String(error))
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <div className="border-border mb-3 border-b pb-3 text-sm">
+      <p>
+        Phosphor includes visual-artifacts. Edit its Source or hide/delete it like any user skill.
+        Updates preserve your copy. Restore only reinstalls a missing folder.
+      </p>
+      <Button size="sm" disabled={busy} onClick={() => void restore()}>
+        Restore artifact skill
+      </Button>
+      {failure && (
+        <p role="alert" className="text-danger">
+          {failure}
+        </p>
+      )}
+    </div>
+  )
+}
 
 function Segmented<T extends string>({
   value,
@@ -280,6 +317,8 @@ function SkillDetail({
   const [content, setContent] = useState<string | null>(null)
   const [pending, setPending] = useState<string | null>(null)
   const [failure, setFailure] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
 
   useEffect(() => {
     setContent(null)
@@ -295,7 +334,7 @@ function SkillDetail({
     return () => {
       alive = false
     }
-  }, [skill.dir, file])
+  }, [skill, file])
 
   const run = async (label: string, action: () => Promise<unknown>): Promise<void> => {
     setPending(label)
@@ -352,6 +391,7 @@ function SkillDetail({
       <div className="flex items-center gap-2 pb-1">
         <button
           onClick={onBack}
+          disabled={editing}
           className="text-text-secondary hover:text-text cursor-pointer text-base"
         >
           ← Skills
@@ -379,6 +419,7 @@ function SkillDetail({
           <button
             key={id}
             onClick={() => setView(id)}
+            disabled={editing}
             className={clsx(
               'cursor-pointer rounded-md px-2 py-0.5 text-base capitalize',
               view === id ? 'bg-bg-secondary text-text font-medium' : 'text-text-secondary',
@@ -388,8 +429,23 @@ function SkillDetail({
           </button>
         ))}
         <span className="flex-1" />
+        {skill.writable && view === 'source' && content !== null && !editing && (
+          <Button
+            size="sm"
+            onClick={() => {
+              setDraft(content)
+              setEditing(true)
+            }}
+          >
+            Edit source
+          </Button>
+        )}
         {skill.writable && (
-          <Button size="sm" disabled={pending != null} onClick={() => void toggleDraft()}>
+          <Button
+            size="sm"
+            disabled={pending != null || editing}
+            onClick={() => void toggleDraft()}
+          >
             {skill.draft ? 'Publish' : 'Hide from model'}
           </Button>
         )}
@@ -397,7 +453,7 @@ function SkillDetail({
           <Button
             size="sm"
             variant="primary"
-            disabled={pending != null}
+            disabled={pending != null || editing}
             onClick={() => void update()}
           >
             Update
@@ -416,14 +472,50 @@ function SkillDetail({
           <Button
             size="sm"
             variant="danger"
-            disabled={pending != null}
+            disabled={pending != null || editing}
             onClick={() => void remove()}
           >
             Delete
           </Button>
         )}
       </div>
-      {failure && <div className="text-danger pb-1 text-sm">{failure}</div>}
+      {failure && (
+        <div role="alert" className="text-danger pb-1 text-sm">
+          {failure}
+        </div>
+      )}
+      {skill.writable && (
+        <p className="text-text-tertiary pb-2 text-sm">
+          Availability and skill descriptions refresh in new sessions or after /reload. Artifact
+          help reads saved content on its next call.
+        </p>
+      )}
+      {editing && (
+        <div className="flex gap-2 pb-2">
+          <Button
+            size="sm"
+            disabled={pending != null}
+            onClick={() =>
+              void run('save', async () => {
+                await window.phosphor.invoke(
+                  'skills:writeFile',
+                  skill.dir,
+                  file,
+                  draft,
+                  workspacePath,
+                )
+                setContent(draft)
+                setEditing(false)
+              })
+            }
+          >
+            Save source
+          </Button>
+          <Button size="sm" disabled={pending != null} onClick={() => setEditing(false)}>
+            Cancel edit
+          </Button>
+        </div>
+      )}
       <div className="border-border min-h-0 flex-1 overflow-y-auto rounded-lg border p-3">
         {view === 'files' ? (
           <div className="space-y-0.5">
@@ -447,6 +539,14 @@ function SkillDetail({
           </div>
         ) : view === 'preview' ? (
           <Markdown text={body ?? content} />
+        ) : editing ? (
+          <textarea
+            aria-label={`Edit ${file}`}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            className="bg-bg text-text h-full min-h-64 w-full resize-y font-mono text-sm"
+            spellCheck={false}
+          />
         ) : (
           <pre className="font-mono text-sm leading-relaxed whitespace-pre-wrap">{content}</pre>
         )}
@@ -520,9 +620,9 @@ function DiscoverList({
         ))}
       </div>
       <p className="text-text-secondary text-base">
-        Evidence is a starting point, not a guarantee. Nothing is installed automatically. Add
-        installs into your global pi skills folder for all workspaces. Skills can guide the model
-        and ship scripts it may run; dependencies are not installed.
+        Evidence is a starting point, not a guarantee. Catalog skills are never installed
+        automatically. Add installs into your global pi skills folder for all workspaces. Skills can
+        guide the model and ship scripts it may run; dependencies are not installed.
       </p>
       {visible.length === 0 && (
         <EmptyNote text="No matches in this outcome. Try another filter or search." />

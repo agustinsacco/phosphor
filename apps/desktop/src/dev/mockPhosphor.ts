@@ -1103,6 +1103,7 @@ export function installMockPhosphor(): void {
           return Promise.resolve({ dir: '/mock/.pi/agent/skills/new-skill' })
         case 'skills:install':
           return Promise.resolve({ dir: '/mock/.pi/agent/skills/installed', fileCount: 1 })
+        case 'skills:restoreBundled':
         case 'skills:writeFile':
         case 'skills:delete':
           return Promise.resolve(undefined)

@@ -292,13 +292,41 @@ resending a document to change part of it.
 | `artifact_read`   | the document, or a line range | recovering text after compaction, to edit |
 | `artifact_list`   | ids and sizes only            | recovering ids after compaction           |
 
-The short authoring guide lives in `artifact_help` results, not in the
-always-loaded schema or system guidelines. Documents default to Markdown;
-HTML is for layout or interaction that needs it. Use paragraphs, lists and
-code blocks, tables only for repeated-field comparisons, and diagrams only
-when clearer than text. No mandatory chart/table pairs or decorative cards.
-Markdown supports Mermaid and chart fences without hand-positioned SVG.
-The tool description keeps the HTML-fragment and no-network constraints.
+Artifact authoring has one source: `libs/pi-extensions/skills/visual-artifacts/`.
+`SKILL.md` selects the medium by purpose; its references contain Mermaid recipes,
+HTML/theme guidance and chart examples. Architecture and processes use diagrams;
+UI reviews use screenshots or clearly labelled prototypes; straightforward
+references can stay Markdown. No universal Markdown or dashboard default.
+
+Desktop ships this directory outside the asar alongside `pi-ext/` and seeds it
+once, before any pi probe or session, into `<piAgentDir>/skills/visual-artifacts`.
+The Host bundle includes the same files; `accept` seeds them before starting its
+sessions (`doctor` stays read-only). This is an ordinary user-owned pi skill, not
+an immutable package skill: Skills → Yours offers source editing, hiding,
+export and deletion, plus **Restore artifact skill** for a missing folder.
+Existing folders or symlinks are never overwritten. App upgrades preserve edits
+and do not silently update the installed copy; delete then restore to adopt a
+new shipped default. The receipt in `<piAgentDir>/.phosphor-bundled-skills/`
+outlives deletion, so removal persists across restarts and upgrades. Installation
+uses a staged directory so pi never discovers half a bundle; a failed first
+installation can be retried. Desktop logs a bootstrap error without preventing
+app startup, and an explicit restore surfaces errors in the Skills page.
+
+`artifact_help` reads the **same skill pi resolved**, through its structured
+system-prompt options, including any winning user/project override. It does not
+read a second embedded guide or force the shipped default when the skill is
+absent, excluded or hidden. It names the selected path for relative references
+and reads saved edits on each call (up to 128 KiB for the main guide). Hiding and
+removal stop subsequent help loads; availability/metadata changes otherwise
+need a new session or `/reload`. Previously read instructions remain in chat
+history; this is not retroactive erasure. The always-loaded tool descriptions
+only route to the guide and explain tool mechanics and sandbox constraints.
+
+The default teaches existing capabilities, not new renderer features: Markdown
+supports Mermaid, Chart.js and Vega-Lite fences. HTML still needs inline SVG/CSS
+for diagrams or pre-rendered output; it has no preloaded Mermaid runtime, asset
+import tool or automatic visual-inspection tool. The guide asks the model to
+inspect through available UI/browser tools and report when that was not possible.
 
 One artifact plus two full rewrites costs ~55k output tokens; the same
 nine-line change through `artifact_edit` is ~116.
@@ -410,7 +438,8 @@ model-authored styles. The theme follows Phosphor, with app-matched neutrals
 and accent. Code and genuinely wide tables scroll locally.
 
 Existing `--art-*` tokens, series colors and opt-in layout classes remain
-supported, but are no longer part of the authoring guide. Existing artifacts
+supported. The skill's HTML reference documents tokens, not a mandatory layout.
+Existing artifacts
 are restyled when staged, not rewritten. The model's own styles can override
 the defaults. Network access remains blocked; Markdown's built-in diagram
 renderers do not imply that libraries are available inside HTML artifacts.

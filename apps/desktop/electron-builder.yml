@@ -19,6 +19,9 @@ extraResources:
   - from: ../../libs/pi-extensions/pi-ext
     to: pi-ext
     filter: ['**/*.ts', '!**/*.test.ts']
+  - from: ../../libs/pi-extensions/skills
+    to: skills
+    filter: ['**/*.md']
 
 asarUnpack:
   - '**/node_modules/node-pty/**'

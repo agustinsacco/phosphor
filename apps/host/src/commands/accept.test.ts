@@ -65,6 +65,9 @@ describe('accept', { timeout: 30_000 }, () => {
     const { outcome, progress } = await accept()
     const evidence = evidenceOf(outcome)
     expect(outcome.exitCode).toBe(0)
+    expect(
+      readFileSync(join(machine.agentDir, 'skills/visual-artifacts/SKILL.md'), 'utf8'),
+    ).toContain('Choose the medium')
     expect(evidence).toMatchObject({
       schema: 1,
       verdict: 'pass',

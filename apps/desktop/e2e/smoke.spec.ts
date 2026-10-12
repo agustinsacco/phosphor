@@ -4943,6 +4943,58 @@ test('a renderer reload re-adopts the live session instead of orphaning it', asy
   }
 })
 
+test('bundled artifact skill is editable, removable across restart and explicitly restorable', async () => {
+  const soloAgentDir = privateAgentDir()
+  const userDataDir = await scratchDir('phosphor-e2e-bundled-skill-')
+  let harness = await launch({ agentDir: soloAgentDir, userDataDir })
+  const file = join(soloAgentDir, 'skills/visual-artifacts/SKILL.md')
+  const openSkill = async () => {
+    await harness.page.getByRole('button', { name: 'Skills', exact: true }).click()
+    await harness.page.getByText('visual-artifacts', { exact: true }).click()
+  }
+  try {
+    await openWorkspace(harness.page)
+    const original = await readFile(file, 'utf8')
+    expect(original).toContain('Choose the medium')
+    await openSkill()
+    await harness.page.getByRole('button', { name: 'files', exact: true }).click()
+    await harness.page.getByRole('button', { name: /references\/mermaid.md/ }).click()
+    await harness.page.getByRole('button', { name: 'preview', exact: true }).click()
+    await expect(harness.page.getByRole('button', { name: 'Expand Mermaid diagram' })).toHaveCount(
+      3,
+    )
+    await expect(harness.page.getByText(/Mermaid parse error/)).toHaveCount(0)
+    await harness.page.getByRole('button', { name: 'files', exact: true }).click()
+    await harness.page.getByRole('button', { name: /^SKILL.md/ }).click()
+    await harness.page.getByRole('button', { name: 'Edit source', exact: true }).click()
+    await harness.page
+      .getByRole('textbox', { name: 'Edit SKILL.md', exact: true })
+      .fill(`${original}\nMy custom visual rule.\n`)
+    await harness.page.getByRole('button', { name: 'Save source', exact: true }).click()
+    await expect.poll(() => readFile(file, 'utf8')).toContain('My custom visual rule.')
+    await shutdown(harness)
+    harness = await launch({ agentDir: soloAgentDir, userDataDir })
+    await openWorkspace(harness.page)
+    expect(await readFile(file, 'utf8')).toContain('My custom visual rule.')
+    await openSkill()
+    await harness.page.getByRole('button', { name: 'Hide from model', exact: true }).click()
+    await expect(harness.page.getByRole('button', { name: 'Publish', exact: true })).toBeVisible()
+    await expect.poll(() => readFile(file, 'utf8')).toContain('disable-model-invocation: true')
+    await harness.page.getByRole('button', { name: 'Delete', exact: true }).click()
+    await expect.poll(async () => readFile(file, 'utf8').catch(() => 'removed')).toBe('removed')
+    await shutdown(harness)
+    harness = await launch({ agentDir: soloAgentDir, userDataDir })
+    await openWorkspace(harness.page)
+    await harness.page.getByRole('button', { name: 'Skills', exact: true }).click()
+    await expect(harness.page.getByText('visual-artifacts', { exact: true })).toHaveCount(0)
+    await harness.page.getByRole('button', { name: 'Restore artifact skill', exact: true }).click()
+    await expect(harness.page.getByText('visual-artifacts', { exact: true })).toBeVisible()
+    expect(await readFile(file, 'utf8')).toBe(original)
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('skills page lists a seeded skill, and creates a new one on disk', async () => {
   // Solo agent dir: the created skill writes into <agentDir>/skills, and the
   // shared dir would leak it into every later test's resolution.

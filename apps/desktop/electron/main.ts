@@ -17,6 +17,7 @@ import { maintenanceScheduler } from './ipc/maintenance-handlers'
 import { registry } from './registry'
 import { ptyManager } from './pty/pty-manager'
 import { disposeConnectorAuth } from './pi/connector-auth'
+import { ensureDesktopArtifactSkill } from './pi/session-launch'
 import { cancelAllLogins } from './pi/login-flow'
 import { cancelAllClaudeLogins } from './pi/claude-login'
 import { unwatchAll } from './pi/session-watcher'
@@ -222,6 +223,12 @@ if (!singleInstance) {
     // First thing after ready: anything that throws below should land in the
     // log rather than only in a terminal nobody was attached to.
     initDebugLog()
+    try {
+      ensureDesktopArtifactSkill()
+    } catch (error) {
+      // A read-only pi configuration must not prevent Desktop from opening.
+      log('skills', 'Could not install bundled visual-artifacts skill', { error: String(error) })
+    }
     if (devIcon && process.platform === 'darwin') {
       app.dock?.setIcon(devIcon)
     }

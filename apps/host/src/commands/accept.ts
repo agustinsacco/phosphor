@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { join } from 'node:path'
 import { existsSync, readFileSync } from 'node:fs'
 import { errorText } from '@phosphor/shared/errors'
 import type { SessionPush } from '@phosphor/shared/models'
@@ -14,6 +15,7 @@ import { createHostLog, hostLogDirectory } from '../machine/log'
 import { DRAIN, isGone, type DrainResult, type DrainTimings } from '../session/lifecycle'
 import { parseSessionRequest, type HostSessionRequest } from '../session/request'
 import { createHostRuntime, type HostRuntime } from '../session/runtime'
+import { seedArtifactSkill } from '@phosphor/session-runtime/bundled-skills'
 import type { Drainable } from '../shutdown'
 import { HOST_SOURCE_SHA, HOST_VERSION } from '../version'
 import { inspectHost, redactStrings, type DoctorContext, type DoctorReport } from './doctor'
@@ -164,6 +166,10 @@ export async function runAccept(context: AcceptContext): Promise<AcceptOutcome> 
   try {
     try {
       runtime.life.to('validating')
+      seedArtifactSkill(
+        machine.resourceRoot,
+        context.env.PI_CODING_AGENT_DIR ?? join(context.home, '.pi', 'agent'),
+      )
       runtime.life.to('ready')
       for (const lane of lanes) {
         if (lane === 'claude' && !claudeLane.available) {
