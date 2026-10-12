@@ -143,6 +143,20 @@ export function createVault(
     }
   }
 
+  function readProfile(): AccountUser | null {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(readFileSync(profilePath, 'utf8'))
+    } catch {
+      return null
+    }
+    const user = isRecord(parsed) && parsed.v === 1 ? parsed.user : null
+    if (!isRecord(user) || typeof user.id !== 'string' || !user.id) return null
+    const { login = null, name = null, email = null } = user
+    if (!nullableText(login) || !nullableText(name) || !nullableText(email)) return null
+    return { id: user.id, login, name, email }
+  }
+
   function encrypted(userId: string): string {
     let parsed: unknown
     try {
@@ -167,19 +181,7 @@ export function createVault(
           ? 'keyring'
           : null
     },
-    readProfile() {
-      let parsed: unknown
-      try {
-        parsed = JSON.parse(readFileSync(profilePath, 'utf8'))
-      } catch {
-        return null
-      }
-      const user = isRecord(parsed) && parsed.v === 1 ? parsed.user : null
-      if (!isRecord(user) || typeof user.id !== 'string' || !user.id) return null
-      const { login = null, name = null, email = null } = user
-      if (!nullableText(login) || !nullableText(name) || !nullableText(email)) return null
-      return { id: user.id, login, name, email }
-    },
+    readProfile,
     readToken(userId) {
       removeCopiedPlain()
       const storage = cipher.storage()
@@ -226,7 +228,7 @@ export function createVault(
         const token = buffer.subarray(0, length).toString('utf8')
         if (!token || Buffer.byteLength(token) > 4096)
           throw new VaultUnreadable('the saved sign-in is damaged')
-        if (this.readProfile()?.id !== userId)
+        if (readProfile()?.id !== userId)
           throw new VaultUnreadable('the saved sign-in belongs to someone else')
         return token
       } catch {

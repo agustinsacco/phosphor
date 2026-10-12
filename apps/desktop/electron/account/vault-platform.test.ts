@@ -78,6 +78,24 @@ describe('platform storage boundary', () => {
     }
   })
   it.each(['darwin', 'win32'] as const)(
+    'refuses a file-mode cipher on %s: saves nothing and clears every file',
+    (platform) => {
+      vi.mocked(lstatSync)
+        .mockReset()
+        .mockImplementation(() => {
+          throw new Error('missing')
+        })
+      vi.mocked(writeFileSync).mockClear()
+      vi.mocked(rmSync).mockClear()
+      const vault = createVault('unused', fakeCipher({ ok: true, kind: 'file' }).cipher, platform)
+      expect(vault.save(USER, randomBytes(32).toString('base64url'))).toBe(false)
+      expect(writeFileSync).not.toHaveBeenCalled()
+      const removed = vi.mocked(rmSync).mock.calls.map(([path]) => String(path))
+      expect(removed.some((path) => path.endsWith('session.txt'))).toBe(true)
+      expect(removed.some((path) => path.endsWith('session.bin'))).toBe(true)
+    },
+  )
+  it.each(['darwin', 'win32'] as const)(
     'ignores and removes copied plain tokens on %s, preserving encrypted tokens',
     (platform) => {
       const { cipher } = fakeCipher()
