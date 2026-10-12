@@ -412,6 +412,56 @@ it('shares failed lookup/approve budget without charging successful requests', a
   s.advance(1)
   expect((await s.call(R.enrollmentLookup, 'POST', routes[2].value)).status).toBe(404)
 })
+it('counts concurrent in-flight guesses against the failure budget (review r1)', async () => {
+  const s = setup()
+  const rpc = vi.mocked(s.deps.supabase.rpc)
+  const gates: Array<{ name: string; resolve: (value: unknown) => void }> = []
+  rpc.mockImplementation(async (name) =>
+    name === 'control_enrollment_lookup' || name === 'control_enrollment_approve'
+      ? new Promise((resolve) => gates.push({ name, resolve }))
+      : s.results[name],
+  )
+  const guesses = () =>
+    rpc.mock.calls.filter(
+      ([name]) => name === 'control_enrollment_lookup' || name === 'control_enrollment_approve',
+    ).length
+  // Three failures already recorded, so seven more guesses may be in flight.
+  s.results.control_enrollment_lookup = { outcome: 'not-found' }
+  for (let i = 0; i < 3; i++) {
+    const pending = s.call(R.enrollmentLookup, 'POST', routes[3].value)
+    await vi.waitFor(() => expect(gates.length).toBe(1))
+    gates.shift()?.resolve({ outcome: 'not-found' })
+    expect((await pending).status).toBe(404)
+  }
+  let settled = 0
+  const flight = Array.from({ length: 7 }, (_, i) =>
+    s
+      .call(i % 2 ? R.enrollmentApprove : R.enrollmentLookup, 'POST', routes[3].value)
+      .then((response) => {
+        settled++
+        return response
+      }),
+  )
+  await vi.waitFor(() => expect(gates.length).toBe(7))
+  for (const path of [R.enrollmentLookup, R.enrollmentApprove])
+    expect((await s.call(path, 'POST', routes[3].value)).status).toBe(429)
+  expect(guesses()).toBe(10)
+  // One in-flight guess succeeding frees its place without spending the budget.
+  const first = gates.shift()
+  first?.resolve(first.name === 'control_enrollment_lookup' ? routes[2].answer : routes[3].answer)
+  await vi.waitFor(() => expect(settled).toBe(1))
+  const late = s.call(R.enrollmentApprove, 'POST', routes[3].value)
+  await vi.waitFor(() => expect(gates.length).toBe(7))
+  // Exactly one place was freed: the others' reservations still hold.
+  expect((await s.call(R.enrollmentLookup, 'POST', routes[3].value)).status).toBe(429)
+  for (const gate of gates.splice(0)) gate.resolve({ outcome: 'not-found' })
+  const statuses = (await Promise.all([...flight, late])).map((r) => r.status).sort()
+  expect(statuses).toEqual([200, 404, 404, 404, 404, 404, 404, 404])
+  // Ten failures: even a correct guess is now refused before the database.
+  const before = guesses()
+  expect((await s.call(R.enrollmentApprove, 'POST', routes[3].value)).status).toBe(429)
+  expect(guesses()).toBe(before)
+})
 it('retries collisions exactly three times, redraws unusable bytes and stores only code hash', async () => {
   const s = setup()
   s.results.control_enrollment_create = { outcome: 'code-collision' }

@@ -96,10 +96,13 @@ concrete unknown paths, tokens, user codes or keys.
 The reusable sliding-window limiter has a 10,000-key cap. At capacity it sweeps
 expired windows and refuses new keys with 429 rather than evicting live windows.
 Enrollment creates are limited to ten per hour per IP before signature checking
-or nonce consumption. Polls are limited to one per two seconds per parsed
-enrollment id, also before signature checking. Failed lookups and approvals
-share ten failures per fifteen minutes per user. Successes do not spend that
-budget. Once exhausted, both routes return 429 until a failure leaves the window.
+or nonce consumption. Polls are limited to sixty per minute per IP before the
+body is parsed, then to one per two seconds per parsed enrollment id, both
+before signature checking; Hosts sharing an address share the first limit.
+Failed lookups and approvals share ten failures per fifteen minutes per user.
+Guesses still awaiting the database count against that budget, so concurrent
+requests cannot exceed it. Successes do not spend it. Once exhausted, both
+routes return 429, even for a correct code, until a failure leaves the window.
 Proxy IP selection trusts a valid `cf-connecting-ip` only when configured for
 Cloudflare; otherwise it uses the socket address. All in-memory guards are
 process-local. Run a single replica; rollout overlap is not cross-process replay

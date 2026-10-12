@@ -91,6 +91,10 @@ export function enrollments(
     return c.json(parsed(parseEnrollmentPollResponse({ ...value, status: value.outcome })))
   })
   const guard = userGuard(auth, deps.supabase)
+  // Guesses still awaiting the database count against the failure budget too,
+  // or concurrent requests could all pass the check before any failure lands.
+  // An entry lives only while a request for that user is in flight.
+  const inFlight = new Map<string, number>()
   for (const approve of [false, true]) {
     app.post(
       approve ? CONTROL_ROUTES.enrollmentApprove : CONTROL_ROUTES.enrollmentLookup,
@@ -100,21 +104,28 @@ export function enrollments(
           ? parsed(parseEnrollmentApproveRequest(body(c)), 'bad-request')
           : parsed(parseEnrollmentLookupRequest(body(c)), 'bad-request')
         const key = 'enrollment-failure:' + c.get('user').userId
-        if (!deps.limits.available(key, 10, failureWindow))
+        const held = inFlight.get(key) ?? 0
+        if (!deps.limits.available(key, 10 - held, failureWindow))
           throw new ControlFailure('too-many-requests')
-        const value = record(
-          await deps.supabase.rpc(
-            approve ? 'control_enrollment_approve' : 'control_enrollment_lookup',
-            {
-              p_user_id: c.get('user').userId,
-              p_code_hash: hash(input.userCode),
-              ...('label' in input ? { p_label: input.label } : {}),
-            },
-          ),
-        )
-        if (value.outcome === 'not-found') {
-          if (!deps.limits.consume(key, 10, failureWindow))
+        inFlight.set(key, held + 1)
+        let value: Record<string, unknown>
+        try {
+          value = record(
+            await deps.supabase.rpc(
+              approve ? 'control_enrollment_approve' : 'control_enrollment_lookup',
+              {
+                p_user_id: c.get('user').userId,
+                p_code_hash: hash(input.userCode),
+                ...('label' in input ? { p_label: input.label } : {}),
+              },
+            ),
+          )
+          if (value.outcome === 'not-found' && !deps.limits.consume(key, 10, failureWindow))
             throw new ControlFailure('too-many-requests')
+        } finally {
+          const left = (inFlight.get(key) ?? 1) - 1
+          if (left > 0) inFlight.set(key, left)
+          else inFlight.delete(key)
         }
         outcome(value, approve ? 'approved' : 'found')
         return approve
