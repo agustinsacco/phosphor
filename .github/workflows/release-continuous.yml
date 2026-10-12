@@ -353,6 +353,10 @@ jobs:
     # Never replace a complete latest release with a partial or unverified one.
     if: ${{ success() && needs.guard.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      # generate-notes resolves each commit to its pull request.
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -427,8 +431,28 @@ jobs:
           set -euo pipefail
           SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
           VERSION="${{ needs.guard.outputs.version }}"
+          TAG="${{ needs.guard.outputs.tag }}"
+          REPO="${{ github.repository }}"
+
+          # List every PR since the last PUBLISHED release, not the previous
+          # commit: Skip-Release merges and cancelled runs ship in this build,
+          # so they belong in its notes. This release is still a draft here,
+          # so releases/latest is the one before it. A failed lookup publishes
+          # the install notes alone rather than holding back a verified build.
+          PREVIOUS=$(gh api "repos/${REPO}/releases/latest" --jq .tag_name 2>/dev/null || true)
+          ARGS=(-f "tag_name=${TAG}" -f "target_commitish=${SHA}")
+          if [[ -n "${PREVIOUS}" && "${PREVIOUS}" != "${TAG}" ]]; then
+            ARGS+=(-f "previous_tag_name=${PREVIOUS}")
+          fi
+          if ! CHANGES=$(gh api --method POST "repos/${REPO}/releases/generate-notes" "${ARGS[@]}" --jq .body); then
+            echo "::warning::Could not generate the change list for ${TAG}; publishing install notes only."
+            CHANGES=""
+          fi
+
           NOTES=$(printf '%s\n' \
             "Automatic release from \`main\` @ \`${SHA:0:7}\`." \
+            "" \
+            "${CHANGES}" \
             "" \
             "## Install" \
             "" \
@@ -452,5 +476,5 @@ jobs:
           # electron-builder creates the release as a draft; publishing it here
           # (after every asset is attached) is what makes `releases/latest`
           # resolve to it — which is exactly what the updater and install.sh use.
-          gh release edit "${{ needs.guard.outputs.tag }}" \
+          gh release edit "${TAG}" \
             --draft=false --latest --notes "${NOTES}"

@@ -326,3 +326,50 @@ it('requires every platform binary and update manifest, including on retries', (
     expect(result.status, result.stdout + result.stderr).toBe(missing ? 1 : 0)
   }
 })
+
+it.each([
+  { latest: 'v0.1.100', notes: 0, previous: 'v0.1.100', listed: true },
+  { latest: '', notes: 0, previous: null, listed: true },
+  { latest: 'v0.1.123', notes: 0, previous: null, listed: true },
+  { latest: 'v0.1.100', notes: 1, previous: 'v0.1.100', listed: false },
+])('publishes the PRs since the last published release: %j', (fixture) => {
+  const dir = mkdtempSync(join(tmpdir(), 'release-notes-'))
+  try {
+    const shell = block('Publish the release', 'run')
+      .replaceAll('${{ github.event.workflow_run.head_sha || github.sha }}', sha)
+      .replaceAll('${{ needs.guard.outputs.version }}', '0.1.123')
+      .replaceAll('${{ needs.guard.outputs.tag }}', 'v0.1.123')
+      .replaceAll('${{ github.repository }}', 'owner/repo')
+    const calls = join(dir, 'calls')
+    const mock = `gh() {
+      printf '%s\\n' "$*" >> "$CALLS"
+      case "$1 $2" in
+        "api repos/owner/repo/releases/latest") [ -n "$LATEST" ] && echo "$LATEST"; return 0;;
+        "api --method") [ "$NOTES_STATUS" = 0 ] && echo '* Desktop: a change by @me in #7'; return $NOTES_STATUS;;
+        "release edit") printf '%s' "$5 $6 $7" > "$CALLS.edit"; return 0;;
+        *) return 99;; esac; };\n`
+    const result = spawnSync('bash', ['-c', mock + shell], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        CALLS: calls,
+        LATEST: fixture.latest,
+        NOTES_STATUS: String(fixture.notes),
+      },
+    })
+    expect(result.status, result.stdout + result.stderr).toBe(0)
+    const generate = readFileSync(calls, 'utf8')
+      .split('\n')
+      .find((call) => call.includes('generate-notes'))!
+    expect(generate).toContain(`tag_name=v0.1.123 -f target_commitish=${sha}`)
+    if (fixture.previous) expect(generate).toContain(`previous_tag_name=${fixture.previous}`)
+    else expect(generate).not.toContain('previous_tag_name')
+    const edit = readFileSync(`${calls}.edit`, 'utf8')
+    expect(edit).toContain('--latest --notes')
+    expect(edit.includes('* Desktop: a change by @me in #7')).toBe(fixture.listed)
+    expect(edit).toContain('releases/latest/download/install.sh')
+    expect(result.stdout.includes('::warning::')).toBe(!fixture.listed)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
