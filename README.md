@@ -234,7 +234,9 @@ endpoint in `~/.pi/agent/`.
 Every green merge to `main` that changes the desktop app publishes a release,
 versioned `0.1.<commit count>`, unless the commit has a `Skip-Release: true`
 trailer. Site, schema, docs and CI-only merges don't release
-([docs/nx-cache.md](docs/nx-cache.md#per-app-releases-and-deploys)). An
+([docs/nx-cache.md](docs/nx-cache.md#per-app-releases-and-deploys)). Each
+release's notes list every pull request merged since the previous published
+release, including skipped ones, since they ship in that build. An
 installed app checks at launch and every 30 minutes, and shows an update button
 in the sidebar footer above Settings when there's something new.
 

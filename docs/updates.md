@@ -3,7 +3,11 @@
 How a running Phosphor learns about a new release and installs it. The release
 pipeline is
 [.github/workflows/release-continuous.yml](../.github/workflows/release-continuous.yml);
-this document is the client half.
+this document is the client half. The workflow publishes each release with
+GitHub's generated notes: every pull request merged since the previous
+_published_ release, so `Skip-Release` merges appear in the build that ships
+them. If that lookup fails, the release still publishes with install notes
+only.
 
 Everything here is **hard-gated on `app.isPackaged`**. Dev runs, the browser
 harness and the Playwright suite never reach the network for an update check,
