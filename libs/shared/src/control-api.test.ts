@@ -314,6 +314,34 @@ describe('requests', () => {
 })
 
 describe('responses', () => {
+  it('rejects labels that would display differently in every response that carries one', () => {
+    for (const label of ['bee\u202e12', 'bee1\u2028admin']) {
+      expect(
+        parseMachinesResponse({
+          machines: [{ ...machine, label }],
+          serverTime: machine.enrolledAt,
+        }),
+      ).toEqual({ ok: false, reason: 'machines: label' })
+      expect(
+        parseHostSelfResponse({
+          hostId: ID,
+          label,
+          owner: { login: 'octo' },
+          enrolledAt: machine.enrolledAt,
+          lastSeenAt: null,
+        }),
+      ).toEqual({ ok: false, reason: 'label' })
+      expect(
+        parseEnrollmentPollResponse({
+          status: 'approved',
+          hostId: ID,
+          label,
+          owner: { login: 'octo' },
+        }),
+      ).toEqual({ ok: false, reason: 'label' })
+    }
+  })
+
   it('parses a machine list and rejects a malformed machine', () => {
     const list = { machines: [machine], serverTime: '2026-10-12T10:05:10.000Z' }
     expect(parseMachinesResponse(list)).toEqual({ ok: true, value: list })
