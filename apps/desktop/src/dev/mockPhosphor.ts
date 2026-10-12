@@ -1314,6 +1314,28 @@ export function installMockPhosphor(): void {
         case 'claude:logout':
           mockClaudeAuth = { loggedIn: false }
           return Promise.resolve(undefined as never)
+        case 'control:machines':
+          return Promise.resolve(
+            (mockAccountView().preview && mockAccount.status === 'signed-in'
+              ? { ok: true, machines: [], serverTime: new Date().toISOString() }
+              : {
+                  ok: false,
+                  error: { code: 'signed-out', message: 'Sign in to Phosphor.' },
+                }) as never,
+          )
+        case 'control:lookupEnrollment':
+        case 'control:approveEnrollment':
+        case 'control:removeMachine':
+          return Promise.resolve({
+            ok: false,
+            error: {
+              code:
+                mockAccountView().preview && mockAccount.status === 'signed-in'
+                  ? 'not-found'
+                  : 'signed-out',
+              message: 'No enrolled machine in the browser harness.',
+            },
+          } as never)
         case 'account:get':
           return Promise.resolve(mockAccountView() as never)
         case 'account:setPreview':
