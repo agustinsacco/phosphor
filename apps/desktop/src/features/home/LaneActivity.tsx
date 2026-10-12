@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Button } from '@/components/form'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { SubagentPanel } from '@/features/chat/SubagentPanel'
+import { openSubagents } from '@/features/chat/subagentView'
+import { useSessionsStore } from '@/stores/sessions'
 import { summarizeTool } from '@/features/chat/tools/toolSummaries'
 import {
   fleetCurrentTool,
@@ -23,7 +24,6 @@ export function LaneActivity({ lane }: { lane: WorkbenchLane }): React.JSX.Eleme
     (s) => s.dialogs.find((d) => d.sessionId === sessionId)?.request.title,
   )
   const fleet = useMemo(() => parseFleetWidget(lines), [lines])
-  const [inspecting, setInspecting] = useState(false)
   const tool = chat ? Object.values(chat.tools).at(-1) : undefined
   const summary = tool ? summarizeTool(tool, lane.workspacePath) : undefined
   return (
@@ -71,13 +71,18 @@ export function LaneActivity({ lane }: { lane: WorkbenchLane }): React.JSX.Eleme
               Partial preview · inspect for more detail
             </p>
           )}
-          <Button size="xs" className="mt-2" onClick={() => setInspecting(true)}>
+          <Button
+            size="xs"
+            className="mt-2"
+            onClick={() => {
+              if (!sessionId) return
+              useSessionsStore.getState().activate(sessionId)
+              openSubagents(sessionId)
+            }}
+          >
             View subagents
           </Button>
         </div>
-      )}
-      {inspecting && sessionId && (
-        <SubagentPanel sessionId={sessionId} onClose={() => setInspecting(false)} />
       )}
     </div>
   )

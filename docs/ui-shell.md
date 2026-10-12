@@ -364,8 +364,9 @@ The activity preview reuses chat tool summaries and the versioned background
 snapshot parser. It shows at most three background roots, marks incomplete
 previews, and never equates roots/workflows with a count of agents. Missing
 activity is not fabricated: unopened transcripts show an invitation to open
-the lane. “View subagents” opens the existing inspector; no inspection requests
-or activity polling happen just from viewing home. Questions open their lane's
+the lane. “View subagents” activates that lane and opens its shared docked
+Subagents pane; no inspection requests or activity polling happen just from
+viewing home. Questions open their lane's
 existing dialog rather than gaining a second answer path. The ledger and
 collapsed project statistics remain below the tiles.
 

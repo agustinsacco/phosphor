@@ -4136,11 +4136,14 @@ test('the home workbench keeps parallel lanes visible and reuses subagent inspec
     await expect(delegated).toContainText('delegated work in progress')
     await expect(delegated).toContainText('grep')
     await delegated.getByRole('button', { name: 'View subagents' }).click()
-    const inspector = page.getByRole('dialog', { name: 'Subagents', exact: true })
+    const inspector = page.getByRole('region', { name: 'Subagents', exact: true })
     await expect(inspector).toBeVisible()
+    await expect(board).toBeHidden()
     await inspector.getByRole('button', { name: 'scout running grep' }).click()
     await expect(inspector).toContainText('Inspection: following login.ts to verify.ts.')
-    await inspector.getByRole('button', { name: 'Close', exact: true }).click()
+    await inspector.getByRole('button', { name: 'Close pane', exact: true }).click()
+    await page.getByRole('button', { name: /^New$/ }).click()
+    await expect(cards).toHaveCount(2)
     for (const width of [1200, 760]) {
       await harness.app.evaluate(({ BrowserWindow }, width) => {
         const window = BrowserWindow.getAllWindows()[0]

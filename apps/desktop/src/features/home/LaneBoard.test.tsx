@@ -6,14 +6,10 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { usePullRequestsStore } from '@/stores/pullRequests'
+import { useLayoutStore } from '@/stores/layout'
 import type { SessionMeta } from '@shared/models'
 import { LaneBoard, useLaneBoard } from './LaneBoard'
 
-vi.mock('@/features/chat/SubagentPanel', () => ({
-  SubagentPanel: ({ sessionId }: { sessionId: string }) => (
-    <div role="dialog">Inspect {sessionId}</div>
-  ),
-}))
 let root: Root
 let el: HTMLDivElement
 const cards = () => [...el.querySelectorAll('[data-testid="lane-board-card"]')]
@@ -26,6 +22,7 @@ beforeEach(() => {
   useChatStore.setState({ sessions: {} })
   useExtensionUiStore.setState({ widgets: {}, dialogs: [] })
   usePullRequestsStore.setState({ byRepo: {} })
+  useLayoutStore.setState({ bySession: {} })
   vi.spyOn(usePullRequestsStore.getState(), 'refresh').mockResolvedValue()
   el = document.createElement('div')
   document.body.append(el)
@@ -135,9 +132,11 @@ it('renders observed tools and bounded background work without inspecting until 
   expect(el.textContent).toContain('1 background run active')
   expect(el.textContent).toContain('Partial preview')
   expect(el.textContent).not.toContain('PI_SUBAGENT_ASYNC_JSON')
-  expect(el.querySelector('[role="dialog"]')).toBeNull()
+  expect(useLayoutStore.getState().bySession.a).toBeUndefined()
+  const activate = vi.spyOn(useSessionsStore.getState(), 'activate').mockImplementation(() => {})
   act(() =>
     [...el.querySelectorAll('button')].find((b) => b.textContent === 'View subagents')!.click(),
   )
-  expect(el.querySelector('[role="dialog"]')?.textContent).toBe('Inspect a')
+  expect(activate).toHaveBeenCalledWith('a')
+  expect(useLayoutStore.getState().bySession.a?.pane).toBe('subagents')
 })
