@@ -102,6 +102,21 @@ describe('createControlClient', () => {
     expect(await late.client.machines()).toMatchObject({ error: { code: 'signed-out' } })
     expect(late.fetchImpl).toHaveBeenCalledTimes(1)
   })
+  it('re-asks me when the token refreshes, so a lifted suspension takes effect', async () => {
+    const h = harness()
+    h.fetchImpl.mockResolvedValueOnce(json({ ...me, enabled: false }))
+    expect(await h.client.machines()).toMatchObject({ error: { code: 'forbidden' } })
+    // Same token, same generation: the cached answer stands.
+    expect(await h.client.machines()).toMatchObject({ error: { code: 'forbidden' } })
+    expect(h.fetchImpl).toHaveBeenCalledTimes(1)
+    h.signIn() // a refresh rotates the token without a sign-out
+    expect(await h.client.machines()).toMatchObject({ ok: true })
+    expect(h.fetchImpl.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+      CONTROL_ROUTES.me,
+      CONTROL_ROUTES.me,
+      CONTROL_ROUTES.machines,
+    ])
+  })
   it('drops a token acquired across an account change before any request', async () => {
     const h = harness()
     h.accessToken.mockImplementationOnce(async () => {

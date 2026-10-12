@@ -15,6 +15,7 @@ export function EnrolledMachines(): React.JSX.Element {
   const [removing, setRemoving] = useState<MachineView | null>(null)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
+  const [removeError, setRemoveError] = useState<string | null>(null)
   useEffect(() => {
     const store = useMachinesStore.getState()
     store.enableRemote(true)
@@ -33,6 +34,7 @@ export function EnrolledMachines(): React.JSX.Element {
   async function remove(): Promise<void> {
     if (!removing || busy) return
     setBusy(true)
+    setRemoveError(null)
     try {
       const result = await window.phosphor.invoke('control:removeMachine', removing.id)
       if (!useMachinesStore.getState().remoteEnabled) return
@@ -40,9 +42,9 @@ export function EnrolledMachines(): React.JSX.Element {
         setNotice(result.ok ? 'Machine removed.' : 'That machine was already removed.')
         setRemoving(null)
         await useMachinesStore.getState().refresh()
-      } else setNotice(controlMessage(result.error.code))
+      } else setRemoveError(controlMessage(result.error.code))
     } catch {
-      setNotice(controlMessage('offline'))
+      setRemoveError(controlMessage('offline'))
     } finally {
       setBusy(false)
     }
@@ -105,6 +107,7 @@ export function EnrolledMachines(): React.JSX.Element {
                 size="xs"
                 onClick={() => {
                   setNotice(null)
+                  setRemoveError(null)
                   setRemoving(machine)
                 }}
               >
@@ -140,6 +143,11 @@ export function EnrolledMachines(): React.JSX.Element {
                 The machine stays installed. It must re-run <code>phosphor login</code> to come
                 back.
               </p>
+              {removeError && (
+                <p role="alert" className="text-danger px-4 pb-4">
+                  {removeError}
+                </p>
+              )}
             </ModalPanel>
           </div>
         </ModalOverlay>

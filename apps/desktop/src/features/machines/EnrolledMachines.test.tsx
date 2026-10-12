@@ -263,12 +263,15 @@ it('shows removal failure without hiding the row or the confirmation', async () 
     error: { code: 'forbidden', message: 'not displayed' },
   })
   await click('Remove machine')
-  expect(container.textContent).toContain(controlMessage('forbidden'))
+  // The failure is announced inside the open dialog, not behind its backdrop.
+  const alert = () => document.querySelector('[role="dialog"] [role="alert"]')
+  expect(alert()?.textContent).toBe(controlMessage('forbidden'))
+  expect(container.textContent).not.toContain(controlMessage('forbidden'))
   expect(container.querySelector('[data-testid="enrolled-machine-row"]')).not.toBeNull()
   expect(document.querySelector('[role="dialog"]')).not.toBeNull()
   invoke.mockRejectedValueOnce(new Error('not displayed'))
   await click('Remove machine')
-  expect(container.textContent).toContain(controlMessage('offline'))
+  expect(alert()?.textContent).toBe(controlMessage('offline'))
 })
 it('uses the required plain wording for enrollment errors', () => {
   expect(controlMessage('not-found')).toContain('wrong or expired')

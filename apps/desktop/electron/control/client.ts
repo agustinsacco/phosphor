@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import {
   CONTROL_ROUTES,
   DEFAULT_CONTROL_URL,
@@ -52,8 +53,11 @@ export function createControlClient(ports: {
   generation: () => number
   fetch?: typeof fetch
 }) {
+  // Keyed by account generation and a digest of the token, so a refreshed
+  // token re-asks /me (a suspension can be lifted) without keeping the token.
   let me: {
     generation: number
+    tokenId: string
     promise: Promise<ControlResult<MeResponse>>
   } | null = null
   const fetchImpl = ports.fetch ?? fetch
@@ -131,9 +135,12 @@ export function createControlClient(ports: {
         me = null
         return controlFailure('signed-out')
       }
+      const tokenId = createHash('sha256').update(token).digest('hex')
+      if (me?.tokenId !== tokenId) me = null
       if (!me) {
         const cached = {
           generation,
+          tokenId,
           promise: request(token, CONTROL_ROUTES.me, 'GET', parseMeResponse),
         }
         me = cached
