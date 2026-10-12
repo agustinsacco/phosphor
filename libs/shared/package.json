@@ -48,6 +48,10 @@
       "types": "./src/context-files.ts",
       "default": "./src/context-files.ts"
     },
+    "./control-api": {
+      "types": "./src/control-api.ts",
+      "default": "./src/control-api.ts"
+    },
     "./errors": {
       "types": "./src/errors.ts",
       "default": "./src/errors.ts"
