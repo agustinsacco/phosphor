@@ -171,7 +171,9 @@ and key, even if Desktop already approved it.
 
 An already enrolled and confirmed machine exits 0 without replacing its identity.
 Login removes any leftover pending request. A removed
-machine starts a new enrollment. Approval saves the identity, then checks it
+machine starts a new enrollment, or resumes the pending one, keeping the old
+identity until the new one is approved; approval then removes the old pair
+before saving the new one. Approval saves the identity, then checks it
 once with the server. If that check cannot finish, the identity stays saved
 and login exits 0 with a hint to run status. A 410 removes the new identity
 and exits 77.
@@ -191,8 +193,10 @@ The files live in `identity/` beside the config file, including when
 - `.lock`: the pid, random ownership token and start time of a login or logout.
   A complete, synced temporary file is linked atomically into place. A live pid
   refuses another login or logout with exit 75. Dead or invalid locks are
-  reclaimed under the `.lock-recovery` directory gate. A fresh gate is waited on
-  for at most one second; a gate over 30 seconds old is cleared. Release uses the
+  reclaimed under the `.lock-recovery` directory gate. A gate is waited on for
+  at most one second, then exits 75. Only the process that created a gate
+  removes it: a gate over 30 seconds old was left by a crash, and the message
+  asks you to remove it if no login or logout is running. Release uses the
   same gate and removes only its own token. Recovery compares the file identity
   and token again under the gate. A symlink is removed without touching its
   target; a directory at `.lock` is refused with a removal instruction. The main
@@ -206,7 +210,7 @@ Both successful logout and `logout --local` also remove pending requests.
 A save atomically renames the new key first, then `host.json`, the commit
 point, then removes obsolete keys. A failure before the commit keeps the
 old pair usable; a stopped save can leave an unused key. Login can reuse an
-identical safely read orphan key when no identity has committed it. Loads read metadata
+orphan key when it is byte for byte the pending key and no `host.json` exists. Loads read metadata
 first and refuse links, non-files, another owner's files, group or other
 permissions, and files over 4 KiB. A missing or refused key is an incomplete
 identity: fix its permissions or run login to enroll again.

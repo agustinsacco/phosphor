@@ -263,8 +263,9 @@ export function createIdentityStore(
           if (!missing(error)) throw error
         }
         if (existing) {
-          const stored = createPrivateKey(await read(keyName))
-          if (publicIdentity(stored).publicKey !== publicIdentity(key).publicKey) throw unsafe()
+          // Byte for byte: the orphan must be exactly the PEM this key exports.
+          const stored = await read(keyName)
+          if (stored !== key.export({ type: 'pkcs8', format: 'pem' }).toString()) throw unsafe()
           try {
             await lstat(join(directory, 'host.json'))
             throw unsafe()

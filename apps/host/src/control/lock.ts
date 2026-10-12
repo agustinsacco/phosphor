@@ -74,8 +74,10 @@ export async function acquireIdentityLock(
   const gatePath = join(directory, '.lock-recovery')
   const token = randomBytes(32).toString('hex')
   const temp = join(directory, `.lock.${token}.tmp`)
+  // Only the process whose mkdir created the gate ever removes it. A gate is held
+  // for milliseconds, so one left behind means a crash inside it: the user removes
+  // it. Clearing it automatically on age could remove a live gate (review r2).
   async function gate() {
-    let cleared = false
     for (let attempt = 0; attempt <= 20; attempt++) {
       try {
         await mkdir(gatePath, { mode: 0o700 })
@@ -83,25 +85,21 @@ export async function acquireIdentityLock(
       } catch (error) {
         if (!hasCode(error, 'EEXIST')) throw error
       }
-      try {
-        const info = await lstat(gatePath)
-        if (
-          !cleared &&
-          info.isDirectory() &&
-          !info.isSymbolicLink() &&
-          (ports.now ?? Date.now)() - info.mtimeMs > 30_000
-        ) {
-          await rmdir(gatePath)
-          cleared = true
-          continue
-        }
-      } catch (error) {
-        if (hasCode(error, 'ENOENT')) continue
-        throw error
-      }
-      if (attempt === 20) throw new LockBusy()
+      if (attempt === 20) break
       await (ports.wait ?? ((ms) => setTimeout(ms)))(50)
     }
+    let info
+    try {
+      info = await lstat(gatePath)
+    } catch (error) {
+      if (hasCode(error, 'ENOENT')) throw new LockBusy()
+      throw error
+    }
+    if ((ports.now ?? Date.now)() - info.mtimeMs > 30_000)
+      throw new LockBusy(
+        undefined,
+        'A crashed phosphor login or logout left identity/.lock-recovery. If none is running, remove it and retry.',
+      )
     throw new LockBusy()
   }
   async function snapshot() {

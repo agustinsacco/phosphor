@@ -39,9 +39,11 @@ export async function runLogin(context: ControlContext): Promise<CommandResult> 
         }
       }
       const now = context.now ?? Date.now
+      // Reaching here with an identity means the control plane said it is gone. Its
+      // replacement's pending files are kept, so a cancelled or crashed replacement
+      // resumes like any other; the old pair stays until the replacement is approved.
       let pending = await store.loadPending()
       if (
-        loaded ||
         !pending ||
         pending.enrollment.controlUrl !== url ||
         Date.parse(pending.enrollment.expiresAt) <= now()
@@ -129,6 +131,9 @@ Waiting for approval. The code expires in ${minutesLeft(deadline - now())}. Ctrl
         }
         if (answer.status === 'pending') continue
         if (context.signal?.aborted) throw new ControlFailure('offline')
+        // Drop the revoked pair first, so a crash before the commit leaves no
+        // host.json and the next login can reuse the saved key (identity.ts).
+        if (loaded) await store.remove(loaded.identity.hostId)
         await store.save(
           {
             version: 1,

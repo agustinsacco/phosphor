@@ -340,6 +340,17 @@ describe('Host identity storage', () => {
     await store().removePending()
     expect(await readdir(dir)).toEqual([])
   })
+  it('refuses an orphan with the same key but different bytes', async () => {
+    const key = freshKey()
+    const pem = key.export({ type: 'pkcs8', format: 'pem' }).toString()
+    await filesystem.mkdir(dir, { recursive: true, mode: 0o700 })
+    await writeFile(keyFile(otherId), pem + '\n', { mode: 0o600 })
+    await expect(store().save({ ...identity, hostId: otherId }, key)).rejects.toThrow(
+      'Unsafe identity',
+    )
+    expect(await readFile(keyFile(otherId), 'utf8')).toBe(pem + '\n')
+    expect(await store().load()).toBeNull()
+  })
   it('refuses an identical orphan when host.json commits a different identity', async () => {
     await store().save(identity, freshKey())
     const key = freshKey()

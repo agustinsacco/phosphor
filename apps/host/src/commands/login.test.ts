@@ -134,6 +134,49 @@ describe('phosphor login', () => {
     expect(machine.output[0]).toContain('removed from the account')
     expect((await machine.store.load())?.identity.hostId).toBe(hostId)
   })
+  it('resumes a cancelled replacement after gone, then swaps the revoked pair', async () => {
+    await machine.enrollOld()
+    const old = await machine.store.load()
+    machine.setMode('gone')
+    machine.onWait(() => {
+      machine.abort.abort()
+    })
+    expect((await runLogin(machine.context)).exitCode).toBe(130)
+    const pending = await machine.store.loadPending()
+    if (!pending || !old) throw new Error('Expected pending and old state')
+    expect((await machine.store.load())?.identity).toEqual(oldIdentity)
+    machine.onWait(undefined)
+    expect(
+      (await runLogin({ ...machine.context, signal: new AbortController().signal })).exitCode,
+    ).toBe(0)
+    expect(machine.calls.filter((call) => call.path === CONTROL_ROUTES.enrollments)).toHaveLength(1)
+    expect(machine.output.join('\n')).toContain('Resuming the earlier request.')
+    const saved = await machine.store.load()
+    expect(saved?.identity.hostId).toBe(hostId)
+    expect(saved && publicIdentity(saved.key)).toEqual(publicIdentity(pending.key))
+    expect(await machine.store.loadPending()).toBeNull()
+  })
+  it('finishes a replacement whose save crashed after writing the new key', async () => {
+    await machine.enrollOld()
+    machine.setMode('gone')
+    machine.onWait(() => {
+      machine.abort.abort()
+    })
+    expect((await runLogin(machine.context)).exitCode).toBe(130)
+    const pending = await machine.store.loadPending()
+    if (!pending) throw new Error('Expected pending state')
+    // The earlier run died between writing the approved key and committing host.json.
+    await writeFile(
+      join(identityDirectory(machine.configPath), `host-key.${hostId}.pem`),
+      pending.key.export({ type: 'pkcs8', format: 'pem' }),
+      { mode: 0o600 },
+    )
+    machine.onWait(undefined)
+    expect(
+      (await runLogin({ ...machine.context, signal: new AbortController().signal })).exitCode,
+    ).toBe(0)
+    expect((await machine.store.load())?.identity.hostId).toBe(hostId)
+  })
   it.each(['offline', 'unavailable'] as const)(
     'keeps an approved identity if confirmation is %s',
     async (mode) => {

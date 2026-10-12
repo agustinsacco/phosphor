@@ -84,31 +84,35 @@ describe('identity lock', () => {
     expect(JSON.parse(await readFile(join(dir, '.lock'), 'utf8')).pid).toBe(123)
     await winner?.()
   })
-  it('waits on a fresh gate with bounded retries, and clears only a gate over 30 seconds old', async () => {
-    await writeFile(join(dir, '.lock'), record(456), { mode: 0o600 })
-    const gate = join(dir, '.lock-recovery')
-    await mkdir(gate, { mode: 0o700 })
-    const instant = new Date('2026-10-10T00:00:00.000Z')
-    await utimes(gate, instant, instant)
-    const waits: number[] = []
-    await expect(
-      acquireIdentityLock(dir, uid, {
+  it.each([30_000, 30_001, 86_400_000])(
+    'never removes a gate it did not create (age %s ms), and names a crash-left one',
+    async (age) => {
+      await writeFile(join(dir, '.lock'), record(456), { mode: 0o600 })
+      const gate = join(dir, '.lock-recovery')
+      await mkdir(gate, { mode: 0o700 })
+      const instant = new Date('2026-10-10T00:00:00.000Z')
+      await utimes(gate, instant, instant)
+      const waits: number[] = []
+      const attempt = acquireIdentityLock(dir, uid, {
         ...ports,
-        now: () => instant.getTime() + 30_000,
+        now: () => instant.getTime() + age,
         wait: async (ms) => {
           waits.push(ms)
         },
-      }),
-    ).rejects.toBeInstanceOf(LockBusy)
-    expect(waits).toEqual(Array.from({ length: 20 }, () => 50))
-    expect(await readFile(join(dir, '.lock'), 'utf8')).toBe(record(456))
-    const release = await acquireIdentityLock(dir, uid, {
-      ...ports,
-      now: () => instant.getTime() + 30_001,
-    })
-    await release()
-    expect(await readdir(dir)).toEqual([])
-  })
+      })
+      await expect(attempt).rejects.toBeInstanceOf(LockBusy)
+      await expect(attempt).rejects.toThrow(
+        age > 30_000 ? 'left identity/.lock-recovery' : 'Another phosphor login or logout',
+      )
+      expect(waits).toEqual(Array.from({ length: 20 }, () => 50))
+      expect((await lstat(gate)).isDirectory()).toBe(true)
+      expect(await readFile(join(dir, '.lock'), 'utf8')).toBe(record(456))
+      await rmdir(gate)
+      const release = await acquireIdentityLock(dir, uid, ports)
+      await release()
+      expect(await readdir(dir)).toEqual([])
+    },
+  )
   it.each(['EPERM', 'ESRCH'])(
     'interprets process.kill %s without weakening liveness',
     async (code) => {
