@@ -54,6 +54,7 @@ describe('branch-aware recorded coordination', () => {
     const entries = [
       {
         id: 'call',
+        timestamp: '2026-10-12T12:00:00Z',
         parentId: null,
         type: 'message',
         message: {
@@ -74,6 +75,8 @@ describe('branch-aware recorded coordination', () => {
         type: 'message',
         message: {
           role: 'toolResult',
+          timestamp: 1791806401000,
+          content: [{ type: 'text', text: 'Launched run-a' }],
           toolName: 'subagent',
           toolCallId: 't1',
           details: { mode: 'single', asyncId: 'run-a', async: true },
@@ -85,10 +88,23 @@ describe('branch-aware recorded coordination', () => {
     expect(history.launches[0]).toMatchObject({
       label: 'Launch request: worker',
       task: 'Inspect only',
+      requestedAt: Date.parse('2026-10-12T12:00:00Z'),
+      returnedAt: 1791806401000,
+      receipt: 'Launched run-a',
+      detached: true,
       runId: 'run-a',
       outcome: 'Detached launch receipt, not current running status.',
     })
     expect(history.runIds.has('run-a')).toBe(true)
+    const missingDetails = entries.map((entry) =>
+      entry.id === 'result'
+        ? { ...entry, message: { ...entry.message, details: undefined } }
+        : entry,
+    )
+    expect(subagentHistory(missingDetails, 'compact').launches[0]).toMatchObject({
+      detached: true,
+      outcome: 'Detached launch receipt, not current running status.',
+    })
     expect(subagentHistory(entries, 'call').launches[0]?.runId).toBeUndefined()
   })
   it('folds slash placeholders into their exact final receipts live, on hydration and in branch history', () => {

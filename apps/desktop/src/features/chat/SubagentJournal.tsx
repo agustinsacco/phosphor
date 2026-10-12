@@ -3,6 +3,8 @@ import { Button } from '@/components/form'
 import { errorText } from '@shared/errors'
 import { recordedReply, subagentHistory } from './subagentHistory'
 import { SUBAGENT_SUPERVISOR_REPLY_TYPE } from './subagentRuns'
+import { SubagentText } from './SubagentText'
+import { newestWork, taskPreview, workTime } from './subagentPresentation'
 import { SubagentNoticeItem } from './items/SubagentNotice'
 
 /** Explicit read, not a second journal or a polling full-transcript service. */
@@ -68,21 +70,46 @@ export function SubagentJournal({
                 {history.omittedLaunches > 0 &&
                   `${history.omittedLaunches} earlier launches omitted.`}
               </p>
-              {history.launches.map((run) => (
+              {newestWork(history.launches).map((run) => (
                 <div key={run.id} className="border-border rounded border p-2">
                   <div className="flex flex-wrap justify-between gap-2">
-                    <span>{run.label}</span>
+                    <span className="min-w-0 flex-1 truncate font-medium" title={run.task}>
+                      {run.task ? taskPreview(run.task) : run.label}
+                    </span>
                     {run.runId && (
                       <Button size="sm" onClick={() => onInspect(run.runId!)}>
                         Inspect run
                       </Button>
                     )}
                   </div>
-                  <p className="text-text-secondary">{run.outcome}</p>
+                  <p className="text-text-secondary text-xs">
+                    {run.label} · {workTime(undefined, undefined, run.requestedAt)} · #
+                    {run.runId?.slice(0, 8) ?? run.id.slice(0, 8)}
+                  </p>
+                  <p className="text-text-secondary text-sm">{run.outcome}</p>
                   {run.task && (
                     <details>
                       <summary className="cursor-pointer">Delegated task</summary>
-                      <pre className="whitespace-pre-wrap break-words">{run.task}</pre>
+                      <div className="max-h-64 overflow-auto">
+                        <SubagentText text={run.task} />
+                      </div>
+                    </details>
+                  )}
+                  {run.receipt && (
+                    <details className="mt-1">
+                      <summary className="cursor-pointer">
+                        {run.detached
+                          ? 'Launch receipt · not a child result'
+                          : 'Output received by supervisor'}
+                      </summary>
+                      {run.returnedAt !== undefined && Number.isFinite(run.returnedAt) && (
+                        <p className="text-text-tertiary text-xs">
+                          Received {new Date(run.returnedAt).toLocaleString()}
+                        </p>
+                      )}
+                      <div className="max-h-80 overflow-auto">
+                        <SubagentText text={run.receipt} />
+                      </div>
                     </details>
                   )}
                 </div>
@@ -96,6 +123,8 @@ export function SubagentJournal({
                   item.customType !== SUBAGENT_SUPERVISOR_REPLY_TYPE ||
                   !history.items.some((question) => recordedReply(question, [item]) !== undefined),
               )
+              .slice()
+              .reverse()
               .map((item) => (
                 <SubagentNoticeItem
                   key={item.id}

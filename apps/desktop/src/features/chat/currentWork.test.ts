@@ -32,6 +32,41 @@ const chat = () => ({
   tools: { fg: tool() },
 })
 
+it('shows recorded prompt and request time without turning replayed tools live', () => {
+  const state = chat()
+  state.tools.fg.startedAt = undefined
+  state.items.push({
+    id: 'a',
+    kind: 'assistant',
+    timestamp: 100,
+    streaming: false,
+    blocks: [{ type: 'tool', index: 0, toolCallId: 'fg' }],
+  })
+  expect(currentWork(state, null).entries[0]).toMatchObject({
+    task: 'Review',
+    requestedAt: 100,
+    active: 0,
+  })
+})
+it('enriches exact root tasks but not their child steps', () => {
+  const state = chat()
+  const snapshot = fleet()
+  state.tools.fg.output!.details = { runId: snapshot.runs[0]!.id }
+  expect(currentWork(state, snapshot).entries.every((e) => !e.task)).toBe(true)
+  snapshot.runs[0]!.children = []
+  expect(currentWork(state, snapshot).entries[0]?.task).toBe('Review')
+  snapshot.runs[0]!.startedAt = undefined
+  expect(currentWork(state, snapshot).entries[0]).toMatchObject({
+    requestedAt: 1,
+    startedAt: undefined,
+  })
+  state.tools.fg.args!.async = true
+  expect(currentWork(state, null).entries[0]).toMatchObject({
+    requestedAt: 1,
+    startedAt: undefined,
+  })
+})
+
 it('counts foreground children and background leaves without counting workflow roots', () => {
   const work = currentWork(chat(), fleet())
   expect(work.entries.reduce((n, entry) => n + entry.active, 0)).toBe(3)

@@ -1,4 +1,6 @@
 import { useId, useState } from 'react'
+import { SubagentWorkRow } from './SubagentWorkRow'
+import { newestWork } from './subagentPresentation'
 import { ChevronIcon } from '@/components/icons'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { useChatStore } from '@/stores/chat'
@@ -23,8 +25,8 @@ function CurrentWorkSummary({ sessionId }: { sessionId: string }): React.JSX.Ele
   const active = entries.reduce((sum, entry) => sum + entry.active, 0)
   const attention = entries.filter((entry) => entry.active && entry.attention).length
   const unknown = entries.filter((entry) => entry.state === 'status unavailable')
-  const current = [...entries.filter((entry) => entry.active), ...unknown.slice().reverse()]
-  const recent = entries.filter((entry) => !current.includes(entry)).slice(-3)
+  const current = newestWork(entries.filter((entry) => entry.active || unknown.includes(entry)))
+  const recent = newestWork(entries.filter((entry) => !current.includes(entry))).slice(0, 3)
   const open = (entry: WorkEntry): void => {
     if (entry.runId) openSubagents(sessionId, entry.runId, entry.childId)
     else if (entry.toolCallId) openForegroundSubagent(sessionId, entry.toolCallId)
@@ -63,25 +65,19 @@ function CurrentWorkSummary({ sessionId }: { sessionId: string }): React.JSX.Ele
         </div>
         <div id={detailsId} hidden={!expanded} className="mt-1">
           {(unknown.length > 0 || incomplete) && (
-            <p className="text-text-secondary text-sm">
+            <p className="text-text-secondary px-2 py-1 text-xs">
               {unknown.length > 0 && 'Status unavailable for some work. '}
               {incomplete && 'Snapshot incomplete; some work may not be shown. '}
               {lastSeen && `Last snapshot received ${new Date(lastSeen).toLocaleTimeString()}. `}
               Active count includes only currently reported work.
             </p>
           )}
-          <div className="max-h-32 overflow-y-auto overscroll-contain">
+          <div className="max-h-48 overflow-y-auto overscroll-contain">
+            {current.length > 0 && (
+              <p className="text-text-tertiary px-2 py-1 text-xs">Current work · newest first</p>
+            )}
             {current.slice(0, 8).map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                onClick={() => open(entry)}
-                className="text-text-secondary hover:text-text block w-full truncate rounded text-left text-sm underline underline-offset-2"
-              >
-                {entry.label}: {entry.state}
-                {entry.currentTool ? ` · ${entry.currentTool}` : ''}
-                {entry.active > 0 && entry.attention ? ' · needs parent attention' : ''}
-              </button>
+              <SubagentWorkRow key={entry.id} entry={entry} onClick={() => open(entry)} />
             ))}
             {current.length > 8 && (
               <p className="text-text-secondary text-sm">
@@ -90,23 +86,16 @@ function CurrentWorkSummary({ sessionId }: { sessionId: string }): React.JSX.Ele
             )}
           </div>
           {recent.length > 0 && (
-            <details className="text-text-secondary text-sm">
+            <details className="text-text-secondary mt-1 border-t border-border pt-1 text-xs">
               <summary className="cursor-pointer">
                 Recent work · completion is not acceptance
               </summary>
               {recent.map((entry) => (
-                <button
-                  key={entry.id}
-                  type="button"
-                  onClick={() => open(entry)}
-                  className="hover:text-text block w-full truncate rounded text-left underline"
-                >
-                  {entry.label}: {entry.state}
-                </button>
+                <SubagentWorkRow key={entry.id} entry={entry} onClick={() => open(entry)} />
               ))}
             </details>
           )}
-          <p className="text-text-secondary text-sm">
+          <p className="text-text-tertiary px-2 pt-2 text-xs">
             {parentBusy
               ? 'Messages still go to the parent, not a child.'
               : 'The parent is idle. You can still message it.'}

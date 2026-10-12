@@ -3,24 +3,35 @@ import clsx from 'clsx'
 import { ChevronIcon } from '@/components/icons'
 import { isFleetActive, type FleetNode } from './subagentRuns'
 import type { SubagentTarget } from './subagentView'
+import type { WorkEntry } from './currentWork'
+import { newestWork, taskPreview, workTime } from './subagentPresentation'
 import { SubagentActivity } from './SubagentActivity'
 
 /** Fixed three-line rows. Live counters/tool names never add lines to the tree. */
 export function SubagentTree({
   nodes,
+  entries,
   target,
   onSelect,
   rootId,
 }: {
   nodes: FleetNode[]
+  entries?: WorkEntry[]
   target?: SubagentTarget
   onSelect: (target: SubagentTarget) => void
   rootId?: string
 }): React.JSX.Element {
   return (
     <ul className="min-w-0 space-y-1">
-      {nodes.map((node) => (
-        <AgentRow key={node.id} node={node} rootId={rootId} target={target} onSelect={onSelect} />
+      {newestWork(nodes).map((node) => (
+        <AgentRow
+          key={node.id}
+          node={node}
+          entries={entries}
+          rootId={rootId}
+          target={target}
+          onSelect={onSelect}
+        />
       ))}
     </ul>
   )
@@ -28,11 +39,13 @@ export function SubagentTree({
 
 function AgentRow({
   node,
+  entries,
   rootId,
   target,
   onSelect,
 }: {
   node: FleetNode
+  entries?: WorkEntry[]
   rootId?: string
   target?: SubagentTarget
   onSelect: (target: SubagentTarget) => void
@@ -40,6 +53,9 @@ function AgentRow({
   const [open, setOpen] = useState(true)
   const selected =
     target?.runId === (rootId ?? node.id) && target.childId === (rootId ? node.id : undefined)
+  const entry = entries?.find(
+    (e) => e.runId === (rootId ?? node.id) && e.childId === (rootId ? node.id : undefined),
+  )
   const label = node.kind === 'workflow' ? 'Workflow' : node.label
   const activity =
     node.currentTool ??
@@ -65,17 +81,21 @@ function AgentRow({
           data-testid="subagent-nav-row"
           aria-label={`${label} ${node.state}${node.currentTool ? ` ${node.currentTool}` : ''}`}
           aria-pressed={selected}
+          aria-description={`${taskPreview(entry?.task ?? node.label)}. ${workTime(node.startedAt, node.endedAt)}. ${node.id}`}
           onClick={() =>
             onSelect({ runId: rootId ?? node.id, ...(rootId ? { childId: node.id } : {}) })
           }
           className={clsx(
-            'min-w-0 flex-1 rounded-md px-2 py-2 text-left text-base',
+            'min-w-0 flex-1 rounded-md px-2 py-1.5 text-left text-sm',
             selected ? 'bg-accent-soft text-text' : 'text-text hover:bg-bg-secondary',
           )}
         >
-          <span className="flex min-w-0 items-center gap-2 leading-5">
-            <span className="min-w-0 flex-1 truncate font-medium" title={node.label}>
-              {label}
+          <span className="flex min-w-0 items-center gap-2 leading-4">
+            <span
+              className="min-w-0 flex-1 truncate font-medium"
+              title={taskPreview(entry?.task ?? node.label)}
+            >
+              {entry?.task ? taskPreview(entry.task) : node.label}
             </span>
             <span
               className={clsx(
@@ -97,10 +117,8 @@ function AgentRow({
               {node.attention ? '!' : ''}
             </span>
           </span>
-          <span
-            className="text-text-secondary block truncate font-mono text-sm leading-5"
-            title={activity}
-          >
+          <span className="text-text-secondary block truncate text-xs leading-4" title={activity}>
+            {entry?.task && `${label} · `}
             {activity}
           </span>
           <SubagentActivity node={node} />
@@ -110,6 +128,7 @@ function AgentRow({
         <div className="border-border ml-2 border-l pl-1">
           <SubagentTree
             nodes={node.children}
+            entries={entries}
             target={target}
             onSelect={onSelect}
             rootId={rootId ?? node.id}

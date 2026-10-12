@@ -48,6 +48,8 @@ function render(): void {
 const strip = (): Element | null => el.querySelector('[data-testid="background-work-indicator"]')
 const toggle = (): HTMLButtonElement => el.querySelector('button[aria-expanded]')!
 const details = (): HTMLElement => document.getElementById(toggle().getAttribute('aria-controls')!)!
+const rowLabels = (): string =>
+  [...el.querySelectorAll('button[aria-label]')].map((b) => b.getAttribute('aria-label')).join('\n')
 const expand = (): void => {
   act(() => toggle().click())
 }
@@ -63,7 +65,7 @@ it('starts compact with counts and attention, keeping task links out of keyboard
   expand()
   expect(toggle().getAttribute('aria-expanded')).toBe('true')
   expect(details().hidden).toBe(false)
-  expect(details().textContent).toContain('validation: running')
+  expect(rowLabels()).toContain('validation: running')
   expand()
   expect(details().hidden).toBe(true)
 })
@@ -78,6 +80,42 @@ it('keeps missing and incomplete status visible while collapsed without opening 
   expect(details().hidden).toBe(true)
 })
 
+it('shows distinguishable tasks and timestamps in a newest-first queue', () => {
+  const chat = useChatStore.getState().sessions.lane!
+  useChatStore.setState({
+    sessions: {
+      lane: {
+        ...chat,
+        isStreaming: true,
+        agentStartedAt: 1,
+        tools: Object.fromEntries(
+          [
+            ['old', 100, 'Review schema'],
+            ['new', 200, 'Review shutdown'],
+          ].map(([id, startedAt, task]) => [
+            id,
+            {
+              toolCallId: id as string,
+              toolName: 'subagent',
+              argsText: '',
+              args: { agent: 'worker', task },
+              status: 'running',
+              startedAt: startedAt as number,
+              output: null,
+            },
+          ]),
+        ),
+      },
+    },
+  })
+  render()
+  expand()
+  const rows = [...el.querySelectorAll('button[aria-label="worker: running"]')]
+  expect(rows[0]?.textContent).toContain('Review shutdown')
+  expect(rows[1]?.textContent).toContain('Review schema')
+  expect(rows[0]?.textContent).toContain('Started')
+  expect(rows[0]?.getAttribute('title')).toContain('new')
+})
 it('keeps expansion through updates but starts another lane compact', () => {
   publish()
   render()
@@ -85,7 +123,7 @@ it('keeps expansion through updates but starts another lane compact', () => {
   snapshot.runs[0]!.children[1]!.state = 'queued'
   publish()
   expect(details().hidden).toBe(false)
-  expect(details().textContent).toContain('validation: queued')
+  expect(rowLabels()).toContain('validation: queued')
   publish(snapshot, 'other')
   act(() => root.render(<BackgroundWorkIndicator sessionId="other" />))
   expect(details().hidden).toBe(true)
@@ -99,8 +137,8 @@ it('expands an idle parent’s active, named steps, not finished siblings', () =
     'Parent idle · 2 subagents active · 1 needs parent attention',
   )
   expand()
-  expect(strip()?.textContent).toContain('validation: running · needs parent attention')
-  expect(strip()?.textContent).toContain('qa: running')
+  expect(rowLabels()).toContain('validation: running · needs parent attention')
+  expect(rowLabels()).toContain('qa: running')
   expect(strip()?.textContent).toContain('The parent is idle. You can still message it.')
   expect(strip()?.textContent).toContain('Attention signals are for the parent.')
   expect(el.querySelector('.phosphor-loader')?.getAttribute('data-animated')).toBe('true')
@@ -135,8 +173,8 @@ it('shows active descendants even after their enclosing root settles and preserv
   publish()
   render()
   expand()
-  expect(strip()?.textContent).toContain('validation: queued')
-  expect(strip()?.textContent).toContain('qa: running')
+  expect(rowLabels()).toContain('validation: queued')
+  expect(rowLabels()).toContain('qa: running')
 })
 
 it.each(['complete', 'failed', 'partial', 'paused', 'stopped', 'rejected'])(
@@ -198,11 +236,11 @@ it('retains removed or omitted work across remounts without a stale pulse', () =
   expect(el.querySelector('.phosphor-loader')).toBeNull()
   act(() => root.render(<></>))
   render()
-  expect(strip()?.textContent).toContain('validation: status unavailable')
+  expect(rowLabels()).toContain('validation: status unavailable')
   send(lines)
   expect(strip()?.textContent).toContain('2 subagents active')
   send([`PI_SUBAGENT_ASYNC_JSON:${JSON.stringify({ ...snapshot, runs: [] })}`])
-  expect(strip()?.textContent).toContain('validation: status unavailable')
+  expect(rowLabels()).toContain('validation: status unavailable')
   act(() => useExtensionUiStore.getState().clearSession('lane'))
   expect(strip()).toBeNull()
 })
@@ -233,7 +271,7 @@ it('routes foreground work to its exact delegation without borrowing another lan
   expect(strip()?.textContent).toContain('Parent working · 1 subagents active')
   expand()
   const button = [...el.querySelectorAll('button')].find((b) =>
-    b.textContent?.includes('reviewer: running'),
+    b.getAttribute('aria-label')?.includes('reviewer: running'),
   )!
   act(() => button.click())
   expect(useSubagentNavigation.getState().toolCallId).toBe('fg')

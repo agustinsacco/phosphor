@@ -15,6 +15,7 @@ import { ChevronIcon } from '@/components/icons'
 import { formatCost, formatDuration, formatTokens } from '@/lib/format'
 import { ErrorText } from './toolDetails'
 import { PathLink } from './PathLink'
+import { SubagentText } from '../SubagentText'
 
 /**
  * What a `subagent` call opens onto.
@@ -31,7 +32,7 @@ export function SubagentDetail({ tool }: { tool: ToolState }): React.JSX.Element
   const call = subagentCall(args)
   const settled = tool.status === 'done' || tool.status === 'error'
   const run = subagentRun(toolDetails(tool), settled)
-  const text = toolText(tool)
+  const text = toolText({ ...tool, output: settled ? (tool.result ?? tool.output) : tool.output })
   const running = !settled
 
   if (call.kind === 'manage') {
@@ -55,9 +56,7 @@ export function SubagentDetail({ tool }: { tool: ToolState }): React.JSX.Element
   }
 
   const children = run?.children ?? []
-  // A single foreground child's answer IS the tool's text; pi-subagents also
-  // copies it into `finalOutput`, but older versions did not.
-  const fallbackOutput = children.length === 1 && settled && !tool.isError ? text : undefined
+  const receivedOutput = settled && !run?.async && !call.async && text
 
   return (
     <div data-testid="subagent-detail" data-mode={run?.async ? 'async' : (run?.mode ?? 'single')}>
@@ -85,17 +84,39 @@ export function SubagentDetail({ tool }: { tool: ToolState }): React.JSX.Element
           </span>
         </div>
       )}
+      {receivedOutput && (
+        <section
+          data-testid="subagent-supervisor-output"
+          className="border-border border-b px-3 py-2.5"
+        >
+          <h4 className="text-text-secondary mb-2 text-sm font-medium">
+            Output received by supervisor
+          </h4>
+          <div className="max-h-80 overflow-auto text-base">
+            {tool.isError ? (
+              <ErrorText text={receivedOutput} />
+            ) : (
+              <SubagentText text={receivedOutput} />
+            )}
+          </div>
+        </section>
+      )}
       {children.map((child) => (
         <ChildCard
           key={child.index}
           child={child}
-          fallbackOutput={child.output ?? fallbackOutput}
+          task={
+            Array.isArray(args?.tasks) && typeof args.tasks[child.index]?.task === 'string'
+              ? args.tasks[child.index].task
+              : undefined
+          }
           // One child under its own task section would repeat that task as
           // its label; the label earns its place when children differ.
           showLabel={children.length > 1 || !call.task}
         />
       ))}
       {children.length === 0 &&
+        !receivedOutput &&
         !run?.async &&
         (tool.isError || (settled && text)) &&
         (tool.isError ? (
@@ -126,12 +147,17 @@ function TaskSection({
 }): React.JSX.Element {
   const body = task ?? script ?? ''
   const long = body.length > 280 || body.split('\n').length > 4
-  const [open, setOpen] = useState(!long)
-  const title = script ? 'Workflow script' : workflow ? `Workflow ${workflow}` : 'Task'
+  const [open, setOpen] = useState(script ? !long : true)
+  const title = script
+    ? 'Workflow script'
+    : workflow
+      ? `Workflow ${workflow}`
+      : 'Input · delegated task'
   return (
     <div data-find-skip className="border-border border-b px-3 py-2">
       <button
         onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
         className="text-text-tertiary hover:text-text flex items-center gap-1 text-sm transition-colors"
       >
         <ChevronIcon expanded={open} className="text-text-tertiary" />
@@ -146,11 +172,15 @@ function TaskSection({
         <div
           data-testid="subagent-task"
           className={clsx(
-            'border-accent/30 text-text-secondary mt-1.5 max-h-72 overflow-auto border-l-2 pl-2.5 text-base whitespace-pre-wrap break-words',
+            'border-accent/30 text-text-secondary mt-1.5 max-h-72 overflow-auto border-l-2 pl-2.5 text-base break-words',
             script && 'font-mono text-sm',
           )}
         >
-          {body}
+          {script ? (
+            <pre className="whitespace-pre-wrap">{body}</pre>
+          ) : (
+            <SubagentText text={body} />
+          )}
         </div>
       )}
     </div>
@@ -188,11 +218,11 @@ const modelName = (model: string): string => model.slice(model.lastIndexOf('/') 
 
 function ChildCard({
   child,
-  fallbackOutput,
+  task,
   showLabel,
 }: {
   child: SubagentChild
-  fallbackOutput?: string
+  task?: string
   showLabel: boolean
 }): React.JSX.Element {
   const live = isChildLive(child)
@@ -208,7 +238,7 @@ function ChildCard({
     child.durationMs === undefined ? undefined : formatDuration(child.durationMs),
     child.costUsd === undefined ? undefined : formatCost(child.costUsd),
   ].filter(Boolean)
-  const output = live ? undefined : fallbackOutput
+  const output = live ? undefined : child.output
   return (
     <div
       data-testid="subagent-child"
@@ -239,6 +269,7 @@ function ChildCard({
           </span>
         )}
       </div>
+      {task && <TaskSection task={task} />}
       {live && child.currentTool && (
         <div
           data-testid="subagent-current-tool"
@@ -248,13 +279,18 @@ function ChildCard({
         </div>
       )}
       {live && child.recentTools.length > 0 && (
-        <ul className="text-text-tertiary mt-0.5 ml-5 font-mono text-sm">
-          {child.recentTools.map((line, i) => (
-            <li key={i} className="truncate">
-              {line}
-            </li>
-          ))}
-        </ul>
+        <details className="text-text-tertiary mt-1 ml-5 text-sm">
+          <summary className="cursor-pointer">
+            Recent activity · {child.recentTools.length} tool entries
+          </summary>
+          <ul className="font-mono text-xs">
+            {child.recentTools.map((line, i) => (
+              <li key={i} className="truncate" title={line}>
+                {line}
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
       {live && child.recentOutput.length > 0 && (
         <div className="text-text-tertiary mt-1 ml-5 truncate text-sm italic">
@@ -263,9 +299,14 @@ function ChildCard({
       )}
       {child.error && <ErrorText text={child.error} />}
       {output && (
-        <div data-testid="subagent-output" className="mt-1.5 max-h-96 overflow-auto text-base">
-          <Markdown text={output} />
-        </div>
+        <details data-testid="subagent-output" className="mt-1.5">
+          <summary className="text-text-secondary cursor-pointer text-sm font-medium">
+            Reported child result
+          </summary>
+          <div className="max-h-80 overflow-auto pt-2 text-base">
+            <SubagentText text={output} />
+          </div>
+        </details>
       )}
       {(child.sessionFile || child.outputPath) && (
         <div className="text-text-tertiary mt-1.5 flex flex-wrap gap-x-3 text-sm">
