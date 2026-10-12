@@ -43,9 +43,11 @@ export function PhosphorAccountSection(): React.JSX.Element | null {
             {account.user.email && (
               <p className="text-text-secondary mt-0.5 truncate text-sm">{account.user.email}</p>
             )}
-            {!account.remembered && (
+            {(account.storageNote || !account.remembered) && (
               <p className="text-text-tertiary mt-1 text-sm">
-                Until Phosphor quits: {account.storageNote ?? 'it could not be saved'}.
+                {account.remembered
+                  ? account.storageNote
+                  : `Until Phosphor quits: ${account.storageNote ?? 'it could not be saved'}.`}
               </p>
             )}
           </div>

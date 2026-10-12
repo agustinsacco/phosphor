@@ -39,13 +39,19 @@ function cipher(): Cipher {
 const storage = (): ReturnType<Vault['storage']> =>
   vault?.storage() ?? { ok: false, reason: 'not checked yet' }
 
-const view = (state: AccountState): AccountView => accountView(state, getAccountPreview(), storage)
+const view = (state: AccountState): AccountView =>
+  accountView(state, getAccountPreview(), storage, () => vault?.savedMode() ?? null)
 
 function current(): Account {
   if (account) return account
   // The target first: a bad override throws before anything is half built.
   const auth = createGoTrue(supabaseTarget(app.isPackaged, process.env))
-  vault = createVault(join(app.getPath('userData'), 'account'), cipher())
+  vault = createVault(
+    join(app.getPath('userData'), 'account'),
+    cipher(),
+    process.platform,
+    (message) => log('account', message),
+  )
   const built = createAccount({
     auth,
     vault,

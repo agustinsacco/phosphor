@@ -165,8 +165,14 @@ first time it is needed with the preview on.
   GitHub's own token is dropped on arrival.
 - **Remembered with the OS keychain** (`safeStorage`): the refresh token is
   encrypted in `<userData>/account/session.bin`, beside a plain `profile.json`,
-  both readable by the user alone. With no keyring (Linux's `basic_text`), the
-  sign-in lasts until Phosphor quits, and the section says why.
+  both readable by the user alone. On Linux desktops Chromium does not recognise,
+  Phosphor checks the session bus before startup and selects Secret Service or
+  KWallet when present, unless a password store was explicitly chosen. Without
+  a keyring, the refresh token is saved unencrypted in `session.txt` (0600 in
+  the 0700 account directory). Settings says: "Saved in a file only your user
+  can read, because no keyring is running." Unsafe files are refused and removed.
+  A successful refresh with a keyring saves it encrypted and removes the plain
+  file. Sign-out removes both token files and the profile.
 - **Sign-out always works here** and tells Supabase when it can. A sign-out or
   cancel wins over anything still in flight: a session that arrives late is
   revoked, not kept. The screen shows signed out at once, while the revocation

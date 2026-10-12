@@ -17,9 +17,9 @@ export type AccountStatusView =
   | {
       readonly status: 'signed-in'
       readonly user: AccountProfileView
-      /** False when the OS offers no secure storage: the sign-in ends when Phosphor quits. */
+      /** True when a refresh token is saved for the next launch. */
       readonly remembered: boolean
-      /** Why it is not remembered, when it is not. */
+      /** Storage disclosure for a plain file, or why the sign-in is not remembered. */
       readonly storageNote?: string
     }
 

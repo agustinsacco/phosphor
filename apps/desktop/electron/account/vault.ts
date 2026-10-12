@@ -1,14 +1,28 @@
 import { randomBytes } from 'node:crypto'
-import { chmodSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  closeSync,
+  constants,
+  fstatSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  rmdirSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { basename, join } from 'node:path'
 import type { AccountUser } from './gotrue'
 
 /**
  * Where a remembered sign-in lives: the refresh token encrypted by the OS
  * (macOS Keychain, Windows DPAPI, Linux Secret Service or KWallet), and a
- * plain profile beside it so startup can say who is signed in without
- * touching the keychain. Nothing here ever reaches electron-store, a log or
- * the renderer.
+ * user-only plain token on Linux without a keyring. A plain profile lets startup
+ * say who is signed in without touching the keychain. Nothing here ever reaches
+ * electron-store, a log or the renderer.
  */
 
 export type Storage =
@@ -26,12 +40,14 @@ export class VaultUnreadable extends Error {
 
 export interface Vault {
   storage(): Storage
+  /** Never touches the keychain. On Linux, plain storage wins when both files exist. */
+  savedMode(): 'keyring' | 'file' | null
   readProfile(): AccountUser | null
-  /** Decrypts; throws VaultUnreadable when the token is missing, foreign or undecryptable. */
+  /** Throws VaultUnreadable when the token is missing, foreign or unreadable. */
   readToken(userId: string): string
-  /** False when the OS offers no secure storage: nothing is written then. */
+  /** False when storage is disabled: nothing is written then. */
   save(user: AccountUser, refreshToken: string): boolean
-  /** Throws, after trying both files, when either could not be deleted. */
+  /** Throws, after trying every file, when any could not be deleted. */
   clear(): void
 }
 
@@ -50,14 +66,16 @@ export interface SafeStorageLike {
 export function safeStorageCipher(api: SafeStorageLike, platform: NodeJS.Platform): Cipher {
   return {
     storage() {
-      if (!api.isEncryptionAvailable())
-        return { ok: false, reason: 'no secure storage is available' }
-      if (platform !== 'linux')
+      if (platform !== 'linux') {
+        if (!api.isEncryptionAvailable())
+          return { ok: false, reason: 'no secure storage is available' }
         return { ok: true, kind: platform === 'darwin' ? 'keychain' : 'dpapi' }
-      const backend = api.getSelectedStorageBackend?.() ?? 'unknown'
-      if (backend === 'basic_text' || backend === 'unknown') {
-        return { ok: false, reason: 'no system keyring (Secret Service or KWallet) is running' }
       }
+      const backend = api.getSelectedStorageBackend?.() ?? 'unknown'
+      const keyring = ['gnome_libsecret', 'kwallet', 'kwallet5', 'kwallet6'].includes(backend)
+      if (!keyring) return { ok: true, kind: 'file' }
+      if (!api.isEncryptionAvailable())
+        return { ok: false, reason: 'the system keyring is unavailable' }
       return { ok: true, kind: backend }
     },
     encrypt: (text) => api.encryptString(text),
@@ -71,9 +89,16 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const nullableText = (value: unknown): value is string | null =>
   value === null || typeof value === 'string'
 
-export function createVault(dir: string, cipher: Cipher): Vault {
+export function createVault(
+  dir: string,
+  cipher: Cipher,
+  platform: NodeJS.Platform = process.platform,
+  log: (message: string) => void = () => {},
+  uid: () => number | undefined = () => process.getuid?.(),
+): Vault {
   const profilePath = join(dir, 'profile.json')
   const tokenPath = join(dir, 'session.bin')
+  const plainPath = join(dir, 'session.txt')
 
   function write(path: string, data: string | Buffer): void {
     mkdirSync(dir, { recursive: true, mode: 0o700 })
@@ -88,11 +113,11 @@ export function createVault(dir: string, cipher: Cipher): Vault {
     }
   }
 
-  /** Both files are attempted whatever the other did; any failure is thrown after. */
+  /** Every file is attempted whatever the other did; any failure is thrown after. */
   function clear(): void {
     const failures: string[] = []
     // The credential first: if only one goes, it should be the secret.
-    for (const path of [tokenPath, profilePath]) {
+    for (const path of [tokenPath, plainPath, profilePath]) {
       try {
         rmSync(path, { force: true })
       } catch (error) {
@@ -102,8 +127,46 @@ export function createVault(dir: string, cipher: Cipher): Vault {
     if (failures.length > 0) throw new Error(`could not delete ${failures.join(' and ')}`)
   }
 
+  function exists(path: string): boolean {
+    try {
+      lstatSync(path)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  function removeCopiedPlain(): void {
+    if (platform !== 'linux' && exists(plainPath)) {
+      rmSync(plainPath, { force: true })
+      log('removed a plain sign-in file copied from Linux')
+    }
+  }
+
+  function encrypted(userId: string): string {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(cipher.decrypt(readFileSync(tokenPath)))
+    } catch {
+      throw new VaultUnreadable('the saved sign-in could not be decrypted')
+    }
+    if (!isRecord(parsed) || parsed.v !== 1 || parsed.userId !== userId)
+      throw new VaultUnreadable('the saved sign-in belongs to someone else')
+    if (typeof parsed.refreshToken !== 'string' || !parsed.refreshToken)
+      throw new VaultUnreadable('the saved sign-in is damaged')
+    return parsed.refreshToken
+  }
+
   return {
     storage: () => cipher.storage(),
+    savedMode: () => {
+      removeCopiedPlain()
+      return platform === 'linux' && exists(plainPath)
+        ? 'file'
+        : exists(tokenPath)
+          ? 'keyring'
+          : null
+    },
     readProfile() {
       let parsed: unknown
       try {
@@ -118,35 +181,100 @@ export function createVault(dir: string, cipher: Cipher): Vault {
       return { id: user.id, login, name, email }
     },
     readToken(userId) {
-      let data: Buffer
-      try {
-        data = readFileSync(tokenPath)
-      } catch {
-        throw new VaultUnreadable('the saved sign-in is missing')
-      }
+      removeCopiedPlain()
       const storage = cipher.storage()
       if (!storage.ok) throw new VaultUnreadable(storage.reason)
-      let parsed: unknown
+      if (platform !== 'linux') {
+        if (!exists(tokenPath)) throw new VaultUnreadable('the saved sign-in is missing')
+        return encrypted(userId)
+      }
+      if (exists(tokenPath)) {
+        let token: string | null = null
+        try {
+          token = encrypted(userId)
+        } catch (error) {
+          if (storage.kind !== 'file') throw error
+          rmSync(tokenPath, { force: true })
+          log('removed an unreadable encrypted sign-in; no keyring is running')
+        }
+        if (token !== null) {
+          rmSync(plainPath, { force: true })
+          return token
+        }
+      }
+      if (!exists(plainPath)) throw new VaultUnreadable('the saved sign-in is missing')
+      let fd: number | undefined
       try {
-        parsed = JSON.parse(cipher.decrypt(data))
+        fd = openSync(plainPath, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
+        const stat = fstatSync(fd)
+        const owner = uid()
+        if (
+          !stat.isFile() ||
+          owner === undefined ||
+          stat.uid !== owner ||
+          (stat.mode & 0o077) !== 0 ||
+          stat.size > 4096
+        )
+          throw new VaultUnreadable('the saved sign-in file is unsafe')
+        const buffer = Buffer.alloc(4097)
+        let length = 0
+        while (length < buffer.length) {
+          const count = readSync(fd, buffer, length, buffer.length - length, null)
+          if (count === 0) break
+          length += count
+        }
+        const token = buffer.subarray(0, length).toString('utf8')
+        if (!token || Buffer.byteLength(token) > 4096)
+          throw new VaultUnreadable('the saved sign-in is damaged')
+        if (this.readProfile()?.id !== userId)
+          throw new VaultUnreadable('the saved sign-in belongs to someone else')
+        return token
       } catch {
-        throw new VaultUnreadable('the saved sign-in could not be decrypted')
+        try {
+          rmSync(plainPath, { force: true })
+        } catch {
+          try {
+            rmdirSync(plainPath)
+          } catch {
+            log('could not remove an unsafe sign-in file')
+            throw new VaultUnreadable('the unsafe sign-in file could not be removed')
+          }
+        }
+        log('removed an unsafe or unreadable sign-in file')
+        throw new VaultUnreadable('the saved sign-in file could not be read')
+      } finally {
+        if (fd !== undefined) closeSync(fd)
       }
-      if (!isRecord(parsed) || parsed.v !== 1 || parsed.userId !== userId) {
-        throw new VaultUnreadable('the saved sign-in belongs to someone else')
-      }
-      if (typeof parsed.refreshToken !== 'string' || !parsed.refreshToken) {
-        throw new VaultUnreadable('the saved sign-in is damaged')
-      }
-      return parsed.refreshToken
     },
     save(user, refreshToken) {
-      if (!cipher.storage().ok) {
+      removeCopiedPlain()
+      const storage = cipher.storage()
+      if (!storage.ok || (storage.kind === 'file' && platform !== 'linux')) {
         clear()
         return false
       }
-      // Token first: a profile is only ever written beside the token it names.
-      write(tokenPath, cipher.encrypt(JSON.stringify({ v: 1, userId: user.id, refreshToken })))
+      if (storage.kind === 'file') {
+        if (!refreshToken || Buffer.byteLength(refreshToken) > 4096)
+          throw new VaultUnreadable('the sign-in token is too large or empty')
+        if (exists(tokenPath)) {
+          // Never silently downgrade a token that still decrypts.
+          let readable = false
+          try {
+            encrypted(user.id)
+            readable = true
+          } catch {
+            /* The old keyring is gone. */
+          }
+          if (readable)
+            throw new VaultUnreadable('refused to replace a readable encrypted sign-in with a file')
+          rmSync(tokenPath, { force: true })
+          log('removed an unreadable encrypted sign-in; no keyring is running')
+        }
+        write(plainPath, refreshToken)
+      } else {
+        write(tokenPath, cipher.encrypt(JSON.stringify({ v: 1, userId: user.id, refreshToken })))
+        rmSync(plainPath, { force: true })
+      }
       write(profilePath, JSON.stringify({ v: 1, user }))
       return true
     },
