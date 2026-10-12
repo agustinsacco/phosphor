@@ -9,10 +9,12 @@ protocol is hand-mirrored in `libs/shared/src/rpc.ts`.
 tree — the single copy, since three copies drifted.
 [docs/README.md](docs/README.md) is the documentation index. Everything in
 `docs/` is present tense: how Phosphor behaves **now**, one living contract per
-surface. The single exception is
-[docs/known-issues.md](docs/known-issues.md), which is defects that reproduce
-today. There is no history folder and no specs folder — git is the history, and
-a doc is updated in the same diff as the behaviour it describes.
+surface. Two exceptions: [docs/known-issues.md](docs/known-issues.md) holds defects
+that reproduce today; [docs/future-features.md](docs/future-features.md) holds
+decided or explored directions that are not built. A feature moves into its
+surface's living doc and leaves that file in the same diff that builds it.
+There is no history or specs folder: git is the history, and a doc is updated
+in the same diff as the behaviour it describes.
 
 ## Commands
 
@@ -46,13 +48,13 @@ you want to watch.
 
 ## Architecture in six facts
 
-1. **The main process owns all side effects.** The renderer runs sandboxed
+1. **Desktop's main process owns its side effects.** The renderer runs sandboxed
    (contextIsolation, no Node) and is pure UI over typed IPC. If a feature
    needs disk/network/subprocess, it goes in `apps/desktop/electron/`, not `apps/desktop/src/`.
 2. **IPC is a typed contract.** A new channel = an entry in
    `libs/shared/src/ipc.ts` `IpcInvokeMap` + a handler in
-   `apps/desktop/electron/ipc/<prefix>-handlers.ts` (the module matching the channel prefix
-   — 20 of them, listed in [README.md](README.md#repo-layout)) + a case in
+   `apps/desktop/electron/ipc/<prefix>-handlers.ts` (the module matching the channel prefix;
+   21 modules, listed in [README.md](README.md#repo-layout)) + a case in
    `apps/desktop/src/dev/mockPhosphor.ts` if the browser harness should exercise it.
    `apps/desktop/electron/ipc.ts` is only the composition root; the session registry lives
    in `apps/desktop/electron/registry.ts` so handlers never import their composition root.
@@ -69,8 +71,8 @@ you want to watch.
    session's subprocess. Interactive sessions are created from the renderer;
    explicit local routines also start sessions through main's shared runtime
    ([routines.md](docs/routines.md)). Their bounded scheduler owns only those
-   executions, not an agent fleet. `apps/desktop/electron/registry.ts` remains the only
-   live-process registry. The
+   executions, not an agent fleet. `apps/desktop/electron/registry.ts` remains Desktop's
+   only live-process registry. The
    orchestration layer that used to do this was removed on 2026-09-03 for
    maintenance cost — it touched session spawn, IPC, the sidebar, the home
    screen and settings at once. Do not grow it back. The known cost of the
@@ -85,7 +87,11 @@ you want to watch.
    `apps/host` ([host.md](docs/host.md)) is the plain-Node Host CLI. It checks a
    machine (`doctor`) and proves it with real sessions (`accept`), which run on
    `apps/host/src/session/runtime.ts`: the same service and deletion over one
-   lock domain. Nothing reaches it over a network yet. It builds
+   lock domain. It has no network listener. `login`, `status` and `logout` make
+   outbound Ed25519-signed control requests. `apps/control` serves the site and
+   account API; enrollment routes are not registered and it is not deployed yet.
+   The control plane holds identity and machine metadata, never lane contents,
+   paths or private keys ([remote-access.md](docs/remote-access.md)). The Host builds
    pi's environment from its own config and never takes environment, executable
    or extension paths from a caller.
 6. **Stores (`apps/desktop/src/stores/`, zustand) are projections of main-process state.**

@@ -1,4 +1,4 @@
-# Phosphor — Product Overview
+# Phosphor: product overview
 
 Phosphor is a desktop coding-agent app powered entirely by the **pi coding
 agent** (`@earendil-works/pi-coding-agent`). It took its interaction vocabulary
@@ -13,6 +13,14 @@ with a file explorer, a code/diff viewer, a full terminal and an artifacts pane.
 [Local routines](routines.md) can start fresh sessions on a schedule while the
 computer is awake, including analysis/report tasks. There is no cloud sync.
 
+Optional Phosphor sign-in unlocks machine-directory clients behind the account
+and Machines previews. Host enrollment commands and approval UI exist, but the
+control server's enrollment routes are not registered and the server is not
+deployed yet. The plain-Node [Host](host.md) checks a machine and runs local
+acceptance sessions; it has no network listener. [Remote access](remote-access.md)
+does not enable remote execution. Directions that are decided or being explored,
+not built, live in [future-features.md](future-features.md).
+
 **Many sessions at once is the normal case.** A project usually has several
 chats in flight, each on its own branch, and the product's job is to make that
 legible. So the home screen is a lane board: every lane of the project in a
@@ -26,14 +34,15 @@ manager, no orchestration agent, and the board spends nothing to render.
 2. **Rich responses are first-class.** Markdown, highlighted code, HTML
    previews, Mermaid, charts and math render inline, never as raw fences.
 3. **YOLO execution.** pi runs in full-permission mode and **Phosphor ships no
-   permission system of its own**: no gate, no allow-list, no invented
-   confirmation. Tool calls run and stream results. The only thing that can
-   stop one is a _user-installed_ permission-gate extension asking through
+   permission system of its own**: no permission gate, no permission allow-list,
+   no invented confirmation. Tool calls run and stream results. A
+   _user-installed_ permission-gate extension can ask through
    `ctx.ui.select` / `confirm`, an ordinary `extension_ui_request` that rule 4
    obliges Phosphor to answer. `CommandApprovalSheet.tsx` renders those legibly
    ([extensions.md](extensions.md#command-approval-dialogs)); it decides
-   nothing. Build the surface that shows someone else's gate honestly, never
-   the gate.
+   nothing. The bundled `worktree-paths` guard can also refuse a path into the
+   wrong checkout; it is not a permission prompt. Build the surface that shows
+   someone else's permission gate honestly, never the gate.
 4. **Feature-full.** Everything pi exposes ([pi-integration.md](pi-integration.md))
    is reachable from the UI. Even `/login`, which pi offers only as a TUI, is
    driven off-screen into a button and a browser tab

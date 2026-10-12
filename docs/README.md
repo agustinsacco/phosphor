@@ -1,11 +1,13 @@
 # Phosphor documentation
 
-**How Phosphor works today.** Every file here describes shipped behaviour. If
-one disagrees with the code, the file is wrong, and fixing it is part of the
+**How Phosphor works today.** The living contracts describe current behaviour.
+If one disagrees with the code, the file is wrong, and fixing it is part of the
 change that broke it.
 
-One exception, and it is labelled: [known-issues.md](known-issues.md) describes
-what is _broken_ rather than how something works.
+Two labelled exceptions: [known-issues.md](known-issues.md) describes current
+defects; [future-features.md](future-features.md) holds decided or explored
+directions that are not built. A feature moves into its surface's living doc
+and leaves the future file in the same diff that builds it.
 
 For installation and task-oriented tutorials, start with the
 [Phosphor guides](https://phosphor.saccolabs.com/guides/): first task, daily work,
@@ -17,23 +19,22 @@ Start with [overview.md](overview.md) for what Phosphor is, or
 
 ## The system
 
-| File                                   | Covers                                                                   |
-| -------------------------------------- | ------------------------------------------------------------------------ |
-| [overview.md](overview.md)             | Product definition, non-negotiables, engineering quality bar             |
-| [architecture.md](architecture.md)     | Process model, the IPC prefixes, cross-cutting requirements              |
-| [desktop-build.md](desktop-build.md)   | Desktop paths, native install ownership and packaging                    |
-| [installations.md](installations.md)   | Dependency domains, scoped source closure and bundling                   |
-| [nx-cache.md](nx-cache.md)             | Local check cache inputs, exclusions and task resource bounds            |
-| [pi-integration.md](pi-integration.md) | pi's RPC protocol and session format                                     |
-| [host.md](host.md)                     | The Host's `phosphor` CLI: config, environment, doctor, accept, sessions |
+| File                                   | Covers                                                                  |
+| -------------------------------------- | ----------------------------------------------------------------------- |
+| [overview.md](overview.md)             | Product definition, non-negotiables, engineering quality bar            |
+| [architecture.md](architecture.md)     | Process model, the IPC prefixes, cross-cutting requirements             |
+| [desktop-build.md](desktop-build.md)   | Desktop paths, native install ownership and packaging                   |
+| [installations.md](installations.md)   | Dependency domains, scoped source closure and bundling                  |
+| [nx-cache.md](nx-cache.md)             | Local check cache inputs, exclusions and task resource bounds           |
+| [pi-integration.md](pi-integration.md) | pi's RPC protocol and session format                                    |
+| [host.md](host.md)                     | Host CLI, machine identity, environment, checks and acceptance sessions |
+| [remote-access.md](remote-access.md)   | Remote foundations, trust boundary and local validation                 |
+| [control-plane.md](control-plane.md)   | Site and account API server, authentication ports and configuration     |
 
-The [remote-access foundation](remote-access.md) documents the control-directory
-schema, isolated local tests and an opt-in private-transport probe. It does not
-enable remote execution, and neither does the [Host](host.md). The Host checks
-a machine, enrolls it in the control plane and runs acceptance sessions on it.
-
-The [control plane](control-plane.md) serves the site, API health and authenticated
-account metadata. It does not enable remote execution.
+The remote foundations do not enable remote execution. Host enrollment commands,
+Desktop approval clients and server-only database functions exist, but enrollment
+routes are not registered in the control server. The server is not deployed yet.
+The Host checks a machine and runs local acceptance sessions; it has no listener.
 
 ## The surfaces
 
@@ -65,12 +66,18 @@ account metadata. It does not enable remote execution.
 | -------------------------------- | ---------------------------------------------------------------- |
 | [style-guide.md](style-guide.md) | Authoritative on all colour, type, voice and the mark's geometry |
 
+## Exceptions
+
+| File                                     | Covers                                                            |
+| ---------------------------------------- | ----------------------------------------------------------------- |
+| [known-issues.md](known-issues.md)       | Defects that reproduce today                                      |
+| [future-features.md](future-features.md) | Decided or explored directions, dependencies, questions and risks |
+
 ## Three rules that keep this workable
 
-1. **One fact, one home.** If a doc here and anything else disagree, this
-   folder is right and the other file gets fixed or deleted. The exception is
-   visual identity: [style-guide.md](style-guide.md) wins even over its
-   neighbours here.
+1. **One fact, one home.** Each living doc owns its surface; other copies link
+   here rather than competing. If a doc disagrees with code, fix the doc.
+   For visual identity, [style-guide.md](style-guide.md) wins over its neighbours.
 2. **A doc is part of the diff that changes its behaviour**, not a follow-up.
    Docs drifting from code is this repo's recurring failure mode.
 3. **A rename is not a review.** A mechanical sweep touches the wrong lines as
@@ -79,7 +86,7 @@ account metadata. It does not enable remote execution.
 
 ## There is no history here
 
-This folder is the present tense. **Git is the history**: `git log -p docs/`
+The living contracts are present tense. **Git is the history**: `git log -p docs/`
 answers "when did this change and why", and any deleted file is one
 `git show <sha>:<path>` away. When you ship something, update the doc it makes
 wrong, in the same diff. If you fix a defect in

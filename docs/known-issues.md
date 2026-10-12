@@ -1,9 +1,9 @@
 # Known issues
 
-**Defects that reproduce today.** Every row was re-verified against the code on
-2026-09-09 by reading the cited source, not by trusting an earlier pass. This is
-the one file here that describes what is _wrong_ rather than how something
-works; everything else in `docs/` is a living contract.
+**Defects that reproduce today.** Rows cite the source responsible, not a future
+feature. This file describes what is wrong rather than how something works.
+The other exception to living contracts is [future-features.md](future-features.md),
+which holds directions that are not built.
 
 A row leaves this file when the code changes, in the same diff. If you fix
 something here, delete its row — the code becomes the record.
@@ -41,7 +41,8 @@ Two more that are worth reading in full because their history is misleading:
 `apps/desktop/src/features/chat/__fixtures__/real-session-events.jsonl` carries `message`
 and `assistantMessageEvent.partial` on all 193 `message_update` records and no
 top-level `usage`; `partial` alone is 42.8% of its bytes. `apps/desktop/e2e/fixtures/pi-stub.cjs`
-emits the same dead shape. So no test exercises what pi actually sends now.
+still emits that older shape on some paths, while other stub paths emit lean
+updates. The captured fixture does not represent the current lean wire format.
 
 ## Windows
 
@@ -119,16 +120,16 @@ Found in a 2026-09-05 workbench review; all still reproduce.
 | R1  | A conflicting PR still classifies as ready/merge, and a PR with no CI reads "checks green"                         | `apps/desktop/src/features/home/laneState.ts`                            |
 | R2  | The lane board's "Merge" is a local `--no-ff` merge, not a PR merge, and nothing in the label says so              | `apps/desktop/src/features/home/LaneBoard.tsx`, `MergeWorktreeModal.tsx` |
 | R3  | The Changes inventory is tool-call-only: every write is marked created, and counts accumulate rather than reflect  | `apps/desktop/src/features/files/collectTouchedFiles.ts`                 |
-| R5  | A failed worktree creation silently starts the session in the original checkout — no retry, no cancel              | `apps/desktop/src/features/sessions/startChat.ts`                        |
+| R5  | A failed worktree creation starts in the original checkout with a warning, but no retry or cancel                  | `apps/desktop/src/features/sessions/startChat.ts`                        |
 | R6  | A dirty lane with no PR classifies as idle; "Needs a push" also absorbs "changes requested" and "N checks failing" | `apps/desktop/src/features/home/laneState.ts`                            |
 | R7  | The model picked on Home is written to the drafts store and never passed into `createSession`                      | `WorkspaceHome.tsx` → `startChat.ts`                                     |
 | R8  | Cmd+K lists only the first eight sessions from the current cwd                                                     | `apps/desktop/src/features/palette/CommandPalette.tsx`                   |
 | R9  | Home stats cover one cwd while the Ledger beside them is project-wide                                              | `WorkspaceHome.tsx`                                                      |
-| R10 | "Resume session" disposes before it looks the session up, so it silently starts a fresh one                        | `apps/desktop/src/features/chat/banners.tsx`                             |
 
 **R11 — modals are not dialogs.** `apps/desktop/src/components/Modal.tsx` has no
-`role="dialog"`, no `aria-modal`, no focus trap and no focus restoration, and
-the Settings close button has no accessible name. `apps/desktop/src/lib/shortcutContext.ts`
+`role="dialog"`, no `aria-modal`, no focus trap and no focus restoration.
+Settings supplies its own dialog attributes and accessible close label, but the
+shared overlay supplies no focus management. `apps/desktop/src/lib/shortcutContext.ts`
 says outright that its data marker exists "without pretending to add a focus
 trap". The Changes pane was fixed; this was not.
 
@@ -161,14 +162,14 @@ means picking one path identity for a session file and using it on both sides.
 
 ## Code health
 
-| #   | Issue                                                                                                                | Where                                                                                        |
-| --- | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| H1  | `errorText` (`libs/shared/src/errors.ts`) is not enforced; 18 hand-rolled `err instanceof Error ? …` sites regressed | across `apps/desktop/src/features/settings/`, `apps/desktop/electron/pi/`                    |
-| H3  | One raw `piCommand` site carries no exemption comment, so nobody can tell if it is deliberate (CLAUDE.md #3)         | `apps/desktop/src/features/chat/composer/queueActions.ts`                                    |
-| H4  | `useAsyncAction` is not adopted by `MessageItem`, `ForkPickerModal`, `TreeViewModal`                                 | those three files                                                                            |
-| H5  | Five symbols are exported but used in exactly one file                                                               | `agent-settings.ts`, `useGlobalShortcuts.ts`, `CommandPalette.tsx`, `libs/shared/src/mcp.ts` |
-| H6  | Three separate banner implementations that a single `Notice` primitive would replace                                 | `RetryStrip.tsx`, `banners.tsx`, `composer/RateLimitBanner.tsx`                              |
-| H7  | Two hover-action implementations in one file                                                                         | `apps/desktop/src/features/chat/MessageItem.tsx`                                             |
-| H8  | Per-component cost rows are still missing from the usage popover                                                     | `apps/desktop/src/features/chat/composer/` — `ContextMeter`                                  |
+| #   | Issue                                                                                                          | Where                                                                     |
+| --- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| H1  | `errorText` (`libs/shared/src/errors.ts`) is not enforced; hand-rolled `err instanceof Error ? …` sites remain | across `apps/desktop/src/features/settings/`, `apps/desktop/electron/pi/` |
+| H3  | One raw `piCommand` site carries no exemption comment, so nobody can tell if it is deliberate (CLAUDE.md #3)   | `apps/desktop/src/features/chat/composer/queueActions.ts`                 |
+| H4  | `useAsyncAction` is not adopted by `MessageItem`, `ForkPickerModal`, `TreeViewModal`                           | those three files                                                         |
+| H5  | Several public helpers have only one production consumer                                                       | `apps/desktop/electron/pi/agent-settings.ts`, `libs/shared/src/mcp.ts`    |
+| H6  | Three separate banner implementations that a single `Notice` primitive would replace                           | `RetryStrip.tsx`, `banners.tsx`, `composer/RateLimitBanner.tsx`           |
+| H7  | Two hover-action implementations in one file                                                                   | `apps/desktop/src/features/chat/MessageItem.tsx`                          |
+| H8  | Per-component cost rows are still missing from the usage popover                                               | `apps/desktop/src/features/chat/composer/` — `ContextMeter`               |
 
 H1 would hold better as an ESLint rule than as another conversion pass.
