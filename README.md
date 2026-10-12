@@ -502,7 +502,7 @@ libs/pi-extensions/pi-ext/  the seven pi extensions that run inside pi's process
                      headroom, lane-reload, mcp-status, tool-name-guard, worktree-paths
 apps/desktop/e2e/                 Playwright-Electron smoke tests + deterministic pi stub
 apps/control/        plain-Node site and control API server, not deployed yet;
-                     health and account routes (docs/control-plane.md)
+                     enrollment, machine and Host routes (docs/control-plane.md)
 apps/host/           the plain-Node Host and its `phosphor` CLI (src/, and
                      scripts/build.mjs for the bundle): its config, pi's
                      environment, machine checks, session runtime and signed

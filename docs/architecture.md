@@ -131,10 +131,10 @@ interactive sessions remain independent and are not reclaimed by it.
 Its `login`, `status` and `logout` clients make outbound Ed25519-signed requests.
 It has no inbound listener, heartbeat runner or remote lane API ([host.md](host.md)).
 
-`apps/control` serves built Astro pages, health and authenticated account metadata.
-It is not deployed yet. The shared `control-api.ts` contract and server-only SQL
-functions cover enrollment, the machine directory, revocation and heartbeats;
-the HTTP enrollment, directory and Host routes are not registered.
+`apps/control` serves built Astro pages and the control API: health, account
+metadata, enrollment, the machine directory, and Host self, heartbeat and
+self-revocation routes over the shared `control-api.ts` contract and server-only
+SQL functions. It is not deployed yet.
 Desktop's main-only `control:*` clients back the signed-in Machines preview's
 approval and removal UI. There is no execution grant or lane transport here.
 

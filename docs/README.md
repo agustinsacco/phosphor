@@ -32,8 +32,8 @@ Start with [overview.md](overview.md) for what Phosphor is, or
 | [control-plane.md](control-plane.md)   | Site and account API server, authentication ports and configuration     |
 
 The remote foundations do not enable remote execution. Host enrollment commands,
-Desktop approval clients and server-only database functions exist, but enrollment
-routes are not registered in the control server. The server is not deployed yet.
+Desktop approval clients, the control server's enrollment, machine and Host
+routes and their database functions exist. The server is not deployed yet.
 The Host checks a machine and runs local acceptance sessions; it has no listener.
 
 ## The surfaces
