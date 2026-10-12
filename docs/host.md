@@ -163,10 +163,14 @@ on Linux and macOS alike. No environment variable names it.
 signed-in Desktop, open Machines > Add a machine, enter the code, compare the
 fingerprint, and approve. It works without a terminal, including over plain
 SSH. Each new enrollment has a fresh Ed25519 key. Polls wait the server's
-interval; enrollment ends within 10 minutes. An expired code exits 75.
-Ctrl-C while waiting exits 130 without replacing an earlier identity.
+interval. Transient failures retry with exponential backoff capped at 30 seconds,
+without waiting past the code's deadline. Enrollment ends within 10 minutes.
+An expired code exits 75. Ctrl-C while waiting exits 130 and keeps the pending
+request. Run login again within the code's lifetime to resume with the same code
+and key, even if Desktop already approved it.
 
-An already enrolled and confirmed machine exits 0 with no writes. A removed
+An already enrolled and confirmed machine exits 0 without replacing its identity.
+Login removes any leftover pending request. A removed
 machine starts a new enrollment. Approval saves the identity, then checks it
 once with the server. If that check cannot finish, the identity stays saved
 and login exits 0 with a hint to run status. A 410 removes the new identity
@@ -179,10 +183,30 @@ The files live in `identity/` beside the config file, including when
   `hostId` is the enrolled UUID, not the config's local name. `savedAt` is the
   Host's clock. The server supplies `enrolledAt` in status.
 - `host-key.<hostId>.pem`: the private key, PKCS#8 PEM. It never leaves the Host.
+- `pending-key.pem` and `pending.json`: the pending key and
+  `{version: 1, controlUrl, enrollmentId, userCode, keyFingerprint, expiresAt, savedAt, pollIntervalSec}`.
+  Login saves the key first, then the metadata, before printing the code.
+  Approval commits the identity before removing these files. Expired, invalid or
+  other-origin pending requests are discarded on the next login.
+- `.lock`: the pid, random ownership token and start time of a login or logout.
+  A complete, synced temporary file is linked atomically into place. A live pid
+  refuses another login or logout with exit 75. Dead or invalid locks are
+  reclaimed under the `.lock-recovery` directory gate. A fresh gate is waited on
+  for at most one second; a gate over 30 seconds old is cleared. Release uses the
+  same gate and removes only its own token. Recovery compares the file identity
+  and token again under the gate. A symlink is removed without touching its
+  target; a directory at `.lock` is refused with a removal instruction. The main
+  lock has no age timeout.
+  Status stays read-only and does not take the lock.
+
+Login and logout hold the identity lock for their entire operation. Logout
+removes local state only if the identity still names the machine it revoked.
+Both successful logout and `logout --local` also remove pending requests.
 
 A save atomically renames the new key first, then `host.json`, the commit
 point, then removes obsolete keys. A failure before the commit keeps the
-old pair usable; a stopped save can leave an unused key. Loads read metadata
+old pair usable; a stopped save can leave an unused key. Login can reuse an
+identical safely read orphan key when no identity has committed it. Loads read metadata
 first and refuse links, non-files, another owner's files, group or other
 permissions, and files over 4 KiB. A missing or refused key is an incomplete
 identity: fix its permissions or run login to enroll again.

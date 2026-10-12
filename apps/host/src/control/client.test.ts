@@ -261,4 +261,22 @@ describe('signed control client', () => {
     ).rejects.toMatchObject({ code: 'offline' })
     expect(vi.getTimerCount()).toBe(0)
   })
+  it.each([429, 500, 502, 503, 504, 400])(
+    'maps malformed error responses by status %s without echoing bytes',
+    async (status) => {
+      for (const response of [
+        new Response('private HTML', { status }),
+        new Response('private malformed', {
+          status,
+          headers: { 'content-type': 'application/json' },
+        }),
+        Response.json({ unexpected: 'private shape' }, { status }),
+        new Response(null, { status }),
+      ])
+        await expect(clientWith(response).self(hostId, key)).rejects.toMatchObject({
+          code: status === 429 ? 'too-many-requests' : status >= 500 ? 'unavailable' : 'internal',
+          message: expect.not.stringContaining('private'),
+        })
+    },
+  )
 })

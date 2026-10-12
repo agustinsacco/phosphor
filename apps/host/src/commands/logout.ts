@@ -2,6 +2,7 @@ import { EXIT } from '../checks'
 import { ControlFailure } from '../control/client'
 import {
   commandStore,
+  withCommandLock,
   controlResult,
   prepareControl,
   type CommandResult,
@@ -10,29 +11,41 @@ import {
 
 export async function runLogout(context: ControlContext, local = false): Promise<CommandResult> {
   try {
-    if (local) {
-      await commandStore(context).remove()
+    return await withCommandLock(context, async () => {
+      if (local) {
+        const store = commandStore(context)
+        await store.remove()
+        await store.removePending()
+        return {
+          exitCode: EXIT.ok,
+          message: 'Forgot this machine locally. It stays listed until removed in Phosphor.',
+        }
+      }
+      const { loaded, store, client } = await prepareControl(context)
+      if (!loaded) {
+        await store.removePending()
+        return { exitCode: EXIT.ok, message: 'This machine is not signed in.' }
+      }
+      let removed = false
+      try {
+        await client.revoke(loaded.identity.hostId, loaded.key)
+      } catch (error) {
+        if (!(error instanceof ControlFailure) || error.code !== 'gone') throw error
+        removed = true
+      }
+      if ((await store.remove(loaded.identity.hostId)) === false)
+        return {
+          exitCode: EXIT.tempfail,
+          message: 'The local identity changed. Nothing was removed locally; run phosphor status.',
+        }
+      await store.removePending()
       return {
         exitCode: EXIT.ok,
-        message: 'Forgot this machine locally. It stays listed until removed in Phosphor.',
+        message: removed
+          ? 'This machine was already removed from the account.'
+          : 'This machine is signed out.',
       }
-    }
-    const { loaded, store, client } = await prepareControl(context)
-    if (!loaded) return { exitCode: EXIT.ok, message: 'This machine is not signed in.' }
-    let removed = false
-    try {
-      await client.revoke(loaded.identity.hostId, loaded.key)
-    } catch (error) {
-      if (!(error instanceof ControlFailure) || error.code !== 'gone') throw error
-      removed = true
-    }
-    await store.remove()
-    return {
-      exitCode: EXIT.ok,
-      message: removed
-        ? 'This machine was already removed from the account.'
-        : 'This machine is signed out.',
-    }
+    })
   } catch (error) {
     const result = controlResult(error, context.signal)
     if (result.exitCode === EXIT.tempfail)

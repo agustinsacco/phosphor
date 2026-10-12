@@ -19,6 +19,7 @@ import {
   identityDirectory,
   IdentityFailure,
   type HostIdentity,
+  type PendingEnrollment,
 } from './identity'
 import { freshKey, publicIdentity } from './signer'
 
@@ -231,5 +232,138 @@ describe('Host identity storage', () => {
     await mkdir(dir, { mode: 0o700 })
     expect(await store().load()).toBeNull()
     await store().remove()
+  })
+  it('remove(expected) changes nothing if a replacement identity is committed', async () => {
+    await store().save(identity, freshKey())
+    await store().save({ ...identity, hostId: otherId }, freshKey())
+    const before = await readdir(dir)
+    expect(await store().remove(hostId)).toBe(false)
+    expect(await readdir(dir)).toEqual(before)
+    expect((await store().load())?.identity.hostId).toBe(otherId)
+    await store().remove(otherId)
+    expect(await store().load()).toBeNull()
+  })
+  it('writes pending key before metadata, keeps owner-only modes, and cleanKeys never removes pending', async () => {
+    const key = freshKey()
+    const pending: PendingEnrollment = {
+      version: 1,
+      controlUrl: identity.controlUrl,
+      enrollmentId: hostId,
+      userCode: 'BCDFGHJK',
+      keyFingerprint: publicIdentity(key).keyFingerprint,
+      expiresAt: '2026-10-10T00:10:00.000Z',
+      savedAt: identity.savedAt,
+      pollIntervalSec: 5,
+    }
+    const operations: string[] = []
+    const saving = createIdentityStore(dir, uid, {
+      rename: async (from, to) => {
+        operations.push(String(to))
+        await rename(from, to)
+      },
+    })
+    await saving.savePending(pending, key)
+    expect(operations).toEqual([join(dir, 'pending-key.pem'), join(dir, 'pending.json')])
+    for (const name of ['pending-key.pem', 'pending.json'])
+      expect((await lstat(join(dir, name))).mode & 0o777).toBe(0o600)
+    expect((await saving.loadPending())?.enrollment).toEqual(pending)
+    await saving.save(identity, key)
+    const loaded = await saving.loadPending()
+    if (!loaded) throw new Error('Expected a pending enrollment')
+    expect(publicIdentity(loaded.key)).toEqual(publicIdentity(key))
+    await saving.remove()
+    expect(await readFile(join(dir, 'pending-key.pem'), 'utf8')).toContain('PRIVATE KEY')
+    await saving.removePending()
+    expect(await readdir(dir)).toEqual([])
+  })
+  it.each([
+    ['version', 2],
+    ['controlUrl', 'http://public.example'],
+    ['enrollmentId', '../escape'],
+    ['userCode', 'bad'],
+    ['keyFingerprint', 'bad'],
+    ['expiresAt', '2026-10-10T00:00:00Z'],
+    ['savedAt', 'bad'],
+    ['pollIntervalSec', 0],
+    ['pollIntervalSec', 61],
+    ['pollIntervalSec', undefined],
+  ])('refuses pending metadata %s = %s', async (field, value) => {
+    await mkdir(dir, { mode: 0o700 })
+    const key = freshKey()
+    const pending = {
+      version: 1,
+      controlUrl: identity.controlUrl,
+      enrollmentId: hostId,
+      userCode: 'BCDFGHJK',
+      keyFingerprint: publicIdentity(key).keyFingerprint,
+      expiresAt: '2026-10-10T00:10:00.000Z',
+      savedAt: identity.savedAt,
+      pollIntervalSec: 5,
+      [field]: value,
+    }
+    await writeFile(join(dir, 'pending.json'), JSON.stringify(pending), { mode: 0o600 })
+    await writeFile(join(dir, 'pending-key.pem'), key.export({ type: 'pkcs8', format: 'pem' }), {
+      mode: 0o600,
+    })
+    expect(await store().loadPending()).toBeNull()
+  })
+  it.each([
+    'key symlink',
+    'metadata symlink',
+    'key mode',
+    'metadata mode',
+    'key size',
+    'metadata size',
+  ])('safely rejects pending %s', async (problem) => {
+    const key = freshKey()
+    await store().savePending(
+      {
+        version: 1,
+        controlUrl: identity.controlUrl,
+        enrollmentId: hostId,
+        userCode: 'BCDFGHJK',
+        keyFingerprint: publicIdentity(key).keyFingerprint,
+        expiresAt: '2026-10-10T00:10:00.000Z',
+        savedAt: identity.savedAt,
+        pollIntervalSec: 5,
+      },
+      key,
+    )
+    const path = join(dir, problem.startsWith('key') ? 'pending-key.pem' : 'pending.json')
+    if (problem.endsWith('mode')) await chmod(path, 0o644)
+    else if (problem.endsWith('size')) await writeFile(path, ' '.repeat(4097))
+    else {
+      await rename(path, join(root, 'outside'))
+      await symlink(join(root, 'outside'), path)
+    }
+    expect(await store().loadPending()).toBeNull()
+    await store().removePending()
+    expect(await readdir(dir)).toEqual([])
+  })
+  it('refuses an identical orphan when host.json commits a different identity', async () => {
+    await store().save(identity, freshKey())
+    const key = freshKey()
+    await writeFile(keyFile(otherId), key.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 })
+    await expect(store().save({ ...identity, hostId: otherId }, key)).rejects.toThrow(
+      'Unsafe identity',
+    )
+    expect((await store().load())?.identity).toEqual(identity)
+  })
+  it.each([1, 60])('accepts pending poll interval boundary %s', async (pollIntervalSec) => {
+    const key = freshKey()
+    await store().savePending(
+      {
+        version: 1,
+        controlUrl: identity.controlUrl,
+        enrollmentId: hostId,
+        userCode: 'BCDFGHJK',
+        keyFingerprint: publicIdentity(key).keyFingerprint,
+        expiresAt: '2026-10-10T00:10:00.000Z',
+        savedAt: identity.savedAt,
+        pollIntervalSec,
+      },
+      key,
+    )
+    expect((await store().loadPending())?.enrollment.pollIntervalSec).toBe(pollIntervalSec)
   })
 })

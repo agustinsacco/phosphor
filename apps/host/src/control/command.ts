@@ -1,4 +1,5 @@
 import { setTimeout } from 'node:timers/promises'
+import { acquireIdentityLock, LockBusy, type LockPorts } from './lock'
 import { DEFAULT_CONTROL_URL, type HostSelfResponse } from '@phosphor/shared/control-api'
 import { EXIT } from '../checks'
 import { loadHostConfig } from '../config/load'
@@ -19,6 +20,7 @@ export interface ControlContext extends ClientPorts {
   arch?: string
   print: (line: string) => void
   store?: IdentityStore
+  lockPorts?: LockPorts
   wait?: (ms: number, signal?: AbortSignal) => Promise<void>
 }
 export interface CommandResult {
@@ -65,8 +67,25 @@ export async function prepareControl(
   return { store, client: createControlClient(url, context), url, loaded }
 }
 
+async function commandLock(context: ControlContext) {
+  return acquireIdentityLock(identityDirectory(context.configPath), context.uid, context.lockPorts)
+}
+
+export async function withCommandLock<T>(
+  context: ControlContext,
+  run: () => Promise<T>,
+): Promise<T> {
+  const release = await commandLock(context)
+  try {
+    return await run()
+  } finally {
+    await release()
+  }
+}
+
 export function controlResult(error: unknown, signal?: AbortSignal): CommandResult {
   if (signal?.aborted) return { exitCode: 130, message: 'Cancelled.' }
+  if (error instanceof LockBusy) return { exitCode: EXIT.tempfail, message: error.message }
   if (error instanceof IdentityFailure) return { exitCode: EXIT.config, message: error.message }
   if (error instanceof ControlFailure)
     return {

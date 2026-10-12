@@ -1,7 +1,13 @@
 import { writeFile } from 'node:fs/promises'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { CONTROL_ROUTES } from '@phosphor/shared/control-api'
-import { controlMachine, oldIdentity, type ControlMachine } from '../control/__fixtures__/machine'
+import {
+  controlMachine,
+  hostId,
+  oldIdentity,
+  type ControlMachine,
+} from '../control/__fixtures__/machine'
+import { freshKey, publicIdentity } from '../control/signer'
 import { runLogout } from './logout'
 
 let machine: ControlMachine
@@ -65,5 +71,39 @@ describe('phosphor logout', () => {
     expect(result.message).toContain('stays listed until removed in Phosphor')
     expect(machine.calls).toEqual([])
     expect(await machine.store.load()).toBeNull()
+  })
+  it('reports a replacement committed during revoke and deletes none of its files', async () => {
+    await machine.enrollOld()
+    const fetcher = machine.context.fetch
+    machine.context.fetch = async (url, init) => {
+      if (String(url).endsWith(CONTROL_ROUTES.hostRevoke))
+        await machine.store.save({ ...oldIdentity, hostId }, freshKey())
+      if (!fetcher) throw new Error('missing fake transport')
+      return fetcher(url, init)
+    }
+    expect(await runLogout(machine.context)).toEqual({
+      exitCode: 75,
+      message: 'The local identity changed. Nothing was removed locally; run phosphor status.',
+    })
+    expect((await machine.store.load())?.identity.hostId).toBe(hostId)
+  })
+  it.each([false, true])('deletes pending files on successful logout, local: %s', async (local) => {
+    await machine.enrollOld()
+    const key = freshKey()
+    await machine.store.savePending(
+      {
+        version: 1,
+        controlUrl: 'https://example.com',
+        enrollmentId: hostId,
+        userCode: 'BCDFGHJK',
+        keyFingerprint: publicIdentity(key).keyFingerprint,
+        expiresAt: '2026-10-10T00:10:00.000Z',
+        savedAt: oldIdentity.savedAt,
+        pollIntervalSec: 5,
+      },
+      key,
+    )
+    expect((await runLogout(machine.context, local)).exitCode).toBe(0)
+    expect(await machine.store.loadPending()).toBeNull()
   })
 })

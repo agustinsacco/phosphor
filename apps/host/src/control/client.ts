@@ -82,7 +82,15 @@ export function createControlClient(url: string, ports: ClientPorts = {}) {
         }
         if (response.body === null) return parseEmpty(parse)
       }
-      if (!response.body) throw new ControlFailure('internal')
+      const invalidError = () =>
+        new ControlFailure(
+          !response.ok && response.status === 429
+            ? 'too-many-requests'
+            : !response.ok && response.status >= 500
+              ? 'unavailable'
+              : 'internal',
+        )
+      if (!response.body) throw invalidError()
       const reader = response.body.getReader()
       const bytes = Buffer.alloc(64 * 1024)
       let size = 0
@@ -99,7 +107,7 @@ export function createControlClient(url: string, ports: ClientPorts = {}) {
       }
       if (empty && response.status === 204 && size === 0) return parseEmpty(parse)
       if (!(response.headers.get('content-type') ?? '').match(/^application\/json(?:;|$)/i)) {
-        throw new ControlFailure('internal')
+        throw invalidError()
       }
       let value: unknown
       try {
@@ -107,12 +115,12 @@ export function createControlClient(url: string, ports: ClientPorts = {}) {
           new TextDecoder('utf-8', { fatal: true }).decode(bytes.subarray(0, size)),
         )
       } catch {
-        throw new ControlFailure('internal')
+        throw invalidError()
       }
       if (!response.ok) {
         const parsed = parseControlError(value)
         if (!parsed || CONTROL_ERROR_STATUS[parsed.error.code] !== response.status) {
-          throw new ControlFailure('internal')
+          throw invalidError()
         }
         throw new ControlFailure(parsed.error.code)
       }
