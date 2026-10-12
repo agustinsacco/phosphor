@@ -25,7 +25,10 @@ export function SubagentWorkRow({
       aria-label={label}
       aria-description={`${title}. ${time}. ${entry.id}`}
       aria-pressed={selected}
-      tooltip={{ label: title.length > 120 ? `${title.slice(0, 119)}…` : title, description: time }}
+      tooltip={{
+        label: title.length > 120 ? `${title.slice(0, 119)}…` : title,
+        description: `${time} · ${entry.id}`,
+      }}
       className="text-text hover:bg-bg-secondary aria-pressed:bg-accent-soft block w-full min-w-0 rounded-md px-2 py-1.5 text-left focus-visible:outline-2 focus-visible:outline-accent"
     >
       <span className="flex items-baseline gap-2 text-sm">

@@ -114,7 +114,7 @@ it('shows distinguishable tasks and timestamps in a newest-first queue', () => {
   expect(rows[0]?.textContent).toContain('Review shutdown')
   expect(rows[1]?.textContent).toContain('Review schema')
   expect(rows[0]?.textContent).toContain('Started')
-  expect(rows[0]?.getAttribute('title')).toContain('new')
+  expect(rows[0]?.getAttribute('data-tooltip-description')).toContain('new')
 })
 it('keeps expansion through updates but starts another lane compact', () => {
   publish()
