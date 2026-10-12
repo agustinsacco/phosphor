@@ -262,7 +262,7 @@ The private `@phosphor/pi-extensions` source package keeps these standalone
 files and adjacent tests together. Development resolves the resource root at
 `libs/pi-extensions`; packaged apps still read `resources/pi-ext`, outside the
 asar. The builder copies the same non-test TypeScript inventory, including
-`context-budget.ts` and `context-files.ts` imported by `context-breakdown.ts`,
+`context-budget.ts`, `context-files.ts` and `swarm.ts` imported by `context-breakdown.ts`,
 `artifact-store.ts` and `subagent-snapshot.ts` imported by `artifacts.ts`, and the optional gate.
 Optional Python helpers remain in the source tree, not the shipped resource filter.
 
@@ -551,6 +551,7 @@ disagree.
 
 | Key                          | Emitter                                          | Consumer                                                                                                                   |
 | ---------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| `phosphor-swarm`             | `libs/pi-extensions/pi-ext/swarm.ts`             | Composer switch, outline and lane-title badge; versioned native authorization state, never activity                        |
 | `phosphor-context-breakdown` | `libs/pi-extensions/pi-ext/context-breakdown.ts` | `chat/composer/contextBreakdown.ts` → ContextMeter, context-file checkboxes                                                |
 | `phosphor-mcp-status`        | `libs/pi-extensions/pi-ext/mcp-status.ts`        | `connectors/mcpStatus.ts` → Connectors, footer                                                                             |
 | `phosphor-reload`            | `libs/pi-extensions/pi-ext/lane-reload.ts`       | `libs/session-runtime/src/pi/lane-reload.ts` (main), JSON `{ token, outcome }`; hidden from the status strip               |

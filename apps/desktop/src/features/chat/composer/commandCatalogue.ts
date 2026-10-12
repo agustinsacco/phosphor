@@ -66,6 +66,7 @@ const DEMOTED: Record<string, string> = {
   'mcp-auth': 'Phosphor runs this for you from Settings ▸ MCP Connectors.',
   'phosphor-context-files': 'Phosphor runs this for you from the CLAUDE.md / AGENTS.md checkboxes.',
   'phosphor-reload': 'Phosphor runs this for you before your next message when connectors change.',
+  'phosphor-swarm': 'Use the Swarm switch in the composer to change lane authorization.',
 }
 
 /**
