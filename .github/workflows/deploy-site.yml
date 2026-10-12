@@ -131,6 +131,8 @@ jobs:
       - name: Build and push
         id: build
         uses: docker/build-push-action@v7
+        env:
+          DOCKER_BUILD_RECORD_RETENTION_DAYS: 3
         with:
           context: ./apps/site
           push: true

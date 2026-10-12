@@ -112,10 +112,43 @@ env overrides; cache remains disabled and graph/install boundaries stay intact.
   compares against the last release, not the previous commit, so a Desktop
   change still ships when a newer push cancels its release run. A missing
   release, a tag off this history, or any git/Nx/install failure releases.
-  `workflow_dispatch` always releases. A `Skip-Release: true` trailer still
-  wins. One release builds macOS, Linux and Windows.
+  Manual `workflow_dispatch` is main-only and verifies successful push CI for
+  the exact SHA (the newest attempt wins); it bypasses only affected selection,
+  never CI or `Skip-Release: true`. Every checkout is pinned to that SHA.
+  This is the only release workflow; tag pushes do not build another release.
+  One release builds macOS, Linux and Windows into a draft. All platform jobs,
+  binary/manifest presence checks and checksum generation must pass before it
+  becomes latest. A failed or cancelled build leaves the previous release live;
+  rerun the workflow to resume the same SHA's draft. Existing published tags
+  remain no-ops. Release cadence, versioning, asset names and update URLs are unchanged.
 - **Site** (`deploy-site.yml`): a `main` push touching its path filter (equal to
   the `site` project's root plus `deploy` input) deploys after exact-SHA CI,
   unless the hold variable or a `Skip-Release: true` trailer stops it.
 
 Schema, docs and CI-only merges ship nothing.
+
+## GitHub retention
+
+Full CI still runs on every PR update and main push. `Continuous Release`
+listens only to main CI completions and retains its push/success/repository
+checks. These policies do not introduce affected-only checks or build caching.
+
+- Windows packaging and packaged-app smoke always run, but the installer and
+  site browser evidence upload only on job failure or when the PR event carries
+  the `keep-ci-artifacts` label. Add the label **before the next push**; rerunning
+  an older event does not refresh its labels. These artifacts expire after
+  three days. Desktop E2E failure reports retain seven days.
+- `cleanup-pr-caches.yml` removes only `refs/pull/<number>/merge` and `/head`
+  caches when that PR closes, including forks. The privileged close hook uses
+  trusted default-branch inline code, never checks out the PR and never executes
+  its contents. Named-branch caches are untouched. Late cache uploads still
+  expire through GitHub's seven-day eviction policy.
+- Docker build records use three-day retention. Published releases and tags
+  are not automatically pruned: they are installation and rollback URLs, not
+  Actions artifacts. Failed drafts are retained for retries; delete an obsolete
+  draft only after confirming no release run still owns it.
+
+The repository keeps the 10 GiB Actions cache cap. Main requires a PR and the
+existing eight CI checks, with no mandatory approval count; force-push and
+branch deletion are blocked. These protections and dependency alerts are
+GitHub repository settings, not configured by a workflow.

@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 
 const workflow = readFileSync(resolve('.github/workflows/release-continuous.yml'), 'utf8')
 const lines = workflow.split('\n')
@@ -31,6 +31,22 @@ it.each([
   { location: 'tools/scripts', skip: false, error: false, expected: 0, publish: true },
   { location: '', skip: true, error: false, expected: 1, publish: false },
   { location: 'tools/scripts', skip: true, error: true, expected: 7, publish: false },
+  {
+    location: 'tools/scripts',
+    skip: true,
+    error: false,
+    expected: 0,
+    publish: false,
+    manual: true,
+  },
+  {
+    location: 'tools/scripts',
+    skip: false,
+    error: false,
+    expected: 0,
+    publish: true,
+    manual: true,
+  },
 ])('release decision fails closed across checkout layouts: %j', (fixture) => {
   const dir = mkdtempSync(join(tmpdir(), 'release-guard-'))
   try {
@@ -39,7 +55,7 @@ it.each([
     const git = join(bin, 'git')
     writeFileSync(
       git,
-      `#!/bin/sh\ncase "$1" in\nrev-list) echo 123;;\nls-remote) exit 2;;\n*) exec ${JSON.stringify(realGit)} "$@";;\nesac\n`,
+      `#!/bin/sh\ncase "$1" in\nrev-list) echo 123;;\nls-remote) exit 2;;\nlog) printf '%s\\n' "$COMMIT_MESSAGE";;\n*) exec ${JSON.stringify(realGit)} "$@";;\nesac\n`,
     )
     chmodSync(git, 0o755)
     if (fixture.location) {
@@ -55,7 +71,12 @@ it.each([
         ...process.env,
         PATH: `${bin}:${process.env.PATH}`,
         GITHUB_OUTPUT: output,
-        HEAD_MESSAGE: fixture.skip ? 'Change\n\nSkip-Release: true' : 'Change',
+        HEAD_MESSAGE: fixture.manual
+          ? ''
+          : fixture.skip
+            ? 'Change\n\nSkip-Release: true'
+            : 'Change',
+        COMMIT_MESSAGE: fixture.skip ? 'Change\n\nSkip-Release: true' : 'Change',
       },
     })
     expect(result.status).toBe(fixture.expected)
@@ -69,7 +90,7 @@ it.each([
 })
 
 it('only eligible releases share concurrency or enter the release guard', () => {
-  const eligible = `github.event_name == 'workflow_dispatch' ||
+  const eligible = `(github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
     (github.event.workflow_run.conclusion == 'success' &&
      github.event.workflow_run.event == 'push' &&
      github.event.workflow_run.head_branch == 'main' &&
@@ -120,7 +141,7 @@ it.each([
   }
 })
 
-it('a skipped scope (workflow_dispatch) still releases; only an explicit false stops it', () => {
+it('a CI-verified manual release skips only the desktop affected check', () => {
   const compact = (value: string) => value.replace(/\s/g, '')
   const gate =
     "steps.decide.outputs.should_release == 'true' && steps.scope.outputs.desktop != 'false'"
@@ -133,4 +154,175 @@ it('a skipped scope (workflow_dispatch) still releases; only an explicit false s
   expect(workflow).toContain(
     "id: scope\n        if: steps.decide.outputs.should_release == 'true' && github.event_name == 'workflow_run'",
   )
+})
+
+function block(name: string, key: string): string {
+  const after = workflow.slice(workflow.indexOf(`- name: ${name}`))
+  const match = after.match(new RegExp(`( +)${key}: \\|\\n`))!
+  const indent = match[1].length + 2
+  const body: string[] = []
+  for (const line of after.slice(match.index! + match[0].length).split('\n')) {
+    if (line && !line.startsWith(' '.repeat(indent))) break
+    body.push(line.slice(indent))
+  }
+  return body.join('\n')
+}
+
+const sha = 'a'.repeat(40)
+const repo = { owner: 'owner', repo: 'repo' }
+const ci = { id: 42, path: '.github/workflows/ci.yml', name: 'CI' }
+const green = {
+  workflow_id: ci.id,
+  path: ci.path,
+  name: ci.name,
+  repository: { full_name: 'owner/repo' },
+  head_repository: { full_name: 'owner/repo' },
+  event: 'push',
+  head_branch: 'main',
+  head_sha: sha,
+  status: 'completed',
+  conclusion: 'success',
+  run_number: 1,
+  run_attempt: 1,
+}
+
+it.each([
+  {},
+  { event: 'pull_request' },
+  { head_branch: 'feature' },
+  { head_sha: 'b'.repeat(40) },
+  { workflow_id: 43 },
+  { path: 'other.yml' },
+  { name: 'Other' },
+  { repository: { full_name: 'fork/repo' } },
+  { head_repository: { full_name: 'fork/repo' } },
+  { status: 'in_progress' },
+  { conclusion: 'failure' },
+  { conclusion: 'cancelled' },
+  { conclusion: 'skipped' },
+])('manual release verifies the actual CI identity and result: %j', async (overrides) => {
+  const actions = {
+    getWorkflow: vi.fn(async () => ({ data: ci })),
+    listWorkflowRuns: vi.fn(async () => ({
+      data: { workflow_runs: [{ ...green, ...overrides }] },
+    })),
+  }
+  const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
+  const verify = new AsyncFunction(
+    'context',
+    'github',
+    'require',
+    block('Verify manual release CI', 'script'),
+  )
+  const result = verify({ ref: 'refs/heads/main', sha, repo }, { rest: { actions } }, () => ({
+    execFileSync: () => sha,
+  }))
+  if (Object.keys(overrides).length) await expect(result).rejects.toThrow()
+  else await expect(result).resolves.toBeUndefined()
+  expect(actions.listWorkflowRuns).toHaveBeenCalledWith({
+    ...repo,
+    workflow_id: 'ci.yml',
+    branch: 'main',
+    event: 'push',
+    head_sha: sha,
+    per_page: 100,
+  })
+})
+
+it('manual release rejects missing CI, stale green attempts, wrong refs/checkouts and API errors', async () => {
+  const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
+  const verify = new AsyncFunction(
+    'context',
+    'github',
+    'require',
+    block('Verify manual release CI', 'script'),
+  )
+  for (const fixture of [
+    { runs: [] },
+    { runs: [green, { ...green, run_attempt: 2, conclusion: 'failure' }] },
+    { runs: [green, { ...green, run_number: 2, status: 'queued' }] },
+    { runs: [green], ref: 'refs/heads/feature' },
+    { runs: [green], checkout: 'b'.repeat(40) },
+    { runs: [green], workflow: { ...ci, id: null } },
+    { runs: [green], error: true },
+  ]) {
+    const actions = {
+      getWorkflow: async () => ({ data: fixture.workflow ?? ci }),
+      listWorkflowRuns: async () => {
+        if (fixture.error) throw Error('API unavailable')
+        return { data: { workflow_runs: fixture.runs } }
+      },
+    }
+    await expect(
+      verify({ ref: fixture.ref ?? 'refs/heads/main', sha, repo }, { rest: { actions } }, () => ({
+        execFileSync: () => fixture.checkout ?? sha,
+      })),
+    ).rejects.toThrow()
+  }
+})
+
+it('pins all checkouts, filters main completions, and keeps failed builds unpublished', () => {
+  expect(workflow).toContain('workflows: [CI]\n    branches: [main]')
+  expect(
+    workflow.match(/ref: \$\{\{ github.event.workflow_run.head_sha \|\| github.sha \}\}/g),
+  ).toHaveLength(3)
+  expect(workflow).toContain('--config.publish.releaseType=draft')
+  expect(workflow).toContain("if: ${{ success() && needs.guard.outputs.should_release == 'true' }}")
+  expect(block('Publish checksums', 'run')).not.toContain('|| true')
+})
+
+it.each([
+  { draft: true, target: sha, exists: true, create: 0, expected: 0 },
+  { draft: false, target: sha, exists: true, create: 0, expected: 1 },
+  { draft: true, target: 'b'.repeat(40), exists: true, create: 0, expected: 1 },
+  { draft: false, target: '', exists: false, create: 0, expected: 0 },
+  { draft: false, target: '', exists: false, create: 1, expected: 1 },
+])('creates once or resumes only the same SHA draft: %j', (fixture) => {
+  const dir = mkdtempSync(join(tmpdir(), 'release-draft-'))
+  try {
+    const shell = block('Pre-create the draft release', 'run')
+      .replaceAll('${{ steps.decide.outputs.tag }}', 'v0.1.123')
+      .replaceAll('${{ github.event.workflow_run.head_sha || github.sha }}', sha)
+    const mock = `gh() { case "$2" in
+      view) printf '%s' "$DRAFT"; return ${fixture.exists ? 0 : 1};;
+      create) return ${fixture.create};;
+      *) return 99;; esac; };\n`
+    const result = spawnSync('bash', ['-c', mock + shell], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        RUNNER_TEMP: dir,
+        DRAFT: JSON.stringify({ isDraft: fixture.draft, targetCommitish: fixture.target }),
+      },
+    })
+    expect(result.status, result.stdout + result.stderr).toBe(fixture.expected)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+it('requires every platform binary and update manifest, including on retries', () => {
+  const shell = block('Verify install.sh can resolve its assets', 'run')
+    .replaceAll('${{ needs.guard.outputs.tag }}', 'v0.1.123')
+    .replaceAll('${{ needs.guard.outputs.version }}', '0.1.123')
+  const assets = [
+    'x86_64.AppImage',
+    'arm64.AppImage',
+    'x64.dmg',
+    'arm64.dmg',
+    'x64.exe',
+    'amd64.deb',
+    'arm64.deb',
+    'mac.zip',
+    'arm64-mac.zip',
+  ]
+    .map((suffix) => `Phosphor-0.1.123-${suffix}`)
+    .concat(['latest.yml', 'latest-mac.yml', 'latest-linux.yml', 'latest-linux-arm64.yml'])
+  for (const missing of [null, ...assets]) {
+    const result = spawnSync('bash', ['-c', 'gh() { printf "%s\\n" "$ASSETS"; };\n' + shell], {
+      encoding: 'utf8',
+      env: { ...process.env, ASSETS: assets.filter((a) => a !== missing).join('\n') },
+    })
+    expect(result.status, result.stdout + result.stderr).toBe(missing ? 1 : 0)
+  }
 })

@@ -142,12 +142,13 @@ jobs:
         if: always()
         run: docker rm -f phosphor-site-ci || true
 
+      # Successful evidence is opt-in: label the PR before its next push.
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: failure() || contains(github.event.pull_request.labels.*.name, 'keep-ci-artifacts')
         with:
           name: site-browser-evidence
           path: apps/site/test-results/
-          retention-days: 7
+          retention-days: 3
 
   windows:
     # The only Windows runner in CI. Its job is to catch what no other runner
@@ -208,12 +209,13 @@ jobs:
       - name: Boot the packaged app and run pi
         run: pwsh tools/scripts/smoke-packaged-win.ps1
 
+      # The smoke test uses the local installer; uploading it is only for debugging.
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: failure() || contains(github.event.pull_request.labels.*.name, 'keep-ci-artifacts')
         with:
           name: windows-installer
           path: apps/desktop/release/Phosphor-*-x64.exe
-          retention-days: 7
+          retention-days: 3
 
   e2e:
     name: E2E smoke (${{ matrix.os }} ${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
