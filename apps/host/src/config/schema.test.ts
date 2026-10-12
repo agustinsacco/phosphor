@@ -119,3 +119,40 @@ describe('JSON pointers and host ids', () => {
     }
   })
 })
+
+describe('control.url', () => {
+  it.each([
+    'https://example.com',
+    'https://example.com:65535',
+    'http://localhost',
+    'http://127.0.0.1:54350',
+    'http://[::1]:54350',
+  ])('accepts %s', (url) => {
+    expect(errorsOf({ ...minimal, control: { url } })).toEqual([])
+  })
+  it.each([
+    'http://example.com',
+    'https://me:secret@example.com',
+    'https://example.com/path',
+    'https://example.com/',
+    'https://example.com?secret=x',
+    'https://example.com#x',
+    'https://example.com:0',
+    'https://example.com:65536',
+    'x'.repeat(2049),
+    '',
+    null,
+  ])('rejects %s without repeating values', (url) => {
+    expect(errorsOf({ ...minimal, control: { url } })).toEqual([
+      { pointer: '/control/url', message: 'must be a bare https origin, or http on loopback' },
+    ])
+  })
+  it('rejects missing, non-object and unknown fields', () => {
+    expect(errorsOf({ ...minimal, control: {} })[0]?.pointer).toBe('/control/url')
+    expect(errorsOf({ ...minimal, control: null })[0]?.pointer).toBe('/control')
+    expect(
+      errorsOf({ ...minimal, control: { url: 'https://example.com', secret: 'hidden' } })[0]
+        ?.pointer,
+    ).toBe('/control/secret')
+  })
+})

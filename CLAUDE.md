@@ -200,12 +200,16 @@ you want to watch.
     and then every later turn replays it and the provider rejects the whole
     request (`Member must satisfy regular expression pattern: [a-zA-Z0-9_-]+`),
     bricking the thread permanently. The guard turns it into plain text.
-- **Five UI surfaces are fed by extensions, not by RPC.** The context meter's
+- **UI status surfaces are fed by extensions, not by RPC queries.** The context meter's
   composition section comes from `libs/pi-extensions/pi-ext/context-breakdown.ts` (bundled, `-e`
   into every session), per-server MCP state from `libs/pi-extensions/pi-ext/mcp-status.ts`, and
   headroom/compression state from `libs/pi-extensions/pi-ext/headroom.ts`; its plan-limits
-  section and the sub-agent chip come from the Claude provider package. All
-  arrive over `ctx.ui.setStatus` into `stores/extensionUi.ts`. **The status
+  section and the legacy sub-agent chip come from the Claude provider package.
+  The per-lane Swarm switch uses `phosphor-swarm` from the bundled context helper
+  `swarm.ts`: request-local authorization, not a runner or an activity signal.
+  Switching off removes that prompt section after the current run; it does not stop
+  children or unload tool schemas. All arrive over `ctx.ui.setStatus` into
+  `stores/extensionUi.ts`. **The status
   keys are lowercase `phosphor-*` / `claude-*` string literals, unchecked on
   both sides** — a capitalising find-and-replace over the docs silently broke
   them once (fixed 2026-09-09). The two `claude-*` keys cross a repo boundary,

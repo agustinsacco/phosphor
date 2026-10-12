@@ -14,6 +14,7 @@ export default tseslint.config(
       'apps/site/.astro/**',
       'apps/site/dist/**',
       'apps/host/dist/**',
+      'apps/control/dist/**',
       'apps/site/shots-raw/**',
       'apps/site/test-results/**',
       'apps/site/playwright-report/**',
@@ -75,6 +76,7 @@ export default tseslint.config(
       'tools/scripts/**/*.mjs',
       'apps/desktop/scripts/**/*.mjs',
       'apps/host/scripts/**/*.mjs',
+      'apps/control/scripts/**/*.mjs',
       'apps/site/scripts/**/*.mjs',
     ],
     languageOptions: {

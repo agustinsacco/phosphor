@@ -39,6 +39,7 @@ const shippedFiles = [
   'mcp-status.ts',
   'optional/permission-gate.ts',
   'subagent-snapshot.ts',
+  'swarm.ts',
   'tool-name-guard.ts',
   'worktree-paths.ts',
 ]
@@ -104,6 +105,7 @@ describe('standalone pi extension resources', () => {
       })
       expect(Object.keys(bundle.metafile.inputs)).toContain('resources/pi-ext/context-budget.ts')
       expect(Object.keys(bundle.metafile.inputs)).toContain('resources/pi-ext/context-files.ts')
+      expect(Object.keys(bundle.metafile.inputs)).toContain('resources/pi-ext/swarm.ts')
       expect(Object.keys(bundle.metafile.inputs)).toContain('resources/pi-ext/artifact-store.ts')
       expect(Object.keys(bundle.metafile.inputs)).toContain('resources/pi-ext/subagent-snapshot.ts')
       expect(bundle.outputFiles).toHaveLength(7)

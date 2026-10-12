@@ -1,7 +1,9 @@
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fakeMachine, type FakeMachine } from './__fixtures__/machine'
+import type { Drainable } from './shutdown'
+import { controlMachine } from './control/__fixtures__/machine'
 import { runCli, USAGE, type CliContext } from './cli'
 
 let machine: FakeMachine | undefined
@@ -72,6 +74,10 @@ describe('phosphor', () => {
     [['doctor', '--config'], "Option '--config <value>' argument missing"],
     [['doctor', '--config', ''], '--config needs a file'],
     [['version', '--config', '/x.json'], 'version does not take --config'],
+    [['login', '--json'], 'login does not take --json'],
+    [['status', '--local'], 'status does not take --local'],
+    [['logout', '--json'], 'logout does not take --json'],
+    [['login', 'extra'], 'unexpected argument'],
   ])('refuses %j with exit 64 and usage on stderr', async (argv, problem) => {
     const result = await run(argv)
     expect(result).toMatchObject({ code: 64, stdout: '' })
@@ -249,5 +255,78 @@ describe('phosphor', () => {
     const result = await run(['doctor'], { env: { XDG_CONFIG_HOME: '/nonexistent/xdg' } })
     expect(result.code).toBe(78)
     expect(result.stdout).toContain('/nonexistent/xdg/phosphor-host/config.json')
+  })
+})
+
+describe('control commands', () => {
+  it('places identity beside the default XDG config file', async () => {
+    const control = await controlMachine()
+    try {
+      const parent = join(control.root, 'phosphor-host')
+      mkdirSync(parent, { mode: 0o700 })
+      writeFileSync(join(parent, 'config.json'), JSON.stringify(control.config), { mode: 0o600 })
+      const outcome = await run(['login'], {
+        env: { XDG_CONFIG_HOME: control.root },
+        control: { ...control.context, store: undefined },
+      })
+      expect(outcome.code).toBe(0)
+      expect(JSON.parse(readFileSync(join(parent, 'identity', 'host.json'), 'utf8')).label).toBe(
+        'bee1',
+      )
+      expect(await control.store.load()).toBeNull()
+    } finally {
+      await control.cleanup()
+    }
+  })
+  it('routes login without a TTY, status --json and logout --local, with no headers on output', async () => {
+    const control = await controlMachine()
+    try {
+      const options = { control: control.context, terminal: false }
+      const login = await run(['login', '--config', control.configPath], options)
+      expect(login.code).toBe(0)
+      expect(login.stdout).toContain('BCDF-GHJK')
+      expect(login.stderr).toBe('')
+      const status = await run(['status', '--config', control.configPath, '--json'], options)
+      expect(status.code).toBe(0)
+      expect(JSON.parse(status.stdout)).toMatchObject({ version: 1, status: 'confirmed' })
+      const logout = await run(['logout', '--config', control.configPath, '--local'], options)
+      expect(logout.code).toBe(0)
+      expect(logout.stdout).toContain('Forgot this machine locally')
+      expect(login.stdout + status.stdout + logout.stdout).not.toMatch(
+        /PRIVATE KEY|signature|x-phosphor-/,
+      )
+    } finally {
+      await control.cleanup()
+    }
+  })
+  it('attaches cancellation to the existing shutdown', async () => {
+    const control = await controlMachine()
+    try {
+      let target: Drainable | undefined
+      let draining: Promise<{ state: 'stopped' | 'failed' }> | undefined
+      control.onWait(() => {
+        draining = target?.drain('SIGINT')
+      })
+      const outcome = await run(['login', '--config', control.configPath], {
+        control: control.context,
+        attach: (value) => {
+          target = value
+          return () => {
+            target = undefined
+          }
+        },
+      })
+      expect(outcome.code).toBe(130)
+      expect(await draining).toEqual({ state: 'stopped' })
+      expect(target).toBeUndefined()
+      expect(await control.store.load()).toBeNull()
+      const notEnrolled = await run(['status', '--json'], {
+        env: { XDG_CONFIG_HOME: '/nonexistent/xdg' },
+      })
+      expect(notEnrolled.code).toBe(78)
+      expect(JSON.parse(notEnrolled.stdout).status).toBe('invalid')
+    } finally {
+      await control.cleanup()
+    }
   })
 })

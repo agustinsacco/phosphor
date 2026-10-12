@@ -150,6 +150,169 @@ function scrollPosition(el: HTMLElement): { top: number; max: number } {
   return { top, max }
 }
 
+test('Swarm toggles lane authorization without sending a turn and honors reduced motion', async () => {
+  const h = await launch()
+  const { page } = h
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    const toggle = page.getByRole('switch', { name: 'Swarm', exact: true })
+    await expect(toggle).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled({
+      timeout: 20_000,
+    })
+    const messages = await page.getByTestId('user-message').count()
+    const draft = page.getByPlaceholder(/Describe a task…/i)
+    await draft.fill('Keep this draft')
+    await toggle.focus()
+    await page.keyboard.press('Space')
+    await expect(toggle).toBeChecked()
+    await expect(toggle).toBeFocused()
+    await expect(page.locator('[data-swarm-enabled="true"]')).toBeVisible()
+    await expect(page.getByTitle('Swarm authorization enabled for this lane')).toBeVisible()
+    await expect(page.getByTestId('user-message')).toHaveCount(messages)
+    await expect(draft).toHaveValue('Keep this draft')
+    await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled()
+    await expect(page.getByText(/"version":1,"available":true/)).toHaveCount(0)
+    await toggle.hover()
+    expect(
+      await toggle
+        .locator('.swarm-satellite')
+        .first()
+        .evaluate((el) => getComputedStyle(el).animationName),
+    ).toBe('swarm-fan-out')
+    await page.screenshot({ path: test.info().outputPath('swarm-enabled.png') })
+    async function stubCommand(message: string): Promise<void> {
+      const result = await page.evaluate(async (text) => {
+        const live = await window.phosphor.invoke('pi:listLiveSessions')
+        if (live.length !== 1) throw new Error('Expected one isolated stub session')
+        return window.phosphor.piCommand(live[0].sessionId, { type: 'prompt', message: text })
+      }, message)
+      expect(result.success).toBe(true)
+    }
+    async function screenshot(name: string): Promise<void> {
+      // CDP screenshots crop the native viewport at Electron zoom.
+      const png = await h.app.evaluate(async ({ BrowserWindow }) =>
+        (await BrowserWindow.getAllWindows()[0]!.webContents.capturePage())
+          .toPNG()
+          .toString('base64'),
+      )
+      await writeFile(test.info().outputPath(name), Buffer.from(png, 'base64'))
+    }
+    async function expectFooterFits(): Promise<void> {
+      const card = (await page.locator('[data-swarm-enabled]').boundingBox())!
+      const boxes = []
+      for (const control of [
+        toggle,
+        page.getByTestId('model-chip'),
+        page.getByRole('button', { name: 'Attach files', exact: true }),
+        page.getByRole('button', { name: '0%', exact: true }),
+        page.getByRole('button', { name: 'Send message', exact: true }),
+      ]) {
+        const box = (await control.boundingBox())!
+        expect(box.width).toBeGreaterThanOrEqual(24)
+        expect(box.x).toBeGreaterThanOrEqual(card.x)
+        expect(box.x + box.width).toBeLessThanOrEqual(card.x + card.width)
+        for (const other of boxes) {
+          const overlapX =
+            Math.min(box.x + box.width, other.x + other.width) - Math.max(box.x, other.x)
+          const overlapY =
+            Math.min(box.y + box.height, other.y + other.height) - Math.max(box.y, other.y)
+          expect(overlapX <= 1 || overlapY <= 1, 'Composer controls must not overlap').toBe(true)
+        }
+        boxes.push(box)
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      )
+    }
+    await stubCommand('/stub-swarm-post-run')
+    await expect(page.getByText('compacting…', { exact: true })).toBeVisible()
+    await h.app.evaluate(({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0]!
+      win.setContentSize(1000, 740)
+      win.webContents.setZoomFactor(1.25)
+    })
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate((value) => {
+        document.documentElement.classList.toggle('dark', value === 'dark')
+      }, theme)
+      await expect(page.locator('[data-swarm-enabled]')).toHaveCSS(
+        'background-color',
+        theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(42, 39, 33)',
+      )
+      // Measure the actual rendered label/badge colors, not duplicated theme tokens.
+      for (const control of [
+        toggle,
+        page.getByTitle('Swarm authorization enabled for this lane'),
+      ]) {
+        const contrast = await control.evaluate((el) => {
+          const css = getComputedStyle(el)
+          const luminance = (color: string) => {
+            const channels = color
+              .match(/[\d.]+/g)!
+              .slice(0, 3)
+              .map(Number)
+              .map((n) => {
+                const s = n / 255
+                return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+              })
+            return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722
+          }
+          const a = luminance(css.color),
+            b = luminance(css.backgroundColor)
+          return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+        })
+        expect(contrast).toBeGreaterThanOrEqual(4.5)
+      }
+      await screenshot(`swarm-${theme}-narrow-enabled.png`)
+      await toggle.focus()
+      await page.keyboard.press('Space')
+      await expect(toggle).toContainText('Off next turn')
+      await expect(toggle).toBeChecked() // native acknowledgement still says on
+      await expect(toggle).toBeFocused()
+      await expect(toggle).toHaveAttribute('aria-busy', 'true')
+      await expectFooterFits()
+      await screenshot(`swarm-${theme}-narrow-pending.png`)
+      if (theme === 'light') {
+        await page.keyboard.press('Space') // cancel the pending disable
+        await expect(toggle).not.toContainText('Off next turn')
+      }
+    }
+    await stubCommand('/stub-settle-swarm')
+    await expect(toggle).not.toBeChecked() // no second agent_end was emitted
+    await expect(toggle).toHaveAttribute('aria-busy', 'false')
+    await expect(toggle).toBeFocused()
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    expect(
+      await toggle
+        .locator('.swarm-satellite')
+        .first()
+        .evaluate((el) => getComputedStyle(el).animationName),
+    ).toBe('none')
+    await expect(toggle).not.toBeChecked()
+    await expect(page.locator('[data-swarm-enabled="false"]')).toBeVisible()
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(
+        (value) => document.documentElement.classList.toggle('dark', value === 'dark'),
+        theme,
+      )
+      await expect(page.locator('[data-swarm-enabled]')).toHaveCSS(
+        'background-color',
+        theme === 'light' ? 'rgb(255, 255, 255)' : 'rgb(42, 39, 33)',
+      )
+      await expectFooterFits()
+      await screenshot(`swarm-${theme}-narrow-off.png`)
+    }
+    await expect(page.getByTitle('Swarm authorization enabled for this lane')).toHaveCount(0)
+    await expect(page.getByTestId('user-message')).toHaveCount(messages)
+    await expect(draft).toHaveValue('Keep this draft')
+  } finally {
+    await shutdown(h)
+  }
+})
+
 test('instruction sources distinguish global and project files in the composer', async () => {
   const h = await launch()
   const { page } = h

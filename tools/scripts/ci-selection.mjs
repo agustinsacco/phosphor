@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process'
 
 export const ALL_PROJECTS = [
+  'control',
   'desktop',
   'host',
   'pi-extensions',

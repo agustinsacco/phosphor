@@ -365,6 +365,11 @@ function respond(command: RpcCommand): RpcResponse {
               description: 'Set or clear the session name',
               source: 'extension',
             },
+            {
+              name: 'phosphor-swarm',
+              description: 'Toggle lane authorization',
+              source: 'extension',
+            },
             { name: 'fix-tests', description: 'Fix failing tests', source: 'prompt' },
             { name: 'skill:web-search', description: 'Search the web', source: 'skill' },
           ],
@@ -947,6 +952,21 @@ export function installMockPhosphor(): void {
               kind: 'extension-ui',
               request: {
                 type: 'extension_ui_request',
+                id: 'mock-swarm',
+                method: 'setStatus',
+                statusKey: 'phosphor-swarm',
+                statusText: JSON.stringify({
+                  version: 1,
+                  available: true,
+                  enabled: false,
+                  requested: false,
+                }),
+              },
+            } as SessionPush)
+            push('mock-session-id', {
+              kind: 'extension-ui',
+              request: {
+                type: 'extension_ui_request',
                 id: 'mock-ctx',
                 method: 'setStatus',
                 statusKey: 'phosphor-context-breakdown',
@@ -1003,6 +1023,25 @@ export function installMockPhosphor(): void {
           })
         case 'pi:command': {
           const command = args[1] as RpcCommand
+          if (command.type === 'prompt' && /^\/phosphor-swarm (on|off)$/.test(command.message)) {
+            const enabled = command.message.endsWith(' on')
+            push(String(args[0]), {
+              kind: 'extension-ui',
+              request: {
+                type: 'extension_ui_request',
+                id: 'mock-swarm',
+                method: 'setStatus',
+                statusKey: 'phosphor-swarm',
+                statusText: JSON.stringify({
+                  version: 1,
+                  available: true,
+                  enabled,
+                  requested: enabled,
+                }),
+              },
+            } as SessionPush)
+            return Promise.resolve({ type: 'response', command: 'prompt', success: true })
+          }
           // Permission-gate rehearsal. The harness has no pi and therefore no
           // extension, but the dangerous-command approval sheet is the one
           // dialog whose whole point is how it renders a big ugly command —

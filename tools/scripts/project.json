@@ -7,6 +7,7 @@
   "implicitDependencies": [
     "desktop",
     "host",
+    "control",
     "runtime",
     "shared",
     "pi-extensions",
@@ -19,7 +20,7 @@
       "cache": false,
       "inputs": ["workspace"],
       "options": {
-        "command": "tsc --noEmit -p apps/desktop/tsconfig.node.json && tsc --noEmit -p apps/desktop/tsconfig.web.json && tsc --noEmit -p apps/host/tsconfig.json",
+        "command": "tsc --noEmit -p apps/desktop/tsconfig.node.json && tsc --noEmit -p apps/desktop/tsconfig.web.json && tsc --noEmit -p apps/host/tsconfig.json && tsc --noEmit -p apps/control/tsconfig.json",
         "cwd": "."
       },
       "outputs": []
