@@ -6,6 +6,7 @@ import { fuzzyFilter } from '@/lib/fuzzy'
 import { QueueChips } from './composer/QueueChips'
 import { ModelPicker } from './composer/ModelPicker'
 import { ContextMeter } from './composer/ContextMeter'
+import { ContinueButton } from './composer/ContinueButton'
 import { ContextSourcesMenu } from './composer/ContextSourcesMenu'
 import { submitBehavior } from './composer/submitBehavior'
 import { buildCommandEntries, CommandMenu, type NativeCommand } from './composer/CommandMenu'
@@ -511,6 +512,7 @@ export function Composer({
                     idle self while pi is still starting is what made the
                     composer look like it had swallowed the prompt. */}
                 {(isStreaming || booting) && <Spinner />}
+                <ContinueButton sessionId={sessionId} />
                 {isStreaming ? (
                   <StopIconButton onClick={() => void abort()} />
                 ) : (

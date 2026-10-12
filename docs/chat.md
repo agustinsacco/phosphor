@@ -8,6 +8,11 @@ The composer is one small field with several ways in.
 
 - Multi-line. Enter sends, Shift+Enter newline. IME confirmation keys never
   send.
+- **Continue:** a compact play icon immediately left of Send sends the literal
+  message `continue`, without sending or clearing the draft or attachments.
+  It is disabled while resuming, awaiting a reply, streaming or compacting, and
+  is available again in a reopened session after an app restart. It uses normal
+  prompt delivery; if pi's process crashed, use **Resume session** first.
 - **Markdown list primitives.** Shift+Enter continues the list the caret is on
   (renumbering; an empty item steps out a level, then exits). Tab/Shift+Tab
   nest and un-nest inside a list. Cmd/Ctrl+Shift+8 and +7 toggle bullet and

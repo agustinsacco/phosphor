@@ -2908,7 +2908,7 @@ test('Connectors: signing in works with no session open', async () => {
   }
 })
 
-test('reopens the last session on relaunch instead of the picker', async () => {
+test('reopens the last session on relaunch and continues without disturbing its draft', async () => {
   // Both launches share a userData dir so prefs survive the restart, while
   // staying isolated from the developer's real config.
   const userDataDir = await scratchDir('phosphor-e2e-prefs-')
@@ -2951,6 +2951,25 @@ test('reopens the last session on relaunch instead of the picker', async () => {
         timeout: 30_000,
       })
       await expect(second.page.getByRole('button', { name: /Open Folder/i })).toBeHidden()
+      const composer = second.page.getByPlaceholder(/Describe a task…/i)
+      const continueButton = second.page.getByRole('button', { name: 'Continue', exact: true })
+      const sendButton = second.page.getByRole('button', { name: 'Send message', exact: true })
+      await expect(continueButton).toBeEnabled()
+      await expect(sendButton).toBeDisabled()
+      const next = await continueButton.evaluate((el) =>
+        el.nextElementSibling?.getAttribute('aria-label'),
+      )
+      expect(next).toBe('Send message')
+      await composer.fill('Keep this draft for later')
+      await continueButton.click()
+      await expect(
+        second.page.getByTestId('user-message').getByText('continue', { exact: true }),
+      ).toBeVisible()
+      await expect(second.page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
+      await expect(continueButton).toBeDisabled()
+      await expect(continueButton).toBeEnabled({ timeout: 20_000 })
+      await expect(composer).toHaveValue('Keep this draft for later')
+      await second.page.screenshot({ path: test.info().outputPath('continue-button.png') })
     } finally {
       await second.app.close()
     }
