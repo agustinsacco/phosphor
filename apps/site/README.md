@@ -180,7 +180,8 @@ using the Desktop release trailer parser. The repository variable
 `false`; every other value holds it. Structural migration commits retain the
 trailer. Manual operation requires selecting `main`, explicitly checking
 `confirm`, and passing the same exact-SHA CI and hold checks. It does not bypass
-the hold. Rejected manual refs cannot cancel production work. The workflow
+the hold. A confirmed manual run may also check `ignore_skip_release` to deploy
+past the trailer; pushes always honour it, and the hold and CI checks still apply. Rejected manual refs cannot cancel production work. The workflow
 rechecks that its SHA is still current main before publishing the image and
 before rollout, including after any `site-production` environment approval.
 

@@ -5,4 +5,3 @@ namespace: phosphor
 resources:
   - service.yaml
   - deployment.yaml
-  - secret.yaml

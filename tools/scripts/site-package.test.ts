@@ -93,7 +93,8 @@ describe('independent apps/site package contract', () => {
     expect(read('.infra/phosphor-site/secret.yaml')).toContain(
       "edge-secret: '${CONTROL_EDGE_SECRET}'",
     )
-    expect(read('.infra/phosphor-site/kustomization.yaml')).toContain('- secret.yaml')
+    // Applied on its own with suppressed output, never through the kustomization.
+    expect(read('.infra/phosphor-site/kustomization.yaml')).not.toContain('secret.yaml')
     const pod = read('.infra/phosphor-site/deployment.yaml')
     for (const key of ['supabase-secret-key', 'edge-secret']) expect(pod).toContain(`key: ${key}`)
     expect(pod).not.toMatch(/optional:\s*true/)
@@ -105,9 +106,13 @@ describe('independent apps/site package contract', () => {
     expect(deploy).toContain('^[A-Za-z0-9_-]{32,512}$')
     expect(deploy).toContain('umask 077')
     expect(deploy).toContain("grep -Fq '${'")
-    expect(deploy).toContain(`trap 'rm -f "$manifest"' EXIT`)
+    expect(deploy).toContain(`trap 'rm -f "$secret" "$manifest"' EXIT`)
+    expect(deploy).toContain('if ! kubectl apply -f "$secret" >/dev/null 2>&1; then')
+    expect(pod).toContain('phosphor.saccolabs.com/deploy-run: local')
     expect(deploy).toContain('image: ${IMAGE_NAME}@${IMAGE_DIGEST}')
-    expect(deploy).toContain('if: always()\n        run: rm -f "$RUNNER_TEMP/phosphor-site.yaml"')
+    expect(deploy).toContain(
+      'if: always()\n        run: rm -f "$RUNNER_TEMP/phosphor-control-secret.yaml" "$RUNNER_TEMP/phosphor-site.yaml"',
+    )
     expect(deploy).toContain('timeout 120s')
     expect(deploy).toContain('.configured == true')
   })
@@ -154,9 +159,23 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
       if (args[0] === 'kustomize') process.stdout.write(fs.readFileSync(process.env.RUNNER_TEMP + '/template'))
       if (args[0] === 'apply' && args[2] !== '-') {
         const manifest = fs.readFileSync(args[2], 'utf8')
-        if (!manifest.includes(process.env.SUPABASE_SECRET_KEY) || !manifest.includes(process.env.CONTROL_EDGE_SECRET)) process.exit(1)
-        fs.writeFileSync(process.env.RUNNER_TEMP + '/mode', String(fs.statSync(args[2]).mode & 0o777))
-        if (process.env.APPLY_FAIL) process.exit(1)
+        const secrets = [process.env.SUPABASE_SECRET_KEY, process.env.CONTROL_EDGE_SECRET]
+        if (args[2].endsWith('/phosphor-control-secret.yaml')) {
+          if (!secrets.every((value) => manifest.includes(value))) process.exit(1)
+          fs.writeFileSync(process.env.RUNNER_TEMP + '/mode', String(fs.statSync(args[2]).mode & 0o777))
+          if (process.env.APPLY_FAIL) {
+            // What a real failure may print: the object, raw and base64.
+            const encoded = secrets.map((value) => Buffer.from(value).toString('base64')).join(' ')
+            process.stdout.write(manifest + encoded)
+            process.stderr.write(manifest + encoded)
+            process.exit(1)
+          }
+        } else {
+          if (secrets.some((value) => manifest.includes(value))) process.exit(1)
+          // The rendered Secret is gone before anything else is applied.
+          if (fs.existsSync(process.env.RUNNER_TEMP + '/phosphor-control-secret.yaml')) process.exit(1)
+          fs.writeFileSync(process.env.RUNNER_TEMP + '/applied', manifest)
+        }
       }
       if (args[0] === 'apply' && args[2] === '-') process.stdin.resume()
     `,
@@ -165,12 +184,13 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
       'envsubst',
       `
       if (process.argv[2] !== '$' + '{SUPABASE_SECRET_KEY} $' + '{CONTROL_EDGE_SECRET}') process.exit(1)
+      if (process.argv.length !== 3) process.exit(1)
       let input = ''
       process.stdin.on('data', chunk => input += chunk)
       process.stdin.on('end', () => {
         for (const name of ['SUPABASE_SECRET_KEY', 'CONTROL_EDGE_SECRET'])
           input = input.split('$' + '{' + name + '}').join(process.env[name])
-        process.stdout.write(input)
+        process.stdout.write(input + (process.env.LEAVE_PLACEHOLDER ? '$' + '{LEFT}' : ''))
       })
     `,
     )
@@ -178,16 +198,21 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
       'sed',
       `
       const fs = require('node:fs')
-      const path = process.argv[4]
-      const input = fs.readFileSync(path, 'utf8')
-      fs.writeFileSync(path, input.replace('image: ' + process.env.IMAGE_NAME + ':latest',
-        'image: ' + process.env.IMAGE_NAME + '@' + process.env.IMAGE_DIGEST))
+      const args = process.argv.slice(2)
+      const path = args[args.length - 1]
+      let input = fs.readFileSync(path, 'utf8')
+      for (let i = 0; i < args.length - 1; i++) {
+        if (args[i] !== '-e') continue
+        const [, from, to] = args[i + 1].split('#')
+        input = input.replace(from, to)
+      }
+      fs.writeFileSync(path, input)
     `,
     )
-    const template = read('.infra/phosphor-site/secret.yaml') + '\nimage: test:latest\n'
+    const template = 'image: test:latest\n        phosphor.saccolabs.com/deploy-run: local\n'
     const secret = (length: number) => randomBytes(length).toString('base64url').slice(0, length)
-    const run = (supabase: string, edge: string, suffix = '', applyFail = '') => {
-      for (const name of ['calls', 'mode']) rmSync(join(work, name), { force: true })
+    const run = (supabase: string, edge: string, suffix = '', applyFail = '', leave = '') => {
+      for (const name of ['calls', 'mode', 'applied']) rmSync(join(work, name), { force: true })
       writeFileSync(join(work, 'template'), template + suffix)
       const result = spawnSync('bash', ['-c', shell], {
         encoding: 'utf8',
@@ -200,18 +225,28 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
           CONTROL_EDGE_SECRET: edge,
           IMAGE_NAME: 'test',
           IMAGE_DIGEST: 'sha256:' + 'a'.repeat(64),
+          GITHUB_RUN_ID: '4242',
+          GITHUB_RUN_ATTEMPT: '2',
           APPLY_FAIL: applyFail,
+          LEAVE_PLACEHOLDER: leave,
         },
       })
-      expect((result.stdout + result.stderr).includes(supabase)).toBe(false)
-      expect((result.stdout + result.stderr).includes(edge)).toBe(false)
+      const output = result.stdout + result.stderr
+      for (const value of [supabase, edge]) {
+        expect(output.includes(value)).toBe(false)
+        expect(output.includes(Buffer.from(value).toString('base64'))).toBe(false)
+      }
       expect(existsSync(join(work, 'phosphor-site.yaml'))).toBe(false)
+      expect(existsSync(join(work, 'phosphor-control-secret.yaml'))).toBe(false)
       return result.status
     }
     for (const length of [32, 512]) {
       writeFileSync(join(work, 'phosphor-site.yaml'), '', { mode: 0o644 })
       expect(run(secret(length), secret(length))).toBe(0)
       expect(readFileSync(join(work, 'mode'), 'utf8')).toBe(String(0o600))
+      const applied = readFileSync(join(work, 'applied'), 'utf8')
+      expect(applied).toContain('image: test@sha256:' + 'a'.repeat(64))
+      expect(applied).toContain("phosphor.saccolabs.com/deploy-run: '4242-2'")
     }
     for (const invalid of [
       secret(31),
@@ -226,10 +261,15 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
       expect(run(secret(32), invalid)).toBe(1)
       expect(existsSync(join(work, 'calls'))).toBe(false)
     }
-    expect(run(secret(32), secret(32), '${UNRENDERED}')).toBe(1)
+    expect(run(secret(32), secret(32), '', '', '1')).toBe(1)
     expect(existsSync(join(work, 'mode'))).toBe(false)
-    expect(run(secret(32), secret(32), '', '1')).toBe(1)
+    expect(run(secret(32), secret(32), '${UNRENDERED}')).toBe(1)
+    expect(existsSync(join(work, 'applied'))).toBe(false)
+    // A failing Secret apply prints its data; none of it may reach the log.
+    const failing = run(secret(32), secret(32), '', '1')
+    expect(failing).toBe(1)
     expect(readFileSync(join(work, 'mode'), 'utf8')).toBe(String(0o600))
+    expect(existsSync(join(work, 'applied'))).toBe(false)
     // Empty secrets are refused too; avoid the output containment check for an empty string.
     const validation = shell.slice(0, shell.indexOf('umask 077'))
     for (const missing of ['SUPABASE_SECRET_KEY', 'CONTROL_EDGE_SECRET']) {

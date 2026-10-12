@@ -21,6 +21,10 @@ spec:
     metadata:
       labels:
         app: phosphor-site
+      annotations:
+        # The deploy sets this to its run, so each deploy rolls the pods and a
+        # rotated Secret is read. `local` marks an unrendered manifest.
+        phosphor.saccolabs.com/deploy-run: local
     spec:
       terminationGracePeriodSeconds: 15
       securityContext:

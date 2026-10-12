@@ -166,8 +166,12 @@ keys. Neither reference is optional: missing configuration fails the rollout.
 The template holds only `${SUPABASE_SECRET_KEY}` and `${CONTROL_EDGE_SECRET}`.
 The workflow validates both repository secrets against `^[A-Za-z0-9_-]{32,512}$`,
 then uses restricted `envsubst` to render only those placeholders into a 0600
-file under `RUNNER_TEMP`. Unresolved placeholders fail. Cleanup runs even on
-failure; values are never printed. Production sets `CONTROL_TRUST_PROXY=cloudflare`.
+file under `RUNNER_TEMP`. Unresolved placeholders fail. The Secret is applied on
+its own with kubectl's output suppressed, because diagnostics can carry its data
+in a form log masking misses; it is not part of the kustomization. Cleanup runs
+even on failure; values are never printed. Each deploy stamps the pod template
+with its run id, so the pods restart and read a rotated Secret even when the
+image is unchanged. Production sets `CONTROL_TRUST_PROXY=cloudflare`.
 The Cloudflare Transform Rule must overwrite `x-phosphor-edge` with the same
 edge secret. No source-range filtering is used because servicelb SNAT hides
 LAN and tailnet peers as well as the tunnel connector.
