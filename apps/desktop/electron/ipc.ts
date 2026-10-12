@@ -17,6 +17,7 @@ import { registerMaintenanceHandlers } from './ipc/maintenance-handlers'
 import { registerOptimizationHandlers } from './ipc/optimization-handlers'
 import { registerRoutinesHandlers } from './ipc/routines-handlers'
 import { registerFeedbackHandlers } from './ipc/feedback-handlers'
+import { registerControlHandlers } from './ipc/control-handlers'
 import { registerAccountHandlers } from './ipc/account-handlers'
 
 /**
@@ -47,4 +48,5 @@ export function registerIpcHandlers(): void {
   registerRoutinesHandlers()
   registerFeedbackHandlers()
   registerAccountHandlers()
+  registerControlHandlers()
 }

@@ -97,6 +97,7 @@ async function stageBuild(stage) {
     filter: (source) =>
       statSync(source).isDirectory() || (source.endsWith('.ts') && !source.endsWith('.test.ts')),
   })
+  cpSync(join(ROOT, 'libs/pi-extensions/skills'), join(stage, 'skills'), { recursive: true })
   const missing = (await bundledExtensionFiles()).filter(
     (file) => !existsSync(join(stage, 'pi-ext', file)),
   )

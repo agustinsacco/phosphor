@@ -70,6 +70,10 @@ not stamp a commit.
 - `pi-ext/`: the bundled extensions, copied with Desktop's filter (every `.ts`
   file but tests). A session loads them from beside the bundle unless the config
   sets `resourceRoot`.
+- `skills/visual-artifacts/`: the same authoring skill and references Desktop
+  ships. Before starting sessions, `accept` seeds a user-owned copy in pi's
+  skills directory. Edits and deletion survive later runs; `doctor` never installs
+  it. See [the shared lifecycle](extensions.md#the-artifact-tools-and-what-each-one-costs).
 - `BUILD-INFO.json`: the version, the source commit, whether the tree had
   uncommitted changes, the Node target, and every file with its size and sha256.
 
@@ -138,7 +142,7 @@ on Linux and macOS alike. No environment variable names it.
 | `hostId`           | Optional. Defaults to the short hostname, made to fit the HostHello identifier pattern.                                                    |
 | `pi.executable`    | What `command -v pi` prints.                                                                                                               |
 | `pi.node`          | The node that runs pi. Required when `pi.executable` resolves to a Node script, as pi 0.87.1 does.                                         |
-| `resourceRoot`     | Holds `pi-ext/`. Defaults to the running bundle's own folder.                                                                              |
+| `resourceRoot`     | Holds `pi-ext/` and `skills/`. Defaults to the running bundle's own folder.                                                                |
 | `repositories`     | 1 to 64 folders that sessions may run in. Never `/`.                                                                                       |
 | `contextBudget`    | Desktop's grammar; `""` or absent is the 200k default. A value Desktop would quietly replace with the default, such as `77k`, is an error. |
 | `environment.pass` | Up to 64 more variable names for pi. Names only, never values. Naming `PATH` or a hook below is an error.                                  |

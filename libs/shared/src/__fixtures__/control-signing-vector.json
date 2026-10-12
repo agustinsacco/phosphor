@@ -1,0 +1,18 @@
+{
+  "description": "Ed25519 Host-signature interop vector. Ed25519 is deterministic: signing signingString with seed must give signature exactly.",
+  "seedHex": "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+  "pkcs8Hex": "302e020100300506032b6570042204200102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+  "publicKey": "ebVWLo_mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ",
+  "body": "{\"enrollmentId\":\"0b6f7c1e-2f4a-4c8e-9d1b-5a7e3c2f1d00\"}",
+  "input": {
+    "method": "POST",
+    "path": "/api/v1/enrollments/poll",
+    "identity": "ebVWLo_mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ",
+    "timestamp": "1792000000",
+    "nonce": "BwcHBwcHBwcHBwcHBwcHBw",
+    "bodySha256": "92a0f9a0dbff8e711bcf0543150f32a43423af0e94deaa1a94e03fd3b0db2fb2"
+  },
+  "signingString": "phosphor-host-v1\nPOST\n/api/v1/enrollments/poll\nebVWLo_mVPlAeLES6KmLp5AfhTrmlb7X4OORC60ElmQ\n1792000000\nBwcHBwcHBwcHBwcHBwcHBw\n92a0f9a0dbff8e711bcf0543150f32a43423af0e94deaa1a94e03fd3b0db2fb2",
+  "signature": "j1fRBI2KGO1YsO3rmw_dcQ8PjJd2jf8XJnkpIlSQJ9giXL5X8SdsLMdOc7g2C4NLfanadjjeEfch36lRHn3pDA",
+  "keyFingerprint": "65b6-0673-d6ed-884b"
+}

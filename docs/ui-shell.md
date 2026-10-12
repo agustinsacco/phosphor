@@ -301,6 +301,12 @@ All switch together, live, no reload.
   Existing libraries remain expandable and searchable. Add is explicit,
   global, and installs only the skill bundle, not runtimes or dependencies.
   Yours retains source grouping, inspection, draft hiding, updates and deletion.
+  Writable bundles have **Source → Edit source → Save source / Cancel edit**, for
+  the main skill and its reference files. Read-only package/foreign skills stay
+  read-only. Save failures keep the editor open. Availability changes apply to
+  new sessions or `/reload`. The included `visual-artifacts` skill is a user-owned
+  copy; **Restore artifact skill** reinstalls it only if removed, without
+  overwriting edits. See [its lifecycle](extensions.md#the-artifact-tools-and-what-each-one-costs).
   Your own roots come first, then one read-only group per package
   (`Package · pi-subagents`), so each extension's skills are visible. When pi
   cannot be asked, the fallback scan still reads installed packages' skills.
@@ -341,12 +347,20 @@ All switch together, live, no reload.
 
 ## Machines preview
 
-A prototype of how Phosphor will show several machines, against made-up data
-(`features/machines/fakeMachines.ts`), so the layout can be judged before
-Phosphor can reach a Host (component 21). It is off by default
-(Settings → Advanced → Machines (preview), `AppPrefs.machinesPreview`), and
-nothing connects anywhere while it is on. This computer's rows and machine
-page use real data; bee1 (up) and bee2 (down) and their four lanes are fixed.
+The Machines page lists enrolled machines while the Phosphor account preview
+is on and signed in. Main fetches the control plane on page open, after actions
+and every 30 seconds while the page is visible. Rows show hostname, platform,
+Host version, readiness, lane counts and up/down based on the server clock.
+Add a machine looks up the code printed by `phosphor login`, shows its key
+fingerprint to compare, and asks for a label before approval. Remove confirms
+that the installation stays and must run `phosphor login` again to return.
+Tokens and all control traffic stay in main. No account means no control request.
+
+The preview is off by default (Settings → Advanced → Machines (preview),
+`AppPrefs.machinesPreview`). Signed out, the page labels bee1 and bee2 as samples
+and points to the Phosphor account switch. This computer's sample-page row uses
+real local data. The sidebar's four remote lanes stay sample-only even while
+signed in; enrolled machines add no lanes and cannot run remote sessions.
 Turning it off removes all of it: it closes the Machines page if it is open
 and withdraws its notices, and nothing opens the page while it is off.
 
@@ -358,7 +372,7 @@ and withdraws its notices, and nothing opens the page while it is off.
   A group's lane search covers its made-up lanes too. Filtered to another
   machine, this computer's lanes are off screen and out of reach: a selection
   is cleared and "Select all lanes" is off.
-- **Machines page** (sidebar → Machines): every machine with a one-line
+- **Signed-out sample page** (sidebar → Machines): each sample has a one-line
   summary, and a page per machine with Overview, Lanes, Dependencies and
   Logins. This computer's Logins tab is Settings → Accounts itself. A made-up
   machine's buttons are disabled.

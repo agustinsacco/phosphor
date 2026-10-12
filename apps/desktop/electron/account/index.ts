@@ -39,13 +39,19 @@ function cipher(): Cipher {
 const storage = (): ReturnType<Vault['storage']> =>
   vault?.storage() ?? { ok: false, reason: 'not checked yet' }
 
-const view = (state: AccountState): AccountView => accountView(state, getAccountPreview(), storage)
+const view = (state: AccountState): AccountView =>
+  accountView(state, getAccountPreview(), storage, () => vault?.savedMode() ?? null)
 
 function current(): Account {
   if (account) return account
   // The target first: a bad override throws before anything is half built.
   const auth = createGoTrue(supabaseTarget(app.isPackaged, process.env))
-  vault = createVault(join(app.getPath('userData'), 'account'), cipher())
+  vault = createVault(
+    join(app.getPath('userData'), 'account'),
+    cipher(),
+    process.platform,
+    (message) => log('account', message),
+  )
   const built = createAccount({
     auth,
     vault,
@@ -55,7 +61,7 @@ function current(): Account {
       if (!safe) throw new Error('refused to open the sign-in address')
       await shell.openExternal(safe)
     },
-    onChange: (state) => broadcast('account:changed', view(state)),
+    onChange: publishAccountChange,
     log: (message) => log('account', message),
   })
   account = built
@@ -96,4 +102,19 @@ export async function settleAccount(): Promise<void> {
   if (account && !(await account.settled())) {
     log('account', 'quit before Supabase answered; a session may outlive this sign-out')
   }
+}
+
+// Non-secret epoch: a sign-out invalidates the control client account cache.
+let controlGeneration = 0
+export const accountControlGeneration = (): number => controlGeneration
+function publishAccountChange(state: AccountState): void {
+  if (state.status !== 'signed-in') controlGeneration++
+  broadcast('account:changed', view(state))
+}
+export async function accountAccessToken(): Promise<string | null> {
+  if (!getAccountPreview()) return null
+  const account = current()
+  if (account.state().status !== 'signed-in') return null
+  const token = await account.accessToken()
+  return getAccountPreview() && account.state().status === 'signed-in' ? token : null
 }

@@ -17,12 +17,14 @@ import { maintenanceScheduler } from './ipc/maintenance-handlers'
 import { registry } from './registry'
 import { ptyManager } from './pty/pty-manager'
 import { disposeConnectorAuth } from './pi/connector-auth'
+import { ensureDesktopArtifactSkill } from './pi/session-launch'
 import { cancelAllLogins } from './pi/login-flow'
 import { cancelAllClaudeLogins } from './pi/claude-login'
 import { unwatchAll } from './pi/session-watcher'
 import { unwatchAllWorkspaces } from './fs/workspace-watcher'
 import { unwatchMcpCache } from './pi/mcp-cache-watcher'
 import { settleAccount } from './account'
+import { configureLinuxKeyring } from './account/keyring'
 import { startUpdateChecks, stopUpdateChecks } from './updates/updater'
 import {
   applyThemeSource,
@@ -85,6 +87,11 @@ if (!app.isPackaged && process.env.PHOSPHOR_TEST_USER_DATA) {
   // (pi's argv, budget compactions) of the sessions it was meant to explain.
   app.setAppLogsPath(join(dir, 'logs'))
 }
+
+// Chromium reads password-store before ready. Logging waits for the log to open.
+configureLinuxKeyring(app.commandLine, (message) => {
+  void app.whenReady().then(() => setImmediate(() => log('account', message)))
+})
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -222,6 +229,12 @@ if (!singleInstance) {
     // First thing after ready: anything that throws below should land in the
     // log rather than only in a terminal nobody was attached to.
     initDebugLog()
+    try {
+      ensureDesktopArtifactSkill()
+    } catch (error) {
+      // A read-only pi configuration must not prevent Desktop from opening.
+      log('skills', 'Could not install bundled visual-artifacts skill', { error: String(error) })
+    }
     if (devIcon && process.platform === 'darwin') {
       app.dock?.setIcon(devIcon)
     }

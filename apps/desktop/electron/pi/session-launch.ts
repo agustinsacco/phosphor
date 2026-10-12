@@ -10,6 +10,16 @@ import { piStubPath } from './stub'
 import { piProcessEnv } from './shell-env'
 import { claudeProviderSpawnEnv } from './provider-detect'
 import { artifactStoreEnv } from '../artifacts/artifact-store-root'
+import { seedArtifactSkill } from '@phosphor/session-runtime/bundled-skills'
+import { piAgentDir } from './pi-paths'
+
+const resourceRoot = () =>
+  app.isPackaged ? process.resourcesPath : join(app.getAppPath(), '../../libs/pi-extensions')
+
+/** Installed before any pi probe/session; user edits and deletion survive updates. */
+export function ensureDesktopArtifactSkill(restore = false): void {
+  seedArtifactSkill(resourceRoot(), piAgentDir(), restore)
+}
 
 let cachedHealth: PiHealth | null = null
 const runtime: SessionLaunchRuntime = {
@@ -26,8 +36,7 @@ const runtime: SessionLaunchRuntime = {
     stub
       ? { ELECTRON_RUN_AS_NODE: '1' }
       : { ...(await piProcessEnv()), ...claudeProviderSpawnEnv(), ...artifactStoreEnv() },
-  resourceRoot: () =>
-    app.isPackaged ? process.resourcesPath : join(app.getAppPath(), '../../libs/pi-extensions'),
+  resourceRoot,
 }
 
 export function prepareDesktopSessionLaunch() {

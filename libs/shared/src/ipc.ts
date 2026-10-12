@@ -15,6 +15,12 @@ import type {
   ModelCost,
 } from './rpc'
 import type { AccountView } from './account'
+import type {
+  ControlErrorCode,
+  MachinesResponse,
+  EnrollmentLookupResponse,
+  EnrollmentApproveResponse,
+} from './control-api'
 import type { ArtifactListing, ArtifactSnapshot } from './artifacts'
 import type { ConnectorCheckResult } from './connectors'
 import type { ContextFileKind } from './context-files'
@@ -90,6 +96,10 @@ import type {
   ComposerDraftRecord,
   LanePrefs,
 } from './models'
+
+export type DesktopControlErrorCode = ControlErrorCode | 'signed-out' | 'offline'
+export type ControlResult<T> =
+  ({ ok: true } & T) | { ok: false; error: { code: DesktopControlErrorCode; message: string } }
 
 /** Parsed session tree (subset of entries) for the tree view. */
 export interface SessionTreeEntry {
@@ -467,6 +477,8 @@ export interface IpcInvokeMap {
    * All paths cross this boundary only after `skills:list` reported them.
    */
   'skills:list': { args: [workspacePath?: string]; result: SkillsListResult }
+  /** Restore the shipped artifact skill only if its user-owned folder is absent. */
+  'skills:restoreBundled': { args: []; result: void }
   'skills:readFile': {
     args: [dir: string, relPath: string]
     result: { content: string | null; binary: boolean; size: number }
@@ -568,6 +580,17 @@ export interface IpcInvokeMap {
   /** `claude auth logout`. Credentials are the CLI's, so this is its subcommand. */
   'claude:logout': { args: []; result: void }
 
+  /** Main-only control traffic. Arguments and responses use the control-api parsers. */
+  'control:machines': { args: []; result: ControlResult<MachinesResponse> }
+  'control:lookupEnrollment': {
+    args: [code: string]
+    result: ControlResult<EnrollmentLookupResponse>
+  }
+  'control:approveEnrollment': {
+    args: [code: string, label: string]
+    result: ControlResult<EnrollmentApproveResponse>
+  }
+  'control:removeMachine': { args: [id: string]; result: ControlResult<Record<never, never>> }
   /**
    * Desktop's optional Phosphor sign-in (Settings → Accounts, behind Settings
    * → Advanced → Phosphor account (preview)). Main owns the session; these

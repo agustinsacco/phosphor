@@ -89,3 +89,21 @@ it('shows a refused action, and shows nothing while the preview is off', async (
   act(() => push({ preview: false, account: { status: 'signed-out' } }))
   expect(text()).toBe('')
 })
+
+it('shows the plain-file disclosure for a remembered session', async () => {
+  const note = 'Saved in a file only your user can read, because no keyring is running.'
+  await reply('account:get', (p) =>
+    p.resolve({
+      preview: true,
+      account: {
+        status: 'signed-in',
+        user: { login: 'octo', name: null, email: null },
+        remembered: true,
+        storageNote: note,
+      },
+    }),
+  )
+  expect(text()).toContain(note)
+  expect(text()).not.toContain('Until Phosphor quits')
+  expect(button('Sign out')).toBeDefined()
+})
