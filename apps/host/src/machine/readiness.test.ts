@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { MIN_PI_VERSION } from '@phosphor/shared/models'
 import { checkReadiness, piReadiness, claudeReadiness, tailscaleReadiness } from './readiness'
-import type { ProbeResult } from './probe'
+import { PROBE_OUTPUT_CAP, type ProbeResult } from './probe'
 
 const result = (stdout: string, extra: Partial<ProbeResult> = {}): ProbeResult => ({
   code: 0,
@@ -52,14 +52,22 @@ describe('readiness mappings', () => {
     [result('{"BackendState":"Running"}', { error: 'secret' }), 'unknown'],
   ])('tailscale %j maps to %s', (run, expected) => expect(tailscaleReadiness(run)).toBe(expected))
   it('uses existing probe port, argv arrays, two second deadlines and pi environment', async () => {
-    const probe = vi.fn(async (_file: string, args: readonly string[]) =>
-      result(
-        args.includes('--version')
-          ? MIN_PI_VERSION
-          : args.includes('auth')
-            ? '{"loggedIn":true}'
-            : '{"BackendState":"Running"}',
-      ),
+    const probe = vi.fn(
+      async (
+        _file: string,
+        args: readonly string[],
+        options: { timeoutMs?: number; env: Record<string, string> },
+      ) => {
+        expect(options.timeoutMs).toBe(2000)
+        expect(options.env.HOME).toBe('/home/u')
+        return result(
+          args.includes('--version')
+            ? MIN_PI_VERSION
+            : args.includes('auth')
+              ? '{"loggedIn":true}'
+              : '{"BackendState":"Running"}',
+        )
+      },
     )
     expect(
       await checkReadiness(
@@ -75,5 +83,45 @@ describe('readiness mappings', () => {
       ['/p/tailscale', ['status', '--json']],
     ])
     for (const call of probe.mock.calls) expect(call).toHaveLength(3)
+  })
+  it('finds a pinned executable at the filesystem root and maps all missing binaries', async () => {
+    const which = vi.fn(async (_name: string, _path: string) => null)
+    const probe = vi.fn(async () => result(''))
+    expect(
+      await checkReadiness(
+        { version: 1, pi: { executable: '/pi' }, repositories: ['/repo'] },
+        { PATH: '/bin' },
+        'linux',
+        { probe, which, isNodeScript: async () => false },
+      ),
+    ).toEqual({ pi: 'missing', claude: 'missing', tailscale: 'missing' })
+    expect(which.mock.calls[0]).toEqual(['pi', '/'])
+    expect(probe).not.toHaveBeenCalled()
+  })
+  it('does not launch a Node script without the pinned node', async () => {
+    const probe = vi.fn(async () => result(''))
+    expect(
+      await checkReadiness(
+        { version: 1, pi: { executable: '/bin/pi' }, repositories: ['/repo'] },
+        {},
+        'linux',
+        {
+          probe,
+          which: async (name) => (name === 'pi' ? '/bin/pi' : null),
+          isNodeScript: async () => true,
+        },
+      ),
+    ).toEqual({ pi: 'unknown', claude: 'missing', tailscale: 'missing' })
+    expect(probe).not.toHaveBeenCalled()
+  })
+  it.each([
+    [piReadiness, MIN_PI_VERSION],
+    [claudeReadiness, '{"loggedIn":true}'],
+    [tailscaleReadiness, '{"BackendState":"Running","CertDomains":["host.ts.net"]}'],
+  ])('accepts complete output at the cap, not truncated output one byte beyond', (map, text) => {
+    expect(map(result(text + ' '.repeat(PROBE_OUTPUT_CAP - text.length)))).toBe('ok')
+    expect(
+      map(result(text + ' '.repeat(PROBE_OUTPUT_CAP + 1 - text.length), { truncated: true })),
+    ).toBe('unknown')
   })
 })

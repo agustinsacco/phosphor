@@ -261,11 +261,12 @@ unreachable server exits 75 and keeps the identity, with the `--local` hint.
 `--local` never contacts the server and works even if config is invalid. It
 forgets the files only; the machine stays listed until removed in Desktop.
 
-Login, status, logout, run and service status contact the configured control plane. Enrollment sends
-the public key, hostname, platform, architecture and Host version. Status and
-logout and run send the enrolled UUID. Heartbeats send readiness and the Host version,
-with zero lane counts and a null endpoint; the Host has no listener. Requests carry a timestamp, random nonce and
-Ed25519 signature. No repository names, paths, transcripts or provider tokens
+Login, status, logout, run and service status contact the configured control
+plane. Enrollment sends the public key, hostname, platform, architecture and
+Host version. Status, logout and run send the enrolled UUID. Heartbeats send
+readiness and the Host version, with zero lane counts and a null endpoint; the
+Host has no listener. Requests carry a timestamp, random nonce and Ed25519
+signature. No repository names, paths, transcripts or provider tokens
 leave the machine. Redirects are refused. Requests time out after 10 seconds;
 responses are capped at 64 KiB and validated with the shared wire contract.
 
@@ -297,6 +298,8 @@ On Linux, `phosphor service install` requires an enrolled identity and writes
 `${XDG_CONFIG_HOME:-~/.config}/systemd/user/phosphor-host.service` atomically with
 mode 0644. It pins the absolute node, bundle and config paths, quotes spaces and
 escapes systemd specifiers. Control characters in paths or PATH are refused.
+A `$` in the node executable path is also refused; install Node elsewhere.
+Dollar signs in bundle and config paths are escaped as literal arguments.
 The unit captures the shell's PATH, no other environment. Provider credentials
 stay in pi's and Claude's stores. It restarts on failure after 10 seconds,
 except exits 64, 69, 77 and 78, which require operator action.

@@ -1,3 +1,4 @@
+import { basename, dirname } from 'node:path'
 import type { Readiness } from '@phosphor/shared/control-api'
 import { MIN_PI_VERSION } from '@phosphor/shared/models'
 import { compareVersions, extractVersion } from '@phosphor/session-runtime/pi/versions'
@@ -59,10 +60,7 @@ export async function checkReadiness(
     pass: config.environment?.pass,
   })
   const options = { ...environment, timeoutMs: 2000 }
-  const foundPi = await ports.which(
-    config.pi.executable.split('/').at(-1) ?? 'pi',
-    config.pi.executable.slice(0, config.pi.executable.lastIndexOf('/')),
-  )
+  const foundPi = await ports.which(basename(config.pi.executable), dirname(config.pi.executable))
   let pi: Readiness['pi'] = 'missing'
   if (foundPi) {
     const script = await ports.isNodeScript(config.pi.executable)

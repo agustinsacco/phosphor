@@ -5,6 +5,7 @@ import { controlMachine, type ControlMachine } from '../control/__fixtures__/mac
 import { identityDirectory } from '../control/identity'
 import { HOST_UNIT, type ServiceRunner } from '../machine/systemd'
 import { runService, type ServiceContext } from './service'
+import { runCli } from '../cli'
 
 let machine: ControlMachine
 beforeEach(async () => {
@@ -37,6 +38,58 @@ function fixture() {
   return { calls, context, unit: join(machine.root, 'xdg', 'systemd', 'user', HOST_UNIT) }
 }
 describe('phosphor service', () => {
+  it.each([
+    ['service'],
+    ['service', 'unknown'],
+    ['service', 'logs', 'extra'],
+    ['service', 'install', '--follow'],
+    ['run', '--json'],
+    ['run', 'extra'],
+  ])('rejects CLI arguments %j before any I/O', async (...argv) => {
+    const f = fixture()
+    const stderr: string[] = []
+    expect(
+      await runCli(
+        argv,
+        { stdout: () => {}, stderr: (line) => stderr.push(line) },
+        {
+          ...f.context,
+          nodeVersion: process.versions.node,
+          defaultResourceRoot: '/unused',
+        },
+      ),
+    ).toBe(64)
+    expect(stderr.join('')).toContain('usage:')
+    expect(f.calls).toEqual([])
+  })
+  it('dispatches CLI service logs with follow using a single shutdown attachment', async () => {
+    const f = fixture()
+    let attached = 0
+    let detached = 0
+    expect(
+      await runCli(
+        ['service', 'logs', '--follow', '--config', machine.configPath],
+        {
+          stdout: () => {},
+          stderr: () => {},
+        },
+        {
+          ...f.context,
+          nodeVersion: process.versions.node,
+          defaultResourceRoot: '/unused',
+          attach: () => {
+            attached++
+            return () => {
+              detached++
+            }
+          },
+        },
+      ),
+    ).toBe(0)
+    expect(f.calls[0]?.args).toContain('-f')
+    expect(attached).toBe(1)
+    expect(detached).toBe(1)
+  })
   it('installs and replaces with fake calls, and captures PATH but no other environment', async () => {
     await machine.enrollOld()
     const f = fixture()
@@ -85,6 +138,18 @@ describe('phosphor service', () => {
     expect(f.calls).toEqual([])
     await expect(readFile(f.unit)).rejects.toThrow()
   })
+  it('refuses a dollar sign in the node path with exit 78 and writes no unit', async () => {
+    await machine.enrollOld()
+    const f = fixture()
+    if (!f.context.service) throw new Error('fixture')
+    f.context.service.node = '/a$b/node'
+    expect(await runService(f.context, 'install')).toBe(78)
+    expect(machine.output).toContain(
+      "the node path contains '$', which systemd cannot run safely; install Node elsewhere",
+    )
+    expect(f.calls).toEqual([])
+    await expect(readFile(f.unit)).rejects.toThrow()
+  })
   it('uninstalls idempotently without touching identity, config or provider data', async () => {
     await machine.enrollOld()
     const f = fixture()
@@ -116,6 +181,62 @@ describe('phosphor service', () => {
     expect(machine.output).toContain('Linger: on')
     expect(machine.output.join('\n')).toContain('Signed in as "earlier"')
     expect(machine.output.join('\n')).not.toContain('hidden')
+  })
+  it.each(['daemon-reload', 'enable', 'restart'])(
+    'stops installation when %s fails',
+    async (failed) => {
+      await machine.enrollOld()
+      const f = fixture()
+      const original = f.context.service?.runner
+      if (!original || !f.context.service) throw new Error('fixture')
+      f.context.service.runner = async (...args) => {
+        const result = await original(...args)
+        return args[1].includes(failed) ? { code: 1, stdout: 'private error' } : result
+      }
+      expect(await runService(f.context, 'install')).toBe(75)
+      expect(f.calls.some(({ file }) => file === 'loginctl')).toBe(false)
+      expect(machine.output.join('\n')).not.toContain('private error')
+    },
+  )
+  it.each([0, null])(
+    'only uninstalls a missing unit when its load-state check succeeds: %s',
+    async (code) => {
+      const f = fixture()
+      const removes: string[] = []
+      if (!f.context.service) throw new Error('fixture')
+      f.context.service.remove = async (path) => {
+        removes.push(path)
+      }
+      f.context.service.runner = async (_file, args) => ({
+        code: args.includes('disable') ? 1 : args.includes('show') ? code : 0,
+        stdout: 'not-found',
+      })
+      expect(await runService(f.context, 'uninstall')).toBe(code === 0 ? 0 : 75)
+      expect(removes).toEqual(code === 0 ? [f.unit] : [])
+    },
+  )
+  it.each(['restart', 'logs', 'status', 'uninstall'] as const)(
+    'reports %s runner failures without response details',
+    async (action) => {
+      const f = fixture()
+      if (!f.context.service) throw new Error('fixture')
+      f.context.service.runner = async () => ({
+        code: null,
+        stdout: action === 'logs' ? '' : 'PRIVATE KEY OR SIGNATURE',
+      })
+      expect(await runService(f.context, action)).toBe(75)
+      expect(machine.output.join('\n')).not.toContain('PRIVATE KEY OR SIGNATURE')
+    },
+  )
+  it('refuses unsafe service directory and user without I/O', async () => {
+    const f = fixture()
+    f.context.env.XDG_CONFIG_HOME = 'relative'
+    expect(await runService(f.context, 'uninstall')).toBe(78)
+    f.context.env.XDG_CONFIG_HOME = '/safe'
+    if (!f.context.service) throw new Error('fixture')
+    f.context.service.user = 'user\ncommand'
+    expect(await runService(f.context, 'install')).toBe(78)
+    expect(f.calls).toEqual([])
   })
   it('restarts and streams journal logs through the runner, with follow only on demand', async () => {
     const f = fixture()
