@@ -167,6 +167,62 @@ test('tries machines against made-up Hosts, and leaves nothing behind when off',
   }
 })
 
+test('a machine filter never acts on lanes it hides, and search covers every lane shown', async () => {
+  const { page, close } = await launch()
+  const remoteRows = page.getByTestId('remote-lane-row')
+  const bulkBar = page.getByTestId('bulk-bar')
+  const selectAll = page.getByTestId('workspace-group-select')
+  const groupMenu = page.getByRole('button', { name: 'Workspace options for phosphor' })
+  try {
+    // Two real lanes on this computer.
+    const home = page.getByPlaceholder('Describe a task or ask a question')
+    for (const task of ['Update hello.ts', 'Update hello.ts again']) {
+      await home.fill(task)
+      await page.getByRole('button', { name: /Start session/i }).click()
+      await expect(page.getByTestId('session-row').first()).toBeVisible()
+      await page.getByRole('button', { name: 'New', exact: true }).click()
+    }
+    await expect(page.getByTestId('session-row')).toHaveCount(2)
+    await setPreview(page, true)
+
+    // Both selected, then the filter moves to bee1: nothing hidden stays selected.
+    await groupMenu.click()
+    await expect(selectAll).toBeEnabled()
+    await selectAll.click()
+    await expect(bulkBar).toContainText('2 selected')
+    const filter = page.getByTestId('machine-filter')
+    await filter.getByRole('button', { name: 'bee1' }).click()
+    await expect(bulkBar).toHaveCount(0)
+    await groupMenu.click()
+    await expect(selectAll).toBeDisabled()
+    await groupMenu.click()
+    await filter.getByRole('button', { name: 'All' }).click()
+
+    // Search finds a remote lane by its PR, and an empty answer hides every row.
+    await page.getByRole('button', { name: 'Search lanes in phosphor' }).click()
+    const search = page.getByTestId('lane-search-input')
+    // Search is per project: brigades' lane, in its own group, stays outside it.
+    const outside = remoteRows.filter({ hasText: 'Fix rate import' })
+    await search.fill('403')
+    await search.press('Enter')
+    await expect(remoteRows).toHaveCount(2)
+    await expect(remoteRows.filter({ hasText: 'Host bundle on Linux' })).toHaveCount(1)
+    await expect(outside).toHaveCount(1)
+    await expect(page.getByTestId('session-row')).toHaveCount(0)
+    await expect(page.getByTestId('lane-search-empty')).toHaveCount(0)
+    await search.fill('nothing like this')
+    await search.press('Enter')
+    await expect(page.getByTestId('lane-search-empty')).toBeVisible()
+    await expect(remoteRows).toHaveCount(1)
+    await expect(outside).toHaveCount(1)
+    await page.getByTestId('lane-search-clear').click()
+    await expect(remoteRows).toHaveCount(4)
+    await expect(page.getByTestId('session-row')).toHaveCount(2)
+  } finally {
+    await close()
+  }
+})
+
 test('the switch is remembered across a restart', async () => {
   const first = await launch()
   await setPreview(first.page, true)

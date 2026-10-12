@@ -335,13 +335,17 @@ Phosphor can reach a Host (component 21). It is off by default
 (Settings → Advanced → Machines (preview), `AppPrefs.machinesPreview`), and
 nothing connects anywhere while it is on. This computer's rows and machine
 page use real data; bee1 (up) and bee2 (down) and their four lanes are fixed.
-Turning it off removes all of it, and closes the Machines page if it is open.
+Turning it off removes all of it: it closes the Machines page if it is open
+and withdraws its notices, and nothing opens the page while it is off.
 
 - **Sidebar**: a filter under the nav rows (All, This Mac, bee1, bee2), a
   machine chip at the end of every lane row, and the made-up lanes inside the
   project they belong to. A project is matched by its folder name, standing in
   for the git remote the real thing will use; a project this computer does not
   have gets its own group ("on bee1"). A down machine's lanes stay, greyed.
+  A group's lane search covers its made-up lanes too. Filtered to another
+  machine, this computer's lanes are off screen and out of reach: a selection
+  is cleared and "Select all lanes" is off.
 - **Machines page** (sidebar → Machines): every machine with a one-line
   summary, and a page per machine with Overview, Lanes, Dependencies and
   Logins. This computer's Logins tab is Settings → Accounts itself. A made-up

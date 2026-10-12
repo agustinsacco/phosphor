@@ -68,6 +68,11 @@ describe('the Machines preview', () => {
 })
 
 describe('a lane finishing on another machine', () => {
+  beforeEach(async () => {
+    const { useMachinesStore } = await import('./machines')
+    useMachinesStore.getState().applyPreview(true)
+  })
+
   it('sends the notice a real lane does, and opening it shows that lane', async () => {
     const { useMachinesStore } = await import('./machines')
     const { useLayoutStore } = await import('./layout')
@@ -94,5 +99,47 @@ describe('a lane finishing on another machine', () => {
     useMachinesStore.getState().pretendFinished('bee1-bundle')
     useMachinesStore.getState().pretendFinished('bee1-bundle')
     expect(useExtensionUiStore.getState().toasts).toHaveLength(1)
+  })
+})
+
+describe('with the preview off', () => {
+  it('opens nothing and finishes nothing', async () => {
+    const { useMachinesStore } = await import('./machines')
+    const { useLayoutStore } = await import('./layout')
+    const { useExtensionUiStore } = await import('./extensionUi')
+    useMachinesStore.getState().show({ kind: 'machine', id: 'bee1', tab: 'overview' })
+    useMachinesStore.getState().pretendFinished()
+    expect(useLayoutStore.getState().page).toBeNull()
+    expect(useMachinesStore.getState().view).toEqual({ kind: 'list' })
+    expect(useMachinesStore.getState().lanes.every((lane) => lane.state !== 'done')).toBe(true)
+    expect(useExtensionUiStore.getState().toasts).toHaveLength(0)
+  })
+
+  it('withdraws a notice it sent, and an old one does not bring the page back', async () => {
+    const { useMachinesStore } = await import('./machines')
+    const { useLayoutStore } = await import('./layout')
+    const { useExtensionUiStore } = await import('./extensionUi')
+    await useMachinesStore.getState().setPreview(true)
+    useMachinesStore.getState().pretendFinished()
+    const [toast] = useExtensionUiStore.getState().toasts
+    expect(toast?.leaving).toBe(false)
+
+    await useMachinesStore.getState().setPreview(false)
+    expect(useExtensionUiStore.getState().toasts.find((t) => t.id === toast?.id)?.leaving).toBe(
+      true,
+    )
+    toast?.onOpen?.()
+    expect(useLayoutStore.getState().page).toBeNull()
+  })
+
+  it('leaves other notices alone when it goes off', async () => {
+    const { useMachinesStore } = await import('./machines')
+    const { useExtensionUiStore } = await import('./extensionUi')
+    await useMachinesStore.getState().setPreview(true)
+    const other = useExtensionUiStore
+      .getState()
+      .notify({ message: 'Lane finished', kind: 'success' })
+    await useMachinesStore.getState().setPreview(false)
+    expect(useExtensionUiStore.getState().toasts.find((t) => t.id === other)?.leaving).toBe(false)
   })
 })

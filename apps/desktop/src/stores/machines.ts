@@ -36,6 +36,13 @@ interface MachinesState {
 const RESET = { filter: 'all', lanes: [...FAKE_LANES], view: { kind: 'list' } as MachinesView }
 
 /**
+ * Notices the finish demo sent and has not yet withdrawn. A notice outlives a
+ * click on the switch, and opening one after the preview went off would bring
+ * the made-up page back, so turning it off dismisses them.
+ */
+const notices = new Set<number>()
+
+/**
  * The Machines preview: a prototype of the machine-aware sidebar and the
  * Machines page against made-up machines (`features/machines/fakeMachines.ts`).
  * Turning it off puts everything back, the page included.
@@ -44,7 +51,14 @@ export const useMachinesStore = create<MachinesState>((set, get) => ({
   preview: false,
   ...RESET,
 
-  applyPreview: (on) => set(on ? { preview: true } : { preview: false, ...RESET }),
+  applyPreview: (on) => {
+    if (!on) {
+      const toasts = useExtensionUiStore.getState()
+      for (const id of notices) toasts.dismissToast(id)
+      notices.clear()
+    }
+    set(on ? { preview: true } : { preview: false, ...RESET })
+  },
 
   setPreview: async (on) => {
     await window.phosphor.invoke('app:setMachinesPreview', on)
@@ -56,20 +70,24 @@ export const useMachinesStore = create<MachinesState>((set, get) => ({
   setFilter: (filter) => set({ filter }),
 
   show: (view) => {
+    // Off means off: nothing opens the made-up page, an old callback included.
+    if (!get().preview) return
     set({ view })
     useLayoutStore.getState().setPage('machines')
   },
 
   pretendFinished: (id) => {
+    if (!get().preview) return
     const lane = id ? get().lanes.find((l) => l.id === id) : nextToFinish(get().lanes)
     if (!lane || lane.state === 'done') return
     set({ lanes: finishLane(get().lanes, lane.id) })
-    useExtensionUiStore.getState().notify({
+    const notice = useExtensionUiStore.getState().notify({
       title: lane.title,
       message: `Finished on ${machineById(lane.machineId)?.name ?? lane.machineId}`,
       kind: 'success',
       openLabel: 'Open lane',
       onOpen: () => get().show({ kind: 'lane', id: lane.id }),
     })
+    notices.add(notice)
   },
 }))

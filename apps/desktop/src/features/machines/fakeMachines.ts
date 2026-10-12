@@ -1,3 +1,5 @@
+import type { LaneSearchFields } from '@/features/sessions/laneSearch'
+
 /**
  * Made-up machines for the Machines preview (Settings → Advanced → Machines).
  *
@@ -128,6 +130,15 @@ export const FAKE_LANES: readonly RemoteLane[] = [
     minutesAgo: 190,
   },
 ]
+
+/** What the sidebar's lane search matches on a remote lane: title, branch and PR, as for a local one. */
+export function remoteLaneFields(lane: RemoteLane): LaneSearchFields {
+  return {
+    title: lane.title,
+    branch: lane.branch,
+    pr: lane.pr === undefined ? undefined : { number: lane.pr, title: '' },
+  }
+}
 
 export function machineById(id: string): FakeMachine | undefined {
   return FAKE_MACHINES.find((machine) => machine.id === id)

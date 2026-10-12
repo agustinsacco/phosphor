@@ -885,6 +885,9 @@ export function installMockPhosphor(): void {
             contextFiles: mockContextFiles(),
             machinesPreview: localStorage.getItem('mock:machinesPreview') === '1',
           })
+        case 'app:setMachinesPreview':
+          localStorage.setItem('mock:machinesPreview', args[0] === true ? '1' : '0')
+          return Promise.resolve(undefined)
         case 'app:setContextFile':
           localStorage.setItem(
             'mock:contextFiles',
@@ -2206,9 +2209,6 @@ export function installMockPhosphor(): void {
         case 'pi:writeConfigFile':
         case 'app:setFontPrefs':
         case 'app:setRecentWorkspaces':
-        case 'app:setMachinesPreview':
-          localStorage.setItem('mock:machinesPreview', args[0] ? '1' : '0')
-          return Promise.resolve(undefined)
         case 'app:setCollapsedWorkspaces':
         case 'app:recordWorkspace':
         case 'app:revealDebugLog':

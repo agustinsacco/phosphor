@@ -10,10 +10,12 @@ import {
   machineById,
   machineStatus,
   nextToFinish,
+  remoteLaneFields,
   remoteOnlyProjects,
   showsLocal,
   type RemoteLane,
 } from './fakeMachines'
+import { laneHaystack, laneMatches, laneQueryTerms } from '@/features/sessions/laneSearch'
 
 const lane = (id: string, machineId: string, project: string, state: RemoteLane['state']) => ({
   id,
@@ -93,5 +95,19 @@ describe('labels', () => {
   it('names this computer for its platform', () => {
     expect(localMachineName('darwin')).toEqual({ long: 'This Mac', short: 'Mac' })
     expect(localMachineName('linux')).toEqual({ long: 'This computer', short: 'Local' })
+  })
+})
+
+describe('searching remote lanes', () => {
+  const found = (query: string) =>
+    FAKE_LANES.filter((l) =>
+      laneMatches(laneHaystack(remoteLaneFields(l)), laneQueryTerms(query)),
+    ).map((l) => l.id)
+
+  it('finds a lane by its title, branch or PR, as a local one is found', () => {
+    expect(found('bundle linux')).toEqual(['bee1-bundle'])
+    expect(found('rate-import')).toEqual(['bee1-rates'])
+    expect(found('#420')).toEqual(['bee1-login'])
+    expect(found('nothing like this')).toEqual([])
   })
 })

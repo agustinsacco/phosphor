@@ -65,6 +65,7 @@ import {
   lanesForProject,
   lanesOnFilter,
   localMachineName,
+  remoteLaneFields,
   remoteOnlyProjects,
   showsLocal,
 } from '@/features/machines/fakeMachines'
@@ -164,6 +165,14 @@ export function Sidebar({
   const [searchApplied, setSearchApplied] = useState<Record<string, string>>({})
   /** Anchor for shift-click ranges. */
   const rangeAnchor = useRef<string | null>(null)
+  // A selection is only ever of rows on screen: filtering this computer's
+  // lanes away (Machines preview) must not leave hidden lanes selected for
+  // the bulk bar to delete.
+  useEffect(() => {
+    if (localShown) return
+    setSelection(null)
+    rangeAnchor.current = null
+  }, [localShown])
   const [width, setWidth] = useState(loadSidebarWidth)
   const [resizing, setResizing] = useState(false)
   /**
@@ -920,13 +929,21 @@ export function Sidebar({
             const terms = laneQueryTerms(query)
             // Filter the metas rather than hide rows: selection, shift-ranges
             // and the empty state then all read the same list the eye does.
+            // Filtered to another machine (Machines preview), this computer's
+            // lanes are not on screen, so nothing below may act on them.
+            const local = localShown ? group.metas : []
             const visible = terms.length
-              ? group.metas.filter((meta) => laneMatches(laneHaystack(laneFields(meta)), terms))
-              : group.metas
+              ? local.filter((meta) => laneMatches(laneHaystack(laneFields(meta)), terms))
+              : local
             const selectingThis = selection?.repoPath === group.workspacePath
             const remote = lanesForProject(remoteLanes, group.name)
             // Filtered to another machine: only projects with lanes there.
             if (!localShown && remote.length === 0) return null
+            const remoteVisible = terms.length
+              ? remote.filter((lane) => laneMatches(laneHaystack(remoteLaneFields(lane)), terms))
+              : remote
+            const shownTotal = local.length + remote.length
+            const shownCount = visible.length + remoteVisible.length
             return (
               <div key={group.workspacePath}>
                 <div
@@ -1116,8 +1133,8 @@ export function Sidebar({
                   <LaneSearchBar
                     value={searchDraft[group.workspacePath] ?? ''}
                     applied={Boolean(query)}
-                    matchCount={visible.length}
-                    total={group.metas.length}
+                    matchCount={shownCount}
+                    total={shownTotal}
                     onChange={(value) =>
                       setSearchDraft((s) => ({ ...s, [group.workspacePath]: value }))
                     }
@@ -1179,8 +1196,9 @@ export function Sidebar({
                     ]}
                   />
                 )}
-                {!isCollapsed && remote.map((lane) => <RemoteLaneRow key={lane.id} lane={lane} />)}
-                {!isCollapsed && localShown && group.metas.length > 0 && visible.length === 0 && (
+                {!isCollapsed &&
+                  remoteVisible.map((lane) => <RemoteLaneRow key={lane.id} lane={lane} />)}
+                {!isCollapsed && shownTotal > 0 && shownCount === 0 && (
                   <div
                     data-testid="lane-search-empty"
                     className="text-text-tertiary px-2 py-2 text-sm"
@@ -1191,7 +1209,7 @@ export function Sidebar({
                 {/* Rows already scanned stay put while the rest of the group
                   catches up — a partial answer must not read as the whole
                   answer, but it must not hide what we have either. */}
-                {!isCollapsed && group.metas.length > 0 && group.unscannedPaths.length > 0 && (
+                {!isCollapsed && local.length > 0 && group.unscannedPaths.length > 0 && (
                   <div className="text-text-tertiary flex items-center gap-1.5 px-2 py-1.5 text-xs">
                     <Spinner />
                     <span>
