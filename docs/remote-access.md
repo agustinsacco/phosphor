@@ -35,22 +35,50 @@ required.
 
 ## Control-directory schema
 
-`supabase/migrations/` holds versioned PostgreSQL migrations for three tables:
+`supabase/migrations/` holds versioned PostgreSQL migrations for five tables:
 
-- `remote_access_accounts`: server-managed eligibility for remote access.
-- `remote_hosts`: owner, display label, endpoint and revocation metadata.
+- `remote_access_accounts`: server-managed suspension state, GitHub login and
+  update time. New accounts are enabled by default.
+- `remote_hosts`: owner, label, hostname, public key, fingerprint, platform,
+  architecture, version, heartbeat sequence and state, readiness, lane counts,
+  optional bare HTTPS endpoint and revocation epoch.
 - `remote_clients`: owner, client kind, display label and revocation metadata.
+- `remote_enrollments`: hashed user codes, public keys and machine metadata.
+  Codes expire after ten minutes. Approval links the owner and Host atomically.
+- `remote_audit_events`: owner, Host, event kind and time for enrollment,
+  rename, owner revocation and self-revocation. No labels or IPs are recorded.
 
-All tables have row-level security. Authenticated users can read only their own
-eligibility. Eligible owners can read their host/client rows, including revoked
-entries for access-management views. They cannot enroll, modify, reassign or
-remove records directly. Anonymous roles have no table access. The server role
-can mutate rows and bypasses RLS; a future server endpoint must separately
-authorize every operation and check revocation. Directory visibility is not an
-execution grant. Endpoint storage validation is not network authorization.
+All tables have row-level security. Authenticated users can read their own
+account state. Enabled owners can read their host, client and audit rows,
+including revoked entries. Anonymous roles have no table access. Enrollment
+rows have no client grants or RLS policies. Clients cannot write any table.
 
-There are no prompts, filesystem paths, transcripts, artifacts or provider
-credentials in these tables. Account deletion cascades through its directory
+Only the server writes. The `service_role` can execute the public `control_*`
+functions for account refresh, enrollment create/poll/lookup/approve, machine
+list/rename/revoke and Host key/self/self-revoke/heartbeat. These functions are
+security invokers with an empty search path. Both client roles and `public`
+lose execute privileges, including on the timestamp and MachineView helpers
+in the non-exposed `control_private` schema. The server separately authenticates
+requests and checks account suspension. RLS is not its authorization boundary.
+
+Approval locks the enrollment and account, enforces twenty active Hosts per
+owner and relies on a partial unique index to prevent active public-key reuse.
+Keys use canonical base64url so each key has one spelling. Labels reject control
+and bidi characters. Endpoint ports, when present, are between 1 and 65535.
+Creation serializes pending admission, caps it at three per key and ten thousand
+in total, and removes at most a thousand old enrollments and old audit events
+per call. Audit cleanup targets events older than 180 days. Heartbeats atomically
+require an increasing sequence and ten seconds between beats, except stopping beats.
+Revocation increments the epoch. Machine lists exclude revoked Hosts. Timestamp
+and MachineView JSON helpers keep responses consistent with the shared contract.
+
+`remote_hosts` is in the `supabase_realtime` publication. Realtime is a change
+signal for refetching, not an execution or mutation API. Directory visibility
+is not an execution grant. Endpoint storage validation is not network authorization.
+
+There are no prompts, filesystem paths, transcripts, artifacts, private keys or
+provider credentials in these tables. Public keys identify Hosts only. Lane
+counts do not contain lane data. Account deletion cascades through its directory
 records only, not remote files. Applying a migration does not install an agent,
 enable signup, or expose any execution service.
 
