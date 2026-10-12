@@ -25,6 +25,7 @@
     "db:stop": "npx --yes supabase@2.119.0 stop --no-backup",
     "test:control-db": "npx --yes supabase@2.119.0 test db",
     "test:auth-stack": "node tools/scripts/auth-stack.mjs",
+    "test:control-stack": "node tools/scripts/control-stack.mjs",
     "test:e2e": "npm run test:e2e --prefix apps/desktop --",
     "validate": "./tools/scripts/validate.sh",
     "shots": "node tools/scripts/capture-readme-shots.mjs",

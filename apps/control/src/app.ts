@@ -19,6 +19,9 @@ import type { Supabase } from './supabase'
 import { serveStatic } from './static'
 import { health } from './routes/health'
 import { me } from './routes/me'
+import { enrollments } from './routes/enrollments'
+import { machines } from './routes/machines'
+import { hosts, hostAuthentication } from './routes/hosts'
 
 export interface AppDeps {
   config: Config
@@ -30,6 +33,18 @@ export interface AppDeps {
   limits: RateLimiter
   nonces: { key: NonceCache; host: NonceCache }
   version: string
+}
+const routeMethods: Record<string, readonly string[]> = {
+  [CONTROL_ROUTES.health]: ['GET'],
+  [CONTROL_ROUTES.me]: ['GET'],
+  [CONTROL_ROUTES.enrollments]: ['POST'],
+  [CONTROL_ROUTES.enrollmentPoll]: ['POST'],
+  [CONTROL_ROUTES.enrollmentLookup]: ['POST'],
+  [CONTROL_ROUTES.enrollmentApprove]: ['POST'],
+  [CONTROL_ROUTES.machines]: ['GET'],
+  [CONTROL_ROUTES.hostSelf]: ['GET'],
+  [CONTROL_ROUTES.hostHeartbeat]: ['POST'],
+  [CONTROL_ROUTES.hostRevoke]: ['POST'],
 }
 export function createApp(deps: AppDeps) {
   const app = new Hono<Env>()
@@ -69,22 +84,25 @@ export function createApp(deps: AppDeps) {
     }
     if (!deps.config.configured && c.req.path !== CONTROL_ROUTES.health)
       throw new ControlFailure('unavailable')
-    if (
-      c.req.method === 'OPTIONS' ||
-      ([CONTROL_ROUTES.health, CONTROL_ROUTES.me].some((path) => path === c.req.path) &&
-        c.req.method !== 'GET')
-    ) {
-      c.header('Allow', 'GET')
+    const allowed =
+      c.req.path.startsWith(CONTROL_ROUTES.machines + '/') &&
+      c.req.path.slice(CONTROL_ROUTES.machines.length + 1).split('/').length === 1
+        ? ['PATCH', 'DELETE']
+        : routeMethods[c.req.path]
+    if (c.req.method === 'OPTIONS' || (allowed && !allowed.includes(c.req.method))) {
+      c.header('Allow', (allowed ?? ['GET']).join(', '))
       throw new ControlFailure('bad-request', 405)
     }
     await next()
   })
   app.get('/healthz', (c) => c.json({ ok: true }))
   app.get(CONTROL_ROUTES.health, (c) => c.json(health(deps.config.configured, deps.version)))
-  app.get(
-    CONTROL_ROUTES.me,
-    me(createUserAuth(deps.supabase, deps.clock, deps.limits), deps.supabase),
-  )
+  const auth = createUserAuth(deps.supabase, deps.clock, deps.limits)
+  const hostAuth = hostAuthentication(deps)
+  app.get(CONTROL_ROUTES.me, me(auth, deps.supabase))
+  enrollments(app, deps, auth, hostAuth)
+  machines(app, deps, auth)
+  hosts(app, deps, hostAuth)
   app.all('/*', (c) => {
     if (c.req.path.startsWith('/api/')) throw new ControlFailure('not-found')
     return serveStatic(c.req.raw, deps.config.siteDir)

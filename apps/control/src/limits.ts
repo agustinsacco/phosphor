@@ -62,6 +62,10 @@ export class RateLimiter {
   get size() {
     return this.entries.size
   }
+  available(key: string, limit: number, windowMs: number): boolean {
+    const entry = this.entries.get(key)
+    return (entry?.times.filter((time) => time > this.clock() - windowMs).length ?? 0) < limit
+  }
   consume(key: string, limit: number, windowMs: number): boolean {
     if (
       key.length > 512 ||

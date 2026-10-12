@@ -17,7 +17,11 @@ const USER = {
   email: 'e2e@example.test',
   avatar_url: 'http://fake-github:54353/avatar.png',
 }
-const EMAILS = [{ email: USER.email, primary: true, verified: true }]
+const PROFILES = {
+  a: USER,
+  b: { ...USER, id: 20002, login: 'phosphor-e2e-b', email: 'e2e-b@example.test' },
+}
+let currentUser = USER
 
 let deny = false
 const codes = new Set()
@@ -40,7 +44,15 @@ const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url ?? '/', 'http://fake-github:54353')
     let body = ''
-    for await (const chunk of req) body += chunk
+    for await (const chunk of req) {
+      body += chunk
+      if (Buffer.byteLength(body) > 1024) return send(res, 413, { error: 'too large' })
+    }
+    if (url.pathname === '/__user' && req.method === 'POST') {
+      if (body !== 'a' && body !== 'b') return send(res, 400, { error: 'unknown profile' })
+      currentUser = PROFILES[body]
+      return send(res, 200, { ok: true })
+    }
     if (url.pathname === '/__health') return send(res, 200, { ok: true })
     if (url.pathname === '/__deny' && req.method === 'POST') {
       deny = body === 'true'
@@ -82,8 +94,9 @@ const server = http.createServer(async (req, res) => {
     }
     const token = req.headers.authorization?.replace(/^(Bearer|token) /i, '')
     if (!token || !tokens.has(token)) return send(res, 401, { message: 'Bad credentials' })
-    if (url.pathname === '/api/v3/user') return send(res, 200, USER)
-    if (url.pathname === '/api/v3/user/emails') return send(res, 200, EMAILS)
+    if (url.pathname === '/api/v3/user') return send(res, 200, currentUser)
+    if (url.pathname === '/api/v3/user/emails')
+      return send(res, 200, [{ email: currentUser.email, primary: true, verified: true }])
     send(res, 404, { message: 'Not Found' })
   } catch (error) {
     send(res, 500, { message: String(error) })
