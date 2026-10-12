@@ -63,7 +63,7 @@ function AgentRow({
         )}
         <button
           data-testid="subagent-nav-row"
-          aria-label={`${node.label} ${node.state}${node.currentTool ? ` ${node.currentTool}` : ''}`}
+          aria-label={`${label} ${node.state}${node.currentTool ? ` ${node.currentTool}` : ''}`}
           aria-pressed={selected}
           onClick={() =>
             onSelect({ runId: rootId ?? node.id, ...(rootId ? { childId: node.id } : {}) })

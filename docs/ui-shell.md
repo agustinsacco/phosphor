@@ -34,7 +34,7 @@ the app document, not to artifact iframe contents.
 One **full-width bar** (`apps/desktop/src/app/TopBar.tsx`) above the sidebar, chat and
 pane columns: sidebar toggle, workspace chip, branch control
 ([worktrees.md](worktrees.md)), session title, the pane switches (terminal,
-files, changes, artifacts) and the session kebab. The terminal switch carries a
+files, changes, artifacts, subagents) and the session kebab. The terminal switch carries a
 tab count and a running-process dot; the artifacts switch appears once the
 session has an artifact, with a count and an unseen dot.
 
