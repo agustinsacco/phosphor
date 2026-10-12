@@ -287,7 +287,13 @@ scout · grep`) and which is **never printed as widget lines**
   **Above the composer, a persistent current-work summary** combines foreground
   delegation tool evidence with background snapshots. It reports parent activity,
   active subagents and parent-facing attention, even while Artifacts occupies the
-  pane. Workflow ancestors and children are not counted twice; native run IDs
+  pane. It starts compact: the disclosure row keeps parent activity, active count,
+  attention, unavailable counts and incomplete-snapshot warnings visible. Settled-only
+  history is labelled Recent work. Expand it for task links, snapshot receipt time,
+  recent outcomes and message-routing guidance; collapse it to reclaim composer space.
+  **View subagents** opens the full pane without expanding the summary. Updates do
+  not change the disclosure state; switching lanes or remounting starts compact.
+  Workflow ancestors and children are not counted twice; native run IDs
   deduplicate foreground/background handoffs. Historical launch receipts and
   management calls never count as running. A top-bar badge mirrors the active count
   and flags attention or unavailable status.

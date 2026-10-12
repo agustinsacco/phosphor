@@ -4359,6 +4359,7 @@ test('a parallel delegation shows every child working at once, then settles', as
     await page.getByPlaceholder('Type a command…').fill('Toggle artifacts pane')
     await page.getByText('Toggle artifacts pane', { exact: true }).click()
     await expect(current).toBeInViewport()
+    await current.getByRole('button', { name: 'Expand current work' }).click()
     await current.getByRole('button', { name: /Workflow: running/ }).click()
     const inspection = page.getByRole('region', { name: 'Subagents', exact: true })
     await expect(inspection.getByRole('heading', { name: 'Foreground delegation' })).toBeVisible()
@@ -4415,7 +4416,12 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
     )
 
     const background = page.getByTestId('background-work-indicator')
-    await expect(background).toContainText('scout: running · grep')
+    await expect(background.getByRole('status')).toContainText('Parent idle · 1 subagents active')
+    await expect(background.getByRole('button', { name: 'Expand current work' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    await expect(background.getByRole('button', { name: 'scout: running · grep' })).toBeHidden()
     await expect(background).toContainText('The parent is idle')
     await expect(page.getByTestId('working-indicator')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
@@ -4523,8 +4529,21 @@ test('recorded workflow completions and attention stay visible, attributable and
     await expect(background).toContainText(
       'Parent idle · 2 subagents active · 1 needs parent attention',
     )
-    await expect(background).toContainText('validation: running · needs parent attention')
-    await expect(background).toContainText('qa: running')
+    const expandWork = background.getByRole('button', { name: 'Expand current work' })
+    await expect(expandWork).toHaveAttribute('aria-expanded', 'false')
+    await expect(background.getByRole('button', { name: 'qa: running' })).toBeHidden()
+    const compactHeight = (await background.boundingBox())!.height
+    await expandWork.focus()
+    await page.keyboard.press('Enter')
+    await expect(background.getByRole('button', { name: 'qa: running' })).toBeVisible()
+    expect((await background.boundingBox())!.height).toBeGreaterThan(compactHeight + 40)
+    await page.keyboard.press('Space')
+    await expect(expandWork).toBeFocused()
+    await expect(expandWork).toHaveAttribute('aria-expanded', 'false')
+    await page.keyboard.press('Tab')
+    await expect(background.getByRole('button', { name: 'View subagents' })).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(background.locator(':focus')).toHaveCount(0)
     await page.keyboard.press('ControlOrMeta+k')
     await page.getByPlaceholder('Type a command…').fill('Toggle artifacts pane')
     await page.getByText('Toggle artifacts pane', { exact: true }).click()
@@ -4538,9 +4557,15 @@ test('recorded workflow completions and attention stay visible, attributable and
         return window.phosphor.piCommand(live[0]!.sessionId, { type: 'prompt', message })
       }, message!)
       expect(response.success).toBe(true)
-      await expect(background).toContainText(expected!)
+      await expect(background.getByRole('status')).toContainText(expected!)
       await expect(background).toBeInViewport()
+      await expect(expandWork).toHaveAttribute('aria-expanded', 'false')
+      if (message === '/stub-hide-workflow-status') {
+        expect((await background.boundingBox())!.height).toBeLessThan(130)
+        await screenshot('current-work-unavailable-compact')
+      }
     }
+    await expandWork.click()
     await background
       .getByRole('button', { name: 'validation: running · needs parent attention', exact: true })
       .click()
