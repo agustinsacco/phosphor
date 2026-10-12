@@ -19,6 +19,8 @@ export const CONTEXT_BREAKDOWN_STATUS_KEY = 'phosphor-context-breakdown'
 export interface ContextFileEntry {
   path: string
   kind: ContextFileKind
+  /** Older extensions did not report scope. Never infer it from a filename. */
+  scope?: 'global' | 'project'
   tokens: number
   included: boolean
 }
@@ -159,6 +161,7 @@ function parseContextFiles(raw: unknown): ContextBreakdown['contextFiles'] {
     files.push({
       path: file.path,
       kind: file.kind,
+      ...(file.scope === 'global' || file.scope === 'project' ? { scope: file.scope } : {}),
       tokens: typeof file.tokens === 'number' && file.tokens >= 0 ? file.tokens : 0,
       included: file.included !== false,
     })

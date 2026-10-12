@@ -150,6 +150,34 @@ function scrollPosition(el: HTMLElement): { top: number; max: number } {
   return { top, max }
 }
 
+test('instruction sources distinguish global and project files in the composer', async () => {
+  const h = await launch()
+  const { page } = h
+  try {
+    await openWorkspace(page)
+    await page.getByTestId('context-sources').click()
+    await expect(
+      page.getByText('Paths and scopes appear after a lane starts.').first(),
+    ).toBeVisible()
+    await page.keyboard.press('Escape')
+    await page.getByPlaceholder('Describe a task or ask a question').fill('contextsources')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByPlaceholder(/Describe a task…/i)).toBeVisible()
+    await page.getByTestId('context-sources').click()
+    const sources = page.getByRole('list', { name: 'AGENTS.md sources' })
+    const global = sources.getByRole('listitem').filter({ hasText: 'Global' })
+    const project = sources.getByRole('listitem').filter({ hasText: 'Project' })
+    await expect(global).toContainText(join(agentDir, 'AGENTS.md'))
+    await expect(project).toContainText(join(h.workspace, 'AGENTS.md'))
+    await expect(global).toContainText('Included · ~200')
+    await expect(project).toContainText('Included · ~800')
+    await expect(page.getByRole('checkbox', { name: 'AGENTS.md', exact: true })).toBeChecked()
+    await page.screenshot({ path: test.info().outputPath('instruction-sources.png') })
+  } finally {
+    await shutdown(h)
+  }
+})
+
 test('Mermaid viewer fits, zooms, pans, exports and restores focus', async () => {
   const h = await launch()
   const { page } = h

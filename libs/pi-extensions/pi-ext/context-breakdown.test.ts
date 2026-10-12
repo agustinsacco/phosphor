@@ -232,6 +232,7 @@ describe('context breakdown extension', () => {
         {
           path: '/r/CLAUDE.md',
           kind: 'claude',
+          scope: 'project',
           tokens: Math.ceil(block.length / 4),
           included: true,
         },

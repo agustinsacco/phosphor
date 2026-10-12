@@ -656,6 +656,38 @@ function handle(cmd) {
       // Scenario switch, keyed off the prompt text: the default turn is what
       // most tests assert on, so extra scenarios must not change it.
       const message = typeof cmd.message === 'string' ? cmd.message : ''
+      if (message === 'contextsources') {
+        out({
+          type: 'extension_ui_request',
+          id: 'ext-context-sources',
+          method: 'setStatus',
+          statusKey: 'phosphor-context-breakdown',
+          statusText: JSON.stringify({
+            parts: {},
+            contextFiles: {
+              off: [],
+              files: [
+                {
+                  path: path.join(AGENT_DIR, 'AGENTS.md'),
+                  kind: 'agents',
+                  scope: 'global',
+                  tokens: 200,
+                  included: true,
+                },
+                {
+                  path: path.join(process.cwd(), 'AGENTS.md'),
+                  kind: 'agents',
+                  scope: 'project',
+                  tokens: 800,
+                  included: true,
+                },
+              ],
+            },
+          }),
+        })
+        runTurn()
+        break
+      }
       if (message.startsWith('/subagents-steer ')) {
         const requestId = `steer-${Date.now()}`
         for (const [i, content] of [

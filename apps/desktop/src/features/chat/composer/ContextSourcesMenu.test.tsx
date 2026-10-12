@@ -18,8 +18,27 @@ beforeAll(() => {
 const LANE = {
   off: ['agents' as const],
   files: [
-    { path: '/r/CLAUDE.md', kind: 'claude' as const, tokens: 5500, included: true },
-    { path: '/r/AGENTS.md', kind: 'agents' as const, tokens: 800, included: false },
+    {
+      path: '/r/CLAUDE.md',
+      kind: 'claude' as const,
+      scope: 'project' as const,
+      tokens: 5500,
+      included: true,
+    },
+    {
+      path: '/r/AGENTS.md',
+      kind: 'agents' as const,
+      scope: 'project' as const,
+      tokens: 800,
+      included: false,
+    },
+    {
+      path: '/custom-pi/AGENTS.md',
+      kind: 'agents' as const,
+      scope: 'global' as const,
+      tokens: 200,
+      included: false,
+    },
   ],
 }
 
@@ -109,6 +128,8 @@ describe('ContextSourcesMenu', () => {
     await render()
     expect(trigger().textContent).toBe('Rules 2/2')
     expect(container.textContent).not.toContain('Connectors')
+    expect(container.textContent).toContain('Paths and scopes appear after a lane starts.')
+    expect(container.querySelectorAll('li')).toHaveLength(0)
   })
 
   it('sets the preference for new lanes from the home composer', async () => {
@@ -129,15 +150,46 @@ describe('ContextSourcesMenu', () => {
     expect(box('CLAUDE.md').checked).toBe(true)
     expect(box('CLAUDE.md').closest('label')!.textContent).toContain('~5.5k')
     expect(box('AGENTS.md').checked).toBe(false)
+    const sources = container.querySelector('[aria-label="AGENTS.md sources"]')!
+    expect([...sources.querySelectorAll('li')].map((el) => el.textContent)).toEqual([
+      'ProjectExcluded · ~800/r/AGENTS.md',
+      'GlobalExcluded · ~200/custom-pi/AGENTS.md',
+    ])
+    expect(container.textContent).not.toContain('Project rules')
+    expect(container.textContent).toContain('Each checkbox controls all files of that type')
     await act(async () => box('AGENTS.md').click())
     expect(invoke).toHaveBeenCalledWith('app:setContextFile', 'agents', true, 's1')
     expect(box('AGENTS.md').checked).toBe(true)
+    expect(sources.textContent).not.toContain('Excluded')
+    expect(sources.textContent?.match(/Included/g)).toHaveLength(2)
+  })
+
+  it('does not guess a scope for an older extension or invent missing files', async () => {
+    useExtensionUiStore.setState({
+      statuses: {
+        s1: {
+          [CONTEXT_BREAKDOWN_STATUS_KEY]: JSON.stringify({
+            parts: {},
+            contextFiles: {
+              off: [],
+              files: [{ path: '/custom/AGENTS.md', kind: 'agents', tokens: 10, included: true }],
+            },
+          }),
+        },
+      },
+    })
+    await render('s1')
+    expect(container.textContent).toContain('Scope unknown')
+    expect(container.textContent).toContain('/custom/AGENTS.md')
+    expect(container.querySelector('[aria-label="CLAUDE.md sources"]')).toBeNull()
+    expect(box('CLAUDE.md').closest('label')!.textContent).toContain('none')
   })
 
   it('puts the box back and says so when the change fails', async () => {
     failContextFile = true
     const toast = vi.spyOn(useExtensionUiStore.getState(), 'pushToast')
     await render('s1')
+    expect(container.textContent).toContain('File details not yet reported by this lane.')
     await act(async () => box('CLAUDE.md').click())
     expect(box('CLAUDE.md').checked).toBe(true)
     expect(toast).toHaveBeenCalledWith(expect.stringContaining('lane gone'), 'error')
