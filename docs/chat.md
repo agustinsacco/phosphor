@@ -279,15 +279,26 @@ scout · grep`) and which is **never printed as widget lines**
   `subagent-inspect` reply key the protocol says a host must not render). The
   extension removes the widget when nothing runs. A session with the command
   installed or a recorded delegation keeps a quiet Subagents chip for inspection.
-  **Above the composer, a persistent background-work strip** uses that same
-  snapshot to name active steps and their reported tools, queued/running state
-  and parent-facing attention. It stays visible after the parent stops generating,
-  with its own beacon only while the parent is idle. It explains that messages
-  still go to the parent; it does not extend the parent's timer/token count,
-  change Send into Stop, or redirect the composer to a child. Active descendants
-  keep it visible even if a root settles. An incomplete snapshot is qualified,
-  never presented as proof of completion or unreported active work. It disappears
-  when the snapshot settles or is removed, without dismissing an open inspection.
+  **Above the composer, a persistent current-work summary** combines foreground
+  delegation tool evidence with background snapshots. It reports parent activity,
+  active subagents and parent-facing attention, even while Artifacts occupies the
+  pane. Workflow ancestors and children are not counted twice; native run IDs
+  deduplicate foreground/background handoffs. Historical launch receipts and
+  management calls never count as running. A top-bar badge mirrors the active count
+  and flags attention or unavailable status.
+  Task links open the exact background run/child or the foreground delegation's
+  existing detail component in the shared pane. Recent settled work stays in a
+  quiet disclosure: execution completion is not review acceptance or integration
+  success. The summary's beacon runs only when children are active and the parent
+  is idle. Messages still go to the parent; it does not extend the parent's timer,
+  change Send into Stop, or redirect the composer to a child.
+  Missing, malformed or later-omitted snapshots retain bounded, memory-only
+  evidence (up to 40 roots) as **status unavailable**, not live work or completion.
+  The last snapshot receipt time and incomplete snapshots are qualified. Exact
+  native terminal notices can settle missing status; names and artifact paths
+  cannot. Closing the session clears this cache, and restarting never restores
+  old liveness. Foreground activity requires an execution start observed within
+  the current parent turn; a replayed/orphaned tool cannot revive on a later turn. No additional polling, heartbeat deadline or runner is added.
   **View subagents**, the footer chip and notice links open the shared Subagents
   pane, also available in the top bar and command palette. It supports docking,
   resizing and fullscreen like Files and Terminal. Its navigator stays anchored

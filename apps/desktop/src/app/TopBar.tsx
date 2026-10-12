@@ -18,6 +18,7 @@ import { WorkspaceChip } from '@/features/workspaces/WorkspaceChip'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { useNameTransition } from '@/features/sessions/nameTransition'
 import { formatShortcut } from '@/lib/shortcuts'
+import { useCurrentWork } from '@/features/chat/currentWork'
 
 /**
  * The window's one and only title bar.
@@ -121,15 +122,42 @@ function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.
         <ChangesIcon />
       </IconButton>
       <ArtifactsButton sessionId={sessionId} active={rightPane === 'artifacts'} />
+      <SubagentsButton sessionId={sessionId} active={rightPane === 'subagents'} />
+      <SessionMenu sessionId={sessionId} />
+    </>
+  )
+}
+
+function SubagentsButton({
+  sessionId,
+  active,
+}: {
+  sessionId: string
+  active: boolean
+}): React.JSX.Element {
+  const { entries, incomplete } = useCurrentWork(sessionId)
+  const count = entries.reduce((sum, entry) => sum + entry.active, 0)
+  const attention = entries.some((entry) => entry.active && entry.attention)
+  const unknown = incomplete || entries.some((entry) => entry.state === 'status unavailable')
+  return (
+    <div className="relative">
       <IconButton
         title="Subagents pane"
-        active={rightPane === 'subagents'}
+        active={active}
         onClick={() => useLayoutStore.getState().toggleRightPane('subagents', sessionId)}
       >
         <BranchIcon size={16} />
       </IconButton>
-      <SessionMenu sessionId={sessionId} />
-    </>
+      <CountBadge count={count} tone="accent" title={`${count} subagents active`} />
+      {(attention || unknown) && (
+        <span
+          className="text-warning absolute -left-0.5 -top-1 text-xs"
+          title={attention ? 'Needs parent attention' : 'Status unavailable'}
+        >
+          {attention ? '!' : '?'}
+        </span>
+      )}
+    </div>
   )
 }
 

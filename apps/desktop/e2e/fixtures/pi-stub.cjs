@@ -837,6 +837,19 @@ function handle(cmd) {
         })
         break
       }
+      if (message === '/stub-hide-workflow-status') {
+        out({
+          type: 'extension_ui_request',
+          id: 'hide-fleet',
+          method: 'setWidget',
+          widgetKey: 'subagent-async',
+        })
+        break
+      }
+      if (message === '/stub-restore-workflow-status') {
+        publishWorkflowFleet(false)
+        break
+      }
       if (message === '/stub-settle-workflow') {
         publishWorkflowFleet(true)
         break
@@ -1931,6 +1944,8 @@ function runNativeSubagentTurn() {
     role: 'custom',
     customType: 'subagent-notify',
     display: false,
+    // Current pi-subagents includes explicit identity, unlike legacy text-only notices.
+    details: { runs: [{ runId: ASYNC_ID, agent: 'scout', status: 'completed' }] },
     content:
       'Background task completed: **scout**\n\nscout:\nThe auth flow enters at `login.ts` and settles in `session.ts`.\n\nRetention-managed async directory: /tmp/stub/async/' +
       ASYNC_ID,

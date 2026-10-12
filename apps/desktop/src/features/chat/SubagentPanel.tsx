@@ -21,16 +21,22 @@ import { SubagentJournal } from './SubagentJournal'
 import { SubagentStop } from './SubagentStopControl'
 import { SubagentTree } from './SubagentTree'
 import { SubagentPreview } from './SubagentPreview'
+import { useCurrentWork } from './currentWork'
+import { SubagentDetail } from './tools/SubagentDetail'
 
 export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.Element {
   const lines = useExtensionUiStore((s) => s.widgets[sessionId]?.[SUBAGENT_ASYNC_WIDGET_KEY]?.lines)
   const fleet = parseFleetWidget(lines)
+  const work = useCurrentWork(sessionId)
+  const [foregroundId, setForegroundId] = useState<string>()
+  const foreground = foregroundId ? work.tools[foregroundId] : undefined
   const identity = useChatStore((s) => s.sessions[sessionId]?.meta?.sessionId)
   const diskPath = useChatStore((s) => s.sessions[sessionId]?.meta?.sessionFile)
   const revision = useSubagentNavigation((s) => (s.sessionId === sessionId ? s.revision : 0))
   const covered = useLayoutStore((s) => s.page !== null)
   const [view, setView] = useState<'live' | 'history'>('live')
   const [target, setTarget] = useState<SubagentTarget>()
+  const hasSelection = !!target || !!foregroundId
   const [showList, setShowList] = useState(true)
   const [narrow, setNarrow] = useState(false)
   const pane = useRef<HTMLElement>(null)
@@ -51,6 +57,7 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
   const select = (next: SubagentTarget): void => {
     selectionRevision.current++
     setRestoreError(undefined)
+    setForegroundId(undefined)
     setTarget(next)
     setShowList(false)
     focusDetail.current = true
@@ -60,7 +67,7 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
       detailTitle.current?.focus()
       focusDetail.current = false
     }
-  }, [target])
+  }, [target, foregroundId])
   useEffect(() => {
     let cancelled = false
     const selection = ++selectionRevision.current
@@ -68,9 +75,22 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
     setRestored(undefined)
     setRestoreError(undefined)
     const request = useSubagentNavigation.getState()
+    setForegroundId(undefined)
+    if (request.sessionId === sessionId && request.toolCallId) {
+      setForegroundId(request.toolCallId)
+      setTarget(undefined)
+      setView('live')
+      setShowList(false)
+      focusDetail.current = true
+      useSubagentNavigation.setState({ toolCallId: undefined })
+      return
+    }
     if (identity && request.sessionId === sessionId && request.runId) {
-      saveSubagentView(identity, { view: 'live', target: { runId: request.runId } })
-      useSubagentNavigation.setState({ runId: undefined })
+      saveSubagentView(identity, {
+        view: 'live',
+        target: { runId: request.runId, childId: request.childId },
+      })
+      useSubagentNavigation.setState({ runId: undefined, childId: undefined })
     }
     const saved = identity ? loadSubagentView(identity) : { view: 'live' as const }
     setView(saved.view)
@@ -112,7 +132,7 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
   const { inspection, readAt, error, loading, refresh } = useSubagentInspection(
     sessionId,
     target,
-    view === 'live' && !covered && !(narrow && showList),
+    view === 'live' && !foregroundId && !covered && !(narrow && showList),
     active,
   )
 
@@ -169,9 +189,32 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
             aria-label="Background runs"
             className={clsx(
               'border-border min-h-0 overflow-y-auto overscroll-contain border-r p-2 @min-[640px]:block',
-              !showList && target && 'hidden',
+              !showList && hasSelection && 'hidden',
             )}
           >
+            {work.entries
+              .filter((entry) => !entry.runId && entry.toolCallId)
+              .filter(
+                (entry, index, all) =>
+                  entry.active || entry.toolCallId === foregroundId || index >= all.length - 5,
+              )
+              .map((entry) => (
+                <button
+                  key={entry.id}
+                  aria-pressed={foregroundId === entry.toolCallId}
+                  className="text-text hover:bg-bg-secondary mb-1 block w-full truncate rounded-md p-2 text-left text-base aria-pressed:bg-accent-soft"
+                  onClick={() => {
+                    selectionRevision.current++
+                    setRestoreError(undefined)
+                    setTarget(undefined)
+                    setForegroundId(entry.toolCallId)
+                    setShowList(false)
+                    focusDetail.current = true
+                  }}
+                >
+                  {entry.label}: {entry.state} · foreground
+                </button>
+              ))}
             <h3 className="text-text-secondary mb-2 px-2 text-sm font-medium">Background runs</h3>
             {fleet?.runs.length ? (
               <SubagentTree nodes={fleet.runs} target={target} onSelect={select} />
@@ -180,22 +223,58 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
                 No live snapshot. Recorded results remain in the conversation.
               </p>
             )}
+            {work.entries
+              .filter((entry) => entry.runId && !fleet?.runs.some((run) => run.id === entry.runId))
+              .map((entry) => (
+                <button
+                  key={entry.id}
+                  aria-pressed={target?.runId === entry.runId && target?.childId === entry.childId}
+                  className="text-text-secondary hover:text-text mb-1 block w-full truncate rounded-md p-2 text-left text-base aria-pressed:bg-accent-soft"
+                  onClick={() => select({ runId: entry.runId!, childId: entry.childId })}
+                >
+                  {entry.label}: {entry.state} · last known
+                </button>
+              ))}
             {fleet?.incomplete && (
               <p className="text-text-secondary p-2 text-sm">
                 Snapshot incomplete; some work may not be shown.
               </p>
             )}
             <p className="text-text-secondary mt-3 px-2 text-sm">
-              Foreground children appear in their delegation tool row. Completion is not acceptance.
+              Foreground details mirror their delegation tool row. Completion is not acceptance.
             </p>
           </nav>
           <div
             className={clsx(
               'min-h-0 min-w-0 flex-col @min-[640px]:flex',
-              showList || !target ? 'hidden' : 'flex',
+              showList || !hasSelection ? 'hidden' : 'flex',
             )}
           >
-            {!target ? (
+            {foregroundId ? (
+              <>
+                <div className="border-border shrink-0 border-b p-3">
+                  <button
+                    className="text-text-secondary mb-2 underline @min-[640px]:hidden"
+                    onClick={() => setShowList(true)}
+                  >
+                    Back to runs
+                  </button>
+                  <h3 ref={detailTitle} tabIndex={-1} className="font-semibold">
+                    Foreground delegation
+                  </h3>
+                  <p className="text-text-secondary text-sm">
+                    Live tool evidence from this conversation. Completion is not acceptance.
+                  </p>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                  {foreground ? (
+                    <SubagentDetail tool={foreground} />
+                  ) : (
+                    <p className="p-3">Delegation unavailable on this branch.</p>
+                  )}
+                </div>
+              </>
+            ) : !target ? (
               <p className="text-text-secondary p-4 text-base">
                 Select a run or child to read its task, recent messages and result.
               </p>

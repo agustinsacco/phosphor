@@ -214,8 +214,10 @@ palette or the shortcuts above.
 
 6. **Subagents pane** — a stable run/child navigator and independently scrolling
    read-only activity preview ([chat.md](chat.md#sub-agents)). The top bar,
-   command palette, background-work strip and notice links all open this same
-   session pane. Narrow panes show the list or selected detail with Back to runs;
+   command palette, current-work summary and notice links all open this same
+   session pane. The summary combines foreground/background evidence and remains
+   visible while another pane is open; the top-bar badge mirrors its count and
+   attention/unavailable signal. Narrow panes show the list or selected detail with Back to runs;
    wide panes show both. Its controls reuse `PaneShell`, including side swap,
    fullscreen and close.
 

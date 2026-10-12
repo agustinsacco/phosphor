@@ -2,6 +2,11 @@ import { create } from 'zustand'
 import type { ExtensionUIRequest } from '@shared/rpc'
 import { parseAuthNotice, parseOAuthPrompt, parseReconnectNotice } from '@shared/connectors'
 import { useConnectorsStore } from './connectors'
+import {
+  parseFleetWidget,
+  SUBAGENT_ASYNC_WIDGET_KEY,
+  type FleetSnapshot,
+} from '@/features/chat/subagentRuns'
 
 export interface PendingDialog {
   sessionId: string
@@ -72,6 +77,9 @@ interface ExtensionUiState {
     string,
     Record<string, { lines: string[]; placement: 'aboveEditor' | 'belowEditor' }>
   >
+  /** Last bounded valid snapshot, memory-only and never treated as current after removal. */
+  subagentSnapshots: Record<string, { snapshot: FleetSnapshot; receivedAt: number }>
+  forgetSubagents: (sessionId: string) => void
   toasts: Toast[]
 
   handleRequest: (sessionId: string, request: ExtensionUIRequest) => void
@@ -123,6 +131,15 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
   dialogs: [],
   statuses: {},
   widgets: {},
+  subagentSnapshots: {},
+  forgetSubagents: (sessionId) =>
+    set((s) => {
+      const subagentSnapshots = { ...s.subagentSnapshots }
+      delete subagentSnapshots[sessionId]
+      const widgets = { ...s.widgets[sessionId] }
+      delete widgets[SUBAGENT_ASYNC_WIDGET_KEY]
+      return { subagentSnapshots, widgets: { ...s.widgets, [sessionId]: widgets } }
+    }),
   toasts: [],
 
   handleRequest: (sessionId, request) => {
@@ -191,7 +208,31 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
               placement: request.widgetPlacement ?? 'aboveEditor',
             }
           }
-          return { widgets: { ...s.widgets, [sessionId]: session } }
+          const snapshot =
+            request.widgetKey === SUBAGENT_ASYNC_WIDGET_KEY
+              ? parseFleetWidget(request.widgetLines)
+              : null
+          if (snapshot) {
+            const ids = new Set(snapshot.runs.map((run) => run.id))
+            // Keep a bounded tail of runs omitted by a later snapshot. The
+            // projection marks them unknown; this is not a live fleet cache.
+            snapshot.runs = [
+              ...snapshot.runs,
+              ...(s.subagentSnapshots[sessionId]?.snapshot.runs.filter((run) => !ids.has(run.id)) ??
+                []),
+            ].slice(0, 40)
+          }
+          return {
+            widgets: { ...s.widgets, [sessionId]: session },
+            ...(snapshot
+              ? {
+                  subagentSnapshots: {
+                    ...s.subagentSnapshots,
+                    [sessionId]: { snapshot, receivedAt: Date.now() },
+                  },
+                }
+              : {}),
+          }
         })
         break
 
@@ -300,6 +341,7 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
 
   clearSession: (sessionId) => {
     get().dismissSessionToast(sessionId)
+    get().forgetSubagents(sessionId)
     set((s) => {
       const statuses = { ...s.statuses }
       const widgets = { ...s.widgets }
