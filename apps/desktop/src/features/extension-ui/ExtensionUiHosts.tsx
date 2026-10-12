@@ -24,7 +24,7 @@ import {
   summarizeFleet,
 } from '@/features/chat/subagentRuns'
 import { useChatStore } from '@/stores/chat'
-import { SubagentPanel } from '@/features/chat/SubagentPanel'
+import { openSubagents } from '@/features/chat/subagentView'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { CommandApprovalSheet } from './CommandApprovalSheet'
 import { parseCommandApproval } from '@shared/command-approval'
@@ -484,7 +484,6 @@ function SubagentChip({
   sessionId: string
   available: boolean
 }): React.JSX.Element | null {
-  const [open, setOpen] = useState(false)
   const statusText = useExtensionUiStore((s) => s.statuses[sessionId]?.[SUBAGENTS_STATUS_KEY])
   const fleetLines = useExtensionUiStore(
     (s) => s.widgets[sessionId]?.[SUBAGENT_ASYNC_WIDGET_KEY]?.lines,
@@ -503,7 +502,7 @@ function SubagentChip({
         data-testid="subagent-chip"
         aria-label="Open subagents"
         disabled={!!legacy && !available}
-        onClick={() => setOpen(true)}
+        onClick={() => openSubagents(sessionId)}
         title={title}
         className="text-text-tertiary flex min-w-0 items-center gap-1.5 text-xs"
       >
@@ -517,9 +516,6 @@ function SubagentChip({
           {legacy ? summarizeSubagents(legacy) : fleet ? summarizeFleet(fleet) : 'Subagents'}
         </span>
       </button>
-      {open && (
-        <SubagentPanel key={sessionId} sessionId={sessionId} onClose={() => setOpen(false)} />
-      )}
     </>
   )
 }

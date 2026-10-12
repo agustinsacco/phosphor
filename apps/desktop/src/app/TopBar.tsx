@@ -7,6 +7,7 @@ import { runningCount, sessionTerminals, useTerminalStore } from '@/stores/termi
 import {
   ArtifactsIcon,
   ChangesIcon,
+  BranchIcon,
   FileIcon,
   SidebarToggleIcon,
   TerminalIcon,
@@ -120,6 +121,13 @@ function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.
         <ChangesIcon />
       </IconButton>
       <ArtifactsButton sessionId={sessionId} active={rightPane === 'artifacts'} />
+      <IconButton
+        title="Subagents pane"
+        active={rightPane === 'subagents'}
+        onClick={() => useLayoutStore.getState().toggleRightPane('subagents', sessionId)}
+      >
+        <BranchIcon size={16} />
+      </IconButton>
       <SessionMenu sessionId={sessionId} />
     </>
   )

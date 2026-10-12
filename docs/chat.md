@@ -288,22 +288,41 @@ scout · grep`) and which is **never printed as widget lines**
   keep it visible even if a root settles. An incomplete snapshot is qualified,
   never presented as proof of completion or unreported active work. It disappears
   when the snapshot settles or is removed, without dismissing an open inspection.
-  **View subagents** and the footer chip open a tree of background runs and children. Selecting a node asks
+  **View subagents**, the footer chip and notice links open the shared Subagents
+  pane, also available in the top bar and command palette. It supports docking,
+  resizing and fullscreen like Files and Terminal. Its navigator stays anchored
+  while the selected activity body scrolls; a long run list scrolls independently.
+  Agent rows reserve three nonwrapping lines for task/state, current activity and
+  reported counters, so tool updates do not change their height. Workflow groups
+  can collapse. Below 640px pane width, list and detail are separate views with
+  **Back to runs** and focus restoration.
+  Selecting a node asks
   the installed `/subagents-inspect-rpc` command for a bounded, read-only task,
   transcript window and result. Replies are correlated to the exact session,
   request and child, including emit-then-retract replies. No child session is
   opened for writing. Missing commands, expired artifacts and foreign-session
   targets show explicit errors; no model fallback or file scraping is used.
-  The selected active node refreshes every five seconds while the inspector and
-  window are visible/focused, with one request in flight. Failures back off and
-  pause after three attempts; Refresh retries explicitly. Selection changes and
+  The selected active node refreshes every five seconds while its detail view and
+  window are visible/focused, with one request in flight. Opening coordination,
+  returning to the narrow list or covering the pane with a global page pauses it.
+  Failures back off and pause after three attempts; Refresh retries explicitly. Selection changes and
   closing cancel outstanding reads. A settled node gets a final read, not an
   endless poll. Reported tool/turn counts and elapsed time from a native start
-  appear below tree rows; absent figures stay absent.
+  appear inside tree rows; absent figures stay absent.
   The last view and exact target are remembered against Pi's durable session ID,
   not a process ID. Reopening checks current-branch history or a current native
   snapshot before restoring selection. A clone does not inherit preferences.
-  This never reopens the dialog automatically or restores an old running state.
+  The pane layout may restore like other panes, but never restores an old running
+  state. Docking and fullscreen preserve the mounted inspector, including drafts
+  and disclosures; closing it cancels reads. Assistant text renders as Markdown;
+  tool markers and literal outputs use compact disclosures with Copy. The preview
+  does not invent call/result pairing or tool success from role/text-only data.
+  Child file/artifact references stay non-interactive because inspection does not
+  report a verified child workspace or artifact namespace; web links still work.
+  Reading back pauses following until **Jump to latest**. IDs, run-level status
+  qualifications, steering, Stop and snapshot actions live in **Details & actions**,
+  above the scrolling activity. Only the compact status line announces updates,
+  not the entire transcript.
 - **The completion is a card where the model woke up.** pi-subagents delivers
   it as a `subagent-notify` custom message and marks a plain success
   `display: false` so its own TUI does not badge an idle tab; Phosphor keeps

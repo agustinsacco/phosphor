@@ -134,6 +134,11 @@ export function CommandPalette({
               run: () => layout.toggleRightPane('artifacts'),
             },
             {
+              id: 'toggle-subagents',
+              label: 'Toggle subagents pane',
+              run: () => layout.toggleRightPane('subagents'),
+            },
+            {
               id: 'rewind',
               label: 'Rewind to an earlier message…',
               hint: 'Esc Esc',

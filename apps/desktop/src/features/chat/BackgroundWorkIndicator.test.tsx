@@ -1,25 +1,19 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it } from 'vitest'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { BackgroundWorkIndicator } from './BackgroundWorkIndicator'
 import fixture from './__fixtures__/subagent-workflow.json'
-
-vi.mock('./SubagentPanel', () => ({
-  SubagentPanel: ({ sessionId, onClose }: { sessionId: string; onClose: () => void }) => (
-    <div role="dialog" data-session={sessionId}>
-      <button onClick={onClose}>Close</button>
-    </div>
-  ),
-}))
+import { useLayoutStore, sessionPanes } from '@/stores/layout'
 
 let root: Root
 let el: HTMLDivElement
 let snapshot: typeof fixture.snapshot
 beforeEach(() => {
   ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  useLayoutStore.setState({ bySession: {} })
   useChatStore.setState({ sessions: {} })
   useChatStore.getState().ensure('lane')
   useExtensionUiStore.setState({ widgets: {} })
@@ -133,14 +127,9 @@ it('opens this lane inspection and keeps it open when the extension removes the 
   publish()
   render()
   act(() => el.querySelector('button')!.click())
-  expect(el.querySelector('[role="dialog"]')?.getAttribute('data-session')).toBe('lane')
+  expect(sessionPanes(useLayoutStore.getState(), 'lane').pane).toBe('subagents')
+  expect(sessionPanes(useLayoutStore.getState(), 'other-lane').pane).toBeNull()
   act(() => useExtensionUiStore.setState({ widgets: {} }))
   expect(strip()).toBeNull()
-  expect(el.querySelector('[role="dialog"]')).not.toBeNull()
-  act(() =>
-    el
-      .querySelector('[role="dialog"] button')!
-      .dispatchEvent(new MouseEvent('click', { bubbles: true })),
-  )
-  expect(el.querySelector('[role="dialog"]')).toBeNull()
+  expect(sessionPanes(useLayoutStore.getState(), 'lane').pane).toBe('subagents')
 })

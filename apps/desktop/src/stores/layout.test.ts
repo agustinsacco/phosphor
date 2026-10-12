@@ -158,6 +158,14 @@ describe('layout store — persisted layout sanitizing', () => {
     expect(sanitizePersistedPanes({ [A]: 'corrupt' })).toEqual({})
   })
 
+  it('restores subagents with the same docking and fullscreen preferences as other panes', () => {
+    expect(
+      sanitizePersistedPanes({
+        [A]: { pane: 'subagents', expanded: true, side: 'left', size: 60 },
+      })[A],
+    ).toEqual({ pane: 'subagents', expanded: true, side: 'left', size: 60 })
+  })
+
   it('drops a persisted skills pane from before skills became a page', () => {
     const restored = sanitizePersistedPanes({
       [A]: { pane: 'skills', expanded: false, side: 'right', size: 45 },

@@ -1,9 +1,8 @@
-import { useState } from 'react'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useSessionBooting } from './BootingIndicator'
-import { SubagentPanel } from './SubagentPanel'
+import { openSubagents } from './subagentView'
 import {
   isFleetActive,
   parseFleetWidget,
@@ -32,7 +31,6 @@ export function BackgroundWorkIndicator({ sessionId }: { sessionId: string }): R
     (s) => !!(s.sessions[sessionId]?.isStreaming || s.sessions[sessionId]?.isCompacting),
   )
   const booting = useSessionBooting(sessionId)
-  const [open, setOpen] = useState(false)
   const fleet = parseFleetWidget(lines)
   const visible = fleet && (fleet.active > 0 || fleet.incomplete)
   const tasks = activeTasks(fleet?.runs ?? [])
@@ -64,7 +62,7 @@ export function BackgroundWorkIndicator({ sessionId }: { sessionId: string }): R
                 </span>
                 <button
                   type="button"
-                  onClick={() => setOpen(true)}
+                  onClick={() => openSubagents(sessionId)}
                   className="text-text-secondary hover:text-text shrink-0 rounded px-1 py-0.5 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-accent"
                 >
                   View subagents
@@ -90,10 +88,6 @@ export function BackgroundWorkIndicator({ sessionId }: { sessionId: string }): R
             </div>
           </div>
         </div>
-      )}
-      {/* Completion/removal must not close an inspection the user is reading. */}
-      {open && (
-        <SubagentPanel key={sessionId} sessionId={sessionId} onClose={() => setOpen(false)} />
       )}
     </>
   )

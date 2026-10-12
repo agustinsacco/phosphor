@@ -3,7 +3,7 @@ import { drop, keyedSlice } from './keyedSlice'
 import { useSessionsStore } from './sessions'
 import type { RevealTarget } from './files'
 
-export type RightPane = 'files' | 'changes' | 'terminal' | 'artifacts' | null
+export type RightPane = 'files' | 'changes' | 'terminal' | 'artifacts' | 'subagents' | null
 export type PaneSide = 'left' | 'right'
 
 /**
@@ -16,7 +16,7 @@ export type PaneSide = 'left' | 'right'
  */
 export type GlobalPage = 'artifacts' | 'skills' | 'routines' | 'machines'
 
-const PANE_IDS = ['files', 'changes', 'terminal', 'artifacts'] as const
+const PANE_IDS = ['files', 'changes', 'terminal', 'artifacts', 'subagents'] as const
 
 /** Float-pane layout for ONE chat session. */
 interface SessionPanes {

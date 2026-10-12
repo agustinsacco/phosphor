@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { Button } from '@/components/form'
 import { useChatStore } from '@/stores/chat'
 import { useLayoutStore } from '@/stores/layout'
@@ -15,19 +15,18 @@ export function SubagentActions({
   inspection,
   readAt,
   active,
-  onClose,
 }: {
   sessionId: string
   target: SubagentTarget
   inspection: SubagentInspection
   readAt: string
   active: boolean
-  onClose: () => void
 }): React.JSX.Element {
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
   const commands = useChatStore((s) => s.sessions[sessionId]?.commands)
   const supported = (name: string): boolean =>
     !!commands?.some((c) => c.name === name && c.source === 'extension')
+  const messageId = useId()
   const [steering, setSteering] = useState(false)
   const [message, setMessage] = useState('')
   const [pending, setPending] = useState(false)
@@ -95,7 +94,6 @@ export function SubagentActions({
             onClick={() => {
               useArtifactsStore.getState().select(sessionId, saved)
               useLayoutStore.getState().setRightPane('artifacts', sessionId)
-              onClose()
             }}
           >
             View saved snapshot
@@ -131,16 +129,17 @@ export function SubagentActions({
             </span>
             . Normal chat still goes to the parent.
           </p>
-          <label className="block">
+          <label className="block" htmlFor={messageId}>
             Steering message
-            <textarea
-              className="border-border bg-bg w-full rounded border p-2"
-              rows={3}
-              maxLength={8000}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-            />
           </label>
+          <textarea
+            id={messageId}
+            className="border-border bg-bg w-full rounded border p-2"
+            rows={3}
+            maxLength={8000}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+          />
           <p className="text-text-secondary">
             The extension flattens whitespace. Sending does not answer a supervisor question.
           </p>

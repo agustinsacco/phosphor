@@ -10,7 +10,7 @@ import { VegaLiteBlock } from './VegaLiteBlock'
 import { HtmlBlock } from './HtmlBlock'
 import { Lightbox } from '../Lightbox'
 import { MarkdownLink } from './MarkdownLink'
-import { artifactUrlTransform, fileUrlTransform } from '@/lib/markdownLink'
+import { artifactUrlTransform, fileUrlTransform, classifyLink } from '@/lib/markdownLink'
 import { remarkArtifactLinks } from '@/lib/remarkArtifactLinks'
 
 // remarkArtifactLinks runs last: GFM's own autolinking has already claimed the
@@ -141,8 +141,24 @@ const components: Components = {
   a: (props) => <MarkdownLink {...props} />,
 }
 
+// Child inspections have no verified workspace/artifact namespace. Keep their
+// local references readable without resolving them against the parent's lane.
+const externalLinkComponents: Components = {
+  ...components,
+  a: ({ href, children, ...props }) =>
+    href && classifyLink(href).kind === 'external' ? (
+      <MarkdownLink href={href} {...props}>
+        {children}
+      </MarkdownLink>
+    ) : (
+      <span title={href}>{children}</span>
+    ),
+}
+
 interface MarkdownProps {
   text: string
+  /** False when the source has no verified in-app file/artifact namespace. */
+  inAppLinks?: boolean
   streaming?: boolean
   /**
    * Base URL relative image sources resolve against — set when the markdown
@@ -156,6 +172,7 @@ export const Markdown = memo(function Markdown({
   text,
   streaming = false,
   urlBase,
+  inAppLinks = true,
 }: MarkdownProps): React.JSX.Element {
   const { closed, openFence } = useMemo(
     () => (streaming ? splitOpenFence(text) : { closed: text, openFence: null }),
@@ -172,7 +189,7 @@ export const Markdown = memo(function Markdown({
         remarkPlugins={REMARK_PLUGINS}
         rehypePlugins={REHYPE_PLUGINS}
         urlTransform={urlTransform}
-        components={components}
+        components={inAppLinks ? components : externalLinkComponents}
       >
         {closed}
       </ReactMarkdown>

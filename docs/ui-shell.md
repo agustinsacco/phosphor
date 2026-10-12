@@ -189,7 +189,7 @@ screen.
 The main area is the chat plus **one float pane**, split by a drag handle and
 persisted per session (selection, side, split size, fullscreen; localStorage,
 pruned on dispose). The float region hosts exactly one pane at a time
-(`RightPane = 'files' | 'changes' | 'terminal' | 'artifacts' | null`,
+(`RightPane = 'files' | 'changes' | 'terminal' | 'artifacts' | 'subagents' | null`,
 `apps/desktop/src/stores/layout.ts`), opened from the top bar's switches, the command
 palette or the shortcuts above.
 
@@ -211,6 +211,13 @@ palette or the shortcuts above.
    compaction or a provider switch dropped from pi's context still show; it
    falls back to replaying `get_messages` if the store fails. The
    cross-session index is the global Artifacts _page_, below.
+
+6. **Subagents pane** — a stable run/child navigator and independently scrolling
+   read-only activity preview ([chat.md](chat.md#sub-agents)). The top bar,
+   command palette, background-work strip and notice links all open this same
+   session pane. Narrow panes show the list or selected detail with Back to runs;
+   wide panes show both. Its controls reuse `PaneShell`, including side swap,
+   fullscreen and close.
 
 The artifacts toolbar carries **two exports that are not the same thing**, and
 they no longer share a glyph: a tray saves the _source_ through a dialog, a page
@@ -250,6 +257,9 @@ Rules:
 - The float pane can swap sides with the chat (⇄ in the pane header).
 - Fullscreen (↗) overlays the main region (sidebar and top bar stay) and never
   resizes the split underneath, so exiting restores the exact prior layout.
+  A stable portal container moves between the split and fullscreen slots;
+  docking and fullscreen do not remount pane contents or discard drafts,
+  disclosures, pending actions or reading position.
 - Sessions in a workspace run **concurrently**. The chat shows the active one;
   switching between live lanes is instant; background sessions keep streaming
   into their stores. A lane whose process is not up yet has to be spawned and
