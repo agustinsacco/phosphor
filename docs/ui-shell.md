@@ -289,6 +289,12 @@ All switch together, live, no reload.
   Existing libraries remain expandable and searchable. Add is explicit,
   global, and installs only the skill bundle, not runtimes or dependencies.
   Yours retains source grouping, inspection, draft hiding, updates and deletion.
+  Writable bundles have **Source → Edit source → Save source / Cancel edit**, for
+  the main skill and its reference files. Read-only package/foreign skills stay
+  read-only. Save failures keep the editor open. Availability changes apply to
+  new sessions or `/reload`. The included `visual-artifacts` skill is a user-owned
+  copy; **Restore artifact skill** reinstalls it only if removed, without
+  overwriting edits. See [its lifecycle](extensions.md#the-artifact-tools-and-what-each-one-costs).
   Your own roots come first, then one read-only group per package
   (`Package · pi-subagents`), so each extension's skills are visible. When pi
   cannot be asked, the fallback scan still reads installed packages' skills.

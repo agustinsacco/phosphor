@@ -467,6 +467,8 @@ export interface IpcInvokeMap {
    * All paths cross this boundary only after `skills:list` reported them.
    */
   'skills:list': { args: [workspacePath?: string]; result: SkillsListResult }
+  /** Restore the shipped artifact skill only if its user-owned folder is absent. */
+  'skills:restoreBundled': { args: []; result: void }
   'skills:readFile': {
     args: [dir: string, relPath: string]
     result: { content: string | null; binary: boolean; size: number }

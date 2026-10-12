@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./bundled-skills": {
+      "types": "./src/bundled-skills.ts",
+      "default": "./src/bundled-skills.ts"
+    },
     "./bundled-extensions": {
       "types": "./src/bundled-extensions.ts",
       "default": "./src/bundled-extensions.ts"

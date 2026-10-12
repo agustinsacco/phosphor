@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, it, expect } from 'vitest'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import artifactsExtension, {
   applyArtifactEdit,
+  artifactGuide,
   artifactsBeforeCompaction,
   compactionNoteText,
   editExcerpt,
@@ -104,6 +105,34 @@ const call = async (
   params: unknown,
 ): Promise<ToolResult> => h.tools.get(name)!.execute('call-1', params)
 
+describe('artifactGuide', () => {
+  it('uses pi resolution and saved edits, respecting hidden or removed guidance without a fallback', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'artifact-guide-'))
+    const filePath = join(dir, 'SKILL.md')
+    const skill = { name: 'visual-artifacts', filePath, disableModelInvocation: false }
+    const ctx = { getSystemPromptOptions: () => ({ skills: [skill] }) }
+    try {
+      writeFileSync(filePath, 'My project-selected guidance')
+      expect(await artifactGuide(ctx)).toContain('My project-selected guidance')
+      writeFileSync(filePath, 'Saved edits')
+      expect(await artifactGuide(ctx)).toContain('Saved edits')
+      skill.disableModelInvocation = true
+      expect(await artifactGuide(ctx)).toContain('unavailable or hidden')
+      skill.disableModelInvocation = false
+      writeFileSync(
+        filePath,
+        '---\nname: visual-artifacts\ndisable-model-invocation: true\n---\nHidden now',
+      )
+      expect(await artifactGuide(ctx)).not.toContain('Hidden now')
+      rmSync(filePath)
+      expect(await artifactGuide(ctx)).toContain('unavailable or hidden')
+      expect(await artifactGuide()).toContain('do not reinstall it automatically')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
 describe('artifact tools', () => {
   it('loads the style guide on demand rather than in every prompt', async () => {
     const definitions: Record<string, unknown>[] = []
@@ -113,16 +142,22 @@ describe('artifact tools', () => {
     expect(JSON.stringify(create.promptGuidelines).length).toBeLessThan(250)
     expect(create.description).toContain('artifact_help')
     expect(create.description).not.toContain('--art-bg')
-    expect(create.description).toContain('Prefer Markdown for documents')
+    expect(create.description).toContain('visual-artifacts')
     expect(create.description).toContain('sandboxed fragment with no network')
-    const guide = await call(harness(), 'artifact_help', {})
-    const text = guide.content[0]!.text
-    expect(text.length).toBeLessThan(1000)
-    expect(text).toContain('Use Markdown for documents')
-    expect(text).toContain('Use tables only when comparing repeated fields')
-    expect(text).toContain('semantic elements')
-    expect(text).toContain('brief text alternative')
-    expect(text).not.toMatch(/--art-|\.ledger|chart-first|table\.data/)
+    const filePath = resolve(import.meta.dirname, '../skills/visual-artifacts/SKILL.md')
+    const ctx = {
+      getSystemPromptOptions: () => ({
+        skills: [{ name: 'visual-artifacts', filePath, disableModelInvocation: false }],
+      }),
+    }
+    const guide = await (
+      definitions.find((tool) => tool.name === 'artifact_help')!.execute as (
+        ...args: unknown[]
+      ) => Promise<ToolResult>
+    )('id', {}, undefined, undefined, ctx)
+    expect(guide.content[0]!.text).toContain('Choose the medium for the reader')
+    expect(guide.content[0]!.text).toContain('references/mermaid.md')
+    expect(guide.content[0]!.text).toContain(filePath)
     expect(guide.details).toBeUndefined()
   })
 

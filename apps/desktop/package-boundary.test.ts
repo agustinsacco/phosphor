@@ -24,6 +24,11 @@ describe('Desktop application and native install boundary', () => {
     expect(config.productName).toBe('Phosphor')
     expect(config.directories).toMatchObject({ buildResources: 'build', output: 'release' })
     expect(config.files).toEqual([{ filter: ['out/**', 'package.json', '!**/*.map'] }])
+    expect(config.extraResources).toContainEqual({
+      from: '../../libs/pi-extensions/skills',
+      to: 'skills',
+      filter: ['**/*.md'],
+    })
     expect(config.asarUnpack).toEqual(['**/node_modules/node-pty/**'])
     expect(config.npmRebuild).toBe(true)
     expect(config.afterPack).toBe('scripts/adhoc-sign-mac.mjs')

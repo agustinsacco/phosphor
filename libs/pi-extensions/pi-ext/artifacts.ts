@@ -26,6 +26,8 @@
 import { Type } from 'typebox'
 import { randomUUID } from 'node:crypto'
 import { existsSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
 import {
   SNAPSHOT_COMMAND,
   SNAPSHOT_WIDGET,
@@ -87,6 +89,9 @@ interface BranchEntry {
 }
 
 interface ContextLike {
+  getSystemPromptOptions?: () => {
+    skills?: Array<{ name: string; filePath: string; disableModelInvocation: boolean }>
+  }
   sessionManager?: { getBranch?: () => unknown[]; getSessionId?: () => string }
 }
 
@@ -121,17 +126,30 @@ const NOTE_LIMIT = 40
 /** Rows `artifact_list({ scope: 'all' })` prints before asking for a query. */
 const LIST_LIMIT = 50
 
-const ARTIFACT_GUIDE =
-  'Use Markdown for documents. Use HTML only when layout or interaction requires it. ' +
-  'Start with the answer or purpose, then include only useful sections. ' +
-  'Prefer short paragraphs, lists and code blocks. Keep technical detail; remove repetition. ' +
-  'Use tables only when comparing repeated fields across items, not for prose or key/value lists. ' +
-  'Add diagrams or charts only when clearer than text, with a brief text alternative. ' +
-  'Markdown supports mermaid and chart fences; prefer those to hand-positioned SVG. ' +
-  'Avoid decorative cards, badges, metrics and repeated summaries. ' +
-  'For HTML, use semantic elements and the provided theme; no custom classes or CSS are needed. ' +
-  'Add styles only for a requirement the defaults cannot meet. ' +
-  'Keep content readable in a narrow panel, with local scrolling only for genuinely wide content.'
+/** Read the SAME skill pi resolved, never a hidden bundled fallback. */
+export async function artifactGuide(ctx?: ContextLike): Promise<string> {
+  const skill = ctx
+    ?.getSystemPromptOptions?.()
+    .skills?.find((entry) => entry.name === 'visual-artifacts' && !entry.disableModelInvocation)
+  const unavailable =
+    "The visual-artifacts skill is unavailable or hidden. Follow the user's instructions; " +
+    'do not reinstall it automatically. The user can restore it in Skills. ' +
+    'Reload pi or start a new session after changing skill availability.'
+  if (!skill) return unavailable
+  try {
+    const content = await readFile(skill.filePath, 'utf8')
+    // Honor hiding immediately too, before pi refreshes its skills index.
+    const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---/.exec(content)?.[1] ?? ''
+    if (/^disable-model-invocation:\s*["']?true["']?\s*(?:#.*)?$/m.test(frontmatter))
+      return unavailable
+    if (Buffer.byteLength(content) > 128 * 1024)
+      throw new Error('Artifact skill exceeds 128 KiB; move examples into references.')
+    return `Artifact authoring skill: ${skill.filePath}\nReferences are relative to ${dirname(skill.filePath)}.\n\n${content}`
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return unavailable
+    throw error
+  }
+}
 
 /** Longest single-line excerpt echoed back in an edit confirmation. */
 const EXCERPT_LIMIT = 80
@@ -521,12 +539,17 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
   pi.registerTool({
     name: 'artifact_help',
     label: 'Artifact guide',
-    description:
-      'Load the short, document-first authoring guide before creating or restyling an artifact.',
+    description: 'Load the active visual-artifacts skill before creating or restyling an artifact.',
     promptSnippet: 'Load artifact authoring and styling guidance on demand',
     parameters: Type.Object({}),
-    async execute() {
-      return { content: [{ type: 'text', text: ARTIFACT_GUIDE }], details: undefined }
+    async execute(
+      _id: string,
+      _params: unknown,
+      _signal: unknown,
+      _onUpdate: unknown,
+      ctx?: ContextLike,
+    ) {
+      return { content: [{ type: 'text', text: await artifactGuide(ctx) }], details: undefined }
     },
   })
 
@@ -535,9 +558,9 @@ export default function artifactsExtension(pi: PiExtensionApi): void {
     label: 'Create artifact',
     description:
       'Create a self-contained artifact in the side panel. Call artifact_help before authoring ' +
-      'for guidance. Prefer Markdown for documents. HTML is a sandboxed fragment with no network. ' +
+      'to choose the medium with the visual-artifacts skill. HTML is a sandboxed fragment with no network. ' +
       'Link the result as [Title](artifact://<id>). Small snippets stay in chat.',
-    promptSnippet: 'Create a side-panel artifact, usually Markdown; load artifact_help first',
+    promptSnippet: 'Create a side-panel artifact; load artifact_help to choose its medium',
     promptGuidelines: [
       'Use artifacts for requested pages or substantial deliverables, not routine updates. ' +
         'Call artifact_help before authoring; prefer artifact_edit for revisions.',

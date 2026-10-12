@@ -5,6 +5,7 @@ import { invalidatePiCommands } from './pi-config-handlers'
 import { cachedPiHealth } from '../pi/health'
 import { piProcessEnv } from '../pi/shell-env'
 import { piStubPath } from '../pi/stub'
+import { ensureDesktopArtifactSkill } from '../pi/session-launch'
 import {
   buildSkillZip,
   confirmSkillImport,
@@ -49,6 +50,11 @@ export function registerSkillsHandlers(): void {
           }
         : {}),
     })
+  })
+
+  handle('skills:restoreBundled', () => {
+    ensureDesktopArtifactSkill(true)
+    invalidatePiCommands()
   })
 
   handle('skills:readFile', (_event, dir, relPath) => readSkillFileEntry(dir, relPath))
