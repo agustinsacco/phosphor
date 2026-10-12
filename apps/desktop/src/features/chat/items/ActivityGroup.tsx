@@ -237,6 +237,7 @@ export const ActivityGroup = memo(function ActivityGroup({
     <div data-testid="activity-group" data-live={activeRun || undefined}>
       <TooltipButton
         data-testid="activity-summary"
+        tooltip={activeRun ? 'Working' : open ? 'Hide activity' : 'Show activity'}
         onClick={() => {
           if (!activeRun) setUserOpen(!open)
         }}
@@ -742,6 +743,7 @@ function SubagentRow({
     <div data-testid="subagent-row" data-status={agent.status}>
       <TooltipButton
         onClick={() => expandable && setOpen((o) => !o)}
+        tooltip={expandable ? (open ? 'Hide agent output' : 'Show agent output') : false}
         aria-expanded={expandable ? open : undefined}
         disabled={!expandable}
         className={clsx(
@@ -860,6 +862,7 @@ function ThoughtRow({
         disabled={!hasText}
         aria-expanded={hasText ? open : undefined}
         data-testid="thought-mark"
+        tooltip={hasText ? (open ? 'Hide thinking' : 'Show thinking') : false}
         className={clsx(
           'group/thought text-text-tertiary relative flex w-full min-w-0 items-center py-1 text-left text-base transition-colors',
           hasText && 'hover:text-text-secondary',

@@ -168,6 +168,14 @@ test('action hints stay quiet and dismiss before menus or dialogs', async () => 
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width - 8)
     expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height - 8)
 
+    // A disabled action still explains itself on hover.
+    const start = page.getByRole('button', { name: 'Start session', exact: true })
+    await expect(start).toBeDisabled()
+    await start.hover()
+    await expect(tooltip).toContainText('Start session')
+    await page.mouse.move(0, 0)
+    await expect(tooltip).toHaveCount(0)
+
     // Clicks must never leave the old hint over a newly opened surface.
     await page.getByRole('button', { name: /^Settings/ }).click()
     await expect(tooltip).toHaveCount(0)

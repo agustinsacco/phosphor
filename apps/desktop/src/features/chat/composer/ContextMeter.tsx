@@ -239,7 +239,10 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
                         settingsUi.setTab('advanced')
                         settingsUi.setOpen(true)
                       }}
-                      title={`No pricing configured for ${model?.name ?? 'this model'} — add cost rates to models.json`}
+                      tooltip={{
+                        label: 'Add model pricing',
+                        description: `No cost rates for ${model?.name ?? 'this model'}`,
+                      }}
                       className="text-warning truncate hover:underline"
                     >
                       no pricing →

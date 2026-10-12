@@ -92,10 +92,14 @@ export function RemoteLaneRow({ lane }: { lane: RemoteLane }): React.JSX.Element
   return (
     <TooltipButton
       data-testid="remote-lane-row"
+      tooltip={
+        down
+          ? { label: lane.title, description: `${name} is down · last reported state` }
+          : lane.title
+      }
       data-machine={lane.machineId}
       data-state={lane.state}
       onClick={() => useMachinesStore.getState().show({ kind: 'lane', id: lane.id })}
-      title={down ? `${name} is down: this is what it last reported` : undefined}
       className={clsx(
         'lane-row group flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors',
         active && viewing ? 'bg-sidebar-active' : 'hover:bg-sidebar-hover',

@@ -282,6 +282,7 @@ export function BulkDeleteProgressPopover(): React.JSX.Element | null {
         <TooltipButton
           type="button"
           data-testid="bulk-delete-toggle"
+          tooltip={expanded ? 'Hide details' : 'Show details'}
           aria-expanded={expanded}
           aria-controls="bulk-delete-details"
           onClick={() => setExpanded((open) => !open)}

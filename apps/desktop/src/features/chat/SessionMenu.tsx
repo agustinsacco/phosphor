@@ -98,7 +98,7 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
           <MenuRow
             active={false}
             onClick={() => void toggleAutoCompaction()}
-            title="Automatically summarize older messages when the context window fills."
+            title="Summarize older messages when context fills"
           >
             <span className="flex-1">Auto-compaction</span>
             <ToggleDot on={meta?.autoCompactionEnabled ?? true} />
@@ -106,7 +106,7 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
           <MenuRow
             active={false}
             onClick={() => void toggleAutoRetry()}
-            title="Retry the turn automatically after a transient provider error"
+            title="Retry after transient provider errors"
           >
             <span className="flex-1">Auto-retry</span>
             <ToggleDot on={autoRetry} />

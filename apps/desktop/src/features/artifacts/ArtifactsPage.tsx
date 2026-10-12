@@ -173,6 +173,7 @@ function ArtifactRow({
 
   return (
     <TooltipButton
+      tooltip={row.title}
       onClick={() => void open()}
       className="hover:bg-bg-secondary flex w-full cursor-pointer items-start gap-2.5 rounded-md px-2 py-1.5 text-left"
     >

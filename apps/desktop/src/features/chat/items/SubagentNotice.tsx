@@ -64,6 +64,7 @@ export function SubagentNoticeItem({
     >
       <TooltipButton
         onClick={() => expandable && setChosen(!open)}
+        tooltip={expandable ? (open ? 'Hide notice' : 'Show notice') : false}
         aria-expanded={expandable ? open : undefined}
         disabled={!expandable}
         className={clsx(

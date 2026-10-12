@@ -1,4 +1,4 @@
-import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
+import { TooltipButton, TooltipLabel, tooltipProps } from '@/components/Tooltip'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import {
@@ -694,11 +694,12 @@ function ConfiguredRow({
           {signInable && (
             <TooltipLabel
               className="hover:text-text flex items-center gap-1.5"
-              data-tooltip={
-                keepAlive
-                  ? 'Connection stays open after the first call of the session, so the row reads Connected once a tool has been used. Until then it stays idle.'
-                  : 'Adapter default: connect per call, then drop. The row stays idle between uses.'
-              }
+              {...tooltipProps({
+                label: 'Keep connected',
+                description: keepAlive
+                  ? 'Stays open after the first tool call'
+                  : 'Connects per call, then drops',
+              })}
             >
               <input
                 type="checkbox"
@@ -827,9 +828,14 @@ function CatalogRow({
           // requires its client id up front. Showing that as a disabled button
           // beats letting `buildConnectorConfig` throw into the error banner.
           disabled={needsClientId && !clientId.trim()}
-          title={
+          tooltip={
             needsClientId && !clientId.trim()
-              ? `${entry.name} has no dynamic registration — paste the client ID of an app you registered.`
+              ? { label: 'Add connector', description: 'Paste a client ID first' }
+              : undefined
+          }
+          aria-description={
+            needsClientId && !clientId.trim()
+              ? `${entry.name} has no dynamic registration. Paste the client ID of an app you registered.`
               : undefined
           }
           onClick={() => onAdd({ variant, readOnly, clientId, clientSecret })}

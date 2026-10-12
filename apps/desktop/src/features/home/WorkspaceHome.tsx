@@ -1,4 +1,4 @@
-import { TooltipSummary, TooltipLabel } from '@/components/Tooltip'
+import { TooltipSummary, TooltipLabel, tooltipProps } from '@/components/Tooltip'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { WorkspaceSessionStats } from '@shared/models'
@@ -373,11 +373,14 @@ function IsolateToggle({
   const trunk = useStartPoint(workspacePath)
   return (
     <TooltipLabel
-      data-tooltip={
+      {...tooltipProps(
         checked
-          ? `This chat gets its own branch, off the latest ${trunk ?? 'main'}, in its own worktree. The branch chip beside this names the folder you are in now, which this chat will NOT run on.`
-          : 'This chat runs in the folder that is already open, on its current branch.'
-      }
+          ? {
+              label: `New worktree off ${trunk ?? 'main'}`,
+              description: 'Not the folder shown beside it',
+            }
+          : { label: 'Run in the open folder', description: 'On its current branch' },
+      )}
       className={clsx(
         'flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-1 transition-colors',
         disabled ? 'opacity-50' : 'hover:bg-bg-secondary',

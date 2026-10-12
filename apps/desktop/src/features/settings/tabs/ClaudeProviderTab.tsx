@@ -564,6 +564,7 @@ function AccountRow({
         <TooltipButton
           type="button"
           onClick={onToggle}
+          tooltip={expanded ? 'Hide account details' : 'Show account details'}
           aria-expanded={expanded}
           className="min-w-0 flex-1 text-left"
         >

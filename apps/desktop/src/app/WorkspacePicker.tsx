@@ -61,6 +61,7 @@ export function WorkspacePicker({ piVersion }: { piVersion?: string }): React.JS
               {recents.slice(0, 6).map((ws) => (
                 <TooltipButton
                   key={ws.path}
+                  tooltip={ws.path}
                   onClick={() => openWorkspace(ws.path)}
                   className="hover:bg-bg-secondary border-border flex w-full items-center gap-3 border-b px-4 py-3 text-left transition-colors last:border-b-0"
                 >

@@ -51,7 +51,7 @@ export function RunOnPicker(): React.JSX.Element {
               active={false}
               disabled
               onClick={() => undefined}
-              title="Preview: starting a lane on a Host needs Phosphor to reach it (component 21)"
+              title="Remote runs are not available in the preview"
             >
               <MachineDot up={machine.up} />
               <span className="min-w-0 flex-1 truncate text-lg">{machine.name}</span>

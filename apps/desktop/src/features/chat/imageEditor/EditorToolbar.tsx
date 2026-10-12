@@ -201,7 +201,7 @@ export function EditorToolbar(props: {
       <div className="ml-auto flex items-center gap-1">
         <TooltipButton
           type="button"
-          title={`Put the clipboard's image on top (${formatShortcut('mod', 'V')})`}
+          tooltip={{ label: 'Paste image on top', shortcut: ['mod', 'V'] }}
           onClick={props.onPaste}
           className={TEXT_BUTTON}
         >
@@ -209,7 +209,7 @@ export function EditorToolbar(props: {
         </TooltipButton>
         <TooltipButton
           type="button"
-          title={`Swap the screenshot underneath for the clipboard's image (${formatShortcut('mod', 'shift', 'V')})`}
+          tooltip={{ label: 'Replace the screenshot', shortcut: ['mod', 'shift', 'V'] }}
           onClick={props.onReplace}
           className={TEXT_BUTTON}
         >

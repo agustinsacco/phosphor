@@ -72,6 +72,7 @@ export function ArtifactDetail({
 
   return (
     <TooltipButton
+      tooltip="Open artifact"
       onClick={open}
       className="hover:bg-bg-secondary/60 flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors"
     >

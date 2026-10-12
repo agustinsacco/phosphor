@@ -217,6 +217,7 @@ export function GenericDetail({ tool }: { tool: ToolState }): React.JSX.Element 
       <div data-find-skip className="border-border border-b px-3 py-2">
         <TooltipButton
           onClick={() => setArgsExpanded((e) => !e)}
+          tooltip={argsExpanded ? 'Hide arguments' : 'Show arguments'}
           className="text-text-tertiary hover:text-text flex items-center gap-1 text-sm transition-colors"
         >
           <ChevronIcon expanded={argsExpanded} className="text-text-tertiary" />

@@ -159,6 +159,7 @@ function TaskSection({
       <TooltipButton
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
+        tooltip={`${open ? 'Hide' : 'Show'} ${title.toLowerCase()}`}
         className="text-text-tertiary hover:text-text flex items-center gap-1 text-sm transition-colors"
       >
         <ChevronIcon expanded={open} className="text-text-tertiary" />
@@ -286,7 +287,7 @@ function ChildCard({
           </summary>
           <ul className="font-mono text-xs">
             {child.recentTools.map((line, i) => (
-              <li key={i} className="truncate" title={line}>
+              <li key={i} className="truncate" data-tooltip={line}>
                 {line}
               </li>
             ))}

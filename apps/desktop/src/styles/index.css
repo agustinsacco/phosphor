@@ -13,6 +13,9 @@
   border-radius: var(--px-radius-sm);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
   overflow-wrap: anywhere;
+  /* Multi-line hints (command provenance, PR state) keep their line breaks. */
+  white-space: pre-line;
+  pointer-events: auto;
   -webkit-app-region: no-drag;
 }
 

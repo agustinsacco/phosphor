@@ -422,6 +422,7 @@ function RawErrorDetails({ raw, parsed }: { raw: string; parsed: ParsedError }):
     <div className="mt-1.5">
       <TooltipButton
         onClick={() => setOpen((wasOpen) => !wasOpen)}
+        tooltip={open ? 'Hide provider response' : 'Show provider response'}
         aria-expanded={open}
         className="text-text-tertiary hover:text-text-secondary text-sm transition-colors"
       >

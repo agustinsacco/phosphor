@@ -84,6 +84,7 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
           {candidates?.map((candidate, index) => (
             <TooltipButton
               key={candidate.entryId}
+              tooltip="Rewind to this message"
               disabled={busy}
               onClick={() => void fork(candidate)}
               className="hover:bg-bg-secondary flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors disabled:opacity-50"

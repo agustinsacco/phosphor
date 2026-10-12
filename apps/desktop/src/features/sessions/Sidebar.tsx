@@ -1366,6 +1366,7 @@ function WorkspaceSwitcher(): React.JSX.Element {
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         data-testid="workspace-switcher"
+        tooltip="Switch workspace"
         className="hover:bg-sidebar-hover flex w-full items-center gap-2 rounded-md px-2 py-1 transition-colors"
       >
         <span className="bg-accent-soft text-accent flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-base font-bold uppercase">
@@ -1763,7 +1764,7 @@ function SessionRow({
           {isSuspended && (
             <span
               className="bg-chip text-text-secondary mr-0.5 shrink-0 rounded px-1 font-medium"
-              data-tooltip="Process released to save memory. Opening this session resumes it from disk."
+              data-tooltip="Suspended to save memory · opening resumes it"
             >
               suspended
             </span>

@@ -1,4 +1,14 @@
-import { Children, Fragment, isValidElement, useEffect, useId, useRef, useState } from 'react'
+import {
+  Children,
+  Fragment,
+  isValidElement,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom'
 import { formatShortcut } from '@/lib/shortcuts'
@@ -6,6 +16,9 @@ import { useEscapeKey } from './Modal'
 
 export const TOOLTIP_DELAY = 650
 const CLOSE_GRACE = 100
+/** A label derived from visible content is capped; the content itself stays visible. */
+const DERIVED_LABEL_MAX = 80
+const MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta', 'CapsLock'])
 
 export type ActionHint =
   | string
@@ -64,18 +77,36 @@ export function TooltipButton({
   ...props
 }: React.ComponentPropsWithRef<'button'> & { tooltip?: ActionHint | false }): React.JSX.Element {
   const text = actionLabel(children)
-  const name =
-    props['aria-label'] ||
-    text ||
-    title ||
-    (typeof tooltip === 'string' ? tooltip : tooltip && tooltip.label) ||
-    undefined
-  const hint = tooltip === false ? undefined : (tooltip ?? title ?? name)
+  const shortText =
+    text.length > DERIVED_LABEL_MAX ? `${text.slice(0, DERIVED_LABEL_MAX - 1).trimEnd()}…` : text
+  const explicit = typeof tooltip === 'string' ? tooltip : tooltip ? tooltip.label : undefined
+  const name = props['aria-label'] || text || title || explicit || undefined
+  const hint =
+    tooltip === false ? undefined : (tooltip ?? title ?? (props['aria-label'] || shortText))
+  // Native `title` used to name icon-only buttons. Mirror that fallback from
+  // what actually rendered, so a custom child component's text keeps winning.
+  const fallbackName = props['aria-label'] ? undefined : (title ?? explicit)
+  const own = useRef<HTMLButtonElement | null>(null)
+  const forwarded = props.ref
+  const ref = useCallback(
+    (node: HTMLButtonElement | null) => {
+      own.current = node
+      if (typeof forwarded === 'function') forwarded(node)
+      else if (forwarded) forwarded.current = node
+    },
+    [forwarded],
+  )
+  useLayoutEffect(() => {
+    const node = own.current
+    if (!node || props['aria-label'] !== undefined) return
+    if (fallbackName && !node.textContent?.trim()) node.setAttribute('aria-label', fallbackName)
+    else node.removeAttribute('aria-label')
+  })
   return (
     <button
       {...tooltipProps(hint)}
       {...props}
-      aria-label={props['aria-label'] ?? (!text ? name : undefined)}
+      ref={ref}
       aria-description={
         props['aria-description'] ??
         (typeof hint === 'object' ? hint.description : undefined) ??
@@ -236,11 +267,25 @@ export function TooltipProvider({ children }: { children: React.ReactNode }): Re
       close()
     }
     const key = (event: KeyboardEvent): void => {
-      if (event.key === 'Tab') keyboard = true
+      // Only Tab navigation earns instant focus hints. Typing, then having the
+      // app move focus programmatically, must not pop a hint.
+      if (!MODIFIER_KEYS.has(event.key)) keyboard = event.key === 'Tab'
       // Leave a visible hint registered until the shared Escape dispatcher
       // consumes the event. Native discrete events can flush React between
       // listeners; closing here would expose the underlying modal to that Esc.
       if (event.key !== 'Escape' || !shown) close()
+    }
+    // Only a scroll that moves the target counts. Streaming autoscroll in the
+    // transcript must not keep cancelling a hint on the composer's buttons.
+    const scroll = (event: Event): void => {
+      const scroller = event.target
+      if (
+        target &&
+        // A window or document scroll moves everything; an element scroll
+        // matters only when it contains the target.
+        (!(scroller instanceof Node) || scroller instanceof Document || scroller.contains(target))
+      )
+        close()
     }
     const windowBlur = (): void => {
       windowActive = false
@@ -260,7 +305,7 @@ export function TooltipProvider({ children }: { children: React.ReactNode }): Re
     window.addEventListener('pointerdown', down, true)
     window.addEventListener('click', close, true)
     window.addEventListener('keydown', key, true)
-    window.addEventListener('scroll', close, true)
+    window.addEventListener('scroll', scroll, true)
     window.addEventListener('blur', windowBlur)
     window.addEventListener('focus', windowFocus)
     document.addEventListener('visibilitychange', visibility)
@@ -273,7 +318,7 @@ export function TooltipProvider({ children }: { children: React.ReactNode }): Re
       window.removeEventListener('pointerdown', down, true)
       window.removeEventListener('click', close, true)
       window.removeEventListener('keydown', key, true)
-      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('scroll', scroll, true)
       window.removeEventListener('blur', windowBlur)
       window.removeEventListener('focus', windowFocus)
       document.removeEventListener('visibilitychange', visibility)

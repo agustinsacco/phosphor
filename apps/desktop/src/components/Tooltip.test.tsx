@@ -296,6 +296,63 @@ describe('quiet tooltips', () => {
     expect(buttons()[1]!.title).toBe('Third-party hint')
   })
 
+  it('ignores unrelated scrolling, such as transcript autoscroll while streaming', async () => {
+    render(
+      <>
+        <div data-testid="transcript" />
+        <TooltipButton>Stop</TooltipButton>
+      </>,
+    )
+    pointer(buttons()[0]!)
+    await advance(300)
+    act(() =>
+      document.querySelector('[data-testid="transcript"]')!.dispatchEvent(new Event('scroll')),
+    )
+    await advance(350)
+    expect(hint()?.textContent).toBe('Stop')
+    act(() => document.dispatchEvent(new Event('scroll')))
+    expect(hint()).toBeNull()
+  })
+
+  it('does not pop a hint when typing is followed by programmatic focus', () => {
+    render(<TooltipButton>Save</TooltipButton>)
+    key('Tab')
+    key('a')
+    act(() => buttons()[0]!.focus())
+    expect(hint()).toBeNull()
+  })
+
+  it('caps labels derived from long visible content, never explicit ones', async () => {
+    const long = 'word '.repeat(40).trim()
+    render(
+      <>
+        <TooltipButton>{long}</TooltipButton>
+        <TooltipButton tooltip={long}>x</TooltipButton>
+      </>,
+    )
+    expect(buttons()[0]!.dataset.tooltip!.length).toBe(80)
+    expect(buttons()[0]!.dataset.tooltip!.endsWith('…')).toBe(true)
+    expect(buttons()[1]!.dataset.tooltip).toBe(long)
+  })
+
+  it('names a button from its title only when nothing visible names it', () => {
+    function Glyph(): React.JSX.Element {
+      return <span>Visible</span>
+    }
+    render(
+      <>
+        <TooltipButton title="Close pane">
+          <svg />
+        </TooltipButton>
+        <TooltipButton title="Hint">
+          <Glyph />
+        </TooltipButton>
+      </>,
+    )
+    expect(buttons()[0]!.getAttribute('aria-label')).toBe('Close pane')
+    expect(buttons()[1]!.getAttribute('aria-label')).toBeNull()
+  })
+
   it('gives icon-only structured hints an accessible name', () => {
     render(
       <TooltipButton tooltip={{ label: 'Close pane' }}>
