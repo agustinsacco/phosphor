@@ -1,0 +1,191 @@
+---
+import Guide from '../../layouts/Guide.astro'
+import Command from '../../components/Command.astro'
+import { doc, repo } from '../../lib/content'
+const sections: [string, string][] = [
+  ['two-levels', 'Lanes and subagents'],
+  ['enable', 'Enable Swarm'],
+  ['team', 'Choose your team'],
+  ['review', 'Inspect and review'],
+  ['case-study', 'Remote Hosts case study'],
+  ['boundaries', 'Limits and permissions'],
+]
+---
+
+<Guide
+  title="Multi-agent work & Swarm"
+  description="One lane owns the mission. Subagents handle bounded pieces. You stay close to the decisions, the evidence, and the final diff."
+  sections={sections}
+  eyebrow="Workflow / from mission to reviewed change"
+>
+  <section id="two-levels">
+    <h2>Two levels of parallel work</h2>
+    <p>
+      <strong>Several lanes:</strong> separate tasks, each with its own parent agent and, by default in
+      a Git repo, an isolated worktree. The home board helps you find what needs attention.
+    </p>
+    <p>
+      <strong>Several subagents inside a lane:</strong> the parent delegates focused work through the
+      optional pi-subagents package, answers scope questions and integrates results. A child is not another
+      top-level lane. Child isolation and workflow policy belong to pi-subagents, not a second Phosphor
+      scheduler.
+    </p>
+  </section>
+  <section id="enable">
+    <h2>Authorize proactive delegation</h2>
+    <p>
+      Use a Phosphor build that includes the Swarm switch. Updating the app does not retrofit its
+      command into an already-running Pi process.
+    </p>
+    <ol>
+      <li>
+        Install <code>pi-subagents</code> from Settings → Extensions if it is not already available. Start
+        a new lane or reload/restart Pi in an existing one.
+      </li>
+      <li>
+        Open the lane’s composer and turn on <strong>Swarm</strong>. The highlighted switch, amber
+        outline and title badge reflect Pi’s acknowledgement, not just a local preference.
+      </li>
+      <li>
+        Give the parent a goal, ownership boundaries, acceptance criteria and a verification plan.
+        Swarm authorizes delegation when useful; it does not immediately launch a team.
+      </li>
+    </ol>
+    <Command cmd="/phosphor-swarm on" label="Enable Swarm for this lane" />
+    <p>
+      This slash command is an alternative to the switch, not a shell command. If it is missing, the
+      lane’s Pi process needs a reload/restart. Activation is unavailable when the pi-subagents tool
+      surface is missing or excluded.
+    </p>
+    <p>
+      A change during a run stays pending until a safe turn boundary. Swarm survives resume and
+      compaction on that session branch. Forks, clones and Rewind start off under their new session
+      identity.
+    </p>
+    <h3>Off is not Stop</h3>
+    <p>
+      Turning Swarm off removes its standing authorization from future requests. It does not cancel
+      existing children, erase past messages, remove already-loaded tools or undo token spend.
+      Explicitly requested delegation and project-authorized delegation still follow normal rules.
+      Use the existing Stop controls when you want execution to stop.
+    </p>
+  </section>
+  <section id="team">
+    <h2>Choose models for the job</h2>
+    <p>
+      For example, use <strong>Astra</strong> to explore the architecture, <strong>Opus 5.5</strong> to
+      orchestrate and integrate, and <strong>Sol 6.1</strong> for scoped implementation and separate reviewer
+      runs. These are example assignments, not automatic routing, default presets or a claim that one
+      model is always best.
+    </p>
+    <p>
+      The parent model is selected in Phosphor. Child models and thinking levels are selected
+      through pi-subagents’ run options or configured role policies. Do not assume a child inherits
+      the parent’s live thinking level. Only ask for models available in your pi configuration.
+    </p>
+    <p>
+      Claude Pro/Max can supply Opus through <code>pi-claude-cli</code> and the Claude Code CLI. Pi still
+      owns the tools and agent loop; Phosphor is not a separate Claude model client. <a
+        href="/guides/accounts/">Set up providers and subscriptions</a
+      >.
+    </p>
+    <h3>A mission brief you can adapt</h3>
+    <pre
+      class="command"><code>Build the machine-enrollment feature.
+
+Plan the boundaries first. Use Astra for architecture exploration,
+Opus 5.5 for orchestration, and Sol 6.1 for implementation and
+independent review if those models are configured. Ask before substituting.
+
+Split independent work into enrollment API, Host lifecycle,
+Desktop status, and docs. Give each worker owned files and
+acceptance criteria. Require approval for shared-file changes.
+
+Preserve work and decisions if a worker fails. Review each result
+independently, integrate accepted changes, then validate the whole.
+Do not deploy or merge without my approval.</code></pre>
+    <p>
+      This is a prompt example, not an installer or a built-in workflow. The parent chooses concrete
+      tool calls under the available extension’s contract.
+    </p>
+  </section>
+  <section id="review">
+    <h2>Inspect work, not just activity</h2>
+    <ul>
+      <li>
+        The current-work summary separates parent activity from reported foreground and background
+        work. Task links open the corresponding inspection, even when another pane was open.
+      </li>
+      <li>
+        The Subagents pane keeps navigation separate from scrolling activity. Dock, resize or
+        fullscreen it without making a new runner.
+      </li>
+      <li>
+        Missing status is <strong>unavailable</strong>, not proof of completion. A long-running tool
+        is not automatically stalled. Attention signals are addressed to the parent.
+      </li>
+      <li>
+        A completed execution is not independent acceptance, and accepted pieces are not proof that
+        the integrated change passes. Keep those checkpoints separate.
+      </li>
+      <li>
+        Save a bounded inspection snapshot when you want to retain that evidence in Artifacts.
+        Review the final diff and the project’s checks before approving a merge.
+      </li>
+    </ul>
+    <p><a href={doc('chat.md#sub-agents')}>Inspection, steering, Stop and snapshot contract</a></p>
+  </section>
+  <section id="case-study">
+    <h2>Real example: Phosphor Remote Hosts</h2>
+    <p>
+      The homepage uses selected records from Phosphor’s own Remote Hosts lane. Astra and Opus 5.5
+      appear in the parent’s recorded model metadata at different stages; Sol 6.1 was assigned to
+      workers and independent reviewers. This was explicit delegation before the Swarm switch
+      existed, not a demonstration of that switch running.
+    </p>
+    <p>
+      In one recorded phase, the parent coordinated four pieces: enrollment API, Host lifecycle,
+      Desktop live status and documentation. A worker requested an exception to its owned files for
+      shared shutdown behavior. The parent approved a minimal hook with unchanged defaults and
+      tests. Another worker lost its connection; a replacement resumed retained work with the prior
+      decisions in its brief.
+    </p>
+    <p>
+      The public implementation trail includes <a href={`${repo}/pull/427`}>the control schema</a>, <a
+        href={`${repo}/pull/428`}>Linux credential storage</a
+      >, <a href={`${repo}/pull/429`}>Desktop machine approval</a>, <a href={`${repo}/pull/430`}
+        >the combined site/API server</a
+      >, and <a href={`${repo}/pull/435`}>Host identity</a>. These are evidence of individual
+      changes, not a claim that every Remote Hosts capability is complete or deployed.
+    </p>
+    <h3>What the image represents</h3>
+    <p>
+      It is a <strong>curated replay in the actual renderer</strong>, not an untouched live
+      screenshot. The excerpt is shortened, section headings are editorial, task labels are
+      expanded, and identifiers, local paths, unrelated projects and deployment details are omitted.
+      The four workstreams’ historical activity comes from the parent’s recorded report. No timing,
+      token savings or speedup benchmark is claimed. No private transcript is distributed.
+    </p>
+  </section>
+  <section id="boundaries">
+    <h2>Power without hidden promises</h2>
+    <p>
+      Worktrees separate changes, not permissions. Agent tools run with your access unless you
+      install a permission gate. More agents can consume more tokens, memory and provider quota.
+      Swarm adds no hard spawn budget, cloud runner, automatic model assignment or automatic
+      approval to deploy or merge.
+    </p>
+    <p>
+      Remote-access development is separate from local delegation. Check the <a
+        href={doc('remote-access.md')}>current remote-access contract</a
+      > before treating a planned capability as available.
+    </p>
+    <p>
+      The exact Swarm state, branch and timing rules live in <a
+        href={doc('chat.md#swarm-authorization')}>Swarm authorization</a
+      >. For installation, see <a href="/guides/extensions/#subagents"
+        >the subagents package guide</a
+      >.
+    </p>
+  </section>
+</Guide>

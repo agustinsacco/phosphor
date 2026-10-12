@@ -1,7 +1,7 @@
 # phosphor.saccolabs.com
 
 The production site is Astro 7 and Tailwind 4, with static HTML and **no shipped
-JavaScript**. One deployment serves the landing and four user guides.
+JavaScript**. One deployment serves the landing and six user guides.
 
 ## Run and check
 
@@ -23,7 +23,7 @@ and remain uncached. The [installation contract](../../docs/installations.md)
 explains why the root source-library workspaces do not include the site or alter
 its independently resolved toolchain and Docker context.
 
-Playwright serves the production build on `127.0.0.1:4322`. It checks all five
+Playwright serves the production build on `127.0.0.1:4322`. It checks all seven
 pages on desktop, mobile, JavaScript-disabled desktop/mobile, and reduced
 motion. Tests cover internal page/fragment destinations, linked capture assets,
 images, canonical metadata, native layout controls, keyboard access, enlarged
@@ -61,9 +61,12 @@ npm run format --prefix apps/site
 
 ## Narrative and routes
 
-- `/`: parallel work, inspectable edits and artifacts, provider choice, optional
-  pi packages, and a visible eight-service connector catalog. Four numbered
-  benefits, then a getting-started handoff.
+- `/`: “One mission. Many agents. Your IDE.” A real Remote Hosts development
+  story leads into scoped delegation, independent review, recovery, optional Swarm
+  authorization, parallel lanes, inspectable edits and artifacts, provider choice,
+  pi packages and an eight-service connector catalog.
+- `/guides/swarm/`: lanes versus subagents, enabling/reversing Swarm, model-role
+  examples, review checkpoints, the Remote Hosts case study and capture provenance.
 - `/guides/`: installation, sign-in choices, a first verifiable task, permissions,
   and troubleshooting.
 - `/guides/daily-work/`: lanes and the home board, worktrees, the composer,
@@ -87,17 +90,33 @@ and `docs/mcp.md` are the relevant contracts.
 
 ## Captures and privacy
 
-The landing opens with one lane running four sub-agents at once. That capture
-is a **scripted demo**, labelled “Demo session · scripted agents” on the page:
-the deterministic `npm run shots` runner drives the built app against the e2e
-pi stub, which holds a `parallel` sub-agent call mid-run. No model, key or
-network is involved. To regenerate it:
+The landing and root README open with **Recorded work · curated replay** from
+Phosphor's Remote Hosts lane. It is not an untouched live screenshot. The reviewed
+allowlist in `scripts/fixtures/remote-hosts.json` holds shortened parent excerpts,
+expanded task labels and an editorial task summary from the recorded four-worker
+phase. Section headings are editorial. Parent guidance stays attributed to the parent,
+not passed off as a child's answer. The reported activity is historical. The
+lane predates the Swarm switch; the screenshot does not claim that mode was on.
+Astra and Opus 5.5 were observed in parent metadata at different stages; Sol 6.1
+was assigned to workers/reviewers. The site's three-role arrangement is explicitly
+an example, not automatic routing or a performance comparison.
+
+`remote-hosts-shot.mjs` drives the actual renderer in a fresh browser profile.
+It reads only the checked-in, public-safe fixture, blocks external requests,
+uses no live sessions or credentials, checks for private identifiers before capture,
+and re-encodes without image metadata. Private transcript paths, unrelated projects,
+run identifiers and deployment details are not published. To regenerate:
 
 ```bash
-npm run build
-OUT_DIR=apps/site/shots-raw MAX_WIDTH=0 ONLY=subagents npm run shots
-npm run shots --prefix apps/site
+npm run dev:web -- --host 127.0.0.1 --port 5199
+# In another terminal, after installing the site's dependencies:
+node apps/site/scripts/remote-hosts-shot.mjs
 ```
+
+Review pixels and the fixture before publication. No CSS blur hides an unredacted
+original. No speedup, token savings, task acceptance or complete remote-execution
+product is inferred from the image. The public PR trail is linked in the case study.
+The older `subagents.webp` scripted capture is not the homepage's current hero.
 
 After it come the lane dashboard, a chat-focused session, and an IDE-style
 editor-and-agent view to show the layout flexibility. Those three are real

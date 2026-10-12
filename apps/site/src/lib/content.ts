@@ -10,7 +10,7 @@ import filesFull from '../assets/shots/files-full.webp'
 import models from '../assets/shots/models.webp'
 import modelsPicker from '../assets/shots/models-picker.webp'
 import contextMeter from '../assets/shots/context-meter.webp'
-import subagents from '../assets/shots/subagents.webp'
+import remoteHosts from '../assets/shots/remote-hosts.webp'
 import guideClaude from '../assets/shots/guide-claude.webp'
 import guideRouting from '../assets/shots/guide-routing.webp'
 import guideExtensions from '../assets/shots/guide-extensions.webp'
@@ -34,7 +34,7 @@ const captures: Record<string, ImageMetadata> = {
   models,
   'models-picker': modelsPicker,
   'context-meter': contextMeter,
-  subagents,
+  'remote-hosts': remoteHosts,
   'files-left': filesLeft,
   'files-full': filesFull,
   'guide-claude': guideClaude,
@@ -171,6 +171,11 @@ export const guides = [
     href: '/guides/daily-work/',
     title: 'Daily work',
     blurb: 'Lanes, review and merge, panes, artifacts, routines, and skills.',
+  },
+  {
+    href: '/guides/swarm/',
+    title: 'Multi-agent work & Swarm',
+    blurb: 'Scope a mission, choose a team, inspect the work and review the result.',
   },
   {
     href: '/guides/accounts/',

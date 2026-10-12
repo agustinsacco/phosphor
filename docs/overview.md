@@ -1,6 +1,6 @@
 # Phosphor — Product Overview
 
-Phosphor is a desktop coding-agent app powered entirely by the **pi coding
+Phosphor is an open-source multi-agent IDE powered by the **pi coding
 agent** (`@earendil-works/pi-coding-agent`). It took its interaction vocabulary
 from Claude Desktop's "Code" experience; the visual identity has since diverged
 on purpose ([style-guide.md](style-guide.md)).
@@ -18,7 +18,15 @@ chats in flight, each on its own branch, and the product's job is to make that
 legible. So the home screen is a lane board: every lane of the project in a
 column named for what it needs from you, next to a ledger of what running them
 all costs. Each session is still independent. There is no cross-session
-manager, no orchestration agent, and the board spends nothing to render.
+manager or cross-session orchestration service, and the board spends nothing to render.
+
+**Within a lane, a parent can coordinate subagents.** The optional pi-subagents
+package owns execution and child isolation. Phosphor supplies the inspection,
+current-work summary and review surfaces. The per-lane **Swarm** switch grants
+standing authorization for proactive delegation; it is not a runner or an
+automatic model-routing policy. Off is not Stop, and a completed run is not
+review acceptance. [Swarm contract](chat.md#swarm-authorization) ·
+[User workflow and real case study](https://phosphor.saccolabs.com/guides/swarm/).
 
 ## Non-negotiables
 

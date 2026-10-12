@@ -6,8 +6,8 @@ interface Props {
   description?: string
 }
 const {
-  title = 'Phosphor | An IDE built around the agent.',
-  description = 'Open-source agentic IDE built on pi, a deliberately small coding agent harness. Run agents in parallel, each on its own Git worktree, review every diff, and use the models you already pay for.',
+  title = 'Phosphor | One mission. Many agents. Your IDE.',
+  description = 'The open-source multi-agent IDE built on pi. Work in parallel lanes, delegate bounded tasks, inspect every decision and diff, and use the models you already pay for.',
 } = Astro.props
 const canonical = new URL(Astro.url.pathname, Astro.site)
 ---
@@ -31,7 +31,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
     <meta property="og:image:height" content="630" />
     <meta
       property="og:image:alt"
-      content="Phosphor. An IDE built around the agent. Open-source agentic IDE built on the pi coding agent."
+      content="Phosphor. One mission. Many agents. Your IDE. The open-source multi-agent IDE built on pi."
     />
     <meta name="twitter:card" content="summary_large_image" />
     <title>{title}</title>
@@ -44,7 +44,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site)
           ><img src="/favicon.svg" width="36" height="36" alt="" /><span>Phosphor</span></a
         >
         <nav aria-label="Main navigation">
-          <a href="/guides/">Guides</a><a href="/#work">How it works</a><a href="/#extensions"
+          <a href="/guides/">Guides</a><a href="/#swarm">Swarm</a><a href="/#extensions"
             >Extensions</a
           ><a href="/#faq">FAQ</a>
         </nav>

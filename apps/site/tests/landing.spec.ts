@@ -4,6 +4,7 @@ const routes = [
   '/',
   '/guides/',
   '/guides/daily-work/',
+  '/guides/swarm/',
   '/guides/accounts/',
   '/guides/extensions/',
   '/guides/connectors/',
@@ -111,9 +112,9 @@ test('landing leads with sub-agents, then lanes, chat and the IDE layout without
 }) => {
   await page.goto('/')
   const captures = page.locator('main .capture:visible')
-  // The hero is a scripted stub run and must say so; the rest are real.
+  // The hero is a curated replay of recorded work, never labelled an untouched capture.
   const expected = [
-    ['subagents', 'Demo session · scripted agents'],
+    ['remote-hosts', 'Recorded work · curated replay'],
     ['home', 'Real session'],
     ['chat', 'Real session'],
     ['ide-flex', 'Real session'],
@@ -152,7 +153,7 @@ test('landing states the problem, answers questions, and ends on the install com
   // One filled button in the hero; it lands on the commands at the bottom.
   await expect(page.locator('.hero .action-primary')).toHaveCount(1)
   await expect(page.locator('.hero .action-primary')).toHaveAttribute('href', '#install')
-  await expect(page.locator('#why h2')).toContainText('Five is a mess.')
+  await expect(page.locator('#why h2')).toContainText('A clear next move.')
   const faq = page.locator('#faq details')
   await expect(faq).toHaveCount(9)
   await expect(faq.first().locator('p')).toBeHidden()
@@ -191,7 +192,7 @@ test('header links go to the repo and straight to the latest release', async ({ 
 
 test('actual layouts use native controls and keyboard navigation', async ({ page }) => {
   await page.goto('/')
-  await expect(page.locator('h1')).toHaveText('An IDE built around the agent.')
+  await expect(page.locator('h1')).toHaveText(/One mission\.\s*Many agents\.\s*Your IDE\./)
   await expect(page.locator('.package-card')).toHaveCount(5)
   await expect(page.locator('.connector-grid > a')).toHaveCount(8)
   await page.locator('#surface summary').click()
@@ -233,6 +234,27 @@ test('guide handoffs, privacy labels, skip link, and reduced motion', async ({ p
     .click()
   await expect(page.locator('#slack')).toContainText('PKCE')
   await expect(page.locator('#adapter')).toContainText('pi install npm:pi-mcp-adapter')
+})
+
+test('swarm story distinguishes evidence, example roles and authorization', async ({ page }) => {
+  await page.goto('/')
+  await expect(page.locator('#swarm .mission-tracks article')).toHaveCount(4)
+  for (const model of ['Astra', 'Opus 5.5', 'Sol 6.1'])
+    await expect(page.locator('.model-team')).toContainText(model)
+  await expect(page.locator('#swarm')).toContainText(
+    'Example roles, not built-in presets or a benchmark',
+  )
+  await expect(page.locator('#swarm')).toContainText('This lane predates the Swarm switch')
+  await expect(page.locator('#swarm')).toContainText(
+    'not a claim that remote execution is available',
+  )
+  await page.getByRole('link', { name: 'Work with a swarm' }).click()
+  await expect(page.locator('#enable')).toContainText('Off is not Stop')
+  await expect(page.locator('#enable')).toContainText('does not cancel existing children')
+  await expect(page.locator('#team')).toContainText('not automatic routing')
+  await expect(page.locator('#case-study')).toContainText('section headings are editorial')
+  await expect(page.locator('#boundaries')).toContainText('no hard spawn budget')
+  await expect(page.locator('script, astro-island')).toHaveCount(0)
 })
 
 test('all pages support narrow screens and enlarged text', async ({ page }) => {
