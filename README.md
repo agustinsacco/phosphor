@@ -333,16 +333,17 @@ explicit current-path ownership graph; `npx nx show project tooling --json`
 shows effective targets. `npm run nx:test -- --configuration=inventory` lists
 the same full unit suites without running them.
 
-| Project         | Current paths / ownership                                           |
-| --------------- | ------------------------------------------------------------------- |
-| `desktop`       | `apps/desktop/`, plus screenshot assets at `docs/img/`              |
-| `host`          | `apps/host/`, the plain-Node Host CLI ([host.md](docs/host.md))     |
-| `runtime`       | `libs/session-runtime/src/`, including plain-Node and fake-pi tests |
-| `shared`        | `libs/shared/`                                                      |
-| `pi-extensions` | `libs/pi-extensions/pi-ext/`, including optional extension tests    |
-| `site`          | `apps/site/`, with its independent install and lockfile             |
-| `schema`        | `supabase/`, with explicit start/test/stop lifecycle                |
-| `tooling`       | `tools/scripts/`, including workspace-wide checks                   |
+| Project         | Current paths / ownership                                                             |
+| --------------- | ------------------------------------------------------------------------------------- |
+| `desktop`       | `apps/desktop/`, plus screenshot assets at `docs/img/`                                |
+| `control`       | `apps/control/`, the site and control API ([control-plane.md](docs/control-plane.md)) |
+| `host`          | `apps/host/`, the plain-Node Host CLI ([host.md](docs/host.md))                       |
+| `runtime`       | `libs/session-runtime/src/`, including plain-Node and fake-pi tests                   |
+| `shared`        | `libs/shared/`                                                                        |
+| `pi-extensions` | `libs/pi-extensions/pi-ext/`, including optional extension tests                      |
+| `site`          | `apps/site/`, with its independent install and lockfile                               |
+| `schema`        | `supabase/`, with explicit start/test/stop lifecycle                                  |
+| `tooling`       | `tools/scripts/`, including workspace-wide checks                                     |
 
 Every target remains uncached, with conservative whole-workspace inputs,
 including nested projects. Nx runs at most three tasks by default and bounds
@@ -368,7 +369,7 @@ acyclic. `tools/scripts/nx-projects.test.ts` checks the effective graph and targ
 including missing-edge/target fixtures. App-relative `out/`, packaging metadata and resource destinations are unchanged.
 Root npm aliases delegate to Desktop; the app owns its Electron postinstall.
 The root npm workspaces contain only `libs/shared`, `libs/session-runtime` and
-`libs/pi-extensions`. Desktop and the site retain independent locks and real
+`libs/pi-extensions`. Desktop, Control and the site retain independent locks and real
 installation directories. The [installation contract](docs/installations.md)
 defines the supported scoped source-production recipe, script suppression,
 source bundling and native ABI separation. This is not universal single-lock
@@ -495,6 +496,7 @@ libs/pi-extensions/pi-ext/  the six pi extensions that run inside pi's process,
                      bundled into every session: artifacts, context-breakdown,
                      headroom, mcp-status, tool-name-guard, worktree-paths
 apps/desktop/e2e/                 Playwright-Electron smoke tests + deterministic pi stub
+apps/control/        plain-Node site and control API server (docs/control-plane.md)
 apps/host/           the plain-Node Host and its `phosphor` CLI (src/, and
                      scripts/build.mjs for the bundle): its config, pi's
                      environment, the machine checks and the session runtime

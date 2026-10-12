@@ -19,6 +19,9 @@ files it consumes. That is what makes affected mean something per app:
 - `host`: libraries, plus the root install for `typecheck` and `build` and the
   unit runner for `test`. Its build declares `apps/host/dist`. Only `tooling` depends on it, so a Host-only change selects
   `host` and `tooling` and never the Desktop release.
+- `control`: shared contract sources, root install for typecheck/build and the
+  unit runner for tests. Its build declares `apps/control/dist`. Only tooling
+  depends on it. A control-only edit selects control and tooling.
 - `site`: `apps/site` only, since its image is built from that directory alone.
   Its build adds `deploy`, which must equal `deploy-site.yml`'s path filter
   (tested). Screenshots are captured by hand from Desktop and committed, so a

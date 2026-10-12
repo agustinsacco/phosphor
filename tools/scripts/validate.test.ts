@@ -35,11 +35,13 @@ it.each([
     const expected = [
       'run typecheck',
       'run typecheck:host',
+      'run typecheck:control',
       'run lint',
       'prettier --check .',
       'test',
       'run build',
       'run build:host',
+      'run build:control',
     ]
     if (skip !== '1') expected.push('run test:e2e -- --reporter=dot')
     expect(readFileSync(calls, 'utf8').trim().split('\n')).toEqual(expected)

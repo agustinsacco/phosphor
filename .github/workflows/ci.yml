@@ -42,7 +42,7 @@ jobs:
               console.log(JSON.stringify(await shadowSelection(context, github)))
             } catch {
               console.log(JSON.stringify({ mode: 'full', reason: 'shadow adapter failed', base: null, head: context.sha,
-                projects: ['desktop', 'host', 'pi-extensions', 'runtime', 'schema', 'shared', 'site', 'tooling'] }))
+                projects: ['control', 'desktop', 'host', 'pi-extensions', 'runtime', 'schema', 'shared', 'site', 'tooling'] }))
             }
 
       - name: Typecheck
@@ -50,6 +50,9 @@ jobs:
 
       - name: Typecheck (host)
         run: npm run typecheck:host
+
+      - name: Typecheck (control)
+        run: npm run typecheck:control
 
       - name: Lint
         run: npm run lint
@@ -65,6 +68,9 @@ jobs:
 
       - name: Build (host)
         run: npm run build:host
+
+      - name: Build (control)
+        run: npm run build:control
 
   control-schema:
     name: Control schema · local Supabase · RLS

@@ -61,7 +61,9 @@ describe('Desktop application and native install boundary', () => {
       expect(facade.devDependencies[dependency]).toBeUndefined()
       expect(manifest.devDependencies[dependency]).toBeDefined()
     }
-    expect(facade.scripts.postinstall).toBe('npm ci --prefix apps/desktop')
+    expect(facade.scripts.postinstall).toBe(
+      'npm ci --prefix apps/desktop && npm ci --prefix apps/control',
+    )
     expect(manifest.scripts.postinstall).toBe(
       'install-electron && electron-builder install-app-deps && node ../../tools/scripts/fix-node-pty.mjs',
     )
