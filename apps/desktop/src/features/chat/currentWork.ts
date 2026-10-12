@@ -16,6 +16,10 @@ import { toolDetails, tryParseArgs } from './tools/toolSummaries'
 export interface WorkEntry {
   id: string
   label: string
+  task?: string
+  requestedAt?: number
+  startedAt?: number
+  endedAt?: number
   state: string
   active: number
   attention: boolean
@@ -32,6 +36,8 @@ function backgroundEntries(nodes: FleetNode[], rootId?: string): WorkEntry[] {
     const own: WorkEntry = {
       id: `${rootId ?? node.id}:${node.id}`,
       label: node.label,
+      startedAt: node.startedAt,
+      endedAt: node.endedAt,
       state: node.state,
       active: Number(isFleetActive(node.state)),
       attention: node.attention,
@@ -92,6 +98,7 @@ export function currentWork(
         {
           id: root.id,
           label: root.label,
+          startedAt: root.startedAt,
           state: terminal,
           active: 0,
           attention: false,
@@ -106,14 +113,30 @@ export function currentWork(
       state: entry.active ? 'status unavailable' : entry.state,
     }))
   })
+  const requested = new Map<string, number>()
+  for (const item of chat?.items ?? []) {
+    if (item.kind !== 'assistant' || item.timestamp === undefined) continue
+    for (const block of item.blocks) {
+      if (block.type === 'tool') requested.set(block.toolCallId, item.timestamp)
+    }
+  }
   for (const tool of Object.values(chat?.tools ?? {})) {
     if (tool.toolName !== 'subagent') continue
     const call = subagentCall(tool.args ?? tryParseArgs(tool.argsText))
     if (call.kind !== 'launch') continue
     const settled = tool.status === 'done' || tool.status === 'error'
     const run = subagentRun(toolDetails(tool), settled)
-    if (run?.runId && represented.has(run.runId)) continue
     const detached = run?.async || call.async
+    // Only enrich the exact root launch; a workflow prompt is not a child's task.
+    if (run?.runId) {
+      for (const entry of entries) {
+        if (entry.runId === run.runId && !entry.childId) {
+          entry.task = call.task
+          entry.requestedAt = requested.get(tool.toolCallId) ?? tool.startedAt
+        }
+      }
+    }
+    if (run?.runId && represented.has(run.runId)) continue
     // A replayed/orphaned running tool must not revive when a later parent
     // turn starts. Only an execution observed within this turn is live.
     const live =
@@ -132,6 +155,10 @@ export function currentWork(
       toolCallId: tool.toolCallId,
       runId: detached ? run?.runId : undefined,
       label: call.agent ?? 'Workflow',
+      task: call.task ?? call.workflow,
+      requestedAt: requested.get(tool.toolCallId) ?? (detached ? tool.startedAt : undefined),
+      startedAt: detached ? undefined : tool.startedAt,
+      endedAt: detached ? undefined : tool.endedAt,
       state: detached
         ? (completed.get(run?.runId ?? '') ?? 'status unavailable')
         : live
@@ -168,6 +195,7 @@ export function useCurrentWork(sessionId: string) {
     () => ({
       ...currentWork(chat, parseFleetWidget(lines), remembered),
       tools: chat?.tools ?? NO_TOOLS,
+      items: chat?.items ?? [],
     }),
     [chat, lines, remembered],
   )

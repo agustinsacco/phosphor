@@ -160,8 +160,7 @@ try {
   await expect(page.getByTestId('background-work-indicator')).toContainText('4 subagents active')
   await expect(page.getByText('No models configured', { exact: true })).toHaveCount(0)
   const pane = page.getByRole('region', { name: 'Subagents', exact: true })
-  await pane.getByText('Delegated task', { exact: true }).click()
-  await pane.getByText('user', { exact: true }).click()
+  await pane.getByText(/Additional input in preview/).click()
   await page.evaluate(() => document.fonts.ready)
   // This allowlisted replay contains no user profile or external source records.
   await expect(page.locator('body')).not.toContainText(

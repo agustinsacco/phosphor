@@ -23,6 +23,8 @@ import { SubagentTree } from './SubagentTree'
 import { SubagentPreview } from './SubagentPreview'
 import { useCurrentWork } from './currentWork'
 import { SubagentDetail } from './tools/SubagentDetail'
+import { SubagentWorkRow } from './SubagentWorkRow'
+import { newestWork, supervisorHandoff, taskPreview, workTime } from './subagentPresentation'
 
 export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.Element {
   const lines = useExtensionUiStore((s) => s.widgets[sessionId]?.[SUBAGENT_ASYNC_WIDGET_KEY]?.lines)
@@ -128,6 +130,10 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
     if (identity && restored === identity) saveSubagentView(identity, { view, target })
   }, [identity, restored, view, target])
   const selected = selectedFleetNode(fleet, target)
+  const selectedEntry = work.entries.find(
+    (e) => e.runId === target?.runId && e.childId === target?.childId,
+  )
+  const handoff = target ? supervisorHandoff(work.tools, work.items, target) : undefined
   const active = !!selected && isFleetActive(selected.state)
   const { inspection, readAt, error, loading, refresh } = useSubagentInspection(
     sessionId,
@@ -153,7 +159,7 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
             aria-pressed={view === 'live'}
             onClick={() => setView('live')}
           >
-            Live work
+            Runs & results
           </Button>
           <Button
             size="sm"
@@ -186,23 +192,28 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
         >
           <nav
             ref={navigation}
-            aria-label="Background runs"
+            aria-label="Agent runs"
             className={clsx(
               'border-border min-h-0 overflow-y-auto overscroll-contain border-r p-2 @min-[640px]:block',
               !showList && hasSelection && 'hidden',
             )}
           >
-            {work.entries
+            {work.entries.some((entry) => !entry.runId && entry.toolCallId) && (
+              <h3 className="text-text-secondary mb-1 px-2 text-xs font-medium">
+                Foreground · newest first
+              </h3>
+            )}
+            {newestWork(work.entries)
               .filter((entry) => !entry.runId && entry.toolCallId)
               .filter(
-                (entry, index, all) =>
-                  entry.active || entry.toolCallId === foregroundId || index >= all.length - 5,
+                (entry, index) => entry.active || entry.toolCallId === foregroundId || index < 20,
               )
               .map((entry) => (
-                <button
+                <SubagentWorkRow
                   key={entry.id}
-                  aria-pressed={foregroundId === entry.toolCallId}
-                  className="text-text hover:bg-bg-secondary mb-1 block w-full truncate rounded-md p-2 text-left text-base aria-pressed:bg-accent-soft"
+                  entry={entry}
+                  source="foreground"
+                  selected={foregroundId === entry.toolCallId}
                   onClick={() => {
                     selectionRevision.current++
                     setRestoreError(undefined)
@@ -211,29 +222,31 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
                     setShowList(false)
                     focusDetail.current = true
                   }}
-                >
-                  {entry.label}: {entry.state} · foreground
-                </button>
+                />
               ))}
             <h3 className="text-text-secondary mb-2 px-2 text-sm font-medium">Background runs</h3>
             {fleet?.runs.length ? (
-              <SubagentTree nodes={fleet.runs} target={target} onSelect={select} />
+              <SubagentTree
+                nodes={fleet.runs}
+                entries={work.entries}
+                target={target}
+                onSelect={select}
+              />
             ) : (
               <p className="text-text-secondary p-2 text-base">
                 No live snapshot. Recorded results remain in the conversation.
               </p>
             )}
-            {work.entries
+            {newestWork(work.entries)
               .filter((entry) => entry.runId && !fleet?.runs.some((run) => run.id === entry.runId))
               .map((entry) => (
-                <button
+                <SubagentWorkRow
                   key={entry.id}
-                  aria-pressed={target?.runId === entry.runId && target?.childId === entry.childId}
-                  className="text-text-secondary hover:text-text mb-1 block w-full truncate rounded-md p-2 text-left text-base aria-pressed:bg-accent-soft"
+                  entry={entry}
+                  source="last known"
+                  selected={target?.runId === entry.runId && target?.childId === entry.childId}
                   onClick={() => select({ runId: entry.runId!, childId: entry.childId })}
-                >
-                  {entry.label}: {entry.state} · last known
-                </button>
+                />
               ))}
             {fleet?.incomplete && (
               <p className="text-text-secondary p-2 text-sm">
@@ -268,7 +281,7 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                   {foreground ? (
-                    <SubagentDetail tool={foreground} />
+                    <SubagentDetail key={foregroundId} tool={foreground} />
                   ) : (
                     <p className="p-3">Delegation unavailable on this branch.</p>
                   )}
@@ -300,14 +313,20 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
                       tabIndex={-1}
                       className="min-w-0 line-clamp-2 break-words font-semibold"
                     >
-                      {selected?.label ?? inspection?.label ?? 'Child inspection'}
+                      {selectedEntry?.task
+                        ? taskPreview(selectedEntry.task)
+                        : (selected?.label ??
+                          selectedEntry?.label ??
+                          inspection?.label ??
+                          'Child inspection')}
                     </h3>
                     <Button size="sm" disabled={loading} onClick={refresh}>
                       Refresh
                     </Button>
                   </div>
                   <p className="text-text-secondary mt-1 text-sm" role="status">
-                    {selected ? selected.state : 'Last known'}
+                    {selected?.state ?? selectedEntry?.state ?? 'Last known'}
+                    {` · ${workTime(selected?.startedAt ?? selectedEntry?.startedAt, selected?.endedAt ?? selectedEntry?.endedAt, selectedEntry?.requestedAt)}`}
                     {readAt
                       ? ` · Read at ${new Date(readAt).toLocaleTimeString()}`
                       : loading
@@ -368,6 +387,7 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
                   <SubagentPreview
                     key={`${target.runId}:${target.childId}`}
                     inspection={inspection}
+                    handoff={handoff}
                   />
                 ) : (
                   <p className="text-text-secondary p-4 text-base">

@@ -840,6 +840,7 @@ function handle(cmd) {
           ],
           ...(process.env.PHOSPHOR_E2E_SUBAGENT_LAYOUT
             ? {
+                task: '## Validate module boundaries\n\n- Check imports and shared contracts.\n- Report regressions independently.\n\nKeep changes within the assigned scope.',
                 messages: Array.from({ length: 40 }, (_, i) => [
                   {
                     role: 'assistant',
@@ -1856,15 +1857,16 @@ function runWorkflowEvidenceTurn() {
   runTextTurn('Reviewer reported; validation and QA continue independently.')
 }
 
+const layoutStartedAt = Date.now() - 250_000
 function publishWorkflowFleet(settled = false, updated = false) {
   const snapshot = structuredClone(
     require('../../src/features/chat/__fixtures__/subagent-workflow.json').snapshot,
   )
   if (process.env.PHOSPHOR_E2E_SUBAGENT_LAYOUT) {
     const child = snapshot.runs[0].children[1]
-    snapshot.runs[0].startedAt = Date.now() - 260_000
+    snapshot.runs[0].startedAt = layoutStartedAt - 10_000
     for (const step of snapshot.runs[0].children) {
-      if (step.state === 'running') step.startedAt = Date.now() - 250_000
+      if (step.state === 'running') step.startedAt = layoutStartedAt
     }
     child.activity = {
       toolCount: updated ? 100 : 99,

@@ -4359,6 +4359,7 @@ test('a parallel delegation shows every child working at once, then settles', as
     await page.getByPlaceholder('Type a command…').fill('Toggle artifacts pane')
     await page.getByText('Toggle artifacts pane', { exact: true }).click()
     await expect(current).toBeInViewport()
+    await current.getByRole('button', { name: 'Expand current work' }).click()
     await current.getByRole('button', { name: /Workflow: running/ }).click()
     const inspection = page.getByRole('region', { name: 'Subagents', exact: true })
     await expect(inspection.getByRole('heading', { name: 'Foreground delegation' })).toBeVisible()
@@ -4415,7 +4416,12 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
     )
 
     const background = page.getByTestId('background-work-indicator')
-    await expect(background).toContainText('scout: running · grep')
+    await expect(background.getByRole('status')).toContainText('Parent idle · 1 subagents active')
+    await expect(background.getByRole('button', { name: 'Expand current work' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    await expect(background.getByRole('button', { name: 'scout: running · grep' })).toBeHidden()
     await expect(background).toContainText('The parent is idle')
     await expect(page.getByTestId('working-indicator')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
@@ -4449,6 +4455,13 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
     const childCard = page.getByTestId('subagent-child')
     await expect(childCard).toHaveAttribute('data-status', 'completed')
     await expect(childCard).toContainText('No regressions found')
+    await expect(childCard.getByTestId('subagent-output')).not.toHaveAttribute('open', '')
+    await expect(page.getByTestId('subagent-supervisor-output')).toContainText(
+      'Output received by supervisor',
+    )
+    await expect(page.getByTestId('subagent-supervisor-output')).toContainText(
+      'No regressions found',
+    )
     await page.getByRole('button', { name: /Started scout/ }).click()
     await expect(page.getByTestId('subagent-async-note')).toContainText(
       'Launched in the background',
@@ -4523,8 +4536,21 @@ test('recorded workflow completions and attention stay visible, attributable and
     await expect(background).toContainText(
       'Parent idle · 2 subagents active · 1 needs parent attention',
     )
-    await expect(background).toContainText('validation: running · needs parent attention')
-    await expect(background).toContainText('qa: running')
+    const expandWork = background.getByRole('button', { name: 'Expand current work' })
+    await expect(expandWork).toHaveAttribute('aria-expanded', 'false')
+    await expect(background.getByRole('button', { name: 'qa: running' })).toBeHidden()
+    const compactHeight = (await background.boundingBox())!.height
+    await expandWork.focus()
+    await page.keyboard.press('Enter')
+    await expect(background.getByRole('button', { name: 'qa: running' })).toBeVisible()
+    expect((await background.boundingBox())!.height).toBeGreaterThan(compactHeight + 40)
+    await page.keyboard.press('Space')
+    await expect(expandWork).toBeFocused()
+    await expect(expandWork).toHaveAttribute('aria-expanded', 'false')
+    await page.keyboard.press('Tab')
+    await expect(background.getByRole('button', { name: 'View subagents' })).toBeFocused()
+    await page.keyboard.press('Tab')
+    await expect(background.locator(':focus')).toHaveCount(0)
     await page.keyboard.press('ControlOrMeta+k')
     await page.getByPlaceholder('Type a command…').fill('Toggle artifacts pane')
     await page.getByText('Toggle artifacts pane', { exact: true }).click()
@@ -4538,9 +4564,15 @@ test('recorded workflow completions and attention stay visible, attributable and
         return window.phosphor.piCommand(live[0]!.sessionId, { type: 'prompt', message })
       }, message!)
       expect(response.success).toBe(true)
-      await expect(background).toContainText(expected!)
+      await expect(background.getByRole('status')).toContainText(expected!)
       await expect(background).toBeInViewport()
+      await expect(expandWork).toHaveAttribute('aria-expanded', 'false')
+      if (message === '/stub-hide-workflow-status') {
+        expect((await background.boundingBox())!.height).toBeLessThan(130)
+        await screenshot('current-work-unavailable-compact')
+      }
     }
+    await expandWork.click()
     await background
       .getByRole('button', { name: 'validation: running · needs parent attention', exact: true })
       .click()
@@ -4601,12 +4633,20 @@ test('recorded workflow completions and attention stay visible, attributable and
     await expect(panel).toContainText('The previous bash command has finished')
     await panel.getByRole('button', { name: 'Recorded coordination' }).click()
     await expect(panel.getByTestId('subagent-notice')).toHaveCount(2)
+    await expect(panel.getByTestId('subagent-notice').first()).toContainText(
+      'needs parent attention',
+    )
     await panel
       .getByTestId('subagent-notice')
-      .first()
+      .filter({ hasText: 'reviewer completed a workflow step' })
       .getByRole('button', { name: 'Inspect run' })
       .click()
     await expect(panel).toContainText('CHANGES_REQUESTED')
+    const output = panel.getByRole('region', { name: 'Agent output' })
+    await expect(output.getByText(/^CHANGES_REQUESTED:/)).toBeVisible()
+    // This historical fixture uses the UI-only `custom` role, not `customMessage`.
+    await expect(output).toContainText('delivery to the supervisor is not confirmed')
+    await expect(output).not.toContainText('Supervisor received notification')
     await panel.getByRole('button', { name: 'Close pane', exact: true }).click()
     // The full original diagnostic remains available, but does not bury chat.
     await notices
@@ -4811,15 +4851,35 @@ test('subagent pane owns scrolling, keeps rows stable and preserves drafts acros
     await page.getByRole('button', { name: 'View subagents' }).click()
     const pane = page.getByRole('region', { name: 'Subagents', exact: true })
     await pane.getByRole('button', { name: 'Fullscreen pane' }).click()
-    const nav = pane.getByRole('navigation', { name: 'Background runs' })
+    const nav = pane.getByRole('navigation', { name: 'Agent runs' })
     const row = nav.getByRole('button', { name: /^validation running/ })
     await row.click()
     const transcript = pane.getByTestId('subagent-transcript')
+    await expect(transcript.getByRole('region', { name: 'Agent input' })).toBeVisible()
+    await expect(
+      transcript.getByRole('heading', { name: 'Validate module boundaries' }),
+    ).toBeVisible()
+    await expect(transcript.getByTestId('subagent-activity')).not.toHaveAttribute('open', '')
+    expect(await transcript.evaluate((el) => el.scrollTop)).toBe(0)
+    await page.screenshot({ path: test.info().outputPath('subagent-handoff-overview.png') })
+    await transcript.getByTestId('subagent-activity').locator('summary').first().click()
+    await transcript
+      .getByTestId('subagent-activity-record')
+      .filter({ hasText: 'Inspecting module 39' })
+      .locator('summary')
+      .click()
     await expect(transcript.getByRole('heading', { name: 'Inspecting module 39' })).toBeVisible()
     const header = pane.getByRole('heading', { name: 'validation', exact: true })
-    const before = { row: await row.boundingBox(), header: await header.boundingBox() }
+    const before = {
+      row: await row.boundingBox(),
+      header: await header.boundingBox(),
+      navScroll: await nav.evaluate((el) => el.scrollTop),
+    }
     await transcript.hover()
     await page.mouse.wheel(0, -10000)
+    // Opening Activity already pauses following, so the button below cannot
+    // signal that the asynchronous wheel scroll has finished (notably on Linux).
+    await expect.poll(() => transcript.evaluate((el) => el.scrollTop)).toBe(0)
     await expect(pane.getByRole('button', { name: 'Jump to latest' })).toBeVisible()
     await transcript.evaluate((el) => {
       el.scrollTop = 100
@@ -4827,15 +4887,15 @@ test('subagent pane owns scrolling, keeps rows stable and preserves drafts acros
     await expect.poll(() => transcript.evaluate((el) => el.scrollTop)).toBe(100)
     expect(await row.boundingBox()).toEqual(before.row)
     expect(await header.boundingBox()).toEqual(before.header)
-    expect(await nav.evaluate((el) => el.scrollTop)).toBe(0)
+    expect(await nav.evaluate((el) => el.scrollTop)).toBe(before.navScroll)
     // Independent list overflow never scrolls the transcript or the pane header.
     await nav.evaluate((el) => {
       el.scrollTop = el.scrollHeight
     })
     expect(await transcript.evaluate((el) => el.scrollTop)).toBe(100)
-    await nav.evaluate((el) => {
-      el.scrollTop = 0
-    })
+    await nav.evaluate((el, top) => {
+      el.scrollTop = top
+    }, before.navScroll)
     await page.evaluate(async () => {
       const [live] = await window.phosphor.invoke('pi:listLiveSessions')
       await window.phosphor.piCommand(live!.sessionId, {

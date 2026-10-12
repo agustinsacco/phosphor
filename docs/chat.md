@@ -287,7 +287,20 @@ scout · grep`) and which is **never printed as widget lines**
   **Above the composer, a persistent current-work summary** combines foreground
   delegation tool evidence with background snapshots. It reports parent activity,
   active subagents and parent-facing attention, even while Artifacts occupies the
-  pane. Workflow ancestors and children are not counted twice; native run IDs
+  pane. It starts compact: the disclosure row keeps parent activity, active count,
+  attention, unavailable counts and incomplete-snapshot warnings visible. Settled-only
+  history is labelled Recent work. Expand it for task links, snapshot receipt time,
+  recent outcomes and message-routing guidance; collapse it to reclaim composer space.
+  Expanded entries form a newest-first queue with task previews, agent/activity,
+  qualified time and short identity, rather than repeated profile names. Request
+  timestamps come from the parent's recorded tool-call message, falling back to
+  an observed launch-call start for detached work. They never become child
+  execution starts or restore liveness. Known execution/request times drive ordering;
+  undated entries follow in record order, newest recorded first. Missing task/time
+  evidence is labelled.
+  **View subagents** opens the full pane without expanding the summary. Updates do
+  not change the disclosure state; switching lanes or remounting starts compact.
+  Workflow ancestors and children are not counted twice; native run IDs
   deduplicate foreground/background handoffs. Historical launch receipts and
   management calls never count as running. A top-bar badge mirrors the active count
   and flags attention or unavailable status.
@@ -308,8 +321,12 @@ scout · grep`) and which is **never printed as widget lines**
   pane, also available in the top bar and command palette. It supports docking,
   resizing and fullscreen like Files and Terminal. Its navigator stays anchored
   while the selected activity body scrolls; a long run list scrolls independently.
-  Agent rows reserve three nonwrapping lines for task/state, current activity and
-  reported counters, so tool updates do not change their height. Workflow groups
+  **Runs & results** includes live and remembered work. Agent rows reserve three
+  nonwrapping lines for task/state, agent/activity and qualified time/identity
+  (plus reported counters for live trees), so tool updates do not change their height.
+  Each group is newest-first; foreground history shows the newest 20 plus active
+  and selected delegations. The recorded coordination view retains its bounded
+  launch ledger, with formatted prompts and exact parent tool receipts. Workflow groups
   can collapse. Below 640px pane width, list and detail are separate views with
   **Back to runs** and focus restoration.
   Selecting a node asks
@@ -330,9 +347,22 @@ scout · grep`) and which is **never printed as widget lines**
   snapshot before restoring selection. A clone does not inherit preferences.
   The pane layout may restore like other panes, but never restores an old running
   state. Docking and fullscreen preserve the mounted inspector, including drafts
-  and disclosures; closing it cancels reads. Assistant text renders as Markdown;
-  tool markers and literal outputs use compact disclosures with Copy. The preview
-  does not invent call/result pairing or tool success from role/text-only data.
+  and disclosures; closing it cancels reads. Inspection opens at the handoff, not
+  the transcript tail: **Input** is formatted Markdown, followed by the output.
+  Exact parent-owned tool results are labelled **Output received by supervisor**;
+  child metadata alone never earns that label. Foreground parallel prompts bind
+  to their native child index; individual child reports stay in compact disclosures.
+  Single-run or explicitly correlated child completion notifications are separate
+  **Supervisor received notification** disclosures: a notification may only reference
+  an artifact, so it never replaces the inspected answer. A containing workflow or
+  multi-run batch receipt is never assigned to an individual child.
+  Otherwise the extension's final output is a **Reported result**, explicitly not
+  proof of supervisor delivery. Missing output stays missing. Whole JSON values
+  are pretty-printed; no result is inferred from the last assistant/tool message.
+  Tools, outputs, thinking and intermediate messages live in one initially closed
+  **Activity** disclosure, with compact single-line records and Copy. Additional
+  input messages render as Markdown in their own disclosure. The role/text-only
+  preview never invents per-message times, call/result pairing or tool outcomes.
   Child file/artifact references stay non-interactive because inspection does not
   report a verified child workspace or artifact namespace; web links still work.
   Reading back pauses following until **Jump to latest**. IDs, run-level status

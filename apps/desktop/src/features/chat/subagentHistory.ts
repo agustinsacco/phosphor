@@ -14,6 +14,10 @@ export interface RecordedLaunch {
   id: string
   label: string
   task?: string
+  requestedAt?: number
+  returnedAt?: number
+  receipt?: string
+  detached?: boolean
   runId?: string
   outcome: string
 }
@@ -100,6 +104,13 @@ export function subagentHistory(
               ? `Launch request: ${call.agent ?? call.workflow ?? 'workflow'}`
               : 'Resume request',
           task: call.kind === 'launch' ? call.task : undefined,
+          detached: call.kind === 'launch' && call.async,
+          requestedAt:
+            typeof message.timestamp === 'number'
+              ? message.timestamp
+              : typeof entry.timestamp === 'string'
+                ? Date.parse(entry.timestamp)
+                : undefined,
           outcome: 'No recorded result.',
         })
       }
@@ -113,10 +124,25 @@ export function subagentHistory(
       if (launch) {
         const run = subagentRun(message.details, true)
         launch.runId = run?.runId
+        launch.detached ||= run?.async
+        launch.returnedAt =
+          typeof message.timestamp === 'number'
+            ? message.timestamp
+            : typeof entry.timestamp === 'string'
+              ? Date.parse(entry.timestamp)
+              : undefined
+        launch.receipt = Array.isArray(message.content)
+          ? message.content
+              .flatMap((value) => {
+                const block = record(value)
+                return block?.type === 'text' && typeof block.text === 'string' ? [block.text] : []
+              })
+              .join('\n')
+          : undefined
         if (launch.runId) runIds.add(launch.runId)
         launch.outcome = message.isError
           ? 'The call failed.'
-          : run?.async
+          : launch.detached
             ? 'Detached launch receipt, not current running status.'
             : run?.children.length
               ? `Reported child states: ${run.children.map((c) => `${c.agent}: ${c.status}`).join('; ')}`
