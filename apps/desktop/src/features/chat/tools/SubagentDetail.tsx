@@ -1,4 +1,4 @@
-import { TooltipButton } from '@/components/Tooltip'
+import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { ToolState } from '../reducer'
@@ -282,9 +282,9 @@ function ChildCard({
       )}
       {live && child.recentTools.length > 0 && (
         <details className="text-text-tertiary mt-1 ml-5 text-sm">
-          <summary className="cursor-pointer">
+          <TooltipSummary className="cursor-pointer">
             Recent activity · {child.recentTools.length} tool entries
-          </summary>
+          </TooltipSummary>
           <ul className="font-mono text-xs">
             {child.recentTools.map((line, i) => (
               <li key={i} className="truncate" data-tooltip={line}>
@@ -302,9 +302,9 @@ function ChildCard({
       {child.error && <ErrorText text={child.error} />}
       {output && (
         <details data-testid="subagent-output" className="mt-1.5">
-          <summary className="text-text-secondary cursor-pointer text-sm font-medium">
+          <TooltipSummary className="text-text-secondary cursor-pointer text-sm font-medium">
             Reported child result
-          </summary>
+          </TooltipSummary>
           <div className="max-h-80 overflow-auto pt-2 text-base">
             <SubagentText text={output} />
           </div>
