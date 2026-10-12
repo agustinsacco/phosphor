@@ -62,3 +62,18 @@ it('sweeps expired nonces at 120 seconds and reuses slots without removing live 
   now = 120001
   expect(cache.accept('c', 'nonce')).toBe(true)
 })
+
+it('stays closed when the wall clock steps back: no replay, slots free later', () => {
+  let now = 1000
+  const cache = new NonceCache(() => now, 2)
+  expect(cache.accept('a', 'one')).toBe(true) // expires 121000
+  now = 0
+  expect(cache.accept('a', 'two')).toBe(true) // expires 120000, behind one
+  now = 120_000
+  expect(cache.accept('a', 'one')).toBe(false)
+  expect(cache.accept('a', 'two')).toBe(false)
+  expect(() => cache.accept('a', 'three')).toThrow()
+  now = 121_000
+  expect(cache.accept('a', 'three')).toBe(true)
+  expect(cache.accept('a', 'four')).toBe(true)
+})

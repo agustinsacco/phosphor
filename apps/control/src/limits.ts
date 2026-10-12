@@ -37,7 +37,9 @@ export class NonceCache {
   }
   accept(identity: string, nonce: string): boolean {
     const now = this.clock()
-    // Constant TTL and a monotonic clock keep insertion order equal to expiry order.
+    // A constant TTL keeps insertion order equal to expiry order, so the sweep stops
+    // at the first live entry. If the wall clock steps back, an expired entry can
+    // wait behind a live one: that delays reusing its slot, never admits a replay.
     for (const [key, expires] of this.entries) {
       if (expires > now) break
       this.entries.delete(key)
