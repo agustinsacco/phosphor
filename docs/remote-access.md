@@ -1,4 +1,4 @@
-# Remote-access foundation
+# Remote access
 
 Remote execution is not enabled. Local Electron still needs no Phosphor login.
 Desktop has an optional GitHub sign-in behind a preview switch
@@ -6,8 +6,55 @@ Desktop has an optional GitHub sign-in behind a preview switch
 it lists enrolled machines and lets a person approve a Host code or remove a
 machine ([ui-shell.md](ui-shell.md#machines-preview)). Signed out, the page and
 sidebar keep sample machines. Enrollment is not an execution grant.
-The shared host handshake and control-directory schema are foundations, not a
-running control plane or an exposed host API.
+The contract, schema, Host enrollment commands and Desktop approval clients exist.
+`apps/control` is the combined site and API server, but it is not deployed yet.
+It registers health and account routes only; enrollment, machine directory and
+Host routes are not registered. The approval UI is not an end-to-end enrollment
+service against this server. There is no exposed Host execution API.
+
+## Contract and clients
+
+`libs/shared/src/control-api.ts` fixes bounded wire shapes, parsers, error codes,
+enrollment codes, heartbeat status rules and the byte-exact Host signing string.
+`libs/shared/src/remote-host.ts` validates hello compatibility and enrolled Host
+identity and builds host-qualified resource keys. Hello validation is not
+authentication, and these helpers do not migrate Desktop's local stores.
+
+The [control server](control-plane.md) serves built Astro pages, health and
+account metadata. That doc owns its user and Host authentication ports,
+configuration and route boundaries. The server never probes a submitted machine
+endpoint or relays execution.
+
+The [Host CLI](host.md#machine-identity) implements `phosphor login`,
+`status [--json]` and `logout [--local]`. Login creates a key on the Host, prints
+a code and fingerprint, polls for approval and saves the identity. Status checks
+the server; logout requests self-revocation. `--local` only forgets locally.
+The Host doc owns pending-state recovery and identity storage. These outbound
+signed clients do not open a listener or start a heartbeat loop.
+
+Desktop's main-only control client supplies machine listing, code lookup,
+approval and removal through typed IPC. The signed-in preview compares the
+fingerprint, asks for a label and confirms removal; removal is not uninstall.
+The page refetches every 30 seconds while visible, not through Realtime.
+The sidebar and signed-out page retain separate samples. Tokens stay in main.
+See [settings.md](settings.md#phosphor-account-preview) and
+[ui-shell.md](ui-shell.md#machines-preview) for the UI contract.
+
+## Trust boundary
+
+The control plane holds identity and machine metadata only. Host public keys
+are the only machine keys it stores. It never stores lanes, prompts,
+transcripts, paths, repository names, artifacts or provider credentials.
+Aggregate lane counts are machine metadata, not lane records. Host private keys
+stay on their machine; Desktop sign-in credentials stay in its main-process
+vault, outside the directory. Directory visibility and enrollment are not
+execution authority. Local Desktop works without sign-in.
+
+Linux Desktop detects supported session keyrings before Chromium starts. Where
+Chromium reports `basic_text`, the vault uses a user-only refresh-token file,
+not hard-coded-key encryption; unknown or unavailable keyring backends refuse
+storage. [Settings](settings.md#phosphor-account-preview) owns these storage rules.
+Future execution and sharing directions live in [future-features.md](future-features.md).
 
 ## Portable session service
 
@@ -26,7 +73,8 @@ entry. Neither test is real-provider or remote-host acceptance.
 The locks are process-local. The Host's entry point is the `phosphor` CLI
 ([host.md](host.md)), a foreground CLI that checks a machine and runs
 acceptance sessions on it. It composes the session runtime with its own
-adapters, and nothing reaches it over a network.
+adapters. It has no inbound network listener; its control commands only make
+outbound requests.
 There is no durable Host ownership, authenticated network API,
 snapshot/replay protocol, command receipt store or controller lease
 implementation. A Host supplies its own machine adapters and authorization: it
@@ -45,7 +93,8 @@ required.
   optional bare HTTPS endpoint and revocation epoch.
 - `remote_clients`: owner, client kind, display label and revocation metadata.
 - `remote_enrollments`: hashed user codes, public keys and machine metadata.
-  Codes expire after ten minutes. Approval links the owner and Host atomically.
+  Pending codes expire after ten minutes. Approval links the owner and Host
+  atomically and leaves at least two minutes to collect the approved result.
 - `remote_audit_events`: owner, Host, event kind and time for enrollment,
   rename, owner revocation and self-revocation. No labels or IPs are recorded.
 
