@@ -471,7 +471,7 @@ function ArtifactPreview({
         <SandboxedHtml
           html={content}
           title={artifact.title}
-          className="bg-bg h-full min-h-[400px] w-full"
+          className="bg-bg block h-full w-full border-0"
         />
       )
     case 'svg':
@@ -480,7 +480,7 @@ function ArtifactPreview({
           sandbox=""
           srcDoc={`<!doctype html><style>html,body{margin:0;display:grid;place-items:center;height:100%;background:#fff}</style>${content}`}
           title={artifact.title}
-          className="h-full min-h-[400px] w-full bg-white"
+          className="block h-full w-full border-0 bg-white"
         />
       )
     case 'mermaid':
