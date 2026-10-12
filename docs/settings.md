@@ -151,9 +151,10 @@ Code** provider keeps its own set of logins under Extensions → Claude Code.
 An optional sign-in to Phosphor itself. With the Machines preview also on, it
 lists enrolled machines and lets you approve a Host's code or remove a machine
 ([remote-access.md](remote-access.md)). It shows only while Settings → Advanced
-→ Phosphor account (preview) is on, and main refuses a sign-in while it is off. Local work never needs it. Neither a launch
-nor Settings with the preview off reads its files: the account is built the
-first time it is needed with the preview on.
+→ Phosphor account (preview) is on, and main refuses a sign-in while it is off.
+Local work never needs it. Neither a launch nor Settings with the preview off
+reads its files: the account is built the first time it is needed with the
+preview on.
 
 - **GitHub through Supabase Auth**, with no email. Main runs PKCE: the system
   browser opens Supabase's authorize page, and Supabase sends it back to a
