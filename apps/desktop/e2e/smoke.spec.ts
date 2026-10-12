@@ -3656,7 +3656,10 @@ test('HTML artifact iframe fits its pane, fullscreen and a short viewport', asyn
       await expect
         .poll(() =>
           scroller.evaluate((element) => {
-            const frame = element.querySelector('iframe')!
+            // Staging can briefly render a placeholder during a pane transition.
+            // Return a non-match so polling waits, rather than throwing on null.
+            const frame = element.querySelector('iframe')
+            if (!frame) return null
             return {
               width: frame.offsetWidth - element.clientWidth,
               height: frame.offsetHeight - element.clientHeight,
@@ -3669,8 +3672,8 @@ test('HTML artifact iframe fits its pane, fullscreen and a short viewport', asyn
     await expectFit()
     const narrow = (await iframe.boundingBox())!.width
     await h.page.getByRole('button', { name: 'Fullscreen pane', exact: true }).click()
+    await expect.poll(async () => (await iframe.boundingBox())?.width ?? 0).toBeGreaterThan(narrow)
     await expectFit()
-    expect((await iframe.boundingBox())!.width).toBeGreaterThan(narrow)
     // A short split pane must not silently become a 400px iframe viewport.
     await scroller.evaluate((element) => {
       element.style.flex = 'none'
