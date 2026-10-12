@@ -300,7 +300,10 @@ mode 0644. It pins the absolute node, bundle and config paths, quotes spaces and
 escapes systemd specifiers. Control characters in paths or PATH are refused.
 A `$` in the node executable path is also refused; install Node elsewhere.
 Dollar signs in bundle and config paths are escaped as literal arguments.
-The unit captures the shell's PATH, no other environment. Provider credentials
+The unit captures the shell's PATH, no other environment, with the node
+executable's directory moved to the front: a version manager's per-shell entry
+(fnm's multishell directory) is gone after logout, so node and the CLIs installed
+beside it must not depend on it. Provider credentials
 stay in pi's and Claude's stores. It restarts on failure after 10 seconds,
 except exits 64, 69, 77 and 78, which require operator action.
 

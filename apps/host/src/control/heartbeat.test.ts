@@ -285,6 +285,24 @@ describe('heartbeat loop', () => {
     expect(await run).toBe(0)
     expect(f.requests.map((body) => body.state)).toEqual(['running', 'stopping'])
   })
+  it('stop cancels the running request and its wait, and the stopping beat gets its own signal', async () => {
+    const f = loopFixture()
+    const signals: AbortSignal[] = []
+    f.ports.client = async (body, signal) => {
+      f.requests.push(body)
+      signals.push(signal)
+      return body.state === 'stopping' ? { accepted: true, nextInSec: 30 } : new Promise(() => {})
+    }
+    const loop = createHeartbeat(f.ports)
+    const run = loop.run()
+    await vi.waitFor(() => expect(signals).toHaveLength(1))
+    expect(signals[0]?.aborted).toBe(false)
+    await loop.drain()
+    expect(await run).toBe(0)
+    expect(f.requests.map((body) => body.state)).toEqual(['running', 'stopping'])
+    expect(signals[0]?.aborted).toBe(true)
+    expect(signals[1]).not.toBe(signals[0])
+  })
   it('a second signal ends the drain at once without another stopping beat', async () => {
     const f = loopFixture()
     f.ports.client = async (body) => {

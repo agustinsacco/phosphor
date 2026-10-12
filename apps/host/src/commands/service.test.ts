@@ -95,7 +95,7 @@ describe('phosphor service', () => {
     const f = fixture()
     expect(await runService(f.context, 'install')).toBe(0)
     const text = await readFile(f.unit, 'utf8')
-    expect(text).toContain('Environment="PATH=/custom/bin:/bin"')
+    expect(text).toContain('Environment="PATH=/opt:/custom/bin:/bin"')
     expect(text).toContain('"/opt/node path" "/opt/phosphor.mjs" "run" "--config"')
     expect(text).not.toContain('must-not-appear')
     expect(f.calls.map(({ file, args }) => [file, args])).toEqual([
@@ -106,6 +106,19 @@ describe('phosphor service', () => {
     ])
     expect(await runService(f.context, 'install')).toBe(0)
     expect(await readFile(f.unit, 'utf8')).toBe(text)
+  })
+  it('puts the real node directory first in PATH, once, so a per-shell entry may vanish', async () => {
+    await machine.enrollOld()
+    const f = fixture()
+    f.context.env = {
+      ...f.context.env,
+      PATH: '/run/user/1000/fnm_multishells/1_2/bin::/opt/fnm/v22/bin:/bin',
+    }
+    f.context.service = { ...f.context.service, node: '/opt/fnm/v22/bin/node' }
+    expect(await runService(f.context, 'install')).toBe(0)
+    expect(await readFile(f.unit, 'utf8')).toContain(
+      'Environment="PATH=/opt/fnm/v22/bin:/run/user/1000/fnm_multishells/1_2/bin:/bin"',
+    )
   })
   it('prints the exact sudo command on linger failure without running sudo', async () => {
     await machine.enrollOld()

@@ -1,5 +1,5 @@
 import { userInfo } from 'node:os'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { controlResult, prepareControl, withCommandLock } from '../control/command'
 import { IdentityFailure } from '../control/identity'
 import {
@@ -66,11 +66,16 @@ export async function runService(
         context.print('Run phosphor login first.')
         return 69
       }
+      const node = context.service?.node ?? process.execPath
+      // The node directory leads: a version manager's shell entry (fnm's per-shell
+      // multishell directory) is gone after logout, while execPath is the real path.
+      const nodeDir = dirname(node)
+      const path = [nodeDir, ...(context.env.PATH ?? '').split(':').filter((d) => d !== nodeDir)]
       const text = serviceUnit(
-        context.service?.node ?? process.execPath,
+        node,
         context.service?.bundle ?? resolve(process.argv[1] ?? ''),
         resolve(context.configPath),
-        context.env.PATH ?? '',
+        path.filter(Boolean).join(':'),
       )
       await (context.service?.write ?? writeServiceUnit)(unit, text)
       if (
