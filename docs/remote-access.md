@@ -8,9 +8,9 @@ machine ([ui-shell.md](ui-shell.md#machines-preview)). Signed out, the page and
 sidebar keep sample machines. Enrollment is not an execution grant.
 The contract, schema, Host enrollment commands and Desktop approval clients exist.
 `apps/control` is the combined site and API server, but it is not deployed yet.
-It registers health and account routes only; enrollment, machine directory and
-Host routes are not registered. The approval UI is not an end-to-end enrollment
-service against this server. There is no exposed Host execution API.
+It serves enrollment, the machine directory and Host routes, proven end to end
+against a local Supabase stack (`npm run test:control-stack`). There is no
+exposed Host execution API.
 
 ## Contract and clients
 
@@ -20,8 +20,8 @@ enrollment codes, heartbeat status rules and the byte-exact Host signing string.
 identity and builds host-qualified resource keys. Hello validation is not
 authentication, and these helpers do not migrate Desktop's local stores.
 
-The [control server](control-plane.md) serves built Astro pages, health and
-account metadata. That doc owns its user and Host authentication ports,
+The [control server](control-plane.md) serves built Astro pages, health, account
+metadata, enrollment, the machine directory and Host routes. That doc owns its user and Host authentication ports,
 configuration and route boundaries. The server never probes a submitted machine
 endpoint or relays execution.
 

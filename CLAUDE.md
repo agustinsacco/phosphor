@@ -89,7 +89,7 @@ you want to watch.
    `apps/host/src/session/runtime.ts`: the same service and deletion over one
    lock domain. It has no network listener. `login`, `status` and `logout` make
    outbound Ed25519-signed control requests. `apps/control` serves the site and
-   account API; enrollment routes are not registered and it is not deployed yet.
+   the control API (enrollment, machines, Host routes); it is not deployed yet.
    The control plane holds identity and machine metadata, never lane contents,
    paths or private keys ([remote-access.md](docs/remote-access.md)). The Host builds
    pi's environment from its own config and never takes environment, executable

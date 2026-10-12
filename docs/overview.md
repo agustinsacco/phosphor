@@ -14,9 +14,8 @@ with a file explorer, a code/diff viewer, a full terminal and an artifacts pane.
 computer is awake, including analysis/report tasks. There is no cloud sync.
 
 Optional Phosphor sign-in unlocks machine-directory clients behind the account
-and Machines previews. Host enrollment commands and approval UI exist, but the
-control server's enrollment routes are not registered and the server is not
-deployed yet. The plain-Node [Host](host.md) checks a machine and runs local
+and Machines previews. Host enrollment commands, approval UI and the control
+server's routes exist, but the server is not deployed yet. The plain-Node [Host](host.md) checks a machine and runs local
 acceptance sessions; it has no network listener. [Remote access](remote-access.md)
 does not enable remote execution. Directions that are decided or being explored,
 not built, live in [future-features.md](future-features.md).

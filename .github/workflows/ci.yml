@@ -94,6 +94,8 @@ jobs:
       # Real Supabase Auth, GitHub played by a local fixture container.
       - name: Desktop sign-in against Supabase Auth
         run: npm run test:auth-stack
+      - name: Control API against Supabase
+        run: npm run test:control-stack
       - name: Remove only this test stack
         if: always()
         run: npm run db:stop
