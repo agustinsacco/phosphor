@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 import type { PiHealth } from '@shared/models'
 import { useActiveWorkspace, useWorkspacesStore } from '@/stores/workspaces'
@@ -314,6 +315,44 @@ function MainWithPanes({
   activeSessionId: string
 }): React.JSX.Element {
   const { pane: rightPane, expanded, side, size } = useActivePanes()
+  // One portal container across docking/fullscreen transitions: relocating a
+  // pane must not remount its editor, inspection, drafts or pending actions.
+  const [paneHost] = useState(() => {
+    const host = document.createElement('div')
+    host.className = 'h-full min-h-0'
+    return host
+  })
+  const paneScroll = useRef<Array<{ element: Element; top: number; left: number }>>([])
+  const paneFocus = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    if (rightPane === null) {
+      paneScroll.current = []
+      paneFocus.current = null
+    }
+  }, [rightPane])
+  const mountPane = useCallback(
+    (slot: HTMLDivElement | null) => {
+      if (!slot) {
+        paneFocus.current = paneHost.contains(document.activeElement)
+          ? (document.activeElement as HTMLElement)
+          : null
+        // Detaching DOM preserves React state, but Chromium resets scroll offsets.
+        paneScroll.current = Array.from(paneHost.querySelectorAll('*'))
+          .filter((element) => element.scrollTop || element.scrollLeft)
+          .map((element) => ({ element, top: element.scrollTop, left: element.scrollLeft }))
+        return
+      }
+      slot.appendChild(paneHost)
+      paneFocus.current?.focus({ preventScroll: true })
+      paneFocus.current = null
+      for (const { element, top, left } of paneScroll.current) {
+        element.scrollTop = top
+        element.scrollLeft = left
+      }
+      paneScroll.current = []
+    },
+    [paneHost],
+  )
 
   // Fullscreen (↗) is an OVERLAY, not a resize. It used to imperatively
   // resize the split to 85/15, which crushed the chat to an unusable column
@@ -337,7 +376,7 @@ function MainWithPanes({
       maxSize={85}
       onResize={(next) => useLayoutStore.getState().setPaneSize(next, activeSessionId)}
     >
-      <RightPane workspacePath={workspacePath} sessionId={activeSessionId} />
+      <div ref={mountPane} className="h-full min-h-0" />
     </Panel>
   )
 
@@ -360,10 +399,17 @@ function MainWithPanes({
       {rightPane !== null && expanded && (
         // Opaque backdrop: the pane card keeps its inset gutter, and the chat
         // must not shimmer through it. Sidebar and top bar stay reachable.
-        <div className="bg-bg absolute inset-0 z-20">
-          <RightPane workspacePath={workspacePath} sessionId={activeSessionId} />
-        </div>
+        <div ref={mountPane} className="bg-bg absolute inset-0 z-20" />
       )}
+      {rightPane !== null &&
+        createPortal(
+          <RightPane
+            key={activeSessionId}
+            workspacePath={workspacePath}
+            sessionId={activeSessionId}
+          />,
+          paneHost,
+        )}
     </div>
   )
 }

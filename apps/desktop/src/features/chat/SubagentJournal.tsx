@@ -36,7 +36,7 @@ export function SubagentJournal({
     }
   }, [sessionId, refresh])
   return (
-    <div className="max-h-[70vh] overflow-auto p-4 text-base">
+    <div className="min-h-0 flex-1 overflow-auto overscroll-contain p-4 text-base">
       <div className="mb-3 flex items-start justify-between gap-3">
         <p className="text-text-secondary">
           Native questions, parent replies and results on this branch, including pre-compaction

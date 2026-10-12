@@ -1,3 +1,6 @@
+import { create } from 'zustand'
+import { useChatStore } from '@/stores/chat'
+import { useLayoutStore } from '@/stores/layout'
 import { validTargetId } from '@phosphor/pi-extensions/subagent-snapshot'
 import type { FleetNode, FleetSnapshot } from './subagentRuns'
 
@@ -10,6 +13,42 @@ export interface SubagentView {
   target?: SubagentTarget
 }
 const KEY = 'phosphor-subagent-view-v1'
+
+// A navigation signal, not execution state. Bounded to the most recent request.
+export const useSubagentNavigation = create(() => ({
+  sessionId: '',
+  revision: 0,
+  runId: undefined as string | undefined,
+  childId: undefined as string | undefined,
+  toolCallId: undefined as string | undefined,
+}))
+
+export function openForegroundSubagent(sessionId: string, toolCallId: string): void {
+  useSubagentNavigation.setState((s) => ({
+    sessionId,
+    toolCallId,
+    runId: undefined,
+    childId: undefined,
+    revision: s.revision + 1,
+  }))
+  useLayoutStore.getState().setRightPane('subagents', sessionId)
+}
+
+/** All entry points open the same session pane; explicit links select an exact run. */
+export function openSubagents(sessionId: string, runId?: string, childId?: string): void {
+  const identity = useChatStore.getState().sessions[sessionId]?.meta?.sessionId
+  if (runId) {
+    if (identity) saveSubagentView(identity, { view: 'live', target: { runId, childId } })
+    useSubagentNavigation.setState((s) => ({
+      sessionId,
+      revision: s.revision + 1,
+      runId,
+      childId,
+      toolCallId: undefined,
+    }))
+  }
+  useLayoutStore.getState().setRightPane('subagents', sessionId)
+}
 
 export function loadSubagentView(sessionId: string): SubagentView {
   try {

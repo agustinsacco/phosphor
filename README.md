@@ -85,7 +85,7 @@ terminal and use `/login`, or put API keys / a local endpoint in
 ## The screens
 
 Every session pairs the transcript with one switchable pane: Files, Changes,
-Terminal or Artifacts. The pane docks left or right (persisted per session) and
+Terminal, Artifacts or Subagents. The pane docks left or right (persisted per session) and
 can go fullscreen. Every shot below is the app against a real pi, real
 providers and real tokens; see
 [the screenshots in this README](#the-screenshots-in-this-readme).

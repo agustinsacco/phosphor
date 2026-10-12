@@ -4,7 +4,7 @@ import { CloseIcon } from '@/components/icons'
 
 /**
  * Shared chrome for every right-hand pane (Files, Changes, Terminal,
- * Artifacts).
+ * Artifacts, Subagents).
  *
  * Before this, Files/Changes shared a tabbed header while Terminal and
  * Artifacts each rendered their own, so header height and the placement of

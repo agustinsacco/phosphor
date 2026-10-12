@@ -19,7 +19,14 @@ export function SubagentActivity({ node }: { node: FleetNode }): React.JSX.Eleme
   const parts = [
     node.toolCount === undefined ? undefined : `${node.toolCount} tools`,
     node.turnCount === undefined ? undefined : `${node.turnCount} turns`,
-    seconds === undefined ? undefined : `${Math.floor(seconds / 60)}m ${seconds % 60}s elapsed`,
+    seconds === undefined ? undefined : `${Math.floor(seconds / 60)}m ${seconds % 60}s`,
   ].filter(Boolean)
-  return <span className="text-text-secondary w-full text-sm">{parts.join(' · ')}</span>
+  return (
+    <span
+      className="text-text-secondary block h-5 truncate text-sm leading-5 tabular-nums"
+      title={parts.join(' · ')}
+    >
+      {parts.join(' · ')}
+    </span>
+  )
 }
