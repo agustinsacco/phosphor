@@ -1,5 +1,6 @@
 import { isAbsolute, normalize } from 'node:path'
 import { isValidContextBudgetValue } from '@phosphor/shared/context-budget'
+import { isControlUrl } from '../control/url'
 import { passRefusal } from '../machine/environment'
 
 /**
@@ -32,6 +33,8 @@ export interface HostConfigV1 {
   }
   /** Reserved for an account adapter. v1 accepts only null. */
   accounts?: null
+  /** Bare control-plane origin. Defaults to DEFAULT_CONTROL_URL. */
+  control?: { url: string }
 }
 
 export interface ConfigError {
@@ -57,6 +60,7 @@ const KEYS = {
     'contextBudget',
     'environment',
     'accounts',
+    'control',
   ],
   pi: ['node', 'executable'],
   environment: ['pass', 'path'],
@@ -175,6 +179,15 @@ export function validateHostConfig(value: unknown): ConfigValidation {
       if (typeof dir === 'string' && dir.includes(':')) fail(at, 'must not contain ":"')
       else path(dir, at)
     })
+  }
+
+  if (value.control !== undefined) {
+    if (!isRecord(value.control)) fail('/control', 'must be an object with url')
+    else {
+      onlyKeys(value.control, ['url'], ['control'])
+      if (!isControlUrl(value.control.url))
+        fail('/control/url', 'must be a bare https origin, or http on loopback')
+    }
   }
 
   if (value.accounts !== undefined && value.accounts !== null) {

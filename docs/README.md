@@ -29,8 +29,8 @@ Start with [overview.md](overview.md) for what Phosphor is, or
 
 The [remote-access foundation](remote-access.md) documents the control-directory
 schema, isolated local tests and an opt-in private-transport probe. It does not
-enable remote execution, and neither does the [Host](host.md), which so far only
-checks a machine and runs acceptance sessions on it.
+enable remote execution, and neither does the [Host](host.md). The Host checks
+a machine, enrolls it in the control plane and runs acceptance sessions on it.
 
 The [control plane](control-plane.md) serves the site, API health and authenticated
 account metadata. It does not enable remote execution.

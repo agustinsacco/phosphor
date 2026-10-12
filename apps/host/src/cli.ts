@@ -8,6 +8,10 @@ import { renderDoctor, runDoctor, type DoctorContext } from './commands/doctor'
 import type { LoginContext } from './commands/provider-login'
 import { renderProviders, runProviders } from './commands/providers'
 import { runProviderLogin } from './commands/provider-login'
+import { runLogin } from './commands/login'
+import { runLogout } from './commands/logout'
+import { renderStatus, runStatus } from './commands/status'
+import type { ControlContext } from './control/command'
 import { defaultConfigPath } from './config/load'
 import type { Drainable } from './shutdown'
 import { HOST_SOURCE_SHA, HOST_VERSION } from './version'
@@ -31,10 +35,14 @@ Set up a Host in three steps: doctor, then providers, then accept.
                                     --provider and --model choose what the native
                                     lane runs on, --claude-model the Claude lane's
                                     model
+  login [--config FILE]            add this machine to your Phosphor account
+  status [--config FILE] [--json]   check this machine with the control plane
+  logout [--config FILE] [--local]  remove it; --local only forgets it here
   version [--json]                  print the Host's version
 
 exit codes: 0 ok, 1 an acceptance check failed, 64 usage, 69 prerequisite unavailable,
-70 internal error, 78 config invalid, 128+n ended by signal n
+70 internal error, 75 control unavailable or code expired, 77 machine removed,
+78 config invalid, 128+n ended by signal n
 `
 
 /** stdout carries only the report or JSON; everything else goes to stderr. */
@@ -50,10 +58,15 @@ export type CliContext = Omit<DoctorContext, 'configPath'> & {
   terminal?: boolean
   /** Replaced in tests: hands the terminal to a login. */
   runInTerminal?: LoginContext['run']
+  /** Control-plane I/O replaced in tests. */
+  control?: Pick<ControlContext, 'fetch' | 'now' | 'random' | 'signal' | 'wait' | 'store' | 'arch'>
 }
 
 const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   doctor: ['config', 'json'],
+  login: ['config'],
+  status: ['config', 'json'],
+  logout: ['config', 'local'],
   providers: ['config', 'json'],
   accept: [
     'config',
@@ -124,6 +137,47 @@ export async function runCli(
       return EXIT.ok
     }
     const configPath = values.config ?? defaultConfigPath(context.env, context.home)
+    if (['login', 'status', 'logout'].includes(command)) {
+      const controller = new AbortController()
+      const signal = context.control?.signal
+        ? AbortSignal.any([controller.signal, context.control.signal])
+        : controller.signal
+      let finished: () => void = () => {}
+      const done = new Promise<void>((resolve) => {
+        finished = resolve
+      })
+      const detach = context.attach?.({
+        drain: async () => {
+          controller.abort()
+          await done
+          return { state: 'stopped' }
+        },
+        log: { write: () => {}, hide: () => 'The control command could not finish.' },
+      })
+      const control = {
+        ...context,
+        ...context.control,
+        configPath,
+        signal,
+        print: (line: string) => io.stdout(`${line}\n`),
+      }
+      try {
+        if (command === 'status') {
+          const outcome = await runStatus(control)
+          io.stdout(
+            values.json ? `${JSON.stringify(outcome.report)}\n` : renderStatus(outcome.report),
+          )
+          return outcome.exitCode
+        }
+        const outcome =
+          command === 'login' ? await runLogin(control) : await runLogout(control, values.local)
+        io.stdout(`${outcome.message}\n`)
+        return outcome.exitCode
+      } finally {
+        finished()
+        detach?.()
+      }
+    }
     if (command === 'accept') {
       const outcome = await runAccept({
         ...context,
@@ -194,6 +248,7 @@ function parse(argv: readonly string[]) {
     options: {
       config: { type: 'string' },
       json: { type: 'boolean' },
+      local: { type: 'boolean' },
       repository: { type: 'string' },
       lane: { type: 'string' },
       'keep-transcripts': { type: 'boolean' },
