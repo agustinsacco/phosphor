@@ -24,6 +24,7 @@ import { unwatchAll } from './pi/session-watcher'
 import { unwatchAllWorkspaces } from './fs/workspace-watcher'
 import { unwatchMcpCache } from './pi/mcp-cache-watcher'
 import { settleAccount } from './account'
+import { configureLinuxKeyring } from './account/keyring'
 import { startUpdateChecks, stopUpdateChecks } from './updates/updater'
 import {
   applyThemeSource,
@@ -86,6 +87,11 @@ if (!app.isPackaged && process.env.PHOSPHOR_TEST_USER_DATA) {
   // (pi's argv, budget compactions) of the sessions it was meant to explain.
   app.setAppLogsPath(join(dir, 'logs'))
 }
+
+// Chromium reads password-store before ready. Logging waits for the log to open.
+configureLinuxKeyring(app.commandLine, (message) => {
+  void app.whenReady().then(() => setImmediate(() => log('account', message)))
+})
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
