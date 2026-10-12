@@ -167,6 +167,7 @@ export function getPrefs(): AppPrefs {
     contextBudget: stringOrEmpty(s.get('contextBudget')),
     contextFiles: normalizeContextFilePrefs(s.get('contextFiles')),
     drafts: s.get('drafts') ?? {},
+    machinesPreview: s.get('machinesPreview') === true,
   }
 }
 
@@ -238,6 +239,11 @@ export function getAccountPreview(): boolean {
 
 export function setAccountPreview(enabled: boolean): void {
   prefs().set('accountPreview', enabled)
+}
+
+/** See AppPrefs.machinesPreview. */
+export function setMachinesPreview(enabled: boolean): void {
+  prefs().set('machinesPreview', enabled)
 }
 
 /** See AppPrefs.compactionResetChecked. */

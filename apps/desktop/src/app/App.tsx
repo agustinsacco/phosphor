@@ -18,6 +18,7 @@ import { BulkDeleteProgressPopover } from '@/features/sessions/BulkDeleteModal'
 import { SkillsPage } from '@/features/skills/SkillsPage'
 import { RoutinesPage } from '@/features/routines/RoutinesPage'
 import { ArtifactsPage } from '@/features/artifacts/ArtifactsPage'
+import { MachinesPage } from '@/features/machines/MachinesPage'
 import { TopBar } from './TopBar'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { RightPane } from '@/features/files/RightPane'
@@ -281,6 +282,8 @@ export function App(): React.JSX.Element {
                   <RoutinesPage workspacePath={currentWorkspace} />
                 ) : page === 'skills' ? (
                   <SkillsPage workspacePath={currentWorkspace} />
+                ) : page === 'machines' ? (
+                  <MachinesPage />
                 ) : (
                   <ArtifactsPage />
                 )}

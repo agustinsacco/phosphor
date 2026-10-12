@@ -344,6 +344,10 @@ installs anything. Every action is a button.
 - **Phosphor account (preview)**: shows the optional GitHub sign-in under
   Accounts ([above](#phosphor-account-preview)). Off by default; turning it off
   signs out, and stays on if the saved sign-in cannot be deleted.
+- **Machines (preview)**: tries the machine-aware sidebar, the Machines page
+  and Run on against two made-up machines, bee1 and bee2
+  ([ui-shell.md](ui-shell.md#machines-preview)). Off by default; nothing
+  connects anywhere, and turning it off puts everything back.
 - **Maintenance**: a periodic sweep for worktrees whose branch already landed.
   It always _measures_ ("N of M worktrees reclaimable") and only deletes once
   "Delete automatically" is on. Interval (≥15 min) and a grace period (a merged

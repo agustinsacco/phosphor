@@ -3,6 +3,8 @@
 Remote execution is not enabled. Local Electron still needs no Phosphor login.
 Desktop has an optional GitHub sign-in behind a preview switch
 ([settings.md](settings.md#phosphor-account-preview)); it unlocks nothing yet.
+A second preview switch tries the machine-aware sidebar and Machines page
+against made-up machines ([ui-shell.md](ui-shell.md#machines-preview)).
 The shared host handshake and control-directory schema are foundations, not a
 running control plane or an exposed host API.
 
