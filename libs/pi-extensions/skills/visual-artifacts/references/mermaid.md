@@ -43,7 +43,7 @@ sequenceDiagram
     Engine-->>Host: Session ready
     Host-->>Client: Session ID and events
   else Request refused
-    Host-->>Client: Explicit error; no session started
+    Host-->>Client: Explicit error (no session started)
   end
 ```
 
