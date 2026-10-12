@@ -1,0 +1,36 @@
+{
+  "title": "Phosphor Remote Hosts",
+  "recordedAt": "2026-10-12T17:17:34.338Z",
+  "provenance": "Curated replay of a recorded lane. Excerpts shortened; task labels expanded; identities, local paths, unrelated projects and deployment details omitted. Activity is historical, not live. The lane predates the Swarm switch.",
+  "parentProvider": "pi-claude-cli",
+  "parentModel": "claude-opus-5-5",
+  "parentName": "Claude Opus 5.5",
+  "workerModel": "openai-codex/gpt-6.1-sol:high",
+  "parentExcerpt": "Both workers that asked for permission to touch files outside their briefs have their answers, and I've written the decisions into their briefs so a relaunched worker inherits them.\n\n### Scope decisions\n\n- **host-run (`phosphor run`):** the Host's existing shutdown code exits with 143 or 130 after a signal, but `run` must exit 0 after sending its final \"stopping\" heartbeat. I approved a small optional hook in `shutdown.ts` that lets `run` choose its own exit code, with these conditions:\n  - Every other command exits exactly as it does now, and the existing shutdown tests stay unchanged.\n  - There is still only one place that installs signal handlers.\n  - A second Ctrl-C still exits immediately.\n\n### Four workstreams, one parent\n\nAll four workers (enroll-api, host-run, desktop-live, docs-refresh) are still running. I'll integrate and review each one as it reports.",
+  "editorialHeadings": ["Scope decisions", "Four workstreams, one parent", "Parent guidance"],
+  "tracks": [
+    {
+      "key": "enroll-api",
+      "label": "Enrollment API",
+      "task": "Enrollment routes and cross-account access checks."
+    },
+    {
+      "key": "host-run",
+      "label": "Host heartbeat",
+      "task": "phosphor run and service lifecycle, readiness, heartbeat and shutdown."
+    },
+    {
+      "key": "desktop-live",
+      "label": "Live machine status",
+      "task": "Live machine status, reconnect behavior and signed-out safety."
+    },
+    {
+      "key": "docs-refresh",
+      "label": "Docs & roadmap",
+      "task": "Align the documentation with the code; distinguish decided direction from shipped behavior."
+    }
+  ],
+  "approvalTrack": "host-run",
+  "approvalExcerpt": "Approved. Reuse the low-level helpers (probe, which, isNodeScript, extractVersion, compareVersions, parseLoggedIn) with your own strict, typed mapping, and leave the probe modules unchanged.\n\nConditions:\n- Import the minimum pi version from the same constant doctor uses. Never copy the literal.\n- A probe that timed out, was truncated or errored maps to `unknown` before any parsing. It is never `ok` and never `outdated`.\n- Each mapping gets a table-driven test that includes timeout and truncation, plus a mutation proving that a timed-out probe carrying a version string is not reported ok.",
+  "publicEvidence": [427, 428, 429, 430, 435]
+}

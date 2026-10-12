@@ -6,10 +6,11 @@
 
 # Phosphor
 
-**An IDE built around the agent.** An agentic IDE for macOS, Linux and
-Windows, built on the [pi coding agent](https://pi.dev): a harness kept
-deliberately small and simple, and made to be extended. Phosphor keeps it that
-way. Tools, model providers and skills install as pi packages.
+**One mission. Many agents. Your IDE.** Phosphor is the open-source multi-agent
+IDE built on the [pi coding agent](https://pi.dev), for macOS, Linux and Windows.
+Run independent tasks in isolated lanes, delegate focused pieces inside a lane,
+and stay close to every decision, diff and result. Pi stays the small, extensible
+harness underneath: tools, model providers and skills install as pi packages.
 
 [![Website](https://img.shields.io/badge/phosphor.saccolabs.com-eca03d?label=web&labelColor=1e1c18)](https://phosphor.saccolabs.com)
 [![CI](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml/badge.svg)](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml)
@@ -36,7 +37,11 @@ models mid-session and the conversation comes along.
 | **Every session is a real pi process** | Your pi setup, extensions and session files carry over |
 | **Runs on your machine**               | MIT licensed, no sign-up, your models and keys         |
 
-![A session with the activity run open on an edit's diff](docs/img/chat.png)
+![Curated Remote Hosts replay: four workstreams and a scoped parent decision in the Subagents pane](apps/site/src/assets/shots/remote-hosts.webp)
+
+_Recorded work, curated replay in the real UI. Excerpts shortened and task labels
+expanded; private paths and unrelated projects omitted. Historical activity, not
+a live run. [Case study and capture provenance](https://phosphor.saccolabs.com/guides/swarm/#case-study)._
 
 ## Quick start
 
@@ -82,12 +87,43 @@ terminal and use `/login`, or put API keys / a local endpoint in
   mount MCP servers from Settings. MCP OAuth belongs to the adapter, never to
   Phosphor: [docs/mcp.md](docs/mcp.md).
 
+## Multi-agent work, without losing the thread
+
+**Parallel lanes** keep separate tasks on separate branches. **Subagents within a
+lane** let a parent delegate bounded pieces through the optional pi-subagents
+package, answer scope questions, and integrate the results. The current-work
+summary and dockable Subagents pane keep foreground/background work inspectable.
+Missing status means unavailable, not finished. Execution completion, independent
+acceptance and successful integration are separate checkpoints.
+
+The **Swarm** switch grants per-lane standing authorization for proactive
+delegation when useful. It does not itself launch agents, assign models or widen
+permissions. Off removes that authorization from future requests, not existing
+children or history. Old lanes need a Pi reload/restart to acquire the command;
+forks and clones start off. [Swarm behavior](docs/chat.md#swarm-authorization).
+
+For example: **Astra** explores the architecture, **Opus 5.5** orchestrates and
+integrates, and **Sol 6.1** implements scoped changes and performs separate
+reviews. These are illustrative assignments, not automatic presets. Choose
+available models and effort through pi and pi-subagents; Claude subscriptions can
+connect through pi-claude-cli.
+
+**Real work: Phosphor Remote Hosts.** The recorded parent used Astra and Opus 5.5
+at different stages, with Sol 6.1 assigned to workers and reviewers. One phase
+split enrollment API, Host lifecycle, Desktop live status and documentation into
+four workstreams. Workers requested scope exceptions; independent reviews and
+retained work made decisions and recovery inspectable. The lane predates the
+Swarm switch and used explicitly authorized delegation. This is a development
+case study, not a claim that remote execution has shipped.
+[Work with a swarm](https://phosphor.saccolabs.com/guides/swarm/) ·
+[Current remote-access boundary](docs/remote-access.md).
+
 ## The screens
 
 Every session pairs the transcript with one switchable pane: Files, Changes,
 Terminal, Artifacts or Subagents. The pane docks left or right (persisted per session) and
-can go fullscreen. Every shot below is the app against a real pi, real
-providers and real tokens; see
+can go fullscreen. The feature shots below are the app against a real pi, real
+providers and real tokens. The Remote Hosts image above is a labelled curated replay; see
 [the screenshots in this README](#the-screenshots-in-this-readme).
 
 ### Home: where a session starts
@@ -416,9 +452,11 @@ else private, like an internal MCP server's name or host.
 `npm run shots` (`tools/scripts/capture-readme-shots.mjs`) is the deterministic
 sibling: same mechanics, scratch workspace, the e2e `pi` stub, no key, no
 network. Use it to verify UI changes; use the live one to regenerate what this
-README shows. The one exception is the site's hero (`subagents`): a real run
-won't hold four sub-agents mid-flight for a frame, so it comes from this
-runner and the site labels it a scripted demo (see `apps/site/README.md`).
+README's feature gallery shows. The homepage and README opening use a different,
+explicitly labelled source: reviewed Remote Hosts excerpts replayed in the actual
+renderer, with private details removed and task labels expanded. No live agents
+are started to produce that image. The fixture, reproduction script and exact
+provenance live in [apps/site/README.md](apps/site/README.md#captures-and-privacy).
 
 ### Repo layout
 

@@ -156,11 +156,16 @@ const sections: [string, string][] = [
     <h2>Split work across agents</h2>
     <p>
       With the <a href="/guides/extensions/#subagents">Subagents package</a> installed, ask the agent
-      to split independent work. Each child shows in the chat with its current tool, its last few steps,
-      and its result. Background runs stay in a strip under the chat, and the lane keeps showing as working
-      until they finish.
+      to split independent work, or enable Swarm for standing authorization to delegate when useful. The
+      current-work summary distinguishes parent activity from reported child activity. Open the dockable
+      Subagents pane for tasks, bounded activity and results. Missing status is unavailable, not proof
+      that work finished. Turning Swarm off does not stop existing children.
     </p>
-    <p><a href={doc('chat.md#sub-agents')}>Sub-agents reference</a></p>
+    <p>
+      <a href="/guides/swarm/">Multi-agent workflow and Swarm guide</a> · <a
+        href={doc('chat.md#sub-agents')}>Sub-agents reference</a
+      >
+    </p>
   </section>
   <section id="artifacts">
     <h2>Artifacts</h2>

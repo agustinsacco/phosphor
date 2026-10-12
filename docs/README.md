@@ -11,6 +11,7 @@ and leaves the future file in the same diff that builds it.
 
 For installation and task-oriented tutorials, start with the
 [Phosphor guides](https://phosphor.saccolabs.com/guides/): first task, daily work,
+[multi-agent work and Swarm](https://phosphor.saccolabs.com/guides/swarm/),
 subscriptions and accounts, pi extensions, and MCP connectors. These guides explain
 how to use the UI; the contracts below own the technical behavior.
 

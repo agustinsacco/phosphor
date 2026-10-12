@@ -1,0 +1,240 @@
+---
+import { doc, repo } from '../lib/content'
+const tracks = [
+  ['01', 'Enrollment API', 'Routes, identity boundaries and cross-account access checks.'],
+  ['02', 'Host lifecycle', 'Readiness, heartbeats, graceful shutdown and recovery.'],
+  ['03', 'Desktop live status', 'Live updates, reconnects and signed-out safety.'],
+  ['04', 'Docs & roadmap', 'What exists, what is decided, and what is still a design question.'],
+]
+---
+
+<section id="swarm" class="section mission-section" aria-labelledby="mission-title">
+  <div class="container">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Real work / Phosphor Remote Hosts</p><h2 id="mission-title">
+          An ambitious feature.<br />Not one giant prompt.
+        </h2>
+      </div>
+      <p class="section-intro">
+        One parent coordinated four workstreams. Workers asked before crossing their scope.
+        Independent reviewers challenged the results. The parent owned integration.
+      </p>
+    </div>
+    <div class="mission-tracks">
+      {
+        tracks.map(([number, title, text]) => (
+          <article>
+            <>
+              <span class="mono">{number} / WORKSTREAM</span>
+              <h3>{title}</h3>
+              <p>{text}</p>
+            </>
+          </article>
+        ))
+      }
+    </div>
+    <div class="mission-evidence">
+      <div>
+        <p class="eyebrow">The part a chat log doesn’t show</p><h3>
+          A team you can<br />actually inspect.
+        </h3>
+      </div>
+      <ol>
+        <li>
+          <strong>Scope is explicit.</strong> A worker needed to change shared shutdown code. The parent
+          approved a narrow exception and required existing behavior to stay tested.
+        </li>
+        <li>
+          <strong>Review is a separate job.</strong> Security, correctness and documentation reviews ran
+          independently. “Finished” was not treated as “accepted.”
+        </li>
+        <li>
+          <strong>A failed run need not mean lost work.</strong> After a worker connection failure, a
+          replacement continued from retained work and the recorded decisions.
+        </li>
+      </ol>
+    </div>
+    <div class="source-line">
+      <a class="text-link" href={`${repo}/pull/427`}>Schema #427 ↗</a><a
+        class="text-link"
+        href={`${repo}/pull/429`}>Desktop approval #429 ↗</a
+      ><a class="text-link" href={`${repo}/pull/435`}>Host identity #435 ↗</a><a
+        class="text-link"
+        href="/guides/swarm/#case-study">Read the case study →</a
+      >
+    </div>
+    <p class="fineprint">
+      The capture above replays selected, redacted records in the real Phosphor UI. Task labels are
+      expanded; activity is historical, not live. This lane predates the Swarm switch. Remote Hosts
+      is the feature being built, not a claim that remote execution is available.
+    </p>
+
+    <div class="team-heading">
+      <p class="eyebrow">Your models. Your division of labor.</p><h3 class="subheading">
+        Different minds.<br />One accountable workflow.
+      </h3><p>
+        The recorded parent used Astra and Opus 5.5 at different points; Sol 6.1 was assigned to
+        workers and reviewers. Here is one way to divide a new mission.
+      </p>
+    </div>
+    <div class="model-team" aria-label="Illustrative model roles, not automatic routing">
+      <article>
+        <span class="mono">EXPLORE & PLAN</span><h3>Astra</h3><p>
+          Map the codebase, examine dependencies, and turn an open question into bounded work.
+        </p>
+      </article>
+      <article>
+        <span class="mono">ORCHESTRATE & INTEGRATE</span><h3>Opus 5.5</h3><p>
+          Delegate the pieces, answer scope questions, weigh review findings, and assemble the
+          result.
+        </p>
+      </article>
+      <article>
+        <span class="mono">IMPLEMENT & REVIEW</span><h3>Sol 6.1</h3><p>
+          Build focused changes. Use separate reviewer runs to challenge them before integration.
+        </p>
+      </article>
+    </div>
+    <p class="fineprint">
+      Example roles, not built-in presets or a benchmark. Choose available models and thinking
+      levels through pi and pi-subagents. Phosphor does not automatically assign these models.
+      Claude subscriptions can connect through pi-claude-cli.
+    </p>
+    <aside class="swarm-authorization">
+      <div>
+        <p class="eyebrow">New / per-lane Swarm authorization</p><h3>
+          Let the parent delegate.<br />Keep the work visible.
+        </h3>
+      </div>
+      <div>
+        <p>
+          Turn on <strong>Swarm</strong> to authorize proactive delegation when useful. The parent still
+          decides whether a task needs a team. The switch is authorization, not a “start four agents”
+          button.
+        </p><p>
+          Turning it off removes that standing authorization from future requests. It does not stop
+          existing children or erase history. Old lanes need a Pi reload or restart to acquire the
+          command.
+        </p><a class="action action-text" href="/guides/swarm/"
+          >Work with a swarm <span aria-hidden="true">→</span></a
+        ><a class="text-link" href={doc('chat.md#swarm-authorization')}
+          >Exact behavior and boundaries ↗</a
+        >
+      </div>
+    </aside>
+  </div>
+</section>
+<style>
+  .mission-section {
+    background: var(--px-sidebar);
+  }
+  .mission-tracks,
+  .model-team {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-block: 1px solid var(--px-border-strong);
+  }
+  .mission-tracks article,
+  .model-team article {
+    padding: 1.8rem 1.4rem;
+    border-right: 1px solid var(--px-border);
+  }
+  article:last-child {
+    border-right: 0;
+  }
+  article .mono {
+    color: var(--px-accent);
+  }
+  article h3 {
+    margin: 1rem 0 0.75rem;
+  }
+  article p {
+    font-size: var(--text-sm);
+  }
+  .mission-evidence {
+    display: grid;
+    grid-template-columns: 1fr 1.7fr;
+    gap: 4rem;
+    padding-top: 3rem;
+  }
+  .mission-evidence h3 {
+    font-size: var(--text-3xl);
+  }
+  .mission-evidence ol {
+    list-style: decimal;
+    margin: 0;
+    padding-left: 1.3rem;
+    color: var(--px-text-secondary);
+  }
+  .mission-evidence li {
+    padding: 0 0 1rem 0.6rem;
+  }
+  .mission-evidence li::marker {
+    color: var(--px-accent);
+    font-family: var(--px-font-mono);
+  }
+  .team-heading {
+    margin-top: 5rem;
+    max-width: 48rem;
+  }
+  .team-heading > p:last-child {
+    margin: 1.4rem 0 2rem;
+  }
+  .model-team {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .model-team h3 {
+    font-size: var(--text-3xl);
+  }
+  .swarm-authorization {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr;
+    gap: 3rem;
+    padding: 2.5rem;
+    margin-top: 3rem;
+    background: var(--px-bg);
+    border: 1px solid var(--px-border-strong);
+    border-left: 3px solid var(--px-accent);
+  }
+  .swarm-authorization h3 {
+    font-size: var(--text-3xl);
+  }
+  .swarm-authorization p {
+    margin-bottom: 1.2rem;
+  }
+  .swarm-authorization .text-link {
+    margin: 1rem 0 0;
+    display: block;
+  }
+  @media (max-width: 760px) {
+    .mission-tracks {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .mission-tracks article {
+      border-bottom: 1px solid var(--px-border);
+    }
+    .mission-tracks article:nth-child(2n) {
+      border-right: 0;
+    }
+    .mission-evidence,
+    .swarm-authorization {
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+    }
+    .swarm-authorization {
+      padding: 1.5rem;
+    }
+  }
+  @media (max-width: 480px) {
+    .mission-tracks,
+    .model-team {
+      grid-template-columns: 1fr;
+    }
+    .mission-tracks article,
+    .model-team article {
+      border-right: 0;
+      border-bottom: 1px solid var(--px-border);
+    }
+  }
+</style>
