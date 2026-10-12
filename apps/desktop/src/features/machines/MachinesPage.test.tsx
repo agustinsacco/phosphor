@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { useMachinesStore, type MachineTab } from '@/stores/machines'
+import { attachMachinesListener, useMachinesStore, type MachineTab } from '@/stores/machines'
 import { MachinesPage } from './MachinesPage'
 import { MachineFilterBar } from './MachineSidebar'
 import { RunOnPicker } from './RunOnPicker'
@@ -133,4 +133,20 @@ it('offers only this computer to run a new lane on', async () => {
     ['bee1pre', true],
     ['bee2dow', true],
   ])
+})
+
+it('renders the Machines page against the browser mock harness', async () => {
+  const { installMockPhosphor } = await import('@/dev/mockPhosphor')
+  installMockPhosphor()
+  const off = attachMachinesListener()
+  try {
+    const text = await render(<MachinesPage />)
+    expect(text).toContain('Sample machines.')
+    expect(container.querySelectorAll('[data-testid="machine-row"]')).toHaveLength(3)
+    expect(useMachinesStore.getState().remoteEnabled).toBe(false)
+    const unsubscribe = window.phosphor.onMachinesChanged(() => undefined)
+    unsubscribe()
+  } finally {
+    off()
+  }
 })

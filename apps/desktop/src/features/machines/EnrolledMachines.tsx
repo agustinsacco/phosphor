@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { machineStatus, type MachineView } from '@shared/control-api'
+import { useState } from 'react'
+import { type MachineView } from '@shared/control-api'
 import { ModalOverlay, ModalPanel } from '@/components/Modal'
 import { Button } from '@/components/form'
 import { useMachinesStore } from '@/stores/machines'
@@ -8,6 +8,8 @@ import { controlMessage } from './controlMessages'
 
 export function EnrolledMachines(): React.JSX.Element {
   const machines = useMachinesStore((s) => s.machines)
+  const statuses = useMachinesStore((s) => s.statuses)
+  const nowMs = useMachinesStore((s) => s.nowMs)
   const offset = useMachinesStore((s) => s.clockOffsetMs)
   const loading = useMachinesStore((s) => s.loading)
   const error = useMachinesStore((s) => s.error)
@@ -16,21 +18,6 @@ export function EnrolledMachines(): React.JSX.Element {
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [removeError, setRemoveError] = useState<string | null>(null)
-  useEffect(() => {
-    const store = useMachinesStore.getState()
-    store.enableRemote(true)
-    const refresh = (): void => {
-      if (!document.hidden && !useMachinesStore.getState().loading) void store.refresh()
-    }
-    refresh()
-    const timer = setInterval(refresh, 30_000)
-    document.addEventListener('visibilitychange', refresh)
-    return () => {
-      clearInterval(timer)
-      document.removeEventListener('visibilitychange', refresh)
-      store.enableRemote(false)
-    }
-  }, [])
   async function remove(): Promise<void> {
     if (!removing || busy) return
     setBusy(true)
@@ -68,15 +55,36 @@ export function EnrolledMachines(): React.JSX.Element {
       )}
       {notice && <p role="status">{notice}</p>}
       {!loading && !error && machines.length === 0 && (
-        <p>No machines yet. Add one with the code from phosphor login.</p>
+        <div>
+          <p>No machines yet.</p>
+          <ol>
+            <li>
+              Install Phosphor Host on the machine (see the{' '}
+              <a
+                className="underline"
+                href="https://github.com/agustinsacco/phosphor/blob/main/docs/host.md"
+                onClick={(event) => {
+                  event.preventDefault()
+                  void window.phosphor.invoke('app:openExternal', event.currentTarget.href)
+                }}
+              >
+                Host guide
+              </a>
+              ).
+            </li>
+            <li>
+              Run <code>phosphor login</code> there and enter the code under Add a machine.
+            </li>
+          </ol>
+        </div>
       )}
       <div className="border-border divide-border divide-y rounded-lg border">
         {machines.map((machine) => {
-          const status = machineStatus(machine, Date.now(), offset)
+          const status = statuses[machine.id]
           const seen =
             machine.lastSeenAt === null
               ? 'never connected'
-              : `seen ${Math.max(0, Math.floor((Date.now() + offset - Date.parse(machine.lastSeenAt)) / 1000))} s ago`
+              : `seen ${Math.max(0, Math.floor((nowMs + offset - Date.parse(machine.lastSeenAt)) / 1000))} s ago`
           return (
             <div
               key={machine.id}

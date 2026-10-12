@@ -77,3 +77,19 @@ it('keeps preview-off access local and exposes only a non-secret cache generatio
   expect(await accountAccessToken()).toBeNull()
   expect(fake.accessToken).toHaveBeenCalledTimes(calls)
 })
+
+it('publishes only account views, isolates throwing listeners and unsubscribes', async () => {
+  const { onAccountChange } = await import('../account')
+  const throwing = vi.fn(() => {
+    throw new Error('listener failed')
+  })
+  const receive = vi.fn()
+  const offThrow = onAccountChange(throwing)
+  const off = onAccountChange(receive)
+  fake.state.onChange?.({ status: 'signed-out' })
+  expect(receive).toHaveBeenCalledWith({ preview: false, account: { status: 'signed-out' } })
+  off()
+  offThrow()
+  fake.state.onChange?.({ status: 'signed-out' })
+  expect(receive).toHaveBeenCalledOnce()
+})
