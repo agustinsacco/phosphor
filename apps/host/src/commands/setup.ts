@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { link, lstat, mkdir, open, realpath, rename, stat, unlink } from 'node:fs/promises'
+import { chmod, link, lstat, mkdir, open, realpath, rename, stat, unlink } from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 import { errorText } from '@phosphor/shared/errors'
 import { EXIT, exitCodeFor, fail, type Check } from '../checks'
@@ -184,6 +184,8 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
   try {
     const handle = await open(temp, 'wx', 0o600)
     try {
+      // The creation mode is masked by the caller's umask; set it outright.
+      await handle.chmod(0o600)
       await handle.writeFile(text)
       await handle.sync()
     } finally {
@@ -240,11 +242,39 @@ function isMissing(error: unknown): boolean {
 
 async function directoryProblem(dir: string, uid: number | undefined): Promise<string | null> {
   if (uid === undefined) return 'the Host runs on Linux and macOS'
-  await mkdir(dir, { recursive: true, mode: 0o700 })
+  await createPrivate(dir)
   const info = await stat(dir)
   if (info.uid !== uid) return `${dir} belongs to uid ${info.uid}, not to you (${uid})`
   if (info.mode & 0o022) return `${dir} is writable by others: run chmod go-w ${dir}`
   return null
+}
+
+/**
+ * Create `dir` and any missing parents as 0700, whatever the umask. Only the
+ * folders created here are chmodded: an existing one is judged, not repaired.
+ */
+async function createPrivate(dir: string): Promise<void> {
+  const missing: string[] = []
+  for (let path = dir; ; path = dirname(path)) {
+    if (
+      await lstat(path).then(
+        () => true,
+        (error: unknown) => !isMissing(error),
+      )
+    )
+      break
+    missing.unshift(path)
+    if (dirname(path) === path) break
+  }
+  for (const path of missing) {
+    try {
+      await mkdir(path, { mode: 0o700 })
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'EEXIST') continue
+      throw error
+    }
+    await chmod(path, 0o700)
+  }
 }
 
 export function renderSetup(report: SetupReport): string {

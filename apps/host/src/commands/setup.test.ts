@@ -471,6 +471,54 @@ describe('setup existing config and permissions', () => {
     expect((await readFile(context.configPath, 'utf8')).endsWith('\n')).toBe(true)
     expect(await readdir(dirname(context.configPath))).toEqual(['config.json'])
   })
+  it.each([0o200, 0o177, 0o100])(
+    'creates 0700 directories and a 0600 file under the restrictive umask %o',
+    async (mask) => {
+      context.configPath = join(dir, 'xdg', 'phosphor-host', 'config.json')
+      const umask = process.umask(mask)
+      try {
+        expect((await runSetup(context)).exitCode).toBe(0)
+      } finally {
+        process.umask(umask)
+      }
+      for (const folder of [join(dir, 'xdg'), dirname(context.configPath)]) {
+        expect((await stat(folder)).mode & 0o777).toBe(0o700)
+      }
+      expect((await stat(context.configPath)).mode & 0o777).toBe(0o600)
+    },
+  )
+  it('writes a 0600 file into an existing 0700 directory under umask 200', async () => {
+    await mkdir(dirname(context.configPath), { mode: 0o700 })
+    const umask = process.umask(0o200)
+    try {
+      expect((await runSetup(context)).exitCode).toBe(0)
+    } finally {
+      process.umask(umask)
+    }
+    expect((await stat(context.configPath)).mode & 0o777).toBe(0o600)
+  })
+  it('does not repair an existing group-writable parent of a new directory', async () => {
+    await mkdir(join(dir, 'shared'))
+    await chmod(join(dir, 'shared'), 0o770)
+    context.configPath = join(dir, 'shared', 'phosphor-host', 'config.json')
+    expect((await runSetup(context)).exitCode).toBe(0)
+    expect((await stat(join(dir, 'shared'))).mode & 0o777).toBe(0o770)
+    expect((await stat(dirname(context.configPath))).mode & 0o777).toBe(0o700)
+  })
+  it('judges, never chmods, a directory that appears while setup creates it', async () => {
+    const target = dirname(context.configPath)
+    const real = await vi.importActual<typeof FsPromises>('node:fs/promises')
+    vi.mocked(mkdir).mockImplementationOnce(async (path) => {
+      await real.mkdir(path, { mode: 0o700 })
+      await real.chmod(path, 0o770)
+      throw Object.assign(new Error('exists'), { code: 'EEXIST' })
+    })
+    const report = await runSetup(context)
+    expect(report.exitCode).toBe(78)
+    expect(renderSetup(report)).toContain(`run chmod go-w ${target}`)
+    expect((await stat(target)).mode & 0o777).toBe(0o770)
+    await nothingWritten()
+  })
   it('refuses an existing group-writable directory and prints the exact chmod', async () => {
     await mkdir(dirname(context.configPath))
     await chmod(dirname(context.configPath), 0o770)
