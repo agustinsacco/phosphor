@@ -6,7 +6,7 @@ const state = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
 }))
 vi.mock('electron', () => ({
-  app: { isPackaged: true },
+  app: { isPackaged: true, once: () => undefined },
   ipcMain: {
     handle: (channel: string, handler: (...args: unknown[]) => unknown) =>
       state.handlers.set(channel, handler),
@@ -15,6 +15,9 @@ vi.mock('electron', () => ({
 vi.mock('../account', () => ({
   accountAccessToken: async () => state.token,
   accountControlGeneration: () => 0,
+  // Signed out with the preview off: the live socket must stay closed.
+  accountSnapshot: () => ({ preview: false, account: { status: 'signed-out' } }),
+  onAccountChange: () => () => undefined,
 }))
 const fetchImpl = vi.fn()
 beforeEach(async () => {

@@ -2336,6 +2336,8 @@ export function installMockPhosphor(): void {
       return () => mockClaudeLoginListeners.delete(listener)
     },
 
+    onMachinesChanged: () => () => undefined,
+
     onAccountChanged: (listener) => {
       mockAccountListeners.add(listener)
       return () => mockAccountListeners.delete(listener)

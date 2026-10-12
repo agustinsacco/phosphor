@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { AccountView } from '@shared/account'
 import { MachinesPage } from './MachinesPage'
 import { AddMachineDialog } from './AddMachineDialog'
-import { useMachinesStore } from '@/stores/machines'
+import { attachMachinesListener, useMachinesStore } from '@/stores/machines'
 import { MACHINE, LOOKUP } from './__fixtures__/control'
 import { CONTROL_ERROR_STATUS } from '@shared/control-api'
 import { controlMessage } from './controlMessages'
@@ -14,6 +14,8 @@ vi.mock('@/features/settings/tabs/AccountsTab', () => ({ AccountsTab: () => null
 let root: Root
 let container: HTMLDivElement
 let push: (view: AccountView) => void
+let detach: (() => void) | undefined
+let signal: () => void
 let account: AccountView
 let answer: unknown
 const NOW = Date.parse('2026-01-01T00:00:00Z')
@@ -32,6 +34,7 @@ const invoke = vi.fn(async (channel: string): Promise<unknown> => {
 
 beforeEach(() => {
   invoke.mockClear()
+  detach = undefined
   account = {
     preview: true,
     account: {
@@ -42,12 +45,20 @@ beforeEach(() => {
   }
   answer = { ok: true, machines: [MACHINE], serverTime: new Date(NOW).toISOString() }
   vi.spyOn(Date, 'now').mockReturnValue(NOW - 600_000)
+  const listeners = new Set<typeof push>()
+  push = (view) => {
+    for (const listener of listeners) listener(view)
+  }
   vi.stubGlobal('phosphor', {
     platform: 'darwin',
     invoke,
-    onAccountChanged: (listener: typeof push) => {
-      push = listener
+    onMachinesChanged: (listener: () => void) => {
+      signal = listener
       return () => undefined
+    },
+    onAccountChanged: (listener: typeof push) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
     },
   })
   useMachinesStore.getState().applyPreview(true)
@@ -58,6 +69,7 @@ beforeEach(() => {
 })
 afterEach(() => {
   act(() => root.unmount())
+  detach?.()
   container.remove()
   useMachinesStore.getState().applyPreview(false)
   vi.restoreAllMocks()
@@ -82,7 +94,10 @@ async function input(label: string, value: string) {
   })
 }
 const render = async (node: React.ReactNode) => {
-  await act(async () => root.render(node))
+  await act(async () => {
+    if (!detach) detach = attachMachinesListener()
+    root.render(node)
+  })
 }
 
 it('renders fresh, 91-second-old, stopping and never-seen beats with server clock offset', async () => {
@@ -183,18 +198,36 @@ it('signed out keeps samples, makes no control call and clears real data on sign
   expect(useMachinesStore.getState().machines).toEqual([])
   expect(container.textContent).toContain('Sample machines')
 })
-it('polls only while visible and stops when the page closes', async () => {
+it('keeps updating from signals after the page closes, without page polling', async () => {
   vi.useFakeTimers()
   await render(<MachinesPage />)
-  await act(async () => vi.advanceTimersByTimeAsync(30_000))
-  expect(invoke.mock.calls.filter(([c]) => c === 'control:machines')).toHaveLength(2)
-  vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
-  await act(async () => vi.advanceTimersByTimeAsync(30_000))
-  expect(invoke.mock.calls.filter(([c]) => c === 'control:machines')).toHaveLength(2)
+  await act(async () => vi.advanceTimersByTimeAsync(60_000))
+  expect(invoke.mock.calls.filter(([c]) => c === 'control:machines')).toHaveLength(1)
   await render(null)
-  await act(async () => vi.advanceTimersByTimeAsync(30_000))
+  answer = { ok: true, machines: [], serverTime: new Date(NOW).toISOString() }
+  await act(async () => signal())
   expect(invoke.mock.calls.filter(([c]) => c === 'control:machines')).toHaveLength(2)
+  expect(useMachinesStore.getState().machines).toEqual([])
   vi.useRealTimers()
+})
+it('explains enrollment in the empty state and opens the Host guide through main', async () => {
+  answer = { ok: true, machines: [], serverTime: new Date(NOW).toISOString() }
+  await render(<MachinesPage />)
+  expect(container.textContent).toContain('No machines yet.')
+  expect(container.textContent).toContain(
+    'Install Phosphor Host on the machine (see the Host guide).',
+  )
+  expect(container.textContent).toContain(
+    'Run phosphor login there and enter the code under Add a machine.',
+  )
+  const guide = container.querySelector('a')
+  expect(guide?.textContent).toBe('Host guide')
+  expect(guide?.href).toBe('https://github.com/agustinsacco/phosphor/blob/main/docs/host.md')
+  await act(async () => guide?.click())
+  expect(invoke).toHaveBeenCalledWith(
+    'app:openExternal',
+    'https://github.com/agustinsacco/phosphor/blob/main/docs/host.md',
+  )
 })
 it.each([...Object.keys(CONTROL_ERROR_STATUS), 'signed-out', 'offline'])(
   'shows a plain error for %s in lookup and approval',

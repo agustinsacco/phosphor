@@ -75,8 +75,26 @@ const controls = createAccountControls({
   getPreview: getAccountPreview,
   setPreview: setAccountPreview,
   view,
-  publish: (next) => broadcast('account:changed', next),
+  publish: publishView,
 })
+
+const listeners = new Set<(view: AccountView) => void>()
+export function onAccountChange(listener: (view: AccountView) => void): () => void {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+function publishView(next: AccountView): void {
+  broadcast('account:changed', next)
+  for (const listener of listeners) {
+    try {
+      listener(next)
+    } catch {
+      /* A subscriber cannot interrupt account delivery. */
+    }
+  }
+}
 
 export const accountSnapshot = (): AccountView => controls.snapshot()
 export const signIn = (): AccountView => controls.signIn()
@@ -109,7 +127,7 @@ let controlGeneration = 0
 export const accountControlGeneration = (): number => controlGeneration
 function publishAccountChange(state: AccountState): void {
   if (state.status !== 'signed-in') controlGeneration++
-  broadcast('account:changed', view(state))
+  publishView(view(state))
 }
 export async function accountAccessToken(): Promise<string | null> {
   if (!getAccountPreview()) return null
