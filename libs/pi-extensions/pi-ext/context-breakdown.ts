@@ -27,6 +27,7 @@
  */
 
 import contextBudget, { type BudgetApi } from './context-budget'
+import swarm from './swarm'
 import contextFiles, { contextFilesIn, type ContextFileInfo } from './context-files'
 
 interface PiExtensionApi extends BudgetApi {
@@ -283,6 +284,7 @@ export default function contextBreakdownExtension(pi: PiExtensionApi): void {
     latestContext = ctx as ExtensionContext
     publish(latestContext)
   })
+  const swarmPolicy = swarm(pi, (ctx) => publish(ctx as ExtensionContext))
   // Server names and tool totals come from the MCP adapter's status snapshots
   // on pi's shared event bus. Absent (no adapter, or an older one),
   // classification falls back to the `mcp__` namespace form and the chips
@@ -393,7 +395,7 @@ export default function contextBreakdownExtension(pi: PiExtensionApi): void {
       contextWindow: typeof usage?.contextWindow === 'number' ? usage.contextWindow : null,
       parts: {
         messages: messages.tokens,
-        systemPrompt: Math.max(0, estimateTokens(systemPrompt) - omitted),
+        systemPrompt: Math.max(0, estimateTokens(systemPrompt) - omitted) + swarmPolicy.tokens(),
         tools: toolTokens,
         mcpTools: mcpToolTokens,
       },

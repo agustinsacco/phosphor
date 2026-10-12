@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { useChatStore } from '@/stores/chat'
+import { SwarmBadge } from '@/features/chat/composer/SwarmSwitch'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { useLayoutStore, sessionPanes } from '@/stores/layout'
 import { useSessionsStore } from '@/stores/sessions'
@@ -102,6 +103,7 @@ function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.
         >
           {title ?? 'New session'}
         </span>
+        <SwarmBadge sessionId={sessionId} />
       </div>
       {/* Reference order: terminal, files, changes, artifacts, kebab. */}
       <TerminalButton sessionId={sessionId} active={rightPane === 'terminal'} />

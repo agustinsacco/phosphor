@@ -12,6 +12,7 @@ describe('bundledExtensions', () => {
     const imported = new Set([
       'context-budget.ts',
       'context-files.ts',
+      'swarm.ts',
       'artifact-store.ts',
       'subagent-snapshot.ts',
     ])

@@ -150,6 +150,56 @@ function scrollPosition(el: HTMLElement): { top: number; max: number } {
   return { top, max }
 }
 
+test('Swarm toggles lane authorization without sending a turn and honors reduced motion', async () => {
+  const h = await launch()
+  const { page } = h
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('hello')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    const toggle = page.getByRole('switch', { name: 'Swarm', exact: true })
+    await expect(toggle).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled({
+      timeout: 20_000,
+    })
+    const messages = await page.getByTestId('user-message').count()
+    const draft = page.getByPlaceholder(/Describe a task…/i)
+    await draft.fill('Keep this draft')
+    await toggle.focus()
+    await page.keyboard.press('Space')
+    await expect(toggle).toBeChecked()
+    await expect(page.locator('[data-swarm-enabled="true"]')).toBeVisible()
+    await expect(page.getByTitle('Swarm authorization enabled for this lane')).toBeVisible()
+    await expect(page.getByTestId('user-message')).toHaveCount(messages)
+    await expect(draft).toHaveValue('Keep this draft')
+    await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled()
+    await expect(page.getByText(/"version":1,"available":true/)).toHaveCount(0)
+    await toggle.hover()
+    expect(
+      await toggle
+        .locator('.swarm-satellite')
+        .first()
+        .evaluate((el) => getComputedStyle(el).animationName),
+    ).toBe('swarm-fan-out')
+    await page.screenshot({ path: test.info().outputPath('swarm-enabled.png') })
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    expect(
+      await toggle
+        .locator('.swarm-satellite')
+        .first()
+        .evaluate((el) => getComputedStyle(el).animationName),
+    ).toBe('none')
+    await toggle.click()
+    await expect(toggle).not.toBeChecked()
+    await expect(page.locator('[data-swarm-enabled="false"]')).toBeVisible()
+    await expect(page.getByTitle('Swarm authorization enabled for this lane')).toHaveCount(0)
+    await expect(page.getByTestId('user-message')).toHaveCount(messages)
+    await expect(draft).toHaveValue('Keep this draft')
+  } finally {
+    await shutdown(h)
+  }
+})
+
 test('instruction sources distinguish global and project files in the composer', async () => {
   const h = await launch()
   const { page } = h

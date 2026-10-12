@@ -7,6 +7,7 @@ import { QueueChips } from './composer/QueueChips'
 import { ModelPicker } from './composer/ModelPicker'
 import { ContextMeter } from './composer/ContextMeter'
 import { ContinueButton } from './composer/ContinueButton'
+import { SwarmSwitch, useSwarm } from './composer/SwarmSwitch'
 import { ContextSourcesMenu } from './composer/ContextSourcesMenu'
 import { submitBehavior } from './composer/submitBehavior'
 import { buildCommandEntries, CommandMenu, type NativeCommand } from './composer/CommandMenu'
@@ -100,6 +101,7 @@ export function Composer({
   })
   const isStreaming = useChatStore((s) => s.sessions[sessionId]?.isStreaming ?? false)
   const booting = useSessionBooting(sessionId)
+  const swarm = useSwarm(sessionId)
   const isCompacting = useChatStore((s) => s.sessions[sessionId]?.isCompacting ?? false)
   const piCommands = useChatStore((s) => s.sessions[sessionId]?.commands) ?? []
 
@@ -420,6 +422,7 @@ export function Composer({
         )}
 
         <div
+          data-swarm-enabled={swarm?.enabled ?? false}
           onDragOver={attachments.handleDragOver}
           onDragLeave={attachments.handleDragLeave}
           onDrop={attachments.handleDrop}
@@ -427,7 +430,9 @@ export function Composer({
             'bg-surface relative rounded-xl border shadow-sm transition-colors',
             attachments.dragging
               ? 'border-accent ring-accent/25 ring-2'
-              : 'border-border hover:border-border-focus focus-within:border-border-focus',
+              : swarm?.enabled
+                ? 'border-accent ring-accent/10 ring-1'
+                : 'border-border hover:border-border-focus focus-within:border-border-focus',
           )}
         >
           <DropOverlay visible={attachments.dragging} />
@@ -497,6 +502,7 @@ export function Composer({
             <div className="flex min-w-0 flex-wrap items-center gap-1">
               <AttachButton onFiles={attachments.addFiles} />
               <ContextSourcesMenu workspacePath={workspacePath} sessionId={sessionId} />
+              <SwarmSwitch sessionId={sessionId} />
               {isCompacting && (
                 <span className="text-text-secondary flex items-center gap-1.5 px-1 text-base">
                   <Spinner /> compacting…

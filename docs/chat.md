@@ -389,6 +389,41 @@ Not here yet: human supervisor reply buttons, profile discovery/editing, the
 parent-plus-child cost report and descendant-aware lane deletion. There is no
 automatic continuation or new global delegation directive.
 
+### Swarm authorization
+
+The lane composer's **Swarm** switch grants standing authorization for proactive
+delegation and orchestration when useful. It does not launch children, eagerly
+activate subagent tools, duplicate the extension's skill, or widen task permissions.
+Off keeps the existing normal delegation rules, including delegation explicitly
+requested by the user or authorized by project instructions.
+
+The enabled switch, amber composer outline and title badge reflect Pi's acknowledged
+state, not an optimistic renderer preference. Hover or keyboard focus briefly fans
+out the switch's glyph; reduced motion disables the animation. Enabled styling
+means authorization, not running work. Activity and inspection still use the existing
+Subagents surfaces, including for normal lanes.
+
+`/phosphor-swarm on|off` is a host command in the bundled context extension. It
+persists a non-context custom entry through Pi, scoped to the durable session ID and
+current branch, and publishes `phosphor-swarm` status. Resume/reload restores it;
+compaction retains it; tree navigation follows the selected branch. Forks and clones
+with new session identities start off. Old lanes must reload/restart Pi to acquire
+the command. A missing or excluded pi-subagents tool surface disables activation.
+
+The short `phosphor_swarm` authorization section is added **request-locally** by
+`context_with_system`, including native background-completion requests. Switching
+off removes that section from subsequent requests entirely, rather than appending a
+contradictory “off” instruction. A mid-run change stays visibly pending until
+`agent_end`, so it never changes policy beneath an in-flight turn. Existing children
+are not stopped; use their explicit Stop controls. Past messages/results, summaries
+that describe past work, and already-activated tool schemas remain. The current
+context instruction is reversible, not the lane's history or token spend. Switching
+can invalidate provider prompt caches, including Claude's warm CLI cache.
+
+The context meter includes the short block's estimated size while applied. Pi's
+reported total still reflects its last measured request until the next model call.
+No new manager, scheduler or hard spawn budget is introduced.
+
 ## Rich content (first-class citizens)
 
 - GFM (`remark-gfm`): headings, tables (hover → Copy MD / Copy CSV), task

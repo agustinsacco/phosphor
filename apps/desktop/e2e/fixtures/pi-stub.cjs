@@ -127,10 +127,30 @@ process.stdin.on('data', (chunk) => {
 })
 
 let agentStreaming = false
+let swarmEnabled = false
+let swarmRequested = false
+function publishSwarm() {
+  out({
+    type: 'extension_ui_request',
+    id: 'swarm-status',
+    method: 'setStatus',
+    statusKey: 'phosphor-swarm',
+    statusText: JSON.stringify({
+      version: 1,
+      available: true,
+      enabled: swarmEnabled,
+      requested: swarmRequested,
+    }),
+  })
+}
 const out = (obj) => {
   if (obj.type === 'agent_start') agentStreaming = true
   if (obj.type === 'agent_end' || obj.type === 'agent_settled') agentStreaming = false
   process.stdout.write(JSON.stringify(obj) + '\n')
+  if (obj.type === 'agent_end' && swarmEnabled !== swarmRequested) {
+    swarmEnabled = swarmRequested
+    publishSwarm()
+  }
 }
 
 /**
@@ -422,6 +442,7 @@ function handle(cmd) {
       break
 
     case 'get_commands': {
+      publishSwarm()
       // Shaped like a real pi answer — enough rows that the menu's old cap of
       // 12 would have hidden the last one, `/mcp` with its `/pi-mcp` alias,
       // an MCP prompt command, pi's own inline extension, and prompt templates.
@@ -448,6 +469,11 @@ function handle(cmd) {
         success: true,
         data: {
           commands: [
+            {
+              name: 'phosphor-swarm',
+              description: 'Toggle lane authorization',
+              source: 'extension',
+            },
             {
               name: 'subagents-stop',
               description: 'Stop a current-session async run',
@@ -641,6 +667,13 @@ function handle(cmd) {
       break
     }
     case 'prompt': {
+      if (/^\/phosphor-swarm (on|off)$/.test(cmd.message)) {
+        swarmRequested = cmd.message.endsWith(' on')
+        if (!agentStreaming) swarmEnabled = swarmRequested
+        publishSwarm()
+        out({ id: cmd.id, type: 'response', command: 'prompt', success: true })
+        break
+      }
       if (compacting) {
         out({
           id: cmd.id,
