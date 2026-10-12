@@ -72,8 +72,10 @@ export function safeStorageCipher(api: SafeStorageLike, platform: NodeJS.Platfor
         return { ok: true, kind: platform === 'darwin' ? 'keychain' : 'dpapi' }
       }
       const backend = api.getSelectedStorageBackend?.() ?? 'unknown'
+      // Only Chromium's own "no keyring" answer allows the file. Anything unrecognised fails closed.
+      if (backend === 'basic_text') return { ok: true, kind: 'file' }
       const keyring = ['gnome_libsecret', 'kwallet', 'kwallet5', 'kwallet6'].includes(backend)
-      if (!keyring) return { ok: true, kind: 'file' }
+      if (!keyring) return { ok: false, reason: 'the system keyring could not be identified' }
       if (!api.isEncryptionAvailable())
         return { ok: false, reason: 'the system keyring is unavailable' }
       return { ok: true, kind: backend }

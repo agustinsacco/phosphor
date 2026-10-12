@@ -115,9 +115,11 @@ describe('safeStorageCipher', () => {
   })
 
   it("uses an honest file fallback instead of Linux's hard-coded-key encryption", () => {
-    for (const backend of ['basic_text', 'unknown', 'unrecognised', undefined]) {
-      const storage = safeStorageCipher(api(true, backend), 'linux').storage()
-      expect(storage).toEqual({ ok: true, kind: 'file' })
+    for (const available of [true, false]) {
+      expect(safeStorageCipher(api(available, 'basic_text'), 'linux').storage()).toEqual({
+        ok: true,
+        kind: 'file',
+      })
     }
     for (const backend of ['gnome_libsecret', 'kwallet', 'kwallet5', 'kwallet6']) {
       expect(safeStorageCipher(api(true, backend), 'linux').storage()).toEqual({
@@ -126,10 +128,17 @@ describe('safeStorageCipher', () => {
       })
       expect(safeStorageCipher(api(false, backend), 'linux').storage().ok).toBe(false)
     }
-    expect(safeStorageCipher(api(false, 'unknown'), 'linux').storage()).toEqual({
-      ok: true,
-      kind: 'file',
-    })
+  })
+
+  it('fails closed on a backend it cannot identify, never choosing the file', () => {
+    for (const available of [true, false]) {
+      for (const backend of ['unknown', 'unrecognised', 'Basic_Text', '', undefined]) {
+        expect(safeStorageCipher(api(available, backend), 'linux').storage()).toEqual({
+          ok: false,
+          reason: 'the system keyring could not be identified',
+        })
+      }
+    }
   })
 })
 
