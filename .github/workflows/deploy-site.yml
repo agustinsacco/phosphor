@@ -1,20 +1,25 @@
 name: Deploy Site
 
 # phosphor.saccolabs.com. Same pipeline as tars.saccolabs.com: build the
-# Astro site into an nginx image, push it by commit SHA, then apply the
+# Astro site and control API into one Node image, push it by commit SHA, then apply the
 # kustomization with the image pinned to the pushed DIGEST and wait for the
 # rollout. `latest` is published for discovery only; it is never what runs.
 #
-# Needs four repository secrets (the same four tars uses):
+# Needs six repository secrets:
 #   DOCKER_HUB_USER / DOCKER_HUB_PASSWORD  push to docker.io/saccodigital
 #   TS_AUTH_KEY                            Tailscale auth key tagged tag:ci
 #   ULTRON_KUBE_CONFIG                     base64 kubeconfig for the k3s cluster
+#   SUPABASE_SECRET_KEY                    control RPC key
+#   CONTROL_EDGE_SECRET                    shared Cloudflare Transform Rule header
 
 on:
   push:
     branches: [main]
     paths:
       - 'apps/site/**'
+      - 'apps/control/**'
+      - 'libs/shared/src/**'
+      - 'tools/scripts/site-image.sh'
       - '.infra/phosphor-site/**'
       - '.github/workflows/deploy-site.yml'
       - 'tools/scripts/site-deploy-policy.mjs'
@@ -25,6 +30,11 @@ on:
         description: Deploy current main after exact-SHA CI and hold checks
         type: boolean
         required: true
+        default: false
+      ignore_skip_release:
+        description: Deploy even though main's head carries Skip-Release (the hold variable still applies)
+        type: boolean
+        required: false
         default: false
 
 permissions:
@@ -134,7 +144,8 @@ jobs:
         env:
           DOCKER_BUILD_RECORD_RETENTION_DAYS: 3
         with:
-          context: ./apps/site
+          context: .
+          file: apps/control/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:${{ needs.guard.outputs.sha }}
@@ -175,8 +186,24 @@ jobs:
       - name: Apply and verify deployment
         env:
           IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          CONTROL_EDGE_SECRET: ${{ secrets.CONTROL_EDGE_SECRET }}
         run: |
           set -euo pipefail
+          export LC_ALL=C
+          # Exactly ^[A-Za-z0-9_-]{32,512}$, without Bash 3's repetition limit.
+          for name in SUPABASE_SECRET_KEY CONTROL_EDGE_SECRET; do
+            value=${!name}
+            if (( ${#value} < 32 || ${#value} > 512 )) || [[ ! "$value" =~ ^[A-Za-z0-9_-]+$ ]]; then
+              echo "::error::Invalid or missing $name"
+              exit 1
+            fi
+          done
+          umask 077
+          secret="$RUNNER_TEMP/phosphor-control-secret.yaml"
+          manifest="$RUNNER_TEMP/phosphor-site.yaml"
+          trap 'rm -f "$secret" "$manifest"' EXIT
+          install -m 600 /dev/null "$secret"
           kubectl create namespace phosphor --dry-run=client -o yaml | kubectl apply -f -
           # The image is public, so the pull secret only matters for Docker Hub's
           # anonymous rate limit. Copy tars's across once if it exists; a missing
@@ -190,11 +217,36 @@ jobs:
               echo "::warning::no docker-registry-key in namespace tars; pulling anonymously"
             fi
           fi
-          kubectl kustomize .infra/phosphor-site > "$RUNNER_TEMP/phosphor-site.yaml"
-          sed -i "s#image: ${IMAGE_NAME}:latest#image: ${IMAGE_NAME}@${IMAGE_DIGEST}#" "$RUNNER_TEMP/phosphor-site.yaml"
-          grep -Fq "image: ${IMAGE_NAME}@${IMAGE_DIGEST}" "$RUNNER_TEMP/phosphor-site.yaml"
-          kubectl apply -f "$RUNNER_TEMP/phosphor-site.yaml"
+          envsubst '${SUPABASE_SECRET_KEY} ${CONTROL_EDGE_SECRET}' \
+            < .infra/phosphor-site/secret.yaml > "$secret"
+          if grep -Fq '${' "$secret"; then
+            echo '::error::Unresolved Secret placeholder'
+            exit 1
+          fi
+          # kubectl diagnostics can echo a Secret's data, base64 included, which
+          # GitHub's masking does not cover: apply it alone and say nothing.
+          if ! kubectl apply -f "$secret" >/dev/null 2>&1; then
+            echo '::error::Could not apply Secret phosphor-control'
+            exit 1
+          fi
+          rm -f "$secret"
+          kubectl kustomize .infra/phosphor-site > "$manifest"
+          if grep -Fq '${' "$manifest"; then
+            echo '::error::Unresolved manifest placeholder'
+            exit 1
+          fi
+          # Every deploy restarts the pods, so a rotated Secret is read even
+          # when the image digest is unchanged.
+          sed -i -e "s#image: ${IMAGE_NAME}:latest#image: ${IMAGE_NAME}@${IMAGE_DIGEST}#" \
+            -e "s#deploy-run: local#deploy-run: '${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'#" "$manifest"
+          grep -Fq "image: ${IMAGE_NAME}@${IMAGE_DIGEST}" "$manifest"
+          grep -Fq "deploy-run: '${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}'" "$manifest"
+          kubectl apply -f "$manifest"
           kubectl rollout status deployment/phosphor-site -n phosphor --timeout=180s
+
+      - name: Remove rendered Secret manifest
+        if: always()
+        run: rm -f "$RUNNER_TEMP/phosphor-control-secret.yaml" "$RUNNER_TEMP/phosphor-site.yaml"
 
       - name: Wait for the Service address
         run: |
@@ -217,14 +269,18 @@ jobs:
           kubectl describe svc phosphor-site -n phosphor
           exit 1
 
-      - name: Smoke the served page
+      - name: Smoke the public site and configured API
         run: |
-          # Best effort: servicelb hands out the node's LAN address, which the
-          # runner may not reach over the tailnet. nginx in the pod is what the
-          # readiness probe already proved; this only confirms the node port.
-          if curl -fsS --max-time 10 "$SITE_ADDR/" | grep -q '<title>'; then
-            echo "GET $SITE_ADDR/ returned the page"
-          else
-            echo "::warning::could not fetch $SITE_ADDR/ from the runner; check from inside the network"
-          fi
+          set -euo pipefail
+          timeout 120s bash -c '
+            set -o pipefail
+            while true; do
+              if curl -fsS --max-time 5 https://phosphor.saccolabs.com/ | grep "<title>" >/dev/null \
+                && test "$(curl -sS --max-time 5 https://phosphor.saccolabs.com/healthz -o /dev/null -w "%{http_code}")" = 200 \
+                && curl -fsS --max-time 5 https://phosphor.saccolabs.com/api/v1/health | jq -e ".ok == true and .configured == true" >/dev/null; then
+                exit 0
+              fi
+              sleep 5
+            done
+          ' || { echo '::error::Public site or configured API unavailable after 120s'; exit 1; }
           kubectl get pods,svc -n phosphor -o wide

@@ -3,7 +3,9 @@ import { serve, type ServerType } from '@hono/node-server'
 import { connect } from 'node:net'
 import { createApp } from './app'
 import { dependencies, token } from './test-support'
-import { refuseBody } from './http'
+import { clientIp, refuseBody } from './http'
+import { randomBytes } from 'node:crypto'
+import { parseConfig } from './config'
 
 let server: ServerType | undefined
 let port: number
@@ -95,4 +97,34 @@ it('uses the real socket address, not untrusted proxy headers, for user limits',
   }
   expect(deps.supabase.getUser).toHaveBeenCalledTimes(30)
   expect(deps.limits.consume('user-verify:127.0.0.1', 30, 60_000)).toBe(false)
+})
+
+it('trusts an IP only with Cloudflare mode and the correct edge secret', () => {
+  const secret = randomBytes(32).toString('base64url')
+  const config = parseConfig({ CONTROL_TRUST_PROXY: 'cloudflare', CONTROL_EDGE_SECRET: secret })
+  const request = new Request('http://localhost', {
+    headers: { 'cf-connecting-ip': '192.0.2.1', 'x-phosphor-edge': secret },
+  })
+  expect(clientIp(request, '10.42.0.1', config)).toBe('192.0.2.1')
+  expect(clientIp(request, '10.42.0.1', { ...config, trustProxy: 'none' })).toBe('10.42.0.1')
+  expect(clientIp(request, '10.42.0.1', parseConfig({ CONTROL_EDGE_SECRET: secret }))).toBe(
+    '10.42.0.1',
+  )
+  request.headers.set('cf-connecting-ip', '2001:db8::1')
+  expect(clientIp(request, '10.42.0.1', config)).toBe('2001:db8::1')
+  for (const forwarded of ['invalid', '192.0.2.1, 192.0.2.2', '']) {
+    request.headers.set('cf-connecting-ip', forwarded)
+    expect(clientIp(request, '10.42.0.1', config)).toBe('10.42.0.1')
+  }
+  request.headers.set('cf-connecting-ip', '192.0.2.1')
+  for (const edge of [
+    randomBytes(32).toString('base64url'),
+    randomBytes(33).toString('base64url'),
+    '',
+  ]) {
+    request.headers.set('x-phosphor-edge', edge)
+    expect(clientIp(request, '10.42.0.1', config)).toBe('10.42.0.1')
+  }
+  request.headers.delete('x-phosphor-edge')
+  expect(clientIp(request, '10.42.0.1', config)).toBe('10.42.0.1')
 })

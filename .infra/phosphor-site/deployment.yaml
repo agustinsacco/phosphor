@@ -21,12 +21,17 @@ spec:
     metadata:
       labels:
         app: phosphor-site
+      annotations:
+        # The deploy sets this to its run, so each deploy rolls the pods and a
+        # rotated Secret is read. `local` marks an unrendered manifest.
+        phosphor.saccolabs.com/deploy-run: local
     spec:
+      terminationGracePeriodSeconds: 15
       securityContext:
         runAsNonRoot: true
-        runAsUser: 101
-        runAsGroup: 101
-        fsGroup: 101
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -40,13 +45,13 @@ spec:
               containerPort: 5015
           readinessProbe:
             httpGet:
-              path: /
+              path: /healthz
               port: http
             initialDelaySeconds: 2
             periodSeconds: 5
           livenessProbe:
             httpGet:
-              path: /
+              path: /healthz
               port: http
             initialDelaySeconds: 10
             periodSeconds: 15
@@ -55,22 +60,25 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
-          volumeMounts:
-            - name: nginx-cache
-              mountPath: /var/cache/nginx
-            - name: runtime
-              mountPath: /tmp
+          env:
+            - name: CONTROL_TRUST_PROXY
+              value: cloudflare
+            - name: SUPABASE_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: phosphor-control
+                  key: supabase-secret-key
+            - name: CONTROL_EDGE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: phosphor-control
+                  key: edge-secret
           resources:
             limits:
-              memory: 128Mi
+              memory: 256Mi
               cpu: 500m
             requests:
-              memory: 64Mi
+              memory: 128Mi
               cpu: 100m
       imagePullSecrets:
         - name: docker-registry-key
-      volumes:
-        - name: nginx-cache
-          emptyDir: {}
-        - name: runtime
-          emptyDir: {}

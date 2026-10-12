@@ -25,6 +25,9 @@ export function parseConfig(env: NodeJS.ProcessEnv) {
   const trustProxy = env.CONTROL_TRUST_PROXY ?? 'none'
   if (trustProxy !== 'none' && trustProxy !== 'cloudflare')
     throw new Error('Invalid CONTROL_TRUST_PROXY')
+  const edgeSecret = trustProxy === 'cloudflare' ? (env.CONTROL_EDGE_SECRET ?? '') : ''
+  if (trustProxy === 'cloudflare' && !/^[A-Za-z0-9_-]{32,512}$/.test(edgeSecret))
+    throw new Error('Invalid CONTROL_EDGE_SECRET')
   const publishableKey =
     env.SUPABASE_PUBLISHABLE_KEY ?? 'sb_publishable_FAfhFtw4XYaHXjJzGG7Ttg_1PJBlgab'
   const secretKey = env.SUPABASE_SECRET_KEY ?? ''
@@ -42,6 +45,7 @@ export function parseConfig(env: NodeJS.ProcessEnv) {
     secretKey,
     configured: Boolean(secretKey),
     trustProxy,
+    edgeSecret,
   })
 }
 export type Config = ReturnType<typeof parseConfig>

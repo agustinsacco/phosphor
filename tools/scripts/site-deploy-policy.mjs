@@ -29,7 +29,12 @@ export function siteDeployDecision(context, workflow, runs) {
   if (eventName === 'push' && (event.ref !== ref || event.after !== sha))
     return result('error', 'Push ref or SHA mismatch')
   if (hold && hold !== 'false') return result('skip', 'SITE_DEPLOY_HOLD blocks deployment')
-  if (skipsRelease(message)) return result('skip', 'Skip-Release trailer blocks deployment')
+  // A manual run may name the trailer explicitly to deploy anyway: Skip-Release
+  // holds Desktop, and a site change can need to ship before the next Desktop
+  // release. The hold variable still applies.
+  const override = eventName === 'workflow_dispatch' && event.inputs?.ignore_skip_release === 'true'
+  if (!override && skipsRelease(message))
+    return result('skip', 'Skip-Release trailer blocks deployment')
   if (!workflow && !runs) return result('wait', 'CI verification required')
   if (
     workflow?.path !== '.github/workflows/ci.yml' ||

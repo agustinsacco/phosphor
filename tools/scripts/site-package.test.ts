@@ -1,5 +1,8 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const root = resolve(import.meta.dirname, '../..')
@@ -25,38 +28,93 @@ describe('independent apps/site package contract', () => {
     expect(JSON.stringify(lock)).not.toMatch(/node_modules\/(electron|node-pty)(?:\/|")/)
   })
 
-  it('uses the self-contained site context for CI and deployment without changing runtime policy', () => {
+  it('uses the combined repo-root image for CI and deployment with isolated installs', () => {
     const ci = read('.github/workflows/ci.yml')
     const deploy = read('.github/workflows/deploy-site.yml')
+    const script = read('tools/scripts/site-image.sh')
     expect(ci).toContain('cache-dependency-path: apps/site/package-lock.json')
     expect(ci).toContain('working-directory: apps/site')
-    expect(ci).toContain('docker build -t phosphor-site-ci ./apps/site')
+    expect(ci).toContain('bash tools/scripts/site-image.sh')
     expect(ci).toContain('path: apps/site/test-results/')
-    for (const command of ['npm ci', 'npm run check', 'npm run build', 'npm test']) {
-      expect(ci).toContain(`${command} --prefix apps/site`)
-    }
-    expect(deploy).toContain("- 'apps/site/**'")
-    expect(deploy).toContain('context: ./apps/site')
+    expect(ci).toContain('npm ci --prefix apps/site')
+    expect(script).toContain('npm test --prefix apps/site')
+    expect(script).toContain('docker build -f apps/control/Dockerfile')
+    for (const path of [
+      'apps/site/**',
+      'apps/control/**',
+      'libs/shared/src/**',
+      'tools/scripts/site-image.sh',
+    ])
+      expect(deploy).toContain(`- '${path}'`)
+    expect(deploy).toContain('context: .\n          file: apps/control/Dockerfile')
     expect(deploy).toContain('test -f apps/site/src/assets/shots/ide-flex.png')
     expect(deploy).not.toContain("- 'site/**'")
-    const docker = read('apps/site/Dockerfile')
-    expect(docker).toContain('RUN npm ci')
+    const docker = read('apps/control/Dockerfile')
+    expect(docker).toContain('RUN npm ci\n')
+    expect(docker).toContain('RUN npm ci --prefix apps/control')
     expect(docker).toContain('RUN npm run check && npm run build')
     expect(docker).toContain('RUN apk add --no-cache font-dejavu')
-    expect(docker).toContain('COPY --from=builder /app/dist /usr/share/nginx/html')
-    expect(docker).toContain('USER 101:101')
+    expect(docker).toContain('COPY --from=site /app/dist ./site')
+    expect(docker).toContain('COPY --from=control /app/apps/control/dist/server.mjs ./server.mjs')
+    expect(docker).toContain('USER 1000:1000')
     expect(docker).toContain('EXPOSE 5015')
-    expect(ci).toContain('--read-only --cap-drop ALL')
-    expect(ci).toContain('--security-opt no-new-privileges')
-    expect(read('apps/site/.dockerignore').split('\n')).toEqual(
+    expect(docker).toContain('ENV NODE_ENV=production')
+    expect(script).toContain('--read-only --cap-drop ALL')
+    expect(script).toContain('--security-opt no-new-privileges --user 1000:1000')
+    expect(script).toContain('trap cleanup EXIT')
+    expect(read('apps/control/Dockerfile.dockerignore').split('\n')).toEqual(
       expect.arrayContaining([
-        'node_modules',
-        'dist',
-        '.astro',
-        'test-results',
-        'playwright-report',
+        '**/node_modules',
+        '**/dist',
+        '**/.astro',
+        '**/test-results',
+        '**/playwright-report',
+        '**/.git',
+        '**/.phosphor',
+        'apps/desktop',
+        'apps/host',
+        '**/.env*',
+        '**/*.pem',
       ]),
     )
+    expect(json('apps/control/package.json').devDependencies.esbuild).toBe(
+      json('package.json').devDependencies.esbuild,
+    )
+    expect(json('apps/control/package-lock.json').packages[''].devDependencies).toEqual(
+      json('apps/control/package.json').devDependencies,
+    )
+  })
+
+  it('renders only the two required Secret placeholders and preserves the rollout guards', () => {
+    const deploy = read('.github/workflows/deploy-site.yml')
+    expect(read('.infra/phosphor-site/secret.yaml')).toContain(
+      "supabase-secret-key: '${SUPABASE_SECRET_KEY}'",
+    )
+    expect(read('.infra/phosphor-site/secret.yaml')).toContain(
+      "edge-secret: '${CONTROL_EDGE_SECRET}'",
+    )
+    // Applied on its own with suppressed output, never through the kustomization.
+    expect(read('.infra/phosphor-site/kustomization.yaml')).not.toContain('secret.yaml')
+    const pod = read('.infra/phosphor-site/deployment.yaml')
+    for (const key of ['supabase-secret-key', 'edge-secret']) expect(pod).toContain(`key: ${key}`)
+    expect(pod).not.toMatch(/optional:\s*true/)
+    // Both probes ask the process, not the site files.
+    expect(pod.match(/path: \/healthz\n/g)).toHaveLength(2)
+    expect(pod).not.toMatch(/path: \/\n/)
+    expect(read('.infra/phosphor-site/service.yaml')).not.toContain('loadBalancerSourceRanges')
+    expect(deploy).toContain("envsubst '${SUPABASE_SECRET_KEY} ${CONTROL_EDGE_SECRET}'")
+    expect(deploy).toContain('^[A-Za-z0-9_-]{32,512}$')
+    expect(deploy).toContain('umask 077')
+    expect(deploy).toContain("grep -Fq '${'")
+    expect(deploy).toContain(`trap 'rm -f "$secret" "$manifest"' EXIT`)
+    expect(deploy).toContain('if ! kubectl apply -f "$secret" >/dev/null 2>&1; then')
+    expect(pod).toContain('phosphor.saccolabs.com/deploy-run: local')
+    expect(deploy).toContain('image: ${IMAGE_NAME}@${IMAGE_DIGEST}')
+    expect(deploy).toContain(
+      'if: always()\n        run: rm -f "$RUNNER_TEMP/phosphor-control-secret.yaml" "$RUNNER_TEMP/phosphor-site.yaml"',
+    )
+    expect(deploy).toContain('timeout 120s')
+    expect(deploy).toContain('.configured == true')
   })
 
   it('keeps icon generation and runnable documentation anchored to the relocated site', () => {
@@ -71,6 +129,163 @@ describe('independent apps/site package contract', () => {
       const source = read(path)
       expect(source).not.toMatch(/--prefix site\b|\bcd site\b|`site\/(?:public|src|\*\*)/)
     }
-    expect(read('apps/site/README.md')).toContain('docker build -t phosphor-site-local ./apps/site')
+    expect(read('apps/site/README.md')).toContain('bash tools/scripts/site-image.sh')
   })
+})
+
+// Execute the real workflow shell without contacting a cluster or using stored secrets.
+it('validates deployment secrets before I/O, renders privately and cleans up on failure', () => {
+  const source = read('.github/workflows/deploy-site.yml')
+  const start = source.indexOf('        run: |', source.indexOf('- name: Apply and verify'))
+  const end = source.indexOf('      - name: Remove rendered Secret manifest', start)
+  const shell = source
+    .slice(start + '        run: |\n'.length, end)
+    .split('\n')
+    .map((line) => line.slice(10))
+    .join('\n')
+  const work = mkdtempSync(join(tmpdir(), 'phosphor-deploy-test-'))
+  const binary = (name: string, code: string) => {
+    writeFileSync(join(work, name), `#!${process.execPath}\n${code}`)
+    chmodSync(join(work, name), 0o755)
+  }
+  try {
+    binary(
+      'kubectl',
+      `
+      const fs = require('node:fs')
+      const args = process.argv.slice(2)
+      fs.appendFileSync(process.env.RUNNER_TEMP + '/calls', args[0] + '\\n')
+      if (args[0] === 'get') process.exit(1)
+      if (args[0] === 'kustomize') process.stdout.write(fs.readFileSync(process.env.RUNNER_TEMP + '/template'))
+      if (args[0] === 'apply' && args[2] !== '-') {
+        const manifest = fs.readFileSync(args[2], 'utf8')
+        const secrets = [process.env.SUPABASE_SECRET_KEY, process.env.CONTROL_EDGE_SECRET]
+        if (args[2].endsWith('/phosphor-control-secret.yaml')) {
+          if (!secrets.every((value) => manifest.includes(value))) process.exit(1)
+          fs.writeFileSync(process.env.RUNNER_TEMP + '/mode', String(fs.statSync(args[2]).mode & 0o777))
+          if (process.env.APPLY_FAIL) {
+            // What a real failure may print: the object, raw and base64.
+            const encoded = secrets.map((value) => Buffer.from(value).toString('base64')).join(' ')
+            process.stdout.write(manifest + encoded)
+            process.stderr.write(manifest + encoded)
+            process.exit(1)
+          }
+        } else {
+          if (secrets.some((value) => manifest.includes(value))) process.exit(1)
+          // The rendered Secret is gone before anything else is applied.
+          if (fs.existsSync(process.env.RUNNER_TEMP + '/phosphor-control-secret.yaml')) process.exit(1)
+          fs.writeFileSync(process.env.RUNNER_TEMP + '/applied', manifest)
+        }
+      }
+      if (args[0] === 'apply' && args[2] === '-') process.stdin.resume()
+    `,
+    )
+    binary(
+      'envsubst',
+      `
+      if (process.argv[2] !== '$' + '{SUPABASE_SECRET_KEY} $' + '{CONTROL_EDGE_SECRET}') process.exit(1)
+      if (process.argv.length !== 3) process.exit(1)
+      let input = ''
+      process.stdin.on('data', chunk => input += chunk)
+      process.stdin.on('end', () => {
+        for (const name of ['SUPABASE_SECRET_KEY', 'CONTROL_EDGE_SECRET'])
+          input = input.split('$' + '{' + name + '}').join(process.env[name])
+        process.stdout.write(input + (process.env.LEAVE_PLACEHOLDER ? '$' + '{LEFT}' : ''))
+      })
+    `,
+    )
+    binary(
+      'sed',
+      `
+      const fs = require('node:fs')
+      const args = process.argv.slice(2)
+      const path = args[args.length - 1]
+      let input = fs.readFileSync(path, 'utf8')
+      for (let i = 0; i < args.length - 1; i++) {
+        if (args[i] !== '-e') continue
+        const [, from, to] = args[i + 1].split('#')
+        input = input.replace(from, to)
+      }
+      fs.writeFileSync(path, input)
+    `,
+    )
+    const template = 'image: test:latest\n        phosphor.saccolabs.com/deploy-run: local\n'
+    const secret = (length: number) => randomBytes(length).toString('base64url').slice(0, length)
+    const run = (supabase: string, edge: string, suffix = '', applyFail = '', leave = '') => {
+      for (const name of ['calls', 'mode', 'applied']) rmSync(join(work, name), { force: true })
+      writeFileSync(join(work, 'template'), template + suffix)
+      const result = spawnSync('bash', ['-c', shell], {
+        encoding: 'utf8',
+        cwd: root,
+        env: {
+          PATH: `${work}:${process.env.PATH}`,
+          LC_ALL: 'en_US.UTF-8',
+          RUNNER_TEMP: work,
+          SUPABASE_SECRET_KEY: supabase,
+          CONTROL_EDGE_SECRET: edge,
+          IMAGE_NAME: 'test',
+          IMAGE_DIGEST: 'sha256:' + 'a'.repeat(64),
+          GITHUB_RUN_ID: '4242',
+          GITHUB_RUN_ATTEMPT: '2',
+          APPLY_FAIL: applyFail,
+          LEAVE_PLACEHOLDER: leave,
+        },
+      })
+      const output = result.stdout + result.stderr
+      for (const value of [supabase, edge]) {
+        expect(output.includes(value)).toBe(false)
+        expect(output.includes(Buffer.from(value).toString('base64'))).toBe(false)
+      }
+      expect(existsSync(join(work, 'phosphor-site.yaml'))).toBe(false)
+      expect(existsSync(join(work, 'phosphor-control-secret.yaml'))).toBe(false)
+      return result.status
+    }
+    for (const length of [32, 512]) {
+      writeFileSync(join(work, 'phosphor-site.yaml'), '', { mode: 0o644 })
+      expect(run(secret(length), secret(length))).toBe(0)
+      expect(readFileSync(join(work, 'mode'), 'utf8')).toBe(String(0o600))
+      const applied = readFileSync(join(work, 'applied'), 'utf8')
+      expect(applied).toContain('image: test@sha256:' + 'a'.repeat(64))
+      expect(applied).toContain("phosphor.saccolabs.com/deploy-run: '4242-2'")
+    }
+    for (const invalid of [
+      secret(31),
+      secret(513),
+      secret(32) + '+',
+      secret(32) + 'é',
+      secret(32) + ' ',
+      secret(32) + '\n',
+    ]) {
+      expect(run(invalid, secret(32))).toBe(1)
+      expect(existsSync(join(work, 'calls'))).toBe(false)
+      expect(run(secret(32), invalid)).toBe(1)
+      expect(existsSync(join(work, 'calls'))).toBe(false)
+    }
+    expect(run(secret(32), secret(32), '', '', '1')).toBe(1)
+    expect(existsSync(join(work, 'mode'))).toBe(false)
+    expect(run(secret(32), secret(32), '${UNRENDERED}')).toBe(1)
+    expect(existsSync(join(work, 'applied'))).toBe(false)
+    // A failing Secret apply prints its data; none of it may reach the log.
+    const failing = run(secret(32), secret(32), '', '1')
+    expect(failing).toBe(1)
+    expect(readFileSync(join(work, 'mode'), 'utf8')).toBe(String(0o600))
+    expect(existsSync(join(work, 'applied'))).toBe(false)
+    // Empty secrets are refused too; avoid the output containment check for an empty string.
+    const validation = shell.slice(0, shell.indexOf('umask 077'))
+    for (const missing of ['SUPABASE_SECRET_KEY', 'CONTROL_EDGE_SECRET']) {
+      const result = spawnSync('bash', ['-c', validation], {
+        encoding: 'utf8',
+        env: {
+          LC_ALL: 'en_US.UTF-8',
+          SUPABASE_SECRET_KEY: secret(32),
+          CONTROL_EDGE_SECRET: secret(32),
+          [missing]: '',
+        },
+      })
+      expect(result.status).toBe(1)
+      expect(result.stdout).toContain('Invalid or missing ' + missing)
+    }
+  } finally {
+    rmSync(work, { recursive: true, force: true })
+  }
 })

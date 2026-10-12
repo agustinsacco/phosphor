@@ -66,7 +66,8 @@ Release versions still use the validated history's commit count, injected into
 the app manifest by builder. Only commits that change Nx `desktop` since the last
 published release publish one ([nx-cache.md](nx-cache.md#per-app-releases-and-deploys)).
 `Skip-Release: true` keeps structural commits from publishing; the deployment
-hold and exact-SHA CI guard remain in force.
+hold and exact-SHA CI guard remain in force. A confirmed manual run of the site
+deploy with `ignore_skip_release` deploys past the trailer, never past the hold.
 
 Generic maintainer scripts live at `tools/scripts`; the signing hook and its
 fixtures live inside `apps/desktop/scripts`, as required by builder's hook-module

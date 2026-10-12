@@ -21,14 +21,14 @@ aliases `site:install`, `site:dev`, `site:check`, `site:build` and `site:test`
 delegate to the commands above. Nx site targets use this same independent package
 and remain uncached. The [installation contract](../../docs/installations.md)
 explains why the root source-library workspaces do not include the site or alter
-its independently resolved toolchain and Docker context.
+its independently resolved toolchain. The combined image builds from the repo root.
 
 Playwright serves the production build on `127.0.0.1:4322`. It checks all seven
 pages on desktop, mobile, JavaScript-disabled desktop/mobile, and reduced
 motion. Tests cover internal page/fragment destinations, linked capture assets,
 images, canonical metadata, native layout controls, keyboard access, enlarged
 text, 320–1920px overflow, and zero client scripts. CI runs this suite against
-the production nginx image. `SITE_TEST_URL` can target an already-running site.
+the combined production Node image. `SITE_TEST_URL` can target an already-running site.
 
 The external-link audit is separate from deterministic browser tests. It reads
 links from built pages, follows HTTP redirects, checks GitHub Markdown fragments
@@ -38,20 +38,15 @@ network access; rate limits are failures to investigate, not successful checks.
 To exercise the production image locally without deployment:
 
 ```bash
-docker build -t phosphor-site-local ./apps/site
-docker run -d --name phosphor-site-local --read-only --cap-drop ALL \
-  --security-opt no-new-privileges \
-  --tmpfs /var/cache/nginx:rw,uid=101,gid=101 --tmpfs /tmp:rw,uid=101,gid=101 \
-  -p 127.0.0.1:4322:5015 phosphor-site-local
-SITE_TEST_URL=http://127.0.0.1:4322 npm test --prefix apps/site
-docker rm -f phosphor-site-local
+bash tools/scripts/site-image.sh
 ```
 
-Use an unused local container name and port if another instance is running.
+The script creates an isolated container with an unused local port and removes it on exit.
 The image-only suite also checks direct guide-directory resolution with or without
 a trailing slash (200, no redirect), cache and security headers, static fonts/assets,
 and real 404 responses. The runtime is
-non-root with a read-only filesystem; only its nginx cache and `/tmp` are writable.
+Node 22 as uid 1000 with a read-only filesystem and all capabilities dropped.
+It needs no writable volumes.
 
 Formatting Astro files explicitly loads the plugin:
 
@@ -75,7 +70,7 @@ npm run format --prefix apps/site
 - `/guides/accounts/`: which subscription plans work, the recommended
   several-plan setup, pi sign-ins, the Claude Code provider (prerequisites,
   install, login, test, multiple accounts, routing), moving a lane when a plan
-  runs out, and failure recovery. nginx answers the old `/guides/claude-code/`
+  runs out, and failure recovery. The control server answers the old `/guides/claude-code/`
   with a 301 here, so existing links and their fragments still land.
 - `/guides/extensions/`: included versus optional capabilities, five recommended
   packages, scope, trust, and updates.
@@ -170,9 +165,10 @@ computer awake.
 
 ## Deployment and identity
 
-The existing Docker/nginx image and `.infra/phosphor-site/` manifests serve this
-one site on port 5015. Deploy Site retains path-filtered main pushes for
-`apps/site/**`, `.infra/phosphor-site/**`, its workflow and deployment-policy helpers.
+The combined image in `apps/control/Dockerfile` and `.infra/phosphor-site/`
+manifests serve this site and the control API on port 5015. Deploy Site retains path-filtered main pushes for
+`apps/site/**`, `apps/control/**`, `libs/shared/src/**`, the image-check script,
+`.infra/phosphor-site/**`, its workflow and deployment-policy helpers.
 It waits up to thirty minutes for successful CI from this repository's main push
 at the exact checked-out SHA. Missing, failed, cancelled or unverifiable CI
 cannot deploy. GitHub's push-range path filter includes multi-commit pushes;
@@ -184,15 +180,20 @@ using the Desktop release trailer parser. The repository variable
 `false`; every other value holds it. Structural migration commits retain the
 trailer. Manual operation requires selecting `main`, explicitly checking
 `confirm`, and passing the same exact-SHA CI and hold checks. It does not bypass
-the hold. Rejected manual refs cannot cancel production work. The workflow
+the hold. A confirmed manual run may also check `ignore_skip_release` to deploy
+past the trailer; pushes always honour it, and the hold and CI checks still apply. Rejected manual refs cannot cancel production work. The workflow
 rechecks that its SHA is still current main before publishing the image and
 before rollout, including after any `site-production` environment approval.
 
 CI tests the site before Deploy Site builds the immutable image, pins its
 digest and verifies rollout. The image name, namespace, port and environment
-remain unchanged. There is no second site or new routing service. nginx
-resolves guide directories to their `index.html`. The edge route and four
-deployment secrets remain external configuration.
+remain unchanged. There is no second site or new routing service. The Node server
+resolves guide directories to their `index.html`. Six repository secrets supply
+registry access, Tailscale, Kubernetes credentials, the Supabase RPC key and the
+shared Cloudflare edge header. Deploy validates and renders the last two into a
+Secret manifest under `RUNNER_TEMP`, applies it and deletes the file. Public URL
+checks require the site, liveness and a configured API within two minutes.
+See [control-plane.md](../../docs/control-plane.md#image-and-deployment).
 
 The header/footer favicon and social preview use the canonical beacon.
 `npm run build` regenerates `public/og.png` from `scripts/social.mjs`; browser

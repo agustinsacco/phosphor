@@ -1,10 +1,10 @@
 import { expect, test } from '@playwright/test'
 
-// Astro preview is useful locally, but directory/cache policy belongs to nginx.
+// Astro preview is useful locally, but directory/cache policy belongs to the control server.
 test('production image retains direct guide resolution, static cache policy and real 404s', async ({
   request,
 }) => {
-  test.skip(!process.env.SITE_TEST_URL, 'Requires the served production nginx image')
+  test.skip(!process.env.SITE_TEST_URL, 'Requires the served combined production Node image')
   for (const route of [
     '/guides',
     '/guides/daily-work',
