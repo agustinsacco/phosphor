@@ -4236,7 +4236,21 @@ test('a parallel delegation shows every child working at once, then settles', as
     // The parent turn is still running while its children work.
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
     await expect(page.getByTestId('session-row').first()).toBeVisible()
+    const current = page.getByTestId('background-work-indicator')
+    await expect(current).toContainText('Parent working · 3 subagents active')
+    await expect(page.getByRole('button', { name: 'Subagents pane', exact: true })).toBeVisible()
+    await expect(page.getByTitle('3 subagents active', { exact: true })).toHaveText('3')
+    await page.keyboard.press('ControlOrMeta+k')
+    await page.getByPlaceholder('Type a command…').fill('Toggle artifacts pane')
+    await page.getByText('Toggle artifacts pane', { exact: true }).click()
+    await expect(current).toBeInViewport()
+    await current.getByRole('button', { name: /Workflow: running/ }).click()
+    const inspection = page.getByRole('region', { name: 'Subagents', exact: true })
+    await expect(inspection.getByRole('heading', { name: 'Foreground delegation' })).toBeVisible()
+    await expect(inspection.getByTestId('subagent-child')).toHaveCount(4)
+    await expect(inspection).toContainText('bash npm test -- src/auth')
     await page.screenshot({ path: test.info().outputPath('subagents-parallel.png') })
+    await inspection.getByRole('button', { name: 'Close pane', exact: true }).click()
 
     const finished = await page.evaluate(async () => {
       const live = await window.phosphor.invoke('pi:listLiveSessions')
@@ -4291,18 +4305,20 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
     await expect(page.getByTestId('working-indicator')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
     await background.getByRole('button', { name: 'View subagents' }).click()
-    const inspector = page.getByRole('dialog', { name: 'Subagents', exact: true })
+    const inspector = page.getByRole('region', { name: 'Subagents', exact: true })
     await expect(inspector).toBeVisible()
     await inspector.getByRole('button', { name: 'scout running', exact: true }).click()
+    await inspector.getByText('Details & actions', { exact: true }).click()
     await inspector.getByRole('button', { name: 'Stop run…' }).click()
     await expect(inspector).toContainText('stopped runs cannot resume')
     await inspector.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await inspector.getByRole('button', { name: 'Back to runs' }).click()
     await inspector.getByRole('button', { name: 'scout running grep' }).click()
     await expect(inspector).toContainText('Inspection: following login.ts to verify.ts.')
     await expect(inspector).toContainText('Bounded preview')
     expect(await inspector.innerText()).not.toContain('PI_SUBAGENT_INSPECT_JSON')
     await page.screenshot({ path: test.info().outputPath('subagents-inspector.png') })
-    await inspector.getByRole('button', { name: 'Close', exact: true }).click()
+    await inspector.getByRole('button', { name: 'Close pane', exact: true }).click()
 
     // Settled: one row per call, in pi's vocabulary, with what it cost.
     const summary = page.getByTestId('activity-summary').first()
@@ -4344,7 +4360,9 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
     await expect(page.getByTestId('subagent-notice-body')).toContainText('login.ts')
     await expect(page.getByText('Scout reports: the auth flow enters at login.ts.')).toBeVisible()
     await expect(chip).toHaveText('Subagents')
-    await expect(background).toHaveCount(0)
+    await expect(background).toContainText('0 subagents active')
+    await expect(background).toContainText('Recent work')
+    await expect(background).not.toContainText('Status unavailable')
     await chip.click()
     await inspector.getByRole('button', { name: 'Recorded coordination' }).click()
     await expect(inspector).toContainText('worker asked the parent for guidance')
@@ -4354,7 +4372,7 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
       .click()
     await expect(inspector).toContainText('Use the shared parser.')
     await page.screenshot({ path: test.info().outputPath('subagents-coordination.png') })
-    await inspector.getByRole('button', { name: 'Close', exact: true }).click()
+    await inspector.getByRole('button', { name: 'Close pane', exact: true }).click()
   } finally {
     await shutdown(harness)
   }
@@ -4387,11 +4405,33 @@ test('recorded workflow completions and attention stay visible, attributable and
     await expect(page.getByTestId('subagent-notice-body')).toHaveCount(0)
     await expect(page.getByTestId('subagent-chip')).toContainText('1 background run active')
     const background = page.getByTestId('background-work-indicator')
-    await expect(background).toContainText('Working in the background')
     await expect(background).toContainText(
-      'validation: running · needs parent attention; qa: running',
+      'Parent idle · 2 subagents active · 1 needs parent attention',
     )
-    await expect(background).not.toContainText('reviewer')
+    await expect(background).toContainText('validation: running · needs parent attention')
+    await expect(background).toContainText('qa: running')
+    await page.keyboard.press('ControlOrMeta+k')
+    await page.getByPlaceholder('Type a command…').fill('Toggle artifacts pane')
+    await page.getByText('Toggle artifacts pane', { exact: true }).click()
+    await expect(background).toBeInViewport()
+    for (const [message, expected] of [
+      ['/stub-hide-workflow-status', 'Status unavailable'],
+      ['/stub-restore-workflow-status', '2 subagents active'],
+    ]) {
+      const response = await page.evaluate(async (message) => {
+        const live = await window.phosphor.invoke('pi:listLiveSessions')
+        return window.phosphor.piCommand(live[0]!.sessionId, { type: 'prompt', message })
+      }, message!)
+      expect(response.success).toBe(true)
+      await expect(background).toContainText(expected!)
+      await expect(background).toBeInViewport()
+    }
+    await background
+      .getByRole('button', { name: 'validation: running · needs parent attention', exact: true })
+      .click()
+    const direct = page.getByRole('region', { name: 'Subagents', exact: true })
+    await expect(direct).toContainText('child validation')
+    await direct.getByRole('button', { name: 'Close pane', exact: true }).click()
     await expect(background).toContainText('The parent is idle. You can still message it.')
     await expect(page.getByTestId('working-indicator')).toHaveCount(0)
     const sidebarWorking = page.getByTestId('session-row').getByText('Working', { exact: true })
@@ -4424,9 +4464,11 @@ test('recorded workflow completions and attention stay visible, attributable and
         expect(await background.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
         await screenshot(`workflow-notices-${theme}-${width}`)
         await notices.nth(0).getByRole('button', { name: 'Inspect run' }).click()
-        const panel = page.getByRole('dialog', { name: 'Subagents', exact: true })
+        const panel = page.getByRole('region', { name: 'Subagents', exact: true })
+        await panel.getByRole('button', { name: 'Fullscreen pane', exact: true }).click()
         await expect(panel).toContainText('CHANGES_REQUESTED')
         await expect(panel).toContainText('Run 10000001-0000-4000-8000-000000000000')
+        if (width < 1000) await panel.getByRole('button', { name: 'Back to runs' }).click()
         await expect(
           panel.getByRole('button', { name: 'reviewer complete', exact: true }),
         ).toBeVisible()
@@ -4435,11 +4477,12 @@ test('recorded workflow completions and attention stay visible, attributable and
         await expect(panel.getByRole('button', { name: 'Stop run…' })).toHaveCount(0)
         expect(await panel.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
         await screenshot(`workflow-inspector-${theme}-${width}`)
-        await panel.getByRole('button', { name: 'Close', exact: true }).click()
+        await panel.getByRole('button', { name: 'Exit fullscreen', exact: true }).click()
+        await panel.getByRole('button', { name: 'Close pane', exact: true }).click()
       }
     }
     await notices.nth(1).getByRole('button', { name: 'Inspect run' }).click()
-    const panel = page.getByRole('dialog', { name: 'Subagents', exact: true })
+    const panel = page.getByRole('region', { name: 'Subagents', exact: true })
     await expect(panel).toContainText('The previous bash command has finished')
     await panel.getByRole('button', { name: 'Recorded coordination' }).click()
     await expect(panel.getByTestId('subagent-notice')).toHaveCount(2)
@@ -4449,7 +4492,7 @@ test('recorded workflow completions and attention stay visible, attributable and
       .getByRole('button', { name: 'Inspect run' })
       .click()
     await expect(panel).toContainText('CHANGES_REQUESTED')
-    await panel.getByRole('button', { name: 'Close', exact: true }).click()
+    await panel.getByRole('button', { name: 'Close pane', exact: true }).click()
     // The full original diagnostic remains available, but does not bury chat.
     await notices
       .nth(1)
@@ -4458,9 +4501,8 @@ test('recorded workflow completions and attention stay visible, attributable and
     await expect(notices.nth(1).getByTestId('subagent-notice-body')).toContainText('command.cancel')
     // The in-lane entry opens the same native inspector, with exact root + step identity.
     await background.getByRole('button', { name: 'View subagents' }).click()
-    await panel
-      .getByRole('button', { name: 'validation running needs parent attention', exact: true })
-      .click()
+    await panel.getByRole('button', { name: 'Back to runs' }).click()
+    await panel.getByRole('button', { name: 'validation running', exact: true }).click()
     await expect(panel).toContainText('Validation: full suite is running')
     const settled = await page.evaluate(async () => {
       const live = await window.phosphor.invoke('pi:listLiveSessions')
@@ -4471,11 +4513,12 @@ test('recorded workflow completions and attention stay visible, attributable and
       })
     })
     expect(settled.success).toBe(true)
-    await expect(background).toHaveCount(0)
+    await expect(background).toContainText('0 subagents active')
+    await expect(background).toContainText('Recent work')
     await expect(sidebarWorking).toHaveCount(0)
     // Live completion does not dismiss an inspection or rewrite historical warnings.
     await expect(panel).toBeVisible()
-    await panel.getByRole('button', { name: 'Close', exact: true }).click()
+    await panel.getByRole('button', { name: 'Close pane', exact: true }).click()
     await expect(notices.nth(1)).toContainText('validation · worker needs parent attention')
     await expect(page.getByPlaceholder('Describe a task…', { exact: false })).toHaveValue(
       'Draft for the parent',
@@ -4529,10 +4572,8 @@ test('subagent inspection, steering and saved snapshots survive compaction and a
     await page.getByRole('button', { name: /Start session/i }).click()
     await expect(page.getByTestId('background-work-indicator')).toBeVisible()
     await page.getByRole('button', { name: 'View subagents' }).click()
-    const panel = page.getByRole('dialog', { name: 'Subagents', exact: true })
-    await panel
-      .getByRole('button', { name: 'validation running needs parent attention', exact: true })
-      .click()
+    const panel = page.getByRole('region', { name: 'Subagents', exact: true })
+    await panel.getByRole('button', { name: 'validation running', exact: true }).click()
     await expect(panel).toContainText('Validation: full suite is running')
     for (const width of [1440, 900]) {
       await first.app.evaluate(
@@ -4540,7 +4581,7 @@ test('subagent inspection, steering and saved snapshots survive compaction and a
         width,
       )
       for (const theme of ['dark', 'light']) {
-        await panel.getByRole('button', { name: 'Close', exact: true }).click()
+        await panel.getByRole('button', { name: 'Close pane', exact: true }).click()
         await page.getByRole('button', { name: 'Settings', exact: true }).click()
         await page
           .getByRole('button', { name: theme === 'dark' ? 'Dark' : 'Light', exact: true })
@@ -4548,6 +4589,7 @@ test('subagent inspection, steering and saved snapshots survive compaction and a
         await page.getByRole('button', { name: 'Close settings' }).click()
         await page.getByTestId('subagent-chip').click()
         await expect(panel).toContainText('child validation')
+        await panel.getByText('Details & actions', { exact: true }).click()
         await panel.getByRole('button', { name: 'Steer…' }).click()
         await panel
           .getByLabel('Steering message', { exact: true })
@@ -4567,7 +4609,7 @@ test('subagent inspection, steering and saved snapshots survive compaction and a
     await expect(panel).toBeVisible()
     await expect(page.getByTestId('artifact-scroll')).toHaveCount(0)
     await page.screenshot({ path: test.info().outputPath('subagent-saved-and-steered.png') })
-    await panel.getByRole('button', { name: 'Close', exact: true }).click()
+    await panel.getByRole('button', { name: 'Close pane', exact: true }).click()
     await expect(
       page.getByTestId('subagent-notice').filter({ hasText: 'Steering delivered' }),
     ).toHaveCount(1)
@@ -4587,7 +4629,9 @@ test('subagent inspection, steering and saved snapshots survive compaction and a
     ).toBe(true)
     await expect(panel).toContainText('Native inspection artifacts expired')
     await expect(panel).toContainText('last successful read')
-    await expect(page.getByTestId('background-work-indicator')).toHaveCount(0)
+    await expect(page.getByTestId('background-work-indicator')).toContainText('Recent work')
+    await expect(page.getByTestId('background-work-indicator')).toContainText('0 subagents active')
+    await expect(panel.getByRole('button', { name: 'Stop run…' })).toHaveCount(0)
   } finally {
     await first.app.close()
   }
@@ -4602,17 +4646,17 @@ test('subagent inspection, steering and saved snapshots survive compaction and a
     await expect(p.getByTestId('session-row')).toHaveCount(1, { timeout: 30_000 })
     await p.getByTestId('session-row').click()
     await expect(p.getByTestId('subagent-chip')).toBeVisible()
-    // Restoring preferences never automatically opens a modal or restores old liveness.
+    // Pane layout can restore, but never restores old liveness.
     await expect(p.getByRole('dialog', { name: 'Subagents', exact: true })).toHaveCount(0)
     await expect(p.getByTestId('background-work-indicator')).toHaveCount(0)
     await p.getByTestId('subagent-chip').click()
-    const panel = p.getByRole('dialog', { name: 'Subagents', exact: true })
+    const panel = p.getByRole('region', { name: 'Subagents', exact: true })
     await expect(panel).toContainText('child validation')
     await expect(panel).toContainText('Native inspection artifacts expired')
     await panel.getByRole('button', { name: 'Recorded coordination' }).click()
     await expect(panel).toContainText('reviewer completed a workflow step')
     await expect(panel).toContainText('Steering delivered to the addressed child')
-    await panel.getByRole('button', { name: 'Close', exact: true }).click()
+    await panel.getByRole('button', { name: 'Close pane', exact: true }).click()
     await p.getByRole('button', { name: 'Artifacts pane', exact: true }).click()
     await expect(p.getByTestId('right-pane')).toContainText('Saved subagent snapshot')
     await expect(p.getByTestId('artifact-scroll')).toContainText(
@@ -4637,6 +4681,116 @@ test('subagent inspection, steering and saved snapshots survive compaction and a
   } finally {
     await shutdown(second)
     await rm(userDataDir, { recursive: true, force: true })
+  }
+})
+
+test('subagent pane owns scrolling, keeps rows stable and preserves drafts across docking', async () => {
+  const harness = await launch({ env: { PHOSPHOR_E2E_SUBAGENT_LAYOUT: '1' } })
+  const { page, app } = harness
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('workflow-evidence')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await page.getByRole('button', { name: 'View subagents' }).click()
+    const pane = page.getByRole('region', { name: 'Subagents', exact: true })
+    await pane.getByRole('button', { name: 'Fullscreen pane' }).click()
+    const nav = pane.getByRole('navigation', { name: 'Background runs' })
+    const row = nav.getByRole('button', { name: /^validation running/ })
+    await row.click()
+    const transcript = pane.getByTestId('subagent-transcript')
+    await expect(transcript.getByRole('heading', { name: 'Inspecting module 39' })).toBeVisible()
+    const header = pane.getByRole('heading', { name: 'validation', exact: true })
+    const before = { row: await row.boundingBox(), header: await header.boundingBox() }
+    await transcript.hover()
+    await page.mouse.wheel(0, -10000)
+    await expect(pane.getByRole('button', { name: 'Jump to latest' })).toBeVisible()
+    await transcript.evaluate((el) => {
+      el.scrollTop = 100
+    })
+    await expect.poll(() => transcript.evaluate((el) => el.scrollTop)).toBe(100)
+    expect(await row.boundingBox()).toEqual(before.row)
+    expect(await header.boundingBox()).toEqual(before.header)
+    expect(await nav.evaluate((el) => el.scrollTop)).toBe(0)
+    // Independent list overflow never scrolls the transcript or the pane header.
+    await nav.evaluate((el) => {
+      el.scrollTop = el.scrollHeight
+    })
+    expect(await transcript.evaluate((el) => el.scrollTop)).toBe(100)
+    await nav.evaluate((el) => {
+      el.scrollTop = 0
+    })
+    await page.evaluate(async () => {
+      const [live] = await window.phosphor.invoke('pi:listLiveSessions')
+      await window.phosphor.piCommand(live!.sessionId, {
+        type: 'prompt',
+        message: '/stub-subagent-layout-update',
+      })
+    })
+    await expect(row).toContainText('100 tools')
+    expect((await row.boundingBox())!.height).toBe(before.row!.height)
+    expect((await row.boundingBox())!.y).toBe(before.row!.y)
+    await pane.getByRole('button', { name: 'Refresh', exact: true }).click()
+    await expect(pane.getByRole('button', { name: 'Refresh', exact: true })).toBeEnabled()
+    expect(await transcript.evaluate((el) => el.scrollTop)).toBe(100)
+    await pane.getByText('Details & actions', { exact: true }).click()
+    await pane.getByRole('button', { name: 'Steer…' }).click()
+    const draft = pane.getByLabel('Steering message', { exact: true })
+    await draft.fill('Keep this unsent draft across pane moves')
+    await pane.getByRole('button', { name: 'Exit fullscreen' }).click()
+    await expect(draft).toHaveValue('Keep this unsent draft across pane moves')
+    await pane.getByRole('button', { name: 'Move pane to the left' }).click()
+    await expect(draft).toHaveValue('Keep this unsent draft across pane moves')
+    await pane.getByRole('button', { name: 'Move pane to the right' }).click()
+    await pane.getByRole('button', { name: 'Fullscreen pane' }).click()
+    await expect(draft).toHaveValue('Keep this unsent draft across pane moves')
+    expect(await transcript.evaluate((el) => el.scrollTop)).toBe(100)
+    await pane.getByText('Details & actions', { exact: true }).click()
+    for (const theme of ['dark', 'light']) {
+      await page.getByRole('button', { name: 'Settings', exact: true }).click()
+      await page
+        .getByRole('button', { name: theme === 'dark' ? 'Dark' : 'Light', exact: true })
+        .click()
+      await page.getByRole('button', { name: 'Close settings' }).click()
+      await page.screenshot({ path: test.info().outputPath(`subagent-pane-${theme}.png`) })
+    }
+    // Pane-width responsive navigation, even inside a wide application window.
+    await pane.getByRole('button', { name: 'Exit fullscreen' }).click()
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(900, 800))
+    await expect(nav).not.toBeVisible()
+    await pane.getByRole('button', { name: 'Back to runs' }).click()
+    await expect(row).toBeFocused()
+    await row.press('Enter')
+    await expect(header).toBeFocused()
+    expect(await pane.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1.25),
+    )
+    expect(await pane.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+    const bounds = (await pane.boundingBox())!
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(await page.evaluate(() => innerWidth))
+    const png = await app.evaluate(async ({ BrowserWindow }) =>
+      (await BrowserWindow.getAllWindows()[0]!.webContents.capturePage())
+        .toPNG()
+        .toString('base64'),
+    )
+    await writeFile(
+      test.info().outputPath('subagent-pane-narrow-zoom.png'),
+      Buffer.from(png, 'base64'),
+    )
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1),
+    )
+    await pane.getByText('Details & actions', { exact: true }).click()
+    await pane.getByRole('button', { name: 'Save snapshot', exact: true }).click()
+    await expect(pane).toContainText('Saved in Artifacts')
+    await pane.getByRole('button', { name: 'View saved snapshot' }).click()
+    await expect(pane).toHaveCount(0)
+    await expect(page.getByTestId('artifact-scroll')).toContainText('Inspecting module 39')
+    expect(errors).toEqual([])
+  } finally {
+    await shutdown(harness)
   }
 })
 

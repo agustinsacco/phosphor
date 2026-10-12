@@ -10,6 +10,8 @@ export const EXIT = {
   /** A prerequisite is unavailable: node, pi, git, extensions or a repository. */
   unavailable: 69,
   internal: 70,
+  tempfail: 75,
+  noperm: 77,
   config: 78,
 } as const
 

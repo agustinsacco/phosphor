@@ -13,6 +13,7 @@ vi.mock('@/features/settings/tabs/AccountsTab', () => ({
 }))
 
 const ANSWERS: Record<string, unknown> = {
+  'account:get': { preview: false, account: { status: 'signed-out' } },
   'pi:health': { ok: true, version: '0.87.1', minVersion: '0.87.0' },
   'pi:subscriptionAuth': [
     { id: 'openai-codex', name: 'ChatGPT (Codex)', status: 'ready' },
@@ -31,6 +32,7 @@ const root = createRoot(container)
 beforeEach(() => {
   vi.stubGlobal('phosphor', {
     platform: 'darwin',
+    onAccountChanged: () => () => undefined,
     invoke: vi.fn((channel: string) => Promise.resolve(ANSWERS[channel])),
   })
   useMachinesStore.getState().applyPreview(true)
@@ -50,6 +52,8 @@ async function render(node: React.ReactNode): Promise<string> {
 it('lists this computer from real data beside the made-up machines', async () => {
   const text = await render(<MachinesPage />)
   expect(text).toContain('bee1 and bee2 are not real')
+  expect(text).toContain('Sample machines. Sign in under Settings')
+  expect(window.phosphor.invoke).not.toHaveBeenCalledWith('control:machines')
   const rows = [...container.querySelectorAll('[data-testid="machine-row"]')]
   expect(rows.map((row) => row.getAttribute('data-machine'))).toEqual(['local', 'bee1', 'bee2'])
   expect(rows[0]?.textContent).toContain('pi 0.87.1')

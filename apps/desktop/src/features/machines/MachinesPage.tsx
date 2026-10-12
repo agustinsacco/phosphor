@@ -21,6 +21,8 @@ import {
   type FakeDependency,
   type FakeMachine,
 } from './fakeMachines'
+import { useAccount } from '@/features/settings/useAccount'
+import { EnrolledMachines } from './EnrolledMachines'
 import { MachineChip, MachineDot, RemoteLaneRow } from './MachineSidebar'
 
 /** Why a made-up machine's buttons do nothing yet. */
@@ -28,9 +30,12 @@ const NOT_YET = 'Preview: this needs Phosphor to reach the Host (component 21)'
 
 /**
  * The Machines preview's page: every machine, one machine's page, or a lane on
- * another machine. This computer's rows are real; bee1 and bee2 are made up.
+ * another machine. Signed in, the list is enrolled machines; signed out,
+ * this computer's rows are real and bee1 and bee2 are samples.
  */
 export function MachinesPage(): React.JSX.Element {
+  const { view: account } = useAccount()
+  const signedIn = account?.preview === true && account.account.status === 'signed-in'
   const view = useMachinesStore((s) => s.view)
   const canFinish = useMachinesStore((s) => nextToFinish(s.lanes) !== undefined)
   const show = useMachinesStore((s) => s.show)
@@ -38,35 +43,43 @@ export function MachinesPage(): React.JSX.Element {
     <PageShell
       title={<PaneTitle label="Machines" meta="preview" />}
       actions={
-        <Button
-          size="xs"
-          disabled={!canFinish}
-          onClick={() => useMachinesStore.getState().pretendFinished()}
-          title="Sends the notice a real lane sends when it finishes"
-        >
-          Pretend a lane finishes
-        </Button>
+        !signedIn && (
+          <Button
+            size="xs"
+            disabled={!canFinish}
+            onClick={() => useMachinesStore.getState().pretendFinished()}
+            title="Sends the notice a real lane sends when it finishes"
+          >
+            Pretend a lane finishes
+          </Button>
+        )
       }
     >
       <div
         data-testid="machines-page"
         className="mx-auto w-full max-w-4xl flex-1 overflow-y-auto px-5 pb-8"
       >
-        <p className="border-border bg-surface text-text-secondary mb-4 rounded-lg border px-3 py-2 text-sm">
-          Preview with made-up machines: bee1 and bee2 are not real, and nothing here connects
-          anywhere. {localMachineName(window.phosphor.platform).long} is real.
-        </p>
-        {view.kind !== 'list' && (
-          <button
-            onClick={() => show({ kind: 'list' })}
-            className="text-text-secondary hover:text-text mb-3 text-sm"
-          >
-            ← All machines
-          </button>
+        {signedIn ? (
+          <EnrolledMachines />
+        ) : (
+          <>
+            <p className="border-border bg-surface text-text-secondary mb-4 rounded-lg border px-3 py-2 text-sm">
+              Sample machines. Sign in under Settings → Advanced → Phosphor account to see yours.
+              bee1 and bee2 are not real. {localMachineName(window.phosphor.platform).long} is real.
+            </p>
+            {view.kind !== 'list' && (
+              <button
+                onClick={() => show({ kind: 'list' })}
+                className="text-text-secondary hover:text-text mb-3 text-sm"
+              >
+                ← All machines
+              </button>
+            )}
+            {view.kind === 'list' && <MachineList />}
+            {view.kind === 'machine' && <MachineDetail id={view.id} tab={view.tab} />}
+            {view.kind === 'lane' && <RemoteLaneView id={view.id} />}
+          </>
         )}
-        {view.kind === 'list' && <MachineList />}
-        {view.kind === 'machine' && <MachineDetail id={view.id} tab={view.tab} />}
-        {view.kind === 'lane' && <RemoteLaneView id={view.id} />}
       </div>
     </PageShell>
   )

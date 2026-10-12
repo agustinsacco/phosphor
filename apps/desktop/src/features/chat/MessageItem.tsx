@@ -22,7 +22,7 @@ import { BranchIcon, RewindIcon } from '@/components/icons'
 import { BashExecution } from './items/BashExecution'
 import { Divider } from './items/Divider'
 import { SubagentNoticeItem } from './items/SubagentNotice'
-import { SubagentPanel } from './SubagentPanel'
+import { openSubagents } from './subagentView'
 import { isSubagentNotice } from './subagentRuns'
 import { recordedReply } from './subagentHistory'
 import type { FindReveal } from './useTranscriptFind'
@@ -96,20 +96,13 @@ function InspectableSubagentNotice({
   item: CustomItem
   sessionId: string
 }): React.JSX.Element {
-  const [runId, setRunId] = useState<string>()
   const tools = useChatStore((s) => s.sessions[sessionId]?.tools)
   return (
-    <>
-      <SubagentNoticeItem item={item} reply={recordedReply(item, [], tools)} onInspect={setRunId} />
-      {runId && (
-        <SubagentPanel
-          key={`${sessionId}:${runId}`}
-          sessionId={sessionId}
-          initialRunId={runId}
-          onClose={() => setRunId(undefined)}
-        />
-      )}
-    </>
+    <SubagentNoticeItem
+      item={item}
+      reply={recordedReply(item, [], tools)}
+      onInspect={(runId) => openSubagents(sessionId, runId)}
+    />
   )
 }
 

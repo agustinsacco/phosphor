@@ -7,13 +7,12 @@ name: Continuous Release
 # a red build: the job is only reachable once the CI workflow has already
 # reported success. It also means the test matrix is not duplicated here.
 #
-# NOTE: GitHub only evaluates `workflow_run` triggers from the copy of this
-# file on the DEFAULT branch, so this cannot fire until it is merged to main.
-# `workflow_dispatch` exists to dry-run the whole build-and-publish path from a
-# feature branch before that happens.
+# Manual retries also require successful exact-SHA main CI. This is the only
+# release entry point; pushing a tag does not start another packaging pipeline.
 on:
   workflow_run:
     workflows: [CI]
+    branches: [main]
     types: [completed]
   workflow_dispatch:
 
@@ -21,25 +20,20 @@ permissions:
   contents: write
 
 concurrency:
-  # Rapid merges cancel superseded release builds — the newest commit wins and
-  # a skipped intermediate version number is harmless. That is the intent for
-  # actual main-targeted release attempts ONLY: this workflow's `workflow_run`
-  # trigger fires for every completed run of the CI workflow, on any branch,
-  # and the concurrency claim happens before `guard`'s own `if:` gets to
-  # filter those out. A static `release-main` group let a PR branch's own CI
-  # completion cancel an in-flight main release build outright (v0.1.60 lost
-  # this way to an unrelated branch's CI, mid `electron-builder` package step —
-  # not a skip, a cancellation). Runs that will not touch main now key off
-  # their own run id, so they can never collide with `release-main`.
-  group: release-${{ (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)) && 'main' || github.run_id }}
+  # Only eligible main runs may cancel a release. Concurrency is evaluated
+  # before the job guard; failed CI and rejected manual refs need unique groups.
+  group: release-${{ ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)) && 'main' || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   guard:
     name: Decide whether to release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
     if: >
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event.workflow_run.conclusion == 'success' &&
        github.event.workflow_run.event == 'push' &&
        github.event.workflow_run.head_branch == 'main' &&
@@ -53,9 +47,37 @@ jobs:
         with:
           # workflow_run events check out the default branch by default; pin to
           # the exact commit CI validated so the release matches what was tested.
-          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           # `git rev-list --count` needs real history, not a depth-1 clone.
           fetch-depth: 0
+
+      - name: Verify manual release CI
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execFileSync } = require('node:child_process')
+            if (context.ref !== 'refs/heads/main' ||
+                execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() !== context.sha) {
+              throw new Error('Manual releases require the exact main checkout')
+            }
+            const request = { ...context.repo, workflow_id: 'ci.yml' }
+            const { data: workflow } = await github.rest.actions.getWorkflow(request)
+            if (workflow.path !== '.github/workflows/ci.yml' || workflow.name !== 'CI' || !Number.isInteger(workflow.id)) {
+              throw new Error('Cannot verify CI workflow identity')
+            }
+            const { data } = await github.rest.actions.listWorkflowRuns({
+              ...request, branch: 'main', event: 'push', head_sha: context.sha, per_page: 100,
+            })
+            const repository = `${context.repo.owner}/${context.repo.repo}`
+            const runs = data.workflow_runs.filter(run =>
+              run.workflow_id === workflow.id && run.path === workflow.path && run.name === 'CI' &&
+              run.repository?.full_name === repository && run.head_repository?.full_name === repository &&
+              run.event === 'push' && run.head_branch === 'main' && run.head_sha === context.sha)
+            runs.sort((a, b) => b.run_number - a.run_number || b.run_attempt - a.run_attempt)
+            if (runs[0]?.status !== 'completed' || runs[0]?.conclusion !== 'success') {
+              throw new Error('Wait for successful exact-SHA main CI before retrying the release')
+            }
 
       - name: Compute version and check for an existing tag
         id: decide
@@ -83,7 +105,7 @@ jobs:
             echo "::error::Skip-release guard is missing from the validated checkout." >&2
             exit 1
           fi
-          if sh "$SKIP_SCRIPT" "${HEAD_MESSAGE:-}"; then
+          if sh "$SKIP_SCRIPT" "${HEAD_MESSAGE:-$(git log -1 --format=%B)}"; then
             echo "should_release=false" >> "$GITHUB_OUTPUT"
             echo "::notice::Skip-Release trailer present — not publishing ${TAG}."
             exit 0
@@ -140,34 +162,9 @@ jobs:
             echo "desktop=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # The macOS, Linux and Windows `build` jobs below all run
-      # `electron-builder --publish always` in parallel, and each
-      # independently asks GitHub "does a release for this tag exist yet? if
-      # not, create it" before uploading. When both land on "not yet" at the
-      # same moment, the loser's create-call 422s — either "already_exists" on
-      # tag_name, or the oddly worded "Published releases must have a valid
-      # tag" — and electron-builder appears to re-run that check per asset
-      # upload, not once per job, so the failure mode ranges from "one
-      # platform ships nothing" (v0.1.62, v0.1.65 lost this way on macOS) to a
-      # partially-uploaded platform (v0.1.61 shipped only one of four macOS
-      # binaries and neither .deb). Creating the draft release once, here,
-      # sequentially, before either matrix job starts, means every later
-      # "does it exist" check from either platform's electron-builder answers
-      # "yes" and goes straight to uploading — which each already does
-      # correctly and without clobbering the others' files.
-      #
-      # Uses the same `gh release create` → `POST .../releases` endpoint
-      # electron-builder's own publisher calls, so this is not a different
-      # code path from the one already relied on when a job retries against
-      # an existing release — just the first path both jobs take instead of
-      # only the race's winner. Left as a draft with throwaway notes;
-      # `finalize` overwrites both once every asset is attached, and a draft
-      # never appears on `releases/latest`, so this is invisible to users even
-      # if `finalize` never ran.
-      #
-      # Deliberately non-fatal: a failure here (permissions hiccup, transient
-      # network) falls back to today's behavior — both jobs race to create it
-      # themselves — rather than blocking either platform from building.
+      # Create once before parallel publishers to avoid GitHub's create race.
+      # A retry may reuse only a draft for this exact SHA. Failed builds stay
+      # invisible to users until all platforms pass and finalize publishes it.
       - name: Pre-create the draft release
         if: steps.decide.outputs.should_release == 'true' && steps.scope.outputs.desktop != 'false'
         env:
@@ -176,9 +173,10 @@ jobs:
           set -euo pipefail
           TAG="${{ steps.decide.outputs.tag }}"
           SHA="${{ github.event.workflow_run.head_sha || github.sha }}"
-          if ! gh release create "$TAG" --draft --target "$SHA" --title "$TAG" \
-            --notes "Building…"; then
-            echo "::notice::could not pre-create ${TAG} — build jobs will race to create it as before."
+          if gh release view "$TAG" --json isDraft,targetCommitish > "$RUNNER_TEMP/release.json"; then
+            jq -e --arg sha "$SHA" '.isDraft == true and .targetCommitish == $sha' "$RUNNER_TEMP/release.json"
+          else
+            gh release create "$TAG" --draft --target "$SHA" --title "$TAG" --notes "Building…"
           fi
 
   build:
@@ -187,8 +185,7 @@ jobs:
     if: needs.guard.outputs.should_release == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
-      # Do not cancel a finished platform because the other one failed: a
-      # half-published release is still installable on the platform that built.
+      # Finish all platforms for diagnostics, but keep failures in draft.
       fail-fast: false
       matrix:
         include:
@@ -209,7 +206,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -309,7 +306,7 @@ jobs:
             --config.extraMetadata.version="${{ needs.guard.outputs.version }}" \
             --config.extraMetadata.phosphorSigned="${SIGNED}" \
             --config.publish.provider=github \
-            --config.publish.releaseType=release
+            --config.publish.releaseType=draft
 
       # A malformed signature must fail the build that produced it. v0.1.90
       # shipped a bundle whose signature claimed sealed resources it did not
@@ -353,18 +350,13 @@ jobs:
   finalize:
     name: Attach installer script and notes
     needs: [guard, build]
-    # `!cancelled()` rather than plain success: `build` sets fail-fast: false so
-    # that one platform failing still leaves the other's artifacts installable,
-    # but that only holds if THIS job still runs to attach install.sh and flip
-    # the release out of draft. Gating on build success meant a single red
-    # platform stranded every release (v0.1.39-v0.1.43 shipped one bare
-    # AppImage each, with no manifest, so nothing could self-update).
-    if: ${{ !cancelled() && needs.guard.outputs.should_release == 'true' }}
+    # Never replace a complete latest release with a partial or unverified one.
+    if: ${{ success() && needs.guard.outputs.should_release == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       # install.sh verifies its download against this file. Without it every
       # install prints "checksums.txt not published — continuing without
@@ -377,17 +369,11 @@ jobs:
           TAG="${{ needs.guard.outputs.tag }}"
           mkdir -p checksums
           cd checksums
-          # Patterns that match nothing are not an error here: which targets
-          # exist depends on which platforms built.
           gh release download "$TAG" \
             --pattern '*.AppImage' --pattern '*.deb' \
-            --pattern '*.dmg' --pattern '*.zip' --pattern '*.exe' || true
-          if [ -n "$(ls -A .)" ]; then
-            sha256sum * > checksums.txt
-            gh release upload "$TAG" checksums.txt --clobber
-          else
-            echo "::warning::no installable assets found for ${TAG} — skipping checksums."
-          fi
+            --pattern '*.dmg' --pattern '*.zip' --pattern '*.exe'
+          sha256sum * > checksums.txt
+          gh release upload "$TAG" checksums.txt --clobber
 
       # install.sh builds asset names by hand, and electron-builder expands
       # `${arch}` per TARGET (-x64.dmg but -x86_64.AppImage), so the two drift
@@ -410,14 +396,14 @@ jobs:
             "Phosphor-${VERSION}-arm64.AppImage" \
             "Phosphor-${VERSION}-x64.dmg" \
             "Phosphor-${VERSION}-arm64.dmg" \
-            "Phosphor-${VERSION}-x64.exe"; do
-            case "$EXPECTED" in
-              *.dmg) grep -q "\.dmg$" <<<"$AVAILABLE" || continue ;;   # mac did not build
-              *.AppImage) grep -q "\.AppImage$" <<<"$AVAILABLE" || continue ;;
-              *.exe) grep -q "\.exe$" <<<"$AVAILABLE" || continue ;;   # windows did not build
-            esac
+            "Phosphor-${VERSION}-x64.exe" \
+            "Phosphor-${VERSION}-amd64.deb" \
+            "Phosphor-${VERSION}-arm64.deb" \
+            "Phosphor-${VERSION}-mac.zip" \
+            "Phosphor-${VERSION}-arm64-mac.zip" \
+            "latest.yml" "latest-mac.yml" "latest-linux.yml" "latest-linux-arm64.yml"; do
             if ! grep -qx "$EXPECTED" <<<"$AVAILABLE"; then
-              echo "::error::install.sh would request ${EXPECTED}, which this release does not contain."
+              echo "::error::Required release asset ${EXPECTED} is missing."
               MISSING=1
             fi
           done

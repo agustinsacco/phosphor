@@ -1,0 +1,9 @@
+{
+  "name": "@phosphor/control",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@hono/node-server": "2.1.4",
+    "hono": "4.13.13"
+  }
+}

@@ -34,7 +34,7 @@ the app document, not to artifact iframe contents.
 One **full-width bar** (`apps/desktop/src/app/TopBar.tsx`) above the sidebar, chat and
 pane columns: sidebar toggle, workspace chip, branch control
 ([worktrees.md](worktrees.md)), session title, the pane switches (terminal,
-files, changes, artifacts) and the session kebab. The terminal switch carries a
+files, changes, artifacts, subagents) and the session kebab. The terminal switch carries a
 tab count and a running-process dot; the artifacts switch appears once the
 session has an artifact, with a count and an unseen dot.
 
@@ -189,7 +189,7 @@ screen.
 The main area is the chat plus **one float pane**, split by a drag handle and
 persisted per session (selection, side, split size, fullscreen; localStorage,
 pruned on dispose). The float region hosts exactly one pane at a time
-(`RightPane = 'files' | 'changes' | 'terminal' | 'artifacts' | null`,
+(`RightPane = 'files' | 'changes' | 'terminal' | 'artifacts' | 'subagents' | null`,
 `apps/desktop/src/stores/layout.ts`), opened from the top bar's switches, the command
 palette or the shortcuts above.
 
@@ -211,6 +211,15 @@ palette or the shortcuts above.
    compaction or a provider switch dropped from pi's context still show; it
    falls back to replaying `get_messages` if the store fails. The
    cross-session index is the global Artifacts _page_, below.
+
+6. **Subagents pane** — a stable run/child navigator and independently scrolling
+   read-only activity preview ([chat.md](chat.md#sub-agents)). The top bar,
+   command palette, current-work summary and notice links all open this same
+   session pane. The summary combines foreground/background evidence and remains
+   visible while another pane is open; the top-bar badge mirrors its count and
+   attention/unavailable signal. Narrow panes show the list or selected detail with Back to runs;
+   wide panes show both. Its controls reuse `PaneShell`, including side swap,
+   fullscreen and close.
 
 The artifacts toolbar carries **two exports that are not the same thing**, and
 they no longer share a glyph: a tray saves the _source_ through a dialog, a page
@@ -250,6 +259,9 @@ Rules:
 - The float pane can swap sides with the chat (⇄ in the pane header).
 - Fullscreen (↗) overlays the main region (sidebar and top bar stay) and never
   resizes the split underneath, so exiting restores the exact prior layout.
+  A stable portal container moves between the split and fullscreen slots;
+  docking and fullscreen do not remount pane contents or discard drafts,
+  disclosures, pending actions or reading position.
 - Sessions in a workspace run **concurrently**. The chat shows the active one;
   switching between live lanes is instant; background sessions keep streaming
   into their stores. A lane whose process is not up yet has to be spawned and
@@ -335,12 +347,20 @@ All switch together, live, no reload.
 
 ## Machines preview
 
-A prototype of how Phosphor will show several machines, against made-up data
-(`features/machines/fakeMachines.ts`), so the layout can be judged before
-Phosphor can reach a Host (component 21). It is off by default
-(Settings → Advanced → Machines (preview), `AppPrefs.machinesPreview`), and
-nothing connects anywhere while it is on. This computer's rows and machine
-page use real data; bee1 (up) and bee2 (down) and their four lanes are fixed.
+The Machines page lists enrolled machines while the Phosphor account preview
+is on and signed in. Main fetches the control plane on page open, after actions
+and every 30 seconds while the page is visible. Rows show hostname, platform,
+Host version, readiness, lane counts and up/down based on the server clock.
+Add a machine looks up the code printed by `phosphor login`, shows its key
+fingerprint to compare, and asks for a label before approval. Remove confirms
+that the installation stays and must run `phosphor login` again to return.
+Tokens and all control traffic stay in main. No account means no control request.
+
+The preview is off by default (Settings → Advanced → Machines (preview),
+`AppPrefs.machinesPreview`). Signed out, the page labels bee1 and bee2 as samples
+and points to the Phosphor account switch. This computer's sample-page row uses
+real local data. The sidebar's four remote lanes stay sample-only even while
+signed in; enrolled machines add no lanes and cannot run remote sessions.
 Turning it off removes all of it: it closes the Machines page if it is open
 and withdraws its notices, and nothing opens the page while it is off.
 
@@ -352,7 +372,7 @@ and withdraws its notices, and nothing opens the page while it is off.
   A group's lane search covers its made-up lanes too. Filtered to another
   machine, this computer's lanes are off screen and out of reach: a selection
   is cleared and "Select all lanes" is off.
-- **Machines page** (sidebar → Machines): every machine with a one-line
+- **Signed-out sample page** (sidebar → Machines): each sample has a one-line
   summary, and a page per machine with Overview, Lanes, Dependencies and
   Logins. This computer's Logins tab is Settings → Accounts itself. A made-up
   machine's buttons are disabled.

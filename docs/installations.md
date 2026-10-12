@@ -1,7 +1,7 @@
 # Dependency installation and source closure
 
 The Nx project graph is not one installation domain. npm shares the three
-private source libraries, while Desktop and the site keep independent locks.
+private source libraries, while Desktop, Control and the site keep independent locks.
 All targets remain uncached. The Host (`apps/host`, [host.md](host.md)) has no
 manifest of its own: it is checked and tested from the root install and imports
 only Node builtins and the source libraries. No native Node staging exists.
@@ -10,12 +10,14 @@ only Node builtins and the source libraries. No native Node staging exists.
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Root tooling and source libraries | `package.json`, `package-lock.json`; workspaces `libs/shared`, `libs/session-runtime`, `libs/pi-extensions` | JavaScript tools and library dependencies                               |
 | Desktop                           | `apps/desktop/package.json`, `apps/desktop/package-lock.json`                                               | Application production dependencies, Electron and Electron-ABI node-pty |
+| Control                           | `apps/control/package.json`, `apps/control/package-lock.json`                                               | Hono HTTP server, bundled for plain Node                                |
 | Site                              | `apps/site/package.json`, `apps/site/package-lock.json`                                                     | Astro, social-image tools and site checks/browser tests                 |
 
 ## Development and CI
 
 Run `npm ci` from the root. Its postinstall runs an independent
-`npm ci --prefix apps/desktop`; failure propagates. Both installations must be
+`npm ci --prefix apps/desktop && npm ci --prefix apps/control`; failure propagates.
+All three installations must be
 real local directories, never links to another checkout's mutable installation.
 The links npm creates for the three source-library packages point to source in
 this checkout, not another installation. Desktop builds use the root's declared

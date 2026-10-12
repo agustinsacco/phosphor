@@ -10,6 +10,7 @@ const readJson = (path: string) => JSON.parse(readFileSync(join(root, path), 'ut
 const projects = {
   desktop: 'apps/desktop',
   host: 'apps/host',
+  control: 'apps/control',
   runtime: 'libs/session-runtime',
   shared: 'libs/shared',
   'pi-extensions': 'libs/pi-extensions',
@@ -23,6 +24,11 @@ const commands = {
     typecheck: 'tsc --noEmit -p apps/host/tsconfig.json',
     test: 'vitest run apps/host',
     build: 'node apps/host/scripts/build.mjs',
+  },
+  control: {
+    typecheck: 'tsc --noEmit -p apps/control/tsconfig.json',
+    test: 'vitest run apps/control',
+    build: 'node apps/control/scripts/build.mjs',
   },
   runtime: { test: 'vitest run libs/session-runtime' },
   shared: { test: 'vitest run libs/shared' },
@@ -47,7 +53,7 @@ const commands = {
   },
   tooling: {
     typecheck:
-      'tsc --noEmit -p apps/desktop/tsconfig.node.json && tsc --noEmit -p apps/desktop/tsconfig.web.json && tsc --noEmit -p apps/host/tsconfig.json',
+      'tsc --noEmit -p apps/desktop/tsconfig.node.json && tsc --noEmit -p apps/desktop/tsconfig.web.json && tsc --noEmit -p apps/host/tsconfig.json && tsc --noEmit -p apps/control/tsconfig.json',
     lint: 'eslint .',
     test: 'vitest run',
     validate: './tools/scripts/validate.sh',
@@ -66,12 +72,13 @@ const commands = {
 const dependencies = {
   desktop: ['runtime', 'shared', 'pi-extensions'],
   host: ['runtime', 'shared', 'pi-extensions'],
+  control: ['shared'],
   runtime: ['shared', 'pi-extensions'],
   shared: [],
   'pi-extensions': ['shared'],
   site: [],
   schema: [],
-  tooling: ['desktop', 'host', 'runtime', 'shared', 'pi-extensions', 'site', 'schema'],
+  tooling: ['desktop', 'host', 'control', 'runtime', 'shared', 'pi-extensions', 'site', 'schema'],
 }
 // Workspace-wide checks read everything. Everything else reads its own root,
 // its dependencies, and the specific root files it actually consumes.
@@ -81,6 +88,11 @@ const inputs: Record<string, Record<string, string[]>> = {
     'test:e2e': ['default', '^default', 'rootInstall', 'release', 'e2eHarness'],
   },
   host: {
+    typecheck: ['default', '^default', 'rootInstall'],
+    test: ['default', '^default', 'rootUnitRunner'],
+    build: ['default', '^default', 'rootInstall'],
+  },
+  control: {
     typecheck: ['default', '^default', 'rootInstall'],
     test: ['default', '^default', 'rootUnitRunner'],
     build: ['default', '^default', 'rootInstall'],
@@ -150,7 +162,7 @@ describe('explicit Nx project contract', () => {
     expect(parsed).toEqual({ project: { name: 'runtime' } })
     expect(toml.parse(toml.stringify(parsed))).toEqual(parsed)
   })
-  it('retains exactly eight current-path projects and all import/resource/test edges', () => {
+  it('retains exactly nine current-path projects and all import/resource/test edges', () => {
     expect(Object.keys(graph.nodes).sort()).toEqual(Object.keys(projects).sort())
     for (const [name, path] of Object.entries(projects)) {
       expect(graph.nodes[name].data.root).toBe(path)
@@ -241,7 +253,9 @@ describe('explicit Nx project contract', () => {
     for (const target of Object.values(commands).flatMap((targets) => Object.values(targets))) {
       expect(target).not.toMatch(/npm run nx:|\bnx (run|run-many|affected)\b/)
     }
-    expect(pkg.scripts.postinstall).toBe('npm ci --prefix apps/desktop')
+    expect(pkg.scripts.postinstall).toBe(
+      'npm ci --prefix apps/desktop && npm ci --prefix apps/control',
+    )
   })
 
   it('site deploy inputs are exactly the deploy workflow path filter', () => {
@@ -290,6 +304,7 @@ describe('explicit Nx project contract', () => {
     expect(config.targetDefaults['nx:run-commands'].cache).toBe(false)
     expect(graph.nodes.desktop.data.targets.build.outputs).toEqual(['{projectRoot}/out'])
     expect(graph.nodes.host.data.targets.build.outputs).toEqual(['{projectRoot}/dist'])
+    expect(graph.nodes.control.data.targets.build.outputs).toEqual(['{projectRoot}/dist'])
     expect(graph.nodes.site.data.targets.build.outputs).toEqual([
       '{projectRoot}/dist',
       '{projectRoot}/public/og.png',
@@ -298,6 +313,7 @@ describe('explicit Nx project contract', () => {
     for (const path of [
       'apps/desktop/electron',
       'apps/host/src',
+      'apps/control/src',
       'libs/session-runtime/src',
       'libs/shared/src',
       'libs/pi-extensions/pi-ext',

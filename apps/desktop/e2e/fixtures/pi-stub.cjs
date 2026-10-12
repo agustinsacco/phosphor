@@ -807,6 +807,10 @@ function handle(cmd) {
         publishWorkflowFleet(true)
         break
       }
+      if (message === '/stub-subagent-layout-update') {
+        publishWorkflowFleet(false, true)
+        break
+      }
       if (message.startsWith('/subagents-inspect-rpc ')) {
         const [, requestId, asyncId, childId] = message.split(' ')
         const reply = {
@@ -834,6 +838,21 @@ function handle(cmd) {
                   : 'Inspection: following login.ts to verify.ts.',
             },
           ],
+          ...(process.env.PHOSPHOR_E2E_SUBAGENT_LAYOUT
+            ? {
+                messages: Array.from({ length: 40 }, (_, i) => [
+                  {
+                    role: 'assistant',
+                    text: `### Inspecting module ${i}\n\nFollowing the call chain and checking the surrounding implementation.`,
+                  },
+                  { role: 'assistant', text: '[tool: read]' },
+                  {
+                    role: 'toolResult',
+                    text: `Module ${i} output\n${'export const result = inspectModule()\n'.repeat(30)}`,
+                  },
+                ]).flat(),
+              }
+            : {}),
           truncated: { task: false, messages: 2, finalOutput: false },
           ...(sessionEntries().some((e) => e.id === 'stub-workflow-compact')
             ? { error: { code: 'not_found', message: 'Native inspection artifacts expired.' } }
@@ -852,6 +871,19 @@ function handle(cmd) {
           method: 'setWidget',
           widgetKey: 'subagent-inspect',
         })
+        break
+      }
+      if (message === '/stub-hide-workflow-status') {
+        out({
+          type: 'extension_ui_request',
+          id: 'hide-fleet',
+          method: 'setWidget',
+          widgetKey: 'subagent-async',
+        })
+        break
+      }
+      if (message === '/stub-restore-workflow-status') {
+        publishWorkflowFleet(false)
         break
       }
       if (message === '/stub-settle-workflow') {
@@ -1824,10 +1856,30 @@ function runWorkflowEvidenceTurn() {
   runTextTurn('Reviewer reported; validation and QA continue independently.')
 }
 
-function publishWorkflowFleet(settled = false) {
+function publishWorkflowFleet(settled = false, updated = false) {
   const snapshot = structuredClone(
     require('../../src/features/chat/__fixtures__/subagent-workflow.json').snapshot,
   )
+  if (process.env.PHOSPHOR_E2E_SUBAGENT_LAYOUT) {
+    const child = snapshot.runs[0].children[1]
+    snapshot.runs[0].startedAt = Date.now() - 260_000
+    for (const step of snapshot.runs[0].children) {
+      if (step.state === 'running') step.startedAt = Date.now() - 250_000
+    }
+    child.activity = {
+      toolCount: updated ? 100 : 99,
+      turnCount: updated ? 100 : 99,
+      currentTool: updated ? `grep ${'a-long-path/'.repeat(15)}module.ts` : undefined,
+      state: updated ? 'needs_attention' : 'running',
+    }
+    snapshot.runs[0].children.push(
+      ...Array.from({ length: 12 }, (_, i) => ({
+        ...child,
+        id: `layout-${i}`,
+        label: `Audit module ${i}: long navigation labels stay on one line`,
+      })),
+    )
+  }
   if (settled) {
     for (const run of snapshot.runs) {
       run.state = 'complete'
@@ -1948,6 +2000,8 @@ function runNativeSubagentTurn() {
     role: 'custom',
     customType: 'subagent-notify',
     display: false,
+    // Current pi-subagents includes explicit identity, unlike legacy text-only notices.
+    details: { runs: [{ runId: ASYNC_ID, agent: 'scout', status: 'completed' }] },
     content:
       'Background task completed: **scout**\n\nscout:\nThe auth flow enters at `login.ts` and settles in `session.ts`.\n\nRetention-managed async directory: /tmp/stub/async/' +
       ASYNC_ID,

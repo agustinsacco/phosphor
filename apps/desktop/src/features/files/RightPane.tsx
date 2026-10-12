@@ -6,6 +6,7 @@ import { FilesPane } from './FilesPane'
 import { FilesChangedPane } from './FilesChangedPane'
 import { TerminalPane } from '@/features/terminal/TerminalPane'
 import { ArtifactsPane } from '@/features/artifacts/ArtifactsPane'
+import { SubagentPanel } from '@/features/chat/SubagentPanel'
 
 /**
  * Inset IDE panel, hosting exactly one pane at a time inside a shared shell.
@@ -52,6 +53,7 @@ export const RightPane = memo(function RightPane({
           <TerminalPane sessionId={sessionId} workspacePath={workspacePath} />
         )}
         {rightPane === 'artifacts' && <ArtifactsPane workspacePath={workspacePath} />}
+        {rightPane === 'subagents' && <SubagentPanel sessionId={sessionId} />}
       </div>
     </div>
   )
