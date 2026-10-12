@@ -10,8 +10,10 @@ spec:
     app: phosphor-site
   # Same shape as tars-docs: k3s servicelb binds this port on the node, and the
   # edge (Cloudflare tunnel) routes phosphor.saccolabs.com to it. The port is
-  # unique per site on purpose — two LoadBalancer services on one port leave
+  # unique per site on purpose. Two LoadBalancer services on one port leave
   # the second one Pending forever.
+  # servicelb SNAT hides peers. Only the shared edge header authenticates
+  # cf-connecting-ip; LAN and tailnet clients share the socket-address bucket.
   type: LoadBalancer
   ports:
     - protocol: TCP

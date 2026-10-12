@@ -52,8 +52,9 @@ Content-Length. Bodies require `application/json` and valid JSON. If the server
 has no secret key, health returns `configured: false` and all other API routes
 return 503. Static pages remain available.
 
-Site GET and HEAD use `$uri`, then `$uri/index.html`. Misses use the site's
-`404.html` with status 404. There are no directory listings. Encoded separators,
+Site GET and HEAD use `$uri`, then `$uri/index.html`. Misses return status 404,
+using the site's `404.html` when present or an empty body otherwise. The current
+Astro build has no 404 page. There are no directory listings. Encoded separators,
 null bytes, dotfiles and symlinks outside the site root are refused. The site
 root is a trusted, immutable build directory, not an upload directory. Assets
 under `/_astro/` and `/fonts/` are cached for a year as immutable. Text types
@@ -103,21 +104,25 @@ Failed lookups and approvals share ten failures per fifteen minutes per user.
 Guesses still awaiting the database count against that budget, so concurrent
 requests cannot exceed it. Successes do not spend it. Once exhausted, both
 routes return 429, even for a correct code, until a failure leaves the window.
-Proxy IP selection trusts a valid `cf-connecting-ip` only when configured for
-Cloudflare; otherwise it uses the socket address. All in-memory guards are
+Proxy IP selection trusts a valid `cf-connecting-ip` only in Cloudflare mode
+when `x-phosphor-edge` matches `CONTROL_EDGE_SECRET`. SHA-256 digests are compared
+in constant time. Missing or incorrect edge headers use the socket address.
+servicelb SNAT hides peers, so all non-Cloudflare LAN and tailnet clients share
+that address bucket. Headers and comparison results are never logged. All in-memory guards are
 process-local. Run a single replica; rollout overlap is not cross-process replay
 protection.
 
 ## Configuration and local use
 
-| Variable                   | Default                | Constraint                                                   |
-| -------------------------- | ---------------------- | ------------------------------------------------------------ |
-| `PORT`                     | `5015`                 | 0 through 65535; 0 selects a test port                       |
-| `SITE_DIR`                 | `/app/site`            | Trusted built site directory                                 |
-| `SUPABASE_URL`             | Hosted Phosphor origin | HTTPS, or HTTP on localhost, 127.0.0.1 or [::1] only         |
-| `SUPABASE_PUBLISHABLE_KEY` | Hosted publishable key | Public Auth apikey                                           |
-| `SUPABASE_SECRET_KEY`      | Unset                  | Secret RPC apikey; never put it in a URL or command argument |
-| `CONTROL_TRUST_PROXY`      | `none`                 | `none` or `cloudflare`                                       |
+| Variable                   | Default                | Constraint                                                                           |
+| -------------------------- | ---------------------- | ------------------------------------------------------------------------------------ |
+| `PORT`                     | `5015`                 | 0 through 65535; 0 selects a test port                                               |
+| `SITE_DIR`                 | `/app/site`            | Trusted built site directory                                                         |
+| `SUPABASE_URL`             | Hosted Phosphor origin | HTTPS, or HTTP on localhost, 127.0.0.1 or [::1] only                                 |
+| `SUPABASE_PUBLISHABLE_KEY` | Hosted publishable key | Public Auth apikey                                                                   |
+| `SUPABASE_SECRET_KEY`      | Unset                  | Secret RPC apikey; never put it in a URL or command argument                         |
+| `CONTROL_TRUST_PROXY`      | `none`                 | `none` or `cloudflare`                                                               |
+| `CONTROL_EDGE_SECRET`      | Unset                  | Required in Cloudflare mode: 32-512 letters, digits, `_` or `-`; ignored with `none` |
 
 ```bash
 npm run site:build
@@ -138,3 +143,35 @@ and `npm run test:auth-stack` sequentially; they share the fake GitHub container
 The esbuild output is `apps/control/dist/server.mjs`, with no runtime
 node_modules. Builds reject non-`node:` imports. SIGTERM and SIGINT stop accepting
 requests and finish in-flight work; shutdown is forced within ten seconds.
+
+## Image and deployment
+
+`apps/control/Dockerfile` builds from the repository root. Its dedicated ignore
+file excludes unrelated apps, build output, dependencies and secret-shaped files.
+The Astro builder installs DejaVu fonts, runs its own `npm ci`, check and build.
+The Control builder installs its own dependencies and bundles `server.mjs`.
+The Node 22 Alpine runtime contains only that bundle and `/app/site`, runs as
+uid/gid 1000 and needs no writable volumes. `bash tools/scripts/site-image.sh`
+builds and checks the image read-only with all capabilities dropped, then runs
+the site browser suite and removes its container. CI uses the same script.
+
+The `phosphor-site` Deployment and LoadBalancer Service keep port 5015 and a
+single replica. Probes use `/healthz`, independent of Supabase. The pod has a
+read-only root, no privilege escalation, RuntimeDefault seccomp, a 256Mi memory
+limit and fifteen seconds for the server's ten-second shutdown.
+
+Deploy Site builds this Dockerfile and pins the pushed image digest. The
+`phosphor-control` Secret supplies required `supabase-secret-key` and `edge-secret`
+keys. Neither reference is optional: missing configuration fails the rollout.
+The template holds only `${SUPABASE_SECRET_KEY}` and `${CONTROL_EDGE_SECRET}`.
+The workflow validates both repository secrets against `^[A-Za-z0-9_-]{32,512}$`,
+then uses restricted `envsubst` to render only those placeholders into a 0600
+file under `RUNNER_TEMP`. Unresolved placeholders fail. Cleanup runs even on
+failure; values are never printed. Production sets `CONTROL_TRUST_PROXY=cloudflare`.
+The Cloudflare Transform Rule must overwrite `x-phosphor-edge` with the same
+edge secret. No source-range filtering is used because servicelb SNAT hides
+LAN and tailnet peers as well as the tunnel connector.
+
+After rollout the workflow requires a Service address, then checks the public
+site title, `/healthz` and `/api/v1/health` with `configured: true`. It retries
+for at most two minutes and fails if any check stays unavailable.

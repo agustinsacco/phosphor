@@ -555,7 +555,7 @@ docs/                living technical docs — one file per surface, each
                      (decided or explored directions that are not built)
 docs/img/            the screenshots above (assets, not documentation)
 apps/site/           phosphor.saccolabs.com — the Astro landing page, real
-                     captures, current nginx image and browser checks (apps/site/README.md)
+                     captures and browser checks; combined image in apps/control/Dockerfile (apps/site/README.md)
 .infra/phosphor-site/  the k3s manifests the Deploy Site workflow applies
 ```
 

@@ -7,6 +7,9 @@
   "implicitDependencies": [],
   "namedInputs": {
     "deploy": [
+      "{workspaceRoot}/apps/control/**/*",
+      "{workspaceRoot}/libs/shared/src/**/*",
+      "{workspaceRoot}/tools/scripts/site-image.sh",
       "{workspaceRoot}/.infra/phosphor-site/**/*",
       "{workspaceRoot}/.github/workflows/deploy-site.yml",
       "{workspaceRoot}/tools/scripts/site-deploy-policy.mjs",

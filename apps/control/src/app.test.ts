@@ -251,8 +251,10 @@ it('limits user verification misses per IP, with cache hits and pre-check failur
   let now = deps.clock()
   deps.clock = () => now
   deps.limits = new RateLimiter(deps.clock)
+  const edgeSecret = randomBytes(32).toString('base64url')
   deps.config = parseConfig({
     CONTROL_TRUST_PROXY: 'cloudflare',
+    CONTROL_EDGE_SECRET: edgeSecret,
     SUPABASE_SECRET_KEY: randomBytes(32).toString('hex'),
   })
   const app = createApp(deps)
@@ -261,13 +263,18 @@ it('limits user verification misses per IP, with cache hits and pre-check failur
       headers: {
         authorization: `Bearer ${token(deps.clock() / 1000 + 100 + n)}`,
         'cf-connecting-ip': ip,
+        'x-phosphor-edge': edgeSecret,
       },
     })
   for (let i = 0; i < 31; i++) {
     expect(
       (
         await app.request('/api/v1/me', {
-          headers: { authorization: 'Bearer garbage', 'cf-connecting-ip': '192.0.2.1' },
+          headers: {
+            authorization: 'Bearer garbage',
+            'cf-connecting-ip': '192.0.2.1',
+            'x-phosphor-edge': edgeSecret,
+          },
         })
       ).status,
     ).toBe(401)
@@ -282,5 +289,19 @@ it('limits user verification misses per IP, with cache hits and pre-check failur
   now += 60_000
   expect((await call(31)).status).toBe(200)
   expect(deps.supabase.getUser).toHaveBeenCalledTimes(32)
-  expect(JSON.stringify(vi.mocked(deps.log).mock.calls)).not.toContain('192.0.2.')
+  // Without edge authentication different forwarded IPs share the socket bucket.
+  for (let i = 0; i < 31; i++) {
+    const response = await app.request('/api/v1/me', {
+      headers: {
+        authorization: `Bearer ${token(deps.clock() / 1000 + 200 + i)}`,
+        'cf-connecting-ip': `192.0.2.${i + 1}`,
+        ...(i % 2 ? { 'x-phosphor-edge': randomBytes(32).toString('base64url') } : {}),
+      },
+    })
+    expect(response.status).toBe(i < 30 ? 200 : 429)
+  }
+  const logs = JSON.stringify(vi.mocked(deps.log).mock.calls)
+  expect(logs).not.toContain('192.0.2.')
+  expect(logs).not.toContain(edgeSecret)
+  expect(logs).not.toContain('x-phosphor-edge')
 })

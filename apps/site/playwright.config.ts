@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test'
 
-// CI exercises nginx's production image; local runs start Astro's preview.
+// CI exercises the combined production Node image; local runs start Astro's preview.
 const externalURL = process.env.SITE_TEST_URL
 
 export default defineConfig({

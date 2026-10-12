@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { parseConfig } from './config'
-import { clientIp } from './http'
+import { randomBytes } from 'node:crypto'
 it('uses frozen defaults, allows loopback only for http and never echoes invalid configuration', () => {
   expect(parseConfig({}).port).toBe(5015)
   expect(parseConfig({}).configured).toBe(false)
@@ -31,14 +31,31 @@ it('uses frozen defaults, allows loopback only for http and never echoes invalid
     'Invalid Supabase key configuration',
   )
 })
-it('uses Cloudflare IP only when configured and valid', () => {
-  const request = new Request('http://localhost', { headers: { 'cf-connecting-ip': '192.0.2.1' } })
-  expect(clientIp(request, '127.0.0.1', parseConfig({}))).toBe('127.0.0.1')
-  expect(clientIp(request, '127.0.0.1', parseConfig({ CONTROL_TRUST_PROXY: 'cloudflare' }))).toBe(
-    '192.0.2.1',
-  )
-  request.headers.set('cf-connecting-ip', 'invalid')
-  expect(clientIp(request, '127.0.0.1', parseConfig({ CONTROL_TRUST_PROXY: 'cloudflare' }))).toBe(
-    '127.0.0.1',
-  )
+it('requires a bounded edge secret only in Cloudflare mode without echoing it', () => {
+  for (const length of [32, 512]) {
+    const secret = randomBytes(length).toString('base64url').slice(0, length)
+    expect(
+      parseConfig({ CONTROL_TRUST_PROXY: 'cloudflare', CONTROL_EDGE_SECRET: secret }).edgeSecret,
+    ).toBe(secret)
+    expect(
+      parseConfig({ CONTROL_TRUST_PROXY: 'none', CONTROL_EDGE_SECRET: secret }).edgeSecret,
+    ).toBe('')
+  }
+  for (const secret of [
+    undefined,
+    '',
+    randomBytes(24).toString('base64url').slice(0, 31),
+    randomBytes(400).toString('base64url').slice(0, 513),
+    ' '.repeat(32),
+    '+'.repeat(32),
+    randomBytes(24).toString('base64url') + '\n',
+    randomBytes(24).toString('base64url') + 'é',
+  ]) {
+    expect(() =>
+      parseConfig({ CONTROL_TRUST_PROXY: 'cloudflare', CONTROL_EDGE_SECRET: secret }),
+    ).toThrow('Invalid CONTROL_EDGE_SECRET')
+    expect(
+      parseConfig({ CONTROL_TRUST_PROXY: 'none', CONTROL_EDGE_SECRET: secret }).edgeSecret,
+    ).toBe('')
+  }
 })

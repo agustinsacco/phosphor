@@ -27,9 +27,12 @@ development toolchain.
 
 `npm ci --prefix apps/site` installs only the site and does not invoke the root
 or Desktop lifecycle. The site deliberately retains its own TypeScript,
-Playwright, Node types and Vite resolutions. Its Docker build context remains
-`apps/site`; the build stage runs its own install, check and build. The deployed
-nginx stage contains static output, not Node, Electron or workspace links.
+Playwright, Node types and Vite resolutions. The combined image
+uses the repository root as its context, with `apps/control/Dockerfile.dockerignore`
+limiting inputs. Separate site and Control build stages use their own installs.
+The site stage checks and builds Astro. The Control stage bundles with its pinned
+esbuild. The Node 22 runtime contains only static output and `server.mjs`, not
+Electron, node_modules or workspace links.
 
 Directly imported Playwright tooling is declared at the root, and the Desktop
 builder test API is declared in the app. Root tooling must not resolve missing

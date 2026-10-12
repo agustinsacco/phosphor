@@ -1,6 +1,7 @@
 import { CONTROL_ERROR_STATUS, type ControlErrorCode } from '@phosphor/shared/control-api'
 import type { MiddlewareHandler } from 'hono'
 import { isIP } from 'node:net'
+import { createHash, timingSafeEqual } from 'node:crypto'
 import type { IncomingHttpHeaders } from 'node:http'
 import type { Config } from './config'
 import type { User } from './auth/user'
@@ -117,12 +118,14 @@ export const apiHeaders: MiddlewareHandler<Env> = async (c, next) => {
   await next()
 }
 
-/** Proxy headers are trusted only behind the configured Cloudflare tunnel. */
+/** servicelb SNAT hides the peer, so only the authenticated edge may supply an IP. */
 export function clientIp(request: Request, socketAddress: string, config: Config): string {
   const forwarded = request.headers.get('cf-connecting-ip')
-  return config.trustProxy === 'cloudflare' && forwarded && isIP(forwarded)
-    ? forwarded
-    : socketAddress
+  const edge = request.headers.get('x-phosphor-edge')
+  if (config.trustProxy !== 'cloudflare' || !forwarded || !isIP(forwarded) || !edge)
+    return socketAddress
+  const digest = (value: string) => createHash('sha256').update(value).digest()
+  return timingSafeEqual(digest(edge), digest(config.edgeSecret)) ? forwarded : socketAddress
 }
 
 /** The Node adapter hides GET/HEAD bodies, so check framing before reading Fetch bytes. */
