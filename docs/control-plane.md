@@ -97,7 +97,7 @@ The reusable sliding-window limiter has a 10,000-key cap. At capacity it sweeps
 expired windows and refuses new keys with 429 rather than evicting live windows.
 Enrollment creates are limited to ten per hour per IP before signature checking
 or nonce consumption. Polls are limited to sixty per minute per IP before the
-body is parsed, then to one per two seconds per parsed enrollment id, both
+request contract is validated, then to one per two seconds per parsed enrollment id, both
 before signature checking; Hosts sharing an address share the first limit.
 Failed lookups and approvals share ten failures per fifteen minutes per user.
 Guesses still awaiting the database count against that budget, so concurrent

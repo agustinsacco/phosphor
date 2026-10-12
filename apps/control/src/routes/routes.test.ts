@@ -435,12 +435,12 @@ it('counts concurrent in-flight guesses against the failure budget (review r1)',
   }
   let settled = 0
   const flight = Array.from({ length: 7 }, (_, i) =>
-    s
-      .call(i % 2 ? R.enrollmentApprove : R.enrollmentLookup, 'POST', routes[3].value)
-      .then((response) => {
-        settled++
-        return response
-      }),
+    Promise.resolve(
+      s.call(i % 2 ? R.enrollmentApprove : R.enrollmentLookup, 'POST', routes[3].value),
+    ).then((response) => {
+      settled++
+      return response
+    }),
   )
   await vi.waitFor(() => expect(gates.length).toBe(7))
   for (const path of [R.enrollmentLookup, R.enrollmentApprove])
