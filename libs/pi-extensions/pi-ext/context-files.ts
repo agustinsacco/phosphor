@@ -27,6 +27,9 @@
  * module graph.
  */
 
+import { homedir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
+
 export type ContextFileKind = 'claude' | 'agents'
 
 export const CONTEXT_FILES_ENV = 'PHOSPHOR_CONTEXT_FILES'
@@ -158,6 +161,7 @@ export function filterSystemMessages(
 export interface ContextFileInfo {
   path: string
   kind: ContextFileKind
+  scope: 'global' | 'project'
   /** ~4 characters per token, like the rest of the breakdown. */
   tokens: number
   included: boolean
@@ -167,7 +171,11 @@ export interface ContextFileInfo {
 export function contextFilesIn(
   systemPrompt: string,
   off: ReadonlySet<ContextFileKind>,
+  agentDir = process.env.PI_CODING_AGENT_DIR || join(homedir(), '.pi', 'agent'),
 ): ContextFileInfo[] {
+  // Match pi's agent-directory discovery, including custom and ~/ paths.
+  // Everything else is inherited from cwd/ancestors, not user-global config.
+  const globalDir = resolve(agentDir.replace(/^~(?=$|[/\\])/, homedir()))
   const section = projectContextOf(systemPrompt)
   const blocks = section ? parseProjectContext(section) : null
   const files: ContextFileInfo[] = []
@@ -177,6 +185,7 @@ export function contextFilesIn(
     files.push({
       path: block.path,
       kind,
+      scope: dirname(resolve(block.path)) === globalDir ? 'global' : 'project',
       tokens: Math.ceil(block.text.length / 4),
       included: !off.has(kind),
     })

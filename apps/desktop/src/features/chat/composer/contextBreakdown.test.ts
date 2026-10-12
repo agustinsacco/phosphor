@@ -29,6 +29,26 @@ describe('parseContextBreakdown', () => {
     expect(parseContextBreakdown(LIVE)?.contextFiles).toBeNull()
   })
 
+  it('preserves reported scopes and leaves missing or invalid scope unknown', () => {
+    const payload = JSON.stringify({
+      parts: {},
+      contextFiles: {
+        off: [],
+        files: ['global', 'project', 'other', undefined].map((scope) => ({
+          path: '/r/AGENTS.md',
+          kind: 'agents',
+          scope,
+        })),
+      },
+    })
+    expect(parseContextBreakdown(payload)?.contextFiles?.files.map((file) => file.scope)).toEqual([
+      'global',
+      'project',
+      undefined,
+      undefined,
+    ])
+  })
+
   it('parses the live payload', () => {
     const parsed = parseContextBreakdown(LIVE)
     expect(parsed?.parts).toEqual({ messages: 0, systemPrompt: 728, tools: 638, mcpTools: 0 })

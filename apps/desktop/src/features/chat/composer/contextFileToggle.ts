@@ -1,6 +1,6 @@
 import { CONTEXT_FILE_LABELS, type ContextFileKind } from '@shared/context-files'
 import { formatTokens } from '@/lib/format'
-import type { ContextBreakdown } from './contextBreakdown'
+import type { ContextBreakdown, ContextFileEntry } from './contextBreakdown'
 
 export interface ContextFileToggleState {
   checked: boolean
@@ -9,6 +9,8 @@ export interface ContextFileToggleState {
   /** What the lane's files of this kind cost per request; null outside a lane. */
   tokens: number | null
   title: string
+  /** Null until the lane reports discovery; [] means no matching files. */
+  files: ContextFileEntry[] | null
 }
 
 /**
@@ -31,6 +33,7 @@ export function contextFileToggleState(
       checked,
       missing: false,
       tokens: null,
+      files: null,
       title: checked
         ? `New lanes send ${label} files to the model on every request. Uncheck to leave them out.`
         : `New lanes leave ${label} files out of the prompt. Check to send them again.`,
@@ -42,6 +45,7 @@ export function contextFileToggleState(
       checked,
       missing: true,
       tokens: null,
+      files,
       title: `This lane has no ${label}. The setting still carries to new lanes.`,
     }
   }
@@ -51,6 +55,7 @@ export function contextFileToggleState(
     checked,
     missing: false,
     tokens,
+    files,
     title: checked
       ? `${head}\n\nSent on every request. Uncheck to leave it out from the next one; new lanes start the same way.`
       : `${head}\n\nLeft out of this lane. Check to send it again from the next request; new lanes start the same way.`,

@@ -437,9 +437,17 @@ thousands of tokens on every request.
 - **In a lane:** changes that lane from its next model request, mid-turn
   included, with no restart, and also the starting state of new lanes, so the
   last choice sticks. Other running lanes keep their own state. A lane's boxes
-  show what its pi reports, not the preference; the tooltip names each file
-  and its approximate cost, and a dimmed label means the lane has no such
-  file.
+  show what its pi reports, not the preference. Under **Instruction files**,
+  each checkbox lists the discovered paths, their approximate costs, and
+  whether they are included or excluded. **Global** means pi's user agent
+  directory (`~/.pi/agent`, or `PI_CODING_AGENT_DIR`); **Project** means the
+  working directory or an ancestor directory, including inherited rules
+  outside the repository. Scope comes from the extension, not the filename.
+  Older extensions show **Scope unknown** rather than guessing. Before a lane
+  reports its files (and on Home), the pane says file details are unavailable;
+  a dimmed label with `none` means discovery found no matching file.
+  A checkbox still controls the entire filename category across both scopes,
+  not an individual file. The chip's count is enabled categories, not files.
 - **Routines** always send every context file, whatever the preference: an
   unattended run keeps the project's rules ([routines.md](routines.md)). A
   routine-owned lane refuses a toggle, like any other manual command, until

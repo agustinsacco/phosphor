@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { homedir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import contextFiles, {
   applyContextFileArgs,
   contextFileKind,
@@ -10,6 +12,8 @@ import contextFiles, {
   CONTEXT_FILES_ENTRY,
   type ContextFileKind,
 } from './context-files'
+
+afterEach(() => vi.unstubAllEnvs())
 
 /** pi 0.87.1's `renderProjectContext` plus its section wrapper, byte for byte. */
 function render(files: Array<{ path: string; content: string }>): string {
@@ -138,6 +142,42 @@ describe('contextFilesIn', () => {
       { path: AGENTS.path, kind: 'agents', included: true },
     ])
     expect(files[0]!.tokens).toBeGreaterThan(0)
+  })
+
+  it('distinguishes user-global rules from cwd and ancestor rules of the same kind', () => {
+    const files = contextFilesIn(
+      render([GLOBAL, AGENTS, CLAUDE]),
+      off('agents'),
+      '/home/u/.pi/agent',
+    )
+    expect(files.map(({ scope, included }) => ({ scope, included }))).toEqual([
+      { scope: 'global', included: false },
+      { scope: 'project', included: false },
+      { scope: 'project', included: true },
+    ])
+  })
+
+  it('honors the configured agent directory without treating nested or adjacent paths as global', () => {
+    vi.stubEnv('PI_CODING_AGENT_DIR', '~/custom-pi/')
+    const paths = [
+      join(homedir(), 'custom-pi', 'CLAUDE.md'),
+      join(homedir(), 'custom-pi', 'nested', 'AGENTS.md'),
+      join(homedir(), 'custom-pi-other', 'AGENTS.md'),
+      join(homedir(), '.pi', 'agent', 'AGENTS.md'),
+    ]
+    expect(
+      contextFilesIn(render(paths.map((path) => ({ path, content: '' }))), off()).map(
+        (file) => file.scope,
+      ),
+    ).toEqual(['global', 'project', 'project', 'project'])
+  })
+
+  it('resolves the default and relative agent directories like pi', () => {
+    vi.stubEnv('PI_CODING_AGENT_DIR', '')
+    const global = { path: join(homedir(), '.pi', 'agent', 'AGENTS.md'), content: '' }
+    expect(contextFilesIn(render([global]), off())[0]?.scope).toBe('global')
+    const relative = { path: resolve('custom-pi', 'AGENTS.md'), content: '' }
+    expect(contextFilesIn(render([relative]), off(), 'custom-pi')[0]?.scope).toBe('global')
   })
 
   it('is empty when pi found no context files', () => {

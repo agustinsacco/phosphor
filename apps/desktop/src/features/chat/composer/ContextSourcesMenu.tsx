@@ -18,7 +18,7 @@ import { CONTEXT_BREAKDOWN_STATUS_KEY, parseContextBreakdown } from './contextBr
 import { contextFileToggleState } from './contextFileToggle'
 
 /**
- * What a lane loads besides the conversation: project rules (CLAUDE.md /
+ * What a lane loads besides the conversation: instruction files (CLAUDE.md /
  * AGENTS.md) and MCP connectors, behind one chip in both composers.
  *
  * Rules: on the home composer they set what new lanes start with. Inside a
@@ -66,8 +66,8 @@ export function ContextSourcesMenu({
         aria-expanded={open}
         title={
           sessionId
-            ? 'Project rules and MCP connectors this lane loads'
-            : 'Project rules and MCP connectors new lanes load'
+            ? 'Instruction files and MCP connectors this lane loads'
+            : 'Instruction files and MCP connectors new lanes load'
         }
         className={clsx(
           'flex min-h-8 items-center rounded-md px-2 py-1 text-base tabular-nums transition-colors',
@@ -83,38 +83,86 @@ export function ContextSourcesMenu({
           onClose={() => setOpen(false)}
           triggerRef={triggerRef}
           fitViewport
-          className="absolute bottom-full left-0 mb-2 w-72 py-1"
+          className="absolute bottom-full left-0 mb-2 w-96 py-1"
         >
           <SectionHeading
-            title="Project rules"
+            title="Instruction files"
             note={sessionId ? 'from the next request' : 'new lanes'}
           />
-          <div role="group" aria-label="Context files">
+          <p className="text-text-tertiary px-3 py-1 text-sm">
+            Each checkbox controls all files of that type, global and project.
+          </p>
+          <div className="max-h-60 overflow-y-auto" role="group" aria-label="Context files">
             {rules.map(({ kind, state, toggle }) => (
-              <label key={kind} title={state.title} className={ROW_CLASS}>
-                <input
-                  type="checkbox"
-                  checked={state.checked}
-                  onChange={(event) => toggle(event.target.checked)}
-                  className="accent-[var(--px-accent)]"
-                />
-                <span
-                  className={clsx(
-                    'min-w-0 flex-1 truncate',
-                    state.missing ? 'text-text-tertiary' : 'text-text',
-                    !state.checked && 'line-through',
-                  )}
-                >
-                  {CONTEXT_FILE_LABELS[kind]}
-                </span>
-                <span className="text-text-tertiary shrink-0 font-mono text-sm tabular-nums">
-                  {state.missing
-                    ? 'none'
-                    : state.tokens !== null
-                      ? `~${formatTokens(state.tokens)}`
-                      : ''}
-                </span>
-              </label>
+              <div key={kind}>
+                <label title={state.title} className={ROW_CLASS}>
+                  <input
+                    type="checkbox"
+                    checked={state.checked}
+                    aria-label={CONTEXT_FILE_LABELS[kind]}
+                    onChange={(event) => toggle(event.target.checked)}
+                    className="accent-[var(--px-accent)]"
+                  />
+                  <span
+                    className={clsx(
+                      'min-w-0 flex-1 truncate',
+                      state.missing ? 'text-text-tertiary' : 'text-text',
+                      !state.checked && 'line-through',
+                    )}
+                  >
+                    {CONTEXT_FILE_LABELS[kind]}
+                  </span>
+                  <span className="text-text-tertiary shrink-0 font-mono text-sm tabular-nums">
+                    {state.missing
+                      ? 'none'
+                      : state.tokens !== null
+                        ? `~${formatTokens(state.tokens)}`
+                        : ''}
+                  </span>
+                </label>
+                {state.files && state.files.length > 0 && (
+                  <ul
+                    className="space-y-2 px-3 pb-2 pl-9"
+                    aria-label={`${CONTEXT_FILE_LABELS[kind]} sources`}
+                  >
+                    {state.files.map((file) => (
+                      <li key={file.path} className="text-text-secondary text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <span
+                            className="font-medium"
+                            title={
+                              file.scope === 'global'
+                                ? 'User instructions from pi’s agent directory, shared across projects.'
+                                : file.scope === 'project'
+                                  ? 'Instructions from the working directory or an ancestor directory.'
+                                  : 'This lane’s extension has not reported the file’s scope.'
+                            }
+                          >
+                            {file.scope === 'global'
+                              ? 'Global'
+                              : file.scope === 'project'
+                                ? 'Project'
+                                : 'Scope unknown'}
+                          </span>
+                          <span className="text-text-tertiary">
+                            {state.checked ? 'Included' : 'Excluded'} · ~{formatTokens(file.tokens)}
+                          </span>
+                        </div>
+                        <div className="break-all font-mono text-xs" title={file.path}>
+                          {file.path}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {state.files === null && (
+                  <p className="text-text-tertiary px-3 pb-2 pl-9 text-sm">
+                    {sessionId
+                      ? 'File details not yet reported by this lane.'
+                      : 'Paths and scopes appear after a lane starts.'}
+                  </p>
+                )}
+              </div>
             ))}
           </div>
 
