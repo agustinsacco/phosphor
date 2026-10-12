@@ -16,6 +16,8 @@ export default defineConfig({
       'apps/desktop/scripts/**/*.test.ts',
       'apps/desktop/electron/**/*.test.ts',
       'apps/host/src/**/*.test.ts',
+      'apps/control/src/**/*.test.ts',
+      'apps/control/scripts/**/*.test.ts',
       'apps/host/scripts/**/*.test.ts',
       'libs/session-runtime/src/**/*.test.ts',
       'libs/shared/src/**/*.test.ts',

@@ -23,7 +23,9 @@ describe('workspace installation closure', () => {
   it('shares only source libraries, never the native Desktop or independently locked site', () => {
     const manifest = json(join(root, 'package.json'))
     expect(manifest.workspaces).toEqual(libraries)
-    expect(manifest.scripts.postinstall).toBe('npm ci --prefix apps/desktop')
+    expect(manifest.scripts.postinstall).toBe(
+      'npm ci --prefix apps/desktop && npm ci --prefix apps/control',
+    )
     const lock = json(join(root, 'package-lock.json'))
     const require = createRequire(join(root, 'package.json'))
     for (const library of libraries) {
@@ -39,7 +41,7 @@ describe('workspace installation closure', () => {
         join(root, library, entry.default),
       )
     }
-    for (const app of ['apps/desktop', 'apps/site']) {
+    for (const app of ['apps/desktop', 'apps/control', 'apps/site']) {
       expect(lock.packages[app]).toBeUndefined()
       expect(existsSync(join(root, app, 'package-lock.json'))).toBe(true)
     }

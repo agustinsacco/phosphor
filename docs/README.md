@@ -32,6 +32,9 @@ schema, isolated local tests and an opt-in private-transport probe. It does not
 enable remote execution, and neither does the [Host](host.md), which so far only
 checks a machine and runs acceptance sessions on it.
 
+The [control plane](control-plane.md) serves the site, API health and authenticated
+account metadata. It does not enable remote execution.
+
 ## The surfaces
 
 | File                         | Covers                                                              |

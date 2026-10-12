@@ -23,12 +23,14 @@ step() {
 
 step typecheck npm run typecheck
 step host-types npm run typecheck:host
+step control-types npm run typecheck:control
 step lint      npm run lint
 step format    npx prettier --check .
 step unit      npm test
 # Always compile, including SKIP_E2E=1. The E2E command retains its own build.
 step build     npm run build
 step host-build npm run build:host
+step control-build npm run build:control
 # Requires `npm run db:start`; CI runs this suite in its own isolated job.
 if [[ "${CONTROL_DB:-}" == "1" ]]; then
   step control-db npm run test:control-db

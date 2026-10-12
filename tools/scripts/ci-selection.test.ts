@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { globSync, readFileSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -187,7 +187,7 @@ describe('actual Nx affected measurements (per-app inputs)', () => {
   const host = ['host', 'tooling']
   const runtime = ['desktop', 'host', 'runtime', 'tooling']
   const extensions = ['desktop', 'host', 'pi-extensions', 'runtime', 'tooling']
-  const libraries = ['desktop', 'host', 'pi-extensions', 'runtime', 'shared', 'tooling']
+  const libraries = ['control', 'desktop', 'host', 'pi-extensions', 'runtime', 'shared', 'tooling']
   // Site and Desktop never select each other; docs and CI select only the
   // whole-workspace checks. Root install/config keep Nx's select-everything rule.
   it.each([
@@ -201,6 +201,7 @@ describe('actual Nx affected measurements (per-app inputs)', () => {
     ['tools/scripts/install.sh', desktop],
     ['.github/workflows/release-continuous.yml', desktop],
     ['apps/host/src/main.ts', host],
+    ['apps/control/src/main.ts', ['control', 'tooling']],
     ['apps/host/project.json', host],
     ['libs/pi-extensions/pi-ext/headroom.ts', extensions],
     ['libs/session-runtime/src/pi/session-service.ts', runtime],
@@ -223,4 +224,24 @@ describe('actual Nx affected measurements (per-app inputs)', () => {
     }).trim()
     expect(nx(`--base=${checkedOut}`, `--head=${checkedOut}`)).toEqual([])
   })
+})
+
+it('includes every registered project in the fail-closed CI and release inventory', () => {
+  const files = globSync('**/project.json', {
+    cwd: root,
+    exclude: ['**/node_modules/**', '.nx/**', '.phosphor/**', '**/dist/**', '**/out/**'],
+  })
+  const names = files.map((path) => {
+    const config: unknown = JSON.parse(readFileSync(join(root, path), 'utf8'))
+    if (
+      !config ||
+      typeof config !== 'object' ||
+      !('name' in config) ||
+      typeof config.name !== 'string'
+    ) {
+      throw new Error('Invalid project registration')
+    }
+    return config.name
+  })
+  expect([...ALL_PROJECTS].sort()).toEqual(names.sort())
 })

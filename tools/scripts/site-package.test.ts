@@ -9,7 +9,7 @@ const json = (path: string) => JSON.parse(read(path))
 describe('independent apps/site package contract', () => {
   it('keeps root aliases explicit and installation separate from Desktop', () => {
     const scripts = json('package.json').scripts
-    expect(scripts.postinstall).toBe('npm ci --prefix apps/desktop')
+    expect(scripts.postinstall).toBe('npm ci --prefix apps/desktop && npm ci --prefix apps/control')
     expect(scripts['site:install']).toBe('npm ci --prefix apps/site')
     for (const command of ['dev', 'check', 'build']) {
       expect(scripts[`site:${command}`]).toBe(`npm run ${command} --prefix apps/site --`)
