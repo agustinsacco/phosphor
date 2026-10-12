@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { link, lstat, mkdir, open, realpath, rename, stat, unlink } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import { errorText } from '@phosphor/shared/errors'
 import { EXIT, exitCodeFor, fail, type Check } from '../checks'
 import { CONFIG_MAX_BYTES, loadHostConfig } from '../config/load'
@@ -100,7 +100,7 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
   }
   const executable = context.pi
     ? resolve(context.cwd, context.pi)
-    : await which('pi', discovery.env.PATH)
+    : await stable(await which('pi', discovery.env.PATH))
   if (!executable) {
     return stop(
       EXIT.unavailable,
@@ -112,7 +112,9 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
   const node = script
     ? context.node
       ? resolve(context.cwd, context.node)
-      : ((await which('node', dirname(executable))) ?? (await which('node', discovery.env.PATH)))
+      : await stable(
+          (await which('node', dirname(executable))) ?? (await which('node', discovery.env.PATH)),
+        )
     : null
   const pi = { executable, ...(node ? { node } : {}) }
   const path: string[] = []
@@ -123,7 +125,7 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
       platform: context.platform,
     }).env.PATH?.split(':') ?? []
   const claude = await which('claude', discovery.env.PATH)
-  for (const binary of [claude, git]) {
+  for (const binary of [await stable(claude), await stable(git)]) {
     if (binary && !built.includes(dirname(binary)) && !path.includes(dirname(binary))) {
       path.push(dirname(binary))
     }
@@ -212,6 +214,18 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
   }
   report.next = 'phosphor doctor'
   return report
+}
+
+/**
+ * A found program's real folder, keeping its own name. Version managers put
+ * per-shell links on PATH (fnm's multishell directory under /run/user is gone
+ * at logout and differs in every shell), so the config pins what they point at.
+ * Only the folder is resolved: the name may itself be a link pi or npm relies on.
+ */
+async function stable(found: string | null): Promise<string | null> {
+  if (!found) return null
+  const folder = await realpath(dirname(found)).catch(() => dirname(found))
+  return join(folder, basename(found))
 }
 
 function summarize(report: SetupReport, config: HostConfigV1): void {

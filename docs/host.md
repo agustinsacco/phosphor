@@ -50,9 +50,13 @@ must not resolve to `/`, the home directory, or a folder containing the home
 directory. A non-git folder is accepted with a note. With no directory flag,
 setup uses `git rev-parse --show-toplevel`; outside git it exits 64 with an example.
 
-`--pi FILE` pins that path, otherwise the first pi on the caller's PATH. Symlinks
-and shell wrappers stay pinned as found, not as their real paths. A Node script
-needs `--node FILE`, or node beside the found pi, or node on PATH, in that order.
+`--pi FILE` pins that path, otherwise the first pi on the caller's PATH. A found
+program keeps its own name, so symlinks and shell wrappers stay pinned as found,
+but its folder is resolved to its real path: version managers put per-shell links
+on PATH (fnm's multishell folder under `/run/user` is gone at logout), and a
+config must outlive the shell that wrote it. The same applies to a found node and
+to the Claude and git folders below. A Node script needs `--node FILE`, or node
+beside the found pi, or node on PATH, in that order.
 A direct executable needs no node. Missing pi exits 69 with its npm install
 command. Claude and git directories absent from the Host's built PATH are added
 to `environment.path`, without duplicates. Missing Claude is fine; missing git

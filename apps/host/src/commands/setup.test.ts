@@ -9,6 +9,7 @@ import {
   open,
   readFile,
   readdir,
+  realpath,
   rm,
   stat,
   symlink,
@@ -29,7 +30,7 @@ let context: SetupContext
 let bin: string
 let repository: string
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), 'phosphor-setup-'))
+  dir = await realpath(await mkdtemp(join(tmpdir(), 'phosphor-setup-')))
   bin = join(dir, 'bin')
   repository = join(dir, 'project')
   const home = join(dir, 'home')
@@ -97,6 +98,32 @@ async function nothingWritten() {
 }
 
 describe('setup detection', () => {
+  it('pins the real folder of a node found only through a per-shell PATH link', async () => {
+    const nodes = join(dir, 'versions', 'node')
+    await nodePi(nodes)
+    const shell = join(dir, 'multishell')
+    await mkdir(shell, { mode: 0o700 })
+    await symlink(nodes, join(shell, 'bin'))
+    context.env = { ...context.env, PATH: `${bin}:${join(shell, 'bin')}` }
+    expect((await runSetup(context)).exitCode).toBe(0)
+    expect((await saved()).pi).toEqual({ executable: join(bin, 'pi'), node: join(nodes, 'node') })
+  })
+  it('pins the real folder behind a per-shell PATH link, keeping each name', async () => {
+    // fnm's multishell: a link per shell to the version's bin folder, gone at logout.
+    await nodePi()
+    await executable('claude', 'exit 0', join(dir, 'versions', 'tools'))
+    const shell = join(dir, 'multishell')
+    await mkdir(shell, { mode: 0o700 })
+    await symlink(bin, join(shell, 'bin'))
+    await symlink(join(dir, 'versions', 'tools'), join(shell, 'tools'))
+    context.env = { ...context.env, PATH: `${join(shell, 'bin')}:${join(shell, 'tools')}` }
+    expect((await runSetup(context)).exitCode).toBe(0)
+    const config = await saved()
+    expect(config.pi).toEqual({ executable: join(bin, 'pi'), node: join(bin, 'node') })
+    expect(config.environment?.path).toEqual([join(dir, 'versions', 'tools')])
+    expect(JSON.stringify(config)).not.toContain('multishell')
+  })
+
   it('pins a direct executable without node and prints paths, version and next step', async () => {
     const report = await runSetup(context)
     expect(report.exitCode).toBe(0)
