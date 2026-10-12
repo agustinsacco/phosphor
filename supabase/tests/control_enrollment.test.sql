@@ -57,7 +57,9 @@ select is(public.control_enrollment_poll((select (value->>'enrollmentId')::uuid 
 select is(public.control_enrollment_lookup('00000000-0000-4000-8000-000000000001', repeat('a',64)),
   jsonb_build_object('outcome','found','hostname','bee1','platform','linux','arch','arm64','hostVersion','1.2.3',
     'keyFingerprint','abcd-abcd-abcd-abcd','expiresAt',(select value->>'expiresAt' from test_context where name='enrollment')), 'lookup returns complete metadata');
+update public.remote_enrollments set expires_at = now() + interval '5 seconds' where code_hash = repeat('a',64);
 insert into test_context values ('approval', public.control_enrollment_approve('00000000-0000-4000-8000-000000000001', repeat('a',64), 'Bee'));
+select is((select expires_at from public.remote_enrollments where code_hash = repeat('a',64)), now() + interval '120 seconds', 'approval leaves the Host two minutes to poll');
 select is((select value->>'outcome' from test_context where name='approval'), 'approved', 'approval succeeds');
 select is((select value->'machine' from test_context where name='approval'),
   jsonb_build_object('id',(select id from public.remote_hosts),'label','Bee','hostname','bee1','platform','linux',

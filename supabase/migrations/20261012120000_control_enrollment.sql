@@ -186,8 +186,11 @@ begin
       returning * into v_host;
   exception when unique_violation then return '{"outcome":"key-in-use"}'::jsonb;
   end;
+  -- The Host may poll just after the code's expiry; give it time to collect its id.
   update public.remote_enrollments set status = 'approved', owner_id = p_user_id,
-    host_id = v_host.id, approved_at = pg_catalog.now() where id = v_row.id;
+    host_id = v_host.id, approved_at = pg_catalog.now(),
+    expires_at = greatest(v_row.expires_at, pg_catalog.now() + interval '120 seconds')
+    where id = v_row.id;
   insert into public.remote_audit_events(owner_id, host_id, kind) values (p_user_id, v_host.id, 'host-enrolled');
   return pg_catalog.jsonb_build_object('outcome', 'approved', 'machine', control_private.machine(v_host));
 end;
