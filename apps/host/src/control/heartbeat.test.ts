@@ -335,9 +335,17 @@ describe('heartbeat loop', () => {
       f.setClock(f.ports.now() + ms)
       if (f.requests.length >= 500) f.signal.abort()
     }
+    const added = vi.spyOn(AbortSignal.prototype, 'addEventListener')
     expect(await createHeartbeat(f.ports).run()).toBe(0)
     expect(f.requests).toHaveLength(501)
     expect(Math.max(...peaks)).toBeLessThanOrEqual(1)
+    // Every cancellable step registers on the loop's own signal, never on a
+    // lifetime promise: 50 readiness checks (one per five minutes of 30 s beats),
+    // 500 requests and 499 waits (the last wait aborts before it is raced).
+    // A step raced any other way changes this count.
+    expect(added.mock.contexts.filter((context) => context === patched)).toHaveLength(1049)
+    expect(active).toBe(0)
+    added.mockRestore()
   })
   it('a second signal ends the drain at once without another stopping beat', async () => {
     const f = loopFixture()

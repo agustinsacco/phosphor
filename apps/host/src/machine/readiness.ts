@@ -1,4 +1,4 @@
-import { stat } from 'node:fs/promises'
+import { realpath, stat } from 'node:fs/promises'
 import { basename, dirname } from 'node:path'
 import type { Readiness } from '@phosphor/shared/control-api'
 import { MIN_PI_VERSION } from '@phosphor/shared/models'
@@ -52,6 +52,7 @@ export const readinessPorts = {
   which,
   isNodeScript,
   isFile: async (path: string) => (await stat(path).catch(() => null))?.isFile() ?? false,
+  resolve: async (path: string) => realpath(path).catch(() => null),
 }
 export async function checkReadiness(
   config: HostConfigV1,
@@ -67,11 +68,12 @@ export async function checkReadiness(
     pass: config.environment?.pass,
   })
   const options = { ...environment, timeoutMs: 2000 }
-  // Like doctor: a Node script runs through the pinned node and needs no execute
-  // bit; only a file run directly must be executable.
-  const exe = config.pi.executable
+  // Like doctor: classify the resolved file, not a symlink's name. A Node script
+  // runs through the pinned node and needs no execute bit; only a file run
+  // directly must be executable.
+  const exe = await ports.resolve(config.pi.executable)
   let pi: Readiness['pi'] = 'missing'
-  if (await ports.isFile(exe)) {
+  if (exe !== null && (await ports.isFile(exe))) {
     if (await ports.isNodeScript(exe))
       pi = config.pi.node
         ? piReadiness(await ports.probe(config.pi.node, [exe, '--version'], options))

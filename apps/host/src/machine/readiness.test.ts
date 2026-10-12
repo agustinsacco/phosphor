@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { MIN_PI_VERSION } from '@phosphor/shared/models'
-import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -87,6 +87,7 @@ describe('readiness mappings', () => {
           probe,
           which: async (name) => `/p/${name}`,
           isFile: async () => true,
+          resolve: async (path: string) => path,
           isNodeScript: async () => true,
         },
       ),
@@ -106,14 +107,20 @@ describe('readiness mappings', () => {
         { version: 1, pi: { executable: '/pi' }, repositories: ['/repo'] },
         { PATH: '/bin' },
         'linux',
-        { probe, which, isFile: async () => true, isNodeScript: async () => false },
+        {
+          probe,
+          which,
+          isFile: async () => true,
+          resolve: async (path: string) => path,
+          isNodeScript: async () => false,
+        },
       ),
     ).toEqual({ pi: 'missing', claude: 'missing', tailscale: 'missing' })
     expect(which.mock.calls[0]).toEqual(['pi', '/'])
     expect(probe).not.toHaveBeenCalled()
   })
   it('probes a non-executable Node script through the pinned node, like doctor (review r1)', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'phx-readiness-'))
+    const dir = await realpath(await mkdtemp(join(tmpdir(), 'phx-readiness-')))
     try {
       const script = join(dir, 'cli.js')
       const binary = join(dir, 'pi-bin')
@@ -135,7 +142,16 @@ describe('readiness mappings', () => {
       probe.mockClear()
       expect((await check(binary)).pi).toBe('missing')
       expect((await check(join(dir, 'absent.js'))).pi).toBe('missing')
+      // A symlink is judged by its target, as doctor does (review r2).
+      await symlink(binary, join(dir, 'alias.js'))
+      expect((await check(join(dir, 'alias.js'))).pi).toBe('missing')
       expect(probe).not.toHaveBeenCalled()
+      const plain = join(dir, 'plain.cjs')
+      await writeFile(plain, 'module.exports = 1\n')
+      await chmod(plain, 0o644)
+      await symlink(plain, join(dir, 'alias'))
+      expect((await check(join(dir, 'alias'))).pi).toBe('ok')
+      expect(probe.mock.calls[0]?.slice(0, 2)).toEqual(['/n/node', [plain, '--version']])
     } finally {
       await rm(dir, { recursive: true, force: true })
     }
@@ -151,6 +167,7 @@ describe('readiness mappings', () => {
           probe,
           which: async (name) => (name === 'pi' ? '/bin/pi' : null),
           isFile: async () => true,
+          resolve: async (path: string) => path,
           isNodeScript: async () => true,
         },
       ),
