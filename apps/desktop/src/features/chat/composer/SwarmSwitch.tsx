@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import './swarm.css'
 import clsx from 'clsx'
 import { SWARM_COMMAND, SWARM_STATUS_KEY, parseSwarmStatus } from '@phosphor/pi-extensions/swarm'
@@ -17,7 +17,7 @@ export function SwarmBadge({ sessionId }: { sessionId: string }): React.JSX.Elem
   if (!state?.enabled) return null
   return (
     <span
-      className="bg-accent-soft text-accent inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-sm"
+      className="bg-accent-soft text-text inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-sm"
       title="Swarm authorization enabled for this lane"
     >
       <SwarmMark /> Swarm
@@ -42,6 +42,7 @@ export function SwarmSwitch({ sessionId }: { sessionId: string }): React.JSX.Ele
   const state = useSwarm(sessionId)
   const [sending, setSending] = useState(false)
   const locked = useRef(false)
+  const hintId = useId()
   const pending = !!state && state.requested !== state.enabled && state.available
   const enabled = state?.enabled ?? false
   const unavailable = !state || (!state.available && !state.requested)
@@ -61,7 +62,8 @@ export function SwarmSwitch({ sessionId }: { sessionId: string }): React.JSX.Ele
     setSending(true)
     try {
       const commands = await piCall(sessionId, { type: 'get_commands' })
-      if (!commands?.commands.some((c) => c.name === SWARM_COMMAND && c.source === 'extension'))
+      if (!commands) return // piCall already surfaced the original failure.
+      if (!commands.commands.some((c) => c.name === SWARM_COMMAND && c.source === 'extension'))
         throw new Error('This lane does not support the Swarm control. Restart it to update.')
       await piCallOk(sessionId, {
         type: 'prompt',
@@ -82,21 +84,26 @@ export function SwarmSwitch({ sessionId }: { sessionId: string }): React.JSX.Ele
       aria-label="Swarm"
       aria-checked={enabled}
       aria-busy={sending || pending}
-      disabled={sending || unavailable}
+      aria-disabled={sending || unavailable}
+      aria-describedby={hintId}
       title={hint}
       onClick={() => void toggle()}
       className={clsx(
-        'swarm-switch focus-ring flex h-8 items-center gap-1.5 rounded-md px-2 text-base disabled:opacity-50',
-        enabled ? 'bg-accent-soft text-accent' : 'text-text-secondary hover:bg-bg-secondary',
+        'swarm-switch focus-ring flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-base',
+        unavailable && 'opacity-50',
+        enabled ? 'bg-accent-soft text-text' : 'text-text-secondary hover:bg-bg-secondary',
       )}
     >
       <SwarmMark />
       <span>Swarm</span>
+      <span id={hintId} className="sr-only">
+        {hint}
+      </span>
       <span className="swarm-track" data-on={enabled} aria-hidden="true">
         <span />
       </span>
       {(sending || pending) && (
-        <span className="text-sm" role="status">
+        <span className={sending ? 'sr-only' : 'text-sm'} role="status">
           {sending ? 'Applying…' : `${state?.requested ? 'On' : 'Off'} next turn`}
         </span>
       )}

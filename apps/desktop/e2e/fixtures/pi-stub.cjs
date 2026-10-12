@@ -145,9 +145,12 @@ function publishSwarm() {
 }
 const out = (obj) => {
   if (obj.type === 'agent_start') agentStreaming = true
-  if (obj.type === 'agent_end' || obj.type === 'agent_settled') agentStreaming = false
+  if (obj.type === 'agent_settled') agentStreaming = false
   process.stdout.write(JSON.stringify(obj) + '\n')
-  if (obj.type === 'agent_end' && swarmEnabled !== swarmRequested) {
+  if (
+    ['agent_start', 'agent_end', 'agent_settled'].includes(obj.type) &&
+    swarmEnabled !== swarmRequested
+  ) {
     swarmEnabled = swarmRequested
     publishSwarm()
   }
@@ -866,6 +869,25 @@ function handle(cmd) {
         finishParallelAgents = undefined
         break
       }
+      // Hold precisely between agent_end and agent_settled, like native
+      // post-run compaction. Only the test's explicit release ends the hold.
+      if (message === '/stub-swarm-post-run') {
+        out({ type: 'agent_start' })
+        out({ type: 'agent_end', messages: [] })
+        out({ type: 'compaction_start', reason: 'threshold' })
+        break
+      }
+      if (message === '/stub-settle-swarm') {
+        out({
+          type: 'compaction_end',
+          reason: 'threshold',
+          result: null,
+          aborted: false,
+          willRetry: false,
+        })
+        out({ type: 'agent_settled' })
+        break
+      }
       if (message === 'queue-hold' || message.endsWith('\nroutine-e2e-hold')) {
         queueHold = true
         out({ type: 'agent_start' })
@@ -961,6 +983,7 @@ function handle(cmd) {
       if (queueHold) {
         queueHold = false
         out({ type: 'agent_end', messages: [] })
+        out({ type: 'agent_settled' })
       }
       break
 

@@ -30,7 +30,7 @@ function fixture() {
     ui: { setStatus: vi.fn() },
   }
   const state = swarm(pi)
-  const emit = (name: string, event: unknown = {}) => handlers.get(name)!(event, ctx)
+  const emit = (name: string, event: unknown = {}) => handlers.get(name)?.(event, ctx)
   emit('session_start')
   const status = () => parseSwarmStatus(ctx.ui.setStatus.mock.lastCall?.[1])!
   const send = () => {
@@ -93,6 +93,35 @@ describe('lane Swarm authorization', () => {
     expect(f.status()).toMatchObject({ requested: false, enabled: true })
     expect(f.send()).toContain(SWARM_PROMPT)
     f.emit('agent_end') // also emitted after abort
+    expect(f.send()).not.toContain(SWARM_PROMPT)
+  })
+
+  it.each(['agent_settled', 'agent_start'])(
+    'applies changes made after agent_end at %s, before another request',
+    async (boundary) => {
+      for (const next of [true, false]) {
+        const f = fixture()
+        await f.command(next ? 'off' : 'on')
+        f.ctx.isIdle.mockReturnValue(false)
+        f.emit('agent_end')
+        // Pi remains busy during post-run compaction / before-settle handlers.
+        await f.command(next ? 'on' : 'off')
+        expect(f.status()).toMatchObject({ requested: next, enabled: !next })
+        // It can either settle or continue directly into a queued/recovery run.
+        f.emit(boundary)
+        expect(f.status()).toMatchObject({ requested: next, enabled: next })
+        expect(f.send().includes(SWARM_PROMPT)).toBe(next)
+      }
+    },
+  )
+
+  it('applies a change during pre-run compaction before the first agent request', async () => {
+    const f = fixture()
+    await f.command('on')
+    f.ctx.isIdle.mockReturnValue(false)
+    await f.command('off')
+    expect(f.status().enabled).toBe(true)
+    f.emit('agent_start')
     expect(f.send()).not.toContain(SWARM_PROMPT)
   })
 

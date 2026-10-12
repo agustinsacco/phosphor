@@ -117,7 +117,12 @@ export default function swarm(
       else publish(ctx) // Do not change authorization beneath an in-flight turn.
     },
   })
-  pi.on('agent_end', (_event, ctx) => apply(ctx as SwarmContext))
+  // Pi stays busy after agent_end while compacting or preparing a continuation.
+  // A later toggle must apply on settlement, or at the next run's start if Pi
+  // continues without settling. Never change policy within a running tool loop.
+  for (const boundary of ['agent_end', 'agent_settled', 'agent_start']) {
+    pi.on(boundary, (_event, ctx) => apply(ctx as SwarmContext))
+  }
   pi.on('context_with_system', (event, ctx) => {
     // Recheck after tool/provider changes without granting new authority.
     if (enabled && !available()) {

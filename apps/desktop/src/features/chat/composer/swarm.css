@@ -13,7 +13,7 @@
   transform-origin: center;
 }
 
-.swarm-switch:not(:disabled):is(:hover, :focus-visible) .swarm-satellite {
+.swarm-switch:is(:hover, :focus-visible) .swarm-satellite {
   animation: swarm-fan-out 650ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 

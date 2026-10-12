@@ -56,14 +56,41 @@ function render() {
   return container.querySelector('button')!
 }
 
-it('requires native capability, including for older sessions', () => {
+it('requires native capability but keeps the unavailable explanation keyboard-accessible', async () => {
   const button = render()
-  expect(button.disabled).toBe(true)
-  status(false, false, false)
-  expect(button.disabled).toBe(true)
-  expect(button.title).toContain('pi-subagents')
-  status(false)
+  expect(button.getAttribute('aria-disabled')).toBe('true')
   expect(button.disabled).toBe(false)
+  button.focus()
+  expect(document.activeElement).toBe(button)
+  status(false, false, false)
+  expect(button.getAttribute('aria-disabled')).toBe('true')
+  const description = document.getElementById(button.getAttribute('aria-describedby')!)
+  expect(description?.textContent).toContain('pi-subagents')
+  await act(async () => button.click())
+  expect(piCommand).not.toHaveBeenCalled()
+  status(false)
+  expect(button.getAttribute('aria-disabled')).toBe('false')
+})
+it('keeps the switch focusable while awaiting a command and blocks repeated activation', async () => {
+  status(false)
+  let resolve!: (result: unknown) => void
+  piCommand.mockImplementationOnce(
+    () =>
+      new Promise((done) => {
+        resolve = done
+      }),
+  )
+  const button = render()
+  button.focus()
+  await act(async () => button.click())
+  expect(button.disabled).toBe(false)
+  expect(button.getAttribute('aria-disabled')).toBe('true')
+  expect(document.activeElement).toBe(button)
+  await act(async () => button.click())
+  expect(piCommand).toHaveBeenCalledTimes(1)
+  await act(async () => resolve({ success: true, data: { commands: [] } }))
+  expect(button.getAttribute('aria-disabled')).toBe('false')
+  expect(document.activeElement).toBe(button)
 })
 it('sends only the host command, keeps the transcript untouched and waits for native state', async () => {
   status(false)
@@ -124,7 +151,7 @@ it.each(['envelope', 'transport'])(
     if (kind === 'envelope') piCommand.mockResolvedValue({ success: false, error: 'Unavailable' })
     else piCommand.mockRejectedValue(new Error('Unavailable'))
     await act(async () => button.click())
-    expect(useChatStore.getState().sessions.one!.error).toBeTruthy()
+    expect(useChatStore.getState().sessions.one!.error).toBe('Unavailable')
     expect(button.getAttribute('aria-checked')).toBe('false')
     expect(button.disabled).toBe(false)
   },

@@ -510,7 +510,7 @@ export function Composer({
               )}
             </div>
 
-            <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-1.5">
+            <div className="ml-auto flex min-w-0 flex-1 basis-64 items-center justify-end gap-1.5">
               <ContextMeter sessionId={sessionId} />
               <ModelPicker sessionId={sessionId} />
               <div className="flex items-center gap-1.5">

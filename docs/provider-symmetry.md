@@ -48,6 +48,9 @@ Both providers receive the same short request-local `phosphor_swarm` section fro
 `libs/pi-extensions/pi-ext/swarm.ts`, imported by the bundled context extension.
 It is absent when off, including after an on/off cycle, and is not appended to the
 conversation as a user message. Changes made during a run apply at `agent_end`.
+Changes during post-run compaction or continuation preparation apply at
+`agent_settled`, or at the next `agent_start` if Pi continues without settling.
+Pre-run compaction changes also apply at `agent_start`, before any model request.
 Native background wakes use the same request filter. The extension retains its own
 lazy/eager tool activation behavior; switching Swarm off does not unload tools or
 stop children. Lifecycle/filter tests are in `swarm.test.ts`; the desktop stub

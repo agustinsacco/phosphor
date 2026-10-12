@@ -407,14 +407,19 @@ Subagents surfaces, including for normal lanes.
 persists a non-context custom entry through Pi, scoped to the durable session ID and
 current branch, and publishes `phosphor-swarm` status. Resume/reload restores it;
 compaction retains it; tree navigation follows the selected branch. Forks and clones
-with new session identities start off. Old lanes must reload/restart Pi to acquire
-the command. A missing or excluded pi-subagents tool surface disables activation.
+with new session identities start off. This includes Rewind (also Esc-Esc), which
+uses Pi's fork even though it stays in the same visible lane. Cloning a live lane
+also moves it onto the new identity with Swarm off. Old lanes must reload/restart Pi
+to acquire the command. A missing or excluded pi-subagents tool surface disables activation.
 
 The short `phosphor_swarm` authorization section is added **request-locally** by
 `context_with_system`, including native background-completion requests. Switching
 off removes that section from subsequent requests entirely, rather than appending a
 contradictory “off” instruction. A mid-run change stays visibly pending until
-`agent_end`, so it never changes policy beneath an in-flight turn. Existing children
+`agent_end`, so it never changes policy beneath an in-flight turn. Changes made
+while Pi is still busy after that boundary (compaction or continuation preparation)
+apply at settlement, or at the next `agent_start` if Pi continues without settling.
+Pre-run compaction changes likewise apply before the first request. Existing children
 are not stopped; use their explicit Stop controls. Past messages/results, summaries
 that describe past work, and already-activated tool schemas remain. The current
 context instruction is reversible, not the lane's history or token spend. Switching
