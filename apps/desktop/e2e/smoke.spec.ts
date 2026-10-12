@@ -4545,7 +4545,17 @@ test('subagent pane owns scrolling, keeps rows stable and preserves drafts acros
       BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1.25),
     )
     expect(await pane.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
-    await page.screenshot({ path: test.info().outputPath('subagent-pane-narrow-zoom.png') })
+    const bounds = (await pane.boundingBox())!
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(await page.evaluate(() => innerWidth))
+    const png = await app.evaluate(async ({ BrowserWindow }) =>
+      (await BrowserWindow.getAllWindows()[0]!.webContents.capturePage())
+        .toPNG()
+        .toString('base64'),
+    )
+    await writeFile(
+      test.info().outputPath('subagent-pane-narrow-zoom.png'),
+      Buffer.from(png, 'base64'),
+    )
     await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1),
     )

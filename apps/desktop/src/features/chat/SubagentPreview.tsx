@@ -49,7 +49,12 @@ export function SubagentPreview({
         }}
       >
         {inspection.task && (
-          <details className="border-border mb-4 border-b pb-3">
+          <details
+            className="border-border mb-4 border-b pb-3"
+            onToggle={(event) => {
+              if (event.currentTarget.open) pause()
+            }}
+          >
             <summary className="text-text-secondary cursor-pointer font-medium">
               Delegated task
             </summary>

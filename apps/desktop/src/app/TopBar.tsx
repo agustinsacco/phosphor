@@ -104,7 +104,7 @@ function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.
           {title ?? 'New session'}
         </span>
       </div>
-      {/* Reference order: terminal, files, changes, artifacts, kebab. */}
+      {/* Reference order: terminal, files, changes, artifacts, subagents, kebab. */}
       <TerminalButton sessionId={sessionId} active={rightPane === 'terminal'} />
       <IconButton
         title={`Files pane (${formatShortcut('mod', 'shift', 'E')})`}
