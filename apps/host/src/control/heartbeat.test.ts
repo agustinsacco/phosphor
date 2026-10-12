@@ -17,7 +17,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { HeartbeatRequest, Readiness } from '@phosphor/shared/control-api'
 import { ControlFailure, createControlClient } from './client'
 import { freshKey } from './signer'
-import { createHeartbeat, createSequenceStore, type HeartbeatPorts } from './heartbeat'
+import {
+  createHeartbeat,
+  createSequenceStore,
+  type HeartbeatPorts,
+  untilAborted,
+} from './heartbeat'
 
 const durability = vi.hoisted(() => {
   const events: string[] = []
@@ -303,6 +308,37 @@ describe('heartbeat loop', () => {
     expect(signals[0]?.aborted).toBe(true)
     expect(signals[1]).not.toBe(signals[0])
   })
+  it('keeps cancellation registrations bounded over a long run (review r1)', async () => {
+    const f = loopFixture()
+    let active = 0
+    let patched: AbortSignal | undefined
+    const peaks: number[] = []
+    const client = f.ports.client
+    f.ports.client = async (body, signal) => {
+      if (!patched) {
+        patched = signal
+        const add = signal.addEventListener.bind(signal)
+        const remove = signal.removeEventListener.bind(signal)
+        signal.addEventListener = (...args: Parameters<AbortSignal['addEventListener']>) => {
+          active++
+          add(...args)
+        }
+        signal.removeEventListener = (...args: Parameters<AbortSignal['removeEventListener']>) => {
+          active--
+          remove(...args)
+        }
+      }
+      return client(body, signal)
+    }
+    f.ports.wait = async (ms) => {
+      peaks.push(active)
+      f.setClock(f.ports.now() + ms)
+      if (f.requests.length >= 500) f.signal.abort()
+    }
+    expect(await createHeartbeat(f.ports).run()).toBe(0)
+    expect(f.requests).toHaveLength(501)
+    expect(Math.max(...peaks)).toBeLessThanOrEqual(1)
+  })
   it('a second signal ends the drain at once without another stopping beat', async () => {
     const f = loopFixture()
     f.ports.client = async (body) => {
@@ -319,6 +355,24 @@ describe('heartbeat loop', () => {
     await first
     expect(await run).toBe(0)
     expect(f.requests).toHaveLength(2)
+  })
+})
+
+describe('untilAborted', () => {
+  it('settles with the work, then with the fallback once aborted, and removes its listener', async () => {
+    const controller = new AbortController()
+    const remove = vi.spyOn(controller.signal, 'removeEventListener')
+    await expect(untilAborted(Promise.resolve(1), controller.signal, 0)).resolves.toBe(1)
+    await expect(
+      untilAborted(Promise.reject(new Error('x')), controller.signal, 0),
+    ).rejects.toThrow('x')
+    expect(remove).toHaveBeenCalledTimes(2)
+    const hung = untilAborted(new Promise<number>(() => {}), controller.signal, 0)
+    controller.abort()
+    await expect(hung).resolves.toBe(0)
+    await expect(
+      untilAborted(Promise.reject(new Error('late')), controller.signal, 7),
+    ).resolves.toBe(7)
   })
 })
 

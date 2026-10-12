@@ -1,3 +1,4 @@
+import { stat } from 'node:fs/promises'
 import { basename, dirname } from 'node:path'
 import type { Readiness } from '@phosphor/shared/control-api'
 import { MIN_PI_VERSION } from '@phosphor/shared/models'
@@ -46,11 +47,17 @@ export function tailscaleReadiness(run: ProbeResult | null): Readiness['tailscal
   }
 }
 
+export const readinessPorts = {
+  probe,
+  which,
+  isNodeScript,
+  isFile: async (path: string) => (await stat(path).catch(() => null))?.isFile() ?? false,
+}
 export async function checkReadiness(
   config: HostConfigV1,
   env: NodeJS.ProcessEnv,
   platform: NodeJS.Platform,
-  ports = { probe, which, isNodeScript },
+  ports = readinessPorts,
 ): Promise<Readiness> {
   const environment = buildPiEnvironment({
     hostEnv: env,
@@ -60,20 +67,17 @@ export async function checkReadiness(
     pass: config.environment?.pass,
   })
   const options = { ...environment, timeoutMs: 2000 }
-  const foundPi = await ports.which(basename(config.pi.executable), dirname(config.pi.executable))
+  // Like doctor: a Node script runs through the pinned node and needs no execute
+  // bit; only a file run directly must be executable.
+  const exe = config.pi.executable
   let pi: Readiness['pi'] = 'missing'
-  if (foundPi) {
-    const script = await ports.isNodeScript(config.pi.executable)
-    pi =
-      script && !config.pi.node
-        ? 'unknown'
-        : piReadiness(
-            await ports.probe(
-              script && config.pi.node ? config.pi.node : config.pi.executable,
-              [...(script ? [config.pi.executable] : []), '--version'],
-              options,
-            ),
-          )
+  if (await ports.isFile(exe)) {
+    if (await ports.isNodeScript(exe))
+      pi = config.pi.node
+        ? piReadiness(await ports.probe(config.pi.node, [exe, '--version'], options))
+        : 'unknown'
+    else if (await ports.which(basename(exe), dirname(exe)))
+      pi = piReadiness(await ports.probe(exe, ['--version'], options))
   }
   const claude = await ports.which('claude', environment.env.PATH ?? '')
   const tailscale = await ports.which('tailscale', env.PATH ?? '')

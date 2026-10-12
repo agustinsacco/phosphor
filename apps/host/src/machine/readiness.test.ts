@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from 'vitest'
 import { MIN_PI_VERSION } from '@phosphor/shared/models'
-import { checkReadiness, piReadiness, claudeReadiness, tailscaleReadiness } from './readiness'
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import {
+  checkReadiness,
+  piReadiness,
+  claudeReadiness,
+  readinessPorts,
+  tailscaleReadiness,
+} from './readiness'
 import { PROBE_OUTPUT_CAP, type ProbeResult } from './probe'
 
 const result = (stdout: string, extra: Partial<ProbeResult> = {}): ProbeResult => ({
@@ -74,7 +83,12 @@ describe('readiness mappings', () => {
         { version: 1, pi: { executable: '/p/pi', node: '/p/node' }, repositories: ['/repo'] },
         { PATH: '/p', HOME: '/home/u' },
         'linux',
-        { probe, which: async (name) => `/p/${name}`, isNodeScript: async () => true },
+        {
+          probe,
+          which: async (name) => `/p/${name}`,
+          isFile: async () => true,
+          isNodeScript: async () => true,
+        },
       ),
     ).toEqual({ pi: 'ok', claude: 'ok', tailscale: 'no-https' })
     expect(probe.mock.calls.map((call) => call.slice(0, 2))).toEqual([
@@ -92,11 +106,39 @@ describe('readiness mappings', () => {
         { version: 1, pi: { executable: '/pi' }, repositories: ['/repo'] },
         { PATH: '/bin' },
         'linux',
-        { probe, which, isNodeScript: async () => false },
+        { probe, which, isFile: async () => true, isNodeScript: async () => false },
       ),
     ).toEqual({ pi: 'missing', claude: 'missing', tailscale: 'missing' })
     expect(which.mock.calls[0]).toEqual(['pi', '/'])
     expect(probe).not.toHaveBeenCalled()
+  })
+  it('probes a non-executable Node script through the pinned node, like doctor (review r1)', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'phx-readiness-'))
+    try {
+      const script = join(dir, 'cli.js')
+      const binary = join(dir, 'pi-bin')
+      await writeFile(script, '#!/usr/bin/env node\n')
+      await writeFile(binary, 'binary')
+      await chmod(script, 0o644)
+      await chmod(binary, 0o644)
+      const probe = vi.fn(async () => result(MIN_PI_VERSION))
+      const ports = { ...readinessPorts, probe }
+      const check = (executable: string) =>
+        checkReadiness(
+          { version: 1, pi: { executable, node: '/n/node' }, repositories: ['/repo'] },
+          { PATH: '' },
+          'linux',
+          ports,
+        )
+      expect((await check(script)).pi).toBe('ok')
+      expect(probe.mock.calls[0]?.slice(0, 2)).toEqual(['/n/node', [script, '--version']])
+      probe.mockClear()
+      expect((await check(binary)).pi).toBe('missing')
+      expect((await check(join(dir, 'absent.js'))).pi).toBe('missing')
+      expect(probe).not.toHaveBeenCalled()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
   })
   it('does not launch a Node script without the pinned node', async () => {
     const probe = vi.fn(async () => result(''))
@@ -108,6 +150,7 @@ describe('readiness mappings', () => {
         {
           probe,
           which: async (name) => (name === 'pi' ? '/bin/pi' : null),
+          isFile: async () => true,
           isNodeScript: async () => true,
         },
       ),

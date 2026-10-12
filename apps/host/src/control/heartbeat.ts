@@ -93,13 +93,35 @@ const UNKNOWN: Readiness = { pi: 'unknown', claude: 'unknown', tailscale: 'unkno
 export const REMOVED =
   'This machine was removed from your Phosphor account. Run phosphor login to add it again.'
 
+/**
+ * `work`, or `fallback` once `signal` aborts. The abort listener is removed as
+ * soon as either happens: the loop runs for the life of the service, so a race
+ * against one long-lived promise would keep a reaction per beat (review r1).
+ */
+export function untilAborted<T>(work: Promise<T>, signal: AbortSignal, fallback: T): Promise<T> {
+  if (signal.aborted) {
+    work.catch(() => {})
+    return Promise.resolve(fallback)
+  }
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => resolve(fallback)
+    signal.addEventListener('abort', abort, { once: true })
+    work.then(
+      (value) => {
+        signal.removeEventListener('abort', abort)
+        resolve(value)
+      },
+      (error: unknown) => {
+        signal.removeEventListener('abort', abort)
+        reject(error)
+      },
+    )
+  })
+}
+
 /** One serialized sender. Shutdown cancels the running request before publishing its final seq. */
 export function createHeartbeat(ports: HeartbeatPorts) {
   const running = new AbortController()
-  let wake: () => void = () => {}
-  const stopped = new Promise<void>((resolve) => {
-    wake = resolve
-  })
   let force: () => void = () => {}
   const forced = new Promise<void>((resolve) => {
     force = resolve
@@ -151,7 +173,6 @@ export function createHeartbeat(ports: HeartbeatPorts) {
     }
     ending = true
     running.abort()
-    wake()
     drain = (async () => {
       const deadline = new AbortController()
       try {
@@ -185,16 +206,17 @@ export function createHeartbeat(ports: HeartbeatPorts) {
           let delay: number
           try {
             if (ports.now() - refreshed >= 300_000) {
-              readiness = await Promise.race([ports.readiness(), stopped.then(() => readiness)])
+              readiness = await untilAborted(ports.readiness(), running.signal, readiness)
               refreshed = ports.now()
             }
             if (ending) break
             const request = await body('running')
             if (ending) break
-            const answer = await Promise.race([
+            const answer = await untilAborted(
               ports.client(request, running.signal),
-              stopped.then(() => null),
-            ])
+              running.signal,
+              null,
+            )
             if (ending || answer === null) break
             const parsed = parseHeartbeatResponse(answer)
             if (!parsed.ok) throw new ControlFailure('internal')
@@ -225,7 +247,11 @@ export function createHeartbeat(ports: HeartbeatPorts) {
             }
             log(`retrying in ${delay / 1000}s`)
           }
-          await Promise.race([ports.wait(delay, running.signal).catch(() => {}), stopped])
+          await untilAborted(
+            ports.wait(delay, running.signal).catch(() => {}),
+            running.signal,
+            undefined,
+          )
         }
         await drain
         return 0
