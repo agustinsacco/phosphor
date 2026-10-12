@@ -178,7 +178,7 @@ you want to watch.
   native in-loop compaction remains enabled for routines. See
   [cli-providers.md](docs/cli-providers.md#one-context-budget).
 
-- **Phosphor ships six extensions that run inside pi's process** (`libs/pi-extensions/pi-ext/`,
+- **Phosphor ships seven extensions that run inside pi's process** (`libs/pi-extensions/pi-ext/`,
   loaded with `-e` into every session; listed in `bundledExtensions()` in
   `libs/session-runtime/src/bundled-extensions.ts`). They are the only Phosphor code with a
   say inside a turn. The context extension caps the session window for native

@@ -18,7 +18,7 @@ const views = [
     id: 'full',
     title: 'Fullscreen',
     image: 'files-full',
-    caption: 'Give the pane the session region',
+    caption: 'The pane takes over the session area',
   },
 ]
 ---
@@ -27,23 +27,23 @@ const views = [
   <div class="section-heading">
     <h3 id="surface-title" class="subheading">Make room<br />for the code.</h3>
     <p class="section-intro" id="tools">
-      Keep the conversation, open the editor, and give the code more room. The same session can feel
-      like a chat app or an IDE. You choose the layout.
+      Open the file explorer and editor next to the chat, or give them the whole window. The same
+      session works as a chat app or as an IDE. Your call.
     </p>
   </div>
   <Capture
     image={shot('ide-flex')}
     alt="Phosphor’s IDE-style layout with a wide Monaco editor and file explorer on the left, the agent conversation on the right, and the session sidebar hidden."
-    caption="A full coding workspace when you need one"
+    caption="Explorer and editor on the left, agent on the right"
   />
   <details class="disclosure">
-    <summary>Explore more layouts <span>+</span></summary>
+    <summary>More layouts <span>+</span></summary>
     <p class="fineprint">
-      Files, Changes, Terminal, or Artifacts: one auxiliary pane at a time. Dock it left or right,
-      resize it, or go fullscreen. Layout is saved per session.
+      Files, Changes, Terminal, or Artifacts, one pane at a time. Dock it left or right, resize it,
+      or go fullscreen. Each session remembers its layout.
     </p>
     <fieldset class="surface-lab">
-      <legend class="sr-only">Choose a real layout capture</legend>
+      <legend class="sr-only">Choose a layout</legend>
       {
         views.map(({ id }, index) => (
           <input
@@ -66,6 +66,6 @@ const views = [
         ))
       }
     </fieldset>
-    <a class="text-link" href={doc('ui-shell.md#pane-system')}>Pane behavior ↗</a>
+    <a class="text-link" href={doc('ui-shell.md#pane-system')}>How panes work ↗</a>
   </details>
 </section>

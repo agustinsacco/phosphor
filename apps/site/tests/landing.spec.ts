@@ -3,7 +3,8 @@ import { expect, test } from '@playwright/test'
 const routes = [
   '/',
   '/guides/',
-  '/guides/claude-code/',
+  '/guides/daily-work/',
+  '/guides/accounts/',
   '/guides/extensions/',
   '/guides/connectors/',
 ]
@@ -105,25 +106,33 @@ test('all local links resolve, including cross-page fragments and full-size capt
   }
 })
 
-test('landing leads with lanes, then chat, then the IDE layout without disclosures', async ({
+test('landing leads with sub-agents, then lanes, chat and the IDE layout without disclosures', async ({
   page,
 }) => {
   await page.goto('/')
   const captures = page.locator('main .capture:visible')
-  for (const [index, asset] of ['home', 'chat', 'ide-flex'].entries()) {
+  // The hero is a scripted stub run and must say so; the rest are real.
+  const expected = [
+    ['subagents', 'Demo session · scripted agents'],
+    ['home', 'Real session'],
+    ['chat', 'Real session'],
+    ['ide-flex', 'Real session'],
+  ]
+  for (const [index, [asset, provenance]] of expected.entries()) {
     const capture = captures.nth(index)
     await expect(capture).toBeVisible()
     await expect(capture.locator('.capture-link')).toHaveAttribute(
       'href',
       new RegExp(`/${asset}\\.[^/]+\\.(webp|png)$`),
     )
-    await expect(capture.locator('figcaption')).toContainText('Real session')
+    await expect(capture.locator('figcaption')).toContainText(provenance)
   }
   await expect(page.locator('.hero-proof img')).toHaveAttribute('loading', 'eager')
+  await expect(page.locator('.problem-board img')).toHaveAttribute('loading', 'lazy')
   await expect(page.locator('.workflow-chat img')).toHaveAttribute('loading', 'lazy')
   await expect(page.locator('#surface > .capture img')).toHaveAttribute('loading', 'lazy')
 
-  // A crop tuned for the old diff hero must not cut off the dashboard.
+  // A crop tuned for an older hero must not cut off the capture.
   const hero = page.locator('.hero-proof .capture-link')
   const image = hero.locator('img')
   await image.scrollIntoViewIfNeeded()
@@ -136,9 +145,53 @@ test('landing leads with lanes, then chat, then the IDE layout without disclosur
   expect(Math.abs(frame.height - rendered.height - 2)).toBeLessThan(1)
 })
 
+test('landing states the problem, answers questions, and ends on the install commands', async ({
+  page,
+}) => {
+  await page.goto('/')
+  // One filled button in the hero; it lands on the commands at the bottom.
+  await expect(page.locator('.hero .action-primary')).toHaveCount(1)
+  await expect(page.locator('.hero .action-primary')).toHaveAttribute('href', '#install')
+  await expect(page.locator('#why h2')).toContainText('Five is a mess.')
+  const faq = page.locator('#faq details')
+  await expect(faq).toHaveCount(9)
+  await expect(faq.first().locator('p')).toBeHidden()
+  await faq.first().locator('summary').click()
+  await expect(faq.first().locator('p')).toBeVisible()
+  const commands = page.locator('#install pre.command')
+  await expect(commands).toHaveCount(2)
+  await expect(commands.first()).toHaveText('npm install -g @earendil-works/pi-coding-agent')
+  await expect(commands.nth(1)).toHaveText(
+    'curl -fsSL https://github.com/agustinsacco/Phosphor/releases/latest/download/install.sh | sh',
+  )
+})
+
+// Prettier can wrap `</a>` and the next word onto separate lines, and Astro
+// then drops the space between them ("local routines</a>start").
+for (const path of routes) {
+  test(`${path}: no word is glued to the end of a link or emphasis`, async ({ page }) => {
+    await page.goto(path)
+    const html = await page.locator('main').innerHTML()
+    expect(html.match(/<\/(a|strong|code|em)>[A-Za-z][^<]{0,30}/g) ?? []).toEqual([])
+  })
+}
+
+test('header links go to the repo and straight to the latest release', async ({ page }) => {
+  await page.goto('/')
+  const header = page.locator('.site-header')
+  await expect(header.getByRole('link', { name: 'GitHub' })).toHaveAttribute(
+    'href',
+    'https://github.com/agustinsacco/Phosphor',
+  )
+  await expect(header.getByRole('link', { name: 'Releases' })).toHaveAttribute(
+    'href',
+    'https://github.com/agustinsacco/Phosphor/releases/latest',
+  )
+})
+
 test('actual layouts use native controls and keyboard navigation', async ({ page }) => {
   await page.goto('/')
-  await expect(page.locator('h1')).toHaveText('Parallel coding. Without losing the thread.')
+  await expect(page.locator('h1')).toHaveText('An IDE built around the agent.')
   await expect(page.locator('.package-card')).toHaveCount(5)
   await expect(page.locator('.connector-grid > a')).toHaveCount(8)
   await page.locator('#surface summary').click()
@@ -163,11 +216,10 @@ test('guide handoffs, privacy labels, skip link, and reduced motion', async ({ p
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(/#main$/)
   await expect(page.locator('html')).toHaveCSS('scroll-behavior', 'auto')
-  await page.getByRole('link', { name: 'Set up Claude and multiple accounts →' }).click()
-  await expect(page).toHaveURL(/\/guides\/claude-code\/$/)
-  await expect(page.locator('.notice').first()).toContainText(
-    'No personal accounts or credentials were loaded',
-  )
+  await page.getByRole('link', { name: 'Set up subscriptions and accounts →' }).click()
+  await expect(page).toHaveURL(/\/guides\/accounts\/$/)
+  await expect(page.locator('h1')).toHaveText('Subscriptions and accounts')
+  await expect(page.locator('#recommended')).toContainText('Claude Max')
   await expect(page.locator('.guide-content .capture')).toHaveCount(3)
   await expect(page.locator('#install ol')).toHaveCSS('list-style-type', 'decimal')
   await expect(page.locator('#routing ul')).toHaveCSS('list-style-type', 'disc')

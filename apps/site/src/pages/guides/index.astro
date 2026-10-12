@@ -1,11 +1,12 @@
 ---
 import Guide from '../../layouts/Guide.astro'
-import { doc, guides, releases, repo } from '../../lib/content'
+import Command from '../../components/Command.astro'
+import { doc, guides, piDoc, releases, repo } from '../../lib/content'
 const sections: [string, string][] = [
   ['install', '1. Install'],
   ['sign-in', '2. Sign in'],
   ['first-task', '3. Run a first task'],
-  ['extend', '4. Add capabilities'],
+  ['extend', '4. Go further'],
   ['trust', 'Permissions and data'],
   ['help', 'Troubleshooting'],
 ]
@@ -13,50 +14,50 @@ const sections: [string, string][] = [
 
 <Guide
   title="Install and start"
-  description="From a fresh install to your first reviewable task. Start with one provider, then add the extensions and services you need."
+  description="From a fresh install to your first task. Start with one provider and add extensions and services later."
   sections={sections}
 >
   <section id="install">
-    <h2>1. Install the engine and desktop</h2>
+    <h2>1. Install pi and Phosphor</h2>
     <p>
       You need Node.js 22.19 or newer and a provider account or API key. Install pi in a terminal:
     </p>
-    <pre
-      tabindex="0"
-      aria-label="Install pi"><code>npm install -g @earendil-works/pi-coding-agent</code></pre>
+    <Command cmd="npm install -g @earendil-works/pi-coding-agent" label="Install pi" />
     <p>
       <a href={`${releases}/latest`}>Download Phosphor from the latest release</a>. On macOS, open
-      the DMG and drag Phosphor to Applications. On Linux, choose the AppImage or .deb. On Windows,
+      the DMG and drag Phosphor to Applications. On Linux, use the AppImage or the .deb. On Windows,
       run the x64 .exe installer.
     </p>
-    <p>Alternatively, on macOS or Linux:</p>
-    <pre
-      tabindex="0"
-      aria-label="Install Phosphor on macOS or Linux"><code>curl -fsSL https://github.com/agustinsacco/Phosphor/releases/latest/download/install.sh | sh</code></pre>
+    <p>Or, on macOS or Linux:</p>
+    <Command
+      cmd={`curl -fsSL ${releases}/latest/download/install.sh | sh`}
+      label="Install Phosphor on macOS or Linux"
+    />
     <p>
-      The script verifies release checksums. Piping a script to a shell is a trust decision: <a
-        href={`${repo}/blob/main/tools/scripts/install.sh`}>read the installer first</a
-      >. Windows releases are unsigned; SmartScreen may require More info → Run anyway after you
-      verify the source.
+      The script checks release checksums. It’s still a script piped into your shell, so <a
+        href={`${repo}/blob/main/tools/scripts/install.sh`}>read it first</a
+      >. Windows builds aren’t signed, so SmartScreen may warn you. Once you’ve confirmed the
+      download came from this repo, choose More info → Run anyway.
     </p>
     <p>
       <strong>Check:</strong> launch Phosphor. If the setup screen says pi is missing, make sure <code
         >pi --version</code
-      > works and that its directory is on the PATH available to desktop apps. Restart Phosphor after
-      changing PATH.
+      > works and that its directory is on the PATH desktop apps see. Restart Phosphor after changing
+      PATH.
     </p>
   </section>
   <section id="sign-in">
-    <h2>2. Choose a sign-in route</h2>
+    <h2>2. Sign in to a provider</h2>
     <ul>
       <li>
         <strong>ChatGPT Plus/Pro:</strong> Settings → Accounts → sign in to the ChatGPT/Codex provider.
-        This uses pi’s native OAuth; a Codex CLI bridge is not needed.
+        This uses pi’s built-in OAuth. You don’t need the Codex CLI.
       </li>
       <li>
-        <strong>Claude Pro/Max:</strong> install the official Claude Code CLI and the pi provider package,
-        then manage logins under Settings → Extensions → Claude Code. <a href="/guides/claude-code/"
-          >Follow the screenshot guide</a
+        <strong>Claude Pro/Max:</strong> install the official Claude Code CLI and the <code
+          >@saccolabs/pi-claude-cli</code
+        > provider, then add one or more logins under Settings → Extensions → Claude Code. <a
+          href="/guides/accounts/">Step-by-step guide</a
         >.
       </li>
       <li>
@@ -64,73 +65,72 @@ const sections: [string, string][] = [
         → Accounts. Copilot Enterprise Server uses pi’s terminal login.
       </li>
       <li>
-        <strong>API keys or custom endpoints:</strong> configure the provider in pi. <a
-          href="https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md"
-          >Provider authentication</a
-        > and <a
-          href="https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/models.md"
-          >custom model configuration</a
-        > describe the available routes.
+        <strong>API keys or custom endpoints:</strong> set them up in pi. See pi’s docs on <a
+          href={piDoc('providers')}>provider auth</a
+        > and <a href={piDoc('models')}>custom models</a>.
       </li>
     </ul>
     <p>
-      If a graphical sign-in cannot complete, open a terminal, run <code>pi</code>, and use <code
+      If sign-in from Settings doesn’t finish, run <code>pi</code> in a terminal and use <code
         >/login</code
-      >. Claude Code logins are separate from pi’s provider credentials. Provider billing rules and
-      plan limits apply; installing Phosphor does not include model usage.
+      >. Claude Code logins are separate from pi’s provider credentials. Phosphor doesn’t come with
+      any model usage. Your provider’s billing and plan limits apply.
+    </p>
+    <p>
+      Signing in to more than one plan pays off: when one runs out, a lane can move to another and
+      keep going. <a href="/guides/accounts/#recommended">The setup we recommend</a>.
     </p>
   </section>
   <section id="first-task">
-    <h2>3. Run one task you can verify</h2>
+    <h2>3. Run a first task</h2>
     <ol>
+      <li>Open a repo you trust. A throwaway project is a good place to start.</li>
       <li>
-        Open a repository folder you trust. Use a disposable project for your first experiment.
-      </li>
-      <li>
-        Choose a model in the composer. For Claude subscription usage, select the <code
+        Pick a model in the composer. To use your Claude subscription, pick a model under <code
           >pi-claude-cli</code
-        > provider, not an API-billed Anthropic entry.
+        >, not one of the API-billed Anthropic entries.
       </li>
       <li>
-        Leave the new-worktree option enabled for a separate checkout, or deliberately choose the
-        main checkout. Git features require a Git repository.
+        Leave the new worktree option on to get a separate checkout, or turn it off to work in the
+        main checkout. Git features need a Git repo.
       </li>
       <li>
-        Ask for a bounded change, for example: “Add a test for an empty input in this parser. Run
-        the relevant tests and show me the diff.”
+        Ask for something small you can check, like: “Add a test for an empty input in this parser.
+        Run the relevant tests and show me the diff.”
       </li>
       <li>
-        Open tool activity to inspect the command and its result. Open Changes to review each file.
-        An agent saying “done” is not proof that its tests passed.
+        Expand the tool calls to see the commands and their output. Open Changes to review each
+        file. Don’t take “done” at face value: check that the tests actually ran and passed.
       </li>
       <li>
-        Ask for a short explanation as an artifact if you want a versioned document beside the chat.
-        Use Files or Terminal when you want to inspect or run something yourself.
+        Want a write-up you can keep? Ask for it as an artifact and it opens as a versioned doc next
+        to the chat. Use Files or Terminal to look at or run things yourself.
       </li>
     </ol>
     <p>
-      <strong>Check:</strong> you can identify the session’s branch, read its actual diff, and inspect
-      the test result. For a second independent task, start a new lane and worktree rather than asking
-      two sessions to edit the same checkout.
+      <strong>Check:</strong> you know which branch the session is on, you’ve read the diff, and you’ve
+      seen the test output. For a second task, start a new lane with its own worktree. Don’t point two
+      sessions at the same checkout. <a href="/guides/daily-work/">Daily work</a> covers what comes next:
+      reviewing, merging, and running several lanes.
     </p>
     <p>
       <a href={doc('worktrees.md')}>Worktree safeguards</a> · <a href={doc('chat.md')}
-        >Transcript and composer reference</a
-      > · <a href={doc('routines.md')}>Schedule a repeatable task with a local routine</a>
+        >Chat and composer reference</a
+      > · <a href={doc('routines.md')}>Schedule recurring work with routines</a>
     </p>
   </section>
   <section id="extend">
-    <h2>4. Add the capabilities you need</h2>
+    <h2>4. Go further</h2>
     <p>
-      A working coding session is the starting point. pi packages add web research, MCP services,
-      subagents, and desktop interaction. Install only what serves your workflow, then start a new
-      session.
+      Once coding works, add what you need. pi packages add web search, MCP services, subagents, and
+      computer use. Install only what you’ll use, then start a new session.
     </p>
     <div class="guide-grid">
       {
-        guides.slice(1).map(({ href, title }) => (
+        guides.slice(1).map(({ href, title, blurb }) => (
           <a href={href}>
             <h3>{title} →</h3>
+            <p>{blurb}</p>
           </a>
         ))
       }
@@ -139,20 +139,20 @@ const sections: [string, string][] = [
   <section id="trust">
     <h2>Permissions and data</h2>
     <p>
-      Phosphor runs locally, but that does not mean inference is local. Model providers receive the
-      prompts and tool results sent to them. Connected services have their own permissions and data
-      policies.
+      Phosphor runs on your machine, but unless you use a local model, the model doesn’t. Your
+      provider receives every prompt and tool result sent to it. Connected services have their own
+      permissions and data policies.
     </p>
     <p>
-      <strong>Tools run with full permissions by default.</strong> Phosphor does not add an approval system
-      or a universal agent sandbox. Worktrees separate Git checkouts, not filesystem or network access.
-      Packages execute code in pi’s process. Review package sources and connect only services you intend
-      to expose to the agent.
+      <strong>Tools run with full permissions by default.</strong> There are no approval prompts unless
+      you install a permission gate, and no sandbox around the agent. A worktree separates Git checkouts;
+      it doesn’t limit file or network access. Packages run code inside pi’s process. Read a package’s
+      source before installing it, and only connect services you’re comfortable handing to the agent.
     </p>
     <p>
-      Model-authored HTML artifacts are isolated from the app and have no network access. That
-      boundary protects against the document, not against the agent’s tools. <a
-        href={doc('extensions.md')}>Read the extension and artifact contract</a
+      HTML artifacts the model writes are isolated from the app and have no network access. That
+      protects you from the page, not from the agent’s tools. <a href={doc('extensions.md')}
+        >How extensions and artifacts work</a
       >.
     </p>
   </section>
@@ -160,25 +160,25 @@ const sections: [string, string][] = [
     <h2>If setup stalls</h2>
     <ul>
       <li>
-        <strong>pi missing:</strong> check the desktop PATH, not only an interactive terminal’s PATH.
+        <strong>pi missing:</strong> check the PATH desktop apps see, not just your terminal’s.
       </li><li>
-        <strong>No models:</strong> confirm authentication and start a new session after changing provider
-        configuration.
+        <strong>No models:</strong> check that you’re signed in, and start a new session after changing
+        provider config.
       </li><li>
-        <strong>Claude is unavailable:</strong> use the <a
-          href="/guides/claude-code/#troubleshooting">Claude troubleshooting checklist</a
+        <strong>Claude is unavailable:</strong> use the <a href="/guides/accounts/#troubleshooting"
+          >Claude troubleshooting checklist</a
         >.
       </li><li>
-        <strong>Connector cannot authenticate:</strong> check scopes and run <a
+        <strong>Connector won’t authenticate:</strong> check its scopes and run <a
           href="/guides/connectors/#verify">Test in MCP Connectors</a
         >.
       </li>
     </ul>
     <p>
-      <a href={doc('updates.md')}>Install-specific update behavior</a> · <a href={`${repo}/issues`}
-        >Report a problem</a
-      >. Include versions and the error, but remove tokens, account identifiers, private paths, and
-      sensitive project content from logs and screenshots.
+      <a href={doc('updates.md')}>How updates work for each install type</a> · <a
+        href={`${repo}/issues`}>Report a problem</a
+      >. Include versions and the error. Strip tokens, account IDs, private paths, and anything
+      sensitive from logs and screenshots first.
     </p>
   </section>
 </Guide>

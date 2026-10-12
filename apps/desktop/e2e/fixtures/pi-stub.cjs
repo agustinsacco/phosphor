@@ -380,6 +380,7 @@ function sessionEntries() {
 }
 let queueHold = false
 let finishNativeSubagent
+let finishParallelAgents
 function handle(cmd) {
   if (process.env.PHOSPHOR_E2E_COMMAND_LOG) {
     fs.appendFileSync(process.env.PHOSPHOR_E2E_COMMAND_LOG, JSON.stringify(cmd) + '\n')
@@ -795,6 +796,11 @@ function handle(cmd) {
         finishNativeSubagent = undefined
         break
       }
+      if (message === '/stub-finish-parallel') {
+        finishParallelAgents?.()
+        finishParallelAgents = undefined
+        break
+      }
       if (message === 'queue-hold' || message.endsWith('\nroutine-e2e-hold')) {
         queueHold = true
         out({ type: 'agent_start' })
@@ -859,6 +865,7 @@ function handle(cmd) {
       else if (message.includes('longartifact')) runLongArtifactTurn()
       else if (message.includes('manyitems')) runManyItemsTurn()
       else if (message.includes('workflow-evidence')) runWorkflowEvidenceTurn()
+      else if (message.includes('in parallel')) runParallelAgentsTurn()
       else if (message.includes('delegate')) runNativeSubagentTurn()
       else if (message.includes('fanout')) runSubagentTurn()
       else if (message.includes('longstream')) runLongStreamTurn()
@@ -1981,6 +1988,184 @@ function runNativeSubagentTurn() {
     () => out({ type: 'message_start', message: notify }),
     () => out({ type: 'message_end', message: notify }),
     ...say('Scout reports: the auth flow enters at login.ts.'),
+    () => out({ type: 'agent_end', messages: [] }),
+    () => out({ type: 'agent_settled' }),
+  ])
+}
+
+/**
+ * Four pi-subagents children at once, in one foreground `parallel` call: a
+ * scout that already reported and three still working, each on a different
+ * tool. The run holds mid-flight until `/stub-finish-parallel`, so a test or
+ * a screenshot sees every child live instead of racing the settle.
+ */
+function runParallelAgentsTurn() {
+  const completion = new Promise((resolve) => {
+    finishParallelAgents = resolve
+  })
+  const msg = { role: 'assistant', content: [] }
+  const tasks = [
+    { agent: 'scout', task: 'Find every caller of verifySession()' },
+    { agent: 'worker', task: 'Move token refresh from login.ts into session.ts' },
+    { agent: 'worker', task: 'Update the auth tests for the shared refresh path' },
+    { agent: 'researcher', task: 'Check what RFC 9700 says about refresh-token rotation' },
+  ]
+  const scoutAnswer =
+    '7 callers in 4 files. Two swallow a failed refresh: `middleware.ts:31` and `ws.ts:88`.'
+  const live = [
+    {
+      status: 'completed',
+      toolCount: 12,
+      turnCount: 5,
+      tokens: 18400,
+      durationMs: 41000,
+    },
+    {
+      status: 'running',
+      currentTool: 'edit',
+      currentToolArgs: 'src/auth/session.ts',
+      recentTools: [
+        { tool: 'read', args: 'src/auth/login.ts', endMs: 1 },
+        { tool: 'read', args: 'src/auth/session.ts', endMs: 2 },
+        { tool: 'grep', args: 'refreshToken src/', endMs: 3 },
+      ],
+      recentOutput: [
+        'Moving refreshIfExpired() next to the session store so both callers share it.',
+      ],
+      toolCount: 9,
+      turnCount: 4,
+      tokens: 22300,
+      durationMs: 58000,
+    },
+    {
+      status: 'running',
+      currentTool: 'bash',
+      currentToolArgs: 'npm test -- src/auth',
+      recentTools: [
+        { tool: 'read', args: 'src/auth/login.test.ts', endMs: 1 },
+        { tool: 'edit', args: 'src/auth/login.test.ts', endMs: 2 },
+      ],
+      recentOutput: [
+        'Two tests asserted the old call order. Updating them, then running the suite.',
+      ],
+      toolCount: 7,
+      turnCount: 3,
+      tokens: 15800,
+      durationMs: 52000,
+    },
+    {
+      status: 'running',
+      currentTool: 'fetch_content',
+      currentToolArgs: 'rfc-editor.org/rfc/rfc9700',
+      recentTools: [{ tool: 'web_search', args: 'RFC 9700 refresh token rotation', endMs: 1 }],
+      recentOutput: [
+        'Rotation is recommended for public clients; reusing an old token should revoke the family.',
+      ],
+      toolCount: 4,
+      turnCount: 2,
+      tokens: 9100,
+      durationMs: 47000,
+    },
+  ]
+  const details = (progress, results) => ({
+    mode: 'parallel',
+    results: tasks.map(({ agent, task }, index) => ({
+      index,
+      agent,
+      task: '[prompt redacted]',
+      sessionName: `${agent}: ${task}`,
+      ...results(index),
+    })),
+    progress: tasks.map(({ agent }, index) => ({
+      index,
+      agent,
+      task: '[prompt redacted]',
+      recentTools: [],
+      recentOutput: [],
+      ...progress(index),
+    })),
+  })
+  const say = (text) => [
+    () => out({ type: 'message_start', message: msg }),
+    () =>
+      out({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'text', text }],
+          stopReason: 'stop',
+          timestamp: Date.now(),
+        },
+      }),
+  ]
+  const args = { tasks }
+
+  play([
+    () => out({ type: 'agent_start' }),
+    () => out({ type: 'turn_start' }),
+    () => out({ type: 'message_start', message: msg }),
+    () =>
+      out({
+        type: 'message_end',
+        message: {
+          role: 'assistant',
+          content: [
+            {
+              type: 'text',
+              text: 'Splitting this four ways: one agent maps the callers, two make the change, one checks the spec.',
+            },
+            { type: 'toolCall', id: 'sub_par', name: 'subagent', arguments: args },
+          ],
+          stopReason: 'toolUse',
+          timestamp: Date.now(),
+        },
+      }),
+    () => out({ type: 'tool_execution_start', toolCallId: 'sub_par', toolName: 'subagent', args }),
+    () =>
+      out({
+        type: 'tool_execution_update',
+        toolCallId: 'sub_par',
+        toolName: 'subagent',
+        partialResult: {
+          content: [{ type: 'text', text: '4 agents running' }],
+          details: details(
+            (i) => (i === 0 ? { ...live[0], status: 'running', currentTool: 'grep' } : live[i]),
+            () => ({}),
+          ),
+        },
+      }),
+    () =>
+      out({
+        type: 'tool_execution_update',
+        toolCallId: 'sub_par',
+        toolName: 'subagent',
+        partialResult: {
+          content: [{ type: 'text', text: '1 of 4 agents done' }],
+          details: details(
+            (i) => live[i],
+            (i) => (i === 0 ? { exitCode: 0, finalOutput: scoutAnswer } : {}),
+          ),
+        },
+      }),
+    () => completion,
+    () =>
+      out({
+        type: 'tool_execution_end',
+        toolCallId: 'sub_par',
+        toolName: 'subagent',
+        isError: false,
+        result: {
+          content: [{ type: 'text', text: '4 agents finished' }],
+          details: details(
+            (i) => ({ ...live[i], status: 'completed', currentTool: undefined }),
+            (i) => ({
+              exitCode: 0,
+              finalOutput: i === 0 ? scoutAnswer : `${tasks[i].agent} finished: ${tasks[i].task}.`,
+            }),
+          ),
+        },
+      }),
+    ...say('All four reported. Refresh now lives in session.ts and the auth tests pass.'),
     () => out({ type: 'agent_end', messages: [] }),
     () => out({ type: 'agent_settled' }),
   ])

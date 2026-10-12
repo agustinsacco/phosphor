@@ -8,8 +8,8 @@ One exception, and it is labelled: [known-issues.md](known-issues.md) describes
 what is _broken_ rather than how something works.
 
 For installation and task-oriented tutorials, start with the
-[Phosphor guides](https://phosphor.saccolabs.com/guides/): first task, Claude Code
-and multiple accounts, pi extensions, and MCP connectors. These guides explain
+[Phosphor guides](https://phosphor.saccolabs.com/guides/): first task, daily work,
+subscriptions and accounts, pi extensions, and MCP connectors. These guides explain
 how to use the UI; the contracts below own the technical behavior.
 
 Start with [overview.md](overview.md) for what Phosphor is, or
@@ -50,7 +50,7 @@ checks a machine and runs acceptance sessions on it.
 
 | File                                         | Covers                                                               |
 | -------------------------------------------- | -------------------------------------------------------------------- |
-| [extensions.md](extensions.md)               | pi packages, the six bundled extensions, the status channel          |
+| [extensions.md](extensions.md)               | pi packages, the seven bundled extensions, the status channel        |
 | [mcp.md](mcp.md)                             | MCP servers and connectors via the pi-mcp-adapter chain              |
 | [cli-providers.md](cli-providers.md)         | Running sessions on the Claude Code CLI                              |
 | [provider-symmetry.md](provider-symmetry.md) | What native and Claude sessions share, how they differ, how to check |

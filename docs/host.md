@@ -76,7 +76,7 @@ not stamp a commit.
 The version is `0.0.0-dev.<sha7>` of the source commit, HEAD unless `--sha`
 names another. The build fails if the bundle reaches Electron, `electron-store`,
 `electron-updater`, `node-pty`, Desktop or the site, imports anything but a Node
-builtin, or lacks one of the six extensions. It only replaces an empty folder or
+builtin, or lacks one of the seven extensions. It only replaces an empty folder or
 an earlier build: a real folder whose `BUILD-INFO.json` is a regular file naming
 `phosphor`, schema 1, that lists every other file in it. Anything else, a link
 inside included, is refused and left alone, and the check is repeated just
@@ -190,7 +190,7 @@ fail, a config problem (78) outranks a missing prerequisite (69).
 | `pi-node`                 | An executable file whose `--version` satisfies pi's `engines.node` as npm checks engines, prereleases included: npm comparators (`>=`, `^`, `~` and the rest) joined by spaces and `\|\|`. A range with any other part, such as `22.x`, or one that is not a string, fails. 22.19.0 or newer when pi declares none. | 69         |
 | `pi`                      | A Node script needs `pi.node` (78). `--version` is 0.87.1 or newer and matches pi's own package.json when it has one.                                                                                                                                                                                               | 69         |
 | `git`                     | `git --version` succeeds for the first `git` on pi's PATH.                                                                                                                                                                                                                                                          | 69         |
-| `extensions`              | The six bundled extensions, and every helper they import from beside themselves, are under `<resourceRoot>/pi-ext/`.                                                                                                                                                                                                | 69         |
+| `extensions`              | The seven bundled extensions, and every helper they import from beside themselves, are under `<resourceRoot>/pi-ext/`.                                                                                                                                                                                              | 69         |
 | `repository`              | Each root resolves to an existing folder other than `/`. A root holding the home folder, or one level under `/`, warns; one that is not a git repository is noted.                                                                                                                                                  | 69         |
 | `agent-dir`               | pi's agent folder exists, meaning pi has run as this user.                                                                                                                                                                                                                                                          | warning    |
 | `providers`               | Once pi itself passes: a provider is signed in, and pi's default provider is, when it has one ([providers](#providers)).                                                                                                                                                                                            | warning    |
@@ -376,7 +376,7 @@ library asks for. `accept` is its only caller.
   a Host for now.
 - **pi as pinned.** pi starts from `pi.node` and `pi.executable`, never a stub,
   with exactly the environment built above plus `PI_CLAUDE_CLI_CONTEXT=pi`:
-  nothing the Host inherited reaches it. It loads the six extensions from
+  nothing the Host inherited reaches it. It loads the seven extensions from
   `<resourceRoot>/pi-ext/` and leads its own process group.
 - **Fixed policy.** The default agent directives, with no per-project
   overrides; pi's own settings for the default provider, and pi's packages for

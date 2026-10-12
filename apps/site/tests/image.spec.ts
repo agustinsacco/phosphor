@@ -7,7 +7,8 @@ test('production image retains direct guide resolution, static cache policy and 
   test.skip(!process.env.SITE_TEST_URL, 'Requires the served production nginx image')
   for (const route of [
     '/guides',
-    '/guides/claude-code',
+    '/guides/daily-work',
+    '/guides/accounts',
     '/guides/extensions',
     '/guides/connectors',
   ]) {
@@ -16,6 +17,13 @@ test('production image retains direct guide resolution, static cache policy and 
     expect(response.status(), route).toBe(200)
     expect(response.headers().location, route).toBeUndefined()
     expect((await request.get(`${route}/`)).ok(), route).toBe(true)
+  }
+
+  // The old Claude guide URL moved; links to it, fragments included, still land.
+  for (const route of ['/guides/claude-code', '/guides/claude-code/']) {
+    const moved = await request.get(route, { maxRedirects: 0 })
+    expect(moved.status(), route).toBe(301)
+    expect(moved.headers().location, route).toBe('/guides/accounts/')
   }
 
   const landing = await request.get('/')

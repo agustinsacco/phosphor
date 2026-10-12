@@ -1,5 +1,6 @@
 import type { AssistantBlock, AssistantItem, ChatItem, ToolState } from '../reducer'
 import type { DividerItem } from '../chatItems'
+import { launchedAgentCount, SUBAGENT_TOOL } from '../subagentRuns'
 
 /**
  * Turn-level transcript grouping.
@@ -838,8 +839,13 @@ export function summarizeActivity(
     if (!tool) continue
     if (tool.status === 'error') failedCount++
     const label = labelFor(tool)
+    // One `parallel` call can start four agents; the head counts agents.
+    const weight =
+      tool.toolName === SUBAGENT_TOOL && label === 'Delegated'
+        ? launchedAgentCount(tool.args, tool.result?.details ?? tool.output?.details)
+        : 1
     if (!counts.has(label)) order.push(label)
-    counts.set(label, (counts.get(label) ?? 0) + 1)
+    counts.set(label, (counts.get(label) ?? 0) + weight)
   }
 
   const detail = order

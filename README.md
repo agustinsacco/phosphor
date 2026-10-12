@@ -6,8 +6,10 @@
 
 # Phosphor
 
-**The [pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent),
-extended into a desktop IDE for macOS, Linux and Windows.**
+**An IDE built around the agent.** An agentic IDE for macOS, Linux and
+Windows, built on the [pi coding agent](https://pi.dev): a harness kept
+deliberately small and simple, and made to be extended. Phosphor keeps it that
+way. Tools, model providers and skills install as pi packages.
 
 [![Website](https://img.shields.io/badge/phosphor.saccolabs.com-eca03d?label=web&labelColor=1e1c18)](https://phosphor.saccolabs.com)
 [![CI](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml/badge.svg)](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml)
@@ -15,31 +17,31 @@ extended into a desktop IDE for macOS, Linux and Windows.**
 [![Downloads](https://img.shields.io/github/downloads/agustinsacco/Phosphor/total?label=downloads)](https://github.com/agustinsacco/Phosphor/releases)
 ![License: MIT](https://img.shields.io/badge/license-MIT-8ec9a0)
 
-Open a folder, describe a task, work beside the agent. The chat renders what
-models actually produce (diffs, diagrams, charts, sandboxed HTML). The file
-explorer and terminal sit next to it. Every change the agent made is there to
-review or revert.
+Give every task its own agent and Git worktree, and watch each command, edit
+and diff as it happens. The chat renders what models actually produce (diffs,
+diagrams, charts, sandboxed HTML), the file explorer and terminal sit next to
+it, and every change the agent made is there to review or revert.
 
-One window, every provider pi speaks: Anthropic, OpenAI (API key or ChatGPT
-subscription), Google Gemini and Vertex, Azure OpenAI, Amazon Bedrock, Mistral,
-Groq, Cerebras, xAI, OpenRouter, the Cloudflare and Vercel gateways, plus your
-Claude Pro/Max subscription through
-[pi-claude-cli](https://github.com/agustinsacco/pi-claude-cli). Switch models
-mid-session; the conversation comes along.
+Use the plans you already pay for: ChatGPT Plus/Pro, Claude Pro/Max through
+[pi-claude-cli](https://github.com/agustinsacco/pi-claude-cli), GitHub Copilot
+or Kimi. Or bring an API key for any provider pi speaks: Anthropic, OpenAI,
+Google Gemini and Vertex, Azure OpenAI, Amazon Bedrock, Mistral, Groq,
+Cerebras, xAI, OpenRouter, and the Cloudflare and Vercel gateways. Switch
+models mid-session and the conversation comes along.
 
-|                                             |                                         |
-| ------------------------------------------- | --------------------------------------- |
-| **Chat, diffs, files, terminal, artifacts** | One window, side by side                |
-| **Multi-provider by design**                | Any pi provider, switchable mid-session |
-| **Sessions are real pi processes**          | Nothing invented, everything reachable  |
-| **Runs on your metal**                      | Your models, your keys, your files      |
+|                                        |                                                        |
+| -------------------------------------- | ------------------------------------------------------ |
+| **One lane per task**                  | Its own agent, worktree and diff                       |
+| **Every change is reviewable**         | Tool calls with their output, diffs, per-file revert   |
+| **Every session is a real pi process** | Your pi setup, extensions and session files carry over |
+| **Runs on your machine**               | MIT licensed, no sign-up, your models and keys         |
 
 ![A session with the activity run open on an edit's diff](docs/img/chat.png)
 
 ## Quick start
 
 ```bash
-# 1. pi is the engine — Phosphor needs it on your PATH (Node ≥ 22.19)
+# 1. pi is the agent. Phosphor needs it on your PATH (Node ≥ 22.19)
 npm install -g @earendil-works/pi-coding-agent
 
 # 2. Install Phosphor (macOS / Linux; Windows: run the .exe from the latest release)
@@ -57,12 +59,14 @@ terminal and use `/login`, or put API keys / a local endpoint in
   spawned in the workspace folder. Everything pi exposes over RPC is in the UI:
   models, thinking levels, steering and follow-up queues, compaction,
   auto-retry, forks, clones, export.
-- **No permission prompts.** pi runs in full-permission mode. Tool calls run and
-  stream their results.
+- **No permission prompts by default.** pi runs in full-permission mode. Tool
+  calls run and stream their results. Want confirmations? Install a
+  permission-gate extension and Phosphor shows its questions as a review sheet
+  ([optional gate](docs/extensions.md#optional-permission-gate-and-scratch-cleanup)).
 - **Local routines.** Save instructions, choose a workspace/model and a preset or
   cron schedule, and get a fresh lane per run. Persistent history, catch-up,
-  cancellation, and optional background operation. Requires the computer awake;
-  agents retain full tool permissions. [Routines](docs/routines.md).
+  cancellation, and optional background operation. Runs only while the computer
+  is awake, and agents keep full tool permissions. [Routines](docs/routines.md).
 - **Rich responses are first-class.** GFM markdown, highlighted code, Mermaid,
   Chart.js and Vega-Lite specs, KaTeX, and model-authored HTML in a sandboxed
   iframe.
@@ -86,7 +90,7 @@ can go fullscreen. Every shot below is the app against a real pi, real
 providers and real tokens; see
 [the screenshots in this README](#the-screenshots-in-this-readme).
 
-### Home — where a session starts
+### Home: where a session starts
 
 Pick the folder, the branch (or a fresh worktree branch off trunk), the model,
 and go. The sidebar lists every session with live state, edit counts, a
@@ -104,7 +108,7 @@ restart.
 
 ![Home over the real sessions of a repo](docs/img/home.png)
 
-### Chat — the transcript, not a blob
+### Chat: the transcript, not a blob
 
 Streaming text with the run's activity folded into steps: edits expand to their
 diff, tool calls to their arguments and output, thinking to its own block. The
@@ -113,7 +117,7 @@ follow-ups while a turn is running.
 
 ![A finished turn: the activity run expanded on the edit's diff, Changes panel open beside it](docs/img/changes.png)
 
-### The composer — every model, every provider, one chip away
+### The composer: every model, one chip away
 
 The model chooser lists everything you are signed into, native providers and
 installed provider packages alike. Searchable, starrable, switchable
@@ -138,7 +142,7 @@ subscription providers:
 
 ![The @ file-mention menu, resolved against the workspace](docs/img/mentions.png)
 
-### Files — explorer and editor, on whichever side you like
+### Files: explorer and editor, on whichever side you like
 
 Create, rename, Trash, multi-select, copy/cut/paste, drop files and folders
 in, all beside a Monaco editor. Docked right by default.
@@ -155,7 +159,7 @@ you are reading:
 
 ![The files pane fullscreened over the session](docs/img/files-full.png)
 
-### Terminal — real shells in the workspace
+### Terminal: real shells in the workspace
 
 Real terminal tabs against the workspace, owned by the session that opened
 them, so the transcript never loses its place.
@@ -170,7 +174,7 @@ compaction and the session itself.
 
 ![A long document open in the artifacts pane](docs/img/artifacts.png)
 
-### Settings — and it is not only dark
+### Settings, and not only in dark
 
 Appearance, agent, accounts, extensions, connectors, workspaces, optimization,
 advanced, keybindings, about. Light theme included, because diff review at 2am
@@ -208,7 +212,7 @@ Windows: download `Phosphor-<version>-x64.exe` from the
 [latest release](https://github.com/agustinsacco/Phosphor/releases/latest) and
 run it. It installs per user (no administrator prompt) and picks its own
 install folder unless you change it. The installer is not code-signed, so
-SmartScreen shows "Windows protected your PC" — choose **More info → Run
+SmartScreen shows "Windows protected your PC". Choose **More info → Run
 anyway**. Install pi with `npm install -g @earendil-works/pi-coding-agent` in
 any terminal; Phosphor finds it on the user PATH that npm sets up. A Node
 version manager that only configures PATH per terminal (fnm, nvm-windows
@@ -227,20 +231,18 @@ endpoint in `~/.pi/agent/`.
 
 ### Updates
 
-Successful same-repository CI pushes to `main` publish a release when the
-Desktop app changed since the last published release (Nx `desktop` affected;
-see [docs/nx-cache.md](docs/nx-cache.md#per-app-releases-and-deploys)), unless
-the commit has a `Skip-Release: true` trailer. Site, schema, docs and CI-only
-merges do not release. The guard supports both script layouts
-in the validated checkout and blocks publication if missing or broken. Releases
-are versioned `0.1.<commit count>`. An installed app checks at launch and every 30 minutes;
-when there is something to do, an update button appears in the sidebar footer
-above Settings.
+Every green merge to `main` that changes the desktop app publishes a release,
+versioned `0.1.<commit count>`, unless the commit has a `Skip-Release: true`
+trailer. Site, schema, docs and CI-only merges don't release
+([docs/nx-cache.md](docs/nx-cache.md#per-app-releases-and-deploys)). An
+installed app checks at launch and every 30 minutes, and shows an update button
+in the sidebar footer above Settings when there's something new.
 
 Linux AppImage, Windows and signed macOS installs download in the background
-and offer "Restart to update". Unsigned macOS and `.deb` installs cannot
-replace their own files, so they link to the release page. Update checks only run when
-packaged. Details: [docs/updates.md](docs/updates.md).
+and offer "Restart to update". An unsigned macOS app swaps its own bundle and
+relaunches. A `.deb` install, or a macOS bundle it can't write to, links to the
+release page instead. Update checks only run in a packaged app. Details:
+[docs/updates.md](docs/updates.md).
 
 ## How it works
 
@@ -275,9 +277,9 @@ Six facts that explain the rest:
    sessions list is a scan of pi's session directory. Phosphor appends to those
    files for bookmarks, branch jumps and forks, which is only safe while no pi
    process owns the file.
-5. **Six extensions run inside pi's process** (`libs/pi-extensions/pi-ext/`, loaded with `-e` into
-   every session): `artifacts`, `context-breakdown`, `headroom`, `mcp-status`,
-   `tool-name-guard`, `worktree-paths`. Two of them can change or refuse what
+5. **Seven extensions run inside pi's process** (`libs/pi-extensions/pi-ext/`, loaded with `-e` into
+   every session): `artifacts`, `context-breakdown`, `headroom`, `lane-reload`,
+   `mcp-status`, `tool-name-guard`, `worktree-paths`. Two of them can change or refuse what
    the model did: [docs/extensions.md](docs/extensions.md).
 6. **Failure is reported, not hidden.** Failures land on the session's chat;
    main-process detail goes to `phosphor.log`. For a bad session,
@@ -413,7 +415,9 @@ else private, like an internal MCP server's name or host.
 `npm run shots` (`tools/scripts/capture-readme-shots.mjs`) is the deterministic
 sibling: same mechanics, scratch workspace, the e2e `pi` stub, no key, no
 network. Use it to verify UI changes; use the live one to regenerate what this
-README shows.
+README shows. The one exception is the site's hero (`subagents`): a real run
+won't hold four sub-agents mid-flight for a frame, so it comes from this
+runner and the site labels it a scripted demo (see `apps/site/README.md`).
 
 ### Repo layout
 

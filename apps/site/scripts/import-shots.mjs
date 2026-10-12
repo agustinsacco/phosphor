@@ -5,6 +5,24 @@ import { join, dirname, basename, extname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 
+// Close-ups of one control each, cut from the full captures above so they stay
+// real sessions. Rects are in the captures' 2880×1840 pixels.
+export const crops = {
+  'models-picker': { from: 'models', left: 936, top: 444, width: 1008, height: 950 },
+  'context-meter': { from: 'context', left: 1006, top: 614, width: 912, height: 1086 },
+}
+
+export async function cropShots(outDir) {
+  for (const [name, { from, ...rect }] of Object.entries(crops)) {
+    const out = join(outDir, `${name}.webp`)
+    await sharp(join(outDir, `${from}.webp`))
+      .extract(rect)
+      .webp({ quality: 90, effort: 6 })
+      .toFile(out)
+    console.log(`  ✓ ${name}.webp  cut from ${from}.webp`)
+  }
+}
+
 export async function importShots(rawDir, outDir) {
   const files = (await readdir(rawDir)).filter((file) => extname(file) === '.png').sort()
   if (files.length === 0) throw new Error(`No .png captures in ${rawDir}`)
@@ -24,6 +42,7 @@ export async function importShots(rawDir, outDir) {
       `  ✓ ${name}.webp  ${info.width}×${info.height}  ${Math.round(info.size / 1024)} KB`,
     )
   }
+  await cropShots(outDir)
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

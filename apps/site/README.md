@@ -66,8 +66,14 @@ npm run format --prefix apps/site
   benefits, then a getting-started handoff.
 - `/guides/`: installation, sign-in choices, a first verifiable task, permissions,
   and troubleshooting.
-- `/guides/claude-code/`: CLI and provider prerequisites, installation, login,
-  provider test, multiple accounts, routing, and failure recovery.
+- `/guides/daily-work/`: lanes and the home board, worktrees, the composer,
+  review panes, models and context, PRs and merging, sub-agents, artifacts,
+  history, routines, skills, and the settings worth knowing.
+- `/guides/accounts/`: which subscription plans work, the recommended
+  several-plan setup, pi sign-ins, the Claude Code provider (prerequisites,
+  install, login, test, multiple accounts, routing), moving a lane when a plan
+  runs out, and failure recovery. nginx answers the old `/guides/claude-code/`
+  with a 301 here, so existing links and their fragments still land.
 - `/guides/extensions/`: included versus optional capabilities, five recommended
   packages, scope, trust, and updates.
 - `/guides/connectors/`: adapter installation, authorization, Test, per-service
@@ -81,10 +87,22 @@ and `docs/mcp.md` are the relevant contracts.
 
 ## Captures and privacy
 
-The landing opens with the lane dashboard, then a chat-focused session, then
-an IDE-style editor-and-agent view to show the layout flexibility. All three
-are real captures, visible without opening a disclosure. The dashboard stays
-uncropped on desktop and mobile; every image links to its full-size original.
+The landing opens with one lane running four sub-agents at once. That capture
+is a **scripted demo**, labelled “Demo session · scripted agents” on the page:
+the deterministic `npm run shots` runner drives the built app against the e2e
+pi stub, which holds a `parallel` sub-agent call mid-run. No model, key or
+network is involved. To regenerate it:
+
+```bash
+npm run build
+OUT_DIR=apps/site/shots-raw MAX_WIDTH=0 ONLY=subagents npm run shots
+npm run shots --prefix apps/site
+```
+
+After it come the lane dashboard, a chat-focused session, and an IDE-style
+editor-and-agent view to show the layout flexibility. Those three are real
+captures, visible without opening a disclosure. The hero stays uncropped on
+desktop and mobile; every image links to its full-size original.
 Native radios in “Explore more layouts” show actual right-docked, left-docked,
 and fullscreen pane captures. There are no third-party replicas or implied presets.
 

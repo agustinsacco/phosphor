@@ -1,9 +1,10 @@
 ---
 import Guide from '../../layouts/Guide.astro'
 import Capture from '../../components/Capture.astro'
-import { doc, packages, shot } from '../../lib/content'
+import Command from '../../components/Command.astro'
+import { doc, packages, piDoc, shot } from '../../lib/content'
 const sections: [string, string][] = [
-  ['included', 'What is included'],
+  ['included', 'What ships with Phosphor'],
   ['install', 'Install a package'],
   ...packages.map(({ id, name }): [string, string] => [id, name]),
   ['maintain', 'Scope and updates'],
@@ -11,28 +12,31 @@ const sections: [string, string][] = [
 ---
 
 <Guide
-  title="Build your pi extension setup"
-  description="Phosphor is the workspace. pi is the engine. Packages add the capabilities that make the agent useful across your actual workflow."
+  title="Set up pi extensions"
+  description="pi is a small agent harness built to be extended. Packages add the tools that make the agent useful beyond code, and Phosphor installs and configures them from Settings."
   sections={sections}
 >
   <section id="included">
-    <h2>Coding works first. Extensions take it further.</h2>
+    <h2>What ships with Phosphor</h2>
     <p>
-      Start with a model and pi’s local coding tools. You do not need to install every package to
-      edit code. Add capabilities deliberately: research a library, read a ticket, query an
-      operational tool, or delegate an independent investigation.
+      A model and pi’s built-in coding tools are enough to edit code. Add packages when a task needs
+      more: researching a library, reading a ticket, checking a dashboard, or handing off a side
+      investigation.
     </p>
     <p>
-      Phosphor already bundles seven extensions: artifacts, context breakdown, MCP status reporting,
-      opt-in Headroom integration, malformed tool-name repair, a wrong-worktree path guard, and a
-      between-turns reload that brings MCP changes into running lanes. <strong
+      Phosphor ships seven extensions of its own: artifacts, the context breakdown, MCP status
+      reporting, opt-in Headroom integration, malformed tool-name repair, a wrong-worktree path
+      guard, and a reload between turns that brings MCP changes into running lanes. <strong
         >MCP status reporting is not the MCP adapter.</strong
-      > The adapter itself is a separate install.
+      > The adapter is a separate install.
     </p>
     <p>
-      Packages can contain executable extensions, reusable skills, prompt templates, and themes. A
-      skill describes a procedure; an extension can register tools or a provider. <a
-        href={doc('extensions.md#bundled-extensions-phosphors-own')}>Bundled extension reference</a
+      A package can contain extensions, skills, prompt templates, and themes. A skill describes a
+      procedure; an extension can register tools, commands, or a whole model provider. pi’s docs are
+      the reference for all of it: <a href={piDoc('extensions')}>extensions</a>, <a
+        href={piDoc('packages')}>packages</a
+      >, and <a href={piDoc('skills')}>skills</a>. Phosphor’s own are in the <a
+        href={doc('extensions.md#bundled-extensions-phosphors-own')}>bundled extension reference</a
       >.
     </p>
   </section>
@@ -40,104 +44,106 @@ const sections: [string, string][] = [
     <h2>Install from Settings</h2>
     <ol>
       <li>Open <strong>Settings → Extensions</strong>.</li><li>
-        Review the Recommended catalog and the package’s source. Choose the capability you need,
-        then <strong>Add</strong>.
+        Look through Recommended and check the package’s source. Pick one and choose <strong
+          >Add</strong
+        >.
       </li><li>Watch the job output and confirm the package appears in Installed.</li><li>
         For a package outside the catalog, use Add by spec with an npm, Git, or local-path spec.
         Choose global or workspace scope.
       </li><li>
-        Start a new session so pi loads the package. Settings for Claude Code, Web access, and
-        Computer use appear as nested tabs when their packages are present.
+        Start a new session so pi loads the package. Claude Code, Web access, Computer use, and
+        Subagents get their own settings tabs once installed.
       </li>
     </ol>
     <Capture
       image={shot('guide-extensions')}
       alt="Phosphor Extensions settings displaying recommended and installed packages with example data."
-      caption="Install the capability, then configure it in its own tab"
+      caption="Install a package, then set it up in its own tab"
       provenance="Settings demo · example data"
     />
     <aside class="notice">
-      <strong>Install is a trust decision</strong><p>
-        Packages run code with full system access. The catalog is a starting point, not a sandbox or
-        a guarantee about future versions. Review source and requirements before installing. Tools
-        may use external services, require keys, or incur charges.
+      <strong>Packages run real code</strong><p>
+        Packages run with full access to your system. Being in the catalog doesn’t make a package
+        safe, and says nothing about its future versions. Read the source and requirements before
+        installing. Some tools call external services, need API keys, or cost money.
       </p>
     </aside>
   </section>
   {
-    packages.map(({ id, name, benefit, spec, url }) => (
-      <section id={id}>
-        <>
+    packages.map(({ id, name, benefit, spec, url, recommended }) => (
+      <section id={id} class="package-guide">
+        <div class="package-guide-head">
           <h2>{name}</h2>
-          <p>{benefit}</p>
-          <pre tabindex="0" aria-label={`Install ${name}`}>
-            <code>pi install {spec}</code>
-          </pre>
-        </>
+          {recommended && <span class="badge">{recommended}</span>}
+        </div>
+        <p>{benefit}</p>
+        <Command cmd={`pi install ${spec}`} label={`Install ${name}`} />
         {id === 'claude' && (
           <p>
-            Requires the official Claude Code CLI and an authorized account. Follow the{' '}
-            <a href="/guides/claude-code/">Claude setup and multiple-account tutorial</a>, including
-            its end-to-end provider check.
+            The way to spend a Claude Pro or Max plan in Phosphor. It needs the official Claude Code
+            CLI. Add every Claude account you have, and a lane can move to another one when its plan
+            runs low. The <a href="/guides/accounts/">subscriptions and accounts guide</a> covers
+            sign-in, routing, and the end-to-end provider test.
           </p>
         )}
         {id === 'mcp' && (
           <p>
-            Required for Phosphor’s connected-service tools. Installing it does not grant service
-            access. Next,{' '}
-            <a href="/guides/connectors/">add a connector, authorize it, and test it</a>.
+            pi has MCP support of its own. Phosphor’s MCP Connectors tab works through this adapter
+            instead, which replaces the built-in support in sessions. Installing it doesn’t connect
+            anything yet. Next,{' '}
+            <a href="/guides/connectors/">add a connector, sign in, and test it</a>.
           </p>
         )}
         {id === 'web' && (
           <p>
-            Open the Web access tab after installation and configure the search provider you intend
-            to use. Requirements vary by provider. Verify a small search and URL fetch in a new
-            session; request source links and inspect the tool results.
+            After installing, open the Web access tab and set up a search provider. Each provider
+            has its own requirements. In a new session, try a quick search and a page fetch, ask for
+            source links, and check the tool output.
           </p>
         )}
         {id === 'subagents' && (
           <p>
-            There is no separate settings tab. Start a new session and use the package’s delegation
-            tools for bounded, independent work. Additional model calls consume tokens and quota;
-            delegation is not free parallelism.
+            Start a new session and ask the agent to split independent work. Each child shows up in
+            the chat with its current tool and its result. The Subagents tab explains foreground and
+            background runs and where each setting lives. Every subagent makes its own model calls,
+            so it spends tokens and quota.
           </p>
         )}
         {id === 'computer' && (
           <p>
-            Read the Computer use tab and the package’s platform requirements. Grant the required OS
-            accessibility permissions explicitly. Verify observation of a test window before
-            allowing clicks or typing in sensitive applications.
+            Check the Computer use tab and the package’s platform requirements, then grant the OS
+            accessibility permissions it asks for. Try it on a test window before letting it click
+            or type in anything sensitive.
           </p>
         )}
-        <p>
-          <a href={url}>Package documentation and source ↗</a>
+        <p class="package-links">
+          <a href={url}>Docs and source ↗</a>
         </p>
       </section>
     ))
   }
   <section id="maintain">
-    <h2>Scope, updates, and verification</h2>
+    <h2>Scope and updates</h2>
     <p>
-      Global installs apply across workspaces. A project install uses <code
+      Global installs apply to every workspace. For a project install, run <code
         >pi install -l npm:package-name</code
-      > from that project and writes project configuration. pi loads packages according to its scope and
-      project-trust rules; a declared package is not proof that a running session has loaded it.
+      > inside that project. It writes to the project’s config. pi decides what to load based on scope
+      and project trust, so a package being listed doesn’t mean a running session loaded it.
     </p>
     <p>
-      Use Update all in Extensions, or update a specific package by spec. On current pi, <code
+      Use Update all in Extensions, or update one package by spec. From a terminal, <code
         >pi update --extensions</code
-      > updates packages, while bare <code>pi update</code> updates pi itself. A pinned package may need
-      an explicit version change.
+      > updates packages and plain <code>pi update</code> updates pi itself. A pinned package may need
+      its version changed by hand.
     </p>
     <p>
-      After any package change, start a new session. Give the new capability a small test and
-      inspect the actual tool output. Installing a package, authenticating a service, and completing
-      a successful model-driven call are three different checks.
+      After any package change, start a new session and give the new tool a quick test. Look at the
+      tool output, not just the reply. Installed, signed in, and actually working are three
+      different checks.
     </p>
     <p>
-      <a
-        href="https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/packages.md"
-        >pi package installation and scope</a
+      <a href={piDoc('packages')}>pi packages: install and scope</a> · <a href={piDoc('extensions')}
+        >Writing pi extensions</a
       > · <a href="https://pi.dev/packages">Browse the package ecosystem</a> · <a
         href={doc('extensions.md')}>Phosphor extension contract</a
       >

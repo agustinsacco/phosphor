@@ -3992,6 +3992,62 @@ test('Subagents settings follow package availability and fit both themes', async
   }
 })
 
+test('a parallel delegation shows every child working at once, then settles', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    // The stub holds a four-child `parallel` call mid-run: the scout has
+    // reported, three children are each on a different tool.
+    await page
+      .getByPlaceholder('Describe a task or ask a question')
+      .fill('Fix the token refresh bug, split the work in parallel')
+    await page.getByRole('button', { name: /Start session/i }).click()
+
+    const row = page.getByRole('button', { name: /Running workflow/ })
+    await expect(row).toBeVisible({ timeout: 60_000 })
+    await expect(row).toContainText('scout · worker · researcher')
+    await expect(row).toContainText('1/4 done')
+    // One call, four agents: the group line counts agents, not calls.
+    await expect(page.getByTestId('activity-summary').first()).toContainText('delegated 4 agents')
+    await row.click()
+
+    const children = page.getByTestId('subagent-child')
+    await expect(children).toHaveCount(4)
+    for (const [i, status] of ['completed', 'running', 'running', 'running'].entries()) {
+      await expect(children.nth(i)).toHaveAttribute('data-status', status)
+    }
+    await expect(children.nth(0)).toContainText('7 callers in 4 files')
+    await expect(page.getByTestId('subagent-current-tool')).toHaveText([
+      '⎿ edit src/auth/session.ts',
+      '⎿ bash npm test -- src/auth',
+      '⎿ fetch_content rfc-editor.org/rfc/rfc9700',
+    ])
+    // The parent turn is still running while its children work.
+    await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
+    await expect(page.getByTestId('session-row').first()).toBeVisible()
+    await page.screenshot({ path: test.info().outputPath('subagents-parallel.png') })
+
+    const finished = await page.evaluate(async () => {
+      const live = await window.phosphor.invoke('pi:listLiveSessions')
+      if (live.length !== 1) throw new Error('Expected one isolated stub session')
+      return window.phosphor.piCommand(live[0].sessionId, {
+        type: 'prompt',
+        message: '/stub-finish-parallel',
+      })
+    })
+    expect(finished.success).toBe(true)
+    await expect(
+      page.getByText('All four reported. Refresh now lives in session.ts and the auth tests pass.'),
+    ).toBeVisible({ timeout: 30_000 })
+    const summary = page.getByTestId('activity-summary').first()
+    if ((await summary.getAttribute('aria-expanded')) === 'false') await summary.click()
+    await expect(page.getByRole('button', { name: /Ran workflow/ })).toContainText('4 agents')
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('a native delegation is an agent row with live progress, a fleet chip and a completion card', async () => {
   const harness = await launch()
   const { page } = harness

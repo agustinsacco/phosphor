@@ -1,0 +1,233 @@
+---
+import Guide from '../../layouts/Guide.astro'
+import { doc } from '../../lib/content'
+const sections: [string, string][] = [
+  ['lanes', 'Lanes and the home screen'],
+  ['branches', 'Branches and worktrees'],
+  ['composer', 'Talk to the agent'],
+  ['review', 'Review what it did'],
+  ['models', 'Models, thinking, and context'],
+  ['merge', 'Pull requests and merging'],
+  ['subagents', 'Split work across agents'],
+  ['artifacts', 'Artifacts'],
+  ['history', 'Resume, rewind, and fork'],
+  ['routines', 'Routines'],
+  ['skills', 'Skills'],
+  ['settings', 'Settings worth knowing'],
+]
+---
+
+<Guide
+  title="Daily work"
+  eyebrow="Guide / using Phosphor"
+  description="Everything after setup: run several lanes, steer the agent, review and merge its work, and use artifacts, routines, and skills. Each section links to its reference."
+  sections={sections}
+>
+  <section id="lanes">
+    <h2>Lanes and the home screen</h2>
+    <p>
+      Every chat is a lane: one agent, usually on its own branch and worktree. The sidebar lists
+      lanes by project, with their status, branch, and a PR chip once there’s a pull request.
+    </p>
+    <ul>
+      <li>
+        <strong>Home</strong> (New in the sidebar) sorts the lanes that need something into columns: Waiting
+        on you, Ready to merge, Needs a push, In review, and Running. Below that, a ledger shows what
+        the project has spent, its tokens, and how much memory the live lanes use.
+      </li><li>
+        <strong>Find a lane</strong> with the magnifier in a project’s header. It matches title, branch,
+        and PR number.
+      </li><li>
+        <strong>Right-click a lane</strong> to pin it, give it a marker, open its pull request, suspend
+        it to free memory, fork or clone it, export it as HTML, copy its spend, or delete it. Double-click
+        to rename. Drag rows to reorder them.
+      </li>
+    </ul>
+    <p>
+      <a href={doc('lanes.md')}>Lanes reference</a> · <a href={doc('ui-shell.md')}
+        >Sidebar and window</a
+      >
+    </p>
+  </section>
+  <section id="branches">
+    <h2>Branches and worktrees</h2>
+    <p>
+      The <strong>new branch</strong> box under the home composer decides whether a chat gets its own
+      branch and worktree. It’s on by default and branches off trunk. Turn it off for a quick question,
+      or to keep working on the branch that’s already checked out.
+    </p>
+    <p>
+      The branch control in the top bar searches branches, switches between the main checkout and
+      worktrees, creates a worktree from a base you pick, pulls trunk, and updates a worktree from
+      trunk when it falls behind. Deleting a lane that’s alone in its worktree offers to remove the
+      worktree too.
+    </p>
+    <p><a href={doc('worktrees.md')}>Worktrees reference</a></p>
+  </section>
+  <section id="composer">
+    <h2>Talk to the agent</h2>
+    <ul>
+      <li>
+        <strong>While it works:</strong> Enter queues a steering message, delivered after the current
+        tool calls. Option+Enter (Alt+Enter) queues a follow-up for when it finishes. Esc stops the turn.
+      </li><li><strong>@</strong> searches the workspace and adds a file reference.</li><li>
+        <strong>Images:</strong> paste or drag them in. Click one to mark it up with boxes, arrows, and
+        text before sending.
+      </li><li>
+        <strong>!command</strong> runs a shell command and adds its output to the context. <strong
+          >!!command</strong
+        > runs it without sending the output to the model.
+      </li><li>
+        <strong>/</strong> lists commands from pi, your prompt templates, and your extensions.
+      </li><li>
+        <strong>Rules · MCP</strong> next to the attach button turns CLAUDE.md and AGENTS.md on or off
+        for the lane, and enables or disables MCP servers.
+      </li>
+    </ul>
+    <p>
+      Drafts, attachments included, survive switching lanes and quitting. Cmd/Ctrl+Shift+X opens a
+      taller field for long prompts.
+    </p>
+    <p><a href={doc('chat.md#composer')}>Composer reference</a></p>
+  </section>
+  <section id="review">
+    <h2>Review what it did</h2>
+    <ul>
+      <li>
+        <strong>The transcript:</strong> each tool call is a row you can expand for its arguments and
+        output. Edits open as diffs. Cmd/Ctrl+F searches the whole session, tool output included.
+      </li><li>
+        <strong>Changes:</strong> every file the lane changed, with its diff. Revert puts a file’s working
+        copy back.
+      </li><li>
+        <strong>Files:</strong> an explorer and an editor with tabs, search, and save.
+      </li><li>
+        <strong>Terminal:</strong> tabbed terminals for the lane’s folder.
+      </li>
+    </ul>
+    <p>
+      Panes open from the top bar, one at a time beside the chat. Drag the divider, dock the pane
+      left or right, or make it fullscreen. Each lane remembers its own layout.
+    </p>
+    <p>
+      <a href={doc('files.md')}>Files and editor</a> · <a href={doc('terminal.md')}>Terminal</a> · <a
+        href={doc('chat.md#tool-renderers')}>Tool cards</a
+      >
+    </p>
+  </section>
+  <section id="models">
+    <h2>Models, thinking, and context</h2>
+    <ul>
+      <li>
+        <strong>Model menu:</strong> every model you’re signed into, searchable, with stars and recents.
+        Switch mid-session and the conversation carries over.
+      </li><li>
+        <strong>Thinking:</strong> pick the level for the next turn, from off to max, as far as the model
+        supports.
+      </li><li>
+        <strong>Context meter:</strong> how full the context is, tokens and cost, an estimate of what’s
+        filling it, and your Claude or ChatGPT plan usage.
+      </li><li>
+        <strong>Compaction:</strong> sessions compact at a shared context budget, 200k tokens by default.
+        Change it in Settings → Agent, or compact now from the lane’s ⋮ menu.
+      </li>
+    </ul>
+    <p>
+      Running low on a plan? <a href="/guides/accounts/#pivot">Move the lane to another one</a>. <a
+        href={doc('chat.md#what-the-context-meters-popover-shows')}>Context meter reference</a
+      >
+    </p>
+  </section>
+  <section id="merge">
+    <h2>Pull requests and merging</h2>
+    <p>
+      A worktree lane is told to commit on its branch and open a pull request when the work is done.
+      Phosphor itself only reads PR status, through the gh CLI: number, state, checks, and review.
+      It never pushes or opens a PR for you.
+    </p>
+    <p>
+      To merge, use <strong>Merge</strong> on a Ready to merge card, the branch control, or the project
+      menu. The merge runs locally with git and walks you through a dirty worktree first. A worktree lane
+      that has fallen behind main shows <strong>Update</strong> under Needs a push.
+    </p>
+    <p><a href={doc('lanes.md#pr-status')}>PR status reference</a></p>
+  </section>
+  <section id="subagents">
+    <h2>Split work across agents</h2>
+    <p>
+      With the <a href="/guides/extensions/#subagents">Subagents package</a> installed, ask the agent
+      to split independent work. Each child shows in the chat with its current tool, its last few steps,
+      and its result. Background runs stay in a strip under the chat, and the lane keeps showing as working
+      until they finish.
+    </p>
+    <p><a href={doc('chat.md#sub-agents')}>Sub-agents reference</a></p>
+  </section>
+  <section id="artifacts">
+    <h2>Artifacts</h2>
+    <p>
+      Ask for a plan, a doc, a diagram, a chart, or an HTML page as an artifact. It opens in the
+      Artifacts pane next to the chat and keeps every version, even after the session compacts. The
+      Artifacts page in the sidebar lists every artifact from every session. HTML artifacts run
+      isolated, with no network access.
+    </p>
+    <p>
+      <a href={doc('extensions.md#the-artifact-tools-and-what-each-one-costs')}
+        >Artifacts reference</a
+      >
+    </p>
+  </section>
+  <section id="history">
+    <h2>Resume, rewind, and fork</h2>
+    <ul>
+      <li>Old sessions reopen from the sidebar with their full history.</li><li>
+        <strong>Rewind to here</strong> on one of your messages, or Esc Esc for a picker, branches the
+        chat from just before it and puts your text back in the composer. The old version folds away.
+      </li><li>
+        <strong>Fork</strong> and <strong>Clone</strong> in a lane’s menu make a copy and keep both.
+      </li>
+    </ul>
+    <p><a href={doc('lanes.md#forks-and-saved-history')}>Forks and saved history</a></p>
+  </section>
+  <section id="routines">
+    <h2>Routines</h2>
+    <p>
+      <strong>Routines</strong> in the sidebar runs a task on a schedule: hourly, daily, weekly, monthly,
+      once, or a cron expression. Each run starts a fresh lane with the model you picked. Routines run
+      on your machine while it’s awake, not in the cloud. <strong>Make routine…</strong> in a lane’s menu
+      drafts one from that lane.
+    </p>
+    <p><a href={doc('routines.md')}>Routines reference</a></p>
+  </section>
+  <section id="skills">
+    <h2>Skills</h2>
+    <p>
+      A skill is a written procedure the agent can follow. The Skills page in the sidebar lists your
+      own and the ones your packages bring. Create, import, or export your own there, or add a
+      reviewed one from discovery.
+    </p>
+    <p><a href={doc('ui-shell.md#global-surfaces')}>Skills reference</a></p>
+  </section>
+  <section id="settings">
+    <h2>Settings worth knowing</h2>
+    <ul>
+      <li>
+        <strong>Keyboard:</strong> Cmd/Ctrl+K opens the command palette, Cmd/Ctrl+N starts a session,
+        and Cmd/Ctrl+B toggles the sidebar. Settings → Keybindings lists the rest.
+      </li><li><strong>Appearance:</strong> light, dark, or follow the system.</li><li>
+        <strong>Agent → Directives:</strong> what Phosphor adds to every lane’s system prompt, shown in
+        full before it’s sent.
+      </li><li>
+        <strong>Optimization:</strong> Headroom, an optional local proxy that restructures large JSON
+        tool results before they enter the context. Its Advisor reads your session files and settings
+        and points out what’s worth changing.
+      </li><li>
+        <strong>Advanced → Maintenance:</strong> finds worktrees of lanes that already landed and reports
+        how much space they hold. It deletes them only if you ask.
+      </li><li>
+        <strong>Send feedback</strong> at the bottom of the sidebar opens a prefilled GitHub issue with
+        your rating and notes. Nothing about your code or sessions is attached.
+      </li>
+    </ul>
+    <p><a href={doc('settings.md')}>Settings reference</a></p>
+  </section>
+</Guide>
