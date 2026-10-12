@@ -637,17 +637,35 @@ a:hover {
 .install-steps .mono {
   color: var(--px-accent);
 }
-.install-steps pre {
-  padding: 1rem 1.2rem;
-  background: var(--px-bg);
-  border: 1px solid var(--px-border-strong);
-  border-radius: 3px;
+.command {
+  display: flex;
+  align-items: baseline;
+  gap: 0.8rem;
+  margin: 0;
+  padding: 0.9rem 1.15rem;
+  background: var(--px-sidebar);
+  border: 1px solid var(--px-border);
+  border-left: 2px solid var(--px-accent);
+  border-radius: var(--px-radius-sm);
   font-size: var(--text-sm);
+  line-height: 1.6;
   color: var(--px-text);
   overflow-x: auto;
 }
+/* The prompt is decoration: copy skips it and screen readers hear nothing. */
+.command::before {
+  content: '$';
+  content: '$' / '';
+  flex: none;
+  color: var(--px-accent);
+  user-select: none;
+}
 .install-section .source-line + .guide-grid {
   margin-top: 2.5rem;
+  grid-template-columns: repeat(2, 1fr);
+}
+.package-card .badge {
+  margin-top: 1rem;
 }
 .site-footer {
   display: flex;
@@ -743,13 +761,32 @@ a:hover {
   text-underline-offset: 4px;
   text-decoration-color: var(--px-border-strong);
 }
-.guide-content pre {
-  padding: 1.2rem;
-  margin-block: 1.5rem;
-  background: var(--px-sidebar);
-  border: 1px solid var(--px-border-strong);
-  font-size: var(--text-sm);
-  overflow-x: auto;
+.guide-content .command {
+  margin-block: 1.2rem 1.5rem;
+}
+.package-guide-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.9rem;
+  margin-bottom: 1.2rem;
+}
+.guide-content .package-guide-head h2 {
+  margin-bottom: 0;
+}
+.badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--px-accent);
+  border-radius: 999px;
+  background: var(--px-accent-soft);
+  color: var(--px-accent);
+  font-family: var(--px-font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.03em;
+}
+.package-links {
+  margin-top: 1rem;
 }
 .guide-content .capture {
   margin-block: 1.8rem;
@@ -823,10 +860,11 @@ a:hover {
     order: 0;
   }
   /* A soft wrap shows the whole command and still copies as one line. */
-  .install-steps pre {
+  .command {
     white-space: pre-wrap;
   }
-  .install-steps pre code {
+  .command code {
+    min-width: 0;
     overflow-wrap: anywhere;
   }
   .problem-lede {
@@ -845,7 +883,8 @@ a:hover {
     font-size: var(--text-lg);
   }
   .numbered-notes,
-  .guide-grid {
+  .guide-grid,
+  .install-section .source-line + .guide-grid {
     grid-template-columns: 1fr;
   }
   .subscription-grid,

@@ -144,7 +144,7 @@ starts with `danger`.
 ### Optional permission gate and scratch cleanup
 
 `libs/pi-extensions/pi-ext/optional/permission-gate.ts` is an opt-in, standalone global gate,
-not one of Phosphor's six loaded extensions. To install it, review the file,
+not one of Phosphor's seven loaded extensions. To install it, review the file,
 back up any existing `~/.pi/agent/extensions/permission-gate.ts`, then copy it
 there. Use `/reload` in pi or start a new Phosphor session to load the change.
 

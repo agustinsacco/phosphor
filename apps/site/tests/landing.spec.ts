@@ -3,7 +3,8 @@ import { expect, test } from '@playwright/test'
 const routes = [
   '/',
   '/guides/',
-  '/guides/claude-code/',
+  '/guides/daily-work/',
+  '/guides/accounts/',
   '/guides/extensions/',
   '/guides/connectors/',
 ]
@@ -157,7 +158,7 @@ test('landing states the problem, answers questions, and ends on the install com
   await expect(faq.first().locator('p')).toBeHidden()
   await faq.first().locator('summary').click()
   await expect(faq.first().locator('p')).toBeVisible()
-  const commands = page.locator('#install pre')
+  const commands = page.locator('#install pre.command')
   await expect(commands).toHaveCount(2)
   await expect(commands.first()).toHaveText('npm install -g @earendil-works/pi-coding-agent')
   await expect(commands.nth(1)).toHaveText(
@@ -215,11 +216,10 @@ test('guide handoffs, privacy labels, skip link, and reduced motion', async ({ p
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(/#main$/)
   await expect(page.locator('html')).toHaveCSS('scroll-behavior', 'auto')
-  await page.getByRole('link', { name: 'Set up Claude and multiple accounts →' }).click()
-  await expect(page).toHaveURL(/\/guides\/claude-code\/$/)
-  await expect(page.locator('.notice').first()).toContainText(
-    'No personal accounts or credentials were loaded',
-  )
+  await page.getByRole('link', { name: 'Set up subscriptions and accounts →' }).click()
+  await expect(page).toHaveURL(/\/guides\/accounts\/$/)
+  await expect(page.locator('h1')).toHaveText('Subscriptions and accounts')
+  await expect(page.locator('#recommended')).toContainText('Claude Max')
   await expect(page.locator('.guide-content .capture')).toHaveCount(3)
   await expect(page.locator('#install ol')).toHaveCSS('list-style-type', 'decimal')
   await expect(page.locator('#routing ul')).toHaveCSS('list-style-type', 'disc')

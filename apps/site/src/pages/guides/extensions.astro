@@ -1,7 +1,8 @@
 ---
 import Guide from '../../layouts/Guide.astro'
 import Capture from '../../components/Capture.astro'
-import { doc, packages, shot } from '../../lib/content'
+import Command from '../../components/Command.astro'
+import { doc, packages, piDoc, shot } from '../../lib/content'
 const sections: [string, string][] = [
   ['included', 'What ships with Phosphor'],
   ['install', 'Install a package'],
@@ -12,7 +13,7 @@ const sections: [string, string][] = [
 
 <Guide
   title="Set up pi extensions"
-  description="pi is the engine and Phosphor is the workspace. Packages add the tools that make the agent useful beyond code."
+  description="pi is a small agent harness built to be extended. Packages add the tools that make the agent useful beyond code, and Phosphor installs and configures them from Settings."
   sections={sections}
 >
   <section id="included">
@@ -30,9 +31,12 @@ const sections: [string, string][] = [
       > The adapter is a separate install.
     </p>
     <p>
-      Packages can contain executable extensions, reusable skills, prompt templates, and themes. A
-      skill describes a procedure; an extension can register tools or a provider. <a
-        href={doc('extensions.md#bundled-extensions-phosphors-own')}>Bundled extension reference</a
+      A package can contain extensions, skills, prompt templates, and themes. A skill describes a
+      procedure; an extension can register tools, commands, or a whole model provider. pi’s docs are
+      the reference for all of it: <a href={piDoc('extensions')}>extensions</a>, <a
+        href={piDoc('packages')}>packages</a
+      >, and <a href={piDoc('skills')}>skills</a>. Phosphor’s own are in the <a
+        href={doc('extensions.md#bundled-extensions-phosphors-own')}>bundled extension reference</a
       >.
     </p>
   </section>
@@ -47,8 +51,8 @@ const sections: [string, string][] = [
         For a package outside the catalog, use Add by spec with an npm, Git, or local-path spec.
         Choose global or workspace scope.
       </li><li>
-        Start a new session so pi loads the package. Claude Code, Web access, and Computer use get
-        their own settings tabs once installed.
+        Start a new session so pi loads the package. Claude Code, Web access, Computer use, and
+        Subagents get their own settings tabs once installed.
       </li>
     </ol>
     <Capture
@@ -66,25 +70,27 @@ const sections: [string, string][] = [
     </aside>
   </section>
   {
-    packages.map(({ id, name, benefit, spec, url }) => (
-      <section id={id}>
-        <>
+    packages.map(({ id, name, benefit, spec, url, recommended }) => (
+      <section id={id} class="package-guide">
+        <div class="package-guide-head">
           <h2>{name}</h2>
-          <p>{benefit}</p>
-          <pre tabindex="0" aria-label={`Install ${name}`}>
-            <code>pi install {spec}</code>
-          </pre>
-        </>
+          {recommended && <span class="badge">{recommended}</span>}
+        </div>
+        <p>{benefit}</p>
+        <Command cmd={`pi install ${spec}`} label={`Install ${name}`} />
         {id === 'claude' && (
           <p>
-            Needs the official Claude Code CLI and a Claude account. Follow the{' '}
-            <a href="/guides/claude-code/">Claude setup guide</a>, including the end-to-end provider
-            test.
+            The way to spend a Claude Pro or Max plan in Phosphor. It needs the official Claude Code
+            CLI. Add every Claude account you have, and a lane can move to another one when its plan
+            runs low. The <a href="/guides/accounts/">subscriptions and accounts guide</a> covers
+            sign-in, routing, and the end-to-end provider test.
           </p>
         )}
         {id === 'mcp' && (
           <p>
-            Needed for every connector. Installing it doesn’t connect anything yet. Next,{' '}
+            pi has MCP support of its own. Phosphor’s MCP Connectors tab works through this adapter
+            instead, which replaces the built-in support in sessions. Installing it doesn’t connect
+            anything yet. Next,{' '}
             <a href="/guides/connectors/">add a connector, sign in, and test it</a>.
           </p>
         )}
@@ -97,8 +103,10 @@ const sections: [string, string][] = [
         )}
         {id === 'subagents' && (
           <p>
-            No settings tab. Start a new session and ask the agent to delegate small, independent
-            jobs. Every subagent makes its own model calls, so it spends tokens and quota.
+            Start a new session and ask the agent to split independent work. Each child shows up in
+            the chat with its current tool and its result. The Subagents tab explains foreground and
+            background runs and where each setting lives. Every subagent makes its own model calls,
+            so it spends tokens and quota.
           </p>
         )}
         {id === 'computer' && (
@@ -108,7 +116,7 @@ const sections: [string, string][] = [
             or type in anything sensitive.
           </p>
         )}
-        <p>
+        <p class="package-links">
           <a href={url}>Docs and source ↗</a>
         </p>
       </section>
@@ -134,9 +142,8 @@ const sections: [string, string][] = [
       different checks.
     </p>
     <p>
-      <a
-        href="https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/packages.md"
-        >pi package installation and scope</a
+      <a href={piDoc('packages')}>pi packages: install and scope</a> · <a href={piDoc('extensions')}
+        >Writing pi extensions</a
       > · <a href="https://pi.dev/packages">Browse the package ecosystem</a> · <a
         href={doc('extensions.md')}>Phosphor extension contract</a
       >

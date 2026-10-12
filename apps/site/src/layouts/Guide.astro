@@ -5,8 +5,10 @@ interface Props {
   title: string
   description: string
   sections: [string, string][]
+  /** Small label above the title; most guides are setup steps. */
+  eyebrow?: string
 }
-const { title, description, sections } = Astro.props
+const { title, description, sections, eyebrow = 'Setup / step by step' } = Astro.props
 ---
 
 <Page title={`${title} | Phosphor guides`} description={description}>
@@ -29,7 +31,7 @@ const { title, description, sections } = Astro.props
     </aside>
     <article class="guide-content">
       <header>
-        <p class="eyebrow">Setup / step by step</p><h1>{title}</h1><p class="guide-lede">
+        <p class="eyebrow">{eyebrow}</p><h1>{title}</h1><p class="guide-lede">
           {description}
         </p>
       </header>

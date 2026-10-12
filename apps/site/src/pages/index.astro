@@ -2,7 +2,18 @@
 import Page from '../layouts/Page.astro'
 import Capture from '../components/Capture.astro'
 import SurfaceLab from '../components/SurfaceLab.astro'
-import { connectors, doc, packages, releases, repo, shot, subscriptions } from '../lib/content'
+import Command from '../components/Command.astro'
+import {
+  connectors,
+  doc,
+  guides,
+  packages,
+  piDoc,
+  releases,
+  repo,
+  shot,
+  subscriptions,
+} from '../lib/content'
 ---
 
 <Page>
@@ -13,12 +24,14 @@ import { connectors, doc, packages, releases, repo, shot, subscriptions } from '
     </div>
     <div class="hero-summary">
       <p class="hero-lede">
-        Phosphor is a desktop app for the pi coding agent. Give every task its own agent and Git
-        worktree, and watch each command, edit, and diff as it happens.
+        Phosphor is an agentic IDE built on pi, a coding agent harness kept deliberately small and
+        simple. Editor, terminal, diffs, and Git worktrees are built in, with one lane per task and
+        every command shown as it runs.
       </p>
       <p>
-        Use the plans you already pay for: Claude, ChatGPT, Copilot, Kimi, or any API key pi
-        supports.
+        pi is made to be extended, and Phosphor keeps it that way: tools, model providers, and
+        skills install as pi packages. Use the plans you already pay for: Claude, ChatGPT, Copilot,
+        Kimi, or any API key pi supports.
       </p>
       <div class="hero-actions">
         <a class="action action-primary" href="#install"
@@ -208,11 +221,11 @@ import { connectors, doc, packages, releases, repo, shot, subscriptions } from '
         />
       </div>
       <aside class="boundary-note">
-        <strong>More than one Claude account?</strong><p>
-          Add every Claude login you have. New sessions can use one account, go down the list in
-          order, or rotate round robin. A running session stays on the account it started with. <a
-            class="text-link"
-            href="/guides/claude-code/">Set up Claude and multiple accounts →</a
+        <strong>Out of allowance? Keep going.</strong><p>
+          Sign in to more than one plan: several Claude Max accounts, ChatGPT, Kimi. When a lane
+          hits a 5-hour or weekly limit, move it to another account or model and the conversation
+          comes with it. <a class="text-link" href="/guides/accounts/"
+            >Set up subscriptions and accounts →</a
           >
         </p>
       </aside>
@@ -240,14 +253,15 @@ import { connectors, doc, packages, releases, repo, shot, subscriptions } from '
       </div>
       <div class="package-grid">
         {
-          packages.map(({ name, benefit, id }) => (
+          packages.map(({ name, benefit, id, spec, recommended }) => (
             <a class="package-card" href={`/guides/extensions/#${id}`}>
               <>
-                <span class="mono">OPTIONAL PI PACKAGE</span>
+                <span class="mono">{spec.replace(/^npm:/, '')}</span>
                 <h3>
                   {name} <span aria-hidden="true">↗</span>
                 </h3>
                 <p>{benefit}</p>
+                {recommended && <span class="badge">{recommended}</span>}
               </>
             </a>
           ))
@@ -256,8 +270,8 @@ import { connectors, doc, packages, releases, repo, shot, subscriptions } from '
       <div class="source-line">
         <a class="text-link" href="/guides/extensions/">Set up extensions →</a><a
           class="text-link"
-          href="https://pi.dev/packages">Browse pi packages ↗</a
-        >
+          href={piDoc('extensions')}>How pi extensions work ↗</a
+        ><a class="text-link" href="https://pi.dev/packages">Browse pi packages ↗</a>
       </div>
       <aside class="boundary-note">
         <strong>Built in vs. installed</strong><p>
@@ -351,9 +365,12 @@ import { connectors, doc, packages, releases, repo, shot, subscriptions } from '
         <details>
           <summary>What is pi, and do I need it? <span aria-hidden="true">+</span></summary>
           <p>
-            Yes. pi is the coding agent and Phosphor is the desktop app around it. Every session is
-            a real pi process, so your pi setup, extensions, and sessions carry over. Install it
-            with npm first (Node 22.19 or newer).
+            Yes. pi is the agent harness: small, simple, and built to be extended. Phosphor is the
+            IDE around it. Every session is a real pi process, so your pi setup, extensions, and
+            sessions carry over. Install it with npm first (Node 22.19 or newer). <a
+              class="text-link"
+              href="https://pi.dev/docs">pi’s docs ↗</a
+            >
           </p>
         </details>
         <details>
@@ -377,7 +394,8 @@ import { connectors, doc, packages, releases, repo, shot, subscriptions } from '
             Yes. ChatGPT Plus and Pro sign in through pi. Claude Pro and Max run through the
             official Claude Code CLI with the pi-claude-cli provider, and you can add more than one
             Claude account. GitHub Copilot and Kimi For Coding work too, and so do API keys and
-            custom endpoints. <a class="text-link" href="/guides/#sign-in">Sign-in routes →</a>
+            custom endpoints. Sign in to several, and a lane can move to another plan when one runs
+            out. <a class="text-link" href="/guides/accounts/">Subscriptions and accounts →</a>
           </p>
         </details>
         <details>
@@ -449,14 +467,15 @@ import { connectors, doc, packages, releases, repo, shot, subscriptions } from '
       </div>
       <ol class="install-steps">
         <li>
-          <span class="mono">1 / pi, the agent · Node 22.19+</span><pre
-            tabindex="0"
-            aria-label="Install pi"><code>npm install -g @earendil-works/pi-coding-agent</code></pre>
+          <span class="mono">1 / pi, the agent · Node 22.19+</span>
+          <Command cmd="npm install -g @earendil-works/pi-coding-agent" label="Install pi" />
         </li>
         <li>
-          <span class="mono">2 / Phosphor · macOS and Linux</span><pre
-            tabindex="0"
-            aria-label="Install Phosphor on macOS or Linux"><code>curl -fsSL {`${releases}/latest/download/install.sh`} | sh</code></pre>
+          <span class="mono">2 / Phosphor · macOS and Linux</span>
+          <Command
+            cmd={`curl -fsSL ${releases}/latest/download/install.sh | sh`}
+            label="Install Phosphor on macOS or Linux"
+          />
         </li>
       </ol>
       <p class="fineprint">
@@ -474,19 +493,14 @@ import { connectors, doc, packages, releases, repo, shot, subscriptions } from '
         >
       </div>
       <div class="guide-grid">
-        <a href="/guides/claude-code/"
-          ><h3>Claude Code + accounts ↗</h3><p>
-            Install the provider, sign in, test it, and route new sessions.
-          </p></a
-        ><a href="/guides/extensions/"
-          ><h3>Choose your extensions ↗</h3><p>
-            What’s built in, what to install, and how packages load.
-          </p></a
-        ><a href="/guides/connectors/"
-          ><h3>Connect your services ↗</h3><p>
-            MCP setup, permissions, sign-in, testing, and custom servers.
-          </p></a
-        >
+        {
+          guides.slice(1).map(({ href, title, blurb }) => (
+            <a href={href}>
+              <h3>{title} →</h3>
+              <p>{blurb}</p>
+            </a>
+          ))
+        }
       </div>
       <p class="fineprint">
         MIT licensed. Runs on your machine, not as a hosted service. The agent’s tools have full

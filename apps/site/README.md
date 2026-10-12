@@ -66,8 +66,14 @@ npm run format --prefix apps/site
   benefits, then a getting-started handoff.
 - `/guides/`: installation, sign-in choices, a first verifiable task, permissions,
   and troubleshooting.
-- `/guides/claude-code/`: CLI and provider prerequisites, installation, login,
-  provider test, multiple accounts, routing, and failure recovery.
+- `/guides/daily-work/`: lanes and the home board, worktrees, the composer,
+  review panes, models and context, PRs and merging, sub-agents, artifacts,
+  history, routines, skills, and the settings worth knowing.
+- `/guides/accounts/`: which subscription plans work, the recommended
+  several-plan setup, pi sign-ins, the Claude Code provider (prerequisites,
+  install, login, test, multiple accounts, routing), moving a lane when a plan
+  runs out, and failure recovery. nginx answers the old `/guides/claude-code/`
+  with a 301 here, so existing links and their fragments still land.
 - `/guides/extensions/`: included versus optional capabilities, five recommended
   packages, scope, trust, and updates.
 - `/guides/connectors/`: adapter installation, authorization, Test, per-service

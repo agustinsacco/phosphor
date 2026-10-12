@@ -1,7 +1,8 @@
 # MCP (Model Context Protocol)
 
-pi core deliberately excludes MCP; it arrives via the `pi-mcp-adapter` package
-(declared in pi's `settings.json` `packages`). MCP tools reach the chat as
+pi has built-in MCP support, but Phosphor manages servers through the
+`pi-mcp-adapter` package (declared in pi's `settings.json` `packages`), which
+replaces the built-in support in sessions. MCP tools reach the chat as
 ordinary `tool_execution_*` events, so the transcript needs nothing special.
 Phosphor's job is **config management and status surfacing**: mount a server,
 sign in, see whether it is up, see what it costs.

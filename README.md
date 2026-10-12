@@ -6,9 +6,10 @@
 
 # Phosphor
 
-**An IDE built around the agent.** A desktop app for the
-[pi coding agent](https://www.npmjs.com/package/@earendil-works/pi-coding-agent)
-on macOS, Linux and Windows.
+**An IDE built around the agent.** An agentic IDE for macOS, Linux and
+Windows, built on the [pi coding agent](https://pi.dev): a harness kept
+deliberately small and simple, and made to be extended. Phosphor keeps it that
+way. Tools, model providers and skills install as pi packages.
 
 [![Website](https://img.shields.io/badge/phosphor.saccolabs.com-eca03d?label=web&labelColor=1e1c18)](https://phosphor.saccolabs.com)
 [![CI](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml/badge.svg)](https://github.com/agustinsacco/Phosphor/actions/workflows/ci.yml)
@@ -276,9 +277,9 @@ Six facts that explain the rest:
    sessions list is a scan of pi's session directory. Phosphor appends to those
    files for bookmarks, branch jumps and forks, which is only safe while no pi
    process owns the file.
-5. **Six extensions run inside pi's process** (`libs/pi-extensions/pi-ext/`, loaded with `-e` into
-   every session): `artifacts`, `context-breakdown`, `headroom`, `mcp-status`,
-   `tool-name-guard`, `worktree-paths`. Two of them can change or refuse what
+5. **Seven extensions run inside pi's process** (`libs/pi-extensions/pi-ext/`, loaded with `-e` into
+   every session): `artifacts`, `context-breakdown`, `headroom`, `lane-reload`,
+   `mcp-status`, `tool-name-guard`, `worktree-paths`. Two of them can change or refuse what
    the model did: [docs/extensions.md](docs/extensions.md).
 6. **Failure is reported, not hidden.** Failures land on the session's chat;
    main-process detail goes to `phosphor.log`. For a bad session,

@@ -1,0 +1,16 @@
+---
+/**
+ * One shell command. The `$` prompt is drawn by CSS, so selecting and copying
+ * the block gives only the command. Kept on one line on purpose: `<pre>`
+ * keeps every space, and a formatter-indented body showed up as a wide gap.
+ */
+interface Props {
+  /** The command, exactly as it should be pasted. */
+  cmd: string
+  /** Accessible name for the scrollable block. */
+  label: string
+}
+const { cmd, label } = Astro.props
+---
+
+<pre class="command" tabindex="0" aria-label={label}><code>{cmd}</code></pre>

@@ -1,11 +1,12 @@
 ---
 import Guide from '../../layouts/Guide.astro'
-import { doc, guides, releases, repo } from '../../lib/content'
+import Command from '../../components/Command.astro'
+import { doc, guides, piDoc, releases, repo } from '../../lib/content'
 const sections: [string, string][] = [
   ['install', '1. Install'],
   ['sign-in', '2. Sign in'],
   ['first-task', '3. Run a first task'],
-  ['extend', '4. Add extensions'],
+  ['extend', '4. Go further'],
   ['trust', 'Permissions and data'],
   ['help', 'Troubleshooting'],
 ]
@@ -21,18 +22,17 @@ const sections: [string, string][] = [
     <p>
       You need Node.js 22.19 or newer and a provider account or API key. Install pi in a terminal:
     </p>
-    <pre
-      tabindex="0"
-      aria-label="Install pi"><code>npm install -g @earendil-works/pi-coding-agent</code></pre>
+    <Command cmd="npm install -g @earendil-works/pi-coding-agent" label="Install pi" />
     <p>
       <a href={`${releases}/latest`}>Download Phosphor from the latest release</a>. On macOS, open
       the DMG and drag Phosphor to Applications. On Linux, use the AppImage or the .deb. On Windows,
       run the x64 .exe installer.
     </p>
     <p>Or, on macOS or Linux:</p>
-    <pre
-      tabindex="0"
-      aria-label="Install Phosphor on macOS or Linux"><code>curl -fsSL https://github.com/agustinsacco/Phosphor/releases/latest/download/install.sh | sh</code></pre>
+    <Command
+      cmd={`curl -fsSL ${releases}/latest/download/install.sh | sh`}
+      label="Install Phosphor on macOS or Linux"
+    />
     <p>
       The script checks release checksums. It’s still a script piped into your shell, so <a
         href={`${repo}/blob/main/tools/scripts/install.sh`}>read it first</a
@@ -54,9 +54,10 @@ const sections: [string, string][] = [
         This uses pi’s built-in OAuth. You don’t need the Codex CLI.
       </li>
       <li>
-        <strong>Claude Pro/Max:</strong> install the official Claude Code CLI and the pi provider package,
-        then manage logins under Settings → Extensions → Claude Code. <a href="/guides/claude-code/"
-          >Step-by-step guide</a
+        <strong>Claude Pro/Max:</strong> install the official Claude Code CLI and the <code
+          >@saccolabs/pi-claude-cli</code
+        > provider, then add one or more logins under Settings → Extensions → Claude Code. <a
+          href="/guides/accounts/">Step-by-step guide</a
         >.
       </li>
       <li>
@@ -65,12 +66,8 @@ const sections: [string, string][] = [
       </li>
       <li>
         <strong>API keys or custom endpoints:</strong> set them up in pi. See pi’s docs on <a
-          href="https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/providers.md"
-          >provider auth</a
-        > and <a
-          href="https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/models.md"
-          >custom models</a
-        >.
+          href={piDoc('providers')}>provider auth</a
+        > and <a href={piDoc('models')}>custom models</a>.
       </li>
     </ul>
     <p>
@@ -78,6 +75,10 @@ const sections: [string, string][] = [
         >/login</code
       >. Claude Code logins are separate from pi’s provider credentials. Phosphor doesn’t come with
       any model usage. Your provider’s billing and plan limits apply.
+    </p>
+    <p>
+      Signing in to more than one plan pays off: when one runs out, a lane can move to another and
+      keep going. <a href="/guides/accounts/#recommended">The setup we recommend</a>.
     </p>
   </section>
   <section id="first-task">
@@ -109,7 +110,8 @@ const sections: [string, string][] = [
     <p>
       <strong>Check:</strong> you know which branch the session is on, you’ve read the diff, and you’ve
       seen the test output. For a second task, start a new lane with its own worktree. Don’t point two
-      sessions at the same checkout.
+      sessions at the same checkout. <a href="/guides/daily-work/">Daily work</a> covers what comes next:
+      reviewing, merging, and running several lanes.
     </p>
     <p>
       <a href={doc('worktrees.md')}>Worktree safeguards</a> · <a href={doc('chat.md')}
@@ -118,16 +120,17 @@ const sections: [string, string][] = [
     </p>
   </section>
   <section id="extend">
-    <h2>4. Add extensions</h2>
+    <h2>4. Go further</h2>
     <p>
       Once coding works, add what you need. pi packages add web search, MCP services, subagents, and
       computer use. Install only what you’ll use, then start a new session.
     </p>
     <div class="guide-grid">
       {
-        guides.slice(1).map(({ href, title }) => (
+        guides.slice(1).map(({ href, title, blurb }) => (
           <a href={href}>
             <h3>{title} →</h3>
+            <p>{blurb}</p>
           </a>
         ))
       }
@@ -162,8 +165,8 @@ const sections: [string, string][] = [
         <strong>No models:</strong> check that you’re signed in, and start a new session after changing
         provider config.
       </li><li>
-        <strong>Claude is unavailable:</strong> use the <a
-          href="/guides/claude-code/#troubleshooting">Claude troubleshooting checklist</a
+        <strong>Claude is unavailable:</strong> use the <a href="/guides/accounts/#troubleshooting"
+          >Claude troubleshooting checklist</a
         >.
       </li><li>
         <strong>Connector won’t authenticate:</strong> check its scopes and run <a

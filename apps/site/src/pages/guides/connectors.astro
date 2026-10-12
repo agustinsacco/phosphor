@@ -1,7 +1,8 @@
 ---
 import Guide from '../../layouts/Guide.astro'
 import Capture from '../../components/Capture.astro'
-import { connectors, doc, shot } from '../../lib/content'
+import Command from '../../components/Command.astro'
+import { connectors, doc, piDoc, shot } from '../../lib/content'
 const sections: [string, string][] = [
   ['adapter', '1. Install the adapter'],
   ['connect', '2. Connect a service'],
@@ -20,12 +21,11 @@ const sections: [string, string][] = [
   <section id="adapter">
     <h2>1. Install the MCP adapter</h2>
     <p>
-      MCP is the protocol. A connector is one configured MCP server. pi doesn’t ship MCP support
-      itself, so install the <strong>MCP adapter</strong> from Settings → Extensions, or run:
+      MCP is the protocol. A connector is one configured MCP server. pi has MCP support of its own,
+      but Phosphor’s connectors work through the <strong>MCP adapter</strong> package, which replaces
+      it in sessions and handles sign-in. Install it from Settings → Extensions, or run:
     </p>
-    <pre
-      tabindex="0"
-      aria-label="Install the MCP adapter"><code>pi install npm:pi-mcp-adapter</code></pre>
+    <Command cmd="pi install npm:pi-mcp-adapter" label="Install the MCP adapter" />
     <p>
       <strong>Settings → Extensions → MCP Connectors</strong> shows up before the adapter is installed,
       and its Advanced section can install it too. Installing the adapter doesn’t connect any service
@@ -148,7 +148,7 @@ const sections: [string, string][] = [
     <p>
       <a href={doc('mcp.md')}>MCP configuration, scope resolution, and OAuth reference</a> · <a
         href="/guides/extensions/#mcp">MCP adapter package</a
-      >
+      > · <a href={piDoc('mcp')}>pi’s built-in MCP</a>
     </p>
   </section>
 </Guide>

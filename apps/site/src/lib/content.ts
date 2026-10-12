@@ -19,6 +19,8 @@ import guideConnectors from '../assets/shots/guide-connectors.webp'
 export const repo = 'https://github.com/agustinsacco/Phosphor'
 export const releases = `${repo}/releases`
 export const doc = (path: string) => `${repo}/blob/main/docs/${path}`
+/** pi's own documentation, for anything pi owns: packages, extensions, providers. */
+export const piDoc = (page: string) => `https://pi.dev/docs/latest/${page}`
 
 // Publish only reviewed assets used by these pages. A glob would also emit
 // unused historical account/settings originals into the public build.
@@ -66,7 +68,8 @@ export const packages = [
     id: 'claude',
     name: 'Claude Code provider',
     spec: 'npm:@saccolabs/pi-claude-cli',
-    benefit: 'Use your Claude Pro or Max plan in pi.',
+    benefit: 'Use your Claude Pro or Max plan, across as many Claude accounts as you have.',
+    recommended: 'Recommended for Claude Pro and Max',
     url: 'https://github.com/agustinsacco/pi-claude-cli',
   },
   {
@@ -159,8 +162,29 @@ export const connectors = [
 ]
 
 export const guides = [
-  { href: '/guides/', title: 'Install and start' },
-  { href: '/guides/claude-code/', title: 'Claude Code + accounts' },
-  { href: '/guides/extensions/', title: 'Extensions' },
-  { href: '/guides/connectors/', title: 'MCP connectors' },
+  {
+    href: '/guides/',
+    title: 'Install and start',
+    blurb: 'Install pi and Phosphor, sign in, and run a first task.',
+  },
+  {
+    href: '/guides/daily-work/',
+    title: 'Daily work',
+    blurb: 'Lanes, review and merge, panes, artifacts, routines, and skills.',
+  },
+  {
+    href: '/guides/accounts/',
+    title: 'Subscriptions and accounts',
+    blurb: 'Sign in to several plans and keep going when one runs out.',
+  },
+  {
+    href: '/guides/extensions/',
+    title: 'Extensions',
+    blurb: 'What’s built in, what to install, and how pi packages load.',
+  },
+  {
+    href: '/guides/connectors/',
+    title: 'MCP connectors',
+    blurb: 'Connect services, sign in, test them, and add custom servers.',
+  },
 ]
