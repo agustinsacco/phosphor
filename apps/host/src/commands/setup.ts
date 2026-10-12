@@ -1,5 +1,16 @@
 import { randomUUID } from 'node:crypto'
-import { chmod, link, lstat, mkdir, open, realpath, rename, stat, unlink } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import {
+  link,
+  lstat,
+  mkdir,
+  open,
+  realpath,
+  rename,
+  stat,
+  unlink,
+  type FileHandle,
+} from 'node:fs/promises'
 import { basename, dirname, join, resolve } from 'node:path'
 import { errorText } from '@phosphor/shared/errors'
 import { EXIT, exitCodeFor, fail, type Check } from '../checks'
@@ -242,7 +253,8 @@ function isMissing(error: unknown): boolean {
 
 async function directoryProblem(dir: string, uid: number | undefined): Promise<string | null> {
   if (uid === undefined) return 'the Host runs on Linux and macOS'
-  await createPrivate(dir)
+  const replaced = await createPrivate(dir, uid)
+  if (replaced) return replaced
   const info = await stat(dir)
   if (info.uid !== uid) return `${dir} belongs to uid ${info.uid}, not to you (${uid})`
   if (info.mode & 0o022) return `${dir} is writable by others: run chmod go-w ${dir}`
@@ -252,8 +264,10 @@ async function directoryProblem(dir: string, uid: number | undefined): Promise<s
 /**
  * Create `dir` and any missing parents as 0700, whatever the umask. Only the
  * folders created here are chmodded: an existing one is judged, not repaired.
+ * The mode is set through a handle opened without following a symlink, so a
+ * folder renamed and replaced between mkdir and chmod is refused, not chmodded.
  */
-async function createPrivate(dir: string): Promise<void> {
+async function createPrivate(dir: string, uid: number): Promise<string | null> {
   const missing: string[] = []
   for (let path = dir; ; path = dirname(path)) {
     if (
@@ -273,8 +287,23 @@ async function createPrivate(dir: string): Promise<void> {
       if (error instanceof Error && 'code' in error && error.code === 'EEXIST') continue
       throw error
     }
-    await chmod(path, 0o700)
+    let handle: FileHandle
+    try {
+      handle = await open(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW)
+    } catch {
+      return `${path} changed while setup was creating it; rerun phosphor setup`
+    }
+    try {
+      const info = await handle.stat()
+      if (!info.isDirectory() || info.uid !== uid) {
+        return `${path} changed while setup was creating it; rerun phosphor setup`
+      }
+      await handle.chmod(0o700)
+    } finally {
+      await handle.close()
+    }
   }
+  return null
 }
 
 export function renderSetup(report: SetupReport): string {

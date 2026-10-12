@@ -505,6 +505,48 @@ describe('setup existing config and permissions', () => {
     expect((await stat(join(dir, 'shared'))).mode & 0o777).toBe(0o770)
     expect((await stat(dirname(context.configPath))).mode & 0o777).toBe(0o700)
   })
+  it('refuses, never chmods, a symlink swapped in after setup creates a directory', async () => {
+    const target = join(dir, 'victim')
+    await mkdir(target)
+    await chmod(target, 0o755)
+    const real = await vi.importActual<typeof FsPromises>('node:fs/promises')
+    vi.mocked(mkdir).mockImplementationOnce(async (path) => {
+      await real.mkdir(path, { mode: 0o700 })
+      await real.rename(path, `${String(path)}-moved`)
+      await real.symlink(target, path)
+      return undefined
+    })
+    const report = await runSetup(context)
+    expect(report.exitCode).toBe(78)
+    expect(renderSetup(report)).toContain('changed while setup was creating it')
+    expect((await stat(target)).mode & 0o777).toBe(0o755)
+    expect(await readdir(target)).toEqual([])
+  })
+  it('sets the mode on the directory it opened, not on a symlink swapped in afterwards', async () => {
+    const target = join(dir, 'victim')
+    await mkdir(target)
+    await chmod(target, 0o755)
+    const real = await vi.importActual<typeof FsPromises>('node:fs/promises')
+    const created = dirname(context.configPath)
+    vi.mocked(open).mockImplementation(async (path, flags, mode) => {
+      const handle = await real.open(path, flags, mode)
+      if (path === created) {
+        await real.rename(created, `${created}-moved`)
+        await real.symlink(target, created)
+      }
+      return handle
+    })
+    await runSetup(context)
+    expect((await stat(target)).mode & 0o777).toBe(0o755)
+    expect((await stat(`${created}-moved`)).mode & 0o777).toBe(0o700)
+  })
+  it('refuses a directory it created that does not belong to the caller', async () => {
+    context.uid = (context.uid ?? 0) + 1
+    const report = await runSetup(context)
+    expect(report.exitCode).toBe(78)
+    expect(renderSetup(report)).toContain('changed while setup was creating it')
+    await nothingWritten()
+  })
   it('judges, never chmods, a directory that appears while setup creates it', async () => {
     const target = dirname(context.configPath)
     const real = await vi.importActual<typeof FsPromises>('node:fs/promises')
