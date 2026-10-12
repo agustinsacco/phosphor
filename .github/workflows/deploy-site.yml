@@ -26,6 +26,11 @@ on:
         type: boolean
         required: true
         default: false
+      ignore_skip_release:
+        description: Deploy even though main's head carries Skip-Release (the hold variable still applies)
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read

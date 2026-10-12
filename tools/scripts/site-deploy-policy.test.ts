@@ -104,6 +104,28 @@ describe('site-deploy-policy', () => {
     expect(decision({ ...manual, message: 'chore: hold\n\nSkip-Release: true' })).toBe('skip')
   })
 
+  it('lets only a confirmed manual run that names the trailer deploy past Skip-Release', () => {
+    const held = 'chore: hold\n\nSkip-Release: true'
+    const inputs = { confirm: 'true', ignore_skip_release: 'true' }
+    const manual = {
+      eventName: 'workflow_dispatch',
+      event: { repository: context.event.repository, inputs },
+      message: held,
+    }
+    expect(decision(manual)).toBe('deploy')
+    expect(decision({ ...manual, hold: 'true' })).toBe('skip')
+    expect(
+      decision({ ...manual, event: { ...manual.event, inputs: { ...inputs, confirm: 'false' } } }),
+    ).toBe('error')
+    expect(
+      decision({
+        ...manual,
+        event: { ...manual.event, inputs: { ...inputs, ignore_skip_release: 'false' } },
+      }),
+    ).toBe('skip')
+    expect(decision({ message: held, event: { ...context.event, inputs } })).toBe('skip')
+  })
+
   it('waits for absent and pending CI, rather than treating absence as success', () => {
     expect(siteDeployDecision(context).state).toBe('wait')
     expect(siteDeployDecision(context, workflow, { workflow_runs: [] }).state).toBe('wait')
