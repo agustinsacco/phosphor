@@ -253,7 +253,15 @@ function isMissing(error: unknown): boolean {
 
 async function directoryProblem(dir: string, uid: number | undefined): Promise<string | null> {
   if (uid === undefined) return 'the Host runs on Linux and macOS'
-  const replaced = await createPrivate(dir, uid)
+  // Folders are born 0700 under a private umask, so even a umask that drops
+  // the owner's read bit leaves one setup can open without following links.
+  const previous = process.umask(0o077)
+  let replaced: string | null
+  try {
+    replaced = await createPrivate(dir, uid)
+  } finally {
+    process.umask(previous)
+  }
   if (replaced) return replaced
   const info = await stat(dir)
   if (info.uid !== uid) return `${dir} belongs to uid ${info.uid}, not to you (${uid})`

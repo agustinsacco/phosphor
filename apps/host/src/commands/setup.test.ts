@@ -471,16 +471,18 @@ describe('setup existing config and permissions', () => {
     expect((await readFile(context.configPath, 'utf8')).endsWith('\n')).toBe(true)
     expect(await readdir(dirname(context.configPath))).toEqual(['config.json'])
   })
-  it.each([0o200, 0o177, 0o100])(
-    'creates 0700 directories and a 0600 file under the restrictive umask %o',
+  it.each([0o200, 0o177, 0o100, 0o400, 0o700])(
+    'creates 0700 directories and a 0600 file under the restrictive umask %o, and restores it',
     async (mask) => {
       context.configPath = join(dir, 'xdg', 'phosphor-host', 'config.json')
       const umask = process.umask(mask)
+      let after: number
       try {
         expect((await runSetup(context)).exitCode).toBe(0)
       } finally {
-        process.umask(umask)
+        after = process.umask(umask)
       }
+      expect(after).toBe(mask)
       for (const folder of [join(dir, 'xdg'), dirname(context.configPath)]) {
         expect((await stat(folder)).mode & 0o777).toBe(0o700)
       }
