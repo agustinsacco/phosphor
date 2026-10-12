@@ -31,7 +31,7 @@ export function ThinkingMenu({
   return (
     <PopupMenu
       onClose={onClose}
-      className={className ?? 'absolute bottom-full left-0 mb-2 w-40 max-w-[10rem] py-1'}
+      className={className ?? 'absolute bottom-full right-0 mb-2 w-40 max-w-[10rem] py-1'}
       fitViewport
     >
       {levels.map((level) => (

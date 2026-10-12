@@ -144,12 +144,24 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
           opening a one-item menu (or a hidden chip over real choices) is the
           bug this avoids. */}
       {levelsToRender.length > 1 && (
-        <ThinkingChip
-          testId="thinking-chip"
-          active={open === 'thinking'}
-          onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
-          label={thinkingLabel(meta.thinkingLevel)}
-        />
+        // Its own anchor: the picker spans the footer's free width, so a
+        // menu placed against it opens under the model chip, not this one.
+        <div className="relative shrink-0">
+          <ThinkingChip
+            testId="thinking-chip"
+            active={open === 'thinking'}
+            onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
+            label={thinkingLabel(meta.thinkingLevel)}
+          />
+          {open === 'thinking' && (
+            <ThinkingMenu
+              levels={levelsToRender}
+              current={meta.thinkingLevel}
+              onPick={(level) => void setThinking(level)}
+              onClose={() => setOpen(null)}
+            />
+          )}
+        </div>
       )}
 
       {open === 'model' && (
@@ -164,15 +176,6 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
           loading={!modelsLoaded}
           emptyText="No models configured — sign in via the terminal (`pi /login`) or add API keys."
           className="w-[30rem] max-w-[92vw]"
-        />
-      )}
-
-      {open === 'thinking' && (
-        <ThinkingMenu
-          levels={levelsToRender}
-          current={meta.thinkingLevel}
-          onPick={(level) => void setThinking(level)}
-          onClose={() => setOpen(null)}
         />
       )}
     </div>
