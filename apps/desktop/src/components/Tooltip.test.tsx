@@ -347,10 +347,14 @@ describe('quiet tooltips', () => {
         <TooltipButton title="Hint">
           <Glyph />
         </TooltipButton>
+        <TooltipButton tooltip="Open image">
+          <img alt="Attached image" />
+        </TooltipButton>
       </>,
     )
     expect(buttons()[0]!.getAttribute('aria-label')).toBe('Close pane')
     expect(buttons()[1]!.getAttribute('aria-label')).toBeNull()
+    expect(buttons()[2]!.getAttribute('aria-label')).toBeNull()
   })
 
   it('gives icon-only structured hints an accessible name', () => {

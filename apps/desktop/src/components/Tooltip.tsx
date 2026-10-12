@@ -99,7 +99,11 @@ export function TooltipButton({
   useLayoutEffect(() => {
     const node = own.current
     if (!node || props['aria-label'] !== undefined) return
-    if (fallbackName && !node.textContent?.trim()) node.setAttribute('aria-label', fallbackName)
+    // Visible text, an image's alt, or a labelled child already names it.
+    const named =
+      !!node.textContent?.trim() ||
+      !!node.querySelector('img[alt]:not([alt=""]), [aria-label]:not([aria-hidden="true"])')
+    if (fallbackName && !named) node.setAttribute('aria-label', fallbackName)
     else node.removeAttribute('aria-label')
   })
   return (

@@ -174,7 +174,7 @@ test('lane PR badges distinguish lightweight, unavailable and truncated results'
     const row = h.page.getByTestId('session-row')
     const badge = row.getByTestId('session-pr-badge')
     await expect(badge).toHaveText('#17006')
-    await expect(badge).toHaveAttribute('title', /checks unavailable/)
+    await expect(badge).toHaveAttribute('data-tooltip', /checks unavailable/)
 
     for (const result of [null, { byBranch: {}, complete: false }]) {
       await h.app.evaluate((_electron, value) => {

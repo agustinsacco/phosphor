@@ -2777,7 +2777,7 @@ test('worktree flow: create from the branch chip, session stays under the projec
     // transparent fill over a moving gradient, so a flag that never resets
     // leaves every session title permanently animated.
     await expect(page.locator('.name-pending')).toHaveCount(0, { timeout: 15_000 })
-    await expect(page.getByTestId('branch-chip')).not.toHaveAttribute('title', /provisional/)
+    await expect(page.getByTestId('branch-chip')).not.toHaveAttribute('data-tooltip', /provisional/)
 
     // Still one sidebar group for the project (not a header per branch); the
     // worktree is surfaced on the session row itself instead.
@@ -3711,7 +3711,7 @@ test('model picker: lexical search across providers, family grouping, stars', as
     await expect(rows).toHaveCount(2)
     await search.fill('provider:openai')
     await expect(rows).toHaveCount(1)
-    await expect(rows.first()).toHaveAttribute('title', 'openai/gpt-5')
+    await expect(rows.first()).toHaveAttribute('data-tooltip', 'openai/gpt-5')
 
     // A miss says so rather than falling back to the whole catalogue.
     await search.fill('llama')
@@ -5758,7 +5758,7 @@ test('an artifact link the model wrote opens the Artifacts pane', async () => {
     await page.getByRole('button', { name: /Start session/i }).click()
 
     const artifactLink = page.getByRole('link', { name: 'Preview the design' })
-    await expect(artifactLink).toHaveAttribute('title', 'Open in Artifacts pane', {
+    await expect(artifactLink).toHaveAttribute('data-tooltip', 'Open in Artifacts pane', {
       timeout: 30_000,
     })
     // No href, same as a file link: nothing can navigate the app away.
@@ -5877,7 +5877,7 @@ test('a link to a spec the model wrote opens it in the Files pane', async () => 
 
     // The path link has no href at all: nothing can navigate the app away.
     const specLink = page.getByRole('link', { name: 'docs/plan.md' })
-    await expect(specLink).toHaveAttribute('title', 'Open in Files pane')
+    await expect(specLink).toHaveAttribute('data-tooltip', 'Open in Files pane')
     expect(await specLink.getAttribute('href')).toBeNull()
 
     await specLink.click()
