@@ -124,6 +124,32 @@ describe('identity lock', () => {
       }
     },
   )
+  it('never reclaims an invalid lock replaced by another invalid lock before the gate', async () => {
+    const path = join(dir, '.lock')
+    await writeFile(path, '{}', { mode: 0o600 })
+    let reads = 0
+    const replaced = {
+      ...ports,
+      lstat: async (name: string) => {
+        // Third read is the recheck under the gate: another invalid file now sits there.
+        if (++reads === 3) {
+          await writeFile(join(dir, 'other'), '{"other":1}', { mode: 0o600 })
+          await rename(join(dir, 'other'), path)
+        }
+        return lstat(name)
+      },
+    }
+    await expect(acquireIdentityLock(dir, uid, replaced)).rejects.toBeInstanceOf(LockBusy)
+    expect(await readFile(path, 'utf8')).toBe('{"other":1}')
+  })
+  it('rechecks liveness under the gate and keeps a lock whose owner now looks alive', async () => {
+    const path = join(dir, '.lock')
+    await writeFile(path, record(456), { mode: 0o600 })
+    let checks = 0
+    const flipping = { ...ports, isAlive: (pid: number) => pid === 123 || ++checks > 2 }
+    await expect(acquireIdentityLock(dir, uid, flipping)).rejects.toThrow('running (pid 456)')
+    expect(JSON.parse(await readFile(path, 'utf8')).pid).toBe(456)
+  })
   it('reclaims a symlinked lock without touching its target', async () => {
     const target = join(dir, 'target')
     await writeFile(target, record(456), { mode: 0o600 })
