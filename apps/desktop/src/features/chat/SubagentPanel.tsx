@@ -127,10 +127,20 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
           className="border-border flex shrink-0 gap-2 border-b px-3 py-2"
           aria-label="Subagent views"
         >
-          <Button size="sm" aria-pressed={view === 'live'} onClick={() => setView('live')}>
+          <Button
+            size="sm"
+            className="text-text-secondary aria-pressed:bg-bg-secondary aria-pressed:text-text"
+            aria-pressed={view === 'live'}
+            onClick={() => setView('live')}
+          >
             Live work
           </Button>
-          <Button size="sm" aria-pressed={view === 'history'} onClick={() => setView('history')}>
+          <Button
+            size="sm"
+            className="text-text-secondary aria-pressed:bg-bg-secondary aria-pressed:text-text"
+            aria-pressed={view === 'history'}
+            onClick={() => setView('history')}
+          >
             Recorded coordination
           </Button>
         </div>
