@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useMemo, useState } from 'react'
 import { useWorkspacesStore } from '@/stores/workspaces'
 import { useExtensionUiStore } from '@/stores/extensionUi'
@@ -127,7 +128,7 @@ export function WorkspacesTab(): React.JSX.Element {
         >
           <span className="flex items-center gap-1">
             {(['auto', 'manual', 'off'] as const).map((mode) => (
-              <button
+              <TooltipButton
                 key={mode}
                 onClick={() => setLanePrefs({ markers: mode })}
                 className={
@@ -137,7 +138,7 @@ export function WorkspacesTab(): React.JSX.Element {
                 }
               >
                 {mode}
-              </button>
+              </TooltipButton>
             ))}
           </span>
         </Row>
@@ -190,12 +191,12 @@ export function WorkspacesTab(): React.JSX.Element {
             <Button size="xs" onClick={() => resetLayout(workspace)} className="shrink-0">
               Reset layout
             </Button>
-            <button
+            <TooltipButton
               onClick={() => void remove(workspace)}
               className="text-text-tertiary hover:text-danger shrink-0 rounded-md px-1.5 py-1 text-sm transition-colors"
             >
               Remove
-            </button>
+            </TooltipButton>
           </div>
         ))}
       </div>
@@ -267,18 +268,18 @@ function SandboxRow({ sandbox }: { sandbox: SandboxInfo }): React.JSX.Element {
         </>
       ) : (
         <>
-          <button
+          <TooltipButton
             onClick={() => void promptRenameSandbox(sandbox.path)}
             className="text-text-tertiary hover:text-text shrink-0 rounded-md px-1.5 py-1 text-sm transition-colors"
           >
             Rename
-          </button>
-          <button
+          </TooltipButton>
+          <TooltipButton
             onClick={() => setConfirming(true)}
             className="text-text-tertiary hover:text-danger shrink-0 rounded-md px-1.5 py-1 text-sm transition-colors"
           >
             Delete
-          </button>
+          </TooltipButton>
         </>
       )}
     </div>

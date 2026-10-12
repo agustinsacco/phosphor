@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { useChatStore } from '@/stores/chat'
@@ -112,7 +113,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
 
   return (
     <div className="relative">
-      <button
+      <TooltipButton
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         title={
@@ -162,7 +163,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
             {formatTokens(Math.round(burn.tokensPerMinute))}/min
           </span>
         )}
-      </button>
+      </TooltipButton>
 
       {open && (
         <PopupMenu
@@ -231,7 +232,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
                 {stats.cost === 0 && hasNoPricing(model) ? (
                   <div className="text-text-tertiary flex items-center justify-between gap-3">
                     <span>Cost</span>
-                    <button
+                    <TooltipButton
                       onClick={() => {
                         setOpen(false)
                         const settingsUi = useSettingsUiStore.getState()
@@ -242,7 +243,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
                       className="text-warning truncate hover:underline"
                     >
                       no pricing →
-                    </button>
+                    </TooltipButton>
                   </div>
                 ) : (
                   <StatRow label="Cost" value={formatCost(stats.cost)} />
@@ -296,13 +297,13 @@ function ContextComposition({
               width: `${(slice.tokens / Math.max(total, window)) * 100}%`,
               backgroundColor: slice.color,
             }}
-            title={`${slice.label}: ${formatTokens(slice.tokens)}`}
+            data-tooltip={`${slice.label}: ${formatTokens(slice.tokens)}`}
           />
         ))}
       </div>
       <div className="mt-1.5 grid grid-cols-2 gap-x-5 gap-y-0.5 text-base">
         {slices.map((slice) => (
-          <div key={slice.key} className="flex items-center gap-1.5" title={slice.hint}>
+          <div key={slice.key} className="flex items-center gap-1.5" data-tooltip={slice.hint}>
             <span
               className="h-2 w-2 shrink-0 rounded-full"
               style={{ backgroundColor: slice.color }}
@@ -371,7 +372,7 @@ function McpServers({
         {rows.map((row) => (
           <span
             key={row.name}
-            title={mcpServerTitle(row)}
+            data-tooltip={mcpServerTitle(row)}
             className="bg-bg-secondary text-text-secondary flex items-baseline gap-1.5 rounded px-1.5 py-0.5 font-mono text-sm"
           >
             <span className="max-w-[9rem] truncate">{row.name}</span>
@@ -454,7 +455,7 @@ function PlanUsage({ sessionId }: { sessionId: string }): React.JSX.Element {
     <section className="border-border/60 mt-2 border-t pt-1.5">
       <div className="flex items-center justify-between gap-2">
         <SectionLabel>{`Plan usage · ${who}${stale ? ' · last known' : ''}`}</SectionLabel>
-        <button
+        <TooltipButton
           onClick={refresh}
           disabled={state === null}
           title="Re-read this account's usage from the Claude CLI"
@@ -462,7 +463,7 @@ function PlanUsage({ sessionId }: { sessionId: string }): React.JSX.Element {
         >
           {state === null ? <Spinner className="text-text-tertiary" /> : <RefreshIcon />}
           Refresh
-        </button>
+        </TooltipButton>
       </div>
       {state === null ? (
         <div className="text-text-tertiary text-sm">Checking…</div>
@@ -511,7 +512,7 @@ function CodexPlanUsage(): React.JSX.Element {
     <section className="border-border/60 mt-2 border-t pt-1.5">
       <div className="flex items-center justify-between gap-2">
         <SectionLabel>Plan usage · ChatGPT account</SectionLabel>
-        <button
+        <TooltipButton
           onClick={() => setReload((n) => n + 1)}
           disabled={state === null}
           title="Re-read this account's usage from ChatGPT"
@@ -519,7 +520,7 @@ function CodexPlanUsage(): React.JSX.Element {
         >
           {state === null ? <Spinner className="text-text-tertiary" /> : <RefreshIcon />}
           Refresh
-        </button>
+        </TooltipButton>
       </div>
       {state === null ? (
         <div className="text-text-tertiary text-sm">Checking…</div>
@@ -533,7 +534,7 @@ function CodexPlanUsage(): React.JSX.Element {
           {credits && (
             <div
               className="text-text-secondary col-span-3 text-sm"
-              title={windowResetLabel(credits.resetsAt) ?? undefined}
+              data-tooltip={windowResetLabel(credits.resetsAt) ?? undefined}
             >
               {credits.remaining.toLocaleString(undefined, { maximumFractionDigits: 1 })} of{' '}
               {credits.limit.toLocaleString()} credits left
@@ -566,7 +567,7 @@ function UsageDial({ window }: { window: PlanUsageWindow }): React.JSX.Element {
   return (
     <div
       className="flex flex-col items-center gap-0.5"
-      title={`${windowTitle(window)} — ${percent}% used${full ? ` · ${full}` : ''}`}
+      data-tooltip={`${windowTitle(window)} — ${percent}% used${full ? ` · ${full}` : ''}`}
     >
       <div className="relative h-[42px] w-[42px]">
         <svg width="42" height="42" viewBox="0 0 42 42" className="-rotate-90">
@@ -672,13 +673,13 @@ function AccountRouting({
                 : 'Out of plan allowance, and every other account is too.'
             : `Spending ${account.email ?? account.label} of ${account.total} accounts.`}
         </span>
-        <button
+        <TooltipButton
           onClick={open}
           className="text-accent shrink-0 hover:underline"
           aria-expanded={picking}
         >
           {picking ? 'Cancel' : 'Switch account'}
-        </button>
+        </TooltipButton>
       </div>
       {picking && (
         <div className="border-border/60 mt-1.5 space-y-0.5 rounded-md border p-1">
@@ -693,7 +694,7 @@ function AccountRouting({
           ) : (
             <>
               {targets.map((target) => (
-                <button
+                <TooltipButton
                   key={target.id}
                   disabled={moving !== null}
                   onClick={() => {
@@ -714,7 +715,7 @@ function AccountRouting({
                   {account.alternative?.id === target.id && !target.held && (
                     <span className="text-text-tertiary shrink-0 text-2xs">next in routing</span>
                   )}
-                </button>
+                </TooltipButton>
               ))}
               <div className="text-text-tertiary px-1.5 pt-0.5 text-2xs leading-snug">
                 Restarts this lane on the chosen account: same session file, one full re-read of the
@@ -819,7 +820,7 @@ function HeadroomSavings({
         <SectionLabel>Optimization · Headroom</SectionLabel>
         <span
           className="text-success shrink-0 font-mono text-sm tabular-nums"
-          title="Tokens this session never had to carry"
+          data-tooltip="Tokens this session never had to carry"
         >
           −{formatTokens(status.savedTokens)}
         </span>

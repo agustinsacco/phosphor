@@ -84,9 +84,9 @@ function rows(): HTMLButtonElement[] {
 /** A row by the `provider/id` it carries in its title. */
 function rowFor(key: string): HTMLButtonElement {
   const found = rows().find(
-    (r) => r.title.startsWith(key) || r.title.startsWith(key.split('/')[1]!),
+    (r) => r.dataset.tooltip!.startsWith(key) || r.dataset.tooltip!.startsWith(key.split('/')[1]!),
   )
-  if (!found) throw new Error(`no row for ${key}: ${rows().map((r) => r.title)}`)
+  if (!found) throw new Error(`no row for ${key}: ${rows().map((r) => r.dataset.tooltip!)}`)
   return found
 }
 
@@ -231,19 +231,23 @@ describe('ModelMenu search', () => {
     mount(MULTI_PROVIDER)
     type('opus 5')
     expect(rows()).toHaveLength(3)
-    expect(rows().every((r) => r.title.includes('opus'))).toBe(true)
+    expect(rows().every((r) => r.dataset.tooltip!.includes('opus'))).toBe(true)
   })
 
   it('narrows to one provider without knowing how its ids are spelled', () => {
     mount(MULTI_PROVIDER)
     type('opus bedrock')
-    expect(rows().map((r) => r.title)).toEqual(['amazon-bedrock/us.anthropic.claude-opus-5'])
+    expect(rows().map((r) => r.dataset.tooltip!)).toEqual([
+      'amazon-bedrock/us.anthropic.claude-opus-5',
+    ])
   })
 
   it('does not care about term order', () => {
     mount(MULTI_PROVIDER)
     type('bedrock opus')
-    expect(rows().map((r) => r.title)).toEqual(['amazon-bedrock/us.anthropic.claude-opus-5'])
+    expect(rows().map((r) => r.dataset.tooltip!)).toEqual([
+      'amazon-bedrock/us.anthropic.claude-opus-5',
+    ])
   })
 
   it('reports when nothing matches', () => {
@@ -312,7 +316,7 @@ describe('ModelMenu provider filter', () => {
         .find((b) => b.textContent?.startsWith('openai'))!
         .click()
     })
-    expect(rows().map((r) => r.title)).toEqual(['openai/gpt-5'])
+    expect(rows().map((r) => r.dataset.tooltip!)).toEqual(['openai/gpt-5'])
   })
 
   it('hides the chip row when every model comes from one provider', () => {
@@ -358,7 +362,9 @@ describe('ModelMenu stars and recents', () => {
     mount(MULTI_PROVIDER)
     type('opus')
     expect(headers().some((h) => /Starred/.test(h))).toBe(false)
-    expect(rows().filter((r) => r.title === 'pi-claude-cli/claude-opus-5')).toHaveLength(1)
+    expect(rows().filter((r) => r.dataset.tooltip! === 'pi-claude-cli/claude-opus-5')).toHaveLength(
+      1,
+    )
   })
 
   it('does not repeat a starred model in the recent list', () => {
@@ -370,7 +376,7 @@ describe('ModelMenu stars and recents', () => {
     // GPT-5 is starred, so the Recent section holds only the other entry —
     // 4 catalogue rows + 1 starred + 1 recent.
     expect(rows()).toHaveLength(6)
-    expect(rows().filter((r) => r.title === 'openai/gpt-5')).toHaveLength(2)
+    expect(rows().filter((r) => r.dataset.tooltip! === 'openai/gpt-5')).toHaveLength(2)
   })
 
   it('records a pick as the most recent model', () => {

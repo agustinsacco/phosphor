@@ -129,7 +129,7 @@ export function Ledger({
               {stats.savedTokens > 0 && (
                 <span
                   className="text-success w-14 shrink-0 text-right font-mono tabular-nums"
-                  title="Tokens headroom compression kept out of this lane's context"
+                  data-tooltip="Tokens headroom compression kept out of this lane's context"
                 >
                   {meta.headroomSavedTokens > 0 ? `−${formatTokens(meta.headroomSavedTokens)}` : ''}
                 </span>

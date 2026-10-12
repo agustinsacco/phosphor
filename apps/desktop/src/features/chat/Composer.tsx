@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { ImageContent } from '@shared/rpc'
@@ -470,7 +471,7 @@ export function Composer({
               role="group"
               aria-label="Send to running agent"
             >
-              <button
+              <TooltipButton
                 type="button"
                 onClick={() => {
                   void send('steer')
@@ -480,8 +481,8 @@ export function Composer({
                 className="text-text-secondary hover:bg-bg-secondary hover:text-text min-h-7 rounded-md px-2 text-base"
               >
                 Steer now
-              </button>
-              <button
+              </TooltipButton>
+              <TooltipButton
                 type="button"
                 onClick={() => {
                   void send('followUp')
@@ -491,7 +492,7 @@ export function Composer({
                 className="text-text-secondary hover:bg-bg-secondary hover:text-text min-h-7 rounded-md px-2 text-base"
               >
                 Queue follow-up
-              </button>
+              </TooltipButton>
             </div>
           )}
 

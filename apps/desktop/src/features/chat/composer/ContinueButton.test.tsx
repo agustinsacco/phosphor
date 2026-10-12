@@ -59,7 +59,7 @@ describe('ContinueButton', () => {
     const button = render()
     expect(button.disabled).toBe(false)
     expect(button.getAttribute('aria-label')).toBe('Continue')
-    expect(button.title).toBe('Send "continue"')
+    expect(button.dataset.tooltip).toBe('Send "continue"')
 
     await act(async () => button.click())
 

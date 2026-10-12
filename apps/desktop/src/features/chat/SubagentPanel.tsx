@@ -1,3 +1,4 @@
+import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { PaneShell, PaneTitle } from '@/components/PaneShell'
@@ -266,12 +267,12 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
             {foregroundId ? (
               <>
                 <div className="border-border shrink-0 border-b p-3">
-                  <button
+                  <TooltipButton
                     className="text-text-secondary mb-2 underline @min-[640px]:hidden"
                     onClick={() => setShowList(true)}
                   >
                     Back to runs
-                  </button>
+                  </TooltipButton>
                   <h3 ref={detailTitle} tabIndex={-1} className="font-semibold">
                     Foreground delegation
                   </h3>
@@ -294,7 +295,7 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
             ) : (
               <>
                 <div className="border-border shrink-0 border-b px-3 py-2 text-base">
-                  <button
+                  <TooltipButton
                     className="text-text-secondary mb-2 rounded underline @min-[640px]:hidden"
                     onClick={() => {
                       setShowList(true)
@@ -306,7 +307,7 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
                     }}
                   >
                     Back to runs
-                  </button>
+                  </TooltipButton>
                   <div className="flex items-start justify-between gap-2">
                     <h3
                       ref={detailTitle}
@@ -334,9 +335,9 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
                         : ''}
                   </p>
                   <details className="mt-2" key={`${target.runId}:${target.childId}`}>
-                    <summary className="text-text-secondary cursor-pointer text-sm">
+                    <TooltipSummary className="text-text-secondary cursor-pointer text-sm">
                       Details & actions
-                    </summary>
+                    </TooltipSummary>
                     <div className="max-h-64 space-y-2 overflow-auto py-2">
                       <p className="break-all font-mono text-sm">
                         Run {target.runId}

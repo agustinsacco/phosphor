@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { memo } from 'react'
 import { useActivePanes, useLayoutStore } from '@/stores/layout'
 import { CloseIcon } from '@/components/icons'
@@ -103,14 +104,14 @@ export function PaneIconButton({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       title={title}
       aria-label={title}
       onClick={onClick}
       className="text-text-secondary hover:text-text hover:bg-bg-secondary flex h-8 w-8 shrink-0 items-center justify-center rounded-sm transition-colors"
     >
       {children}
-    </button>
+    </TooltipButton>
   )
 }
 

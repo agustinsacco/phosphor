@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { GitInfo, SessionMeta, WorktreeInfo } from '@shared/models'
@@ -950,7 +951,7 @@ export function Sidebar({
                   onContextMenu={(event) => groupContextMenu(event, group)}
                   className="group/header relative flex w-full items-center gap-1 pb-0.5 pl-2 pr-1 pt-2.5"
                 >
-                  <button
+                  <TooltipButton
                     onClick={() => toggleGroup(group, isCollapsed)}
                     data-testid="workspace-group"
                     className="text-text-secondary hover:text-text flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left text-sm font-semibold font-mono uppercase tracking-wider transition-colors"
@@ -971,11 +972,11 @@ export function Sidebar({
                     {group.liveCount > 0 && (
                       <span
                         className="bg-success h-1.5 w-1.5 shrink-0 rounded-full"
-                        title={`${group.liveCount} live`}
+                        data-tooltip={`${group.liveCount} live`}
                       />
                     )}
-                  </button>
-                  <button
+                  </TooltipButton>
+                  <TooltipButton
                     onClick={() => toggleSearch(group, isCollapsed)}
                     data-testid="workspace-group-search"
                     title="Search lanes"
@@ -989,8 +990,8 @@ export function Sidebar({
                     )}
                   >
                     <SearchIcon size={12} />
-                  </button>
-                  <button
+                  </TooltipButton>
+                  <TooltipButton
                     ref={
                       workspaceMenuFor === group.workspacePath ? workspaceMenuTriggerRef : undefined
                     }
@@ -1008,7 +1009,7 @@ export function Sidebar({
                     className="text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors"
                   >
                     <MoreIcon size={14} />
-                  </button>
+                  </TooltipButton>
                   {workspaceMenuFor === group.workspacePath && (
                     <PopupMenu
                       onClose={() => closeWorkspaceMenu()}
@@ -1117,7 +1118,7 @@ export function Sidebar({
                       )}
                     </PopupMenu>
                   )}
-                  <button
+                  <TooltipButton
                     onClick={() => {
                       useWorkspacesStore.getState().openWorkspace(group.workspacePath)
                       useSessionsStore.getState().activate(null)
@@ -1127,7 +1128,7 @@ export function Sidebar({
                     className="text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors active:scale-90"
                   >
                     <PlusIcon size={12} strokeWidth={2.5} />
-                  </button>
+                  </TooltipButton>
                 </div>
                 {isSearching(group) && (
                   <LaneSearchBar
@@ -1226,12 +1227,12 @@ export function Sidebar({
                   (group.attempted && group.errored ? (
                     <div className="text-text-tertiary flex items-center gap-2 px-2 py-2 text-sm">
                       <span>Couldn&apos;t load sessions</span>
-                      <button
+                      <TooltipButton
                         onClick={() => retryGroup(group)}
                         className="text-text-secondary hover:text-text rounded px-1 underline-offset-2 hover:underline"
                       >
                         Retry
-                      </button>
+                      </TooltipButton>
                     </div>
                   ) : group.attempted ? (
                     <div className="text-text-tertiary px-2 py-2 text-sm">
@@ -1253,13 +1254,13 @@ export function Sidebar({
       <div className="border-border border-t px-3 py-2">
         <UpdatePill />
         <FeedbackButton />
-        <button
+        <TooltipButton
           onClick={() => useSettingsUiStore.getState().setOpen(true)}
           className="text-text-secondary hover:text-text hover:bg-sidebar-hover -mx-1 flex w-[calc(100%+8px)] items-center gap-2 rounded-md px-1.5 py-1 text-base transition-colors"
           title={`Settings (${formatShortcut('mod', ',')})`}
         >
           <GearIcon /> Settings
-        </button>
+        </TooltipButton>
       </div>
 
       {treeFor && (
@@ -1293,19 +1294,19 @@ export function Sidebar({
         >
           <span className="text-sm font-semibold">{selection.paths.length} selected</span>
           <span className="flex-1" />
-          <button
+          <TooltipButton
             onClick={openBulkDelete}
             disabled={bulkDeleteRunning}
             className="bg-danger rounded-md px-2.5 py-1 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             {bulkDeleteRunning ? 'Delete in progress' : 'Delete…'}
-          </button>
-          <button
+          </TooltipButton>
+          <TooltipButton
             onClick={clearSelection}
             className="border-border text-text-secondary hover:text-text rounded-md border px-2.5 py-1 text-xs"
           >
             Cancel
-          </button>
+          </TooltipButton>
         </div>
       )}
 
@@ -1361,7 +1362,7 @@ function WorkspaceSwitcher(): React.JSX.Element {
     // window (there is no traffic-light strip above it), so it is the only
     // grab handle the sidebar has. The trigger and the menu opt back out.
     <div className="titlebar-drag relative px-3 pb-1.5 pt-1">
-      <button
+      <TooltipButton
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         data-testid="workspace-switcher"
@@ -1372,7 +1373,7 @@ function WorkspaceSwitcher(): React.JSX.Element {
         </span>
         <span className="min-w-0 flex-1 truncate text-left text-lg font-semibold">{name}</span>
         <ChevronDownIcon className="text-text-tertiary shrink-0" />
-      </button>
+      </TooltipButton>
 
       {open && (
         <PopupMenu
@@ -1706,6 +1707,7 @@ function SessionRow({
               : 'border-border-strong bg-surface',
             !selected && !selecting && 'hidden group-hover:grid',
           )}
+          data-tooltip={`Select ${title}`}
         >
           {selected ? '✓' : ''}
         </span>
@@ -1734,7 +1736,7 @@ function SessionRow({
             // the entrance; without it React patches the text node in place and
             // the name simply pops.
             key={title}
-            title={naming.pending ? 'Naming this chat…' : title}
+            data-tooltip={naming.pending ? 'Naming this chat…' : title}
             data-testid="session-title"
             className={clsx(
               SESSION_TITLE_CLASS,
@@ -1761,7 +1763,7 @@ function SessionRow({
           {isSuspended && (
             <span
               className="bg-chip text-text-secondary mr-0.5 shrink-0 rounded px-1 font-medium"
-              title="Process released to save memory. Opening this session resumes it from disk."
+              data-tooltip="Process released to save memory. Opening this session resumes it from disk."
             >
               suspended
             </span>
@@ -1778,7 +1780,7 @@ function SessionRow({
       {showWorkspace && rowWorkspaceName && (
         <span
           data-testid="session-workspace-badge"
-          title={meta.cwd || workspacePath}
+          data-tooltip={meta.cwd || workspacePath}
           className="bg-chip text-text-secondary shrink-0 rounded px-1.5 py-px text-2xs font-medium"
         >
           {rowWorkspaceName}
@@ -1834,7 +1836,7 @@ function SessionRow({
 
   return (
     <>
-      <button
+      <TooltipButton
         onClick={open}
         onContextMenu={contextMenu}
         onDoubleClick={beginRename}
@@ -1844,6 +1846,7 @@ function SessionRow({
         data-workspace={rowWorkspaceName}
         data-activity={activity}
         data-deleting={deleting || undefined}
+        tooltip={deleting ? 'Deleting lane' : title}
         title={
           deleting
             ? 'This lane is being deleted'
@@ -1854,7 +1857,7 @@ function SessionRow({
         className={rowClassName}
       >
         {body}
-      </button>
+      </TooltipButton>
       {markerPicker}
     </>
   )
@@ -1893,6 +1896,7 @@ function RenameInput({
       }}
       aria-label="Session name"
       className="border-border focus:border-accent block w-full min-w-0 rounded border bg-transparent px-1 py-px text-base leading-4 outline-none"
+      data-tooltip="Session name"
     />
   )
 }
@@ -2022,7 +2026,7 @@ function PendingSessionRow({
         ) : (
           <span
             key={title}
-            title={naming.pending ? 'Naming this chat…' : title}
+            data-tooltip={naming.pending ? 'Naming this chat…' : title}
             data-testid="session-title"
             className={clsx(
               SESSION_TITLE_CLASS,
@@ -2066,7 +2070,7 @@ function PendingSessionRow({
   }
 
   return (
-    <button
+    <TooltipButton
       onClick={() => useSessionsStore.getState().activate(phosphorId)}
       disabled={deleting}
       aria-busy={deleting}
@@ -2074,11 +2078,12 @@ function PendingSessionRow({
       onDoubleClick={beginRename}
       data-testid="session-row"
       data-pending="true"
+      tooltip={deleting ? 'Deleting lane' : title}
       data-activity={activity}
       className={className}
     >
       {body}
-    </button>
+    </TooltipButton>
   )
 }
 
@@ -2118,18 +2123,18 @@ function SubtitleSegments({
         >
           {(i > 0 || leadingActivity) && <span className="pr-1">·</span>}
           {segment.key === 'time' && activity ? (
-            <span className="lane-activity-label" title={`Last activity: ${segment.text}`}>
+            <span className="lane-activity-label" data-tooltip={`Last activity: ${segment.text}`}>
               {ACTIVITY_LABEL[activity]}
             </span>
           ) : segment.key === 'worktree' ? (
             <span
               className="bg-chip text-text-secondary rounded px-1 font-medium"
-              title="Runs in a git worktree"
+              data-tooltip="Runs in a git worktree"
             >
               wt
             </span>
           ) : segment.key === 'branch' ? (
-            <span className="truncate" title={segment.text}>
+            <span className="truncate" data-tooltip={segment.text}>
               ⎇ {segment.text}
             </span>
           ) : (
@@ -2161,9 +2166,9 @@ function SessionIndicator({
       {state === 'streaming' ? (
         <PhosphorLoader size={20} decorative />
       ) : state === 'unseen' ? (
-        <span className="bg-success h-2 w-2 rounded-full" title="New activity" />
+        <span className="bg-success h-2 w-2 rounded-full" data-tooltip="New activity" />
       ) : state === 'live' ? (
-        <span className="border-success h-2 w-2 rounded-full border" title="Live session" />
+        <span className="border-success h-2 w-2 rounded-full border" data-tooltip="Live session" />
       ) : (
         <span className="border-border-strong h-2 w-2 rounded-full border" />
       )}
@@ -2200,7 +2205,7 @@ function NavRow({
   onClick: () => void
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       onClick={onClick}
       aria-pressed={active}
       className={clsx(
@@ -2217,7 +2222,7 @@ function NavRow({
         {icon}
       </span>
       {label}
-    </button>
+    </TooltipButton>
   )
 }
 

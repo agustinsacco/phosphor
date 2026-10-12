@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useId, useRef, useState } from 'react'
 import './swarm.css'
 import clsx from 'clsx'
@@ -18,7 +19,7 @@ export function SwarmBadge({ sessionId }: { sessionId: string }): React.JSX.Elem
   return (
     <span
       className="bg-accent-soft text-text inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-sm"
-      title="Swarm authorization enabled for this lane"
+      data-tooltip="Swarm authorization enabled for this lane"
     >
       <SwarmMark /> Swarm
     </span>
@@ -78,7 +79,7 @@ export function SwarmSwitch({ sessionId }: { sessionId: string }): React.JSX.Ele
   }
 
   return (
-    <button
+    <TooltipButton
       type="button"
       role="switch"
       aria-label="Swarm"
@@ -86,7 +87,7 @@ export function SwarmSwitch({ sessionId }: { sessionId: string }): React.JSX.Ele
       aria-busy={sending || pending}
       aria-disabled={sending || unavailable}
       aria-describedby={hintId}
-      title={hint}
+      tooltip={unavailable || pending || sending ? hint : `${enabled ? 'Disable' : 'Enable'} Swarm`}
       onClick={() => void toggle()}
       className={clsx(
         'swarm-switch focus-ring flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-base',
@@ -107,6 +108,6 @@ export function SwarmSwitch({ sessionId }: { sessionId: string }): React.JSX.Ele
           {sending ? 'Applying…' : `${state?.requested ? 'On' : 'Off'} next turn`}
         </span>
       )}
-    </button>
+    </TooltipButton>
   )
 }

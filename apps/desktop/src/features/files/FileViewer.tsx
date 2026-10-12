@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { extensionOf, type PreviewKind } from '@shared/file-kinds'
@@ -261,25 +262,25 @@ function FileActions({ path, compact = false }: { path: string; compact?: boolea
   return (
     <div className={clsx('flex shrink-0 items-center', compact ? 'gap-1' : 'flex-wrap gap-2')}>
       {mac && (
-        <button className={button} onClick={() => void quickLook(path)}>
+        <TooltipButton className={button} onClick={() => void quickLook(path)}>
           Quick Look
-        </button>
+        </TooltipButton>
       )}
       {/* Short in the viewer bar, so a narrow pane still shows the size. */}
-      <button
+      <TooltipButton
         className={button}
         title={compact ? 'Open in default app' : undefined}
         onClick={() => void openInDefaultApp(path)}
       >
         {compact ? 'Open' : 'Open in default app'}
-      </button>
-      <button
+      </TooltipButton>
+      <TooltipButton
         className={button}
         title={compact ? revealLabel() : undefined}
         onClick={() => void reveal(path)}
       >
         {compact ? 'Reveal' : revealLabel()}
-      </button>
+      </TooltipButton>
     </div>
   )
 }
@@ -323,7 +324,7 @@ function ViewTab({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       onClick={onClick}
       aria-pressed={active}
       className={clsx(
@@ -332,6 +333,6 @@ function ViewTab({
       )}
     >
       {children}
-    </button>
+    </TooltipButton>
   )
 }

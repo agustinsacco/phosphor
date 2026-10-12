@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useChatStore } from '@/stores/chat'
@@ -431,7 +432,7 @@ export const MessageList = memo(function MessageList({
       </div>
 
       {!pinned && (
-        <button
+        <TooltipButton
           onClick={jumpToBottom}
           className="border-border bg-surface text-text-secondary hover:text-text absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border px-3 py-1.5 text-base font-medium shadow-md transition-colors"
         >
@@ -448,7 +449,7 @@ export const MessageList = memo(function MessageList({
           {/* Imperative: this labels the action the click performs, never the
               current state (the pill only shows while NOT following). */}
           {isStreaming ? 'Follow stream' : 'Jump to bottom'}
-        </button>
+        </TooltipButton>
       )}
     </div>
   )

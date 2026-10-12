@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import clsx from 'clsx'
 import { clampUiScale, UI_SCALE_MAX, UI_SCALE_MIN } from '@shared/models'
 import { useSettingsStore } from '@/stores/settings'
@@ -28,7 +29,7 @@ export function AppearanceTab(): React.JSX.Element {
           aria-label="Theme"
         >
           {THEME_OPTIONS.map(({ value, label }) => (
-            <button
+            <TooltipButton
               key={value}
               aria-pressed={theme === value}
               onClick={() => useSettingsStore.getState().setTheme(value)}
@@ -40,7 +41,7 @@ export function AppearanceTab(): React.JSX.Element {
               )}
             >
               {label}
-            </button>
+            </TooltipButton>
           ))}
         </div>
       </Row>

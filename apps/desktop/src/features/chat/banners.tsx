@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useMemo } from 'react'
 import type { SessionMeta } from '@shared/models'
 import { useChatStore } from '@/stores/chat'
@@ -41,12 +42,12 @@ export function CrashBanner({
       <div className="bg-danger-soft border-danger/25 flex items-center gap-3 rounded-lg border px-3.5 py-2.5">
         <span className="text-danger text-lg font-medium">pi crashed</span>
         <span className="text-text-secondary flex-1 truncate text-base">{error}</span>
-        <button
+        <TooltipButton
           onClick={() => void resume()}
           className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-sm font-medium transition-colors"
         >
           Resume session
-        </button>
+        </TooltipButton>
       </div>
     </div>
   )
@@ -66,7 +67,7 @@ export function NoModelsBanner({ sessionId }: { sessionId: string }): React.JSX.
         <div className="flex items-center justify-between gap-3">
           <div className="text-text font-medium">No models configured</div>
           {workspacePath && (
-            <button
+            <TooltipButton
               onClick={() => {
                 void import('@/stores/terminal').then(({ runInTerminal }) =>
                   runInTerminal(workspacePath, 'pi'),
@@ -75,7 +76,7 @@ export function NoModelsBanner({ sessionId }: { sessionId: string }): React.JSX.
               className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-sm font-medium transition-colors"
             >
               Open terminal with `pi`
-            </button>
+            </TooltipButton>
           )}
         </div>
         <div className="text-text-secondary mt-1 leading-relaxed">
@@ -152,12 +153,12 @@ export function RewoundBanner({ sessionId }: { sessionId: string }): React.JSX.E
         This is the chat before a rewind. It continues in{' '}
         {/* Body-coloured, not accent: the accent link measured 3.96:1 on this
             tint in the light theme, under the 4.5:1 minimum for text. */}
-        <button
+        <TooltipButton
           onClick={open}
           className="text-text hover:text-accent font-medium underline underline-offset-2"
         >
           {name}
-        </button>
+        </TooltipButton>
         .
       </div>
     </div>

@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
 import { currentBranchUserMessages, rewindToEntry, type BranchUserMessage } from './rewind'
 import { useChatUiStore } from './uiState'
@@ -56,9 +57,13 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
               composer to edit and resend.
             </div>
           </div>
-          <button onClick={close} className="text-text-tertiary hover:text-text">
+          <TooltipButton
+            aria-label="Close rewind picker"
+            onClick={close}
+            className="text-text-tertiary hover:text-text"
+          >
             ✕
-          </button>
+          </TooltipButton>
         </div>
         <div className="max-h-[52vh] overflow-y-auto p-2">
           {candidates === undefined && (
@@ -77,7 +82,7 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
             </div>
           )}
           {candidates?.map((candidate, index) => (
-            <button
+            <TooltipButton
               key={candidate.entryId}
               disabled={busy}
               onClick={() => void fork(candidate)}
@@ -95,7 +100,7 @@ export function ForkPickerModal({ sessionId }: { sessionId: string }): React.JSX
                     : `${candidate.images?.length ?? 0} images`}
                 </span>
               )}
-            </button>
+            </TooltipButton>
           ))}
         </div>
       </div>

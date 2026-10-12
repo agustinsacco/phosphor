@@ -1,3 +1,4 @@
+import { TooltipSummary } from '@/components/Tooltip'
 import clsx from 'clsx'
 import type { DividerItem } from '../reducer'
 import { formatTokens } from '@/lib/format'
@@ -24,9 +25,9 @@ export function Divider({ item }: { item: DividerItem }): React.JSX.Element {
     >
       {item.variant !== 'error' && item.summary ? (
         <details className="text-text-secondary mx-auto mt-1 max-w-lg text-base">
-          <summary className="text-text-tertiary hover:text-text cursor-pointer text-center text-sm">
+          <TooltipSummary className="text-text-tertiary hover:text-text cursor-pointer text-center text-sm">
             show summary
-          </summary>
+          </TooltipSummary>
           <div
             data-find-segment={SEGMENT.body}
             className="border-border bg-surface mt-1.5 max-h-56 overflow-auto rounded-lg border px-3 py-2 whitespace-pre-wrap break-words"

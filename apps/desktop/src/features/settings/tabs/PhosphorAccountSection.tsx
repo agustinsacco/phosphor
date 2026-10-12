@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useState } from 'react'
 import { ipcErrorText } from '@shared/errors'
 import { Button } from '@/components/form'
@@ -64,12 +65,12 @@ export function PhosphorAccountSection(): React.JSX.Element | null {
             <Spinner />
             Waiting for you to finish in your browser.
           </div>
-          <button
+          <TooltipButton
             onClick={() => run(() => window.phosphor.invoke('account:cancelSignIn'))}
             className="text-text-secondary hover:text-text text-base"
           >
             Cancel
-          </button>
+          </TooltipButton>
         </div>
       ) : (
         <div className="flex items-start justify-between gap-4">

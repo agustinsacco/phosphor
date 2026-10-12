@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { ToolState } from '../reducer'
@@ -234,7 +235,7 @@ export const ActivityGroup = memo(function ActivityGroup({
     // a bordered card. Boxing the whole run made the summary read as part of
     // the tool output instead of the narration above it.
     <div data-testid="activity-group" data-live={activeRun || undefined}>
-      <button
+      <TooltipButton
         data-testid="activity-summary"
         onClick={() => {
           if (!activeRun) setUserOpen(!open)
@@ -286,7 +287,7 @@ export const ActivityGroup = memo(function ActivityGroup({
             {summary.failedCount} failed
           </span>
         )}
-      </button>
+      </TooltipButton>
 
       <div
         aria-hidden={!open}
@@ -485,7 +486,7 @@ function ExternalToolRow({
           quiet styling: this row's label now starts at the x a pi row's does. */}
       <span
         aria-label="Ran by Claude Code"
-        title="Ran by Claude Code"
+        data-tooltip="Ran by Claude Code"
         data-find-skip
         className={GUTTER_MARK}
       >
@@ -575,7 +576,7 @@ function ExternalToolRow({
   return (
     <div>
       {expandable ? (
-        <button
+        <TooltipButton
           onClick={() => setExpanded((e) => !e)}
           aria-expanded={expanded}
           className={clsx(
@@ -588,14 +589,14 @@ function ExternalToolRow({
           title={title}
         >
           {body}
-        </button>
+        </TooltipButton>
       ) : (
         <div
           className={clsx('relative flex items-center gap-1.5 py-1 text-lg', ROW_INSET)}
           data-testid="external-tool-row"
           data-find-segment={SEGMENT.step(findKey)}
           // The full marker, for the case the label had to drop something.
-          title={title}
+          data-tooltip={title}
         >
           {body}
         </div>
@@ -739,7 +740,7 @@ function SubagentRow({
 
   return (
     <div data-testid="subagent-row" data-status={agent.status}>
-      <button
+      <TooltipButton
         onClick={() => expandable && setOpen((o) => !o)}
         aria-expanded={expandable ? open : undefined}
         disabled={!expandable}
@@ -796,7 +797,7 @@ function SubagentRow({
         {expandable && (
           <ChevronIcon expanded={open} size={9} strokeWidth={3} className="text-text-tertiary" />
         )}
-      </button>
+      </TooltipButton>
       {/* Its own line rather than a third segment in the header: the
           description already truncates there, and two competing truncating
           segments meant a long step ate the agent's name. */}
@@ -854,7 +855,7 @@ function ThoughtRow({
   const headline = thought.live ? undefined : thoughtHeadline(thought.text, 'first')
   return (
     <div data-testid="thought-row" data-live={thought.live || undefined}>
-      <button
+      <TooltipButton
         onClick={() => setOpen((o) => !o)}
         disabled={!hasText}
         aria-expanded={hasText ? open : undefined}
@@ -903,7 +904,7 @@ function ThoughtRow({
             className="ml-1.5 shrink-0 opacity-0 transition-opacity group-hover/thought:opacity-100 group-focus-visible/thought:opacity-100"
           />
         )}
-      </button>
+      </TooltipButton>
       {open && hasText && (
         <div
           data-testid="thought-body"

@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useRef, useState } from 'react'
 import clsx from 'clsx'
 import { MenuRow, PopupMenu } from '@/components/PopupMenu'
@@ -16,7 +17,7 @@ export function RunOnPicker(): React.JSX.Element {
   const local = localMachineName(window.phosphor.platform).long
   return (
     <span className="relative shrink-0">
-      <button
+      <TooltipButton
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         data-testid="run-on"
@@ -31,7 +32,7 @@ export function RunOnPicker(): React.JSX.Element {
         <span className="text-text-tertiary">Run on</span>
         <span>{local}</span>
         <ChevronIcon size={10} className="text-text-tertiary" />
-      </button>
+      </TooltipButton>
       {open && (
         <PopupMenu
           onClose={() => setOpen(false)}

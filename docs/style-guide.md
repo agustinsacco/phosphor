@@ -234,6 +234,25 @@ Claude.
 **Serif:** not part of the brand voice. `--px-font-serif` stays defined for
 markdown the _model_ authors; no Phosphor chrome uses it.
 
+### Action hints
+
+Action hints use the same control typography: `font-sans text-base leading-snug`,
+with `font-mono text-sm` for shortcuts. The surface is `bg-surface-raised`,
+`text-text`, and `border-border`, with the small-radius token, compact padding,
+and only the subtle 1px/2px shadow. Secondary hints use secondary ink. No arrow,
+accent fill, entrance animation, or extra typography component.
+
+Keep action copy short, normally a verb and its object. Put shortcuts in the
+separate keyboard hint, not parentheses. A brief disabled reason can supplement
+an action; essential instructions and warnings stay visible in the surrounding
+UI. Full names, paths, timestamps, and command provenance remain available as
+informational hints rather than being silently truncated.
+
+A pointer must dwell for 650ms on **each** target. There is no instant-open mode
+when crossing adjacent controls. Keyboard focus can show help immediately;
+touch and mouse-induced focus do not. See [ui-shell.md](ui-shell.md#action-tooltips)
+for the shared implementation and dismissal contract.
+
 ## Shape, depth, motion
 
 - Radii: 6 / 10 / 14 (`--px-radius-sm` / `--px-radius` / `--px-radius-lg`).

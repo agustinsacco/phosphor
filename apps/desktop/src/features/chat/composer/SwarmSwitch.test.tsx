@@ -108,7 +108,7 @@ it('sends only the host command, keeps the transcript untouched and waits for na
   status(true)
   expect(button.getAttribute('aria-checked')).toBe('true')
   expect(
-    container.querySelector('[title="Swarm authorization enabled for this lane"]'),
+    container.querySelector('[data-tooltip="Swarm authorization enabled for this lane"]'),
   ).not.toBeNull()
   await act(async () => button.click())
   expect(piCommand).toHaveBeenLastCalledWith('one', {

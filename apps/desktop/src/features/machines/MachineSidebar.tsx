@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import clsx from 'clsx'
 import { useLayoutStore } from '@/stores/layout'
 import { useMachinesStore } from '@/stores/machines'
@@ -31,7 +32,7 @@ export function MachineFilterBar(): React.JSX.Element {
       className="flex flex-wrap gap-1 px-1 pb-1 pt-1.5"
     >
       {options.map((option) => (
-        <button
+        <TooltipButton
           key={option.id}
           aria-pressed={filter === option.id}
           title={option.up === undefined ? undefined : option.up ? 'Up' : 'Down'}
@@ -45,7 +46,7 @@ export function MachineFilterBar(): React.JSX.Element {
         >
           {option.up !== undefined && <MachineDot up={option.up} />}
           {option.label}
-        </button>
+        </TooltipButton>
       ))}
     </div>
   )
@@ -60,7 +61,7 @@ export function MachineDot({ up }: { up: boolean }): React.JSX.Element {
         'h-1.5 w-1.5 shrink-0 rounded-full',
         up ? 'bg-success' : 'border-border-strong border',
       )}
-      title={up ? 'Up' : 'Down'}
+      data-tooltip={up ? 'Up' : 'Down'}
     />
   )
 }
@@ -89,7 +90,7 @@ export function RemoteLaneRow({ lane }: { lane: RemoteLane }): React.JSX.Element
   const viewing = useMachinesStore((s) => s.view.kind === 'lane' && s.view.id === lane.id)
   const name = machine?.name ?? lane.machineId
   return (
-    <button
+    <TooltipButton
       data-testid="remote-lane-row"
       data-machine={lane.machineId}
       data-state={lane.state}
@@ -112,7 +113,7 @@ export function RemoteLaneRow({ lane }: { lane: RemoteLane }): React.JSX.Element
         </span>
       </span>
       <MachineChip label={down ? `${name} · down` : name} />
-    </button>
+    </TooltipButton>
   )
 }
 

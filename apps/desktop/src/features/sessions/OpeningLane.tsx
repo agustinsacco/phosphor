@@ -49,7 +49,7 @@ export function OpeningLane({
         <span className="text-text-secondary text-base" data-testid="opening-lane-label">
           {lane.reason === 'restart' ? 'Restarting' : 'Opening'}
         </span>
-        <span className="text-text truncate text-lg font-medium" title={lane.title}>
+        <span className="text-text truncate text-lg font-medium" data-tooltip={lane.title}>
           {lane.title}
         </span>
         {/* Said out loud because it is the reason for the wait, and because a

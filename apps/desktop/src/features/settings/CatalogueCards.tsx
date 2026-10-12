@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { Button } from '@/components/form'
 import { PACKAGE_CATALOGUE, isCatalogueEntryInstalled } from './catalogue'
 
@@ -41,12 +42,12 @@ export function CatalogueCards({
             </div>
             <p className="text-text-secondary mt-1.5 text-base leading-snug">{entry.description}</p>
             <div className="mt-2 flex items-center gap-3">
-              <button
+              <TooltipButton
                 onClick={() => void window.phosphor.invoke('app:openExternal', entry.docsUrl)}
                 className="text-text-tertiary hover:text-text text-sm underline"
               >
                 Docs
-              </button>
+              </TooltipButton>
               {missingBinary && (
                 <span className="text-warning text-sm">Needs the `claude` CLI on your PATH</span>
               )}

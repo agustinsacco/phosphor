@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { ToolState } from '../reducer'
@@ -214,7 +215,7 @@ export function GenericDetail({ tool }: { tool: ToolState }): React.JSX.Element 
     <div>
       {/* The arguments are the step's input, not its output; find reads the output. */}
       <div data-find-skip className="border-border border-b px-3 py-2">
-        <button
+        <TooltipButton
           onClick={() => setArgsExpanded((e) => !e)}
           className="text-text-tertiary hover:text-text flex items-center gap-1 text-sm transition-colors"
         >
@@ -224,7 +225,7 @@ export function GenericDetail({ tool }: { tool: ToolState }): React.JSX.Element 
           {!tool.toolName && tool.argsText && (
             <span className="text-text-tertiary">· {formatBytes(tool.argsText.length)} so far</span>
           )}
-        </button>
+        </TooltipButton>
         {argsExpanded && (
           <pre className="bg-code-bg border-border mt-2 max-h-60 overflow-auto rounded-md border px-2.5 py-2 font-mono text-sm leading-relaxed break-words whitespace-pre-wrap">
             {argsJson || '(none)'}
@@ -283,6 +284,7 @@ export function ZoomableImage({
         src={src}
         className="max-h-64 cursor-zoom-in rounded-md"
         onClick={() => setZoomed(true)}
+        data-tooltip="Open image"
       />
       {zoomed && (
         <Lightbox onClose={() => setZoomed(false)}>

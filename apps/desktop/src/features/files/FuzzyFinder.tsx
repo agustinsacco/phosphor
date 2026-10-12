@@ -125,6 +125,7 @@ function FinderDialog({ workspacePath }: { workspacePath: string }): React.JSX.E
           onKeyDown={onKeyDown}
           placeholder="Go to file…"
           className="text-text placeholder:text-text-tertiary border-border block w-full border-b bg-transparent px-4 py-3 text-lg outline-none"
+          data-tooltip="Go to file"
         />
         <div
           id={listId}

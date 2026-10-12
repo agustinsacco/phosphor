@@ -1,3 +1,4 @@
+import { TooltipSummary, TooltipLabel } from '@/components/Tooltip'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { WorkspaceSessionStats } from '@shared/models'
@@ -226,7 +227,9 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
 
           {stats && stats.sessionCount > 0 && (
             <details className="border-border bg-bg-secondary/60 mt-6 rounded-xl border p-4">
-              <summary className="text-text-tertiary cursor-pointer text-sm">Project stats</summary>
+              <TooltipSummary className="text-text-tertiary cursor-pointer text-sm">
+                Project stats
+              </TooltipSummary>
               <div className="mt-3 grid grid-cols-4 gap-2">
                 <StatTile label="Sessions" value={formatNumber(stats.sessionCount)} />
                 <StatTile label="Messages" value={formatNumber(stats.messages)} />
@@ -369,8 +372,8 @@ function IsolateToggle({
 }): React.JSX.Element {
   const trunk = useStartPoint(workspacePath)
   return (
-    <label
-      title={
+    <TooltipLabel
+      data-tooltip={
         checked
           ? `This chat gets its own branch, off the latest ${trunk ?? 'main'}, in its own worktree. The branch chip beside this names the folder you are in now, which this chat will NOT run on.`
           : 'This chat runs in the folder that is already open, on its current branch.'
@@ -396,7 +399,7 @@ function IsolateToggle({
       <span className="text-text-secondary text-base">
         {checked && trunk ? `new branch off ${trunk}` : 'new branch'}
       </span>
-    </label>
+    </TooltipLabel>
   )
 }
 
@@ -450,7 +453,7 @@ function Heatmap({ activityByDay }: { activityByDay: Record<string, number> }): 
           return (
             <div
               key={cell.key}
-              title={`${cell.key}: ${cell.count} messages`}
+              data-tooltip={`${cell.key}: ${cell.count} messages`}
               className={clsx(
                 'h-[10px] w-[10px] rounded-[2.5px]',
                 cell.count === 0 && 'bg-border/60',

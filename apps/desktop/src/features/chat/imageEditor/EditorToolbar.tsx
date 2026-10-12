@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import clsx from 'clsx'
 import { iconButtonClass } from '@/components/ComposerButtons'
 import { formatShortcut } from '@/lib/shortcuts'
@@ -86,7 +87,7 @@ function ActionButton(props: {
   onClick: () => void
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       type="button"
       aria-label={props.label}
       title={`${props.label} (${props.shortcut})`}
@@ -95,7 +96,7 @@ function ActionButton(props: {
       className={iconButtonClass}
     >
       {glyph(props.icon)}
-    </button>
+    </TooltipButton>
   )
 }
 
@@ -122,7 +123,7 @@ export function EditorToolbar(props: {
       aria-label="Annotation tools"
     >
       {TOOLS.map(({ tool, key, label, icon }) => (
-        <button
+        <TooltipButton
           key={tool}
           type="button"
           aria-label={label}
@@ -135,11 +136,11 @@ export function EditorToolbar(props: {
           )}
         >
           {icon}
-        </button>
+        </TooltipButton>
       ))}
       <Divider />
       {COLORS.map((c) => (
-        <button
+        <TooltipButton
           key={c}
           type="button"
           aria-label={`Colour ${c}`}
@@ -155,11 +156,11 @@ export function EditorToolbar(props: {
               props.color === c && 'ring-accent ring-2 ring-offset-1',
             )}
           />
-        </button>
+        </TooltipButton>
       ))}
       <Divider />
       {(['S', 'M', 'L'] as const).map((s, i) => (
-        <button
+        <TooltipButton
           key={s}
           type="button"
           aria-label={`Size ${s}`}
@@ -173,7 +174,7 @@ export function EditorToolbar(props: {
             className="rounded-full bg-current"
             style={{ width: 4 + i * 4, height: 4 + i * 4 }}
           />
-        </button>
+        </TooltipButton>
       ))}
       <Divider />
       <ActionButton
@@ -198,22 +199,22 @@ export function EditorToolbar(props: {
         onClick={props.onDelete}
       />
       <div className="ml-auto flex items-center gap-1">
-        <button
+        <TooltipButton
           type="button"
           title={`Put the clipboard's image on top (${formatShortcut('mod', 'V')})`}
           onClick={props.onPaste}
           className={TEXT_BUTTON}
         >
           Paste image
-        </button>
-        <button
+        </TooltipButton>
+        <TooltipButton
           type="button"
           title={`Swap the screenshot underneath for the clipboard's image (${formatShortcut('mod', 'shift', 'V')})`}
           onClick={props.onReplace}
           className={TEXT_BUTTON}
         >
           Replace image
-        </button>
+        </TooltipButton>
       </div>
     </div>
   )

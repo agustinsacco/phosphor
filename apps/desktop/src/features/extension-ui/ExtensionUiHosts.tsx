@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
@@ -157,7 +158,7 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
         {request.method === 'select' && (
           <div className="max-h-72 overflow-y-auto py-1.5">
             {request.options.map((option, index) => (
-              <button
+              <TooltipButton
                 key={option}
                 onMouseMove={() => setSelectedIndex(index)}
                 onClick={() => resolve({ value: option })}
@@ -168,7 +169,7 @@ function DialogSheet({ dialog }: { dialog: PendingDialog }): React.JSX.Element {
               >
                 {/* Display-only strip: the response echoes the raw option. */}
                 {stripAnsi(option)}
-              </button>
+              </TooltipButton>
             ))}
           </div>
         )}
@@ -274,7 +275,10 @@ function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         {toast.title && (
           <span className="flex min-w-0 items-baseline gap-2">
-            <span className="text-text min-w-0 truncate text-base font-medium" title={toast.title}>
+            <span
+              className="text-text min-w-0 truncate text-base font-medium"
+              data-tooltip={toast.title}
+            >
               {toast.title}
             </span>
             {toast.openLabel && (
@@ -326,7 +330,7 @@ function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
           )}
         >
           {open ? (
-            <button
+            <TooltipButton
               type="button"
               onClick={open}
               aria-label={
@@ -336,18 +340,18 @@ function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
               className="flex min-w-0 flex-1 cursor-pointer items-start gap-2.5 rounded-xl py-2.5 pl-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--px-accent)]/40"
             >
               {body}
-            </button>
+            </TooltipButton>
           ) : (
             <div className="flex min-w-0 flex-1 items-start gap-2.5 py-2.5 pl-3.5">{body}</div>
           )}
-          <button
+          <TooltipButton
             type="button"
             onClick={() => dismissToast(toast.id)}
             aria-label="Dismiss"
             className="text-text-tertiary hover:text-text shrink-0 px-3 py-3"
           >
             <CloseIcon size={11} strokeWidth={2.5} />
-          </button>
+          </TooltipButton>
         </div>
       </div>
     </li>
@@ -424,7 +428,7 @@ function McpChip({ sessionId }: { sessionId: string }): React.JSX.Element | null
   const enabled = status.servers.filter((server) => server.state !== 'disabled').length
 
   return (
-    <button
+    <TooltipButton
       onClick={() => {
         const settings = useSettingsUiStore.getState()
         settings.setTab('connectors')
@@ -448,7 +452,7 @@ function McpChip({ sessionId }: { sessionId: string }): React.JSX.Element | null
         {status.totalTools > 0 && ` · ${status.totalTools} tools`}
         {attention.length > 0 && ` · ${attention.length} need attention`}
       </span>
-    </button>
+    </TooltipButton>
   )
 }
 
@@ -500,7 +504,7 @@ function SubagentChip({
       'Recorded delegation and child inspection')
   return (
     <>
-      <button
+      <TooltipButton
         data-testid="subagent-chip"
         aria-label="Open subagents"
         disabled={!!legacy && !available}
@@ -517,7 +521,7 @@ function SubagentChip({
         <span className="truncate">
           {legacy ? summarizeSubagents(legacy) : fleet ? summarizeFleet(fleet) : 'Subagents'}
         </span>
-      </button>
+      </TooltipButton>
     </>
   )
 }
@@ -552,7 +556,7 @@ export function StatusStrip({ sessionId }: { sessionId: string }): React.JSX.Ele
       {entries.map(([key, text]) => (
         <span
           key={key}
-          title={stripAnsi(text)}
+          data-tooltip={stripAnsi(text)}
           className="text-text-tertiary flex min-w-0 items-center gap-1.5 text-xs"
         >
           <span className="bg-info h-1.5 w-1.5 shrink-0 rounded-full" />

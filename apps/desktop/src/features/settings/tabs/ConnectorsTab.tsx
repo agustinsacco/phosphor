@@ -1,3 +1,4 @@
+import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import {
@@ -340,13 +341,13 @@ export function ConnectorsTab(): React.JSX.Element {
       )}
 
       {/* Repair tools, not daily controls. */}
-      <button
+      <TooltipButton
         onClick={() => setAdvanced((a) => !a)}
         className="text-text-tertiary hover:text-text mt-6 flex items-center gap-1.5 text-base"
       >
         <ChevronIcon size={8} expanded={advanced} />
         Advanced
-      </button>
+      </TooltipButton>
       {advanced && (
         <div className="mt-2">
           {adapterInstalled && (
@@ -371,12 +372,12 @@ export function ConnectorsTab(): React.JSX.Element {
                 </span>
                 <span
                   className="text-text-tertiary min-w-0 flex-1 truncate font-mono text-sm"
-                  title={file.path}
+                  data-tooltip={file.path}
                 >
                   {file.path}
                 </span>
                 {file.malformed ? (
-                  <span className="text-danger shrink-0 text-sm" title={file.error}>
+                  <span className="text-danger shrink-0 text-sm" data-tooltip={file.error}>
                     malformed
                   </span>
                 ) : file.exists ? (
@@ -386,12 +387,12 @@ export function ConnectorsTab(): React.JSX.Element {
                 ) : (
                   <span className="text-text-tertiary/60 shrink-0 text-sm">absent</span>
                 )}
-                <button
+                <TooltipButton
                   onClick={() => setRawEdit(file.scope)}
                   className="text-text-tertiary hover:text-text shrink-0 text-sm underline-offset-2 hover:underline"
                 >
                   Edit
-                </button>
+                </TooltipButton>
               </div>
             ))}
           </div>
@@ -526,20 +527,20 @@ function ConfiguredRow({
                 'min-w-0 truncate text-lg font-semibold',
                 disabled && 'text-text-tertiary line-through',
               )}
-              title={server.name}
+              data-tooltip={server.name}
             >
               {server.name}
             </span>
             <span
               className="bg-bg-secondary text-text-tertiary shrink-0 rounded px-1.5 py-px text-xs"
-              title={`Defined in ${SCOPE_LABELS[server.scope]}`}
+              data-tooltip={`Defined in ${SCOPE_LABELS[server.scope]}`}
             >
               {SCOPE_LABELS[server.scope]}
             </span>
             {checked && (
               <span
                 className="text-text-secondary flex shrink-0 items-center gap-1.5 text-sm"
-                title={
+                data-tooltip={
                   'detail' in checked.result && checked.result.detail
                     ? `Last ${checked.via} — ${checked.result.detail}`
                     : checked.via === 'reload'
@@ -556,7 +557,7 @@ function ConfiguredRow({
             {!checked && !state && !sessionId && (
               <span
                 className="text-text-tertiary shrink-0 text-sm"
-                title="Per-server state comes from the MCP adapter, which runs inside a session"
+                data-tooltip="Per-server state comes from the MCP adapter, which runs inside a session"
               >
                 state unknown
               </span>
@@ -564,7 +565,7 @@ function ConfiguredRow({
             {!checked && state && (
               <span
                 className="text-text-tertiary flex shrink-0 items-center gap-1.5 text-sm"
-                title={`${server.name}: ${stateLabel(state)}`}
+                data-tooltip={`${server.name}: ${stateLabel(state)}`}
               >
                 <span className={clsx('h-1.5 w-1.5 rounded-full', STATE_DOT[state])} />
                 {stateLabel(state)}
@@ -575,7 +576,10 @@ function ConfiguredRow({
           {entry && (
             <div className="text-text-secondary mt-0.5 text-base leading-snug">{entry.summary}</div>
           )}
-          <div className="text-text-tertiary mt-0.5 truncate font-mono text-sm" title={transport}>
+          <div
+            className="text-text-tertiary mt-0.5 truncate font-mono text-sm"
+            data-tooltip={transport}
+          >
             {transport}
           </div>
         </div>
@@ -586,7 +590,8 @@ function ConfiguredRow({
             className="whitespace-nowrap"
             onClick={onCheck}
             disabled={Boolean(running)}
-            title="Reconnect this server in a separate, throwaway pi and report what happened. Checks the server, not your open session. No session needed, no tokens spent."
+            tooltip={{ label: 'Test connector', description: 'Separate session, no tokens spent' }}
+            aria-description="Reconnect in a separate pi session and report the result. Does not change your open session."
           >
             {running === 'test' ? 'Testing…' : 'Test'}
           </Button>
@@ -596,9 +601,17 @@ function ConfiguredRow({
               className="whitespace-nowrap"
               variant={action === 'sign-in' && state === 'needs-auth' ? 'primary' : undefined}
               disabled={action === 'reload' && Boolean(running)}
-              title={
+              tooltip={
                 action === 'reload'
-                  ? "Drop this session's connection to the server and open a fresh one, re-reading its tools. Uses the config the session started with, and does not re-authorize."
+                  ? {
+                      label: 'Reload connector',
+                      description: 'Refresh this session’s connection and tools',
+                    }
+                  : 'Sign in'
+              }
+              aria-description={
+                action === 'reload'
+                  ? 'Uses the session’s starting configuration without re-authorizing.'
                   : undefined
               }
               onClick={() => {
@@ -650,38 +663,38 @@ function ConfiguredRow({
       {/* Settings for the row, and the tool disclosure. */}
       <div className="border-border text-text-tertiary flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t px-3.5 py-2 text-sm">
         {toolTotal > 0 ? (
-          <button
+          <TooltipButton
             onClick={() => setShowTools((s) => !s)}
             aria-expanded={showTools}
             className="hover:text-text flex items-center gap-1.5"
           >
             <ChevronIcon size={8} expanded={showTools} />
             {toolTotal} tool{toolTotal === 1 ? '' : 's'}
-          </button>
+          </TooltipButton>
         ) : (
-          <span title="The adapter caches a server's tool list the first time it connects">
+          <span data-tooltip="The adapter caches a server's tool list the first time it connects">
             no tools cached yet
           </span>
         )}
         {server.shadows.length > 0 && (
-          <span title="Lower-precedence files also define this server">
+          <span data-tooltip="Lower-precedence files also define this server">
             shadows {server.shadows.map((s) => SCOPE_LABELS[s]).join(', ')}
           </span>
         )}
 
         <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1.5">
-          <label className="hover:text-text flex items-center gap-1.5">
+          <TooltipLabel className="hover:text-text flex items-center gap-1.5">
             <input
               type="checkbox"
               checked={!disabled}
               onChange={(e) => onToggle(!e.target.checked)}
             />
             enabled
-          </label>
+          </TooltipLabel>
           {signInable && (
-            <label
+            <TooltipLabel
               className="hover:text-text flex items-center gap-1.5"
-              title={
+              data-tooltip={
                 keepAlive
                   ? 'Connection stays open after the first call of the session, so the row reads Connected once a tool has been used. Until then it stays idle.'
                   : 'Adapter default: connect per call, then drop. The row stays idle between uses.'
@@ -693,13 +706,16 @@ function ConfiguredRow({
                 onChange={(e) => onKeepAlive(e.target.checked)}
               />
               keep connected
-            </label>
+            </TooltipLabel>
           )}
           <span className="bg-border h-3.5 w-px" aria-hidden />
-          <button onClick={onEdit} className="hover:text-text underline-offset-2 hover:underline">
+          <TooltipButton
+            onClick={onEdit}
+            className="hover:text-text underline-offset-2 hover:underline"
+          >
             Edit
-          </button>
-          <button
+          </TooltipButton>
+          <TooltipButton
             onClick={() => {
               if (signInable) {
                 void useConnectorsStore.getState().disconnect(server.name, sessionId ?? undefined)
@@ -709,7 +725,7 @@ function ConfiguredRow({
             className="hover:text-danger underline-offset-2 hover:underline"
           >
             Remove
-          </button>
+          </TooltipButton>
         </div>
       </div>
 
@@ -752,7 +768,7 @@ function ToolList({ tools }: { tools: McpCachedTool[] }): React.JSX.Element {
             {tool.description && (
               <div
                 className="text-text-tertiary mt-0.5 line-clamp-2 text-sm leading-snug"
-                title={tool.description}
+                data-tooltip={tool.description}
               >
                 {tool.description}
               </div>
@@ -799,7 +815,7 @@ function CatalogRow({
           {entry.caveat && (
             <div className="text-text-tertiary mt-1 text-sm leading-snug">{entry.caveat}</div>
           )}
-          <div className="text-text-tertiary mt-0.5 truncate font-mono text-sm" title={url}>
+          <div className="text-text-tertiary mt-0.5 truncate font-mono text-sm" data-tooltip={url}>
             {url}
           </div>
         </div>
@@ -842,14 +858,14 @@ function CatalogRow({
               </label>
             )}
             {entry.readOnlyUrl && (
-              <label className="flex items-center gap-1.5">
+              <TooltipLabel className="flex items-center gap-1.5">
                 <input
                   type="checkbox"
                   checked={readOnly}
                   onChange={(e) => setReadOnly(e.target.checked)}
                 />
                 read-only
-              </label>
+              </TooltipLabel>
             )}
             {needsClientId && (
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
@@ -888,13 +904,13 @@ function SetupSteps({ setup }: { setup: ConnectorSetup }): React.JSX.Element {
 
   return (
     <div className="text-text-tertiary mt-1.5 text-sm first:mt-0">
-      <button
+      <TooltipButton
         onClick={() => setOpen((o) => !o)}
         className="hover:text-text flex items-center gap-1.5"
       >
         <ChevronIcon size={8} expanded={open} />
         Set up the app
-      </button>
+      </TooltipButton>
 
       {open && (
         <ol className="mt-1 ml-4 list-decimal space-y-1">
@@ -908,7 +924,7 @@ function SetupSteps({ setup }: { setup: ConnectorSetup }): React.JSX.Element {
         <div className="mt-2">
           <div className="flex items-center gap-2">
             <span>{setup.snippet.label}</span>
-            <button
+            <TooltipButton
               className="underline-offset-2 hover:underline"
               onClick={() => {
                 void navigator.clipboard.writeText(setup.snippet?.text ?? '')
@@ -916,7 +932,7 @@ function SetupSteps({ setup }: { setup: ConnectorSetup }): React.JSX.Element {
               }}
             >
               {copied ? 'copied' : 'copy'}
-            </button>
+            </TooltipButton>
           </div>
           <pre className="border-border bg-bg-secondary mt-1 max-h-48 overflow-auto rounded border p-2 font-mono text-sm">
             {setup.snippet.text}
@@ -944,7 +960,7 @@ function AdapterSessionStatus(): React.JSX.Element | null {
 
   if (!mcpStatus) return null
   return (
-    <span className="text-text-tertiary text-sm" title="Reported by pi-mcp-adapter">
+    <span className="text-text-tertiary text-sm" data-tooltip="Reported by pi-mcp-adapter">
       · {mcpStatus}
     </span>
   )

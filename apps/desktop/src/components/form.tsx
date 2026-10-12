@@ -1,5 +1,8 @@
-import { useEffect, useState } from 'react'
+import { TooltipButton } from '@/components/Tooltip'
+import { createContext, useContext, useEffect, useState } from 'react'
 import clsx from 'clsx'
+
+const RowLabel = createContext<string | undefined>(undefined)
 
 /**
  * Small form primitives shared by the settings tabs: labelled rows, a switch,
@@ -37,12 +40,12 @@ export function Button({
   className,
   type = 'button',
   ...props
-}: React.ComponentPropsWithRef<'button'> & {
+}: React.ComponentPropsWithRef<typeof TooltipButton> & {
   variant?: keyof typeof BUTTON_VARIANTS
   size?: keyof typeof BUTTON_SIZES
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       type={type}
       {...props}
       className={clsx(
@@ -120,7 +123,9 @@ export function Row({
           <div className="text-text-tertiary mt-0.5 text-sm leading-snug">{description}</div>
         )}
       </div>
-      <div className="shrink-0">{children}</div>
+      <RowLabel.Provider value={title}>
+        <div className="shrink-0">{children}</div>
+      </RowLabel.Provider>
     </div>
   )
 }
@@ -135,8 +140,11 @@ export function Toggle({
   /** Renders dimmed and refuses the click — a switch that cannot move must look it. */
   disabled?: boolean
 }): React.JSX.Element {
+  const label = useContext(RowLabel)
   return (
-    <button
+    <TooltipButton
+      aria-label={label}
+      tooltip={label}
       role="switch"
       aria-checked={on}
       aria-disabled={disabled}
@@ -154,7 +162,7 @@ export function Toggle({
           on ? 'left-[21px]' : 'left-[3px]',
         )}
       />
-    </button>
+    </TooltipButton>
   )
 }
 

@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useCallback, useEffect, useState } from 'react'
 import type { LoginFlowState, LoginProviderId, SubscriptionProviderStatus } from '@shared/models'
 import { Button } from '@/components/form'
@@ -115,19 +116,19 @@ export function AccountsTab(): React.JSX.Element {
       {error && <p className="text-danger mt-3 text-base">{error}</p>}
 
       <div className="mt-5 flex items-center gap-4">
-        <button
+        <TooltipButton
           onClick={() => void refresh()}
           className="text-text-secondary hover:text-text text-base"
         >
           Refresh
-        </button>
+        </TooltipButton>
         {ptyId === null && (
-          <button
+          <TooltipButton
             onClick={() => void openTerminal()}
             className="text-text-tertiary hover:text-text text-base"
           >
             Open pi’s login terminal
-          </button>
+          </TooltipButton>
         )}
       </div>
 
@@ -137,12 +138,12 @@ export function AccountsTab(): React.JSX.Element {
             <p className="text-text-secondary text-base">
               pi’s own <span className="font-mono">/login</span>. Type it and press Enter.
             </p>
-            <button
+            <TooltipButton
               onClick={closeTerminal}
               className="text-text-secondary hover:text-text text-base"
             >
               Done
-            </button>
+            </TooltipButton>
           </div>
           <div className="border-border h-64 overflow-hidden rounded-lg border p-2">
             <TerminalView ptyId={ptyId} visible />
@@ -226,7 +227,7 @@ function ProviderRow({
             {provider.status === 'unknown' && (
               <span
                 className="bg-warning/15 text-warning rounded-full px-2 py-0.5 text-sm"
-                title={provider.reason ?? provider.error}
+                data-tooltip={provider.reason ?? provider.error}
               >
                 Unknown
               </span>
@@ -235,7 +236,10 @@ function ProviderRow({
           {ready && provider.account && (
             // Which account, not just whether: with two ChatGPT logins on one
             // machine, "Signed in" alone does not say which one pi will bill.
-            <p className="text-text-secondary mt-0.5 truncate text-sm" title={provider.account}>
+            <p
+              className="text-text-secondary mt-0.5 truncate text-sm"
+              data-tooltip={provider.account}
+            >
               {provider.account}
             </p>
           )}
@@ -246,12 +250,12 @@ function ProviderRow({
 
         <div className="shrink-0">
           {busy ? (
-            <button
+            <TooltipButton
               onClick={() => onCancel(provider.id)}
               className="text-text-secondary hover:text-text text-base"
             >
               Cancel
-            </button>
+            </TooltipButton>
           ) : (
             <Button
               variant="secondary"
@@ -298,22 +302,22 @@ function LoginProgress({ flow }: { flow: LoginFlowState }): React.JSX.Element | 
             <code className="border-border bg-surface rounded border px-2 py-1 font-mono text-base tracking-widest">
               {flow.userCode}
             </code>
-            <button
+            <TooltipButton
               onClick={() => void navigator.clipboard.writeText(flow.userCode ?? '')}
               className="text-text-secondary hover:text-text text-sm"
             >
               Copy
-            </button>
+            </TooltipButton>
           </div>
         </div>
       )}
 
-      <button
+      <TooltipButton
         onClick={() => void window.phosphor.invoke('app:openExternal', flow.url)}
         className="text-accent mt-2.5 block text-sm hover:underline"
       >
         Browser didn’t open? Open the sign-in page again
-      </button>
+      </TooltipButton>
     </div>
   )
 }

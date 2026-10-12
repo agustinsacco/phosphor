@@ -182,7 +182,7 @@ describe('ActivityGroup row shapes', () => {
     // Provenance survives, compactly: a badge in the row, the full marker in
     // the title so a capped preview is still readable on hover.
     expect(external!.textContent).toContain('cc')
-    expect(external!.getAttribute('title')).toContain('Claude Code · WebSearch')
+    expect(external!.getAttribute('data-tooltip')).toContain('Claude Code · WebSearch')
 
     // The marker syntax itself must never reach the reader.
     expect(external!.textContent).not.toContain('[Claude Code ·')

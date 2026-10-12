@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useEffect } from 'react'
 import clsx from 'clsx'
 import { isUpdateVisible, useUpdatesStore } from './updatesStore'
@@ -32,7 +33,7 @@ export function UpdatePill(): React.JSX.Element | null {
         : 'Downloading update…'
 
   return (
-    <button
+    <TooltipButton
       type="button"
       disabled={!clickable || acting}
       data-testid="update-pill"
@@ -70,6 +71,6 @@ export function UpdatePill(): React.JSX.Element | null {
           {update.progressPercent}%
         </span>
       )}
-    </button>
+    </TooltipButton>
   )
 }

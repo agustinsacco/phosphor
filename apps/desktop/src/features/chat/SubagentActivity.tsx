@@ -27,7 +27,7 @@ export function SubagentActivity({ node }: { node: FleetNode }): React.JSX.Eleme
   return (
     <span
       className="text-text-tertiary block h-4 truncate text-xs leading-4 tabular-nums"
-      title={parts.join(' · ')}
+      data-tooltip={parts.join(' · ')}
     >
       {parts.join(' · ')}
     </span>

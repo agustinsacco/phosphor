@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
@@ -481,7 +482,7 @@ function ModelRow({
       testId="model-row"
       title={blocked ? `${model.id} — ${blocked.detail}` : `${model.provider}/${model.id}`}
       trailing={
-        <button
+        <TooltipButton
           // A row is a <button>; this must not be nested inside it (see MenuRow).
           onClick={(event) => {
             event.stopPropagation()
@@ -508,7 +509,7 @@ function ModelRow({
           )}
         >
           <StarIcon filled={starred} />
-        </button>
+        </TooltipButton>
       }
     >
       <span className="min-w-0 flex-1">
@@ -575,7 +576,7 @@ function FilterChip({
   onClick: () => void
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       onClick={onClick}
       aria-pressed={active}
       className={clsx(
@@ -587,7 +588,7 @@ function FilterChip({
     >
       {label}
       {count !== undefined && <span className="ml-1 opacity-60 tabular-nums">{count}</span>}
-    </button>
+    </TooltipButton>
   )
 }
 
@@ -601,7 +602,7 @@ function GroupChip({
   onClick: () => void
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       onClick={onClick}
       aria-pressed={active}
       className={clsx(
@@ -610,7 +611,7 @@ function GroupChip({
       )}
     >
       {label}
-    </button>
+    </TooltipButton>
   )
 }
 

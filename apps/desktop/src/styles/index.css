@@ -1,6 +1,21 @@
 @import 'tailwindcss';
 @import 'katex/dist/katex.min.css';
 
+/* Quiet action hints. No animation, arrow, or accent surface. Above startup and modals. */
+.action-tooltip {
+  @apply bg-surface-raised text-text border-border font-sans text-base leading-snug;
+  position: fixed;
+  z-index: 1100;
+  width: max-content;
+  max-width: min(20rem, calc(100vw - 16px));
+  padding: 4px 8px;
+  border-width: 1px;
+  border-radius: var(--px-radius-sm);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+  overflow-wrap: anywhere;
+  -webkit-app-region: no-drag;
+}
+
 /* Opaque, full-window startup surface. Uses the same tokens as the app so
    saved light/dark/system appearance carries through without a palette swap. */
 .startup-screen {

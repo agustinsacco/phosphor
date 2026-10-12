@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useMemo, useState } from 'react'
 import type { ArtifactListing } from '@shared/artifacts'
 import { ipcErrorText } from '@shared/errors'
@@ -171,7 +172,7 @@ function ArtifactRow({
   }
 
   return (
-    <button
+    <TooltipButton
       onClick={() => void open()}
       className="hover:bg-bg-secondary flex w-full cursor-pointer items-start gap-2.5 rounded-md px-2 py-1.5 text-left"
     >
@@ -190,7 +191,7 @@ function ArtifactRow({
           {row.copies > 0 ? ` · also in ${row.copies} fork${row.copies === 1 ? '' : 's'}` : ''}
         </span>
       </span>
-    </button>
+    </TooltipButton>
   )
 }
 
@@ -262,13 +263,13 @@ function StoredArtifactView({
   }
 
   const back = (
-    <button
+    <TooltipButton
       onClick={onBack}
       title="All artifacts"
       className="text-text-secondary hover:text-text hover:bg-bg-secondary shrink-0 rounded-sm px-1.5 py-0.5 text-sm"
     >
       ← All
-    </button>
+    </TooltipButton>
   )
 
   if (!loaded) {
@@ -293,13 +294,13 @@ function StoredArtifactView({
             {back}
             <StatusTag row={loaded.listing} />
             {loaded.listing.sessionDeleted && (
-              <button
+              <TooltipButton
                 onClick={() => void remove()}
                 title="Remove this artifact for good"
                 className="text-text-secondary hover:text-text hover:bg-bg-secondary shrink-0 rounded-sm px-1.5 py-0.5 text-sm"
               >
                 Remove
-              </button>
+              </TooltipButton>
             )}
           </>
         ),

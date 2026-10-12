@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import type { DirEntry } from '@shared/models'
@@ -268,7 +269,7 @@ function ExplorerRow({
 
   return (
     <>
-      <button
+      <TooltipButton
         ref={rowRef}
         aria-current={isActive ? 'true' : undefined}
         data-path={entry.path}
@@ -305,12 +306,12 @@ function ExplorerRow({
         <span className="min-w-0 flex-1 truncate">{entry.name}</span>
         {(dot || dirDirty) && (
           <span
-            title={dot?.label ?? 'contains changes'}
+            data-tooltip={dot?.label ?? 'contains changes'}
             className="h-1.5 w-1.5 shrink-0 rounded-full"
             style={{ backgroundColor: dot?.color ?? 'var(--px-warning)' }}
           />
         )}
-      </button>
+      </TooltipButton>
       {entry.isDirectory && isExpanded && (
         <>
           {children === undefined && (
@@ -350,7 +351,7 @@ export function IconToggle({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       title={title}
       aria-label={title}
       disabled={disabled}
@@ -363,7 +364,7 @@ export function IconToggle({
       )}
     >
       {children}
-    </button>
+    </TooltipButton>
   )
 }
 

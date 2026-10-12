@@ -163,12 +163,12 @@ it('collapses this workspace only and explicitly reveals the active file again',
   useFilesStore.setState({ expanded: { '/other/src': true } })
   await act(async () => root.render(<FileExplorer workspacePath="/repo" />))
   await act(async () =>
-    container.querySelector<HTMLButtonElement>('[title="Collapse all folders"]')!.click(),
+    container.querySelector<HTMLButtonElement>('[data-tooltip="Collapse all folders"]')!.click(),
   )
   expect(row('/repo/src/nested/b.ts')).toBeNull()
   expect(useFilesStore.getState().expanded['/other/src']).toBe(true)
   await act(async () =>
-    container.querySelector<HTMLButtonElement>('[title="Reveal active file"]')!.click(),
+    container.querySelector<HTMLButtonElement>('[data-tooltip="Reveal active file"]')!.click(),
   )
   expect(row('/repo/src/nested/b.ts')?.getAttribute('aria-current')).toBe('true')
 })

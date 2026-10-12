@@ -170,7 +170,7 @@ export function CommandApprovalSheet({
                           segment.risk ? (
                             <mark
                               key={i}
-                              title={segment.risk.why}
+                              data-tooltip={segment.risk.why}
                               className={clsx(
                                 'rounded px-0.5',
                                 segment.risk.context === 'command'

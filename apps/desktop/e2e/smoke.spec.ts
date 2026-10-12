@@ -150,6 +150,55 @@ function scrollPosition(el: HTMLElement): { top: number; max: number } {
   return { top, max }
 }
 
+test('action hints stay quiet and dismiss before menus or dialogs', async () => {
+  const h = await launch()
+  const { page } = h
+  try {
+    await openWorkspace(page)
+    const attach = page.getByRole('button', { name: 'Attach files', exact: true })
+    const tooltip = page.getByRole('tooltip')
+    await attach.hover()
+    await expect(tooltip).toBeVisible()
+    await expect(tooltip).toHaveText('Attach files')
+    await expect(attach).not.toHaveAttribute('title')
+    const bounds = await tooltip.boundingBox()
+    const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }))
+    expect(bounds!.x).toBeGreaterThanOrEqual(8)
+    expect(bounds!.y).toBeGreaterThanOrEqual(8)
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(viewport.width - 8)
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(viewport.height - 8)
+
+    // Clicks must never leave the old hint over a newly opened surface.
+    await page.getByRole('button', { name: /^Settings/ }).click()
+    await expect(tooltip).toHaveCount(0)
+    const close = page.getByRole('button', { name: 'Close settings', exact: true })
+    await close.hover()
+    await expect(tooltip).toHaveText('Close settings')
+    await page.keyboard.press('Escape')
+    await expect(tooltip).toHaveCount(0)
+    await expect(close).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(close).toHaveCount(0)
+
+    // Text actions, disabled controls, and icon actions all opt into the host.
+    const missing = await page
+      .locator('button')
+      .evaluateAll((nodes) =>
+        nodes
+          .filter((node) => !node.getAttribute('data-tooltip'))
+          .map((node) => node.outerHTML.slice(0, 180)),
+      )
+    expect(missing).toEqual([])
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await attach.hover()
+    await expect(tooltip).toBeVisible()
+    expect(await tooltip.evaluate((node) => getComputedStyle(node).animationName)).toBe('none')
+    await page.screenshot({ path: test.info().outputPath('quiet-tooltips.png') })
+  } finally {
+    await shutdown(h)
+  }
+})
+
 test('Swarm toggles lane authorization without sending a turn and honors reduced motion', async () => {
   const h = await launch()
   const { page } = h
@@ -170,7 +219,9 @@ test('Swarm toggles lane authorization without sending a turn and honors reduced
     await expect(toggle).toBeChecked()
     await expect(toggle).toBeFocused()
     await expect(page.locator('[data-swarm-enabled="true"]')).toBeVisible()
-    await expect(page.getByTitle('Swarm authorization enabled for this lane')).toBeVisible()
+    await expect(
+      page.locator('[data-tooltip="Swarm authorization enabled for this lane"]'),
+    ).toBeVisible()
     await expect(page.getByTestId('user-message')).toHaveCount(messages)
     await expect(draft).toHaveValue('Keep this draft')
     await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled()
@@ -245,7 +296,7 @@ test('Swarm toggles lane authorization without sending a turn and honors reduced
       // Measure the actual rendered label/badge colors, not duplicated theme tokens.
       for (const control of [
         toggle,
-        page.getByTitle('Swarm authorization enabled for this lane'),
+        page.locator('[data-tooltip="Swarm authorization enabled for this lane"]'),
       ]) {
         const contrast = await control.evaluate((el) => {
           const css = getComputedStyle(el)
@@ -305,7 +356,9 @@ test('Swarm toggles lane authorization without sending a turn and honors reduced
       await expectFooterFits()
       await screenshot(`swarm-${theme}-narrow-off.png`)
     }
-    await expect(page.getByTitle('Swarm authorization enabled for this lane')).toHaveCount(0)
+    await expect(
+      page.locator('[data-tooltip="Swarm authorization enabled for this lane"]'),
+    ).toHaveCount(0)
     await expect(page.getByTestId('user-message')).toHaveCount(messages)
     await expect(draft).toHaveValue('Keep this draft')
   } finally {
@@ -521,7 +574,7 @@ test('Changes supports keyboard open/back and live diff font preferences', async
     await page.getByRole('button', { name: /Start session/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
     const before = await readFile(join(workspace, 'hello.ts'), 'utf8')
-    await page.getByTitle(/Changes pane/).click()
+    await page.getByRole('button', { name: /Changes pane/ }).click()
     const row = page.getByRole('button', { name: 'View diff for hello.ts' })
     await row.focus()
     await row.press('Enter')
@@ -566,7 +619,7 @@ test('session chrome stays readable with long labels, laptop widths and zoom', a
     await page.getByRole('textbox', { name: 'Session name' }).fill(longTitle)
     await page.getByRole('textbox', { name: 'Session name' }).press('Enter')
     await expect(page.getByTestId('session-title').first()).toHaveText(longTitle)
-    await page.getByTitle(/Changes pane/).click()
+    await page.getByRole('button', { name: /Changes pane/ }).click()
 
     for (const [theme, width, zoom] of [
       ['Light', 1440, 1],
@@ -681,7 +734,7 @@ test('the / menu offers pi commands on the home screen and in a session', async 
     await expect(menu.getByText('Extensions', { exact: true })).toBeVisible()
     await expect(menu.getByText('Prompts', { exact: true })).toBeVisible()
     await expect(menu.getByText('/pi-mcp', { exact: true })).toHaveCount(0)
-    await expect(menu.getByTitle(/Also: \/pi-mcp/)).toBeVisible()
+    await expect(menu.locator('[data-tooltip*="Also: /pi-mcp"]')).toBeVisible()
     // The origin column answers "where is this from?" for a package command.
     await expect(menu.getByText('pi-web-access', { exact: true }).first()).toBeVisible()
 
@@ -1013,12 +1066,12 @@ test('Codex context popover reads account usage and refreshes through main', asy
     await page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
     await page.getByRole('button', { name: /Start session/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
-    await page.getByTitle(/^Context:/).click()
+    await page.locator('button[data-tooltip^="Context:"]').click()
     await expect(page.getByText('Plan usage · ChatGPT account')).toBeVisible()
-    await expect(page.getByTitle(/^Weekly window — 48% used/)).toBeVisible()
+    await expect(page.locator('[data-tooltip^="Weekly window — 48% used"]')).toBeVisible()
     await expect(page.getByText('56.2 of 200 credits left')).toBeVisible()
-    await page.getByTitle("Re-read this account's usage from ChatGPT").click()
-    await expect(page.getByTitle(/^Weekly window — 49% used/)).toBeVisible()
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click()
+    await expect(page.locator('[data-tooltip^="Weekly window — 49% used"]')).toBeVisible()
   } finally {
     await shutdown(harness)
   }
@@ -1133,12 +1186,12 @@ test('workspace → session → streamed answer, diff and artifact render', asyn
     await expect(page.getByText('return "new"').first()).toBeVisible()
 
     // Files Changed panel.
-    await page.getByTitle(/Changes pane/).click()
+    await page.getByRole('button', { name: /Changes pane/ }).click()
     await expect(page.getByText('Files changed')).toBeVisible()
     await expect(page.getByText('hello.ts').first()).toBeVisible()
 
     // Artifacts pane got the artifact from the tool result.
-    await page.getByTitle('Artifacts pane').click()
+    await page.getByRole('button', { name: 'Artifacts pane', exact: true }).click()
     await expect(page.getByText('E2E Card').first()).toBeVisible({ timeout: 10_000 })
 
     // The global Artifacts page (sidebar row) indexes it across sessions…
@@ -1253,7 +1306,7 @@ test('Changes revert restores working content without changing staged edits', as
     await writeFile(join(lane, 'hello.ts'), '// staged\n')
     await run('git', ['add', 'hello.ts'], { cwd: lane })
     await writeFile(join(lane, 'hello.ts'), '// unstaged\n')
-    await page.getByTitle(/^Changes pane/).click()
+    await page.getByRole('button', { name: /Changes pane/ }).click()
     page.once('dialog', (dialog) => void dialog.accept())
     await page.getByRole('button', { name: 'Revert hello.ts', exact: true }).click()
     await expect.poll(() => readFile(join(lane, 'hello.ts'), 'utf8')).toBe(original)
@@ -1273,7 +1326,7 @@ test('closing dirty editor tabs offers cancel, discard and save', async () => {
     await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
     await page.getByRole('button', { name: /Start session/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
-    await page.getByTitle(/^Files pane/).click()
+    await page.getByRole('button', { name: /Files pane/ }).click()
     const row = page
       .getByTestId('file-explorer')
       .getByRole('button', { name: 'hello.ts', exact: true })
@@ -1361,7 +1414,7 @@ test('explorer creates entries from empty space and keeps renamed editor buffers
     await page.getByRole('button', { name: /Start session/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
     await rm(join(workspace, 'hello.ts'))
-    await page.getByTitle(/^Files pane/).click()
+    await page.getByRole('button', { name: /Files pane/ }).click()
     const explorer = page.getByTestId('file-explorer')
     await expect(explorer.getByText(/Empty folder/)).toBeVisible()
     await explorer.getByRole('button', { name: 'New folder', exact: true }).click()
@@ -1384,7 +1437,7 @@ test('explorer creates entries from empty space and keeps renamed editor buffers
     await page.getByTestId('context-menu').getByRole('button', { name: 'Rename…' }).click()
     await page.getByRole('textbox').last().fill('docs')
     await page.getByRole('button', { name: 'OK', exact: true }).click()
-    await expect(page.getByTitle('docs/draft.md', { exact: true })).toBeVisible()
+    await expect(page.locator('[data-tooltip="docs/draft.md"]')).toBeVisible()
     await expect(page.locator('.monaco-editor .view-lines')).toContainText('unsaved notes')
     await editor.focus()
     await page.keyboard.press(process.platform === 'darwin' ? 'Meta+s' : 'Control+s')
@@ -1497,7 +1550,7 @@ test('explorer follows external create, move and delete changes on disk', async 
     await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
     await page.getByRole('button', { name: /Start session/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
-    await page.getByTitle(/^Files pane/).click()
+    await page.getByRole('button', { name: /Files pane/ }).click()
 
     const explorer = page.getByTestId('file-explorer')
     const row = (name: string) => explorer.getByRole('button', { name, exact: true })
@@ -1583,7 +1636,7 @@ test('explorer previews images, pages and PDFs, and refuses to launch programs',
     await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
     await page.getByRole('button', { name: /Start session/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
-    await page.getByTitle(/^Files pane/).click()
+    await page.getByRole('button', { name: /Files pane/ }).click()
     const explorer = page.getByTestId('file-explorer')
     const row = (name: string) => explorer.getByRole('button', { name, exact: true })
 
@@ -1635,7 +1688,7 @@ test('explorer copies, cuts, multi-drags and imports disk-backed files', async (
     await page.getByPlaceholder('Describe a task or ask a question').fill('Hello')
     await page.getByRole('button', { name: /Start session/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
-    await page.getByTitle(/^Files pane/).click()
+    await page.getByRole('button', { name: /Files pane/ }).click()
     const explorer = page.getByTestId('file-explorer')
     const row = (name: string) => explorer.getByRole('button', { name, exact: true })
     await row('hello.ts').click()
@@ -1650,7 +1703,7 @@ test('explorer copies, cuts, multi-drags and imports disk-backed files', async (
     await expect.poll(() => existsSync(join(workspace, 'destination/hello.ts'))).toBe(true)
     await expect(explorer).toHaveAttribute('aria-busy', 'false')
     expect(existsSync(join(workspace, 'hello.ts'))).toBe(false)
-    await expect(page.getByTitle('destination/hello.ts', { exact: true })).toBeVisible()
+    await expect(page.locator('[data-tooltip="destination/hello.ts"]')).toBeVisible()
 
     await row('destination').click({ button: 'right' })
     await page
@@ -1748,7 +1801,7 @@ test('floating IDE panes share compact corners in both themes', async () => {
         document.documentElement.classList.toggle('dark', value === 'dark')
       }, theme)
       for (const title of ['Files pane', 'Terminal pane', 'Artifacts pane']) {
-        await page.getByTitle(new RegExp(`^${title}`)).click()
+        await page.getByRole('button', { name: new RegExp(`^${title}`) }).click()
         const pane = page.getByTestId('right-pane')
         await expect(pane).toBeVisible()
         await expect(pane).toHaveCSS('border-radius', '6px')
@@ -2101,7 +2154,7 @@ test('right-hand pane controls stay clear of the OS window controls', async () =
     await page.getByRole('button', { name: /Start session/i }).click()
     await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
 
-    await page.getByTitle(/Terminal pane/).click()
+    await page.getByRole('button', { name: /Terminal pane/ }).click()
     const closePane = page.getByRole('button', { name: 'Close pane' })
     await expect(closePane).toBeVisible({ timeout: 10_000 })
 
@@ -2721,10 +2774,12 @@ test('worktree flow: create from the branch chip, session stays under the projec
     // Still one sidebar group for the project (not a header per branch); the
     // worktree is surfaced on the session row itself instead.
     await expect(page.getByTestId('workspace-group')).toHaveCount(1, { timeout: 15_000 })
-    await expect(page.getByTitle('Runs in a git worktree')).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('[data-tooltip="Runs in a git worktree"]')).toBeVisible({
+      timeout: 15_000,
+    })
 
     // The top bar's branch control marks the worktree.
-    await expect(page.getByTitle(/Worktree of/)).toBeVisible({ timeout: 10_000 })
+    await expect(page.locator('[data-tooltip*="Worktree of"]')).toBeVisible({ timeout: 10_000 })
 
     // ...and the folder chip beside it still names the PROJECT. The reported
     // bug: with a worktree session open it showed the worktree folder's own
@@ -4354,7 +4409,7 @@ test('a parallel delegation shows every child working at once, then settles', as
     const current = page.getByTestId('background-work-indicator')
     await expect(current).toContainText('Parent working · 3 subagents active')
     await expect(page.getByRole('button', { name: 'Subagents pane', exact: true })).toBeVisible()
-    await expect(page.getByTitle('3 subagents active', { exact: true })).toHaveText('3')
+    await expect(page.locator('[data-tooltip="3 subagents active"]')).toHaveText('3')
     await page.keyboard.press('ControlOrMeta+k')
     await page.getByPlaceholder('Type a command…').fill('Toggle artifacts pane')
     await page.getByText('Toggle artifacts pane', { exact: true }).click()
@@ -5819,7 +5874,7 @@ test('a link to a spec the model wrote opens it in the Files pane', async () => 
 
     await specLink.click()
     await expect(page.getByTestId('right-pane')).toBeVisible()
-    await expect(page.getByTitle('docs/plan.md', { exact: true })).toBeVisible()
+    await expect(page.locator('[data-tooltip="docs/plan.md"]')).toBeVisible()
     // Markdown opens rendered; the source stays one click away.
     await expect(
       page.getByTestId('right-pane').locator('.md-content').getByText('line 1: plan body'),

@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import clsx from 'clsx'
 
 /**
@@ -21,7 +22,7 @@ export function IconToggle({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       type="button"
       title={title}
       aria-label={title}
@@ -36,6 +37,6 @@ export function IconToggle({
       )}
     >
       {children}
-    </button>
+    </TooltipButton>
   )
 }

@@ -15,6 +15,7 @@ interface EscapeEntry {
   onEscape: () => void
   /** React tree depth: deeper is more nested, so it wins. */
   depth: number
+  priority?: 'tooltip'
 }
 
 const escapeEntries: EscapeEntry[] = []
@@ -25,10 +26,19 @@ function handleWindowEscape(event: KeyboardEvent): void {
   if (event.key !== 'Escape' || event.isComposing || event.keyCode === 229) return
   let innermost: EscapeEntry | undefined
   for (const entry of escapeEntries) {
-    if (!innermost || entry.depth >= innermost.depth) innermost = entry
+    if (
+      !innermost ||
+      (entry.priority === 'tooltip' && innermost.priority !== 'tooltip') ||
+      (entry.priority === innermost.priority && entry.depth >= innermost.depth)
+    )
+      innermost = entry
   }
   if (!innermost) return
   event.stopPropagation()
+  if (innermost.priority === 'tooltip') {
+    event.preventDefault()
+    event.stopImmediatePropagation()
+  }
   innermost.onEscape()
 }
 
@@ -43,7 +53,7 @@ const EscapeDepthContext = createContext(0)
  * Escape-to-close, as a hook so non-overlay surfaces (popovers, inline
  * editors) can share it. When several are mounted, the innermost wins.
  */
-export function useEscapeKey(onEscape: () => void, enabled = true): void {
+export function useEscapeKey(onEscape: () => void, enabled = true, priority?: 'tooltip'): void {
   const depth = useContext(EscapeDepthContext)
 
   // Keep the latest callback without re-registering on every render.
@@ -53,7 +63,7 @@ export function useEscapeKey(onEscape: () => void, enabled = true): void {
   useEffect(() => {
     if (!enabled) return
 
-    const entry: EscapeEntry = { onEscape: () => callbackRef.current(), depth }
+    const entry: EscapeEntry = { onEscape: () => callbackRef.current(), depth, priority }
     escapeEntries.push(entry)
     if (!escapeListenerAttached) {
       window.addEventListener('keydown', handleWindowEscape, true)
@@ -68,7 +78,7 @@ export function useEscapeKey(onEscape: () => void, enabled = true): void {
         escapeListenerAttached = false
       }
     }
-  }, [enabled, depth])
+  }, [enabled, depth, priority])
 }
 
 /** Backdrop treatments, matching the variants already in use. */

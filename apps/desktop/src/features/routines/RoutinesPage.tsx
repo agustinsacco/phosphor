@@ -1,3 +1,4 @@
+import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import {
@@ -328,8 +329,9 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                   const last = snapshot?.runs.find((run) => run.routineId === r.id)
                   return (
                     <li key={r.id}>
-                      <button
+                      <TooltipButton
                         data-testid="routine-row"
+                        tooltip={r.name}
                         className="hover:bg-bg-secondary flex w-full items-center gap-3 px-4 py-3 text-left"
                         onClick={() => {
                           setSelected(r.id)
@@ -363,7 +365,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                             {last ? `Last: ${RUN_LABELS[last.status]}` : 'Not run yet'}
                           </span>
                         </span>
-                      </button>
+                      </TooltipButton>
                     </li>
                   )
                 })}
@@ -395,7 +397,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                 Routines run on this computer while Phosphor is open and awake. Sleep, shutdown and
                 lost connectivity delay them; there is no cloud runner.
               </p>
-              <label className="text-text-secondary mt-2 flex items-center gap-2">
+              <TooltipLabel className="text-text-secondary mt-2 flex items-center gap-2">
                 <input
                   type="checkbox"
                   disabled={busy || !snapshot || !!snapshot.error}
@@ -405,7 +407,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                   }
                 />
                 Keep Phosphor running after closing its windows · tray/menu-bar controls
-              </label>
+              </TooltipLabel>
             </footer>
           </>
         )}

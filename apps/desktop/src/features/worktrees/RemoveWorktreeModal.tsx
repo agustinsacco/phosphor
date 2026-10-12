@@ -1,3 +1,4 @@
+import { TooltipLabel } from '@/components/Tooltip'
 import { useMemo, useState } from 'react'
 import type { WorktreeInfo } from '@shared/models'
 import { ModalOverlay, ModalPanel } from '@/components/Modal'
@@ -67,7 +68,7 @@ export function RemoveWorktreeModal({
         width={440}
         title="Remove worktree"
         subtitle={
-          <span className="block truncate" title={worktree.path}>
+          <span className="block truncate" data-tooltip={worktree.path}>
             {workspaceName(worktree.path)}
             {worktree.branch ? ` — ${worktree.branch}` : ''}
           </span>
@@ -102,14 +103,14 @@ export function RemoveWorktreeModal({
               <div className="text-danger text-base font-medium">
                 {dirtyCount} uncommitted change{dirtyCount === 1 ? '' : 's'} will be lost
               </div>
-              <label className="mt-1.5 flex items-center gap-2 text-base">
+              <TooltipLabel className="mt-1.5 flex items-center gap-2 text-base">
                 <input
                   type="checkbox"
                   checked={discard}
                   onChange={(e) => setDiscard(e.target.checked)}
                 />
                 Discard {dirtyCount} change{dirtyCount === 1 ? '' : 's'} permanently
-              </label>
+              </TooltipLabel>
             </div>
           ) : (
             <div className="text-text-secondary text-base">
@@ -118,7 +119,7 @@ export function RemoveWorktreeModal({
           )}
 
           {worktree.branch && !branchNote && (
-            <label className="flex items-center gap-2 text-base">
+            <TooltipLabel className="flex items-center gap-2 text-base">
               <input
                 type="checkbox"
                 checked={deleteBranch}
@@ -126,7 +127,7 @@ export function RemoveWorktreeModal({
               />
               Also delete branch <span className="font-mono">{worktree.branch}</span> (only if
               merged)
-            </label>
+            </TooltipLabel>
           )}
 
           {error && <div className="text-danger text-base">{error}</div>}

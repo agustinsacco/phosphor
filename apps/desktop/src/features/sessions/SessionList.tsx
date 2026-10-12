@@ -76,7 +76,7 @@ export function SessionList({
               className="session-sort-row relative"
               data-session-path={path}
               draggable={Boolean(path) && !disabled}
-              title={disabled ? undefined : 'Drag to reorder · Alt+↑ / Alt+↓ to move'}
+              data-tooltip={disabled ? undefined : 'Drag to reorder · Alt+↑ / Alt+↓ to move'}
               onPointerDownCapture={(event) => {
                 blocked.current = Boolean(
                   (event.target as Element).closest('input, [role="checkbox"], [role="link"]'),

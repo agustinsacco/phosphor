@@ -82,7 +82,7 @@ describe('MarkdownLink', () => {
   it('carries no href on a file link, so nothing can navigate the app away', () => {
     render(<MarkdownLink href="docs/x.md">x</MarkdownLink>)
     expect(link().getAttribute('href')).toBeNull()
-    expect(link().title).toBe('Open in Files pane')
+    expect(link().dataset.tooltip).toBe('Open in Files pane')
   })
 
   it('reveals the line a link names', async () => {
@@ -111,7 +111,7 @@ describe('MarkdownLink', () => {
     useLayoutStore.setState({ bySession: {} })
     render(<MarkdownLink href="artifact://phosphor-beacon#v1">Preview the design</MarkdownLink>)
     expect(link().getAttribute('href')).toBeNull()
-    expect(link().title).toBe('Open in Artifacts pane at v1')
+    expect(link().dataset.tooltip).toBe('Open in Artifacts pane at v1')
     await click(link())
     expect(sessionPanes(useLayoutStore.getState(), 's1').pane).toBe('artifacts')
     expect(useArtifactsStore.getState().selected.s1).toBe('phosphor-beacon')

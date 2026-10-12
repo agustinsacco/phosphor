@@ -134,7 +134,7 @@ export function HomeModelPicker({
         onClick={openModelMenu}
         title={
           chip.degraded
-            ? `pi's model catalogue could not be read, so only models.json is listed. ${chip.text} is probably still fine — open the picker to retry.`
+            ? `${chip.text} · Only models.json available; open to retry the catalogue`
             : chip.unavailable
               ? `${chip.text} is not in pi's catalogue`
               : `${chip.text}${current ? ` · served by ${current.provider}` : ''}`

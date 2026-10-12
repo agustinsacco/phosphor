@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { WorktreeInfo } from '@shared/models'
@@ -98,7 +99,7 @@ export function BranchControl({
 
   return (
     <span className="relative shrink-0">
-      <button
+      <TooltipButton
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         title={
@@ -136,13 +137,16 @@ export function BranchControl({
         </span>
         {(info.ahead ?? 0) > 0 && <span className="text-success">↑{info.ahead}</span>}
         {behind > 0 && (
-          <span className="text-info" title={`${behind} commits behind the remote — open to pull`}>
+          <span
+            className="text-info"
+            data-tooltip={`${behind} commits behind the remote — open to pull`}
+          >
             ↓{behind}
           </span>
         )}
         {(info.dirtyCount ?? 0) > 0 && <span className="text-warning">·{info.dirtyCount}</span>}
         <ChevronIcon size={10} className="text-text-tertiary" />
-      </button>
+      </TooltipButton>
 
       {open && (
         <PopupMenu

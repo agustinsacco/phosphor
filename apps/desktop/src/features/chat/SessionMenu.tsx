@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useRef, useState } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
@@ -64,18 +65,19 @@ export function SessionMenu({ sessionId }: { sessionId: string }): React.JSX.Ele
 
   return (
     <div className="relative">
-      <button
+      <TooltipButton
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 items-center justify-center rounded-md transition-colors"
         title="Session options"
+        data-tooltip-open={open}
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
           <circle cx="12" cy="5" r="1.8" />
           <circle cx="12" cy="12" r="1.8" />
           <circle cx="12" cy="19" r="1.8" />
         </svg>
-      </button>
+      </TooltipButton>
 
       {open && (
         <PopupMenu

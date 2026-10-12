@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useState } from 'react'
 import clsx from 'clsx'
 import { CheckIcon } from '@/components/icons'
@@ -34,7 +35,7 @@ export function CopyButton({
   const iconSize = size === 'md' ? 13 : 11
 
   return (
-    <button
+    <TooltipButton
       onClick={copy}
       title={title}
       className={clsx(
@@ -47,7 +48,7 @@ export function CopyButton({
     >
       {copied ? <CheckIcon size={iconSize} /> : <CopyIcon size={iconSize} />}
       {label && <span>{copied ? 'Copied' : label}</span>}
-    </button>
+    </TooltipButton>
   )
 }
 

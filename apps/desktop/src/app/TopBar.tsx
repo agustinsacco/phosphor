@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import clsx from 'clsx'
 import { useChatStore } from '@/stores/chat'
 import { SwarmBadge } from '@/features/chat/composer/SwarmSwitch'
@@ -96,7 +97,7 @@ function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.
           // See the sidebar row: re-keyed so the generated name animates in
           // rather than replacing the placeholder text in place.
           key={title ?? ''}
-          title={naming.pending ? 'Naming this chat…' : undefined}
+          data-tooltip={naming.pending ? 'Naming this chat…' : undefined}
           className={clsx(
             'text-text truncate text-lg font-semibold',
             naming.pending && 'name-pending',
@@ -154,7 +155,7 @@ function SubagentsButton({
       {(attention || unknown) && (
         <span
           className="text-warning absolute -left-0.5 -top-1 text-xs"
-          title={attention ? 'Needs parent attention' : 'Status unavailable'}
+          data-tooltip={attention ? 'Needs parent attention' : 'Status unavailable'}
         >
           {attention ? '!' : '?'}
         </span>
@@ -176,7 +177,7 @@ function CountBadge({
   if (count === 0) return null
   return (
     <span
-      title={title}
+      data-tooltip={title}
       className={clsx(
         'pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full px-0.5 text-2xs font-bold',
         tone === 'success'
@@ -220,7 +221,7 @@ function TerminalButton({
       {running > 0 && (
         <span
           className="bg-success absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full"
-          title={`${running} process${running > 1 ? 'es' : ''} running`}
+          data-tooltip={`${running} process${running > 1 ? 'es' : ''} running`}
         />
       )}
     </div>
@@ -267,7 +268,7 @@ function IconButton({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       title={title}
       onClick={onClick}
       className={clsx(
@@ -278,6 +279,6 @@ function IconButton({
       )}
     >
       {children}
-    </button>
+    </TooltipButton>
   )
 }

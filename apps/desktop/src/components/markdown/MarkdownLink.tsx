@@ -16,6 +16,7 @@ import { useSessionsStore } from '@/stores/sessions'
  */
 export function MarkdownLink({
   href,
+  title,
   children,
   ...rest
 }: React.AnchorHTMLAttributes<HTMLAnchorElement>): React.JSX.Element {
@@ -48,9 +49,10 @@ export function MarkdownLink({
     return (
       <a
         {...rest}
+        aria-description={title}
         role="link"
         tabIndex={0}
-        title={inAppTitle(target)}
+        data-tooltip={inAppTitle(target)}
         className={`${className} cursor-pointer`}
         onClick={activate}
         onKeyDown={(event) => {
@@ -63,7 +65,14 @@ export function MarkdownLink({
   }
 
   return (
-    <a href={href} {...rest} className={className} onClick={activate}>
+    <a
+      href={href}
+      {...rest}
+      className={className}
+      onClick={activate}
+      data-tooltip={target.kind === 'external' ? 'Open in browser' : undefined}
+      aria-description={title}
+    >
       {children}
     </a>
   )

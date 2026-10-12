@@ -47,7 +47,7 @@ export function AgentLaunchStrip({ sessionId }: { sessionId: string }): React.JS
     <div className="mx-auto w-full max-w-3xl px-1 pb-2" data-testid="agent-launch-strip">
       <div
         className="text-text-secondary flex items-center gap-2 px-2 text-base"
-        title="These sub-agents were started but never reported a result. On pi-claude-cli older than 0.4.14 the CLI was shut down at the end of the turn, so background agents died with it; update the provider (npm i -g, then reinstall into pi) to let them finish. Asking again re-does the work in this session."
+        data-tooltip="These sub-agents were started but never reported a result. On pi-claude-cli older than 0.4.14 the CLI was shut down at the end of the turn, so background agents died with it; update the provider (npm i -g, then reinstall into pi) to let them finish. Asking again re-does the work in this session."
       >
         {/* bg-bg-secondary, not a *-soft token: only accent-soft and
             danger-soft are defined, and this is a caution, not an error. */}

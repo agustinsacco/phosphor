@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { ToolState } from '../reducer'
@@ -70,7 +71,7 @@ export function SubagentDetail({ tool }: { tool: ToolState }): React.JSX.Element
         >
           <span>Launched in the background</span>
           {run.runId && (
-            <span className="text-text-tertiary font-mono text-sm" title={run.runId}>
+            <span className="text-text-tertiary font-mono text-sm" data-tooltip={run.runId}>
               {shortId(run.runId)}
             </span>
           )}
@@ -155,7 +156,7 @@ function TaskSection({
       : 'Input · delegated task'
   return (
     <div data-find-skip className="border-border border-b px-3 py-2">
-      <button
+      <TooltipButton
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         className="text-text-tertiary hover:text-text flex items-center gap-1 text-sm transition-colors"
@@ -167,7 +168,7 @@ function TaskSection({
             · {body.replace(/\s+/g, ' ').slice(0, 96)}
           </span>
         )}
-      </button>
+      </TooltipButton>
       {open && (
         <div
           data-testid="subagent-task"
@@ -256,7 +257,7 @@ function ChildCard({
         </span>
         <span className="text-text shrink-0 font-medium">{child.agent}</span>
         {showLabel && child.label && (
-          <span className="text-text-secondary min-w-0 truncate" title={child.label}>
+          <span className="text-text-secondary min-w-0 truncate" data-tooltip={child.label}>
             {child.label}
           </span>
         )}
@@ -347,7 +348,7 @@ function AgentCatalogue({ agents }: { agents: SubagentAgentInfo[] }): React.JSX.
               {agent.source}
             </span>
           )}
-          <span className="text-text-secondary min-w-0 truncate" title={agent.description}>
+          <span className="text-text-secondary min-w-0 truncate" data-tooltip={agent.description}>
             {agent.available ? agent.description : (agent.unavailableReason ?? 'unavailable')}
           </span>
           {agent.model && (

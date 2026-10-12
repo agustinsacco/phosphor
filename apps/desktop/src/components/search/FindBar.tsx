@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useId, useLayoutEffect } from 'react'
 import clsx from 'clsx'
 import type { CompiledQuery } from '@shared/text-search'
@@ -57,7 +58,7 @@ function FindStatus({
       id={id}
       role="status"
       className={clsx('shrink-0 text-sm tabular-nums', tone)}
-      title={!unavailable && compiled.status === 'invalid' ? compiled.error : undefined}
+      data-tooltip={!unavailable && compiled.status === 'invalid' ? compiled.error : undefined}
       data-testid="find-status"
     >
       {content}
@@ -161,6 +162,7 @@ export function FindBar({
         aria-describedby={statusId}
         spellCheck={false}
         className="find-field text-text placeholder:text-text-tertiary w-40 min-w-0 bg-transparent text-sm outline-none"
+        data-tooltip={placeholder}
       />
       <FindStatus
         id={statusId}
@@ -171,7 +173,7 @@ export function FindBar({
         unavailable={unavailable}
       />
       {unavailable && (
-        <button
+        <TooltipButton
           type="button"
           title={unavailable.reason}
           onClick={unavailable.onAction}
@@ -179,7 +181,7 @@ export function FindBar({
           data-testid="find-unavailable"
         >
           {unavailable.action}
-        </button>
+        </TooltipButton>
       )}
       <SearchOptionToggles options={find.options} onToggle={find.toggleOption} />
       <span className="bg-border mx-0.5 h-4 w-px shrink-0" aria-hidden="true" />
@@ -220,7 +222,7 @@ function BarButton({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       type="button"
       title={`${label} (${shortcut})`}
       aria-label={label}
@@ -229,6 +231,6 @@ function BarButton({
       className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
     >
       {children}
-    </button>
+    </TooltipButton>
   )
 }

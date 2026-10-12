@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import type { ToolState } from '../reducer'
 import { toolDetails, toolText } from './toolSummaries'
 import { ErrorText } from './toolDetails'
@@ -70,7 +71,7 @@ export function ArtifactDetail({
   }
 
   return (
-    <button
+    <TooltipButton
       onClick={open}
       className="hover:bg-bg-secondary/60 flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors"
     >
@@ -94,6 +95,6 @@ export function ArtifactDetail({
       >
         Open in panel
       </span>
-    </button>
+    </TooltipButton>
   )
 }
