@@ -15,7 +15,7 @@ const app = createApp({
   log: (entry) => console.log(JSON.stringify(entry)),
   supabase: createSupabase(config, fetch),
   limits: new RateLimiter(clock),
-  nonces: new NonceCache(clock),
+  nonces: { key: new NonceCache(clock), host: new NonceCache(clock) },
   version: '0.1.0',
 })
 const server = serve({ fetch: app.fetch, port: config.port }, (info) => {

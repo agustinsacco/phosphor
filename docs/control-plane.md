@@ -21,7 +21,9 @@ on registered API routes and OPTIONS return 405. There are no CORS headers.
 Raw request targets are checked before URL normalization. Dot segments, empty
 segments, backslashes, encoded separators and null bytes are refused. Unsafe API
 targets return 400; unsafe site targets return the site's 404.
-Request bodies are capped at 16 KB by counting streamed bytes, not by trusting
+GET, HEAD and DELETE refuse Transfer-Encoding or a Content-Length other than 0
+before body reading. Their signed body is empty. POST, PATCH and PUT bodies are
+capped at 16 KB by counting streamed bytes, not by trusting
 Content-Length. Bodies require `application/json` and valid JSON. If the server
 has no secret key, health returns `configured: false` and all other API routes
 return 503. Static pages remain available.
@@ -44,13 +46,20 @@ publishable apikey and user bearer. Auth 401/403 means unauthenticated. Other
 failures and five-second timeouts mean unavailable. Successful identities are
 cached by token SHA-256 for at most 30 seconds, never past expiry, with a
 1000-entry cap. Account suspension is checked through RPC on every request,
-not cached. The exported user guard refuses suspended accounts on other routes.
+not cached. Each cache-miss Auth verification consumes a per-IP limit of 30 per
+60 seconds before contacting Supabase. Cache hits and cheap pre-check failures
+are free. The exported user guard refuses suspended accounts on other routes.
 
 The exported Host guard supports a raw Ed25519 public key or an enrolled UUID,
 never both. It verifies the shared signing string against the exact body bytes,
 requires timestamps within 60 seconds, rejects queries or any rewritten raw
-path. It consumes a nonce only after verification. Nonces live for 120 seconds in a bounded 100,000-entry
-cache with oldest-entry eviction. Enrolled key lookup is an injected port; gone
+path. It consumes a nonce only after verification. Nonces live for 120 seconds in two separate
+100,000-entry caches: one for enrollment keys and one for enrolled Hosts. Expired
+entries are swept. A full cache refuses new nonces with 429 without evicting live
+replay records. Enrollment traffic cannot fill the enrolled Hosts' cache.
+Enrolled key lookup consumes a per-IP limit of 120 per 60 seconds before any RPC.
+Key-mode verification needs no upstream lookup or auth limiter.
+Enrolled key lookup is an injected port; gone
 and unknown Hosts both produce 410. These guards have no public Host routes yet.
 The shared signing vector is tested against the verifier.
 
@@ -60,8 +69,8 @@ is validated before reaching the wire. Logs include timestamp, request id,
 method, route pattern, status, duration and actor only, never headers, bodies,
 concrete unknown paths, tokens, user codes or keys.
 
-The reusable sliding-window limiter has a 10,000-key cap and oldest-entry
-eviction. Enrollment policies are not active until enrollment routes exist.
+The reusable sliding-window limiter has a 10,000-key cap. At capacity it sweeps
+expired windows and refuses new keys with 429 rather than evicting live windows. Enrollment policies are not active until enrollment routes exist.
 Proxy IP selection trusts a valid `cf-connecting-ip` only when configured for
 Cloudflare; otherwise it uses the socket address. All in-memory guards are
 process-local. Run a single replica; rollout overlap is not cross-process replay

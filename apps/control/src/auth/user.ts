@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { isUuid, parseMeResponse, type MeResponse } from '@phosphor/shared/control-api'
 import type { MiddlewareHandler } from 'hono'
 import { ControlFailure, type Env } from '../http'
-import { BoundedCache } from '../limits'
+import { BoundedCache, type RateLimiter } from '../limits'
 import type { Supabase } from '../supabase'
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -12,9 +12,9 @@ export interface User {
   userId: string
   login: string | null
 }
-export function createUserAuth(supabase: Supabase, clock: () => number) {
+export function createUserAuth(supabase: Supabase, clock: () => number, limits: RateLimiter) {
   const cache = new BoundedCache<User>(clock, 1000)
-  return async (authorization: string | undefined): Promise<User> => {
+  return async (authorization: string | undefined, ip: string): Promise<User> => {
     if (!authorization?.startsWith('Bearer ')) throw new ControlFailure('unauthenticated')
     const token = authorization.slice(7)
     if (token.length > 4096 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token))
@@ -38,6 +38,8 @@ export function createUserAuth(supabase: Supabase, clock: () => number) {
     const hash = createHash('sha256').update(token).digest('hex')
     const cached = cache.get(hash)
     if (cached) return cached
+    if (!limits.consume('user-verify:' + ip, 30, 60_000))
+      throw new ControlFailure('too-many-requests')
     const value = await supabase.getUser(token)
     if (payload.exp * 1000 <= clock()) throw new ControlFailure('unauthenticated')
     if (!record(value) || !isUuid(value.id)) throw new ControlFailure('unavailable')
@@ -72,7 +74,7 @@ export function userGuard(
   supabase: Supabase,
 ): MiddlewareHandler<Env> {
   return async (c, next) => {
-    const user = await auth(c.req.header('authorization'))
+    const user = await auth(c.req.header('authorization'), c.get('ip'))
     c.set('user', user)
     c.set('actor', `user:${user.userId}`)
     if (!(await account(supabase, user)).enabled) throw new ControlFailure('forbidden')

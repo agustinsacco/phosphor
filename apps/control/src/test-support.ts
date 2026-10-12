@@ -22,6 +22,6 @@ export function dependencies(): AppDeps {
       rpc: vi.fn(async () => ({ enabled: true, maxHosts: 20 })),
     },
     limits: new RateLimiter(clock),
-    nonces: new NonceCache(clock),
+    nonces: { key: new NonceCache(clock), host: new NonceCache(clock) },
   }
 }

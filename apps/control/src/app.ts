@@ -3,6 +3,8 @@ import { CONTROL_LIMITS, CONTROL_ROUTES, type ControlErrorBody } from '@phosphor
 import type { Config } from './config'
 import {
   apiHeaders,
+  clientIp,
+  refuseBody,
   ControlFailure,
   readBytes,
   rawTarget,
@@ -26,7 +28,7 @@ export interface AppDeps {
   log: (entry: RequestLog) => void
   supabase: Supabase
   limits: RateLimiter
-  nonces: NonceCache
+  nonces: { key: NonceCache; host: NonceCache }
   version: string
 }
 export function createApp(deps: AppDeps) {
@@ -49,6 +51,11 @@ export function createApp(deps: AppDeps) {
     })
   })
   app.use('/api/*', async (c, next) => {
+    c.set(
+      'ip',
+      clientIp(c.req.raw, c.env?.incoming?.socket?.remoteAddress ?? 'unknown', deps.config),
+    )
+    refuseBody(c.req.raw, c.env)
     const rawBody = await readBytes(c.req.raw.body, CONTROL_LIMITS.bodyBytes)
     c.set('rawBody', rawBody)
     if (rawBody.length || ['POST', 'PATCH', 'PUT'].includes(c.req.method)) {
@@ -74,7 +81,10 @@ export function createApp(deps: AppDeps) {
   })
   app.get('/healthz', (c) => c.json({ ok: true }))
   app.get(CONTROL_ROUTES.health, (c) => c.json(health(deps.config.configured, deps.version)))
-  app.get(CONTROL_ROUTES.me, me(createUserAuth(deps.supabase, deps.clock), deps.supabase))
+  app.get(
+    CONTROL_ROUTES.me,
+    me(createUserAuth(deps.supabase, deps.clock, deps.limits), deps.supabase),
+  )
   app.all('/*', (c) => {
     if (c.req.path.startsWith('/api/')) throw new ControlFailure('not-found')
     return serveStatic(c.req.raw, deps.config.siteDir)

@@ -5,6 +5,7 @@ import { dependencies, token, userId } from './test-support'
 import { parseConfig } from './config'
 import { ControlFailure, type Env } from './http'
 import { createUserAuth, userGuard } from './auth/user'
+import { RateLimiter } from './limits'
 
 const headers = { 'content-type': 'application/json' }
 describe('API envelope', () => {
@@ -115,6 +116,7 @@ describe('API envelope', () => {
 describe('User auth', () => {
   it('rejects malformed, oversized, expired and wrong-audience tokens before Auth', async () => {
     const deps = dependencies()
+    const consume = vi.spyOn(deps.limits, 'consume')
     const app = createApp(deps)
     for (const authorization of [
       '',
@@ -127,6 +129,7 @@ describe('User auth', () => {
       expect((await app.request('/api/v1/me', { headers: { authorization } })).status).toBe(401)
     }
     expect(deps.supabase.getUser).not.toHaveBeenCalled()
+    expect(consume).not.toHaveBeenCalled()
   })
   it('maps Auth failures; does not cache failure or malformed users or RPC output', async () => {
     const deps = dependencies()
@@ -170,7 +173,7 @@ describe('User auth', () => {
     const deps = dependencies()
     vi.mocked(deps.supabase.rpc).mockResolvedValue({ enabled: false, maxHosts: 20 })
     const app = createApp(deps)
-    const auth = createUserAuth(deps.supabase, deps.clock)
+    const auth = createUserAuth(deps.supabase, deps.clock, deps.limits)
     // The catch-all belongs last, so test the exported guard in a separate app.
     const { Hono } = await import('hono')
     const guarded = new Hono<Env>()
@@ -192,9 +195,10 @@ describe('User auth', () => {
   })
   it('bounds the success cache at 1000 identities', async () => {
     const deps = dependencies()
-    const auth = createUserAuth(deps.supabase, deps.clock)
-    for (let i = 0; i <= 1000; i++) await auth(`Bearer ${token(deps.clock() / 1000 + 100 + i)}`)
-    await auth(`Bearer ${token(deps.clock() / 1000 + 100)}`)
+    const auth = createUserAuth(deps.supabase, deps.clock, deps.limits)
+    for (let i = 0; i <= 1000; i++)
+      await auth(`Bearer ${token(deps.clock() / 1000 + 100 + i)}`, `ip:${i}`)
+    await auth(`Bearer ${token(deps.clock() / 1000 + 100)}`, '127.0.0.1')
     expect(deps.supabase.getUser).toHaveBeenCalledTimes(1002)
   })
 })
@@ -205,11 +209,11 @@ it('stores only token hashes and rejects tokens that expire during Auth validati
   const deps = dependencies()
   let now = deps.clock()
   deps.clock = () => now
-  const auth = createUserAuth(deps.supabase, deps.clock)
+  const auth = createUserAuth(deps.supabase, deps.clock, deps.limits)
   const bearer = token(now / 1000 + 1)
   const set = vi.spyOn(BoundedCache.prototype, 'set')
   try {
-    await auth(`Bearer ${bearer}`)
+    await auth(`Bearer ${bearer}`, '127.0.0.1')
     expect(set).toHaveBeenCalledWith(
       createHash('sha256').update(bearer).digest('hex'),
       expect.any(Object),
@@ -224,16 +228,59 @@ it('stores only token hashes and rejects tokens that expire during Auth validati
     now += 1000
     return { id: userId }
   })
-  await expect(auth(`Bearer ${next}`)).rejects.toMatchObject({ code: 'unauthenticated' })
+  await expect(auth(`Bearer ${next}`, '127.0.0.1')).rejects.toMatchObject({
+    code: 'unauthenticated',
+  })
 })
 
 it('enforces the JWT size boundary before calling Auth', async () => {
   const deps = dependencies()
-  const auth = createUserAuth(deps.supabase, deps.clock)
+  const auth = createUserAuth(deps.supabase, deps.clock, deps.limits)
   const parts = token(deps.clock() / 1000 + 100).split('.')
   const suffix = `.${parts[1]}.${parts[2]}`
   const exact = 'A'.repeat(4096 - suffix.length) + suffix
-  await expect(auth(`Bearer ${exact}`)).resolves.toEqual({ userId, login: 'tester' })
-  await expect(auth(`Bearer A${exact}`)).rejects.toMatchObject({ code: 'unauthenticated' })
+  await expect(auth(`Bearer ${exact}`, '127.0.0.1')).resolves.toEqual({ userId, login: 'tester' })
+  await expect(auth(`Bearer A${exact}`, '127.0.0.1')).rejects.toMatchObject({
+    code: 'unauthenticated',
+  })
   expect(deps.supabase.getUser).toHaveBeenCalledTimes(1)
+})
+
+it('limits user verification misses per IP, with cache hits and pre-check failures free', async () => {
+  const deps = dependencies()
+  let now = deps.clock()
+  deps.clock = () => now
+  deps.limits = new RateLimiter(deps.clock)
+  deps.config = parseConfig({
+    CONTROL_TRUST_PROXY: 'cloudflare',
+    SUPABASE_SECRET_KEY: randomBytes(32).toString('hex'),
+  })
+  const app = createApp(deps)
+  const call = (n: number, ip = '192.0.2.1') =>
+    app.request('/api/v1/me', {
+      headers: {
+        authorization: `Bearer ${token(deps.clock() / 1000 + 100 + n)}`,
+        'cf-connecting-ip': ip,
+      },
+    })
+  for (let i = 0; i < 31; i++) {
+    expect(
+      (
+        await app.request('/api/v1/me', {
+          headers: { authorization: 'Bearer garbage', 'cf-connecting-ip': '192.0.2.1' },
+        })
+      ).status,
+    ).toBe(401)
+  }
+  expect((await call(0)).status).toBe(200)
+  for (let i = 0; i < 31; i++) expect((await call(0)).status).toBe(200)
+  for (let i = 1; i < 30; i++) expect((await call(i)).status).toBe(200)
+  expect((await call(30)).status).toBe(429)
+  expect(deps.supabase.getUser).toHaveBeenCalledTimes(30)
+  expect((await call(30, '192.0.2.2')).status).toBe(200)
+  expect(deps.supabase.getUser).toHaveBeenCalledTimes(31)
+  now += 60_000
+  expect((await call(31)).status).toBe(200)
+  expect(deps.supabase.getUser).toHaveBeenCalledTimes(32)
+  expect(JSON.stringify(vi.mocked(deps.log).mock.calls)).not.toContain('192.0.2.')
 })

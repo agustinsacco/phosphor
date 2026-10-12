@@ -1,3 +1,5 @@
+import { ControlFailure } from './http'
+
 /** Oldest entries are evicted. Expiration is lazy, so memory never grows with uptime. */
 export class BoundedCache<T> {
   private readonly entries = new Map<string, { value: T; expires: number }>()
@@ -26,30 +28,37 @@ export class BoundedCache<T> {
   }
 }
 export class NonceCache {
-  private readonly cache: BoundedCache<true>
+  private readonly entries = new Map<string, number>()
   constructor(
     private readonly clock: () => number,
-    capacity = 100_000,
+    private readonly capacity = 100_000,
   ) {
-    this.cache = new BoundedCache(clock, capacity)
+    if (!Number.isSafeInteger(capacity) || capacity < 1) throw new Error('Invalid cache capacity')
   }
   accept(identity: string, nonce: string): boolean {
+    const now = this.clock()
+    // Constant TTL and a monotonic clock keep insertion order equal to expiry order.
+    for (const [key, expires] of this.entries) {
+      if (expires > now) break
+      this.entries.delete(key)
+    }
     const key = `${identity}:${nonce}`
-    if (this.cache.get(key)) return false
-    this.cache.set(key, true, this.clock() + 120_000)
+    if (this.entries.has(key)) return false
+    if (this.entries.size >= this.capacity) throw new ControlFailure('too-many-requests')
+    this.entries.set(key, now + 120_000)
     return true
   }
 }
 export class RateLimiter {
-  private readonly cache: BoundedCache<number[]>
+  private readonly entries = new Map<string, { times: number[]; expires: number }>()
   constructor(
     private readonly clock: () => number,
-    capacity = 10_000,
+    private readonly capacity = 10_000,
   ) {
-    this.cache = new BoundedCache(clock, capacity)
+    if (!Number.isSafeInteger(capacity) || capacity < 1) throw new Error('Invalid cache capacity')
   }
   get size() {
-    return this.cache.size
+    return this.entries.size
   }
   consume(key: string, limit: number, windowMs: number): boolean {
     if (
@@ -63,10 +72,18 @@ export class RateLimiter {
       throw new Error('Invalid rate limit')
     }
     const now = this.clock()
-    const state = (this.cache.get(key) ?? []).filter((time) => time > now - windowMs)
+    const entry = this.entries.get(key)
+    const state = (entry?.times ?? []).filter((time) => time > now - windowMs)
     if (state.length >= limit) return false
+    if (!entry && this.entries.size >= this.capacity) {
+      // Windows may differ in length, so expiry order need not match insertion order.
+      for (const [candidate, value] of this.entries) {
+        if (value.expires <= now) this.entries.delete(candidate)
+      }
+      if (this.entries.size >= this.capacity) return false
+    }
     state.push(now)
-    this.cache.set(key, state, now + windowMs)
+    this.entries.set(key, { times: state, expires: now + windowMs })
     return true
   }
 }

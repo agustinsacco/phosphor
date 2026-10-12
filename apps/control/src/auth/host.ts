@@ -11,11 +11,12 @@ import {
 } from '@phosphor/shared/control-api'
 import type { MiddlewareHandler } from 'hono'
 import { ControlFailure, rawTarget, unsafeRawTarget, type Env } from '../http'
-import type { NonceCache } from '../limits'
+import type { NonceCache, RateLimiter } from '../limits'
 
 export interface HostAuthDeps {
   clock: () => number
-  nonces: NonceCache
+  nonces: { key: NonceCache; host: NonceCache }
+  limits: RateLimiter
   hostKey: (hostId: string) => Promise<string | 'gone'>
 }
 export async function authenticateHost(
@@ -23,6 +24,7 @@ export async function authenticateHost(
   body: Uint8Array,
   deps: HostAuthDeps,
   mode: 'key' | 'host',
+  ip: string,
   target = new URL(request.url).pathname + new URL(request.url).search,
 ) {
   const key = request.headers.get(HOST_HEADERS.key)
@@ -48,6 +50,8 @@ export async function authenticateHost(
     throw new ControlFailure('unauthenticated')
   const identity = mode === 'key' ? key : host
   if (identity === null) throw new ControlFailure('unauthenticated')
+  if (mode === 'host' && !deps.limits.consume('host-auth:' + ip, 120, 60_000))
+    throw new ControlFailure('too-many-requests')
   const publicKey = mode === 'key' ? key : await deps.hostKey(identity)
   if (publicKey === 'gone') throw new ControlFailure('gone')
   if (!isPublicKey(publicKey)) throw new ControlFailure('unavailable')
@@ -73,7 +77,7 @@ export async function authenticateHost(
     )
   )
     throw new ControlFailure('unauthenticated')
-  if (!deps.nonces.accept(identity, nonce)) throw new ControlFailure('unauthenticated')
+  if (!deps.nonces[mode].accept(identity, nonce)) throw new ControlFailure('unauthenticated')
   return identity
 }
 export function hostGuard(deps: HostAuthDeps, mode: 'key' | 'host'): MiddlewareHandler<Env> {
@@ -83,6 +87,7 @@ export function hostGuard(deps: HostAuthDeps, mode: 'key' | 'host'): MiddlewareH
       c.get('rawBody'),
       deps,
       mode,
+      c.get('ip'),
       rawTarget(c.req.raw, c.env),
     )
     if (mode === 'host') c.set('actor', `host:${identity}`)

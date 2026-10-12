@@ -1,6 +1,7 @@
 import { CONTROL_ERROR_STATUS, type ControlErrorCode } from '@phosphor/shared/control-api'
 import type { MiddlewareHandler } from 'hono'
 import { isIP } from 'node:net'
+import type { IncomingHttpHeaders } from 'node:http'
 import type { Config } from './config'
 import type { User } from './auth/user'
 
@@ -15,8 +16,14 @@ export class ControlFailure extends Error {
   }
 }
 export type Env = {
-  Bindings: { incoming?: { url?: string } }
-  Variables: { rawBody: Uint8Array; actor: string; requestId: string; user: User }
+  Bindings: {
+    incoming?: {
+      url?: string
+      headers: IncomingHttpHeaders
+      socket?: { remoteAddress?: string }
+    }
+  }
+  Variables: { rawBody: Uint8Array; actor: string; requestId: string; user: User; ip: string }
 }
 export interface RequestLog {
   ts: string
@@ -116,6 +123,18 @@ export function clientIp(request: Request, socketAddress: string, config: Config
   return config.trustProxy === 'cloudflare' && forwarded && isIP(forwarded)
     ? forwarded
     : socketAddress
+}
+
+/** The Node adapter hides GET/HEAD bodies, so check framing before reading Fetch bytes. */
+export function refuseBody(request: Request, bindings: Env['Bindings'] | undefined): void {
+  if (!['GET', 'HEAD', 'DELETE'].includes(request.method)) return
+  const headers = bindings?.incoming?.headers
+  const transferEncoding = headers
+    ? headers['transfer-encoding']
+    : request.headers.get('transfer-encoding')
+  const contentLength = headers ? headers['content-length'] : request.headers.get('content-length')
+  if (transferEncoding != null || (contentLength != null && contentLength !== '0'))
+    throw new ControlFailure('bad-request')
 }
 
 export function rawTarget(request: Request, bindings: Env['Bindings'] | undefined): string {
