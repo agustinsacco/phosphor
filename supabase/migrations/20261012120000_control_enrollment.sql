@@ -12,7 +12,11 @@ alter table public.remote_hosts
   drop constraint remote_hosts_endpoint_check,
   drop constraint remote_hosts_label_check,
   add constraint remote_hosts_label_check check (
-    pg_catalog.char_length(label) between 1 and 80 and label = pg_catalog.btrim(label)
+    -- Mirrors normalizeLabel: UTF-16 length, and no edge whitespace that trim() removes.
+    pg_catalog.char_length(label)
+      + pg_catalog.char_length(pg_catalog.regexp_replace(label, U&'[^\+010000-\+10FFFF]', '', 'g'))
+      between 1 and 80
+    and label !~ U&'^[\0020\00A0\1680\2000-\200A\202F\205F\3000\FEFF]|[\0020\00A0\1680\2000-\200A\202F\205F\3000\FEFF]$'
     and label !~ U&'[\0001-\001F\007F-\009F\061C\200E-\200F\2028-\202E\2066-\2069]'),
   add constraint remote_hosts_endpoint_check check (
     endpoint is null or case
@@ -171,11 +175,11 @@ language plpgsql security invoker set search_path = '' as $$
 declare v_row public.remote_enrollments; v_host public.remote_hosts; v_enabled boolean;
 begin
   select * into v_row from public.remote_enrollments where code_hash = p_code_hash and status = 'pending' for update;
-  if not found or v_row.status <> 'pending' or v_row.expires_at <= pg_catalog.now() then
-    return '{"outcome":"not-found"}'::jsonb;
-  end if;
+  if not found or v_row.status <> 'pending' then return '{"outcome":"not-found"}'::jsonb; end if;
   -- Lock the account as well: distinct codes approved concurrently share the cap.
   select enabled into v_enabled from public.remote_access_accounts where user_id = p_user_id for update;
+  -- Either lock may have waited, and now() is the transaction's start: use the wall clock.
+  if v_row.expires_at <= pg_catalog.clock_timestamp() then return '{"outcome":"not-found"}'::jsonb; end if;
   if v_enabled is distinct from true then return '{"outcome":"account-disabled"}'::jsonb; end if;
   if (select pg_catalog.count(*) from public.remote_hosts where owner_id = p_user_id and revoked_at is null) >= 20 then
     return '{"outcome":"host-limit"}'::jsonb;
@@ -189,7 +193,7 @@ begin
   -- The Host may poll just after the code's expiry; give it time to collect its id.
   update public.remote_enrollments set status = 'approved', owner_id = p_user_id,
     host_id = v_host.id, approved_at = pg_catalog.now(),
-    expires_at = greatest(v_row.expires_at, pg_catalog.now() + interval '120 seconds')
+    expires_at = greatest(v_row.expires_at, pg_catalog.clock_timestamp() + interval '120 seconds')
     where id = v_row.id;
   insert into public.remote_audit_events(owner_id, host_id, kind) values (p_user_id, v_host.id, 'host-enrolled');
   return pg_catalog.jsonb_build_object('outcome', 'approved', 'machine', control_private.machine(v_host));

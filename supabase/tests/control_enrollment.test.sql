@@ -59,7 +59,8 @@ select is(public.control_enrollment_lookup('00000000-0000-4000-8000-000000000001
     'keyFingerprint','abcd-abcd-abcd-abcd','expiresAt',(select value->>'expiresAt' from test_context where name='enrollment')), 'lookup returns complete metadata');
 update public.remote_enrollments set expires_at = now() + interval '5 seconds' where code_hash = repeat('a',64);
 insert into test_context values ('approval', public.control_enrollment_approve('00000000-0000-4000-8000-000000000001', repeat('a',64), 'Bee'));
-select is((select expires_at from public.remote_enrollments where code_hash = repeat('a',64)), now() + interval '120 seconds', 'approval leaves the Host two minutes to poll');
+select ok((select expires_at >= now() + interval '120 seconds' and expires_at <= clock_timestamp() + interval '120 seconds'
+  from public.remote_enrollments where code_hash = repeat('a',64)), 'approval leaves the Host two minutes to poll');
 select is((select value->>'outcome' from test_context where name='approval'), 'approved', 'approval succeeds');
 select is((select value->'machine' from test_context where name='approval'),
   jsonb_build_object('id',(select id from public.remote_hosts),'label','Bee','hostname','bee1','platform','linux',
@@ -79,6 +80,12 @@ insert into test_context values ('expired', public.control_enrollment_create((re
 update public.remote_enrollments set expires_at=now() where code_hash=repeat('b',64);
 select is(public.control_enrollment_lookup('00000000-0000-4000-8000-000000000001', repeat('b',64))->>'outcome', 'not-found', 'exact expiry lookup hidden');
 select is(public.control_enrollment_approve('00000000-0000-4000-8000-000000000001', repeat('b',64), 'Expired')->>'outcome', 'not-found', 'exact expiry approval refused');
+-- now() is the transaction start; a code that expired while this call waited must be refused.
+select public.control_enrollment_create((repeat('9',42) || 'A'), 'abcd-abcd-abcd-abcd', repeat('9',64), 'bee9','linux','x64','1.2.3');
+select pg_sleep(0.05);
+update public.remote_enrollments set expires_at = now() + interval '10 milliseconds' where code_hash = repeat('9',64);
+select is(public.control_enrollment_approve('00000000-0000-4000-8000-000000000001', repeat('9',64), 'Late')->>'outcome', 'not-found', 'expiry judged by the wall clock, not transaction start');
+delete from public.remote_enrollments where code_hash = repeat('9',64);
 select is(public.control_enrollment_poll((select (value->>'enrollmentId')::uuid from test_context where name='expired'),(repeat('b',42) || 'A'))->>'outcome', 'expired', 'exact expiry poll expired');
 select is(public.control_enrollment_poll('00000000-0000-4000-8000-000000000099',(repeat('b',42) || 'A'))->>'outcome','not-found','unknown enrollment hidden');
 select is(public.control_enrollment_create((repeat('c',42) || 'A'), 'abcd-abcd-abcd-abcd', lpad(i::text,64,'0'), 'bee3','linux','x64','1.2.3')->>'outcome', 'created', 'pending at limit ' || i) from generate_series(1,3) i;
@@ -102,6 +109,14 @@ select throws_ok($$update public.remote_hosts set label=E'bad\nlabel'$$,'23514',
 select throws_ok($$update public.remote_hosts set label=''$$,'23514',null,'empty label rejected');
 select lives_ok($$update public.remote_hosts set label=repeat('x',80)$$,'80 character label accepted');
 select throws_ok($$update public.remote_hosts set label=repeat('x',81)$$,'23514',null,'81 character label rejected');
+select throws_ok($$update public.remote_hosts set label=U&'\00A0'$$,'23514',null,'whitespace-only label rejected');
+select throws_ok(format('update public.remote_hosts set label = %L', chr(cp) || 'x'), '23514', null, 'leading U+' || to_hex(cp) || ' rejected')
+  from unnest(array[32, 160, 5760, 8192, 8202, 8239, 8287, 12288, 65279]) cp;
+select throws_ok(format('update public.remote_hosts set label = %L', 'x' || chr(cp)), '23514', null, 'trailing U+' || to_hex(cp) || ' rejected')
+  from unnest(array[32, 160, 12288, 65279]) cp;
+select lives_ok($$update public.remote_hosts set label=U&'a\00A0b\3000c'$$,'inner whitespace accepted');
+select lives_ok($$update public.remote_hosts set label=repeat(U&'\+01F600',40)$$,'80 UTF-16 unit label accepted');
+select throws_ok($$update public.remote_hosts set label=repeat(U&'\+01F600',40) || 'x'$$,'23514',null,'81 UTF-16 unit label rejected');
 select throws_ok(format('update public.remote_hosts set label = %L', 'bad' || chr(cp) || 'label'),
   '23514', null, 'invisible label character rejected U+' || to_hex(cp))
   from (values (1564),(8206),(8207),(8232),(8233),(8234),(8235),(8236),(8237),(8238),(8294),(8295),(8296),(8297)) t(cp);
