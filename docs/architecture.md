@@ -1,4 +1,4 @@
-# 01 — Architecture
+# Architecture
 
 ## Locked technical decisions
 
@@ -28,7 +28,7 @@
 │  (apps/desktop/electron/registry) (pty-manager)  + workspace/session watchers  │
 │        │                  │                    │                  │
 │  PiRpcClient (1 per live session)          chokidar               │
-│        │  spawn: pi --mode rpc -e <6 bundled pi-ext>              │
+│        │  spawn: pi --mode rpc -e <7 bundled pi-ext>              │
 └────────┼──────────────────┼────────────────────┼──────────────────┘
          │   typed IPC (contextBridge preload; per-session channels)
 ┌────────┴──────────────────┴────────────────────┴──────────────────┐
@@ -42,7 +42,7 @@ The main-side names are literal: `SessionRegistry` (`apps/desktop/electron/pi/se
 single instance exported as `registry` from `apps/desktop/electron/registry.ts`) holds every
 live session ↔ `PiRpcClient` (`libs/session-runtime/src/pi/rpc-client.ts`) pair; `ptyManager`
 (`apps/desktop/electron/pty/pty-manager.ts`) owns the PTYs. There is no WorkspaceManager and
-no SessionManager class — filesystem and git are plain function modules
+no SessionManager class; filesystem and git are plain function modules
 (`apps/desktop/electron/fs/fs-service.ts`, `git-service.ts`), and watching is two chokidar
 users, `apps/desktop/electron/fs/workspace-watcher.ts` for the file tree and
 `apps/desktop/electron/pi/session-watcher.ts` for the sessions dir.
@@ -105,8 +105,8 @@ not install Phosphor Host on the local machine, enable a listener, require login
 or change session ownership, pi arguments or on-disk formats.
 
 - **Main process owns all side effects**: pi subprocesses, PTYs, filesystem, git, watchers, dialogs, app prefs.
-- **Renderer is pure UI** over typed IPC. `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` (`apps/desktop/electron/main.ts`), strict CSP in `apps/desktop/src/index.html`. Model-authored HTML renders only in the sandboxed iframe — and only via a `phosphor-artifact://` URL, because a `srcdoc` document inherits the embedder's policy container and the app's own `script-src 'self'` would silently refuse every inline script (`apps/desktop/src/components/SandboxedHtml.tsx`). Workspace files reach the Files pane's viewers over a second scheme, `phosphor-file://`, which serves only token-granted files and gives HTML the same sandbox and no-network policy (`apps/desktop/electron/fs/file-protocol.ts`, [files.md](files.md#previews)). Both schemes are registered in one `registerSchemesAsPrivileged` call — Electron honours only one. A frame navigating itself to http(s) or `file:` is refused twice: by the app's `frame-src`, and by a `will-frame-navigate` guard that does not depend on that policy.
-- **IPC design**: request/response methods (`invoke`) for commands, push channels (`send`) for streams. Namespace per domain, **18 prefixes today**: `pi:*` (session lifecycle, RPC passthrough, agent settings, provider login), `app:*` (prefs, dialogs, theme, drafts, sandboxes), `git:*` (including worktrees — there is no `worktrees:*`), `claude:*` (pi-claude-cli accounts, login, usage), `sessions:*` (on-disk scan, tree, fork/jump, delete), `mcp:*`, `fs:*`, `skills:*`, `packages:*`, `pty:*`, `headroom:*`, `updates:*`, `maintenance:*`, `gh:*`, `clipboard:*`, `optimization:*` (`optimization:stats`, one channel), `artifacts:*`, and `routines:*` (local schedules, history, and execution controls). Every message type is declared in [`libs/shared/src/ipc.ts`](../libs/shared/src/ipc.ts) — count prefixes there, not here, if the two ever disagree.
+- **Renderer is pure UI** over typed IPC. `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` (`apps/desktop/electron/main.ts`), strict CSP in `apps/desktop/src/index.html`. Model-authored HTML renders only in the sandboxed iframe, and only via a `phosphor-artifact://` URL, because a `srcdoc` document inherits the embedder's policy container and the app's own `script-src 'self'` would silently refuse every inline script (`apps/desktop/src/components/SandboxedHtml.tsx`). Workspace files reach the Files pane's viewers over a second scheme, `phosphor-file://`, which serves only token-granted files and gives HTML the same sandbox and no-network policy (`apps/desktop/electron/fs/file-protocol.ts`, [files.md](files.md#previews)). Both schemes are registered in one `registerSchemesAsPrivileged` call; Electron honours only one. A frame navigating itself to http(s) or `file:` is refused twice: by the app's `frame-src`, and by a `will-frame-navigate` guard that does not depend on that policy.
+- **IPC design**: request/response methods (`invoke`) for commands, push channels (`send`) for streams. Namespace per domain, **21 prefixes today**: `pi:*` (session lifecycle, RPC passthrough, agent settings, provider login), `app:*` (prefs, dialogs, theme, drafts, sandboxes), `git:*` (including worktrees; there is no `worktrees:*`), `claude:*` (pi-claude-cli accounts, login, usage), `sessions:*` (on-disk scan, tree, fork/jump, delete), `mcp:*`, `fs:*`, `skills:*`, `packages:*`, `pty:*`, `headroom:*`, `updates:*`, `maintenance:*`, `gh:*`, `clipboard:*`, `optimization:*` (`optimization:stats`, one channel), `artifacts:*`, `routines:*` (local schedules, history, and execution controls), `account:*` (optional sign-in), `control:*` (machine directory and enrollment clients), and `feedback:*`. Every message type is declared in [`libs/shared/src/ipc.ts`](../libs/shared/src/ipc.ts); count prefixes there, not here, if the two ever disagree.
 - **Data flow for one streamed prompt**: renderer `pi:command` with `{type:"prompt"}` → main writes one JSONL line to child stdin → child stdout events parsed by `PiRpcClient` → forwarded on `pi:event:<sessionId>` (`sessionEventChannel()` in `libs/shared/src/ipc.ts`) → `reduceChatEvent` (`apps/desktop/src/features/chat/reducer.ts`) folds events into message view-models → virtualized list renders deltas.
 
 ## Repo layout
@@ -114,26 +114,41 @@ or change session ownership, pi arguments or on-disk formats.
 **See the tree in [the README](../README.md#repo-layout).** It used to be
 duplicated here; the copy drifted (it named a `types/ipc.ts` that never existed,
 listed 6 of the feature folders, and 2 pi extensions), so this section is a
-pointer now. As of today `apps/desktop/src/features/` has **15** folders (artifacts, chat,
-connectors, extension-ui, files, home, palette, sessions, settings, skills,
-terminal, updates, workspaces, worktrees, routines) and `libs/pi-extensions/pi-ext/` has **6** modules —
-`artifacts`, `context-breakdown`, `worktree-paths`, `tool-name-guard`,
-`mcp-status`, `headroom` — **all six** loaded into every session by
-`bundledExtensions()` in `libs/session-runtime/src/bundled-extensions.ts`, called by
-`libs/session-runtime/src/pi/session-launch.ts`. Those two
-numbers move; the tree in the README is the thing to re-read, not this
-paragraph.
+pointer. The tree names the feature folders, adapters and seven bundled
+extensions. `bundledExtensions()` in `libs/session-runtime/src/bundled-extensions.ts`
+supplies those extensions to `libs/session-runtime/src/pi/session-launch.ts`;
+stub sessions omit them.
 
 Local [routines](routines.md) reuse the window-independent session runtime and
 registry. A transactional SQLite ledger owns scheduled occurrences, not live
 processes. Its bounded scheduler manages only explicit routine executions;
 interactive sessions remain independent and are not reclaimed by it.
 
+## Host and control plane
+
+`apps/host` is a plain-Node CLI with its own config and machine adapters over
+`libs/session-runtime`. It checks prerequisites and runs local acceptance sessions.
+Its `login`, `status` and `logout` clients make outbound Ed25519-signed requests.
+It has no inbound listener, heartbeat runner or remote lane API ([host.md](host.md)).
+
+`apps/control` serves built Astro pages, health and authenticated account metadata.
+It is not deployed yet. The shared `control-api.ts` contract and server-only SQL
+functions cover enrollment, the machine directory, revocation and heartbeats;
+the HTTP enrollment, directory and Host routes are not registered.
+Desktop's main-only `control:*` clients back the signed-in Machines preview's
+approval and removal UI. There is no execution grant or lane transport here.
+
+The control plane stores identity and machine metadata only, including Host public
+keys. Lanes, prompts, transcripts, paths and provider credentials stay off it.
+Owner-read RLS permits directory reads; only the server role writes through the
+control functions. See [remote-access.md](remote-access.md) for the trust boundary
+and [control-plane.md](control-plane.md) for the server's routes and authentication.
+
 ## Cross-cutting requirements
 
 - Single source of truth for session state lives in main (`SessionRegistry`: live sessions ↔ pi children); renderer stores are projections.
 - All long/streaming output is incrementally reduced — never rebuild whole message arrays per delta.
 - Work whose cost the user's input decides runs off main's thread. The workspace search runs each query in its own worker thread (`apps/desktop/electron/fs/workspace-search-service.ts`): a regex can backtrack for minutes on one line, and a worker can be terminated mid-match where main's thread would freeze every window.
-- Every feature works on macOS, Linux, Windows (path handling via `node:path`, PTY shells per-OS: `$SHELL` / PowerShell).
+- Desktop targets macOS, Linux and Windows (path handling via `node:path`, PTY shells per-OS: `$SHELL` / PowerShell).
 - App prefs in electron-store — `AppPrefs` in [`libs/shared/src/models.ts`](../libs/shared/src/models.ts): theme, recent/last workspace, last + pinned sessions, model picks, lane markers and `lanes`, `fonts` (UI scale and the three font sizes), agent directives (global and per-project), worktrees, maintenance, headroom. **Pane layout is not among them**: it is per-session and lives in `localStorage` under `phosphor-pane-layout` (`apps/desktop/src/stores/layout.ts`), because it is view state that should not survive a prefs migration or cost an IPC round-trip per drag.
 - Prefs are never written into pi's config files. pi config editing is explicit and user-initiated ([settings.md](settings.md)).

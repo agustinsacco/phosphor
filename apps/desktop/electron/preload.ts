@@ -74,6 +74,8 @@ const api: PhosphorApi = {
 
   onAccountChanged: (listener) => subscribe<[AccountView]>('account:changed', listener),
 
+  onMachinesChanged: (listener) => subscribe<[]>('control:machinesChanged', listener),
+
   onPtyStatus: (listener) => subscribe<[Record<string, boolean>]>('pty:status', listener),
 
   piCommand(sessionId: string, command: RpcCommand) {

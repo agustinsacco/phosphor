@@ -37,6 +37,7 @@ import { useWorktreesStore } from '@/stores/worktrees'
 import { useModelCatalogueStore } from '@/stores/modelCatalogue'
 import { useDraftsStore } from '@/stores/drafts'
 import { worktreeAwareName } from '@/lib/path'
+import { attachMachinesListener } from '@/stores/machines'
 
 export function App(): React.JSX.Element {
   const [health, setHealth] = useState<PiHealth | null>(null)
@@ -98,6 +99,7 @@ export function App(): React.JSX.Element {
   // Headless connector authorization runs in main (no session needed), so its
   // progress arrives as a broadcast rather than on a session's channel.
   useEffect(() => attachConnectorAuthListener(), [])
+  useEffect(() => attachMachinesListener(), [])
 
   // Main says the slash-command set changed (package, MCP server, skill):
   // drop the home composer's lists and re-ask every live session.

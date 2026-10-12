@@ -469,8 +469,8 @@ apps/desktop/electron/            main process — owns every side effect
   main.ts            app lifecycle, window creation, quit teardown
   preload.ts         the contextBridge surface (one typed `subscribe` helper)
   ipc.ts             composition root: calls the per-domain handler registrars
-  ipc/               one module per channel-prefix family — 20 of them today
-                     (account, app, artifacts, claude-auth, clipboard, feedback, fs, git,
+  ipc/               one module per channel-prefix family: 21 modules today
+                     (account, app, artifacts, claude-auth, clipboard, control, feedback, fs, git,
                       maintenance, mcp, optimization, packages, pi-auth,
                       pi-config, pi-session, pty, routines, sessions, skills,
                       updates) plus handle.ts, the
@@ -488,7 +488,10 @@ apps/desktop/electron/            main process — owns every side effect
                      live subscription usage
   account/           optional Phosphor sign-in: GitHub through Supabase Auth
                      (PKCE, a one-shot loopback callback, the session in the
-                     OS keychain); the renderer never sees a token
+                     OS keychain, or a user-only file on Linux without a keyring);
+                     the renderer never sees a token
+  control/           main-only control API client for machine listing,
+                     enrollment approval and removal (account preview)
   headroom/          Headroom proxy supervisor (adopt/spawn/kill) + install job
   optimization/      the Advisor rules engine (pure functions, advice only)
   pty/               node-pty manager + spawn-helper repair
@@ -516,12 +519,14 @@ libs/shared/src/     types and pure logic shared by main + renderer
   ipc.ts             the typed IpcInvokeMap contract
   rpc.ts             hand-mirrored copy of pi's RPC protocol + drift guards
   models.ts          model catalogue and shared app types
+  control-api.ts     control wire shapes, parsers, limits and Host signing string
+  remote-host.ts     Host hello validation and host-qualified resource keys
 apps/desktop/src/                 renderer (React) — pure UI over typed IPC
   app/               shell: App, TopBar, workspace picker, global shortcuts
-  features/          one folder per surface (15): chat, sessions, files,
+  features/          one folder per surface (17): chat, sessions, files,
                      terminal, artifacts, settings, home, worktrees,
                      workspaces, palette, updates, connectors, extension-ui,
-                     skills, routines
+                     skills, routines, feedback, machines
   components/        cross-feature primitives (Modal, PopupMenu, form, icons,
                      markdown renderers; search/: the find bar, its toggles,
                      finding and painting text in rendered DOM)
@@ -530,23 +535,25 @@ apps/desktop/src/                 renderer (React) — pure UI over typed IPC
   styles/            the Phosphor design tokens
   assets/            the bundled fonts
   dev/               browser-only mock of the preload API (never bundled)
-libs/pi-extensions/pi-ext/  the six pi extensions that run inside pi's process,
+libs/pi-extensions/pi-ext/  the seven pi extensions that run inside pi's process,
                      bundled into every session: artifacts, context-breakdown,
-                     headroom, mcp-status, tool-name-guard, worktree-paths
+                     headroom, lane-reload, mcp-status, tool-name-guard, worktree-paths
 apps/desktop/e2e/                 Playwright-Electron smoke tests + deterministic pi stub
-apps/control/        plain-Node site and control API server (docs/control-plane.md)
+apps/control/        plain-Node site and control API server, not deployed yet;
+                     health and account routes (docs/control-plane.md)
 apps/host/           the plain-Node Host and its `phosphor` CLI (src/, and
                      scripts/build.mjs for the bundle): its config, pi's
-                     environment, the machine checks and the session runtime
-                     (docs/host.md)
+                     environment, machine checks, session runtime and signed
+                     login/status/logout clients; no listener (docs/host.md)
 tools/scripts/             install.sh, icon + screenshot generation, release and
                      validate helpers
 docs/                living technical docs — one file per surface, each
                      rewritten in the same diff as the behaviour it describes;
-                     plus known-issues.md, defects that reproduce today
+                     plus known-issues.md (current defects) and future-features.md
+                     (decided or explored directions that are not built)
 docs/img/            the screenshots above (assets, not documentation)
 apps/site/           phosphor.saccolabs.com — the Astro landing page, real
-                     captures, nginx image and browser checks (apps/site/README.md)
+                     captures, current nginx image and browser checks (apps/site/README.md)
 .infra/phosphor-site/  the k3s manifests the Deploy Site workflow applies
 ```
 
@@ -556,20 +563,26 @@ only ever renders inside a sandboxed iframe.
 
 ## Documentation map
 
-| Read                                             | When                                                      |
-| ------------------------------------------------ | --------------------------------------------------------- |
-| [CLAUDE.md](CLAUDE.md)                           | Orientation, conventions, sharp edges, debugging          |
-| [docs/README.md](docs/README.md)                 | The map: which file owns which fact                       |
-| [docs/](docs/)                                   | How Phosphor works now (architecture, extensions, MCP, …) |
-| [docs/known-issues.md](docs/known-issues.md)     | Defects that reproduce today, with the file that has them |
-| [docs/architecture.md](docs/architecture.md)     | Process model, IPC design, cross-cutting requirements     |
-| [docs/pi-integration.md](docs/pi-integration.md) | pi's RPC protocol and session format                      |
+| Read                                               | When                                                      |
+| -------------------------------------------------- | --------------------------------------------------------- |
+| [CLAUDE.md](CLAUDE.md)                             | Orientation, conventions, sharp edges, debugging          |
+| [docs/README.md](docs/README.md)                   | The map: which file owns which fact                       |
+| [docs/](docs/)                                     | How Phosphor works now (architecture, extensions, MCP, …) |
+| [docs/known-issues.md](docs/known-issues.md)       | Defects that reproduce today, with the file that has them |
+| [docs/architecture.md](docs/architecture.md)       | Process model, IPC design, cross-cutting requirements     |
+| [docs/pi-integration.md](docs/pi-integration.md)   | pi's RPC protocol and session format                      |
+| [docs/remote-access.md](docs/remote-access.md)     | Remote foundations and current execution boundary         |
+| [docs/control-plane.md](docs/control-plane.md)     | Site and account API server                               |
+| [docs/host.md](docs/host.md)                       | Host CLI and machine identity                             |
+| [docs/future-features.md](docs/future-features.md) | Decided or explored directions, not built                 |
 
-`docs/` describes shipped behaviour, present tense. A doc is part of the diff
+`docs/` describes current behaviour, present tense. A doc is part of the diff
 that changes its behaviour, not a follow-up. There is no dated log and no spec
-folder; git is the history. The one file that records what is _wrong_ rather
-than how something works is [docs/known-issues.md](docs/known-issues.md), and a
-row leaves it in the same diff that fixes the code.
+folder; git is the history. Two exceptions: [docs/known-issues.md](docs/known-issues.md)
+records current defects; [docs/future-features.md](docs/future-features.md) records
+decided or explored directions that are not built. A defect leaves its file when
+fixed; a feature moves into its surface's living doc and leaves the future file
+in the same diff that builds it.
 
 ## Contributing
 

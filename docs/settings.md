@@ -356,9 +356,12 @@ installs anything. Every action is a button.
 - **Machines (preview)**: the Machines page lists your enrolled machines when
   you are signed in, and two made-up machines, bee1 and bee2, when you are not.
   The sidebar and Run on still use the made-up machines
-  ([ui-shell.md](ui-shell.md#machines-preview)). Off by default; only the
-  signed-in Machines page contacts the control plane, and turning it off puts
-  everything back.
+  ([ui-shell.md](ui-shell.md#machines-preview)). Off by default; with both previews on and signed in,
+  the list stays current even when the page is closed. Realtime changes trigger
+  a refetch, with a 60 s fallback while disconnected. A local 5 s check turns
+  silent machines down after 90 s without a beat. Turning the preview off puts
+  everything back. An empty list links to the Host guide and explains how to
+  run `phosphor login` and enter its code under Add a machine.
 - **Maintenance**: a periodic sweep for worktrees whose branch already landed.
   It always _measures_ ("N of M worktrees reclaimable") and only deletes once
   "Delete automatically" is on. Interval (≥15 min) and a grace period (a merged

@@ -1050,6 +1050,8 @@ export interface PhosphorApi {
   onClaudeLoginState(listener: (state: ClaudeLoginState) => void): () => void
   /** The Phosphor account changed: signing in, signed in or out, preview toggled. */
   onAccountChanged(listener: (view: AccountView) => void): () => void
+  /** A change signal only. Refetch the enrolled machines through control:machines. */
+  onMachinesChanged(listener: () => void): () => void
 
   /**
    * Absolute path for a dropped File (Electron `webUtils`). Non-image
