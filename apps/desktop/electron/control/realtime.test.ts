@@ -380,3 +380,36 @@ it('does not join or reconnect if the initial access token is null', async () =>
   expect(vi.getTimerCount()).toBe(0)
   h.client.stop()
 })
+
+it('stays silent after stop when a pending auth resolves late (review r1)', async () => {
+  let resolve: ((token: string | null) => void) | undefined
+  const socket = new Socket()
+  const joined = vi.fn()
+  const changed = vi.fn()
+  const client = createRealtime({
+    target: { url: 'https://test.supabase.co', key: 'public-test-key' },
+    socket: () => socket,
+    accessToken: () =>
+      new Promise((done) => {
+        resolve = done
+      }),
+    generation: () => 0,
+    timers: liveTimers,
+    now: Date.now,
+    random: () => 0,
+    changed,
+    joined,
+  })
+  socket.open()
+  client.stop()
+  const calls = joined.mock.calls.length
+  // A replacement client may already be joined; this one must not touch shared state.
+  resolve?.(token())
+  await vi.advanceTimersByTimeAsync(0)
+  expect(joined.mock.calls.length).toBe(calls)
+  expect(changed).not.toHaveBeenCalled()
+  expect(socket.frames).toEqual([])
+  client.stop()
+  expect(joined.mock.calls.length).toBe(calls)
+  expect(vi.getTimerCount()).toBe(0)
+})

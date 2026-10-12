@@ -64,7 +64,10 @@ export function createRealtime(deps: {
     joinRef = heartbeatRef = tokenHash = ''
     deps.joined(false)
   }
+  // Idempotent: a stopped client's late callbacks (an auth that resolves after
+  // sign-out) must not report joined(false) over a replacement client.
   function stop(): void {
+    if (stopped) return
     stopped = true
     clear(retry)
     disconnect()
