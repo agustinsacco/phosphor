@@ -11,9 +11,10 @@ export type PaneSide = 'left' | 'right'
  * right pane: it belongs to no session, renders over the whole main region,
  * and is reachable from the home screen. Skills lives ONLY here; Artifacts
  * keeps its per-session pane (side-by-side viewing while the model iterates)
- * and the page is the cross-session index.
+ * and the page is the cross-session index. Machines exists only while its
+ * preview is on (stores/machines.ts).
  */
-export type GlobalPage = 'artifacts' | 'skills' | 'routines'
+export type GlobalPage = 'artifacts' | 'skills' | 'routines' | 'machines'
 
 const PANE_IDS = ['files', 'changes', 'terminal', 'artifacts'] as const
 

@@ -288,6 +288,8 @@ export interface IpcInvokeMap {
   /** Reveal the debug log in the OS file manager. No-op when there is no log. */
   'app:revealDebugLog': { args: []; result: void }
   'app:setCollapsedWorkspaces': { args: [paths: string[]]; result: void }
+  /** Settings → Advanced → Machines (preview); see AppPrefs.machinesPreview. */
+  'app:setMachinesPreview': { args: [enabled: boolean]; result: void }
   /**
    * Persist "this workspace is now the home target": bumps it in recents and
    * records it as lastWorkspacePath so the next launch lands here even if no

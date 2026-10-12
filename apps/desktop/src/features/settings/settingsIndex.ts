@@ -188,6 +188,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     ['pi settings.json', 'config edit raw'],
     ['pi models.json', 'custom providers local endpoints'],
     ['Phosphor account (preview)', 'sign in github login machines'],
+    ['Machines (preview)', 'hosts remote bee sidebar filter run on'],
   ]),
   ...section(
     'advanced',

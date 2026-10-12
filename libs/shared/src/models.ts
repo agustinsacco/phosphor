@@ -631,6 +631,12 @@ export interface AppPrefs {
    */
   accountPreview?: boolean
   /**
+   * Settings → Advanced → Machines (preview): the machines sidebar and page
+   * against made-up machines (`features/machines/fakeMachines.ts`). Off
+   * unless set; nothing connects anywhere while it is on.
+   */
+  machinesPreview?: boolean
+  /**
    * Unsent composer drafts, keyed by `session:<phosphorId>` or
    * `home:<workspacePath>`.
    *

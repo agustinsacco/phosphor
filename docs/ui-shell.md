@@ -295,6 +295,8 @@ All switch together, live, no reload.
 - **Routines** — local scheduled tasks producing fresh lanes, with configuration,
   next-run previews, history, and explicit unattended access. Runs are owned by
   main, not this page; closing it never stops the scheduler. See [routines.md](routines.md).
+- **Machines** (only while Settings → Advanced → Machines (preview) is on);
+  see [below](#machines-preview).
 - **Toasts** — a stack at the top right, under the top bar, newest first and
   capped at four (also used by extension `notify`). A notice about a lane
   names it the way its sidebar row does (marker and title) and clicking it
@@ -324,3 +326,33 @@ All switch together, live, no reload.
 - **Empty states**: no workspace → onboarding card with folder picker; no
   sessions → "Describe a task…" hero; pi missing/outdated → setup screen with
   the install command.
+
+## Machines preview
+
+A prototype of how Phosphor will show several machines, against made-up data
+(`features/machines/fakeMachines.ts`), so the layout can be judged before
+Phosphor can reach a Host (component 21). It is off by default
+(Settings → Advanced → Machines (preview), `AppPrefs.machinesPreview`), and
+nothing connects anywhere while it is on. This computer's rows and machine
+page use real data; bee1 (up) and bee2 (down) and their four lanes are fixed.
+Turning it off removes all of it: it closes the Machines page if it is open
+and withdraws its notices, and nothing opens the page while it is off.
+
+- **Sidebar**: a filter under the nav rows (All, This Mac, bee1, bee2), a
+  machine chip at the end of every lane row, and the made-up lanes inside the
+  project they belong to. A project is matched by its folder name, standing in
+  for the git remote the real thing will use; a project this computer does not
+  have gets its own group ("on bee1"). A down machine's lanes stay, greyed.
+  A group's lane search covers its made-up lanes too. Filtered to another
+  machine, this computer's lanes are off screen and out of reach: a selection
+  is cleared and "Select all lanes" is off.
+- **Machines page** (sidebar → Machines): every machine with a one-line
+  summary, and a page per machine with Overview, Lanes, Dependencies and
+  Logins. This computer's Logins tab is Settings → Accounts itself. A made-up
+  machine's buttons are disabled.
+- **A lane on another machine** opens on the Machines page as a placeholder
+  (title, machine, branch, PR, state); its chat comes with component 21.
+  "Pretend a lane finishes" sends the same notice a real lane does, and
+  clicking it opens that lane.
+- **Run on** sits beside the folder chip on the home screen. Only this
+  computer can be picked.

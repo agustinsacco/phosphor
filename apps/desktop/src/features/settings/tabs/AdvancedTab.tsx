@@ -7,6 +7,7 @@ import { ConfigFileEditor, piConfigFile } from '../ConfigFileEditor'
 import { MaintenanceSection } from './MaintenanceSection'
 import { ipcErrorText } from '@shared/errors'
 import { useAccount } from '../useAccount'
+import { useMachinesStore } from '@/stores/machines'
 
 /** pi install health, discovered resources, and raw config file editing. */
 
@@ -15,6 +16,8 @@ export function AdvancedTab(): React.JSX.Element {
   const [resources, setResources] = useState<PiResources | null>(null)
   const [editing, setEditing] = useState<'settings' | 'models' | null>(null)
   const { view: account, error: accountError } = useAccount()
+  const machinesPreview = useMachinesStore((s) => s.preview)
+  const [machinesError, setMachinesError] = useState<string | null>(null)
   // One change at a time: turning it off waits for the sign-out, and a quick
   // second click must not land first and then be overwritten.
   const [previewBusy, setPreviewBusy] = useState(false)
@@ -82,6 +85,23 @@ export function AdvancedTab(): React.JSX.Element {
       {(previewError ?? accountError) && (
         <p className="text-danger -mt-1 mb-2 text-sm">{previewError ?? accountError}</p>
       )}
+
+      <Row
+        title="Machines (preview)"
+        description="Tries the machines sidebar, the Machines page and Run on with two made-up machines, bee1 and bee2. Nothing connects to them, and your lanes stay as they are."
+      >
+        <Toggle
+          on={machinesPreview}
+          onChange={(on) => {
+            setMachinesError(null)
+            useMachinesStore
+              .getState()
+              .setPreview(on)
+              .catch((caught: unknown) => setMachinesError(ipcErrorText(caught)))
+          }}
+        />
+      </Row>
+      {machinesError && <p className="text-danger -mt-1 mb-2 text-sm">{machinesError}</p>}
 
       <MaintenanceSection />
 

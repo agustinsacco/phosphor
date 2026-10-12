@@ -35,6 +35,7 @@ import {
   ArtifactsIcon,
   SkillsIcon,
   ClockIcon,
+  MachinesIcon,
   ChevronDownIcon,
   ChevronIcon,
   GearIcon,
@@ -53,6 +54,21 @@ import { UpdatePill } from '@/features/updates/UpdatePill'
 import { FeedbackButton } from '@/features/feedback/FeedbackButton'
 import { formatShortcut } from '@/lib/shortcuts'
 import { useLayoutStore } from '@/stores/layout'
+import { useMachinesStore } from '@/stores/machines'
+import {
+  MachineChip,
+  MachineFilterBar,
+  RemoteLaneRow,
+  RemoteProjectGroup,
+} from '@/features/machines/MachineSidebar'
+import {
+  lanesForProject,
+  lanesOnFilter,
+  localMachineName,
+  remoteLaneFields,
+  remoteOnlyProjects,
+  showsLocal,
+} from '@/features/machines/fakeMachines'
 import { projectName, isWorktreeFolder } from '@/lib/path'
 import {
   groupSessionsByProject,
@@ -104,6 +120,14 @@ export function Sidebar({
   const openingPath = useSessionsStore((s) => s.opening?.path)
   const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
   const activePage = useLayoutStore((s) => s.page)
+  // The Machines preview (stores/machines.ts): off, none of this renders and
+  // the sidebar is what it always was.
+  const machinesPreview = useMachinesStore((s) => s.preview)
+  const machineFilter = useMachinesStore((s) => s.filter)
+  const fakeLanes = useMachinesStore((s) => s.lanes)
+  const remoteLanes = machinesPreview ? lanesOnFilter(fakeLanes, machineFilter) : []
+  const localShown = !machinesPreview || showsLocal(machineFilter)
+  const localChip = machinesPreview ? localMachineName(window.phosphor.platform).short : undefined
   const recents = useWorkspacesStore((s) => s.recents)
   const workspacesHydrated = useWorkspacesStore((s) => s.hydrated)
   const [initialSidebarReady, setInitialSidebarReady] = useState(false)
@@ -141,6 +165,14 @@ export function Sidebar({
   const [searchApplied, setSearchApplied] = useState<Record<string, string>>({})
   /** Anchor for shift-click ranges. */
   const rangeAnchor = useRef<string | null>(null)
+  // A selection is only ever of rows on screen: filtering this computer's
+  // lanes away (Machines preview) must not leave hidden lanes selected for
+  // the bulk bar to delete.
+  useEffect(() => {
+    if (localShown) return
+    setSelection(null)
+    rangeAnchor.current = null
+  }, [localShown])
   const [width, setWidth] = useState(loadSidebarWidth)
   const [resizing, setResizing] = useState(false)
   /**
@@ -810,6 +842,7 @@ export function Sidebar({
         ((unread[livePhosphorId ?? ''] ?? 0) > 0 ||
           isUnseen(seenSessions, meta.path, meta.lastActivityAt)),
       git: gitByCwd[meta.cwd || workspacePath],
+      machine: localChip,
       onOpenTree: () => setTreeFor(meta),
       onDelete: (title: string) => deleteRow(meta, title),
     }
@@ -854,10 +887,22 @@ export function Sidebar({
           onClick={() => useLayoutStore.getState().togglePage('routines')}
           icon={<ClockIcon />}
         />
+        {machinesPreview && (
+          <NavRow
+            label="Machines"
+            active={activePage === 'machines'}
+            onClick={() => {
+              if (activePage === 'machines') useLayoutStore.getState().setPage(null)
+              else useMachinesStore.getState().show({ kind: 'list' })
+            }}
+            icon={<MachinesIcon />}
+          />
+        )}
       </nav>
 
       <div data-session-scroll className="flex-1 overflow-y-auto px-2 pb-2">
-        {!sidebarLoading && pinnedMetas.length > 0 && (
+        {machinesPreview && <MachineFilterBar />}
+        {!sidebarLoading && localShown && pinnedMetas.length > 0 && (
           <>
             <SectionLabel>Pinned</SectionLabel>
             <SessionList
@@ -884,10 +929,21 @@ export function Sidebar({
             const terms = laneQueryTerms(query)
             // Filter the metas rather than hide rows: selection, shift-ranges
             // and the empty state then all read the same list the eye does.
+            // Filtered to another machine (Machines preview), this computer's
+            // lanes are not on screen, so nothing below may act on them.
+            const local = localShown ? group.metas : []
             const visible = terms.length
-              ? group.metas.filter((meta) => laneMatches(laneHaystack(laneFields(meta)), terms))
-              : group.metas
+              ? local.filter((meta) => laneMatches(laneHaystack(laneFields(meta)), terms))
+              : local
             const selectingThis = selection?.repoPath === group.workspacePath
+            const remote = lanesForProject(remoteLanes, group.name)
+            // Filtered to another machine: only projects with lanes there.
+            if (!localShown && remote.length === 0) return null
+            const remoteVisible = terms.length
+              ? remote.filter((lane) => laneMatches(laneHaystack(remoteLaneFields(lane)), terms))
+              : remote
+            const shownTotal = local.length + remote.length
+            const shownCount = visible.length + remoteVisible.length
             return (
               <div key={group.workspacePath}>
                 <div
@@ -1077,8 +1133,8 @@ export function Sidebar({
                   <LaneSearchBar
                     value={searchDraft[group.workspacePath] ?? ''}
                     applied={Boolean(query)}
-                    matchCount={visible.length}
-                    total={group.metas.length}
+                    matchCount={shownCount}
+                    total={shownTotal}
                     onChange={(value) =>
                       setSearchDraft((s) => ({ ...s, [group.workspacePath]: value }))
                     }
@@ -1094,7 +1150,7 @@ export function Sidebar({
                 {/* Placeholder rows carry no name, branch or PR yet, so a
                     filter can only ever be wrong about them. While one is on,
                     they stand aside. */}
-                {!isCollapsed && (
+                {!isCollapsed && localShown && (
                   <SessionList
                     disabled={Boolean(query) || selectingThis || bulkDeleteRunning}
                     items={[
@@ -1116,6 +1172,7 @@ export function Sidebar({
                               })
                             }
                             git={gitByCwd[live[phosphorId]?.workspacePath ?? '']}
+                            machine={localChip}
                           />
                         ),
                       })),
@@ -1139,7 +1196,9 @@ export function Sidebar({
                     ]}
                   />
                 )}
-                {!isCollapsed && group.metas.length > 0 && visible.length === 0 && (
+                {!isCollapsed &&
+                  remoteVisible.map((lane) => <RemoteLaneRow key={lane.id} lane={lane} />)}
+                {!isCollapsed && shownTotal > 0 && shownCount === 0 && (
                   <div
                     data-testid="lane-search-empty"
                     className="text-text-tertiary px-2 py-2 text-sm"
@@ -1150,7 +1209,7 @@ export function Sidebar({
                 {/* Rows already scanned stay put while the rest of the group
                   catches up — a partial answer must not read as the whole
                   answer, but it must not hide what we have either. */}
-                {!isCollapsed && group.metas.length > 0 && group.unscannedPaths.length > 0 && (
+                {!isCollapsed && local.length > 0 && group.unscannedPaths.length > 0 && (
                   <div className="text-text-tertiary flex items-center gap-1.5 px-2 py-1.5 text-xs">
                     <Spinner />
                     <span>
@@ -1160,6 +1219,8 @@ export function Sidebar({
                   </div>
                 )}
                 {!isCollapsed &&
+                  localShown &&
+                  remote.length === 0 &&
                   group.metas.length === 0 &&
                   !pendingByWorkspace.has(group.workspacePath) &&
                   (group.attempted && group.errored ? (
@@ -1182,6 +1243,11 @@ export function Sidebar({
               </div>
             )
           })}
+        {!sidebarLoading &&
+          remoteOnlyProjects(
+            remoteLanes,
+            groups.map((group) => group.name),
+          ).map((project) => <RemoteProjectGroup key={project.name} {...project} />)}
       </div>
 
       <div className="border-border border-t px-3 py-2">
@@ -1384,6 +1450,7 @@ function SessionRow({
   git,
   isPinned,
   showWorkspace = false,
+  machine,
   onOpenTree,
   onDelete,
   selected = false,
@@ -1405,6 +1472,8 @@ function SessionRow({
    * where the group header cannot tell you which app a thread belongs to.
    */
   showWorkspace?: boolean
+  /** Where this lane runs, while the Machines preview is on. */
+  machine?: string
   onOpenTree: () => void
   /** This row is in the current selection. */
   selected?: boolean
@@ -1715,6 +1784,7 @@ function SessionRow({
           {rowWorkspaceName}
         </span>
       )}
+      {machine && <MachineChip label={machine} />}
       {isPinned && <PinIcon className="text-text-tertiary shrink-0" />}
     </>
   )
@@ -1850,11 +1920,14 @@ function PendingSessionRow({
   phosphorId,
   active,
   git,
+  machine,
   onDelete,
 }: {
   phosphorId: string
   active: boolean
   git?: GitInfo
+  /** As SessionRow's: where this lane runs, while the Machines preview is on. */
+  machine?: string
   onDelete: (title: string) => void
 }): React.JSX.Element {
   const orderActions = useSessionOrderActions()
@@ -1972,6 +2045,7 @@ function PendingSessionRow({
           <SubtitleSegments segments={subtitle} activity={activity} />
         </span>
       </span>
+      {machine && <MachineChip label={machine} />}
     </>
   )
 

@@ -883,7 +883,11 @@ export function installMockPhosphor(): void {
             worktrees: DEFAULT_APP_PREFS.worktrees,
             contextBudget: localStorage.getItem('mock:contextBudget') ?? '',
             contextFiles: mockContextFiles(),
+            machinesPreview: localStorage.getItem('mock:machinesPreview') === '1',
           })
+        case 'app:setMachinesPreview':
+          localStorage.setItem('mock:machinesPreview', args[0] === true ? '1' : '0')
+          return Promise.resolve(undefined)
         case 'app:setContextFile':
           localStorage.setItem(
             'mock:contextFiles',

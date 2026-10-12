@@ -17,6 +17,8 @@ import { formatCost, formatTokens } from '@/lib/format'
 import { StatTile } from '@/components/StatTile'
 import { projectName } from '@/lib/path'
 import { WorkspaceChip } from '@/features/workspaces/WorkspaceChip'
+import { RunOnPicker } from '@/features/machines/RunOnPicker'
+import { useMachinesStore } from '@/stores/machines'
 import { BranchControl } from '@/features/worktrees/BranchControl'
 import { composePrompt, toImageContents, type PendingAttachment } from '@/features/chat/attachments'
 import { AttachmentChips, DropOverlay } from '@/features/chat/composer/AttachmentChips'
@@ -57,6 +59,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   const [warning, setWarning] = useState<string | null>(null)
   const [isRepo, setIsRepo] = useState(false)
   const isolate = useWorktreesStore((s) => s.preferWorktree)
+  const machinesPreview = useMachinesStore((s) => s.preview)
   // From the store, not local state: `begin` unmounts this screen, so a local
   // flag could never be read again. It stays true for the frame between the
   // keystroke and the swap.
@@ -253,6 +256,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             the composer and get clipped behind the OS window controls.
           */}
           <div className="mb-2 flex flex-wrap items-center gap-1.5 px-0.5">
+            {machinesPreview && <RunOnPicker />}
             <WorkspaceChip workspacePath={workspacePath} />
             {isRepo && <BranchControl workspacePath={workspacePath} />}
             {isRepo && (
