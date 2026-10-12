@@ -1,6 +1,7 @@
 /**
- * Document-first defaults, injected without spending model tokens on CSS.
- * Semantic HTML needs no classes. Markdown previews use the app's typography.
+ * Viewport-first HTML defaults, injected without spending model tokens on CSS.
+ * Semantic typography needs no classes; .art-document opts into a reading column.
+ * Markdown previews use the app's typography.
  * Neutrals and accent mirror the app, guarded by a drift test. The --art-*
  * namespace, series palette and opt-in layout classes remain for old artifacts.
  * Documents are rebuilt on every stage; model-authored styles still come last.
@@ -45,9 +46,9 @@ const ARTIFACT_STYLE = `
 }
 
 *{box-sizing:border-box}
-html{background:var(--art-bg);color:var(--art-ink)}
+html{height:100%;background:var(--art-bg);color:var(--art-ink)}
 body{
-  margin:0 auto; padding:clamp(1rem,3vw,1.5rem); max-width:76ch;
+  margin:0; padding:0; min-height:100%;
   font-family:var(--art-sans); font-size:15px; line-height:1.6;
   overflow-wrap:anywhere; -webkit-font-smoothing:antialiased;
 }
@@ -80,6 +81,9 @@ figcaption{font-size:.9em;color:var(--art-ink-2)}
 table{display:block;max-width:100%;overflow-x:auto;border-collapse:collapse;margin:1em 0;font-size:.9em}
 th,td{text-align:left;vertical-align:top;padding:.4em .6em;border-bottom:1px solid var(--art-line)}
 th{font-weight:600}
+
+/* Reading measure belongs to prose, never the viewport of a responsive app. */
+.art-document{max-width:76ch;margin:0 auto;padding:clamp(1rem,3vw,1.5rem)}
 
 /* Compatibility classes are opt-in, not an authoring vocabulary. */
 .wrap{max-width:76ch;margin:0 auto}
@@ -139,7 +143,7 @@ table.data tr:last-child td{border-bottom:0}
 .pill.no{color:var(--art-crit);border-color:var(--art-crit)}
 
 /* Step rail — a sequence should look like a sequence. */
-.rail{display:grid;margin-top:.6rem}
+.rail:has(>.node>.gut){display:grid;margin-top:.6rem}
 .rail .node:has(>.gut){display:grid;grid-template-columns:1.9rem 1fr;gap:.7rem}
 .rail .gut{position:relative}
 .rail .gut::before{content:"";position:absolute;left:.85rem;top:0;bottom:0;width:1px;background:var(--art-line)}
@@ -225,9 +229,10 @@ const ARTIFACT_PRINT_STYLE = `
      margin cannot be won, so it is spent on something worth having: real
      gutters, which physical printers require — they cannot print to the sheet
      edge, and a full-bleed page loses its outermost content on paper. */
-  html,body{margin:0;padding:0;max-width:none}
+  html,body{margin:0;padding:0;max-width:none;height:auto;min-height:0}
   /* The paper already provides a reading measure and gutters. */
   .wrap{max-width:none;margin:0}
+  .art-document{max-width:none;margin:0;padding:0}
 
   /* A heading must not be the last thing on a page. */
   h1,h2,h3,h4{break-after:avoid-page;break-inside:avoid}

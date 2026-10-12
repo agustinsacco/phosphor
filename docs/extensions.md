@@ -429,16 +429,23 @@ remote images and form POSTs are all refused. Never add `allow-same-origin`,
 and never add a `connect-src`. Either one hands model-authored HTML a channel
 out.
 
-**Documents use a single readable column, not a dashboard template.**
+**Prose has a reading column; HTML owns the viewport.**
 Markdown previews use the app's typography within a bounded reading width.
+HTML fills the iframe without an injected body width cap or padding, so its
+media queries and available layout width agree in both a narrow pane and
+fullscreen. Its iframe fits the pane height, including panes below 400px.
 `apps/desktop/electron/artifacts/artifact-skeleton.ts` styles semantic HTML
 (headings, lists, code, quotations, definition lists, details and tables)
-without custom classes. It wraps fragments and injects CSS before any
+without custom classes. HTML prose can opt into a padded 76ch column with
+`<article class="art-document">`. It wraps fragments and injects CSS before any
 model-authored styles. The theme follows Phosphor, with app-matched neutrals
 and accent. Code and genuinely wide tables scroll locally.
 
 Existing `--art-*` tokens, series colors and opt-in layout classes remain
-supported. The skill's HTML reference documents tokens, not a mandatory layout.
+supported. The legacy `.rail` grid only engages for its `.node > .gut`
+structure, not an unrelated prototype sidebar. Custom layouts should namespace
+their classes to avoid legacy helpers. The skill's HTML reference documents
+tokens and responsive layout guidance, not a mandatory layout.
 Existing artifacts
 are restyled when staged, not rewritten. The model's own styles can override
 the defaults. Network access remains blocked; Markdown's built-in diagram

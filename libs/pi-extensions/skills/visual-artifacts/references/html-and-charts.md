@@ -22,15 +22,25 @@ Available CSS tokens:
 
 Use status words alongside colors. Avoid placing many tiny labels in a fixed
 SVG viewBox. Let genuinely wide diagrams scroll locally; the page should not
-need horizontal scrolling. HTML's default body is a reading column; override
-its width deliberately for a spatial comparison.
+need horizontal scrolling. HTML gets the full iframe viewport: no body width
+cap or outer padding. UI prototypes and dashboards should fill that space, not
+simulate a fixed desktop screenshot. Use fluid grid/flex tracks, `min-width:0`
+on shrinking children, and breakpoints for the iframe width (not the host
+window). Let content scroll vertically; do not scale or clip a fixed-size canvas.
+For a viewport-height app, use `min-height:100dvh` or an explicit `height:100dvh`
+with scrolling content regions. Check ~380px, tablet and fullscreen widths.
+
+For prose, wrap the content in `<article class="art-document">` to opt into a
+padded 76ch reading column. Markdown already provides that layout. Namespace
+custom classes (for example, `.demo-sidebar`); legacy helpers such as `.wrap`
+and `.grid` still carry built-in styles.
 
 ## Responsive comparison recipe
 
 ```html
 <style>
   body {
-    max-width: 64rem;
+    padding: clamp(1rem, 3vw, 2rem);
   }
   .comparison {
     display: grid;

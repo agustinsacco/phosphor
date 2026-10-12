@@ -117,6 +117,20 @@ describe('the injected stylesheet', () => {
     expect(ARTIFACT_STYLE).not.toContain('var(--px-')
   })
 
+  it('gives HTML the viewport and makes a padded reading column opt-in', () => {
+    const body = ARTIFACT_STYLE.match(/\nbody\{([^}]+)\}/)![1]!
+    expect(body).toContain('margin:0; padding:0; min-height:100%')
+    expect(body).not.toContain('max-width')
+    expect(ARTIFACT_STYLE).toContain(
+      '.art-document{max-width:76ch;margin:0 auto;padding:clamp(1rem,3vw,1.5rem)}',
+    )
+  })
+
+  it('does not turn a prototype sidebar named rail into a legacy step grid', () => {
+    expect(ARTIFACT_STYLE).not.toContain('.rail{')
+    expect(ARTIFACT_STYLE).toContain('.rail:has(>.node>.gut){display:grid')
+  })
+
   it('never lets a table demand more width than the panel has', () => {
     // A flat `min-width:30rem` put the whole page into a horizontal scroll in
     // the artifact panel, which is routinely narrower than that.
@@ -205,8 +219,11 @@ describe('the print stylesheet', () => {
   })
 
   it('drops the screen gutter, which the page margins now provide', () => {
-    expect(ARTIFACT_PRINT_STYLE).toContain('html,body{margin:0;padding:0;max-width:none}')
+    expect(ARTIFACT_PRINT_STYLE).toContain(
+      'html,body{margin:0;padding:0;max-width:none;height:auto;min-height:0}',
+    )
     expect(ARTIFACT_PRINT_STYLE).toContain('.wrap{max-width:none')
+    expect(ARTIFACT_PRINT_STYLE).toContain('.art-document{max-width:none;margin:0;padding:0}')
   })
 })
 

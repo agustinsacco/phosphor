@@ -3513,7 +3513,7 @@ test('semantic HTML artifacts stay readable in a narrow panel in both themes', a
   try {
     // Test rendered styles, not Chromium's native disclosure interaction.
     // Start expanded so layout assertions include the disclosure's content.
-    const html = `<h1>Host entry point</h1><p>Run the shared runtime without Electron.</p>
+    const html = `<article class="art-document"><h1>Host entry point</h1><p>Run the shared runtime without Electron.</p>
       <p><code>${'libs/session-runtime/'.repeat(12)}</code></p>
       <pre><code>${'long_command_argument '.repeat(30)}</code></pre>
       <dl><dt>Scope</dt><dd>CLI and lifecycle</dd></dl>
@@ -3521,7 +3521,7 @@ test('semantic HTML artifacts stay readable in a narrow panel in both themes', a
       <table><thead><tr><th>Field</th><th>Value</th></tr></thead>
         <tbody><tr><td>Key</td><td style="white-space:nowrap">${'value '.repeat(60)}</td></tr></tbody></table>
       <div class="kpis"><div class="kpi">Legacy metric</div></div>
-      <div class="rail"><div class="node"><div class="gut"></div><div class="body">Legacy step</div></div></div>`
+      <div class="rail"><div class="node"><div class="gut"></div><div class="body">Legacy step</div></div></div></article>`
     for (const theme of ['light', 'dark'] as const) {
       await h.page.evaluate(
         async ({ html, theme }) => {
@@ -3558,14 +3558,126 @@ test('semantic HTML artifacts stay readable in a narrow panel in both themes', a
       expect(layout.paragraphFont).not.toContain('monospace')
       await expect(frame.getByText('Run the headless probe.')).toBeVisible()
       await expect(frame.locator('.kpis')).toHaveCSS('display', 'grid')
+      await expect(frame.locator('.rail')).toHaveCSS('display', 'grid')
       await expect(frame.locator('.rail .node')).toHaveCSS('display', 'grid')
       await h.page.locator('#artifact-style-test').evaluate((element) => {
         ;(element as HTMLIFrameElement).style.width = '1100px'
       })
       await expect
-        .poll(() => frame.locator('body').evaluate((body) => body.clientWidth))
+        .poll(() => frame.locator('.art-document').evaluate((article) => article.clientWidth))
         .toBeLessThan(900)
     }
+  } finally {
+    await shutdown(h)
+  }
+})
+
+test('HTML prototypes use the viewport at narrow, tablet and fullscreen widths', async () => {
+  const h = await launch()
+  try {
+    // Reduced from the reported prototype: body resets margin, not an unknown
+    // injected max-width/padding. Breakpoints assume the viewport is usable.
+    const fragment = `<style>
+      body{margin:0}
+      #demo{min-height:100vh;display:grid;grid-template-columns:174px minmax(0,1fr)}
+      #demo main{min-width:0;padding:16px}
+      #demo .columns{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:24px}
+      @media(max-width:1000px){#demo .columns{grid-template-columns:1fr}}
+      @media(max-width:650px){#demo{grid-template-columns:1fr}#navigation{display:none}}
+      </style><div id="demo"><nav id="navigation">Navigation</nav><main>
+      <h1>Responsive prototype</h1><div class="columns"><section>Decisions</section>
+      <aside class="rail">Activity</aside></div>
+      <button onclick="this.textContent='Opened'">Open</button></main></div>`
+    for (const theme of ['light', 'dark'] as const) {
+      for (const full of [false, true]) {
+        const html = full
+          ? `<!doctype html><html><head><title>Prototype</title></head><body>${fragment}</body></html>`
+          : fragment
+        await h.page.evaluate(
+          async ({ html, theme }) => {
+            document.querySelector('#responsive-artifact')?.remove()
+            const iframe = document.createElement('iframe')
+            iframe.id = 'responsive-artifact'
+            iframe.setAttribute('sandbox', 'allow-scripts')
+            iframe.style.cssText =
+              'position:fixed;inset:0;width:380px;height:350px;border:0;z-index:9999'
+            iframe.src = await window.phosphor.invoke('artifacts:stageHtml', html, theme)
+            document.body.append(iframe)
+          },
+          { html, theme },
+        )
+        const frame = h.page.frameLocator('#responsive-artifact')
+        await expect(frame.getByRole('heading', { name: 'Responsive prototype' })).toBeVisible()
+        await expect(frame.locator('html')).toHaveAttribute('data-theme', theme)
+        await expect(frame.locator('.rail')).toHaveCSS('display', 'block')
+        for (const width of [380, 800, 1600]) {
+          await h.page.locator('#responsive-artifact').evaluate((element, width) => {
+            ;(element as HTMLIFrameElement).style.width = `${width}px`
+          }, width)
+          await expect
+            .poll(() =>
+              frame.locator('#demo').evaluate((demo) => ({
+                width: demo.getBoundingClientRect().width,
+                height: demo.getBoundingClientRect().height,
+                x: demo.getBoundingClientRect().x,
+                y: demo.getBoundingClientRect().y,
+                overflow: document.documentElement.scrollWidth > window.innerWidth,
+              })),
+            )
+            .toEqual({ width, height: 350, x: 0, y: 0, overflow: false })
+          await expect(frame.locator('#navigation')).toHaveCSS(
+            'display',
+            width <= 650 ? 'none' : 'block',
+          )
+          const columns = await frame
+            .locator('.columns')
+            .evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(' '))
+          expect(columns).toHaveLength(width <= 1000 ? 1 : 2)
+        }
+        await frame.getByRole('button', { name: 'Open', exact: true }).click()
+        await expect(frame.getByRole('button', { name: 'Opened', exact: true })).toBeVisible()
+      }
+    }
+  } finally {
+    await shutdown(h)
+  }
+})
+
+test('HTML artifact iframe fits its pane, fullscreen and a short viewport', async () => {
+  const h = await launch()
+  try {
+    await openWorkspace(h.page)
+    await h.page.getByPlaceholder('Describe a task or ask a question').fill('Update hello.ts')
+    await h.page.getByRole('button', { name: /Start session/i }).click()
+    const scroller = h.page.getByTestId('artifact-scroll')
+    const iframe = scroller.locator('iframe')
+    await expect(iframe).toBeVisible({ timeout: 30_000 })
+    const expectFit = async (): Promise<void> => {
+      await expect
+        .poll(() =>
+          scroller.evaluate((element) => {
+            const frame = element.querySelector('iframe')!
+            return {
+              width: frame.offsetWidth - element.clientWidth,
+              height: frame.offsetHeight - element.clientHeight,
+              scroll: element.scrollHeight - element.clientHeight,
+            }
+          }),
+        )
+        .toEqual({ width: 0, height: 0, scroll: 0 })
+    }
+    await expectFit()
+    const narrow = (await iframe.boundingBox())!.width
+    await h.page.getByRole('button', { name: 'Fullscreen pane', exact: true }).click()
+    await expectFit()
+    expect((await iframe.boundingBox())!.width).toBeGreaterThan(narrow)
+    // A short split pane must not silently become a 400px iframe viewport.
+    await scroller.evaluate((element) => {
+      element.style.flex = 'none'
+      element.style.height = '240px'
+    })
+    await expectFit()
+    expect((await iframe.boundingBox())!.height).toBe(240)
   } finally {
     await shutdown(h)
   }
