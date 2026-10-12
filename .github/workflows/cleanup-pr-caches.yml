@@ -1,0 +1,40 @@
+name: Cleanup PR caches
+
+# Trusted default-branch code only. Never check out or execute PR content.
+on:
+  pull_request_target:
+    types: [closed]
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: cleanup-pr-caches-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const number = context.payload.pull_request.number
+            if (!Number.isSafeInteger(number) || number < 1) throw new Error('Invalid PR number')
+            // Only synthetic PR refs, never main or a named branch's shared cache.
+            for (const suffix of ['merge', 'head']) {
+              const ref = `refs/pull/${number}/${suffix}`
+              const caches = await github.paginate(github.rest.actions.getActionsCacheList, {
+                ...context.repo, ref, per_page: 100,
+              })
+              for (const cache of caches) {
+                if (cache.ref !== ref) throw new Error('Unexpected cache ref')
+                try {
+                  await github.rest.actions.deleteActionsCacheById({ ...context.repo, cache_id: cache.id })
+                } catch (error) {
+                  if (error.status !== 404) throw error // Already evicted is harmless.
+                }
+              }
+            }
