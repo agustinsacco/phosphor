@@ -110,18 +110,28 @@ export function hostSigningString(input: HostSigningInput): string {
   ].join('\n')
 }
 
-const base64url = (bytes: number): RegExp =>
-  new RegExp(`^[A-Za-z0-9_-]{${Math.ceil((bytes * 4) / 3)}}$`)
+const BASE64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+
+/**
+ * Exactly `bytes` bytes as unpadded base64url, in its one canonical spelling:
+ * the bits the last character carries beyond the data must be zero. Without
+ * that, one key has up to 16 spellings (ElmQ, ElmR, ElmS, ElmT decode alike),
+ * and a uniqueness rule on the text would not be one on the key.
+ */
+function isBase64url(value: unknown, bytes: number): value is string {
+  const chars = Math.ceil((bytes * 8) / 6)
+  if (typeof value !== 'string' || value.length !== chars) return false
+  for (const char of value) if (!BASE64URL.includes(char)) return false
+  const unusedBits = chars * 6 - bytes * 8
+  return BASE64URL.indexOf(value.charAt(chars - 1)) % 2 ** unusedBits === 0
+}
 
 /** Raw 32-byte Ed25519 public key, base64url without padding (43 chars). */
-export const isPublicKey = (value: unknown): value is string =>
-  typeof value === 'string' && base64url(32).test(value)
+export const isPublicKey = (value: unknown): value is string => isBase64url(value, 32)
 /** 64-byte Ed25519 signature, base64url without padding (86 chars). */
-export const isSignature = (value: unknown): value is string =>
-  typeof value === 'string' && base64url(64).test(value)
+export const isSignature = (value: unknown): value is string => isBase64url(value, 64)
 /** 16 random bytes, base64url without padding (22 chars). */
-export const isNonce = (value: unknown): value is string =>
-  typeof value === 'string' && base64url(16).test(value)
+export const isNonce = (value: unknown): value is string => isBase64url(value, 16)
 export const isSha256Hex = (value: unknown): value is string =>
   typeof value === 'string' && /^[0-9a-f]{64}$/.test(value)
 
@@ -372,12 +382,19 @@ export const isUuid = (value: unknown): value is string =>
 
 // eslint-disable-next-line no-control-regex
 const control = /[\u0000-\u001f\u007f-\u009f]/
+/** Bidi controls reorder what is shown, and line separators split it. */
+const invisible = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069\u2028\u2029]/
 
 /** Trimmed, 1-80 characters, no control characters. */
 export function normalizeLabel(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const label = value.trim()
-  if (label.length < 1 || label.length > CONTROL_LIMITS.labelChars || control.test(label))
+  if (
+    label.length < 1 ||
+    label.length > CONTROL_LIMITS.labelChars ||
+    control.test(label) ||
+    invisible.test(label)
+  )
     return null
   return label
 }
@@ -390,13 +407,26 @@ const versionPattern = /^\d{1,6}\.\d{1,6}\.\d{1,6}(?:[-+][0-9A-Za-z.-]{1,64})?$/
 export const isVersion = (value: unknown): value is string =>
   typeof value === 'string' && versionPattern.test(value)
 
-const endpointPattern = /^https:\/\/[a-z0-9](?:[a-z0-9.-]{0,252})(?::[1-9][0-9]{0,4})?$/
+const endpointPattern = /^https:\/\/[a-z0-9](?:[a-z0-9.-]{0,252})(?::([1-9][0-9]{0,4}))?$/
 /** A bare HTTPS origin such as https://bee1.tail9f6158.ts.net: no path, no credentials. */
-export const isEndpoint = (value: unknown): value is string =>
-  typeof value === 'string' && endpointPattern.test(value)
+export function isEndpoint(value: unknown): value is string {
+  if (typeof value !== 'string') return false
+  const match = endpointPattern.exec(value)
+  return match !== null && (match[1] === undefined || Number(match[1]) <= 65_535)
+}
 
-const isIso = (value: unknown): value is string =>
-  typeof value === 'string' && value.length <= 40 && Number.isFinite(Date.parse(value))
+const isoPattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
+/**
+ * A UTC time exactly as toISOString() writes it, the one form every side
+ * sends. Date.parse alone is not enough: it takes '1', and it reads a time
+ * without a zone as local time, which would skew every up/down judgement.
+ */
+export function isIsoTime(value: unknown): value is string {
+  if (typeof value !== 'string' || !isoPattern.test(value)) return false
+  const time = Date.parse(value)
+  return Number.isFinite(time) && new Date(time).toISOString() === value
+}
+const isIso = isIsoTime
 
 const isCount = (value: unknown, max: number): value is number =>
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= max
@@ -454,14 +484,15 @@ export function parseEnrollmentCreateRequest(value: unknown): Parsed<EnrollmentC
 export function parseEnrollmentCreateResponse(value: unknown): Parsed<EnrollmentCreateResponse> {
   if (!isRecord(value)) return fail('body must be an object')
   if (!isUuid(value.enrollmentId)) return fail('enrollmentId')
-  if (normalizeUserCode(value.userCode) !== value.userCode) return fail('userCode')
+  const userCode = normalizeUserCode(value.userCode)
+  if (userCode === null || userCode !== value.userCode) return fail('userCode')
   if (!isKeyFingerprint(value.keyFingerprint)) return fail('keyFingerprint')
   if (!isIso(value.expiresAt)) return fail('expiresAt')
   if (!isCount(value.pollIntervalSec, 60) || value.pollIntervalSec < 1)
     return fail('pollIntervalSec')
   return ok({
     enrollmentId: value.enrollmentId,
-    userCode: value.userCode as string,
+    userCode,
     keyFingerprint: value.keyFingerprint,
     expiresAt: value.expiresAt,
     pollIntervalSec: value.pollIntervalSec,
@@ -644,13 +675,16 @@ export function parseHealthResponse(value: unknown): Parsed<HealthResponse> {
   return ok({ ok: true, version: value.version, configured: value.configured })
 }
 
+/** Own keys only: 'constructor' or 'toString' are not error codes. */
+export const isControlErrorCode = (value: unknown): value is ControlErrorCode =>
+  typeof value === 'string' && Object.hasOwn(CONTROL_ERROR_STATUS, value)
+
 /** A server error body, or null if the bytes were not one. Messages are capped for display. */
 export function parseControlError(value: unknown): ControlErrorBody | null {
   if (!isRecord(value) || !isRecord(value.error)) return null
   const { code, message } = value.error
-  if (typeof code !== 'string' || !(code in CONTROL_ERROR_STATUS)) return null
-  if (typeof message !== 'string') return null
-  return { error: { code: code as ControlErrorCode, message: message.slice(0, 300) } }
+  if (!isControlErrorCode(code) || typeof message !== 'string') return null
+  return { error: { code, message: message.slice(0, 300) } }
 }
 
 // ---------------------------------------------------------------------- Status

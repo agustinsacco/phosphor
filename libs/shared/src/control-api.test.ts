@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import vector from './__fixtures__/control-signing-vector.json'
 import {
   CONTROL_ERROR_STATUS,
   CONTROL_LIMITS,
@@ -9,9 +10,11 @@ import {
   hostSigningString,
   isEndpoint,
   isHostname,
+  isIsoTime,
   isNonce,
   isPublicKey,
   isSignature,
+  isUuid,
   isVersion,
   machineRoute,
   machineStatus,
@@ -22,6 +25,7 @@ import {
   parseEnrollmentCreateRequest,
   parseEnrollmentCreateResponse,
   parseEnrollmentLookupRequest,
+  parseEnrollmentLookupResponse,
   parseEnrollmentPollResponse,
   parseHeartbeatRequest,
   parseHeartbeatResponse,
@@ -72,10 +76,31 @@ describe('host signing', () => {
     expect(isPublicKey(`${KEY}=`)).toBe(false)
     expect(isPublicKey('A'.repeat(42))).toBe(false)
     expect(isPublicKey('+'.repeat(43))).toBe(false)
-    expect(isSignature('a'.repeat(86))).toBe(true)
-    expect(isSignature('a'.repeat(88))).toBe(false)
-    expect(isNonce('a'.repeat(22))).toBe(true)
-    expect(isNonce('a'.repeat(21))).toBe(false)
+    expect(isSignature('A'.repeat(86))).toBe(true)
+    expect(isSignature('A'.repeat(88))).toBe(false)
+    expect(isNonce('A'.repeat(22))).toBe(true)
+    expect(isNonce('A'.repeat(21))).toBe(false)
+  })
+
+  it('takes only the canonical spelling, so one key cannot pass as several', () => {
+    const stem = vector.publicKey.slice(0, -1)
+    expect(vector.publicKey.endsWith('Q')).toBe(true)
+    expect(isPublicKey(vector.publicKey)).toBe(true)
+    for (const alias of ['R', 'S', 'T']) expect(isPublicKey(`${stem}${alias}`)).toBe(false)
+    for (const bad of ['+', '/', '=', '.', ' ']) {
+      expect(isPublicKey(`${bad}${vector.publicKey.slice(1)}`)).toBe(false)
+    }
+    for (const last of 'AEIMQUYcgkosw048') expect(isPublicKey(`${stem}${last}`)).toBe(true)
+    for (const last of 'AQgw') {
+      expect(isSignature(`${'A'.repeat(85)}${last}`)).toBe(true)
+      expect(isNonce(`${'A'.repeat(21)}${last}`)).toBe(true)
+    }
+    for (const last of 'BRhx-_') {
+      expect(isSignature(`${'A'.repeat(85)}${last}`)).toBe(false)
+      expect(isNonce(`${'A'.repeat(21)}${last}`)).toBe(false)
+    }
+    expect(isSignature(vector.signature)).toBe(true)
+    expect(isNonce(vector.input.nonce)).toBe(true)
   })
 
   it('reads timestamps strictly and allows sixty seconds of skew either way', () => {
@@ -129,6 +154,19 @@ describe('field rules', () => {
     }
   })
 
+  it('refuses labels that would display differently from what they are', () => {
+    for (const mark of ['\u061c', '\u200e', '\u200f', '\u202a', '\u202e', '\u2066', '\u2069']) {
+      expect(normalizeLabel(`bee${mark}12`)).toBeNull()
+    }
+    expect(normalizeLabel('bee1\u2028admin')).toBeNull()
+    expect(normalizeLabel('bee1\u2029admin')).toBeNull()
+    expect(normalizeLabel('ビー1 · café')).toBe('ビー1 · café')
+    expect(parseEnrollmentApproveRequest({ userCode: 'BCDFGHJK', label: 'bee\u202e12' })).toEqual({
+      ok: false,
+      reason: 'label',
+    })
+  })
+
   it('takes hostnames, versions and bare HTTPS origins only', () => {
     expect(isHostname('Agustins-MacBook-Pro.local')).toBe(true)
     expect(isHostname('-bad')).toBe(false)
@@ -138,6 +176,9 @@ describe('field rules', () => {
     expect(isVersion('1.2')).toBe(false)
     expect(isEndpoint('https://bee1.tail9f6158.ts.net')).toBe(true)
     expect(isEndpoint('https://bee1.tail9f6158.ts.net:8443')).toBe(true)
+    expect(isEndpoint('https://bee1.tail9f6158.ts.net:65535')).toBe(true)
+    expect(isEndpoint('https://bee1.tail9f6158.ts.net:65536')).toBe(false)
+    expect(isEndpoint('https://bee1.tail9f6158.ts.net:99999')).toBe(false)
     for (const bad of [
       'http://bee1.ts.net',
       'https://bee1.ts.net/',
@@ -149,6 +190,43 @@ describe('field rules', () => {
     ]) {
       expect(isEndpoint(bad)).toBe(false)
     }
+  })
+})
+
+describe('strict identifiers and times', () => {
+  it('takes lowercase uuids only, as Postgres writes them', () => {
+    expect(isUuid(ID)).toBe(true)
+    expect(isUuid(ID.toUpperCase())).toBe(false)
+    expect(isUuid(`${ID.slice(0, 8).toUpperCase()}${ID.slice(8)}`)).toBe(false)
+    expect(isUuid(`${ID.slice(0, 32)}${ID.slice(32).toUpperCase()}`)).toBe(false)
+    expect(isUuid(`${ID}0`)).toBe(false)
+  })
+
+  it('takes UTC times exactly as toISOString writes them', () => {
+    expect(isIsoTime('2026-10-12T10:00:00.000Z')).toBe(true)
+    expect(isIsoTime(new Date(0).toISOString())).toBe(true)
+    for (const bad of [
+      '1',
+      'Tue Oct 12 2026',
+      '2026-10-12',
+      '2026-10-12T10:00:00',
+      '2026-01-12T10:05:10',
+      '2026-10-12T10:00:00Z',
+      '2026-10-12T10:00:00.000+00:00',
+      '2026-10-12T10:00:00.000000Z',
+      '2026-10-12T10:00:00.000Z ',
+      '2026-02-30T10:00:00.000Z',
+      '2026-13-45T99:99:99.000Z',
+      '+010000-01-01T00:00:00.000Z',
+      '-000001-01-01T00:00:00.000Z',
+      7,
+    ]) {
+      expect(isIsoTime(bad)).toBe(false)
+    }
+    expect(parseMachinesResponse({ machines: [], serverTime: '2026-01-12T10:05:10' })).toEqual({
+      ok: false,
+      reason: 'serverTime',
+    })
   })
 })
 
@@ -173,6 +251,25 @@ describe('requests', () => {
       },
     })
     expect(parseEnrollmentCreateRequest({ publicKey: KEY })).toMatchObject({ ok: false })
+    const create = {
+      publicKey: KEY,
+      hostname: 'bee1',
+      platform: 'linux',
+      arch: 'x64',
+      hostVersion: '0.2.0',
+    }
+    expect(parseEnrollmentCreateRequest({ ...create, platform: 'freebsd' })).toEqual({
+      ok: false,
+      reason: 'platform',
+    })
+    expect(parseEnrollmentCreateRequest({ ...create, arch: 'ia32' })).toEqual({
+      ok: false,
+      reason: 'arch',
+    })
+    expect(parseEnrollmentCreateRequest({ ...create, publicKey: `${KEY.slice(0, -1)}B` })).toEqual({
+      ok: false,
+      reason: 'publicKey',
+    })
     expect(parseEnrollmentCreateRequest([])).toMatchObject({ ok: false })
   })
 
@@ -260,6 +357,14 @@ describe('responses', () => {
       ok: false,
       reason: 'status',
     })
+    expect(
+      parseEnrollmentPollResponse({
+        status: 'approved',
+        hostId: ID,
+        label: ' bee1 ',
+        owner: { login: 'octo' },
+      }),
+    ).toEqual({ ok: false, reason: 'label' })
   })
 
   it('requires the canonical code from the server', () => {
@@ -275,6 +380,12 @@ describe('responses', () => {
       ok: false,
       reason: 'userCode',
     })
+    for (const userCode of [null, undefined, 42]) {
+      expect(parseEnrollmentCreateResponse({ ...response, userCode })).toEqual({
+        ok: false,
+        reason: 'userCode',
+      })
+    }
   })
 
   it('parses me, host self and heartbeat replies', () => {
@@ -292,6 +403,41 @@ describe('responses', () => {
     ).toMatchObject({ ok: true })
     expect(parseHeartbeatResponse({ accepted: true, nextInSec: 30 })).toMatchObject({ ok: true })
     expect(parseHeartbeatResponse({ accepted: true, nextInSec: 1 })).toMatchObject({ ok: false })
+    expect(parseMeResponse({ account: { login: 'octo' }, enabled: 'yes', maxHosts: 20 })).toEqual({
+      ok: false,
+      reason: 'enabled',
+    })
+  })
+
+  it('checks every field a person compares before approving', () => {
+    const lookup = {
+      hostname: 'bee1',
+      platform: 'linux',
+      arch: 'x64',
+      hostVersion: '0.2.0',
+      keyFingerprint: '0a1b-2c3d-4e5f-6a7b',
+      expiresAt: '2026-10-12T10:10:00.000Z',
+    }
+    expect(parseEnrollmentLookupResponse(lookup)).toEqual({ ok: true, value: lookup })
+    expect(parseEnrollmentLookupResponse({ ...lookup, keyFingerprint: '0a1b2c3d' })).toEqual({
+      ok: false,
+      reason: 'keyFingerprint',
+    })
+    expect(parseEnrollmentLookupResponse({ ...lookup, expiresAt: '1' })).toEqual({
+      ok: false,
+      reason: 'expiresAt',
+    })
+  })
+
+  it('bounds the machine list', () => {
+    const many = new Array(CONTROL_LIMITS.maxHostsPerAccount * 5 + 1).fill(machine)
+    expect(parseMachinesResponse({ machines: many, serverTime: machine.enrolledAt })).toEqual({
+      ok: false,
+      reason: 'machines',
+    })
+    expect(
+      parseMachinesResponse({ machines: many.slice(1), serverTime: machine.enrolledAt }),
+    ).toMatchObject({ ok: true })
   })
 
   it('reads error bodies and caps their messages', () => {
@@ -299,6 +445,10 @@ describe('responses', () => {
       parseControlError({ error: { code: 'gone', message: 'x'.repeat(500) } })?.error.message,
     ).toHaveLength(300)
     expect(parseControlError({ error: { code: 'teapot', message: 'no' } })).toBeNull()
+    for (const code of ['constructor', 'toString', '__proto__', 'hasOwnProperty']) {
+      expect(parseControlError({ error: { code, message: 'no' } })).toBeNull()
+    }
+    expect(parseControlError({ error: { code: 'gone', message: 7 } })).toBeNull()
     expect(CONTROL_ERROR_STATUS.gone).toBe(410)
   })
 })
