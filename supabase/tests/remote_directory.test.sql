@@ -8,9 +8,9 @@ insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000002', 'bob@example.test');
 insert into public.remote_access_accounts (user_id, enabled)
   select id, true from auth.users where email like '%@example.test';
-insert into public.remote_hosts (owner_id, label, endpoint) values
-  ('00000000-0000-0000-0000-000000000001', 'Alice host', 'https://alice.example.ts.net'),
-  ('00000000-0000-0000-0000-000000000002', 'Bob host', 'https://bob.example.ts.net');
+insert into public.remote_hosts (owner_id, label, endpoint, hostname, public_key, key_fingerprint, platform, arch) values
+  ('00000000-0000-0000-0000-000000000001', 'Alice host', 'https://alice.example.ts.net', 'alice', (repeat('a',42) || 'A'), 'abcd-abcd-abcd-abcd', 'linux', 'x64'),
+  ('00000000-0000-0000-0000-000000000002', 'Bob host', 'https://bob.example.ts.net', 'bob', (repeat('b',42) || 'A'), 'abcd-abcd-abcd-abcd', 'linux', 'x64');
 insert into public.remote_clients (owner_id, label, kind) values
   ('00000000-0000-0000-0000-000000000001', 'Alice client', 'desktop'),
   ('00000000-0000-0000-0000-000000000002', 'Bob client', 'web');
