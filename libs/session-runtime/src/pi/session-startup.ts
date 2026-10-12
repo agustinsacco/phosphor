@@ -12,6 +12,7 @@ import {
   type SessionPolicyRuntime,
 } from './session-policy'
 import type { SessionRegistry } from './session-registry'
+import type { LaneReload } from './lane-reload'
 
 export interface SessionStartupRuntime {
   registry: Pick<SessionRegistry, 'create' | 'dispose'>
@@ -26,6 +27,7 @@ export interface SessionStartupRuntime {
     hold: (accountId: string, until: number) => Promise<void>
   }
   recordWorkspace: (path: string, name: string) => void
+  laneReload?: Pick<LaneReload, 'capture' | 'track'>
 }
 
 export type SessionSink = (sessionId: string) => (payload: SessionPush) => void
@@ -56,6 +58,11 @@ export function createSessionStartup(runtime: SessionStartupRuntime) {
       runtime.policy,
     )
     execution.signal?.throwIfAborted()
+    // Read before the spawn: a change landing while pi starts must still count as new.
+    const laneConfig =
+      runtime.laneReload && !launch.stub
+        ? await runtime.laneReload.capture(options.workspacePath)
+        : null
     const session = runtime.registry.create(options.workspacePath, spawnOptions)
     const stopOnAbort = (): void => {
       void runtime.registry.dispose(session.sessionId).catch((error: unknown) => {
@@ -87,6 +94,7 @@ export function createSessionStartup(runtime: SessionStartupRuntime) {
       execution.signal?.throwIfAborted()
       if (!session.client.alive) throw new Error('Session stopped during startup.')
       if (accountId) runtime.accounts.remember(session.sessionId, accountId)
+      runtime.laneReload?.track(session.sessionId, laneConfig, session.client)
       // Automation must not replace the user's launch-resume folder.
       if (!execution.unattended)
         runtime.recordWorkspace(options.workspacePath, basename(options.workspacePath))

@@ -6,6 +6,7 @@ import { assertClaudeContextProvider } from './provider-detect'
 import { sessionPathKey, type SessionPathRuntime } from './session-path-lock'
 import type { SessionExecution, SessionPolicyRuntime } from './session-policy'
 import type { SessionRegistry } from './session-registry'
+import type { LaneReload } from './lane-reload'
 
 export interface SessionServiceRuntime<Delivery> {
   registry: Pick<SessionRegistry, 'get' | 'list' | 'dispose'>
@@ -20,6 +21,8 @@ export interface SessionServiceRuntime<Delivery> {
   readBudget: () => string
   withBudgetCompaction: ReturnType<typeof createContextBudgetRuntime>['withBudgetCompaction']
   forgetAccount: (id: string) => void
+  /** Brings changed lane config (MCP servers) into a running lane before its next turn. */
+  laneReload?: Pick<LaneReload, 'beforePrompt'>
   routines: {
     owns: (id: string) => boolean
     sessionForPath: (path: string) => string | undefined
@@ -100,6 +103,16 @@ export function createSessionService<Delivery>(runtime: SessionServiceRuntime<De
         if (command.type === 'prompt') {
           const state = await live.client.request({ type: 'get_state' })
           if (!state.success || !state.data) throw new Error('Cannot verify the active pi model.')
+          // Only a prompt that starts a turn: one sent mid-run joins that run,
+          // and a host control (`/phosphor-…`) starts none. Before the budget
+          // sync, because a reload drops the lane's capped context window.
+          if (
+            runtime.laneReload &&
+            !state.data.isStreaming &&
+            !state.data.isCompacting &&
+            !command.message.startsWith('/phosphor-')
+          )
+            await runtime.laneReload.beforePrompt(id, live.client, live.workspacePath)
           if (state.data.model?.provider === 'pi-claude-cli')
             assertClaudeContextProvider(await runtime.packages(live.workspacePath))
           await syncContextBudget(live.client, runtime.readBudget())

@@ -252,7 +252,7 @@ patchWebSearchConfig` (`pi-config-handlers.ts`).
 
 ## Bundled extensions (Phosphor's own)
 
-Separate from packages the user installs, Phosphor ships **six** TypeScript
+Separate from packages the user installs, Phosphor ships **seven** TypeScript
 extensions in `libs/pi-extensions/pi-ext/`, loaded into **every** session via
 `pi --mode rpc -e <path>` (`bundledExtensions()` in
 `libs/session-runtime/src/bundled-extensions.ts`, called by `apps/desktop/electron/pi/session-runtime.ts`). They are the only Phosphor code with a
@@ -274,6 +274,7 @@ Optional Python helpers remain in the source tree, not the shipped resource filt
 | `tool-name-guard.ts`   | rewrites a malformed tool call before pi persists it and bricks the thread                   |
 | `mcp-status.ts`        | forwards the MCP adapter's per-server status off pi's shared event bus                       |
 | `headroom.ts`          | compresses large tool results through a local Headroom proxy at the moment they are produced |
+| `lane-reload.ts`       | reloads the lane between turns so MCP config changes apply ([mcp.md](mcp.md))                |
 
 ### The artifact tools, and what each one costs
 
@@ -515,7 +516,7 @@ It forwards the snapshot verbatim.
 
 Bundled extensions and provider packages talk to Phosphor's UI the same way:
 `ctx.ui.setStatus(key, text)` → pi's extension-UI request → the per-session map
-in `stores/extensionUi.ts`. Five keys are load-bearing, and the key strings are
+in `stores/extensionUi.ts`. Six keys are load-bearing, and the key strings are
 **case-sensitive literals on both sides**; nothing fails to compile when they
 disagree.
 
@@ -523,6 +524,7 @@ disagree.
 | ---------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
 | `phosphor-context-breakdown` | `libs/pi-extensions/pi-ext/context-breakdown.ts` | `chat/composer/contextBreakdown.ts` → ContextMeter, context-file checkboxes                                                |
 | `phosphor-mcp-status`        | `libs/pi-extensions/pi-ext/mcp-status.ts`        | `connectors/mcpStatus.ts` → Connectors, footer                                                                             |
+| `phosphor-reload`            | `libs/pi-extensions/pi-ext/lane-reload.ts`       | `libs/session-runtime/src/pi/lane-reload.ts` (main), JSON `{ token, outcome }`; hidden from the status strip               |
 | `phosphor-headroom`          | `libs/pi-extensions/pi-ext/headroom.ts`          | `chat/composer/headroomStatus.ts` → ContextMeter (Optimization section)                                                    |
 | `claude-rate-limit`          | `@saccolabs/pi-claude-cli` ≥ 0.4.5               | `chat/composer/rateLimit.ts` → ContextMeter, RateLimitBanner; `libs/shared/src/claude-limits.ts` → account routing in main |
 | `claude-subagents`           | `@saccolabs/pi-claude-cli` ≥ 0.4.13              | `chat/subagentStatus.ts` → the status strip's agent chip, for sessions recorded before 0.9.0 (see below)                   |

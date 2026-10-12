@@ -26,7 +26,8 @@ export interface McpDirs {
   piAgent: string
 }
 
-function defaultDirs(): McpDirs {
+/** Where the adapter's global config files live for this user. */
+export function mcpDirs(): McpDirs {
   return {
     home: homedir(),
     xdgConfig: process.env.XDG_CONFIG_HOME || join(homedir(), '.config'),
@@ -37,7 +38,7 @@ function defaultDirs(): McpDirs {
 /** Chain paths, lowest → highest precedence. Dirs injectable for tests. */
 export function mcpConfigPaths(
   workspacePath: string | undefined,
-  dirs: McpDirs = defaultDirs(),
+  dirs: McpDirs = mcpDirs(),
 ): Array<{ scope: McpScope; path: string }> {
   const paths: Array<{ scope: McpScope; path: string }> = [
     { scope: 'xdg', path: join(dirs.xdgConfig, 'mcp', 'mcp.json') },
@@ -260,7 +261,7 @@ export async function writeMcpFile(
  * the settings list only ever shows the opening of one.
  */
 export async function readMcpCache(dirs?: McpDirs): Promise<McpCacheEntry[]> {
-  const path = join((dirs ?? defaultDirs()).piAgent, 'mcp-cache.json')
+  const path = join((dirs ?? mcpDirs()).piAgent, 'mcp-cache.json')
   let parsed: unknown
   try {
     parsed = JSON.parse(await readFile(path, 'utf8'))

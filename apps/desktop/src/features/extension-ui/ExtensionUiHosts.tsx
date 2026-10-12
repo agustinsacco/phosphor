@@ -8,6 +8,7 @@ import { ModalPanel } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
 import { ansiToSpans, stripAnsi } from '@shared/ansi'
 import { CONTEXT_BREAKDOWN_STATUS_KEY } from '@/features/chat/composer/contextBreakdown'
+import { LANE_RELOAD_STATUS_KEY } from '@phosphor/pi-extensions/lane-reload'
 import { RATE_LIMIT_STATUS_KEY } from '@/features/chat/composer/rateLimit'
 import { MCP_STATUS_STATUS_KEY, parseMcpStatus, stateLabel } from '@/features/connectors/mcpStatus'
 import { HEADROOM_STATUS_KEY } from '@/features/chat/composer/headroomStatus'
@@ -400,6 +401,8 @@ const STRUCTURED_STATUS_KEYS = new Set([
   MCP_STATUS_STATUS_KEY,
   SUBAGENTS_STATUS_KEY,
   HEADROOM_STATUS_KEY,
+  // Main's reply channel for a between-turns reload; never for the user.
+  LANE_RELOAD_STATUS_KEY,
 ])
 
 /**

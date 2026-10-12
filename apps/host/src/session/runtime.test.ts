@@ -159,7 +159,7 @@ describe('the Host runtime', { timeout: 20_000 }, () => {
     const [spawn] = spawns(log)
     expect(spawn!.cwd).toBe(repo)
     const extensions = spawn!.args.flatMap((arg, i) => (arg === '-e' ? [spawn!.args[i + 1]!] : []))
-    expect(extensions).toHaveLength(6)
+    expect(extensions).toHaveLength(7)
     for (const file of extensions) expect(dirname(file)).toBe(join(EXTENSIONS_ROOT, 'pi-ext'))
   })
 

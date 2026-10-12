@@ -6,6 +6,8 @@ import contextFiles, {
   filterProjectContext,
   filterSystemMessages,
   parseProjectContext,
+  savedContextFiles,
+  CONTEXT_FILES_ENTRY,
   type ContextFileKind,
 } from './context-files'
 
@@ -144,16 +146,20 @@ describe('contextFilesIn', () => {
 })
 
 describe('context files extension', () => {
-  function fakePi(initial?: string) {
+  // '' rather than undefined: the default reads PHOSPHOR_CONTEXT_FILES, which
+  // a run inside Phosphor has set.
+  function fakePi(initial = '') {
     const handlers = new Map<string, (event: unknown, ctx: unknown) => unknown>()
     let command!: (args: string, ctx: unknown) => Promise<void>
     const changes: unknown[] = []
+    const entries: unknown[] = []
     const state = contextFiles(
       {
         on: (event, handler) => void handlers.set(event, handler),
         registerCommand: (_name, spec) => {
           command = spec.handler
         },
+        appendEntry: (customType, data) => void entries.push({ type: 'custom', customType, data }),
       },
       (ctx) => changes.push(ctx),
       initial,
@@ -164,6 +170,9 @@ describe('context files extension', () => {
     return {
       state,
       changes,
+      entries,
+      start: (branch: unknown[]) =>
+        handlers.get('session_start')!({}, { sessionManager: { getBranch: () => branch } }),
       command: (args: string) => command(args, 'ctx'),
       send: () => handlers.get('context_with_system')!({ messages: request() }, {}),
     }
@@ -184,5 +193,34 @@ describe('context files extension', () => {
     expect(result.messages[0]!.sections.project_context).toBe(render([CLAUDE]))
     await pi.command('agents=on')
     expect(pi.send()).toBeUndefined()
+  })
+
+  it('saves each toggle so a reload or a reopened lane keeps it over the environment', async () => {
+    const before = fakePi()
+    await before.command('claude=off')
+    expect(before.entries).toEqual([
+      { type: 'custom', customType: CONTEXT_FILES_ENTRY, data: { off: ['claude'] } },
+    ])
+    // The rebuilt extension starts from an environment that says otherwise.
+    const after = fakePi('agents=off')
+    after.start([{ type: 'message' }, ...before.entries])
+    expect([...after.state.off()]).toEqual(['claude'])
+    // A lane that never toggled keeps the environment's value.
+    const untouched = fakePi('agents=off')
+    untouched.start([{ type: 'message' }])
+    expect([...untouched.state.off()]).toEqual(['agents'])
+  })
+})
+
+describe('savedContextFiles', () => {
+  const entry = (data: unknown) => ({ type: 'custom', customType: CONTEXT_FILES_ENTRY, data })
+  it('takes the newest entry on the branch and ignores what it cannot read', () => {
+    expect(savedContextFiles([])).toBeNull()
+    expect([...savedContextFiles([entry({ off: ['claude'] }), entry({ off: [] })])!]).toEqual([])
+    expect([...savedContextFiles([entry({ off: ['agents', 'readme'] })])!]).toEqual(['agents'])
+    expect(savedContextFiles([entry({ off: 'claude' })])).toBeNull()
+    expect(
+      savedContextFiles([{ type: 'custom', customType: 'other', data: { off: [] } }]),
+    ).toBeNull()
   })
 })
