@@ -143,3 +143,78 @@ describe('with the preview off', () => {
     expect(useExtensionUiStore.getState().toasts.find((t) => t.id === other)?.leaving).toBe(false)
   })
 })
+
+describe('the enrolled machines projection', () => {
+  it('applies the server clock offset and ignores an answer after the page closes', async () => {
+    const { useMachinesStore } = await import('./machines')
+    const { MACHINE } = await import('@/features/machines/__fixtures__/control')
+    const now = Date.now()
+    useMachinesStore.getState().applyPreview(true)
+    useMachinesStore.getState().enableRemote(true)
+    invoke.mockResolvedValueOnce({
+      ok: true,
+      machines: [MACHINE],
+      serverTime: new Date(now + 60_000).toISOString(),
+    })
+    await useMachinesStore.getState().refresh()
+    expect(useMachinesStore.getState().machines).toEqual([MACHINE])
+    expect(useMachinesStore.getState().clockOffsetMs).toBeGreaterThan(59_000)
+    let resolve: ((value: unknown) => void) | undefined
+    invoke.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done
+        }),
+    )
+    const request = useMachinesStore.getState().refresh()
+    useMachinesStore.getState().enableRemote(false)
+    resolve?.({ ok: true, machines: [MACHINE], serverTime: new Date(now).toISOString() })
+    await request
+    expect(useMachinesStore.getState().machines).toEqual([])
+    expect(useMachinesStore.getState().loading).toBe(false)
+  })
+  it('keeps the newest refresh and clears data on a control signed-out response', async () => {
+    const { useMachinesStore } = await import('./machines')
+    useMachinesStore.getState().applyPreview(true)
+    useMachinesStore.getState().enableRemote(true)
+    let finish: ((value: unknown) => void) | undefined
+    invoke.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    )
+    const older = useMachinesStore.getState().refresh()
+    invoke.mockResolvedValueOnce({ ok: true, machines: [], serverTime: new Date().toISOString() })
+    await useMachinesStore.getState().refresh()
+    finish?.({ ok: false, error: { code: 'offline', message: '' } })
+    await older
+    expect(useMachinesStore.getState().error).toBeNull()
+    const { MACHINE } = await import('@/features/machines/__fixtures__/control')
+    invoke.mockResolvedValueOnce({
+      ok: true,
+      machines: [MACHINE],
+      serverTime: new Date().toISOString(),
+    })
+    await useMachinesStore.getState().refresh()
+    invoke.mockResolvedValueOnce({ ok: false, error: { code: 'signed-out', message: '' } })
+    await useMachinesStore.getState().refresh()
+    expect(useMachinesStore.getState().machines).toEqual([])
+    expect(useMachinesStore.getState().error).toBe('signed-out')
+  })
+  it('does not call control while signed out or preview-off and surfaces errors without peer messages', async () => {
+    const { useMachinesStore } = await import('./machines')
+    await useMachinesStore.getState().refresh()
+    useMachinesStore.getState().applyPreview(true)
+    await useMachinesStore.getState().refresh()
+    expect(invoke).not.toHaveBeenCalled()
+    useMachinesStore.getState().enableRemote(true)
+    invoke.mockResolvedValueOnce({ ok: false, error: { code: 'offline', message: 'not retained' } })
+    await useMachinesStore.getState().refresh()
+    expect(useMachinesStore.getState().error).toBe('offline')
+    expect(useMachinesStore.getState().loading).toBe(false)
+    invoke.mockRejectedValueOnce(new Error('not retained'))
+    await useMachinesStore.getState().refresh()
+    expect(useMachinesStore.getState().error).toBe('offline')
+  })
+})

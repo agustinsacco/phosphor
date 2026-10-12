@@ -148,12 +148,13 @@ Code** provider keeps its own set of logins under Extensions → Claude Code.
 
 ### Phosphor account (preview)
 
-An optional sign-in to Phosphor itself, for the remote machines to come
-([remote-access.md](remote-access.md)). It does nothing else yet, so it shows
-only while Settings → Advanced → Phosphor account (preview) is on, and main
-refuses a sign-in while it is off. Local work never needs it. Neither a launch
-nor Settings with the preview off reads its files: the account is built the
-first time it is needed with the preview on.
+An optional sign-in to Phosphor itself. With the Machines preview also on, it
+lists enrolled machines and lets you approve a Host's code or remove a machine
+([remote-access.md](remote-access.md)). It shows only while Settings → Advanced
+→ Phosphor account (preview) is on, and main refuses a sign-in while it is off.
+Local work never needs it. Neither a launch nor Settings with the preview off
+reads its files: the account is built the first time it is needed with the
+preview on.
 
 - **GitHub through Supabase Auth**, with no email. Main runs PKCE: the system
   browser opens Supabase's authorize page, and Supabase sends it back to a
@@ -352,10 +353,12 @@ installs anything. Every action is a button.
 - **Phosphor account (preview)**: shows the optional GitHub sign-in under
   Accounts ([above](#phosphor-account-preview)). Off by default; turning it off
   signs out, and stays on if the saved sign-in cannot be deleted.
-- **Machines (preview)**: tries the machine-aware sidebar, the Machines page
-  and Run on against two made-up machines, bee1 and bee2
-  ([ui-shell.md](ui-shell.md#machines-preview)). Off by default; nothing
-  connects anywhere, and turning it off puts everything back.
+- **Machines (preview)**: the Machines page lists your enrolled machines when
+  you are signed in, and two made-up machines, bee1 and bee2, when you are not.
+  The sidebar and Run on still use the made-up machines
+  ([ui-shell.md](ui-shell.md#machines-preview)). Off by default; only the
+  signed-in Machines page contacts the control plane, and turning it off puts
+  everything back.
 - **Maintenance**: a periodic sweep for worktrees whose branch already landed.
   It always _measures_ ("N of M worktrees reclaimable") and only deletes once
   "Delete automatically" is on. Interval (≥15 min) and a grace period (a merged
