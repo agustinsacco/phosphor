@@ -8,6 +8,8 @@ import { renderDoctor, runDoctor, type DoctorContext } from './commands/doctor'
 import type { LoginContext } from './commands/provider-login'
 import { renderProviders, runProviders } from './commands/providers'
 import { runProviderLogin } from './commands/provider-login'
+import { runHost, type RunContext } from './commands/run'
+import { runService, isServiceAction, type ServiceContext } from './commands/service'
 import { runLogin } from './commands/login'
 import { runLogout } from './commands/logout'
 import { renderStatus, runStatus } from './commands/status'
@@ -38,6 +40,9 @@ Set up a Host in three steps: doctor, then providers, then accept.
   login [--config FILE]            add this machine to your Phosphor account
   status [--config FILE] [--json]   check this machine with the control plane
   logout [--config FILE] [--local]  remove it; --local only forgets it here
+  run [--config FILE]              keep this machine online with heartbeats
+  service install|status|restart|logs|uninstall [--config FILE]
+                                    manage the Linux user service; logs takes --follow
   version [--json]                  print the Host's version
 
 exit codes: 0 ok, 1 an acceptance check failed, 64 usage, 69 prerequisite unavailable,
@@ -59,11 +64,15 @@ export type CliContext = Omit<DoctorContext, 'configPath'> & {
   /** Replaced in tests: hands the terminal to a login. */
   runInTerminal?: LoginContext['run']
   /** Control-plane I/O replaced in tests. */
+  heartbeat?: RunContext['heartbeat']
+  service?: ServiceContext['service']
   control?: Pick<ControlContext, 'fetch' | 'now' | 'random' | 'signal' | 'wait' | 'store' | 'arch'>
 }
 
 const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   doctor: ['config', 'json'],
+  run: ['config'],
+  service: ['config', 'follow'],
   login: ['config'],
   status: ['config', 'json'],
   logout: ['config', 'local'],
@@ -110,7 +119,12 @@ export async function runCli(
   if (login && extra.length === 1) {
     return usage('providers login needs a provider: an id phosphor providers lists, or claude')
   }
-  const unexpected = extra[login ? 2 : 0]
+  const service = command === 'service'
+  if (service && !isServiceAction(extra[0]))
+    return usage('service needs install, status, restart, logs or uninstall')
+  if (service && values.follow && extra[0] !== 'logs')
+    return usage('--follow is only for service logs')
+  const unexpected = extra[login ? 2 : service ? 1 : 0]
   if (unexpected !== undefined) return usage(`unexpected argument "${unexpected}"`)
   const refused = Object.keys(values).find((option) => !allowed.includes(option))
   if (refused) return usage(`${name} does not take --${refused}`)
@@ -137,6 +151,39 @@ export async function runCli(
       return EXIT.ok
     }
     const configPath = values.config ?? defaultConfigPath(context.env, context.home)
+    if (command === 'run' || service) {
+      const controller = new AbortController()
+      let done: () => void = () => {}
+      const ended = new Promise<void>((resolve) => {
+        done = resolve
+      })
+      const detach = service
+        ? context.attach?.({
+            drain: async () => {
+              controller.abort()
+              await ended
+              return { state: 'stopped' }
+            },
+            log: { write: () => {}, hide: () => 'The service command could not finish.' },
+          })
+        : undefined
+      const run = {
+        ...context,
+        ...context.control,
+        configPath,
+        signal: context.control?.signal
+          ? AbortSignal.any([controller.signal, context.control.signal])
+          : controller.signal,
+        print: (line: string) => io.stdout(line.endsWith('\n') ? line : `${line}\n`),
+      }
+      try {
+        if (command === 'run') return await runHost(run)
+        if (isServiceAction(extra[0])) return await runService(run, extra[0], values.follow)
+      } finally {
+        done()
+        detach?.()
+      }
+    }
     if (['login', 'status', 'logout'].includes(command)) {
       const controller = new AbortController()
       const signal = context.control?.signal
@@ -249,6 +296,7 @@ function parse(argv: readonly string[]) {
       config: { type: 'string' },
       json: { type: 'boolean' },
       local: { type: 'boolean' },
+      follow: { type: 'boolean' },
       repository: { type: 'string' },
       lane: { type: 'string' },
       'keep-transcripts': { type: 'boolean' },

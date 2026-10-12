@@ -2,10 +2,11 @@
 
 The Host is Phosphor's plain-Node application for machines Desktop does not run
 on. Its command is `phosphor`; its config and logs live in `phosphor-host`
-folders, apart from Desktop's own. Today it is a foreground CLI: `doctor` checks
+folders, apart from Desktop's own. `doctor` checks
 whether a machine can run sessions, `providers` which models pi can use there,
 and `accept` runs real sessions to prove it ([accept](#accept)). `login`,
-`status` and `logout` manage its machine identity in the control plane. It listens on
+`status` and `logout` manage its machine identity in the control plane. `run`
+sends heartbeats; on Linux, `service` runs it as a systemd user service. It listens on
 nothing. `npm run build:host` builds it
 ([Build](#build)); nothing installs or publishes it yet. Desktop never runs a
 Host, and offline Desktop never needs one
@@ -46,6 +47,9 @@ phosphor accept --repository DIR [--lane native|claude|all] [--keep-transcripts]
 phosphor login [--config FILE]
 phosphor status [--config FILE] [--json]
 phosphor logout [--config FILE] [--local]
+phosphor run [--config FILE]
+phosphor service install|status|restart|logs|uninstall [--config FILE]
+phosphor service logs [--config FILE] [--follow]
 phosphor version [--json]
 ```
 
@@ -257,12 +261,62 @@ unreachable server exits 75 and keeps the identity, with the `--local` hint.
 `--local` never contacts the server and works even if config is invalid. It
 forgets the files only; the machine stays listed until removed in Desktop.
 
-Only these commands contact the configured control plane. Enrollment sends
+Login, status, logout, run and service status contact the configured control plane. Enrollment sends
 the public key, hostname, platform, architecture and Host version. Status and
-logout send the enrolled UUID. Requests carry a timestamp, random nonce and
+logout and run send the enrolled UUID. Heartbeats send readiness and the Host version,
+with zero lane counts and a null endpoint; the Host has no listener. Requests carry a timestamp, random nonce and
 Ed25519 signature. No repository names, paths, transcripts or provider tokens
 leave the machine. Redirects are refused. Requests time out after 10 seconds;
 responses are capped at 64 KiB and validated with the shared wire contract.
+
+## Running as a service
+
+After `phosphor login`, `phosphor run` reports the machine's readiness to the
+control plane every 30 seconds, or the interval the server returns, plus up to
+3 seconds of jitter. pi, Claude sign-in and Tailscale are checked at start and
+every five minutes. Each probe has a 2 second deadline and a 64 KiB output cap.
+No session starts. Logs name state changes only, with no keys or signatures.
+
+Only one run holds `identity/.run-lock`. It uses the identity lock's publication,
+recovery and ownership rules, with its own `.run-lock-recovery` gate. It reads
+identity under `.lock` and releases that lock before running. The persisted
+sequence in `identity/heartbeat.json` is `{version: 1, hostId, seq}`, written
+atomically with mode 0600 and synced before sending. Each new sequence is the
+larger of the previous value plus one and the current time in milliseconds.
+A file for another Host is replaced. Losing the file is safe while the clock
+has not stepped back past the server's last sequence.
+
+Network failures back off from 5 seconds to 5 minutes. A success resets the
+backoff. Rate limits wait 10 seconds; a stale sequence retries with a fresh one.
+A removed machine exits 77, keeps its identity and asks you to run login again.
+SIGTERM or SIGINT sends one stopping beat, waits at most 5 seconds, and exits 0
+whether or not that beat succeeds. A second signal exits immediately with its
+signal code, 130 for SIGINT.
+
+On Linux, `phosphor service install` requires an enrolled identity and writes
+`${XDG_CONFIG_HOME:-~/.config}/systemd/user/phosphor-host.service` atomically with
+mode 0644. It pins the absolute node, bundle and config paths, quotes spaces and
+escapes systemd specifiers. Control characters in paths or PATH are refused.
+The unit captures the shell's PATH, no other environment. Provider credentials
+stay in pi's and Claude's stores. It restarts on failure after 10 seconds,
+except exits 64, 69, 77 and 78, which require operator action.
+
+Install reloads systemd, enables and starts the unit, restarts it to apply a
+replacement, then enables linger for the current user so it survives logout
+and reboot. If linger needs permission, the service stays running and the
+command prints `sudo loginctl enable-linger USER` for you to run. It never runs
+sudo itself. Reinstall replaces the unit and restarts it.
+
+- `service status` shows ActiveState, SubState, MainPID, ExecMainStatus and
+  linger, then the same machine summary as `phosphor status`.
+- `service restart` restarts the unit.
+- `service logs` streams the last 200 journal lines without a pager; `--follow`
+  keeps streaming new lines.
+- `service uninstall` stops and disables the unit, removes it and reloads
+  systemd. It is idempotent and never touches identity, config or provider data.
+
+Service commands exit 69 on other platforms. No service command uses a shell;
+child stdin is ignored. Test runners replace systemctl, loginctl and journalctl.
 
 ## pi's environment
 
