@@ -414,7 +414,9 @@ else private, like an internal MCP server's name or host.
 `npm run shots` (`tools/scripts/capture-readme-shots.mjs`) is the deterministic
 sibling: same mechanics, scratch workspace, the e2e `pi` stub, no key, no
 network. Use it to verify UI changes; use the live one to regenerate what this
-README shows.
+README shows. The one exception is the site's hero (`subagents`): a real run
+won't hold four sub-agents mid-flight for a frame, so it comes from this
+runner and the site labels it a scripted demo (see `apps/site/README.md`).
 
 ### Repo layout
 

@@ -81,10 +81,22 @@ and `docs/mcp.md` are the relevant contracts.
 
 ## Captures and privacy
 
-The landing opens with the lane dashboard, then a chat-focused session, then
-an IDE-style editor-and-agent view to show the layout flexibility. All three
-are real captures, visible without opening a disclosure. The dashboard stays
-uncropped on desktop and mobile; every image links to its full-size original.
+The landing opens with one lane running four sub-agents at once. That capture
+is a **scripted demo**, labelled “Demo session · scripted agents” on the page:
+the deterministic `npm run shots` runner drives the built app against the e2e
+pi stub, which holds a `parallel` sub-agent call mid-run. No model, key or
+network is involved. To regenerate it:
+
+```bash
+npm run build
+OUT_DIR=apps/site/shots-raw MAX_WIDTH=0 ONLY=subagents npm run shots
+npm run shots --prefix apps/site
+```
+
+After it come the lane dashboard, a chat-focused session, and an IDE-style
+editor-and-agent view to show the layout flexibility. Those three are real
+captures, visible without opening a disclosure. The hero stays uncropped on
+desktop and mobile; every image links to its full-size original.
 Native radios in “Explore more layouts” show actual right-docked, left-docked,
 and fullscreen pane captures. There are no third-party replicas or implied presets.
 

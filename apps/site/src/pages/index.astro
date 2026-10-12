@@ -33,9 +33,10 @@ import { connectors, doc, packages, releases, repo, shot, subscriptions } from '
     </div>
     <div class="hero-proof">
       <Capture
-        image={shot('home')}
-        alt="Phosphor’s lane dashboard with parallel sessions, a ready-to-merge task, and project usage."
-        caption="Lanes from Phosphor’s own development"
+        image={shot('subagents')}
+        alt="One Phosphor lane running four sub-agents at once: a scout that has reported back, two workers editing and testing, and a researcher reading a spec, with the session sidebar beside it."
+        caption="One lane, four agents working in parallel"
+        provenance="Demo session · scripted agents"
         sizes="(max-width: 480px) 92vw, (max-width: 1422px) 90vw, 1280px"
         eager
       />
@@ -60,6 +61,14 @@ import { connectors, doc, packages, releases, repo, shot, subscriptions } from '
           Running, so you know where to look next.
         </p>
       </div>
+    </div>
+    <div class="container">
+      <Capture
+        class="problem-board"
+        image={shot('home')}
+        alt="Phosphor’s lane dashboard with parallel sessions, a ready-to-merge task, and project usage."
+        caption="Lanes from Phosphor’s own development"
+      />
     </div>
   </section>
 
@@ -314,7 +323,7 @@ import { connectors, doc, packages, releases, repo, shot, subscriptions } from '
           <p class="eyebrow">Built in the open</p><h2>Phosphor is built<br />in Phosphor.</h2>
         </div>
         <p class="section-intro">
-          The lanes at the top of this page are real work on this repo. Every green merge to main
+          The lane board under “The problem” is real work on this repo. Every green merge to main
           that changes the app ships a release for all three platforms, and most installs update
           themselves.
         </p>

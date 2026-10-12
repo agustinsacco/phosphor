@@ -10,6 +10,7 @@ import filesFull from '../assets/shots/files-full.webp'
 import models from '../assets/shots/models.webp'
 import modelsPicker from '../assets/shots/models-picker.webp'
 import contextMeter from '../assets/shots/context-meter.webp'
+import subagents from '../assets/shots/subagents.webp'
 import guideClaude from '../assets/shots/guide-claude.webp'
 import guideRouting from '../assets/shots/guide-routing.webp'
 import guideExtensions from '../assets/shots/guide-extensions.webp'
@@ -31,6 +32,7 @@ const captures: Record<string, ImageMetadata> = {
   models,
   'models-picker': modelsPicker,
   'context-meter': contextMeter,
+  subagents,
   'files-left': filesLeft,
   'files-full': filesFull,
   'guide-claude': guideClaude,

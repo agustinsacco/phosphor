@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  launchedAgentCount,
   parseFleetWidget,
   parseSubagentNotice,
   scriptAgents,
@@ -107,6 +108,20 @@ describe('subagentCall', () => {
          await runs.all([{ key: "r1", agent: 'reviewer', task: "y" }, { key: "r2", agent: 'reviewer' }])`,
       ),
     ).toEqual(['scout', 'reviewer'])
+  })
+})
+
+describe('launchedAgentCount', () => {
+  it('counts reported children, else the tasks the call named, else one', () => {
+    const parallel = {
+      mode: 'parallel',
+      progress: [0, 1, 2].map((index) => ({ index, agent: 'worker', status: 'running' })),
+    }
+    expect(launchedAgentCount({ tasks: [{}, {}, {}] }, parallel)).toBe(3)
+    expect(launchedAgentCount({ tasks: [{}, {}, {}, {}] }, undefined)).toBe(4)
+    expect(launchedAgentCount({ agent: 'scout', task: 't' }, PARTIAL)).toBe(1)
+    expect(launchedAgentCount({ agent: 'scout', async: true }, { background: true })).toBe(1)
+    expect(launchedAgentCount(undefined, 'not details')).toBe(1)
   })
 })
 

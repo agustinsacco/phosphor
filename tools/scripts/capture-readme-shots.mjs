@@ -4,6 +4,7 @@
  *
  *   npm run build && node tools/scripts/capture-readme-shots.mjs
  *   ONLY=settings,tree node tools/scripts/capture-readme-shots.mjs   # partial rerun
+ *   OUT_DIR=apps/site/shots-raw MAX_WIDTH=0 ONLY=subagents node tools/scripts/capture-readme-shots.mjs
  *
  * What is real and what is not: this launches the BUILT app (`out/`) through
  * Playwright's Electron driver, so every pixel of chrome, layout, colour and
@@ -21,7 +22,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { Buffer } from 'node:buffer'
 import { mkdtempSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, dirname } from 'node:path'
+import { join, dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import { _electron as electron } from 'playwright'
@@ -29,7 +30,9 @@ import { _electron as electron } from 'playwright'
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const appRoot = join(repoRoot, 'apps/desktop')
 const piStub = join(appRoot, 'e2e', 'fixtures', 'pi-stub.cjs')
-const outDir = join(repoRoot, 'docs', 'img')
+/** As in capture-live-shots.mjs: the site sets OUT_DIR and MAX_WIDTH=0 (device scale). */
+const outDir = process.env.OUT_DIR ? resolve(process.env.OUT_DIR) : join(repoRoot, 'docs', 'img')
+const maxWidth = Number(process.env.MAX_WIDTH ?? 1440)
 
 /** Only these shots (comma-separated names, without .png). Empty = all. */
 const only = (process.env.ONLY ?? '')
@@ -147,7 +150,9 @@ async function main() {
     })
     await writeFile(path, Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64'))
     try {
-      execFileSync('sips', ['-Z', '1440', path, '--out', path], { stdio: 'ignore' })
+      if (maxWidth > 0) {
+        execFileSync('sips', ['-Z', String(maxWidth), path, '--out', path], { stdio: 'ignore' })
+      }
     } catch {
       // no sips (non-macOS): keep the device-scale original
     }
@@ -242,7 +247,9 @@ async function main() {
     // ---- 8. Home with a live session: mission control. Every card is a
     // projection of main's view of pi's event stream, answerable in place.
     await page.getByRole('button', { name: /^New$/ }).click()
-    await page.getByTestId('fleet-session-card').first().waitFor({ timeout: 20_000 })
+    // The lane board renders nothing while every lane is idle (the stub turn
+    // has settled by now); the ledger below it always shows the session.
+    await page.getByTestId('home-ledger').waitFor({ timeout: 20_000 })
     await settle(page, 2200)
     await shot('home')
 
@@ -270,6 +277,28 @@ async function main() {
     await settle(page, 2500)
     await shot('artifacts')
 
+    // ---- 9b. One lane delegating to four sub-agents at once, beside the
+    // other lanes in the sidebar. `in parallel` is the stub's trigger; it holds
+    // the run mid-flight (one child done, three working) until
+    // `/stub-finish-parallel`, so the frame never races the settle.
+    await page.getByRole('button', { name: /^New$/ }).click()
+    await homeComposer.waitFor({ timeout: 20_000 })
+    await page.getByRole('checkbox', { name: 'new branch' }).uncheck()
+    await homeComposer.fill('Fix the token refresh bug, split the work in parallel')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    const workflow = page.getByRole('button', { name: /Running workflow/ })
+    await workflow.waitFor({ timeout: 60_000 })
+    const parallelRow = page.getByTestId('session-row').first()
+    await parallelRow.dblclick()
+    const rename3 = page.getByLabel('Session name')
+    await rename3.waitFor({ timeout: 10_000 })
+    await rename3.fill('Fix the token refresh bug')
+    await page.keyboard.press('Enter')
+    await workflow.click()
+    await page.getByTestId('subagent-child').nth(3).waitFor({ timeout: 10_000 })
+    await settle(page, 3000)
+    await shot('subagents')
+
     // ---- 10. Settings → Appearance. It is the tab that carries the theme
     // switch, and picking Light here sets up the last shot.
     await page.keyboard.press('ControlOrMeta+Comma')
@@ -280,13 +309,20 @@ async function main() {
     await page.keyboard.press('Escape')
 
     // ---- 11. The same conversation in the paper theme, so both are on record.
-    await page.getByTestId('session-row').first().click()
+    // By name: the parallel lane above is now the newest row.
+    await page.getByTestId('session-row').filter({ hasText: 'Draft the long-form report' }).click()
     await page.getByPlaceholder(/Describe a task…/).waitFor({ timeout: 20_000 })
     await settle(page, 3500)
     await shot('light')
   } finally {
     console.log(`captured: ${shots.join(', ') || 'none'}`)
-    await app.close()
+    // Bounded: a close that never resolves (a held stub turn, a stuck
+    // renderer) used to swallow the real error behind a silent hang.
+    const closed = await Promise.race([
+      app.close().then(() => true),
+      new Promise((done) => setTimeout(() => done(false), 15_000)),
+    ])
+    if (!closed) app.process().kill('SIGKILL')
     await rm(root, { recursive: true, force: true })
     await rm(agentDir, { recursive: true, force: true })
   }

@@ -272,6 +272,24 @@ describe('summarizeActivity', () => {
     expect(s.detail).toBe('created 1 artifact, updated 1 artifact')
   })
 
+  it('counts the agents a parallel launch started, not the calls', () => {
+    const ids: Array<[string, string]> = [
+      ['a', 'subagent'],
+      ['b', 'subagent'],
+    ]
+    const tools = toolsFor(ids)
+    // Four tasks, still running: the args say four before any child reports.
+    tools.a = {
+      ...toolState('a', 'subagent', 'running'),
+      args: { tasks: [1, 2, 3, 4].map((n) => ({ agent: 'worker', task: `t${n}` })) },
+    }
+    // A detached single launch reports no children and is still one agent.
+    tools.b = { ...toolState('b', 'subagent'), args: { agent: 'scout', task: 't', async: true } }
+    const s = summarizeActivity(mkSteps(ids), tools, (t) => settledVerb(t.toolName, t.args))
+    expect(s.stepLabel).toBe('2 steps')
+    expect(s.detail).toBe('delegated 5 agents')
+  })
+
   it('handles a thinking-only group', () => {
     const s = summarizeActivity(mkSteps([], 2), {}, labelFor)
     expect(s.stepLabel).toBe('2 steps')

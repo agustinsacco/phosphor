@@ -307,7 +307,7 @@ a:hover {
 .hero-meta {
   color: var(--px-text-secondary);
 }
-/* Show the complete dashboard at every width; its link opens the original. */
+/* Show the complete capture at every width; its link opens the original. */
 .hero-proof {
   grid-column: 1 / -1;
 }
@@ -554,6 +554,9 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 1.2rem;
+}
+.problem-board {
+  margin-top: 3rem;
 }
 .problem-lede {
   font-size: var(--text-xl);

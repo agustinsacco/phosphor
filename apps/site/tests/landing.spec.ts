@@ -105,25 +105,33 @@ test('all local links resolve, including cross-page fragments and full-size capt
   }
 })
 
-test('landing leads with lanes, then chat, then the IDE layout without disclosures', async ({
+test('landing leads with sub-agents, then lanes, chat and the IDE layout without disclosures', async ({
   page,
 }) => {
   await page.goto('/')
   const captures = page.locator('main .capture:visible')
-  for (const [index, asset] of ['home', 'chat', 'ide-flex'].entries()) {
+  // The hero is a scripted stub run and must say so; the rest are real.
+  const expected = [
+    ['subagents', 'Demo session · scripted agents'],
+    ['home', 'Real session'],
+    ['chat', 'Real session'],
+    ['ide-flex', 'Real session'],
+  ]
+  for (const [index, [asset, provenance]] of expected.entries()) {
     const capture = captures.nth(index)
     await expect(capture).toBeVisible()
     await expect(capture.locator('.capture-link')).toHaveAttribute(
       'href',
       new RegExp(`/${asset}\\.[^/]+\\.(webp|png)$`),
     )
-    await expect(capture.locator('figcaption')).toContainText('Real session')
+    await expect(capture.locator('figcaption')).toContainText(provenance)
   }
   await expect(page.locator('.hero-proof img')).toHaveAttribute('loading', 'eager')
+  await expect(page.locator('.problem-board img')).toHaveAttribute('loading', 'lazy')
   await expect(page.locator('.workflow-chat img')).toHaveAttribute('loading', 'lazy')
   await expect(page.locator('#surface > .capture img')).toHaveAttribute('loading', 'lazy')
 
-  // A crop tuned for the old diff hero must not cut off the dashboard.
+  // A crop tuned for an older hero must not cut off the capture.
   const hero = page.locator('.hero-proof .capture-link')
   const image = hero.locator('img')
   await image.scrollIntoViewIfNeeded()

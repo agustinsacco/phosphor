@@ -305,6 +305,17 @@ export function subagentRun(details: unknown, settled: boolean): SubagentRun | n
   }
 }
 
+/**
+ * How many agents one launch started. A `parallel` call names one task per
+ * child and its details report one record per child, so one call can be four
+ * agents. A launch nothing describes yet (detached, a script not started)
+ * counts as one.
+ */
+export function launchedAgentCount(args: unknown, details: unknown): number {
+  const reported = subagentRun(details, false)?.children.length ?? 0
+  return Math.max(reported, list(rec(args)?.tasks).length, 1)
+}
+
 // ---------- the row ----------
 
 export interface SubagentRowSummary {

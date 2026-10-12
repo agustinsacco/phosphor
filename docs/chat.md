@@ -259,8 +259,9 @@ every reader defensive, a payload it cannot read leaving the generic row).
   streams on `tool_execution_update`) or what it cost (`44 tools · 80k tokens
 · 4m 27s`). A workflow script names its agents (`scout · worker`); a
   management action gets its own verb (`Listed agents`, `Checked on`,
-  `Stopped`, `Read the guide on workflows`). The group line counts launches as
-  `delegated 2 agents` and management calls as ordinary tools.
+  `Stopped`, `Read the guide on workflows`). The group line counts agents,
+  not calls: one `parallel` call with four tasks is `delegated 4 agents`
+  (`launchedAgentCount`). Management calls count as ordinary tools.
 - **It opens onto the task and one card per child** (`tools/SubagentDetail.tsx`):
   agent, session name, state, model · tools · turns · tokens · time · cost;
   while it runs, the current tool, the last three tools and the last line it
