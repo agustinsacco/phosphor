@@ -5,6 +5,7 @@ import { HOST_PROTOCOL_VERSION } from '@phosphor/shared/remote-host'
 import { EXIT } from './checks'
 import { renderAccept, runAccept, type AcceptLane } from './commands/accept'
 import { renderDoctor, runDoctor, type DoctorContext } from './commands/doctor'
+import { renderSetup, runSetup } from './commands/setup'
 import type { LoginContext } from './commands/provider-login'
 import { renderProviders, runProviders } from './commands/providers'
 import { runProviderLogin } from './commands/provider-login'
@@ -20,8 +21,10 @@ import { HOST_SOURCE_SHA, HOST_VERSION } from './version'
 
 export const USAGE = `usage: phosphor <command>
 
-Set up a Host in three steps: doctor, then providers, then accept.
+Set up a Host: setup, doctor, providers, accept, login, service install.
 
+  setup [--repository DIR]... [--pi FILE] [--node FILE] [--replace]
+        [--config FILE] [--json]    detect programs and write an owner-only config
   doctor [--config FILE] [--json]   check that this machine can run a Host
   providers [--config FILE] [--json]
                                     show which providers pi can use here
@@ -46,7 +49,7 @@ Set up a Host in three steps: doctor, then providers, then accept.
   version [--json]                  print the Host's version
 
 exit codes: 0 ok, 1 an acceptance check failed, 64 usage, 69 prerequisite unavailable,
-70 internal error, 75 control unavailable or code expired, 77 machine removed,
+70 internal error, 75 control unavailable, code expired or concurrent setup, 77 machine removed,
 78 config invalid, 128+n ended by signal n
 `
 
@@ -57,6 +60,8 @@ export interface CliIo {
 }
 
 export type CliContext = Omit<DoctorContext, 'configPath'> & {
+  /** Setup resolves relative paths from the caller's working directory. */
+  cwd?: string
   /** Drain a running Host on a signal or a fatal error, until the returned function detaches it. */
   attach?: (target: Drainable) => () => void
   /** stdin and stdout are a terminal, which a login needs. */
@@ -70,6 +75,7 @@ export type CliContext = Omit<DoctorContext, 'configPath'> & {
 }
 
 const COMMAND_OPTIONS: Record<string, readonly string[]> = {
+  setup: ['config', 'json', 'repository', 'pi', 'node', 'replace'],
   doctor: ['config', 'json'],
   run: ['config'],
   service: ['config', 'follow'],
@@ -134,9 +140,19 @@ export async function runCli(
   if (values.config === '') return usage('--config needs a file')
   const lane = values.lane ?? 'all'
   if (!['native', 'claude', 'all'].includes(lane)) return usage('--lane is native, claude or all')
-  if (command === 'accept' && !values.repository) return usage('accept needs --repository DIR')
-  if (values.repository !== undefined && !isAbsolute(values.repository)) {
+  const repositories = values.repository ?? []
+  const repository = repositories[0]
+  if (command !== 'setup' && repositories.length > 1)
+    return usage('--repository may only repeat for setup')
+  if (command === 'accept' && !repository) return usage('accept needs --repository DIR')
+  if (command !== 'setup' && repository !== undefined && !isAbsolute(repository)) {
     return usage('--repository needs an absolute path')
+  }
+  if (
+    command === 'setup' &&
+    (repositories.includes('') || values.pi === '' || values.node === '')
+  ) {
+    return usage('--repository, --pi and --node need a path')
   }
 
   try {
@@ -151,6 +167,19 @@ export async function runCli(
       return EXIT.ok
     }
     const configPath = values.config ?? defaultConfigPath(context.env, context.home)
+    if (command === 'setup') {
+      const report = await runSetup({
+        ...context,
+        cwd: context.cwd ?? process.cwd(),
+        configPath,
+        repositories,
+        pi: values.pi,
+        node: values.node,
+        replace: values.replace,
+      })
+      io.stdout(values.json ? `${JSON.stringify(report, null, 2)}\n` : renderSetup(report))
+      return report.exitCode
+    }
     if (command === 'run' || service) {
       const controller = new AbortController()
       let done: () => void = () => {}
@@ -229,7 +258,7 @@ export async function runCli(
       const outcome = await runAccept({
         ...context,
         configPath,
-        repository: values.repository!,
+        repository: repository!,
         lane: lane as AcceptLane | 'all',
         keepTranscripts: values['keep-transcripts'] ?? false,
         provider: values.provider,
@@ -297,7 +326,10 @@ function parse(argv: readonly string[]) {
       json: { type: 'boolean' },
       local: { type: 'boolean' },
       follow: { type: 'boolean' },
-      repository: { type: 'string' },
+      repository: { type: 'string', multiple: true },
+      pi: { type: 'string' },
+      node: { type: 'string' },
+      replace: { type: 'boolean' },
       lane: { type: 'string' },
       'keep-transcripts': { type: 'boolean' },
       provider: { type: 'string' },

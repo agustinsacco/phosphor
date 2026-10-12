@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { stat } from 'node:fs/promises'
+import { lstat, stat } from 'node:fs/promises'
 import { contextBudgetTokens } from '@phosphor/shared/context-budget'
 import { errorText } from '@phosphor/shared/errors'
 import {
@@ -72,7 +72,7 @@ export interface DoctorReport {
   hello?: HostHello
   /** What pi can sign into, and its default provider, once pi itself is usable. */
   providers?: ProviderState[]
-  /** The next setup step, when the machine is ready. */
+  /** The next setup step, when ready or when the config is missing. */
   next?: string
 }
 
@@ -118,6 +118,11 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
       checks,
       lanes: { native: unavailable('no usable config'), claude: unavailable('no usable config') },
     }
+    const missing = await lstat(loaded.path).then(
+      () => false,
+      (error: unknown) => error instanceof Error && 'code' in error && error.code === 'ENOENT',
+    )
+    if (missing) report.next = 'run phosphor setup'
     return { report, machine: null, secrets: [], piVersion: null, claude: null, pi: null }
   }
   const { config } = loaded

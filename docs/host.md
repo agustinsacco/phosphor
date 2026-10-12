@@ -2,7 +2,7 @@
 
 The Host is Phosphor's plain-Node application for machines Desktop does not run
 on. Its command is `phosphor`; its config and logs live in `phosphor-host`
-folders, apart from Desktop's own. `doctor` checks
+folders, apart from Desktop's own. `setup` writes its config. `doctor` checks
 whether a machine can run sessions, `providers` which models pi can use there,
 and `accept` runs real sessions to prove it ([accept](#accept)). `login`,
 `status` and `logout` manage its machine identity in the control plane. `run`
@@ -19,25 +19,70 @@ every library import against the package's exports.
 
 ## Setting up a Host
 
-Three commands, in order. Each ends with a `next:` line naming the one after it.
+Install the Host manually by copying a build to the machine ([Build](#build)).
+The installer comes with signed builds, component 23.
+Then run `setup`, `doctor`, `providers`, `accept`, `login` and `service install`.
 
-1. `phosphor doctor` checks the machine: node, the config, pi, git, the
+1. `phosphor setup --repository ~/src/project` detects programs and writes an
+   owner-only config. Without `--repository`, it uses the current git top level.
+2. `phosphor doctor` checks the machine: node, the config, pi, git, the
    extensions and the repositories. Fix what fails and run it again.
-2. `phosphor providers` lists what pi can sign into and whether each is signed in
+3. `phosphor providers` lists what pi can sign into and whether each is signed in
    on this machine, with the Claude lane beside them. Until one is, its `next:`
    line says to sign in with `phosphor providers login PROVIDER`, in a terminal on
    the Host (`ssh -t` is fine): a pi provider id from the list, or `claude` for
    the Claude lane. It prints the steps, runs the provider's own login, and shows
    the list again. Open the link the login prints on any computer. The login is
    made on the Host and stays there: Phosphor never copies one between machines.
-3. `phosphor accept --repository DIR` runs real sessions there. Use the exact
+4. `phosphor accept --repository DIR` runs real sessions there. Use the exact
    command the `next:` line names, with DIR an empty repository from the config:
    it picks the lane and, when that lane cannot run on pi's default, the provider
    and model (`ID`, which `pi --list-models` lists).
+5. `phosphor login` enrolls the machine. Approve its code and fingerprint in
+   Desktop's Machines page.
+6. On Linux, `phosphor service install` keeps it online after logout and reboot.
+
+## setup
+
+`setup` is non-interactive. Repeat `--repository DIR` for up to 64 directories.
+Relative paths resolve from the caller's cwd. Each directory must exist and
+must not resolve to `/`, the home directory, or a folder containing the home
+directory. A non-git folder is accepted with a note. With no directory flag,
+setup uses `git rev-parse --show-toplevel`; outside git it exits 64 with an example.
+
+`--pi FILE` pins that path, otherwise the first pi on the caller's PATH. Symlinks
+and shell wrappers stay pinned as found, not as their real paths. A Node script
+needs `--node FILE`, or node beside the found pi, or node on PATH, in that order.
+A direct executable needs no node. Missing pi exits 69 with its npm install
+command. Claude and git directories absent from the Host's built PATH are added
+to `environment.path`, without duplicates. Missing Claude is fine; missing git
+is noted. No environment values other than paths are printed.
+
+Setup validates the candidate and runs doctor's pi resolution before writing.
+Failed checks exit 69 or 78 and write nothing. An existing valid config is
+summarized and left untouched, with exit 0. An invalid one is left untouched
+with safe errors and exit 78. `--replace` rewrites it, keeping `hostId`,
+`contextBudget`, `environment.pass`, `accounts`, `control` and `resourceRoot`
+when the old config loads and validates. A broken old file is replaced with a
+note. A symlink is replaced, never written through.
+
+The new directory is 0700 and the new file 0600. An existing directory must
+belong to the caller and not be writable by others; otherwise setup exits 78
+and names the problem. A writable-directory error gives the `chmod` to run.
+The JSON file is written to an exclusive temporary file and synced, then
+published atomically and loaded again. First setup uses a hard link so it cannot
+overwrite a config that appeared during detection; that race exits 75 and asks
+you to rerun setup. A filesystem without hard links fails with exit 70, without
+falling back to overwrite. `--replace` uses rename instead. The temporary file
+is removed on success and failure. A failed post-write load exits 70. Text and
+`--json` show the config, pi and node paths and versions, repositories, Claude
+presence, extra PATH and notes, ending with `next: phosphor doctor` on success.
 
 ## Commands
 
 ```
+phosphor setup [--repository DIR]... [--pi FILE] [--node FILE] [--replace]
+               [--config FILE] [--json]
 phosphor doctor [--config FILE] [--json]
 phosphor providers [--config FILE] [--json]
 phosphor providers login PROVIDER [--config FILE]
@@ -65,7 +110,7 @@ not stamp a commit.
 | 64            | usage error                                                                                      |
 | 69            | a prerequisite is unavailable; for `providers`, nothing is signed in; for `status`, not enrolled |
 | 70            | internal error, a failed cleanup or the drain deadline                                           |
-| 75            | control plane unreachable, invalid response or enrollment code expired                           |
+| 75            | control plane unreachable, invalid response, enrollment code expired or concurrent setup         |
 | 77            | this machine was removed from the account                                                        |
 | 78            | the config is invalid                                                                            |
 | 129, 130, 143 | ended by SIGHUP, SIGINT or SIGTERM, after stopping probes and sessions                           |
@@ -359,6 +404,8 @@ by a service manager.
 doctor starts no session and calls no provider: every program it runs is asked
 for a version or a status. Only a failure changes the exit code. When several
 fail, a config problem (78) outranks a missing prerequisite (69).
+A missing config ends with `next: run phosphor setup`, also in `--json`.
+An invalid existing config does not get that next step.
 
 | Check                     | Rule                                                                                                                                                                                                                                                                                                                | On failure |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
