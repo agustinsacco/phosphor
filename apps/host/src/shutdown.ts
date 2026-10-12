@@ -40,6 +40,8 @@ export interface Drainable {
   /** A second call kills every group at once and returns the first call's result. */
   drain(reason: string): Promise<{ state: 'stopped' | 'failed' }>
   log: Pick<HostLog, 'write' | 'hide'>
+  /** A command may choose its first clean signal exit; later signals keep their number. */
+  exitCode?(signal: ShutdownSignal, drained: boolean): number
 }
 
 export interface ShutdownIo {
@@ -120,7 +122,9 @@ export function createShutdown(io: ShutdownIo, options: { fatalDrainMs?: number 
       const host = target()
       if (!host) return exit(code)
       host.log.write('host', 'signal', { signal: name })
-      exit((await drained(host, name)) ? code : EXIT.internal)
+      const second = draining !== null
+      const clean = await drained(host, name)
+      exit(!second && host.exitCode ? host.exitCode(name, clean) : clean ? code : EXIT.internal)
     },
     /** The command ended with `code`: exit, unless a signal's or a fatal error's drain will. */
     finish(code: number): void {

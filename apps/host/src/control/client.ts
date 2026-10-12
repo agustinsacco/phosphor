@@ -10,6 +10,9 @@ import {
   parseEnrollmentPollRequest,
   parseEnrollmentPollResponse,
   parseHostSelfResponse,
+  parseHeartbeatRequest,
+  parseHeartbeatResponse,
+  type HeartbeatRequest,
   type ControlErrorCode,
   type EnrollmentCreateRequest,
   type Parsed,
@@ -45,12 +48,13 @@ export function createControlClient(url: string, ports: ClientPorts = {}) {
     body: string,
     parse: (value: unknown) => Parsed<T>,
     empty = false,
+    signal = ports.signal,
   ): Promise<T> {
     const controller = new AbortController()
     const abort = () => controller.abort()
     const timer = setTimeout(abort, 10_000)
-    ports.signal?.addEventListener('abort', abort, { once: true })
-    if (ports.signal?.aborted) abort()
+    signal?.addEventListener('abort', abort, { once: true })
+    if (signal?.aborted) abort()
     try {
       const response = await (ports.fetch ?? fetch)(`${url}${path}`, {
         method,
@@ -133,7 +137,7 @@ export function createControlClient(url: string, ports: ClientPorts = {}) {
       throw new ControlFailure('offline')
     } finally {
       clearTimeout(timer)
-      ports.signal?.removeEventListener('abort', abort)
+      signal?.removeEventListener('abort', abort)
     }
   }
   return {
@@ -173,6 +177,20 @@ export function createControlClient(url: string, ports: ClientPorts = {}) {
       )
       if (self.hostId !== hostId) throw new ControlFailure('internal')
       return self
+    },
+    heartbeat(hostId: string, key: KeyObject, body: HeartbeatRequest, signal?: AbortSignal) {
+      const parsed = parseHeartbeatRequest(body)
+      if (!isUuid(hostId) || !parsed.ok) throw new ControlFailure('bad-request')
+      return request(
+        'POST',
+        CONTROL_ROUTES.hostHeartbeat,
+        { hostId },
+        key,
+        JSON.stringify(parsed.value),
+        parseHeartbeatResponse,
+        false,
+        signal,
+      )
     },
     revoke(hostId: string, key: KeyObject) {
       if (!isUuid(hostId)) throw new ControlFailure('bad-request')

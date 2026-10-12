@@ -67,13 +67,22 @@ export async function acquireIdentityLock(
   directory: string,
   uid: number | undefined,
   ports: LockPorts = defaultPorts,
+  name: '.lock' | '.run-lock' = '.lock',
 ): Promise<() => Promise<void>> {
   await mkdir(directory, { recursive: true, mode: 0o700 })
   await checkIdentityDirectory(directory, uid)
-  const path = join(directory, '.lock')
-  const gatePath = join(directory, '.lock-recovery')
+  const path = join(directory, name)
+  const gatePath = join(directory, `${name}-recovery`)
+  const busy = (pid?: number, message?: string) =>
+    new LockBusy(
+      pid,
+      name === '.lock'
+        ? message
+        : (message?.replaceAll('login or logout', 'run').replaceAll('.lock', name) ??
+            `Another phosphor run is running${pid === undefined ? '.' : ` (pid ${pid}).`}`),
+    )
   const token = randomBytes(32).toString('hex')
-  const temp = join(directory, `.lock.${token}.tmp`)
+  const temp = join(directory, `${name}.${token}.tmp`)
   // Only the process whose mkdir created the gate ever removes it. A gate is held
   // for milliseconds, so one left behind means a crash inside it: the user removes
   // it. Clearing it automatically on age could remove a live gate (review r2).
@@ -92,27 +101,27 @@ export async function acquireIdentityLock(
     try {
       info = await lstat(gatePath)
     } catch (error) {
-      if (hasCode(error, 'ENOENT')) throw new LockBusy()
+      if (hasCode(error, 'ENOENT')) throw busy()
       throw error
     }
     if ((ports.now ?? Date.now)() - info.mtimeMs > 30_000)
-      throw new LockBusy(
+      throw busy(
         undefined,
         'A crashed phosphor login or logout left identity/.lock-recovery. If none is running, remove it and retry.',
       )
-    throw new LockBusy()
+    throw busy()
   }
   async function snapshot() {
     try {
       let info = await (ports.lstat ?? lstat)(path)
       if (info.isDirectory())
-        throw new LockBusy(
+        throw busy(
           undefined,
           'Remove the directory identity/.lock, then retry phosphor login or logout.',
         )
       let lock = null
       try {
-        const read = await readIdentityFileSnapshot(directory, uid, '.lock')
+        const read = await readIdentityFileSnapshot(directory, uid, name)
         lock = parseLock(read.text)
         if (lock) info = read.info
       } catch {
@@ -125,7 +134,7 @@ export async function acquireIdentityLock(
     }
   }
   const existing = await snapshot()
-  if (existing?.lock && ports.isAlive(existing.lock.pid)) throw new LockBusy(existing.lock.pid)
+  if (existing?.lock && ports.isAlive(existing.lock.pid)) throw busy(existing.lock.pid)
   const file = await open(temp, 'wx', 0o600)
   try {
     try {
@@ -143,8 +152,8 @@ export async function acquireIdentityLock(
       } catch (error) {
         if (!hasCode(error, 'EEXIST')) throw error
         const stale = await snapshot()
-        if (stale?.lock && ports.isAlive(stale.lock.pid)) throw new LockBusy(stale.lock.pid)
-        if (attempt === 1) throw new LockBusy()
+        if (stale?.lock && ports.isAlive(stale.lock.pid)) throw busy(stale.lock.pid)
+        if (attempt === 1) throw busy()
         await gate()
         try {
           const current = await snapshot()
