@@ -4877,6 +4877,9 @@ test('subagent pane owns scrolling, keeps rows stable and preserves drafts acros
     }
     await transcript.hover()
     await page.mouse.wheel(0, -10000)
+    // Opening Activity already pauses following, so the button below cannot
+    // signal that the asynchronous wheel scroll has finished (notably on Linux).
+    await expect.poll(() => transcript.evaluate((el) => el.scrollTop)).toBe(0)
     await expect(pane.getByRole('button', { name: 'Jump to latest' })).toBeVisible()
     await transcript.evaluate((el) => {
       el.scrollTop = 100
