@@ -14,7 +14,7 @@ import {
 } from '../control/__fixtures__/machine'
 import { identityDirectory, type PendingEnrollment } from '../control/identity'
 import { freshKey, publicIdentity } from '../control/signer'
-import { runLogin } from './login'
+import { runLogin, minutesLeft } from './login'
 
 let machine: ControlMachine
 beforeEach(async () => {
@@ -334,6 +334,8 @@ describe('phosphor login', () => {
     machine.context.fetch = async () => new Response('edge failure', { status: 503 })
     expect((await runLogin(machine.context)).exitCode).toBe(75)
     expect(machine.waits).toEqual([5000, 10000, 20000, 30000, 30000, 5000])
+    // A resumed code says what is left (100 s, so 2 minutes), never a fresh 10.
+    expect(machine.output.join('\n')).toContain('The code expires in 2 minutes.')
     expect(await machine.store.loadPending()).not.toBeNull()
     expect(
       machine.output.filter((line) => line.startsWith('The control plane is not answering')),
@@ -407,5 +409,16 @@ describe('phosphor login', () => {
     await saving
     expect(result.exitCode).toBe(0)
     expect(save).toHaveBeenCalledOnce()
+  })
+})
+
+describe('minutesLeft', () => {
+  it('rounds up and never claims more time than remains', () => {
+    expect(minutesLeft(600_000)).toBe('10 minutes')
+    expect(minutesLeft(540_001)).toBe('10 minutes')
+    expect(minutesLeft(180_000)).toBe('3 minutes')
+    expect(minutesLeft(60_000)).toBe('1 minute')
+    expect(minutesLeft(5_000)).toBe('1 minute')
+    expect(minutesLeft(-1)).toBe('1 minute')
   })
 })

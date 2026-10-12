@@ -18,6 +18,12 @@ import { IdentityFailure, type PendingEnrollment } from '../control/identity'
 import { freshKey, publicIdentity } from '../control/signer'
 import { HOST_VERSION } from '../version'
 
+/** Whole minutes, rounded up, so a resumed code never claims more time than it has. */
+export function minutesLeft(ms: number): string {
+  const minutes = Math.max(1, Math.ceil(ms / 60_000))
+  return minutes === 1 ? '1 minute' : `${minutes} minutes`
+}
+
 export async function runLogin(context: ControlContext): Promise<CommandResult> {
   try {
     return await withCommandLock(context, async () => {
@@ -78,7 +84,7 @@ export async function runLogin(context: ControlContext): Promise<CommandResult> 
   1. Open Phosphor on a computer where you are signed in.
   2. Machines > Add a machine, and enter:  ${formatUserCode(enrollment.userCode)}
 Key fingerprint: ${keyFingerprint}. Phosphor shows the same one.
-Waiting for approval. The code expires in 10 minutes. Ctrl-C cancels.`)
+Waiting for approval. The code expires in ${minutesLeft(deadline - now())}. Ctrl-C cancels.`)
       const expired = {
         exitCode: EXIT.tempfail,
         message: 'The code expired. Run phosphor login again.',
