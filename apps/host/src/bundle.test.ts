@@ -119,6 +119,18 @@ describe('the Host bundle', () => {
     )
   })
 
+  it('ships the artifact skill and its references byte-for-byte beside pi-ext', () => {
+    const source = resolve(
+      import.meta.dirname,
+      '../../../libs/pi-extensions/skills/visual-artifacts',
+    )
+    for (const file of ['SKILL.md', 'references/mermaid.md', 'references/html-and-charts.md']) {
+      expect(readFileSync(join(out, 'skills/visual-artifacts', file), 'utf8')).toBe(
+        readFileSync(join(source, file), 'utf8'),
+      )
+    }
+  })
+
   it('replaces an earlier build through a folder beside it, leaving nothing else', () => {
     const again = join(dir, 'again')
     cpSync(out, again, { recursive: true })

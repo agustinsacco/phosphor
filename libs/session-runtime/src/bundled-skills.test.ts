@@ -61,13 +61,3 @@ it('a missing packaged resource leaves no receipt or partial skill and can be re
   seedArtifactSkill(resources, agent)
   expect(existsSync(join(agent, 'skills/visual-artifacts/SKILL.md'))).toBe(true)
 })
-
-it('Desktop packaging ships the skill and the Host build copies the same resource tree', () => {
-  const repo = resolve(import.meta.dirname, '../../..')
-  expect(readFileSync(join(repo, 'apps/desktop/electron-builder.yml'), 'utf8')).toContain(
-    'from: ../../libs/pi-extensions/skills',
-  )
-  expect(readFileSync(join(repo, 'apps/host/scripts/build.mjs'), 'utf8')).toContain(
-    "join(ROOT, 'libs/pi-extensions/skills')",
-  )
-})
