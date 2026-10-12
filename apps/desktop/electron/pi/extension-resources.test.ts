@@ -35,6 +35,7 @@ const shippedFiles = [
   'context-budget.ts',
   'context-files.ts',
   'headroom.ts',
+  'lane-reload.ts',
   'mcp-status.ts',
   'optional/permission-gate.ts',
   'subagent-snapshot.ts',
@@ -58,7 +59,7 @@ describe('standalone pi extension resources', () => {
     }
   })
 
-  it('copies the builder inventory to resources/pi-ext and loads all six in plain Node', async () => {
+  it('copies the builder inventory to resources/pi-ext and loads all seven in plain Node', async () => {
     const temporary = mkdtempSync(join(tmpdir(), 'phosphor-extension-resources-'))
     try {
       const resources = join(temporary, 'resources')
@@ -105,7 +106,7 @@ describe('standalone pi extension resources', () => {
       expect(Object.keys(bundle.metafile.inputs)).toContain('resources/pi-ext/context-files.ts')
       expect(Object.keys(bundle.metafile.inputs)).toContain('resources/pi-ext/artifact-store.ts')
       expect(Object.keys(bundle.metafile.inputs)).toContain('resources/pi-ext/subagent-snapshot.ts')
-      expect(bundle.outputFiles).toHaveLength(6)
+      expect(bundle.outputFiles).toHaveLength(7)
       for (const output of Object.values(bundle.metafile.outputs)) {
         expect(output.imports.filter((entry) => entry.external && !isBuiltin(entry.path))).toEqual(
           [],

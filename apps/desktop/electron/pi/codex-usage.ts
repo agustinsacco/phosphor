@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import type { CodexUsageResult, PlanUsageWindow } from '@shared/models'
-import { credentialFingerprint } from './auth-identity'
+import { credentialFingerprint } from '@phosphor/session-runtime/pi/auth-identity'
 import { checkPiHealth } from './health'
 import { piProcessEnv } from './shell-env'
 import { piStubPath } from './stub'

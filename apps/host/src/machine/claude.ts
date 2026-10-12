@@ -27,6 +27,23 @@ export function parseLoggedIn(stdout: string): boolean | null {
 }
 
 /**
+ * Whether `claude` is logged in, by `claude auth status`, or why that could
+ * not be read. stdout can hold the account's email, so a failure is described
+ * from stderr alone.
+ */
+export async function claudeLoggedIn(
+  claude: string,
+  environment: ProbeEnvironment,
+  options: { timeoutMs?: number } = {},
+): Promise<{ loggedIn: boolean } | { unreadable: string }> {
+  const run = { ...environment, timeoutMs: options.timeoutMs ?? 10_000 }
+  const auth = await probe(claude, ['auth', 'status'], run)
+  const loggedIn = parseLoggedIn(auth.stdout)
+  if (loggedIn === null) return { unreadable: probeFailure({ ...auth, stdout: '' }) }
+  return { loggedIn }
+}
+
+/**
  * The Claude lane needs the provider package at the version Desktop
  * requires, then a `claude` on pi's PATH that is logged in. The package is
  * checked first: without it, the CLI's state does not matter.
@@ -58,14 +75,15 @@ export async function checkClaudeLane(
   if (!version) {
     return { available: false, reason: `${claude} --version failed${probeFailure(versionRun)}` }
   }
-  const auth = await probe(claude, ['auth', 'status'], run)
-  const loggedIn = parseLoggedIn(auth.stdout)
-  if (loggedIn === null) {
-    // stdout can hold the account's email: describe the failure from stderr alone.
-    const failure = probeFailure({ ...auth, stdout: '' })
-    return { available: false, reason: `${claude} auth status was unreadable${failure}` }
+  const auth = await claudeLoggedIn(claude, environment, options)
+  if ('unreadable' in auth) {
+    return { available: false, reason: `${claude} auth status was unreadable${auth.unreadable}` }
   }
-  if (!loggedIn)
-    return { available: false, reason: 'claude is not logged in: run claude, then /login' }
+  if (!auth.loggedIn) {
+    return {
+      available: false,
+      reason: 'claude is not logged in: phosphor providers login claude',
+    }
+  }
   return { available: true, claude, version }
 }

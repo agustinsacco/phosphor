@@ -154,12 +154,24 @@ export function HomeModelPicker({
       />
 
       {levelsToRender.length > 1 && (
-        <ThinkingChip
-          testId="home-thinking-picker"
-          active={open === 'thinking'}
-          onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
-          label={thinkingLabel(displayedThinking)}
-        />
+        // Its own anchor: the picker spans the footer's free width, so a
+        // menu placed against it opens under the model chip, not this one.
+        <div className="relative shrink-0">
+          <ThinkingChip
+            testId="home-thinking-picker"
+            active={open === 'thinking'}
+            onClick={() => setOpen(open === 'thinking' ? null : 'thinking')}
+            label={thinkingLabel(displayedThinking)}
+          />
+          {open === 'thinking' && (
+            <ThinkingMenu
+              levels={levelsToRender}
+              current={displayedThinking}
+              onPick={chooseThinking}
+              onClose={() => setOpen(null)}
+            />
+          )}
+        </div>
       )}
 
       {open === 'model' && (
@@ -179,15 +191,6 @@ export function HomeModelPicker({
               : undefined
           }
           className="w-[30rem] max-w-[92vw]"
-        />
-      )}
-
-      {open === 'thinking' && (
-        <ThinkingMenu
-          levels={levelsToRender}
-          current={displayedThinking}
-          onPick={chooseThinking}
-          onClose={() => setOpen(null)}
         />
       )}
     </div>

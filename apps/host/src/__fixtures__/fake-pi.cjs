@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * The Host's fake pi: `--version`, and enough of `--mode rpc` for the
- * composition tests and accept. Like pi, it saves a turn to its session file
+ * The Host's fake pi: `--version`, `auth check` (ready for each provider in
+ * the agent folder's auth.json, as pi 0.87.1 answers), and enough of
+ * `--mode rpc` for the composition tests and accept. Like pi, it saves a turn to its session file
  * when the turn ends, in the folder pi would use for its cwd, and a resumed
  * session starts with the messages of its file.
  *
@@ -55,6 +56,17 @@ const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : und
 
 // pi's layout, as libs/session-runtime/src/pi/pi-paths.ts mangles it: keep the two in step.
 const agentDir = process.env.PI_CODING_AGENT_DIR ?? join(process.env.HOME ?? '/', '.pi', 'agent')
+if (args[0] === 'auth') {
+  const provider = flag('--provider')
+  let stored = {}
+  try {
+    stored = JSON.parse(readFileSync(join(agentDir, 'auth.json'), 'utf8'))
+  } catch {}
+  const ready = Boolean(stored[provider])
+  const reason = ready ? {} : { reason: 'credentials_not_configured' }
+  console.log(JSON.stringify({ status: ready ? 'ready' : 'not_ready', provider, ...reason }))
+  process.exit(ready ? 0 : 1)
+}
 const sessions = process.env.PI_CODING_AGENT_SESSION_DIR ?? join(agentDir, 'sessions')
 const folder = join(
   sessions,

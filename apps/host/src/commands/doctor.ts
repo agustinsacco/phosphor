@@ -8,6 +8,7 @@ import {
   type HostCapability,
   type HostHello,
 } from '@phosphor/shared/remote-host'
+import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { piAgentDir } from '@phosphor/session-runtime/pi/pi-paths'
 import { EXIT, exitCodeFor, fail, info, pass, warn, type Check } from '../checks'
@@ -15,7 +16,13 @@ import { loadHostConfig } from '../config/load'
 import { resolveHostId, type ConfigError } from '../config/schema'
 import { checkClaudeLane, type ClaudeLane } from '../machine/claude'
 import { buildPiEnvironment, redact, type PiEnvironment } from '../machine/environment'
-import { checkGit, checkHostNode, resolvePi } from '../machine/executables'
+import { checkGit, checkHostNode, resolvePi, type PiLaunch } from '../machine/executables'
+import {
+  CLAUDE_CLI_PROVIDER,
+  checkProviders,
+  describeProvider,
+  type ProviderState,
+} from '../machine/providers'
 import { checkRepositories } from '../machine/repositories'
 import { checkExtensions } from '../machine/resources'
 import type { HostMachine } from '../session/runtime'
@@ -63,6 +70,10 @@ export interface DoctorReport {
   environment?: { names: string[]; path: string[] }
   /** The hello this Host would present once component 21 can serve it. */
   hello?: HostHello
+  /** What pi can sign into, and its default provider, once pi itself is usable. */
+  providers?: ProviderState[]
+  /** The next setup step, when the machine is ready. */
+  next?: string
 }
 
 /** What doctor found, for a command that goes on to run sessions. */
@@ -76,6 +87,8 @@ export interface HostInspection {
   piVersion: string | null
   /** The Claude lane as checked, with its claude and version. */
   claude: ClaudeLane | null
+  /** pi and its environment whenever pi itself passed, even when another check failed. */
+  pi: { launch: PiLaunch; environment: PiEnvironment } | null
 }
 
 const unavailable = (reason: string): Lane => ({ available: false, reason })
@@ -105,7 +118,7 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
       checks,
       lanes: { native: unavailable('no usable config'), claude: unavailable('no usable config') },
     }
-    return { report, machine: null, secrets: [], piVersion: null, claude: null }
+    return { report, machine: null, secrets: [], piVersion: null, claude: null, pi: null }
   }
   const { config } = loaded
   checks.push(pass('config', loaded.path))
@@ -144,6 +157,17 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
   })
   checks.push(...repositories.checks)
   checks.push(await checkAgentDir())
+  let providers: ProviderState[] | undefined
+  let piDefault: string | undefined
+  if (pi.launch) {
+    const { defaultProvider } = await readAgentSettings()
+    piDefault = typeof defaultProvider === 'string' ? defaultProvider : undefined
+    providers = await checkProviders(pi.launch, environment, {
+      defaultProvider: piDefault,
+      timeoutMs,
+    })
+    checks.push(providersCheck(providers))
+  }
   checks.push(budgetCheck(config.contextBudget ?? ''))
   checks.push(info('accounts', 'unavailable on a Host: pi uses the logins of the user running it'))
   checks.push(info('compression', 'unavailable on a Host: there is no Headroom proxy'))
@@ -176,6 +200,8 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
       lanes: { native, claude },
       environment: { names: environment.names, path: environment.env.PATH!.split(':') },
       ...(exposed ? {} : { hello }),
+      ...(providers ? { providers } : {}),
+      ...(exitCode === EXIT.ok ? { next: nextStep(providers ?? [], claude, piDefault) } : {}),
     },
     environment.secrets,
   )
@@ -195,6 +221,7 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
     secrets: environment.secrets,
     piVersion: pi.launch?.version ?? null,
     claude: claudeLane,
+    pi: pi.launch ? { launch: pi.launch, environment } : null,
   }
 }
 
@@ -242,6 +269,55 @@ function helloExposure(hello: HostHello, environment: PiEnvironment): Check | nu
     : `${where} the value of ${holders}, which pi receives: ` +
       "change that value, or keep it out of pi's environment"
   return fail('hello', summary, EXIT.config)
+}
+
+/** Signed in to something pi runs on, with its default first: a session naming no model uses it. */
+function providersCheck(providers: readonly ProviderState[]): Check {
+  const fallback = providers.find((provider) => provider.default)
+  if (fallback && fallback.status !== 'ready') {
+    const state = describeProvider(fallback)
+    return warn('providers', `pi's default, ${fallback.name}, is ${state}: phosphor providers`)
+  }
+  const ready = providers.filter((provider) => provider.status === 'ready')
+  if (ready.length === 0) return warn('providers', 'none is signed in: phosphor providers')
+  return pass('providers', `signed in: ${ready.map((provider) => provider.name).join(', ')}`)
+}
+
+const ACCEPT = 'phosphor accept --repository DIR'
+
+/**
+ * Setup is doctor, then a provider, then real sessions: what is left of it.
+ * The accept named must pass as written. A lane runs on pi's default unless
+ * told otherwise, and pi ignores a provider named without a model, so the
+ * command names the lane, and the provider and model when the lane cannot
+ * run on pi's default. `ID` is the one blank, with where to find one.
+ */
+export function nextStep(
+  providers: readonly ProviderState[],
+  claude: Lane,
+  piDefault: string | undefined,
+): string {
+  if (piDefault === CLAUDE_CLI_PROVIDER && claude.available) {
+    return `run real sessions on pi's default, the claude lane: ${ACCEPT} --lane claude`
+  }
+  const fallback = providers.find((provider) => provider.default)
+  if (fallback?.status === 'ready') {
+    return `run real sessions on pi's default, ${fallback.name}: ${ACCEPT} --lane native`
+  }
+  const ready = providers.find((provider) => provider.status === 'ready')
+  if (ready) {
+    return (
+      `run real sessions on ${ready.name}: ${ACCEPT} --lane native --provider ${ready.id} ` +
+      `--model ID (pi --list-models ${ready.id} lists them)`
+    )
+  }
+  if (claude.available) {
+    return (
+      `run real sessions on the claude lane: ${ACCEPT} --lane claude --claude-model ID ` +
+      `(pi --list-models ${CLAUDE_CLI_PROVIDER} lists them)`
+    )
+  }
+  return 'sign in to a provider: phosphor providers'
 }
 
 async function checkAgentDir(): Promise<Check> {
@@ -294,5 +370,6 @@ export function renderDoctor(report: DoctorReport): string {
     lines.push(`pi environment, names only`, `  ${report.environment.names.join(' ')}`)
   }
   lines.push(report.ok ? 'ready' : `not ready (exit ${report.exitCode})`)
+  if (report.next) lines.push(`next: ${report.next}`)
   return `${lines.join('\n')}\n`
 }

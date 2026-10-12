@@ -10,7 +10,7 @@ import { fail, pass, type Check } from '../checks'
 const LOCAL_IMPORT = /(?:\bfrom\s+|\bimport\s*\(\s*)['"](\.\/[^'"]+)['"]/g
 
 /**
- * The six extensions every session loads, and each helper they import from
+ * The seven extensions every session loads, and each helper they import from
  * beside themselves, must be under `<resourceRoot>/pi-ext/`. One missing
  * would otherwise surface later, as a session that cannot start.
  */

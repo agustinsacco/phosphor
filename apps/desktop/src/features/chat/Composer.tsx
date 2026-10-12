@@ -6,7 +6,7 @@ import { fuzzyFilter } from '@/lib/fuzzy'
 import { QueueChips } from './composer/QueueChips'
 import { ModelPicker } from './composer/ModelPicker'
 import { ContextMeter } from './composer/ContextMeter'
-import { ContextFileToggles } from './composer/ContextFileToggles'
+import { ContextSourcesMenu } from './composer/ContextSourcesMenu'
 import { submitBehavior } from './composer/submitBehavior'
 import { buildCommandEntries, CommandMenu, type NativeCommand } from './composer/CommandMenu'
 import { useSlashMenu } from './composer/useSlashMenu'
@@ -495,7 +495,7 @@ export function Composer({
           <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 pb-2">
             <div className="flex min-w-0 flex-wrap items-center gap-1">
               <AttachButton onFiles={attachments.addFiles} />
-              <ContextFileToggles sessionId={sessionId} />
+              <ContextSourcesMenu workspacePath={workspacePath} sessionId={sessionId} />
               {isCompacting && (
                 <span className="text-text-secondary flex items-center gap-1.5 px-1 text-base">
                   <Spinner /> compacting…

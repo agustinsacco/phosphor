@@ -112,6 +112,46 @@ describe('portable session admission', () => {
     ])
   })
 
+  it('reloads changed lane config before a turn starts, ahead of the budget sync', async () => {
+    const h = fixture()
+    const beforePrompt = vi.fn(async (_id: string, client: { request: (c: never) => unknown }) => {
+      await client.request({ type: 'prompt', message: '/phosphor-reload t' } as never)
+      return 'applied' as const
+    })
+    h.serviceRuntime.laneReload = { beforePrompt }
+    const live = await h.service.create({ workspacePath: '/repo' })
+    const client = h.clients[0]!
+    client.request.mockClear()
+    vi.mocked(h.runtime.budget.read).mockReturnValue('400k')
+    await h.service.command(live.sessionId, { type: 'prompt', message: 'go' })
+    expect(beforePrompt).toHaveBeenCalledWith(live.sessionId, client, live.workspacePath)
+    expect(client.request.mock.calls.map(([c]) => c)).toEqual([
+      { type: 'get_state' },
+      { type: 'prompt', message: '/phosphor-reload t' },
+      { type: 'get_state' },
+      { type: 'prompt', message: '/phosphor-context-budget 400000' },
+      { type: 'prompt', message: 'go' },
+    ])
+  })
+
+  it('leaves the lane alone mid-run and for host controls', async () => {
+    const h = fixture()
+    const beforePrompt = vi.fn(async () => 'applied' as const)
+    h.serviceRuntime.laneReload = { beforePrompt }
+    const live = await h.service.create({ workspacePath: '/repo' })
+    const client = h.clients[0]!
+    client.request.mockResolvedValueOnce({
+      success: true,
+      data: { autoCompactionEnabled: true, model: { provider: 'x' }, isStreaming: true },
+    } as never)
+    await h.service.command(live.sessionId, { type: 'prompt', message: 'steer this' })
+    await h.service.command(live.sessionId, {
+      type: 'prompt',
+      message: '/phosphor-context-files claude=off',
+    })
+    expect(beforePrompt).not.toHaveBeenCalled()
+  })
+
   it('rechecks routine ownership after waiting in the command gate', async () => {
     const h = fixture()
     const live = await h.service.create({ workspacePath: '/repo' })

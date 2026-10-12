@@ -109,7 +109,8 @@ project scope, an empty field's placeholder names what it inherits.
 ## Accounts
 
 The subscription routes are distinct (`SUBSCRIPTION_PROVIDERS` in
-`apps/desktop/electron/pi/auth-status.ts` is the registry):
+`libs/session-runtime/src/pi/provider-auth.ts` is the registry, shared with the
+Host's `phosphor providers`):
 
 | Account        | Route                                                                      | Requirement                   |
 | -------------- | -------------------------------------------------------------------------- | ----------------------------- |

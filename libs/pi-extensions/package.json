@@ -32,6 +32,10 @@
       "types": "./pi-ext/headroom.ts",
       "default": "./pi-ext/headroom.ts"
     },
+    "./lane-reload": {
+      "types": "./pi-ext/lane-reload.ts",
+      "default": "./pi-ext/lane-reload.ts"
+    },
     "./mcp-status": {
       "types": "./pi-ext/mcp-status.ts",
       "default": "./pi-ext/mcp-status.ts"
