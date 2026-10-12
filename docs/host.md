@@ -4,7 +4,8 @@ The Host is Phosphor's plain-Node application for machines Desktop does not run
 on. Its command is `phosphor`; its config and logs live in `phosphor-host`
 folders, apart from Desktop's own. Today it is a foreground CLI: `doctor` checks
 whether a machine can run sessions, `providers` which models pi can use there,
-and `accept` runs real sessions to prove it ([accept](#accept)). It listens on
+and `accept` runs real sessions to prove it ([accept](#accept)). `login`,
+`status` and `logout` manage its machine identity in the control plane. It listens on
 nothing. `npm run build:host` builds it
 ([Build](#build)); nothing installs or publishes it yet. Desktop never runs a
 Host, and offline Desktop never needs one
@@ -42,6 +43,9 @@ phosphor providers login PROVIDER [--config FILE]
 phosphor accept --repository DIR [--lane native|claude|all] [--keep-transcripts]
                 [--model ID [--provider NAME]] [--claude-model ID]
                 [--config FILE] [--json]
+phosphor login [--config FILE]
+phosphor status [--config FILE] [--json]
+phosphor logout [--config FILE] [--local]
 phosphor version [--json]
 ```
 
@@ -50,15 +54,17 @@ go to stderr.
 `version` prints `0.0.0-dev.<sha7>`, or `0.0.0-dev.source` when the build did
 not stamp a commit.
 
-| Exit          | Meaning                                                                                                         |
-| ------------- | --------------------------------------------------------------------------------------------------------------- |
-| 0             | success                                                                                                         |
-| 1             | an acceptance check failed; its transcript is kept                                                              |
-| 64            | usage error                                                                                                     |
-| 69            | a prerequisite is unavailable: node, pi, git, extensions or a repository; for `providers`, nothing is signed in |
-| 70            | internal error, a failed cleanup or the drain deadline                                                          |
-| 78            | the config is invalid                                                                                           |
-| 129, 130, 143 | ended by SIGHUP, SIGINT or SIGTERM, after stopping probes and sessions                                          |
+| Exit          | Meaning                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------ |
+| 0             | success                                                                                          |
+| 1             | an acceptance check failed; its transcript is kept                                               |
+| 64            | usage error                                                                                      |
+| 69            | a prerequisite is unavailable; for `providers`, nothing is signed in; for `status`, not enrolled |
+| 70            | internal error, a failed cleanup or the drain deadline                                           |
+| 75            | control plane unreachable, invalid response or enrollment code expired                           |
+| 77            | this machine was removed from the account                                                        |
+| 78            | the config is invalid                                                                            |
+| 129, 130, 143 | ended by SIGHUP, SIGINT or SIGTERM, after stopping probes and sessions                           |
 
 ## Build
 
@@ -123,7 +129,8 @@ on Linux and macOS alike. No environment variable names it.
   "repositories": ["/home/me/src/phosphor"],
   "contextBudget": "",
   "environment": { "pass": ["GH_TOKEN"], "path": ["/home/me/.cargo/bin"] },
-  "accounts": null
+  "accounts": null,
+  "control": { "url": "https://phosphor.saccolabs.com" }
 }
 ```
 
@@ -137,17 +144,125 @@ on Linux and macOS alike. No environment variable names it.
   `chmod` to run.
 - **Pinned paths.** Every path is absolute and normalized. `~` is not expanded.
 
-| Field              | Meaning                                                                                                                                    |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `hostId`           | Optional. Defaults to the short hostname, made to fit the HostHello identifier pattern.                                                    |
-| `pi.executable`    | What `command -v pi` prints.                                                                                                               |
-| `pi.node`          | The node that runs pi. Required when `pi.executable` resolves to a Node script, as pi 0.87.1 does.                                         |
-| `resourceRoot`     | Holds `pi-ext/` and `skills/`. Defaults to the running bundle's own folder.                                                                |
-| `repositories`     | 1 to 64 folders that sessions may run in. Never `/`.                                                                                       |
-| `contextBudget`    | Desktop's grammar; `""` or absent is the 200k default. A value Desktop would quietly replace with the default, such as `77k`, is an error. |
-| `environment.pass` | Up to 64 more variable names for pi. Names only, never values. Naming `PATH` or a hook below is an error.                                  |
-| `environment.path` | Up to 32 more PATH folders.                                                                                                                |
-| `accounts`         | `null` or absent: accounts are unavailable on a Host.                                                                                      |
+| Field              | Meaning                                                                                                                                                                             |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `hostId`           | Optional. Defaults to the short hostname, made to fit the HostHello identifier pattern.                                                                                             |
+| `pi.executable`    | What `command -v pi` prints.                                                                                                                                                        |
+| `pi.node`          | The node that runs pi. Required when `pi.executable` resolves to a Node script, as pi 0.87.1 does.                                                                                  |
+| `resourceRoot`     | Holds `pi-ext/` and `skills/`. Defaults to the running bundle's own folder.                                                                                                         |
+| `repositories`     | 1 to 64 folders that sessions may run in. Never `/`.                                                                                                                                |
+| `contextBudget`    | Desktop's grammar; `""` or absent is the 200k default. A value Desktop would quietly replace with the default, such as `77k`, is an error.                                          |
+| `environment.pass` | Up to 64 more variable names for pi. Names only, never values. Naming `PATH` or a hook below is an error.                                                                           |
+| `environment.path` | Up to 32 more PATH folders.                                                                                                                                                         |
+| `control.url`      | Optional bare origin. Defaults to `https://phosphor.saccolabs.com`. HTTPS, or HTTP only on localhost, 127.0.0.1 or ::1. No credentials, path, query or fragment. Ports are 1-65535. |
+| `accounts`         | `null` or absent: accounts are unavailable on a Host.                                                                                                                               |
+
+## Machine identity
+
+`phosphor login` prints an approval code and the new key's fingerprint. In a
+signed-in Desktop, open Machines > Add a machine, enter the code, compare the
+fingerprint, and approve. It works without a terminal, including over plain
+SSH. Each new enrollment has a fresh Ed25519 key. Polls wait the server's
+interval. Transient failures retry with exponential backoff capped at 30 seconds,
+without waiting past the code's deadline. Enrollment ends within 10 minutes.
+An expired code exits 75. Ctrl-C while waiting exits 130 and keeps the pending
+request. Run login again within the code's lifetime to resume with the same code
+and key, even if Desktop already approved it.
+
+An already enrolled and confirmed machine exits 0 without replacing its identity.
+Login removes any leftover pending request. A removed
+machine starts a new enrollment, or resumes the pending one, keeping the old
+identity until the new one is approved; approval then removes the old pair
+before saving the new one. Approval saves the identity, then checks it
+once with the server. If that check cannot finish, the identity stays saved
+and login exits 0 with a hint to run status. A 410 removes the new identity
+and exits 77.
+
+The files live in `identity/` beside the config file, including when
+`--config FILE` names another config. The directory is 0700; files are 0600:
+
+- `host.json`: `{version: 1, controlUrl, hostId, label, ownerLogin, savedAt}`.
+  `hostId` is the enrolled UUID, not the config's local name. `savedAt` is the
+  Host's clock. The server supplies `enrolledAt` in status.
+- `host-key.<hostId>.pem`: the private key, PKCS#8 PEM. It never leaves the Host.
+- `pending-key.pem` and `pending.json`: the pending key and
+  `{version: 1, controlUrl, enrollmentId, userCode, keyFingerprint, expiresAt, savedAt, pollIntervalSec}`.
+  Login saves the key first, then the metadata, before printing the code.
+  Approval commits the identity before removing these files. Expired, invalid or
+  other-origin pending requests are discarded on the next login.
+- `.lock`: the pid, random ownership token and start time of a login or logout.
+  A complete, synced temporary file is linked atomically into place. A live pid
+  refuses another login or logout with exit 75. Dead or invalid locks are
+  reclaimed under the `.lock-recovery` directory gate. A gate is waited on for
+  at most one second, then exits 75. Only the process that created a gate
+  removes it: a gate over 30 seconds old was left by a crash, and the message
+  asks you to remove it if no login or logout is running. Release uses the
+  same gate and removes only its own token. Recovery compares the file identity
+  and token again under the gate. A symlink is removed without touching its
+  target; a directory at `.lock` is refused with a removal instruction. The main
+  lock has no age timeout.
+  Status stays read-only and does not take the lock.
+
+Login and logout hold the identity lock for their entire operation. Logout
+removes local state only if the identity still names the machine it revoked.
+Both successful logout and `logout --local` also remove pending requests.
+
+A save atomically renames the new key first, then `host.json`, the commit
+point, then removes obsolete keys. A failure before the commit keeps the
+old pair usable; a stopped save can leave an unused key. Login can reuse an
+orphan key when it is byte for byte the pending key and no `host.json` exists. Loads read metadata
+first and refuse links, non-files, another owner's files, group or other
+permissions, and files over 4 KiB. A missing or refused key is an incomplete
+identity: fix its permissions or run login to enroll again.
+
+The saved origin binds the identity. If config points elsewhere, login,
+status and plain logout exit 78 without contacting either origin. Run
+`phosphor logout --local`, then login, to change it.
+
+`phosphor status` shows the local identity and the server's label, owner,
+enrollment time and last seen. It exits 0 when confirmed, 69 when not enrolled,
+77 when removed, 75 when unreachable or the response is invalid, and 78 for
+invalid storage or config. `--json` is one object with this stable shape:
+
+```json
+{
+  "version": 1,
+  "status": "confirmed",
+  "identity": {
+    "version": 1,
+    "controlUrl": "https://phosphor.saccolabs.com",
+    "hostId": "0b6f7c1e-2f4a-4c8e-9d1b-5a7e3c2f1d00",
+    "label": "bee1",
+    "ownerLogin": "me",
+    "savedAt": "2026-10-10T00:00:00.000Z"
+  },
+  "server": {
+    "hostId": "0b6f7c1e-2f4a-4c8e-9d1b-5a7e3c2f1d00",
+    "label": "bee1",
+    "owner": { "login": "me" },
+    "enrolledAt": "2026-10-10T00:00:00.000Z",
+    "lastSeenAt": null
+  },
+  "error": null
+}
+```
+
+`status` is `confirmed`, `not-enrolled`, `removed`, `unreachable` or `invalid`.
+`identity` and `server` are null when unavailable; `error` is null or a safe
+message. No key, signature or headers appear in the report.
+
+`phosphor logout` signs a revoke and then forgets the local identity. Not
+signed in, successful revoke, or already removed (410) all exit 0. An
+unreachable server exits 75 and keeps the identity, with the `--local` hint.
+`--local` never contacts the server and works even if config is invalid. It
+forgets the files only; the machine stays listed until removed in Desktop.
+
+Only these commands contact the configured control plane. Enrollment sends
+the public key, hostname, platform, architecture and Host version. Status and
+logout send the enrolled UUID. Requests carry a timestamp, random nonce and
+Ed25519 signature. No repository names, paths, transcripts or provider tokens
+leave the machine. Redirects are refused. Requests time out after 10 seconds;
+responses are capped at 64 KiB and validated with the shared wire contract.
 
 ## pi's environment
 
