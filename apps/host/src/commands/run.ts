@@ -20,6 +20,14 @@ import { checkReadiness } from '../machine/readiness'
 import type { Drainable } from '../shutdown'
 import { HOST_VERSION } from '../version'
 
+/**
+ * Shutdown exits as soon as the attached drain ends. A drain that ended before
+ * the run lock was released let a Ctrl-C exit inside the release, leaving
+ * identity/.run-lock-recovery behind, and every later run refused to start.
+ * The drain therefore also waits for the release, for at most this long.
+ */
+export const RELEASE_WAIT_MS = 3000
+
 export interface RunContext extends ControlContext {
   env: NodeJS.ProcessEnv
   attach?: (target: Drainable) => () => void
@@ -28,6 +36,10 @@ export interface RunContext extends ControlContext {
 async function runHostCommand(context: RunContext): Promise<number> {
   let release: (() => Promise<void>) | undefined
   let detach: (() => void) | undefined
+  let released: () => void = () => {}
+  const unlocked = new Promise<void>((resolve) => {
+    released = resolve
+  })
   try {
     const prepared = await withCommandLock(context, () => prepareControl(context))
     if (!prepared.loaded) {
@@ -71,6 +83,11 @@ async function runHostCommand(context: RunContext): Promise<number> {
     })
     detach = context.attach?.({
       ...loop,
+      drain: async (reason) => {
+        const result = await loop.drain(reason)
+        await Promise.race([unlocked, setTimeout(RELEASE_WAIT_MS, undefined, { ref: false })])
+        return result
+      },
       log: { write: () => {}, hide: () => 'The Host could not finish.' },
     })
     return await loop.run()
@@ -80,7 +97,11 @@ async function runHostCommand(context: RunContext): Promise<number> {
     return result.exitCode
   } finally {
     detach?.()
-    await release?.()
+    try {
+      await release?.()
+    } finally {
+      released()
+    }
   }
 }
 

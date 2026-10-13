@@ -1,4 +1,5 @@
 import {
+  CONTROL_LIMITS,
   machineStatus,
   normalizeUserCode,
   type MachineView,
@@ -30,7 +31,12 @@ export function relativeTime(at: string, now: number): string {
 }
 export function statusText(machine: MachineView, now: number, offset = 0): string {
   if (!machine.lastSeenAt) return 'Waiting for first connection'
-  if (machine.state === 'stopping') return 'Stopping'
+  // A stopping beat is a Host's last word: once it is old, the Host is offline.
+  if (
+    machine.state === 'stopping' &&
+    now + offset - Date.parse(machine.lastSeenAt) <= CONTROL_LIMITS.downAfterSec * 1000
+  )
+    return 'Stopping'
   return machineStatus(machine, now, offset) === 'up'
     ? 'Online'
     : `Offline · last seen ${relativeTime(machine.lastSeenAt, now + offset)}`

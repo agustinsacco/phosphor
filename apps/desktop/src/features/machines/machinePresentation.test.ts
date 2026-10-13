@@ -21,6 +21,12 @@ it('uses shared clock correction and labels every state', () => {
     'Offline · last seen 3 h ago',
   )
   expect(statusText({ ...online, state: 'stopping' }, now)).toBe('Stopping')
+  expect(
+    statusText(
+      { ...online, state: 'stopping', lastSeenAt: new Date(now - 91_000).toISOString() },
+      now,
+    ),
+  ).toBe('Offline · last seen 1 min ago')
   expect(statusText(online, now + 600000, -600000)).toBe('Online')
   expect(relativeTime(online.lastSeenAt, now - 10000)).toBe('just now')
   expect(platformName('darwin')).toBe('macOS')

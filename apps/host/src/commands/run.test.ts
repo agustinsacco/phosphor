@@ -1,3 +1,4 @@
+import { readdirSync } from 'node:fs'
 import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
@@ -7,7 +8,7 @@ import { controlMachine, type ControlMachine, oldId } from '../control/__fixture
 import { identityDirectory } from '../control/identity'
 import { acquireIdentityLock } from '../control/lock'
 import type { RunContext } from './run'
-import { runHost } from './run'
+import { RELEASE_WAIT_MS, runHost } from './run'
 import { createShutdown } from '../shutdown'
 import { createHeartbeat } from '../control/heartbeat'
 import { runCli } from '../cli'
@@ -29,9 +30,13 @@ describe('phosphor run', () => {
   it('dispatches CLI run through one shutdown attachment and sends stopping on SIGTERM', async () => {
     await machine.enrollOld()
     const exits: number[] = []
+    const atExit: string[][] = []
+    const directory = identityDirectory(machine.configPath)
     const shutdown = createShutdown({
       exit: (code) => {
         exits.push(code)
+        // The process ends here: the run lock and its gate must already be gone.
+        atExit.push(readdirSync(directory).filter((name) => name.startsWith('.run-lock')))
       },
       stderr: () => {},
       stopProbes: () => {},
@@ -79,10 +84,14 @@ describe('phosphor run', () => {
       },
     )
     await vi.waitFor(() => expect(states).toEqual(['running']))
+    const signalled = Date.now()
     await shutdown.signal('SIGTERM')
+    // Released, not merely timed out.
+    expect(Date.now() - signalled).toBeLessThan(RELEASE_WAIT_MS)
     expect(await run).toBe(0)
     expect(states).toEqual(['running', 'stopping'])
     expect(exits).toEqual([0])
+    expect(atExit).toEqual([[]])
     expect(attached).toBe(1)
     expect(detached).toBe(1)
   })
