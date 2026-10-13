@@ -1,6 +1,12 @@
 import { generateKeyPairSync, randomBytes, randomUUID, sign, verify } from 'node:crypto'
 import { expect, it, vi } from 'vitest'
-import { decodeBase64url, encodeGrant, grantUtf8, type GrantPayload } from '../host-grant'
+import {
+  decodeBase64url,
+  encodeBase64url,
+  encodeGrant,
+  grantUtf8,
+  type GrantPayload,
+} from '../host-grant'
 import { helloProofMessage, parseHostFrame, type HostFrame } from '../host-protocol'
 import { createFakeHost } from './fake-host'
 import { createLoopbackPair } from './loopback'
@@ -62,9 +68,15 @@ const factory: HostConformanceFactory = (limits) => {
         sign(null, bytes, badSignature ? wrong.privateKey : control.privateKey),
       )
     },
+    signHelloProof(hostId, runtimeEpoch, challenge) {
+      return encodeBase64url(
+        sign(null, grantUtf8(helloProofMessage(hostId, runtimeEpoch, challenge)), host.privateKey),
+      )
+    },
     verifyProof(ready, challenge) {
       const proof = decodeBase64url(ready.proof)
       return (
+        ready.hello.hostId === claims.hostId &&
         proof !== null &&
         verify(
           null,

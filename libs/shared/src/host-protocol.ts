@@ -57,6 +57,8 @@ export const HOST_LIMITS = {
   connectionsPerClient: 4,
   /** Commands admitted but not yet answered, per connection. */
   pendingCommandsPerConnection: 32,
+  /** The architecture's unknown-receipts amendment: no pi answer means uncertainty. */
+  commandAnswerMs: 30_000,
   /** Per lane: events kept for replay, by count and by bytes. */
   replayEvents: 2000,
   replayBytes: 8 * 1024 * 1024,
@@ -907,10 +909,19 @@ function receipt(v: unknown): Receipt | null {
     case 'done':
       if (
         (v.fence !== undefined && !integer(v.fence, 1)) ||
-        (v.laneId !== undefined && !isUuid(v.laneId)) ||
-        (v.data !== undefined && utf8Length(JSON.stringify(v.data)) > HOST_LIMITS.receiptDataBytes)
+        (v.laneId !== undefined && !isUuid(v.laneId))
       )
         return null
+      try {
+        if (
+          v.data !== undefined &&
+          utf8Length(JSON.stringify(v.data)) > HOST_LIMITS.receiptDataBytes
+        )
+          return null
+      } catch {
+        // Valid JSON can nest deeper than the serializer's stack allows.
+        return null
+      }
       return {
         requestId,
         status: v.status,

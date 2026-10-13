@@ -69,13 +69,16 @@ viewer sees control changes at the same stream position. Disconnecting does
 not release control.
 A request id deduplicates one action. Receipts are pending, done, failed,
 rejected or unknown. Unknown means the outcome is uncertain, not permission to
-repeat the action with a new id.
+repeat the action with a new id. A pi command unanswered after 30 seconds becomes
+unknown; a later completion cannot replace it or send another terminal receipt.
 
 `HOST_LIMITS` caps inbound frames at 8 MiB, outbound frames at 16 MiB,
 subscriptions at 64 per socket and pending commands at 32 per socket. Replay,
 queues, UI keys and receipt retention are bounded too. Oversize subscriptions
 end with `too-large`, not a closed socket; oversize call results answer
-`too-large`. A slow subscription resumes with one reset snapshot. Close codes
+`too-large`. Replay stops when an oversized event becomes a reset snapshot or the
+subscription fails; older events never follow the reset. A slow subscription
+resumes with one reset snapshot. Close codes
 are 1001 for shutdown, 4400 for malformed client frames, 4401 for missing or
 expired auth, 4403 for forbidden access, 4409 for incompatible protocol and
 4429 for excess requests or connections.

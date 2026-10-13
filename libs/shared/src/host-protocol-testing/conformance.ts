@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  HOST_LIMITS,
   parseHostFrame,
   type FrameSocket,
   type HostFrame,
@@ -21,6 +22,7 @@ export interface HostConformanceHarness {
   connect(): ConformanceConnection
   mintGrant(claims?: Partial<GrantPayload>, badSignature?: boolean): string
   verifyProof(ready: Extract<HostFrame, { type: 'ready' }>, challenge: string): boolean
+  signHelloProof(hostId: string, runtimeEpoch: string, challenge: string): string
   requestId(): string
   driver: {
     emitTurn(laneId: string): void
@@ -168,6 +170,7 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       const c = await auth()
       const ready = c.frames[0]
       if (!ready || ready.type !== 'ready') throw new Error('Missing ready')
+      expect(ready.hello.hostId).toBe(h.claims.hostId)
       expect(h.publicKey.length).toBe(32)
       expect(h.verifyProof(ready, challenge)).toBe(true)
       expect(h.verifyProof(ready, 'b'.repeat(64))).toBe(false)
@@ -180,6 +183,18 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       const expiring = await auth({ exp: h.claims.iat + 1 })
       await flush(1000)
       expect(expiring.closed).toEqual([4401])
+    })
+    it('refuses a correctly signed hello naming a different enrolled Host', async () => {
+      const c = await auth()
+      const ready = c.frames.find((frame) => frame.type === 'ready')
+      if (!ready || ready.type !== 'ready') throw new Error('Missing ready')
+      const hostId = otherClient.id
+      const wrongHost = {
+        ...ready,
+        hello: { ...ready.hello, hostId },
+        proof: h.signHelloProof(hostId, ready.hello.runtimeEpoch, challenge),
+      }
+      expect(h.verifyProof(wrongHost, challenge)).toBe(false)
     })
     it.each(['session', 'client'] as const)(
       'closes open sockets and rejects revoked %s grants',
@@ -331,6 +346,42 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       expect(receipts(next, requestId).map((r) => r.status)).toEqual(['pending', 'done'])
       expect(h.driver.executions()).toBe(before + 1)
     })
+    it.each([HOST_LIMITS.commandAnswerMs - 1, HOST_LIMITS.commandAnswerMs + 1])(
+      'answers once when pi completes at %i ms around the uncertainty deadline',
+      async (commandDelayMs) => {
+        h.driver.stop()
+        h = factory({ commandDelayMs })
+        const c = await auth(),
+          laneId = await create(c),
+          requestId = h.requestId()
+        const frame: ClientFrame = {
+          type: 'command',
+          requestId,
+          laneId,
+          fence: 1,
+          op: { type: 'prompt', message: 'Hello' },
+        }
+        c.send(frame)
+        c.send(frame)
+        await flush()
+        expect(receipts(c, requestId).map((r) => r.status)).toEqual(['pending'])
+        await flush(HOST_LIMITS.commandAnswerMs - 2)
+        expect(receipts(c, requestId).map((r) => r.status)).toEqual(['pending'])
+        await flush(1)
+        const status = commandDelayMs < HOST_LIMITS.commandAnswerMs ? 'done' : 'unknown'
+        expect(receipts(c, requestId).map((r) => r.status)).toEqual(
+          status === 'done' ? ['pending', 'done'] : ['pending'],
+        )
+        await flush(1)
+        expect(receipts(c, requestId).map((r) => r.status)).toEqual(['pending', status])
+        await flush(2)
+        expect(receipts(c, requestId).map((r) => r.status)).toEqual(['pending', status])
+        const lookup = await auth()
+        lookup.send({ type: 'receipt-status', requestId })
+        await flush()
+        expect(receipts(lookup, requestId)).toMatchObject([{ status }])
+      },
+    )
     it('returns unknown for unrecorded, pruned, another client, and interrupted requests; returns stored results', async () => {
       const c = await auth(),
         laneId = await create(c),
@@ -377,9 +428,18 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       })
       await flush()
       h.driver.failLane(laneId)
+      h.driver.emitUi(laneId, {
+        type: 'extension_ui_request',
+        id: 'notice',
+        method: 'notify',
+        message: 'Unrelated activity',
+      })
       await flush(5)
       expect(receipts(c, requestId)).toEqual([{ requestId, status: 'unknown' }])
-      expect(events(c).at(-1)?.event).toMatchObject({
+      expect(
+        events(c).findLast((frame) => frame.laneId === laneId && frame.event.kind === 'summary')
+          ?.event,
+      ).toMatchObject({
         kind: 'summary',
         summary: { activity: 'failed' },
       })
@@ -438,13 +498,23 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
         fence: 3,
       })
       a.frames.length = 0
+      h.driver.emitUi(laneId, {
+        type: 'extension_ui_request',
+        id: 'notice',
+        method: 'notify',
+        message: 'Unrelated activity',
+      })
       expect(await command(a, laneId, { type: 'prompt', message: 'Hello' }, 3)).toMatchObject({
         status: 'done',
         fence: 4,
       })
       const stream = events(a)
-      expect(stream[0]?.event.kind).toBe('control')
-      expect(stream.findIndex((e) => e.event.kind === 'pi')).toBeGreaterThan(0)
+      const controlIndex = stream.findIndex((e) => e.event.kind === 'control')
+      const piIndex = stream.findIndex(
+        (e) => e.event.kind === 'pi' && e.event.push.kind === 'event',
+      )
+      expect(controlIndex).toBeGreaterThanOrEqual(0)
+      expect(piIndex).toBeGreaterThan(controlIndex)
     })
     it('rejects a viewer dialog answer and resolves the controller answer in the stream', async () => {
       const a = await auth(),
@@ -541,8 +611,17 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       await flush()
       expect(snapshots(c)[0]?.snapshot.summary).toMatchObject({ attention: 1, read: 1 })
       h.driver.failLane(laneId)
+      h.driver.emitUi(laneId, {
+        type: 'extension_ui_request',
+        id: 'notice',
+        method: 'notify',
+        message: 'Unrelated activity',
+      })
       await flush()
-      expect(events(c).at(-1)?.event).toMatchObject({
+      expect(
+        events(c).findLast((frame) => frame.laneId === laneId && frame.event.kind === 'summary')
+          ?.event,
+      ).toMatchObject({
         kind: 'summary',
         summary: { activity: 'failed' },
       })
@@ -597,10 +676,29 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
         kind: 'control',
         control: { fence: 1, controller: { connected: false } },
       })
+      const reconnectStart = b.frames.length
       const next = await auth()
-      expect(events(b).at(-2)?.event).toMatchObject({
-        kind: 'control',
-        control: { fence: 1, controller: { connected: true } },
+      // Unrelated activity may follow the control change before it is inspected.
+      h.driver.emitUi(laneId, {
+        type: 'extension_ui_request',
+        id: 'notice',
+        method: 'notify',
+        message: 'Reconnected',
+      })
+      await flush()
+      expect(
+        b.frames
+          .slice(reconnectStart)
+          .findLast(
+            (frame) =>
+              frame.type === 'event' && frame.laneId === laneId && frame.event.kind === 'control',
+          ),
+      ).toMatchObject({
+        type: 'event',
+        event: {
+          kind: 'control',
+          control: { fence: 1, controller: { connected: true } },
+        },
       })
       expect(await command(next, laneId, { type: 'abort' })).toMatchObject({
         status: 'done',
@@ -740,11 +838,81 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       await create(c)
       await create(c)
       await create(c)
-      c.send({ type: 'subscribe', id: 'all', topic: 'lanes' })
+      h.driver.emitTurn(laneId)
+      const start = snapshots(c)[0]
+      if (!start) throw new Error('Missing snapshot')
+      c.send({ type: 'subscribe', id: 'all', topic: 'lanes', after: start.snapshot.cursor })
       await flush()
       expect(c.frames).toContainEqual({ type: 'subscribe-failed', id: 'all', code: 'too-large' })
+      expect(c.frames.filter((f) => f.type === 'attention' && f.id === 'all')).toEqual([])
       expect(c.socket.isOpen()).toBe(true)
     })
+    it.each([false, true])(
+      'stops buffered replay after an oversized event (oversize reset: %s)',
+      async (oversizeReset) => {
+        h.driver.stop()
+        h = factory({ outboundFrameBytes: 1800 })
+        const c = await auth(),
+          laneId = await create(c)
+        c.send({ type: 'subscribe', id: 'lane', topic: 'lane', laneId })
+        await flush()
+        const start = snapshots(c)[0]
+        if (!start) throw new Error('Missing snapshot')
+        c.send({ type: 'unsubscribe', id: 'lane' })
+        await flush()
+        h.driver.emitUi(laneId, {
+          type: 'extension_ui_request',
+          id: 'large',
+          method: 'notify',
+          message: 'x'.repeat(2000),
+        })
+        h.driver.emitUi(laneId, {
+          type: 'extension_ui_request',
+          id: 'small',
+          method: 'notify',
+          message: 'small',
+        })
+        if (oversizeReset)
+          h.driver.emitUi(laneId, {
+            type: 'extension_ui_request',
+            id: 'status',
+            method: 'setStatus',
+            statusKey: 'large',
+            statusText: 'x'.repeat(2000),
+          })
+        c.frames.length = 0
+        c.send({
+          type: 'subscribe',
+          id: 'replay',
+          topic: 'lane',
+          laneId,
+          after: start.snapshot.cursor,
+        })
+        await flush()
+        if (oversizeReset) {
+          expect(c.frames).toEqual([{ type: 'subscribe-failed', id: 'replay', code: 'too-large' }])
+        } else {
+          expect(snapshots(c)).toHaveLength(1)
+          expect(snapshots(c)[0]?.reset).toBe(true)
+          expect(snapshots(c)[0]?.snapshot.cursor.seq).toBeGreaterThan(start.snapshot.cursor.seq)
+        }
+        expect(events(c, 'replay')).toEqual([])
+        h.driver.emitUi(laneId, {
+          type: 'extension_ui_request',
+          id: 'later',
+          method: 'notify',
+          message: 'later',
+        })
+        await flush()
+        if (oversizeReset) expect(events(c, 'replay')).toEqual([])
+        else {
+          const resetSeq = snapshots(c)[0]?.snapshot.cursor.seq
+          if (resetSeq === undefined) throw new Error('Missing reset cursor')
+          expect(events(c, 'replay').map((f) => f.cursor.seq)).toEqual([resetSeq + 1])
+        }
+        expect(c.socket.isOpen()).toBe(true)
+      },
+    )
     it('caps connections per client without affecting existing sockets', async () => {
       h.driver.stop()
       h = factory({ connectionsPerClient: 1 })

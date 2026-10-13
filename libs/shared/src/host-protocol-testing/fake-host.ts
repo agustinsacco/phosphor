@@ -148,11 +148,12 @@ export function createFakeHost(options: FakeHostOptions) {
     }, 50)
     c.recoveryTimer.unref?.()
   }
-  function send(c: Connection, frame: HostFrame) {
-    if (!c.socket.isOpen()) return
+  function send(c: Connection, frame: HostFrame): 'sent' | 'reset' | 'failed' | 'dropped' {
+    if (!c.socket.isOpen()) return 'dropped'
+    let outcome: 'sent' | 'failed' = 'sent'
     const subId =
       'id' in frame && c.subscriptions.has(frame.id) && frame.type !== 'result' ? frame.id : null
-    if (subId && c.stale.has(subId)) return
+    if (subId && c.stale.has(subId)) return 'dropped'
     let s = JSON.stringify(frame)
     if (
       utf8Length(s) > limits.outboundFrameBytes ||
@@ -160,13 +161,15 @@ export function createFakeHost(options: FakeHostOptions) {
     ) {
       if (frame.type === 'event') {
         const replacement = catchUp(c, frame.id)
-        if (replacement) send(c, replacement)
-        return
+        if (!replacement) return 'dropped'
+        const result = send(c, replacement)
+        return result === 'sent' ? 'reset' : result
       }
       if (subId) {
         c.subscriptions.delete(subId)
         c.stale.delete(subId)
         frame = { type: 'subscribe-failed', id: subId, code: 'too-large' }
+        outcome = 'failed'
       } else if (frame.type === 'result')
         frame = {
           type: 'result',
@@ -176,7 +179,7 @@ export function createFakeHost(options: FakeHostOptions) {
         }
       else {
         c.socket.close(4429, 'Outbound limit')
-        return
+        return 'failed'
       }
       s = JSON.stringify(frame)
     }
@@ -185,9 +188,10 @@ export function createFakeHost(options: FakeHostOptions) {
         c.stale.add(subId)
         recover(c)
       } else c.socket.close(4429, 'Slow client')
-      return
+      return 'dropped'
     }
     c.socket.send(s)
+    return outcome
   }
   function authorized(c: Connection, cap: HostCapability) {
     return c.grant?.caps.includes(cap) && caps.includes(cap)
@@ -506,8 +510,10 @@ export function createFakeHost(options: FakeHostOptions) {
     const startingEpoch = epoch
     const timer = setTimeout(() => {
       timers.delete(timer)
-      c.pending--
       if (epoch !== startingEpoch || stored.receipt.status !== 'pending') return
+      clearTimeout(deadline)
+      timers.delete(deadline)
+      c.pending--
       if (l.summary.activity === 'failed') {
         stored.receipt = { requestId: f.requestId, status: 'unknown' }
         deliver(f.requestId, stored)
@@ -517,7 +523,17 @@ export function createFakeHost(options: FakeHostOptions) {
       stored.receipt = { requestId: f.requestId, status: 'done', fence: l.summary.control.fence }
       deliver(f.requestId, stored)
     }, options.commandDelayMs ?? 1)
+    const deadline = setTimeout(() => {
+      timers.delete(deadline)
+      if (epoch !== startingEpoch || stored.receipt.status !== 'pending') return
+      clearTimeout(timer)
+      timers.delete(timer)
+      c.pending--
+      stored.receipt = { requestId: f.requestId, status: 'unknown' }
+      deliver(f.requestId, stored)
+    }, limits.commandAnswerMs)
     timers.add(timer)
+    timers.add(deadline)
   }
   function handle(c: Connection, f: ClientFrame) {
     if (f.type === 'auth') {
@@ -660,16 +676,21 @@ export function createFakeHost(options: FakeHostOptions) {
         }
         if (f.topic === 'lanes') {
           c.subscriptions.set(f.id, f)
-          send(c, {
+          const result = send(c, {
             type: 'lanes',
             id: f.id,
             cursor: { epoch, seq: hostSeq },
             repositories,
             lanes: [...lanes.values()].map((l) => l.summary),
           })
+          if (result !== 'sent') break
           if (f.after?.epoch === epoch)
             for (const entry of attention)
-              if (entry.cursor.seq > f.after.seq) send(c, { type: 'attention', id: f.id, ...entry })
+              if (
+                entry.cursor.seq > f.after.seq &&
+                send(c, { type: 'attention', id: f.id, ...entry }) !== 'sent'
+              )
+                break
         } else {
           const l = lanes.get(f.laneId)
           if (!l) {
@@ -683,14 +704,16 @@ export function createFakeHost(options: FakeHostOptions) {
             f.after.seq >= (l.events[0]?.cursor.seq ?? l.seq + 1) - 1
           ) {
             for (const entry of l.events)
-              if (entry.cursor.seq > f.after.seq)
-                send(c, {
+              if (entry.cursor.seq > f.after.seq) {
+                const result = send(c, {
                   type: 'event',
                   id: f.id,
                   laneId: f.laneId,
                   cursor: entry.cursor,
                   event: entry.event,
                 })
+                if (result !== 'sent') break
+              }
           } else
             send(c, {
               type: 'snapshot',

@@ -10,10 +10,22 @@ function sources(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const file = join(directory, entry.name)
     if (entry.isDirectory()) return excluded.has(entry.name) ? [] : sources(file)
-    return /\.[cm]?[jt]sx?$/.test(file) && !/\.(test|spec)\.[cm]?[jt]sx?$/.test(file) ? [file] : []
+    return (file.endsWith('.astro') || /\.[cm]?[jt]sx?$/.test(file)) &&
+      !/\.(test|spec)\.[cm]?[jt]sx?$/.test(file)
+      ? [file]
+      : []
   })
 }
 function forbiddenImports(file: string, text: string): string[] {
+  if (file.endsWith('.astro')) {
+    const frontmatter = /^---[^\S\r\n]*\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)?.[1]
+    const scripts = [...text.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)].flatMap(
+      (match) => (match[1] === undefined ? [] : [match[1]]),
+    )
+    return [...(frontmatter === undefined ? [] : [frontmatter]), ...scripts].flatMap((source) =>
+      forbiddenImports(file + '.ts', source),
+    )
+  }
   const imports: string[] = []
   const tree = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true)
   function visit(node: ts.Node) {
@@ -66,6 +78,23 @@ it('detects static, dynamic, type, require and relative imports but not comments
   ])
     expect(forbiddenImports(file, text)).toHaveLength(1)
   expect(forbiddenImports(file, '// host-protocol-testing is forbidden')).toEqual([])
+})
+it('scans Astro frontmatter and script blocks but not template text', () => {
+  const file = join(root, 'apps/site/src/example.astro')
+  for (const text of [
+    "---\nimport { createFakeHost } from '@phosphor/shared/host-protocol-testing'\n---\n<p>Page</p>",
+    "<script lang='ts'>import type { Kit } from '@phosphor/shared/host-protocol-testing'</script>",
+    "---\r\nconst title = 'Page'\r\n---\r\n<script>const kit = import('@phosphor/shared/host-protocol-testing')</script>",
+    "<script>const ok = true</script><script>const kit = require('@phosphor/shared/host-protocol-testing')</script>",
+  ])
+    expect(forbiddenImports(file, text)).toHaveLength(1)
+  expect(
+    forbiddenImports(
+      file,
+      "---\nimport Layout from './Layout.astro'\n---\n<p>host-protocol-testing</p><script>// host-protocol-testing\nconst ok = true</script>",
+    ),
+  ).toEqual([])
+  expect(sources(join(root, 'apps/site/src')).some((file) => file.endsWith('.astro'))).toBe(true)
 })
 it('keeps the contract parser dependency graph free of Node and DOM imports', () => {
   const visited = new Set<string>()

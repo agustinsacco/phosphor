@@ -639,3 +639,54 @@ describe('host-protocol Host parser', () => {
     }
   })
 })
+
+describe('host-protocol parser totality', () => {
+  const nested = '['.repeat(20_000) + '0' + ']'.repeat(20_000)
+  const receiptText = (data: string) =>
+    `{"type":"receipt","receipt":{"requestId":"${uuid}","status":"done","data":${data}}}`
+
+  it('rejects deeply nested receipt data without throwing', () => {
+    expect(parseHostFrame(receiptText(nested)).ok).toBe(false)
+  })
+  it('never recurses into free-form client or pi payloads', () => {
+    const clientTexts = [
+      `{"type":"call","id":"call","method":"lane.state","params":${nested}}`,
+      `{"type":"command","requestId":"${uuid}","op":{"type":"prompt","message":"hi","images":${nested}}}`,
+      `{"type":"command","requestId":"${uuid}","op":{"type":"extension_ui_response","response":{"type":"extension_ui_response","id":"dialog","value":${nested}}}}`,
+    ]
+    for (const text of clientTexts) expect(typeof parseClientFrame(text).ok).toBe('boolean')
+    const hostTexts = [
+      `{"type":"result","id":"call","ok":true,"data":${nested}}`,
+      `{"type":"event","id":"lane","laneId":"${uuid}","cursor":{"epoch":"${epoch}","seq":1},"event":{"kind":"pi","push":{"kind":"event","event":{"type":"message_update","payload":${nested}}}}}`,
+      JSON.stringify(snap()).replace('"state":null', `"state":{"payload":${nested}}`),
+      JSON.stringify(snap()).replace('"content":"Hello"', `"content":${nested}`),
+      JSON.stringify(snap()).replace(
+        '"type":"agent_start"',
+        `"type":"agent_start","payload":${nested}`,
+      ),
+      JSON.stringify(snap()).replace('"message":"?"', `"message":${nested}`),
+    ]
+    for (const text of hostTexts) expect(typeof parseHostFrame(text).ok).toBe('boolean')
+  })
+  it('returns a result for 200 generated hostile strings through both parsers', () => {
+    for (let i = 0; i < 200; i++) {
+      const depth = i * 137
+      const values = [
+        '['.repeat(depth) + '0' + ']'.repeat(depth),
+        '1e' + (300 + i),
+        `{"__proto__":{"type":"done"},"constructor":${i}}`,
+        '"' + '\ud800'.repeat(i + 1) + '"',
+        '{"type":"receipt","receipt":' + '['.repeat(i),
+      ]
+      const value = values[i % values.length]
+      if (value === undefined) throw new Error('Missing hostile value')
+      for (const text of [
+        receiptText(value),
+        `{"type":"call","id":"call","method":"lane.state","params":${value}}`,
+      ]) {
+        expect(typeof parseClientFrame(text).ok).toBe('boolean')
+        expect(typeof parseHostFrame(text).ok).toBe('boolean')
+      }
+    }
+  })
+})
