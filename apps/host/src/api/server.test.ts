@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { connect as netConnect } from 'node:net'
 import {
@@ -288,9 +289,13 @@ it('accepts exactly maxPayload bytes, closes one byte over with 1009 and keeps s
   expect((await auth()).frame.type).toBe('ready')
   expect(logs.join('\n')).toContain('"code":1006')
 })
-it('rejects binary frames and closes sockets 1001 during drain', async () => {
+it('rejects binary first frames with 4401, later ones with 4400, and drains with 1001', async () => {
   start()
   await listen()
+  const unauthenticated = await connect()
+  const firstClosed = once(unauthenticated, 'close')
+  unauthenticated.send(Buffer.from('binary'))
+  expect((await firstClosed)[0]).toBe(4401)
   const { ws } = await auth()
   const closed = once(ws, 'close')
   ws.send(Buffer.from('binary'))
@@ -325,8 +330,8 @@ it('logs a busy port and retries without throwing or exposing headers', async ()
   }
 })
 
-async function stalledPeer() {
-  const socket = netConnect(port, '127.0.0.1')
+async function stalledPeer(allowHalfOpen = false) {
+  const socket = netConnect({ port, host: '127.0.0.1', allowHalfOpen })
   socket.on('error', () => {})
   await once(socket, 'connect')
   const response = once(socket, 'data')
@@ -621,5 +626,160 @@ it('times out an idle raw socket and drains idle and half-sent requests', async 
   } finally {
     quiet.destroy()
     partial.destroy()
+  }
+})
+
+it('honours a lowered hello rate limit at the boundary and resets each second', async () => {
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(1000)
+  start({ helloPerSecond: 1 })
+  await listen()
+  expect((await http(`/v1/hello?challenge=${challenge}`)).status).toBe(200)
+  expect((await http(`/v1/hello?challenge=${challenge}`)).status).toBe(429)
+  clock.mockReturnValue(2000)
+  expect((await http(`/v1/hello?challenge=${challenge}`)).status).toBe(200)
+})
+
+it('keeps a ping flood within the send budget and closes 4429 when full', async () => {
+  // The adapter getter seam avoids dependence on the kernel's loopback send buffer.
+  let queued = 8
+  const budget = 12
+  vi.spyOn(WebSocket.prototype, 'bufferedAmount', 'get').mockImplementation(function (
+    this: WebSocket,
+  ) {
+    return sockets.includes(this) ? 0 : queued
+  })
+  const original = WebSocket.prototype.pong
+  const sent: number[] = []
+  vi.spyOn(WebSocket.prototype, 'pong').mockImplementation(function (
+    this: WebSocket,
+    ...args: Parameters<WebSocket['pong']>
+  ) {
+    if (!sockets.includes(this)) {
+      queued += Buffer.byteLength(String(args[0]))
+      sent.push(queued)
+    }
+    return original.apply(this, args)
+  })
+  start(undefined, { sendQueueBytes: budget })
+  await listen()
+  const ws = await connect()
+  const pong = once(ws, 'pong')
+  ws.ping('1234')
+  expect(String((await pong)[0])).toBe('1234')
+  expect(ws.readyState).toBe(WebSocket.OPEN)
+  expect(sent).toEqual([budget])
+  const closed = once(ws, 'close')
+  for (let i = 0; i < 10; i++) ws.ping('1')
+  expect((await closed)[0]).toBe(4429)
+  expect(sent).toEqual([budget])
+  expect(queued).toBeLessThanOrEqual(budget)
+})
+
+it('keeps server keepalive pings inside the send budget', async () => {
+  let queued = 12
+  vi.spyOn(WebSocket.prototype, 'bufferedAmount', 'get').mockImplementation(function (
+    this: WebSocket,
+  ) {
+    return sockets.includes(this) ? 0 : queued
+  })
+  start(undefined, { sendQueueBytes: 12, pingIntervalMs: 20 })
+  await listen()
+  const ws = await connect()
+  await once(ws, 'ping')
+  expect(ws.readyState).toBe(WebSocket.OPEN)
+  queued++
+  expect((await once(ws, 'close'))[0]).toBe(4429)
+})
+
+it.each(['oversize', 'unmasked'])(
+  'terminates a stalled %s error within the close grace',
+  async (error) => {
+    start({ connections: 1, closeGraceMs: 50 })
+    await listen()
+    const stalled = await stalledPeer(true)
+    try {
+      const response = once(stalled, 'data')
+      const ended = once(stalled, 'end')
+      if (error === 'oversize') {
+        // Length alone is enough for ws to reject before buffering the payload.
+        const header = Buffer.alloc(14)
+        header[0] = 0x81
+        header[1] = 0xff
+        header.writeBigUInt64BE(BigInt(HOST_LIMITS.inboundFrameBytes + 1), 2)
+        stalled.write(header)
+      } else stalled.write(Buffer.from([0x81, 0x00]))
+      const [closeFrame] = await response
+      expect(Buffer.isBuffer(closeFrame)).toBe(true)
+      if (!Buffer.isBuffer(closeFrame)) throw new Error('Missing close frame')
+      expect(closeFrame.readUInt16BE(2)).toBe(error === 'oversize' ? 1009 : 1002)
+      await Promise.race([
+        ended,
+        sleep(200).then(() => {
+          throw new Error('Error close grace exceeded')
+        }),
+      ])
+      expect(stalled.writableEnded).toBe(false)
+      // FIN alone does not release a half-open peer. Wait for the Host's close event.
+      await vi.waitFor(() => expect(logs.join('\n')).toContain('"code":1006'), {
+        timeout: 200,
+        interval: 10,
+      })
+      // An admitted replacement proves the errored socket leaves the process count.
+      expect((await auth()).frame.type).toBe('ready')
+    } finally {
+      stalled.destroy()
+    }
+  },
+)
+
+it.each([
+  ['/other', '', 404],
+  ['/v1/stream', 'Origin: https://site.invalid\r\n', 403],
+  ['/v1/stream', '', 503],
+] satisfies [string, string, number][])(
+  'destroys refused upgrade %s %s (%s) even when the peer keeps its write side open',
+  async (path, extra, status) => {
+    start({ rawSockets: 1 })
+    await listen()
+    // A listener cannot start without authority; model its absence at the upgrade boundary.
+    if (status === 503) vi.spyOn(authority, 'snapshot').mockReturnValue(null)
+    const peer = netConnect({ host: '127.0.0.1', port, allowHalfOpen: true })
+    peer.on('error', () => {})
+    try {
+      await once(peer, 'connect')
+      const response = once(peer, 'data')
+      const ended = once(peer, 'end')
+      peer.write(
+        `GET ${path} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\n${extra}Upgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: ${randomBytes(16).toString('base64')}\r\n\r\n`,
+      )
+      expect(String((await response)[0])).toContain(`HTTP/1.1 ${status}`)
+      await ended
+      expect(peer.writableEnded).toBe(false)
+      // The raw cap is one: this request succeeds only after the refused socket leaves raw.
+      expect((await http(`/v1/hello?challenge=${challenge}`)).status).toBe(200)
+    } finally {
+      peer.destroy()
+    }
+  },
+)
+
+it('documents the Host listener without stale no-listener claims', async () => {
+  for (const file of ['docs/host.md', 'docs/remote-access.md', 'README.md', 'CLAUDE.md']) {
+    const text = await readFile(new URL(`../../../../${file}`, import.meta.url), 'utf8')
+    expect(text).not.toMatch(/Host has no listener|clients; no listener/)
+  }
+})
+
+it('does not count received control pings as text-frame activity', async () => {
+  start(undefined, { idleCloseMs: 100 })
+  await listen()
+  const { ws } = await auth()
+  const flood = setInterval(() => {
+    if (ws.readyState === WebSocket.OPEN) ws.ping('keepalive')
+  }, 10)
+  try {
+    expect((await once(ws, 'close'))[0]).toBe(4401)
+  } finally {
+    clearInterval(flood)
   }
 })

@@ -80,6 +80,9 @@ export function startApi(options: {
     if (closing.has(ws)) return
     closing.add(ws)
     ws.close(code)
+    terminateAfterGrace(ws)
+  }
+  function terminateAfterGrace(ws: WebSocket) {
     const timer = setTimeout(() => ws.terminate(), limits.closeGraceMs)
     timer.unref()
     ws.once('close', () => clearTimeout(timer))
@@ -95,9 +98,9 @@ export function startApi(options: {
   }
   const keyset = createKeyset(options.origin, options.fetch)
   const raw = new Set<Socket>()
-  function reject(transport: Duplex) {
-    transport.end(
-      'HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\nContent-Length: 0\r\n\r\n',
+  function reject(transport: Duplex, status = 429) {
+    transport.write(
+      `HTTP/1.1 ${status} ${status === 429 ? 'Too Many Requests' : 'Rejected'}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`,
       () => transport.destroy(),
     )
   }
@@ -146,7 +149,7 @@ export function startApi(options: {
         second = current
         requests = 0
       }
-      if (++requests > API_LIMITS.helloPerSecond) {
+      if (++requests > limits.helloPerSecond) {
         response.writeHead(429).end()
         return
       }
@@ -168,13 +171,14 @@ export function startApi(options: {
     noServer: true,
     maxPayload: HOST_LIMITS.inboundFrameBytes,
     perMessageDeflate: false,
+    autoPong: false,
   })
   wss.on('error', () => {})
   server.on('upgrade', (request, transport, head) => {
     const status =
       requestStatus(request, port) || (request.url !== HOST_API_ROUTES.stream ? 404 : 0)
     if (status || stopped || !options.authority.snapshot()) {
-      transport.end(`HTTP/1.1 ${status || 503} Rejected\r\nConnection: close\r\n\r\n`)
+      reject(transport, status || 503)
       return
     }
     if (wss.clients.size >= limits.connections && rejecting >= limits.rejecting) {
@@ -182,7 +186,12 @@ export function startApi(options: {
       return
     }
     wss.handleUpgrade(request, transport, head, (ws) => {
-      ws.on('error', () => {})
+      ws.on('error', () => {
+        if (!closing.has(ws)) {
+          closing.add(ws)
+          terminateAfterGrace(ws)
+        }
+      })
       if (wss.clients.size > limits.connections) {
         rejecting++
         ws.once('close', () => {
@@ -199,7 +208,7 @@ export function startApi(options: {
         onMessage: (cb) =>
           ws.on('message', (data, binary) => {
             if (binary) {
-              socket.close(4400, '4400')
+              connection.rejectFrame()
               return
             }
             cb(data.toString())
@@ -208,12 +217,23 @@ export function startApi(options: {
         isOpen: () => ws.readyState === WebSocket.OPEN,
         bufferedBytes: () => ws.bufferedAmount,
       }
+      function controlFrame(data?: Buffer) {
+        if (ws.readyState !== WebSocket.OPEN) return
+        if (
+          socket.bufferedBytes() + (data?.length ?? 0) >
+          (options.connectionLimits?.sendQueueBytes ?? HOST_LIMITS.sendQueueBytes)
+        ) {
+          closeSocket(ws, 4429)
+          return
+        }
+        if (data) ws.pong(data)
+        else ws.ping()
+      }
+      ws.on('ping', (data) => controlFrame(data))
       const connection = createConnection({
         ...options.ports,
         socket,
-        ping: () => {
-          if (ws.readyState === WebSocket.OPEN) ws.ping()
-        },
+        ping: () => controlFrame(),
         limits: options.connectionLimits,
         authority: options.authority,
         keyset,

@@ -556,7 +556,7 @@ apps/control/        plain-Node site and control API server, not deployed yet;
 apps/host/           the plain-Node Host and its `phosphor` CLI (src/, and
                      scripts/build.mjs for the bundle): its config, pi's
                      environment, machine checks, session runtime and signed
-                     login/status/logout clients; no listener (docs/host.md)
+                     loopback API for grant-authenticated clients (docs/host.md)
 tools/scripts/             install.sh, icon + screenshot generation, release and
                      validate helpers
 docs/                living technical docs — one file per surface, each

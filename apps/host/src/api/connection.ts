@@ -44,6 +44,7 @@ export interface ConnectionPorts {
     Record<
       | 'authTimeoutMs'
       | 'inboundFrameBytes'
+      | 'sendQueueBytes'
       | 'connectionsPerClient'
       | 'pingIntervalMs'
       | 'idleCloseMs',
@@ -67,6 +68,7 @@ export function createConnection(ports: ConnectionPorts) {
   for (const name of [
     'authTimeoutMs',
     'inboundFrameBytes',
+    'sendQueueBytes',
     'connectionsPerClient',
     'pingIntervalMs',
     'idleCloseMs',
@@ -122,7 +124,7 @@ export function createConnection(ports: ConnectionPorts) {
     const text = JSON.stringify(frame)
     if (
       utf8Length(text) > HOST_LIMITS.outboundFrameBytes ||
-      socket.bufferedBytes() + utf8Length(text) > HOST_LIMITS.sendQueueBytes
+      socket.bufferedBytes() + utf8Length(text) > limits.sendQueueBytes
     ) {
       close(4429)
       return
@@ -250,5 +252,10 @@ export function createConnection(ports: ConnectionPorts) {
         error: { code: 'unsupported', message: 'unsupported' },
       })
   })
-  return { connectionId, close, clientId: () => grant?.client.id }
+  return {
+    connectionId,
+    close,
+    rejectFrame: () => close(grant ? 4400 : 4401),
+    clientId: () => grant?.client.id,
+  }
 }

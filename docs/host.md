@@ -421,8 +421,8 @@ forgets the files only; the machine stays listed until removed in Desktop.
 Login, status, logout, run and service status contact the configured control
 plane. Enrollment sends the public key, hostname, platform, architecture and
 Host version. Status, logout and run send the enrolled UUID. Heartbeats send
-readiness and the Host version, with zero lane counts and a null endpoint; the
-Host has no listener. Requests carry a timestamp, random nonce and Ed25519
+readiness and the Host version, with zero lane counts and a null endpoint.
+Requests carry a timestamp, random nonce and Ed25519
 signature. No repository names, paths, transcripts or provider tokens
 leave the machine. Redirects are refused. Requests time out after 10 seconds;
 responses are capped at 64 KiB and validated with the shared wire contract.
@@ -527,9 +527,9 @@ the run lock.
 | Close code | Meaning                                                                        |
 | ---------- | ------------------------------------------------------------------------------ |
 | 1001       | Host stopping                                                                  |
-| 4400       | Malformed, binary or oversize client frame                                     |
+| 4400       | Malformed or oversize frame; binary frame after auth                           |
 | 1009       | Transport rejects an oversize frame; the Host may log 1006 for that close      |
-| 4401       | Auth missing, unverifiable, expired or not yet valid; idle client              |
+| 4401       | Auth missing, invalid, expired or not yet valid; idle client                   |
 | 4403       | Wrong authority, revoked grant or renewal identity change                      |
 | 4409       | Unsupported protocol version                                                   |
 | 4429       | Too many connections or queued bytes; HTTP 429 during an upgrade is equivalent |
