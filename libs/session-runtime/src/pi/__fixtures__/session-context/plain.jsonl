@@ -1,0 +1,5 @@
+{"type": "session", "version": 3, "id": "fixture-session", "timestamp": "2026-01-01T00:00:00.000Z", "cwd": "/tmp"}
+{"type": "message", "id": "a", "parentId": null, "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "user", "content": "hello world "}}
+{"type": "message", "id": "b", "parentId": "a", "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "assistant", "content": [{"type": "toolCall", "id": "t", "name": "read", "arguments": {"path": "test.txt"}}], "provider": "anthropic", "model": "claude-sonnet-4-5"}}
+{"type": "message", "id": "c", "parentId": "b", "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "toolResult", "content": [{"type": "text", "text": "result"}], "toolCallId": "t", "toolName": "read", "isError": false}}
+{"type": "message", "id": "d", "parentId": "c", "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "assistant", "content": [{"type": "text", "text": "done"}]}}

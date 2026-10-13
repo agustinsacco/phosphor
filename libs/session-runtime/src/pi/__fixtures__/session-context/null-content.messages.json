@@ -1,0 +1,28 @@
+[
+  {
+    "role": "system",
+    "content": ""
+  },
+  {
+    "role": "user",
+    "content": []
+  },
+  {
+    "role": "assistant",
+    "content": []
+  },
+  {
+    "role": "toolResult",
+    "content": [],
+    "toolCallId": "t",
+    "toolName": "read",
+    "isError": false
+  },
+  {
+    "role": "custom",
+    "customType": "empty",
+    "content": [],
+    "display": true,
+    "timestamp": 1767225600000
+  }
+]

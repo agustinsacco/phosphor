@@ -1,0 +1,5 @@
+{"type": "session", "version": 1, "id": "fixture-session", "timestamp": "2026-01-01T00:00:00.000Z", "cwd": "/tmp"}
+{"type": "message", "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "user", "content": "old"}}
+{"type": "message", "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "assistant", "content": null}}
+{"type": "compaction", "timestamp": "2026-01-01T00:00:00.000Z", "summary": "v1 summary", "tokensBefore": 7, "firstKeptEntryIndex": 1}
+{"type": "message", "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "user", "content": "next"}}

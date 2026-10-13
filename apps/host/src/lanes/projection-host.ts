@@ -144,27 +144,30 @@ export function createHostLaneProjection(options: {
       projection.resolveDialog(id)
     },
     snapshot(): SnapshotResult {
-      let snapshot = view()
-      let bytes = Buffer.byteLength(JSON.stringify(snapshot))
-      if (bytes <= SNAPSHOT_BYTES) return { ok: true, snapshot }
-      // Elide only in the delivered copy, oldest first. pi's transcript is unchanged.
-      const messages = structuredClone(snapshot.messages)
-      snapshot = { ...snapshot, messages }
-      for (const message of messages) {
-        if (!('content' in message) || !Array.isArray(message.content)) continue
-        for (const [index, block] of message.content.entries()) {
-          if (block.type !== 'image') continue
-          const omitted = {
-            type: 'text' as const,
-            text: `[image omitted: ${Math.ceil(Buffer.byteLength(block.data) / 1024)} KB]`,
-          }
-          bytes +=
-            Buffer.byteLength(JSON.stringify(omitted)) - Buffer.byteLength(JSON.stringify(block))
-          message.content[index] = omitted
-          if (bytes <= SNAPSHOT_BYTES) return { ok: true, snapshot }
-        }
-      }
-      return { ok: false, reason: 'too-large' }
+      return fitSnapshot(view())
     },
   }
+}
+
+export function fitSnapshot(input: LaneSnapshot): SnapshotResult {
+  let snapshot = input
+  let bytes = Buffer.byteLength(JSON.stringify(snapshot))
+  if (bytes <= SNAPSHOT_BYTES) return { ok: true, snapshot }
+  // Elide only in the delivered copy, oldest first. pi's transcript is unchanged.
+  const messages = structuredClone(snapshot.messages)
+  snapshot = { ...snapshot, messages }
+  for (const message of messages) {
+    if (!('content' in message) || !Array.isArray(message.content)) continue
+    for (const [index, block] of message.content.entries()) {
+      if (block.type !== 'image') continue
+      const omitted = {
+        type: 'text' as const,
+        text: `[image omitted: ${Math.ceil(Buffer.byteLength(block.data) / 1024)} KB]`,
+      }
+      bytes += Buffer.byteLength(JSON.stringify(omitted)) - Buffer.byteLength(JSON.stringify(block))
+      message.content[index] = omitted
+      if (bytes <= SNAPSHOT_BYTES) return { ok: true, snapshot }
+    }
+  }
+  return { ok: false, reason: 'too-large' }
 }

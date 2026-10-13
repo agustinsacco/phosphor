@@ -1,0 +1,24 @@
+[
+  {
+    "role": "system",
+    "content": "second system"
+  },
+  {
+    "role": "compactionSummary",
+    "summary": "second summary",
+    "tokensBefore": 20,
+    "timestamp": 1767225600000
+  },
+  {
+    "role": "user",
+    "content": "keep"
+  },
+  {
+    "role": "user",
+    "content": "after first"
+  },
+  {
+    "role": "user",
+    "content": "after second"
+  }
+]

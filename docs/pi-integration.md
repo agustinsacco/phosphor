@@ -149,6 +149,12 @@ confirmation behavior and remaining recovery limitations.
 
 ## Sessions on disk (drives the sidebar without spawning processes)
 
+The Host mirrors pi 0.87.1 `buildSessionContext` messages in
+`libs/session-runtime/src/pi/session-context.ts`. When pi changes, regenerate its
+RPC goldens with `node libs/session-runtime/src/pi/__fixtures__/session-context/generate.mjs`:
+it uses isolated copies outside the agent directory to avoid pi's legacy-session
+migration, and rewrites only the disposable header cwd to isolate project resources.
+
 - JSONL tree files: `~/.pi/agent/sessions/--<cwd with / replaced by ->--/<timestamp>_<uuid>.jsonl`. Respect `PI_CODING_AGENT_DIR` and `PI_CODING_AGENT_SESSION_DIR`.
 - Line 1 header: `{type:"session", version:3, id, timestamp, cwd, parentSession?}`. All other entries have `id`/`parentId` (8-char hex) forming a **tree**; the current position is the leaf.
 - Entry types: `message` (wraps an AgentMessage), `model_change`, `thinking_level_change`, `compaction` (summary, firstKeptEntryId, tokensBefore), `branch_summary` (fromId, summary), `custom` (extension state, not in context), `custom_message` (in context), `label` (targetId, label), `session_info` (name).

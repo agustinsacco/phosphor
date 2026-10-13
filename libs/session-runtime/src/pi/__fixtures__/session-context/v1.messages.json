@@ -1,0 +1,20 @@
+[
+  {
+    "role": "compactionSummary",
+    "summary": "v1 summary",
+    "tokensBefore": 7,
+    "timestamp": 1767225600000
+  },
+  {
+    "role": "user",
+    "content": "old"
+  },
+  {
+    "role": "assistant",
+    "content": []
+  },
+  {
+    "role": "user",
+    "content": "next"
+  }
+]

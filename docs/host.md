@@ -1021,6 +1021,11 @@ reopening the session. A live viewer keeps earlier items until it reattaches.
 During the post-compaction refresh, a snapshot keeps the earlier transcript,
 the divider and subsequent events in live order.
 
+The unattached snapshot reader reads a stopped lane's context from pi's session
+file, with `state: null`. A null or missing file means an empty transcript: pi
+persists messages only when a turn ends. The same snapshot size and image omission
+rule applies. Reads are synchronous, capped at 64 MiB, and cached for four lanes;
+invalid or inaccessible files return `unknown-lane`. This port is not served yet.
 ### Streams
 
 `lanes/live.ts` binds each live projection to an epoch-scoped lane stream.
