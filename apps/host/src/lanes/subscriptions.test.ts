@@ -420,6 +420,9 @@ describe('subscriptions', () => {
     })
     s.publish()
     await tick()
+    expect(s.received.map((f) => f.type)).toEqual(['event'])
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    await tick()
     expect(s.received.map((f) => f.type)).toEqual(['event', 'snapshot'])
     expect(s.received.at(-1)).toMatchObject({ reset: true, snapshot: { cursor: { seq: 11 } } })
     expect(s.streamLog.mock.calls).toEqual([['lane.stream_reentrant_overflow', { laneId }]])
@@ -445,6 +448,9 @@ describe('subscriptions', () => {
     s.publish()
     await tick()
     expect(attempts).toBe(2)
+    expect(s.received.map((f) => f.type)).toEqual(['event', 'event'])
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    await tick()
     expect(s.received.map((f) => f.type)).toEqual(['event', 'event', 'snapshot'])
     expect(s.received.at(-1)).toMatchObject({ reset: true, snapshot: { cursor: { seq: 3 } } })
     expect(s.streamLog.mock.calls).toEqual([['lane.stream_reentrant_overflow', { laneId }]])
@@ -464,6 +470,9 @@ describe('subscriptions', () => {
     })
     s.topic.delta([summary])
     await tick()
+    expect(s.received.map((f) => f.type)).toEqual(['lanes-delta'])
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    await tick()
     expect(s.received.map((f) => f.type)).toEqual(['lanes-delta', 'lanes'])
     expect(s.received.at(-1)).toMatchObject({ cursor: { seq: 11 } })
     expect(s.streamLog.mock.calls).toEqual([['lane.stream_reentrant_overflow', { topic: 'lanes' }]])
@@ -471,6 +480,167 @@ describe('subscriptions', () => {
     s.topic.delta([summary])
     await tick()
     expect(s.received.at(-1)).toMatchObject({ type: 'lanes-delta', cursor: { seq: 12 } })
+    s.subscriptions.close()
+  })
+})
+
+describe('subscription review guards', () => {
+  it.each(['snapshot', 'replay'] as const)(
+    'drops queued events covered by the %s cut',
+    async (path) => {
+      const s = setup()
+      s.streams.listen(laneId, (frame) => {
+        if (frame?.cursor.seq !== 1) return
+        s.publish()
+        s.subscribe('late', path === 'replay' ? { epoch, seq: 0 } : undefined)
+      })
+      s.publish()
+      s.publish()
+      await tick()
+      const cursors = s.received.map((f) =>
+        f.type === 'snapshot' ? f.snapshot.cursor.seq : f.type === 'event' ? f.cursor.seq : null,
+      )
+      expect(cursors).toEqual(path === 'replay' ? [1, 2, 3] : [2, 3])
+      s.subscriptions.close()
+    },
+  )
+  it('drops queued deltas and attention covered by the list cut', async () => {
+    const s = setup()
+    s.topic.listen((frame) => {
+      if (frame?.cursor.seq !== 1) return
+      s.topic.delta([summary])
+      s.topic.attention({
+        id: `${laneId}:1`,
+        laneId,
+        kind: 'finished',
+        attention: 1,
+        at: summary.createdAt,
+        title: null,
+      })
+      s.subscriptions.handle({ type: 'subscribe', topic: 'lanes', id: 'late' })
+    })
+    s.topic.delta([summary])
+    s.topic.delta([summary])
+    await tick()
+    expect(s.received).toMatchObject([
+      { type: 'lanes', cursor: { seq: 3 } },
+      { type: 'lanes-delta', cursor: { seq: 4 } },
+    ])
+    expect(s.received).toHaveLength(2)
+    s.subscriptions.close()
+  })
+  it('queues publication inside a deferred reset; early and late viewers converge without duplicates', async () => {
+    const s = setup({ replayEvents: 2 })
+    s.subscribe('early')
+    const drop = s.streams.listen(laneId, (frame) => {
+      if (frame?.cursor.seq === 1) for (let n = 0; n < 10; n++) s.publish()
+      if (frame === null) s.publish()
+    })
+    s.subscribe('late')
+    await tick()
+    s.publish()
+    await tick()
+    expect(s.received.filter((f) => f.type === 'snapshot')).toHaveLength(2)
+    await new Promise<void>((resolve) => setImmediate(resolve))
+    await tick()
+    drop()
+    s.publish()
+    await tick()
+    for (const [id, expected] of [
+      ['early', [0, 1, 11, 12, 13]],
+      ['late', [0, 1, 12, 13]],
+    ] as const) {
+      const cursors = s.received
+        .filter((f) => 'id' in f && f.id === id)
+        .map((f) =>
+          f.type === 'snapshot' ? f.snapshot.cursor.seq : f.type === 'event' ? f.cursor.seq : null,
+        )
+      expect(cursors).toEqual(expected)
+    }
+    s.subscriptions.close()
+  })
+  it.each(['incremental', 'reset', 'replay', 'failure'] as const)(
+    'closes the transport and manager when %s send throws',
+    async (path) => {
+      const s = setup()
+      if (path === 'incremental' || path === 'reset') s.subscribe()
+      if (path === 'replay') s.publish()
+      await tick()
+      const send = vi.spyOn(s.pair.server, 'send').mockImplementation(() => {
+        throw new Error('private')
+      })
+      // Deliberately stays open and does not emit onClose; manager cleanup is independent.
+      const close = vi.spyOn(s.pair.server, 'close').mockImplementation(() => {})
+      if (path === 'incremental') s.publish()
+      else if (path === 'reset') s.streams.reset(laneId)
+      else if (path === 'replay') s.subscribe('replay', { epoch, seq: 0 })
+      else s.subscribe('unknown', undefined, '12345678-1234-4234-8234-123456789014')
+      expect(close).toHaveBeenCalledExactlyOnceWith(4429, 'Send failed')
+      expect(s.pair.server.isOpen()).toBe(true)
+      expect(s.subscriptions.size()).toBe(0)
+      const writes = send.mock.calls.length
+      s.subscribe('ignored')
+      s.publish()
+      expect(send).toHaveBeenCalledTimes(writes)
+      s.subscriptions.close()
+    },
+  )
+  it('makes progress at the exact list-byte cap without repeating the list', async () => {
+    vi.useFakeTimers()
+    const reference = setup()
+    reference.topic.attention({
+      id: `${laneId}:1`,
+      laneId,
+      kind: 'finished',
+      attention: 1,
+      at: summary.createdAt,
+      title: null,
+    })
+    const cap = Buffer.byteLength(JSON.stringify({ ...reference.topic.snapshot(), id: 'list' }))
+    reference.subscriptions.close()
+    const s = setup({ sendQueueBytes: cap })
+    s.topic.attention({
+      id: `${laneId}:1`,
+      laneId,
+      kind: 'finished',
+      attention: 1,
+      at: summary.createdAt,
+      title: null,
+    })
+    s.subscriptions.handle({
+      type: 'subscribe',
+      topic: 'lanes',
+      id: 'list',
+      after: { epoch, seq: 0 },
+    })
+    await tick()
+    expect(s.received.map((f) => f.type)).toEqual(['lanes'])
+    expect(vi.getTimerCount()).toBe(1)
+    for (let n = 0; n < 3; n++) {
+      vi.advanceTimersByTime(25)
+      await tick()
+    }
+    expect(s.received.map((f) => f.type)).toEqual(['lanes', 'attention'])
+    expect(vi.getTimerCount()).toBe(0)
+    s.topic.delta([])
+    await tick()
+    expect(s.received.at(-1)).toMatchObject({ type: 'lanes-delta', cursor: { seq: 2 } })
+    s.subscriptions.close()
+  })
+  it('failure logs contain only code, topic and validated trace, never client subscription ids', () => {
+    const s = setup()
+    const trace = 'abcdef0123456789'
+    s.subscriptions.handle({
+      type: 'subscribe',
+      topic: 'lane',
+      laneId: other.replace(/3$/, '4'),
+      id: 'private-client-input',
+      trace,
+    })
+    expect(s.log.mock.calls).toEqual([
+      ['lanes.subscribe_failed', { topic: 'lane', code: 'unknown-lane', trace }],
+    ])
+    expect(JSON.stringify(s.log.mock.calls)).not.toContain('private-client-input')
     s.subscriptions.close()
   })
 })

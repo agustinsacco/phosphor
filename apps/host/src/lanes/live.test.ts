@@ -49,12 +49,13 @@ async function setup(sendQueueBytes = 32 * 1024 * 1024) {
     success: true,
     data: command.type === 'get_messages' ? { messages: [] } : state,
   }))
+  const log = vi.fn()
   const live = createLiveLanes({
     epoch,
     store,
     runtime: { command },
     now: () => Date.UTC(2026, 9, 13),
-    log: vi.fn(),
+    log,
     limits: { replayEvents: 3 },
     unattached(id) {
       if (id !== lane.laneId) return null
@@ -98,6 +99,7 @@ async function setup(sendQueueBytes = 32 * 1024 * 1024) {
   }
   return {
     live,
+    log,
     store,
     command,
     laneId: lane.laneId,
@@ -538,4 +540,71 @@ describe('live lane binding', () => {
     expect(live.sessionFor(second.laneId)).toBe('second')
     live.close()
   })
+})
+
+describe('live lane review guards', () => {
+  it.each(['needs-input', 'finished'] as const)(
+    'serializes reentrant %s transitions and never rolls counters back',
+    async (kind) => {
+      const s = await setup()
+      await s.live.attach(s.laneId, 'pi').ready
+      const counters: number[] = []
+      s.live.streams.listen(s.laneId, (frame) => {
+        if (frame?.event.kind === 'summary') counters.push(frame.event.summary.attention)
+      })
+      const attention: number[] = []
+      s.live.lanesTopic.listen((frame) => {
+        if (frame?.type !== 'attention') return
+        attention.push(frame.event.attention)
+        if (attention.length === 1) s.push({ type: 'queue_update', steering: [], followUp: [] })
+      })
+      if (kind === 'finished') {
+        s.push({ type: 'agent_start' })
+        s.push({ type: 'agent_settled' })
+      } else
+        s.live.push(s.laneId, {
+          kind: 'extension-ui',
+          request: { type: 'extension_ui_request', id: 'ask', method: 'input', title: 'ask' },
+        })
+      expect(attention).toEqual([1])
+      expect(s.store.getLane(s.laneId)?.attention).toBe(1)
+      expect(counters.at(-1)).toBe(1)
+      expect(counters).toEqual([...counters].sort((a, b) => a - b))
+    },
+  )
+  it('publishes the detached stored summary so existing lane and list viewers agree with new viewers', async () => {
+    const s = await setup()
+    await s.live.attach(s.laneId, 'pi').ready
+    expect(s.live.summaryFor(s.laneId)?.activity).toBe('idle')
+    s.subscribe('lane')
+    s.subscriptions.handle({ type: 'subscribe', topic: 'lanes', id: 'old-list' })
+    await tick()
+    s.frames.length = 0
+    s.live.detach(s.laneId)
+    s.subscriptions.handle({ type: 'subscribe', topic: 'lanes', id: 'new-list' })
+    await tick()
+    const stored = s.live.summaryFor(s.laneId)
+    expect(stored?.activity).toBe('stopped')
+    expect(s.frames).toMatchObject([
+      { type: 'event', id: 'lane', event: { kind: 'summary', summary: stored } },
+      { type: 'lanes-delta', id: 'old-list', upsert: [stored] },
+      { type: 'lanes', id: 'new-list', lanes: [stored] },
+    ])
+    expect(s.frames).toHaveLength(3)
+  })
+})
+
+it('bounds dirty transition passes and logs only the lane id', async () => {
+  const s = await setup()
+  await s.live.attach(s.laneId, 'pi').ready
+  let summaries = 0
+  const drop = s.live.lanesTopic.listen((frame) => {
+    if (frame?.type !== 'lanes-delta') return
+    if (++summaries > 10) return
+    s.push({ type: frame.upsert[0]?.activity === 'working' ? 'agent_settled' : 'agent_start' })
+  })
+  s.push({ type: 'agent_start' })
+  drop()
+  expect(summaries).toBe(3)
+  expect(s.log.mock.calls).toEqual([['lane.stream_reentrant_overflow', { laneId: s.laneId }]])
 })

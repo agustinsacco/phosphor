@@ -213,3 +213,15 @@ describe('lanes topic', () => {
     expect(JSON.stringify(invalid.mock.calls)).not.toContain('hidden-value')
   })
 })
+
+it('queues a reset behind the current event and publication behind the reset', () => {
+  const streams = setup()
+  const seen: (number | null)[] = []
+  streams.listen('a', (frame) => {
+    if (frame?.cursor.seq === 1) streams.reset('a')
+    if (frame === null) streams.publish('a', event)
+  })
+  streams.listen('a', (frame) => seen.push(frame?.cursor.seq ?? null))
+  streams.publish('a', event)
+  expect(seen).toEqual([1, null, 2])
+})

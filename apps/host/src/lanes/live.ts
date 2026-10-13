@@ -24,6 +24,8 @@ type Attachment = {
   run: boolean
   ended: boolean
   exited: boolean
+  changing: boolean
+  dirty: boolean
 }
 
 export function createLiveLanes(options: {
@@ -126,43 +128,65 @@ export function createLiveLanes(options: {
         resolvingCommand = false
       }
     }
+    if (event.kind === 'summary' && live) live.last = event.summary
     streams.publish(laneId, event)
     if (event.kind === 'dialog-resolved') changed(laneId)
     if (event.kind === 'control') {
       const summary = summaryFor(laneId)
       if (summary) publish(laneId, { kind: 'summary', summary })
     } else if (event.kind === 'summary') {
-      if (live) live.last = event.summary
       lanesTopic.delta([event.summary])
     }
   }
   function changed(laneId: string) {
     const live = attached.get(laneId)
-    let summary = summaryFor(laneId)
-    if (!live || !summary) return
-    let kind: AttentionKind | undefined
-    if (summary.activity !== live.last.activity) {
-      if (summary.activity === 'needs-input') kind = 'needs-input'
-      else if (summary.activity === 'failed') kind = 'failed'
+    if (!live) return
+    if (live.changing) {
+      live.dirty = true
+      return
     }
-    if (summary.activity === 'idle' && live.run && live.ended) {
-      kind = 'finished'
-      live.run = live.ended = false
+    live.changing = true
+    let passes = 0
+    try {
+      do {
+        live.dirty = false
+        if (++passes > limits.replayEvents) {
+          try {
+            options.log('lane.stream_reentrant_overflow', { laneId })
+          } catch {
+            /* Logging cannot stop pi. */
+          }
+          break
+        }
+        let summary = summaryFor(laneId)
+        if (!summary) return
+        let kind: AttentionKind | undefined
+        if (summary.activity !== live.last.activity) {
+          if (summary.activity === 'needs-input') kind = 'needs-input'
+          else if (summary.activity === 'failed') kind = 'failed'
+        }
+        if (summary.activity === 'idle' && live.run && live.ended) {
+          kind = 'finished'
+          live.run = live.ended = false
+        }
+        if (kind) summary = { ...summary, attention: options.store.bumpAttention(laneId) }
+        const different = JSON.stringify(summary) !== JSON.stringify(live.last)
+        live.last = summary
+        if (kind) {
+          lanesTopic.attention({
+            id: `${laneId}:${summary.attention}`,
+            laneId,
+            attention: summary.attention,
+            kind,
+            at: new Date(options.now()).toISOString(),
+            title: summary.title,
+          })
+        }
+        if (different) publish(laneId, { kind: 'summary', summary })
+      } while (live.dirty && attached.get(laneId) === live)
+    } finally {
+      live.changing = false
     }
-    if (kind) {
-      const attention = options.store.bumpAttention(laneId)
-      summary = { ...summary, attention }
-      lanesTopic.attention({
-        id: `${laneId}:${attention}`,
-        laneId,
-        attention,
-        kind,
-        at: new Date(options.now()).toISOString(),
-        title: summary.title,
-      })
-    }
-    if (JSON.stringify(summary) !== JSON.stringify(live.last))
-      publish(laneId, { kind: 'summary', summary })
   }
   function attach(laneId: string, sessionId: string) {
     if (attached.has(laneId)) throw new Error('lane already attached')
@@ -208,6 +232,8 @@ export function createLiveLanes(options: {
       run: false,
       ended: false,
       exited: false,
+      changing: false,
+      dirty: false,
     }
     attached.set(laneId, live)
     changed(laneId)
@@ -235,8 +261,12 @@ export function createLiveLanes(options: {
     changed(laneId)
   }
   function detach(laneId: string) {
+    const before = summaryFor(laneId)
     attached.get(laneId)?.binding.dispose()
     attached.delete(laneId)
+    const summary = summaryFor(laneId)
+    if (summary && JSON.stringify(before) !== JSON.stringify(summary))
+      publish(laneId, { kind: 'summary', summary })
   }
   return {
     streams,

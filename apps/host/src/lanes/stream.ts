@@ -65,46 +65,44 @@ function notify<T>(listeners: Set<Listener<T>>, frame: T | null) {
 function dispatch<T>(listeners: Set<Listener<T>>, limit: number, overflow: () => void) {
   const queue: (T | null)[] = []
   let dispatching = false
-  let exceeded = false
-  return (frame: T | null) => {
-    if (!exceeded) queue.push(frame)
-    if (queue.length > limit) {
-      exceeded = true
-      queue.length = 0
-    }
-    if (dispatching) return
+  let pending = false
+  const deliver = (frame: T | null) => {
+    if (pending) return
+    queue.push(frame)
+    if (queue.length > limit) deferReset()
+    if (dispatching || pending) return
     dispatching = true
     let drained = 0
     try {
-      while (queue.length && !exceeded) {
+      while (queue.length && !pending) {
         if (++drained > limit) {
-          exceeded = true
+          deferReset()
           break
         }
         const next = queue.shift()
         if (next !== undefined) notify(listeners, next)
       }
-      if (exceeded) {
-        queue.length = 0
-        overflow()
-        queue.length = 0
-      }
     } finally {
-      exceeded = dispatching = false
+      dispatching = false
     }
   }
+  function deferReset() {
+    queue.length = 0
+    pending = true
+    overflow()
+    setImmediate(() => {
+      pending = false
+      deliver(null)
+    })
+  }
+  return deliver
 }
-function overflow<T>(
-  listeners: Set<Listener<T>>,
-  log: StreamLog | undefined,
-  data: Parameters<StreamLog>[1],
-) {
+function overflow(log: StreamLog | undefined, data: Parameters<StreamLog>[1]) {
   try {
     log?.('lane.stream_reentrant_overflow', data)
   } catch {
     /* Safe metadata only. */
   }
-  notify(listeners, null)
 }
 
 export function createLaneStreams(options: {
@@ -136,7 +134,7 @@ export function createLaneStreams(options: {
         replay: [],
         listeners,
         deliver: dispatch(listeners, limits.replayEvents, () =>
-          overflow(listeners, options.log, { laneId: id }),
+          overflow(options.log, { laneId: id }),
         ),
       }
       lanes.set(id, value)
@@ -210,7 +208,7 @@ export function createLanesTopic(options: {
   let seq = 0
   const listeners = new Set<Listener<TopicFrame>>()
   const deliver = dispatch(listeners, limits.replayEvents, () =>
-    overflow(listeners, options.log, { topic: 'lanes' }),
+    overflow(options.log, { topic: 'lanes' }),
   )
   const attention: Extract<TopicFrame, { type: 'attention' }>[] = []
   const cursor = (): StreamCursor => ({ epoch: options.epoch, seq })

@@ -11,6 +11,7 @@ type Subscription = {
   request: Subscribe
   stale: boolean
   cursor?: StreamCursor
+  recovery?: { cursor: StreamCursor; after?: StreamCursor }
   drop(): void
 }
 type Failure = Extract<HostFrame, { type: 'subscribe-failed' }>['code']
@@ -21,7 +22,10 @@ export function createSubscriptions(
   streams: LaneStreams,
   lanesTopic: LanesTopic,
   input: Partial<StreamLimits> = {},
-  log: (message: string, data: { id: string; code: Failure; trace?: string }) => void = () => {},
+  log: (
+    message: string,
+    data: { topic: Subscribe['topic']; code: Failure; trace?: string },
+  ) => void = () => {},
 ) {
   const limits = streamLimits(input)
   const subscriptions = new Map<string, Subscription>()
@@ -42,10 +46,21 @@ export function createSubscriptions(
     clearInterval(timer)
     timer = undefined
   }
+  function sendFailed() {
+    try {
+      socket.close(4429, 'Send failed')
+    } catch {
+      /* Best effort: the manager must close even if the transport throws. */
+    }
+    close()
+  }
+  function covered(sub: Subscription, cursor: StreamCursor) {
+    return sub.cursor?.epoch === cursor.epoch && cursor.seq <= sub.cursor.seq
+  }
   function fail(request: Subscribe, code: Failure, end = true) {
     if (end) remove(request.id)
     try {
-      log('lanes.subscribe_failed', { id: request.id, code, trace: request.trace })
+      log('lanes.subscribe_failed', { topic: request.topic, code, trace: request.trace })
     } catch {
       /* Safe metadata only. */
     }
@@ -58,7 +73,7 @@ export function createSubscriptions(
         } else socket.send(text)
       }
     } catch {
-      close()
+      sendFailed()
     }
   }
   function stale(sub: Subscription) {
@@ -96,7 +111,7 @@ export function createSubscriptions(
       socket.send(text)
       return 'sent'
     } catch {
-      close()
+      sendFailed()
       return 'stale'
     }
   }
@@ -116,19 +131,23 @@ export function createSubscriptions(
       if (sent !== 'sent') return
       sub.cursor = result.snapshot.cursor
     } else {
-      const after = sub.cursor ?? sub.request.after
       const frame = lanesTopic.snapshot()
-      const sent = send(sub, { ...frame, id: sub.request.id })
-      if (sent === 'large') return fail(sub.request, 'too-large')
-      if (sent !== 'sent') return
-      // Attention replay has original cursors, possibly older than the list cursor.
-      for (const attention of lanesTopic.replay(after)) {
+      if (!sub.recovery || sub.recovery.cursor.seq !== frame.cursor.seq) {
+        const after = sub.recovery ? sub.recovery.after : (sub.cursor ?? sub.request.after)
+        const sent = send(sub, { ...frame, id: sub.request.id })
+        if (sent === 'large') return fail(sub.request, 'too-large')
+        if (sent !== 'sent') return
+        sub.recovery = { cursor: frame.cursor, after }
+        sub.cursor = frame.cursor
+      }
+      // Historical attention is sent directly, independently of the live cut.
+      for (const attention of lanesTopic.replay(sub.recovery.after)) {
         const delivered = send(sub, { ...attention, id: sub.request.id })
         if (delivered === 'large') return fail(sub.request, 'too-large')
         if (delivered !== 'sent') return
-        sub.cursor = attention.cursor
+        sub.recovery.after = attention.cursor
       }
-      sub.cursor = frame.cursor
+      sub.recovery = undefined
     }
     sub.stale = false
     if (![...subscriptions.values()].some((s) => s.stale)) {
@@ -150,6 +169,7 @@ export function createSubscriptions(
       sub.drop = streams.listen(frame.laneId, (event) => {
         if (sub.stale) return
         if (!event) return reset(sub)
+        if (covered(sub, event.cursor)) return
         const sent = send(sub, { ...event, id: frame.id })
         if (sent === 'large') return reset(sub)
         if (sent === 'sent') sub.cursor = event.cursor
@@ -172,6 +192,7 @@ export function createSubscriptions(
       sub.drop = lanesTopic.listen((event) => {
         if (sub.stale) return
         if (!event) return reset(sub)
+        if (covered(sub, event.cursor)) return
         const sent = send(sub, { ...event, id: frame.id })
         if (sent === 'large') return reset(sub)
         if (sent === 'sent') sub.cursor = event.cursor
