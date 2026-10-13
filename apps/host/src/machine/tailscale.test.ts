@@ -236,6 +236,21 @@ describe('tailscale probes and presentation', () => {
     expect(found.name).toBeNull()
     expect(setupTailscaleHint(found)).toEqual([])
   })
+  it('does not suggest enable when readiness is unverified, even with a usable name', async () => {
+    // A non-string CertDomains entry makes readiness unknown while the name is still listed.
+    const statusValue = { ...status, CertDomains: [name, 5] }
+    const probe = vi.fn(async (_file: string, args: readonly string[]) =>
+      result(args[0] === 'status' ? JSON.stringify(statusValue) : '{}'),
+    )
+    const found = await inspectTailscale(config, {}, 'linux', {
+      which: async () => '/fake/tailscale',
+      probe,
+    })
+    expect(found.readiness).toBe('unknown')
+    expect(found.name).toBe(name)
+    expect(found.state).toBe('absent')
+    expect(setupTailscaleHint(found)).toEqual([])
+  })
   it.each([
     'missing',
     'stopped',

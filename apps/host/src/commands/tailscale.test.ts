@@ -106,7 +106,12 @@ describe('phosphor tailscale', () => {
   it.each(['status', 'enable', 'disable'] as const)(
     '%s refuses an unusable self name without running a mutation',
     async (action) => {
-      for (const initial of ['{}', 'bad']) {
+      // A route keyed by an empty name classifies as ours without a usable name.
+      const nameless = JSON.stringify({
+        TCP: { [port]: { HTTPS: true } },
+        Web: { [`:${port}`]: { Handlers: { '/': { Proxy: `http://127.0.0.1:${port}` } } } },
+      })
+      for (const initial of ['{}', 'bad', nameless]) {
         const ports = fake(
           initial,
           ours,
