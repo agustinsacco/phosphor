@@ -441,9 +441,10 @@ describe('runUpdate', () => {
       unchanged(f)
     }
     atomicRecord(record, { current: '1.0.0', previous: '0.9.0' }, 0o644)
+    const before = f.messages.length
     expect(await runUpdate(f.context, { rollback: true })).toBe(0)
     expect(readlinkSync(join(f.lib, 'current'))).toBe('versions/0.9.0')
-    expect(f.messages.slice(-2)).toEqual([
+    expect(f.messages.slice(before)).toEqual([
       'restart phosphor run to use 0.9.0',
       'Selected Host 0.9.0.',
     ])
