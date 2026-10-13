@@ -285,50 +285,67 @@ scout · grep`) and which is **never printed as widget lines**
   extension removes the widget when nothing runs. A session with the command
   installed or a recorded delegation keeps a quiet Subagents chip for inspection.
   **Above the composer, a persistent current-work summary** combines foreground
-  delegation tool evidence with background snapshots. It reports parent activity,
-  active subagents and parent-facing attention, even while Artifacts occupies the
-  pane. It starts compact: the disclosure row keeps parent activity, active count,
-  attention, unavailable counts and incomplete-snapshot warnings visible. Settled-only
-  history is labelled Recent work. Expand it for task links, snapshot receipt time,
-  recent outcomes and message-routing guidance; collapse it to reclaim composer space.
-  Expanded entries form a newest-first queue with task previews, agent/activity,
-  qualified time and short identity, rather than repeated profile names. Request
-  timestamps come from the parent's recorded tool-call message, falling back to
-  an observed launch-call start for detached work. They never become child
-  execution starts or restore liveness. Known execution/request times drive ordering;
-  undated entries follow in record order, newest recorded first. Missing task/time
-  evidence is labelled.
-  **View subagents** opens the full pane without expanding the summary. Updates do
-  not change the disclosure state; switching lanes or remounting starts compact.
-  Workflow ancestors and children are not counted twice; native run IDs
-  deduplicate foreground/background handoffs. Historical launch receipts and
-  management calls never count as running. A top-bar badge mirrors the active count
-  and flags attention or unavailable status.
-  Task links open the exact background run/child or the foreground delegation's
-  existing detail component in the shared pane. Recent settled work stays in a
-  quiet disclosure: execution completion is not review acceptance or integration
-  success. The summary's beacon runs only when children are active and the parent
-  is idle. Messages still go to the parent; it does not extend the parent's timer,
-  change Send into Stop, or redirect the composer to a child.
+  delegation tool evidence with background snapshots, even while Artifacts
+  occupies the pane. It starts compact: one line with a pulsing dot while agents
+  run, the headline (`2 agents working · 1 needs parent attention · parent idle`,
+  plus unavailable counts and incomplete-snapshot warnings) and a muted ticker
+  naming the agent that reported most recently and what it is doing
+  (`Write remote.md · bash 12s · 4 tools`). The ticker sits outside the
+  `role="status"` live region because it changes with every tool call.
+  Expanding lists one row per agent (up to eight current, then three recently
+  finished); collapsing reclaims composer space. **View subagents** opens the
+  full pane without expanding the summary. Updates never change the disclosure
+  state; switching lanes or remounting starts compact.
+  **One agent, one row.** pi-subagents projects a single-agent run as a root
+  plus its one `step:0` child; Phosphor shows that as one row routed to the step,
+  whose session holds the activity, and an **Inspect run** link naming the run
+  selects the same row. Workflow and parallel children are rows of their own,
+  grouped under their run. Workflow ancestors and children are not counted twice;
+  native run IDs deduplicate foreground/background handoffs. Historical launch
+  receipts and management calls never count as running. A top-bar badge mirrors
+  the active count and flags attention or unavailable status.
+  **A row says what the agent was asked and what it is doing.** Line one is a
+  title from the delegated prompt and elapsed time (running) or a state word.
+  Delegated prompts often share a long preamble, so the title is the first
+  sentence no other prompt in view contains, with paths shortened to file names;
+  current work and history are compared separately. A call naming several tasks
+  is titled by their count. Titles are display only: identity always comes from
+  native run IDs. Line two is the agent, its current tool and how long it has
+  been open, else `working`, or `quiet 40s` after 15 seconds without a report,
+  then the reported tool count. Each step's prompt binds by its native index
+  for parallel and plain chains; a chain with nested parallel groups binds none,
+  and a workflow prompt is never a child's task. Both lines are fixed height, so
+  updates never move rows. Elapsed and quiet times tick from one shared clock
+  (`useNow`) that runs only while something is active and the window is visible;
+  it never polls. Data arrives from the pushed snapshot, which pi-subagents
+  republishes on each tool call, turn or activity change.
+  Request timestamps come from the parent's recorded tool-call message, falling
+  back to an observed launch-call start for detached work. They never become child
+  execution starts or restore liveness. Known execution/request times drive
+  ordering; undated entries follow in record order, newest recorded first.
+  Rows open the exact background run/child or the foreground delegation's
+  existing detail component in the shared pane. Recently finished work is not
+  review acceptance or integration success. Messages still go to the parent; the
+  summary does not extend the parent's timer, change Send into Stop, or redirect
+  the composer to a child.
   Missing, malformed or later-omitted snapshots retain bounded, memory-only
   evidence (up to 40 roots) as **status unavailable**, not live work or completion.
-  The last snapshot receipt time and incomplete snapshots are qualified. Exact
+  The last report time and incomplete snapshots are qualified. Exact
   native terminal notices can settle missing status; names and artifact paths
   cannot. Closing the session clears this cache, and restarting never restores
   old liveness. Foreground activity requires an execution start observed within
-  the current parent turn; a replayed/orphaned tool cannot revive on a later turn. No additional polling, heartbeat deadline or runner is added.
+  the current parent turn; a replayed/orphaned tool cannot revive on a later turn.
+  No additional polling, heartbeat deadline or runner is added.
   **View subagents**, the footer chip and notice links open the shared Subagents
   pane, also available in the top bar and command palette. It supports docking,
   resizing and fullscreen like Files and Terminal. Its navigator stays anchored
-  while the selected activity body scrolls; a long run list scrolls independently.
-  **Runs & results** includes live and remembered work. Agent rows reserve three
-  nonwrapping lines for task/state, agent/activity and qualified time/identity
-  (plus reported counters for live trees), so tool updates do not change their height.
-  Each group is newest-first; foreground history shows the newest 20 plus active
-  and selected delegations. The recorded coordination view retains its bounded
-  launch ledger, with formatted prompts and exact parent tool receipts. Workflow groups
-  can collapse. Below 640px pane width, list and detail are separate views with
-  **Back to runs** and focus restoration.
+  while the selected detail scrolls; a long list scrolls independently.
+  **Agents** lists live, remembered and foreground work with the same row as
+  the summary: **Working** first, then **Earlier**, each newest first. Children
+  of one workflow or parallel run stay together under a header naming the run,
+  which selects the run itself. Foreground history shows the newest 20 plus
+  active and selected delegations. Below 640px pane width, list and detail are
+  separate views with **Back to runs** and focus restoration.
   Selecting a node asks
   the installed `/subagents-inspect-rpc` command for a bounded, read-only task,
   transcript window and result. Replies are correlated to the exact session,
@@ -340,35 +357,40 @@ scout · grep`) and which is **never printed as widget lines**
   returning to the narrow list or covering the pane with a global page pauses it.
   Failures back off and pause after three attempts; Refresh retries explicitly. Selection changes and
   closing cancel outstanding reads. A settled node gets a final read, not an
-  endless poll. Reported tool/turn counts and elapsed time from a native start
-  appear inside tree rows; absent figures stay absent.
+  endless poll.
   The last view and exact target are remembered against Pi's durable session ID,
   not a process ID. Reopening checks current-branch history or a current native
   snapshot before restoring selection. A clone does not inherit preferences.
   The pane layout may restore like other panes, but never restores an old running
   state. Docking and fullscreen preserve the mounted inspector, including drafts
-  and disclosures; closing it cancels reads. Inspection opens at the handoff, not
-  the transcript tail: **Input** is formatted Markdown, followed by the output.
-  Exact parent-owned tool results are labelled **Output received by supervisor**;
-  child metadata alone never earns that label. Foreground parallel prompts bind
-  to their native child index; individual child reports stay in compact disclosures.
-  Single-run or explicitly correlated child completion notifications are separate
-  **Supervisor received notification** disclosures: a notification may only reference
-  an artifact, so it never replaces the inspected answer. A containing workflow or
-  multi-run batch receipt is never assigned to an individual child.
-  Otherwise the extension's final output is a **Reported result**, explicitly not
-  proof of supervisor delivery. Missing output stays missing. Whole JSON values
-  are pretty-printed; no result is inferred from the last assistant/tool message.
-  Tools, outputs, thinking and intermediate messages live in one initially closed
-  **Activity** disclosure, with compact single-line records and Copy. Additional
-  input messages render as Markdown in their own disclosure. The role/text-only
-  preview never invents per-message times, call/result pairing or tool outcomes.
-  Child file/artifact references stay non-interactive because inspection does not
-  report a verified child workspace or artifact namespace; web links still work.
-  Reading back pauses following until **Jump to latest**. IDs, run-level status
-  qualifications, steering, Stop and snapshot actions live in **Details & actions**,
-  above the scrolling activity. Only the compact status line announces updates,
-  not the entire transcript.
+  and disclosures; closing it cancels reads.
+  **The detail answers three questions in order: what is it doing, what did it
+  return, what was it asked.** It renders from the snapshot at once, before the
+  first read lands. The header carries the title, a state dot and
+  `agent · state · elapsed · tools · turns · #run`, with Refresh. A running agent
+  opens on **Now**: its current activity line and its last six records, newest
+  first. **Result** follows when there is one, tagged by origin: **Received by
+  parent** only for the parent's own settled tool result; otherwise **From the
+  agent's record**, which is not proof of delivery. Child metadata alone never
+  earns the parent tag. A single-run or explicitly correlated child completion
+  notification is a separate **Parent was notified** disclosure: it may only
+  reference a saved file, so it never replaces the inspected answer. A containing
+  workflow or multi-run batch receipt is never assigned to an individual child.
+  Missing output stays missing. Whole JSON values are pretty-printed; no result is
+  inferred from the last assistant/tool message. **Task** shows the delegated
+  prompt as Markdown, clipped with **Show full task** when long, with Copy; later
+  messages to the agent have their own disclosure. **All activity** is one closed
+  disclosure of single-line records (tool calls, outputs, errors, thinking,
+  messages), each expandable with Copy. Records are classified from the
+  inspection reply's reported `kind`, `name` and `isError`, else the
+  `[tool: name]` marker; the preview never invents per-message times,
+  call/result pairing or tool outcomes. Foreground parallel prompts bind to their
+  native child index in the foreground detail. Child file/artifact references stay
+  non-interactive because inspection does not report a verified child workspace
+  or artifact namespace; web links still work. Refreshes keep the reader's scroll
+  position. IDs, run-level status qualifications, steering, Stop and snapshot
+  actions live in **Details & actions**. Only the header's state word announces
+  updates, not the activity.
 - **The completion is a card where the model woke up.** pi-subagents delivers
   it as a `subagent-notify` custom message and marks a plain success
   `display: false` so its own TUI does not badge an idle tab; Phosphor keeps
@@ -378,7 +400,7 @@ scout · grep`) and which is **never printed as widget lines**
   visible even while its siblings run. Explicit child/workflow IDs remain distinct;
   completion does not mean acceptance, and sibling status is labelled as of that
   update. Recognized notices with a run ID offer
-  **Inspect run**, including from Recorded coordination. This uses the same
+  **Inspect run**, including from the Coordination log. This uses the same
   ownership-checked extension command, never a writable child session.
   `items/SubagentNotice.tsx` reads the header (`Background task completed:
 **scout**`) into "scout finished in the background" and folds the output
@@ -398,7 +420,7 @@ scout · grep`) and which is **never printed as widget lines**
   reported state shows "last known", not success. Current `workflow: true`,
   path and resource calls coexist with older `workflowScript` transcripts.
 
-The Subagents panel's **Recorded coordination** view reads Pi's `get_entries`
+The Subagents panel's **Coordination log** view reads Pi's `get_entries`
 only on opening or Refresh. It follows `leafId` and `parentId`, excludes
 abandoned branches, and includes pre-compaction questions and plain
 `subagent_supervisor_reply` entries. It shows at most 200 records and reports

@@ -7,7 +7,8 @@ export interface SubagentInspection {
   status?: string
   task?: string
   finalOutput?: string
-  messages: { role: string; text: string }[]
+  /** `kind`/`name`/`isError` when the extension reports them; never inferred. */
+  messages: { role: string; text: string; kind?: string; name?: string; isError?: boolean }[]
   truncated: boolean
 }
 
@@ -67,7 +68,18 @@ export async function inspectSubagent(
             .flatMap((m: unknown) => {
               if (!m || typeof m !== 'object' || !('text' in m) || typeof m.text !== 'string')
                 return []
-              return [{ role: 'role' in m ? (text(m.role) ?? 'message') : 'message', text: m.text }]
+              const record = m as Record<string, unknown>
+              const kind = text(record.kind)
+              const name = text(record.name)
+              return [
+                {
+                  role: text(record.role) ?? 'message',
+                  text: m.text,
+                  ...(kind ? { kind } : {}),
+                  ...(name ? { name } : {}),
+                  ...(record.isError === true ? { isError: true } : {}),
+                },
+              ]
             }),
           truncated: !!(r.truncated?.task || r.truncated?.messages || r.truncated?.finalOutput),
         })

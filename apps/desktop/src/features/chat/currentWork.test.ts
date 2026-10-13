@@ -152,3 +152,144 @@ it('does not infer success from an empty settled delegation or transport failure
   expect(currentWork(state, null).entries[0]!.state).toBe('status unavailable')
   expect(currentWork({ ...chat(), error: 'disconnected' }, null).entries[0]!.active).toBe(0)
 })
+
+const launch = (id: string, runId: string, args: Record<string, unknown>): ToolState => ({
+  toolCallId: id,
+  toolName: 'subagent',
+  argsText: '',
+  args: { async: true, ...args },
+  status: 'done',
+  startedAt: 5,
+  endedAt: 6,
+  output: null,
+  result: { content: [], details: { asyncId: runId, background: true } },
+})
+const snapshotOf = (runs: unknown[]) =>
+  parseFleetWidget([`PI_SUBAGENT_ASYNC_JSON:${JSON.stringify({ ...fixture.snapshot, runs })}`])!
+const singleRun = (id: string, activity: Record<string, unknown> = {}) => ({
+  id,
+  kind: 'subagent',
+  label: 'worker',
+  state: 'running',
+  startedAt: 10,
+  children: [
+    { id: 'step:0', kind: 'step', label: 'worker', state: 'running', startedAt: 11, activity },
+  ],
+})
+const RUN_A = '6fd80dda-0000-4000-8000-000000000000'
+const RUN_B = '02323497-0000-4000-8000-000000000000'
+const preamble = 'You are a worker in this repository. Follow the house rules.\n'
+
+it('shows a single-agent run once, routed to its step, with the launch prompt', () => {
+  const state = {
+    ...emptyChatSession(),
+    tools: { a: launch('a', RUN_A, { agent: 'worker', task: `${preamble}Write desktop.md` }) },
+  }
+  const { entries } = currentWork(
+    state,
+    snapshotOf([
+      singleRun(RUN_A, {
+        currentTool: 'bash',
+        currentToolStartedAt: 20,
+        toolCount: 4,
+        turnCount: 2,
+        lastActivityAt: 21,
+      }),
+    ]),
+  )
+  expect(entries).toHaveLength(1)
+  expect(entries[0]).toMatchObject({
+    runId: RUN_A,
+    childId: 'step:0',
+    single: true,
+    state: 'running',
+    active: 1,
+    task: `${preamble}Write desktop.md`,
+    startedAt: 11,
+    currentTool: 'bash',
+    currentToolStartedAt: 20,
+    toolCount: 4,
+    turnCount: 2,
+    lastActivityAt: 21,
+  })
+})
+
+it('titles parallel workers by what tells their prompts apart, never by agent name', () => {
+  const state = {
+    ...emptyChatSession(),
+    tools: {
+      a: launch('a', RUN_A, { agent: 'worker', task: `${preamble}Write /repo/briefs/desktop.md` }),
+      b: launch('b', RUN_B, { agent: 'worker', task: `${preamble}Write /repo/briefs/remote.md` }),
+    },
+  }
+  const { entries } = currentWork(state, snapshotOf([singleRun(RUN_A), singleRun(RUN_B)]))
+  expect(entries.map((e) => [e.runId, e.title])).toEqual([
+    [RUN_A, 'Write desktop.md'],
+    [RUN_B, 'Write remote.md'],
+  ])
+})
+
+it('gives each parallel step its own prompt by native index, and a chain with groups none', () => {
+  const parallel = {
+    id: RUN_A,
+    kind: 'subagent',
+    label: 'scout, reviewer',
+    state: 'running',
+    children: [
+      { id: 'step:0', kind: 'step', label: 'scout', state: 'running' },
+      { id: 'step:1', kind: 'step', label: 'reviewer', state: 'queued' },
+    ],
+  }
+  const tasks = [
+    { agent: 'scout', task: 'Map the code' },
+    { agent: 'reviewer', task: 'Review the map' },
+  ]
+  const state = { ...emptyChatSession(), tools: { a: launch('a', RUN_A, { tasks }) } }
+  const { entries } = currentWork(state, snapshotOf([parallel]))
+  expect(entries.map((e) => [e.childId, e.task, e.group?.id, e.single])).toEqual([
+    ['step:0', 'Map the code', RUN_A, undefined],
+    ['step:1', 'Review the map', RUN_A, undefined],
+  ])
+  state.tools.a = launch('a', RUN_A, { chain: [{ parallel: tasks }, ...tasks] })
+  expect(currentWork(state, snapshotOf([parallel])).entries.every((e) => !e.task)).toBe(true)
+})
+
+it('keeps a vanished single run as one unknown row, not two', () => {
+  const remembered = { snapshot: snapshotOf([singleRun(RUN_A)]), receivedAt: 50 }
+  const { entries } = currentWork(emptyChatSession(), snapshotOf([]), remembered)
+  expect(entries).toHaveLength(1)
+  expect(entries[0]).toMatchObject({
+    childId: 'step:0',
+    single: true,
+    state: 'status unavailable',
+    active: 0,
+  })
+})
+
+it('titles a call that names several tasks by their count, not a borrowed prompt', () => {
+  const state = chat()
+  state.tools.fg.args = {
+    tasks: [
+      { agent: 'scout', task: 'Map' },
+      { agent: 'worker', task: 'Fix' },
+    ],
+  }
+  expect(currentWork(state, null).entries[0]).toMatchObject({
+    label: 'scout, worker',
+    task: undefined,
+    title: '2 delegated tasks',
+  })
+})
+
+it("lets a single run's own state win over its step", () => {
+  const state = (root: string, step: string) => {
+    const run = singleRun(RUN_A)
+    run.state = root
+    run.children[0]!.state = step
+    return currentWork(emptyChatSession(), snapshotOf([run])).entries[0]
+  }
+  expect(state('running', 'complete')).toMatchObject({ state: 'running', active: 1 })
+  expect(state('running', 'queued')).toMatchObject({ state: 'queued', active: 1 })
+  expect(state('failed', 'running')).toMatchObject({ state: 'failed', active: 0 })
+  expect(state('complete', 'complete')).toMatchObject({ state: 'complete', active: 0 })
+})

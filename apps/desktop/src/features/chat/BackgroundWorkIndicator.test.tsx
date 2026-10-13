@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, expect, it } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { BackgroundWorkIndicator } from './BackgroundWorkIndicator'
@@ -26,6 +26,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   el.remove()
+  vi.useRealTimers()
 })
 
 function publish(payload: unknown = snapshot, sessionId = 'lane'): void {
@@ -53,15 +54,17 @@ const rowLabels = (): string =>
 const expand = (): void => {
   act(() => toggle().click())
 }
+const status = (): string => el.querySelector('[role="status"]')?.textContent ?? ''
+const ticker = (): string =>
+  el.querySelector('[data-testid="current-work-ticker"]')?.textContent ?? ''
+const pulses = (): number => el.querySelectorAll('.tool-running-dot').length
 
 it('starts compact with counts and attention, keeping task links out of keyboard navigation', () => {
   publish()
   render()
   expect(toggle().getAttribute('aria-expanded')).toBe('false')
   expect(details().hidden).toBe(true)
-  expect(el.querySelector('[role="status"]')?.textContent).toContain(
-    '2 subagents active · 1 needs parent attention',
-  )
+  expect(status()).toBe('2 agents working · 1 needs parent attention · parent idle')
   expand()
   expect(toggle().getAttribute('aria-expanded')).toBe('true')
   expect(details().hidden).toBe(false)
@@ -76,7 +79,7 @@ it('keeps missing and incomplete status visible while collapsed without opening 
   snapshot.runs = []
   snapshot.omitted.runs = 1
   publish()
-  expect(el.querySelector('[role="status"]')?.textContent).toContain('Snapshot incomplete')
+  expect(status()).toContain('snapshot incomplete')
   expect(details().hidden).toBe(true)
 })
 
@@ -113,7 +116,8 @@ it('shows distinguishable tasks and timestamps in a newest-first queue', () => {
   const rows = [...el.querySelectorAll('button[aria-label="worker: running"]')]
   expect(rows[0]?.textContent).toContain('Review shutdown')
   expect(rows[1]?.textContent).toContain('Review schema')
-  expect(rows[0]?.textContent).toContain('Started')
+  expect(rows[0]?.getAttribute('aria-description')).toContain('Started')
+  expect(rows[0]?.getAttribute('data-tooltip')).toBe('Review shutdown')
   expect(rows[0]?.getAttribute('data-tooltip-description')).toContain('new')
 })
 it('keeps expansion through updates but starts another lane compact', () => {
@@ -133,20 +137,21 @@ it('keeps expansion through updates but starts another lane compact', () => {
 it('expands an idle parent’s active, named steps, not finished siblings', () => {
   publish()
   render()
-  expect(strip()?.textContent).toContain(
-    'Parent idle · 2 subagents active · 1 needs parent attention',
-  )
+  expect(status()).toContain('parent idle')
   expand()
   expect(rowLabels()).toContain('validation: running · needs parent attention')
   expect(rowLabels()).toContain('qa: running')
-  expect(strip()?.textContent).toContain('The parent is idle. You can still message it.')
-  expect(strip()?.textContent).toContain('Attention signals are for the parent.')
-  expect(el.querySelector('.phosphor-loader')?.getAttribute('data-animated')).toBe('true')
-  expect(strip()?.textContent).not.toMatch(/tokens|seconds|approval/)
+  // A finished sibling is listed after current work, never pulsing.
+  const finished = el.querySelector('button[aria-label="reviewer: complete"]')!
+  const heading = [...el.querySelectorAll('p')].find((p) => p.textContent === 'Recently finished')!
+  expect(heading.compareDocumentPosition(finished) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  // One pulse in the header, one per running row.
+  expect(pulses()).toBe(3)
+  expect(strip()?.textContent).not.toMatch(/tokens|approval/)
 })
 
 it.each(['streaming', 'booting', 'compacting'])(
-  'does not add a second beacon while the parent is %s',
+  'reports the parent as working while it is %s, apart from its agents',
   (state) => {
     useChatStore.setState({
       sessions: {
@@ -160,10 +165,7 @@ it.each(['streaming', 'booting', 'compacting'])(
     })
     publish()
     render()
-    expect(strip()).not.toBeNull()
-    expand()
-    expect(strip()?.textContent).toContain('Messages still go to the parent, not a child.')
-    expect(el.querySelector('.phosphor-loader')).toBeNull()
+    expect(status()).toBe('2 agents working · 1 needs parent attention · parent working')
   },
 )
 
@@ -187,9 +189,13 @@ it.each(['complete', 'failed', 'partial', 'paused', 'stopped', 'rejected'])(
       child.state = state
     })
     publish()
-    expect(strip()?.textContent).toContain('0 subagents active')
-    expect(el.querySelector('[role="status"]')?.textContent).toContain('Recent work')
-    expect(el.querySelector('.phosphor-loader')).toBeNull()
+    expect(status()).toBe('No agents working · parent idle')
+    expect(pulses()).toBe(0)
+    expect(ticker()).toBe('')
+    expand()
+    expect(strip()?.textContent).toContain('Recently finished')
+    expect(rowLabels()).toContain(`qa: ${state}`)
+    expect(strip()?.textContent).not.toMatch(/accepted|verified/i)
   },
 )
 
@@ -198,10 +204,10 @@ it('qualifies incomplete snapshots rather than inventing active work or a comple
   snapshot.omitted.runs = 1
   publish()
   render()
-  expect(el.querySelector('[role="status"]')?.textContent).toContain('Snapshot incomplete')
+  expect(status()).toBe('No agents working · snapshot incomplete · parent idle')
   expand()
-  expect(strip()?.textContent).toContain('some work may not be shown')
-  expect(el.querySelector('.phosphor-loader')).toBeNull()
+  expect(strip()?.textContent).toContain('Some work was left out of the snapshot.')
+  expect(pulses()).toBe(0)
 })
 
 it('stays absent for missing, foreign-lane and unsupported snapshots', () => {
@@ -229,16 +235,16 @@ it('retains removed or omitted work across remounts without a stale pulse', () =
   send(lines)
   render()
   send()
-  expect(el.querySelector('[role="status"]')?.textContent).toContain('Status unavailable (2)')
+  expect(status()).toBe('No agents working · 2 status unavailable · parent idle')
   expect(details().hidden).toBe(true)
-  expect(strip()?.textContent).toContain('0 subagents active')
-  expect(strip()?.textContent).toContain('Last snapshot received')
-  expect(el.querySelector('.phosphor-loader')).toBeNull()
+  expect(strip()?.textContent).toContain('no current report, not finished')
+  expect(strip()?.textContent).toContain('Last report')
+  expect(pulses()).toBe(0)
   act(() => root.render(<></>))
   render()
   expect(rowLabels()).toContain('validation: status unavailable')
   send(lines)
-  expect(strip()?.textContent).toContain('2 subagents active')
+  expect(status()).toContain('2 agents working')
   send([`PI_SUBAGENT_ASYNC_JSON:${JSON.stringify({ ...snapshot, runs: [] })}`])
   expect(rowLabels()).toContain('validation: status unavailable')
   act(() => useExtensionUiStore.getState().clearSession('lane'))
@@ -268,7 +274,7 @@ it('routes foreground work to its exact delegation without borrowing another lan
     },
   })
   render()
-  expect(strip()?.textContent).toContain('Parent working · 1 subagents active')
+  expect(status()).toBe('1 agent working · parent working')
   expand()
   const button = [...el.querySelectorAll('button')].find((b) =>
     b.getAttribute('aria-label')?.includes('reviewer: running'),
@@ -291,4 +297,85 @@ it('opens this lane inspection and keeps it open when the extension removes the 
   act(() => useExtensionUiStore.setState({ widgets: {} }))
   expect(strip()).toBeNull()
   expect(sessionPanes(useLayoutStore.getState(), 'lane').pane).toBe('subagents')
+})
+
+it('shows a single-agent run once, with its task, and opens its one step', () => {
+  const runId = '20000000-0000-4000-8000-000000000000'
+  vi.useFakeTimers({ now: 1_000_000, toFake: ['Date', 'setInterval', 'clearInterval'] })
+  const chat = useChatStore.getState().sessions.lane!
+  useChatStore.setState({
+    sessions: {
+      lane: {
+        ...chat,
+        tools: {
+          launch: {
+            toolCallId: 'launch',
+            toolName: 'subagent',
+            argsText: '',
+            args: {
+              agent: 'worker',
+              task: 'Shared preamble.\nWrite desktop-first-class.md',
+              async: true,
+            },
+            status: 'done',
+            startedAt: 900_000,
+            endedAt: 900_100,
+            output: null,
+            result: { content: [], details: { asyncId: runId, background: true } },
+          },
+        },
+      },
+    },
+  })
+  const single = (currentTool?: string, lastActivityAt = 995_000) => ({
+    ...snapshot,
+    runs: [
+      {
+        id: runId,
+        kind: 'subagent',
+        label: 'worker',
+        state: 'running',
+        startedAt: 940_000,
+        children: [
+          {
+            id: 'step:0',
+            kind: 'step',
+            label: 'worker',
+            state: 'running',
+            startedAt: 940_000,
+            activity: {
+              lastActivityAt,
+              toolCount: 3,
+              turnCount: 2,
+              ...(currentTool ? { currentTool } : {}),
+            },
+          },
+        ],
+      },
+    ],
+  })
+  publish(single('bash'))
+  render()
+  expect(status()).toBe('1 agent working · parent idle')
+  // A lone prompt titles by its first sentence; the distinct one wins once two share it.
+  expect(ticker()).toBe('Shared preamble. · bash · 3 tools')
+  expand()
+  const rows = [...el.querySelectorAll('[data-testid="subagent-work-row"]')]
+  expect(rows).toHaveLength(1)
+  expect(rows[0]?.textContent).toContain('Shared preamble.')
+  expect(rows[0]?.getAttribute('data-tooltip-description')).toContain(runId)
+  expect(rows[0]?.textContent).toContain('1m 00s')
+  expect(rows[0]?.textContent).not.toContain('Task not reported')
+  // A pushed snapshot moves the row without any polling.
+  publish(single(undefined, 998_000))
+  expect(rows[0]?.isConnected).toBe(true)
+  expect(el.querySelector('[data-testid="subagent-work-row"]')?.textContent).toContain(
+    'worker · working · 3 tools',
+  )
+  // The shared clock ticks elapsed and quiet time while work runs.
+  act(() => vi.advanceTimersByTime(20_000))
+  expect(el.querySelector('[data-testid="subagent-work-row"]')?.textContent).toContain('quiet 22s')
+  expect(el.querySelector('[data-testid="subagent-work-row"]')?.textContent).toContain('1m 20s')
+  act(() => (rows[0] as HTMLButtonElement).click())
+  expect(useSubagentNavigation.getState()).toMatchObject({ runId, childId: 'step:0' })
 })

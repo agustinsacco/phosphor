@@ -12,38 +12,105 @@ import {
   type FleetSnapshot,
 } from './subagentRuns'
 import { toolDetails, tryParseArgs } from './tools/toolSummaries'
+import { distinctTitles } from './subagentPresentation'
 
 export interface WorkEntry {
   id: string
+  /** The agent profile, e.g. `worker`. Several entries can share it. */
   label: string
+  /** Display title from the delegated prompt; identity stays on the IDs below. */
+  title?: string
   task?: string
   requestedAt?: number
   startedAt?: number
   endedAt?: number
+  lastActivityAt?: number
+  toolCount?: number
+  turnCount?: number
   state: string
   active: number
   attention: boolean
   currentTool?: string
+  currentToolStartedAt?: number
   toolCallId?: string
   runId?: string
   childId?: string
+  /** The one step of a single-agent run: the run and the agent are the same work. */
+  single?: boolean
+  /** The workflow or parallel run this child belongs to. */
+  group?: { id: string; label: string }
+  /** A title when there is no single prompt, e.g. one call naming four tasks. */
+  fallbackTitle?: string
+}
+
+/**
+ * pi-subagents projects a single-agent run as a root plus its one step. That
+ * is one agent, not two: show it once and route inspection to the step, the
+ * only node whose session holds activity.
+ */
+export function singleStep(root: FleetNode): FleetNode | undefined {
+  const [step] = root.children
+  return root.kind !== 'workflow' &&
+    root.children.length === 1 &&
+    step?.kind === 'step' &&
+    !step.children.length
+    ? step
+    : undefined
+}
+
+function nodeEntry(node: FleetNode, runId: string, childId?: string): WorkEntry {
+  return {
+    id: `${runId}:${node.id}`,
+    label: node.label,
+    startedAt: node.startedAt,
+    endedAt: node.endedAt,
+    lastActivityAt: node.lastActivityAt,
+    toolCount: node.toolCount,
+    turnCount: node.turnCount,
+    state: node.state,
+    active: Number(isFleetActive(node.state)),
+    attention: node.attention,
+    currentTool: node.currentTool,
+    currentToolStartedAt: node.currentTool ? node.currentToolStartedAt : undefined,
+    runId,
+    childId,
+  }
 }
 
 /** Count leaves, not a workflow and its children twice. Keep routing to the root. */
-function backgroundEntries(nodes: FleetNode[], rootId?: string): WorkEntry[] {
+function backgroundEntries(nodes: FleetNode[], root?: FleetNode): WorkEntry[] {
   return nodes.flatMap((node) => {
-    const children = backgroundEntries(node.children, rootId ?? node.id)
+    const step = root ? undefined : singleStep(node)
+    if (step) {
+      const own = nodeEntry(step, node.id, step.id)
+      // The run's own state wins: a settled root settles its step, and a root
+      // still finishing is not done because its step returned first.
+      const state = isFleetActive(node.state) && isFleetActive(step.state) ? step.state : node.state
+      return [
+        {
+          ...own,
+          single: true,
+          state,
+          active: Number(isFleetActive(state)),
+          attention: step.attention || node.attention,
+          startedAt: step.startedAt ?? node.startedAt,
+          endedAt: step.endedAt ?? node.endedAt,
+          lastActivityAt: step.lastActivityAt ?? node.lastActivityAt,
+          toolCount: step.toolCount ?? node.toolCount,
+          turnCount: step.turnCount ?? node.turnCount,
+          currentTool: step.currentTool ?? node.currentTool,
+          currentToolStartedAt: step.currentTool
+            ? step.currentToolStartedAt
+            : node.currentTool
+              ? node.currentToolStartedAt
+              : undefined,
+        },
+      ]
+    }
+    const children = backgroundEntries(node.children, root ?? node)
     const own: WorkEntry = {
-      id: `${rootId ?? node.id}:${node.id}`,
-      label: node.label,
-      startedAt: node.startedAt,
-      endedAt: node.endedAt,
-      state: node.state,
-      active: Number(isFleetActive(node.state)),
-      attention: node.attention,
-      currentTool: node.currentTool,
-      runId: rootId ?? node.id,
-      childId: rootId ? node.id : undefined,
+      ...nodeEntry(node, root?.id ?? node.id, root ? node.id : undefined),
+      ...(root ? { group: { id: root.id, label: root.label } } : {}),
     }
     if (!children.length) return [own]
     // A workflow can be coordinating between child runs. Its own activity is
@@ -93,16 +160,20 @@ export function currentWork(
     const terminal = completed.get(root.id)
     // A failed workflow does not prove every child failed. A root receipt
     // settles only the root; do not paint its outcome onto child rows.
+    const step = singleStep(root)
     if (terminal)
       return [
         {
           id: root.id,
-          label: root.label,
-          startedAt: root.startedAt,
+          label: step?.label ?? root.label,
+          startedAt: step?.startedAt ?? root.startedAt,
+          toolCount: step?.toolCount ?? root.toolCount,
+          turnCount: step?.turnCount ?? root.turnCount,
           state: terminal,
           active: 0,
           attention: false,
           runId: root.id,
+          ...(step ? { childId: step.id, single: true } : {}),
         },
       ]
     return backgroundEntries([root]).map((entry) => ({
@@ -110,6 +181,7 @@ export function currentWork(
       active: 0,
       attention: false,
       currentTool: undefined,
+      currentToolStartedAt: undefined,
       state: entry.active ? 'status unavailable' : entry.state,
     }))
   })
@@ -127,11 +199,21 @@ export function currentWork(
     const settled = tool.status === 'done' || tool.status === 'error'
     const run = subagentRun(toolDetails(tool), settled)
     const detached = run?.async || call.async
-    // Only enrich the exact root launch; a workflow prompt is not a child's task.
+    // Only the exact launch: a run's prompt belongs to the run (or its single
+    // step); a parallel/chain step gets its own entry by native step index. A
+    // workflow prompt is never a child's task.
     if (run?.runId) {
       for (const entry of entries) {
-        if (entry.runId === run.runId && !entry.childId) {
-          entry.task = call.task
+        if (entry.runId !== run.runId) continue
+        const step = /^step:(\d+)$/.exec(entry.childId ?? '')
+        const task =
+          !entry.childId || entry.single
+            ? (call.task ?? (call.tasks?.length === 1 ? call.tasks[0]!.task : undefined))
+            : step && !call.workflow && !call.script
+              ? call.tasks?.[Number(step[1])]?.task
+              : undefined
+        if (!entry.childId || entry.single || task) {
+          entry.task = task
           entry.requestedAt = requested.get(tool.toolCallId) ?? tool.startedAt
         }
       }
@@ -154,8 +236,15 @@ export function currentWork(
       id: tool.toolCallId,
       toolCallId: tool.toolCallId,
       runId: detached ? run?.runId : undefined,
-      label: call.agent ?? 'Workflow',
-      task: call.task ?? call.workflow,
+      label:
+        call.agent ??
+        ([...new Set(call.tasks?.flatMap((t) => (t.agent ? [t.agent] : [])))].join(', ') ||
+          'Workflow'),
+      task:
+        call.task ?? call.workflow ?? (call.tasks?.length === 1 ? call.tasks[0]!.task : undefined),
+      ...(!call.task && !call.workflow && (call.tasks?.length ?? 0) > 1
+        ? { fallbackTitle: `${call.tasks!.length} delegated tasks` }
+        : {}),
       requestedAt: requested.get(tool.toolCallId) ?? (detached ? tool.startedAt : undefined),
       startedAt: detached ? undefined : tool.startedAt,
       endedAt: detached ? undefined : tool.endedAt,
@@ -177,6 +266,19 @@ export function currentWork(
       currentTool: live
         ? activeChildren?.find((child) => child.currentTool)?.currentTool
         : undefined,
+      toolCount: run?.children.length
+        ? run.children.reduce((sum, child) => sum + (child.toolCount ?? 0), 0)
+        : undefined,
+    })
+  }
+  // Titles are compared within the set a reader sees together: current work
+  // apart from history, so an old launch cannot hide a live brief's name.
+  const current = entries.filter((e) => e.active || e.state === 'status unavailable')
+  const past = entries.filter((e) => !current.includes(e))
+  for (const set of [current, past]) {
+    const titles = distinctTitles(set.map((entry) => entry.task))
+    set.forEach((entry, i) => {
+      entry.title = titles[i] ?? entry.fallbackTitle
     })
   }
   return {

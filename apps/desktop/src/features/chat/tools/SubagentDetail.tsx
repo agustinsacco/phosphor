@@ -91,7 +91,7 @@ export function SubagentDetail({ tool }: { tool: ToolState }): React.JSX.Element
           className="border-border border-b px-3 py-2.5"
         >
           <h4 className="text-text-secondary mb-2 text-sm font-medium">
-            Output received by supervisor
+            Output received by parent
           </h4>
           <div className="max-h-80 overflow-auto text-base">
             {tool.isError ? (
