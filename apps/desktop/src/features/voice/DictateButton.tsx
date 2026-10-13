@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import clsx from 'clsx'
 import { iconButtonClass } from '@/components/ComposerButtons'
 import { MicIcon, Spinner } from '@/components/icons'
+import { TooltipButton } from '@/components/Tooltip'
 import { useComposerFormatting } from '@/features/chat/composer/ComposerField'
 import { useVoiceReady, useVoiceStore } from '@/stores/voice'
 import { insertDictation } from './insertDictation'
@@ -37,13 +38,13 @@ export function DictateButton({
   if (!ready && state === 'idle') return null
   const busy = state === 'starting' || state === 'transcribing'
   return (
-    <button
+    <TooltipButton
       type="button"
       onClick={toggle}
       disabled={busy}
       aria-pressed={state === 'listening'}
       aria-label={LABELS[state]}
-      title={LABELS[state]}
+      tooltip={LABELS[state]}
       className={clsx(iconButtonClass, state === 'listening' && 'text-danger hover:text-danger')}
     >
       {busy ? (
@@ -56,6 +57,6 @@ export function DictateButton({
           )}
         </span>
       )}
-    </button>
+    </TooltipButton>
   )
 }
