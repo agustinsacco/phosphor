@@ -215,13 +215,14 @@ Overall size is page zoom, not a font-size multiplier; see
 a narrow sidebar must not re-flow the list — with the full name in the tooltip; their
 metadata uses `text-base` with secondary ink (primary on the selected row).
 Composer actions have 32px square targets and the composer stays two rows —
-field and footer — with formatting on the keyboard rather than a toolbar strip.
-The model chip is **one line**: the name in `text-lg`, then the provider in
-mono `text-sm` tertiary beside it, shown only when the provider is not one pi
-ships itself. Both truncate, and the provider gives up its width first — the
-name answers the question, the provider only disambiguates two same-named
-models. The tooltip carries both in full. Pane-header controls wrap together at
-narrow widths.
+field and a controls-only footer — with formatting on the keyboard rather than
+a toolbar strip; readouts go in the `text-sm` status strip under the box, never
+on the row. The model chip is **one line** and one split: the name in
+`text-base` medium as the left segment, the thinking level as the right. The
+provider is not on the chip: it is in the tooltip and, in a session, in the
+strip in mono `text-sm`, shown only when the provider is not one pi ships
+itself — the name answers the question, the provider only disambiguates two
+same-named models. Pane-header controls wrap together at narrow widths.
 Placeholders and Changes labels use readable ink. These are scoped role
 migrations, not changes to the global scale or saved body-font preferences.
 

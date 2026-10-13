@@ -115,9 +115,10 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
   }
 
   return (
-    <div className="relative flex min-w-0 max-w-full flex-1 items-center gap-1">
+    <div className="relative flex min-w-0 max-w-full flex-1 items-center">
       <ModelChip
         testId="model-chip"
+        grouped={levelsToRender.length > 1}
         active={open === 'model'}
         // Inert while switching: a second pick against a session that is being
         // disposed and respawned races the restart it would be re-entering.
@@ -136,7 +137,6 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
             ? `Switching to ${switchingTo}…`
             : (currentModel?.name ?? (modelsLoaded ? 'No model' : <ModelChipSkeleton />))
         }
-        provider={switchingTo ? undefined : currentModel?.provider}
       />
 
       {/* Gate on what the menu will actually render (pi's answer when

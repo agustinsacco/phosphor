@@ -14,7 +14,13 @@ function busy(session: ChatSession | undefined): boolean {
   )
 }
 
-/** A plain prompt, independent of the composer's unsent draft and attachments. */
+/**
+ * A plain prompt, independent of the composer's unsent draft and attachments.
+ *
+ * The recovery control, not a second Send: it picks a stopped agent back up
+ * after a restart, a transient error or an unfinished turn. It sits left of
+ * Send behind a hairline so the two never read as one slot.
+ */
 export function ContinueButton({ sessionId }: { sessionId: string }): React.JSX.Element {
   const disabled = useChatStore((s) => busy(s.sessions[sessionId]))
 
@@ -38,7 +44,10 @@ export function ContinueButton({ sessionId }: { sessionId: string }): React.JSX.
       onClick={() => void send()}
       disabled={disabled}
       aria-label="Continue"
-      title='Send "continue"'
+      tooltip={{
+        label: 'Continue',
+        description: 'Sends "continue" so a stopped agent picks up again. Keeps your draft.',
+      }}
       className={iconButtonClass}
     >
       <svg

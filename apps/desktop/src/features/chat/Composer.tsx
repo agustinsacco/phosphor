@@ -8,8 +8,9 @@ import { QueueChips } from './composer/QueueChips'
 import { ModelPicker } from './composer/ModelPicker'
 import { ContextMeter } from './composer/ContextMeter'
 import { ContinueButton } from './composer/ContinueButton'
-import { SwarmSwitch, useSwarm } from './composer/SwarmSwitch'
+import { SwarmSwitch, swarmLook, useSwarm } from './composer/SwarmSwitch'
 import { ContextSourcesMenu } from './composer/ContextSourcesMenu'
+import { namedProvider } from './composer/ModelChip'
 import { submitBehavior } from './composer/submitBehavior'
 import { buildCommandEntries, CommandMenu, type NativeCommand } from './composer/CommandMenu'
 import { useSlashMenu } from './composer/useSlashMenu'
@@ -104,7 +105,11 @@ export function Composer({
   const isStreaming = useChatStore((s) => s.sessions[sessionId]?.isStreaming ?? false)
   const booting = useSessionBooting(sessionId)
   const swarm = useSwarm(sessionId)
+  const swarmPending = swarmLook(swarm) === 'pending'
   const isCompacting = useChatStore((s) => s.sessions[sessionId]?.isCompacting ?? false)
+  // Named in the status strip only when pi does not ship the provider: the
+  // chip shows the model name alone, and two providers can offer one name.
+  const provider = namedProvider(useChatStore((s) => s.sessions[sessionId]?.meta?.model?.provider))
   const piCommands = useChatStore((s) => s.sessions[sessionId]?.commands) ?? []
 
   // Lazy-load the workspace file index the first time an @-mention opens.
@@ -389,8 +394,8 @@ export function Composer({
   const placeholder = isStreaming
     ? `Steer with Enter · queue follow-up with ${formatShortcut('alt', 'Enter')} · Esc to stop`
     : booting
-      ? 'Starting pi…  ( / commands · @ files · ! shell )'
-      : 'Describe a task…  ( / commands · @ files · ! shell )'
+      ? 'Starting pi…'
+      : 'Describe a task…'
 
   return (
     <div className="shrink-0 px-3 pb-4 pt-1 sm:px-5">
@@ -432,9 +437,11 @@ export function Composer({
             'bg-surface relative rounded-xl border shadow-sm transition-colors',
             attachments.dragging
               ? 'border-accent ring-accent/25 ring-2'
-              : swarm?.enabled
-                ? 'border-accent ring-accent/10 ring-1'
-                : 'border-border hover:border-border-focus focus-within:border-border-focus',
+              : swarmPending
+                ? 'border-accent/60 border-dashed'
+                : swarm?.enabled
+                  ? 'border-accent ring-accent/10 ring-1'
+                  : 'border-border hover:border-border-focus focus-within:border-border-focus',
           )}
         >
           <DropOverlay visible={attachments.dragging} />
@@ -497,14 +504,16 @@ export function Composer({
             </div>
           )}
 
-          {/* Footer mirrors the reference: attach on the left, model +
-              thinking + meter on the right, submit/stop as a quiet icon at
-              the far right — never a filled pill. */}
-          <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 pb-2">
-            <div className="flex min-w-0 flex-wrap items-center gap-1">
+          {/* The row holds controls only, in two groups that read left to
+              right as scope then run. Left: what the agent gets (attach,
+              Swarm). Right: the engine, then go. Each group is one unit — the
+              right one drops to its own line before any of its parts wrap,
+              where chips used to wrap one by one. Readouts live in the strip
+              under the box. Submit stays a quiet icon, never a filled pill. */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2.5 pb-2">
+            <div className="flex shrink-0 items-center gap-0.5">
               <AttachButton onFiles={attachments.addFiles} />
               <DictateButton textareaRef={textareaRef} onChange={setText} />
-              <ContextSourcesMenu workspacePath={workspacePath} sessionId={sessionId} />
               <SwarmSwitch sessionId={sessionId} />
               {isCompacting && (
                 <span className="text-text-secondary flex items-center gap-1.5 px-1 text-base">
@@ -513,15 +522,18 @@ export function Composer({
               )}
             </div>
 
-            <div className="ml-auto flex min-w-0 flex-1 basis-64 items-center justify-end gap-1.5">
-              <ContextMeter sessionId={sessionId} />
+            <div className="ml-auto flex min-w-0 items-center gap-1.5">
               <ModelPicker sessionId={sessionId} />
-              <div className="flex items-center gap-1.5">
-                {/* Also while booting: the send button flipping back to its
+              <div className="flex shrink-0 items-center gap-0.5">
+                {/* While booting only: the send button flipping back to its
                     idle self while pi is still starting is what made the
-                    composer look like it had swallowed the prompt. */}
-                {(isStreaming || booting) && <Spinner />}
+                    composer look like it had swallowed the prompt. Once the
+                    turn runs, Stop already says so. */}
+                {booting && !isStreaming && <Spinner />}
+                {/* Continue is recovery, Send is the normal Enter: a hairline
+                    keeps them two controls, never one slot. */}
                 <ContinueButton sessionId={sessionId} />
+                <span className="bg-border mx-0.5 h-4 w-px shrink-0" aria-hidden="true" />
                 {isStreaming ? (
                   <StopIconButton onClick={() => void abort()} />
                 ) : (
@@ -541,14 +553,36 @@ export function Composer({
             {attachWarning}
           </div>
         )}
-        <div
-          className={clsx(
-            'text-text-secondary px-2 pt-1.5 text-base',
-            !text.startsWith('!') && 'opacity-0',
+        {/* The status strip: every readout, one line under the box, each
+            opening the popover it always had. A draft starting with `!` takes
+            the line over to explain itself; an empty field lends its right
+            end to the cheat sheet that used to crowd the placeholder. */}
+        <div className="text-text-tertiary @container flex min-h-6 flex-wrap items-center gap-x-3 gap-y-0.5 px-2 pt-1.5 text-sm">
+          {text.startsWith('!') ? (
+            <span className="text-text-secondary">
+              <span className="font-mono">!cmd</span> runs in your shell and enters context on the
+              next prompt · <span className="font-mono">!!cmd</span> keeps the output out of context
+            </span>
+          ) : (
+            <>
+              <ContextMeter sessionId={sessionId} />
+              <ContextSourcesMenu workspacePath={workspacePath} sessionId={sessionId} />
+              {provider && (
+                <span className="truncate font-mono" data-tooltip={`Served by ${provider}`}>
+                  {provider}
+                </span>
+              )}
+              {/* Yields before it wraps: it fills what the readouts leave and
+                  truncates, and a strip narrower than 36rem drops it. */}
+              {text === '' && !isStreaming && (
+                <span className="@xl:inline ml-auto hidden min-w-0 flex-1 basis-0 truncate text-right">
+                  <span className="font-mono">/</span> commands ·{' '}
+                  <span className="font-mono">@</span> files · <span className="font-mono">!</span>{' '}
+                  shell
+                </span>
+              )}
+            </>
           )}
-        >
-          <span className="font-mono">!cmd</span> runs in your shell and enters context on the next
-          prompt · <span className="font-mono">!!cmd</span> keeps the output out of context
         </div>
         <WidgetSlot sessionId={sessionId} placement="belowEditor" />
       </div>
