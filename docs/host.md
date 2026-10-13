@@ -470,6 +470,8 @@ the runtime may await `get_state` before writing a prompt. Resume and stop hold 
 queue until completion or their deadline. Different lanes run concurrently.
 The per-lane limit of 32 counts queued, in-flight and timed-out operations whose
 runtime promises have not settled. A late settlement frees its slot.
+If recording a terminal receipt fails, it is still delivered, but receipt status
+stays `pending` until a Host restart marks it `unknown`.
 
 Fenced operations require the current controller and fence. A lane without a
 controller acquires one on admission. Takeover and release increase the fence

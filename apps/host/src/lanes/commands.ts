@@ -77,14 +77,36 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     try {
       ports.deliver(clientId, receipt)
     } catch {
-      // The receipt is durable; reconnect can ask for it again.
+      // A reconnect can ask the store for the request's status.
+    }
+  }
+  function elapsed(started: number): number | undefined {
+    try {
+      return Math.max(0, ports.now() - started)
+    } catch {
+      return undefined
     }
   }
   function terminal(job: Job, receipt: Terminal, recorded: boolean, reason?: string): void {
-    const result = durableReceipt(receipt)
-    if (recorded) store.finishRequest(job.frame.requestId, result)
+    let result: Terminal = { requestId: job.frame.requestId, status: 'unknown' }
+    try {
+      result = durableReceipt(receipt)
+    } catch {
+      // Invalid runtime data cannot become a receipt.
+    }
+    if (recorded) {
+      try {
+        store.finishRequest(job.frame.requestId, result)
+      } catch {
+        log('lane.receipt_unrecorded', {
+          laneId: job.frame.laneId,
+          requestId: job.frame.requestId,
+        })
+      }
+    }
     // Count pruning can immediately evict a same-millisecond finish. Never reread here.
     deliver(job.client.id, result)
+    receipt = result
     log('lane.command', {
       laneId: job.frame.laneId,
       requestId: job.frame.requestId,
@@ -102,7 +124,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
           : receipt.status === 'rejected'
             ? receipt.control?.fence
             : undefined,
-      ms: Math.max(0, ports.now() - job.started),
+      ms: elapsed(job.started),
       trace: job.frame.trace,
       reason,
     })
@@ -165,10 +187,12 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
         }
         cleanup(identity.laneId, queue)
       }
-      promise.then(
-        (value) => complete({ answered: true, value }),
-        () => complete({ answered: false, reason: 'transport' }),
-      )
+      promise
+        .then(
+          (value) => complete({ answered: true, value }),
+          () => complete({ answered: false, reason: 'transport' }),
+        )
+        .catch(() => {})
     })
   }
   // Invoke outside answer's settle closures so an unresolved runtime cannot retain run or job.
@@ -190,8 +214,11 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     const { requestId, laneId, op } = frame
     if (queue.controlUnpublished && laneId !== undefined) {
       const control = store.getLane(laneId)?.control
-      if (!control || !publish(laneId, { kind: 'control', control }, queue))
-        return controlFailure(job)
+      if (!control) {
+        queue.controlUnpublished = false
+        return rejected(job, 'unknown-lane', true)
+      }
+      if (!publish(laneId, { kind: 'control', control }, queue)) return controlFailure(job)
     }
     if (op.type === 'lane.create') return rejected(job, 'unsupported', true)
     const lane = laneId === undefined ? null : store.getLane(laneId)
@@ -290,24 +317,9 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       case 'lane.stop': {
         const resume = op.type === 'lane.resume'
         if (resume ? sessionId !== null : sessionId === null) break
-        const completion = dispatch(job, queue, async () => {
-          try {
-            if (resume) await ports.resumeLane(lane)
-            else await ports.stopLane(laneId)
-            return null
-          } catch (error) {
-            const code =
-              typeof error === 'object' && error !== null && 'code' in error
-                ? error.code
-                : undefined
-            if (typeof code === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(code))
-              log('lane.command_error', { laneId, requestId, op: op.type, code })
-            return {
-              code: 'internal',
-              message: resume ? 'the lane could not start' : 'the lane could not stop',
-            } as const
-          }
-        }).then((result) => {
+        const completion = dispatch(job, queue, () =>
+          lifecycle(laneId, requestId, op.type, lane),
+        ).then((result) => {
           if (!result.answered)
             return terminal(job, { requestId, status: 'unknown' }, true, result.reason)
           terminal(
@@ -325,6 +337,28 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     }
     terminal(job, { requestId, status: 'done' }, true)
   }
+  async function lifecycle(
+    laneId: string,
+    requestId: string,
+    opType: 'lane.resume' | 'lane.stop',
+    lane: StoredLane,
+  ) {
+    const resume = opType === 'lane.resume'
+    try {
+      if (resume) await ports.resumeLane(lane)
+      else await ports.stopLane(laneId)
+      return null
+    } catch (error) {
+      const code =
+        typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
+      if (typeof code === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(code))
+        log('lane.command_error', { laneId, requestId, op: opType, code })
+      return {
+        code: 'internal',
+        message: resume ? 'the lane could not start' : 'the lane could not stop',
+      } as const
+    }
+  }
   async function drain(key: string, queue: LaneQueue): Promise<void> {
     queue.draining = true
     while (queue.jobs.length) {
@@ -335,16 +369,19 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
         execution = execute(job, queue)
       } catch {
         terminal(job, { requestId: job.frame.requestId, status: 'unknown' }, true, 'host')
+      } finally {
+        queue.jobs.shift()
+        if (!execution) job.resolve()
       }
-      queue.jobs.shift()
       if (execution) {
         const completion = execution.completion
           .catch(() => {
             terminal(job, { requestId: job.frame.requestId, status: 'unknown' }, true, 'host')
           })
           .finally(job.resolve)
+          .catch(() => {})
         if (!execution.detached) await completion
-      } else job.resolve()
+      }
     }
     queue.draining = false
     cleanup(key, queue)
@@ -385,7 +422,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
         queues.set(key, queue)
       }
       const completion = new Promise<void>((resolve) => queue.jobs.push({ ...jobBase, resolve }))
-      if (!queue.draining) void drain(key, queue)
+      if (!queue.draining) void drain(key, queue).catch(() => {})
       return completion
     },
     status(clientId: string, requestId: string): void {

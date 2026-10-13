@@ -432,6 +432,31 @@ describe('lane command guards and operations', () => {
     await next
   })
 
+  it('clears unpublished control for a pruned lane and deletes its queue after outstanding work settles', async () => {
+    const deletion = vi.spyOn(Map.prototype, 'delete')
+    const running = service.submit(one, frame())
+    ports.publish = () => {
+      throw new Error('stream failed')
+    }
+    try {
+      await service.submit(two, frame({ type: 'control.take' }))
+      store.markRemoved(lane.laneId)
+      store.pruneRemovedLanes(Date.now() + 31 * 24 * 60 * 60 * 1000)
+      expect(store.getLane(lane.laneId)).toBeNull()
+      const missing = frame({ type: 'abort' }, 3)
+      await service.submit(two, missing)
+      expect(last(missing.requestId)).toMatchObject({ status: 'rejected', code: 'unknown-lane' })
+      expect(store.getReceipt(missing.requestId, two.id)).toEqual(last(missing.requestId))
+      expect(command).toHaveBeenCalledTimes(1)
+      expect(deletion.mock.calls.filter(([key]) => key === lane.laneId)).toHaveLength(0)
+      finish(0)
+      await running
+      expect(deletion.mock.calls.filter(([key]) => key === lane.laneId)).toHaveLength(1)
+    } finally {
+      deletion.mockRestore()
+    }
+  })
+
   it('fails closed when control republication keeps failing', async () => {
     ports.publish = () => {
       throw new Error('stream failed')
@@ -776,6 +801,110 @@ describe('lane command guards and operations', () => {
     await service.submit(one, request)
     expect(last(request.requestId)?.status).toBe('done')
     expect(store.getReceipt(request.requestId, one.id)).toBeNull()
+  })
+
+  it('delivers a settled pi receipt even when every finishRequest throws', async () => {
+    const finishRequest = vi.spyOn(store, 'finishRequest').mockImplementation(() => {
+      throw new Error('private storage failure')
+    })
+    try {
+      const request = frame()
+      const running = service.submit(one, request)
+      finish(0)
+      await running
+      expect(last(request.requestId)).toEqual({ requestId: request.requestId, status: 'done' })
+      expect(logs).toContainEqual({
+        message: 'lane.receipt_unrecorded',
+        data: { laneId: lane.laneId, requestId: request.requestId },
+      })
+      service.status(one.id, request.requestId)
+      expect(last(request.requestId)?.status).toBe('pending')
+      store.markInterrupted()
+      service.status(one.id, request.requestId)
+      expect(last(request.requestId)?.status).toBe('unknown')
+      expect(JSON.stringify(logs)).not.toContain('private storage failure')
+      await vi.advanceTimersByTimeAsync(0)
+    } finally {
+      finishRequest.mockRestore()
+    }
+  })
+
+  it('delivers unknown for invalid runtime data without throwing or leaving the submission unresolved', async () => {
+    const request = frame()
+    const running = service.submit(one, request)
+    finish(0, {
+      ...success,
+      data: {
+        get text(): string {
+          throw new Error('invalid runtime data')
+        },
+      },
+    })
+    await running
+    expect(last(request.requestId)).toEqual({ requestId: request.requestId, status: 'unknown' })
+    expect(store.getReceipt(request.requestId, one.id)).toEqual(last(request.requestId))
+    expect(logs).toContainEqual({
+      message: 'lane.command',
+      data: expect.objectContaining({ status: 'unknown' }),
+    })
+  })
+
+  it('resolves synchronous control.take and drains the next queued job when every finishRequest throws', async () => {
+    const deletion = vi.spyOn(Map.prototype, 'delete')
+    const finishRequest = vi.spyOn(store, 'finishRequest').mockImplementation(() => {
+      throw new Error('storage failed')
+    })
+    sessions.clear()
+    const response = deferred<void>()
+    ports.resumeLane = () => response.promise
+    try {
+      const running = service.submit(one, frame({ type: 'lane.resume' }))
+      const take = frame({ type: 'control.take' })
+      let takeResolved = false
+      const taken = service.submit(one, take).then(() => {
+        takeResolved = true
+      })
+      const read = frame({ type: 'lane.markRead', upTo: 0 })
+      let readResolved = false
+      const next = service.submit(one, read).then(() => {
+        readResolved = true
+      })
+      expect(last(take.requestId)).toBeUndefined()
+      response.release()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(takeResolved).toBe(true)
+      expect(readResolved).toBe(true)
+      expect(last(take.requestId)).toMatchObject({ status: 'done', fence: 3 })
+      expect(last(read.requestId)?.status).toBe('done')
+      expect(deletion.mock.calls.filter(([key]) => key === lane.laneId)).toHaveLength(1)
+      await Promise.all([running, taken, next])
+    } finally {
+      finishRequest.mockRestore()
+      deletion.mockRestore()
+    }
+  })
+
+  it('delivers and drains when the terminal clock throws', async () => {
+    const take = frame({ type: 'control.take' })
+    ports.now = vi
+      .fn(() => Date.now())
+      .mockReturnValueOnce(Date.now())
+      .mockImplementationOnce(() => {
+        throw new Error('clock failed')
+      })
+    await service.submit(one, take)
+    expect(receipts(take.requestId)).toEqual([
+      { requestId: take.requestId, status: 'done', fence: 2 },
+    ])
+    expect(
+      logs.filter((entry) => entry.message === 'lane.command').map((entry) => entry.data),
+    ).toEqual([expect.objectContaining({ ms: undefined })])
+    const request = frame({ type: 'abort' }, 2)
+    const next = service.submit(one, request)
+    expect(command).toHaveBeenCalledTimes(1)
+    finish(0)
+    await next
+    expect(last(request.requestId)?.status).toBe('done')
   })
 
   it('delivery and logging failures do not strand the lane queue', async () => {
