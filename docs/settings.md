@@ -5,7 +5,7 @@ A **modal**, not a second window (`ModalOverlay` in
 scale and the app's lifecycle. Cmd/Ctrl+, opens it; Cmd/Ctrl+/ opens it on
 Keybindings.
 
-Ten top-level tabs and five indented under Extensions. MCP Connectors is always
+Eleven top-level tabs and five indented under Extensions. MCP Connectors is always
 present; the other four belong to packages. Subagents requires an installed
 package. The existing provider tabs also show for declared packages so their
 health/configuration screens remain reachable during setup. The package list
@@ -15,6 +15,7 @@ and a tab whose package vanished falls back to Extensions.
 | Tab              | What it is                                                           | Writes                                                  |
 | ---------------- | -------------------------------------------------------------------- | ------------------------------------------------------- |
 | Appearance       | Theme, UI scale, per-surface font sizes, mono font                   | Phosphor prefs (electron-store)                         |
+| Writing          | Spellcheck switch, autocomplete, learned prompts                     | Phosphor prefs; `<userData>/writing/prompts.jsonl`      |
 | Agent            | pi's agent defaults, global or per project                           | `~/.pi/agent/settings.json` or `<ws>/.pi/settings.json` |
 | Accounts         | Subscription logins pi can drive                                     | pi's provider auth                                      |
 | Extensions       | pi package management                                                | shells out to `pi install` / `remove` / `update`        |
@@ -74,6 +75,41 @@ it from anywhere in settings.
 - Mono font: JetBrains Mono is bundled; the other entries use whatever the OS
   has.
 - All of it is Phosphor's own state. Nothing here touches pi.
+
+## Writing
+
+Spelling and autocomplete in Phosphor's own text fields
+(`AppPrefs.writing`, `libs/shared/src/writing.ts`). Neither calls a model and
+nothing leaves the machine.
+
+- **Check spelling** (on by default) switches Chromium's spellchecker for the
+  app's session (`session.setSpellCheckerEnabled`, applied at launch and on
+  change). macOS uses the system spellchecker and its language setting;
+  Windows and Linux use Hunspell, whose dictionaries Chromium downloads from
+  Google's CDN. Typed text is never sent.
+- **The right-click menu** is `features/writing/TextFieldMenu.tsx`: one
+  window-level `contextmenu` listener for textareas and text inputs. It stands
+  aside when a component already opened its own menu, and skips Monaco and
+  xterm, password fields and disabled fields. Suggestions come from the
+  preload's synchronous `spellingSuggestions` (`webFrame.isWordMisspelled` /
+  `getWordSuggestions`), not from the `context-menu` event's
+  `dictionarySuggestions`, which came back empty on macOS with the spelling
+  language set to Automatic (electron#24455) while `webFrame` answered.
+  _Add to dictionary_ also writes to the OS dictionary on macOS and Windows,
+  which other apps share. Cut / Copy / Paste / Select all run in main
+  (`writing:edit` → `webContents.paste()` and friends), so a paste still fires
+  the field's paste event (images, list continuation).
+- **Autocomplete** (off by default) shows ghost text in both composers
+  (`ComposerField`). While it is on, every prompt a composer sends is kept in
+  `<userData>/writing/prompts.jsonl` (mode 0600, the newest 2,000, no `/`
+  or `!` commands, nothing over 2,000 characters). It starts empty: pi's
+  session files are not read, because they also hold messages no person typed
+  (subagent supervisor prompts, test runs). The model is
+  `lib/writing/predictor.ts`: an earlier prompt the current line starts (after
+  12 typed characters), else word counts with two words of context, else your
+  vocabulary from three typed letters. Only confident guesses show; the
+  thresholds and how they were tuned are in that file.
+- **Learned prompts** shows the count and clears the file.
 
 ## Agent
 

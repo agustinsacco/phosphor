@@ -135,6 +135,10 @@
     "./workspace-search": {
       "types": "./src/workspace-search.ts",
       "default": "./src/workspace-search.ts"
+    },
+    "./writing": {
+      "types": "./src/writing.ts",
+      "default": "./src/writing.ts"
     }
   },
   "dependencies": {

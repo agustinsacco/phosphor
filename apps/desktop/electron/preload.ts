@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import { contextBridge, ipcRenderer, webFrame, webUtils } from 'electron'
 import type { IpcInvokeChannel, IpcInvokeMap, PhosphorApi } from '@shared/ipc'
 import { sessionEventChannel } from '@shared/ipc'
 import type {
@@ -96,6 +96,14 @@ const api: PhosphorApi = {
       return webUtils.getPathForFile(file)
     } catch {
       return ''
+    }
+  },
+
+  spellingSuggestions(word: string) {
+    try {
+      return webFrame.isWordMisspelled(word) ? webFrame.getWordSuggestions(word) : null
+    } catch {
+      return null
     }
   },
 }

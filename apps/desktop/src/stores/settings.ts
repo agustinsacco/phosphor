@@ -3,6 +3,7 @@ import { DEFAULT_FONT_PREFS, type FontPrefs, type ThemePreference } from '@share
 import { useLanePrefsStore } from './lanePrefs'
 import { useContextBudgetStore } from './contextBudgetPref'
 import { useContextFilesPrefStore } from './contextFilesPref'
+import { useWritingStore } from './writing'
 
 interface SettingsState {
   theme: ThemePreference
@@ -91,6 +92,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => {
       useLanePrefsStore.getState().applyLanePrefs(prefs.lanes)
       useContextBudgetStore.getState().applyContextBudget(prefs.contextBudget)
       useContextFilesPrefStore.getState().apply(prefs.contextFiles)
+      useWritingStore.getState().apply(prefs.writing)
     },
   }
 })

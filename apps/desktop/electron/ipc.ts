@@ -20,6 +20,7 @@ import { registerFeedbackHandlers } from './ipc/feedback-handlers'
 import { registerControlHandlers } from './ipc/control-handlers'
 import { registerAccountHandlers } from './ipc/account-handlers'
 import { registerVoiceHandlers } from './ipc/voice-handlers'
+import { registerWritingHandlers } from './ipc/writing-handlers'
 
 /**
  * Register every IPC invoke handler, grouped by domain.
@@ -51,4 +52,5 @@ export function registerIpcHandlers(): void {
   registerAccountHandlers()
   registerControlHandlers()
   registerVoiceHandlers()
+  registerWritingHandlers()
 }

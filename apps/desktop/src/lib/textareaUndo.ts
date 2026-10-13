@@ -2,7 +2,10 @@
  * textarea.value does not. Only plain text, never insertHTML. The controlled
  * caller still applies the requested value when this deprecated API is absent.
  */
-export function recordTextareaEdit(el: HTMLTextAreaElement, value: string): void {
+export function recordTextareaEdit(
+  el: HTMLTextAreaElement | HTMLInputElement,
+  value: string,
+): void {
   const before = el.value
   if (before === value || typeof el.ownerDocument.execCommand !== 'function') return
   let from = 0

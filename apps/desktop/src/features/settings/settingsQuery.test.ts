@@ -108,6 +108,7 @@ describe('SETTINGS_INDEX against the tab sources', () => {
     VoiceTab: 'voice',
     WebAccessTab: 'web-access',
     WorkspacesTab: 'workspaces',
+    WritingTab: 'writing',
   }
   const dir = resolve(import.meta.dirname, 'tabs')
   const files = readdirSync(dir).filter((f) => f.endsWith('.tsx') && !f.includes('.test.'))

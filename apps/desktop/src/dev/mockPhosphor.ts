@@ -934,6 +934,13 @@ const MOCK_CONTEXT_BREAKDOWN = JSON.stringify({
   approximate: true,
 })
 
+const mockLearnedPrompts: string[] = [
+  'ok good lets open a PR for this',
+  'ok good lets open a PR and wait for checks',
+  'run the tests and fix whatever breaks',
+  'can you review the diff for bugs and regressions',
+]
+
 export function installMockPhosphor(): void {
   const api: PhosphorApi = {
     // The browser harness has no Electron; report the real host so key hints
@@ -1942,6 +1949,21 @@ export function installMockPhosphor(): void {
           return mockClipboardWriteImage(args[0] as { data: string; mimeType: string })
         case 'clipboard:readImage':
           return mockClipboardReadImage()
+        // Writing: no spellchecker and no clipboard here, but autocomplete can
+        // learn in memory, seeded so the ghost text shows on a fresh harness.
+        case 'writing:prompts':
+          return Promise.resolve([...mockLearnedPrompts])
+        case 'writing:recordPrompt':
+          mockLearnedPrompts.push(String(args[0]).trim())
+          return Promise.resolve(undefined)
+        case 'writing:clearPrompts':
+          mockLearnedPrompts.length = 0
+          return Promise.resolve(undefined)
+        case 'writing:learnWord':
+          return Promise.resolve(false)
+        case 'writing:setPrefs':
+        case 'writing:edit':
+          return Promise.resolve(undefined)
         case 'gh:available':
           return Promise.resolve(true)
         case 'gh:prForBranch':
@@ -2502,6 +2524,8 @@ export function installMockPhosphor(): void {
     // The browser harness has no Electron, so there is no real path — files
     // dropped here are rejected by toAttachment rather than half-attached.
     pathForFile: () => '',
+    // No Chromium spellchecker without Electron: every word reads as correct.
+    spellingSuggestions: () => null,
     piCommand: (sessionId, command) =>
       (api.invoke as (c: string, ...a: unknown[]) => Promise<never>)(
         'pi:command',

@@ -24,6 +24,7 @@ import type {
 import type { ArtifactListing, ArtifactSnapshot } from './artifacts'
 import type { ConnectorCheckResult } from './connectors'
 import type { ContextFileKind } from './context-files'
+import type { EditCommand, WritingPrefs } from './writing'
 import type {
   RoutineCheck,
   RoutineInput,
@@ -350,6 +351,23 @@ export interface IpcInvokeMap {
   'clipboard:readImage': { args: []; result: { data: string; mimeType: string } | null }
   'clipboard:writeFiles': { args: [paths: string[], cut: boolean]; result: void }
   'clipboard:readFiles': { args: []; result: { paths: string[]; cut: boolean } }
+
+  /** Saves Settings → Writing and applies the spellchecker switch to the window. */
+  'writing:setPrefs': { args: [prefs: WritingPrefs]; result: void }
+  /**
+   * Runs an edit command on the sender's focused field, the way the Edit menu
+   * does. The text-field menu needs it for Paste: the sandboxed renderer cannot
+   * read the clipboard, and this path still fires the field's paste event.
+   */
+  'writing:edit': { args: [command: EditCommand]; result: void }
+  /** Adds a word to the spellchecker's dictionary (the OS one on macOS/Windows). */
+  'writing:learnWord': { args: [word: string]; result: boolean }
+  /** Prompts kept to learn from, oldest first. */
+  'writing:prompts': { args: []; result: string[] }
+  /** Keep one sent prompt to learn from. Main drops what `isLearnablePrompt` rejects. */
+  'writing:recordPrompt': { args: [text: string]; result: void }
+  /** Forget every learned prompt. */
+  'writing:clearPrompts': { args: []; result: void }
 
   'fs:listFiles': { args: [workspacePath: string]; result: string[] }
   /** Effective settings: global merged with the workspace override (pi semantics). */
@@ -1080,6 +1098,16 @@ export interface PhosphorApi {
    * attachments are handed to pi as paths, so it needs the real location.
    */
   pathForFile(file: File): string
+
+  /**
+   * Spelling suggestions for one word, from Chromium's spellchecker through
+   * `webFrame`: null when the word is spelled correctly (or no dictionary is
+   * loaded), otherwise the suggestions, possibly none. Synchronous so the
+   * right-click menu can open at once. Not the `context-menu` event's
+   * `dictionarySuggestions`, which came back empty on macOS with the spelling
+   * language set to Automatic (electron#24455) while this answered.
+   */
+  spellingSuggestions(word: string): string[] | null
 
   /** Convenience wrapper: send an RPC command and get the typed response data. */
   piCommand<T extends RpcCommand['type']>(

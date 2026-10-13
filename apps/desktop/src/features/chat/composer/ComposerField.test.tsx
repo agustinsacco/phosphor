@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, useRef, useState } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import type { PhosphorApi } from '@shared/ipc'
+import { DEFAULT_WRITING_PREFS } from '@shared/writing'
+import { useWritingStore } from '@/stores/writing'
 import { ComposerField } from './ComposerField'
 
 // jsdom has no ResizeObserver and the autogrow hook installs one on mount.
@@ -35,10 +38,12 @@ function Harness({
   initial = '',
   onSubmit = () => {},
   onKeyDown,
+  autocomplete,
 }: {
   initial?: string
   onSubmit?: () => void
   onKeyDown?: (event: React.KeyboardEvent<HTMLTextAreaElement>) => boolean
+  autocomplete?: boolean
 }): React.JSX.Element {
   const [value, setValue] = useState(initial)
   const ref = useRef<HTMLTextAreaElement>(null)
@@ -50,6 +55,7 @@ function Harness({
       onSubmit={onSubmit}
       onKeyDown={onKeyDown}
       onPasteFiles={() => {}}
+      autocomplete={autocomplete}
       placeholder="type here"
       data-testid="field"
     />
@@ -240,5 +246,148 @@ describe('ComposerField', () => {
     press('Enter')
     expect(onKeyDown).toHaveBeenCalledOnce()
     expect(onSubmit).not.toHaveBeenCalled()
+  })
+})
+
+describe('ComposerField autocomplete', () => {
+  const DRAFT = 'ok good lets op'
+
+  beforeEach(async () => {
+    window.phosphor = {
+      platform: 'darwin',
+      invoke: vi.fn(async (channel: string) =>
+        channel === 'writing:prompts'
+          ? ['ok good lets open a PR', 'ok good lets open a PR now']
+          : undefined,
+      ),
+    } as unknown as PhosphorApi
+    useWritingStore.setState({ prefs: { spellcheck: true, autocomplete: true } })
+    await useWritingStore.getState().load()
+  })
+
+  afterEach(() => {
+    useWritingStore.setState({ prefs: DEFAULT_WRITING_PREFS })
+    delete (window as { phosphor?: PhosphorApi }).phosphor
+  })
+
+  /** Render, put the caret at the end and focus, as a user mid-sentence would. */
+  function typed(text: string, autocomplete?: boolean): void {
+    render(<Harness initial={text} autocomplete={autocomplete} />)
+    caretAt(text.length)
+    act(() => field().focus())
+  }
+
+  const ghost = (): string | null =>
+    document.querySelector('[data-testid="composer-suggestion"] span:last-child')?.textContent ??
+    null
+
+  it('shows the suggestion after the caret and accepts it with Tab', () => {
+    typed(DRAFT)
+    expect(ghost()).toBe('en a PR now')
+    expect(press('Tab').defaultPrevented).toBe(true)
+    expect(field().value).toBe('ok good lets open a PR now')
+  })
+
+  it('accepts it with → at the end', () => {
+    typed(DRAFT)
+    press('ArrowRight')
+    expect(field().value).toBe('ok good lets open a PR now')
+  })
+
+  it('takes one word with ⌥→ on macOS', () => {
+    typed(DRAFT)
+    press('ArrowRight', { altKey: true })
+    expect(field().value).toBe('ok good lets open')
+  })
+
+  it('hides it on Esc, which then reaches nothing else (no stop, no rewind)', () => {
+    const onFallthrough = vi.fn()
+    render(
+      <ComposerField
+        value={DRAFT}
+        textareaRef={{ current: null }}
+        onChange={() => {}}
+        onSubmit={() => {}}
+        onKeyDownFallthrough={onFallthrough}
+        onPasteFiles={() => {}}
+        placeholder="type here"
+        data-testid="field"
+      />,
+    )
+    caretAt(DRAFT.length)
+    act(() => field().focus())
+    expect(ghost()).not.toBeNull()
+    expect(press('Escape').defaultPrevented).toBe(true)
+    expect(ghost()).toBeNull()
+    expect(onFallthrough).not.toHaveBeenCalled()
+    // With nothing showing, Esc is the composer's again.
+    press('Escape')
+    expect(onFallthrough).toHaveBeenCalledOnce()
+  })
+
+  it('shows nothing when the caller vetoes it, or until focused', () => {
+    typed(DRAFT, false)
+    expect(ghost()).toBeNull()
+    act(() => root?.unmount())
+    render(<Harness initial={DRAFT} />)
+    expect(ghost()).toBeNull()
+  })
+
+  it('shows nothing while the setting is off', () => {
+    useWritingStore.setState({ prefs: DEFAULT_WRITING_PREFS })
+    typed(DRAFT)
+    expect(ghost()).toBeNull()
+    press('Tab')
+    expect(field().value).toBe(DRAFT)
+  })
+
+  it('hides it while the caret is not at the end, and leaves → to the caret', () => {
+    typed(DRAFT)
+    caretAt(3)
+    act(() => {
+      document.dispatchEvent(new Event('selectionchange'))
+    })
+    expect(ghost()).toBeNull()
+    expect(press('ArrowRight').defaultPrevented).toBe(false)
+    expect(field().value).toBe(DRAFT)
+  })
+
+  it('takes one word with Ctrl+→ off macOS, where ⌥→ is left alone', () => {
+    window.phosphor.platform = 'linux'
+    typed(DRAFT)
+    expect(press('ArrowRight', { altKey: true }).defaultPrevented).toBe(false)
+    press('ArrowRight', { ctrlKey: true })
+    expect(field().value).toBe('ok good lets open')
+  })
+
+  it('takes Tab at the end of a list item instead of indenting it', () => {
+    typed('- ok good lets op')
+    expect(ghost()).toBe('en a PR')
+    press('Tab')
+    expect(field().value).toBe('- ok good lets open a PR')
+  })
+
+  describe('a suggestion longer than the field shows', () => {
+    // jsdom has no layout. Give the field a 30px box, and put every character
+    // of the suggestion past its 7th on a wrapped line below it.
+    const box = { top: 0, bottom: 30, left: 0, right: 300, width: 300, height: 30 }
+    beforeEach(() => {
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(box as DOMRect)
+      Range.prototype.getBoundingClientRect = function (this: Range) {
+        const top = this.endOffset <= 7 ? 5 : 35
+        return { ...box, top, bottom: top + 20 } as DOMRect
+      }
+    })
+    afterEach(() => {
+      vi.restoreAllMocks()
+      delete (Range.prototype as Partial<Range>).getBoundingClientRect
+    })
+
+    it('is cut to the whole words that fit, and Tab inserts only those', () => {
+      typed(DRAFT)
+      expect(ghost()).toBe('en a PR')
+      press('Tab')
+      expect(field().value).toBe('ok good lets open a PR')
+    })
   })
 })

@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
   continueList,
   indentSelection,
@@ -12,6 +12,9 @@ import {
 } from '@/lib/composerText'
 import { COMPOSER_MAX_HEIGHT, useAutoResizeTextarea } from '@/lib/useAutoResizeTextarea'
 import { recordTextareaEdit } from '@/lib/textareaUndo'
+import { hostPlatform } from '@/lib/shortcuts'
+import { fitGhost, ghostVisibility } from '@/lib/writing/fitGhost'
+import { useWritingStore } from '@/stores/writing'
 import { FORMATTING_ACTIONS, type FormattingAction } from './formattingActions'
 
 /**
@@ -26,6 +29,14 @@ import { FORMATTING_ACTIONS, type FormattingAction } from './formattingActions'
  * meant "another line". Binding it to Enter would mean a one-line prompt that
  * happens to start with "- " no longer sends, which is a much worse trade than
  * the one it buys.
+ *
+ * **Autocomplete** (Settings → Writing) draws its suggestion as ghost text in
+ * a mirror layer laid over the textarea, so the textarea stays the only thing
+ * that holds text. It shows only with the caret at the end. Tab or → takes it
+ * all, ⌥→ (Ctrl+→ off macOS) one word. Esc only hides it, as it only closes
+ * a popup: Esc in the composer also stops a running turn, and hiding a
+ * suggestion must never do that. The caller vetoes it while a popup, recall
+ * or shell command owns the field.
  */
 
 export interface ComposerFieldProps {
@@ -39,6 +50,11 @@ export interface ComposerFieldProps {
   onKeyDownFallthrough?: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void
   /** Files pasted or dropped; text pastes never reach it. */
   onPasteFiles: (files: File[]) => void
+  /**
+   * Whether an autocomplete suggestion may show now (default true). The
+   * Writing setting decides whether there are any at all.
+   */
+  autocomplete?: boolean
   placeholder: string
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
   className?: string
@@ -116,6 +132,7 @@ export function ComposerField({
   onKeyDown,
   onKeyDownFallthrough,
   onPasteFiles,
+  autocomplete = true,
   placeholder,
   textareaRef,
   className,
@@ -135,11 +152,91 @@ export function ComposerField({
     textareaRef.current?.focus()
   }
 
+  const suggestion = useSuggestion(value, autocomplete && !composing.current)
+  const fieldClass =
+    className ??
+    'composer-field text-text placeholder:text-text-secondary block w-full resize-none overflow-y-auto bg-transparent px-4 pt-3 pb-1 text-lg outline-none'
+  const mirrorRef = useRef<HTMLDivElement>(null)
+  const ghostRef = useRef<HTMLSpanElement>(null)
+
+  /*
+   * The field grows with the text, not the suggestion, so a long suggestion
+   * wraps below it and is clipped. It is cut to the whole words that show
+   * (`fitGhost`), measured once per value, suggestion and field size, and
+   * what is shown is exactly what Tab inserts.
+   */
+  const [fit, setFit] = useState<{ key: string; shown: string | null } | null>(null)
+  const [widthChanges, setWidthChanges] = useState(0)
+  const fitKey =
+    suggestion.text === null ? null : `${expanded}|${widthChanges}|${value}\u0000${suggestion.text}`
+  const ghost = fitKey !== null && fit?.key === fitKey ? fit.shown : suggestion.text
+
+  // The mirror wraps and scrolls exactly as the textarea does: same classes,
+  // plus the textarea's live scroll offset and scrollbar width. Then the
+  // suggestion is measured in it, before paint, so a clipped one never shows.
+  useLayoutEffect(() => {
+    const el = textareaRef.current
+    const mirror = mirrorRef.current
+    if (!el || !mirror) return
+    const style = getComputedStyle(el)
+    const borders = parseFloat(style.borderLeftWidth) + parseFloat(style.borderRightWidth)
+    const scrollbar = Math.max(0, el.offsetWidth - el.clientWidth - (borders || 0))
+    mirror.style.paddingRight = `${parseFloat(style.paddingRight) + scrollbar}px`
+    mirror.scrollTop = el.scrollTop
+    if (fitKey === null || suggestion.text === null || fit?.key === fitKey) return
+    const visible = ghostVisibility(mirror, ghostRef.current?.firstChild ?? null)
+    if (visible) setFit({ key: fitKey, shown: fitGhost(suggestion.text, visible) })
+  })
+
+  // A narrower field wraps sooner: measure again when the width changes.
+  const showing = suggestion.text !== null
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el || !showing) return
+    let width = el.clientWidth
+    const observer = new ResizeObserver(() => {
+      if (el.clientWidth === width) return
+      width = el.clientWidth
+      setWidthChanges((n) => n + 1)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [textareaRef, showing])
+
+  const acceptSuggestion = (text: string): void => {
+    const next = value + text
+    format.apply({ value: next, selectionStart: next.length, selectionEnd: next.length })
+  }
+
+  /** Tab / → / ⌥→ / Esc while a suggestion shows. True when the key was used up. */
+  const handleSuggestionKey = (event: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
+    if (!ghost || event.shiftKey || event.metaKey) return false
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      suggestion.dismiss()
+      return true
+    }
+    const wordKey = hostPlatform() === 'darwin' ? event.altKey : event.ctrlKey
+    const plain = !event.altKey && !event.ctrlKey
+    if ((event.key === 'Tab' || event.key === 'ArrowRight') && plain) {
+      event.preventDefault()
+      acceptSuggestion(ghost)
+      return true
+    }
+    if (event.key === 'ArrowRight' && wordKey && !(event.altKey && event.ctrlKey)) {
+      event.preventDefault()
+      acceptSuggestion(/^\s*\S+/.exec(ghost)?.[0] ?? ghost)
+      return true
+    }
+    return false
+  }
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>): void => {
     // Candidate confirmation must not send, accept a popup, recall history or abort.
     if (composing.current || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)
       return
     if (onKeyDown?.(event)) return
+    if (handleSuggestionKey(event)) return
 
     const el = event.currentTarget
     const mod = event.metaKey || event.ctrlKey
@@ -217,30 +314,104 @@ export function ComposerField({
   }
 
   return (
-    <textarea
-      aria-label="Chat message"
-      data-composer-input=""
-      style={expanded ? { minHeight: 'min(20rem, 50vh)', maxHeight: '50vh' } : undefined}
-      ref={textareaRef}
-      value={value}
-      onChange={(event) =>
-        onChange(event.target.value, event.target.selectionStart ?? event.target.value.length)
-      }
-      onKeyDown={handleKeyDown}
-      onCompositionStart={() => {
-        composing.current = true
-      }}
-      onCompositionEnd={() => {
-        composing.current = false
-      }}
-      onPaste={handlePaste}
-      placeholder={placeholder}
-      rows={rows}
-      data-testid={testId}
-      className={
-        className ??
-        'composer-field text-text placeholder:text-text-secondary block w-full resize-none overflow-y-auto bg-transparent px-4 pt-3 pb-1 text-lg outline-none'
-      }
-    />
+    // Positioned by style, not the `relative` class: callers and tests find the
+    // composer's drop zone with `closest('div.relative')`.
+    <div style={{ position: 'relative' }}>
+      {ghost && (
+        <div
+          ref={mirrorRef}
+          aria-hidden="true"
+          data-testid="composer-suggestion"
+          className={fieldClass}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            overflow: 'hidden',
+            pointerEvents: 'none',
+            whiteSpace: 'pre-wrap',
+            overflowWrap: 'break-word',
+          }}
+        >
+          <span className="invisible">{value}</span>
+          <span ref={ghostRef} className="text-text-tertiary">
+            {ghost}
+          </span>
+        </div>
+      )}
+      <textarea
+        aria-label="Chat message"
+        data-composer-input=""
+        style={{
+          // Painted above the mirror, so the caret and selection stay on top.
+          position: 'relative',
+          ...(expanded ? { minHeight: 'min(20rem, 50vh)', maxHeight: '50vh' } : {}),
+        }}
+        ref={textareaRef}
+        value={value}
+        onChange={(event) => {
+          suggestion.track(event.target)
+          onChange(event.target.value, event.target.selectionStart ?? event.target.value.length)
+        }}
+        onSelect={(event) => suggestion.track(event.currentTarget)}
+        onScroll={(event) => {
+          if (mirrorRef.current) mirrorRef.current.scrollTop = event.currentTarget.scrollTop
+        }}
+        onFocus={(event) => suggestion.track(event.currentTarget)}
+        onBlur={suggestion.blur}
+        onKeyDown={handleKeyDown}
+        onCompositionStart={() => {
+          composing.current = true
+        }}
+        onCompositionEnd={() => {
+          composing.current = false
+        }}
+        onPaste={handlePaste}
+        placeholder={placeholder}
+        rows={rows}
+        data-testid={testId}
+        className={fieldClass}
+      />
+    </div>
   )
+}
+
+/**
+ * The autocomplete suggestion for a field: what to show after the caret, and
+ * the focus, caret and dismissal state that decide whether it shows.
+ */
+function useSuggestion(
+  value: string,
+  allowed: boolean,
+): {
+  text: string | null
+  track: (el: HTMLTextAreaElement) => void
+  blur: () => void
+  dismiss: () => void
+} {
+  const enabled = useWritingStore((s) => s.prefs.autocomplete)
+  // Subscribed so the suggestion appears once the learned prompts load.
+  useWritingStore((s) => s.ready)
+  const [focused, setFocused] = useState(false)
+  const [caretAtEnd, setCaretAtEnd] = useState(true)
+  /** The value Esc was pressed on; the suggestion stays hidden until it changes. */
+  const [dismissedAt, setDismissedAt] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (enabled) void useWritingStore.getState().load()
+  }, [enabled])
+
+  const text =
+    enabled && allowed && focused && caretAtEnd && dismissedAt !== value
+      ? useWritingStore.getState().predict(value)
+      : null
+
+  return {
+    text,
+    track: (el) => {
+      setFocused(true)
+      setCaretAtEnd(el.selectionStart === el.selectionEnd && el.selectionEnd === el.value.length)
+    },
+    blur: () => setFocused(false),
+    dismiss: () => setDismissedAt(value),
+  }
 }

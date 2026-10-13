@@ -5,6 +5,7 @@ import { keybindingGroups } from './tabs/KeybindingsTab'
 
 export const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'appearance', label: 'Appearance' },
+  { id: 'writing', label: 'Writing' },
   { id: 'agent', label: 'Agent' },
   { id: 'accounts', label: 'Accounts' },
   { id: 'extensions', label: 'Extensions' },
@@ -90,6 +91,11 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     ['Editor font size', 'monaco diff text'],
     ['Terminal font size', 'shell text'],
     ['Mono font', 'monospace typeface family code'],
+  ]),
+  ...section('writing', null, [
+    ['Check spelling', 'spellcheck typo misspelled dictionary correct'],
+    ['Autocomplete', 'suggestions predict next word ghost text complete'],
+    ['Learned prompts', 'history clear forget autocomplete'],
   ]),
   ...section('agent', 'Agent defaults', [
     ['Scope', 'global project workspace override'],

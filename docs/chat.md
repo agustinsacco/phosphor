@@ -30,7 +30,8 @@ The composer is one small field with several ways in.
   prompt delivery; if pi's process crashed, use **Resume session** first.
 - **Markdown list primitives.** Shift+Enter continues the list the caret is on
   (renumbering; an empty item steps out a level, then exits). Tab/Shift+Tab
-  nest and un-nest inside a list. Cmd/Ctrl+Shift+8 and +7 toggle bullet and
+  nest and un-nest inside a list (Tab takes an autocomplete suggestion first
+  when one shows). Cmd/Ctrl+Shift+8 and +7 toggle bullet and
   numbered, Cmd/Ctrl+B and +I wrap, Cmd/Ctrl+Shift+C fences. **Enter always
   sends**; continuation is deliberately not on it, or a one-line prompt starting
   with `- ` would stop sending. Logic in `apps/desktop/src/lib/composerText.ts`; keymap in
@@ -38,6 +39,22 @@ The composer is one small field with several ways in.
 - **Formatting is keyboard-only**: bold, italic, inline code (Cmd/Ctrl+E), code
   block, lists and links (Cmd/Ctrl+Shift+K). No toolbar. Edits go through
   Chromium's `insertText`, so native Undo/Redo works.
+- **Spelling.** Chromium underlines misspelled words in every text field.
+  Right-clicking one opens the app's menu with up to five suggestions, _Add to
+  dictionary_, then Cut / Copy / Paste / Select all; picking a suggestion goes
+  through `insertText`, so Undo works. Electron has no menu of its own, so
+  before this a right-click in a text field did nothing. Details and the
+  switch: [settings.md](settings.md#writing).
+- **Autocomplete** (off by default, Settings → Writing): ghost text after the
+  caret, learned from the prompts you send. Tab or → at the end takes it all,
+  ⌥→ (Ctrl+→ off macOS) one word. Esc only hides it, like closing a popup, so
+  hiding a suggestion never stops a run or arms the rewind. It stays hidden
+  while the `/` or `@` popup is open, during ↑/↓ recall, in `!` shell mode,
+  during IME composition and whenever the caret is not at the end. The field
+  grows with your text, not the suggestion, so a suggestion longer than the
+  field shows is cut to the whole words that fit (`lib/writing/fitGhost.ts`);
+  Tab inserts exactly what shows, never words below the edge. Local and
+  instant; no model is called.
 - **Long prompts:** Cmd/Ctrl+Shift+X opens the field to half the window height
   without losing selection or draft. It stays a Markdown textarea, not a
   WYSIWYG editor.

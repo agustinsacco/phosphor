@@ -39,6 +39,7 @@ import { useAttachments } from './composer/useAttachments'
 import { ComposerField } from './composer/ComposerField'
 import { sessionDraftKey, useDraftsStore } from '@/stores/drafts'
 import { refreshSessionCommands, useSessionsStore } from '@/stores/sessions'
+import { useWritingStore } from '@/stores/writing'
 import { ipcErrorText } from '@shared/errors'
 
 interface MentionState {
@@ -273,6 +274,8 @@ export function Composer({
           ...(imagePayload.length ? { images: imagePayload } : {}),
           ...(isStreaming ? { streamingBehavior: behavior ?? 'steer' } : {}),
         })
+        // Only once pi took it, so a failed send typed again is not learned twice.
+        useWritingStore.getState().recordPrompt(message)
       } catch (error) {
         // `piCallOk` reports a rejected envelope; an IPC-level rejection (the
         // session's process died mid-send, or main refused a Claude prompt on
@@ -467,6 +470,9 @@ export function Composer({
             onKeyDown={handleKeyDownFirst}
             onKeyDownFallthrough={handleKeyDownLast}
             onPasteFiles={attachments.addFiles}
+            autocomplete={
+              !slash.visible && !mention && historyIndex === null && !text.startsWith('!')
+            }
             placeholder={placeholder}
           />
 

@@ -25,6 +25,7 @@ import { composePrompt, toImageContents, type PendingAttachment } from '@/featur
 import { AttachmentChips, DropOverlay } from '@/features/chat/composer/AttachmentChips'
 import { useAttachments } from '@/features/chat/composer/useAttachments'
 import { ComposerField } from '@/features/chat/composer/ComposerField'
+import { useWritingStore } from '@/stores/writing'
 import { ContextSourcesMenu } from '@/features/chat/composer/ContextSourcesMenu'
 import { buildCommandEntries, CommandMenu } from '@/features/chat/composer/CommandMenu'
 import { useSlashMenu } from '@/features/chat/composer/useSlashMenu'
@@ -177,6 +178,9 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
         onWarning: (reason) => useExtensionUiStore.getState().pushToast(reason, 'warning'),
       })
       useStartingChatStore.getState().finish()
+      // Only once the lane started: a failure puts the draft back, and sending
+      // it again must not learn the same prompt twice.
+      useWritingStore.getState().recordPrompt(message)
       // The lane came up behind whatever the user moved on to, so say so once
       // rather than pulling them back to it.
       if (useSessionsStore.getState().navSeq !== nav) {
@@ -314,6 +318,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               onSubmit={() => void start()}
               onKeyDown={slash.handleKeyDown}
               onPasteFiles={attachments.addFiles}
+              autocomplete={!slash.visible}
               placeholder="Describe a task or ask a question"
               rows={2}
             />
