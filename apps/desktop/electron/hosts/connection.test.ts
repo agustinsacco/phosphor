@@ -27,6 +27,7 @@ async function setup(
     endpoint?: string
     delay?: number
     throwClose?: boolean
+    backpressure?: { bytes: number; writesBeforeFull: number }
   } = {},
 ) {
   const keys = generateKeyPairSync('ed25519')
@@ -64,6 +65,7 @@ async function setup(
   // Only the fake owns lane contents, and all paths are fictional.
   const frames: ClientFrame[] = [],
     logs: unknown[] = []
+  const writes: ClientFrame[] = []
   const proofs: string[] = []
   const closeCodes: number[] = []
   let initialAuth: Extract<ClientFrame, { type: 'auth' }> | undefined
@@ -91,6 +93,19 @@ async function setup(
     host.attach(pair.server)
     return {
       ...pair.client,
+      bufferedBytes: () => options.backpressure?.bytes ?? pair.client.bufferedBytes(),
+      send: (text: string) => {
+        pair.client.send(text)
+        const parsed = parseClientFrame(text)
+        if (parsed.ok) writes.push(parsed.frame)
+        if (
+          options.backpressure &&
+          parsed.ok &&
+          (parsed.frame.type === 'command' || parsed.frame.type === 'receipt-status') &&
+          --options.backpressure.writesBeforeFull === 0
+        )
+          options.backpressure.bytes = HOST_LIMITS.sendQueueBytes
+      },
       close: (code: number, reason?: string) => {
         closeCodes.push(code)
         expect(code === 1000 || (Number.isInteger(code) && code >= 3000 && code <= 4999)).toBe(true)
@@ -116,13 +131,14 @@ async function setup(
         }),
     }
   })
+  const changed = vi.fn()
   const connection = createHostConnection({
     hostId,
     endpoint,
     socket,
     grant,
     clearGrant,
-    changed: () => {},
+    changed,
     random: () => 1,
     log: (...args) => logs.push(args),
   })
@@ -138,6 +154,7 @@ async function setup(
     if (receipt.status !== 'done' || !receipt.laneId) throw new Error('No lane')
     laneId = receipt.laneId
     frames.length = 0
+    writes.length = 0
   }
   return {
     connection,
@@ -146,6 +163,7 @@ async function setup(
     socket,
     pairs,
     frames,
+    writes,
     logs,
     token,
     initialAuth,
@@ -154,6 +172,7 @@ async function setup(
     laneId,
     clearGrant,
     closeCodes,
+    changed,
   }
 }
 
@@ -514,4 +533,90 @@ it('uses valid client close codes and settles pending work even if close throws'
   t.host.stop()
   await drain()
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it('retries replay in order after backpressure drains and rechecks the 60-second boundary', async () => {
+  const backpressure = { bytes: 0, writesBeforeFull: Infinity }
+  const t = await setup({ delay: 1500, backpressure })
+  // Lose the initial writes so no receipt can settle them before replay.
+  t.pairs[0]?.dropNext(3)
+  const results = Array.from({ length: 3 }, (_, i) =>
+    t.connection.send({ type: 'prompt', message: `Replay ${i}` }, t.laneId, 1),
+  )
+  await drain()
+  const original = t.writes.filter((f) => f.type === 'command')
+  expect(original).toHaveLength(3)
+  t.pairs[0]?.client.close(1001, 'Sever')
+  await drain()
+  vi.setSystemTime(Date.now() + 58_000)
+  backpressure.writesBeforeFull = 1
+  await vi.advanceTimersByTimeAsync(1000)
+  await drain()
+  expect(t.writes.filter((f) => f.type === 'command').slice(3)).toEqual(original.slice(0, 1))
+  expect(await t.connection.send({ type: 'abort' }, t.laneId, 1)).toMatchObject({
+    status: 'not-sent',
+    reason: 'not-connected',
+  })
+  const unchanged = t.writes.length
+  await vi.advanceTimersByTimeAsync(250)
+  expect(t.writes).toHaveLength(unchanged)
+  backpressure.bytes = 0
+  backpressure.writesBeforeFull = 1
+  await vi.advanceTimersByTimeAsync(250)
+  expect(t.writes.filter((f) => f.type === 'command').slice(3)).toEqual(original.slice(0, 2))
+  // The last entry becomes a status query at exactly 60 seconds, but that
+  // query must also wait for queue space rather than disappear.
+  await vi.advanceTimersByTimeAsync(500)
+  expect(t.writes.filter((f) => f.type === 'receipt-status')).toHaveLength(0)
+  backpressure.bytes = 0
+  const changes = t.changed.mock.calls.length
+  await vi.advanceTimersByTimeAsync(250)
+  expect(t.writes.filter((f) => f.type === 'command' || f.type === 'receipt-status')).toEqual([
+    ...original,
+    ...original.slice(0, 2),
+    { type: 'receipt-status', requestId: original[2]?.requestId },
+  ])
+  expect(t.changed.mock.calls.length).toBeGreaterThan(changes)
+  expect((await results[2])?.status).toBe('unknown')
+  await vi.advanceTimersByTimeAsync(750)
+  expect((await Promise.all(results)).map((r) => r.status)).toEqual(['done', 'done', 'unknown'])
+  t.connection.close()
+  t.host.stop()
+  await drain()
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+it.each(['close', 'forbidden', 'sever'])('clears the replay timer on %s', async (end) => {
+  const backpressure = { bytes: 0, writesBeforeFull: Infinity }
+  const t = await setup({ delay: 1500, backpressure })
+  t.pairs[0]?.dropNext(2)
+  const results = [
+    t.connection.send({ type: 'abort' }, t.laneId, 1),
+    t.connection.send({ type: 'abort' }, t.laneId, 1),
+  ]
+  await drain()
+  t.pairs[0]?.client.close(1001, 'Sever')
+  await drain()
+  backpressure.writesBeforeFull = 1
+  const timeout = vi.spyOn(globalThis, 'setTimeout')
+  const clear = vi.spyOn(globalThis, 'clearTimeout')
+  await vi.advanceTimersByTimeAsync(1000)
+  const retry = timeout.mock.results.find((_, i) => timeout.mock.calls[i]?.[1] === 250)
+  expect(retry?.type).toBe('return')
+  if (!retry || retry.type !== 'return') throw new Error('No replay timer')
+  expect(retry.value.hasRef()).toBe(false)
+  if (end === 'close') t.connection.close()
+  else t.pairs.at(-1)?.client.close(end === 'forbidden' ? 4403 : 1001, 'Sever')
+  await drain()
+  expect(clear).toHaveBeenCalledWith(retry.value)
+  const before = t.frames.length
+  await vi.advanceTimersByTimeAsync(250)
+  expect(t.frames).toHaveLength(before)
+  t.connection.close()
+  expect((await Promise.all(results)).map((r) => r.status)).toEqual(['unknown', 'unknown'])
+  t.host.stop()
+  await drain()
+  expect(vi.getTimerCount()).toBe(0)
+  timeout.mockRestore()
+  clear.mockRestore()
 })

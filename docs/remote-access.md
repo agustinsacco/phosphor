@@ -59,7 +59,9 @@ Transient failures reconnect with bounded backoff. Forbidden access and an
 unsupported protocol stop retries; a wrong-machine proof stops until the
 machine directory changes. Oversize closes query receipts rather than resend
 commands. Other reconnects resend unchanged commands under 60 seconds, then
-ask receipt status. Unknown means the action's outcome remains uncertain.
+ask receipt status. Replay waits for queue space in original order, rechecking
+that age rule on each retry. New sends answer `not-connected` until replay drains.
+Unknown means the action's outcome remains uncertain.
 Local `not-sent` results (`too-large`, `too-many-pending`, `not-connected` or
 `closed`) never write or queue a command. `not-connected` is transient; callers
 may try a fresh action once ready. `closed` means no automatic retry.

@@ -58,6 +58,7 @@ export function createHostConnection(ports: {
     lastPong = 0
   const timers = new Set<ReturnType<typeof setTimeout>>()
   let renewalTimeout: ReturnType<typeof setTimeout> | undefined
+  const replay: string[] = []
   const pending = new Map<
     string,
     {
@@ -107,6 +108,25 @@ export function createHostConnection(ports: {
       return false
     }
   }
+  function replayPending() {
+    while (replay.length) {
+      const requestId = replay[0]
+      const p = requestId ? pending.get(requestId) : undefined
+      if (
+        p &&
+        !write(
+          p.statusOnly || now() - p.at >= 60_000
+            ? { type: 'receipt-status', requestId: p.frame.requestId }
+            : p.frame,
+        )
+      ) {
+        if (!stopped && socket && view.state === 'ready') later(replayPending, 250).unref()
+        return
+      }
+      replay.shift()
+    }
+    ports.changed()
+  }
   function subscribe(id: string, laneId?: string, after?: StreamCursor) {
     const sent = write(
       laneId
@@ -127,6 +147,7 @@ export function createHostConnection(ports: {
     generation++
     for (const timer of timers) clearTimeout(timer)
     timers.clear()
+    replay.length = 0
     try {
       socket?.close(1000, 'Closed')
     } catch {
@@ -155,6 +176,7 @@ export function createHostConnection(ports: {
     generation++
     for (const timer of timers) clearTimeout(timer)
     timers.clear()
+    replay.length = 0
     socket = null
     for (const [id, c] of calls)
       c.resolve({
@@ -261,6 +283,7 @@ export function createHostConnection(ports: {
       timers.clear()
       attempt = 0
       lastPong = now()
+      replay.push(...pending.keys())
       update({
         state: 'ready',
         lastError: undefined,
@@ -275,10 +298,7 @@ export function createHostConnection(ports: {
       })
       subscribe('lanes', undefined, view.cursor)
       for (const [id, w] of watches) subscribe(id, w.laneId, w.cursor)
-      for (const [requestId, p] of pending)
-        write(
-          p.statusOnly || now() - p.at >= 60_000 ? { type: 'receipt-status', requestId } : p.frame,
-        )
+      replayPending()
       renew(f.grantExpiresAt)
       beat()
       return
@@ -436,13 +456,15 @@ export function createHostConnection(ports: {
       const reason =
         utf8Length(JSON.stringify(frame)) > HOST_LIMITS.inboundFrameBytes
           ? 'too-large'
-          : pending.size >= HOST_LIMITS.pendingCommandsPerConnection
-            ? 'too-many-pending'
-            : stopped
-              ? 'closed'
-              : view.state !== 'ready'
-                ? 'not-connected'
-                : undefined
+          : replay.length
+            ? 'not-connected'
+            : pending.size >= HOST_LIMITS.pendingCommandsPerConnection
+              ? 'too-many-pending'
+              : stopped
+                ? 'closed'
+                : view.state !== 'ready'
+                  ? 'not-connected'
+                  : undefined
       if (reason) return Promise.resolve({ requestId, status: 'not-sent', reason })
       return new Promise((resolve) => {
         if (!write(frame)) {
