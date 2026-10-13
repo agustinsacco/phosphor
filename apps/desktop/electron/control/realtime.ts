@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto'
+import type { TraceLog } from './observations'
 
 export interface RealtimeSocket {
   send(data: string): void
@@ -21,6 +22,7 @@ const record = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value)
 
 export function createRealtime(deps: {
+  log?: TraceLog
   target: { url: string; key: string }
   socket: (url: string) => RealtimeSocket
   accessToken: () => Promise<string | null>
@@ -60,6 +62,7 @@ export function createRealtime(deps: {
       old.onopen = old.onclose = old.onerror = old.onmessage = null
       old.close()
     }
+    if (isJoined) deps.log?.('machines', 'realtime.left')
     isJoined = false
     joinRef = heartbeatRef = tokenHash = ''
     deps.joined(false)
@@ -73,6 +76,7 @@ export function createRealtime(deps: {
     disconnect()
   }
   function reconnect(): void {
+    deps.log?.('machines', 'realtime.errored')
     disconnect()
     if (!active()) return stop()
     const delay = Math.min(60_000, backoff + backoff * 0.2 * deps.random())
@@ -167,6 +171,7 @@ export function createRealtime(deps: {
             if (isJoined) return
             clear(deadline)
             backoff = 1000
+            deps.log?.('machines', 'realtime.joined')
             isJoined = true
             deps.joined(true)
             deps.changed()

@@ -39,7 +39,9 @@ function harness(
   const urls: string[] = []
   const changed = vi.fn()
   const joined = vi.fn()
+  const log = vi.fn()
   const client = createRealtime({
+    log,
     target,
     socket: (url) => {
       const socket = new Socket()
@@ -68,6 +70,7 @@ function harness(
     return socket
   }
   return {
+    log,
     client,
     sockets,
     urls,
@@ -412,4 +415,16 @@ it('stays silent after stop when a pending auth resolves late (review r1)', asyn
   client.stop()
   expect(joined.mock.calls.length).toBe(calls)
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it('logs joined, errored and left without the socket token or payload', async () => {
+  const h = harness()
+  const secret = h.token()
+  const socket = await h.join()
+  expect(h.log).toHaveBeenCalledWith('machines', 'realtime.joined')
+  socket.onerror?.(new Event('error'))
+  expect(h.log).toHaveBeenCalledWith('machines', 'realtime.errored')
+  expect(h.log).toHaveBeenCalledWith('machines', 'realtime.left')
+  h.client.stop()
+  expect(JSON.stringify(h.log.mock.calls)).not.toContain(secret)
 })

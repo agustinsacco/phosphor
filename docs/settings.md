@@ -198,6 +198,15 @@ session file exists and a signed-in request needs a token.
   `PHOSPHOR_ACCOUNT_NO_KEYCHAIN=1` keeps e2e runs off the keychain. A packaged
   build always signs in to the hosted project.
 
+Phosphor's main-process log is `~/Library/Logs/Phosphor/phosphor.log` on macOS
+and `~/.config/Phosphor/logs/phosphor.log` on Linux, rotating at 5 MB. Account
+sign-in start, browser opening, callback, finish, failure class, cancellation,
+refresh and sign-out use `[account]`. The log records the user id and GitHub
+login, never an email, token, callback code or exception message. `[control]`
+records control API calls; `[machines]` records Realtime and fetch observations.
+See [Tracing a machine](remote-access.md#tracing-a-machine) for correlation and
+liveness rules. An E2E profile writes only to its own log folder.
+
 ## Extensions
 
 pi package management: extensions, skills, prompts and themes. Reads come from

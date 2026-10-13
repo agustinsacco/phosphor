@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { log } from '../debug-log'
 import {
   accountAccessToken,
   accountControlGeneration,
@@ -16,16 +17,24 @@ const client = createControlClient({
   baseUrl: () => controlUrl(app.isPackaged, process.env),
   accessToken: accountAccessToken,
   generation: accountControlGeneration,
+  version: () => app.getVersion(),
+  log,
 })
 
 export function registerControlHandlers(): void {
+  const off = onAccountChange((view) => {
+    if (view.account.status !== 'signed-in') client.clearObservations()
+  })
+  app.once('will-quit', off)
   const stop = createMachinesLive({
     snapshot: accountSnapshot,
+    log,
     subscribe: onAccountChange,
     timers: liveTimers,
     broadcast: () => broadcast('control:machinesChanged', undefined),
     realtime: (changed, joined) =>
       createRealtime({
+        log,
         target: supabaseTarget(app.isPackaged, process.env),
         socket: (url) => new WebSocket(url),
         accessToken: accountAccessToken,

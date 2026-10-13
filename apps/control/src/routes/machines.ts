@@ -6,12 +6,18 @@ import {
   parseMachineRenameRequest,
   parseEnrollmentApproveResponse,
 } from '@phosphor/shared/control-api'
+import type { TraceEvents } from '../events'
 import type { AppDeps } from '../app'
 import { userGuard, type createUserAuth } from '../auth/user'
 import { ControlFailure, type Env } from '../http'
 import { body, outcome, parsed, record } from './shared'
 
-export function machines(app: Hono<Env>, deps: AppDeps, auth: ReturnType<typeof createUserAuth>) {
+export function machines(
+  app: Hono<Env>,
+  deps: AppDeps,
+  auth: ReturnType<typeof createUserAuth>,
+  events: TraceEvents,
+) {
   const guard = userGuard(auth, deps.supabase)
   app.get(CONTROL_ROUTES.machines, guard, async (c) =>
     c.json(
@@ -39,6 +45,7 @@ export function machines(app: Hono<Env>, deps: AppDeps, auth: ReturnType<typeof 
         ),
       )
       outcome(value, method === 'PATCH' ? 'renamed' : 'revoked')
+      if (!input) events.removed(c, id, c.get('user').userId)
       return input ? c.json(parsed(parseEnrollmentApproveResponse(value))) : c.body(null, 204)
     })
   }

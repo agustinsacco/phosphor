@@ -549,3 +549,40 @@ describe('quitting', () => {
     expect(QUIT_WAIT_MS).toBeGreaterThan(REVOKE_MS)
   })
 })
+
+it('records a sign-in trace, refresh and sign-out, but never exception text or credentials', async () => {
+  const { account } = setup({ now: () => Date.now() + 3_600_000 })
+  await account.signIn()
+  await account.accessToken()
+  await account.signOut()
+  const text = logs.join('\n')
+  for (const event of [
+    'sign-in.started',
+    'sign-in.browser-opened',
+    'sign-in.callback-received',
+    'sign-in.finished',
+    'session.refresh.succeeded',
+    'sign-out',
+  ])
+    expect(text).toContain(event)
+  expect(text).toContain(USER.id)
+  expect(text).toContain('octo')
+  const traces = logs.flatMap((line) => line.match(/"trace":"([0-9a-f]{16})"/)?.[1] ?? [])
+  expect(new Set(traces).size).toBe(1)
+  expect(text).not.toContain(USER.email)
+  logs = []
+  const secret = crypto.randomUUID()
+  const failed = setup({
+    openExternal: async () => {
+      throw new Error(secret)
+    },
+  })
+  await failed.account.signIn()
+  expect(logs.join('\n')).toMatch(/sign-in\.failed.*"reason":"Error"/)
+  expect(logs.join('\n')).not.toContain(secret)
+  const cancelled = setup({ browser: fakeBrowser(() => null) })
+  const work = cancelled.account.signIn()
+  cancelled.account.cancel()
+  await work
+  expect(logs.join('\n')).toContain('sign-in.cancelled')
+})

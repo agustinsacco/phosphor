@@ -19,8 +19,23 @@ every library import against the package's exports.
 
 ## Setting up a Host
 
-Install the Host manually by copying a build to the machine ([Build](#build)).
-The installer comes with signed builds, component 23.
+There is no installer yet; it comes with signed builds (component 23). Until
+then, build the Host from source on the machine itself. It needs Node 22.19 or
+newer and git, and takes about ten seconds once dependencies are installed:
+
+```bash
+git clone --depth 1 https://github.com/agustinsacco/phosphor.git ~/src/phosphor
+cd ~/src/phosphor && npm ci --ignore-scripts
+npm run build:host -- --out ~/.local/share/phosphor-host
+mkdir -p ~/.local/bin
+printf '#!/bin/sh\nexec %s %s "$@"\n' "$(readlink -f "$(command -v node)")" ~/.local/share/phosphor-host/phosphor.mjs > ~/.local/bin/phosphor && chmod 755 ~/.local/bin/phosphor
+```
+
+The last line writes the `phosphor` command. It pins node's real path, not a
+version manager's per-shell link (fnm's `/run/user/.../fnm_multishells/...`
+is gone at logout). Copying a build made elsewhere ([Build](#build)) works too.
+Desktop's Add a machine dialog shows the same commands.
+
 Then run `setup`, `doctor`, `providers`, `accept`, `login` and `service install`.
 
 1. `phosphor setup --repository ~/src/project` detects programs and writes an
@@ -325,7 +340,7 @@ After `phosphor login`, `phosphor run` reports the machine's readiness to the
 control plane every 30 seconds, or the interval the server returns, plus up to
 3 seconds of jitter. pi, Claude sign-in and Tailscale are checked at start and
 every five minutes. Each probe has a 2 second deadline and a 64 KiB output cap.
-No session starts. Logs name state changes only, with no keys or signatures.
+No session starts. Logs record each control call and state change, with no keys or signatures.
 
 Only one run holds `identity/.run-lock`. It uses the identity lock's publication,
 recovery and ownership rules, with its own `.run-lock-recovery` gate. It reads
@@ -715,7 +730,16 @@ held open by a process that left its group would otherwise keep it running.
 ### Log
 
 `${XDG_STATE_HOME:-~/.local/state}/phosphor-host/logs/phosphor.log`, rotating at
-5 MB like Desktop's. The folder is 0700 and every file 0600, an older folder,
+5 MB like Desktop's. Every line starts with ISO 8601 UTC and milliseconds.
+`login`, `status`, `logout` and `run` log start and end with the exit code and
+one command trace. Every signed control call sends that trace and the Host
+version, then logs the route, status, duration, returned request id and safe
+error code. Login records creation, polls, approval and the saved identity path
+before its self check. Run records each sequence, state changes, retries with
+delay and removal (exit 77). Service commands log unit writes/removal and program
+arguments/results, never the captured environment or child output. Terminal
+output stays the same. See [Tracing a machine](remote-access.md#tracing-a-machine).
+The folder is 0700 and every file 0600, an older folder,
 log or rotated log included. It records the runtime's inputs (pi's command, the
 names in pi's environment, PATH, the repositories), each spawn's argv, pi's
 stderr, unexpected exits, state changes and drain results. Every string is

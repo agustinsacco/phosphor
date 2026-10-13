@@ -6,6 +6,7 @@ import {
 import { EXIT } from '../checks'
 import { ControlFailure } from '../control/client'
 import {
+  traceCommand,
   confirmedLine,
   withCommandLock,
   controlResult,
@@ -14,7 +15,7 @@ import {
   type CommandResult,
   type ControlContext,
 } from '../control/command'
-import { IdentityFailure, type PendingEnrollment } from '../control/identity'
+import { identityDirectory, IdentityFailure, type PendingEnrollment } from '../control/identity'
 import { freshKey, publicIdentity } from '../control/signer'
 import { HOST_VERSION } from '../version'
 
@@ -24,10 +25,16 @@ export function minutesLeft(ms: number): string {
   return minutes === 1 ? '1 minute' : `${minutes} minutes`
 }
 
-export async function runLogin(context: ControlContext): Promise<CommandResult> {
+async function runLoginCommand(context: ControlContext): Promise<CommandResult> {
   try {
     return await withCommandLock(context, async () => {
       const { loaded, client, store, url } = await prepareControl(context, true)
+      context.log?.('host', 'login', {
+        controlUrl: new URL(url).origin,
+        label: context.hostname,
+        hostVersion: HOST_VERSION,
+        trace: context.trace,
+      })
       if (loaded) {
         try {
           const server = await client.self(loaded.identity.hostId, loaded.key)
@@ -66,6 +73,12 @@ export async function runLogin(context: ControlContext): Promise<CommandResult> 
           throw new IdentityFailure('This machine has unsupported enrollment metadata.')
         const created = await client.enroll(request.value, key)
         if (created.keyFingerprint !== keyFingerprint) throw new ControlFailure('internal')
+        context.log?.('host', 'enrollment.created', {
+          enrollmentId: created.enrollmentId,
+          keyFingerprint,
+          expiresAt: created.expiresAt,
+          trace: context.trace,
+        })
         const enrollment: PendingEnrollment = {
           ...created,
           version: 1,
@@ -77,7 +90,15 @@ export async function runLogin(context: ControlContext): Promise<CommandResult> 
       }
       const { enrollment, key } = pending
       const { publicKey, keyFingerprint } = publicIdentity(key)
-      if (resuming) context.print('Resuming the earlier request.')
+      if (resuming) {
+        context.log?.('host', 'enrollment.resumed', {
+          enrollmentId: enrollment.enrollmentId,
+          keyFingerprint,
+          expiresAt: enrollment.expiresAt,
+          trace: context.trace,
+        })
+        context.print('Resuming the earlier request.')
+      }
       const deadline = Math.min(
         Date.parse(enrollment.expiresAt),
         now() + CONTROL_LIMITS.enrollmentTtlSec * 1000,
@@ -109,6 +130,11 @@ Waiting for approval. The code expires in ${minutesLeft(deadline - now())}. Ctrl
         let answer
         try {
           answer = await client.poll(enrollment.enrollmentId, publicKey, key)
+          context.log?.('host', 'enrollment.poll', {
+            enrollmentId: enrollment.enrollmentId,
+            result: answer.status,
+            trace: context.trace,
+          })
           failures = 0
         } catch (error) {
           if (error instanceof ControlFailure) {
@@ -133,6 +159,11 @@ Waiting for approval. The code expires in ${minutesLeft(deadline - now())}. Ctrl
         if (context.signal?.aborted) throw new ControlFailure('offline')
         // Drop the revoked pair first, so a crash before the commit leaves no
         // host.json and the next login can reuse the saved key (identity.ts).
+        context.log?.('host', 'enrollment.approved', {
+          hostId: answer.hostId,
+          ownerLogin: answer.owner.login,
+          trace: context.trace,
+        })
         if (loaded) await store.remove(loaded.identity.hostId)
         await store.save(
           {
@@ -146,6 +177,10 @@ Waiting for approval. The code expires in ${minutesLeft(deadline - now())}. Ctrl
           key,
           context.signal,
         )
+        context.log?.('host', 'identity.saved', {
+          path: identityDirectory(context.configPath) + '/host.json',
+          trace: context.trace,
+        })
         await store.removePending()
         try {
           const server = await client.self(answer.hostId, key)
@@ -171,4 +206,8 @@ Waiting for approval. The code expires in ${minutesLeft(deadline - now())}. Ctrl
       }
     return controlResult(error, context.signal)
   }
+}
+
+export function runLogin(context: ControlContext) {
+  return traceCommand(context, 'login', (context) => runLoginCommand(context))
 }

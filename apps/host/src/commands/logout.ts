@@ -1,6 +1,7 @@
 import { EXIT } from '../checks'
 import { ControlFailure } from '../control/client'
 import {
+  traceCommand,
   commandStore,
   withCommandLock,
   controlResult,
@@ -9,7 +10,7 @@ import {
   type ControlContext,
 } from '../control/command'
 
-export async function runLogout(context: ControlContext, local = false): Promise<CommandResult> {
+async function runLogoutCommand(context: ControlContext, local = false): Promise<CommandResult> {
   try {
     return await withCommandLock(context, async () => {
       if (local) {
@@ -53,4 +54,8 @@ export async function runLogout(context: ControlContext, local = false): Promise
         ' Run phosphor logout --local to forget this machine locally; it stays listed until removed in Phosphor.'
     return result
   }
+}
+
+export function runLogout(context: ControlContext, local = false) {
+  return traceCommand(context, 'logout', (context) => runLogoutCommand(context, local))
 }

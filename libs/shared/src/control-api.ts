@@ -18,6 +18,16 @@ export const CONTROL_API_VERSION = 1
 export const CONTROL_API_PREFIX = '/api/v1'
 export const DEFAULT_CONTROL_URL = 'https://phosphor.saccolabs.com'
 
+/** Logging metadata only. These headers never authorize a request. */
+export const CONTROL_TRACE_HEADERS = {
+  client: 'x-phosphor-client',
+  trace: 'x-phosphor-trace',
+} as const
+export const isControlClient = (value: unknown): value is string =>
+  typeof value === 'string' && /^(desktop|host)\/[0-9A-Za-z.+-]{1,40}$/.test(value)
+export const isControlTrace = (value: unknown): value is string =>
+  typeof value === 'string' && /^[0-9a-f]{16}$/.test(value)
+
 export const CONTROL_LIMITS = {
   /** Largest request body any API route accepts. */
   bodyBytes: 16 * 1024,

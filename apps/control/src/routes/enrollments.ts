@@ -14,6 +14,7 @@ import {
   parseEnrollmentApproveRequest,
   parseEnrollmentApproveResponse,
 } from '@phosphor/shared/control-api'
+import type { TraceEvents } from '../events'
 import type { AppDeps } from '../app'
 import type { HostAuthDeps } from '../auth/host'
 import { userGuard, type createUserAuth } from '../auth/user'
@@ -27,6 +28,7 @@ export function enrollments(
   deps: AppDeps,
   auth: ReturnType<typeof createUserAuth>,
   hostAuth: HostAuthDeps,
+  events: TraceEvents,
 ) {
   app.post(CONTROL_ROUTES.enrollments, async (c) => {
     if (!deps.limits.consume('enrollment-create:' + c.get('ip'), 10, 3_600_000))
@@ -56,17 +58,24 @@ export function enrollments(
       )
       if (value.outcome === 'code-collision') continue
       outcome(value, 'created')
-      return c.json(
-        parsed(
-          parseEnrollmentCreateResponse({
-            enrollmentId: value.enrollmentId,
-            userCode,
-            keyFingerprint,
-            expiresAt: value.expiresAt,
-            pollIntervalSec: CONTROL_LIMITS.enrollmentPollSec,
-          }),
-        ),
+      const response = parsed(
+        parseEnrollmentCreateResponse({
+          enrollmentId: value.enrollmentId,
+          userCode,
+          keyFingerprint,
+          expiresAt: value.expiresAt,
+          pollIntervalSec: CONTROL_LIMITS.enrollmentPollSec,
+        }),
       )
+      events.emit(c, 'enrollment.created', {
+        enrollmentId: response.enrollmentId,
+        hostname: input.hostname,
+        platform: input.platform,
+        arch: input.arch,
+        hostVersion: input.hostVersion,
+        keyFingerprint,
+      })
+      return c.json(response)
     }
     throw new ControlFailure('unavailable')
   })
@@ -77,18 +86,36 @@ export function enrollments(
     if (!deps.limits.consume('enrollment-poll-ip:' + c.get('ip'), 60, 60_000))
       throw new ControlFailure('too-many-requests')
     const input = parsed(parseEnrollmentPollRequest(body(c)), 'bad-request')
-    if (!deps.limits.consume('enrollment-poll:' + input.enrollmentId, 1, 2000))
-      throw new ControlFailure('too-many-requests')
-    const key = await host(c, hostAuth, 'key')
-    const value = record(
-      await deps.supabase.rpc('control_enrollment_poll', {
-        p_enrollment_id: input.enrollmentId,
-        p_public_key: key,
-      }),
-    )
-    if (value.outcome !== 'pending' && value.outcome !== 'approved' && value.outcome !== 'expired')
-      outcome(value, 'pending')
-    return c.json(parsed(parseEnrollmentPollResponse({ ...value, status: value.outcome })))
+    try {
+      if (!deps.limits.consume('enrollment-poll:' + input.enrollmentId, 1, 2000))
+        throw new ControlFailure('too-many-requests')
+      const key = await host(c, hostAuth, 'key')
+      const value = record(
+        await deps.supabase.rpc('control_enrollment_poll', {
+          p_enrollment_id: input.enrollmentId,
+          p_public_key: key,
+        }),
+      )
+      if (
+        value.outcome !== 'pending' &&
+        value.outcome !== 'approved' &&
+        value.outcome !== 'expired'
+      )
+        outcome(value, 'pending')
+      const response = parsed(parseEnrollmentPollResponse({ ...value, status: value.outcome }))
+      events.emit(c, 'enrollment.poll', {
+        enrollmentId: input.enrollmentId,
+        result: response.status,
+      })
+      return c.json(response)
+    } catch (error) {
+      // The failure's own code: an outage is not a refusal. The id is only claimed here.
+      events.emit(c, 'enrollment.poll', {
+        enrollmentId: input.enrollmentId,
+        result: error instanceof ControlFailure ? error.code : 'internal',
+      })
+      throw error
+    }
   })
   const guard = userGuard(auth, deps.supabase)
   // Guesses still awaiting the database count against the failure budget too,
@@ -127,10 +154,30 @@ export function enrollments(
           if (left > 0) inFlight.set(key, left)
           else inFlight.delete(key)
         }
+        if (!approve && value.outcome === 'not-found')
+          events.emit(c, 'enrollment.lookup', {
+            keyFingerprint: null,
+            result: 'not-found',
+            userId: c.get('user').userId,
+          })
         outcome(value, approve ? 'approved' : 'found')
-        return approve
-          ? c.json(parsed(parseEnrollmentApproveResponse(value)))
-          : c.json(parsed(parseEnrollmentLookupResponse(value)))
+        if (approve) {
+          const response = parsed(parseEnrollmentApproveResponse(value))
+          events.emit(c, 'enrollment.approved', {
+            hostId: response.machine.id,
+            keyFingerprint: response.machine.keyFingerprint,
+            userId: c.get('user').userId,
+            label: response.machine.label,
+          })
+          return c.json(response)
+        }
+        const response = parsed(parseEnrollmentLookupResponse(value))
+        events.emit(c, 'enrollment.lookup', {
+          keyFingerprint: response.keyFingerprint,
+          result: 'found',
+          userId: c.get('user').userId,
+        })
+        return c.json(response)
       },
     )
   }

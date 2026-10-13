@@ -25,7 +25,7 @@ const clientWith = (response: Response) =>
   createControlClient('https://example.com', { fetch: async () => response })
 
 describe('signed control client', () => {
-  it('sends the five headers correctly in both modes and signs exact request bytes', async () => {
+  it('sends signing and trace headers correctly in both modes and signs exact request bytes', async () => {
     const calls: string[] = []
     const client = createControlClient('https://example.com', {
       now: () => 1792000000000,
@@ -34,7 +34,9 @@ describe('signed control client', () => {
         const path = new URL(String(url)).pathname
         calls.push(path)
         const headers = new Headers(init?.headers)
-        expect(Array.from(headers.keys())).toHaveLength(5)
+        expect(Array.from(headers.keys())).toHaveLength(7)
+        expect(headers.get('x-phosphor-client')).toBe('host/0.0.0-dev.source')
+        expect(headers.get('x-phosphor-trace')).toMatch(/^[0-9a-f]{16}$/)
         expect(headers.get('content-type')).toBe('application/json')
         const enrolling = path.startsWith(CONTROL_ROUTES.enrollments)
         expect(headers.get(enrolling ? HOST_HEADERS.key : HOST_HEADERS.host)).toBe(
@@ -279,4 +281,36 @@ describe('signed control client', () => {
         })
     },
   )
+})
+
+it('logs error codes and network classes, but never peer messages or a malformed request id', async () => {
+  const secret = crypto.randomUUID()
+  const log = vi.fn()
+  const client = createControlClient('https://example.com', {
+    log,
+    fetch: async () =>
+      new Response(JSON.stringify({ error: { code: 'unavailable', message: secret } }), {
+        status: 503,
+        headers: { 'content-type': 'application/json', 'x-request-id': secret },
+      }),
+  })
+  await expect(client.self(hostId, key)).rejects.toMatchObject({ code: 'unavailable' })
+  expect(log).toHaveBeenLastCalledWith(
+    'control',
+    'call',
+    expect.objectContaining({ code: 'unavailable', status: 503, requestId: null }),
+  )
+  const offline = createControlClient('https://example.com', {
+    log,
+    fetch: async () => {
+      throw new TypeError(secret)
+    },
+  })
+  await expect(offline.self(hostId, key)).rejects.toMatchObject({ code: 'offline' })
+  expect(log).toHaveBeenLastCalledWith(
+    'control',
+    'call',
+    expect.objectContaining({ code: 'TypeError', status: 0, requestId: null }),
+  )
+  expect(JSON.stringify(log.mock.calls)).not.toContain(secret)
 })

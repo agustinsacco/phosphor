@@ -1,6 +1,11 @@
 import type { HostSelfResponse } from '@phosphor/shared/control-api'
 import { EXIT } from '../checks'
-import { controlResult, prepareControl, type ControlContext } from '../control/command'
+import {
+  traceCommand,
+  controlResult,
+  prepareControl,
+  type ControlContext,
+} from '../control/command'
 import type { HostIdentity } from '../control/identity'
 
 export interface StatusReport {
@@ -10,7 +15,7 @@ export interface StatusReport {
   server: HostSelfResponse | null
   error: string | null
 }
-export async function runStatus(
+async function runStatusCommand(
   context: ControlContext,
 ): Promise<{ exitCode: number; report: StatusReport }> {
   const report: StatusReport = {
@@ -54,4 +59,8 @@ export function renderStatus(report: StatusReport): string {
     )
   } else if (report.error) lines.push(report.error)
   return `${lines.join('\n')}\n`
+}
+
+export function runStatus(context: ControlContext) {
+  return traceCommand(context, 'status', (context) => runStatusCommand(context))
 }

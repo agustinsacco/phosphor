@@ -90,9 +90,24 @@ The shared signing vector is tested against the verifier.
 
 Supabase RPC uses the secret apikey only, not a bearer: `sb_secret_` keys are not
 JWTs. Fetches have five-second deadlines and a 64 KB response cap. RPC output
-is validated before reaching the wire. Logs include timestamp, request id,
-method, route pattern, status, duration and actor only, never headers, bodies,
-concrete unknown paths, tokens, user codes or keys.
+is validated before reaching the wire. Each access line includes `ts`, `level`,
+`requestId`, `method`, route pattern, `status`, `ms`, `actor`, `client`, `trace`
+and `error` (null on success). Malformed logging-only client or trace headers
+record `client: "invalid"`; no client header records `client: null`, and an
+invalid trace is null. The two are judged separately. Static requests use
+`route: "site"` and `pathClass: "page"` or `"asset"`, never a concrete path.
+Only `/healthz`, the probes' path, does not log. Nothing a caller sends, such
+as its user agent, can keep a request or an event out of the log.
+
+Domain lines add `event`, the request id, trace and timestamp. Creation and
+polling link by enrollment id; lookup and approval link by fingerprint. Accepted
+beats emit connection and state transitions once per process observation;
+removal and refused removed-Host beats have their own events; a refused beat's
+host id and a failed poll's enrollment id are claimed, not verified. The bounded
+10,000-Host observation history evicts the least recently beaten Host and resets
+on process restart. Nothing logs headers, bodies, tokens, codes, keys, peer/client IPs,
+edge secrets or peer error messages. [Tracing a machine](remote-access.md#tracing-a-machine)
+lists the events and their correlation rules.
 
 The reusable sliding-window limiter has a 10,000-key cap. At capacity it sweeps
 expired windows and refuses new keys with 429 rather than evicting live windows.

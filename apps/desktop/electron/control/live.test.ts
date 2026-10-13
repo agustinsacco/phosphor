@@ -22,7 +22,9 @@ function harness(initial = signedOut) {
     joined = join
     return { stop: close }
   })
+  const log = vi.fn()
   const stop = createMachinesLive({
+    log,
     snapshot: () => initial,
     subscribe: (listener) => {
       apply = listener
@@ -33,6 +35,7 @@ function harness(initial = signedOut) {
     broadcast,
   })
   return {
+    log,
     stop,
     apply: (view: AccountView) => apply(view),
     change: () => changed(),
@@ -91,4 +94,17 @@ it('polls at 60 seconds only while not joined, and resumes after disconnect', as
   expect(h.broadcast).toHaveBeenCalledTimes(2)
   h.stop()
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it('logs fallback start and stop once per lifecycle', () => {
+  const h = harness(signedIn)
+  expect(h.log.mock.calls).toEqual([['machines', 'fallback.started']])
+  vi.advanceTimersByTime(120_000)
+  expect(h.log).toHaveBeenCalledTimes(1)
+  h.join(true)
+  expect(h.log).toHaveBeenLastCalledWith('machines', 'fallback.stopped')
+  h.join(false)
+  expect(h.log).toHaveBeenLastCalledWith('machines', 'fallback.started')
+  h.stop()
+  expect(h.log).toHaveBeenLastCalledWith('machines', 'fallback.stopped')
 })
