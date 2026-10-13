@@ -657,3 +657,127 @@ describe('Host state storage safety', () => {
     expect(opHash({ type: 'lane.stop' })).not.toBe(opHash({ type: 'lane.resume' }))
   })
 })
+
+describe('corrupt summary rows', () => {
+  it.each([
+    ['lane_id', 'invalid'],
+    ['lane_id', '00000000-0000-1000-8000-000000000000'],
+    ['repository_id', 'x'.repeat(16)],
+    ['repository_id', 'a'.repeat(15)],
+    ['cwd', 'relative'],
+    ['cwd', '/not/../normalized'],
+    ['session_file', 'relative'],
+    ['title', 'private\ntext'],
+    ['title', 'x'.repeat(81)],
+    ['branch', ''],
+    ['branch', 'x'.repeat(257)],
+    ['branch', 'private\ttext'],
+    ['worktree', 2],
+    ['provider', ''],
+    ['provider', 'x'.repeat(65)],
+    ['provider', 'private\ntext'],
+    ['provider', 'unpaired'],
+    ['model', ''],
+    ['model', 'x'.repeat(129)],
+    ['model', 'private\ntext'],
+    ['model', 'unpaired'],
+    ['created_at', -1],
+    ['created_at', 8640000000000001],
+    ['updated_at', 999],
+    ['updated_at', 8640000000000001],
+    ['fence', 0],
+    ['fence', 9007199254740992],
+    ['fence', 1.5],
+    ['controller_client_id', 'invalid'],
+    ['controller_client_id', null],
+    ['controller_label', null],
+    ['controller_label', 'private\ntext'],
+    ['controller_label', ''],
+    ['controller_label', 'x'.repeat(81)],
+    ['attention', -1],
+    ['attention', 9007199254740992],
+    ['attention', 1.5],
+    ['read', -1],
+    ['read', 1],
+    ['removed_at', -1],
+    ['removed_at', 8640000000000001],
+  ])('skips corrupt lane %s without throwing, repairing or leaking it', async (field, value) => {
+    const original = lane()
+    store.takeControl(original.laneId, one)
+    const { DatabaseSync } = await loadSqlite()
+    const db = new DatabaseSync(join(directory, 'state.sqlite'))
+    const log = vi.fn((_count: number) => {
+      throw new Error('logger failed')
+    })
+    const tested = new HostStore(db, { logCorruptLane: log })
+    try {
+      db.exec('PRAGMA ignore_check_constraints=ON; PRAGMA foreign_keys=OFF')
+      if (typeof value === 'number' && !Number.isInteger(value)) {
+        expect(() =>
+          db.prepare(`UPDATE lanes SET ${field}=? WHERE lane_id=?`).run(value, original.laneId),
+        ).toThrow(/cannot store REAL/)
+        expect(tested.getLane(original.laneId)).not.toBeNull()
+        return
+      }
+      db.prepare(`UPDATE lanes SET ${field}=? WHERE lane_id=?`).run(value, original.laneId)
+      expect(tested.listLanes()).toEqual([])
+      const id = field === 'lane_id' && value !== 'invalid' ? String(value) : original.laneId
+      expect(tested.getLane(id)).toBeNull()
+      if (original.sessionFile === null) throw new Error('missing file')
+      expect(tested.sessionLane(original.sessionFile)).toBeNull()
+      const query = db.prepare(`SELECT ${field} AS value FROM lanes`)
+      query.setReadBigInts(true)
+      expect(query.get()?.value).toBe(typeof value === 'number' ? BigInt(value) : value)
+      expect(log).toHaveBeenCalledWith(1)
+      expect(log.mock.calls.every((args) => args.length === 1 && args[0] === 1)).toBe(true)
+    } finally {
+      tested.close()
+    }
+  })
+  it.each([
+    ['id', 'invalid'],
+    ['path', 'relative'],
+    ['path', '/not/../normalized'],
+    ['name', ''],
+    ['name', 'private\ntext'],
+    ['name', 'x'.repeat(4097)],
+    ['added_at', -1],
+    ['added_at', 9007199254740992],
+    ['added_at', 8640000000000001],
+  ])('skips corrupt repository %s without throwing or repairing it', async (field, value) => {
+    const { DatabaseSync } = await loadSqlite()
+    const db = new DatabaseSync(join(directory, 'state.sqlite'))
+    const log = vi.fn()
+    const tested = new HostStore(db, { logCorruptLane: log })
+    try {
+      db.exec('PRAGMA ignore_check_constraints=ON; PRAGMA foreign_keys=OFF')
+      db.prepare(`UPDATE repositories SET ${field}=?`).run(value)
+      expect(tested.listRepositories()).toEqual([])
+      const query = db.prepare(`SELECT ${field} AS value FROM repositories`)
+      query.setReadBigInts(true)
+      expect(query.get()?.value).toBe(typeof value === 'number' ? BigInt(value) : value)
+      expect(log.mock.calls).toEqual([[1]])
+    } finally {
+      tested.close()
+    }
+  })
+  it('migration 1 checks absolute paths and repository id length and indexes active ordering', async () => {
+    const original = lane()
+    const { DatabaseSync } = await loadSqlite()
+    const db = new DatabaseSync(join(directory, 'state.sqlite'))
+    try {
+      for (const field of ['cwd', 'session_file']) {
+        expect(() => db.prepare(`UPDATE lanes SET ${field}=?`).run('relative')).toThrow(/CHECK/)
+      }
+      expect(() => db.prepare('UPDATE repositories SET path=?').run('relative')).toThrow(/CHECK/)
+      expect(() => db.prepare('UPDATE lanes SET repository_id=?').run('short')).toThrow(/CHECK/)
+      expect(db.prepare('PRAGMA user_version').get()?.user_version).toBe(1)
+      expect(
+        db.prepare("SELECT sql FROM sqlite_master WHERE name='repositories_active'").get()?.sql,
+      ).toMatch(/ON repositories\(added_at,id\) WHERE active=1/)
+      expect(store.getLane(original.laneId)).not.toBeNull()
+    } finally {
+      db.close()
+    }
+  })
+})

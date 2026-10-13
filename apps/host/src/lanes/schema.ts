@@ -2,16 +2,17 @@ export const SCHEMA_VERSION = 1
 export const SCHEMA = `
 CREATE TABLE repositories (
   id TEXT PRIMARY KEY NOT NULL CHECK(length(id)=16 AND id NOT GLOB '*[^0-9a-f]*'),
-  path TEXT UNIQUE NOT NULL CHECK(length(path) BETWEEN 1 AND 4096),
+  path TEXT UNIQUE NOT NULL CHECK(path GLOB '/*' AND length(path) BETWEEN 1 AND 4096),
   name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 4096),
   active INTEGER NOT NULL CHECK(active IN (0,1)),
   added_at INTEGER NOT NULL CHECK(added_at>=0)
 ) STRICT;
+CREATE INDEX repositories_active ON repositories(added_at,id) WHERE active=1;
 CREATE TABLE lanes (
   lane_id TEXT PRIMARY KEY NOT NULL CHECK(length(lane_id)=36 AND lane_id NOT GLOB '*[^0-9a-f-]*' AND length(replace(lane_id,'-',''))=32 AND substr(lane_id,9,1)='-' AND substr(lane_id,14,1)='-' AND substr(lane_id,19,1)='-' AND substr(lane_id,24,1)='-' AND substr(lane_id,15,1) ='4' AND substr(lane_id,20,1) IN ('8','9','a','b')),
-  repository_id TEXT NOT NULL REFERENCES repositories(id),
-  cwd TEXT NOT NULL CHECK(length(cwd) BETWEEN 1 AND 4096),
-  session_file TEXT UNIQUE CHECK(session_file IS NULL OR length(session_file) BETWEEN 1 AND 4096),
+  repository_id TEXT NOT NULL REFERENCES repositories(id) CHECK(length(repository_id)=16),
+  cwd TEXT NOT NULL CHECK(cwd GLOB '/*' AND length(cwd) BETWEEN 1 AND 4096),
+  session_file TEXT UNIQUE CHECK(session_file IS NULL OR (session_file GLOB '/*' AND length(session_file) BETWEEN 1 AND 4096)),
   title TEXT CHECK(title IS NULL OR length(title)<=80),
   branch TEXT CHECK(branch IS NULL OR length(branch)<=256),
   worktree INTEGER NOT NULL CHECK(worktree IN (0,1)),

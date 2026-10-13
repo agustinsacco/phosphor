@@ -351,7 +351,10 @@ the folders return. Run scans active repository roots, up to 256 direct worktree
 folders per repository, and live lanes' folders. Worktree links and folders
 outside the repository are skipped. Removed lanes are kept for 30 days, with at
 most 1000 removed rows after reconciliation. A returning session file keeps its
-lane id until that row is pruned.
+lane id until that row is pruned. Vanished files are removed before new files
+are admitted, so replacements can be indexed in one scan even at capacity.
+Corrupt lane and repository rows are skipped on reads and logged only by count;
+reads do not repair or delete them.
 
 Finished receipts are kept for 24 hours from completion, with at most 10000
 finished rows. After that lifetime a finished request id can be admitted as new.

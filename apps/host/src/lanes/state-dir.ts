@@ -8,7 +8,7 @@ import {
   mkdirSync,
   openSync,
 } from 'node:fs'
-import { isAbsolute, join } from 'node:path'
+import { dirname, isAbsolute, join } from 'node:path'
 
 export class StateFailure extends Error {
   constructor(
@@ -27,9 +27,25 @@ export function hostStateDirectory(env: NodeJS.ProcessEnv, home: string): string
 }
 
 export function prepareStateDirectory(directory: string, uid: number | undefined): void {
-  let created: string | undefined
+  const create = (path: string): void => {
+    try {
+      lstatSync(path)
+      return
+    } catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
+    }
+    create(dirname(path))
+    try {
+      mkdirSync(path, { mode: 0o700 })
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'EEXIST') return
+      throw error
+    }
+    // umask may remove owner permissions too. Restore before making a child.
+    chmodSync(path, 0o700)
+  }
   try {
-    created = mkdirSync(directory, { recursive: true, mode: 0o700 })
+    create(directory)
   } catch (error) {
     if (!(
       error instanceof Error &&
@@ -56,7 +72,6 @@ export function prepareStateDirectory(directory: string, uid: number | undefined
       78,
       'Unsafe storage. Use an owned directory, no symlink, chmod 700.',
     )
-  if (created !== undefined) chmodSync(directory, 0o700)
 }
 
 /** Create before SQLite opens it, so even umask 0 cannot expose state. */

@@ -5,7 +5,7 @@ import { isUuid } from '@phosphor/shared/control-api'
 import { HOST_LIMITS } from '@phosphor/shared/host-protocol'
 import { sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
 import { isInsideRoot } from '../machine/repositories'
-import type { HostStore } from './store'
+import { LaneCapacityReached, type HostStore } from './store'
 
 export const RECONCILE_LIMITS = {
   worktreesPerRepository: 256,
@@ -49,7 +49,6 @@ export async function reconcile(
   const repositories = store.listRepositories()
   const known = store.listLanes()
   const folders = new Map<string, string>()
-  const knownCwds = new Map<string, string>()
   let added = 0
   let removed = 0
   let skipped = 0
@@ -106,9 +105,25 @@ export async function reconcile(
       // A deleted worktree still needs its known files checked for ENOENT.
     }
     folders.set(cwd, lane.repositoryId)
-    knownCwds.set(lane.laneId, cwd)
   }
+  // A scan failure is not proof of deletion. Only ENOENT on the exact file is.
+  for (const lane of known) {
+    if (!repositories.some((repository) => repository.id === lane.repositoryId)) continue
+    signal?.throwIfAborted()
+    if (lane.sessionFile === null) continue
+    try {
+      await lstat(lane.sessionFile)
+    } catch (error) {
+      if (missing(error)) {
+        store.markRemoved(lane.laneId)
+        removed++
+      } else skipped++
+    }
+  }
+  let liveLanes = store.listLanes().length
+  let admissionsFull = false
   for (const [cwd, repositoryId] of folders) {
+    if (admissionsFull) break
     signal?.throwIfAborted()
     const directory = sessionDirForCwd(cwd, sessionsRoot)
     let entries = 0
@@ -129,7 +144,8 @@ export async function reconcile(
         const file = join(directory, entry.name)
         const existing = store.sessionLane(file)
         if (existing?.removedAt === null) continue
-        if (store.listLanes().length >= store.limits.lanesPerHost) {
+        if (liveLanes >= store.limits.lanesPerHost) {
+          admissionsFull = true
           skipped++
           break
         }
@@ -138,15 +154,33 @@ export async function reconcile(
             skipped++
             continue
           }
+          let storedCwd = cwd
+          if (existing) {
+            if (existing.repositoryId !== repositoryId || (await realpath(existing.cwd)) !== cwd) {
+              skipped++
+              continue
+            }
+            storedCwd = existing.cwd
+          }
+          // No await between this read and admission. A live row returned by
+          // ensureLane is not an addition and must not consume the cached cap.
+          const wasLive = store.sessionLane(file)?.removedAt === null
           store.ensureLane({
             repositoryId,
-            cwd,
+            cwd: storedCwd,
             sessionFile: file,
             worktree: !repositories.some((repository) => repository.path === cwd),
           })
-          added++
-        } catch {
+          if (!wasLive) {
+            liveLanes++
+            added++
+          }
+        } catch (error) {
           skipped++
+          if (error instanceof LaneCapacityReached) {
+            admissionsFull = true
+            break
+          }
         }
       }
     } catch (error) {
@@ -154,21 +188,6 @@ export async function reconcile(
       if (!missing(error)) {
         skipped++
         continue
-      }
-    }
-    // A scan failure is not proof of deletion. Only ENOENT on the exact file is.
-    for (const lane of known.filter(
-      (lane) => knownCwds.get(lane.laneId) === cwd && lane.sessionFile !== null,
-    )) {
-      signal?.throwIfAborted()
-      if (lane.sessionFile === null) continue
-      try {
-        await lstat(lane.sessionFile)
-      } catch (error) {
-        if (missing(error)) {
-          store.markRemoved(lane.laneId)
-          removed++
-        } else skipped++
       }
     }
   }

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { HOST_LIMITS } from '@phosphor/shared/host-protocol'
 import { sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
 import { openStore, type HostStore } from './store'
+import { loadSqlite } from './sqlite'
 import { reconcile, RECONCILE_LIMITS } from './reconcile'
 
 let root: string
@@ -88,9 +89,9 @@ it('scans known worktree cwd as well as active repositories', async () => {
   expect((await scan()).added).toBe(1)
   expect(store.sessionLane(file)?.worktree).toBe(true)
 })
-it('checks vanished files for live lanes whose cwd resolves through an alias', async () => {
-  const cwd = join(root, 'worktree')
-  mkdirSync(cwd)
+it('revives the same lane through an aliased cwd after deletion and reappearance', async () => {
+  const cwd = join(repository, '.phosphor', 'worktrees', 'topic')
+  mkdirSync(cwd, { recursive: true })
   const alias = join(root, 'alias')
   symlinkSync(cwd, alias)
   const file = session(cwd)
@@ -99,6 +100,13 @@ it('checks vanished files for live lanes whose cwd resolves through an alias', a
   unlinkSync(file)
   expect((await scan()).removed).toBe(1)
   expect(store.getLane(lane.laneId)?.removedAt).not.toBeNull()
+  writeFileSync(file, JSON.stringify({ type: 'session', id: randomUUID(), cwd }) + '\n')
+  expect((await scan()).added).toBe(1)
+  expect(store.sessionLane(file)).toMatchObject({
+    laneId: lane.laneId,
+    cwd: alias,
+    removedAt: null,
+  })
 })
 it('rediscovers a removed worktree lane after reopen without any live lane naming its cwd', async () => {
   const cwd = join(repository, '.phosphor', 'worktrees', 'topic')
@@ -220,4 +228,66 @@ it('bounds additions at the lane cap and bounds directory iteration', async () =
     writeFileSync(join(directory, `${i}.txt`), '')
   expect((await scan((count) => skipped.push(count))).removed).toBe(0)
   expect(skipped).toEqual([1, 1])
+})
+
+it('removes vanished files before admitting replacements at capacity in one reconcile', async () => {
+  store.close()
+  store = await openStore(join(root, 'state'), process.getuid?.(), { limits: { lanesPerHost: 1 } })
+  const old = session()
+  await scan()
+  const oldId = store.sessionLane(old)?.laneId
+  unlinkSync(old)
+  const replacement = session()
+  expect(await scan()).toEqual({ repositories: 1, lanes: 1, added: 1, removed: 1 })
+  expect(store.listLanes().map((lane) => lane.sessionFile)).toEqual([replacement])
+  expect(store.sessionLane(old)?.removedAt).not.toBeNull()
+  expect(store.sessionLane(replacement)?.laneId).not.toBe(oldId)
+})
+
+it.each(['cwd', 'repository'])(
+  'skips revival when the removed row has a different %s',
+  async (mismatch) => {
+    const other = join(root, 'other')
+    mkdirSync(other)
+    const entries = store.syncRepositories([repository, other])
+    const otherRepository = entries.find((entry) => entry.path === other)
+    if (!otherRepository) throw new Error('missing repository')
+    const file = session()
+    const lane = store.ensureLane({
+      repositoryId: mismatch === 'repository' ? otherRepository.id : repositoryId,
+      cwd: mismatch === 'cwd' ? other : repository,
+      sessionFile: file,
+    })
+    store.markRemoved(lane.laneId)
+    const skipped: number[] = []
+    expect((await scan((count) => skipped.push(count))).added).toBe(0)
+    expect(skipped).toEqual([1])
+    expect(store.sessionLane(file)).toMatchObject({ laneId: lane.laneId, cwd: lane.cwd })
+    expect(store.sessionLane(file)?.removedAt).not.toBeNull()
+  },
+)
+
+it('uses the SQL cap when corrupt live rows make the cached count read low', async () => {
+  store.close()
+  store = await openStore(join(root, 'state'), process.getuid?.(), { limits: { lanesPerHost: 2 } })
+  const original = session()
+  await scan()
+  const { DatabaseSync } = await loadSqlite()
+  const db = new DatabaseSync(join(root, 'state', 'state.sqlite'))
+  try {
+    db.exec('PRAGMA ignore_check_constraints=ON')
+    db.prepare('UPDATE lanes SET title=? WHERE session_file=?').run('private\ntext', original)
+    unlinkSync(original)
+    const candidates = [session(), session()]
+    const skipped: number[] = []
+    expect((await scan((count) => skipped.push(count))).added).toBe(1)
+    expect(store.listLanes()).toHaveLength(1)
+    expect(candidates.filter((file) => store.sessionLane(file) !== null)).toHaveLength(1)
+    expect(skipped).toEqual([1])
+    expect(
+      db.prepare('SELECT count(*) AS count FROM lanes WHERE removed_at IS NULL').get()?.count,
+    ).toBe(2)
+  } finally {
+    db.close()
+  }
 })

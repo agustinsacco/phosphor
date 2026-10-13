@@ -28,6 +28,12 @@ export { opHash } from './validation'
 export const REMOVED_LANE_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const RECEIPT_EXPIRED = 'finished_at < ?'
 
+export class LaneCapacityReached extends Error {
+  constructor() {
+    super('Host lane capacity reached.')
+  }
+}
+
 export interface StoredLane extends LaneSummary {
   readonly sessionFile: string | null
   readonly removedAt: string | null
@@ -59,6 +65,7 @@ export interface StorePorts {
   isConnected?: (clientId: string) => boolean
   limits?: Partial<StoreLimits>
   logCorruptReceipt?: (count: number) => void
+  logCorruptLane?: (count: number) => void
 }
 type Row = Record<string, SQLOutputValue>
 function str(row: Row, key: string): string {
@@ -72,8 +79,9 @@ function nullable(row: Row, key: string): string | null {
   return value
 }
 function num(row: Row, key: string): number {
-  const value = row[key]
-  check(typeof value === 'number')
+  const raw = row[key]
+  check(typeof raw === 'number' || typeof raw === 'bigint')
+  const value = Number(raw)
   integer(value)
   return value
 }
@@ -117,6 +125,7 @@ export async function openStore(
 export class HostStore {
   private readonly now: () => number
   private readonly isConnected: (clientId: string) => boolean
+  private readonly logCorruptLane: (count: number) => void
   private readonly logCorruptReceipt: (count: number) => void
   readonly limits: Readonly<StoreLimits>
   constructor(
@@ -125,6 +134,7 @@ export class HostStore {
   ) {
     this.now = ports.now ?? Date.now
     this.isConnected = ports.isConnected ?? (() => false)
+    this.logCorruptLane = ports.logCorruptLane ?? (() => {})
     this.logCorruptReceipt = ports.logCorruptReceipt ?? (() => {})
     const limits = {
       receiptsKept: HOST_LIMITS.receiptsKept,
@@ -175,31 +185,98 @@ export class HostStore {
             },
     }
   }
-  private lane(row: Row): StoredLane {
-    const provider = nullable(row, 'provider')
-    return {
-      laneId: str(row, 'lane_id'),
-      repositoryId: str(row, 'repository_id'),
-      cwd: str(row, 'cwd'),
-      sessionFile: nullable(row, 'session_file'),
-      title: nullable(row, 'title'),
-      branch: nullable(row, 'branch'),
-      worktree: num(row, 'worktree') === 1,
-      model: provider === null ? null : { provider, id: str(row, 'model') },
-      activity: 'stopped',
-      createdAt: iso(num(row, 'created_at')),
-      updatedAt: iso(num(row, 'updated_at')),
-      attention: num(row, 'attention'),
-      read: num(row, 'read'),
-      control: this.control(row),
-      removedAt: row.removed_at === null ? null : iso(num(row, 'removed_at')),
+  private summaryQuery(sql: string) {
+    const query = this.db.prepare(sql)
+    // SQLite can hold integers beyond JS's safe range. Read them losslessly
+    // so validation can skip that row instead of the driver failing the read.
+    query.setReadBigInts(true)
+    return query
+  }
+  private logCorruptRow(): null {
+    try {
+      this.logCorruptLane(1)
+    } catch {
+      // A logger failure cannot expose corrupt state or fail a read.
+    }
+    return null
+  }
+  private laneFromRow(row: Row): StoredLane | null {
+    try {
+      const laneId = str(row, 'lane_id')
+      uuid(laneId)
+      check(laneId[14] === '4')
+      const repositoryId = str(row, 'repository_id')
+      check(/^[0-9a-f]{16}$/.test(repositoryId))
+      const cwd = str(row, 'cwd')
+      absolutePath(cwd)
+      const sessionFile = nullable(row, 'session_file')
+      if (sessionFile !== null) absolutePath(sessionFile)
+      const title = nullable(row, 'title')
+      const branch = nullable(row, 'branch')
+      const provider = nullable(row, 'provider')
+      const model = nullable(row, 'model')
+      text(title, HOST_LIMITS.labelChars, true)
+      text(branch, 256)
+      text(provider, 64)
+      text(model, 128)
+      check((provider === null) === (model === null))
+      const worktree = num(row, 'worktree')
+      check(worktree === 0 || worktree === 1)
+      const created = num(row, 'created_at')
+      const updated = num(row, 'updated_at')
+      check(updated >= created)
+      const attention = num(row, 'attention')
+      const read = num(row, 'read')
+      check(read <= attention)
+      integer(num(row, 'fence'), 1)
+      const clientId = nullable(row, 'controller_client_id')
+      const label = nullable(row, 'controller_label')
+      check((clientId === null) === (label === null))
+      if (clientId !== null) uuid(clientId)
+      text(label, HOST_LIMITS.labelChars)
+      return {
+        laneId,
+        repositoryId,
+        cwd,
+        sessionFile,
+        title,
+        branch,
+        worktree: worktree === 1,
+        model: provider === null || model === null ? null : { provider, id: model },
+        activity: 'stopped',
+        createdAt: iso(created),
+        updatedAt: iso(updated),
+        attention,
+        read,
+        control: this.control(row),
+        removedAt: row.removed_at === null ? null : iso(num(row, 'removed_at')),
+      }
+    } catch {
+      return this.logCorruptRow()
+    }
+  }
+  private repositoryFromRow(row: Row): RepositorySummary | null {
+    try {
+      const id = str(row, 'id')
+      check(/^[0-9a-f]{16}$/.test(id))
+      const path = str(row, 'path')
+      absolutePath(path)
+      const name = str(row, 'name')
+      text(name, 4096)
+      const active = num(row, 'active')
+      check(active === 0 || active === 1)
+      iso(num(row, 'added_at'))
+      return { id, name, path }
+    } catch {
+      return this.logCorruptRow()
     }
   }
   listRepositories(): RepositorySummary[] {
-    return this.db
-      .prepare('SELECT * FROM repositories WHERE active=1 ORDER BY added_at,id LIMIT ?')
+    return this.summaryQuery(
+      'SELECT * FROM repositories WHERE active=1 ORDER BY added_at,id LIMIT ?',
+    )
       .all(this.limits.repositoriesPerHost)
-      .map((row) => ({ id: str(row, 'id'), name: str(row, 'name'), path: str(row, 'path') }))
+      .flatMap((row) => this.repositoryFromRow(row) ?? [])
   }
   syncRepositories(
     paths: readonly string[],
@@ -244,15 +321,16 @@ export class HostStore {
     return result
   }
   listLanes(): StoredLane[] {
-    return this.db
-      .prepare('SELECT * FROM lanes WHERE removed_at IS NULL ORDER BY created_at,lane_id LIMIT ?')
+    return this.summaryQuery(
+      'SELECT * FROM lanes WHERE removed_at IS NULL ORDER BY created_at,lane_id LIMIT ?',
+    )
       .all(this.limits.lanesPerHost)
-      .map((row) => this.lane(row))
+      .flatMap((row) => this.laneFromRow(row) ?? [])
   }
   getLane(id: string): StoredLane | null {
     uuid(id)
-    const row = this.db.prepare('SELECT * FROM lanes WHERE lane_id=?').get(id)
-    return row ? this.lane(row) : null
+    const row = this.summaryQuery('SELECT * FROM lanes WHERE lane_id=?').get(id)
+    return row ? this.laneFromRow(row) : null
   }
   private requireLane(id: string): StoredLane {
     const lane = this.getLane(id)
@@ -283,21 +361,24 @@ export class HostStore {
       const existing =
         sessionFile === null
           ? undefined
-          : this.db.prepare('SELECT * FROM lanes WHERE session_file=?').get(sessionFile)
+          : this.summaryQuery('SELECT * FROM lanes WHERE session_file=?').get(sessionFile)
       if (existing) {
         check(str(existing, 'repository_id') === repositoryId && str(existing, 'cwd') === cwd)
-        if (existing.removed_at === null) return this.lane(existing)
+        const lane = this.laneFromRow(existing)
+        check(lane !== null)
+        if (existing.removed_at === null) return lane
       }
       check(
         this.db.prepare('SELECT id FROM repositories WHERE id=? AND active=1').get(repositoryId) !==
           undefined,
       )
-      check(
+      if (
         Number(
           this.db.prepare('SELECT count(*) AS count FROM lanes WHERE removed_at IS NULL').get()
             ?.count,
-        ) < this.limits.lanesPerHost,
+        ) >= this.limits.lanesPerHost
       )
+        throw new LaneCapacityReached()
       if (existing) {
         this.db
           .prepare('UPDATE lanes SET removed_at=NULL WHERE lane_id=?')
@@ -586,7 +667,7 @@ export class HostStore {
   /** A bounded read for reconciliation, without exposing the database handle. */
   sessionLane(file: string): StoredLane | null {
     absolutePath(file)
-    const row = this.db.prepare('SELECT * FROM lanes WHERE session_file=?').get(file)
-    return row ? this.lane(row) : null
+    const row = this.summaryQuery('SELECT * FROM lanes WHERE session_file=?').get(file)
+    return row ? this.laneFromRow(row) : null
   }
 }

@@ -1,5 +1,6 @@
 import { readdirSync, symlinkSync } from 'node:fs'
 import { openStore, type HostStore } from '../lanes/store'
+import { loadHostConfig } from '../config/load'
 import { reconcile } from '../lanes/reconcile'
 import { loadSqlite } from '../lanes/sqlite'
 import { hostStateDirectory } from '../lanes/state-dir'
@@ -106,6 +107,53 @@ describe('phosphor run', () => {
     expect(atExit).toEqual([[]])
     expect(attached).toBe(1)
     expect(detached).toBe(1)
+  })
+  it('waits for slow config loading past the release timeout on SIGTERM', async () => {
+    await machine.enrollOld()
+    let entered: () => void = () => {}
+    const loading = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    let resume: () => void = () => {}
+    const paused = new Promise<void>((resolve) => {
+      resume = resolve
+    })
+    const exits: number[] = []
+    const atExit: string[][] = []
+    const shutdown = createShutdown({
+      exit: (code) => {
+        exits.push(code)
+        atExit.push(
+          readdirSync(identityDirectory(machine.configPath)).filter((name) =>
+            name.startsWith('.run-lock'),
+          ),
+        )
+      },
+      stderr: () => {},
+      stopProbes: () => {},
+    })
+    const running = runHost({
+      ...context(),
+      attach: shutdown.attach,
+      loadConfig: async (...args) => {
+        entered()
+        await paused
+        return loadHostConfig(...args)
+      },
+    })
+    await loading
+    const stopping = shutdown.signal('SIGTERM')
+    try {
+      await setTimeout(RELEASE_WAIT_MS + 100)
+      expect(exits).toEqual([])
+    } finally {
+      resume()
+      await Promise.all([running, stopping])
+    }
+    expect(await running).toBe(0)
+    expect(exits).toEqual([0])
+    expect(atExit).toEqual([[]])
+    expect(machine.calls).toEqual([])
   })
   it.each([
     { second: false, failInit: false },

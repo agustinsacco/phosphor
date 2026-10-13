@@ -38,6 +38,7 @@ export interface RunContext extends ControlContext {
   home: string
   attach?: (target: Drainable) => () => void
   heartbeat?: Partial<Pick<HeartbeatPorts, 'readiness' | 'seq' | 'random'>>
+  loadConfig?: typeof loadHostConfig
   reconcile?: typeof reconcile
 }
 async function runHostCommand(context: RunContext): Promise<number> {
@@ -74,6 +75,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
       context.print('Run phosphor login first.')
       return 69
     }
+    const { identity, key } = prepared.loaded
     const directory = identityDirectory(context.configPath)
     release = await acquireIdentityLock(directory, context.uid, context.lockPorts, '.run-lock')
     // Start-up can await SQLite and disk scans. A signal must wait for cleanup
@@ -95,64 +97,70 @@ async function runHostCommand(context: RunContext): Promise<number> {
       exitCode: () => (later ? 128 + constants.signals[later] : (loop?.exitCode() ?? startupExit)),
       log: { write: () => {}, hide: () => 'The Host could not finish.' },
     })
-    const config = await loadHostConfig(context.configPath, context.uid)
-    if (!config.ok)
-      throw new IdentityFailure('Config is not usable. Run phosphor doctor to check it.')
-    const stateDirectory = hostStateDirectory(context.env, context.home)
     initialization = (async () => {
+      initAbort.signal.throwIfAborted()
+      const config = await (context.loadConfig ?? loadHostConfig)(context.configPath, context.uid)
+      initAbort.signal.throwIfAborted()
+      if (!config.ok)
+        throw new IdentityFailure('Config is not usable. Run phosphor doctor to check it.')
+      const stateDirectory = hostStateDirectory(context.env, context.home)
       try {
         initAbort.signal.throwIfAborted()
         store = await openStore(stateDirectory, context.uid, {
           logCorruptReceipt: (count) => context.log?.('host', 'receipts.corrupt', { count }),
+          logCorruptLane: (count) => context.log?.('host', 'lanes.corrupt', { count }),
         })
         initAbort.signal.throwIfAborted()
         store.syncRepositories(config.config.repositories, (count) =>
           context.log?.('host', 'lanes.repositories_unavailable', { count }),
         )
+        initAbort.signal.throwIfAborted()
         const counts = await (context.reconcile ?? reconcile)(
           store,
           piSessionsRoot(context.env, context.home),
           (skipped) => context.log?.('host', 'lanes.skipped', { skipped }),
           initAbort.signal,
         )
+        initAbort.signal.throwIfAborted()
         context.log?.('host', 'lanes.reconciled', counts)
       } catch (error) {
         if (error instanceof StateFailure || error === initAbort.signal.reason) throw error
         throw new StateFailure(stateDirectory, 70, 'Could not reconcile lanes.')
       }
+      initAbort.signal.throwIfAborted()
+      loop = createHeartbeat({
+        now: context.now ?? Date.now,
+        wait: context.wait ?? ((ms, signal) => setTimeout(ms, undefined, { signal })),
+        random: context.heartbeat?.random ?? (() => randomInt(3001) / 3000),
+        client: (body, signal) => {
+          context.log?.('host', 'heartbeat', {
+            seq: body.seq,
+            state: body.state,
+            trace: context.trace,
+          })
+          return prepared.client.heartbeat(identity.hostId, key, body, signal)
+        },
+        readiness:
+          context.heartbeat?.readiness ??
+          (() => checkReadiness(config.config, context.env, context.platform)),
+        seq: context.heartbeat?.seq ?? createSequenceStore(directory, context.uid, identity.hostId),
+        hostVersion: HOST_VERSION,
+        signal: context.signal,
+        log: (line) => {
+          const retry = /^retrying in ([0-9.]+)s$/.exec(line)
+          context.log?.('host', line === REMOVED ? 'removed' : retry ? 'retry' : 'state', {
+            state: line,
+            trace: context.trace,
+            ...(line === REMOVED ? { exitCode: 77 } : {}),
+            ...(retry ? { delayMs: Number(retry[1]) * 1000 } : {}),
+          })
+          context.print(line)
+        },
+      })
     })()
     await initialization
     initAbort.signal.throwIfAborted()
-    const { identity, key } = prepared.loaded
-    loop = createHeartbeat({
-      now: context.now ?? Date.now,
-      wait: context.wait ?? ((ms, signal) => setTimeout(ms, undefined, { signal })),
-      random: context.heartbeat?.random ?? (() => randomInt(3001) / 3000),
-      client: (body, signal) => {
-        context.log?.('host', 'heartbeat', {
-          seq: body.seq,
-          state: body.state,
-          trace: context.trace,
-        })
-        return prepared.client.heartbeat(identity.hostId, key, body, signal)
-      },
-      readiness:
-        context.heartbeat?.readiness ??
-        (() => checkReadiness(config.config, context.env, context.platform)),
-      seq: context.heartbeat?.seq ?? createSequenceStore(directory, context.uid, identity.hostId),
-      hostVersion: HOST_VERSION,
-      signal: context.signal,
-      log: (line) => {
-        const retry = /^retrying in ([0-9.]+)s$/.exec(line)
-        context.log?.('host', line === REMOVED ? 'removed' : retry ? 'retry' : 'state', {
-          state: line,
-          trace: context.trace,
-          ...(line === REMOVED ? { exitCode: 77 } : {}),
-          ...(retry ? { delayMs: Number(retry[1]) * 1000 } : {}),
-        })
-        context.print(line)
-      },
-    })
+    if (!loop) throw new Error('Heartbeat was not initialized.')
     return await loop.run()
   } catch (error) {
     if (error === initAbort.signal.reason && initAbort.signal.aborted) {
