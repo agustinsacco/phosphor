@@ -30,27 +30,31 @@ it('publishes only raw public keys and retains old verification keys during rota
     exp: 1300,
     jti: '0123456789abcdef',
   }
-  const grant = before.sign(payload)
-  const [, , encoded, signature] = grant.split('.')
-  const key = after.keyset.keys.find((key) => key.kid === 'second')
-  if (!encoded || !signature || !key) throw new Error('invalid grant')
-  expect(Object.keys(key).sort()).toEqual(['kid', 'publicKey'])
-  expect(Buffer.from(key.publicKey, 'base64url')).toHaveLength(32)
-  expect(
-    verify(
-      null,
-      Buffer.from(encoded, 'base64url'),
-      createPublicKey({
-        key: Buffer.concat([
-          Buffer.from('302a300506032b6570032100', 'hex'),
-          Buffer.from(key.publicKey, 'base64url'),
-        ]),
-        type: 'spki',
-        format: 'der',
-      }),
-      Buffer.from(signature, 'base64url'),
-    ),
-  ).toBe(true)
+  for (const signer of [before, after]) {
+    const claims = { ...payload, kid: signer.kid }
+    const grant = signer.sign(claims)
+    const [, , encoded, signature] = grant.split('.')
+    const key = after.keyset.keys.find((key) => key.kid === signer.kid)
+    if (!encoded || !signature || !key) throw new Error('invalid grant')
+    expect(JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'))).toEqual(claims)
+    expect(Object.keys(key).sort()).toEqual(['kid', 'publicKey'])
+    expect(Buffer.from(key.publicKey, 'base64url')).toHaveLength(32)
+    expect(
+      verify(
+        null,
+        Buffer.from(encoded, 'base64url'),
+        createPublicKey({
+          key: Buffer.concat([
+            Buffer.from('302a300506032b6570032100', 'hex'),
+            Buffer.from(key.publicKey, 'base64url'),
+          ]),
+          type: 'spki',
+          format: 'der',
+        }),
+        Buffer.from(signature, 'base64url'),
+      ),
+    ).toBe(true)
+  }
   expect(JSON.stringify(after)).not.toContain(first.split('=')[1])
 })
 it('bounds keysets, rejects malformed or noncanonical seeds without echoing values', () => {
@@ -90,6 +94,10 @@ it('bounds keysets, rejects malformed or noncanonical seeds without echoing valu
   // The total-length boundary is reachable, but cannot be a valid <=8-entry keyset.
   expect(() => parseGrantKeys('x'.repeat(4096))).toThrow('key id')
   expect(() => parseGrantKeys('x'.repeat(4097))).toThrow('length')
+  for (const bytes of [31, 33])
+    expect(() => parseGrantKeys(`one=${randomBytes(bytes).toString('base64url')}`)).toThrow(
+      'seed length at entry 1',
+    )
   expect(parseGrantKeys(entry('x'.repeat(64)))?.kid).toHaveLength(64)
 })
 it('accepts only canonical bare HTTPS or loopback HTTP origins without echoing invalid input', () => {
@@ -104,6 +112,12 @@ it('accepts only canonical bare HTTPS or loopback HTTP origins without echoing i
   for (const value of [
     '',
     'http://example.test',
+    'http://localhost',
+    'http://127.0.0.1',
+    'http://localhost:80',
+    'http://localhost:0',
+    'http://localhost:65536',
+    'http://[::1]:54351',
     'https://user:password@example.test',
     'https://example.test/',
     'https://example.test/path',

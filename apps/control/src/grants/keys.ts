@@ -65,7 +65,9 @@ export function parseGrantOrigin(value = 'https://phosphor.saccolabs.com'): stri
     if (
       url.origin === value &&
       (url.protocol === 'https:' ||
-        (url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname)))
+        (url.protocol === 'http:' &&
+          ['localhost', '127.0.0.1'].includes(url.hostname) &&
+          Number(url.port) >= 1))
     )
       return value
   } catch {

@@ -61,11 +61,15 @@ it('bounds grant response tokens and checks the Host metadata without claiming s
       host: { ...response.host, endpoint: 'https://bee.ts.net' },
     }).ok,
   ).toBe(true)
-  const atLimit = 'phosphor-grant.v1.' + 'a'.repeat(4096 - 'phosphor-grant.v1.'.length - 87) + '.' + 'A'.repeat(86)
+  const atLimit =
+    'phosphor-grant.v1.' +
+    'a'.repeat(4096 - 'phosphor-grant.v1.'.length - 87) +
+    '.' +
+    'A'.repeat(86)
   expect(atLimit).toHaveLength(4096)
   expect(parseGrantIssueResponse({ ...response, grant: atLimit }).ok).toBe(true)
   for (const patch of [
-    { grant: atLimit + 'A' },
+    { grant: atLimit.replace('.' + 'A'.repeat(86), 'a.' + 'A'.repeat(86)) },
     { grant: 'not-a-grant' },
     { grant: response.grant + '=' },
     { expiresAt: 'yesterday' },

@@ -163,8 +163,10 @@ not a file or log.
 To rotate, first append the new key while the old key still signs, then move the
 new key to the first position. Keep the old key published until existing grants
 and cached keysets have expired. Hosts cache the public keyset for five minutes.
-`CONTROL_PUBLIC_ORIGIN` is the exact bare issuer origin, HTTPS or loopback HTTP
-for local stacks. Hosts compare it to their configured control origin.
+`CONTROL_PUBLIC_ORIGIN` is the exact bare issuer origin, HTTPS or HTTP on
+`localhost` or `127.0.0.1` with a port for local stacks. Paths, queries,
+fragments and userinfo are refused. Hosts compare it to their configured
+control origin.
 
 Accepted heartbeats query the active Host's owner and epoch and return
 `revoked: {sessions, clients}`. Each list holds at most 100 ids, newest first:
@@ -183,17 +185,17 @@ access during an outage; the ten-minute window covers a later successful beat.
 
 ## Configuration and local use
 
-| Variable                   | Default                          | Constraint                                                                           |
-| -------------------------- | -------------------------------- | ------------------------------------------------------------------------------------ |
-| `PORT`                     | `5015`                           | 0 through 65535; 0 selects a test port                                               |
-| `SITE_DIR`                 | `/app/site`                      | Trusted built site directory                                                         |
-| `SUPABASE_URL`             | Hosted Phosphor origin           | HTTPS, or HTTP on localhost, 127.0.0.1 or [::1] only                                 |
-| `SUPABASE_PUBLISHABLE_KEY` | Hosted publishable key           | Public Auth apikey                                                                   |
-| `SUPABASE_SECRET_KEY`      | Unset                            | Secret RPC apikey; never put it in a URL or command argument                         |
-| `CONTROL_GRANT_KEYS`       | Unset                            | At most eight `kid=seed` entries, at most 4096 characters; first entry signs         |
-| `CONTROL_PUBLIC_ORIGIN`    | `https://phosphor.saccolabs.com` | Exact bare HTTPS origin, or HTTP on localhost or 127.0.0.1 for local stacks          |
-| `CONTROL_TRUST_PROXY`      | `none`                           | `none` or `cloudflare`                                                               |
-| `CONTROL_EDGE_SECRET`      | Unset                            | Required in Cloudflare mode: 32-512 letters, digits, `_` or `-`; ignored with `none` |
+| Variable                   | Default                          | Constraint                                                                              |
+| -------------------------- | -------------------------------- | --------------------------------------------------------------------------------------- |
+| `PORT`                     | `5015`                           | 0 through 65535; 0 selects a test port                                                  |
+| `SITE_DIR`                 | `/app/site`                      | Trusted built site directory                                                            |
+| `SUPABASE_URL`             | Hosted Phosphor origin           | HTTPS, or HTTP on localhost, 127.0.0.1 or [::1] only                                    |
+| `SUPABASE_PUBLISHABLE_KEY` | Hosted publishable key           | Public Auth apikey                                                                      |
+| `SUPABASE_SECRET_KEY`      | Unset                            | Secret RPC apikey; never put it in a URL or command argument                            |
+| `CONTROL_GRANT_KEYS`       | Unset                            | At most eight `kid=seed` entries, at most 4096 characters; first entry signs            |
+| `CONTROL_PUBLIC_ORIGIN`    | `https://phosphor.saccolabs.com` | Exact bare HTTPS origin, or HTTP on localhost or 127.0.0.1 with a port for local stacks |
+| `CONTROL_TRUST_PROXY`      | `none`                           | `none` or `cloudflare`                                                                  |
+| `CONTROL_EDGE_SECRET`      | Unset                            | Required in Cloudflare mode: 32-512 letters, digits, `_` or `-`; ignored with `none`    |
 
 ```bash
 npm run site:build

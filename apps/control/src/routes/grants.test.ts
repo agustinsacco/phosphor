@@ -193,9 +193,19 @@ it('fails closed on malformed input, missing verified session id, upstream denia
     ).status,
   ).toBe(401)
   expect(s.deps.supabase.rpc).not.toHaveBeenCalledWith('control_grant_issue', expect.anything())
+  const valid = s.results.control_grant_issue
+  if (!valid || typeof valid !== 'object') throw new Error('missing metadata')
   s.results.control_grant_issue = { outcome: 'not-found' }
   expect((await s.call(R.grants, { hostId: s.hostId, clientId: s.clientId })).status).toBe(404)
-  for (const value of [null, { outcome: 'issued', epoch: 0 }, { outcome: 'unexpected' }]) {
+  for (const value of [
+    null,
+    { outcome: 'unexpected' },
+    ...[0, 1.5, 2147483648, '2'].map((epoch) => ({ ...valid, epoch })),
+    { ...valid, client: { id: randomUUID(), label: 'Desktop' } },
+    { ...valid, client: { id: s.clientId, label: ' Desktop ' } },
+    { ...valid, publicKey: 'bad' },
+    { ...valid, endpoint: 'http://evil.test' },
+  ]) {
     s.results.control_grant_issue = value
     expect((await s.call(R.grants, { hostId: s.hostId, clientId: s.clientId })).status).toBe(503)
   }
