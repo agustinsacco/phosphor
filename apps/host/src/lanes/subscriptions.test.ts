@@ -644,3 +644,50 @@ describe('subscription review guards', () => {
     s.subscriptions.close()
   })
 })
+
+it('continues attention recovery after the first notification without resending it or the list', async () => {
+  vi.useFakeTimers()
+  const reference = setup()
+  const events = [1, 2].map((attention) => ({
+    id: `${laneId}:${attention}`,
+    laneId,
+    kind: 'finished' as const,
+    attention,
+    at: summary.createdAt,
+    title: null,
+  }))
+  for (const event of events) reference.topic.attention(event)
+  const first = reference.topic.replay({ epoch, seq: 0 })[0]
+  if (!first) throw new Error('missing attention')
+  const cap =
+    Buffer.byteLength(JSON.stringify({ ...reference.topic.snapshot(), id: 'list' })) +
+    Buffer.byteLength(JSON.stringify({ ...first, id: 'list' }))
+  reference.subscriptions.close()
+  const s = setup({ sendQueueBytes: cap })
+  for (const event of events) s.topic.attention(event)
+  s.subscriptions.handle({
+    type: 'subscribe',
+    topic: 'lanes',
+    id: 'list',
+    after: { epoch, seq: 0 },
+  })
+  expect(s.pair.server.bufferedBytes()).toBe(cap)
+  await tick()
+  expect(s.received).toMatchObject([
+    { type: 'lanes', cursor: { seq: 2 } },
+    { type: 'attention', event: { attention: 1 } },
+  ])
+  expect(s.received).toHaveLength(2)
+  expect(vi.getTimerCount()).toBe(1)
+  vi.advanceTimersByTime(25)
+  await tick()
+  expect(s.received.map((frame) => frame.type)).toEqual(['lanes', 'attention', 'attention'])
+  expect(
+    s.received.filter((frame) => frame.type === 'attention').map((frame) => frame.event),
+  ).toEqual(events)
+  expect(vi.getTimerCount()).toBe(0)
+  s.topic.delta([])
+  await tick()
+  expect(s.received.at(-1)).toMatchObject({ type: 'lanes-delta', cursor: { seq: 3 } })
+  s.subscriptions.close()
+})

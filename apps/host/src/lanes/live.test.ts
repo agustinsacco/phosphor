@@ -608,3 +608,103 @@ it('bounds dirty transition passes and logs only the lane id', async () => {
   expect(summaries).toBe(3)
   expect(s.log.mock.calls).toEqual([['lane.stream_reentrant_overflow', { laneId: s.laneId }]])
 })
+
+describe('live lane summary supersession guards', () => {
+  it.each(['control', 'detach'] as const)(
+    'keeps every viewer on the newer summary after reentrant attention %s',
+    async (action) => {
+      const s = await setup()
+      await s.live.attach(s.laneId, 'pi').ready
+      for (const id of ['one', 'two']) {
+        s.subscribe(`lane-${id}`)
+        s.subscriptions.handle({ type: 'subscribe', topic: 'lanes', id: `list-${id}` })
+      }
+      await tick()
+      s.frames.length = 0
+      s.live.lanesTopic.listen((frame) => {
+        if (frame?.type !== 'attention') return
+        if (action === 'detach') s.live.detach(s.laneId)
+        else {
+          const control = s.store.takeControl(s.laneId, {
+            clientId: '12345678-1234-4234-8234-123456789012',
+            label: 'new controller',
+          })
+          s.live.publish(s.laneId, { kind: 'control', control })
+        }
+      })
+      s.live.push(s.laneId, {
+        kind: 'extension-ui',
+        request: { type: 'extension_ui_request', id: 'ask', method: 'input', title: 'ask' },
+      })
+      await tick()
+      const expected = s.live.summaryFor(s.laneId)
+      expect(expected).toMatchObject(
+        action === 'detach'
+          ? { activity: 'stopped', attention: 1 }
+          : { control: { controller: { label: 'new controller' } }, attention: 1 },
+      )
+      for (const id of ['one', 'two']) {
+        const laneSummaries = s.frames.flatMap((frame) =>
+          frame.type === 'event' && frame.id === `lane-${id}` && frame.event.kind === 'summary'
+            ? [frame.event.summary]
+            : [],
+        )
+        const listSummaries = s.frames.flatMap((frame) =>
+          frame.type === 'lanes-delta' && frame.id === `list-${id}` ? frame.upsert : [],
+        )
+        expect(laneSummaries).toEqual([expected])
+        expect(listSummaries).toEqual([expected])
+      }
+    },
+  )
+  it.each(['attached', 'detached'] as const)(
+    'does not send a superseded summary delta for an %s lane',
+    async (attachment) => {
+      const s = await setup()
+      if (attachment === 'attached') await s.live.attach(s.laneId, 'pi').ready
+      s.subscribe()
+      s.subscriptions.handle({ type: 'subscribe', topic: 'lanes', id: 'list' })
+      await tick()
+      s.frames.length = 0
+      const summary = s.live.summaryFor(s.laneId)
+      if (!summary) throw new Error('no summary')
+      const newer = { ...summary, title: 'newer' }
+      s.live.streams.listen(s.laneId, (frame) => {
+        if (frame?.event.kind === 'summary' && frame.event.summary.title === 'older')
+          s.live.publish(s.laneId, { kind: 'summary', summary: newer })
+      })
+      s.live.publish(s.laneId, { kind: 'summary', summary: { ...summary, title: 'older' } })
+      await tick()
+      const deltas = s.frames.filter((frame) => frame.type === 'lanes-delta')
+      expect(deltas).toMatchObject([{ upsert: [newer] }])
+      expect(deltas).toHaveLength(1)
+      expect(s.frames.filter((frame) => frame.type === 'event').at(-1)).toMatchObject({
+        event: { kind: 'summary', summary: newer },
+      })
+    },
+  )
+  it('commits the control summary so an unchanged push publishes no duplicate summary', async () => {
+    const s = await setup()
+    await s.live.attach(s.laneId, 'pi').ready
+    const control = s.store.takeControl(s.laneId, {
+      clientId: '12345678-1234-4234-8234-123456789012',
+      label: 'controller',
+    })
+    s.live.publish(s.laneId, { kind: 'control', control })
+    const publish = vi.spyOn(s.live.streams, 'publish')
+    const delta = vi.spyOn(s.live.lanesTopic, 'delta')
+    s.push({ type: 'queue_update', steering: [], followUp: [] })
+    expect(publish.mock.calls.map(([, event]) => event.kind)).toEqual(['pi'])
+    expect(delta).not.toHaveBeenCalled()
+  })
+  it('publishes nothing when detaching a lane that is already unattached', async () => {
+    const s = await setup()
+    const publish = vi.spyOn(s.live.streams, 'publish')
+    const delta = vi.spyOn(s.live.lanesTopic, 'delta')
+    const cursor = s.live.streams.cursor(s.laneId)
+    s.live.detach(s.laneId)
+    expect(publish).not.toHaveBeenCalled()
+    expect(delta).not.toHaveBeenCalled()
+    expect(s.live.streams.cursor(s.laneId)).toEqual(cursor)
+  })
+})

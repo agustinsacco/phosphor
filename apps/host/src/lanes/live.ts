@@ -42,6 +42,8 @@ export function createLiveLanes(options: {
 }) {
   const limits = streamLimits(options.limits)
   const attached = new Map<string, Attachment>()
+  // Tokens exist only during synchronous summary publication, including detached lanes.
+  const summaryPublications = new Map<string, object>()
   let resolvingCommand = false
   function invalid(laneId: string) {
     try {
@@ -129,13 +131,19 @@ export function createLiveLanes(options: {
       }
     }
     if (event.kind === 'summary' && live) live.last = event.summary
-    streams.publish(laneId, event)
-    if (event.kind === 'dialog-resolved') changed(laneId)
-    if (event.kind === 'control') {
-      const summary = summaryFor(laneId)
-      if (summary) publish(laneId, { kind: 'summary', summary })
-    } else if (event.kind === 'summary') {
-      lanesTopic.delta([event.summary])
+    const publication = {}
+    if (event.kind === 'summary') summaryPublications.set(laneId, publication)
+    try {
+      streams.publish(laneId, event)
+      if (event.kind === 'dialog-resolved') changed(laneId)
+      if (event.kind === 'control') {
+        const summary = summaryFor(laneId)
+        if (summary) publish(laneId, { kind: 'summary', summary })
+      } else if (event.kind === 'summary' && summaryPublications.get(laneId) === publication) {
+        lanesTopic.delta([event.summary])
+      }
+    } finally {
+      if (summaryPublications.get(laneId) === publication) summaryPublications.delete(laneId)
     }
   }
   function changed(laneId: string) {
@@ -182,7 +190,8 @@ export function createLiveLanes(options: {
             title: summary.title,
           })
         }
-        if (different) publish(laneId, { kind: 'summary', summary })
+        if (different && attached.get(laneId) === live && live.last === summary)
+          publish(laneId, { kind: 'summary', summary })
       } while (live.dirty && attached.get(laneId) === live)
     } finally {
       live.changing = false
