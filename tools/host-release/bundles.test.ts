@@ -17,6 +17,7 @@ import { join, resolve } from 'node:path'
 import { createHash } from 'node:crypto'
 import { gunzipSync, gzipSync } from 'node:zlib'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { HOST_RELEASE_BASE_URL } from '../../apps/host/src/update/download'
 import { verifyReleaseManifest } from '../../apps/host/src/update/verify'
 import { HOST_PROTOCOL_VERSION } from '../../libs/shared/src/remote-host'
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'host-bundles-test-')))
@@ -169,6 +170,8 @@ function rerun(home: string, release: string) {
     },
   })
 }
+const withoutPublicReleaseUrl = (text: string) => text.replaceAll(HOST_RELEASE_BASE_URL, '')
+
 describe('signed Host bundle tools', { timeout: 60_000 }, () => {
   it('builds byte-identical bundles and installs without system Node, including latest alias', () => {
     for (const requested of ['1.2.3', '']) {
@@ -229,6 +232,9 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
     const unpacked = join(dir, 'scan')
     mkdirSync(unpacked)
     execFileSync('tar', ['-xzf', join(out, `phosphor-host-1.2.3-${target}.tar.gz`), '-C', unpacked])
+    expect(readFileSync(join(unpacked, 'lib/phosphor.mjs'), 'utf8')).toContain(
+      HOST_RELEASE_BASE_URL,
+    )
     for (const file of readdirSync(unpacked, { recursive: true, encoding: 'utf8' })) {
       if (!lstatSync(join(unpacked, file)).isFile()) continue
       expect(file).not.toMatch(/\.map$/)
@@ -238,7 +244,21 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
       for (const forbidden of [root, dir, homedir(), ...buildTemps, 'sourceMappingURL'])
         expect(text, `${file} contains ${forbidden}`).not.toContain(forbidden)
       // A user name is also a word (CI's is `runner`); forbid it only as a path segment.
-      expect(text, `${file} contains a path through the user name`).not.toMatch(userSegment)
+      expect(
+        withoutPublicReleaseUrl(text),
+        `${file} contains a path through the user name`,
+      ).not.toMatch(userSegment)
+    }
+  })
+  it('excludes only the exact public URL, never private username paths alongside it', () => {
+    expect(withoutPublicReleaseUrl(HOST_RELEASE_BASE_URL)).toBe('')
+    const user = userInfo().username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const segment = new RegExp(`[/\\\\]${user}(?![A-Za-z0-9_.-])`)
+    for (const path of [`/Users/${userInfo().username}/x`, `/home/${userInfo().username}/x`]) {
+      const scanned = withoutPublicReleaseUrl(`${HOST_RELEASE_BASE_URL} ${path}`)
+      expect(scanned).not.toContain(HOST_RELEASE_BASE_URL)
+      expect(scanned).toContain(path)
+      expect(scanned).toMatch(segment)
     }
   })
   it('recognizes both CLI entry points through paths containing spaces and percent signs', () => {
@@ -266,7 +286,7 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
       ).toBe('true')
     }
   })
-  it('documents the implemented lock protocol and does not claim an updater or publishing workflow exists', () => {
+  it('documents the implemented lock and updater without claiming a publishing workflow exists', () => {
     const docs = readFileSync(join(root, 'docs/host.md'), 'utf8')
     for (const rule of [
       'Any updater must',
@@ -277,7 +297,12 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
       'no program deletes the',
       'SIGKILL or power loss can leave a',
       'No workflow publishes them',
-      '`phosphor update` does not exist yet',
+      '## Updating',
+      '## Uninstalling',
+      '`phosphor update`',
+      '--check',
+      '--rollback',
+      '`phosphor uninstall`',
     ])
       expect(docs).toContain(rule)
     expect(docs.replace(/\s+/g, ' ')).toContain(

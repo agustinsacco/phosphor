@@ -1,4 +1,4 @@
-import { writeFileSync } from 'node:fs'
+import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -41,6 +41,35 @@ function fixture() {
   return { calls, context, unit: join(machine.root, 'xdg', 'systemd', 'user', HOST_UNIT) }
 }
 describe('phosphor service', () => {
+  it.each(['linux', 'darwin'] as const)(
+    'installs %s release service paths through current',
+    async (platform) => {
+      await machine.enrollOld()
+      const f = fixture(),
+        lib = join(machine.root, '.local/lib/phosphor-host'),
+        folder = join(lib, 'versions/1.2.3')
+      for (const name of ['node/bin/node', 'lib/phosphor.mjs']) {
+        mkdirSync(join(folder, name, '..'), { recursive: true })
+        writeFileSync(join(folder, name), 'test')
+      }
+      symlinkSync('versions/1.2.3', join(lib, 'current'))
+      f.context.platform = platform
+      f.context.service = {
+        ...f.context.service,
+        node: join(folder, 'node/bin/node'),
+        bundle: join(folder, 'lib/phosphor.mjs'),
+      }
+      expect(await runService(f.context, 'install')).toBe(0)
+      const path =
+        platform === 'linux'
+          ? f.unit
+          : join(machine.root, 'Library/LaunchAgents', `${HOST_AGENT}.plist`)
+      const text = await readFile(path, 'utf8')
+      expect(text).toContain(join(lib, 'current/node/bin/node'))
+      expect(text).toContain(join(lib, 'current/lib/phosphor.mjs'))
+      expect(text).not.toContain('versions/1.2.3')
+    },
+  )
   it.each([
     ['service'],
     ['service', 'unknown'],

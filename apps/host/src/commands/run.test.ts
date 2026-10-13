@@ -17,6 +17,9 @@ import { RELEASE_WAIT_MS, runHost } from './run'
 import { createShutdown } from '../shutdown'
 import { createHeartbeat } from '../control/heartbeat'
 import { runCli } from '../cli'
+import { readRunHealth } from '../update/health'
+import type { Drainable } from '../shutdown'
+import { HOST_VERSION } from '../version'
 
 const readiness: Readiness = { pi: 'ok', claude: 'ok', tailscale: 'ok' }
 let machine: ControlMachine
@@ -40,6 +43,45 @@ const context = (): RunContext => ({
   heartbeat: { readiness: async () => readiness, random: () => 0 },
 })
 describe('phosphor run', () => {
+  it.each([true, false])(
+    'publishes health only after an accepted running heartbeat: %s',
+    async (accepted) => {
+      await machine.enrollOld()
+      let target: Drainable | undefined
+      const c = context(),
+        state = hostStateDirectory(c.env, c.home)
+      let observed = false
+      expect(
+        await runHost({
+          ...c,
+          attach: (t) => {
+            target = t
+            return () => {}
+          },
+          fetch: async (_url, init) => {
+            const body: unknown = JSON.parse(String(init?.body))
+            if (body && typeof body === 'object' && 'state' in body && body.state === 'stopping')
+              return Response.json({ accepted: true, nextInSec: 30 })
+            return accepted
+              ? Response.json({ accepted: true, nextInSec: 30 })
+              : new Response('', { status: 503 })
+          },
+          wait: async (ms, signal) => {
+            if (ms === 5000 && observed) return setTimeout(ms, undefined, { signal })
+            observed = true
+            const record = readRunHealth(state)
+            if (accepted) {
+              expect(record?.version).toBe(HOST_VERSION)
+              expect(record?.pid).toBe(process.pid)
+            } else expect(record).toBeNull()
+            await target?.drain('SIGTERM')
+          },
+        }),
+      ).toBe(0)
+      expect(observed).toBe(true)
+      if (!accepted) expect(readRunHealth(state)).toBeNull()
+    },
+  )
   it('dispatches CLI run through one shutdown attachment and sends stopping on SIGTERM', async () => {
     await machine.enrollOld()
     const exits: number[] = []

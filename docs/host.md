@@ -51,8 +51,8 @@ provider installs are never changed. An already selected version with a matching
 version folder untouched and makes sure the launcher is in place. Any other
 existing version folder is refused, with an instruction to run
 `phosphor update --rollback` or remove that folder before trying again.
-`phosphor update` does not exist yet, so remove the folder for now. A `current`
-that is not a symlink is refused.
+Use `phosphor update` to select another signed release. A `current` that is not
+a symlink is refused.
 
 A launcher symlink is ours only when it points exactly at
 `~/.local/lib/phosphor-host/current/bin/phosphor`. A different launcher is refused
@@ -189,6 +189,9 @@ phosphor run [--config FILE] [--supervisor launchd]
 phosphor service install|status|restart|logs|uninstall [--config FILE]
 phosphor service logs [--config FILE] [--follow]
 phosphor tailscale status|enable|disable [--config FILE]
+phosphor update [--version X.Y.Z] [--check] [--json]
+phosphor update --rollback [--json]
+phosphor uninstall [--purge --yes] [--json]
 phosphor version [--json]
 ```
 
@@ -274,6 +277,62 @@ is gone, and the aborted turn is saved. A second signal during a drain forces
 it. An `accept` whose pi leaves a process holding its pipes exits 70 once its
 stop's 20 s pass, rather than wait on that process. `output.test.ts` covers the
 replacement itself, with renames and deletions that fail.
+
+## Updating
+
+Release installs support `phosphor update`, `phosphor update --check` and
+`phosphor update --version X.Y.Z`. Add `--json` for a machine-readable result.
+Source installs print the release installer command instead. No release keys
+are pinned yet, so updates refuse until the operator pins a key.
+
+The updater verifies the signed manifest before reading its metadata, refuses
+a downgrade and checks this machine's artifact and protocol. `--check` reports
+installed and available versions without downloading the bundle. The
+`PHOSPHOR_HOST_RELEASE_URL` override is one flat asset folder for the manifest,
+its signature and the artifact, just like the installer. Only HTTPS and offline
+`file://` mirrors are accepted; redirects stay on HTTPS and stop after three.
+
+Downloads have byte caps and a 30-second inactivity deadline. The bundle must
+match its signed byte count and SHA-256 before a built-in ustar reader expands
+it. Expanded bytes, including headers and padding, stop at 256 MiB; at most
+4,096 regular-file entries with the installer's path rules are accepted. Links,
+devices, traversal, corrupt or truncated archives and a mismatched `VERSION`
+are refused. A failure before selection removes staging and keeps `current`.
+Update, rollback and uninstall use the installer's shared lock and defer signals
+through synchronous publication. SIGKILL or power loss can still require the
+manual lock recovery described above.
+
+Selection atomically replaces `current` and records current and previous
+versions in `install.json`. The updater retains those two and at most one older
+version. Service installs on Linux and macOS point node and the bundle through
+`current`, so a service survives a version change. Reinstall a service created
+before this rule with `phosphor service install`.
+
+An active Linux service or loaded macOS LaunchAgent restarts after selection.
+The updater waits up to 90 seconds for a new run's accepted heartbeat. `run`
+writes `{ version, pid, startedAt, acceptedAt }` to `<state>/run.json` atomically
+at 0600 after its first accepted running heartbeat and at most once a minute.
+If the new version is not healthy, update selects the old version and restarts
+it again, then exits 75. With no running service it asks you to restart
+`phosphor run`. `phosphor update --rollback` selects the recorded previous
+installed version without network access and uses the same service restart and
+health check. Rollback is the only way to select a lower version.
+
+## Uninstalling
+
+`phosphor uninstall` uninstalls the user service and removes a release program.
+It removes `~/.local/bin/phosphor` only if that symlink points exactly at the
+release's `current/bin/phosphor`. A foreign launcher and
+`phosphor.before-release` stay untouched. Source installs print the bundle
+folder to delete instead. Config, identity, state and provider data stay in
+place, and the command prints the config and state directories. Add `--json`
+for a machine-readable result.
+
+`phosphor uninstall --purge --yes` first logs out remotely and only on success
+removes the default config and state directories too. Both flags are required.
+A failed logout keeps the program, service and data and exits 75. Every directory
+removed is checked for ownership, its expected location and symlinked ancestors.
+pi's sessions and provider credentials are never removed.
 
 ## Config
 
