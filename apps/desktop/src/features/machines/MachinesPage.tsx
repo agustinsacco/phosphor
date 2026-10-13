@@ -5,6 +5,7 @@ import { PageShell } from '@/components/PageShell'
 import { PaneTitle } from '@/components/PaneShell'
 import { StatTile } from '@/components/StatTile'
 import { Button } from '@/components/form'
+import { TooltipButton, tooltipProps } from '@/components/Tooltip'
 import { ModalOverlay, ModalPanel } from '@/components/Modal'
 import { useAccount } from '@/features/settings/useAccount'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
@@ -83,7 +84,7 @@ function ReadinessChips({ checks }: { checks: ReadinessCheck[] }): React.JSX.Ele
         problems.map((check) => (
           <span
             key={check.name}
-            title={check.detail}
+            {...tooltipProps(check.detail)}
             className="bg-warning/10 text-warning rounded px-2 py-0.5 text-sm"
           >
             {check.short}
@@ -129,7 +130,8 @@ export function MachineRow({
   onOpen: () => void
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
+      tooltip={`Open ${machine.label}`}
       data-testid="enrolled-machine-row"
       data-status={machineStatus(machine, now, offset)}
       className="hover:bg-bg-secondary focus-visible:bg-bg-secondary focus-visible:outline-accent flex w-full items-center gap-4 px-5 py-4 text-left transition-colors"
@@ -153,7 +155,7 @@ export function MachineRow({
       <span aria-hidden className="text-text-tertiary">
         ›
       </span>
-    </button>
+    </TooltipButton>
   )
 }
 function Section({
@@ -292,9 +294,13 @@ export function MachinesPage(): React.JSX.Element {
       <div data-testid="machines-page" className="flex-1 overflow-y-auto px-6 pb-10 pt-5">
         <div className="mx-auto max-w-4xl space-y-6">
           {selected && (
-            <button className="text-text-secondary hover:text-text -mb-3 text-base" onClick={back}>
+            <TooltipButton
+              tooltip="Back to all machines"
+              className="text-text-secondary hover:text-text -mb-3 text-base"
+              onClick={back}
+            >
               ← Machines
-            </button>
+            </TooltipButton>
           )}
           <header className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -325,7 +331,7 @@ export function MachinesPage(): React.JSX.Element {
               </p>
             </div>
             {!selected && (
-              <span title={signedIn ? undefined : 'Sign in with GitHub to add machines'}>
+              <span {...tooltipProps(signedIn ? undefined : 'Sign in with GitHub to add machines')}>
                 <Button variant="primary" disabled={!signedIn} onClick={() => setAdding(true)}>
                   Add a machine
                 </Button>
@@ -356,7 +362,8 @@ export function MachinesPage(): React.JSX.Element {
                 </p>
               )}
               <div className="border-border divide-border overflow-hidden rounded-lg border bg-surface divide-y">
-                <button
+                <TooltipButton
+                  tooltip={`Open ${localMachineLabel(window.phosphor.platform)}`}
                   data-testid="local-machine-row"
                   className="hover:bg-bg-secondary focus-visible:bg-bg-secondary focus-visible:outline-accent flex w-full items-center gap-4 px-5 py-4 text-left"
                   onClick={() => state.show({ kind: 'machine', id: LOCAL_MACHINE })}
@@ -379,7 +386,7 @@ export function MachinesPage(): React.JSX.Element {
                   <span aria-hidden className="text-text-tertiary">
                     ›
                   </span>
-                </button>
+                </TooltipButton>
                 {signedIn &&
                   sortMachines(state.machines, now, state.clockOffsetMs).map((entry) => (
                     <MachineRow

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Button } from '@/components/form'
+import { TooltipSummary } from '@/components/Tooltip'
 import { HOST_GUIDE, HOST_INSTALL, HOST_SETUP, HOST_LOGIN } from './machinePresentation'
 
 export function CopyCommand({ command }: { command: string }): React.JSX.Element {
@@ -53,9 +54,9 @@ export function HostSetup({ collapsed = false }: { collapsed?: boolean }): React
         </p>
         {collapsed ? (
           <details>
-            <summary className="text-text-secondary mb-2 cursor-pointer">
+            <TooltipSummary className="text-text-secondary mb-2 cursor-pointer">
               Show install commands
-            </summary>
+            </TooltipSummary>
             <CopyCommand command={HOST_INSTALL} />
           </details>
         ) : (

@@ -3,6 +3,7 @@ import type { AccountProfileView } from '@shared/account'
 import { ipcErrorText } from '@shared/errors'
 import { PopupMenu } from '@/components/PopupMenu'
 import { GearIcon, Spinner, UserIcon } from '@/components/icons'
+import { TooltipButton } from '@/components/Tooltip'
 import { useAccount } from '@/features/settings/useAccount'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { formatShortcut } from '@/lib/shortcuts'
@@ -128,7 +129,7 @@ export function AccountFooter(): React.JSX.Element {
               </div>
             )}
             {user ? (
-              <button
+              <TooltipButton
                 className={item}
                 onClick={() => {
                   close()
@@ -136,9 +137,9 @@ export function AccountFooter(): React.JSX.Element {
                 }}
               >
                 Machines <span className="text-text-secondary text-base">{online} online</span>
-              </button>
+              </TooltipButton>
             ) : (
-              <button
+              <TooltipButton
                 className={item}
                 onClick={() => {
                   close()
@@ -146,15 +147,15 @@ export function AccountFooter(): React.JSX.Element {
                 }}
               >
                 Sign in with GitHub
-              </button>
+              </TooltipButton>
             )}
-            <button className={item} onClick={settings}>
+            <TooltipButton className={item} onClick={settings}>
               Settings{' '}
               <span className="text-text-tertiary text-base">{formatShortcut('mod', ',')}</span>
-            </button>
+            </TooltipButton>
             {user && (
               <div className="border-border mt-1 border-t pt-1">
-                <button
+                <TooltipButton
                   className={`${item} text-danger`}
                   onClick={() => {
                     close()
@@ -162,7 +163,7 @@ export function AccountFooter(): React.JSX.Element {
                   }}
                 >
                   Sign out
-                </button>
+                </TooltipButton>
               </div>
             )}
           </div>
@@ -173,15 +174,15 @@ export function AccountFooter(): React.JSX.Element {
           <div className="flex min-w-0 flex-1 items-center gap-2 py-2 text-base">
             <Spinner />
             <span className="min-w-0">Finish in your browser…</span>
-            <button
+            <TooltipButton
               className="text-text-secondary ml-auto"
               onClick={() => run('account:cancelSignIn')}
             >
               Cancel
-            </button>
+            </TooltipButton>
           </div>
         ) : (
-          <button
+          <TooltipButton
             ref={trigger}
             aria-expanded={open}
             aria-label={user ? 'Your account' : 'Sign in'}
@@ -197,16 +198,16 @@ export function AccountFooter(): React.JSX.Element {
                 <span className="text-text-secondary block truncate text-sm">@{user.login}</span>
               )}
             </span>
-          </button>
+          </TooltipButton>
         )}
-        <button
+        <TooltipButton
           aria-label="Settings"
           title={`Settings (${formatShortcut('mod', ',')})`}
           onClick={settings}
           className="text-text-secondary hover:bg-sidebar-hover hover:text-text flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
         >
           <GearIcon />
-        </button>
+        </TooltipButton>
       </div>
       {(error ?? loadError ?? (account.status === 'signed-out' ? account.error : undefined)) && (
         <p role="alert" className="text-danger px-1.5 text-sm">
