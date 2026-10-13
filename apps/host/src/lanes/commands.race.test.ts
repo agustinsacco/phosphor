@@ -143,7 +143,7 @@ describe('lane commands R7 ordering', () => {
     expect(order).toEqual(['control', 'run'])
     expect(store.getReceipt(first.requestId, one.id)?.status).toBe('pending')
     expect(command).toHaveBeenCalledTimes(1)
-    expect(last(second.requestId)).toBeUndefined()
+    expect(last(second.requestId)).toMatchObject({ code: 'stale-fence' })
     finish(0)
     await a
     expect(command).toHaveBeenCalledTimes(1)
@@ -162,18 +162,19 @@ describe('lane commands R7 ordering', () => {
     expect(command).toHaveBeenCalledTimes(1)
   })
 
-  it('serializes takeover behind the running prompt, then rejects the old controller', async () => {
+  it('admits takeover while a prompt is in flight, then rejects the old controller', async () => {
     const original = service.submit(one, frame())
     const take = frame({ type: 'control.take' })
     const takeover = service.submit(two, take)
     const stale = frame({ type: 'abort' }, 2)
     const old = service.submit(one, stale)
     const next = service.submit(two, frame({ type: 'abort' }, 3))
-    expect(events).toHaveLength(1)
-    finish(0)
-    await original
     await takeover
     await old
+    expect(pending).toHaveLength(2)
+    expect(command).toHaveBeenCalledTimes(2)
+    finish(0)
+    await original
     expect(last(take.requestId)).toMatchObject({ status: 'done', fence: 3 })
     expect(last(stale.requestId)).toMatchObject({ code: 'stale-fence' })
     expect(order).toEqual(['control', 'run', 'control', 'run'])
@@ -233,13 +234,13 @@ describe('lane commands R7 ordering', () => {
     expect(command).not.toHaveBeenCalled()
   })
 
-  it('times out at exactly the deadline, releases the queue and drops a late answer', async () => {
+  it('times out at exactly the deadline and drops a late answer', async () => {
     const request = frame()
     const running = service.submit(one, request)
     const next = service.submit(one, frame({ type: 'abort' }, 2))
     await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs - 1)
     expect(last(request.requestId)).toBeUndefined()
-    expect(command).toHaveBeenCalledTimes(1)
+    expect(command).toHaveBeenCalledTimes(2)
     await vi.advanceTimersByTimeAsync(1)
     await running
     expect(last(request.requestId)?.status).toBe('unknown')
@@ -285,6 +286,103 @@ describe('lane commands R7 ordering', () => {
       expect(() => createLaneCommands(ports, { queueLimit })).toThrow('invalid lane queue limit')
   })
 
+  it.each(['lane.resume', 'lane.stop'] as const)(
+    'holds the dispatch queue for %s and counts queued jobs with outstanding work',
+    async (type) => {
+      if (type === 'lane.resume') sessions.clear()
+      service = createLaneCommands(ports, { queueLimit: 2 })
+      const response = deferred<void>()
+      ports.resumeLane = async () => {
+        await response.promise
+        sessions.set(lane.laneId, 'resumed')
+      }
+      ports.stopLane = () => response.promise
+      const running = service.submit(one, frame({ type }))
+      const next = service.submit(one, frame({ type: 'abort' }, 2))
+      const busy = frame({ type: 'abort' }, 2)
+      await service.submit(one, busy)
+      expect(last(busy.requestId)).toMatchObject({ code: 'busy' })
+      expect(command).not.toHaveBeenCalled()
+      response.release()
+      await running
+      await vi.advanceTimersByTimeAsync(0)
+      expect(command).toHaveBeenCalledTimes(1)
+      finish(0)
+      await next
+    },
+  )
+
+  it('dispatches a dialog answer while the prompt is waiting for it', async () => {
+    const request = frame()
+    const prompt = service.submit(one, request)
+    respond.mockImplementation(() => finish(0))
+    const response = frame(
+      {
+        type: 'extension_ui_response',
+        response: { type: 'extension_ui_response', id: 'dialog', confirmed: true },
+      },
+      2,
+    )
+    const answer = service.submit(one, response)
+    expect(respond).toHaveBeenCalledTimes(1)
+    await Promise.all([prompt, answer])
+    expect(last(request.requestId)?.status).toBe('done')
+    expect(last(response.requestId)?.status).toBe('done')
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('dispatches abort immediately while compact is unanswered', async () => {
+    const compact = service.submit(one, frame({ type: 'compact' }))
+    const abort = service.submit(one, frame({ type: 'abort' }, 2))
+    expect(command.mock.calls.map((call) => call[1].type)).toEqual(['compact', 'abort'])
+    finish(1)
+    await abort
+    expect(pending).toHaveLength(2)
+    finish(0)
+    await compact
+  })
+
+  it('counts lingering ops at the limit, releases exactly one late slot and deletes only when empty', async () => {
+    const deletion = vi.spyOn(Map.prototype, 'delete')
+    try {
+      const requests = Array.from({ length: LANE_QUEUE_LIMIT }, (_, index) =>
+        frame({ type: 'abort' }, index === 0 ? 1 : 2),
+      )
+      const first = requests[0]
+      if (!first) throw new Error('missing request')
+      const running = requests.map((request) => service.submit(one, request))
+      expect(command).toHaveBeenCalledTimes(LANE_QUEUE_LIMIT)
+      await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+      await Promise.all(running)
+      expect(requests.every((request) => last(request.requestId)?.status === 'unknown')).toBe(true)
+      expect(deletion.mock.calls.filter(([key]) => key === lane.laneId)).toHaveLength(0)
+      const busy = frame({ type: 'abort' }, 2)
+      const overflow = service.submit(one, busy)
+      expect(last(busy.requestId)).toMatchObject({ code: 'busy' })
+      await overflow
+      expect(store.getReceipt(busy.requestId, one.id)).toBeNull()
+      await service.submit(one, first)
+      expect(last(first.requestId)?.status).toBe('unknown')
+      finish(0)
+      await vi.advanceTimersByTimeAsync(0)
+      const replacement = service.submit(one, busy)
+      expect(command).toHaveBeenCalledTimes(LANE_QUEUE_LIMIT + 1)
+      const stillBusy = frame({ type: 'abort' }, 2)
+      await service.submit(one, stillBusy)
+      expect(last(stillBusy.requestId)).toMatchObject({ code: 'busy' })
+      pending[1]?.reject(new Error('pi exited'))
+      for (let i = 2; i <= LANE_QUEUE_LIMIT; i++) finish(i)
+      await replacement
+      await vi.advanceTimersByTimeAsync(0)
+      expect(deletion.mock.calls.filter(([key]) => key === lane.laneId)).toHaveLength(1)
+      expect(logs.filter((log) => log.message === 'lane.command_late')).toHaveLength(
+        LANE_QUEUE_LIMIT,
+      )
+    } finally {
+      deletion.mockRestore()
+    }
+  })
+
   it('runs different lanes concurrently', async () => {
     const other = store.ensureLane({
       repositoryId: lane.repositoryId,
@@ -302,6 +400,107 @@ describe('lane commands R7 ordering', () => {
 })
 
 describe('lane command guards and operations', () => {
+  it('republishes durable control before the next op after a failed admission publication', async () => {
+    const publish = ports.publish
+    const deletion = vi.spyOn(Map.prototype, 'delete')
+    ports.publish = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        throw new Error('stream failed')
+      })
+      .mockImplementation(publish)
+    const first = frame()
+    try {
+      await service.submit(one, first)
+      expect(last(first.requestId)).toMatchObject({
+        status: 'failed',
+        error: {
+          code: 'internal',
+          message: "the lane's control change could not be published",
+        },
+      })
+      expect(command).not.toHaveBeenCalled()
+      expect(store.getLane(lane.laneId)?.control.fence).toBe(2)
+      expect(deletion.mock.calls.filter(([key]) => key === lane.laneId)).toHaveLength(0)
+    } finally {
+      deletion.mockRestore()
+    }
+    const next = service.submit(one, frame({ type: 'abort' }, 2))
+    expect(order).toEqual(['control', 'run'])
+    expect(events[0]?.event).toMatchObject({ kind: 'control', control: { fence: 2 } })
+    finish(0)
+    await next
+  })
+
+  it('fails closed when control republication keeps failing', async () => {
+    ports.publish = () => {
+      throw new Error('stream failed')
+    }
+    await service.submit(one, frame())
+    const next = frame({ type: 'abort' }, 2)
+    await service.submit(one, next)
+    expect(last(next.requestId)).toMatchObject({
+      status: 'failed',
+      error: {
+        code: 'internal',
+        message: "the lane's control change could not be published",
+      },
+    })
+    expect(command).not.toHaveBeenCalled()
+  })
+
+  it.each(['control.take', 'control.release'] as const)(
+    'keeps %s done after failed publication and republishes fresh control before later work',
+    async (type) => {
+      if (type === 'control.release')
+        store.takeControl(lane.laneId, { clientId: one.id, label: one.label })
+      const publish = ports.publish
+      ports.publish = vi
+        .fn()
+        .mockImplementationOnce(() => {
+          throw new Error('stream failed')
+        })
+        .mockImplementation(publish)
+      const request = frame({ type }, type === 'control.release' ? 2 : 1)
+      await service.submit(one, request)
+      const fence = type === 'control.release' ? 3 : 2
+      expect(last(request.requestId)).toMatchObject({ status: 'done', fence })
+      const next = service.submit(one, frame({ type: 'abort' }, fence))
+      expect(order).toEqual(
+        type === 'control.release' ? ['control', 'control', 'run'] : ['control', 'run'],
+      )
+      expect(events[0]?.event).toMatchObject({ kind: 'control', control: { fence } })
+      finish(0)
+      await next
+    },
+  )
+
+  it.each(['dialog-resolved', 'summary'] as const)(
+    'does not change done on failed %s publication',
+    async (kind) => {
+      store.takeControl(lane.laneId, { clientId: one.id, label: one.label })
+      ports.publish = () => {
+        throw new Error('private stream error')
+      }
+      const request = frame(
+        kind === 'summary'
+          ? { type: 'lane.markRead', upTo: 0 }
+          : {
+              type: 'extension_ui_response',
+              response: { type: 'extension_ui_response', id: 'dialog', confirmed: true },
+            },
+        2,
+      )
+      await service.submit(one, request)
+      expect(last(request.requestId)?.status).toBe('done')
+      expect(logs).toContainEqual({
+        message: 'lane.publish_failed',
+        data: { laneId: lane.laneId, kind },
+      })
+      expect(JSON.stringify(logs)).not.toContain('private stream error')
+    },
+  )
+
   it('requires control capability before recording', async () => {
     const request = frame()
     const submitted = service.submit({ ...one, caps: ['sessions.read'] }, request)

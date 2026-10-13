@@ -463,13 +463,23 @@ pi's own session files; the database never copies their messages.
 `lanes/commands.ts` checks authenticated clients' lane mutations, records each
 request before acting, and returns a durable receipt. Repeats return the recorded
 receipt or `pending`, never run the operation again. Request id conflicts are
-refused. Each lane has a bounded serial queue; different lanes run concurrently.
+refused. Each lane serializes checks, admission, control publication and dispatch,
+not pi completion. A dialog reply or abort can dispatch while a prompt or compact
+is unanswered. pi sees dispatched operations in the runtime's order, as on Desktop;
+the runtime may await `get_state` before writing a prompt. Resume and stop hold the
+queue until completion or their deadline. Different lanes run concurrently.
+The per-lane limit of 32 counts queued, in-flight and timed-out operations whose
+runtime promises have not settled. A late settlement frees its slot.
 
 Fenced operations require the current controller and fence. A lane without a
 controller acquires one on admission. Takeover and release increase the fence
-and publish control before later operations. A disconnected controller keeps
-control. Only the controller can answer an open extension dialog. Marking a lane
-read needs no fence. Lane creation is not supported by this service yet.
+and publish control before later operations. If control publication fails, the
+next queued operation first republishes fresh control from the store. Until that
+succeeds it cannot run. A takeover or release still returns `done` for its durable
+change; an operation whose admission publication failed returns `failed internal`
+without dispatching. A disconnected controller keeps control. Only the controller
+can answer an open extension dialog. Marking a lane read needs no fence. Lane
+creation is not supported by this service yet.
 
 `unknown` means the Host cannot say whether an operation took effect, after a
 restart, a transport failure or no answer within 30 seconds. Late answers are

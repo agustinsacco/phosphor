@@ -304,6 +304,8 @@ export function createHostRuntime(
     /** Send a controller's answer without treating it as an RPC command. */
     extensionUiResponse(id: string, response: ExtensionUIResponse): void {
       life.assertReady()
+      const session = registry.get(id)
+      if (!session || !session.client.alive) throw new Error('the session is not running')
       service.respond(id, response)
     },
     /** Let a turn in flight end and be saved, then stop pi and its process group. */
