@@ -231,6 +231,32 @@ describe('lane projection', () => {
     p.settle([{ content: 'same', role: 'user' }], null)
     expect(p.view().messages).toHaveLength(1)
   })
+  it('appends a post-read duplicate of a pre-mark message', () => {
+    const { projection: p, event } = setup()
+    const message = { role: 'user' as const, content: 'same' }
+    p.settle([message], null)
+    p.markSettle()
+    p.markRead()
+    event({ type: 'message_end', message })
+    p.settle([message], null)
+    expect(p.view().messages).toEqual([message, message])
+  })
+  it('matches pre-read messages and resets the read bound on a new mark', () => {
+    const { projection: p, event } = setup()
+    const message = { role: 'user' as const, content: 'same' }
+    p.markSettle()
+    event({ type: 'message_end', message })
+    p.markRead()
+    event({ type: 'message_end', message })
+    p.settle([message], null)
+    expect(p.view().messages).toEqual([message, message])
+    p.markSettle()
+    p.markRead()
+    p.markSettle()
+    event({ type: 'message_end', message })
+    p.settle([message], null)
+    expect(p.view().messages).toEqual([message])
+  })
   it('coalesces barrier events and does not lift the barrier before compaction ends', () => {
     const { projection: p, event, overflow } = setup()
     event({ type: 'compaction_start', reason: 'manual' })

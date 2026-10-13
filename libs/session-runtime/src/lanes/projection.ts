@@ -46,6 +46,7 @@ export function createLaneProjection(options: { now: () => number; overflow: () 
   let discarding = false
   let barrier: PiEvent[] | undefined
   let sinceMark: AgentMessage[] | undefined
+  let read: number | undefined
   const dialogs = new Map<string, { request: ExtensionUIRequest; expires?: number }>()
   const statuses = new Map<string, ExtensionUIRequest>()
   const widgets = new Map<string, ExtensionUIRequest>()
@@ -128,6 +129,8 @@ export function createLaneProjection(options: { now: () => number; overflow: () 
         }
       }
       const message = event.message
+      if (barrier && message.role === 'toolResult')
+        barrier = barrier.filter((e) => !executionEvent(e) || e.toolCallId !== message.toolCallId)
       tail = tail.filter(
         (e) =>
           executionEvent(e) &&
@@ -253,13 +256,20 @@ export function createLaneProjection(options: { now: () => number; overflow: () 
     },
     markSettle() {
       sinceMark = []
+      read = undefined
+    },
+    markRead() {
+      // The RPC continuation follows the current stdout chunk. A later message in that
+      // same chunk can count as read, but a wrong overlap needs deep equality, including
+      // pi's millisecond timestamp.
+      read = sinceMark?.length
     },
     settle(nextMessages: readonly AgentMessage[], nextState: RpcSessionState | null) {
       if (compaction) return
       messages = [...nextMessages]
       const marked = (sinceMark ?? []).map(messageJson)
       const recent = marked.length ? nextMessages.slice(-marked.length).map(messageJson) : []
-      let matched = Math.min(recent.length, marked.length)
+      let matched = Math.min(read ?? marked.length, recent.length, marked.length)
       while (
         matched &&
         !marked.slice(0, matched).every((m, i) => m === recent[recent.length - matched + i])

@@ -267,6 +267,24 @@ describe('remote snapshot equivalence', () => {
     expect(p.view().messages).toEqual([message, message])
     assertCut(p, live, 'repeated messages settled')
   })
+  it.each(['before', 'after'] as const)(
+    'reconciles a duplicate ending %s the read answer with full live state',
+    (timing) => {
+      const message: AgentMessage = { role: 'user', content: 'same' }
+      const event: PiEvent = { type: 'message_end', message }
+      const p = equivalent([event])
+      let live = reduceChatEvent(emptyChatSession(), event)
+      p.markSettle()
+      if (timing === 'after') p.markRead()
+      p.apply({ kind: 'event', event })
+      live = reduceChatEvent(live, event)
+      assertCut(p, live, 'duplicate before settle')
+      if (timing === 'before') p.markRead()
+      p.settle(timing === 'before' ? [message, message] : [message], null)
+      expect(p.view().messages).toEqual([message, message])
+      assertCut(p, live, 'duplicate after settle')
+    },
+  )
   it.each(['extension', 'retry'] as const)(
     'keeps %s error dividers and subsequent framing until settle',
     (kind) => {
@@ -303,69 +321,83 @@ describe('remote snapshot equivalence', () => {
       assertCut(p, reduceChatEvent(live, next), 'after error settle')
     },
   )
-  it('retains parallel tool execution until each tool result ends', () => {
-    const calls: AgentMessage = {
-      role: 'assistant',
-      content: ['A', 'B'].map((id) => ({ type: 'toolCall', id, name: 'read', arguments: {} })),
-    }
-    const result: AgentMessage = {
-      role: 'toolResult',
-      toolCallId: 'A',
-      toolName: 'read',
-      content: [],
-      isError: false,
-    }
-    const events: PiEvent[] = [
-      { type: 'message_start', message: calls },
-      { type: 'message_end', message: calls },
-      ...['A', 'B'].map((toolCallId): PiEvent => ({
-        type: 'tool_execution_start',
-        toolCallId,
-        toolName: 'read',
-        args: {},
-      })),
-      {
-        type: 'tool_execution_update',
-        toolCallId: 'B',
-        toolName: 'read',
-        args: {},
-        partialResult: { content: [{ type: 'text', text: 'partial' }] },
-      },
-      {
-        type: 'tool_execution_end',
+  it.each(['normal', 'error barrier'] as const)(
+    'retains only unfinished parallel tool execution in %s mode',
+    (mode) => {
+      const calls: AgentMessage = {
+        role: 'assistant',
+        content: ['A', 'B'].map((id) => ({ type: 'toolCall', id, name: 'read', arguments: {} })),
+      }
+      const result: AgentMessage = {
+        role: 'toolResult',
         toolCallId: 'A',
         toolName: 'read',
-        result: { content: [] },
+        content: [],
         isError: false,
-      },
-      { type: 'message_end', message: result },
-      {
+      }
+      const events: PiEvent[] = [
+        ...(mode === 'error barrier'
+          ? [{ type: 'extension_error' as const, error: 'failed' }]
+          : []),
+        { type: 'message_start', message: calls },
+        { type: 'message_end', message: calls },
+        ...['A', 'B'].map((toolCallId): PiEvent => ({
+          type: 'tool_execution_start',
+          toolCallId,
+          toolName: 'read',
+          args: {},
+        })),
+        {
+          type: 'tool_execution_update',
+          toolCallId: 'B',
+          toolName: 'read',
+          args: {},
+          partialResult: { content: [{ type: 'text', text: 'partial' }] },
+        },
+        {
+          type: 'tool_execution_end',
+          toolCallId: 'A',
+          toolName: 'read',
+          result: { content: [] },
+          isError: false,
+        },
+        { type: 'message_end', message: result },
+        {
+          type: 'tool_execution_update',
+          toolCallId: 'B',
+          toolName: 'read',
+          args: {},
+          partialResult: { content: [{ type: 'text', text: 'new partial' }] },
+        },
+      ]
+      const p = equivalent(events)
+      expect(
+        p
+          .view()
+          .pending.filter((e) => 'toolCallId' in e)
+          .map((e) => e.toolCallId),
+      ).toEqual(['B', 'B'])
+      if (mode === 'error barrier')
+        expect(p.view().pending.filter((e) => e.type.startsWith('message_'))).toEqual(
+          events.filter((e) => e.type.startsWith('message_')),
+        )
+      p.settle([calls, result], null)
+      assertCut(p, referenceAfterSettle([calls, result]), 'parallel tools settled')
+      const next: PiEvent = {
         type: 'tool_execution_update',
         toolCallId: 'B',
         toolName: 'read',
         args: {},
-        partialResult: { content: [{ type: 'text', text: 'new partial' }] },
-      },
-    ]
-    const p = equivalent(events)
-    expect(
-      p
-        .view()
-        .pending.filter((e) => 'toolCallId' in e)
-        .map((e) => e.toolCallId),
-    ).toEqual(['B', 'B'])
-    p.settle([calls, result], null)
-    assertCut(p, referenceAfterSettle([calls, result]), 'parallel tools settled')
-    const next: PiEvent = {
-      type: 'tool_execution_update',
-      toolCallId: 'B',
-      toolName: 'read',
-      args: {},
-      partialResult: { content: [] },
-    }
-    p.apply({ kind: 'event', event: next })
-    assertCut(p, reduceChatEvent(referenceAfterSettle([calls, result]), next), 'after tools settle')
-  })
+        partialResult: { content: [] },
+      }
+      p.apply({ kind: 'event', event: next })
+      assertCut(
+        p,
+        reduceChatEvent(referenceAfterSettle([calls, result]), next),
+        'after tools settle',
+      )
+    },
+  )
   it('preserves streaming through overflow, discarded message end and refresh', () => {
     const overflow = { count: 0 }
     const p = createLaneProjection({

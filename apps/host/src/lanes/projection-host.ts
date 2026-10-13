@@ -52,6 +52,7 @@ export function createHostLaneProjection(options: {
           ? data(await options.runtime.command(options.sessionId, { type: 'get_messages' }))
           : undefined
         if (stopped) return
+        if (full) projection.markRead()
         const stateResult = data(
           await options.runtime.command(options.sessionId, { type: 'get_state' }),
         )

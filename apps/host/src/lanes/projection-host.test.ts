@@ -185,6 +185,36 @@ describe('Host lane projection', () => {
     await b.stateChanged()
     expect(p.view().pending.some((e) => e.type === 'compaction_end')).toBe(true)
   })
+  it('appends an equal message ending between the messages and state answers once', async () => {
+    const { binding: b, projection: p, command } = setup()
+    const message = { role: 'user' as const, content: 'same' }
+    p.settle([message], state)
+    let release: (response: RpcResponse) => void = () => {}
+    const held = new Promise<RpcResponse>((resolve) => {
+      release = resolve
+    })
+    command.mockImplementation(async (_id, command) =>
+      command.type === 'get_messages'
+        ? {
+            type: 'response',
+            command: command.type,
+            success: true,
+            data: { messages: [message] },
+          }
+        : held,
+    )
+    const reading = b.refresh()
+    // Reaching get_state proves the get_messages continuation has run.
+    await vi.waitFor(() => {
+      expect(command.mock.calls.map((c) => c[1].type)).toEqual(['get_messages', 'get_state'])
+    })
+    b.deliver({ kind: 'event', event: { type: 'message_end', message } })
+    release({ type: 'response', command: 'get_state', success: true, data: state })
+    await reading
+    expect(p.view().messages).toEqual([message, message])
+    expect(p.view().pending).toEqual([])
+    b.dispose()
+  })
   it('drains a coalesced request arriving between completion and finalization', async () => {
     const { binding: b, projection: p, command } = setup()
     const original = p.setState
