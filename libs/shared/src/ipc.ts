@@ -1,3 +1,5 @@
+import type { HostCapability } from './remote-host'
+import type { RepositorySummary, LaneSummary, StreamCursor } from './host-protocol'
 /**
  * Typed IPC contract between main and renderer.
  *
@@ -130,7 +132,33 @@ export interface SessionTree {
   leafId: string | null
 }
 
+export type HostLaneView = Omit<LaneSummary, 'control'> & {
+  control: {
+    fence: number
+    controller: { label: string; connected: boolean; self: boolean } | null
+  }
+}
+
+export interface HostConnectionView {
+  state:
+    | 'no-address'
+    | 'connecting'
+    | 'ready'
+    | 'reconnecting'
+    | 'wrong-machine'
+    | 'unsupported'
+    | 'signed-out'
+  hostVersion?: string
+  capabilities: HostCapability[]
+  repositories: RepositorySummary[]
+  lanes: HostLaneView[]
+  cursor?: StreamCursor
+  lastError?: string
+}
+export type HostsSnapshot = Record<string, HostConnectionView>
+
 export interface IpcInvokeMap {
+  'hosts:snapshot': { args: []; result: HostsSnapshot }
   'routines:list': { args: []; result: RoutinesSnapshot }
   'routines:save': { args: [input: RoutineInput, id?: string, revision?: number]; result: void }
   'routines:check': { args: [input: RoutineInput]; result: RoutineCheck }
@@ -1090,6 +1118,7 @@ export interface PhosphorApi {
   onAccountChanged(listener: (view: AccountView) => void): () => void
   /** A change signal only. Refetch the enrolled machines through control:machines. */
   onMachinesChanged(listener: () => void): () => void
+  onHostsChanged(listener: () => void): () => void
   /** Voice prefs, download progress and readiness; returns unsubscribe. */
   onVoiceStatus(listener: (status: VoiceStatus) => void): () => void
 

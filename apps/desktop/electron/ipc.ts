@@ -1,3 +1,4 @@
+import { registerHostsHandlers } from './ipc/hosts-handlers'
 import { registerPiSessionHandlers } from './ipc/pi-session-handlers'
 import { registerAppHandlers, registerDebugLogHandlers } from './ipc/app-handlers'
 import { registerArtifactsHandlers } from './ipc/artifacts-handlers'
@@ -51,6 +52,7 @@ export function registerIpcHandlers(): void {
   registerFeedbackHandlers()
   registerAccountHandlers()
   registerControlHandlers()
+  registerHostsHandlers()
   registerVoiceHandlers()
   registerWritingHandlers()
 }

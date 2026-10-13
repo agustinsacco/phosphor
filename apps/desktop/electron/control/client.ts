@@ -14,6 +14,10 @@ import {
   parseEnrollmentLookupResponse,
   parseMachinesResponse,
   parseMeResponse,
+  parseClientRegisterRequest,
+  parseClientRegisterResponse,
+  parseGrantIssueRequest,
+  parseGrantIssueResponse,
   type MeResponse,
   type Parsed,
 } from '@shared/control-api'
@@ -234,6 +238,18 @@ export function createControlClient(ports: {
   }
   return {
     clearObservations,
+    registerClient(label: unknown) {
+      const parsed = parseClientRegisterRequest({ label })
+      return parsed.ok
+        ? call(CONTROL_ROUTES.clients, 'POST', parseClientRegisterResponse, parsed.value)
+        : Promise.resolve(controlFailure('bad-request'))
+    },
+    grant(hostId: unknown, clientId: unknown) {
+      const parsed = parseGrantIssueRequest({ hostId, clientId })
+      return parsed.ok
+        ? call(CONTROL_ROUTES.grants, 'POST', parseGrantIssueResponse, parsed.value)
+        : Promise.resolve(controlFailure('bad-request'))
+    },
     async machines() {
       const trace = newTrace()
       const result = await call(

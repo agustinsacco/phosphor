@@ -42,3 +42,14 @@ describe('rewoundSessions', () => {
     expect(prefs.rewoundSessions).toEqual({ [from]: to })
   })
 })
+
+it('keeps remote client account ids in a separate main-only store', async () => {
+  const { randomUUID } = await import('node:crypto')
+  const { getRemoteClients, setRemoteClients } = await import('./store')
+  const user = randomUUID(),
+    clientId = randomUUID()
+  setRemoteClients({ [user]: { clientId, label: 'Viewer' } })
+  expect(getRemoteClients()[user]?.clientId).toBe(clientId)
+  expect(getPrefs()).not.toHaveProperty('remoteClients')
+  expect(JSON.stringify(getPrefs())).not.toContain(user)
+})

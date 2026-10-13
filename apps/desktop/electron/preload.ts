@@ -75,6 +75,7 @@ const api: PhosphorApi = {
 
   onAccountChanged: (listener) => subscribe<[AccountView]>('account:changed', listener),
 
+  onHostsChanged: (listener) => subscribe<[]>('hosts:changed', listener),
   onMachinesChanged: (listener) => subscribe<[]>('control:machinesChanged', listener),
 
   onVoiceStatus: (listener) => subscribe<[VoiceStatus]>('voice:statusChanged', listener),

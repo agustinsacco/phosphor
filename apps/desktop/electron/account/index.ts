@@ -164,3 +164,9 @@ export async function accountAccessToken(): Promise<string | null> {
   const token = await account.accessToken()
   return account.state().status === 'signed-in' ? token : null
 }
+
+/** Main-only identity. The renderer account view intentionally omits this id. */
+export function accountUserId(): string | null {
+  const state = current().state()
+  return state.status === 'signed-in' ? state.user.id : null
+}
