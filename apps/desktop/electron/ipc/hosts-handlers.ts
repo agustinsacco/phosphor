@@ -24,6 +24,8 @@ export function registerHostsHandlers(): void {
   const grants = createGrants({ control, clients, present: (id) => manager.present(id) })
   const manager = createHostManager({
     user: accountUserId,
+    clientId: clients.current,
+    resetReplacementBudget: clients.resetReplacementBudget,
     accountChanged: (cb) => onAccountChange(cb),
     machinesChanged: onMachinesChanged,
     machines: () => control.machines(),
@@ -33,7 +35,7 @@ export function registerHostsHandlers(): void {
       createHostConnection({
         hostId,
         endpoint,
-        socket: openHostSocket,
+        socket: (url) => openHostSocket(url, log),
         grant: () => grants.grantFor(hostId),
         clearGrant: () => grants.clear(hostId),
         changed: () => manager.changed(),

@@ -47,8 +47,9 @@ export function createClientIds(ports: {
       const clean = [...ports.hostname()].filter((c) => normalizeLabel(`x${c}x`) !== null).join('')
       const label = normalizeLabel(`Phosphor on ${clean}`.slice(0, 80)) ?? 'Phosphor'
       const result = await ports.control.registerClient(label)
-      if (!result.ok) throw new Error(result.error.code)
       if (ports.user() !== user || generation !== epoch) throw new Error('signed-out')
+      if (!result.ok)
+        throw new Error(result.error.code === 'forbidden' ? 'account-disabled' : result.error.code)
       ports.write(
         cleanClients({
           ...ports.read(),
@@ -66,10 +67,11 @@ export function createClientIds(ports: {
   }
   return {
     get,
+    current: () => cleanClients(ports.read())[ports.user() ?? '']?.clientId ?? null,
+    resetReplacementBudget: () => replaced.clear(),
     clear() {
       generation++
       flights.clear()
-      replaced.clear()
       replacing.clear()
     },
     async replace() {

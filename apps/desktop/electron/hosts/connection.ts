@@ -9,11 +9,14 @@ import {
   type FrameSocket,
   type HostFrame,
   type LaneOp,
+  type LaneSummary,
   type Receipt,
   type StreamCursor,
 } from '@shared/host-protocol'
 import type { HostConnectionView } from '@shared/ipc'
 import type { TraceLog } from '../control/observations'
+
+export type HostConnectionSnapshot = Omit<HostConnectionView, 'lanes'> & { lanes: LaneSummary[] }
 
 export type NotSent = {
   requestId: string
@@ -39,7 +42,7 @@ export function createHostConnection(ports: {
 }) {
   const now = ports.now ?? Date.now
   const log = ports.log ?? (() => {})
-  let view: HostConnectionView = {
+  let view: HostConnectionSnapshot = {
     state: 'connecting',
     capabilities: [],
     repositories: [],
@@ -84,7 +87,7 @@ export function createHostConnection(ports: {
     timers.add(timer)
     return timer
   }
-  function update(next: Partial<HostConnectionView>) {
+  function update(next: Partial<HostConnectionSnapshot>) {
     view = { ...view, ...next }
     ports.changed()
   }
@@ -100,7 +103,7 @@ export function createHostConnection(ports: {
       socket.send(text)
       return true
     } catch {
-      socket.close(1001, 'Transport failed')
+      socket.close(1000, 'Transport failed')
       return false
     }
   }
@@ -117,14 +120,18 @@ export function createHostConnection(ports: {
           }
         : { type: 'subscribe', id, topic: 'lanes', after, trace: randomBytes(8).toString('hex') },
     )
-    if (!sent) socket?.close(1001, 'Transport failed')
+    if (!sent) socket?.close(1000, 'Transport failed')
   }
   function finish() {
     stopped = true
     generation++
     for (const timer of timers) clearTimeout(timer)
     timers.clear()
-    socket?.close(1001, 'Closed')
+    try {
+      socket?.close(1000, 'Closed')
+    } catch {
+      log('hosts', 'close_failed')
+    }
     socket = null
     for (const [requestId, p] of pending) p.resolve({ requestId, status: 'unknown' })
     pending.clear()
@@ -192,7 +199,7 @@ export function createHostConnection(ports: {
           .grant()
           .then((g) => {
             if (!stopped && epoch === generation) {
-              if (!write({ type: 'auth', grant: g.grant })) socket?.close(1001, 'Transport failed')
+              if (!write({ type: 'auth', grant: g.grant })) socket?.close(1000, 'Transport failed')
               renewalTimeout = later(
                 () => socket?.close(4401, 'Renewal timeout'),
                 HOST_LIMITS.authTimeoutMs,
@@ -201,7 +208,7 @@ export function createHostConnection(ports: {
           })
           .catch((error) => {
             if (epoch === generation && !stopped) {
-              socket?.close(1001, 'Renewal failed')
+              socket?.close(1000, 'Renewal failed')
               failed(0, error instanceof Error ? error.message : 'offline')
             }
           })
@@ -212,10 +219,10 @@ export function createHostConnection(ports: {
   function beat() {
     later(() => {
       if (now() - lastPong >= 2 * HOST_LIMITS.pingIntervalMs) {
-        socket?.close(1001, 'Ping timeout')
+        socket?.close(1000, 'Ping timeout')
         return
       }
-      if (!write({ type: 'ping', at: now() })) socket?.close(1001, 'Transport failed')
+      if (!write({ type: 'ping', at: now() })) socket?.close(1000, 'Transport failed')
       beat()
     }, HOST_LIMITS.pingIntervalMs)
   }
@@ -379,7 +386,7 @@ export function createHostConnection(ports: {
         throw new Error('grant-refused')
       const opened = await ports.socket(`${ports.endpoint.replace('https:', 'wss:')}/v1/stream`)
       if (stopped || generation !== epoch) {
-        opened.close(1001, 'Closed')
+        opened.close(1000, 'Closed')
         return
       }
       socket = opened
@@ -393,7 +400,7 @@ export function createHostConnection(ports: {
       })
       later(() => opened.close(4401, 'Auth timeout'), HOST_LIMITS.authTimeoutMs)
       if (!write({ type: 'auth', grant: grant.grant, challenge }))
-        opened.close(1001, 'Transport failed')
+        opened.close(1000, 'Transport failed')
     } catch (error) {
       if (!stopped && generation === epoch)
         failed(0, error instanceof Error ? error.message : 'offline')
@@ -440,7 +447,7 @@ export function createHostConnection(ports: {
       return new Promise((resolve) => {
         if (!write(frame)) {
           resolve({ requestId, status: 'not-sent', reason: 'not-connected' })
-          socket?.close(1001, 'Transport failed')
+          socket?.close(1000, 'Transport failed')
           return
         }
         pending.set(requestId, { frame, at: now(), statusOnly: false, resolve })
@@ -467,7 +474,7 @@ export function createHostConnection(ports: {
         }, 30_000)
         calls.set(id, { resolve, timer })
         if (!write({ type: 'call', id, method, params, trace: randomBytes(8).toString('hex') }))
-          socket?.close(1001, 'Transport failed')
+          socket?.close(1000, 'Transport failed')
       })
     },
     watchLane(laneId: string, listener: (frame: LaneFrame) => void) {

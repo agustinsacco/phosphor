@@ -132,6 +132,13 @@ export interface SessionTree {
   leafId: string | null
 }
 
+export type HostLaneView = Omit<LaneSummary, 'control'> & {
+  control: {
+    fence: number
+    controller: { label: string; connected: boolean; self: boolean } | null
+  }
+}
+
 export interface HostConnectionView {
   state:
     | 'no-address'
@@ -144,7 +151,7 @@ export interface HostConnectionView {
   hostVersion?: string
   capabilities: HostCapability[]
   repositories: RepositorySummary[]
-  lanes: LaneSummary[]
+  lanes: HostLaneView[]
   cursor?: StreamCursor
   lastError?: string
 }

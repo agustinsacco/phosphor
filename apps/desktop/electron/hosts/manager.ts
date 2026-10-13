@@ -1,9 +1,11 @@
 import { machineStatus, type MachinesResponse } from '@shared/control-api'
 import type { ControlResult, HostsSnapshot } from '@shared/ipc'
-import { hostEndpoint, type createHostConnection } from './connection'
+import { hostEndpoint, type createHostConnection, type HostConnectionSnapshot } from './connection'
 
 export function createHostManager(ports: {
   user: () => string | null
+  clientId: () => string | null
+  resetReplacementBudget: () => void
   accountChanged: (cb: () => void) => () => void
   machinesChanged: (cb: () => void) => () => void
   machines: () => Promise<ControlResult<MachinesResponse>>
@@ -15,7 +17,7 @@ export function createHostManager(ports: {
     string,
     { endpoint: string | null; connection: ReturnType<typeof createHostConnection> }
   >()
-  let cached: HostsSnapshot = {},
+  let cached: Record<string, HostConnectionSnapshot> = {},
     list: MachinesResponse | null = null,
     offset = 0
   let user = ports.user(),
@@ -117,6 +119,7 @@ export function createHostManager(ports: {
     if (next !== user) {
       generation++
       closeAll()
+      ports.resetReplacementBudget()
       user = next
       disabled = false
       notify()
@@ -149,7 +152,28 @@ export function createHostManager(ports: {
     snapshot(): HostsSnapshot {
       const result = structuredClone(cached)
       for (const [id, c] of connections) result[id] = c.connection.snapshot()
-      return result
+      const clientId = ports.clientId()
+      return Object.fromEntries(
+        Object.entries(result).map(([id, view]) => [
+          id,
+          {
+            ...view,
+            lanes: view.lanes.map(({ control, ...lane }) => ({
+              ...lane,
+              control: {
+                fence: control.fence,
+                controller: control.controller
+                  ? {
+                      label: control.controller.label,
+                      connected: control.controller.connected,
+                      self: control.controller.clientId === clientId,
+                    }
+                  : null,
+              },
+            })),
+          },
+        ]),
+      )
     },
     stop() {
       stopped = true

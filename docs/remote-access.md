@@ -50,9 +50,11 @@ retain their last-known lane summaries in memory only. Removing a Host drops
 its cache. Endpoint changes close the old socket before opening another.
 
 Client ids live in a separate main-only electron-store, one per account with
-at most eight entries. Grants are cached only until their renewal time. Main
-verifies each Host's challenge proof with its enrolled public key before
-trusting its ready frame. Connections renew grants and send text keepalives.
+at most eight entries. An unknown or revoked client refusal permits one
+replacement registration per user per app run. Only sign-out or switching
+accounts resets that budget, not a forbidden refusal or a directory refresh.
+Grants are cached only until their renewal time. Main verifies each Host's
+challenge proof with its enrolled public key before trusting its ready frame. Connections renew grants and send text keepalives.
 Transient failures reconnect with bounded backoff. Forbidden access and an
 unsupported protocol stop retries; a wrong-machine proof stops until the
 machine directory changes. Oversize closes query receipts rather than resend
@@ -64,8 +66,10 @@ may try a fresh action once ready. `closed` means no automatic retry.
 
 `hosts:snapshot` exposes `no-address`, `connecting`, `ready`, `reconnecting`,
 `wrong-machine`, `unsupported` and `signed-out` states. `hosts:changed` is a
-250 ms debounced refetch signal. Repositories, lane summaries, cursors, the last
-50 attention events and open lane streams stay in memory. No transcript is
+250 ms debounced refetch signal. Controllers expose only a label, connection
+status and whether they are this Desktop, never a client or user id. Repositories,
+lane summaries, cursors, the last 50 attention events and open lane streams stay
+in memory. No transcript is
 written to the client's disk. This plumbing adds no UI or remote IPC routing.
 Remote surfaces remain absent until a Host announces their capabilities.
 `IPC_SCOPE` classifies every invoke channel as app-local or machine-scoped;

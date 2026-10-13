@@ -21,7 +21,13 @@ const drain = async () => {
   for (let i = 0; i < 30; i++) await Promise.resolve()
 }
 async function setup(
-  options: { wrongKey?: boolean; wrongId?: boolean; endpoint?: string; delay?: number } = {},
+  options: {
+    wrongKey?: boolean
+    wrongId?: boolean
+    endpoint?: string
+    delay?: number
+    throwClose?: boolean
+  } = {},
 ) {
   const keys = generateKeyPairSync('ed25519')
   const wrong = generateKeyPairSync('ed25519')
@@ -59,6 +65,7 @@ async function setup(
   const frames: ClientFrame[] = [],
     logs: unknown[] = []
   const proofs: string[] = []
+  const closeCodes: number[] = []
   let initialAuth: Extract<ClientFrame, { type: 'auth' }> | undefined
   const pairs: ReturnType<typeof createLoopbackPair>[] = []
   const endpoint = options.endpoint ?? 'https://bee.tail.ts.net:47615'
@@ -84,6 +91,12 @@ async function setup(
     host.attach(pair.server)
     return {
       ...pair.client,
+      close: (code: number, reason?: string) => {
+        closeCodes.push(code)
+        expect(code === 1000 || (Number.isInteger(code) && code >= 3000 && code <= 4999)).toBe(true)
+        if (options.throwClose) throw new Error('Transport close failed')
+        pair.client.close(code, reason ?? '')
+      },
       onMessage: (cb: (text: string) => void) =>
         pair.client.onMessage((text) => {
           const parsed = parseHostFrame(text)
@@ -140,6 +153,7 @@ async function setup(
     clientId,
     laneId,
     clearGrant,
+    closeCodes,
   }
 }
 
@@ -485,4 +499,19 @@ it('accepts exactly the frame byte limit and refuses one byte past it', async ()
   t.connection.close()
   await accepted
   t.host.stop()
+})
+
+it('uses valid client close codes and settles pending work even if close throws', async () => {
+  const t = await setup({ delay: 1500, throwClose: true })
+  const pending = t.connection.send({ type: 'abort' }, t.laneId, 1)
+  t.pairs[0]?.dropNext(1)
+  const query = t.connection.call('host.repositories')
+  expect(() => t.connection.close()).not.toThrow()
+  expect((await pending).status).toBe('unknown')
+  expect(await query).toMatchObject({ ok: false, error: { message: 'Connection closed.' } })
+  expect(t.closeCodes.length).toBeGreaterThan(0)
+  expect(t.closeCodes.every((code) => code === 1000 || (code >= 3000 && code <= 4999))).toBe(true)
+  t.host.stop()
+  await drain()
+  expect(vi.getTimerCount()).toBe(0)
 })

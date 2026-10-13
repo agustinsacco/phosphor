@@ -159,3 +159,22 @@ it('drops invalid client labels and non-contract stored fields', () => {
     [user]: { clientId, label: 'Viewer' },
   })
 })
+
+it('a stale forbidden registration cannot disable the next account', async () => {
+  let user = randomUUID()
+  const registerClient = vi.fn().mockResolvedValue(controlFailure('forbidden'))
+  const clients = createClientIds({
+    user: () => user,
+    read: () => ({}),
+    write: () => {
+      throw new Error('Must not write')
+    },
+    hostname: () => 'test',
+    control: { registerClient },
+  })
+  const flight = clients.get()
+  user = randomUUID()
+  clients.clear()
+  await expect(flight).rejects.toThrow('signed-out')
+  expect(registerClient).toHaveBeenCalledTimes(1)
+})
