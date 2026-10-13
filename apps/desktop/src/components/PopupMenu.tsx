@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useRef, useState } from 'react'
 
 /**
@@ -39,6 +40,18 @@ export function PopupMenu({
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   const [computedStyle, setComputedStyle] = useState<React.CSSProperties>({})
+
+  // Do not float the trigger's hint over the menu it already opened.
+  useEffect(() => {
+    const trigger = triggerRef?.current
+    if (!trigger) return
+    const previous = trigger.getAttribute('data-tooltip-open')
+    trigger.setAttribute('data-tooltip-open', 'true')
+    return () => {
+      if (previous === null) trigger.removeAttribute('data-tooltip-open')
+      else trigger.setAttribute('data-tooltip-open', previous)
+    }
+  }, [triggerRef])
 
   useEffect(() => {
     if (!fitViewport || !ref.current) {
@@ -138,7 +151,7 @@ export function MenuRow({
   }, [active])
 
   const row = (
-    <button
+    <TooltipButton
       ref={ref}
       id={id}
       role={role}
@@ -157,7 +170,7 @@ export function MenuRow({
       }`}
     >
       {children}
-    </button>
+    </TooltipButton>
   )
 
   if (!trailing) return row

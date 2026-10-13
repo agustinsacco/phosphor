@@ -26,6 +26,7 @@ export function ComputerUseTab(): React.JSX.Element {
           target="_blank"
           rel="noopener noreferrer"
           className="underline underline-offset-2 hover:text-text"
+          data-tooltip="Open link"
         >
           github.com/injaneity/pi-computer-use
         </a>

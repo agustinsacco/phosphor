@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import type { AdvisorFinding, HeadroomStatus, OptimizationStats } from '@shared/models'
@@ -243,12 +244,12 @@ function AdvisorRow({ finding }: { finding: AdvisorFinding }): React.JSX.Element
         <span className="text-text font-medium">{finding.title}.</span> {finding.detail}
       </span>
       {finding.settingsTab && finding.settingsTab !== 'optimization' && (
-        <button
+        <TooltipButton
           className="text-accent shrink-0 font-mono text-xs hover:underline"
           onClick={() => useSettingsUiStore.getState().setTab(finding.settingsTab as SettingsTab)}
         >
           Open →
-        </button>
+        </TooltipButton>
       )}
     </div>
   )

@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { useArtifactsStore, type Artifact } from '@/stores/artifacts'
@@ -264,7 +265,7 @@ export function ArtifactWorkspace({
           {versioned && (
             <select
               value={shown.version}
-              title="Version"
+              data-tooltip="Version"
               aria-label="Version"
               onChange={(e) => {
                 const index = artifact.versions.findIndex(
@@ -400,7 +401,7 @@ function ArtifactSwitcher({
 
   return (
     <div className="relative min-w-0 flex-1">
-      <button
+      <TooltipButton
         ref={triggerRef}
         disabled={!multiple}
         aria-haspopup={multiple ? 'listbox' : undefined}
@@ -420,7 +421,7 @@ function ArtifactSwitcher({
         <span className="shrink-0 text-base leading-none">{artifactGlyph(selected.type)}</span>
         <span className="min-w-0 truncate text-lg font-semibold">{selected.title}</span>
         {multiple && <ChevronDownIcon size={11} className="text-text-tertiary shrink-0" />}
-      </button>
+      </TooltipButton>
       {open && (
         <PopupMenu
           onClose={() => setOpen(false)}
@@ -479,7 +480,7 @@ function ArtifactPreview({
         <iframe
           sandbox=""
           srcDoc={`<!doctype html><style>html,body{margin:0;display:grid;place-items:center;height:100%;background:#fff}</style>${content}`}
-          title={artifact.title}
+          data-tooltip={artifact.title}
           className="block h-full w-full border-0 bg-white"
         />
       )
@@ -521,7 +522,7 @@ function Tab({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       onClick={onClick}
       aria-pressed={active}
       className={clsx(
@@ -530,7 +531,7 @@ function Tab({
       )}
     >
       {children}
-    </button>
+    </TooltipButton>
   )
 }
 
@@ -546,7 +547,7 @@ function ActionIcon({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       title={title}
       aria-label={title}
       onClick={onClick}
@@ -554,6 +555,6 @@ function ActionIcon({
       className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 w-6 shrink-0 items-center justify-center rounded-sm transition-colors disabled:opacity-50"
     >
       {children}
-    </button>
+    </TooltipButton>
   )
 }

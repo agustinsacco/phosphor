@@ -1,3 +1,4 @@
+import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DEFAULT_AGENT_DIRECTIVES } from '@shared/models'
 import { subagentPolicyBlock } from '@shared/agent-directives'
@@ -112,7 +113,7 @@ export function DirectivesSection(): React.JSX.Element {
 
       <div className="flex items-center gap-1.5">
         {(['global', 'project'] as const).map((option) => (
-          <button
+          <TooltipButton
             key={option}
             onClick={() => setScope(option)}
             disabled={option === 'project' && !workspace}
@@ -123,7 +124,7 @@ export function DirectivesSection(): React.JSX.Element {
             }
           >
             {option}
-          </button>
+          </TooltipButton>
         ))}
         {scope === 'project' && (
           <span className="text-text-tertiary ml-1 font-mono text-xs">
@@ -171,21 +172,21 @@ export function DirectivesSection(): React.JSX.Element {
       </div>
 
       <details className="border-border bg-bg-secondary rounded-lg border">
-        <summary className="text-text-secondary cursor-pointer px-3 py-2 font-mono text-xs uppercase">
+        <TooltipSummary className="text-text-secondary cursor-pointer px-3 py-2 font-mono text-xs uppercase">
           What gets sent ({preview.length} chars)
-        </summary>
+        </TooltipSummary>
         <pre className="text-text-secondary overflow-x-auto px-3 pb-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
           {preview || 'Nothing — both blocks are off and there is no custom text.'}
         </pre>
       </details>
 
       {usingOverride && (
-        <button
+        <TooltipButton
           onClick={() => void save(null)}
           className="border-border text-text-secondary hover:border-border-strong self-start rounded-md border px-2.5 py-1 text-sm"
         >
           Clear this project&rsquo;s override
-        </button>
+        </TooltipButton>
       )}
     </div>
   )

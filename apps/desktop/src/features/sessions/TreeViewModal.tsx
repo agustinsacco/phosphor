@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
@@ -157,12 +158,13 @@ export function TreeViewModal({
           </span>
         </div>
         <div className="text-text-tertiary text-sm">scroll to zoom · drag to pan</div>
-        <button
+        <TooltipButton
+          aria-label="Close session tree"
           onClick={onClose}
           className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-7 w-7 items-center justify-center rounded-md transition-colors"
         >
           ✕
-        </button>
+        </TooltipButton>
       </header>
 
       <div
@@ -240,6 +242,7 @@ export function TreeViewModal({
                 return (
                   <g
                     key={node.id}
+                    data-tooltip="Inspect tree node"
                     transform={`translate(${px}, ${py})`}
                     className="cursor-pointer"
                     onMouseDown={(e) => e.stopPropagation()}
@@ -360,12 +363,13 @@ export function TreeViewModal({
                 {selected.kind === 'user' ? 'User message' : selected.kind}
                 {selected.isLeaf && <span className="text-accent"> · current position</span>}
               </div>
-              <button
+              <TooltipButton
+                aria-label="Close node details"
                 onClick={() => setSelected(null)}
                 className="text-text-tertiary hover:text-text"
               >
                 ✕
-              </button>
+              </TooltipButton>
             </div>
             <div className="text-text-secondary mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-base">
               {selected.preview ?? '(no text preview)'}
@@ -403,13 +407,13 @@ function ActionButton({
   disabled?: boolean
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       disabled={disabled}
       onClick={onClick}
       className="border-border hover:border-border-strong hover:bg-bg-secondary rounded-md border px-2.5 py-1 text-sm font-medium transition-colors disabled:opacity-40"
     >
       {children}
-    </button>
+    </TooltipButton>
   )
 }
 

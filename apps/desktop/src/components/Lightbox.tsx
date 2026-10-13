@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { ModalOverlay } from '@/components/Modal'
 import { CloseIcon } from '@/components/icons'
 
@@ -12,13 +13,13 @@ export function Lightbox({
   return (
     <ModalOverlay onClose={onClose} backdrop="photo">
       <div>{children}</div>
-      <button
+      <TooltipButton
         onClick={onClose}
         className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70"
         aria-label="Close"
       >
         <CloseIcon size={16} />
-      </button>
+      </TooltipButton>
     </ModalOverlay>
   )
 }

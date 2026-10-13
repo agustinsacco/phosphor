@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useState } from 'react'
 import { ChatImage } from '../ChatImage'
 import { formatFileSize, type PendingAttachment, type PendingImage } from '../attachments'
@@ -35,7 +36,7 @@ export function AttachmentChips({
             />
           ) : (
             <div
-              title={attachment.path}
+              data-tooltip={attachment.path}
               className="border-border bg-bg-secondary flex h-16 max-w-48 flex-col justify-center gap-0.5 rounded-lg border px-2.5"
             >
               <span className="text-text truncate text-sm font-medium">{attachment.name}</span>
@@ -44,13 +45,13 @@ export function AttachmentChips({
               </span>
             </div>
           )}
-          <button
+          <TooltipButton
             onClick={() => onRemove(index)}
             aria-label={`Remove ${attachment.name}`}
             className="bg-text text-bg absolute -right-1.5 -top-1.5 hidden h-4.5 w-4.5 items-center justify-center rounded-full text-xs group-hover/img:flex"
           >
             ✕
-          </button>
+          </TooltipButton>
         </div>
       ))}
       {editing !== null && edited?.kind === 'image' && (

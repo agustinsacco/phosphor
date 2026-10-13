@@ -1,3 +1,4 @@
+import { TooltipLabel } from '@/components/Tooltip'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ipcErrorText } from '@shared/errors'
 import { ModalOverlay } from '@/components/Modal'
@@ -619,9 +620,9 @@ export function ImageEditor({
                 Hold Shift for a square or circle · {formatShortcut('mod', 'V')} pastes an image on
                 top · Esc closes
               </span>
-              <label
+              <TooltipLabel
                 className="text-text-secondary flex cursor-pointer items-center gap-2 text-base"
-                title={
+                data-tooltip={
                   replace
                     ? 'The annotated image takes the original’s place'
                     : 'Keeps the original and adds the annotated copy next to it'
@@ -633,7 +634,7 @@ export function ImageEditor({
                   onChange={(event) => setReplace(event.target.checked)}
                 />
                 Replace original
-              </label>
+              </TooltipLabel>
               <Button size="sm" onClick={cancel}>
                 Cancel
               </Button>

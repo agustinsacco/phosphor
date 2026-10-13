@@ -9,6 +9,7 @@ import { useWorktreesStore, repoWorktrees } from '@/stores/worktrees'
 import { hasDelegatedWork, SUBAGENT_ASYNC_WIDGET_KEY } from '@/features/chat/subagentRuns'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
 import { Button } from '@/components/form'
+import { TooltipButton } from '@/components/Tooltip'
 import { LaneActivity } from './LaneActivity'
 import {
   LANE_STATE_LABEL,
@@ -170,20 +171,20 @@ export function LaneBoard({ data }: { data: LaneBoardData }): React.JSX.Element 
                 {lane.pr && <span className="text-text-secondary">PR #{lane.pr.number}</span>}
               </div>
               <h2>
-                <button
+                <TooltipButton
                   onClick={() => openLane(lane)}
                   className="hover:text-accent line-clamp-2 text-left text-xl font-semibold"
-                  title={lane.title}
+                  tooltip={lane.title}
                 >
                   {lane.title}
-                </button>
+                </TooltipButton>
               </h2>
               <p className="text-text-secondary mt-1 text-base">{lane.detail}</p>
               <LaneActivity lane={lane} />
               <div className="mt-auto flex items-center justify-between gap-3 pt-4">
                 <span
                   className="text-text-secondary min-w-0 truncate font-mono text-sm"
-                  title={lane.branch}
+                  data-tooltip={lane.branch}
                 >
                   {lane.branch ?? 'Workspace session'}
                 </span>

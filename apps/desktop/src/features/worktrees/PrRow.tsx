@@ -53,7 +53,7 @@ export function PrRow({
     <MenuRow active={false} onClick={() => void window.phosphor.invoke('app:openExternal', pr.url)}>
       <span className="flex min-w-0 flex-1 items-center gap-1.5">
         <span className={`${stateColor(pr.state)} shrink-0 text-sm font-medium`}>#{pr.number}</span>
-        <span className="text-text min-w-0 flex-1 truncate text-lg" title={pr.title}>
+        <span className="text-text min-w-0 flex-1 truncate text-lg" data-tooltip={pr.title}>
           {pr.title}
         </span>
       </span>

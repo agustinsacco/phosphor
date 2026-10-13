@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { useTerminalStore, sessionTerminals, ensureTerminalTab } from '@/stores/terminal'
@@ -66,6 +67,7 @@ export const TerminalPane = memo(function TerminalPane({
             {tabs.map((tab) => (
               <div
                 key={tab.ptyId}
+                data-tooltip={tab.title}
                 className={clsx(
                   'group flex shrink-0 cursor-pointer items-center gap-1 rounded-sm px-2 py-0.5 text-sm transition-colors',
                   tab.ptyId === activeId
@@ -82,7 +84,7 @@ export const TerminalPane = memo(function TerminalPane({
                 {tab.running && !tab.exited && (
                   <span
                     className="bg-success h-1.5 w-1.5 shrink-0 rounded-full"
-                    title="Process running"
+                    data-tooltip="Process running"
                   />
                 )}
                 {renaming === tab.ptyId ? (
@@ -106,7 +108,8 @@ export const TerminalPane = memo(function TerminalPane({
                 ) : (
                   <span>{tab.title}</span>
                 )}
-                <button
+                <TooltipButton
+                  aria-label={`Close ${tab.title}`}
                   onClick={(e) => {
                     e.stopPropagation()
                     void useTerminalStore.getState().closeTab(sessionId, tab.ptyId)
@@ -114,7 +117,7 @@ export const TerminalPane = memo(function TerminalPane({
                   className="text-text-tertiary hover:text-text hidden group-hover:block"
                 >
                   <CloseIcon size={9} strokeWidth={3} />
-                </button>
+                </TooltipButton>
               </div>
             ))}
           </div>
@@ -184,12 +187,12 @@ function SpawnError({
       <div className={inline ? 'min-w-0 flex-1' : 'max-w-sm text-center'}>
         <div className="text-danger text-base font-medium">Could not start a shell</div>
         <div className="text-text-tertiary mt-1 whitespace-pre-wrap text-sm">{message}</div>
-        <button
+        <TooltipButton
           onClick={onRetry}
           className="border-border text-text-secondary hover:text-text mt-2.5 rounded-md border px-2.5 py-1 text-base transition-colors"
         >
           Try again
-        </button>
+        </TooltipButton>
       </div>
     </div>
   )

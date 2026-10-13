@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { memo } from 'react'
 import clsx from 'clsx'
 import type { ToolState } from '../reducer'
@@ -42,7 +43,8 @@ export const ToolCard = memo(function ToolCard({
     // test (e2e/smoke.spec.ts "rows are dense and sit flush") measures rows
     // by. Load-bearing: renaming it turns that test into a confusing red run.
     <div className="tool-card">
-      <button
+      <TooltipButton
+        tooltip={expanded ? 'Hide tool output' : 'Show tool output'}
         onClick={onToggle}
         className={clsx(
           'group flex w-full items-center gap-1.5 py-1 text-left text-lg transition-colors',
@@ -95,7 +97,7 @@ export const ToolCard = memo(function ToolCard({
           />
         )}
         <ChevronIcon expanded={expanded} className="text-text-tertiary" />
-      </button>
+      </TooltipButton>
     </div>
   )
 })

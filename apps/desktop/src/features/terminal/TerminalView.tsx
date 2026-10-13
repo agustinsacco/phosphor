@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -285,19 +286,22 @@ export const TerminalView = memo(function TerminalView({
             placeholder="Search…"
             className="text-text placeholder:text-text-tertiary w-40 bg-transparent px-2 py-0.5 text-base outline-none"
           />
-          <button
+          <TooltipButton
+            aria-label="Previous match"
             onClick={() => runSearch('previous')}
             className="text-text-tertiary hover:text-text px-1 text-sm"
           >
             ↑
-          </button>
-          <button
+          </TooltipButton>
+          <TooltipButton
+            aria-label="Next match"
             onClick={() => runSearch('next')}
             className="text-text-tertiary hover:text-text px-1 text-sm"
           >
             ↓
-          </button>
-          <button
+          </TooltipButton>
+          <TooltipButton
+            aria-label="Close search"
             onClick={() => {
               setSearchOpen(false)
               termRef.current?.focus()
@@ -305,7 +309,7 @@ export const TerminalView = memo(function TerminalView({
             className="text-text-tertiary hover:text-text px-1 text-sm"
           >
             ✕
-          </button>
+          </TooltipButton>
         </div>
       )}
       {stagedCommand !== null && (
@@ -328,12 +332,15 @@ export const TerminalView = memo(function TerminalView({
             className="border-border bg-code-bg text-text w-full rounded border p-2 font-mono text-sm outline-none"
           />
           <div className="mt-1 flex justify-end gap-2">
-            <button onClick={() => setStagedCommand(null)} className="text-text-secondary text-sm">
+            <TooltipButton
+              onClick={() => setStagedCommand(null)}
+              className="text-text-secondary text-sm"
+            >
               Cancel
-            </button>
-            <button onClick={runStagedCommand} className="text-accent text-sm">
+            </TooltipButton>
+            <TooltipButton onClick={runStagedCommand} className="text-accent text-sm">
               Run command
-            </button>
+            </TooltipButton>
           </div>
         </div>
       )}

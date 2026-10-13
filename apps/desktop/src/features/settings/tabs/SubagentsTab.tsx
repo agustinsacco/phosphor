@@ -121,6 +121,7 @@ export function SubagentsTab(): React.JSX.Element {
         href="https://github.com/nicobailon/pi-subagents#readme"
         target="_blank"
         rel="noopener noreferrer"
+        data-tooltip="Open link"
       >
         Package documentation
       </a>

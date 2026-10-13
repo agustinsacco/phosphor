@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useState } from 'react'
 import clsx from 'clsx'
 import { useExtensionUiStore } from '@/stores/extensionUi'
@@ -68,13 +69,13 @@ export function RateLimitBanner({
           {capped ? ' · limit reached' : reset ? ` · ${reset}` : ''}
           {account && account.total > 1 && ` · ${account.email ?? account.label}`}
         </span>
-        <button
+        <TooltipButton
           onClick={() => setDismissed(signature)}
           aria-label="Dismiss"
           className="text-text-tertiary hover:text-text shrink-0"
         >
           <CloseIcon size={11} strokeWidth={2.5} />
-        </button>
+        </TooltipButton>
       </div>
     </div>
   )

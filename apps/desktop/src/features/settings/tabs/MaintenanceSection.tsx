@@ -182,7 +182,7 @@ export function MaintenanceSection(): React.JSX.Element {
         <ul className="text-text-secondary mt-2 space-y-0.5 text-sm">
           {withCandidates.map((r) => (
             <li key={r.workspacePath} className="flex gap-2">
-              <span className="min-w-0 flex-1 truncate" title={r.workspacePath}>
+              <span className="min-w-0 flex-1 truncate" data-tooltip={r.workspacePath}>
                 {workspaceName(r.workspacePath)}
               </span>
               <span>

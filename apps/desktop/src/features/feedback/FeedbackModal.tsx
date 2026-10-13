@@ -1,3 +1,4 @@
+import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { ModalOverlay } from '@/components/Modal'
@@ -51,7 +52,7 @@ function StarPicker({
     <div className="flex items-center gap-3">
       <div className="flex gap-1" onMouseLeave={() => setHover(null)}>
         {([1, 2, 3, 4, 5] as const).map((value) => (
-          <button
+          <TooltipButton
             key={value}
             type="button"
             aria-label={`${value} of 5`}
@@ -64,7 +65,7 @@ function StarPicker({
             )}
           >
             ★
-          </button>
+          </TooltipButton>
         ))}
       </div>
       <span className="text-text-secondary text-base">{RATING_LABELS[shown]}</span>
@@ -138,13 +139,13 @@ export function FeedbackModal(): React.JSX.Element | null {
               {state?.repo ?? 'the Phosphor repo'}.
             </p>
           </div>
-          <button
+          <TooltipButton
             onClick={close}
             aria-label="Close"
             className="text-text-tertiary hover:text-text -mr-1 rounded p-1"
           >
             <CloseIcon />
-          </button>
+          </TooltipButton>
         </header>
 
         {sent?.ok ? (
@@ -187,7 +188,7 @@ export function FeedbackModal(): React.JSX.Element | null {
             />
 
             <div className="border-border flex flex-col gap-2 border-t pt-3">
-              <label className="flex items-start gap-2 text-base">
+              <TooltipLabel className="flex items-start gap-2 text-base">
                 <input
                   type="checkbox"
                   className="mt-1"
@@ -203,7 +204,7 @@ export function FeedbackModal(): React.JSX.Element | null {
                       : 'Unavailable: the issue is opened in your browser, under your own GitHub account.'}
                   </span>
                 </span>
-              </label>
+              </TooltipLabel>
 
               {!anonymous && (
                 <TextInput
@@ -215,7 +216,7 @@ export function FeedbackModal(): React.JSX.Element | null {
                 />
               )}
 
-              <label className="flex items-start gap-2 text-base">
+              <TooltipLabel className="flex items-start gap-2 text-base">
                 <input
                   type="checkbox"
                   className="mt-1"
@@ -228,7 +229,7 @@ export function FeedbackModal(): React.JSX.Element | null {
                     Nothing else about your machine, your code or your sessions is ever attached.
                   </span>
                 </span>
-              </label>
+              </TooltipLabel>
             </div>
           </div>
         )}

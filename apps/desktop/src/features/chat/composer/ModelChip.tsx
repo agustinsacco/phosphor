@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import clsx from 'clsx'
 
 /**
@@ -75,7 +76,7 @@ export function ModelChip({
 }): React.JSX.Element {
   const named = provider !== undefined && !NATIVE_PROVIDERS.has(provider)
   return (
-    <button
+    <TooltipButton
       onClick={onClick}
       disabled={disabled}
       data-testid={testId}
@@ -108,7 +109,7 @@ export function ModelChip({
           </span>
         )}
       </span>
-    </button>
+    </TooltipButton>
   )
 }
 
@@ -124,12 +125,12 @@ export function ThinkingChip({
   label: string
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       onClick={onClick}
       data-testid={testId}
       className={clsx(CHIP_CLASS, 'shrink-0 cursor-pointer', chipTone(active))}
     >
       {label}
-    </button>
+    </TooltipButton>
   )
 }

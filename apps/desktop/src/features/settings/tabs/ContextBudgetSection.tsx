@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { SectionTitle, TextInput } from '@/components/form'
@@ -83,9 +84,10 @@ export function ContextBudgetSection(): React.JSX.Element {
         {BUDGET_PRESETS.map((preset) => {
           const selected = value === preset.value
           return (
-            <button
+            <TooltipButton
               key={preset.value || 'default'}
               type="button"
+              tooltip={preset.title}
               role="radio"
               aria-checked={selected}
               onClick={() => save(preset.value)}
@@ -107,7 +109,7 @@ export function ContextBudgetSection(): React.JSX.Element {
                   {preset.detail}
                 </span>
               </span>
-            </button>
+            </TooltipButton>
           )
         })}
         <div className="flex items-center gap-2.5 px-3 py-1">

@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { memo, useMemo, useState } from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -37,6 +38,7 @@ function MarkdownImage(props: React.ImgHTMLAttributes<HTMLImageElement>): React.
         {...props}
         className="my-2 max-h-96 max-w-full cursor-zoom-in rounded-lg"
         onClick={() => setZoomed(true)}
+        data-tooltip="Open image"
       />
       {zoomed && (
         <Lightbox onClose={() => setZoomed(false)}>
@@ -85,18 +87,18 @@ function MarkdownTable(props: React.TableHTMLAttributes<HTMLTableElement>): Reac
         data-find-skip
         className="absolute -top-3 right-1 z-10 hidden gap-1 group-hover/table:flex"
       >
-        <button
+        <TooltipButton
           onClick={(e) => copy(e, 'markdown')}
           className="border-border bg-surface text-text-tertiary hover:text-text rounded-md border px-2 py-0.5 text-xs shadow-sm"
         >
           {copied === 'markdown' ? 'Copied' : 'Copy MD'}
-        </button>
-        <button
+        </TooltipButton>
+        <TooltipButton
           onClick={(e) => copy(e, 'csv')}
           className="border-border bg-surface text-text-tertiary hover:text-text rounded-md border px-2 py-0.5 text-xs shadow-sm"
         >
           {copied === 'csv' ? 'Copied' : 'Copy CSV'}
-        </button>
+        </TooltipButton>
       </div>
       <div className="border-border overflow-x-auto rounded-lg border">
         <table {...props} className="md-table w-full border-collapse text-lg" />
@@ -151,7 +153,7 @@ const externalLinkComponents: Components = {
         {children}
       </MarkdownLink>
     ) : (
-      <span title={href}>{children}</span>
+      <span data-tooltip={href}>{children}</span>
     ),
 }
 

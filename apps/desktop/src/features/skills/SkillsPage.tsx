@@ -1,3 +1,4 @@
+import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
 import { memo, useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import type { ResolvedSkill, SkillImportPreview, SkillScope } from '@shared/skills'
@@ -179,7 +180,7 @@ function Segmented<T extends string>({
   return (
     <div className="border-border flex shrink-0 overflow-hidden rounded-md border">
       {options.map((option) => (
-        <button
+        <TooltipButton
           key={option.id}
           onClick={() => onChange(option.id)}
           aria-pressed={option.id === value}
@@ -191,7 +192,7 @@ function Segmented<T extends string>({
           )}
         >
           {option.label}
-        </button>
+        </TooltipButton>
       ))}
     </div>
   )
@@ -257,7 +258,7 @@ function updateAvailable(skill: ResolvedSkill): boolean {
 
 function SkillRow({ skill }: { skill: ResolvedSkill }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       onClick={() => useSkillsStore.getState().select(skill.dir)}
       className="hover:bg-bg-secondary block w-full cursor-pointer rounded-md px-2 py-1.5 text-left"
       title={skill.dir}
@@ -271,7 +272,7 @@ function SkillRow({ skill }: { skill: ResolvedSkill }): React.JSX.Element {
       <span className="text-text-tertiary block truncate text-sm">
         {skill.description || 'No description'}
       </span>
-    </button>
+    </TooltipButton>
   )
 }
 
@@ -389,13 +390,13 @@ function SkillDetail({
   return (
     <div className="flex h-full min-h-0 flex-col px-3 pb-3">
       <div className="flex items-center gap-2 pb-1">
-        <button
+        <TooltipButton
           onClick={onBack}
           disabled={editing}
           className="text-text-secondary hover:text-text cursor-pointer text-base"
         >
           ← Skills
-        </button>
+        </TooltipButton>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-mono text-lg font-semibold">{skill.name}</span>
@@ -404,7 +405,10 @@ function SkillDetail({
         {skill.origin === 'package' && <Tag tone="neutral">{skill.source}</Tag>}
         {skill.draft && <Tag tone="amber">draft</Tag>}
       </div>
-      <div className="text-text-tertiary truncate pt-0.5 font-mono text-xs" title={skill.dir}>
+      <div
+        className="text-text-tertiary truncate pt-0.5 font-mono text-xs"
+        data-tooltip={skill.dir}
+      >
         {skill.dir} · {skill.files.length} files · {formatSize(skill.totalSize)}
       </div>
       {skill.warnings.length > 0 && (
@@ -416,7 +420,7 @@ function SkillDetail({
       )}
       <div className="flex flex-wrap items-center gap-1.5 pt-2 pb-1">
         {(['preview', 'source', 'files'] as const).map((id) => (
-          <button
+          <TooltipButton
             key={id}
             onClick={() => setView(id)}
             disabled={editing}
@@ -426,7 +430,7 @@ function SkillDetail({
             )}
           >
             {id}
-          </button>
+          </TooltipButton>
         ))}
         <span className="flex-1" />
         {skill.writable && view === 'source' && content !== null && !editing && (
@@ -520,7 +524,7 @@ function SkillDetail({
         {view === 'files' ? (
           <div className="space-y-0.5">
             {skill.files.map((entry) => (
-              <button
+              <TooltipButton
                 key={entry.path}
                 onClick={() => {
                   setFile(entry.path)
@@ -530,7 +534,7 @@ function SkillDetail({
               >
                 <span className="truncate">{entry.path}</span>
                 <span className="text-text-tertiary shrink-0 pl-3">{formatSize(entry.size)}</span>
-              </button>
+              </TooltipButton>
             ))}
           </div>
         ) : content == null ? (
@@ -604,7 +608,7 @@ function DiscoverList({
       </header>
       <div className="flex flex-wrap gap-2" aria-label="Skill outcomes">
         {categories.map((item) => (
-          <button
+          <TooltipButton
             key={item}
             aria-pressed={category === item}
             onClick={() => setCategory(item)}
@@ -616,7 +620,7 @@ function DiscoverList({
             )}
           >
             {item}
-          </button>
+          </TooltipButton>
         ))}
       </div>
       <p className="text-text-secondary text-base">
@@ -702,16 +706,16 @@ function LibrarySection({
               <p className="text-text-secondary mt-1 text-base">{offering.caveat}</p>
             </div>
           </div>
-          <button
+          <TooltipButton
             className="text-text-secondary cursor-pointer text-base underline hover:text-text"
             onClick={() => void window.phosphor.invoke('app:openExternal', offering.evidenceUrl)}
           >
             Read evaluation ↗
-          </button>
+          </TooltipButton>
         </>
       )}
       <details className="mt-2" open={needle ? true : undefined}>
-        <summary className="text-text cursor-pointer py-2 text-base font-medium">
+        <TooltipSummary className="text-text cursor-pointer py-2 text-base font-medium">
           {offering
             ? offering.external
               ? 'Compatibility & setup'
@@ -722,16 +726,16 @@ function LibrarySection({
               ? 'External plugin'
               : `${library.skills.length} skill${library.skills.length === 1 ? '' : 's'}`}
           </span>
-        </summary>
+        </TooltipSummary>
         {offering && <p className="text-text-secondary mb-3 text-base">{offering.requirements}</p>}
         <div className="flex flex-wrap items-baseline gap-2">
           <span className="text-base font-semibold">{library.label}</span>
-          <button
+          <TooltipButton
             onClick={() => void window.phosphor.invoke('app:openExternal', library.url)}
             className="text-accent cursor-pointer text-xs hover:underline"
           >
             {offering?.external ? 'Review upstream setup' : library.repo} ↗
-          </button>
+          </TooltipButton>
           <span className="text-text-tertiary font-mono text-xs">@{library.sha.slice(0, 7)}</span>
         </div>
         <div className="text-text-tertiary pb-1.5 text-sm">{library.blurb}</div>

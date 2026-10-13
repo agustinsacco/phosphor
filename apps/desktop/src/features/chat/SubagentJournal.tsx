@@ -1,3 +1,4 @@
+import { TooltipSummary } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/form'
 import { errorText } from '@shared/errors'
@@ -73,7 +74,7 @@ export function SubagentJournal({
               {newestWork(history.launches).map((run) => (
                 <div key={run.id} className="border-border rounded border p-2">
                   <div className="flex flex-wrap justify-between gap-2">
-                    <span className="min-w-0 flex-1 truncate font-medium" title={run.task}>
+                    <span className="min-w-0 flex-1 truncate font-medium" data-tooltip={run.task}>
                       {run.task ? taskPreview(run.task) : run.label}
                     </span>
                     {run.runId && (
@@ -89,7 +90,7 @@ export function SubagentJournal({
                   <p className="text-text-secondary text-sm">{run.outcome}</p>
                   {run.task && (
                     <details>
-                      <summary className="cursor-pointer">Delegated task</summary>
+                      <TooltipSummary className="cursor-pointer">Delegated task</TooltipSummary>
                       <div className="max-h-64 overflow-auto">
                         <SubagentText text={run.task} />
                       </div>
@@ -97,11 +98,11 @@ export function SubagentJournal({
                   )}
                   {run.receipt && (
                     <details className="mt-1">
-                      <summary className="cursor-pointer">
+                      <TooltipSummary className="cursor-pointer">
                         {run.detached
                           ? 'Launch receipt · not a child result'
                           : 'Output received by supervisor'}
-                      </summary>
+                      </TooltipSummary>
                       {run.returnedAt !== undefined && Number.isFinite(run.returnedAt) && (
                         <p className="text-text-tertiary text-xs">
                           Received {new Date(run.returnedAt).toLocaleString()}

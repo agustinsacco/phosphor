@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { PlusIcon } from './icons'
 
 /**
@@ -10,7 +11,7 @@ import { PlusIcon } from './icons'
 
 /** Also the image annotator's toolbar buttons, so the two read as one family. */
 export const iconButtonClass =
-  'text-text-secondary hover:text-text hover:bg-bg-secondary flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors disabled:pointer-events-none disabled:opacity-30'
+  'text-text-secondary hover:text-text hover:bg-bg-secondary flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-colors disabled:opacity-30'
 
 export function AttachButton({ onFiles }: { onFiles: (files: File[]) => void }): React.JSX.Element {
   const pick = (): void => {
@@ -25,14 +26,14 @@ export function AttachButton({ onFiles }: { onFiles: (files: File[]) => void }):
   }
 
   return (
-    <button
+    <TooltipButton
       onClick={pick}
       aria-label="Attach files"
-      title="Attach files — images inline, other files by path"
+      tooltip="Attach files"
       className={iconButtonClass}
     >
       <PlusIcon size={16} />
-    </button>
+    </TooltipButton>
   )
 }
 
@@ -48,11 +49,11 @@ export function SubmitIconButton({
   label: string
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       onClick={onClick}
       disabled={disabled || busy}
       aria-label={label}
-      title={`${label} (⏎)`}
+      tooltip={{ label, shortcut: ['Enter'] }}
       className={iconButtonClass}
     >
       {busy ? (
@@ -86,20 +87,20 @@ export function SubmitIconButton({
           <path d="M20 4v7a4 4 0 0 1-4 4H4" />
         </svg>
       )}
-    </button>
+    </TooltipButton>
   )
 }
 
 /** Stop control while streaming. Esc does the same; this is the visible way. */
 export function StopIconButton({ onClick }: { onClick: () => void }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       onClick={onClick}
       aria-label="Stop"
-      title="Stop (Esc)"
+      tooltip={{ label: 'Stop response', shortcut: ['Esc'] }}
       className="border-border text-text-secondary hover:border-danger hover:text-danger flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition-colors"
     >
       <span className="h-2.5 w-2.5 rounded-[3px] bg-current" />
-    </button>
+    </TooltipButton>
   )
 }

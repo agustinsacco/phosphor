@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useId, useMemo, useRef } from 'react'
 import clsx from 'clsx'
 import { TextInput } from '@/components/form'
@@ -115,7 +116,7 @@ export function SettingsSearchField({
         className="find-field w-full pl-7 pr-7"
       />
       {query && (
-        <button
+        <TooltipButton
           type="button"
           aria-label="Clear search"
           title="Clear search (Esc)"
@@ -126,7 +127,7 @@ export function SettingsSearchField({
           className="text-text-tertiary hover:text-text hover:bg-bg-secondary absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded transition-colors"
         >
           <CloseIcon size={10} strokeWidth={2.5} />
-        </button>
+        </TooltipButton>
       )}
     </div>
   )
@@ -164,6 +165,7 @@ export function SettingsSearchResults({ search }: { search: SettingsSearch }): R
                   id={optionId(listId, index)}
                   ref={selected ? activeRef : undefined}
                   role="option"
+                  data-tooltip={entry.title}
                   aria-selected={selected}
                   onMouseMove={() => search.setActive(index)}
                   onClick={() => search.choose(index)}

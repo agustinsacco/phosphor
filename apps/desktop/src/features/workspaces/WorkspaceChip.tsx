@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useRef, useState } from 'react'
 import clsx from 'clsx'
 import { MenuRow, PopupMenu } from '@/components/PopupMenu'
@@ -42,7 +43,7 @@ export function WorkspaceChip({
 
   return (
     <span className="relative shrink-0">
-      <button
+      <TooltipButton
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         title={workspacePath}
@@ -63,7 +64,7 @@ export function WorkspaceChip({
         <FolderIcon />
         <span className="max-w-40 truncate">{name}</span>
         <ChevronIcon size={10} className="text-text-tertiary" />
-      </button>
+      </TooltipButton>
 
       {open && (
         <PopupMenu
@@ -115,7 +116,7 @@ export function WorkspaceChip({
           >
             <span
               className="min-w-0 flex-1 truncate text-lg"
-              title="Start in a fresh sandbox folder that belongs to no project"
+              data-tooltip="Start in a fresh sandbox folder that belongs to no project"
             >
               No folder
             </span>

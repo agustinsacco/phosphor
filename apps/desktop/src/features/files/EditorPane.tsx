@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import { useFilesStore, workspaceFiles, type OpenFile } from '@/stores/files'
@@ -60,18 +61,18 @@ export const EditorPane = memo(function EditorPane({
         <div className="border-border text-text-tertiary flex items-center gap-2 border-b px-3 py-1 text-xs">
           <span
             aria-label="Current file path"
-            title={active.path}
+            data-tooltip={active.path}
             className="min-w-0 flex-1 truncate"
           >
             {active.relativePath}
           </span>
-          <button
+          <TooltipButton
             title={`Save all (${formatShortcut('mod', 'alt', 'S')})`}
             onClick={() => runFileAction(saveAllEditorFiles(workspacePath))}
             className="hover:text-text shrink-0"
           >
             Save all
-          </button>
+          </TooltipButton>
         </div>
       )}
       {active?.diskConflict && <ConflictBar file={active} workspacePath={workspacePath} />}
@@ -255,7 +256,7 @@ function Tab({
           : 'border-transparent text-text-tertiary hover:text-text',
       )}
       onClick={() => useFilesStore.getState().setActive(workspacePath, file.path)}
-      title={file.relativePath}
+      data-tooltip={file.relativePath}
     >
       {file.pinned && (
         <span aria-hidden="true" className="text-accent">
@@ -264,7 +265,7 @@ function Tab({
       )}
       <span className="max-w-48 truncate">{label}</span>
       {file.dirty && <span className="bg-accent h-1.5 w-1.5 shrink-0 rounded-full" />}
-      <button
+      <TooltipButton
         aria-label={`Close ${file.relativePath}`}
         onClick={(event) => {
           event.stopPropagation()
@@ -276,7 +277,7 @@ function Tab({
         )}
       >
         <CloseIcon size={10} strokeWidth={2.5} />
-      </button>
+      </TooltipButton>
     </div>
   )
 }
@@ -291,18 +292,18 @@ function ConflictBar({
   return (
     <div className="bg-warning/10 border-warning/30 flex items-center gap-2 border-b px-3 py-1.5 text-base">
       <span className="text-text flex-1">File changed on disk while you had unsaved edits.</span>
-      <button
+      <TooltipButton
         onClick={() => void useFilesStore.getState().reloadFromDisk(workspacePath, file.path)}
         className="border-border hover:bg-bg-secondary rounded-md border px-2 py-0.5 font-medium transition-colors"
       >
         Reload
-      </button>
-      <button
+      </TooltipButton>
+      <TooltipButton
         onClick={() => useFilesStore.getState().keepBuffer(workspacePath, file.path)}
         className="border-border hover:bg-bg-secondary rounded-md border px-2 py-0.5 font-medium transition-colors"
       >
         Keep mine
-      </button>
+      </TooltipButton>
     </div>
   )
 }

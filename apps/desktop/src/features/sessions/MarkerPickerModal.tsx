@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { ModalOverlay } from '@/components/Modal'
@@ -56,7 +57,7 @@ export function MarkerPickerModal({
         </div>
 
         <div className="border-border flex items-center gap-2 border-b px-4 py-2">
-          <button
+          <TooltipButton
             onClick={() => onPick(null)}
             className={clsx(
               'flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm',
@@ -71,8 +72,8 @@ export function MarkerPickerModal({
             }
           >
             <span>{auto}</span> {mode === 'auto' ? 'Auto' : 'Default'}
-          </button>
-          <button
+          </TooltipButton>
+          <TooltipButton
             onClick={() => onPick('')}
             className={clsx(
               'rounded-md border px-2 py-1 text-sm',
@@ -83,7 +84,7 @@ export function MarkerPickerModal({
             title="No marker for this lane"
           >
             None
-          </button>
+          </TooltipButton>
           <span className="text-text-tertiary ml-auto text-xs">dimmed = used by another lane</span>
         </div>
 
@@ -98,6 +99,7 @@ export function MarkerPickerModal({
               setLimit(120)
             }}
             className="bg-surface border-border w-full rounded-md border px-3 py-2 text-sm"
+            data-tooltip="Search icons"
           />
           <select
             aria-label="Icon category"
@@ -122,7 +124,7 @@ export function MarkerPickerModal({
         <div key={`${query}:${group}`} className="max-h-72 overflow-y-auto px-4 py-3">
           <div className="grid grid-cols-10 gap-1">
             {matches.slice(0, limit).map(({ glyph, name }) => (
-              <button
+              <TooltipButton
                 key={glyph}
                 aria-label={name}
                 aria-pressed={current === glyph}
@@ -137,22 +139,25 @@ export function MarkerPickerModal({
                 )}
               >
                 {glyph}
-              </button>
+              </TooltipButton>
             ))}
           </div>
           {matches.length > limit && (
-            <button
+            <TooltipButton
               className="text-accent mt-3 w-full text-sm"
               onClick={() => setLimit(limit + 120)}
             >
               Show more icons
-            </button>
+            </TooltipButton>
           )}
         </div>
         <div className="border-border flex justify-end border-t px-4 py-2">
-          <button onClick={onClose} className="text-text-secondary rounded-md px-2 py-1 text-sm">
+          <TooltipButton
+            onClick={onClose}
+            className="text-text-secondary rounded-md px-2 py-1 text-sm"
+          >
             Cancel
-          </button>
+          </TooltipButton>
         </div>
       </div>
     </ModalOverlay>

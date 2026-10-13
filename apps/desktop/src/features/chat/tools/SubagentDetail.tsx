@@ -1,3 +1,4 @@
+import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { ToolState } from '../reducer'
@@ -70,7 +71,7 @@ export function SubagentDetail({ tool }: { tool: ToolState }): React.JSX.Element
         >
           <span>Launched in the background</span>
           {run.runId && (
-            <span className="text-text-tertiary font-mono text-sm" title={run.runId}>
+            <span className="text-text-tertiary font-mono text-sm" data-tooltip={run.runId}>
               {shortId(run.runId)}
             </span>
           )}
@@ -155,9 +156,10 @@ function TaskSection({
       : 'Input · delegated task'
   return (
     <div data-find-skip className="border-border border-b px-3 py-2">
-      <button
+      <TooltipButton
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
+        tooltip={`${open ? 'Hide' : 'Show'} ${title.toLowerCase()}`}
         className="text-text-tertiary hover:text-text flex items-center gap-1 text-sm transition-colors"
       >
         <ChevronIcon expanded={open} className="text-text-tertiary" />
@@ -167,7 +169,7 @@ function TaskSection({
             · {body.replace(/\s+/g, ' ').slice(0, 96)}
           </span>
         )}
-      </button>
+      </TooltipButton>
       {open && (
         <div
           data-testid="subagent-task"
@@ -256,7 +258,7 @@ function ChildCard({
         </span>
         <span className="text-text shrink-0 font-medium">{child.agent}</span>
         {showLabel && child.label && (
-          <span className="text-text-secondary min-w-0 truncate" title={child.label}>
+          <span className="text-text-secondary min-w-0 truncate" data-tooltip={child.label}>
             {child.label}
           </span>
         )}
@@ -280,12 +282,12 @@ function ChildCard({
       )}
       {live && child.recentTools.length > 0 && (
         <details className="text-text-tertiary mt-1 ml-5 text-sm">
-          <summary className="cursor-pointer">
+          <TooltipSummary className="cursor-pointer">
             Recent activity · {child.recentTools.length} tool entries
-          </summary>
+          </TooltipSummary>
           <ul className="font-mono text-xs">
             {child.recentTools.map((line, i) => (
-              <li key={i} className="truncate" title={line}>
+              <li key={i} className="truncate" data-tooltip={line}>
                 {line}
               </li>
             ))}
@@ -300,9 +302,9 @@ function ChildCard({
       {child.error && <ErrorText text={child.error} />}
       {output && (
         <details data-testid="subagent-output" className="mt-1.5">
-          <summary className="text-text-secondary cursor-pointer text-sm font-medium">
+          <TooltipSummary className="text-text-secondary cursor-pointer text-sm font-medium">
             Reported child result
-          </summary>
+          </TooltipSummary>
           <div className="max-h-80 overflow-auto pt-2 text-base">
             <SubagentText text={output} />
           </div>
@@ -347,7 +349,7 @@ function AgentCatalogue({ agents }: { agents: SubagentAgentInfo[] }): React.JSX.
               {agent.source}
             </span>
           )}
-          <span className="text-text-secondary min-w-0 truncate" title={agent.description}>
+          <span className="text-text-secondary min-w-0 truncate" data-tooltip={agent.description}>
             {agent.available ? agent.description : (agent.unavailableReason ?? 'unavailable')}
           </span>
           {agent.model && (

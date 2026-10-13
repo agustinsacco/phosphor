@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { useActiveWorkspace } from '@/stores/workspaces'
@@ -97,12 +98,12 @@ export function AgentTab(): React.JSX.Element {
             pi also ignores the broken file and falls back to its defaults.
             {health?.error ? ` (${health.error})` : ''}
           </div>
-          <button
+          <TooltipButton
             onClick={() => useSettingsUiStore.getState().setTab('advanced')}
             className="border-danger/40 text-danger hover:bg-danger/10 mt-2 rounded-md border px-2.5 py-1 text-sm font-medium transition-colors"
           >
             Fix it in Advanced →
-          </button>
+          </TooltipButton>
         </div>
       )}
 
@@ -123,7 +124,7 @@ export function AgentTab(): React.JSX.Element {
               { value: 'project', label: 'Project' },
             ] as const
           ).map(({ value, label }) => (
-            <button
+            <TooltipButton
               key={value}
               aria-pressed={scope === value}
               disabled={value === 'project' && !currentWorkspace}
@@ -136,7 +137,7 @@ export function AgentTab(): React.JSX.Element {
               )}
             >
               {label}
-            </button>
+            </TooltipButton>
           ))}
         </div>
       </Row>
