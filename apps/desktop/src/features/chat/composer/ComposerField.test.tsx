@@ -340,4 +340,54 @@ describe('ComposerField autocomplete', () => {
     press('Tab')
     expect(field().value).toBe(DRAFT)
   })
+
+  it('hides it while the caret is not at the end, and leaves → to the caret', () => {
+    typed(DRAFT)
+    caretAt(3)
+    act(() => {
+      document.dispatchEvent(new Event('selectionchange'))
+    })
+    expect(ghost()).toBeNull()
+    expect(press('ArrowRight').defaultPrevented).toBe(false)
+    expect(field().value).toBe(DRAFT)
+  })
+
+  it('takes one word with Ctrl+→ off macOS, where ⌥→ is left alone', () => {
+    window.phosphor.platform = 'linux'
+    typed(DRAFT)
+    expect(press('ArrowRight', { altKey: true }).defaultPrevented).toBe(false)
+    press('ArrowRight', { ctrlKey: true })
+    expect(field().value).toBe('ok good lets open')
+  })
+
+  it('takes Tab at the end of a list item instead of indenting it', () => {
+    typed('- ok good lets op')
+    expect(ghost()).toBe('en a PR')
+    press('Tab')
+    expect(field().value).toBe('- ok good lets open a PR')
+  })
+
+  describe('a suggestion longer than the field shows', () => {
+    // jsdom has no layout. Give the field a 30px box, and put every character
+    // of the suggestion past its 7th on a wrapped line below it.
+    const box = { top: 0, bottom: 30, left: 0, right: 300, width: 300, height: 30 }
+    beforeEach(() => {
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(box as DOMRect)
+      Range.prototype.getBoundingClientRect = function (this: Range) {
+        const top = this.endOffset <= 7 ? 5 : 35
+        return { ...box, top, bottom: top + 20 } as DOMRect
+      }
+    })
+    afterEach(() => {
+      vi.restoreAllMocks()
+      delete (Range.prototype as Partial<Range>).getBoundingClientRect
+    })
+
+    it('is cut to the whole words that fit, and Tab inserts only those', () => {
+      typed(DRAFT)
+      expect(ghost()).toBe('en a PR')
+      press('Tab')
+      expect(field().value).toBe('ok good lets open a PR')
+    })
+  })
 })

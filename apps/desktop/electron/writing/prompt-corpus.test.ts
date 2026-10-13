@@ -55,10 +55,13 @@ describe('prompt corpus', () => {
     ])
   })
 
-  it('skips a torn line left by a crash mid-append', async () => {
+  it('skips a torn line left by a crash mid-append, and the next append survives it', async () => {
     await createPromptCorpus(() => file).record('whole')
     writeFileSync(file, readFileSync(file, 'utf8') + '{"t":"half', { flag: 'w' })
-    expect(await createPromptCorpus(() => file).list()).toEqual(['whole'])
+    const after = createPromptCorpus(() => file)
+    expect(await after.list()).toEqual(['whole'])
+    await after.record('next')
+    expect(await createPromptCorpus(() => file).list()).toEqual(['whole', 'next'])
   })
 
   it('forgets everything on clear, even with an append in flight', async () => {

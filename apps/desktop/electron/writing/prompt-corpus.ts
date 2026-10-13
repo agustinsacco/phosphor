@@ -30,6 +30,11 @@ export function createPromptCorpus(
   let prompts: string[] | null = null
   /** Lines in the file, which can run ahead of `prompts` until a rewrite. */
   let fileLines = 0
+  /**
+   * The file ends mid-line (a crash during an append). The next append starts
+   * a new line first, or it would be glued onto the torn one and lost with it.
+   */
+  let torn = false
   let chain: Promise<unknown> = Promise.resolve()
 
   const serial = <T>(task: () => Promise<T>): Promise<T> => {
@@ -46,6 +51,7 @@ export function createPromptCorpus(
     } catch {
       // No file yet: nothing learned.
     }
+    torn = raw !== '' && !raw.endsWith('\n')
     const lines = raw.split('\n').filter((line) => line.trim() !== '')
     fileLines = lines.length
     prompts = lines.flatMap((line) => {
@@ -81,10 +87,12 @@ export function createPromptCorpus(
           await writeFile(temp, list.map(line).join(''), { mode: 0o600 })
           await rename(temp, path)
           fileLines = list.length
+          torn = false
         } else {
           // Prompts can be private; the file is the user's alone.
-          await appendFile(path, line(prompt), { mode: 0o600 })
+          await appendFile(path, (torn ? '\n' : '') + line(prompt), { mode: 0o600 })
           fileLines += 1
+          torn = false
         }
       }),
 
@@ -92,6 +100,7 @@ export function createPromptCorpus(
       serial(async () => {
         prompts = []
         fileLines = 0
+        torn = false
         await rm(filePath(), { force: true })
       }),
   }

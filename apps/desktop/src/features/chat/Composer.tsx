@@ -243,7 +243,6 @@ export function Composer({
         return
       }
 
-      useWritingStore.getState().recordPrompt(message)
       const imagePayload: ImageContent[] = toImageContents(images)
       // Non-image attachments ride along as paths in the prompt: pi's protocol
       // has no document type, so the agent opens them with its own tools.
@@ -275,6 +274,8 @@ export function Composer({
           ...(imagePayload.length ? { images: imagePayload } : {}),
           ...(isStreaming ? { streamingBehavior: behavior ?? 'steer' } : {}),
         })
+        // Only once pi took it, so a failed send typed again is not learned twice.
+        useWritingStore.getState().recordPrompt(message)
       } catch (error) {
         // `piCallOk` reports a rejected envelope; an IPC-level rejection (the
         // session's process died mid-send, or main refused a Claude prompt on

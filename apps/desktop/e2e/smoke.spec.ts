@@ -901,6 +901,28 @@ test('text fields get a right-click menu, and composers learn autocomplete', asy
     await chat.press('Tab')
     await expect(chat).toHaveValue('please review the diff for regressions')
 
+    // A suggestion longer than the line: only what fits is shown, and Tab
+    // inserts only what was shown.
+    const long =
+      'please check the extraordinarily complicated synchronization implementation ' +
+      'regarding internationalization considerations thoroughly'
+    await chat.fill(long)
+    await chat.press('Enter')
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toHaveCount(2, {
+      timeout: 30_000,
+    })
+    await chat.pressSequentially('please check the ext')
+    const ghost = page.getByTestId('composer-suggestion').locator('span').last()
+    await expect(ghost).toBeVisible()
+    const shown = (await ghost.textContent()) ?? ''
+    const ghostBox = (await ghost.boundingBox())!
+    const fieldBox = (await chat.boundingBox())!
+    expect(ghostBox.y + ghostBox.height).toBeLessThanOrEqual(fieldBox.y + fieldBox.height + 1)
+    expect(long.startsWith('please check the ext' + shown)).toBe(true)
+    expect(shown.length).toBeLessThan(long.length - 'please check the ext'.length)
+    await chat.press('Tab')
+    await expect(chat).toHaveValue('please check the ext' + shown)
+
     // Learned in main, where it survives a restart.
     const userData = await app.evaluate(({ app }) => app.getPath('userData'))
     await expect

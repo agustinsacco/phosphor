@@ -13,6 +13,7 @@ import {
 import { COMPOSER_MAX_HEIGHT, useAutoResizeTextarea } from '@/lib/useAutoResizeTextarea'
 import { recordTextareaEdit } from '@/lib/textareaUndo'
 import { hostPlatform } from '@/lib/shortcuts'
+import { fitGhost, ghostVisibility } from '@/lib/writing/fitGhost'
 import { useWritingStore } from '@/stores/writing'
 import { FORMATTING_ACTIONS, type FormattingAction } from './formattingActions'
 
@@ -152,14 +153,27 @@ export function ComposerField({
   }
 
   const suggestion = useSuggestion(value, autocomplete && !composing.current)
-  const ghost = suggestion.text
   const fieldClass =
     className ??
     'composer-field text-text placeholder:text-text-secondary block w-full resize-none overflow-y-auto bg-transparent px-4 pt-3 pb-1 text-lg outline-none'
   const mirrorRef = useRef<HTMLDivElement>(null)
+  const ghostRef = useRef<HTMLSpanElement>(null)
+
+  /*
+   * The field grows with the text, not the suggestion, so a long suggestion
+   * wraps below it and is clipped. It is cut to the whole words that show
+   * (`fitGhost`), measured once per value, suggestion and field size, and
+   * what is shown is exactly what Tab inserts.
+   */
+  const [fit, setFit] = useState<{ key: string; shown: string | null } | null>(null)
+  const [widthChanges, setWidthChanges] = useState(0)
+  const fitKey =
+    suggestion.text === null ? null : `${expanded}|${widthChanges}|${value}\u0000${suggestion.text}`
+  const ghost = fitKey !== null && fit?.key === fitKey ? fit.shown : suggestion.text
 
   // The mirror wraps and scrolls exactly as the textarea does: same classes,
-  // plus the textarea's live scroll offset and scrollbar width.
+  // plus the textarea's live scroll offset and scrollbar width. Then the
+  // suggestion is measured in it, before paint, so a clipped one never shows.
   useLayoutEffect(() => {
     const el = textareaRef.current
     const mirror = mirrorRef.current
@@ -169,7 +183,25 @@ export function ComposerField({
     const scrollbar = Math.max(0, el.offsetWidth - el.clientWidth - (borders || 0))
     mirror.style.paddingRight = `${parseFloat(style.paddingRight) + scrollbar}px`
     mirror.scrollTop = el.scrollTop
+    if (fitKey === null || suggestion.text === null || fit?.key === fitKey) return
+    const visible = ghostVisibility(mirror, ghostRef.current?.firstChild ?? null)
+    if (visible) setFit({ key: fitKey, shown: fitGhost(suggestion.text, visible) })
   })
+
+  // A narrower field wraps sooner: measure again when the width changes.
+  const showing = suggestion.text !== null
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el || !showing) return
+    let width = el.clientWidth
+    const observer = new ResizeObserver(() => {
+      if (el.clientWidth === width) return
+      width = el.clientWidth
+      setWidthChanges((n) => n + 1)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [textareaRef, showing])
 
   const acceptSuggestion = (text: string): void => {
     const next = value + text
@@ -301,7 +333,9 @@ export function ComposerField({
           }}
         >
           <span className="invisible">{value}</span>
-          <span className="text-text-tertiary">{ghost}</span>
+          <span ref={ghostRef} className="text-text-tertiary">
+            {ghost}
+          </span>
         </div>
       )}
       <textarea

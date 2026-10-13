@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import {
   DEFAULT_WRITING_PREFS,
   isLearnablePrompt,
+  MAX_LEARNED_PROMPTS,
   normalizeWritingPrefs,
   type WritingPrefs,
 } from '@shared/writing'
@@ -65,7 +66,8 @@ export const useWritingStore = create<WritingState>((set, get) => ({
     if (!get().prefs.autocomplete || !isLearnablePrompt(text)) return
     predictor?.add(text.trim())
     const learned = get().learned
-    if (learned !== null) set({ learned: learned + 1 })
+    // Main keeps only the newest MAX_LEARNED_PROMPTS, so the count stops there too.
+    if (learned !== null) set({ learned: Math.min(learned + 1, MAX_LEARNED_PROMPTS) })
     void window.phosphor.invoke('writing:recordPrompt', text).catch(() => {
       // Learning is best effort; a failed write must not reach the send path.
     })

@@ -139,7 +139,6 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
     const message = text.trim()
     if (!message || starting) return
     setWarning(null)
-    useWritingStore.getState().recordPrompt(message)
 
     const prompt = composePrompt(message, images)
     const sent = toImageContents(images)
@@ -179,6 +178,9 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
         onWarning: (reason) => useExtensionUiStore.getState().pushToast(reason, 'warning'),
       })
       useStartingChatStore.getState().finish()
+      // Only once the lane started: a failure puts the draft back, and sending
+      // it again must not learn the same prompt twice.
+      useWritingStore.getState().recordPrompt(message)
       // The lane came up behind whatever the user moved on to, so say so once
       // rather than pulling them back to it.
       if (useSessionsStore.getState().navSeq !== nav) {
