@@ -206,8 +206,6 @@ export function TooltipProvider({ children }: { children: React.ReactNode }): Re
     dismiss.current = close
     const candidate = (node: EventTarget | null): HTMLElement | null =>
       node instanceof Element ? node.closest<HTMLElement>('[data-tooltip]') : null
-    const insideBubble = (node: EventTarget | null): boolean =>
-      node instanceof Node && !!bubble.current?.contains(node)
     const enter = (next: HTMLElement | null, focused: boolean): void => {
       if (next === target && !focused) {
         clearTimeout(closeTimer)
@@ -233,10 +231,6 @@ export function TooltipProvider({ children }: { children: React.ReactNode }): Re
     }
     const over = (event: PointerEvent): void => {
       if (!windowActive || event.pointerType === 'touch' || event.buttons) return
-      if (insideBubble(event.target)) {
-        clearTimeout(closeTimer)
-        return
-      }
       const next = candidate(event.target)
       if (!next || (focusOwned && next === target)) return
       focusOwned = false
@@ -244,11 +238,7 @@ export function TooltipProvider({ children }: { children: React.ReactNode }): Re
     }
     const out = (event: PointerEvent): void => {
       if (event.pointerType === 'touch' || focusOwned) return
-      if (
-        insideBubble(event.relatedTarget) ||
-        (target && candidate(event.relatedTarget) === target)
-      )
-        return
+      if (target && candidate(event.relatedTarget) === target) return
       clearTimeout(timer)
       timer = undefined
       clearTimeout(closeTimer)

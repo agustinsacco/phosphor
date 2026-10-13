@@ -161,6 +161,8 @@ test('action hints stay quiet and dismiss before menus or dialogs', async () => 
     await expect(tooltip).toBeVisible()
     await expect(tooltip).toHaveText('Attach files')
     await expect(attach).not.toHaveAttribute('title')
+    // Click-through: a hint over a neighbouring control never intercepts it.
+    await expect(tooltip).toHaveCSS('pointer-events', 'none')
     const bounds = await tooltip.boundingBox()
     const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }))
     expect(bounds!.x).toBeGreaterThanOrEqual(8)

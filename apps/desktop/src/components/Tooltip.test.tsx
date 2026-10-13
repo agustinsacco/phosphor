@@ -98,21 +98,15 @@ describe('quiet tooltips', () => {
     expect(hint()).toBeNull()
   })
 
-  it('is hoverable, persists while reading, and closes after leaving both regions', async () => {
+  it('is click-through and closes once the pointer leaves its trigger', async () => {
     render(<TooltipButton>Save</TooltipButton>)
     const button = buttons()[0]!
     pointer(button)
     await advance(650)
-    const bubble = hint()!
-    // The bubble is separated from its trigger by a small physical gap.
     pointer(button, 'pointerout', document.body)
-    pointer(document.body)
     await advance(50)
-    pointer(bubble)
-    await advance(5000)
-    expect(hint()).toBe(bubble)
-    pointer(bubble, 'pointerout', document.body)
-    await advance(100)
+    expect(hint()).not.toBeNull()
+    await advance(50)
     expect(hint()).toBeNull()
   })
 

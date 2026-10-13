@@ -299,8 +299,9 @@ only while a hint is open. A source-contract test prevents new raw buttons and
 native tooltip titles; iframe titles remain accessible frame names. Third-party
 editor UI, native menus, terminal contents, and sandboxed HTML are not modified.
 
-Hover waits 650ms for every target. Leaving early cancels it; transferring the
-pointer to the bubble has a 100ms grace period and keeps the hint readable.
+Hover waits 650ms for every target. Leaving early cancels it; leaving a shown
+hint's target closes it after a 100ms grace. The bubble is click-through, so a
+hint that overlaps a neighbouring control never intercepts its click.
 Keyboard navigation shows hints immediately without moving focus, while mouse
 clicks and touch do not. Existing active-descendant pickers retain their input
 focus and option descriptions, rather than popping hints over the typing area.
