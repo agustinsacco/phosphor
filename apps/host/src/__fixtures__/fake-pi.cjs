@@ -196,6 +196,8 @@ function finish(user, reply, stopReason, errorMessage) {
 }
 function prompt(message) {
   out({ type: 'agent_start' })
+  out({ type: 'message_start', message: { role: 'user', content: message } })
+  out({ type: 'message_end', message: { role: 'user', content: message } })
   out({ type: 'message_start', message: text('') })
   if (/stream|count/i.test(message) || process.env.FAKE_PI_STALL) {
     if (process.env.FAKE_PI_STALL) writeFileSync(process.env.FAKE_PI_STALL, String(process.pid))

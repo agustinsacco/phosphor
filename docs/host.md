@@ -868,6 +868,22 @@ library asks for. `accept` is its only caller.
 - **The same git.** Creating the runtime sets the Host's own PATH to pi's, so
   the git the Host asks about a repository is the git pi runs.
 
+### Lane snapshots
+
+The lane projection holds settled pi messages, state, the turn in flight,
+open extension dialogs and the latest status, widget and title values. It never
+holds stderr. The Host binding refreshes it through the session runtime; this
+building block does not add a listener. Pending events and UI keys are bounded.
+Snapshots reserve 64 KiB for the wire envelope. Oversized snapshots replace
+image data, oldest first, with `[image omitted: <n> KB]`; if they still do not
+fit, the binding returns `too-large` rather than truncating text.
+A viewer attaching after a tool call settles sees arguments as pi recorded them,
+the same as reopening a session; original streamed text formatting is not kept.
+After compaction, an attaching viewer sees the compacted transcript, the same as
+reopening the session. A live viewer keeps earlier items until it reattaches.
+During the post-compaction refresh, a snapshot keeps the earlier transcript,
+the divider and subsequent events in live order.
+
 ### Requests
 
 A session starts or resumes only from a request, which `session/request.ts`
