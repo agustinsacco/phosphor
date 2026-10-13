@@ -55,6 +55,8 @@ const expand = (): void => {
   act(() => toggle().click())
 }
 const status = (): string => el.querySelector('[role="status"]')?.textContent ?? ''
+const headline = (): string =>
+  el.querySelector('[data-testid="current-work-headline"]')?.textContent ?? ''
 const ticker = (): string =>
   el.querySelector('[data-testid="current-work-ticker"]')?.textContent ?? ''
 const pulses = (): number => el.querySelectorAll('.tool-running-dot').length
@@ -64,7 +66,9 @@ it('starts compact with counts and attention, keeping task links out of keyboard
   render()
   expect(toggle().getAttribute('aria-expanded')).toBe('false')
   expect(details().hidden).toBe(true)
-  expect(status()).toBe('2 agents working · 1 needs parent attention · parent idle')
+  expect(headline()).toBe('2 agents working · 1 needs parent attention · parent idle')
+  // Parent turns are not announced; only the agents' own counts are.
+  expect(status()).toBe('2 agents working · 1 needs parent attention')
   expand()
   expect(toggle().getAttribute('aria-expanded')).toBe('true')
   expect(details().hidden).toBe(false)
@@ -113,7 +117,12 @@ it('shows distinguishable tasks and timestamps in a newest-first queue', () => {
   })
   render()
   expand()
-  const rows = [...el.querySelectorAll('button[aria-label="worker: running"]')]
+  const rows = [...el.querySelectorAll('[data-testid="subagent-work-row"]')]
+  // The accessible name leads with the visible title, not the shared agent name.
+  expect(rows.map((row) => row.getAttribute('aria-label'))).toEqual([
+    'Review shutdown · worker: running',
+    'Review schema · worker: running',
+  ])
   expect(rows[0]?.textContent).toContain('Review shutdown')
   expect(rows[1]?.textContent).toContain('Review schema')
   expect(rows[0]?.getAttribute('aria-description')).toContain('Started')
@@ -137,13 +146,13 @@ it('keeps expansion through updates but starts another lane compact', () => {
 it('expands an idle parent’s active, named steps, not finished siblings', () => {
   publish()
   render()
-  expect(status()).toContain('parent idle')
+  expect(headline()).toContain('parent idle')
   expand()
   expect(rowLabels()).toContain('validation: running · needs parent attention')
   expect(rowLabels()).toContain('qa: running')
   // A finished sibling is listed after current work, never pulsing.
   const finished = el.querySelector('button[aria-label="reviewer: complete"]')!
-  const heading = [...el.querySelectorAll('p')].find((p) => p.textContent === 'Recently finished')!
+  const heading = [...el.querySelectorAll('p')].find((p) => p.textContent === 'Recent')!
   expect(heading.compareDocumentPosition(finished) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   // One pulse in the header, one per running row.
   expect(pulses()).toBe(3)
@@ -165,7 +174,7 @@ it.each(['streaming', 'booting', 'compacting'])(
     })
     publish()
     render()
-    expect(status()).toBe('2 agents working · 1 needs parent attention · parent working')
+    expect(headline()).toBe('2 agents working · 1 needs parent attention · parent working')
   },
 )
 
@@ -189,11 +198,11 @@ it.each(['complete', 'failed', 'partial', 'paused', 'stopped', 'rejected'])(
       child.state = state
     })
     publish()
-    expect(status()).toBe('No agents working · parent idle')
+    expect(headline()).toBe('No agents working · parent idle')
     expect(pulses()).toBe(0)
     expect(ticker()).toBe('')
     expand()
-    expect(strip()?.textContent).toContain('Recently finished')
+    expect(strip()?.textContent).toContain('Recent')
     expect(rowLabels()).toContain(`qa: ${state}`)
     expect(strip()?.textContent).not.toMatch(/accepted|verified/i)
   },
@@ -204,7 +213,7 @@ it('qualifies incomplete snapshots rather than inventing active work or a comple
   snapshot.omitted.runs = 1
   publish()
   render()
-  expect(status()).toBe('No agents working · snapshot incomplete · parent idle')
+  expect(headline()).toBe('No agents working · snapshot incomplete · parent idle')
   expand()
   expect(strip()?.textContent).toContain('Some work was left out of the snapshot.')
   expect(pulses()).toBe(0)
@@ -235,7 +244,7 @@ it('retains removed or omitted work across remounts without a stale pulse', () =
   send(lines)
   render()
   send()
-  expect(status()).toBe('No agents working · 2 status unavailable · parent idle')
+  expect(headline()).toBe('No agents working · 2 status unavailable · parent idle')
   expect(details().hidden).toBe(true)
   expect(strip()?.textContent).toContain('no current report, not finished')
   expect(strip()?.textContent).toContain('Last report')
@@ -274,7 +283,7 @@ it('routes foreground work to its exact delegation without borrowing another lan
     },
   })
   render()
-  expect(status()).toBe('1 agent working · parent working')
+  expect(headline()).toBe('1 agent working · parent working')
   expand()
   const button = [...el.querySelectorAll('button')].find((b) =>
     b.getAttribute('aria-label')?.includes('reviewer: running'),
@@ -356,7 +365,7 @@ it('shows a single-agent run once, with its task, and opens its one step', () =>
   })
   publish(single('bash'))
   render()
-  expect(status()).toBe('1 agent working · parent idle')
+  expect(headline()).toBe('1 agent working · parent idle')
   // A lone prompt titles by its first sentence; the distinct one wins once two share it.
   expect(ticker()).toBe('Shared preamble. · bash · 3 tools')
   expand()

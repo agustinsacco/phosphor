@@ -4435,7 +4435,9 @@ test('a parallel delegation shows every child working at once, then settles', as
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
     await expect(page.getByTestId('session-row').first()).toBeVisible()
     const current = page.getByTestId('background-work-indicator')
-    await expect(current.getByRole('status')).toHaveText('3 agents working · parent working')
+    await expect(current.getByTestId('current-work-headline')).toHaveText(
+      '3 agents working · parent working',
+    )
     await expect(page.getByRole('button', { name: 'Subagents pane', exact: true })).toBeVisible()
     await expect(page.locator('[data-tooltip="3 subagents active"]')).toHaveText('3')
     await page.keyboard.press('ControlOrMeta+k')
@@ -4443,7 +4445,9 @@ test('a parallel delegation shows every child working at once, then settles', as
     await page.getByText('Toggle artifacts pane', { exact: true }).click()
     await expect(current).toBeInViewport()
     await current.getByRole('button', { name: 'Expand current work' }).click()
-    await current.getByRole('button', { name: /^scout, worker, researcher: running/ }).click()
+    await current
+      .getByRole('button', { name: /^4 delegated tasks · scout, worker, researcher: running/ })
+      .click()
     const inspection = page.getByRole('region', { name: 'Subagents', exact: true })
     await expect(inspection.getByRole('heading', { name: '4 delegated tasks' })).toBeVisible()
     await expect(inspection.getByTestId('subagent-child')).toHaveCount(4)
@@ -4501,7 +4505,9 @@ test('the home workbench keeps parallel lanes visible and reuses subagent inspec
     const inspector = page.getByRole('region', { name: 'Subagents', exact: true })
     await expect(inspector).toBeVisible()
     await expect(board).toBeHidden()
-    await inspector.getByRole('button', { name: 'scout: running · grep' }).click()
+    await inspector
+      .getByRole('button', { name: 'Map the auth flow · scout: running · grep' })
+      .click()
     await expect(inspector).toContainText('Inspection: following login.ts to verify.ts.')
     await inspector.getByRole('button', { name: 'Close pane', exact: true }).click()
     await page.getByRole('button', { name: /^New$/ }).click()
@@ -4573,12 +4579,18 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
     )
 
     const background = page.getByTestId('background-work-indicator')
-    await expect(background.getByRole('status')).toHaveText('1 agent working · parent idle')
+    await expect(background.getByTestId('current-work-headline')).toHaveText(
+      '1 agent working · parent idle',
+    )
+    // Parent turns are visible but not announced; agent counts are.
+    await expect(background.getByRole('status')).toHaveText('1 agent working')
     await expect(background.getByRole('button', { name: 'Expand current work' })).toHaveAttribute(
       'aria-expanded',
       'false',
     )
-    await expect(background.getByRole('button', { name: 'scout: running · grep' })).toBeHidden()
+    await expect(
+      background.getByRole('button', { name: 'Map the auth flow · scout: running · grep' }),
+    ).toBeHidden()
     // Collapsed, one line still says who is working and on what.
     await expect(background.getByTestId('current-work-ticker')).toHaveText(
       'Map the auth flow · grep · 2 tools',
@@ -4589,8 +4601,10 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
     const inspector = page.getByRole('region', { name: 'Subagents', exact: true })
     await expect(inspector).toBeVisible()
     // A single-agent run is one row, not a run plus its step.
-    await expect(inspector.getByRole('button', { name: /^scout: / })).toHaveCount(1)
-    await inspector.getByRole('button', { name: 'scout: running · grep' }).click()
+    await expect(inspector.getByRole('button', { name: /· scout: / })).toHaveCount(1)
+    await inspector
+      .getByRole('button', { name: 'Map the auth flow · scout: running · grep' })
+      .click()
     await expect(inspector.getByRole('heading', { name: 'Map the auth flow' })).toBeVisible()
     await expect(inspector.getByRole('region', { name: 'Live activity' })).toContainText('grep')
     await inspector.getByText('Details & actions', { exact: true }).click()
@@ -4650,8 +4664,10 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
     await expect(page.getByTestId('subagent-notice-body')).toContainText('login.ts')
     await expect(page.getByText('Scout reports: the auth flow enters at login.ts.')).toBeVisible()
     await expect(chip).toHaveText('Subagents')
-    await expect(background.getByRole('status')).toHaveText('No agents working · parent idle')
-    await expect(background).toContainText('Recently finished')
+    await expect(background.getByTestId('current-work-headline')).toHaveText(
+      'No agents working · parent idle',
+    )
+    await expect(background).toContainText('Recent')
     await expect(background).not.toContainText('status unavailable')
     await chip.click()
     await inspector.getByRole('button', { name: 'Coordination log' }).click()
@@ -4695,7 +4711,7 @@ test('recorded workflow completions and attention stay visible, attributable and
     await expect(page.getByTestId('subagent-notice-body')).toHaveCount(0)
     await expect(page.getByTestId('subagent-chip')).toContainText('1 background run active')
     const background = page.getByTestId('background-work-indicator')
-    await expect(background.getByRole('status')).toHaveText(
+    await expect(background.getByTestId('current-work-headline')).toHaveText(
       '2 agents working · 1 needs parent attention · parent idle',
     )
     const expandWork = background.getByRole('button', { name: 'Expand current work' })
@@ -4741,7 +4757,7 @@ test('recorded workflow completions and attention stay visible, attributable and
     const direct = page.getByRole('region', { name: 'Subagents', exact: true })
     await expect(direct).toContainText('child validation')
     await direct.getByRole('button', { name: 'Close pane', exact: true }).click()
-    await expect(background.getByRole('status')).toContainText('parent idle')
+    await expect(background.getByTestId('current-work-headline')).toContainText('parent idle')
     await expect(page.getByTestId('working-indicator')).toHaveCount(0)
     const sidebarWorking = page.getByTestId('session-row').getByText('Working', { exact: true })
     await expect(sidebarWorking).toBeVisible()
@@ -4830,8 +4846,10 @@ test('recorded workflow completions and attention stay visible, attributable and
       })
     })
     expect(settled.success).toBe(true)
-    await expect(background.getByRole('status')).toHaveText('No agents working · parent idle')
-    await expect(background).toContainText('Recently finished')
+    await expect(background.getByTestId('current-work-headline')).toHaveText(
+      'No agents working · parent idle',
+    )
+    await expect(background).toContainText('Recent')
     await expect(sidebarWorking).toHaveCount(0)
     // Live completion does not dismiss an inspection or rewrite historical warnings.
     await expect(panel).toBeVisible()
@@ -4946,7 +4964,7 @@ test('subagent inspection, steering and saved snapshots survive compaction and a
     ).toBe(true)
     await expect(panel).toContainText('Native inspection artifacts expired')
     await expect(panel).toContainText('last successful read')
-    await expect(page.getByTestId('background-work-indicator')).toContainText('Recently finished')
+    await expect(page.getByTestId('background-work-indicator')).toContainText('Recent')
     await expect(page.getByTestId('background-work-indicator')).toContainText('No agents working')
     await expect(panel.getByRole('button', { name: 'Stop run…' })).toHaveCount(0)
   } finally {
@@ -5103,6 +5121,11 @@ test('subagent pane owns scrolling, keeps rows stable and preserves drafts acros
       BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1.25),
     )
     expect(await pane.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+    // The summary beside a docked pane truncates its text, never its button.
+    const summary = page.getByTestId('background-work-indicator')
+    const summaryBox = (await summary.boundingBox())!
+    const viewBox = (await summary.getByRole('button', { name: 'View subagents' }).boundingBox())!
+    expect(viewBox.x + viewBox.width).toBeLessThanOrEqual(summaryBox.x + summaryBox.width)
     const bounds = (await pane.boundingBox())!
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(await page.evaluate(() => innerWidth))
     const png = await app.evaluate(async ({ BrowserWindow }) =>

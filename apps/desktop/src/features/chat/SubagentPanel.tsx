@@ -1,7 +1,8 @@
 import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { PaneShell, PaneTitle } from '@/components/PaneShell'
+import { RefreshIcon } from '@/components/icons'
 import { Button } from '@/components/form'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { errorText } from '@shared/errors'
@@ -23,7 +24,7 @@ import { SubagentStop } from './SubagentStopControl'
 import { SubagentPreview } from './SubagentPreview'
 import { useCurrentWork, type WorkEntry } from './currentWork'
 import { SubagentDetail } from './tools/SubagentDetail'
-import { SubagentStateDot, SubagentWorkRow } from './SubagentWorkRow'
+import { SubagentStateDot, SubagentWorkRow, WORK_SECTION_CLASS } from './SubagentWorkRow'
 import {
   activityText,
   elapsed,
@@ -35,7 +36,8 @@ import { useNow } from './useNow'
 
 export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.Element {
   const lines = useExtensionUiStore((s) => s.widgets[sessionId]?.[SUBAGENT_ASYNC_WIDGET_KEY]?.lines)
-  const fleet = parseFleetWidget(lines)
+  // Up to 128 KB, and the pane re-renders every second while work runs.
+  const fleet = useMemo(() => parseFleetWidget(lines), [lines])
   const work = useCurrentWork(sessionId)
   const [foregroundId, setForegroundId] = useState<string>()
   const foreground = foregroundId ? work.tools[foregroundId] : undefined
@@ -137,16 +139,18 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
     if (identity && restored === identity) saveSubagentView(identity, { view, target })
   }, [identity, restored, view, target])
   // An "Inspect run" link names the run. A single-agent run's activity lives
-  // in its one step, so the same agent is selected either way.
+  // in its one step, so the same agent is selected either way, including when
+  // only its launch remains (after a restart) and the saved target is the step.
   const selectedEntry = target
     ? work.entries.find(
         (e) =>
           e.runId === target.runId &&
-          (e.childId === target.childId || (!target.childId && e.single)),
+          (e.childId === target.childId ||
+            (e.single && (!target.childId || (!e.childId && target.childId === 'step:0')))),
       )
     : undefined
   const resolved: SubagentTarget | undefined =
-    target && selectedEntry?.single
+    target && selectedEntry?.single && selectedEntry.childId
       ? { runId: target.runId, childId: selectedEntry.childId }
       : target
   const selected = selectedFleetNode(fleet, resolved)
@@ -170,7 +174,7 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
       .map((e) => e.id),
   )
   const visible = ordered.filter((e) => e.runId || keptForeground.has(e.id))
-  const items = navItems(visible)
+  const items = navItems(visible, work.entries)
   const working = items.filter((item) => itemEntries(item).some(isCurrent))
   const earlier = items.filter((item) => !working.includes(item))
   const openEntry = (entry: WorkEntry): void => {
@@ -192,9 +196,7 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
       now={now}
       grouped={grouped}
       selected={
-        entry.runId
-          ? resolved?.runId === entry.runId && resolved?.childId === entry.childId
-          : foregroundId === entry.toolCallId
+        entry.runId ? !foregroundId && entry === selectedEntry : foregroundId === entry.toolCallId
       }
       onClick={() => openEntry(entry)}
     />
@@ -208,14 +210,15 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
           <TooltipButton
             type="button"
             aria-label={`${item.group.label} run`}
-            aria-pressed={resolved?.runId === item.group.id && !resolved?.childId}
+            aria-pressed={!foregroundId && resolved?.runId === item.group.id && !resolved?.childId}
             onClick={() => select({ runId: item.group.id })}
             className="text-text-secondary hover:text-text aria-pressed:bg-accent-soft block w-full truncate rounded px-2 py-1 text-left text-xs"
           >
             {item.group.label} · #{shortId(item.group.id)}
           </TooltipButton>
+          {/* The run's own entry is its header, not a row of its own. */}
           <div className="border-border ml-3 border-l pl-1">
-            {item.entries.map((entry) => row(entry, true))}
+            {item.entries.filter((entry) => entry.childId).map((entry) => row(entry, true))}
           </div>
         </div>
       ),
@@ -225,20 +228,25 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
       <h3
         ref={detailTitle}
         tabIndex={-1}
-        className="min-w-0 line-clamp-2 break-words font-semibold"
+        className="focus-target min-w-0 line-clamp-2 break-words text-lg font-semibold"
       >
         {entry?.title ?? fallback}
       </h3>
-      <p className="text-text-secondary mt-1 flex min-w-0 items-center gap-1.5 text-xs">
+      <p className="text-text-secondary mt-1 flex min-w-0 items-center gap-1.5 text-sm">
         {entry && <SubagentStateDot entry={entry} />}
         <span className="min-w-0 truncate">
           {[
-            entry?.label,
+            // State first: on a narrow pane the rest truncates, never this.
             <span key="state" role="status">
-              {stateWord(entry?.state ?? selected?.state ?? 'no live snapshot')}
+              {stateWord(entry?.state ?? selected?.state ?? 'status unavailable')}
             </span>,
+            entry?.title !== undefined && entry.title !== entry.label && entry.label,
+            // Running time, or a measured duration; never time since a start
+            // for work with no reported end.
             entry?.startedAt !== undefined &&
-              elapsed((entry.active ? now : (entry.endedAt ?? now)) - entry.startedAt),
+              (entry.active
+                ? elapsed(now - entry.startedAt)
+                : entry.endedAt !== undefined && elapsed(entry.endedAt - entry.startedAt)),
             entry?.toolCount !== undefined &&
               `${entry.toolCount} ${entry.toolCount === 1 ? 'tool' : 'tools'}`,
             entry?.turnCount !== undefined &&
@@ -260,6 +268,7 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
     >
       <PaneShell title={<PaneTitle label="Subagents" />}>
         <div
+          role="group"
           className="border-border flex shrink-0 gap-2 border-b px-3 py-2"
           aria-label="Subagent views"
         >
@@ -281,7 +290,7 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
           </Button>
         </div>
         {restoreError && (
-          <p role="status" className="text-text-secondary px-3 py-2 text-base">
+          <p role="status" className="text-text-secondary px-3 py-2 text-sm">
             {restoreError}
           </p>
         )}
@@ -308,19 +317,15 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
               !showList && hasSelection && 'hidden',
             )}
           >
-            {working.length > 0 && (
-              <h3 className="text-text-tertiary px-2 pt-1 pb-0.5 text-xs">Working</h3>
-            )}
+            {working.length > 0 && <h3 className={WORK_SECTION_CLASS}>Working</h3>}
             {renderItems(working)}
-            {earlier.length > 0 && (
-              <h3 className="text-text-tertiary px-2 pt-2 pb-0.5 text-xs">Earlier</h3>
-            )}
+            {earlier.length > 0 && <h3 className={WORK_SECTION_CLASS}>Earlier</h3>}
             {renderItems(earlier)}
             {!items.length && (
               <p className="text-text-secondary p-2 text-sm">No agents in this conversation yet.</p>
             )}
             {fleet?.incomplete && (
-              <p className="text-text-tertiary p-2 text-xs">
+              <p className="text-text-secondary p-2 text-sm">
                 Some work was left out of the snapshot.
               </p>
             )}
@@ -346,7 +351,9 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
                   {foreground ? (
                     <SubagentDetail key={foregroundId} tool={foreground} />
                   ) : (
-                    <p className="p-3">Delegation unavailable on this branch.</p>
+                    <p className="text-text-secondary p-3 text-sm">
+                      Delegation unavailable on this branch.
+                    </p>
                   )}
                 </div>
               </>
@@ -374,12 +381,18 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
                     <div className="min-w-0 flex-1">
                       {header(selectedEntry, selected?.label ?? inspection?.label ?? 'Agent')}
                     </div>
-                    <Button size="sm" disabled={loading} onClick={refresh}>
-                      Refresh
-                    </Button>
+                    <TooltipButton
+                      aria-label="Refresh"
+                      tooltip="Read activity again"
+                      disabled={loading}
+                      onClick={refresh}
+                      className="text-text-secondary hover:bg-bg-secondary hover:text-text flex size-6 shrink-0 items-center justify-center rounded disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-accent"
+                    >
+                      <RefreshIcon />
+                    </TooltipButton>
                   </div>
                   <details className="mt-1" key={`${resolved.runId}:${resolved.childId}`}>
-                    <TooltipSummary className="text-text-secondary cursor-pointer text-xs">
+                    <TooltipSummary className="text-text-secondary cursor-pointer text-sm">
                       Details & actions
                     </TooltipSummary>
                     <div className="max-h-64 space-y-2 overflow-auto py-2">
@@ -458,8 +471,11 @@ const isCurrent = (entry: WorkEntry): boolean =>
   entry.active > 0 || entry.state === 'status unavailable'
 const itemEntries = (item: NavItem): WorkEntry[] => ('entry' in item ? [item.entry] : item.entries)
 
-/** Children of one workflow or parallel run stay together, at their newest member's place. */
-function navItems(entries: WorkEntry[]): NavItem[] {
+/**
+ * Children of one workflow or parallel run stay together, at their newest
+ * member's place, in the run's own order (`native` is the snapshot order).
+ */
+function navItems(entries: WorkEntry[], native: WorkEntry[]): NavItem[] {
   const groups = new Map<string, WorkEntry[]>()
   const items: NavItem[] = []
   for (const entry of entries) {
@@ -475,5 +491,7 @@ function navItems(entries: WorkEntry[]): NavItem[] {
     }
     members.push(entry)
   }
+  for (const members of groups.values())
+    members.sort((a, b) => native.indexOf(a) - native.indexOf(b))
   return items
 }

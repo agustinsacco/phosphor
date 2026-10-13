@@ -433,6 +433,14 @@ body {
   font-size: 1em;
   color: var(--px-text-secondary);
 }
+/* Subagent detail: authored Markdown follows the pane's type scale, so a
+   prompt's own `# Heading` never outranks the agent's title. */
+.subagent-prose .md-content {
+  font-size: inherit;
+}
+.subagent-prose .md-content :is(h1, h2, h3) {
+  font-size: 1.1em;
+}
 .md-content ul,
 .md-content ol {
   margin: 0.5em 0;
@@ -718,6 +726,15 @@ select:focus:not(:focus-visible) {
  */
 .composer-field:focus,
 .composer-field:focus-visible {
+  outline: none;
+}
+
+/*
+ * A heading that receives focus programmatically (so a screen reader starts
+ * there after a selection) is not a control: no ring that makes it look like
+ * an input. Utilities cannot override the unlayered `:focus-visible` above.
+ */
+.focus-target:focus-visible {
   outline: none;
 }
 

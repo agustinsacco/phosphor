@@ -14,6 +14,7 @@ import {
 } from './subagentView'
 import { useLayoutStore, sessionPanes } from '@/stores/layout'
 import { inspectSubagent } from './subagentInspect'
+import fixture from './__fixtures__/subagent-workflow.json'
 vi.mock('./subagentInspect', () => ({ inspectSubagent: vi.fn() }))
 vi.mock('@/components/markdown/Markdown', () => ({
   Markdown: ({ text }: { text: string }) => <div>{text}</div>,
@@ -86,7 +87,7 @@ it('restores an exact historical selection after compaction without recreating l
   await render()
   expect(inspectSubagent).toHaveBeenCalledWith('process', 'run', undefined, expect.any(AbortSignal))
   expect(el.textContent).toContain('Retained preview')
-  expect(el.textContent).toContain('no live snapshot')
+  expect(el.textContent).toContain('status unavailable')
 })
 it('does not restore a target on an abandoned branch or transfer preferences to a clone', async () => {
   saveSubagentView('native', { view: 'live', target: { runId: 'abandoned' } })
@@ -141,7 +142,7 @@ it('opens the exact foreground tool without sending an inspection command and fo
   openForegroundSubagent('process', 'fg')
   await render()
   expect(el.querySelector('h3[tabindex="-1"]')?.textContent).toBe('Review auth')
-  expect(el.textContent).toContain('reviewer · running')
+  expect(el.textContent).toContain('running · reviewer')
   expect(inspectSubagent).not.toHaveBeenCalled()
   expect(command).not.toHaveBeenCalled()
   await act(async () =>
@@ -177,4 +178,137 @@ it('restores the history tab without starting inspection', async () => {
   await render()
   expect(inspectSubagent).not.toHaveBeenCalled()
   expect(el.querySelector('button[aria-pressed="true"]')?.textContent).toBe('Coordination log')
+})
+
+const publishRuns = async (runs: unknown[]): Promise<void> => {
+  await act(async () =>
+    useExtensionUiStore.setState({
+      widgets: {
+        process: {
+          'subagent-async': {
+            placement: 'aboveEditor',
+            lines: [`PI_SUBAGENT_ASYNC_JSON:${JSON.stringify({ ...fixture.snapshot, runs })}`],
+          },
+        },
+      },
+    }),
+  )
+}
+const soloLaunch = {
+  toolCallId: 'launch',
+  toolName: 'subagent',
+  argsText: '',
+  args: { agent: 'worker', task: 'Write the remote brief', async: true },
+  status: 'done' as const,
+  startedAt: 1,
+  endedAt: 2,
+  output: null,
+  result: { content: [], details: { asyncId: 'run', background: true } },
+}
+const pressed = (): string[] =>
+  [...el.querySelectorAll('nav [aria-pressed="true"]')].map((b) => b.getAttribute('aria-label')!)
+const header = (): string =>
+  el.querySelector('h3[tabindex="-1"]')?.nextElementSibling?.textContent ?? ''
+
+it('opens a single-agent run at its one step, from a run link or after a restart', async () => {
+  const chat = useChatStore.getState().sessions.process!
+  useChatStore.setState({ sessions: { process: { ...chat, tools: { launch: soloLaunch } } } })
+  await publishRuns([
+    {
+      id: 'run',
+      kind: 'subagent',
+      label: 'worker',
+      state: 'running',
+      children: [{ id: 'step:0', kind: 'step', label: 'worker', state: 'running' }],
+    },
+  ])
+  await render()
+  await act(async () => openSubagents('process', 'run'))
+  expect(inspectSubagent).toHaveBeenLastCalledWith(
+    'process',
+    'run',
+    'step:0',
+    expect.any(AbortSignal),
+  )
+  expect(pressed()).toEqual(['Write the remote brief · worker: running'])
+  expect(el.querySelector('h3[tabindex="-1"]')?.textContent).toBe('Write the remote brief')
+  // Restarted: no snapshot, only the launch, and the saved target is the step.
+  act(() => root.unmount())
+  root = createRoot(el)
+  useExtensionUiStore.setState({ widgets: {}, subagentSnapshots: {} })
+  saveSubagentView('native', { view: 'live', target: { runId: 'run', childId: 'step:0' } })
+  await render()
+  expect(inspectSubagent).toHaveBeenLastCalledWith(
+    'process',
+    'run',
+    'step:0',
+    expect.any(AbortSignal),
+  )
+  expect(pressed()).toHaveLength(1)
+  expect(el.querySelector('[aria-label="Agent input"]')?.textContent).toContain(
+    'Write the remote brief',
+  )
+  expect(el.textContent).not.toContain('can describe the containing run')
+})
+
+it('lists working groups first, selects a run by its header and never invents a duration', async () => {
+  await publishRuns([
+    {
+      id: 'done-run',
+      kind: 'subagent',
+      label: 'scout',
+      state: 'complete',
+      startedAt: 1_000,
+      children: [
+        {
+          id: 'step:0',
+          kind: 'step',
+          label: 'scout',
+          state: 'complete',
+          startedAt: 1_000,
+          activity: { toolCount: 3 },
+        },
+      ],
+    },
+    {
+      id: 'par',
+      kind: 'subagent',
+      label: 'reviewer, qa',
+      state: 'running',
+      startedAt: 2_000,
+      children: [
+        { id: 'step:0', kind: 'step', label: 'reviewer', state: 'complete' },
+        { id: 'step:1', kind: 'step', label: 'qa', state: 'running' },
+      ],
+    },
+  ])
+  await render()
+  const nav = el.querySelector('nav')!
+  expect(
+    [...nav.querySelectorAll('h3, button')].map(
+      (n) => n.getAttribute('aria-label') ?? n.textContent,
+    ),
+  ).toEqual([
+    'Working',
+    'reviewer, qa run',
+    'reviewer: complete',
+    'qa: running',
+    'Earlier',
+    'scout: complete',
+  ])
+  await act(async () =>
+    nav.querySelector<HTMLButtonElement>('[aria-label="reviewer, qa run"]')!.click(),
+  )
+  expect(inspectSubagent).toHaveBeenLastCalledWith(
+    'process',
+    'par',
+    undefined,
+    expect.any(AbortSignal),
+  )
+  expect(pressed()).toEqual(['reviewer, qa run'])
+  await act(async () =>
+    nav.querySelector<HTMLButtonElement>('[aria-label="scout: complete"]')!.click(),
+  )
+  // Settled with no reported end: a state and counters, not time since its start.
+  expect(header()).toBe('done · 3 tools · #done-run')
 })

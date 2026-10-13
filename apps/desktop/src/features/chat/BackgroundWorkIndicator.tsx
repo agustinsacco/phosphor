@@ -1,6 +1,6 @@
 import { TooltipButton } from '@/components/Tooltip'
 import { useId, useState } from 'react'
-import { SubagentWorkRow } from './SubagentWorkRow'
+import { SubagentWorkRow, WORK_SECTION_CLASS } from './SubagentWorkRow'
 import { activityText, newestWork } from './subagentPresentation'
 import { ChevronIcon } from '@/components/icons'
 import { useChatStore } from '@/stores/chat'
@@ -50,14 +50,16 @@ function CurrentWorkSummary({ sessionId }: { sessionId: string }): React.JSX.Ele
     attention > 0 && `${attention} ${attention === 1 ? 'needs' : 'need'} parent attention`,
     unknown.length > 0 && `${unknown.length} status unavailable`,
     incomplete && 'snapshot incomplete',
-    `parent ${parentBusy ? 'working' : 'idle'}`,
   ]
     .filter(Boolean)
     .join(' · ')
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-1 pb-2" data-testid="background-work-indicator">
-      <div className="bg-bg-secondary border-border rounded-lg border text-sm">
+    <div
+      className="@container mx-auto w-full max-w-3xl px-1 pb-2"
+      data-testid="background-work-indicator"
+    >
+      <div className="bg-bg-secondary border-border rounded-lg border text-base">
         <div className="flex min-w-0 items-center gap-2 px-2 py-1">
           <TooltipButton
             type="button"
@@ -75,13 +77,16 @@ function CurrentWorkSummary({ sessionId }: { sessionId: string }): React.JSX.Ele
               className={`tool-running-dot size-2 shrink-0 rounded-full ${attention ? 'bg-warning' : 'bg-accent'}`}
             />
           )}
-          <span className="text-text shrink-0 font-medium" role="status">
-            {headline}
+          {/* Only agent counts are announced; parent turns and the ticker are not. */}
+          <span
+            className="text-text min-w-0 truncate font-medium"
+            data-testid="current-work-headline"
+          >
+            <span role="status">{headline}</span> · parent {parentBusy ? 'working' : 'idle'}
           </span>
-          {/* Outside the live region: it changes with every tool call. */}
           <span
             data-testid="current-work-ticker"
-            className="text-text-secondary min-w-0 flex-1 truncate text-xs"
+            className="text-text-secondary min-w-0 flex-1 truncate text-sm"
           >
             {latest && !expanded && (
               <>
@@ -94,10 +99,12 @@ function CurrentWorkSummary({ sessionId }: { sessionId: string }): React.JSX.Ele
           </span>
           <TooltipButton
             type="button"
+            aria-label="View subagents"
             onClick={() => openSubagents(sessionId)}
-            className="text-text-secondary hover:text-text shrink-0 rounded px-1 py-0.5 text-xs underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-accent"
+            className="text-text-secondary hover:text-text shrink-0 rounded px-1 py-0.5 text-sm underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-accent"
           >
-            View subagents
+            {/* A narrow composer keeps the headline readable before the button's label. */}
+            View<span className="@max-[30rem]:hidden"> subagents</span>
           </TooltipButton>
         </div>
         <div
@@ -109,13 +116,14 @@ function CurrentWorkSummary({ sessionId }: { sessionId: string }): React.JSX.Ele
             <SubagentWorkRow key={entry.id} entry={entry} now={now} onClick={() => open(entry)} />
           ))}
           {current.length > 8 && (
-            <p className="text-text-secondary px-2 py-1 text-xs">
+            <p className="text-text-secondary px-2 py-1 text-sm">
               +{current.length - 8} more in the Subagents pane
             </p>
           )}
           {recent.length > 0 && (
             <>
-              <p className="text-text-tertiary px-2 pt-1.5 text-xs">Recently finished</p>
+              {/* Not "finished": paused and stopped work is listed here too. */}
+              <p className={WORK_SECTION_CLASS}>Recent</p>
               {recent.map((entry) => (
                 <SubagentWorkRow
                   key={entry.id}
@@ -127,7 +135,7 @@ function CurrentWorkSummary({ sessionId }: { sessionId: string }): React.JSX.Ele
             </>
           )}
           {(unknown.length > 0 || incomplete) && (
-            <p className="text-text-tertiary px-2 py-1 text-xs">
+            <p className="text-text-secondary px-2 py-1 text-sm">
               {unknown.length > 0 && 'Status unavailable means no current report, not finished. '}
               {incomplete && 'Some work was left out of the snapshot. '}
               {lastSeen && `Last report ${new Date(lastSeen).toLocaleTimeString()}.`}

@@ -102,6 +102,16 @@ it('titles prompts by their first distinct sentence, with paths shortened for di
   ])
   // Alone, a prompt is its opening sentence.
   expect(distinctTitles([shared])).toEqual(['You are a worker.'])
+  // A retry is the same prompt, not a reason to fall back to the preamble;
+  // a sentence shared by two of three prompts still beats the preamble.
+  expect(
+    distinctTitles([
+      `${shared}\nFix A.`,
+      `${shared}\nFix A.`,
+      `${shared}\nFix B. Then report.`,
+      `${shared}\nFix C. Then report.`,
+    ]),
+  ).toEqual(['Fix A.', 'Fix A.', 'Fix B.', 'Fix C.'])
   expect(distinctTitles(['x'.repeat(200)])[0]).toHaveLength(120)
   expect(shortenPaths('see /a/b/c.ts and ~/x/y/, not a/b or https://h.io/a/b')).toBe(
     'see c.ts and y, not a/b or https://h.io/a/b',
@@ -150,4 +160,12 @@ it("treats a single run's step as the launch, and a parallel step as its own pro
   ).toEqual({
     input: 'Review',
   })
+  // Restored without a snapshot: a solo launch's step:0 is still the launch.
+  expect(supervisorHandoff({ t: tool }, [], { runId: 'a', childId: 'step:0' })).toMatchObject({
+    kind: 'tool-result',
+    input: tool.args!.task,
+  })
+  // A workflow's prompt and entries are never a child's own.
+  const workflow: ToolState = { ...tool, args: { workflow: 'review', tasks: parallel.args!.tasks } }
+  expect(supervisorHandoff({ t: workflow }, [], { runId: 'a', childId: 'step:1' })).toEqual({})
 })

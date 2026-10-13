@@ -310,44 +310,55 @@ scout · grep`) and which is **never printed as widget lines**
   delegation tool evidence with background snapshots, even while Artifacts
   occupies the pane. It starts compact: one line with a pulsing dot while agents
   run, the headline (`2 agents working · 1 needs parent attention · parent idle`,
-  plus unavailable counts and incomplete-snapshot warnings) and a muted ticker
-  naming the agent that reported most recently and what it is doing
-  (`Write remote.md · bash 12s · 4 tools`). The ticker sits outside the
-  `role="status"` live region because it changes with every tool call.
-  Expanding lists one row per agent (up to eight current, then three recently
-  finished); collapsing reclaims composer space. **View subagents** opens the
+  plus unavailable counts and incomplete-snapshot warnings) and, while collapsed,
+  a muted ticker with the title of the agent that reported most recently and what
+  it is doing (`Write remote.md · bash 12s · 4 tools`). Only the agent counts are
+  a `role="status"` live region: the parent's working/idle state and the ticker,
+  which changes with every tool call, are not announced. On a narrow composer the
+  ticker gives way first, then the headline truncates; **View subagents** stays.
+  Expanding lists one row per agent (up to eight current, then a
+  `+N more in the Subagents pane` line, then the three most recent under
+  **Recent**, which includes paused and stopped work); collapsing reclaims
+  composer space. **View subagents** opens the
   full pane without expanding the summary. Updates never change the disclosure
   state; switching lanes or remounting starts compact.
   **One agent, one row.** pi-subagents projects a single-agent run as a root
   plus its one `step:0` child; Phosphor shows that as one row routed to the step,
   whose session holds the activity, and an **Inspect run** link naming the run
-  selects the same row. Workflow and parallel children are rows of their own,
-  grouped under their run. Workflow ancestors and children are not counted twice;
+  selects the same row, also after a restart when only the launch remains and
+  the saved target is the step. Workflow and parallel children are rows of their
+  own, grouped under their run; a workflow coordinating between children is its
+  group's header, not an extra row. Workflow ancestors and children are not counted twice;
   native run IDs deduplicate foreground/background handoffs. Historical launch
   receipts and management calls never count as running. A top-bar badge mirrors
   the active count and flags attention or unavailable status.
   **A row says what the agent was asked and what it is doing.** Line one is a
   title from the delegated prompt and elapsed time (running) or a state word.
-  Delegated prompts often share a long preamble, so the title is the first
-  sentence no other prompt in view contains, with paths shortened to file names;
-  current work and history are compared separately. A call naming several tasks
-  is titled by their count. Titles are display only: identity always comes from
-  native run IDs. Line two is the agent, its current tool and how long it has
-  been open, else `working`, or `quiet 40s` after 15 seconds without a report,
-  then the reported tool count. Each step's prompt binds by its native index
+  Delegated prompts often share a long preamble, so the title is the first of a
+  prompt's sentences that the fewest other prompts in the lane contain, with
+  paths shortened to file names. Identical prompts (retries) count once, and the
+  whole lane is compared at once, so a title does not change when its agent
+  finishes. A call naming several tasks is titled by their count. Titles are
+  display only: identity always comes from native run IDs, and a row's
+  accessible name starts with its title. Line two is the agent (when the title
+  is a prompt), `in <run>` outside its group, its current tool and how long it
+  has been open, else `working`, or `quiet 40s` after 15 seconds without a
+  report, then the reported tool count and `#<run>`. A long tool name truncates;
+  its duration and the counts do not, and the run ID gives way first. Each
+  step's prompt binds by its native index
   for parallel and plain chains; a chain with nested parallel groups binds none,
   and a workflow prompt is never a child's task. Both lines are fixed height, so
-  updates never move rows. Elapsed and quiet times tick from one shared clock
-  (`useNow`) that runs only while something is active and the window is visible;
-  it never polls. Data arrives from the pushed snapshot, which pi-subagents
+  updates never move rows. Elapsed and quiet times tick from one clock per
+  surface (`useNow`), which runs only while something is active and updates only
+  while the window is visible; it never polls. Data arrives from the pushed snapshot, which pi-subagents
   republishes on each tool call, turn or activity change.
   Request timestamps come from the parent's recorded tool-call message, falling
   back to an observed launch-call start for detached work. They never become child
   execution starts or restore liveness. Known execution/request times drive
   ordering; undated entries follow in record order, newest recorded first.
   Rows open the exact background run/child or the foreground delegation's
-  existing detail component in the shared pane. Recently finished work is not
-  review acceptance or integration success. Messages still go to the parent; the
+  existing detail component in the shared pane. Finished work is not review
+  acceptance or integration success. Messages still go to the parent; the
   summary does not extend the parent's timer, change Send into Stop, or redirect
   the composer to a child.
   Missing, malformed or later-omitted snapshots retain bounded, memory-only
@@ -363,9 +374,10 @@ scout · grep`) and which is **never printed as widget lines**
   resizing and fullscreen like Files and Terminal. Its navigator stays anchored
   while the selected detail scrolls; a long list scrolls independently.
   **Agents** lists live, remembered and foreground work with the same row as
-  the summary: **Working** first, then **Earlier**, each newest first. Children
-  of one workflow or parallel run stay together under a header naming the run,
-  which selects the run itself. Foreground history shows the newest 20 plus
+  the summary: **Working** (running or status unavailable) first, then
+  **Earlier**, each newest first. Children of one workflow or parallel run stay
+  together, in the run's own order, under a header naming the run, which selects
+  the run itself; the group moves into Working whole if any child is current. Foreground history shows the newest 20 plus
   active and selected delegations. Below 640px pane width, list and detail are
   separate views with **Back to runs** and focus restoration.
   Selecting a node asks
@@ -389,9 +401,13 @@ scout · grep`) and which is **never printed as widget lines**
   **The detail answers three questions in order: what is it doing, what did it
   return, what was it asked.** It renders from the snapshot at once, before the
   first read lands. The header carries the title, a state dot and
-  `agent · state · elapsed · tools · turns · #run`, with Refresh. A running agent
-  opens on **Now**: its current activity line and its last six records, newest
-  first. **Result** follows when there is one, tagged by origin: **Received by
+  `state · agent · elapsed · tools · turns · #run`, with a Refresh icon. The
+  state comes first so a narrow pane never truncates it; the agent appears only
+  when the title is a prompt; elapsed is the running time or a reported
+  duration, never time since a start for work with no reported end. A running
+  agent opens on **Now**: its current activity line and its last six records,
+  newest first. **Result** follows (always once the agent has settled; while it
+  runs, only once there is output), tagged by origin: **Received by
   parent** only for the parent's own settled tool result; otherwise **From the
   agent's record**, which is not proof of delivery. Child metadata alone never
   earns the parent tag. A single-run or explicitly correlated child completion
@@ -400,7 +416,9 @@ scout · grep`) and which is **never printed as widget lines**
   workflow or multi-run batch receipt is never assigned to an individual child.
   Missing output stays missing. Whole JSON values are pretty-printed; no result is
   inferred from the last assistant/tool message. **Task** shows the delegated
-  prompt as Markdown, clipped with **Show full task** when long, with Copy; later
+  prompt as Markdown, clipped with **Show full task** past 360 characters or six
+  lines, with Copy. Authored Markdown follows the pane's type scale, so a
+  prompt's own headings never outrank the agent's title; later
   messages to the agent have their own disclosure. **All activity** is one closed
   disclosure of single-line records (tool calls, outputs, errors, thinking,
   messages), each expandable with Copy. Records are classified from the
@@ -465,7 +483,7 @@ A notice-linked child inspection is not offered Stop unless that exact run is
 also a root in the current snapshot.
 Pi checks ownership again. The UI reports only that Stop was requested; native
 `subagent-slash-result` receipts, including hidden final receipts, remain in
-the conversation and recorded coordination. Placeholder/final command receipts
+the conversation and the Coordination log. Placeholder/final command receipts
 with the same native request ID fold into one presentation, live and on replay;
 Pi's original entries remain untouched. No optimistic stopped state or
 process-exit proof is invented. Stop does not remove partial file changes.

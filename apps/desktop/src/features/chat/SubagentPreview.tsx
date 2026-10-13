@@ -50,13 +50,15 @@ function RecordLine({ record }: { record: ActivityRecord }): React.JSX.Element {
       <span
         className={clsx(
           'shrink-0',
-          record.kind === 'call' ? 'text-text font-mono text-xs' : 'text-text-secondary text-xs',
+          record.kind === 'call'
+            ? 'text-text font-mono text-sm'
+            : 'text-text-secondary text-sm font-medium',
           record.message.isError && 'text-danger',
         )}
       >
         {record.label}
       </span>
-      <span className="text-text-tertiary min-w-0 truncate text-xs">{record.preview}</span>
+      <span className="text-text-secondary min-w-0 truncate text-sm">{record.preview}</span>
     </span>
   )
 }
@@ -68,14 +70,14 @@ function TaskSection({ input }: { input?: string }): React.JSX.Element {
   return (
     <section aria-label="Agent input" className="mb-4">
       <div className="mb-1 flex items-center justify-between gap-2">
-        <h4 className="font-medium">Task</h4>
+        <h4 className="text-base font-medium">Task</h4>
         {input && <CopyButton text={input} />}
       </div>
       {input ? (
         <>
           <div
             className={clsx(
-              'text-text-secondary break-words text-sm',
+              'text-text-secondary break-words text-base',
               long &&
                 !open &&
                 'max-h-28 overflow-hidden [mask-image:linear-gradient(to_bottom,black_60%,transparent)]',
@@ -88,14 +90,14 @@ function TaskSection({ input }: { input?: string }): React.JSX.Element {
               type="button"
               aria-expanded={open}
               onClick={() => setOpen(!open)}
-              className="text-text-secondary hover:text-text mt-1 text-xs underline underline-offset-2"
+              className="text-text-secondary hover:text-text mt-1 text-sm underline underline-offset-2"
             >
               {open ? 'Show less' : 'Show full task'}
             </TooltipButton>
           )}
         </>
       ) : (
-        <p className="text-text-tertiary text-xs">Not reported for this agent.</p>
+        <p className="text-text-secondary text-sm">Not reported for this agent.</p>
       )}
     </section>
   )
@@ -135,15 +137,15 @@ export function SubagentPreview({
       data-testid="subagent-transcript"
       aria-label="Subagent activity"
       tabIndex={0}
-      className="min-h-0 flex-1 overflow-auto overscroll-contain p-3 text-sm [overflow-anchor:none]"
+      className="subagent-prose min-h-0 flex-1 overflow-auto overscroll-contain p-3 text-sm [overflow-anchor:none]"
     >
       {live && (
         <section aria-label="Live activity" className="mb-4">
-          <h4 className="mb-1 flex items-center gap-2 font-medium">
+          <h4 className="mb-1 flex items-center gap-2 text-base font-medium">
             <span aria-hidden className="tool-running-dot bg-accent size-2 rounded-full" />
             Now
             {now && (
-              <span className="text-text-secondary min-w-0 truncate text-xs font-normal">
+              <span className="text-text-secondary min-w-0 truncate text-sm font-normal">
                 {now}
               </span>
             )}
@@ -164,7 +166,7 @@ export function SubagentPreview({
                 ))}
             </ol>
           ) : (
-            <p className="text-text-tertiary text-xs">
+            <p className="text-text-secondary text-sm">
               {loading ? 'Reading activity…' : 'No steps reported yet.'}
             </p>
           )}
@@ -173,11 +175,11 @@ export function SubagentPreview({
       {(output || !live) && (
         <section aria-label="Agent output" className="mb-4">
           <div className="mb-1 flex items-center justify-between gap-2">
-            <h4 className="flex items-baseline gap-2 font-medium">
+            <h4 className="flex items-baseline gap-2 text-base font-medium">
               Result
               {output && (
                 <span
-                  className="text-text-tertiary text-xs font-normal"
+                  className="text-text-tertiary text-sm font-normal"
                   data-tooltip={
                     received
                       ? 'The parent conversation recorded this result. Completion is not acceptance.'
@@ -193,20 +195,20 @@ export function SubagentPreview({
             {output && <CopyButton text={output} />}
           </div>
           {output ? (
-            <div className="max-h-96 overflow-auto break-words">
+            <div className="max-h-96 overflow-auto break-words text-base">
               <SubagentText text={output} />
             </div>
           ) : (
-            <p className="text-text-tertiary text-xs">
+            <p className="text-text-secondary text-sm">
               {loading && !inspection ? 'Reading result…' : 'No result reported yet.'}
             </p>
           )}
           {notification && (
             <details className="mt-2">
-              <TooltipSummary className="text-text-secondary cursor-pointer text-xs">
+              <TooltipSummary className="text-text-secondary cursor-pointer text-sm">
                 Parent was notified{receivedAt ? ` · ${receivedAt}` : ''}
               </TooltipSummary>
-              <p className="text-text-tertiary py-1 text-xs">
+              <p className="text-text-secondary py-1 text-sm">
                 A notification can point to a saved file instead of carrying the answer.
               </p>
               <div className="max-h-64 overflow-auto">
@@ -220,7 +222,7 @@ export function SubagentPreview({
       <TaskSection input={input} />
       {inputs.length > 0 && (
         <details className="mb-3">
-          <TooltipSummary className="text-text-secondary cursor-pointer text-xs">
+          <TooltipSummary className="text-text-secondary cursor-pointer text-sm">
             Later messages to the agent · {inputs.length}
           </TooltipSummary>
           <div className="max-h-64 space-y-3 overflow-auto pt-2">
@@ -235,11 +237,11 @@ export function SubagentPreview({
       )}
       {records.length > 0 && (
         <details data-testid="subagent-activity">
-          <TooltipSummary className="text-text-secondary cursor-pointer py-1 text-xs font-medium">
+          <TooltipSummary className="text-text-secondary cursor-pointer py-1 text-sm font-medium">
             All activity · {records.length} {records.length === 1 ? 'step' : 'steps'} · {calls} tool{' '}
             {calls === 1 ? 'call' : 'calls'}
           </TooltipSummary>
-          <p className="text-text-tertiary py-1 text-xs">
+          <p className="text-text-secondary py-1 text-sm">
             Oldest first. Times and call/result pairing are not reported.
           </p>
           <div className="divide-border divide-y">
@@ -254,7 +256,7 @@ export function SubagentPreview({
                     className="flex cursor-pointer list-none items-baseline gap-1.5 py-1 [&::-webkit-details-marker]:hidden"
                     data-tooltip={record.message.text.slice(0, 240)}
                   >
-                    <span aria-hidden className="text-text-tertiary w-2 shrink-0 text-xs">
+                    <span aria-hidden className="text-text-tertiary w-2 shrink-0 text-sm">
                       ›
                     </span>
                     <RecordLine record={record} />
@@ -265,7 +267,7 @@ export function SubagentPreview({
                     </div>
                     <div className="max-h-72 overflow-auto">
                       {literal ? (
-                        <pre className="font-mono text-xs whitespace-pre-wrap break-words">
+                        <pre className="font-mono text-sm whitespace-pre-wrap break-words">
                           {record.message.text}
                         </pre>
                       ) : (
@@ -280,7 +282,9 @@ export function SubagentPreview({
         </details>
       )}
       {inspection?.truncated && (
-        <p className="text-text-tertiary mt-3 text-xs">Older activity was left out of this read.</p>
+        <p className="text-text-secondary mt-3 text-sm">
+          Older activity was left out of this read.
+        </p>
       )}
     </div>
   )

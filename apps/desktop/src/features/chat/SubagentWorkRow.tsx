@@ -1,8 +1,12 @@
 import { TooltipButton } from '@/components/Tooltip'
 import clsx from 'clsx'
 import type { WorkEntry } from './currentWork'
-import { activityText, elapsed, stateWord, workTime } from './subagentPresentation'
+import { activityParts, elapsed, stateWord, workTime } from './subagentPresentation'
 import { shortId } from './subagentRuns'
+
+/** Section labels above groups of rows, in the app's eyebrow style. */
+export const WORK_SECTION_CLASS =
+  'text-text-tertiary px-2 pt-2 pb-0.5 font-mono text-xs uppercase tracking-wider'
 
 /** Pulses only while the agent runs; colour alone never carries the state. */
 export function SubagentStateDot({ entry }: { entry: WorkEntry }): React.JSX.Element {
@@ -38,9 +42,11 @@ export function SubagentWorkRow({
   /** Listed under its run's header, which already names the run. */
   grouped?: boolean
 }): React.JSX.Element {
-  const label = `${entry.label}: ${entry.state}${entry.currentTool ? ` · ${entry.currentTool}` : ''}${entry.active && entry.attention ? ' · needs parent attention' : ''}`
   const title = entry.title ?? entry.label
-  const activity = activityText(entry, now)
+  // The name starts with the visible title, so readers and voice control can
+  // tell rows apart when several run the same agent.
+  const label = `${title === entry.label ? title : `${title} · ${entry.label}`}: ${entry.state}${entry.currentTool ? ` · ${entry.currentTool}` : ''}${entry.active && entry.attention ? ' · needs parent attention' : ''}`
+  const { lead, toolTime, count } = activityParts(entry, now)
   const when = workTime(entry.startedAt, entry.endedAt, entry.requestedAt)
   const time =
     entry.active && entry.startedAt !== undefined
@@ -48,6 +54,21 @@ export function SubagentWorkRow({
       : entry.state === 'status unavailable'
         ? 'status unavailable'
         : stateWord(entry.state)
+  const context = [
+    title !== entry.label && entry.label,
+    !grouped && entry.group && entry.childId && `in ${entry.group.label}`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  const tail = [
+    count,
+    entry.active > 0 && entry.attention && (
+      <span key="attention" className="text-text font-medium">
+        needs parent attention
+      </span>
+    ),
+  ].filter(Boolean)
+  const before = !!(context || lead)
   return (
     <TooltipButton
       type="button"
@@ -66,42 +87,41 @@ export function SubagentWorkRow({
         <SubagentStateDot entry={entry} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="flex items-baseline gap-2 text-sm leading-5">
+        <span className="flex items-baseline gap-2 text-base leading-5">
           <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
           <span
             className={clsx(
-              'shrink-0 text-xs tabular-nums',
+              'shrink-0 text-sm tabular-nums',
               entry.state === 'failed' ? 'text-danger' : 'text-text-secondary',
             )}
           >
             {time}
           </span>
         </span>
-        <span className="text-text-secondary block truncate text-xs leading-4">
-          {[
-            title !== entry.label && entry.label,
-            !grouped && entry.group && `in ${entry.group.label}`,
-            activity && (
-              <span
-                key="activity"
-                className={clsx(entry.active && entry.currentTool && 'tool-running-label')}
-              >
-                {activity}
-              </span>
-            ),
-            entry.active > 0 && entry.attention && (
-              <span key="attention" className="text-warning">
-                needs parent attention
-              </span>
-            ),
-            !grouped && entry.runId && (
-              <span key="run" className="text-text-tertiary">
+        {/* A long tool name truncates; its duration and the counters stay. */}
+        <span className="text-text-secondary flex min-w-0 text-sm leading-4 whitespace-pre">
+          <span className="min-w-0 truncate">
+            {context}
+            {context && lead && ' · '}
+            {lead && (
+              <span className={clsx(entry.currentTool && 'tool-running-label')}>{lead}</span>
+            )}
+          </span>
+          {(toolTime || tail.length > 0) && (
+            <span className="shrink-0 tabular-nums">
+              {toolTime && ` ${toolTime}`}
+              {tail.flatMap((part, i) => (i || before ? [' · ', part] : [part]))}
+            </span>
+          )}
+          {!grouped && entry.runId && (
+            <>
+              {(before || tail.length > 0) && <span className="shrink-0"> · </span>}
+              {/* Identity gives way first; the tooltip keeps the full run ID. */}
+              <span className="text-text-tertiary min-w-0 shrink-[100] truncate">
                 #{shortId(entry.runId)}
               </span>
-            ),
-          ]
-            .filter(Boolean)
-            .flatMap((part, i) => (i ? [' · ', part] : [part]))}
+            </>
+          )}
         </span>
       </span>
     </TooltipButton>

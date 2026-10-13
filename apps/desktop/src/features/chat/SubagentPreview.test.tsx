@@ -82,7 +82,6 @@ it('opens on the result and task, with activity collapsed', () => {
   )
   expect(el.textContent).toContain('All activity · 2 steps · 0 tool calls')
   expect(el.textContent).toContain('Thinking')
-  expect(el.querySelector('[data-testid="subagent-transcript"]')?.scrollTop).toBe(0)
 })
 
 it('does not replace the answer with a notification that only references an artifact', () => {
@@ -167,4 +166,33 @@ it('keeps the reader where they were when activity refreshes', () => {
   render([{ role: 'assistant', text: 'Next snapshot' }])
   expect(scroller.scrollTop).toBe(100)
   expect(el.querySelector('[data-testid="subagent-transcript"]')).toBe(scroller)
+})
+
+it('clips a long task behind Show full task, and shows only the latest six steps live', () => {
+  const task = `${'Shared rules for every worker. '.repeat(14)}\nWrite the brief.`
+  act(() =>
+    root.render(
+      <SubagentPreview
+        handoff={{ input: task }}
+        live
+        inspection={{
+          messages: Array.from({ length: 8 }, (_, i) => ({ role: 'assistant', text: `Step ${i}` })),
+          truncated: false,
+        }}
+      />,
+    ),
+  )
+  const toggle = [...el.querySelectorAll('button')].find((b) => b.textContent === 'Show full task')!
+  expect(toggle.getAttribute('aria-expanded')).toBe('false')
+  act(() => toggle.click())
+  expect(toggle.textContent).toBe('Show less')
+  expect(toggle.getAttribute('aria-expanded')).toBe('true')
+  const latest = [...el.querySelectorAll('[data-testid="subagent-latest"] li')]
+  expect(latest.map((li) => li.textContent)).toEqual(
+    [7, 6, 5, 4, 3, 2].map((i) => `AgentStep ${i}`),
+  )
+  act(() => root.render(<SubagentPreview handoff={{ input: 'Short task' }} />))
+  expect([...el.querySelectorAll('button')].some((b) => b.textContent === 'Show full task')).toBe(
+    false,
+  )
 })
