@@ -100,7 +100,7 @@ describe('phosphor service', () => {
     expect(text).not.toContain('must-not-appear')
     expect(f.calls.map(({ file, args }) => [file, args])).toEqual([
       ['systemctl', ['--user', 'daemon-reload']],
-      ['systemctl', ['--user', 'enable', '--now', HOST_UNIT]],
+      ['systemctl', ['--user', 'enable', HOST_UNIT]],
       ['systemctl', ['--user', 'restart', HOST_UNIT]],
       ['loginctl', ['enable-linger', 'testuser']],
     ])

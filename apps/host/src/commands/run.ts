@@ -1,4 +1,5 @@
 import { randomInt } from 'node:crypto'
+import { constants } from 'node:os'
 import { setTimeout } from 'node:timers/promises'
 import {
   controlResult,
@@ -17,8 +18,16 @@ import { identityDirectory, IdentityFailure } from '../control/identity'
 import { acquireIdentityLock } from '../control/lock'
 import { loadHostConfig } from '../config/load'
 import { checkReadiness } from '../machine/readiness'
-import type { Drainable } from '../shutdown'
+import { SHUTDOWN_SIGNALS, type Drainable, type ShutdownSignal } from '../shutdown'
 import { HOST_VERSION } from '../version'
+
+/**
+ * Shutdown exits as soon as the attached drain ends. A drain that ended before
+ * the run lock was released let a Ctrl-C exit inside the release, leaving
+ * identity/.run-lock-recovery behind, and every later run refused to start.
+ * The drain therefore also waits for the release, for at most this long.
+ */
+export const RELEASE_WAIT_MS = 3000
 
 export interface RunContext extends ControlContext {
   env: NodeJS.ProcessEnv
@@ -28,6 +37,12 @@ export interface RunContext extends ControlContext {
 async function runHostCommand(context: RunContext): Promise<number> {
   let release: (() => Promise<void>) | undefined
   let detach: (() => void) | undefined
+  let later: ShutdownSignal | undefined
+  let drains = 0
+  let released: () => void = () => {}
+  const unlocked = new Promise<void>((resolve) => {
+    released = resolve
+  })
   try {
     const prepared = await withCommandLock(context, () => prepareControl(context))
     if (!prepared.loaded) {
@@ -71,6 +86,16 @@ async function runHostCommand(context: RunContext): Promise<number> {
     })
     detach = context.attach?.({
       ...loop,
+      drain: async (reason) => {
+        // Shutdown names the signal. Both drains now end together, after the
+        // release, so the first signal's waiter must exit with a later one's code.
+        if (drains++ > 0 && (SHUTDOWN_SIGNALS as readonly string[]).includes(reason))
+          later = reason as ShutdownSignal
+        const result = await loop.drain()
+        await Promise.race([unlocked, setTimeout(RELEASE_WAIT_MS, undefined, { ref: false })])
+        return result
+      },
+      exitCode: () => (later ? 128 + constants.signals[later] : loop.exitCode()),
       log: { write: () => {}, hide: () => 'The Host could not finish.' },
     })
     return await loop.run()
@@ -80,7 +105,11 @@ async function runHostCommand(context: RunContext): Promise<number> {
     return result.exitCode
   } finally {
     detach?.()
-    await release?.()
+    try {
+      await release?.()
+    } finally {
+      released()
+    }
   }
 }
 

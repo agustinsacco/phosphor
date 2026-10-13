@@ -355,8 +355,10 @@ Network failures back off from 5 seconds to 5 minutes. A success resets the
 backoff. Rate limits wait 10 seconds; a stale sequence retries with a fresh one.
 A removed machine exits 77, keeps its identity and asks you to run login again.
 SIGTERM or SIGINT sends one stopping beat, waits at most 5 seconds, and exits 0
-whether or not that beat succeeds. A second signal exits immediately with its
-signal code, 130 for SIGINT.
+whether or not that beat succeeds. A second signal cuts the beat short and exits
+with its own code, 130 for SIGINT. Either way it first releases its run lock,
+waiting at most 3 seconds: exiting inside that release once left
+`identity/.run-lock-recovery` behind, and every later run refused to start.
 
 On Linux, `phosphor service install` requires an enrolled identity and writes
 `${XDG_CONFIG_HOME:-~/.config}/systemd/user/phosphor-host.service` atomically with
@@ -371,8 +373,8 @@ beside it must not depend on it. Provider credentials
 stay in pi's and Claude's stores. It restarts on failure after 10 seconds,
 except exits 64, 69, 77 and 78, which require operator action.
 
-Install reloads systemd, enables and starts the unit, restarts it to apply a
-replacement, then enables linger for the current user so it survives logout
+Install reloads systemd, enables the unit and restarts it, which starts it or
+applies a replacement, then enables linger for the current user so it survives logout
 and reboot. If linger needs permission, the service stays running and the
 command prints `sudo loginctl enable-linger USER` for you to run. It never runs
 sudo itself. Reinstall replaces the unit and restarts it.

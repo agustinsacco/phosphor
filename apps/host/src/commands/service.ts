@@ -91,7 +91,9 @@ async function runServiceCommand(
       context.log?.('service', 'unit.written', { path: unit, trace: context.trace })
       if (
         (await call(['daemon-reload'])).code !== 0 ||
-        (await call(['enable', '--now', HOST_UNIT])).code !== 0 ||
+        // restart also starts a stopped unit. enable --now first would start one
+        // run only for restart to stop it a few milliseconds later.
+        (await call(['enable', HOST_UNIT])).code !== 0 ||
         (await call(['restart', HOST_UNIT])).code !== 0
       ) {
         context.print(

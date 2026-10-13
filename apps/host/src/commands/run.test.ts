@@ -1,4 +1,5 @@
-import { readFile, readdir, writeFile } from 'node:fs/promises'
+import { readdirSync } from 'node:fs'
+import { lstat, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,7 +8,7 @@ import { controlMachine, type ControlMachine, oldId } from '../control/__fixture
 import { identityDirectory } from '../control/identity'
 import { acquireIdentityLock } from '../control/lock'
 import type { RunContext } from './run'
-import { runHost } from './run'
+import { RELEASE_WAIT_MS, runHost } from './run'
 import { createShutdown } from '../shutdown'
 import { createHeartbeat } from '../control/heartbeat'
 import { runCli } from '../cli'
@@ -29,9 +30,13 @@ describe('phosphor run', () => {
   it('dispatches CLI run through one shutdown attachment and sends stopping on SIGTERM', async () => {
     await machine.enrollOld()
     const exits: number[] = []
+    const atExit: string[][] = []
+    const directory = identityDirectory(machine.configPath)
     const shutdown = createShutdown({
       exit: (code) => {
         exits.push(code)
+        // The process ends here: the run lock and its gate must already be gone.
+        atExit.push(readdirSync(directory).filter((name) => name.startsWith('.run-lock')))
       },
       stderr: () => {},
       stopProbes: () => {},
@@ -79,10 +84,14 @@ describe('phosphor run', () => {
       },
     )
     await vi.waitFor(() => expect(states).toEqual(['running']))
+    const signalled = Date.now()
     await shutdown.signal('SIGTERM')
+    // Released, not merely timed out.
+    expect(Date.now() - signalled).toBeLessThan(RELEASE_WAIT_MS)
     expect(await run).toBe(0)
     expect(states).toEqual(['running', 'stopping'])
     expect(exits).toEqual([0])
+    expect(atExit).toEqual([[]])
     expect(attached).toBe(1)
     expect(detached).toBe(1)
   })
@@ -242,4 +251,65 @@ it('records retry delay and removal with exit 77 in the file without exception t
   expect(text).toContain('"exitCode":77')
   expect(text).toContain('"code":"TypeError"')
   expect(text).not.toContain(secret)
+})
+it('keeps a second signal code when it lands while run releases its lock', async () => {
+  await machine.enrollOld()
+  const exits: number[] = []
+  const shutdown = createShutdown({
+    exit: (code) => {
+      exits.push(code)
+    },
+    stderr: () => {},
+    stopProbes: () => {},
+  })
+  const states: string[] = []
+  let hold = false
+  let paused: (() => void) | undefined
+  let resume: (() => void) | undefined
+  const reached = new Promise<void>((resolve) => {
+    paused = resolve
+  })
+  const f = context()
+  f.lockPorts = {
+    pid: process.pid,
+    isAlive: () => false,
+    lstat: async (path) => {
+      if (hold && path.endsWith('.run-lock')) {
+        hold = false
+        paused?.()
+        await new Promise<void>((resolve) => {
+          resume = resolve
+        })
+      }
+      return lstat(path)
+    },
+  }
+  f.attach = shutdown.attach
+  f.wait = (ms, signal) => setTimeout(ms, undefined, { signal })
+  f.fetch = async (_url, init) => {
+    const request = JSON.parse(String(init?.body)) as { state: string }
+    states.push(request.state)
+    if (request.state === 'stopping') {
+      hold = true
+      return Response.json({ accepted: true, nextInSec: 30 })
+    }
+    return new Promise((_resolve, reject) =>
+      init?.signal?.addEventListener('abort', () => reject(new Error('cancelled')), { once: true }),
+    )
+  }
+  const run = runHost(f)
+  await vi.waitFor(() => expect(states).toEqual(['running']))
+  const first = shutdown.signal('SIGTERM')
+  await reached
+  const second = shutdown.signal('SIGINT')
+  await setTimeout(20)
+  resume?.()
+  await Promise.all([first, second, run])
+  // The first signal's waiter ends the process, but with the second's code.
+  expect(exits).toEqual([130])
+  expect(
+    (await readdir(identityDirectory(machine.configPath))).filter((name) =>
+      name.startsWith('.run-lock'),
+    ),
+  ).toEqual([])
 })
