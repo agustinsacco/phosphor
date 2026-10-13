@@ -41,6 +41,15 @@ describe('session-context', () => {
       expect(readFileSync(`${fixtures}/${name}`, 'utf8')).toBe(input)
     })
   }
+  it('treats a header without a version as version 1, as pi does', () => {
+    const input = readFileSync(`${fixtures}/v1.jsonl`, 'utf8').split('\n')
+    const first = JSON.parse(input[0] ?? '') as Record<string, unknown>
+    expect(first.version).toBe(1)
+    delete first.version
+    const entries = parseSessionEntries([JSON.stringify(first), ...input.slice(1)].join('\n'))
+    const golden: unknown = JSON.parse(readFileSync(`${fixtures}/v1.messages.json`, 'utf8'))
+    expect(JSON.parse(JSON.stringify(entries && sessionContext(entries)?.messages))).toEqual(golden)
+  })
   it('requires the first parsed entry to be a header with a string id', () => {
     for (const input of [
       '',
