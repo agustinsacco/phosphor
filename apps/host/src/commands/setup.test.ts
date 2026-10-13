@@ -46,7 +46,8 @@ beforeEach(async () => {
     nodeVersion: '22.22.3',
     defaultResourceRoot: dir,
     repositories: [repository],
-    probeTimeoutMs: 1_000,
+    // Generous: a full parallel suite can delay a fake executable past a second.
+    probeTimeoutMs: 15_000,
   }
   await executable('pi', 'echo 0.87.1')
 })
