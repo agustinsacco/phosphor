@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -15,7 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HOST_LIMITS, type Receipt } from '@phosphor/shared/host-protocol'
 import { loadSqlite } from './sqlite'
 import { hostStateDirectory, prepareStateDirectory, prepareStateFile } from './state-dir'
-import { openStore, opHash, HostStore } from './store'
+import { openStore, opHash, HostStore, REMOVED_LANE_TTL_MS } from './store'
 
 let root: string
 let directory: string
@@ -31,7 +32,10 @@ beforeEach(async () => {
   root = mkdtempSync(join(tmpdir(), 'host-store-'))
   directory = join(root, 'state')
   now = 1000
-  store = await openStore(directory, uid, { now: () => now })
+  store = await openStore(directory, uid, {
+    now: () => now,
+    limits: { receiptsKept: 5, lanesPerHost: 5, repositoriesPerHost: 5 },
+  })
   handles.push(store)
   const repository = join(root, 'repository')
   mkdirSync(repository)
@@ -48,11 +52,29 @@ const lane = (sessionFile: string | null = join(root, 'file.jsonl')) =>
 async function reopen() {
   store.close()
   handles.splice(handles.indexOf(store), 1)
-  store = await openStore(directory, uid, { now: () => now })
+  store = await openStore(directory, uid, {
+    now: () => now,
+    limits: { receiptsKept: 5, lanesPerHost: 5, repositoriesPerHost: 5 },
+  })
   handles.push(store)
 }
 
 describe('Host store ordering and durability', () => {
+  it('defaults to contract caps and accepts only positive integer limits no larger than them', async () => {
+    const defaults = await openStore(join(root, 'defaults'), uid)
+    handles.push(defaults)
+    expect(defaults.limits).toEqual({
+      receiptsKept: HOST_LIMITS.receiptsKept,
+      lanesPerHost: HOST_LIMITS.lanesPerHost,
+      repositoriesPerHost: HOST_LIMITS.repositoriesPerHost,
+    })
+    for (const key of ['receiptsKept', 'lanesPerHost', 'repositoriesPerHost'] as const) {
+      for (const value of [0, -1, 1.5, NaN, HOST_LIMITS[key] + 1])
+        await expect(
+          openStore(join(root, `invalid-${key}-${value}`), uid, { limits: { [key]: value } }),
+        ).rejects.toThrow()
+    }
+  })
   it('uses stable lane UUIDs across reopen, removal and reappearance', async () => {
     const original = lane()
     expect(original.laneId).toMatch(/^[0-9a-f-]{14}4[0-9a-f-]{21}$/)
@@ -105,14 +127,20 @@ describe('Host store ordering and durability', () => {
     const spy = vi.spyOn(db, 'prepare').mockImplementation((sql) => {
       if (sql.startsWith('SELECT * FROM lanes WHERE lane_id=')) {
         reads++
-        expect(() => competitor.prepare('UPDATE lanes SET title=? WHERE lane_id=?').run('race', id)).toThrow(/locked/)
+        expect(() =>
+          competitor.prepare('UPDATE lanes SET title=? WHERE lane_id=?').run('race', id),
+        ).toThrow(/locked/)
       }
       return prepare(sql)
     })
     try {
       expect(tested.admit(id, one, 1).admitted).toBe(true)
       expect(reads).toBeGreaterThan(0)
-    } finally { spy.mockRestore(); tested.close(); competitor.close() }
+    } finally {
+      spy.mockRestore()
+      tested.close()
+      competitor.close()
+    }
   })
   it('computes connected through a runtime port without persisting it', async () => {
     const id = lane().laneId
@@ -185,49 +213,342 @@ describe('Host store ordering and durability', () => {
     store.beginRequest(requestId, one.clientId, hash, null)
     expect(() => store.finishRequest(requestId, { requestId, status: 'pending' })).toThrow()
   })
-  it('prunes at the 24-hour boundary and enforces the receipt count cap', async () => {
-    const oldest = randomUUID()
-    store.beginRequest(oldest, one.clientId, hash, null)
-    store.finishRequest(oldest, { requestId: oldest, status: 'done' })
-    store.pruneReceipts(now + HOST_LIMITS.receiptTtlMs - 1)
-    expect(store.beginRequest(oldest, one.clientId, hash, null).kind).toBe('existing')
-    store.pruneReceipts(now + HOST_LIMITS.receiptTtlMs)
-    expect(store.beginRequest(oldest, one.clientId, hash, null).kind).toBe('new')
+  it('keeps receipt controllers historic but rebuilds connected through both read paths', async () => {
+    let connected = true
+    const other = await openStore(directory, uid, { now: () => now, isConnected: () => connected })
+    handles.push(other)
+    const id = lane().laneId
+    const requestId = randomUUID()
+    const receipt: Receipt = {
+      requestId,
+      status: 'rejected',
+      code: 'not-controller',
+      control: { fence: 2, controller: { ...one, connected: true } },
+    }
+    other.beginRequest(requestId, one.clientId, hash, id)
+    other.finishRequest(requestId, receipt)
+    expect(other.getReceipt(requestId, one.clientId)).toEqual(receipt)
+    other.takeControl(id, two)
+    connected = false
+    const current = { ...receipt, control: { fence: 2, controller: { ...one, connected: false } } }
+    expect(other.beginRequest(requestId, one.clientId, hash, id)).toEqual({
+      kind: 'existing',
+      receipt: current,
+    })
+    expect(other.getReceipt(requestId, one.clientId)).toEqual(current)
+    other.finishRequest(requestId, receipt)
+    other.finishRequest(requestId, current)
     const { DatabaseSync } = await loadSqlite()
     const db = new DatabaseSync(join(directory, 'state.sqlite'))
-    db.exec('BEGIN IMMEDIATE')
-    for (let count = 1; count < HOST_LIMITS.receiptsKept - 1; count++)
-      db.prepare("INSERT INTO receipts VALUES (?,?,?,NULL,'started',NULL,?,NULL)").run(
-        randomUUID(),
+    try {
+      const json = db
+        .prepare('SELECT receipt_json FROM receipts WHERE request_id=?')
+        .get(requestId)?.receipt_json
+      expect(typeof json).toBe('string')
+      if (typeof json !== 'string') throw new Error('missing receipt JSON')
+      expect(json).not.toContain('connected')
+    } finally {
+      db.close()
+    }
+  })
+  it('reads receipts without revealing other clients and agrees with admission at the TTL boundary', () => {
+    const requestId = randomUUID()
+    const oldStarted = randomUUID()
+    expect(store.getReceipt(requestId, one.clientId)).toBeNull()
+    store.beginRequest(requestId, one.clientId, hash, null)
+    store.beginRequest(oldStarted, one.clientId, hash, null)
+    expect(store.getReceipt(requestId, two.clientId)).toBeNull()
+    expect(store.getReceipt(requestId, one.clientId)).toEqual({ requestId, status: 'pending' })
+    const receipt: Receipt = { requestId, status: 'done' }
+    store.finishRequest(requestId, receipt)
+    now += HOST_LIMITS.receiptTtlMs
+    expect(store.getReceipt(requestId, one.clientId)).toEqual(receipt)
+    expect(store.beginRequest(requestId, one.clientId, hash, null)).toEqual({
+      kind: 'existing',
+      receipt,
+    })
+    now++
+    expect(store.getReceipt(requestId, one.clientId)).toBeNull()
+    expect(store.beginRequest(requestId, one.clientId, hash, null)).toEqual({ kind: 'new' })
+    expect(store.getReceipt(oldStarted, one.clientId)).toEqual({
+      requestId: oldStarted,
+      status: 'pending',
+    })
+    expect(store.beginRequest(oldStarted, one.clientId, hash, null)).toEqual({
+      kind: 'existing',
+      receipt: { requestId: oldStarted, status: 'pending' },
+    })
+  })
+  it('logs corrupt receipt counts, hides them on reads and never re-executes a matching request', async () => {
+    const log = vi.fn()
+    const other = await openStore(directory, uid, { now: () => now, logCorruptReceipt: log })
+    handles.push(other)
+    const requestId = randomUUID()
+    other.beginRequest(requestId, one.clientId, hash, null)
+    other.finishRequest(requestId, {
+      requestId,
+      status: 'failed',
+      error: { code: 'internal', message: 'Failed' },
+    })
+    const json = JSON.stringify({
+      requestId,
+      status: 'failed',
+      error: { code: 'other', message: 'private corrupt content' },
+    })
+    const { DatabaseSync } = await loadSqlite()
+    const db = new DatabaseSync(join(directory, 'state.sqlite'))
+    try {
+      db.prepare('UPDATE receipts SET receipt_json=? WHERE request_id=?').run(json, requestId)
+      expect(other.getReceipt(requestId, two.clientId)).toBeNull()
+      expect(other.getReceipt(requestId, one.clientId)).toBeNull()
+      expect(other.beginRequest(requestId, one.clientId, hash, null)).toEqual({
+        kind: 'existing',
+        receipt: { requestId, status: 'unknown' },
+      })
+      expect(other.beginRequest(requestId, two.clientId, hash, null)).toEqual({ kind: 'conflict' })
+      expect(log.mock.calls).toEqual([[1], [1], [1]])
+      log.mockImplementationOnce(() => {
+        throw new Error('private logger failure')
+      })
+      expect(other.getReceipt(requestId, one.clientId)).toBeNull()
+      expect(
+        db.prepare('SELECT receipt_json FROM receipts WHERE request_id=?').get(requestId)
+          ?.receipt_json,
+      ).toBe(json)
+    } finally {
+      db.close()
+    }
+  })
+  it('ages finished receipts from completion, keeping exactly 24 hours and every started row', async () => {
+    const done = randomUUID()
+    const interrupted = randomUUID()
+    store.beginRequest(done, one.clientId, hash, null)
+    store.beginRequest(interrupted, one.clientId, hash, null)
+    now += HOST_LIMITS.receiptTtlMs
+    store.finishRequest(done, { requestId: done, status: 'done' })
+    await reopen()
+    const started = randomUUID()
+    store.beginRequest(started, one.clientId, hash, null)
+    store.pruneReceipts(now + HOST_LIMITS.receiptTtlMs)
+    expect(store.beginRequest(done, one.clientId, hash, null)).toMatchObject({
+      kind: 'existing',
+      receipt: { status: 'done' },
+    })
+    expect(store.beginRequest(interrupted, one.clientId, hash, null)).toMatchObject({
+      kind: 'existing',
+      receipt: { status: 'unknown' },
+    })
+    store.pruneReceipts(now + HOST_LIMITS.receiptTtlMs + 1)
+    expect(store.beginRequest(done, one.clientId, hash, null).kind).toBe('new')
+    expect(store.beginRequest(interrupted, one.clientId, hash, null).kind).toBe('new')
+    expect(store.beginRequest(started, one.clientId, hash, null)).toMatchObject({
+      kind: 'existing',
+      receipt: { status: 'pending' },
+    })
+  })
+  it('bounds started rows independently of finished rows and returns busy without recording', async () => {
+    const done = randomUUID()
+    store.beginRequest(done, one.clientId, hash, null)
+    store.finishRequest(done, { requestId: done, status: 'done' })
+    const { DatabaseSync } = await loadSqlite()
+    const db = new DatabaseSync(join(directory, 'state.sqlite'))
+    try {
+      db.exec('BEGIN IMMEDIATE')
+      const insert = db.prepare("INSERT INTO receipts VALUES (?,?,?,NULL,'started',NULL,?,NULL)")
+      for (let count = 0; count < store.limits.receiptsKept - 1; count++)
+        insert.run(randomUUID(), one.clientId, hash, now)
+      db.exec('COMMIT')
+      expect(store.beginRequest(randomUUID(), one.clientId, hash, null).kind).toBe('new')
+      const busy = randomUUID()
+      expect(store.beginRequest(busy, one.clientId, hash, null)).toEqual({ kind: 'busy' })
+      expect(db.prepare('SELECT * FROM receipts WHERE request_id=?').get(busy)).toBeUndefined()
+      store.pruneReceipts(now + HOST_LIMITS.receiptTtlMs + 1)
+      expect(store.beginRequest(busy, one.clientId, hash, null)).toEqual({ kind: 'busy' })
+      expect(db.prepare("SELECT count(*) AS n FROM receipts WHERE status='started'").get()?.n).toBe(
+        store.limits.receiptsKept,
+      )
+    } finally {
+      db.close()
+    }
+  })
+  it('bounds finished receipts during finish, removing the oldest and preserving started rows', async () => {
+    const oldest = randomUUID()
+    const started = randomUUID()
+    store.beginRequest(oldest, one.clientId, hash, null)
+    store.finishRequest(oldest, { requestId: oldest, status: 'done' })
+    store.beginRequest(started, one.clientId, hash, null)
+    for (let count = 0; count < store.limits.receiptsKept; count++) {
+      now++
+      const requestId = randomUUID()
+      store.beginRequest(requestId, one.clientId, hash, null)
+      store.finishRequest(requestId, { requestId, status: 'done' })
+    }
+    const { DatabaseSync } = await loadSqlite()
+    const db = new DatabaseSync(join(directory, 'state.sqlite'))
+    try {
+      expect(
+        db.prepare('SELECT count(*) AS n FROM receipts WHERE finished_at IS NOT NULL').get()?.n,
+      ).toBe(store.limits.receiptsKept)
+    } finally {
+      db.close()
+    }
+    expect(store.getReceipt(oldest, one.clientId)).toBeNull()
+    expect(store.beginRequest(oldest, one.clientId, hash, null).kind).toBe('new')
+    expect(store.beginRequest(started, one.clientId, hash, null)).toMatchObject({
+      kind: 'existing',
+      receipt: { status: 'pending' },
+    })
+  })
+  it('prunes exactly to the finished cap, counting unknown but not started rows', async () => {
+    const started = randomUUID()
+    const unknown = randomUUID()
+    store.beginRequest(started, one.clientId, hash, null)
+    const { DatabaseSync } = await loadSqlite()
+    const db = new DatabaseSync(join(directory, 'state.sqlite'))
+    try {
+      db.exec('BEGIN IMMEDIATE')
+      const insert = db.prepare("INSERT INTO receipts VALUES (?,?,?,NULL,'unknown',?,?,?)")
+      insert.run(
+        unknown,
         one.clientId,
         hash,
+        JSON.stringify({ requestId: unknown, status: 'unknown' }),
+        now,
         now,
       )
-    db.exec('COMMIT')
-    db.close()
-    expect(store.beginRequest(randomUUID(), one.clientId, hash, null).kind).toBe('new')
-    expect(() => store.beginRequest(randomUUID(), one.clientId, hash, null)).toThrow()
-    store.pruneReceipts(now + HOST_LIMITS.receiptTtlMs)
-    expect(() => store.beginRequest(randomUUID(), one.clientId, hash, null)).toThrow()
+      for (let count = 0; count < store.limits.receiptsKept; count++) {
+        const requestId = randomUUID()
+        insert.run(
+          requestId,
+          one.clientId,
+          hash,
+          JSON.stringify({ requestId, status: 'unknown' }),
+          now,
+          now + 1,
+        )
+      }
+      db.exec('COMMIT')
+      store.pruneReceipts(now + HOST_LIMITS.receiptTtlMs)
+      expect(
+        db.prepare('SELECT count(*) AS n FROM receipts WHERE finished_at IS NOT NULL').get()?.n,
+      ).toBe(store.limits.receiptsKept)
+      expect(store.beginRequest(unknown, one.clientId, hash, null).kind).toBe('new')
+      store.pruneReceipts(now + HOST_LIMITS.receiptTtlMs + 2)
+      expect(
+        db.prepare('SELECT count(*) AS n FROM receipts WHERE finished_at IS NOT NULL').get()?.n,
+      ).toBe(0)
+      expect(store.beginRequest(started, one.clientId, hash, null)).toMatchObject({
+        kind: 'existing',
+        receipt: { status: 'pending' },
+      })
+    } finally {
+      db.close()
+    }
   })
   it('enforces lane cap exactly, while existing lanes remain accessible and removed lanes free slots', () => {
     const first = lane()
-    for (let count = 1; count < HOST_LIMITS.lanesPerHost; count++)
+    for (let count = 1; count < store.limits.lanesPerHost; count++)
       lane(join(root, `${count}.jsonl`))
-    expect(store.listLanes()).toHaveLength(HOST_LIMITS.lanesPerHost)
+    expect(store.listLanes()).toHaveLength(store.limits.lanesPerHost)
     expect(lane().laneId).toBe(first.laneId)
     expect(() => lane(join(root, 'over.jsonl'))).toThrow()
     store.markRemoved(first.laneId)
     lane(join(root, 'over.jsonl'))
     expect(() => lane()).toThrow()
   })
+  it('prunes removed lanes by age without touching live lanes or recorded receipt identities', () => {
+    const removed = lane()
+    const live = lane(null)
+    const finished = randomUUID()
+    const started = randomUUID()
+    store.beginRequest(finished, one.clientId, hash, removed.laneId)
+    store.finishRequest(finished, { requestId: finished, status: 'done' })
+    store.beginRequest(started, one.clientId, hash, removed.laneId)
+    store.markRemoved(removed.laneId)
+    store.pruneRemovedLanes(now + REMOVED_LANE_TTL_MS)
+    expect(store.getLane(removed.laneId)).not.toBeNull()
+    store.pruneRemovedLanes(now + REMOVED_LANE_TTL_MS + 1)
+    expect(store.getLane(removed.laneId)).toBeNull()
+    expect(store.getLane(live.laneId)?.removedAt).toBeNull()
+    for (const requestId of [finished, started]) {
+      expect(store.beginRequest(requestId, one.clientId, hash, removed.laneId)).toMatchObject({
+        kind: 'existing',
+      })
+      expect(store.beginRequest(requestId, one.clientId, hash, live.laneId)).toEqual({
+        kind: 'conflict',
+      })
+    }
+    expect(lane().laneId).not.toBe(removed.laneId)
+  })
+  it('keeps exactly the removed lane cap, deleting the oldest while preserving live lanes', async () => {
+    const oldest = lane()
+    store.markRemoved(oldest.laneId)
+    const live = lane(null)
+    for (let count = 0; count < store.limits.lanesPerHost; count++) {
+      now++
+      store.markRemoved(lane(join(root, `${count}.jsonl`)).laneId)
+    }
+    store.pruneRemovedLanes()
+    const { DatabaseSync } = await loadSqlite()
+    const db = new DatabaseSync(join(directory, 'state.sqlite'))
+    try {
+      expect(
+        db.prepare('SELECT count(*) AS n FROM lanes WHERE removed_at IS NOT NULL').get()?.n,
+      ).toBe(store.limits.lanesPerHost)
+      expect(store.getLane(oldest.laneId)).toBeNull()
+      expect(store.listLanes().map((entry) => entry.laneId)).toEqual([live.laneId])
+    } finally {
+      db.close()
+    }
+  })
+  it('skips unavailable configured repositories, deactivates their rows and reactivates stable ids', () => {
+    const missing = join(root, 'returning')
+    const present = join(root, 'repository')
+    mkdirSync(missing)
+    const original = store
+      .syncRepositories([missing, present])
+      .find((entry) => entry.path.endsWith('/returning'))
+    rmSync(missing, { recursive: true })
+    const unavailable: number[] = []
+    expect(store.syncRepositories([missing, present], (count) => unavailable.push(count))).toEqual([
+      expect.objectContaining({ id: repositoryId }),
+    ])
+    expect(unavailable).toEqual([1])
+    mkdirSync(missing)
+    expect(store.syncRepositories([missing, present])).toContainEqual(original)
+    const file = join(root, 'not-folder')
+    writeFileSync(file, '')
+    expect(
+      store.syncRepositories([file, join(file, 'child')], (count) => unavailable.push(count)),
+    ).toEqual([])
+    expect(unavailable).toEqual([1, 2])
+  })
+  it('skips EACCES but propagates other repository I/O failures', () => {
+    const spy = vi.spyOn(realpathSync, 'native')
+    try {
+      spy.mockImplementationOnce(() => {
+        throw Object.assign(new Error('private failure'), { code: 'EACCES' })
+      })
+      const unavailable: number[] = []
+      expect(
+        store.syncRepositories([join(root, 'repository')], (count) => unavailable.push(count)),
+      ).toEqual([])
+      expect(unavailable).toEqual([1])
+      spy.mockImplementationOnce(() => {
+        throw Object.assign(new Error('I/O failure'), { code: 'EIO' })
+      })
+      expect(() => store.syncRepositories([join(root, 'repository')])).toThrow('I/O failure')
+    } finally {
+      spy.mockRestore()
+    }
+  })
   it('syncs realpaths, keeps inactive records and enforces the configured repository cap', () => {
-    const paths = Array.from({ length: HOST_LIMITS.repositoriesPerHost }, (_, i) =>
+    const paths = Array.from({ length: store.limits.repositoriesPerHost }, (_, i) =>
       join(root, `repo-${i}`),
     )
     for (const path of paths) mkdirSync(path)
     const summaries = store.syncRepositories(paths)
-    expect(summaries).toHaveLength(HOST_LIMITS.repositoriesPerHost)
+    expect(summaries).toHaveLength(store.limits.repositoriesPerHost)
     expect(() => store.syncRepositories([...paths, join(root, 'repository')])).toThrow()
     expect(store.listRepositories()).toEqual(summaries)
     store.syncRepositories([])
@@ -248,6 +569,8 @@ describe('Host state storage safety', () => {
     const dir = join(root, `mode-${mask}`)
     try {
       handle = await openStore(dir, uid)
+      for (const suffix of ['-wal', '-shm'])
+        expect(lstatSync(join(dir, `state.sqlite${suffix}`)).mode & 0o777).toBe(0o600)
     } finally {
       process.umask(previous)
       handle?.close()
@@ -274,6 +597,14 @@ describe('Host state storage safety', () => {
     const file = join(root, 'not-directory')
     writeFileSync(file, '')
     await expect(openStore(file, uid)).rejects.toMatchObject({ exitCode: 78 })
+  })
+  it('refuses permissive and non-regular state files', async () => {
+    chmodSync(join(directory, 'state.sqlite'), 0o644)
+    await expect(openStore(directory, uid)).rejects.toMatchObject({ exitCode: 78 })
+    chmodSync(join(directory, 'state.sqlite'), 0o600)
+    const dir = join(root, 'directory-file')
+    mkdirSync(join(dir, 'state.sqlite'), { recursive: true, mode: 0o700 })
+    await expect(openStore(dir, uid)).rejects.toMatchObject({ exitCode: 78 })
   })
   it('refuses symlinked state and sidecars without changing targets', async () => {
     const target = join(root, 'target')

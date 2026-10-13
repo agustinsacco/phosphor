@@ -28,11 +28,12 @@ CREATE TABLE lanes (
   CHECK((controller_client_id IS NULL)=(controller_label IS NULL)),
   CHECK((provider IS NULL)=(model IS NULL))
 ) STRICT;
+CREATE INDEX lanes_removed ON lanes(removed_at,lane_id) WHERE removed_at IS NOT NULL;
 CREATE TABLE receipts (
   request_id TEXT PRIMARY KEY NOT NULL CHECK(length(request_id)=36 AND request_id NOT GLOB '*[^0-9a-f-]*' AND length(replace(request_id,'-',''))=32 AND substr(request_id,9,1)='-' AND substr(request_id,14,1)='-' AND substr(request_id,19,1)='-' AND substr(request_id,24,1)='-' AND substr(request_id,15,1) BETWEEN '1' AND '8' AND substr(request_id,20,1) IN ('8','9','a','b')),
   client_id TEXT NOT NULL CHECK(length(client_id)=36 AND client_id NOT GLOB '*[^0-9a-f-]*' AND length(replace(client_id,'-',''))=32 AND substr(client_id,9,1)='-' AND substr(client_id,14,1)='-' AND substr(client_id,19,1)='-' AND substr(client_id,24,1)='-' AND substr(client_id,15,1) BETWEEN '1' AND '8' AND substr(client_id,20,1) IN ('8','9','a','b')),
   op_hash TEXT NOT NULL CHECK(length(op_hash)=64 AND op_hash NOT GLOB '*[^0-9a-f]*'),
-  lane_id TEXT REFERENCES lanes(lane_id),
+  lane_id TEXT CHECK(lane_id IS NULL OR (length(lane_id)=36 AND lane_id NOT GLOB '*[^0-9a-f-]*' AND length(replace(lane_id,'-',''))=32 AND substr(lane_id,9,1)='-' AND substr(lane_id,14,1)='-' AND substr(lane_id,19,1)='-' AND substr(lane_id,24,1)='-' AND substr(lane_id,15,1)='4' AND substr(lane_id,20,1) IN ('8','9','a','b'))),
   status TEXT NOT NULL CHECK(status IN ('started','done','failed','rejected','unknown')),
   receipt_json TEXT CHECK(receipt_json IS NULL OR (json_valid(receipt_json) AND length(CAST(receipt_json AS BLOB))<=524288)),
   started_at INTEGER NOT NULL CHECK(started_at>=0),
@@ -41,6 +42,7 @@ CREATE TABLE receipts (
   CHECK((status='started')=(receipt_json IS NULL)),
   CHECK(receipt_json IS NULL OR (json_type(receipt_json,'$.requestId') IS 'text' AND json_type(receipt_json,'$.status') IS 'text' AND json_extract(receipt_json,'$.requestId')=request_id AND json_extract(receipt_json,'$.status')=status))
 ) STRICT;
-CREATE INDEX receipts_age ON receipts(started_at);
+CREATE INDEX receipts_finished ON receipts(finished_at,request_id) WHERE finished_at IS NOT NULL;
+CREATE INDEX receipts_started ON receipts(request_id) WHERE status='started';
 PRAGMA user_version=1;
 `

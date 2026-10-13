@@ -1,4 +1,5 @@
 import { randomInt } from 'node:crypto'
+import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
 import { constants } from 'node:os'
 import { setTimeout } from 'node:timers/promises'
 import {
@@ -37,6 +38,7 @@ export interface RunContext extends ControlContext {
   home: string
   attach?: (target: Drainable) => () => void
   heartbeat?: Partial<Pick<HeartbeatPorts, 'readiness' | 'seq' | 'random'>>
+  reconcile?: typeof reconcile
 }
 async function runHostCommand(context: RunContext): Promise<number> {
   let store: HostStore | undefined
@@ -44,10 +46,28 @@ async function runHostCommand(context: RunContext): Promise<number> {
   let detach: (() => void) | undefined
   let later: ShutdownSignal | undefined
   let drains = 0
+  const initAbort = new AbortController()
+  let initialization: Promise<void> | undefined
+  let loop: ReturnType<typeof createHeartbeat> | undefined
+  let startupExit = 70
   let released: () => void = () => {}
   const unlocked = new Promise<void>((resolve) => {
     released = resolve
   })
+  const closeAndRelease = async () => {
+    try {
+      try {
+        store?.close()
+      } finally {
+        await release?.()
+      }
+    } catch (error) {
+      startupExit = 70
+      throw error
+    } finally {
+      released()
+    }
+  }
   try {
     const prepared = await withCommandLock(context, () => prepareControl(context))
     if (!prepared.loaded) {
@@ -56,23 +76,55 @@ async function runHostCommand(context: RunContext): Promise<number> {
     }
     const directory = identityDirectory(context.configPath)
     release = await acquireIdentityLock(directory, context.uid, context.lockPorts, '.run-lock')
+    // Start-up can await SQLite and disk scans. A signal must wait for cleanup
+    // here too, not just once the heartbeat loop is running.
+    detach = context.attach?.({
+      drain: async (reason) => {
+        if (drains++ > 0 && (SHUTDOWN_SIGNALS as readonly string[]).includes(reason))
+          later = reason as ShutdownSignal
+        initAbort.abort()
+        let result: { state: 'stopped' | 'failed' }
+        if (loop) result = await loop.drain()
+        else {
+          await initialization?.catch(() => {})
+          result = { state: 'stopped' }
+        }
+        await Promise.race([unlocked, setTimeout(RELEASE_WAIT_MS, undefined, { ref: false })])
+        return result
+      },
+      exitCode: () => (later ? 128 + constants.signals[later] : (loop?.exitCode() ?? startupExit)),
+      log: { write: () => {}, hide: () => 'The Host could not finish.' },
+    })
     const config = await loadHostConfig(context.configPath, context.uid)
     if (!config.ok)
       throw new IdentityFailure('Config is not usable. Run phosphor doctor to check it.')
     const stateDirectory = hostStateDirectory(context.env, context.home)
-    try {
-      store = await openStore(stateDirectory, context.uid)
-      store.syncRepositories(config.config.repositories)
-      const counts = await reconcile(store, (skipped) =>
-        context.log?.('host', 'lanes.skipped', { skipped }),
-      )
-      context.log?.('host', 'lanes.reconciled', counts)
-    } catch (error) {
-      if (error instanceof StateFailure) throw error
-      throw new StateFailure(stateDirectory, 70, 'Could not reconcile lanes.')
-    }
+    initialization = (async () => {
+      try {
+        initAbort.signal.throwIfAborted()
+        store = await openStore(stateDirectory, context.uid, {
+          logCorruptReceipt: (count) => context.log?.('host', 'receipts.corrupt', { count }),
+        })
+        initAbort.signal.throwIfAborted()
+        store.syncRepositories(config.config.repositories, (count) =>
+          context.log?.('host', 'lanes.repositories_unavailable', { count }),
+        )
+        const counts = await (context.reconcile ?? reconcile)(
+          store,
+          piSessionsRoot(context.env, context.home),
+          (skipped) => context.log?.('host', 'lanes.skipped', { skipped }),
+          initAbort.signal,
+        )
+        context.log?.('host', 'lanes.reconciled', counts)
+      } catch (error) {
+        if (error instanceof StateFailure || error === initAbort.signal.reason) throw error
+        throw new StateFailure(stateDirectory, 70, 'Could not reconcile lanes.')
+      }
+    })()
+    await initialization
+    initAbort.signal.throwIfAborted()
     const { identity, key } = prepared.loaded
-    const loop = createHeartbeat({
+    loop = createHeartbeat({
       now: context.now ?? Date.now,
       wait: context.wait ?? ((ms, signal) => setTimeout(ms, undefined, { signal })),
       random: context.heartbeat?.random ?? (() => randomInt(3001) / 3000),
@@ -101,22 +153,12 @@ async function runHostCommand(context: RunContext): Promise<number> {
         context.print(line)
       },
     })
-    detach = context.attach?.({
-      ...loop,
-      drain: async (reason) => {
-        // Shutdown names the signal. Both drains now end together, after the
-        // release, so the first signal's waiter must exit with a later one's code.
-        if (drains++ > 0 && (SHUTDOWN_SIGNALS as readonly string[]).includes(reason))
-          later = reason as ShutdownSignal
-        const result = await loop.drain()
-        await Promise.race([unlocked, setTimeout(RELEASE_WAIT_MS, undefined, { ref: false })])
-        return result
-      },
-      exitCode: () => (later ? 128 + constants.signals[later] : loop.exitCode()),
-      log: { write: () => {}, hide: () => 'The Host could not finish.' },
-    })
     return await loop.run()
   } catch (error) {
+    if (error === initAbort.signal.reason && initAbort.signal.aborted) {
+      startupExit = 0
+      return 0
+    }
     const result =
       error instanceof StateFailure
         ? { message: error.message, exitCode: error.exitCode }
@@ -125,15 +167,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
     return result.exitCode
   } finally {
     detach?.()
-    try {
-      store?.close()
-    } finally {
-      try {
-        await release?.()
-      } finally {
-        released()
-      }
-    }
+    await closeAndRelease()
   }
 }
 

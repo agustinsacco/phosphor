@@ -25,6 +25,9 @@ import {
 } from './validation'
 export { opHash } from './validation'
 
+export const REMOVED_LANE_TTL_MS = 30 * 24 * 60 * 60 * 1000
+const RECEIPT_EXPIRED = 'finished_at < ?'
+
 export interface StoredLane extends LaneSummary {
   readonly sessionFile: string | null
   readonly removedAt: string | null
@@ -47,10 +50,15 @@ export type Admission =
   | { admitted: true; control: LaneControl }
   | { admitted: false; code: 'stale-fence' | 'not-controller'; control: LaneControl }
 export type RequestStart =
-  { kind: 'new' } | { kind: 'existing'; receipt: Receipt } | { kind: 'conflict' }
+  { kind: 'new' } | { kind: 'existing'; receipt: Receipt } | { kind: 'conflict' } | { kind: 'busy' }
+export type StoreLimits = {
+  [Key in 'receiptsKept' | 'lanesPerHost' | 'repositoriesPerHost']: number
+}
 export interface StorePorts {
   now?: () => number
   isConnected?: (clientId: string) => boolean
+  limits?: Partial<StoreLimits>
+  logCorruptReceipt?: (count: number) => void
 }
 type Row = Record<string, SQLOutputValue>
 function str(row: Row, key: string): string {
@@ -109,12 +117,27 @@ export async function openStore(
 export class HostStore {
   private readonly now: () => number
   private readonly isConnected: (clientId: string) => boolean
+  private readonly logCorruptReceipt: (count: number) => void
+  readonly limits: Readonly<StoreLimits>
   constructor(
     private readonly db: DatabaseSync,
     ports: StorePorts,
   ) {
     this.now = ports.now ?? Date.now
     this.isConnected = ports.isConnected ?? (() => false)
+    this.logCorruptReceipt = ports.logCorruptReceipt ?? (() => {})
+    const limits = {
+      receiptsKept: HOST_LIMITS.receiptsKept,
+      lanesPerHost: HOST_LIMITS.lanesPerHost,
+      repositoriesPerHost: HOST_LIMITS.repositoriesPerHost,
+      ...ports.limits,
+    }
+    for (const [key, value] of Object.entries(limits)) {
+      check(key === 'receiptsKept' || key === 'lanesPerHost' || key === 'repositoriesPerHost')
+      integer(value, 1)
+      check(value <= HOST_LIMITS[key])
+    }
+    this.limits = Object.freeze(limits)
   }
   private transaction<T>(fn: () => T): T {
     this.db.exec('BEGIN IMMEDIATE')
@@ -175,21 +198,38 @@ export class HostStore {
   listRepositories(): RepositorySummary[] {
     return this.db
       .prepare('SELECT * FROM repositories WHERE active=1 ORDER BY added_at,id LIMIT ?')
-      .all(HOST_LIMITS.repositoriesPerHost)
+      .all(this.limits.repositoriesPerHost)
       .map((row) => ({ id: str(row, 'id'), name: str(row, 'name'), path: str(row, 'path') }))
   }
-  syncRepositories(paths: readonly string[]): RepositorySummary[] {
-    check(paths.length <= HOST_LIMITS.repositoriesPerHost)
+  syncRepositories(
+    paths: readonly string[],
+    logUnavailable: (count: number) => void = () => {},
+  ): RepositorySummary[] {
+    check(paths.length <= this.limits.repositoriesPerHost)
     const repositories = new Map<string, RepositorySummary>()
+    let unavailable = 0
     for (const path of paths) {
       absolutePath(path)
-      const real = realpathSync.native(path)
-      check(statSync(real).isDirectory())
-      absolutePath(real)
-      const id = createHash('sha256').update(real).digest('hex').slice(0, 16)
-      repositories.set(id, { id, path: real, name: basename(real) })
+      try {
+        const real = realpathSync.native(path)
+        if (!statSync(real).isDirectory()) {
+          unavailable++
+          continue
+        }
+        absolutePath(real)
+        const id = createHash('sha256').update(real).digest('hex').slice(0, 16)
+        repositories.set(id, { id, path: real, name: basename(real) })
+      } catch (error) {
+        if (!(
+          error instanceof Error &&
+          'code' in error &&
+          (error.code === 'ENOENT' || error.code === 'ENOTDIR' || error.code === 'EACCES')
+        ))
+          throw error
+        unavailable++
+      }
     }
-    return this.transaction(() => {
+    const result = this.transaction(() => {
       this.db.prepare('UPDATE repositories SET active=0').run()
       for (const repository of repositories.values())
         this.db
@@ -200,11 +240,13 @@ export class HostStore {
           .run(repository.id, repository.path, repository.name, this.clock())
       return this.listRepositories()
     })
+    if (unavailable) logUnavailable(unavailable)
+    return result
   }
   listLanes(): StoredLane[] {
     return this.db
       .prepare('SELECT * FROM lanes WHERE removed_at IS NULL ORDER BY created_at,lane_id LIMIT ?')
-      .all(HOST_LIMITS.lanesPerHost)
+      .all(this.limits.lanesPerHost)
       .map((row) => this.lane(row))
   }
   getLane(id: string): StoredLane | null {
@@ -254,7 +296,7 @@ export class HostStore {
         Number(
           this.db.prepare('SELECT count(*) AS count FROM lanes WHERE removed_at IS NULL').get()
             ?.count,
-        ) < HOST_LIMITS.lanesPerHost,
+        ) < this.limits.lanesPerHost,
       )
       if (existing) {
         this.db
@@ -315,6 +357,17 @@ export class HostStore {
         .run(this.clock(), id),
     )
   }
+  pruneRemovedLanes(now: number = this.clock()): void {
+    integer(now)
+    this.transaction(() => {
+      this.db.prepare('DELETE FROM lanes WHERE removed_at < ?').run(now - REMOVED_LANE_TTL_MS)
+      this.db
+        .prepare(
+          `DELETE FROM lanes WHERE lane_id IN (SELECT lane_id FROM lanes WHERE removed_at IS NOT NULL ORDER BY removed_at DESC,lane_id DESC LIMIT -1 OFFSET ?)`,
+        )
+        .run(this.limits.lanesPerHost)
+    })
+  }
   private validateController(controller: Controller): void {
     uuid(controller.clientId)
     check(typeof controller.label === 'string')
@@ -373,6 +426,73 @@ export class HostStore {
       return this.requireLane(id).read
     })
   }
+  private decodeReceipt(row: Row): Receipt | null {
+    try {
+      if (row.status === 'started')
+        return storedReceipt({ requestId: str(row, 'request_id'), status: 'pending' })
+      let value: unknown = JSON.parse(str(row, 'receipt_json'))
+      if (
+        typeof value === 'object' &&
+        value !== null &&
+        'status' in value &&
+        value.status === 'rejected' &&
+        'control' in value
+      ) {
+        const control = value.control
+        if (
+          typeof control === 'object' &&
+          control !== null &&
+          'controller' in control &&
+          control.controller !== null
+        ) {
+          const controller = control.controller
+          check(
+            typeof controller === 'object' &&
+              'clientId' in controller &&
+              typeof controller.clientId === 'string' &&
+              !('connected' in controller),
+          )
+          value = {
+            ...value,
+            control: {
+              ...control,
+              controller: {
+                ...controller,
+                connected: this.isConnected(controller.clientId),
+              },
+            },
+          }
+        }
+      }
+      const receipt = storedReceipt(value)
+      check(receipt.requestId === str(row, 'request_id') && receipt.status === str(row, 'status'))
+      return receipt
+    } catch {
+      try {
+        this.logCorruptReceipt(1)
+      } catch {
+        // A logger failure cannot turn corrupt state into a caller-visible error.
+      }
+      return null
+    }
+  }
+  getReceipt(requestId: string, clientId: string): Receipt | null {
+    uuid(requestId)
+    uuid(clientId)
+    const row = this.db
+      .prepare(
+        `SELECT * FROM receipts WHERE request_id=? AND client_id=? AND (finished_at IS NULL OR NOT (${RECEIPT_EXPIRED}))`,
+      )
+      .get(requestId, clientId, this.clock() - HOST_LIMITS.receiptTtlMs)
+    return row ? this.decodeReceipt(row) : null
+  }
+  private serializeReceipt(receipt: Receipt): string {
+    if (receipt.status === 'rejected' && receipt.control?.controller) {
+      const { connected: _connected, ...controller } = receipt.control.controller
+      return canonicalJson({ ...receipt, control: { ...receipt.control, controller } })
+    }
+    return canonicalJson(receipt)
+  }
   beginRequest(
     requestId: string,
     clientId: string,
@@ -384,24 +504,25 @@ export class HostStore {
     check(/^[0-9a-f]{64}$/.test(hash))
     if (laneId !== null) uuid(laneId)
     return this.transaction(() => {
+      const now = this.clock()
+      this.prune(now)
       const row = this.db.prepare('SELECT * FROM receipts WHERE request_id=?').get(requestId)
       if (row) {
+        const receipt = this.decodeReceipt(row)
         if (row.client_id !== clientId || row.op_hash !== hash || row.lane_id !== laneId)
           return { kind: 'conflict' }
         return {
           kind: 'existing',
-          receipt:
-            row.status === 'started'
-              ? { requestId, status: 'pending' }
-              : storedReceipt(JSON.parse(str(row, 'receipt_json'))),
+          receipt: receipt ?? { requestId, status: 'unknown' },
         }
       }
-      const now = this.clock()
-      this.prune(now)
-      check(
-        Number(this.db.prepare('SELECT count(*) AS count FROM receipts').get()?.count) <
-          HOST_LIMITS.receiptsKept,
+      if (
+        Number(
+          this.db.prepare("SELECT count(*) AS count FROM receipts WHERE status='started'").get()
+            ?.count,
+        ) >= this.limits.receiptsKept
       )
+        return { kind: 'busy' }
       this.db
         .prepare("INSERT INTO receipts VALUES (?,?,?,?,'started',NULL,?,NULL)")
         .run(requestId, clientId, hash, laneId, now)
@@ -421,7 +542,7 @@ export class HostStore {
         value = withoutData
       }
     }
-    const json = canonicalJson(value)
+    const json = this.serializeReceipt(value)
     check(Buffer.byteLength(json) <= HOST_LIMITS.receiptDataBytes + 8192)
     this.transaction(() => {
       const row = this.db.prepare('SELECT * FROM receipts WHERE request_id=?').get(requestId)
@@ -433,6 +554,7 @@ export class HostStore {
       this.db
         .prepare('UPDATE receipts SET status=?,receipt_json=?,finished_at=? WHERE request_id=?')
         .run(value.status, json, Math.max(this.clock(), num(row, 'started_at')), requestId)
+      this.pruneFinishedCount()
     })
   }
   markInterrupted(): void {
@@ -444,24 +566,18 @@ export class HostStore {
         .run(this.clock())
     })
   }
-  private prune(now: number): void {
-    this.db
-      .prepare("DELETE FROM receipts WHERE status!='started' AND started_at<=?")
-      .run(now - HOST_LIMITS.receiptTtlMs)
+  private pruneFinishedCount(): void {
     this.db
       .prepare(
-        `DELETE FROM receipts WHERE request_id IN (SELECT request_id FROM receipts WHERE status!='started' ORDER BY started_at DESC,request_id DESC LIMIT -1 OFFSET ?)`,
+        `DELETE FROM receipts WHERE request_id IN (SELECT request_id FROM receipts WHERE finished_at IS NOT NULL ORDER BY finished_at DESC,request_id DESC LIMIT -1 OFFSET ?)`,
       )
-      .run(
-        Math.max(
-          0,
-          HOST_LIMITS.receiptsKept -
-            Number(
-              this.db.prepare("SELECT count(*) AS count FROM receipts WHERE status='started'").get()
-                ?.count,
-            ),
-        ),
-      )
+      .run(this.limits.receiptsKept)
+  }
+  private prune(now: number): void {
+    this.db
+      .prepare(`DELETE FROM receipts WHERE ${RECEIPT_EXPIRED}`)
+      .run(now - HOST_LIMITS.receiptTtlMs)
+    this.pruneFinishedCount()
   }
   pruneReceipts(now: number): void {
     integer(now)

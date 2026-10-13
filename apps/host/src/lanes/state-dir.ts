@@ -63,13 +63,14 @@ export function prepareStateDirectory(directory: string, uid: number | undefined
 export function prepareStateFile(directory: string, uid: number | undefined): string {
   const path = join(directory, 'state.sqlite')
   let file: number
+  let created = false
   try {
     file = openSync(
       path,
       constants.O_CREAT | constants.O_EXCL | constants.O_RDWR | constants.O_NOFOLLOW,
       0o600,
     )
-    fchmodSync(file, 0o600)
+    created = true
   } catch (error) {
     if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
     const info = lstatSync(path)
@@ -82,6 +83,7 @@ export function prepareStateFile(directory: string, uid: number | undefined): st
     file = openSync(path, constants.O_RDWR | constants.O_NOFOLLOW | constants.O_NONBLOCK)
   }
   try {
+    if (created) fchmodSync(file, 0o600)
     const info = fstatSync(file)
     if (!info.isFile() || info.uid !== uid || info.mode & 0o077)
       throw new StateFailure(

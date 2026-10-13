@@ -345,9 +345,23 @@ exit 70 and name the folder.
 The SQLite WAL database holds repositories, stable lane ids, control fences and
 controllers, attention and read counters, and request receipts. On start, run
 reconciles pi's session files against the lane index and marks interrupted
-requests as unknown. Receipts are bounded and kept for 24 hours. Uninstall
-keeps State. Transcripts stay in pi's own session files; the database never
-copies their messages.
+requests as unknown. Unavailable configured repositories become inactive, with
+one count-only log line; they do not stop heartbeats. Their ids stay stable when
+the folders return. Run scans active repository roots, up to 256 direct worktree
+folders per repository, and live lanes' folders. Worktree links and folders
+outside the repository are skipped. Removed lanes are kept for 30 days, with at
+most 1000 removed rows after reconciliation. A returning session file keeps its
+lane id until that row is pruned.
+
+Finished receipts are kept for 24 hours from completion, with at most 10000
+finished rows. After that lifetime a finished request id can be admitted as new.
+Unfinished requests survive pruning; at 10000 unfinished rows the store refuses
+new requests as busy. Receipt reads never reveal another client's request. A
+rejected receipt keeps its historic controller and fence, but computes that
+controller's connection state at read time. While a corrupt receipt is retained,
+it is logged only by count and treated as unknown, never admitted again.
+Uninstall keeps State. Transcripts stay in
+pi's own session files; the database never copies their messages.
 
 ## Running as a service
 
@@ -373,7 +387,9 @@ SIGTERM or SIGINT sends one stopping beat, waits at most 5 seconds, and exits 0
 whether or not that beat succeeds. A second signal cuts the beat short and exits
 with its own code, 130 for SIGINT. Either way it first releases its run lock,
 waiting at most 3 seconds: exiting inside that release once left
-`identity/.run-lock-recovery` behind, and every later run refused to start.
+`identity/.run-lock-recovery` behind, and every later run refused to start. A
+signal during start-up stops reconciliation, closes the store and releases the
+run lock before exiting, without sending a heartbeat.
 
 On Linux, `phosphor service install` requires an enrolled identity and writes
 `${XDG_CONFIG_HOME:-~/.config}/systemd/user/phosphor-host.service` atomically with
