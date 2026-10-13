@@ -2,9 +2,8 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { AccountView } from '@shared/account'
 import { createMachinesLive } from './live'
 import { liveTimers } from './realtime'
-const signedOut: AccountView = { preview: true, account: { status: 'signed-out' } }
+const signedOut: AccountView = { account: { status: 'signed-out' } }
 const signedIn: AccountView = {
-  preview: true,
   account: {
     status: 'signed-in',
     user: { login: 'test', name: null, email: null },
@@ -46,22 +45,19 @@ function harness(initial = signedOut) {
 }
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
-it.each([signedOut, { ...signedIn, preview: false }])(
-  'is inert at disabled startup and starts on sign-in',
-  (initial) => {
-    const h = harness(initial)
-    expect(h.realtime).not.toHaveBeenCalled()
-    expect(vi.getTimerCount()).toBe(0)
-    h.apply(signedIn)
-    expect(h.realtime).toHaveBeenCalledOnce()
-    h.apply(signedIn)
-    expect(h.realtime).toHaveBeenCalledOnce()
-    h.apply(signedOut)
-    expect(h.close).toHaveBeenCalledOnce()
-    expect(vi.getTimerCount()).toBe(0)
-    h.stop()
-  },
-)
+it.each([signedOut])('is inert at disabled startup and starts on sign-in', (initial) => {
+  const h = harness(initial)
+  expect(h.realtime).not.toHaveBeenCalled()
+  expect(vi.getTimerCount()).toBe(0)
+  h.apply(signedIn)
+  expect(h.realtime).toHaveBeenCalledOnce()
+  h.apply(signedIn)
+  expect(h.realtime).toHaveBeenCalledOnce()
+  h.apply(signedOut)
+  expect(h.close).toHaveBeenCalledOnce()
+  expect(vi.getTimerCount()).toBe(0)
+  h.stop()
+})
 it('coalesces a burst and cancels pending signals on sign-out', async () => {
   const h = harness(signedIn)
   h.change()

@@ -3,18 +3,25 @@ import {
   normalizeLabel,
   normalizeUserCode,
   type EnrollmentLookupResponse,
+  type MachineView,
 } from '@shared/control-api'
 import { ModalOverlay, ModalPanel } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
-import { useMachinesStore } from '@/stores/machines'
+import { machinesAccountGeneration, useMachinesStore } from '@/stores/machines'
 import { controlMessage } from './controlMessages'
+import { HOST_RUN, HOST_SERVICE_INSTALL, formatCode, platformName } from './machinePresentation'
+import { CopyCommand, HostGuide, HostSetup } from './MachineControls'
 
+type Step = 'on-machine' | 'code' | 'confirm' | 'done'
 export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
+  const [step, setStep] = useState<Step>('on-machine')
   const [code, setCode] = useState('')
   const [details, setDetails] = useState<EnrollmentLookupResponse | null>(null)
+  const [added, setAdded] = useState<MachineView | null>(null)
   const [label, setLabel] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const pending = useRef(false)
   const live = useRef(true)
   useEffect(() => {
     live.current = true
@@ -25,66 +32,170 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
   const normalizedCode = normalizeUserCode(code)
   const normalizedLabel = normalizeLabel(label)
   async function submit(): Promise<void> {
-    if (busy || !normalizedCode || (details && !normalizedLabel)) return
+    if (pending.current || !normalizedCode || (step === 'confirm' && !normalizedLabel)) return
+    pending.current = true
+    const generation = machinesAccountGeneration()
     setBusy(true)
     setError(null)
     try {
-      if (!details) {
+      if (step === 'code') {
         const result = await window.phosphor.invoke('control:lookupEnrollment', normalizedCode)
         if (!live.current) return
-        if (result.ok) {
+        if (generation !== machinesAccountGeneration()) {
+          setError(controlMessage('signed-out'))
+          return
+        }
+        if (result.ok && useMachinesStore.getState().remoteEnabled) {
           setDetails(result)
           setLabel(result.hostname)
-        } else setError(controlMessage(result.error.code))
-      } else if (normalizedLabel) {
+          setStep('confirm')
+        } else setError(controlMessage(result.ok ? 'signed-out' : result.error.code))
+      } else if (step === 'confirm' && normalizedLabel) {
         const result = await window.phosphor.invoke(
           'control:approveEnrollment',
           normalizedCode,
           normalizedLabel,
         )
-        if (result.ok) {
+        if (!live.current) return
+        if (generation !== machinesAccountGeneration()) {
+          setError(controlMessage('signed-out'))
+          return
+        }
+        if (result.ok && useMachinesStore.getState().remoteEnabled) {
+          setAdded(result.machine)
+          setStep('done')
           void useMachinesStore.getState().refresh()
-          if (live.current) onClose()
-        } else if (live.current) setError(controlMessage(result.error.code))
+        } else setError(controlMessage(result.ok ? 'signed-out' : result.error.code))
       }
     } catch {
       if (live.current) setError(controlMessage('offline'))
     } finally {
+      pending.current = false
       if (live.current) setBusy(false)
     }
   }
+  const valid = step === 'code' ? !!normalizedCode : !!normalizedLabel
   return (
     <ModalOverlay onClose={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="Add a machine">
+      <div role="dialog" aria-modal="true" aria-label="Add a machine" className="max-w-full">
         <ModalPanel
-          width={480}
+          width={600}
           title="Add a machine"
           footer={
-            <>
-              <Button onClick={onClose}>Cancel</Button>
-              <Button
-                variant="primary"
-                disabled={busy || !normalizedCode || (!!details && !normalizedLabel)}
-                onClick={() => void submit()}
-              >
-                {busy ? 'Working…' : details ? 'Approve' : 'Look up code'}
-              </Button>
-            </>
+            step === 'done' ? (
+              <>
+                <Button onClick={onClose}>Close</Button>
+                <Button
+                  variant="primary"
+                  onClick={() => {
+                    if (added) useMachinesStore.getState().show({ kind: 'machine', id: added.id })
+                    onClose()
+                  }}
+                >
+                  View machine
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  disabled={busy}
+                  onClick={() => {
+                    if (step === 'on-machine') onClose()
+                    else {
+                      setStep(step === 'confirm' ? 'code' : 'on-machine')
+                      setError(null)
+                    }
+                  }}
+                >
+                  {step === 'on-machine' ? 'Cancel' : 'Back'}
+                </Button>
+                <Button
+                  variant="primary"
+                  disabled={busy || (step !== 'on-machine' && !valid)}
+                  onClick={() => {
+                    if (step === 'on-machine') setStep('code')
+                    else void submit()
+                  }}
+                >
+                  {busy
+                    ? 'Working…'
+                    : step === 'on-machine'
+                      ? 'I have a code'
+                      : step === 'code'
+                        ? 'Look up code'
+                        : 'Approve machine'}
+                </Button>
+              </>
+            )
           }
         >
-          <div className="space-y-3 p-4 text-base">
-            {details ? (
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              void submit()
+            }}
+            className="max-h-[65vh] space-y-4 overflow-y-auto px-6 py-5 text-base"
+          >
+            <p className="text-text-tertiary font-mono text-xs uppercase tracking-wider">
+              {step === 'on-machine'
+                ? '1 · On the machine'
+                : step === 'code'
+                  ? '2 · Enter the code'
+                  : step === 'confirm'
+                    ? '3 · Confirm'
+                    : '4 · Done'}
+            </p>
+            {step === 'on-machine' && (
               <>
-                <p>
-                  {details.hostname} · {details.platform}/{details.arch} · Host{' '}
-                  {details.hostVersion}
+                <h2 className="text-xl font-semibold">Prepare the other machine</h2>
+                <p className="text-text-secondary">
+                  Run these commands on the machine you want to add, not on this computer.
                 </p>
-                <p className="break-all font-mono">{details.keyFingerprint}</p>
-                <p>Check that the machine printed the same fingerprint.</p>
+                <HostSetup />
+                <HostGuide />
+              </>
+            )}
+            {step === 'code' && (
+              <>
+                <h2 className="text-xl font-semibold">Enter the code from the Host</h2>
+                <p className="text-text-secondary">
+                  Use the code printed by phosphor login. Codes expire after 10 minutes.
+                </p>
                 <label className="block">
-                  Label
+                  Code
                   <TextInput
-                    className="mt-1 w-full"
+                    autoFocus
+                    className="mt-2 w-full font-mono"
+                    value={code}
+                    maxLength={32}
+                    placeholder="BCDF-GHJK"
+                    onChange={(e) => setCode(formatCode(e.target.value))}
+                  />
+                </label>
+                {code && !normalizedCode && (
+                  <p className="text-text-secondary">Enter the eight letters from the Host.</p>
+                )}
+              </>
+            )}
+            {step === 'confirm' && details && (
+              <>
+                <h2 className="text-xl font-semibold">Is this your machine?</h2>
+                <div className="border-border bg-bg-secondary space-y-1 rounded-lg border p-4">
+                  <p className="text-lg font-medium">{details.hostname}</p>
+                  <p className="text-text-secondary">
+                    {platformName(details.platform)} {details.arch} · Host {details.hostVersion}
+                  </p>
+                </div>
+                <p className="text-text-secondary">
+                  Compare this fingerprint with what phosphor login printed. Only approve a machine
+                  you recognise.
+                </p>
+                <CopyCommand command={details.keyFingerprint} />
+                <label className="block">
+                  Machine label
+                  <TextInput
+                    autoFocus
+                    className="mt-2 w-full"
                     value={label}
                     maxLength={80}
                     onChange={(e) => setLabel(e.target.value)}
@@ -92,46 +203,30 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
                 </label>
                 {label && !normalizedLabel && (
                   <p role="alert" className="text-danger">
-                    {label.trim().length < 1 || label.trim().length > 80
-                      ? 'Use a label with 1 to 80 characters.'
-                      : 'The label has characters that cannot be shown.'}
+                    Use 1 to 80 characters without hidden control characters.
                   </p>
                 )}
-                <Button
-                  size="xs"
-                  disabled={busy}
-                  onClick={() => {
-                    setDetails(null)
-                    setError(null)
-                  }}
-                >
-                  Use another code
-                </Button>
               </>
-            ) : (
+            )}
+            {step === 'done' && added && (
               <>
-                <p>
-                  On the machine, run <code>phosphor login</code>, then enter the code it prints.
+                <h2 className="text-xl font-semibold">{added.label} added</h2>
+                <p className="text-text-secondary">
+                  Start the Host on {added.label} to bring it online.
                 </p>
-                <label className="block">
-                  Code
-                  <TextInput
-                    autoFocus
-                    className="mt-1 w-full font-mono"
-                    value={code}
-                    maxLength={32}
-                    placeholder="BCDF-GHJK"
-                    onChange={(e) => setCode(e.target.value)}
-                  />
-                </label>
+                <CopyCommand command={HOST_RUN} />
+                <p className="text-text-secondary">
+                  On Linux, keep it online after logout and reboot:
+                </p>
+                <CopyCommand command={HOST_SERVICE_INSTALL} />
               </>
             )}
             {error && (
-              <p role="alert" className="text-danger">
+              <p role="alert" className="text-danger bg-danger-soft rounded-md p-3">
                 {error}
               </p>
             )}
-          </div>
+          </form>
         </ModalPanel>
       </div>
     </ModalOverlay>

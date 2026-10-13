@@ -1,0 +1,128 @@
+import { useEffect, useRef, useState } from 'react'
+import { normalizeLabel, type MachineView } from '@shared/control-api'
+import { Button, TextInput } from '@/components/form'
+import { machinesAccountGeneration } from '@/stores/machines'
+import { controlMessage } from './controlMessages'
+
+/** The saved label stays visible on failure; never rename from a stale account reply. */
+export function MachineLabel({
+  machine,
+  onSaved,
+}: {
+  machine: MachineView
+  onSaved: (machine: MachineView) => void
+}): React.JSX.Element {
+  const [editing, setEditing] = useState(false)
+  const [label, setLabel] = useState(machine.label)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const active = useRef(false)
+  const pending = useRef(false)
+  const live = useRef(true)
+  const trigger = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    live.current = true
+    return () => {
+      live.current = false
+    }
+  }, [])
+  const finish = (): void => {
+    active.current = false
+    setEditing(false)
+    setLabel(machine.label)
+    trigger.current?.focus()
+  }
+  async function save(): Promise<void> {
+    if (!active.current || pending.current) return
+    const normalized = normalizeLabel(label)
+    if (!normalized) {
+      setError('Use 1 to 80 characters without hidden control characters.')
+      return
+    }
+    if (normalized === machine.label) {
+      finish()
+      return
+    }
+    pending.current = true
+    setBusy(true)
+    setError(null)
+    const generation = machinesAccountGeneration()
+    try {
+      const result = await window.phosphor.invoke('control:renameMachine', machine.id, normalized)
+      if (!live.current || generation !== machinesAccountGeneration()) return
+      if (result.ok) onSaved(result.machine)
+      else
+        setError(
+          result.error.code === 'not-found'
+            ? 'This machine was already removed.'
+            : controlMessage(result.error.code),
+        )
+    } catch {
+      if (live.current && generation === machinesAccountGeneration())
+        setError(controlMessage('offline'))
+    } finally {
+      pending.current = false
+      if (live.current) {
+        finish()
+        setBusy(false)
+      }
+    }
+  }
+  return (
+    <div>
+      <div className="flex items-center gap-3">
+        {editing ? (
+          <TextInput
+            autoFocus
+            aria-label="Machine label"
+            aria-invalid={!!error}
+            value={label}
+            maxLength={80}
+            disabled={busy}
+            onChange={(event) => setLabel(event.target.value)}
+            onBlur={() => void save()}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                void save()
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault()
+                event.stopPropagation()
+                finish()
+                setError(null)
+              }
+            }}
+          />
+        ) : (
+          <h1 className="text-3xl font-semibold">{machine.label}</h1>
+        )}
+        {busy ? (
+          <span role="status" className="text-text-secondary text-base">
+            Saving…
+          </span>
+        ) : (
+          !editing && (
+            <Button
+              ref={trigger}
+              size="xs"
+              onClick={() => {
+                active.current = true
+                setLabel(machine.label)
+                setError(null)
+                setEditing(true)
+              }}
+            >
+              Rename
+            </Button>
+          )
+        )}
+      </div>
+      {error && (
+        <p role="alert" className="text-danger mt-2 text-base">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}

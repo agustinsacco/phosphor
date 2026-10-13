@@ -1,152 +1,198 @@
 // @vitest-environment jsdom
 import { act } from 'react'
-import { createRoot } from 'react-dom/client'
+import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { attachMachinesListener, useMachinesStore, type MachineTab } from '@/stores/machines'
+import type { AccountView } from '@shared/account'
 import { MachinesPage } from './MachinesPage'
-import { MachineFilterBar } from './MachineSidebar'
-import { RunOnPicker } from './RunOnPicker'
+import { useMachinesStore } from '@/stores/machines'
+import { MACHINE, LOOKUP } from './__fixtures__/control'
 
-// This computer's Logins tab is Settings → Accounts itself, which has its own tests.
-vi.mock('@/features/settings/tabs/AccountsTab', () => ({
-  AccountsTab: () => <h2>Accounts</h2>,
-}))
-
-const ANSWERS: Record<string, unknown> = {
-  'account:get': { preview: false, account: { status: 'signed-out' } },
-  'pi:health': { ok: true, version: '0.87.1', minVersion: '0.87.0' },
-  'pi:subscriptionAuth': [
-    { id: 'openai-codex', name: 'ChatGPT (Codex)', status: 'ready' },
-    { id: 'xai', name: 'xAI', status: 'not_ready' },
-  ],
-  'packages:claudeStatus': {
-    binary: { found: true, version: '2.1.283' },
-    auth: { ok: true, loggedIn: true },
-  },
-  'packages:list': [{ name: '@saccolabs/pi-claude-cli', version: '0.10.0' }],
-}
-
-const container = document.createElement('div')
-const root = createRoot(container)
-
-beforeEach(() => {
-  vi.stubGlobal('phosphor', {
-    platform: 'darwin',
-    onAccountChanged: () => () => undefined,
-    invoke: vi.fn((channel: string) => Promise.resolve(ANSWERS[channel])),
-  })
-  useMachinesStore.getState().applyPreview(true)
+let root: Root
+let container: HTMLDivElement
+let account: AccountView
+const invoke = vi.fn(async (channel: string): Promise<unknown> => {
+  if (channel === 'account:get') return account
+  if (channel === 'control:machines')
+    return { ok: true, machines: [MACHINE], serverTime: new Date().toISOString() }
+  if (channel === 'control:lookupEnrollment') return { ok: true, ...LOOKUP }
+  if (channel === 'control:approveEnrollment' || channel === 'control:renameMachine')
+    return { ok: true, machine: MACHINE }
+  if (channel === 'control:removeMachine') return { ok: true }
+  if (channel === 'pi:subscriptionAuth') return []
+  return null
 })
-
+beforeEach(() => {
+  invoke.mockClear()
+  account = {
+    account: {
+      status: 'signed-in',
+      user: { login: 'octo', name: null, email: null },
+      remembered: false,
+    },
+  }
+  vi.stubGlobal('phosphor', { invoke, platform: 'darwin', onAccountChanged: () => () => undefined })
+  vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn(async () => undefined) } })
+  useMachinesStore.setState({
+    remoteEnabled: true,
+    machines: [MACHINE],
+    nowMs: Date.now(),
+    view: { kind: 'list' },
+    loading: false,
+    error: null,
+  })
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+})
 afterEach(() => {
-  act(() => root.render(null))
-  useMachinesStore.getState().applyPreview(false)
+  act(() => root.unmount())
+  container.remove()
+  useMachinesStore.getState().enableRemote(false)
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
-
-async function render(node: React.ReactNode): Promise<string> {
-  await act(async () => root.render(node))
-  return container.textContent ?? ''
+const render = async (): Promise<void> => {
+  await act(async () => root.render(<MachinesPage />))
 }
-
-it('lists this computer from real data beside the made-up machines', async () => {
-  const text = await render(<MachinesPage />)
-  expect(text).toContain('bee1 and bee2 are not real')
-  expect(text).toContain('Sample machines. Sign in under Settings')
-  expect(window.phosphor.invoke).not.toHaveBeenCalledWith('control:machines')
-  const rows = [...container.querySelectorAll('[data-testid="machine-row"]')]
-  expect(rows.map((row) => row.getAttribute('data-machine'))).toEqual(['local', 'bee1', 'bee2'])
-  expect(rows[0]?.textContent).toContain('pi 0.87.1')
-  expect(rows[0]?.textContent).toContain('ChatGPT (Codex) ✓')
-  expect(rows[0]?.textContent).toContain('Claude Code ✓')
-  expect(rows[0]?.textContent).not.toContain('xAI')
-  expect(rows[2]?.textContent).toContain('down 3 h')
-})
-
-it.each(['bee1', 'bee2', 'local'])('renders every tab of %s', async (id) => {
-  for (const tab of ['overview', 'lanes', 'dependencies', 'logins'] as MachineTab[]) {
-    act(() => useMachinesStore.getState().show({ kind: 'machine', id, tab }))
-    const text = await render(<MachinesPage />)
-    const selected = container.querySelector('[role="tab"][aria-selected="true"]')
-    expect(selected?.textContent?.toLowerCase()).toBe(tab)
-    // Every tab keeps saying whether the machine is up.
-    if (id === 'bee2') expect(text).toContain('down 3 h')
-    if (id === 'bee1') expect(text).toContain('up · seen 12 s ago')
-    if (tab === 'lanes' && id === 'bee1') {
-      expect(container.querySelectorAll('[data-testid="remote-lane-row"]')).toHaveLength(3)
-    }
-    if (tab === 'logins') {
-      expect(text).toContain(id === 'local' ? 'Accounts' : 'The credential stays on the Host')
-    }
-    if (tab === 'dependencies' && id === 'local') {
-      expect(text).toContain('0.10.0')
-      expect(text).toContain('2.1.283')
-    }
-  }
-})
-
-it("keeps a made-up machine's actions disabled", async () => {
-  act(() => useMachinesStore.getState().show({ kind: 'machine', id: 'bee1', tab: 'dependencies' }))
-  await render(<MachinesPage />)
-  const actions = [...container.querySelectorAll('button')].filter((button) =>
-    /^(Upgrade|Update) to/.test(button.textContent ?? ''),
+const click = async (text: string): Promise<void> => {
+  const button = Array.from(document.querySelectorAll('button')).find(
+    (entry) => entry.textContent === text,
   )
-  expect(actions.length).toBeGreaterThan(0)
-  expect(actions.every((button) => button.disabled)).toBe(true)
-})
-
-it('shows a lane on a down machine as what it last reported, with no finish', async () => {
-  // Still running when bee2 went quiet: only the machine being down stops the finish.
-  useMachinesStore.setState((s) => ({
-    lanes: s.lanes.map((lane) => (lane.id === 'bee2-e2e' ? { ...lane, state: 'running' } : lane)),
-  }))
-  act(() => useMachinesStore.getState().show({ kind: 'lane', id: 'bee2-e2e' }))
-  const text = await render(<MachinesPage />)
-  expect(text).toContain('bee2 is down')
-  const finish = [...container.querySelectorAll('button')].find(
-    (button) => button.textContent === 'Pretend it finished',
+  expect(button, text).toBeDefined()
+  await act(async () => button?.click())
+}
+const input = async (label: string, value: string): Promise<void> => {
+  const element = Array.from(document.querySelectorAll('input')).find(
+    (entry) =>
+      entry.closest('label')?.textContent?.includes(label) ||
+      entry.getAttribute('aria-label') === label,
   )
-  expect(finish?.disabled).toBe(true)
-})
-
-it('filters the sidebar by machine', async () => {
-  await render(<MachineFilterBar />)
-  const options = [...container.querySelectorAll('button')]
-  expect(options.map((button) => button.textContent)).toEqual(['All', 'This Mac', 'bee1', 'bee2'])
-  await act(async () => options[2]?.click())
-  expect(useMachinesStore.getState().filter).toBe('bee1')
-  expect(options[2]?.getAttribute('aria-pressed')).toBe('true')
-})
-
-it('offers only this computer to run a new lane on', async () => {
-  await render(<RunOnPicker />)
+  expect(element).toBeDefined()
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(element, value)
+    element?.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+it('lists this computer first and only enrolled machines, then opens stable detail', async () => {
+  await render()
+  expect(document.querySelector('[data-testid=local-machine-row]')).not.toBeNull()
+  expect(document.querySelectorAll('[data-testid=enrolled-machine-row]')).toHaveLength(1)
+  expect(container.textContent).toContain('Waiting for first connection')
   await act(async () =>
-    container.querySelector<HTMLButtonElement>('[data-testid="run-on"]')?.click(),
+    document.querySelector<HTMLButtonElement>('[data-testid=enrolled-machine-row]')?.click(),
   )
-  const rows = [...container.querySelectorAll('[role="menu"] button, button')].filter((button) =>
-    /^(This Mac|bee1|bee2)/.test(button.textContent ?? ''),
-  )
-  expect(
-    rows.map((row) => [row.textContent?.slice(0, 7), (row as HTMLButtonElement).disabled]),
-  ).toEqual([
-    ['This Ma', false],
-    ['bee1pre', true],
-    ['bee2dow', true],
-  ])
+  expect(container.textContent).toContain('Finish setting up bee1')
+  expect(container.textContent).toContain('phosphor service install')
+  await act(async () => useMachinesStore.setState({ nowMs: Date.now() + 5000 }))
+  expect(document.querySelector('[data-testid=machine-detail]')).not.toBeNull()
 })
-
-it('renders the Machines page against the browser mock harness', async () => {
-  const { installMockPhosphor } = await import('@/dev/mockPhosphor')
-  installMockPhosphor()
-  const off = attachMachinesListener()
-  try {
-    const text = await render(<MachinesPage />)
-    expect(text).toContain('Sample machines.')
-    expect(container.querySelectorAll('[data-testid="machine-row"]')).toHaveLength(3)
-    expect(useMachinesStore.getState().remoteEnabled).toBe(false)
-    const unsubscribe = window.phosphor.onMachinesChanged(() => undefined)
-    unsubscribe()
-  } finally {
-    off()
+it('shows only local status and optional sign-in when signed out', async () => {
+  account = { account: { status: 'signed-out' } }
+  await render()
+  expect(document.querySelectorAll('[data-testid=enrolled-machine-row]')).toHaveLength(0)
+  expect(container.textContent).toContain('Sign in with GitHub to add other machines')
+  expect(
+    Array.from(document.querySelectorAll('button')).find(
+      (entry) => entry.textContent === 'Add a machine',
+    )?.disabled,
+  ).toBe(true)
+  await act(async () =>
+    document.querySelector<HTMLButtonElement>('[data-testid=local-machine-row]')?.click(),
+  )
+  expect(container.textContent).toContain('Provider sign-ins')
+})
+it('shows empty guidance, list loading and offline errors explicitly', async () => {
+  useMachinesStore.setState({ machines: [] })
+  await render()
+  expect(container.textContent).toContain('Bring another machine online')
+  expect(container.textContent).toContain('phosphor setup --repository')
+  await act(async () => useMachinesStore.setState({ loading: true, error: 'offline' }))
+  expect(container.textContent).toContain('Updating machines')
+  expect(document.querySelector('[role=alert]')?.textContent).toContain('Cannot reach')
+})
+it('walks all four enrollment steps, formats code, submits Enter, and shows done', async () => {
+  await render()
+  await click('Add a machine')
+  expect(document.querySelector('[role=dialog]')?.textContent).toContain('On the machine')
+  await click('I have a code')
+  await input('Code', 'bcdfghjk')
+  expect(document.querySelector('input')?.value).toBe('BCDF-GHJK')
+  await act(async () =>
+    document
+      .querySelector('form')
+      ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })),
+  )
+  expect(invoke).toHaveBeenCalledWith('control:lookupEnrollment', 'BCDFGHJK')
+  expect(document.querySelector('[role=dialog]')?.textContent).toContain(LOOKUP.keyFingerprint)
+  await input('Machine label', 'bee1')
+  await click('Approve machine')
+  expect(document.querySelector('[role=dialog]')?.textContent).toContain('bee1 added')
+  await click('View machine')
+  expect(useMachinesStore.getState().view).toEqual({ kind: 'machine', id: MACHINE.id })
+})
+it.each(['not-found', 'too-many-requests', 'offline', 'signed-out'])(
+  'shows code failure %s without advancing',
+  async (code) => {
+    await render()
+    await click('Add a machine')
+    await click('I have a code')
+    await input('Code', 'BCDFGHJK')
+    invoke.mockResolvedValueOnce({ ok: false, error: { code } })
+    await click('Look up code')
+    expect(document.querySelector('[role=dialog] [role=alert]')).not.toBeNull()
+    expect(document.querySelector('input')?.value).toBe('BCDF-GHJK')
+  },
+)
+it('confirms removal before invoking main, and Cancel is inert', async () => {
+  useMachinesStore.setState({ view: { kind: 'machine', id: MACHINE.id } })
+  await render()
+  await click('Remove machine')
+  expect(document.querySelector('[role=dialog]')?.textContent).toContain('next heartbeat')
+  expect(invoke).not.toHaveBeenCalledWith('control:removeMachine', MACHINE.id)
+  await click('Cancel')
+  expect(document.querySelector('[role=dialog]')).toBeNull()
+  await click('Remove machine')
+  await act(async () =>
+    Array.from(document.querySelectorAll<HTMLButtonElement>('[role=dialog] button'))
+      .find((entry) => entry.textContent === 'Remove machine')
+      ?.click(),
+  )
+  expect(invoke).toHaveBeenCalledWith('control:removeMachine', MACHINE.id)
+})
+it('shows readiness on a row only while it is current, and names this Mac once', async () => {
+  const at = Date.now()
+  const online = {
+    ...MACHINE,
+    id: '22222222-2222-4222-8222-222222222222',
+    label: 'online',
+    hostname: 'host-online',
+    lastSeenAt: new Date(at).toISOString(),
+    state: 'running' as const,
   }
+  const offline = {
+    ...online,
+    id: '33333333-3333-4333-8333-333333333333',
+    label: 'offline',
+    hostname: 'host-offline',
+    lastSeenAt: new Date(at - 3 * 3600_000).toISOString(),
+  }
+  useMachinesStore.setState({ machines: [MACHINE, online, offline], nowMs: at, clockOffsetMs: 0 })
+  await render()
+  const local = document.querySelector('[data-testid=local-machine-row]')?.textContent ?? ''
+  expect(local).toContain('This Mac')
+  expect(local).not.toContain('This computer')
+  const rows = Array.from(document.querySelectorAll('[data-testid=enrolled-machine-row]'))
+  const text = (label: string): string =>
+    rows.find((row) => row.textContent?.includes(label))?.textContent ?? ''
+  expect(text('online')).toContain('Claude signed out')
+  expect(text('bee1')).toContain('Finish setup')
+  expect(text('bee1')).not.toContain('Claude signed out')
+  expect(text('offline')).toContain('Offline · last seen 3 h ago')
+  expect(text('offline')).not.toContain('Claude signed out')
+  expect(text('offline')).not.toContain('Ready')
+  await act(async () => useMachinesStore.getState().show({ kind: 'machine', id: offline.id }))
+  expect(container.textContent).toContain('As last reported, 3 h ago')
+  await act(async () => useMachinesStore.getState().show({ kind: 'machine', id: MACHINE.id }))
+  expect(container.textContent).toContain('reports pi, Claude and Tailscale once it first connects')
+  expect(container.textContent).not.toContain('Sign in to Claude on this machine')
 })

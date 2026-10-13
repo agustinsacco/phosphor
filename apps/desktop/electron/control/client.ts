@@ -4,6 +4,7 @@ import {
   DEFAULT_CONTROL_URL,
   isUuid,
   machineRoute,
+  parseMachineRenameRequest,
   parseControlError,
   parseEnrollmentApproveRequest,
   parseEnrollmentApproveResponse,
@@ -175,6 +176,12 @@ export function createControlClient(ports: {
             parseEnrollmentApproveResponse,
             parsed.value,
           )
+        : Promise.resolve(controlFailure('bad-request'))
+    },
+    renameMachine(id: unknown, label: unknown) {
+      const parsed = parseMachineRenameRequest({ label })
+      return isUuid(id) && parsed.ok
+        ? call(machineRoute(id), 'PATCH', parseEnrollmentApproveResponse, parsed.value)
         : Promise.resolve(controlFailure('bad-request'))
     },
     removeMachine(id: unknown) {

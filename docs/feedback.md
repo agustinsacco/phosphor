@@ -54,8 +54,8 @@ exists so that the token lives on a server the maintainer controls.
 
 ## The nudge is one sentence, once
 
-`apps/desktop/src/features/feedback/FeedbackButton.tsx` sits in the sidebar footer above
-Settings. It is a quiet `Send feedback` row at all times — findable, never in
+`apps/desktop/src/features/feedback/FeedbackButton.tsx` sits in the Settings footer, pinned below
+the tab list on wide layouts and below the tab strip on narrow layouts. It is a quiet `Send feedback` row at all times — findable, never in
 the way.
 
 After **5 app launches** and **3 days** since the first one, and only then, it
@@ -87,5 +87,5 @@ hand, so a browser-filed issue and an app-filed one read the same way.
 | `libs/shared/src/feedback.ts`                        | Types, the issue builder, the URL builder, the rules      |
 | `apps/desktop/electron/feedback/feedback-service.ts` | Relay POST, browser fallback, launch counting             |
 | `apps/desktop/electron/ipc/feedback-handlers.ts`     | `feedback:state` / `feedback:submit` / `feedback:dismiss` |
-| `apps/desktop/src/features/feedback/`                | The store, the modal, the sidebar button                  |
+| `apps/desktop/src/features/feedback/`                | The store, the modal, the Settings footer button          |
 | `.github/ISSUE_TEMPLATE/feedback.yml`                | The hand-filed version of the same form                   |

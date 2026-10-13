@@ -257,3 +257,13 @@ it('preserves readable encrypted storage when plain-file cleanup fails', () => {
   expect(readdirSync(dir)).toContain('session.bin')
   expect(vault.savedMode()).toBe('file')
 })
+
+it('does not touch the keychain when the remembered credential file is absent', () => {
+  const { cipher } = fakeCipher()
+  const storage = vi.spyOn(cipher, 'storage')
+  const decrypt = vi.spyOn(cipher, 'decrypt')
+  const vault = createVault(dir, cipher)
+  expect(() => vault.readToken(USER.id)).toThrow('the saved sign-in is missing')
+  expect(storage).not.toHaveBeenCalled()
+  expect(decrypt).not.toHaveBeenCalled()
+})

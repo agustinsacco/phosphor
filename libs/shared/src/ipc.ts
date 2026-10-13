@@ -298,8 +298,6 @@ export interface IpcInvokeMap {
   /** Reveal the debug log in the OS file manager. No-op when there is no log. */
   'app:revealDebugLog': { args: []; result: void }
   'app:setCollapsedWorkspaces': { args: [paths: string[]]; result: void }
-  /** Settings → Advanced → Machines (preview); see AppPrefs.machinesPreview. */
-  'app:setMachinesPreview': { args: [enabled: boolean]; result: void }
   /**
    * Persist "this workspace is now the home target": bumps it in recents and
    * records it as lastWorkspacePath so the next launch lands here even if no
@@ -590,10 +588,13 @@ export interface IpcInvokeMap {
     args: [code: string, label: string]
     result: ControlResult<EnrollmentApproveResponse>
   }
+  'control:renameMachine': {
+    args: [id: string, label: string]
+    result: ControlResult<EnrollmentApproveResponse>
+  }
   'control:removeMachine': { args: [id: string]; result: ControlResult<Record<never, never>> }
   /**
-   * Desktop's optional Phosphor sign-in (Settings → Accounts, behind Settings
-   * → Advanced → Phosphor account (preview)). Main owns the session; these
+   * Desktop's optional Phosphor sign-in in the sidebar footer. Main owns the session; these
    * carry no token and no account id. See `electron/account/`.
    */
   'account:get': { args: []; result: AccountView }
@@ -602,8 +603,6 @@ export interface IpcInvokeMap {
   'account:cancelSignIn': { args: []; result: void }
   /** Signs out here even when Supabase cannot be told. */
   'account:signOut': { args: []; result: AccountView }
-  /** Turning the preview off signs out first. */
-  'account:setPreview': { args: [enabled: boolean]; result: AccountView }
 
   /**
    * Every Claude login Phosphor knows about, in routing order, with each one's

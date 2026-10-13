@@ -149,3 +149,15 @@ describe('createGoTrue', () => {
     await expect(call).rejects.toBe(reason)
   })
 })
+
+it('keeps only an allowlisted GitHub avatar address from user metadata', async () => {
+  const avatar = 'https://avatars.githubusercontent.com/u/1'
+  const session = await createGoTrue(
+    target,
+    fetchReturning(200, {
+      ...answer,
+      user: { ...answer.user, user_metadata: { ...answer.user.user_metadata, avatar_url: avatar } },
+    }),
+  ).refresh('r')
+  expect(session.user.avatarUrl).toBe(avatar)
+})

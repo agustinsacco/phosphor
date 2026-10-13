@@ -1,7 +1,7 @@
 /**
  * Desktop's optional Phosphor sign-in, as the renderer sees it. Main owns
  * the session (`apps/desktop/electron/account/`); this carries no token and
- * no account id, only what the Settings section shows.
+ * no account id, only what the account controls show.
  */
 
 export interface AccountProfileView {
@@ -9,6 +9,8 @@ export interface AccountProfileView {
   readonly login: string | null
   readonly name: string | null
   readonly email: string | null
+  /** Main-fetched GitHub avatar. Never a remote renderer URL. */
+  readonly avatarDataUrl?: string
 }
 
 export type AccountStatusView =
@@ -24,7 +26,5 @@ export type AccountStatusView =
     }
 
 export interface AccountView {
-  /** Settings → Advanced → Phosphor account (preview). Off by default. */
-  readonly preview: boolean
   readonly account: AccountStatusView
 }

@@ -88,6 +88,10 @@ function prefs(): Store<AppPrefs> {
   if (!store) {
     store = new Store<AppPrefs>({ defaults: DEFAULT_APP_PREFS })
     migrateRenamedPrefs(store as unknown as RawPrefs)
+    // Retired switches are ignored and removed, not migrated into account state.
+    const raw = store as unknown as RawPrefs
+    raw.delete('accountPreview')
+    raw.delete('machinesPreview')
   }
   return store
 }
@@ -167,7 +171,6 @@ export function getPrefs(): AppPrefs {
     contextBudget: stringOrEmpty(s.get('contextBudget')),
     contextFiles: normalizeContextFilePrefs(s.get('contextFiles')),
     drafts: s.get('drafts') ?? {},
-    machinesPreview: s.get('machinesPreview') === true,
   }
 }
 
@@ -230,20 +233,6 @@ export function getClaudeAccountPrefs(): ClaudeAccountPrefs {
 
 export function setClaudeAccountPrefs(value: ClaudeAccountPrefs): void {
   prefs().set('claudeAccounts', value)
-}
-
-/** See AppPrefs.accountPreview. */
-export function getAccountPreview(): boolean {
-  return prefs().get('accountPreview') === true
-}
-
-export function setAccountPreview(enabled: boolean): void {
-  prefs().set('accountPreview', enabled)
-}
-
-/** See AppPrefs.machinesPreview. */
-export function setMachinesPreview(enabled: boolean): void {
-  prefs().set('machinesPreview', enabled)
 }
 
 /** See AppPrefs.compactionResetChecked. */

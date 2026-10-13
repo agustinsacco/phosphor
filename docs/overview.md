@@ -13,8 +13,7 @@ with a file explorer, a code/diff viewer, a full terminal and an artifacts pane.
 [Local routines](routines.md) can start fresh sessions on a schedule while the
 computer is awake, including analysis/report tasks. There is no cloud sync.
 
-Optional Phosphor sign-in unlocks machine-directory clients behind the account
-and Machines previews. Host enrollment commands, approval UI and the control
+Optional Phosphor sign-in unlocks the first-class Machines directory. Host enrollment commands, approval UI and the control
 server's routes exist, but the server is not deployed yet. The plain-Node [Host](host.md) checks a machine and runs local
 acceptance sessions; it has no network listener. [Remote access](remote-access.md)
 does not enable remote execution. Directions that are decided or being explored,

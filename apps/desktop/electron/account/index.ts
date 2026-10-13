@@ -4,22 +4,25 @@ import type { AccountView } from '@shared/account'
 import { broadcast } from '../broadcast'
 import { log } from '../debug-log'
 import { externalUrl } from '../external-links'
-import { getAccountPreview, setAccountPreview } from '../store'
 import { createAccount, type Account, type AccountState } from './account'
 import { keychainOff, supabaseTarget } from './config'
 import { createAccountControls } from './controls'
 import { createGoTrue } from './gotrue'
 import { createVault, safeStorageCipher, type Cipher, type Vault } from './vault'
 import { accountView } from './view'
+import { createAvatarCache, fetchAvatar } from './avatar'
 
 /**
  * Electron's half of the account: the real browser, keychain, userData and
- * window broadcast. Built on first use with the preview on, never at startup,
- * so a launch never reads its files and neither does Settings while it is off.
+ * window broadcast. Loads the plain profile at launch without network or keychain access.
  */
 
 let vault: Vault | null = null
 let account: Account | null = null
+let avatar: string | null = null
+let avatarIdentity: string | null = null
+let avatarGeneration = 0
+let avatarCache: ReturnType<typeof createAvatarCache> | null = null
 
 /** The OS keychain, unless an e2e run keeps it out (see keychainOff). */
 function cipher(): Cipher {
@@ -39,8 +42,13 @@ function cipher(): Cipher {
 const storage = (): ReturnType<Vault['storage']> =>
   vault?.storage() ?? { ok: false, reason: 'not checked yet' }
 
-const view = (state: AccountState): AccountView =>
-  accountView(state, getAccountPreview(), storage, () => vault?.savedMode() ?? null)
+const view = (state: AccountState): AccountView => {
+  const next = accountView(state, storage, () => vault?.savedMode() ?? null)
+  if (next.account.status === 'signed-in' && avatar) {
+    return { account: { ...next.account, user: { ...next.account.user, avatarDataUrl: avatar } } }
+  }
+  return next
+}
 
 function current(): Account {
   if (account) return account
@@ -52,6 +60,7 @@ function current(): Account {
     process.platform,
     (message) => log('account', message),
   )
+  avatarCache = createAvatarCache(join(app.getPath('userData'), 'account'))
   const built = createAccount({
     auth,
     vault,
@@ -71,11 +80,7 @@ function current(): Account {
 
 const controls = createAccountControls({
   account: current,
-  isBuilt: () => account !== null,
-  getPreview: getAccountPreview,
-  setPreview: setAccountPreview,
   view,
-  publish: publishView,
 })
 
 const listeners = new Set<(view: AccountView) => void>()
@@ -98,8 +103,6 @@ function publishView(next: AccountView): void {
 
 export const accountSnapshot = (): AccountView => controls.snapshot()
 export const signIn = (): AccountView => controls.signIn()
-/** Turning the preview off signs out first: no session outlives its only control. */
-export const setPreview = (enabled: boolean): Promise<AccountView> => controls.setPreview(enabled)
 
 export function cancelSignIn(): void {
   // Nothing built means nothing in flight.
@@ -126,13 +129,35 @@ export async function settleAccount(): Promise<void> {
 let controlGeneration = 0
 export const accountControlGeneration = (): number => controlGeneration
 function publishAccountChange(state: AccountState): void {
-  if (state.status !== 'signed-in') controlGeneration++
+  if (state.status !== 'signed-in') {
+    controlGeneration++
+    avatarGeneration++
+    avatar = null
+    avatarIdentity = null
+  } else {
+    const identity = `${state.user.id}:${state.user.avatarUrl ?? ''}`
+    if (identity !== avatarIdentity) {
+      avatarIdentity = identity
+      avatar = avatarCache?.read(state.user.id) ?? null
+      const generation = ++avatarGeneration
+      if (state.user.avatarUrl && !avatar)
+        void fetchAvatar(state.user.avatarUrl).then((image) => {
+          if (!image || generation !== avatarGeneration) return
+          avatar = image
+          try {
+            avatarCache?.save(state.user.id, image)
+          } catch {
+            /* Initials remain available. */
+          }
+          publishView(view(account?.state() ?? state))
+        })
+    }
+  }
   publishView(view(state))
 }
 export async function accountAccessToken(): Promise<string | null> {
-  if (!getAccountPreview()) return null
   const account = current()
   if (account.state().status !== 'signed-in') return null
   const token = await account.accessToken()
-  return getAccountPreview() && account.state().status === 'signed-in' ? token : null
+  return account.state().status === 'signed-in' ? token : null
 }

@@ -31,7 +31,7 @@ export function createMachinesLive(deps: {
     }, 60_000)
   }
   function apply(view: AccountView): void {
-    if (!view.preview || view.account.status !== 'signed-in') return stop()
+    if (view.account.status !== 'signed-in') return stop()
     if (client) return
     client = deps.realtime(
       () => {

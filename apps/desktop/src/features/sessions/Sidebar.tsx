@@ -39,7 +39,6 @@ import {
   MachinesIcon,
   ChevronDownIcon,
   ChevronIcon,
-  GearIcon,
   MoreIcon,
   PinIcon,
   PlusIcon,
@@ -50,26 +49,10 @@ import { PhosphorLoader } from '@/components/PhosphorLoader'
 import { TreeViewModal } from './TreeViewModal'
 import { LaneSearchBar } from './LaneSearchBar'
 import { laneHaystack, laneMatches, laneQueryTerms, type LaneSearchFields } from './laneSearch'
-import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { UpdatePill } from '@/features/updates/UpdatePill'
-import { FeedbackButton } from '@/features/feedback/FeedbackButton'
-import { formatShortcut } from '@/lib/shortcuts'
+import { AccountFooter } from '@/features/account/AccountFooter'
 import { useLayoutStore } from '@/stores/layout'
 import { useMachinesStore } from '@/stores/machines'
-import {
-  MachineChip,
-  MachineFilterBar,
-  RemoteLaneRow,
-  RemoteProjectGroup,
-} from '@/features/machines/MachineSidebar'
-import {
-  lanesForProject,
-  lanesOnFilter,
-  localMachineName,
-  remoteLaneFields,
-  remoteOnlyProjects,
-  showsLocal,
-} from '@/features/machines/fakeMachines'
 import { projectName, isWorktreeFolder } from '@/lib/path'
 import {
   groupSessionsByProject,
@@ -121,14 +104,7 @@ export function Sidebar({
   const openingPath = useSessionsStore((s) => s.opening?.path)
   const bulkDeleteRunning = useSessionsStore((s) => s.bulkDelete?.running ?? false)
   const activePage = useLayoutStore((s) => s.page)
-  // The Machines preview (stores/machines.ts): off, none of this renders and
-  // the sidebar is what it always was.
-  const machinesPreview = useMachinesStore((s) => s.preview)
-  const machineFilter = useMachinesStore((s) => s.filter)
-  const fakeLanes = useMachinesStore((s) => s.lanes)
-  const remoteLanes = machinesPreview ? lanesOnFilter(fakeLanes, machineFilter) : []
-  const localShown = !machinesPreview || showsLocal(machineFilter)
-  const localChip = machinesPreview ? localMachineName(window.phosphor.platform).short : undefined
+
   const recents = useWorkspacesStore((s) => s.recents)
   const workspacesHydrated = useWorkspacesStore((s) => s.hydrated)
   const [initialSidebarReady, setInitialSidebarReady] = useState(false)
@@ -166,14 +142,7 @@ export function Sidebar({
   const [searchApplied, setSearchApplied] = useState<Record<string, string>>({})
   /** Anchor for shift-click ranges. */
   const rangeAnchor = useRef<string | null>(null)
-  // A selection is only ever of rows on screen: filtering this computer's
-  // lanes away (Machines preview) must not leave hidden lanes selected for
-  // the bulk bar to delete.
-  useEffect(() => {
-    if (localShown) return
-    setSelection(null)
-    rangeAnchor.current = null
-  }, [localShown])
+
   const [width, setWidth] = useState(loadSidebarWidth)
   const [resizing, setResizing] = useState(false)
   /**
@@ -843,7 +812,6 @@ export function Sidebar({
         ((unread[livePhosphorId ?? ''] ?? 0) > 0 ||
           isUnseen(seenSessions, meta.path, meta.lastActivityAt)),
       git: gitByCwd[meta.cwd || workspacePath],
-      machine: localChip,
       onOpenTree: () => setTreeFor(meta),
       onDelete: (title: string) => deleteRow(meta, title),
     }
@@ -888,7 +856,7 @@ export function Sidebar({
           onClick={() => useLayoutStore.getState().togglePage('routines')}
           icon={<ClockIcon />}
         />
-        {machinesPreview && (
+        {
           <NavRow
             label="Machines"
             active={activePage === 'machines'}
@@ -898,12 +866,11 @@ export function Sidebar({
             }}
             icon={<MachinesIcon />}
           />
-        )}
+        }
       </nav>
 
       <div data-session-scroll className="flex-1 overflow-y-auto px-2 pb-2">
-        {machinesPreview && <MachineFilterBar />}
-        {!sidebarLoading && localShown && pinnedMetas.length > 0 && (
+        {!sidebarLoading && pinnedMetas.length > 0 && (
           <>
             <SectionLabel>Pinned</SectionLabel>
             <SessionList
@@ -930,21 +897,13 @@ export function Sidebar({
             const terms = laneQueryTerms(query)
             // Filter the metas rather than hide rows: selection, shift-ranges
             // and the empty state then all read the same list the eye does.
-            // Filtered to another machine (Machines preview), this computer's
-            // lanes are not on screen, so nothing below may act on them.
-            const local = localShown ? group.metas : []
+            const local = group.metas
             const visible = terms.length
               ? local.filter((meta) => laneMatches(laneHaystack(laneFields(meta)), terms))
               : local
             const selectingThis = selection?.repoPath === group.workspacePath
-            const remote = lanesForProject(remoteLanes, group.name)
-            // Filtered to another machine: only projects with lanes there.
-            if (!localShown && remote.length === 0) return null
-            const remoteVisible = terms.length
-              ? remote.filter((lane) => laneMatches(laneHaystack(remoteLaneFields(lane)), terms))
-              : remote
-            const shownTotal = local.length + remote.length
-            const shownCount = visible.length + remoteVisible.length
+            const shownTotal = local.length
+            const shownCount = visible.length
             return (
               <div key={group.workspacePath}>
                 <div
@@ -1151,7 +1110,7 @@ export function Sidebar({
                 {/* Placeholder rows carry no name, branch or PR yet, so a
                     filter can only ever be wrong about them. While one is on,
                     they stand aside. */}
-                {!isCollapsed && localShown && (
+                {!isCollapsed && (
                   <SessionList
                     disabled={Boolean(query) || selectingThis || bulkDeleteRunning}
                     items={[
@@ -1173,7 +1132,6 @@ export function Sidebar({
                               })
                             }
                             git={gitByCwd[live[phosphorId]?.workspacePath ?? '']}
-                            machine={localChip}
                           />
                         ),
                       })),
@@ -1197,8 +1155,6 @@ export function Sidebar({
                     ]}
                   />
                 )}
-                {!isCollapsed &&
-                  remoteVisible.map((lane) => <RemoteLaneRow key={lane.id} lane={lane} />)}
                 {!isCollapsed && shownTotal > 0 && shownCount === 0 && (
                   <div
                     data-testid="lane-search-empty"
@@ -1220,8 +1176,6 @@ export function Sidebar({
                   </div>
                 )}
                 {!isCollapsed &&
-                  localShown &&
-                  remote.length === 0 &&
                   group.metas.length === 0 &&
                   !pendingByWorkspace.has(group.workspacePath) &&
                   (group.attempted && group.errored ? (
@@ -1244,23 +1198,11 @@ export function Sidebar({
               </div>
             )
           })}
-        {!sidebarLoading &&
-          remoteOnlyProjects(
-            remoteLanes,
-            groups.map((group) => group.name),
-          ).map((project) => <RemoteProjectGroup key={project.name} {...project} />)}
       </div>
 
       <div className="border-border border-t px-3 py-2">
         <UpdatePill />
-        <FeedbackButton />
-        <TooltipButton
-          onClick={() => useSettingsUiStore.getState().setOpen(true)}
-          className="text-text-secondary hover:text-text hover:bg-sidebar-hover -mx-1 flex w-[calc(100%+8px)] items-center gap-2 rounded-md px-1.5 py-1 text-base transition-colors"
-          title={`Settings (${formatShortcut('mod', ',')})`}
-        >
-          <GearIcon /> Settings
-        </TooltipButton>
+        <AccountFooter />
       </div>
 
       {treeFor && (
@@ -1452,7 +1394,6 @@ function SessionRow({
   git,
   isPinned,
   showWorkspace = false,
-  machine,
   onOpenTree,
   onDelete,
   selected = false,
@@ -1474,8 +1415,6 @@ function SessionRow({
    * where the group header cannot tell you which app a thread belongs to.
    */
   showWorkspace?: boolean
-  /** Where this lane runs, while the Machines preview is on. */
-  machine?: string
   onOpenTree: () => void
   /** This row is in the current selection. */
   selected?: boolean
@@ -1787,7 +1726,6 @@ function SessionRow({
           {rowWorkspaceName}
         </span>
       )}
-      {machine && <MachineChip label={machine} />}
       {isPinned && <PinIcon className="text-text-tertiary shrink-0" />}
     </>
   )
@@ -1925,14 +1863,11 @@ function PendingSessionRow({
   phosphorId,
   active,
   git,
-  machine,
   onDelete,
 }: {
   phosphorId: string
   active: boolean
   git?: GitInfo
-  /** As SessionRow's: where this lane runs, while the Machines preview is on. */
-  machine?: string
   onDelete: (title: string) => void
 }): React.JSX.Element {
   const orderActions = useSessionOrderActions()
@@ -2050,7 +1985,6 @@ function PendingSessionRow({
           <SubtitleSegments segments={subtitle} activity={activity} />
         </span>
       </span>
-      {machine && <MachineChip label={machine} />}
     </>
   )
 

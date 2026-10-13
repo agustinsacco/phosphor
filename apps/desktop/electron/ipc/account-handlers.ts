@@ -1,5 +1,5 @@
 import { handle } from './handle'
-import { accountSnapshot, cancelSignIn, setPreview, signIn, signOut } from '../account'
+import { accountSnapshot, cancelSignIn, signIn, signOut } from '../account'
 
 /**
  * Desktop's optional Phosphor sign-in. Every answer is an `AccountView`: who
@@ -10,8 +10,4 @@ export function registerAccountHandlers(): void {
   handle('account:signIn', () => signIn())
   handle('account:cancelSignIn', () => cancelSignIn())
   handle('account:signOut', () => signOut())
-  handle('account:setPreview', (_event, enabled) => {
-    if (typeof enabled !== 'boolean') throw new Error('Invalid preview flag.')
-    return setPreview(enabled)
-  })
 }
