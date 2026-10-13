@@ -31,6 +31,12 @@ begin
   if (select pg_catalog.count(*) from public.remote_clients where owner_id = p_user and revoked_at is null) >= 20 then
     return '{"outcome":"too-many-requests"}'::jsonb;
   end if;
+  -- A heartbeat lists at most 100 clients revoked in the last ten minutes. Live plus recently
+  -- revoked clients stay within that, so the list can never omit a revocation.
+  if (select pg_catalog.count(*) from public.remote_clients where owner_id = p_user
+      and (revoked_at is null or revoked_at >= pg_catalog.now() - interval '10 minutes')) >= 100 then
+    return '{"outcome":"too-many-requests"}'::jsonb;
+  end if;
   insert into public.remote_clients(owner_id, label, kind) values (p_user, p_label, p_kind) returning * into v_client;
   return pg_catalog.jsonb_build_object('outcome', 'registered', 'client',
     pg_catalog.jsonb_build_object('id', v_client.id, 'label', v_client.label));
@@ -49,6 +55,10 @@ create function public.control_grant_issue(p_user uuid, p_host uuid, p_client uu
 language plpgsql security invoker set search_path = '' as $$
 declare v_host public.remote_hosts; v_client public.remote_clients;
 begin
+  -- The account lock serializes one owner's issues against the session cap below. It comes
+  -- first, as in registration and enrollment approval, so lock order stays account, then rows.
+  perform 1 from public.remote_access_accounts where user_id = p_user for update;
+  if not found then return '{"outcome":"not-found"}'::jsonb; end if;
   -- Share row locks with revocation so its completion cannot race grant admission.
   select * into v_host from public.remote_hosts where id = p_host and owner_id = p_user
     and revoked_at is null for share;
@@ -57,9 +67,18 @@ begin
     and revoked_at is null for share;
   if not found then return '{"outcome":"not-found"}'::jsonb; end if;
   -- Bounded cleanup. Keep ten minutes of history after a session disappears.
+  -- The age test is repeated on the target row: after waiting for a transaction that refreshed
+  -- the row, PostgreSQL rechecks it against the new version and keeps the session.
   delete from public.remote_grant_sessions where sid in (
     select sid from public.remote_grant_sessions where last_issued_at < pg_catalog.now() - interval '10 minutes'
-    order by last_issued_at limit 1000);
+    order by last_issued_at limit 1000)
+    and last_issued_at < pg_catalog.now() - interval '10 minutes';
+  -- A heartbeat lists at most 100 revoked sessions from the last ten minutes. An owner may hold
+  -- at most 100 sessions in that window, so the list can never omit a grant still valid.
+  if (select pg_catalog.count(*) from public.remote_grant_sessions where owner_id = p_user
+      and sid <> p_sid and last_issued_at >= pg_catalog.now() - interval '10 minutes') >= 100 then
+    return '{"outcome":"too-many-requests"}'::jsonb;
+  end if;
   insert into public.remote_grant_sessions(sid, owner_id) values (p_sid, p_user)
     on conflict (sid) do update set last_issued_at = pg_catalog.now()
       where remote_grant_sessions.owner_id = excluded.owner_id;

@@ -172,7 +172,15 @@ control origin.
 Accepted heartbeats query the active Host's owner and epoch and return
 `revoked: {sessions, clients}`. Each list holds at most 100 ids, newest first:
 clients revoked in the last ten minutes, and tracked sessions issued in the
-last ten minutes whose Auth session no longer exists. The session table has RLS
+last ten minutes whose Auth session no longer exists. Admission keeps every
+owner inside those lists, so a list never drops a revocation that still matters:
+registration refuses a client (429) once the owner has 100 clients that are live
+or were revoked in the last ten minutes, and issuance refuses a grant (429) for a
+new session once the owner has 100 sessions issued in the last ten minutes. A
+session already tracked always renews. Issuance takes the owner's account row
+lock first, so concurrent issues cannot both pass the cap. Cleanup of sessions
+older than ten minutes rechecks the age on each row it deletes, so a session
+refreshed by a concurrent issue is kept. The session table has RLS
 and no client policies or grants. Only the server may call the RPCs. The
 revocations RPC is a fixed-search-path security definer because Supabase's
 service role cannot read `auth.sessions`; it reads only session ids. Other

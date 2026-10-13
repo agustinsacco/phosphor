@@ -197,6 +197,9 @@ it('fails closed on malformed input, missing verified session id, upstream denia
   if (!valid || typeof valid !== 'object') throw new Error('missing metadata')
   s.results.control_grant_issue = { outcome: 'not-found' }
   expect((await s.call(R.grants, { hostId: s.hostId, clientId: s.clientId })).status).toBe(404)
+  // The owner already holds the most sessions a heartbeat can revoke.
+  s.results.control_grant_issue = { outcome: 'too-many-requests' }
+  expect((await s.call(R.grants, { hostId: s.hostId, clientId: s.clientId })).status).toBe(429)
   for (const value of [
     null,
     { outcome: 'unexpected' },
@@ -228,6 +231,15 @@ it('enforces exact per-user issue and registration limits', async () => {
   for (let i = 0; i < 120; i++)
     expect((await s.call(R.grants, { hostId: s.hostId, clientId: s.clientId })).status).toBe(200)
   expect((await s.call(R.grants, { hostId: s.hostId, clientId: s.clientId })).status).toBe(429)
+  // The limit is per user: another user (a fresh token, so no cached identity) still gets one.
+  vi.mocked(s.deps.supabase.getUser).mockResolvedValueOnce({
+    id: randomUUID(),
+    user_metadata: { user_name: 'other' },
+  })
+  expect(
+    (await s.call(R.grants, { hostId: s.hostId, clientId: s.clientId }, 'POST', randomUUID()))
+      .status,
+  ).toBe(200)
   for (let i = 0; i < 10; i++)
     expect((await s.call(R.clients, { label: 'Desktop' })).status).toBe(200)
   expect((await s.call(R.clients, { label: 'Desktop' })).status).toBe(429)

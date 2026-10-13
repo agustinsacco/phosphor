@@ -71,6 +71,8 @@ it('bounds grant response tokens and checks the Host metadata without claiming s
   for (const patch of [
     { grant: atLimit.replace('.' + 'A'.repeat(86), 'a.' + 'A'.repeat(86)) },
     { grant: 'not-a-grant' },
+    // Same length and shape, wrong version: only the prefix check refuses it.
+    { grant: response.grant.replace('phosphor-grant.v1.', 'phosphor-grant.v2.') },
     { grant: response.grant + '=' },
     { expiresAt: 'yesterday' },
     { host: { ...response.host, id: 'bad' } },

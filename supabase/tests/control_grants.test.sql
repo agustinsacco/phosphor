@@ -84,6 +84,7 @@ update public.remote_grant_sessions set last_issued_at=last_issued_at-interval '
 update public.remote_clients set revoked_at=revoked_at-interval '1 microsecond' where revoked_at is not null;
 select is(jsonb_array_length(public.control_host_revocations('00000000-0000-4000-8000-000000000003')->'revoked'->'sessions'),0,'older session excluded');
 select is(jsonb_array_length(public.control_host_revocations('00000000-0000-4000-8000-000000000003')->'revoked'->'clients'),0,'older client excluded');
+-- Rows inserted directly, past what admission allows: the list itself stays bounded.
 insert into public.remote_grant_sessions(sid,owner_id,last_issued_at)
   select ('00000000-0000-4000-8000-' || lpad(i::text,12,'0'))::uuid, '00000000-0000-4000-8000-000000000001', now()-i*interval '1 second' from generate_series(100,200) i;
 insert into public.remote_clients(id,owner_id,label,kind,revoked_at)
@@ -95,7 +96,25 @@ select is(jsonb_array_length((select value->'revoked'->'sessions' from grant_con
 select is(jsonb_array_length((select value->'revoked'->'clients' from grant_context where name='revocations')),100,'client list capped at 100');
 select is((select value->'revoked'->'sessions'->>0 from grant_context where name='revocations'),'00000000-0000-4000-8000-000000000100','sessions most recent first, other users excluded');
 select is((select value->'revoked'->'clients'->>0 from grant_context where name='revocations'),'00000000-0000-4000-8000-000000000100','clients most recent first, other users excluded');
-select ok(not ((select value->'revoked'->'sessions' from grant_context where name='revocations') ? '00000000-0000-4000-8000-000000000200'),'oldest over cap excluded');
+select ok(not ((select value->'revoked'->'sessions' from grant_context where name='revocations') ? '00000000-0000-4000-8000-000000000200'),'a list past the cap stays bounded');
 select is(jsonb_array_length(public.control_host_revocations('00000000-0000-4000-8000-000000000004')->'revoked'->'sessions'),1,'other owner sees only own session');
+-- Admission keeps every owner within what one heartbeat can list (100 per list).
+select is((select count(*) from generate_series(1,99) i where public.control_client_revoke('00000000-0000-4000-8000-000000000002',
+  (public.control_client_register('00000000-0000-4000-8000-000000000002','Cycle ' || i,'desktop')->'client'->>'id')::uuid)->>'outcome' = 'revoked'),
+  99::bigint,'clients cycle up to 100 live or recently revoked');
+select is(public.control_client_register('00000000-0000-4000-8000-000000000002','Extra','desktop')->>'outcome','too-many-requests','a client past the listed window is refused');
+select is(jsonb_array_length(public.control_host_revocations('00000000-0000-4000-8000-000000000004')->'revoked'->'clients'),100,'every recently revoked client is listed');
+update public.remote_clients set revoked_at=now()-interval '10 minutes'-interval '1 microsecond' where owner_id='00000000-0000-4000-8000-000000000002';
+insert into grant_context values ('client2',public.control_client_register('00000000-0000-4000-8000-000000000002','Second','desktop'));
+select is((select value->>'outcome' from grant_context where name='client2'),'registered','revocations leaving the window free a slot');
+select is((select count(*) from generate_series(21,119) i where public.control_grant_issue('00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000004',(select (value->'client'->>'id')::uuid from grant_context where name='client2'),
+  ('00000000-0000-4000-8001-' || lpad(i::text,12,'0'))::uuid)->>'outcome' = 'issued'),99::bigint,'an owner gets grants for up to 100 sessions');
+select is(public.control_grant_issue('00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000004',(select (value->'client'->>'id')::uuid from grant_context where name='client2'),'00000000-0000-4000-8001-000000000200')->>'outcome','too-many-requests','a 101st session is refused');
+select is((select count(*) from public.remote_grant_sessions where owner_id='00000000-0000-4000-8000-000000000002'),100::bigint,'a refused session is not tracked');
+select is(public.control_grant_issue('00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000004',(select (value->'client'->>'id')::uuid from grant_context where name='client2'),'00000000-0000-4000-8000-000000000020')->>'outcome','issued','a tracked session renews at the cap');
+select is(jsonb_array_length(public.control_host_revocations('00000000-0000-4000-8000-000000000004')->'revoked'->'sessions'),100,'every session in the window is listed');
+select ok(public.control_host_revocations('00000000-0000-4000-8000-000000000004')->'revoked'->'sessions' ? '00000000-0000-4000-8001-000000000021','the first session issued is still listed');
+update public.remote_grant_sessions set last_issued_at=now()-interval '10 minutes'-interval '1 microsecond' where sid='00000000-0000-4000-8001-000000000021';
+select is(public.control_grant_issue('00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000004',(select (value->'client'->>'id')::uuid from grant_context where name='client2'),'00000000-0000-4000-8001-000000000200')->>'outcome','issued','a session leaving the window frees a slot');
 select * from finish();
 rollback;
