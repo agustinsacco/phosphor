@@ -2,13 +2,8 @@ import type { GhPullRequest, GitInfo, SessionMeta } from '@shared/models'
 import { sessionTitle } from '@/lib/sessionTitle'
 
 /**
- * The home screen's lane board: what each lane needs from you, not when it
- * last spoke.
- *
- * The sidebar sorts by recency, which is the one ordering that never answers
- * "what do I do next" — a lane whose checks went green an hour ago sinks below
- * one that printed a log line a minute ago. These columns are ordered by the
- * action they imply instead, and a lane appears in exactly one of them.
+ * The workbench's lane classification: what each lane needs from you.
+ * The urgency groups drive the headline; tiles retain their own spatial order.
  *
  * Everything here is derived from state the renderer already holds: the disk
  * scan, `gitByCwd`, the PR store, the dialog store and the chat store. No
@@ -18,10 +13,8 @@ import { sessionTitle } from '@/lib/sessionTitle'
 export type LaneState = 'blocked' | 'ready' | 'attention' | 'review' | 'running'
 
 /**
- * Column order on screen: most urgent first, so the leftmost thing is the
- * thing to do. This is NOT the classification order — `classifyLane` decides
- * that, and the two are deliberately different (a running lane sorts last here
- * but wins over PR state there).
+ * Urgency order for summaries, not tile positions or classification priority:
+ * running wins over PR state in `classifyLane` but ranks last here.
  */
 export const LANE_STATES: readonly LaneState[] = [
   'blocked',
@@ -60,7 +53,10 @@ export interface BoardLane {
 }
 
 export interface LaneInput {
-  meta: SessionMeta
+  meta: Pick<
+    SessionMeta,
+    'path' | 'cwd' | 'name' | 'firstUserText' | 'cost' | 'lastActivityAt' | 'mtimeMs'
+  >
   git?: GitInfo
   pr?: GhPullRequest
   /** This lane's live session id, when it has one. */
@@ -88,19 +84,10 @@ export function checksGreen(pr: GhPullRequest): boolean {
   return checks.failed === 0 && checks.pending === 0
 }
 
-/**
- * Which column a lane belongs in, and why.
- *
- * Order matters and is deliberate: a question beats everything (you are the
- * only one who can clear it), streaming beats PR state (the answer is "wait"),
- * and a red build beats being behind main (fix it before you rebase it).
- * A lane matching nothing is idle and is not a card at all.
- */
-export function classifyLane(input: LaneInput): BoardLane | null {
-  const { meta, git, pr } = input
-  const base = {
+function laneIdentity({ meta, git, pr, phosphorId }: LaneInput) {
+  return {
     path: meta.path,
-    ...(input.phosphorId ? { phosphorId: input.phosphorId } : {}),
+    ...(phosphorId ? { phosphorId } : {}),
     title:
       sessionTitle({ explicitName: meta.name, firstUserText: meta.firstUserText }) ?? 'Untitled',
     ...(git?.branch ? { branch: git.branch } : {}),
@@ -109,7 +96,12 @@ export function classifyLane(input: LaneInput): BoardLane | null {
     cost: meta.cost,
     lastActivityAt: Date.parse(meta.lastActivityAt) || meta.mtimeMs,
   }
+}
 
+/** Questions beat streaming, which beats PR state. No match means idle, not success. */
+export function classifyLane(input: LaneInput): BoardLane | null {
+  const { git, pr } = input
+  const base = laneIdentity(input)
   if (input.hasPendingQuestion) {
     return { ...base, state: 'blocked', detail: 'asked you a question', action: 'answer' }
   }
@@ -177,9 +169,13 @@ export function classifyLane(input: LaneInput): BoardLane | null {
   return null
 }
 
+export type WorkbenchLane = Omit<BoardLane, 'state'> & { state: LaneState | 'idle' }
+
 export interface LaneBoard {
+  /** Includes idle lanes so a completed task keeps a tile and can be reopened. */
+  lanes: WorkbenchLane[]
   columns: Record<LaneState, BoardLane[]>
-  /** Lanes that matched no column — idle, nothing to do. Counted, not shown. */
+  /** Lanes with no active work or outstanding PR/branch action. */
   idleCount: number
 }
 
@@ -199,8 +195,17 @@ export function buildLaneBoard(inputs: LaneInput[]): LaneBoard {
     running: [],
   }
   let idleCount = 0
+  const lanes: WorkbenchLane[] = []
   for (const input of inputs) {
     const lane = classifyLane(input)
+    lanes.push(
+      lane ?? {
+        ...laneIdentity(input),
+        state: 'idle',
+        detail: 'No active work reported',
+        action: 'open',
+      },
+    )
     if (!lane) {
       idleCount += 1
       continue
@@ -210,7 +215,50 @@ export function buildLaneBoard(inputs: LaneInput[]): LaneBoard {
   for (const state of LANE_STATES) {
     columns[state].sort((a, b) => b.lastActivityAt - a.lastActivityAt)
   }
-  return { columns, idleCount }
+  return { columns, idleCount, lanes }
+}
+
+interface LanePosition {
+  key: string
+  path: string
+  phosphorId?: string
+}
+
+/** Keep tile identity across first save, suspend/resume and status changes. */
+export function retainLaneOrder(
+  previous: LanePosition[],
+  current: WorkbenchLane[],
+): LanePosition[] {
+  const byPath = new Map(current.map((lane) => [lane.path, lane]))
+  const byLive = new Map(
+    current.filter((lane) => lane.phosphorId).map((lane) => [lane.phosphorId, lane]),
+  )
+  const remaining = new Set(current)
+  const next: LanePosition[] = []
+  for (const position of previous) {
+    const lane =
+      byPath.get(position.path) ??
+      (position.phosphorId ? byLive.get(position.phosphorId) : undefined)
+    if (lane && remaining.delete(lane))
+      next.push({ ...position, path: lane.path, phosphorId: lane.phosphorId })
+  }
+  // Initial placement puts actionable work ahead of history. Once placed,
+  // status and recency never move it; later arrivals append as a batch.
+  const rank = (lane: WorkbenchLane): number =>
+    lane.state === 'idle' ? LANE_STATES.length : LANE_STATES.indexOf(lane.state)
+  for (const lane of [...remaining].sort(
+    (a, b) => rank(a) - rank(b) || b.lastActivityAt - a.lastActivityAt,
+  ))
+    next.push({ key: lane.phosphorId ?? lane.path, path: lane.path, phosphorId: lane.phosphorId })
+  return next.length === previous.length &&
+    next.every(
+      (p, i) =>
+        p.key === previous[i]?.key &&
+        p.path === previous[i]?.path &&
+        p.phosphorId === previous[i]?.phosphorId,
+    )
+    ? previous
+    : next
 }
 
 /** The board's one-line headline, in the order a reader should care. */

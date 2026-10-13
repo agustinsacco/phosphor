@@ -4388,6 +4388,74 @@ test('a parallel delegation shows every child working at once, then settles', as
   }
 })
 
+test('the home workbench keeps parallel lanes visible and reuses subagent inspection', async () => {
+  const harness = await launch()
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByPlaceholder('Describe a task or ask a question').fill('queue-hold')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: /^New$/ }).click()
+    const board = page.getByRole('region', { name: 'Lane workbench' })
+    const cards = board.getByTestId('lane-board-card')
+    await expect(cards).toHaveCount(1)
+    await expect(page.getByText(/Start your first session/)).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'Your workbench' })).toBeVisible()
+    await page.getByRole('button', { name: 'New lane', exact: true }).click()
+    await expect(page.getByPlaceholder('Describe a task or ask a question')).toBeFocused()
+    await page.getByPlaceholder('Describe a task or ask a question').fill('delegate please')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    await expect(page.getByTestId('subagent-chip')).toContainText('1 background run active', {
+      timeout: 60_000,
+    })
+    await page.getByRole('button', { name: /^New$/ }).click()
+    await expect(cards).toHaveCount(2)
+    const delegated = cards.filter({ hasText: 'scout' })
+    await expect(delegated).toContainText('delegated work in progress')
+    await expect(delegated).toContainText('grep')
+    await delegated.getByRole('button', { name: 'View subagents' }).click()
+    const inspector = page.getByRole('region', { name: 'Subagents', exact: true })
+    await expect(inspector).toBeVisible()
+    await expect(board).toBeHidden()
+    await inspector.getByRole('button', { name: 'scout running grep' }).click()
+    await expect(inspector).toContainText('Inspection: following login.ts to verify.ts.')
+    await inspector.getByRole('button', { name: 'Close pane', exact: true }).click()
+    await page.getByRole('button', { name: /^New$/ }).click()
+    await expect(cards).toHaveCount(2)
+    for (const width of [1200, 760]) {
+      await harness.app.evaluate(({ BrowserWindow }, width) => {
+        const window = BrowserWindow.getAllWindows()[0]
+        window.setMinimumSize(640, 600)
+        window.setSize(width, 900)
+      }, width)
+      for (const theme of ['light', 'dark']) {
+        await page.evaluate(
+          (theme) => document.documentElement.classList.toggle('dark', theme === 'dark'),
+          theme,
+        )
+        expect(await board.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+          true,
+        )
+        await expect(page.getByRole('button', { name: /Start session/i })).toBeVisible()
+        await page.screenshot({
+          path: test.info().outputPath(`workbench-${width}-${theme}.png`),
+          animations: 'disabled',
+        })
+      }
+    }
+    const held = cards.filter({ hasNotText: 'scout' })
+    await held.getByRole('button', { name: 'Open lane' }).click()
+    await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Stop', exact: true }).click()
+    await page.getByRole('button', { name: /^New$/ }).click()
+    await expect(cards).toHaveCount(2)
+    await expect(held).toContainText('Idle')
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('a native delegation is an agent row with live progress, a fleet chip and a completion card', async () => {
   const harness = await launch()
   const { page } = harness

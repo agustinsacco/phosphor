@@ -8,14 +8,15 @@ import { usePullRequestsStore, pullRequestFor } from '@/stores/pullRequests'
 import { useWorktreesStore, repoWorktrees } from '@/stores/worktrees'
 import { hasDelegatedWork, SUBAGENT_ASYNC_WIDGET_KEY } from '@/features/chat/subagentRuns'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
+import { Button } from '@/components/form'
+import { LaneActivity } from './LaneActivity'
 import {
-  LANE_STATES,
   LANE_STATE_LABEL,
   buildLaneBoard,
-  type BoardLane,
+  retainLaneOrder,
+  type WorkbenchLane,
   type LaneBoard as Board,
   type LaneInput,
-  type LaneState,
 } from './laneState'
 
 export interface LaneBoardData {
@@ -24,18 +25,11 @@ export interface LaneBoardData {
   metaByPath: Map<string, SessionMeta>
   /** The project's main checkout — the repo every lane here belongs to. */
   projectRoot: string
-  /** Every lane of this project, for the ledger's per-lane spend. */
+  /** Every recorded lane of this project, for the ledger's per-lane spend. */
   lanes: SessionMeta[]
 }
 
-/**
- * This project's lanes, joined from the projections the renderer already has.
- *
- * A hook rather than a store: the disk scan, `gitByCwd`, the PR store, the
- * dialog store and the chat store each already maintain one of these facts, so
- * a store of its own would be a fifth copy of the same state to keep in sync —
- * which is the mistake the fleet hub made and the reason it was removed.
- */
+/** Join existing projections only. No dashboard polling or second session registry. */
 export function useLaneBoard(workspacePath: string): LaneBoardData {
   const disk = useSessionsStore((s) => s.disk)
   const gitByCwd = useSessionsStore((s) => s.gitByCwd)
@@ -44,13 +38,9 @@ export function useLaneBoard(workspacePath: string): LaneBoardData {
   const dialogs = useExtensionUiStore((s) => s.dialogs)
   const widgets = useExtensionUiStore((s) => s.widgets)
   const prByRepo = usePullRequestsStore((s) => s.byRepo)
-
-  /** This project is its main checkout plus every worktree folded into it. */
   const projectRoot = gitByCwd[workspacePath]?.mainRepoPath ?? workspacePath
 
-  // The sidebar refreshes this map too, and the store collapses concurrent
-  // and recent calls itself — so asking here costs nothing and stops the
-  // board from depending on whether the project's group happens to be open.
+  // The store collapses concurrent/recent calls, including the sidebar's.
   useEffect(() => {
     void usePullRequestsStore.getState().refresh(projectRoot)
   }, [projectRoot])
@@ -58,37 +48,54 @@ export function useLaneBoard(workspacePath: string): LaneBoardData {
   const lanes = useMemo(() => {
     const out: SessionMeta[] = []
     for (const [folder, list] of Object.entries(disk)) {
-      const git = gitByCwd[folder]
-      if ((git?.mainRepoPath ?? folder) !== projectRoot) continue
-      out.push(...list)
+      if ((gitByCwd[folder]?.mainRepoPath ?? folder) === projectRoot) out.push(...list)
     }
     return out
   }, [disk, gitByCwd, projectRoot])
 
   const board = useMemo(() => {
-    // Live sessions join their row by disk path, the same join the sidebar
-    // uses. A session whose path has not landed yet simply has no card.
     const liveByDisk = new Map<string, string>()
     for (const entry of Object.values(live)) {
       if (entry.diskPath) liveByDisk.set(entry.diskPath, entry.phosphorId)
     }
     const asking = new Set(dialogs.map((d) => d.sessionId))
-    const inputs: LaneInput[] = lanes.map((meta) => {
-      const phosphorId = liveByDisk.get(meta.path)
+    const input = (meta: LaneInput['meta'], phosphorId?: string): LaneInput => {
       const git = gitByCwd[meta.cwd]
-      const pr = pullRequestFor({ byRepo: prByRepo }, projectRoot, git?.branch)
+      const chat = phosphorId ? chatSessions[phosphorId] : undefined
       return {
-        meta,
-        ...(git ? { git } : {}),
-        ...(phosphorId ? { phosphorId } : {}),
-        ...(pr ? { pr } : {}),
-        isStreaming: phosphorId ? (chatSessions[phosphorId]?.isStreaming ?? false) : false,
+        meta: { ...meta, name: chat?.meta?.sessionName ?? meta.name },
+        git,
+        phosphorId,
+        pr: pullRequestFor({ byRepo: prByRepo }, projectRoot, git?.branch) ?? undefined,
+        isStreaming: !!(chat?.isStreaming || chat?.promptSentAt),
         hasPendingQuestion: phosphorId ? asking.has(phosphorId) : false,
         hasDelegatedWork: phosphorId
           ? hasDelegatedWork(widgets[phosphorId]?.[SUBAGENT_ASYNC_WIDGET_KEY]?.lines)
           : false,
       }
-    })
+    }
+    const inputs = lanes.map((meta) => input(meta, liveByDisk.get(meta.path)))
+    const paths = new Set(lanes.map((meta) => meta.path))
+    // Pi saves at turn end. First-turn lanes must not vanish from the workbench.
+    for (const entry of Object.values(live)) {
+      if (entry.diskPath && paths.has(entry.diskPath)) continue
+      if ((gitByCwd[entry.workspacePath]?.mainRepoPath ?? entry.workspacePath) !== projectRoot)
+        continue
+      const chat = chatSessions[entry.phosphorId]
+      inputs.push(
+        input(
+          {
+            path: entry.diskPath ?? entry.phosphorId,
+            cwd: entry.workspacePath,
+            firstUserText: chat?.items.find((item) => item.kind === 'user')?.text,
+            cost: 0,
+            lastActivityAt: '',
+            mtimeMs: 0,
+          },
+          entry.phosphorId,
+        ),
+      )
+    }
     return buildLaneBoard(inputs)
   }, [lanes, gitByCwd, live, chatSessions, dialogs, widgets, prByRepo, projectRoot])
 
@@ -96,29 +103,26 @@ export function useLaneBoard(workspacePath: string): LaneBoardData {
   return { board, metaByPath, projectRoot, lanes }
 }
 
-/**
- * The board itself: one column per state that has anything in it.
- *
- * Renders nothing when no lane needs anything. An empty board is a status
- * display, and the home screen already has one of those.
- */
+/** Stable tiles: completion changes a tile's state, not its position or presence. */
 export function LaneBoard({ data }: { data: LaneBoardData }): React.JSX.Element | null {
   const { board, metaByPath, projectRoot } = data
   const [merging, setMerging] = useState<{ repoPath: string; worktree: WorktreeInfo } | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  // Live identity survives the first disk scan. Local state holds only ordering.
+  const [order, setOrder] = useState<ReturnType<typeof retainLaneOrder>>([])
+  const next = retainLaneOrder(order, board.lanes)
+  if (next !== order) setOrder(next)
+  const byPath = new Map(board.lanes.map((lane) => [lane.path, lane]))
+  if (board.lanes.length === 0) return null
 
-  const filled = LANE_STATES.filter((state) => board.columns[state].length > 0)
-  if (filled.length === 0) return null
-
-  const openLane = (lane: BoardLane): void => {
+  const openLane = (lane: WorkbenchLane): void => {
     const meta = metaByPath.get(lane.path)
     if (meta) void useSessionsStore.getState().openDiskSession(meta.cwd, meta)
+    else if (lane.phosphorId) useSessionsStore.getState().activate(lane.phosphorId)
   }
 
-  const act = async (lane: BoardLane): Promise<void> => {
+  const act = async (lane: WorkbenchLane): Promise<void> => {
     if (lane.action === 'merge') {
-      // Reuse the sidebar's merge flow rather than writing a second one: it
-      // already handles a dirty worktree, the commit step and the failures.
       await useWorktreesStore.getState().refresh(projectRoot)
       const worktree = repoWorktrees(useWorktreesStore.getState(), projectRoot).worktrees.find(
         (w) => w.realPath === lane.workspacePath,
@@ -136,44 +140,66 @@ export function LaneBoard({ data }: { data: LaneBoardData }): React.JSX.Element 
       }
       return
     }
-    // `answer` and `open` are the same motion: a question renders on the
-    // session it belongs to, so opening the lane is what puts it on screen.
     openLane(lane)
   }
 
   return (
-    <div className="mt-6 w-full" data-testid="lane-board">
-      {/* Track count is data-dependent and Tailwind cannot see a computed
-          class, so this is an inline style. Capped at four: all five states
-          can be filled at once, and five columns in a 768px page is
-          unreadable — the fifth wraps to a second row instead. */}
-      <div
-        className="grid gap-2"
-        style={{ gridTemplateColumns: `repeat(${Math.min(filled.length, 4)}, minmax(0, 1fr))` }}
-      >
-        {filled.map((state) => (
-          <div key={state} className="min-w-0">
-            <div className="text-text-tertiary mb-1.5 flex items-center gap-1.5 font-mono text-[10px] font-semibold uppercase tracking-wider">
-              {LANE_STATE_LABEL[state]}
-              <span className="text-accent">{board.columns[state].length}</span>
-            </div>
-            {board.columns[state].map((lane) => (
-              <LaneCard
-                key={lane.path}
-                lane={lane}
-                busy={busy === lane.path}
-                onAct={() => void act(lane)}
-                onOpen={() => openLane(lane)}
-              />
-            ))}
-          </div>
-        ))}
+    <section className="mt-6 w-full" aria-label="Lane workbench" data-testid="lane-board">
+      <div className="text-text-secondary mb-3 flex flex-wrap justify-between gap-2 text-base">
+        <span>
+          {board.lanes.length} lane{board.lanes.length === 1 ? '' : 's'} ·{' '}
+          {board.columns.running.length} running · {board.idleCount} idle
+        </span>
+        <span className="font-mono text-xs uppercase tracking-wider">
+          Stable positions · live activity
+        </span>
       </div>
-      {board.idleCount > 0 && (
-        <div className="text-text-tertiary mt-2 font-mono text-[11px]">
-          {board.idleCount} idle lane{board.idleCount > 1 ? 's' : ''}
-        </div>
-      )}
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-4">
+        {next.map((position) => {
+          const lane = byPath.get(position.path)!
+          return (
+            <article
+              key={position.key}
+              className="border-border bg-surface flex min-w-0 flex-col rounded-lg border p-4"
+              data-testid="lane-board-card"
+            >
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 font-mono text-xs">
+                <span className={clsx('uppercase tracking-wider', STATE_ACCENT[lane.state])}>
+                  {lane.state === 'idle' ? 'Idle' : LANE_STATE_LABEL[lane.state]}
+                </span>
+                {lane.pr && <span className="text-text-secondary">PR #{lane.pr.number}</span>}
+              </div>
+              <h2>
+                <button
+                  onClick={() => openLane(lane)}
+                  className="hover:text-accent line-clamp-2 text-left text-xl font-semibold"
+                  title={lane.title}
+                >
+                  {lane.title}
+                </button>
+              </h2>
+              <p className="text-text-secondary mt-1 text-base">{lane.detail}</p>
+              <LaneActivity lane={lane} />
+              <div className="mt-auto flex items-center justify-between gap-3 pt-4">
+                <span
+                  className="text-text-secondary min-w-0 truncate font-mono text-sm"
+                  title={lane.branch}
+                >
+                  {lane.branch ?? 'Workspace session'}
+                </span>
+                <Button
+                  size="sm"
+                  disabled={busy === lane.path}
+                  onClick={() => void act(lane)}
+                  className="shrink-0"
+                >
+                  {busy === lane.path ? 'Updating…' : ACTION_LABEL[lane.action]}
+                </Button>
+              </div>
+            </article>
+          )
+        })}
+      </div>
       {merging && (
         <MergeWorktreeModal
           repoPath={merging.repoPath}
@@ -181,63 +207,21 @@ export function LaneBoard({ data }: { data: LaneBoardData }): React.JSX.Element 
           onClose={() => setMerging(null)}
         />
       )}
-    </div>
+    </section>
   )
 }
 
-const ACTION_LABEL: Record<BoardLane['action'], string> = {
+const ACTION_LABEL: Record<WorkbenchLane['action'], string> = {
   answer: 'Answer',
-  merge: 'Merge',
+  merge: 'Review merge',
   update: 'Update',
-  open: 'Open',
+  open: 'Open lane',
 }
-
-const STATE_ACCENT: Record<LaneState, string> = {
-  blocked: 'border-info/40',
-  ready: 'border-success/40',
-  attention: 'border-warning/40',
-  review: 'border-border',
-  running: 'border-border',
-}
-
-function LaneCard({
-  lane,
-  busy,
-  onAct,
-  onOpen,
-}: {
-  lane: BoardLane
-  busy: boolean
-  onAct: () => void
-  onOpen: () => void
-}): React.JSX.Element {
-  return (
-    <div
-      className={clsx('bg-surface mb-1.5 rounded-lg border p-2', STATE_ACCENT[lane.state])}
-      data-testid="lane-board-card"
-    >
-      <button
-        type="button"
-        onClick={onOpen}
-        className="text-text hover:text-accent block w-full truncate text-left text-sm"
-        title={lane.title}
-      >
-        {lane.title}
-      </button>
-      <div className="text-text-tertiary mt-0.5 truncate font-mono text-[10px]">
-        {lane.pr ? `#${lane.pr.number} · ` : ''}
-        {lane.detail}
-      </div>
-      {lane.action !== 'open' && (
-        <button
-          type="button"
-          onClick={onAct}
-          disabled={busy}
-          className="border-accent text-accent hover:bg-accent-soft mt-1.5 rounded-md border px-2.5 py-0.5 text-xs font-semibold disabled:opacity-50"
-        >
-          {busy ? '…' : ACTION_LABEL[lane.action]}
-        </button>
-      )}
-    </div>
-  )
+const STATE_ACCENT: Record<WorkbenchLane['state'], string> = {
+  blocked: 'text-accent',
+  ready: 'text-success',
+  attention: 'text-warning',
+  review: 'text-info',
+  running: 'text-accent',
+  idle: 'text-text-secondary',
 }

@@ -15,6 +15,7 @@ import { Ledger } from './Ledger'
 import { boardHeadline } from './laneState'
 import { formatCost, formatTokens } from '@/lib/format'
 import { StatTile } from '@/components/StatTile'
+import { Button } from '@/components/form'
 import { projectName } from '@/lib/path'
 import { WorkspaceChip } from '@/features/workspaces/WorkspaceChip'
 import { RunOnPicker } from '@/features/machines/RunOnPicker'
@@ -30,7 +31,7 @@ import { useSlashMenu } from '@/features/chat/composer/useSlashMenu'
 import { NO_COMMANDS, usePiCommandsStore } from '@/stores/piCommands'
 import { homeDraftKey, useDraftsStore } from '@/stores/drafts'
 
-/** Greeting home for a workspace: stats card + heatmap + first-prompt composer. */
+/** Workspace workbench with the existing first-prompt composer kept in reach. */
 export function WorkspaceHome({ workspacePath }: { workspacePath: string }): React.JSX.Element {
   const [stats, setStats] = useState<WorkspaceSessionStats | null>(null)
   const [username, setUsername] = useState('')
@@ -201,17 +202,26 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
       {/* Scrolls on its own, so a tall project-stats block never pushes the
           composer below the fold. The composer below is a sibling, not a
           child of this scroll container, so it stays put. */}
-      <div className="flex flex-1 flex-col items-center overflow-y-auto px-8">
-        <div className="w-full max-w-3xl pt-10 pb-6">
-          {/* The board's own summary when it has one: "3 ready to merge" is a
-              better greeting than a question, and it saves the reader from
-              counting the columns themselves. */}
-          <h1 className="text-center text-4xl font-semibold tracking-tight">
-            <span className="text-accent mr-2">✳</span>
-            {headline ?? `What's up next${username ? `, ${username}` : ''}?`}
-          </h1>
+      <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-4 sm:px-8">
+        <div className="w-full max-w-6xl pt-8 pb-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="text-text-secondary mb-2 font-mono text-xs uppercase tracking-wider">
+                {workspaceName}
+              </p>
+              <h1 className="text-4xl font-semibold tracking-tight">
+                {laneBoard.board.lanes.length
+                  ? 'Your workbench'
+                  : `What's up next${username ? `, ${username}` : ''}?`}
+              </h1>
+              <p className="text-text-secondary mt-2 text-lg">
+                {headline ?? 'Give each task a lane. Keep the work in view.'}
+              </p>
+            </div>
+            <Button onClick={() => textareaRef.current?.focus()}>New lane</Button>
+          </div>
 
-          <LaneBoard data={laneBoard} />
+          <LaneBoard key={laneBoard.projectRoot} data={laneBoard} />
           <Ledger workspacePath={workspacePath} stats={stats} lanes={laneBoard.lanes} />
 
           {stats && stats.sessionCount > 0 && (
@@ -232,7 +242,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             </details>
           )}
 
-          {stats && stats.sessionCount === 0 && (
+          {stats && stats.sessionCount === 0 && laneBoard.board.lanes.length === 0 && (
             <p className="text-text-secondary mt-4 text-center text-lg">
               Start your first session in <span className="font-medium">{workspaceName}</span> —
               describe a task below.

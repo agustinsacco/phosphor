@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { GhPullRequest, SessionMeta } from '@shared/models'
-import { boardHeadline, buildLaneBoard, checksGreen, classifyLane } from './laneState'
+import {
+  boardHeadline,
+  buildLaneBoard,
+  checksGreen,
+  classifyLane,
+  retainLaneOrder,
+} from './laneState'
 
 const meta = (overrides: Partial<SessionMeta> = {}): SessionMeta => ({
   path: '/s.jsonl',
@@ -175,10 +181,12 @@ describe('classifyLane', () => {
 })
 
 describe('buildLaneBoard', () => {
-  it('counts lanes with nothing to do rather than rendering them', () => {
+  it('retains idle tiles without counting them as active work', () => {
     const board = buildLaneBoard([lane(), lane(), lane({ isStreaming: true })])
     expect(board.idleCount).toBe(2)
     expect(board.columns.running).toHaveLength(1)
+    expect(board.lanes.map((lane) => lane.state)).toEqual(['idle', 'idle', 'running'])
+    expect(board.lanes[0]?.detail).toBe('No active work reported')
   })
 
   it('sorts each column by most recent activity', () => {
@@ -200,6 +208,33 @@ describe('buildLaneBoard', () => {
       lane({ meta: meta({ lastActivityAt: 'not a date', mtimeMs: 42 }), isStreaming: true }),
     ])
     expect(board.columns.running[0]?.lastActivityAt).toBe(42)
+  })
+})
+
+describe('retainLaneOrder', () => {
+  const tile = (path: string, phosphorId?: string) =>
+    buildLaneBoard([lane({ meta: meta({ path }), phosphorId })]).lanes[0]!
+  it('keeps positions through activity reordering, appends new lanes and removes deleted ones', () => {
+    const first = retainLaneOrder([], [tile('/a'), tile('/b')])
+    expect(retainLaneOrder(first, [tile('/b'), tile('/a')])).toBe(first)
+    const next = retainLaneOrder(first, [tile('/c'), tile('/b')])
+    expect(next.map((p) => p.path)).toEqual(['/b', '/c'])
+  })
+  it('initially puts work ahead of history, then retains its position when it becomes idle', () => {
+    const active = { ...tile('/active'), state: 'running' as const }
+    const idle = tile('/idle')
+    const order = retainLaneOrder([], [idle, active])
+    expect(order.map((p) => p.path)).toEqual(['/active', '/idle'])
+    expect(retainLaneOrder(order, [idle, { ...active, state: 'idle' }])).toBe(order)
+  })
+  it('keeps tile identity through first save, suspension and resume', () => {
+    let order = retainLaneOrder([], [tile('live-a', 'live-a'), tile('/b')])
+    const key = order[0]!.key
+    order = retainLaneOrder(order, [tile('/b'), tile('/saved', 'live-a')])
+    expect(order[0]).toMatchObject({ key, path: '/saved' })
+    order = retainLaneOrder(order, [tile('/b'), tile('/saved')])
+    order = retainLaneOrder(order, [tile('/b'), tile('/saved', 'resumed')])
+    expect(order[0]).toEqual({ key, path: '/saved', phosphorId: 'resumed' })
   })
 })
 

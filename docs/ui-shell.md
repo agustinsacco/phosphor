@@ -345,6 +345,31 @@ All switch together, live, no reload.
   sessions → "Describe a task…" hero; pi missing/outdated → setup screen with
   the install command.
 
+## Home workbench
+
+Home keeps the first-prompt composer fixed below a separately scrolling,
+responsive lane grid. Each tile belongs to a session in the selected project,
+including its worktrees and live sessions whose first turn is not saved yet.
+Live names override scanned names. Status, PR, branch and actions reuse the
+lane board's existing classification and merge/update flows; idle is not a
+claim of success or review approval.
+
+On entry, actionable work comes before idle history. Positions are then stable
+while the project's home stays mounted: updates, first save and suspend/resume
+do not reorder tiles; new lanes append, deleted lanes leave. There is no persisted pinning or independent dashboard registry.
+Completed/idle lanes stay available rather than disappearing. The grid uses
+available pane width, collapsing to one column when needed.
+
+The activity preview reuses chat tool summaries and the versioned background
+snapshot parser. It shows at most three background roots, marks incomplete
+previews, and never equates roots/workflows with a count of agents. Missing
+activity is not fabricated: unopened transcripts show an invitation to open
+the lane. “View subagents” activates that lane and opens its shared docked
+Subagents pane; no inspection requests or activity polling happen just from
+viewing home. Questions open their lane's
+existing dialog rather than gaining a second answer path. The ledger and
+collapsed project statistics remain below the tiles.
+
 ## Machines preview
 
 The Machines page lists enrolled machines while the Phosphor account preview

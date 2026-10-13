@@ -132,15 +132,17 @@ Pick the folder, the branch (or a fresh worktree branch off trunk), the model,
 and go. The sidebar lists every session with live state, edit counts, a
 worktree badge and the PR badge once one exists.
 
-Above the composer is the **lane board**: this project's lanes in columns by
-what they need from you (waiting on you, ready to merge, needs a push, in
-review, running), each card carrying the one action that unblocks it. Below it,
-a **ledger** of what the parallelism costs: spend, tokens, live processes, and
-the account window that will stop you first.
+Above the composer is the **workbench**: responsive tiles for this project's
+lanes, with status, the latest observed tool, and a bounded background-run
+preview. Tiles keep their positions while home is open, including when a task
+becomes idle. First-turn lanes appear before pi saves their transcript. Open a
+lane, answer its question, inspect subagents, or use the existing merge/update
+flow. Below it, a **ledger** shows spend, tokens, live processes, and account
+headroom.
 
-Nothing there polls or spends tokens. Every column is derived from state the
-app already holds, so the board is right with no live session and after a
-restart.
+The workbench derives from state the app already holds. It does not poll agent
+activity or spend tokens. Opening the shared subagent inspector explicitly
+requests details; unopened transcripts are not loaded for tile previews.
 
 ![Home over the real sessions of a repo](docs/img/home.png)
 
