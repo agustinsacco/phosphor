@@ -28,6 +28,8 @@ export default defineConfig({
       'apps/desktop/src/**/*.test.tsx',
       // Release-pipeline shell helpers that CI depends on.
       'tools/scripts/**/*.test.ts',
+      // Signed Host bundle and installer tools.
+      'tools/host-release/**/*.test.ts',
     ],
     // Node by default; DOM-dependent suites opt in per file with
     // `// @vitest-environment jsdom` so the fast majority stay in node.

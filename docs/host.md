@@ -8,7 +8,7 @@ and `accept` runs real sessions to prove it ([accept](#accept)). `login`,
 `status` and `logout` manage its machine identity in the control plane. `run`
 sends heartbeats; `service` runs it as a Linux systemd user service or a macOS
 LaunchAgent. It listens on nothing. `npm run build:host` builds it
-([Build](#build)); nothing installs or publishes it yet. Desktop never runs a
+([Build](#build)); signed releases carry their own pinned Node runtime. Desktop never runs a
 Host, and offline Desktop never needs one
 ([remote-access.md](remote-access.md)).
 
@@ -19,9 +19,38 @@ every library import against the package's exports.
 
 ## Setting up a Host
 
-There is no installer yet; it comes with signed builds (component 23). Until
-then, build the Host from source on the machine itself. It needs Node 22.19 or
-newer and git, and takes about ten seconds once dependencies are installed:
+### Install from a release
+
+The release workflow publishes independent `host-v*` releases for Linux x64,
+Linux arm64 and macOS arm64. No release has been published yet. The operator
+pins a release public key before publishing; an installer with no keys refuses
+installation. Each bundle carries Node 24.14.1, so no system Node is needed.
+The installer needs curl, ssh-keygen, tar, awk, base64, od and sha256sum or shasum.
+
+```sh
+curl -fsSL https://github.com/agustinsacco/Phosphor/releases/download/host-latest/install.sh | sh
+```
+
+The generated installer verifies the manifest's OpenSSH Ed25519 signature in
+namespace `phosphor-host-release` against embedded pinned keys. It then checks
+the selected tarball's byte count and SHA-256 before extracting it. With no
+version argument, it reads the signed manifest from the rolling `host-latest`
+release and downloads the artifact from the signed version's `host-v*` release.
+Host releases never replace Desktop's latest release. To pin a version, save
+`install.sh` and run `sh install.sh X.Y.Z`. `PHOSPHOR_HOST_RELEASE_URL` overrides
+the asset folder for an offline mirror (`file://` works too).
+
+Programs live in `~/.local/lib/phosphor-host/versions/<version>/`. An atomic
+symlink replacement selects `current`; `~/.local/bin/phosphor` points at its
+launcher. Add `~/.local/bin` to PATH, then run `phosphor setup`. A failed
+verification leaves an existing install untouched. Config, identity, state and
+provider installs are never changed. Installing an already present version is
+refused instead of overwriting it.
+
+### Install from source
+
+A source install still works. Build on the machine itself with Node 22.19 or
+newer and git. It takes about ten seconds once dependencies are installed:
 
 ```bash
 git clone --depth 1 https://github.com/agustinsacco/phosphor.git ~/src/phosphor
@@ -120,8 +149,8 @@ phosphor version [--json]
 
 stdout carries only the report or the JSON. Usage errors and accept's progress
 go to stderr.
-`version` prints `0.0.0-dev.<sha7>`, or `0.0.0-dev.source` when the build did
-not stamp a commit.
+`version` prints the independent Host release version, or `0.0.0-dev.<sha7>`
+for dev builds (`0.0.0-dev.source` when no commit is stamped).
 
 | Exit          | Meaning                                                                                          |
 | ------------- | ------------------------------------------------------------------------------------------------ |
@@ -152,8 +181,9 @@ not stamp a commit.
 - `BUILD-INFO.json`: the version, the source commit, whether the tree had
   uncommitted changes, the Node target, and every file with its size and sha256.
 
-The version is `0.0.0-dev.<sha7>` of the source commit, HEAD unless `--sha`
-names another. The build fails if the bundle reaches Electron, `electron-store`,
+Release builds take strict `X.Y.Z` from `HOST_RELEASE_VERSION`. Otherwise the
+version is `0.0.0-dev.<sha7>` of the source commit, HEAD unless `--sha` names
+another. The build fails if the bundle reaches Electron, `electron-store`,
 `electron-updater`, `node-pty`, Desktop or the site, imports anything but a Node
 builtin, or lacks one of the seven extensions. It only replaces an empty folder or
 an earlier build: a real folder whose `BUILD-INFO.json` is a regular file naming
@@ -168,8 +198,24 @@ build cannot be moved back either, the output is gone and the build names the
 folder beside it that holds the earlier one. An earlier build that cannot be
 deleted once the new one is in place is left beside the output, possibly in
 part, and the build names it. A build killed outright can leave a
-`.phosphor-build-*` folder. Nothing is signed; real versions and signed bundles
-are component 23's.
+`.phosphor-build-*` folder. `tools/host-release/build-bundle.mjs --target TARGET --out DIR` wraps that
+build with the Node archive pinned in `tools/host-release/node.json`. It checks
+the committed SHA-256 on download and on cache reuse. Its sorted ustar entries
+have fixed timestamps, owners and modes; repeated builds of the same tree on
+one platform are byte-identical. The archive includes Node and its license,
+`lib/` with the Host and its resources, `VERSION`, and a POSIX launcher that
+resolves symlinks without `readlink -f`.
+
+After all three targets are built, `tools/host-release/manifest.mjs --out DIR`
+writes a manifest with version, protocols, pinned Node version, source commit,
+and each artifact's target, file, bytes and SHA-256. It signs the exact bytes
+with `ssh-keygen -Y sign`, namespace `phosphor-host-release`, hash `sha512`.
+`HOST_RELEASE_SIGNING_KEY` supplies an OpenSSH Ed25519 private key, never a
+path. A 0600 temporary key file is removed on success and failure. The public
+keys have one source, `HOST_RELEASE_KEYS` in `libs/shared/src/host-release.ts`;
+the builder generates `install.sh` from those keys. Host's release verifier
+uses Node crypto to verify SSHSIG and parse the bounded manifest before an
+artifact's size and hash are checked.
 
 `bundle.test.ts` builds into a scratch folder and checks `BUILD-INFO.json`
 against the files, the imports, and `pi-ext/`, and that a folder that is not an

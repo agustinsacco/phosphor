@@ -30,6 +30,14 @@ const FORBIDDEN = [
 const { values } = parseArgs({ options: { out: { type: 'string' }, sha: { type: 'string' } } })
 const out = resolve(values.out ?? join(ROOT, 'apps/host/dist'))
 const sha = values.sha ?? git('rev-parse', 'HEAD')
+const releaseVersion = process.env.HOST_RELEASE_VERSION
+if (
+  releaseVersion !== undefined &&
+  !/^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$/.test(releaseVersion)
+) {
+  console.error('build: invalid HOST_RELEASE_VERSION')
+  process.exit(1)
+}
 const stamped = typeof sha === 'string' && /^[0-9a-f]{40}$/.test(sha) ? sha : null
 
 let built
@@ -61,7 +69,12 @@ async function stageBuild(stage) {
     logLevel: 'warning',
     // Library source still uses the @shared/* alias internally.
     tsconfigRaw: { compilerOptions: { paths: { '@shared/*': ['./libs/shared/src/*'] } } },
-    define: stamped ? { __PHOSPHOR_HOST_SOURCE_SHA__: JSON.stringify(stamped) } : {},
+    define: {
+      ...(stamped ? { __PHOSPHOR_HOST_SOURCE_SHA__: JSON.stringify(stamped) } : {}),
+      ...(releaseVersion
+        ? { __PHOSPHOR_HOST_RELEASE_VERSION__: JSON.stringify(releaseVersion) }
+        : {}),
+    },
     plugins: [
       {
         name: 'host-boundary',
@@ -117,7 +130,7 @@ async function stageBuild(stage) {
   const info = {
     schema: 1,
     name: 'phosphor',
-    version: `0.0.0-dev.${stamped?.slice(0, 7) ?? 'source'}`,
+    version: releaseVersion ?? `0.0.0-dev.${stamped?.slice(0, 7) ?? 'source'}`,
     sourceSha: stamped,
     sourceDirty: stamped ? git('status', '--porcelain') !== '' : null,
     nodeTarget: NODE_TARGET,
