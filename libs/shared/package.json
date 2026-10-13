@@ -68,6 +68,18 @@
       "types": "./src/glob.ts",
       "default": "./src/glob.ts"
     },
+    "./host-grant": {
+      "types": "./src/host-grant.ts",
+      "default": "./src/host-grant.ts"
+    },
+    "./host-protocol": {
+      "types": "./src/host-protocol.ts",
+      "default": "./src/host-protocol.ts"
+    },
+    "./host-protocol-testing": {
+      "types": "./src/host-protocol-testing/index.ts",
+      "default": "./src/host-protocol-testing/index.ts"
+    },
     "./ipc": {
       "types": "./src/ipc.ts",
       "default": "./src/ipc.ts"
