@@ -1,4 +1,4 @@
-import { readdirSync, symlinkSync } from 'node:fs'
+import { readdirSync, statSync, symlinkSync } from 'node:fs'
 import { openStore, type HostStore } from '../lanes/store'
 import { loadHostConfig } from '../config/load'
 import { reconcile } from '../lanes/reconcile'
@@ -505,7 +505,7 @@ it('keeps a second signal code when it lands while run releases its lock', async
   ).toEqual([])
 })
 
-it('CLI supervisor maps missing enrollment and bounds stderr before startup', async () => {
+it('CLI supervisor maps missing enrollment without touching stderr before the run lock', async () => {
   const { mkdir, stat } = await import('node:fs/promises')
   const { hostLogDirectory } = await import('../machine/log')
   const { serviceExitPath } = await import('../machine/launchd')
@@ -524,7 +524,7 @@ it('CLI supervisor maps missing enrollment and bounds stderr before startup', as
       },
     ),
   ).toBe(0)
-  expect((await stat(path)).size).toBe(256 * 1024)
+  expect((await stat(path)).size).toBe(1024 * 1024 + 1)
   expect(JSON.parse(await readFile(serviceExitPath({}, machine.root), 'utf8')).code).toBe(69)
 })
 it('supervisor logs and records removal without changing foreground runs', async () => {
@@ -592,3 +592,78 @@ it('supervisor keeps a clean first signal at exit 0 without a permanent record',
   expect(states).toEqual(['running', 'stopping'])
   await expect(readFile(serviceExitPath({}, machine.root))).rejects.toThrow()
 })
+
+it('a supervised run that loses the run lock leaves stderr and the exit record unchanged', async () => {
+  await machine.enrollOld()
+  const { mkdir } = await import('node:fs/promises')
+  const { hostLogDirectory } = await import('../machine/log')
+  const { launchdExit, serviceExitPath } = await import('../machine/launchd')
+  const path = join(hostLogDirectory({}, machine.root), 'launchd.err.log')
+  await mkdir(hostLogDirectory({}, machine.root), { recursive: true })
+  const original = Buffer.alloc(1024 * 1024 + 1, 'x')
+  await writeFile(path, original)
+  await launchdExit(78, {}, machine.root, 1000)
+  const record = await readFile(serviceExitPath({}, machine.root))
+  const release = await acquireIdentityLock(
+    identityDirectory(machine.configPath),
+    machine.context.uid,
+    undefined,
+    '.run-lock',
+  )
+  try {
+    expect(
+      await runHost({
+        ...context(),
+        home: machine.root,
+        supervisor: 'launchd',
+        stderrIdentity: () => statSync(path),
+      }),
+    ).toBe(75)
+    expect((await readFile(path)).equals(original)).toBe(true)
+    expect(await readFile(serviceExitPath({}, machine.root))).toEqual(record)
+  } finally {
+    await release()
+  }
+})
+it.each([false, true])(
+  'a lock holder prepares stderr and continues after a compaction error: %s',
+  async (throws) => {
+    await machine.enrollOld()
+    const { mkdir } = await import('node:fs/promises')
+    const { hostLogDirectory } = await import('../machine/log')
+    const { launchdExit, serviceExitPath } = await import('../machine/launchd')
+    const path = join(hostLogDirectory({}, machine.root), 'launchd.err.log')
+    await mkdir(hostLogDirectory({}, machine.root), { recursive: true })
+    const original = 'a'.repeat(1024 * 1024 + 1) + 'b'.repeat(256 * 1024)
+    await writeFile(path, original)
+    await launchdExit(78, {}, machine.root, 1000)
+    const entries: unknown[] = []
+    let started = false
+    expect(
+      await runHost({
+        ...context(),
+        home: machine.root,
+        supervisor: 'launchd',
+        stderrIdentity: () => {
+          if (throws) throw Object.assign(new Error('private path'), { code: 'EIO' })
+          return statSync(path)
+        },
+        log: (scope, message, data) => entries.push({ scope, message, data }),
+        fetch: async () => {
+          started = true
+          await expect(readFile(serviceExitPath({}, machine.root))).rejects.toThrow()
+          expect(await readFile(path, 'utf8')).toBe(throws ? original : 'b'.repeat(256 * 1024))
+          return new Response(null, { status: 410 })
+        },
+      }),
+    ).toBe(0)
+    expect(started).toBe(true)
+    if (throws)
+      expect(entries).toContainEqual({
+        scope: 'service',
+        message: 'err_log_skipped',
+        data: { reason: 'EIO' },
+      })
+    expect(JSON.stringify(entries)).not.toContain('private path')
+  },
+)

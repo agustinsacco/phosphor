@@ -19,6 +19,7 @@ import type { ControlContext } from './control/command'
 import { defaultConfigPath } from './config/load'
 import type { Drainable } from './shutdown'
 import { HOST_SOURCE_SHA, HOST_VERSION } from './version'
+import { launchdExit } from './machine/launchd'
 
 export const USAGE = `usage: phosphor <command>
 
@@ -103,9 +104,23 @@ export async function runCli(
   io: CliIo,
   context: CliContext,
 ): Promise<number> {
-  const usage = (problem: string) => {
+  const supervised = supervisedRun(argv)
+  const usage = async (problem: string) => {
     io.stderr(`phosphor: ${problem}\n\n${USAGE}`)
-    return EXIT.usage
+    if (!supervised) return EXIT.usage
+    try {
+      const log = createHostLog(hostLogDirectory(context.env, context.home), [])
+      log.write('service', 'stopped', { code: EXIT.usage })
+      return await launchdExit(
+        EXIT.usage,
+        context.env,
+        context.home,
+        context.control?.now?.() ?? Date.now(),
+      )
+    } catch {
+      io.stderr('The service command could not finish.\n')
+      return 75
+    }
   }
   let parsed: ReturnType<typeof parse>
   try {
@@ -334,27 +349,71 @@ export async function runCli(
   }
 }
 
+export const CLI_PARSE_CONFIG = {
+  allowPositionals: true,
+  strict: true,
+  options: {
+    config: { type: 'string' },
+    supervisor: { type: 'string' },
+    json: { type: 'boolean' },
+    local: { type: 'boolean' },
+    follow: { type: 'boolean' },
+    repository: { type: 'string', multiple: true },
+    pi: { type: 'string' },
+    node: { type: 'string' },
+    replace: { type: 'boolean' },
+    lane: { type: 'string' },
+    'keep-transcripts': { type: 'boolean' },
+    provider: { type: 'string' },
+    'claude-model': { type: 'string' },
+    model: { type: 'string' },
+    help: { type: 'boolean', short: 'h' },
+  },
+} as const
+
+function scanArgv(argv: readonly string[]): {
+  command: string | undefined
+  supervisors: (string | undefined)[]
+} {
+  let command: string | undefined
+  const supervisors: (string | undefined)[] = []
+  let positional = false
+  for (let index = 0; index < argv.length; index++) {
+    const token = argv[index]
+    if (token === undefined) continue
+    if (!positional && token === '--') {
+      positional = true
+      continue
+    }
+    if (!positional && token.startsWith('-') && token !== '-') {
+      const equal = token.indexOf('=')
+      const name = token.startsWith('--')
+        ? token.slice(2, equal < 0 ? undefined : equal)
+        : undefined
+      const option = Object.entries(CLI_PARSE_CONFIG.options).find(
+        ([long, option]) => name === long || ('short' in option && token === `-${option.short}`),
+      )
+      if (option?.[1].type === 'string') {
+        const value = equal < 0 ? argv[++index] : token.slice(equal + 1)
+        if (option[0] === 'supervisor') supervisors.push(value)
+      }
+      continue
+    }
+    command ??= token
+  }
+  return { command, supervisors }
+}
+
+export function scannedCommand(argv: readonly string[]): string | undefined {
+  return scanArgv(argv).command
+}
+export function supervisedRun(argv: readonly string[]): boolean {
+  const { command, supervisors } = scanArgv(argv)
+  return (
+    command === 'run' && supervisors.length > 0 && supervisors.every((value) => value === 'launchd')
+  )
+}
+
 function parse(argv: readonly string[]) {
-  return parseArgs({
-    args: [...argv],
-    allowPositionals: true,
-    strict: true,
-    options: {
-      config: { type: 'string' },
-      supervisor: { type: 'string' },
-      json: { type: 'boolean' },
-      local: { type: 'boolean' },
-      follow: { type: 'boolean' },
-      repository: { type: 'string', multiple: true },
-      pi: { type: 'string' },
-      node: { type: 'string' },
-      replace: { type: 'boolean' },
-      lane: { type: 'string' },
-      'keep-transcripts': { type: 'boolean' },
-      provider: { type: 'string' },
-      'claude-model': { type: 'string' },
-      model: { type: 'string' },
-      help: { type: 'boolean', short: 'h' },
-    },
-  })
+  return parseArgs({ ...CLI_PARSE_CONFIG, args: [...argv] })
 }

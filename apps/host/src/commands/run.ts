@@ -20,7 +20,12 @@ import { acquireIdentityLock } from '../control/lock'
 import { loadHostConfig } from '../config/load'
 import { checkReadiness } from '../machine/readiness'
 import { SHUTDOWN_SIGNALS, type Drainable, type ShutdownSignal } from '../shutdown'
-import { launchdExit, permanentServiceReason, prepareLaunchdRun } from '../machine/launchd'
+import {
+  launchdExit,
+  permanentServiceReason,
+  prepareLaunchdRun,
+  type LaunchdRunPorts,
+} from '../machine/launchd'
 import { HOST_VERSION } from '../version'
 import { hostStateDirectory, StateFailure } from '../lanes/state-dir'
 import { openStore, type HostStore } from '../lanes/store'
@@ -38,6 +43,8 @@ export interface RunContext extends ControlContext {
   env: NodeJS.ProcessEnv
   home: string
   supervisor?: 'launchd'
+  afterRunLock?: () => void
+  stderrIdentity?: LaunchdRunPorts['stderrIdentity']
   attach?: (target: Drainable) => () => void
   heartbeat?: Partial<Pick<HeartbeatPorts, 'readiness' | 'seq' | 'random'>>
   loadConfig?: typeof loadHostConfig
@@ -80,6 +87,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
     const { identity, key } = prepared.loaded
     const directory = identityDirectory(context.configPath)
     release = await acquireIdentityLock(directory, context.uid, context.lockPorts, '.run-lock')
+    context.afterRunLock?.()
     // Start-up can await SQLite and disk scans. A signal must wait for cleanup
     // here too, not just once the heartbeat loop is running.
     detach = context.attach?.({
@@ -189,8 +197,17 @@ export function runHost(context: RunContext): Promise<number> {
       return 75
     }
     try {
-      await prepareLaunchdRun(context.env, context.home)
-      const code = await runHostCommand({ ...context, ...traced })
+      const home = context.home
+      const code = await runHostCommand({
+        ...context,
+        ...traced,
+        afterRunLock: () =>
+          prepareLaunchdRun(context.env, home, {
+            uid: context.uid,
+            stderrIdentity: context.stderrIdentity,
+            log: traced.log,
+          }),
+      })
       if (permanentServiceReason(code)) traced.log?.('service', 'stopped', { code })
       return await launchdExit(code, context.env, context.home, context.now?.() ?? Date.now())
     } catch {

@@ -1,8 +1,20 @@
+import { fstatSync, statSync } from 'node:fs'
+import type * as Fs from 'node:fs'
 import { execFileSync } from 'node:child_process'
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   HOST_AGENT,
   launchAgentPlist,
@@ -18,12 +30,20 @@ import {
   removeLaunchAgent,
 } from './launchd'
 import { hostLogDirectory } from './log'
+vi.mock('node:fs', async (importOriginal) => {
+  const fs = await importOriginal<typeof Fs>()
+  return { ...fs, fstatSync: vi.fn(fs.fstatSync) }
+})
 let root: string
 beforeEach(async () => {
   root = await mkdtemp(join(tmpdir(), 'host-launchd-'))
 })
 afterEach(async () => {
   await rm(root, { recursive: true, force: true })
+})
+const ports = (path: string) => ({
+  uid: process.getuid?.() ?? -1,
+  stderrIdentity: () => statSync(path),
 })
 const plist = (path = '/node') => launchAgentPlist(path, path, path, path, path)
 describe('launchd', () => {
@@ -134,14 +154,80 @@ describe('launchd', () => {
     await launchdExit(78, {}, root, 1000)
     await mkdir(hostLogDirectory({}, root), { recursive: true })
     await writeFile(path, 'a'.repeat(1024 * 1024))
-    await prepareLaunchdRun({}, root)
+    prepareLaunchdRun({}, root, ports(path))
     expect((await stat(path)).size).toBe(1024 * 1024)
     await expect(stat(serviceExitPath({}, root))).rejects.toThrow()
     await writeFile(path, 'a'.repeat(1024 * 1024 - 256 * 1024 + 1) + 'b'.repeat(256 * 1024))
-    await prepareLaunchdRun({}, root)
+    prepareLaunchdRun({}, root, ports(path))
     expect(await readFile(path, 'utf8')).toBe('b'.repeat(256 * 1024))
     await removeLaunchAgent(path)
-    await prepareLaunchdRun({}, root)
+    prepareLaunchdRun({}, root, ports(path))
+  })
+  it('never follows a symlink to compact its target', async () => {
+    const path = join(hostLogDirectory({}, root), 'launchd.err.log')
+    await mkdir(hostLogDirectory({}, root), { recursive: true })
+    const target = join(root, 'target')
+    const original = Buffer.alloc(1024 * 1024 + 1, 'x')
+    await writeFile(target, original)
+    await symlink(target, path)
+    const entries: unknown[] = []
+    prepareLaunchdRun({}, root, {
+      ...ports(target),
+      log: (scope, message, data) => entries.push({ scope, message, data }),
+    })
+    expect((await readFile(target)).equals(original)).toBe(true)
+    expect(entries).toContainEqual({
+      scope: 'service',
+      message: 'err_log_skipped',
+      data: { reason: 'ELOOP' },
+    })
+  })
+  it('skips compaction unless stderr matches both device and inode and the file is owned', async () => {
+    const path = join(hostLogDirectory({}, root), 'launchd.err.log')
+    await mkdir(hostLogDirectory({}, root), { recursive: true })
+    const original = Buffer.alloc(1024 * 1024 + 1, 'x')
+    await writeFile(path, original)
+    const identity = statSync(path)
+    for (const stderr of [
+      { dev: identity.dev + 1, ino: identity.ino },
+      { dev: identity.dev, ino: identity.ino + 1 },
+    ]) {
+      const log: string[] = []
+      prepareLaunchdRun({}, root, {
+        uid: identity.uid,
+        stderrIdentity: () => stderr,
+        log: (_scope, message) => log.push(message),
+      })
+      expect((await readFile(path)).equals(original)).toBe(true)
+      expect(log).toEqual(['err_log_skipped'])
+    }
+    prepareLaunchdRun({}, root, { ...ports(path), uid: identity.uid + 1 })
+    expect((await readFile(path)).equals(original)).toBe(true)
+  })
+  it('refuses a descriptor that is not a regular file', async () => {
+    const path = join(hostLogDirectory({}, root), 'launchd.err.log')
+    await mkdir(hostLogDirectory({}, root), { recursive: true })
+    const original = Buffer.alloc(1024 * 1024 + 1, 'x')
+    await writeFile(path, original)
+    const stat = statSync(path)
+    vi.mocked(fstatSync).mockReturnValueOnce(Object.assign(stat, { isFile: () => false }))
+    prepareLaunchdRun({}, root, ports(path))
+    expect((await readFile(path)).equals(original)).toBe(true)
+  })
+  it('logs errors clearing the record without blocking compaction', async () => {
+    await mkdir(serviceExitPath({}, root), { recursive: true })
+    const entries: unknown[] = []
+    expect(() =>
+      prepareLaunchdRun({}, root, {
+        uid: process.getuid?.() ?? -1,
+        log: (scope, message, data) => entries.push({ scope, message, data }),
+      }),
+    ).not.toThrow()
+    expect(entries).toContainEqual({
+      scope: 'service',
+      message: 'exit_record_unclear',
+      data: { reason: process.platform === 'darwin' ? 'EPERM' : 'EISDIR' },
+    })
   })
   it('bounds log reads and ignores malformed, oversize or non-permanent records', async () => {
     const path = join(root, 'file')

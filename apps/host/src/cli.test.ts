@@ -1,10 +1,20 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { parseArgs } from 'node:util'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fakeMachine, type FakeMachine } from './__fixtures__/machine'
+import { hostLogDirectory } from './machine/log'
+import { serviceExitPath } from './machine/launchd'
 import type { Drainable } from './shutdown'
 import { controlMachine } from './control/__fixtures__/machine'
-import { runCli, USAGE, type CliContext } from './cli'
+import {
+  runCli,
+  USAGE,
+  CLI_PARSE_CONFIG,
+  scannedCommand,
+  supervisedRun,
+  type CliContext,
+} from './cli'
 
 let machine: FakeMachine | undefined
 afterEach(() => {
@@ -13,7 +23,7 @@ afterEach(() => {
   machine = undefined
 })
 
-async function run(argv: string[], context: Partial<CliContext> = {}) {
+async function run(argv: readonly string[], context: Partial<CliContext> = {}) {
   const out = { stdout: '', stderr: '' }
   const code = await runCli(
     argv,
@@ -32,14 +42,57 @@ async function run(argv: string[], context: Partial<CliContext> = {}) {
   return { code, ...out }
 }
 
+const CONFIG_RUN_VALUE = ['--config', 'run', 'doctor', '--supervisor=launchd'] as const
+const VERSION_CASES = [['version'], ['version', '--json']] as const
+const HELP_CASES = [['help'], ['--help'], ['-h'], ['doctor', '--help']] as const
+const USAGE_CASES: [string[], string][] = [
+  [[], 'no command given'],
+  [['serve'], 'unknown command "serve"'],
+  [['accept'], 'accept needs --repository DIR'],
+  [['accept', '--repository', 'repo'], '--repository needs an absolute path'],
+  [
+    ['accept', '--repository', '/a', '--repository', '/b'],
+    '--repository may only repeat for setup',
+  ],
+  [['doctor', '--replace'], 'doctor does not take --replace'],
+  [['doctor', '--pi', '/pi'], 'doctor does not take --pi'],
+  [['setup', '--pi', ''], '--repository, --pi and --node need a path'],
+  [['setup', '--node', ''], '--repository, --pi and --node need a path'],
+  [['setup', '--repository', ''], '--repository, --pi and --node need a path'],
+  [['accept', '--repository', '/repo', '--lane', 'both'], '--lane is native, claude or all'],
+  [['doctor', '--repository', '/repo'], 'doctor does not take --repository'],
+  [['doctor', '--model', 'm'], 'doctor does not take --model'],
+  [['doctor', '--claude-model', 'm'], 'doctor does not take --claude-model'],
+  [['version', '--keep-transcripts'], 'version does not take --keep-transcripts'],
+  [['providers', '--repository', '/repo'], 'providers does not take --repository'],
+  [['providers', 'status'], 'unexpected argument "status"'],
+  [['providers', 'login'], 'providers login needs a provider: an id phosphor providers lists'],
+  [['providers', 'login', 'xai', 'extra'], 'unexpected argument "extra"'],
+  [['providers', 'login', 'xai', '--json'], 'providers login does not take --json'],
+  [['providers', 'login', 'xai'], 'providers login needs a terminal: over SSH, run ssh -t'],
+  [['doctor', '--nope'], "Unknown option '--nope'"],
+  [['doctor', 'extra'], 'unexpected argument "extra"'],
+  [['doctor', '--config'], "Option '--config <value>' argument missing"],
+  [['doctor', '--config', ''], '--config needs a file'],
+  [['version', '--config', '/x.json'], 'version does not take --config'],
+  [['login', '--json'], 'login does not take --json'],
+  [['status', '--local'], 'status does not take --local'],
+  [['logout', '--json'], 'logout does not take --json'],
+  [['login', 'extra'], 'unexpected argument'],
+  [['run', '--supervisor', 'systemd'], '--supervisor is launchd'],
+  [['run', '--supervisor', ''], '--supervisor is launchd'],
+  [['run', '--supervisor'], "Option '--supervisor <value>' argument missing"],
+  [['status', '--supervisor', 'launchd'], 'status does not take --supervisor'],
+]
+
 describe('phosphor', () => {
   it('prints its version, plain or as JSON', async () => {
-    expect(await run(['version'])).toEqual({
+    expect(await run(VERSION_CASES[0])).toEqual({
       code: 0,
       stdout: 'phosphor 0.0.0-dev.source\n',
       stderr: '',
     })
-    expect(JSON.parse((await run(['version', '--json'])).stdout)).toEqual({
+    expect(JSON.parse((await run(VERSION_CASES[1])).stdout)).toEqual({
       hostVersion: '0.0.0-dev.source',
       protocolVersion: 1,
       sourceSha: null,
@@ -48,56 +101,79 @@ describe('phosphor', () => {
   })
 
   it('prints usage when asked', async () => {
-    for (const argv of [['help'], ['--help'], ['-h'], ['doctor', '--help']]) {
+    for (const argv of HELP_CASES) {
       expect(await run(argv)).toEqual({ code: 0, stdout: USAGE, stderr: '' })
     }
   })
 
-  it.each([
-    [[], 'no command given'],
-    [['serve'], 'unknown command "serve"'],
-    [['accept'], 'accept needs --repository DIR'],
-    [['accept', '--repository', 'repo'], '--repository needs an absolute path'],
-    [
-      ['accept', '--repository', '/a', '--repository', '/b'],
-      '--repository may only repeat for setup',
-    ],
-    [['doctor', '--replace'], 'doctor does not take --replace'],
-    [['doctor', '--pi', '/pi'], 'doctor does not take --pi'],
-    [['setup', '--pi', ''], '--repository, --pi and --node need a path'],
-    [['setup', '--node', ''], '--repository, --pi and --node need a path'],
-    [['setup', '--repository', ''], '--repository, --pi and --node need a path'],
-    [['accept', '--repository', '/repo', '--lane', 'both'], '--lane is native, claude or all'],
-    [['doctor', '--repository', '/repo'], 'doctor does not take --repository'],
-    [['doctor', '--model', 'm'], 'doctor does not take --model'],
-    [['doctor', '--claude-model', 'm'], 'doctor does not take --claude-model'],
-    [['version', '--keep-transcripts'], 'version does not take --keep-transcripts'],
-    [['providers', '--repository', '/repo'], 'providers does not take --repository'],
-    [['providers', 'status'], 'unexpected argument "status"'],
-    [['providers', 'login'], 'providers login needs a provider: an id phosphor providers lists'],
-    [['providers', 'login', 'xai', 'extra'], 'unexpected argument "extra"'],
-    [['providers', 'login', 'xai', '--json'], 'providers login does not take --json'],
-    [['providers', 'login', 'xai'], 'providers login needs a terminal: over SSH, run ssh -t'],
-    [['doctor', '--nope'], "Unknown option '--nope'"],
-    [['doctor', 'extra'], 'unexpected argument "extra"'],
-    [['doctor', '--config'], "Option '--config <value>' argument missing"],
-    [['doctor', '--config', ''], '--config needs a file'],
-    [['version', '--config', '/x.json'], 'version does not take --config'],
-    [['login', '--json'], 'login does not take --json'],
-    [['status', '--local'], 'status does not take --local'],
-    [['logout', '--json'], 'logout does not take --json'],
-    [['login', 'extra'], 'unexpected argument'],
-    [['run', '--supervisor', 'systemd'], '--supervisor is launchd'],
-    [['run', '--supervisor', ''], '--supervisor is launchd'],
-    [['run', '--supervisor'], "Option '--supervisor <value>' argument missing"],
-    [['status', '--supervisor', 'launchd'], 'status does not take --supervisor'],
-  ])('refuses %j with exit 64 and usage on stderr', async (argv, problem) => {
+  it.each(USAGE_CASES)('refuses %j with exit 64 and usage on stderr', async (argv, problem) => {
     const result = await run(argv)
     expect(result).toMatchObject({ code: 64, stdout: '' })
     expect(result.stderr).toContain(problem)
     expect(result.stderr.endsWith(USAGE)).toBe(true)
   })
 
+  it('scans the same command as parseArgs for shared CLI fixtures', () => {
+    const cases = [
+      ...USAGE_CASES.map(([argv]) => argv),
+      ...VERSION_CASES,
+      ...HELP_CASES,
+      ['--config', '/tmp/config', 'run', '--supervisor', 'launchd'],
+      ['--config=/tmp/config', 'run', '--supervisor=launchd'],
+      ['-h', 'run'],
+      ['--', 'run', '--supervisor', 'launchd'],
+      CONFIG_RUN_VALUE,
+      ['--config', 'run'],
+      ['--config=run', 'doctor'],
+    ]
+    for (const argv of cases) {
+      let parsed: ReturnType<typeof parseArgs>
+      try {
+        parsed = parseArgs({ ...CLI_PARSE_CONFIG, args: [...argv] })
+      } catch {
+        continue
+      }
+      expect(scannedCommand(argv), JSON.stringify(argv)).toBe(parsed.positionals[0])
+    }
+  })
+  it('does not mistake --config run for the command', () => {
+    const parsed = parseArgs({ ...CLI_PARSE_CONFIG, args: [...CONFIG_RUN_VALUE] })
+    expect(scannedCommand(CONFIG_RUN_VALUE)).toBe(parsed.positionals[0])
+    expect(supervisedRun(CONFIG_RUN_VALUE)).toBe(false)
+  })
+  it.each([
+    [['run', '--supervisor=launchd'], true],
+    [['run', '--supervisor', 'launchd'], true],
+    [['--config', '/tmp/config', '--supervisor', 'launchd', 'run'], true],
+    [['--', 'run', '--supervisor', 'launchd'], false],
+    [['run', '--', '--supervisor=launchd'], false],
+    [['run', '--supervisor=launchd', '--supervisor', 'foo'], false],
+    [['run', '--supervisor=launchd', '--supervisor'], false],
+    [['run', '--supervisor', ''], false],
+    [['run', '--supervisor'], false],
+    [['status', '--supervisor=launchd'], false],
+    [['--config', 'run', '--supervisor=launchd'], false],
+    [['run', '--config', '--supervisor=launchd'], false],
+  ])('detects supervised runs from raw argv %j: %s', (argv, expected) => {
+    expect(supervisedRun(argv)).toBe(expected)
+  })
+  it.each([['--config', ''], ['--nope'], ['extra']])(
+    'records supervised usage errors %j without restarting',
+    async (...options) => {
+      machine = fakeMachine()
+      for (const supervisor of [['--supervisor', 'launchd'], ['--supervisor=launchd']]) {
+        const result = await run(['run', ...supervisor, ...options], { home: machine.home })
+        expect(result.code).toBe(0)
+        expect(result.stderr).toContain(USAGE)
+        expect(JSON.parse(readFileSync(serviceExitPath({}, machine.home), 'utf8'))).toMatchObject({
+          code: 64,
+        })
+        expect(
+          readFileSync(join(hostLogDirectory({}, machine.home), 'phosphor.log'), 'utf8'),
+        ).toContain('[service] stopped {"code":64}')
+      }
+    },
+  )
   it('runs setup with repeated relative repositories, overrides, replace and JSON', async () => {
     machine = fakeMachine()
     const options = {

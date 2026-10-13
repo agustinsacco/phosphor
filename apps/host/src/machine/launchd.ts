@@ -1,4 +1,15 @@
 import { randomUUID } from 'node:crypto'
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  ftruncateSync,
+  openSync,
+  readSync,
+  unlinkSync,
+  writeSync,
+} from 'node:fs'
+import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { mkdir, open, rename, unlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join } from 'node:path'
 import { IdentityFailure } from '../control/identity'
@@ -123,28 +134,84 @@ export async function readServiceExit(path: string): Promise<string | undefined>
     throw error
   }
 }
-export async function prepareLaunchdRun(env: NodeJS.ProcessEnv, home: string): Promise<void> {
-  await unlink(serviceExitPath(env, home)).catch((error) => {
-    if (!missing(error)) throw error
-  })
-  const path = join(hostLogDirectory(env, home), 'launchd.err.log')
-  let file
+export interface LaunchdRunPorts {
+  uid: number | undefined
+  stderrIdentity?: () => { dev: number; ino: number }
+  log?: RuntimeLog
+}
+function errorCode(error: unknown): string {
+  return error instanceof Error &&
+    'code' in error &&
+    typeof error.code === 'string' &&
+    /^[A-Z0-9_]{1,40}$/.test(error.code)
+    ? error.code
+    : 'UNKNOWN'
+}
+/** Called only with the run lock held. No async work can interleave with fd 2 compaction. */
+export function prepareLaunchdRun(
+  env: NodeJS.ProcessEnv,
+  home: string,
+  ports: LaunchdRunPorts,
+): void {
   try {
-    file = await open(path, 'r+')
+    unlinkSync(serviceExitPath(env, home))
   } catch (error) {
-    if (missing(error)) return
-    throw error
+    if (!missing(error)) ports.log?.('service', 'exit_record_unclear', { reason: errorCode(error) })
   }
+  let file: number | undefined
+  const skipped = (reason: string) => ports.log?.('service', 'err_log_skipped', { reason })
   try {
-    const size = (await file.stat()).size
-    if (size > 1024 * 1024) {
-      const buffer = Buffer.alloc(256 * 1024)
-      const read = await file.read(buffer, 0, buffer.length, size - buffer.length)
-      await file.write(buffer, 0, read.bytesRead, 0)
-      await file.truncate(read.bytesRead)
+    file = openSync(
+      join(hostLogDirectory(env, home), 'launchd.err.log'),
+      constants.O_RDWR | constants.O_NOFOLLOW,
+    )
+    const stat = fstatSync(file)
+    if (!stat.isFile() || stat.uid !== ports.uid) {
+      skipped('not_owned_regular_file')
+      return
     }
+    const stderr = (ports.stderrIdentity ?? (() => fstatSync(2)))()
+    if (stderr.dev !== stat.dev || stderr.ino !== stat.ino) {
+      skipped('stderr_mismatch')
+      return
+    }
+    if (stat.size <= 1024 * 1024) return
+    const buffer = Buffer.alloc(256 * 1024)
+    let read = 0
+    while (read < buffer.length) {
+      const count = readSync(
+        file,
+        buffer,
+        read,
+        buffer.length - read,
+        stat.size - buffer.length + read,
+      )
+      if (count === 0) {
+        skipped('short_read')
+        return
+      }
+      read += count
+    }
+    let written = 0
+    while (written < buffer.length) {
+      const count = writeSync(file, buffer, written, buffer.length - written, written)
+      if (count === 0) {
+        skipped('short_write')
+        return
+      }
+      written += count
+    }
+    ftruncateSync(file, buffer.length)
+  } catch (error) {
+    if (!missing(error)) skipped(errorCode(error))
   } finally {
-    await file.close()
+    if (file !== undefined) {
+      try {
+        closeSync(file)
+      } catch (error) {
+        skipped(errorCode(error))
+      }
+    }
   }
 }
 export async function launchdExit(

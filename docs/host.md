@@ -435,7 +435,9 @@ accepted. Under this flag, permanent exits 64, 69, 77 and 78 log `service.stoppe
 and write `{ code, at }` to
 `${XDG_STATE_HOME:-~/.local/state}/phosphor-host/service-exit.json` at 0600, then
 exit 0 so launchd leaves the job stopped. Other exits and signal behavior do not
-change. A new supervised run clears the old record. `service status` shows only
+change. Usage errors under this flag are also recorded as permanent stops, even
+before config parsing. A new supervised run clears the old record only after
+acquiring the run lock. `service status` shows only
 state, pid and last exit code from launchd, the recorded permanent failure reason,
 and the normal machine summary. It never prints launchd's environment dump.
 
@@ -443,9 +445,10 @@ and the normal machine summary. It never prints launchd's environment dump.
 `launchd.err.log`, if present, from the Host log directory. Each read uses at most
 256 KiB. `--follow` starts at the next unread byte and follows the Host log by
 name across rotation; a missing file starts at byte 1. Standard output goes to `/dev/null`;
-launchd captures stderr in that error log. At supervised startup, an error log
-over 1 MiB is reduced to its last 256 KiB. Restart uses `kickstart -k`; a missing
-job asks you to install it. Uninstall unloads the job and removes only the plist,
+launchd captures stderr in that error log. Only the service's own process, after
+acquiring the run lock and verifying that its fd 2 is the owned regular log file,
+reduces an error log over 1 MiB to its last 256 KiB. Symlinks are never followed.
+Restart uses `kickstart -k`; a missing job asks you to install it. Uninstall unloads the job and removes only the plist,
 not config, identity or state. Missing jobs and files are already uninstalled.
 This service is for a remote Host; it is never needed on a Mac you use Desktop on.
 
