@@ -41,6 +41,9 @@ The composer is one small field with several ways in.
   `clear_queue` (pi 0.84.4+; refused on older pi) and re-queues the survivors.
 - `@` → fuzzy file search across the workspace (gitignore-aware), inserts a
   path reference.
+- **Dictation:** with voice input on (Settings → Voice), a microphone beside
+  Attach records until clicked again, then inserts the transcript at the caret
+  without sending. Undo removes it. Transcribed locally ([voice.md](voice.md)).
 - Images: paste or drag → thumbnails → sent as `images[]` with the prompt.
 - **Clicking a pending image opens the annotator** (`features/chat/imageEditor/`),
   not the lightbox. Box, circle, arrow, pen, highlighter, text and numbered

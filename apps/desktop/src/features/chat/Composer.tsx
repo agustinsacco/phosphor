@@ -21,6 +21,7 @@ import { BackgroundWorkIndicator } from './BackgroundWorkIndicator'
 import { BootingIndicator, useSessionBooting } from './BootingIndicator'
 import { Spinner } from '@/components/icons'
 import { AttachButton, StopIconButton, SubmitIconButton } from '@/components/ComposerButtons'
+import { DictateButton } from '@/features/voice/DictateButton'
 import { useChatUiStore } from './uiState'
 import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
 import { exportSessionHtml, renameSession } from '@/features/sessions/sessionActions'
@@ -502,6 +503,7 @@ export function Composer({
           <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 pb-2">
             <div className="flex min-w-0 flex-wrap items-center gap-1">
               <AttachButton onFiles={attachments.addFiles} />
+              <DictateButton textareaRef={textareaRef} onChange={setText} />
               <ContextSourcesMenu workspacePath={workspacePath} sessionId={sessionId} />
               <SwarmSwitch sessionId={sessionId} />
               {isCompacting && (

@@ -106,6 +106,7 @@ describe('SETTINGS_INDEX against the tab sources', () => {
     OptimizationTab: 'optimization',
     PhosphorAccountSection: 'accounts',
     SubagentsTab: 'subagents',
+    VoiceTab: 'voice',
     WebAccessTab: 'web-access',
     WorkspacesTab: 'workspaces',
   }

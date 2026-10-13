@@ -128,6 +128,10 @@
       "types": "./src/version.ts",
       "default": "./src/version.ts"
     },
+    "./voice": {
+      "types": "./src/voice.ts",
+      "default": "./src/voice.ts"
+    },
     "./workspace-search": {
       "types": "./src/workspace-search.ts",
       "default": "./src/workspace-search.ts"

@@ -63,6 +63,7 @@
     "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
+    "sherpa-onnx": "1.13.8",
     "shiki": "^4.4.1",
     "unicode-emoji-json": "^0.9.0",
     "vega-embed": "^7.1.0",

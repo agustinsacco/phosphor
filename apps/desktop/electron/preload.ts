@@ -9,6 +9,7 @@ import type {
   ConnectorAuthPush,
 } from '@shared/models'
 import type { AccountView } from '@shared/account'
+import type { VoiceStatus } from '@shared/voice'
 import type { RpcCommand } from '@shared/rpc'
 import { applyStartupAppearance } from './startup-appearance'
 
@@ -75,6 +76,8 @@ const api: PhosphorApi = {
   onAccountChanged: (listener) => subscribe<[AccountView]>('account:changed', listener),
 
   onMachinesChanged: (listener) => subscribe<[]>('control:machinesChanged', listener),
+
+  onVoiceStatus: (listener) => subscribe<[VoiceStatus]>('voice:statusChanged', listener),
 
   onPtyStatus: (listener) => subscribe<[Record<string, boolean>]>('pty:status', listener),
 

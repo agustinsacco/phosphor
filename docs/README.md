@@ -50,6 +50,7 @@ The Host checks a machine and runs local acceptance sessions; it has no listener
 | [worktrees.md](worktrees.md) | Git worktree lifecycle and the branch control                       |
 | [settings.md](settings.md)   | The settings modal and which config file each tab writes            |
 | [feedback.md](feedback.md)   | In-app rating and feedback, filed as a labelled GitHub issue        |
+| [voice.md](voice.md)         | Dictation with a local speech model: download, processes, privacy   |
 
 ## What Phosphor talks to
 

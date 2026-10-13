@@ -29,6 +29,7 @@ import {
   type WorkspaceInfo,
 } from '@shared/models'
 import { type FeedbackPrefs, normalizeFeedbackPrefs } from '@shared/feedback'
+import { normalizeVoicePrefs, type VoicePrefs } from '@shared/voice'
 import { isValidContextBudgetValue } from '@shared/context-budget'
 import {
   normalizeContextFilePrefs,
@@ -160,6 +161,7 @@ export function getPrefs(): AppPrefs {
     ),
     worktrees: { ...DEFAULT_APP_PREFS.worktrees, ...s.get('worktrees') },
     headroom: { ...DEFAULT_APP_PREFS.headroom, ...s.get('headroom') },
+    voice: normalizeVoicePrefs(s.get('voice')),
     feedback: normalizeFeedbackPrefs(s.get('feedback')),
     // User-editable JSON: a non-string here would throw in every reader's
     // `.trim()`, the settings tab and the context meter included. '' is the
@@ -173,6 +175,10 @@ export function getPrefs(): AppPrefs {
 
 export function setHeadroomPrefs(headroom: AppPrefs['headroom']): void {
   prefs().set('headroom', headroom)
+}
+
+export function setVoicePrefs(voice: VoicePrefs): void {
+  prefs().set('voice', normalizeVoicePrefs(voice))
 }
 
 export function getFeedbackPrefs(): FeedbackPrefs {

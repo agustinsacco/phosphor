@@ -2,6 +2,7 @@
 import { type ExtensionUIRequest, type PiEvent } from './rpc'
 import { DEFAULT_FEEDBACK_PREFS, type FeedbackPrefs } from './feedback'
 import { DEFAULT_CONTEXT_FILE_PREFS, type ContextFilePrefs } from './context-files'
+import { DEFAULT_VOICE_PREFS, type VoicePrefs } from './voice'
 
 export interface PiHealth {
   ok: boolean
@@ -586,6 +587,8 @@ export interface AppPrefs {
   maintenance: MaintenancePrefs
   /** Headroom tool-result compression (Settings → Optimization). */
   headroom: HeadroomPrefs
+  /** Dictation with a local speech model (Settings → Voice, docs/voice.md). */
+  voice: VoicePrefs
   /** Rating/feedback state: launch count, the one-time nudge, the relay. */
   feedback: FeedbackPrefs
   /**
@@ -843,6 +846,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   worktrees: DEFAULT_WORKTREE_PREFS,
   maintenance: DEFAULT_MAINTENANCE_PREFS,
   headroom: DEFAULT_HEADROOM_PREFS,
+  voice: DEFAULT_VOICE_PREFS,
   feedback: DEFAULT_FEEDBACK_PREFS,
   contextBudget: '',
   contextFiles: DEFAULT_CONTEXT_FILE_PREFS,

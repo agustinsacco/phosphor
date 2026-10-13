@@ -12,6 +12,7 @@ export type SettingsTab =
   | 'connectors'
   | 'workspaces'
   | 'optimization'
+  | 'voice'
   | 'advanced'
   | 'keybindings'
   | 'about'

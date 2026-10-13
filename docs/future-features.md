@@ -249,3 +249,25 @@ guided provider login is component 44, not implicit credential forwarding.
 **Risks.** Changed SSH keys, cancelled approval, wrong architecture, partial
 transfer and existing Serve routes must fail safely. Discovery is not identity
 proof. Removing a directory entry is neither uninstall nor evidence of success.
+
+## Voice input beyond English dictation
+
+**Problem.** [Voice input](voice.md) dictates English only, starts from a mouse
+click, and shows nothing until the user stops.
+
+**Proposed design and dependencies.** Offer NVIDIA Parakeet TDT 0.6B v3 (25
+European languages, CC-BY-4.0, about 465 MB) as a third model; it runs on the
+same `sherpa-onnx` runtime as a transducer config in `electron/voice/engine.ts`.
+Add a push-to-talk keybinding beside the click, and stream each segment's text
+into the composer as it is transcribed instead of only at the stop.
+
+**Touches.** `electron/voice/manifest.ts` and `engine.ts` for the model,
+`features/voice/useDictation.ts` and the Keybindings tab for the shortcut, and a
+`voice:segment` push for live text.
+
+**Open questions.** Whether Parakeet's speed on the WebAssembly build (single
+thread) is acceptable, or needs the native `sherpa-onnx-node` addon and its
+per-architecture packaging. Which key, given that Escape already aborts a turn.
+
+**Risks.** A 465 MB download needs a clearer size warning. Live text competes
+with the user's own typing for the caret.

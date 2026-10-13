@@ -10,6 +10,7 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { ipcErrorText } from '@shared/errors'
 import { useSessionsStore } from '@/stores/sessions'
 import { AttachButton, SubmitIconButton } from '@/components/ComposerButtons'
+import { DictateButton } from '@/features/voice/DictateButton'
 import { HomeModelPicker } from './HomeModelPicker'
 import { LaneBoard, useLaneBoard } from './LaneBoard'
 import { Ledger } from './Ledger'
@@ -327,6 +328,13 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 pb-2">
               <div className="flex min-w-0 flex-wrap items-center gap-1">
                 <AttachButton onFiles={attachments.addFiles} />
+                <DictateButton
+                  textareaRef={textareaRef}
+                  onChange={(value) => {
+                    setText(value)
+                    slash.sync(value)
+                  }}
+                />
                 <ContextSourcesMenu workspacePath={workspacePath} />
               </div>
 

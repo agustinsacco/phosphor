@@ -160,6 +160,22 @@ export function PlusIcon({
   )
 }
 
+/** Microphone, for dictation in the composers. */
+export function MicIcon({ size = 16, className }: IconProps): React.JSX.Element {
+  return (
+    <svg
+      {...strokeProps(size)}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect x="9" y="3" width="6" height="11" rx="3" />
+      <path d="M5 11a7 7 0 0 0 14 0M12 18v3" />
+    </svg>
+  )
+}
+
 /** Magnifier, for the sidebar's per-workspace lane search. */
 export function SearchIcon({ size = 13, className }: IconProps): React.JSX.Element {
   return (

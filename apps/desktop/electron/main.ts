@@ -38,6 +38,7 @@ import { initDebugLog, log } from './debug-log'
 import { artifactScheme, registerArtifactProtocol } from './artifacts/artifact-protocol'
 import { fileScheme, isFrameEscape, registerFileProtocol } from './fs/file-protocol'
 import { externalUrl, isAppNavigation } from './external-links'
+import { installPermissionPolicy } from './voice/permissions'
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL
 
@@ -240,6 +241,7 @@ if (!singleInstance) {
     }
     registerArtifactProtocol()
     registerFileProtocol()
+    installPermissionPolicy()
     // Before the first window: artifact iframes read Chromium's scheme, not
     // the app's theme class, so this has to be right at first paint.
     applyThemeSource(getPrefs().theme)

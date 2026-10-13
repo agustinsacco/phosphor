@@ -11,6 +11,7 @@ export const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: 'connectors', label: 'MCP Connectors' },
   { id: 'workspaces', label: 'Workspaces' },
   { id: 'optimization', label: 'Optimization' },
+  { id: 'voice', label: 'Voice' },
   { id: 'advanced', label: 'Advanced' },
   { id: 'keybindings', label: 'Keybindings' },
   { id: 'about', label: 'About' },
@@ -183,6 +184,10 @@ export const SETTINGS_INDEX: SettingEntry[] = [
   ]),
   ...section('optimization', ['Savings', 'tokens saved']),
   ...section('optimization', ['Advisor', 'recommendations findings']),
+  ...section('voice', null, [
+    ['Voice input', 'dictation dictate microphone mic speech to text transcribe'],
+    ['Model', 'moonshine speech download'],
+  ]),
   ...section('advanced', null, [
     ['pi health', 'version install'],
     ['pi settings.json', 'config edit raw'],

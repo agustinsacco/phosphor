@@ -19,6 +19,7 @@ import { WebAccessTab } from './tabs/WebAccessTab'
 import { WorkspacesTab } from './tabs/WorkspacesTab'
 import { OptimizationTab } from './tabs/OptimizationTab'
 import { AdvancedTab } from './tabs/AdvancedTab'
+import { VoiceTab } from './tabs/VoiceTab'
 import { ConnectorsTab } from './tabs/ConnectorsTab'
 import { ComputerUseTab } from './tabs/ComputerUseTab'
 import { SubagentsTab } from './tabs/SubagentsTab'
@@ -166,6 +167,7 @@ export function SettingsModal(): React.JSX.Element | null {
               {effectiveTab === 'subagents' && <SubagentsTab />}
               {effectiveTab === 'workspaces' && <WorkspacesTab />}
               {effectiveTab === 'optimization' && <OptimizationTab />}
+              {effectiveTab === 'voice' && <VoiceTab />}
               {effectiveTab === 'advanced' && <AdvancedTab />}
               {effectiveTab === 'keybindings' && <KeybindingsTab />}
               {effectiveTab === 'about' && <AboutTab />}
