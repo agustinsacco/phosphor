@@ -83,8 +83,8 @@ async function runHostCommand(context: RunContext): Promise<number> {
     })
     detach = context.attach?.({
       ...loop,
-      drain: async (reason) => {
-        const result = await loop.drain(reason)
+      drain: async () => {
+        const result = await loop.drain()
         await Promise.race([unlocked, setTimeout(RELEASE_WAIT_MS, undefined, { ref: false })])
         return result
       },
