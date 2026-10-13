@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import {
   existsSync,
   mkdirSync,
@@ -12,10 +13,13 @@ import {
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
+import type { LaneEvent, Receipt } from '@phosphor/shared/host-protocol'
 import type { SessionPush } from '@phosphor/shared/models'
 import { sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EXTENSIONS_ROOT, SECRET } from '../__fixtures__/machine'
+import { createLaneCommands } from '../lanes/commands'
+import { openStore } from '../lanes/store'
 import { buildPiEnvironment } from '../machine/environment'
 import { createHostLog, type HostLog } from '../machine/log'
 import { isGone, type DrainTimings } from './lifecycle'
@@ -55,6 +59,7 @@ function boot(
     env?: Record<string, string>
     timings?: Partial<DrainTimings>
     ready?: boolean
+    dialogs?: 'cancel' | 'forward'
   } = {},
 ) {
   const environment = buildPiEnvironment({
@@ -85,7 +90,7 @@ function boot(
       contextBudget: '',
       log,
     },
-    { timings: { ...TIMINGS, ...options.timings } },
+    { timings: { ...TIMINGS, ...options.timings }, dialogs: options.dialogs },
   )
   current = runtime
   if (options.ready !== false) {
@@ -99,6 +104,7 @@ function boot(
 function recorder() {
   const pushes: SessionPush[] = []
   return {
+    pushes,
     deliver: (push: SessionPush) => void pushes.push(push),
     stderr: (prefix: string) =>
       pushes.flatMap((p) => (p.kind === 'stderr' && p.text.startsWith(prefix) ? [p.text] : [])),
@@ -212,6 +218,90 @@ describe('the Host runtime', { timeout: 20_000 }, () => {
       /\[host\] dialog cancelled \{"sessionId":"[^"]+","method":"confirm","title":"Allow\?"\}/,
     )
     expect(written.match(/dialog cancelled/g)).toHaveLength(1)
+  })
+
+  it('forwards a dialog without cancelling and sends the controller response to pi', async () => {
+    const { runtime, log } = boot({ dialogs: 'forward' })
+    const sink = recorder()
+    const { sessionId } = await runtime.start({ repository: repo }, sink.deliver)
+    const asked = runtime.command(sessionId, { type: 'prompt', message: '/fake-ask' })
+    const push = await until(() => sink.requests('confirm').at(0), 'the forwarded dialog')
+    if (push.kind !== 'extension-ui') throw new Error('missing dialog')
+    expect(sink.stderr('FAKE_PI_DIALOG ')).toEqual([])
+    runtime.extensionUiResponse(sessionId, {
+      type: 'extension_ui_response',
+      id: push.request.id,
+      confirmed: true,
+    })
+    expect((await asked).success).toBe(true)
+    expect(await until(() => sink.stderr('FAKE_PI_DIALOG ').at(0), 'the response')).toBe(
+      'FAKE_PI_DIALOG {"confirmed":true}',
+    )
+    const written = readFileSync(log.path()!, 'utf8')
+    expect(written).toContain('dialog forwarded {"method":"confirm"}')
+    expect(written).not.toContain('dialog cancelled')
+    expect(written).not.toContain('Allow?')
+    expect(written).not.toContain('The fake asks')
+  })
+
+  it('throws on a dialog response to a registered exited client and the pipeline answers unknown', async () => {
+    const { runtime } = boot({ dialogs: 'forward', env: { FAKE_PI_TURN: 'exit' } })
+    const sink = recorder()
+    const { sessionId } = await runtime.start({ repository: repo }, sink.deliver)
+    await runtime.command(sessionId, { type: 'prompt', message: 'exit' })
+    await until(() => sink.pushes.some((push) => push.kind === 'exit'), 'pi exit')
+    expect(runtime.list().map((session) => session.sessionId)).toContain(sessionId)
+    const response = { type: 'extension_ui_response', id: 'dialog', confirmed: true } as const
+    expect(() => runtime.extensionUiResponse(sessionId, response)).toThrow(
+      'the session is not running',
+    )
+    expect(() => runtime.extensionUiResponse(randomUUID(), response)).toThrow(
+      'the session is not running',
+    )
+    const store = await openStore(join(dir, 'state'), process.getuid?.())
+    try {
+      const repository = store.syncRepositories([repo])[0]
+      if (!repository) throw new Error('missing repository')
+      const lane = store.ensureLane({
+        repositoryId: repository.id,
+        cwd: repo,
+        sessionFile: join(dir, 'session.jsonl'),
+      })
+      const events: LaneEvent[] = []
+      const receipts: Receipt[] = []
+      const commands = createLaneCommands({
+        store,
+        runtime,
+        resumeLane: async () => {},
+        stopLane: async () => {},
+        sessionFor: () => sessionId,
+        openDialogs: () => ['dialog'],
+        summaryFor: () => null,
+        publish: (_laneId, event) => {
+          events.push(event)
+        },
+        deliver: (_clientId, receipt) => {
+          receipts.push(receipt)
+        },
+        now: Date.now,
+        log: () => {},
+      })
+      const requestId = randomUUID()
+      await commands.submit(
+        { id: randomUUID(), label: 'Controller', caps: ['sessions.control'] },
+        {
+          type: 'command',
+          requestId,
+          laneId: lane.laneId,
+          fence: 1,
+          op: { type: 'extension_ui_response', response },
+        },
+      )
+      expect(receipts).toEqual([{ requestId, status: 'unknown' }])
+      expect(events.map((event) => event.kind)).toEqual(['control'])
+    } finally {
+      store.close()
+    }
   })
 
   it('deletes only a stopped session, and only by a request for its file', async () => {

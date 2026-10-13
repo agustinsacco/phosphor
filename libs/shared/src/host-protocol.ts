@@ -281,7 +281,7 @@ export type Receipt =
       /** For `not-controller` and `stale-fence`: who controls the lane now. */
       readonly control?: LaneControl
     }
-  /** The Host restarted between recording the request and finishing it. */
+  /** The Host cannot say whether the op took effect, after a restart or no pi answer. */
   | { readonly requestId: string; readonly status: 'unknown' }
 
 // ---------- queries ----------

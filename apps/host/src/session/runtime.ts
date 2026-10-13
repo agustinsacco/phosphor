@@ -7,7 +7,12 @@ import {
   type SessionPush,
 } from '@phosphor/shared/models'
 import { errorText } from '@phosphor/shared/errors'
-import type { ExtensionUIRequest, RpcCommand, RpcCommandType } from '@phosphor/shared/rpc'
+import type {
+  ExtensionUIRequest,
+  ExtensionUIResponse,
+  RpcCommand,
+  RpcCommandType,
+} from '@phosphor/shared/rpc'
 import { gitInfo } from '@phosphor/session-runtime/git/git-info'
 import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { createContextBudgetRuntime } from '@phosphor/session-runtime/pi/context-budget'
@@ -80,7 +85,11 @@ const NO_ROUTINES = {
  */
 export function createHostRuntime(
   machine: HostMachine,
-  options: { life?: Lifecycle; timings?: Partial<DrainTimings> } = {},
+  options: {
+    life?: Lifecycle
+    timings?: Partial<DrainTimings>
+    dialogs?: 'cancel' | 'forward'
+  } = {},
 ) {
   const { log, roots } = machine
   const timings: DrainTimings = { ...DRAIN, ...options.timings }
@@ -146,7 +155,11 @@ export function createHostRuntime(
       started.add(delivery)
       // A push arrives inside pi's output handler: a delivery that throws must not take the Host down.
       const sink = (sessionId: string) => (push: SessionPush) => {
-        if (push.kind === 'extension-ui') cancelDialog(sessionId, push.request)
+        if (push.kind === 'extension-ui' && DIALOGS.has(push.request.method)) {
+          if (options.dialogs === 'forward')
+            log.write('host', 'dialog forwarded', { method: push.request.method })
+          else cancelDialog(sessionId, push.request)
+        }
         try {
           delivery(push)
         } catch (error) {
@@ -183,10 +196,8 @@ export function createHostRuntime(
   const drain = createDrain({ life, registry, groups, log: log.write, timings })
 
   /**
-   * Until a client can reach the Host (07), nobody can answer an extension's
-   * dialog, and pi would wait on it until the dialog's own timeout, if it
-   * has one. Each is cancelled at once with pi's own reply, which pi turns
-   * into "no answer": undefined, or false for a confirm.
+   * Acceptance runs cancel dialogs by default. Remote wiring opts into
+   * forwarding and answers through extensionUiResponse instead.
    */
   function cancelDialog(sessionId: string, request: ExtensionUIRequest): void {
     if (!DIALOGS.has(request.method)) return
@@ -289,6 +300,13 @@ export function createHostRuntime(
         await relearnFile(id)
         moving--
       }
+    },
+    /** Send a controller's answer without treating it as an RPC command. */
+    extensionUiResponse(id: string, response: ExtensionUIResponse): void {
+      life.assertReady()
+      const session = registry.get(id)
+      if (!session || !session.client.alive) throw new Error('the session is not running')
+      service.respond(id, response)
     },
     /** Let a turn in flight end and be saved, then stop pi and its process group. */
     async stop(id: string): Promise<void> {
