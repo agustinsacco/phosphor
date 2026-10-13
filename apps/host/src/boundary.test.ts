@@ -16,7 +16,21 @@ const files = readdirSync(src, { recursive: true, encoding: 'utf8' })
   .filter((file) => file.endsWith('.ts'))
   .map((file) => join(src, file))
 
+function assertPackageImport(specifier: string | undefined, file: string, support: boolean) {
+  if (specifier === 'ws') {
+    if (!file.startsWith(join(src, 'api') + '/')) throw new Error('ws is only allowed in Host api/')
+    return
+  }
+  expect(support && specifier === 'vitest', `${file}: ${specifier}`).toBe(true)
+}
+
 describe('Host import boundary', () => {
+  it('refuses ws outside the API adapter', () => {
+    expect(() => assertPackageImport('ws', join(src, 'commands/run.ts'), false)).toThrow(
+      'ws is only allowed in Host api/',
+    )
+    expect(() => assertPackageImport('ws', join(src, 'api/server.ts'), false)).not.toThrow()
+  })
   it('reaches the libraries only through exported subpaths, and nothing else outside Node', () => {
     expect(files.length).toBeGreaterThan(10)
     for (const file of files) {
@@ -36,7 +50,7 @@ describe('Host import boundary', () => {
           continue
         }
         // A bundle carries Node builtins only; tests may use their runner.
-        expect(support && specifier === 'vitest', where).toBe(true)
+        assertPackageImport(specifier, file, support)
       }
     }
   })

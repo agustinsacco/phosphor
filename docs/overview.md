@@ -15,7 +15,7 @@ computer is awake, including analysis/report tasks. There is no cloud sync.
 
 Optional Phosphor sign-in unlocks the first-class Machines directory. Host enrollment commands, approval UI and the control
 server's routes exist, but the server is not deployed yet. The plain-Node [Host](host.md) checks a machine and runs local
-acceptance sessions; it has no network listener. [Remote access](remote-access.md)
+acceptance sessions; its API listens on loopback for authenticated clients and serves no lanes yet. [Remote access](remote-access.md)
 does not enable remote execution. Directions that are decided or being explored,
 not built, live in [future-features.md](future-features.md).
 

@@ -1,3 +1,5 @@
+import { createAuthority } from '../api/authority'
+import { startApi } from '../api/server'
 import { randomInt } from 'node:crypto'
 import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
 import { constants } from 'node:os'
@@ -51,6 +53,9 @@ export interface RunContext extends ControlContext {
   reconcile?: typeof reconcile
 }
 async function runHostCommand(context: RunContext): Promise<number> {
+  let api: ReturnType<typeof startApi> | undefined
+  let launchApi: (() => void) | undefined
+  const authority = createAuthority(context.now ?? Date.now)
   let store: HostStore | undefined
   let release: (() => Promise<void>) | undefined
   let detach: (() => void) | undefined
@@ -67,6 +72,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
   const closeAndRelease = async () => {
     try {
       try {
+        await api?.stop()
         store?.close()
       } finally {
         await release?.()
@@ -138,7 +144,21 @@ async function runHostCommand(context: RunContext): Promise<number> {
         throw new StateFailure(stateDirectory, 70, 'Could not reconcile lanes.')
       }
       initAbort.signal.throwIfAborted()
+      launchApi = () => {
+        api = startApi({
+          authority,
+          origin: prepared.url,
+          hostId: identity.hostId,
+          hostVersion: HOST_VERSION,
+          key,
+          port: config.config.api?.port,
+          fetch: context.fetch,
+          log: (event, fields) => context.log?.('host', event, fields),
+        })
+      }
       loop = createHeartbeat({
+        onAccepted: authority.accept,
+        onRemoved: authority.remove,
         now: context.now ?? Date.now,
         wait: context.wait ?? ((ms, signal) => setTimeout(ms, undefined, { signal })),
         random: context.heartbeat?.random ?? (() => randomInt(3001) / 3000),
@@ -170,6 +190,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
     })()
     await initialization
     initAbort.signal.throwIfAborted()
+    launchApi?.()
     if (!loop) throw new Error('Heartbeat was not initialized.')
     return await loop.run()
   } catch (error) {

@@ -7,6 +7,8 @@ import {
   type ClientFrame,
   type LaneOp,
 } from '../host-protocol'
+import { CONTROL_LIMITS } from '../control-api'
+import type { HostCapability } from '../remote-host'
 import type { GrantPayload } from '../host-grant'
 import type { ExtensionUIRequest } from '../rpc'
 
@@ -58,7 +60,13 @@ const challenge = 'a'.repeat(64)
 const otherClient = { id: '00000000-0000-4000-8000-000000000002', label: 'Other viewer' }
 
 /** The same scenarios run against the model and the real Host adapter. No fake internals. */
-export function defineHostConformance(name: string, factory: HostConformanceFactory) {
+export function defineHostConformance(
+  name: string,
+  factory: HostConformanceFactory,
+  options: { capabilities?: readonly HostCapability[] } = {},
+) {
+  const announced = options.capabilities ?? ['sessions.read', 'sessions.control']
+  const lacks = (...caps: HostCapability[]) => !caps.every((cap) => announced.includes(cap))
   describe(name, () => {
     let h: HostConformanceHarness
     beforeEach(() => {
@@ -181,7 +189,13 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       await flush()
       expect(c.closed).toEqual([4403])
       const expiring = await auth({ exp: h.claims.iat + 1 })
-      await flush(1000)
+      await flush(30_000)
+      expiring.send({ type: 'ping', at: 30_000 })
+      await flush()
+      expect(expiring.frames.at(-1)).toEqual({ type: 'pong', at: 30_000 })
+      await flush((1 + CONTROL_LIMITS.signatureSkewSec) * 1000 - 30_000 - 1)
+      expect(expiring.socket.isOpen()).toBe(true)
+      await flush(1)
       expect(expiring.closed).toEqual([4401])
     })
     it('refuses a correctly signed hello naming a different enrolled Host', async () => {
@@ -235,7 +249,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       await flush()
       expect(oversized.closed).toEqual([4400])
     })
-    it('lists lanes, publishes deltas, replays attention only within the current epoch', async () => {
+    it('lists lanes, publishes deltas, replays attention only within the current epoch', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       const c = await auth()
       c.send({ type: 'subscribe', id: 'all', topic: 'lanes' })
       await flush()
@@ -262,7 +277,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       await flush()
       expect(next.frames.filter((f) => f.type === 'attention')).toHaveLength(0)
     })
-    it('snapshots, emits ordered events, replays exactly missed events, and resets across a gap or epoch', async () => {
+    it('snapshots, emits ordered events, replays exactly missed events, and resets across a gap or epoch', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       const c = await auth(),
         laneId = await create(c)
       c.send({ type: 'subscribe', id: 'lane', topic: 'lane', laneId })
@@ -296,7 +312,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       await flush()
       expect(snapshots(next)[0]?.reset).toBe(true)
     })
-    it('deduplicates running commands, sends pending then one terminal receipt, and rejects conflicting reuse', async () => {
+    it('deduplicates running commands, sends pending then one terminal receipt, and rejects conflicting reuse', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       const c = await auth(),
         laneId = await create(c),
         requestId = h.requestId()
@@ -322,7 +339,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       await flush()
       expect(receipts(c, requestId).at(-1)).toMatchObject({ status: 'rejected', code: 'conflict' })
     })
-    it('resends on a new socket mid-command without executing twice', async () => {
+    it('resends on a new socket mid-command without executing twice', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       const c = await auth(),
         laneId = await create(c),
         requestId = h.requestId()
@@ -346,9 +364,10 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       expect(receipts(next, requestId).map((r) => r.status)).toEqual(['pending', 'done'])
       expect(h.driver.executions()).toBe(before + 1)
     })
-    it.each([HOST_LIMITS.commandAnswerMs - 1, HOST_LIMITS.commandAnswerMs + 1])(
+    it.for([HOST_LIMITS.commandAnswerMs - 1, HOST_LIMITS.commandAnswerMs + 1])(
       'answers once when pi completes at %i ms around the uncertainty deadline',
-      async (commandDelayMs) => {
+      async (commandDelayMs, t) => {
+        if (lacks('sessions.read', 'sessions.control')) t.skip()
         h.driver.stop()
         h = factory({ commandDelayMs })
         const c = await auth(),
@@ -382,7 +401,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
         expect(receipts(lookup, requestId)).toMatchObject([{ status }])
       },
     )
-    it('returns unknown for unrecorded, pruned, another client, and interrupted requests; returns stored results', async () => {
+    it('returns unknown for unrecorded, pruned, another client, and interrupted requests; returns stored results', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       const c = await auth(),
         laneId = await create(c),
         missing = h.requestId()
@@ -414,7 +434,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       await flush()
       expect(receipts(reconnect, done.requestId)).toEqual([done])
     })
-    it('reports an interrupted running command as unknown without resurrecting a failed lane', async () => {
+    it('reports an interrupted running command as unknown without resurrecting a failed lane', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       const c = await auth(),
         laneId = await create(c),
         requestId = h.requestId()
@@ -444,7 +465,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
         summary: { activity: 'failed' },
       })
     })
-    it('refuses control without the capability and runs the M2 calls', async () => {
+    it('refuses control without the capability and runs the M2 calls', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       const c = await auth(),
         laneId = await create(c),
         viewer = await auth({ client: otherClient, caps: ['sessions.read'] })
@@ -470,7 +492,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
         error: { code: 'unsupported' },
       })
     })
-    it('serializes takeover for all viewers, fences the old controller, releases and acquires before pi events', async () => {
+    it('serializes takeover for all viewers, fences the old controller, releases and acquires before pi events', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       const a = await auth(),
         laneId = await create(a),
         b = await auth({ client: otherClient })
@@ -516,7 +539,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       expect(controlIndex).toBeGreaterThanOrEqual(0)
       expect(piIndex).toBeGreaterThan(controlIndex)
     })
-    it('rejects a viewer dialog answer and resolves the controller answer in the stream', async () => {
+    it('rejects a viewer dialog answer and resolves the controller answer in the stream', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       const a = await auth(),
         laneId = await create(a),
         b = await auth({ client: otherClient })
@@ -537,7 +561,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
         events(a).some((f) => f.event.kind === 'dialog-resolved' && f.event.dialogId === 'dialog'),
       ).toBe(true)
     })
-    it('hydrates only latest status, widget and title state for a new viewer, and clears keys', async () => {
+    it('hydrates only latest status, widget and title state for a new viewer, and clears keys', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       const a = await auth(),
         laneId = await create(a)
       const status = (key: string, statusText: string | undefined): ExtensionUIRequest => ({
@@ -575,7 +600,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       await flush()
       expect(snapshots(b).at(-1)?.snapshot.ui).toEqual([status('two', 'second')])
     })
-    it('bounds subscriptions and pending commands at the configured cap', async () => {
+    it('bounds subscriptions and pending commands at the configured cap', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       const c = await auth(),
         laneId = await create(c)
       for (let i = 0; i < 4; i++) c.send({ type: 'subscribe', id: 's' + i, topic: 'lanes' })
@@ -594,7 +620,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       await flush(5)
       expect(receipts(c).filter((r) => r.status === 'done')).toHaveLength(3)
     })
-    it('stops and resumes lanes, marks attention read, and exposes failure', async () => {
+    it('stops and resumes lanes, marks attention read, and exposes failure', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       const c = await auth(),
         laneId = await create(c)
       expect(await command(c, laneId, { type: 'lane.stop' })).toMatchObject({ status: 'done' })
@@ -626,7 +653,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
         summary: { activity: 'failed' },
       })
     })
-    it('recovers a slow viewer with one snapshot, without slowing the other viewer', async () => {
+    it('recovers a slow viewer with one snapshot, without slowing the other viewer', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       h.driver.stop()
       h = factory({ sendQueueBytes: 6000 })
       const a = await auth(),
@@ -664,7 +692,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
           .map((e) => e.cursor.seq),
       )
     })
-    it('keeps controller ownership across disconnect and reconnect without changing its fence', async () => {
+    it('keeps controller ownership across disconnect and reconnect without changing its fence', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       const a = await auth(),
         laneId = await create(a),
         b = await auth({ client: otherClient })
@@ -705,7 +734,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
         fence: 1,
       })
     })
-    it('delivers a terminal receipt to each waiting socket of the same client only once', async () => {
+    it('delivers a terminal receipt to each waiting socket of the same client only once', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       const a = await auth(),
         laneId = await create(a),
         b = await auth(),
@@ -730,7 +760,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       for (const c of [a, b])
         expect(receipts(c, requestId).filter((r) => r.status === 'done')).toHaveLength(1)
     })
-    it('caps finished and started receipts separately, prunes by age and does not leak pruned results', async () => {
+    it('caps finished and started receipts separately, prunes by age and does not leak pruned results', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       h.driver.stop()
       h = factory({ receiptsKept: 1, receiptTtlMs: 20, commandDelayMs: 5 })
       const c = await auth(),
@@ -764,7 +795,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
         { requestId: latest.requestId, status: 'unknown' },
       ])
     })
-    it('gates read operations and removes subscriptions when renewal drops read authority', async () => {
+    it('gates read operations and removes subscriptions when renewal drops read authority', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       const c = await auth(),
         laneId = await create(c),
         denied = await auth({ client: otherClient, caps: [] })
@@ -790,7 +822,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       await flush()
       expect(c.frames).toEqual([])
     })
-    it('bounds replay by bytes and attention by count, resetting when replay is unavailable', async () => {
+    it('bounds replay by bytes and attention by count, resetting when replay is unavailable', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       h.driver.stop()
       h = factory({ replayBytes: 1, attentionReplay: 1 })
       const c = await auth(),
@@ -817,7 +850,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       expect(snapshots(c).at(-1)?.reset).toBe(true)
       expect(c.frames.filter((f) => f.type === 'attention' && f.id === 'attention')).toHaveLength(1)
     })
-    it('replaces an oversize event with a reset, and ends only an oversize lanes subscription', async () => {
+    it('replaces an oversize event with a reset, and ends only an oversize lanes subscription', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       h.driver.stop()
       h = factory({ outboundFrameBytes: 1800 })
       const c = await auth(),
@@ -847,9 +881,10 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       expect(c.frames.filter((f) => f.type === 'attention' && f.id === 'all')).toEqual([])
       expect(c.socket.isOpen()).toBe(true)
     })
-    it.each([false, true])(
+    it.for([false, true])(
       'stops buffered replay after an oversized event (oversize reset: %s)',
-      async (oversizeReset) => {
+      async (oversizeReset, t) => {
+        if (lacks('sessions.read', 'sessions.control')) t.skip()
         h.driver.stop()
         h = factory({ outboundFrameBytes: 1800 })
         const c = await auth(),
@@ -923,7 +958,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       expect(b.closed).toEqual([4429])
       expect(a.socket.isOpen()).toBe(true)
     })
-    it('fails only an oversize subscription or call, leaving another lane streaming', async () => {
+    it('fails only an oversize subscription or call, leaving another lane streaming', async (t) => {
+      if (lacks('sessions.read', 'sessions.control')) t.skip()
       h.driver.stop()
       h = factory({ outboundFrameBytes: 1800 })
       const c = await auth(),

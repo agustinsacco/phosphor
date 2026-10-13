@@ -35,6 +35,7 @@ export interface HostConfigV1 {
   accounts?: null
   /** Bare control-plane origin. Defaults to DEFAULT_CONTROL_URL. */
   control?: { url: string }
+  api?: { port: number }
 }
 
 export interface ConfigError {
@@ -61,6 +62,7 @@ const KEYS = {
     'environment',
     'accounts',
     'control',
+    'api',
   ],
   pi: ['node', 'executable'],
   environment: ['pass', 'path'],
@@ -187,6 +189,20 @@ export function validateHostConfig(value: unknown): ConfigValidation {
       onlyKeys(value.control, ['url'], ['control'])
       if (!isControlUrl(value.control.url))
         fail('/control/url', 'must be a bare https origin, or http on loopback')
+    }
+  }
+
+  if (value.api !== undefined) {
+    if (!isRecord(value.api)) fail('/api', 'must be an object with port')
+    else {
+      onlyKeys(value.api, ['port'], ['api'])
+      if (
+        typeof value.api.port !== 'number' ||
+        !Number.isInteger(value.api.port) ||
+        value.api.port < 1024 ||
+        value.api.port > 65535
+      )
+        fail('/api/port', 'must be an integer from 1024 to 65535')
     }
   }
 
