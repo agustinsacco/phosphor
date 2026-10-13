@@ -11,7 +11,10 @@ import type { HostCapability } from '@phosphor/shared/remote-host'
 import type { RpcCommand } from '@phosphor/shared/rpc'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { commandRefusal, type HostRuntime } from '../session/runtime'
-import { opHash, type HostStore, type StoredLane } from './store'
+import { normalizeLabel } from '@phosphor/shared/control-api'
+import { LaneCapacityReached, opHash, type HostStore, type StoredLane } from './store'
+import { createLane, type LaneSessions } from './create'
+import { LaneFolderError } from './worktree'
 import { canonicalJson, JsonTooLarge } from './validation'
 
 export const LANE_QUEUE_LIMIT = 32
@@ -23,6 +26,7 @@ export interface LaneCommandClient {
 }
 export interface LaneCommandPorts {
   store: HostStore
+  sessions: LaneSessions
   runtime: Pick<HostRuntime, 'command' | 'extensionUiResponse'>
   /** Wiring owns projection delivery and the live-session mapping. */
   resumeLane(lane: StoredLane): Promise<void>
@@ -220,7 +224,58 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       }
       if (!publish(laneId, { kind: 'control', control }, queue)) return controlFailure(job)
     }
-    if (op.type === 'lane.create') return rejected(job, 'unsupported', true)
+    if (op.type === 'lane.create') {
+      const repository = store.listRepositories().find((entry) => entry.id === op.repositoryId)
+      if (
+        laneId !== undefined ||
+        !repository ||
+        (op.provider !== undefined && op.provider.length > 64) ||
+        (op.model !== undefined && op.model.length > 128) ||
+        (op.name !== undefined &&
+          (op.name.length > HOST_LIMITS.labelChars || normalizeLabel(op.name) !== op.name))
+      )
+        return rejected(job, 'bad-request', true)
+      if (store.listLanes().length >= store.limits.lanesPerHost)
+        return rejected(job, 'too-many-requests', true)
+      const completion = dispatch(job, queue, async () => {
+        try {
+          return {
+            lane: await createLane(ports, {
+              root: repository.path,
+              op,
+              controller: { clientId: client.id, label: client.label },
+            }),
+          }
+        } catch (error) {
+          if (error instanceof LaneCapacityReached) return { capacity: true }
+          const code =
+            typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
+          if (typeof code === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(code))
+            log('lane.command_error', { requestId, op: op.type, code })
+          return {
+            error: {
+              code: 'internal' as const,
+              message:
+                error instanceof LaneFolderError ? error.message : 'the lane could not start',
+            },
+          }
+        }
+      }).then((result) => {
+        if (!result.answered)
+          return terminal(job, { requestId, status: 'unknown' }, true, result.reason)
+        if (result.value.capacity) return rejected(job, 'too-many-requests', true)
+        if (result.value.error)
+          return terminal(job, { requestId, status: 'failed', error: result.value.error }, true)
+        const created = result.value.lane
+        if (!created) throw new Error('missing lane')
+        if (!publish(created.laneId, { kind: 'control', control: created.control }, queue))
+          return controlFailure(job)
+        const summary = ports.summaryFor(created.laneId)
+        if (summary) publish(created.laneId, { kind: 'summary', summary }, queue)
+        terminal(job, { requestId, status: 'done', laneId: created.laneId, fence: 1 }, true)
+      })
+      return { completion, detached: false }
+    }
     const lane = laneId === undefined ? null : store.getLane(laneId)
     if (!lane || laneId === undefined) return rejected(job, 'unknown-lane', true)
     const sessionId = ports.sessionFor(laneId)

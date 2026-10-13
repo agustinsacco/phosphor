@@ -978,6 +978,25 @@ library asks for. `accept` is its only caller.
 - **The same git.** Creating the runtime sets the Host's own PATH to pi's, so
   the git the Host asks about a repository is the git pi runs.
 
+### Creating lanes
+
+The lane command service creates lanes in an active configured repository or a new
+worktree under `<repo>/.phosphor/worktrees/`. The creator controls the lane at
+fence 1. The API does not wire this service yet.
+
+Worktrees use a valid git branch, never the default branch or one checked out
+elsewhere. The branch with `/` replaced by `-` names the folder: 1 to 100 ASCII
+letters, digits, dots, underscores or hyphens, starting with a letter or digit,
+without `..`. Existing folders are refused. New branches start from the local
+`origin/<default>` ref, then the default branch, then `HEAD`. No fetch runs.
+On failure, the service stops any session it started and removes only the worktree
+it created, without force. It removes a branch it created only if its commit has
+not moved. Dirty worktrees are left in place. A failed attachment hides the stored
+lane row.
+
+A provider id is at most 64 characters; a model id is at most 128. A model alone
+uses pi's provider selection. A provider alone does not change that selection.
+
 ### Lane snapshots
 
 The lane projection holds settled pi messages, state, the turn in flight,

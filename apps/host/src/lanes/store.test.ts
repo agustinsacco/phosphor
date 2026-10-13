@@ -23,6 +23,7 @@ let directory: string
 let store: HostStore
 let repositoryId: string
 let now: number
+let corruptLane: ReturnType<typeof vi.fn<(count: number) => void>>
 const handles: HostStore[] = []
 const uid = process.getuid?.()
 const one = { clientId: randomUUID(), label: 'One' }
@@ -32,8 +33,10 @@ beforeEach(async () => {
   root = mkdtempSync(join(tmpdir(), 'host-store-'))
   directory = join(root, 'state')
   now = 1000
+  corruptLane = vi.fn()
   store = await openStore(directory, uid, {
     now: () => now,
+    logCorruptLane: corruptLane,
     limits: { receiptsKept: 5, lanesPerHost: 5, repositoriesPerHost: 5 },
   })
   handles.push(store)
@@ -54,12 +57,42 @@ async function reopen() {
   handles.splice(handles.indexOf(store), 1)
   store = await openStore(directory, uid, {
     now: () => now,
+    logCorruptLane: corruptLane,
     limits: { receiptsKept: 5, lanesPerHost: 5, repositoriesPerHost: 5 },
   })
   handles.push(store)
 }
 
 describe('Host store ordering and durability', () => {
+  it('inserts the creator at fence 1 and ignores the option on existing and revived lanes', () => {
+    const input = {
+      repositoryId,
+      cwd: join(root, 'repository'),
+      sessionFile: join(root, 'creator.jsonl'),
+    }
+    const created = store.ensureLane(input, { controller: one })
+    expect(created.control).toEqual({ fence: 1, controller: { ...one, connected: false } })
+    expect(store.ensureLane(input, { controller: two }).control).toEqual(created.control)
+    store.markRemoved(created.laneId)
+    expect(store.ensureLane(input, { controller: two }).control).toEqual(created.control)
+    expect(store.ensureLane({ ...input, sessionFile: null }).control).toEqual({
+      fence: 1,
+      controller: null,
+    })
+    expect(() =>
+      store.ensureLane(
+        { ...input, sessionFile: null },
+        { controller: { clientId: 'invalid', label: 'Invalid' } },
+      ),
+    ).toThrow()
+    expect(() =>
+      store.ensureLane(
+        { ...input, sessionFile: null },
+        { controller: { ...one, label: 'bad\nlabel' } },
+      ),
+    ).toThrow()
+    expect(corruptLane).not.toHaveBeenCalled()
+  })
   it('defaults to contract caps and accepts only positive integer limits no larger than them', async () => {
     const defaults = await openStore(join(root, 'defaults'), uid)
     handles.push(defaults)

@@ -13,7 +13,8 @@ import {
 } from '@phosphor/shared/host-protocol'
 import type { HostRuntime } from '../session/runtime'
 import { commandRefusal } from '../session/runtime'
-import { openStore, opHash, type HostStore, type StoredLane } from './store'
+import * as folders from './worktree'
+import { LaneCapacityReached, openStore, opHash, type HostStore, type StoredLane } from './store'
 import {
   createLaneCommands,
   LANE_QUEUE_LIMIT,
@@ -99,6 +100,11 @@ beforeEach(async () => {
   respond = vi.fn()
   ports = {
     store,
+    sessions: {
+      start: vi.fn(async () => ({ sessionId: 'new-session', sessionFile: null })),
+      attach: vi.fn(async () => {}),
+      stop: vi.fn(async () => {}),
+    },
     runtime: { command, extensionUiResponse: respond },
     resumeLane: vi.fn(async (saved) => {
       sessions.set(saved.laneId, 'resumed')
@@ -130,6 +136,7 @@ beforeEach(async () => {
 })
 afterEach(() => {
   store.close()
+  vi.restoreAllMocks()
   vi.useRealTimers()
   rmSync(root, { recursive: true, force: true })
 })
@@ -537,15 +544,15 @@ describe('lane command guards and operations', () => {
     expect(command).not.toHaveBeenCalled()
   })
 
-  it('records unsupported creation, missing lanes, stopped pi and missing fences', async () => {
+  it('records invalid creation, missing lanes, stopped pi and missing fences', async () => {
     for (const [request, code] of [
       [
         {
           type: 'command',
           requestId: randomUUID(),
-          op: { type: 'lane.create', repositoryId: lane.repositoryId, worktree: null },
+          op: { type: 'lane.create', repositoryId: '0000000000000000', worktree: null },
         },
-        'unsupported',
+        'bad-request',
       ],
       [frame({ type: 'abort' }, 1, randomUUID()), 'unknown-lane'],
       [{ type: 'command', requestId: randomUUID(), op: { type: 'lane.resume' } }, 'unknown-lane'],
@@ -1014,5 +1021,181 @@ describe('receiptMessage matches store and wire limits', () => {
   })
   it.each([null, undefined, 123, {}])('uses fixed text for non-string input', (raw) => {
     expect(receiptMessage(raw)).toBe('pi reported an error')
+  })
+})
+
+describe('lane.create', () => {
+  const create = (
+    overrides: Partial<Extract<LaneOp, { type: 'lane.create' }>> = {},
+  ): LaneCommandFrame => ({
+    type: 'command',
+    requestId: randomUUID(),
+    op: { type: 'lane.create', repositoryId: lane.repositoryId, worktree: null, ...overrides },
+  })
+  it('records before start, makes the creator controller at fence 1, publishes control then summary, and dedupes', async () => {
+    const request = create({ name: 'Created' })
+    vi.mocked(ports.sessions.start).mockImplementation(async () => {
+      expect(store.getReceipt(request.requestId, one.id)?.status).toBe('pending')
+      return { sessionId: 'new', sessionFile: null }
+    })
+    await service.submit(one, request)
+    const receipt = last(request.requestId)
+    expect(receipt).toMatchObject({ status: 'done', fence: 1 })
+    if (receipt?.status !== 'done' || !receipt.laneId) throw new Error('missing created lane')
+    expect(store.getLane(receipt.laneId)).toMatchObject({
+      title: 'Created',
+      control: { fence: 1, controller: { clientId: one.id, label: one.label } },
+    })
+    expect(events.map((e) => e.event.kind)).toEqual(['control', 'summary'])
+    expect(parseHostFrame(JSON.stringify({ type: 'receipt', receipt }))).not.toBeNull()
+    await service.submit(one, request)
+    expect(last(request.requestId)).toEqual(receipt)
+    expect(ports.sessions.start).toHaveBeenCalledTimes(1)
+  })
+  it('rejects laneId, unknown and inactive repositories, and unnormalized or oversized names', async () => {
+    const requests = [
+      { ...create(), laneId: lane.laneId },
+      create({ repositoryId: '0000000000000000' }),
+      ...[' padded ', '', 'bad\nname', 'x'.repeat(HOST_LIMITS.labelChars + 1)].map((name) =>
+        create({ name }),
+      ),
+    ]
+    for (const request of requests) {
+      await service.submit(one, request)
+      expect(last(request.requestId)).toMatchObject({ status: 'rejected', code: 'bad-request' })
+    }
+    store.syncRepositories([])
+    const inactive = create()
+    await service.submit(one, inactive)
+    expect(last(inactive.requestId)).toMatchObject({ code: 'bad-request' })
+    expect(ports.sessions.start).not.toHaveBeenCalled()
+  })
+  it('accepts the exact name limit and refuses the lane cap before starting anything', async () => {
+    await service.submit(one, create({ name: 'x'.repeat(HOST_LIMITS.labelChars) }))
+    expect(ports.sessions.start).toHaveBeenCalledTimes(1)
+    vi.spyOn(store, 'listLanes').mockReturnValue(
+      Array.from({ length: store.limits.lanesPerHost }, () => lane),
+    )
+    const request = create()
+    await service.submit(one, request)
+    expect(last(request.requestId)).toMatchObject({ code: 'too-many-requests' })
+    expect(ports.sessions.start).toHaveBeenCalledTimes(1)
+  })
+  it('returns fixed folder errors and generic start errors, logging safe codes only', async () => {
+    const invalid = create({ worktree: { branch: 'bad..name' } })
+    await service.submit(one, invalid)
+    expect(last(invalid.requestId)).toMatchObject({
+      status: 'failed',
+      error: { code: 'internal', message: 'That branch name is not valid.' },
+    })
+    for (const code of ['SAFE_CODE', 'private/path', 'x'.repeat(65)]) {
+      vi.mocked(ports.sessions.start).mockRejectedValueOnce(
+        Object.assign(new Error('private body'), { code }),
+      )
+      const request = create()
+      await service.submit(one, request)
+      expect(last(request.requestId)).toMatchObject({
+        status: 'failed',
+        error: { message: 'the lane could not start' },
+      })
+    }
+    expect(logs.filter((l) => l.message === 'lane.command_error')).toHaveLength(1)
+    expect(JSON.stringify(logs)).not.toContain('private')
+  })
+  it('maps a store capacity race to too-many-requests and stops the started session', async () => {
+    vi.spyOn(store, 'ensureLane').mockImplementationOnce(() => {
+      throw new LaneCapacityReached()
+    })
+    const request = create()
+    await service.submit(one, request)
+    expect(last(request.requestId)).toMatchObject({ code: 'too-many-requests' })
+    expect(ports.sessions.stop).toHaveBeenCalledWith('new-session')
+  })
+  it('serializes two creates and reports unknown at the answer deadline without a late receipt', async () => {
+    vi.spyOn(folders, 'prepareLaneFolder').mockResolvedValue({
+      cwd: lane.cwd,
+      branch: null,
+      undo: async () => {},
+    })
+    const gate = deferred<{ sessionId: string; sessionFile: null }>()
+    const entered = deferred<void>()
+    vi.mocked(ports.sessions.start).mockImplementationOnce(() => {
+      entered.release()
+      return gate.promise
+    })
+    const first = create()
+    const second = create()
+    const a = service.submit(one, first)
+    const b = service.submit(two, second)
+    await entered.promise
+    await vi.advanceTimersByTimeAsync(0)
+    expect(ports.sessions.start).toHaveBeenCalledTimes(1)
+    gate.release({ sessionId: 'first', sessionFile: null })
+    await a
+    await b
+    expect(ports.sessions.start).toHaveBeenCalledTimes(2)
+    const late = deferred<{ sessionId: string; sessionFile: null }>()
+    const lateEntered = deferred<void>()
+    vi.mocked(ports.sessions.start).mockImplementationOnce(() => {
+      lateEntered.release()
+      return late.promise
+    })
+    const request = create()
+    const running = service.submit(one, request)
+    await lateEntered.promise
+    await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+    await running
+    expect(last(request.requestId)).toMatchObject({ status: 'unknown' })
+    late.release({ sessionId: 'late', sessionFile: null })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(receipts(request.requestId)).toHaveLength(1)
+  })
+})
+
+describe('lane.create model admission and attachment cleanup', () => {
+  const request = (
+    fields: Partial<Extract<LaneOp, { type: 'lane.create' }>>,
+  ): LaneCommandFrame => ({
+    type: 'command',
+    requestId: randomUUID(),
+    op: { type: 'lane.create', repositoryId: lane.repositoryId, worktree: null, ...fields },
+  })
+  it.each([{ provider: 'provider' }, { model: 'model' }])(
+    'starts a partial model selection without storing a partial pair: %j',
+    async (fields) => {
+      const create = request(fields)
+      await service.submit(one, create)
+      const receipt = last(create.requestId)
+      if (receipt?.status !== 'done' || !receipt.laneId) throw new Error('missing created lane')
+      expect(store.getLane(receipt.laneId)?.model).toBeNull()
+      expect(ports.sessions.start).toHaveBeenCalledWith({
+        repository: store.listRepositories()[0]?.path,
+        ...('model' in fields ? { model: fields.model } : {}),
+      })
+    },
+  )
+  it('accepts both model fields at their exact limits, rejects one past either before folder or session work', async () => {
+    const folder = vi.spyOn(folders, 'prepareLaneFolder')
+    await service.submit(one, request({ provider: 'p'.repeat(64), model: 'm'.repeat(128) }))
+    expect(ports.sessions.start).toHaveBeenCalledTimes(1)
+    for (const fields of [{ provider: 'p'.repeat(65) }, { model: 'm'.repeat(129) }]) {
+      const create = request(fields)
+      await service.submit(one, create)
+      expect(last(create.requestId)).toMatchObject({ status: 'rejected', code: 'bad-request' })
+    }
+    expect(folder).toHaveBeenCalledTimes(1)
+    expect(ports.sessions.start).toHaveBeenCalledTimes(1)
+  })
+  it('removes a visible lane row after attachment failure and still stops its session', async () => {
+    vi.mocked(ports.sessions.attach).mockRejectedValueOnce(new Error('private'))
+    const create = request({})
+    await service.submit(one, create)
+    expect(last(create.requestId)).toMatchObject({
+      status: 'failed',
+      error: { message: 'the lane could not start' },
+    })
+    expect(store.listLanes()).toHaveLength(1)
+    expect(ports.sessions.stop).toHaveBeenCalledWith('new-session')
+    expect(events).toEqual([])
   })
 })
