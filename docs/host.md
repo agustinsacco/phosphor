@@ -44,8 +44,27 @@ Programs live in `~/.local/lib/phosphor-host/versions/<version>/`. An atomic
 symlink replacement selects `current`; `~/.local/bin/phosphor` points at its
 launcher. Add `~/.local/bin` to PATH, then run `phosphor setup`. A failed
 verification leaves an existing install untouched. Config, identity, state and
-provider installs are never changed. Installing an already present version is
-refused instead of overwriting it.
+provider installs are never changed. An already selected version with a matching
+`VERSION` is idempotent: the installer verifies the signed manifest, keeps the
+version folder untouched and makes sure the launcher is in place. Any other
+existing version folder is refused, with an instruction to run
+`phosphor update --rollback` or remove that folder before trying again. A
+`current` that is not a symlink is refused.
+
+A launcher symlink is ours only when it points exactly at
+`~/.local/lib/phosphor-host/current/bin/phosphor`. A different launcher is refused
+unless `--replace-launcher` is passed. That flag keeps a user-owned file or
+symlink as `~/.local/bin/phosphor.before-release`; an existing backup or a
+directory at the launcher path is refused. If a Host service is already running,
+run `phosphor service install` again after replacing its launcher.
+
+The installer and `phosphor update` share
+`~/.local/lib/phosphor-host/.install-lock/`. Its `pid` file contains the owner's
+positive decimal process id followed by a newline. A live owner refuses another
+install or update; a dead owner's lock is reclaimed once. Missing or malformed
+pids are refused. Remove a refused lock only if no install or update is running.
+Exit, HUP, INT and TERM clean up the owned lock and temporary files; signals are
+ignored briefly while publishing the launcher and `current`.
 
 ### Install from source
 

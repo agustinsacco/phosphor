@@ -111,8 +111,8 @@ END {
   take("{"); field("schema"); take("1"); take(",")
   field("version"); text(); v=t; version(v); take(",")
   field("protocols"); take("["); count=0
-  do {token(); if(kind!="number" || t!~/^[1-9][0-9]*$/ || t+0<1 || t+0>65535 || seen[t]++ || ++count>8) bad(); token()} while(t==",")
-  if(t!="]") bad(); take(",")
+  do {token(); if(kind!="number" || t!~/^[1-9][0-9]*$/ || t+0<1 || t+0>65535 || seen[t]++ || ++count>8) bad(); token()} while(kind=="punctuation" && t==",")
+  if(kind!="punctuation" || t!="]") bad(); take(",")
   field("node"); text(); version(t); take(",")
   field("sourceCommit"); text(); if(length(t)!=40 || t!~/^[0-9a-f]+$/) bad(); take(",")
   field("artifacts"); take("["); count=0
@@ -128,8 +128,8 @@ END {
     take("}")
     if(target==wanted) {found=1; f=file; b=bytes; h=hash}
     token()
-  } while(t==",")
-  if(t!="]") bad(); take("}"); token(); if(t!="" || !found) bad()
+  } while(kind=="punctuation" && t==",")
+  if(kind!="punctuation" || t!="]") bad(); take("}"); token(); if(t!="" || !found) bad()
   print v; print f; print b; print h
 }' "$tmp/manifest" > "$tmp/metadata" || fail
 version=$(sed -n '1p' "$tmp/metadata")
@@ -216,6 +216,8 @@ if [ -e "$command" ] || [ -L "$command" ]; then
   fi
 fi
 stage=$(mktemp -d "$root/.install.XXXXXXXX")
+# Keep version publication and its cleanup bookkeeping indivisible to signals.
+trap '' HUP INT TERM
 if [ "$already" = 0 ]; then
   mv "$tmp/unpacked" "$stage/version"
   mv "$stage/version" "$root/versions/$version"
@@ -226,7 +228,6 @@ ln -s "$root/current/bin/phosphor" "$stage/phosphor"
 if [ "$ours" = 1 ]; then cp -P "$command" "$stage/old-command"; fi
 # Signals are ignored during publication. A trap cannot remove a version that
 # current has selected, or leave a replaced source launcher without its backup.
-trap '' HUP INT TERM
 if [ "$foreign" = 1 ]; then
   mv "$command" "$backup" || fail
   backup_moved=1

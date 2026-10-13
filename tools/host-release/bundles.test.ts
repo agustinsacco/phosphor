@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
@@ -16,7 +17,7 @@ import { gunzipSync, gzipSync } from 'node:zlib'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { verifyReleaseManifest } from '../../apps/host/src/update/verify'
 import { HOST_PROTOCOL_VERSION } from '../../libs/shared/src/remote-host'
-const dir = mkdtempSync(join(tmpdir(), 'host-bundles-test-'))
+const dir = realpathSync(mkdtempSync(join(tmpdir(), 'host-bundles-test-')))
 const root = resolve(import.meta.dirname, '../..')
 const target = `${process.platform}-${process.arch}`
 const hash = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex')
@@ -88,6 +89,8 @@ function install(
   requested = '1.2.3',
   prepare?: (home: string, release: string) => NodeJS.ProcessEnv,
   algorithm = 'sha512',
+  flags: string[] = [],
+  rawManifest: (json: string) => string = (json) => json,
 ) {
   const release = mkdtempSync(join(dir, 'release-'))
   const home = mkdtempSync(join(dir, 'home-'))
@@ -99,7 +102,7 @@ function install(
     release,
     requested ? 'phosphor-host-1.2.3.manifest.json' : 'phosphor-host.manifest.json',
   )
-  const bytes = Buffer.from(JSON.stringify(m, null, 2) + '\n')
+  const bytes = Buffer.from(rawManifest(JSON.stringify(m, null, 2) + '\n'))
   writeFileSync(file, bytes)
   execFileSync(
     'ssh-keygen',
@@ -115,7 +118,7 @@ function install(
   mkdirSync(join(home, '.local/bin'))
   execFileSync('ln', ['-s', join(old, 'current/bin/phosphor'), join(home, '.local/bin/phosphor')])
   const extraEnv = prepare?.(home, release) ?? {}
-  const result = spawnSync('sh', [script, ...(requested ? [requested] : [])], {
+  const result = spawnSync('sh', [script, ...(requested ? [requested] : []), ...flags], {
     encoding: 'utf8',
     env: {
       ...process.env,
@@ -128,7 +131,17 @@ function install(
   expect(result.stdout + result.stderr).not.toContain(privateKey.trim())
   expect(readdirSync(temp)).toEqual([])
   expect(readFileSync(join(old, 'versions/old/marker'), 'utf8')).toBe('unchanged')
+  expect(existsSync(join(old, '.install-lock'))).toBe(extraEnv.KEEP_LOCK === '1')
   return { result, home, old }
+}
+function installPrepared(
+  prepare: (home: string, release: string) => NodeJS.ProcessEnv,
+  flags: string[] = [],
+) {
+  return install(undefined, undefined, undefined, undefined, undefined, prepare, undefined, flags)
+}
+function launcher(home: string) {
+  return join(home, '.local/bin/phosphor')
 }
 describe('signed Host bundle tools', () => {
   it('builds byte-identical bundles and installs without system Node, including latest alias', () => {
@@ -140,6 +153,113 @@ describe('signed Host bundle tools', () => {
         env: { HOME: home, PATH: '/usr/bin:/bin' },
       })
       expect(version).toContain('1.2.3')
+    }
+  })
+  it('is idempotent for the selected version and restores a missing launcher', () => {
+    for (const missing of [false, true]) {
+      const { result, home, old } = installPrepared((home) => {
+        const root = join(home, '.local/lib/phosphor-host')
+        mkdirSync(join(root, 'versions/1.2.3'))
+        writeFileSync(join(root, 'versions/1.2.3/VERSION'), '1.2.3\n')
+        writeFileSync(join(root, 'versions/1.2.3/marker'), 'keep')
+        rmSync(join(root, 'current'))
+        execFileSync('ln', ['-s', 'versions/1.2.3', join(root, 'current')])
+        if (missing) rmSync(launcher(home))
+        return {}
+      })
+      expect(result.status, result.stderr).toBe(0)
+      expect(result.stdout).toContain('already installed')
+      expect(readFileSync(join(old, 'versions/1.2.3/marker'), 'utf8')).toBe('keep')
+      expect(execFileSync('readlink', [launcher(home)], { encoding: 'utf8' }).trim()).toBe(
+        join(old, 'current/bin/phosphor'),
+      )
+    }
+  })
+  it('never merges existing version folders or replaces a nonsymlink current', () => {
+    for (const kind of ['unselected', 'bad-version', 'current-directory', 'current-file']) {
+      const { result, old } = installPrepared((home) => {
+        const root = join(home, '.local/lib/phosphor-host')
+        mkdirSync(join(root, 'versions/1.2.3'))
+        writeFileSync(join(root, 'versions/1.2.3/VERSION'), 'wrong')
+        if (kind !== 'unselected') {
+          rmSync(join(root, 'current'))
+          if (kind === 'bad-version')
+            execFileSync('ln', ['-s', 'versions/1.2.3', join(root, 'current')])
+          else if (kind === 'current-directory') mkdirSync(join(root, 'current'))
+          else writeFileSync(join(root, 'current'), 'keep')
+        }
+        return {}
+      })
+      expect(result.status).not.toBe(0)
+      expect(readFileSync(join(old, 'versions/1.2.3/VERSION'), 'utf8')).toBe('wrong')
+      if (kind === 'unselected' || kind === 'bad-version') {
+        expect(result.stderr).toContain(join(old, 'versions/1.2.3'))
+        expect(result.stderr).toContain('phosphor update --rollback')
+      }
+    }
+  })
+  it('refuses foreign launchers by default and backs them up only with the flag', () => {
+    for (const kind of ['file', 'symlink']) {
+      const prepare = (home: string) => {
+        rmSync(launcher(home))
+        if (kind === 'file') writeFileSync(launcher(home), 'source launcher')
+        else execFileSync('ln', ['-s', '/nonexistent/foreign', launcher(home)])
+        return {}
+      }
+      const refused = installPrepared(prepare)
+      expect(refused.result.status).not.toBe(0)
+      expect(refused.result.stderr).toContain('--replace-launcher')
+      expect(refused.result.stderr).toContain(launcher(refused.home))
+      expect(readdirSync(join(refused.old, 'versions'))).toEqual(['old'])
+      const replaced = installPrepared(prepare, ['--replace-launcher'])
+      expect(replaced.result.status, replaced.result.stderr).toBe(0)
+      expect(replaced.result.stdout).toContain('phosphor service install')
+      const backup = `${launcher(replaced.home)}.before-release`
+      if (kind === 'file') expect(readFileSync(backup, 'utf8')).toBe('source launcher')
+      else
+        expect(execFileSync('readlink', [backup], { encoding: 'utf8' }).trim()).toBe(
+          '/nonexistent/foreign',
+        )
+      expect(execFileSync(launcher(replaced.home), ['version'], { encoding: 'utf8' })).toContain(
+        '1.2.3',
+      )
+    }
+  })
+  it('refuses a launcher directory and existing backup even with the replacement flag', () => {
+    for (const kind of ['directory', 'backup-file', 'backup-symlink']) {
+      const { result, home, old } = installPrepared(
+        (home) => {
+          rmSync(launcher(home))
+          if (kind === 'directory') mkdirSync(launcher(home))
+          else {
+            writeFileSync(launcher(home), 'source launcher')
+            if (kind === 'backup-file') writeFileSync(`${launcher(home)}.before-release`, 'keep')
+            else execFileSync('ln', ['-s', '/missing', `${launcher(home)}.before-release`])
+          }
+          return {}
+        },
+        ['--replace-launcher'],
+      )
+      expect(result.status).not.toBe(0)
+      expect(readdirSync(join(old, 'versions'))).toEqual(['old'])
+      if (kind !== 'directory') expect(readFileSync(launcher(home), 'utf8')).toBe('source launcher')
+    }
+  })
+  it('recovers a dead install lock and refuses a live owner or malformed lock', () => {
+    for (const owner of ['2147483647', String(process.pid), 'invalid', '0', '']) {
+      const { result, old } = installPrepared((home) => {
+        const lock = join(home, '.local/lib/phosphor-host/.install-lock')
+        mkdirSync(lock)
+        writeFileSync(join(lock, 'pid'), `${owner}\n`)
+        return { KEEP_LOCK: owner === '2147483647' ? '0' : '1' }
+      })
+      if (owner === '2147483647') expect(result.status, result.stderr).toBe(0)
+      else {
+        expect(result.status).not.toBe(0)
+        expect(result.stderr).toContain(join(old, '.install-lock'))
+        expect(result.stderr).toContain('no install or update is running')
+        expect(readFileSync(join(old, '.install-lock/pid'), 'utf8')).toBe(`${owner}\n`)
+      }
     }
   })
   it('emits the contract protocols and signs a complete three-target manifest', () => {
@@ -253,6 +373,28 @@ describe('signed Host bundle tools', () => {
     ]
     for (const change of changes) expect(install(change).result.status).not.toBe(0)
   })
+  it('rejects signed JSON with quoted array delimiters', () => {
+    for (const change of [
+      (json: string) => json.replace('2\n  ]', '2\n  "]"'),
+      (json: string) => json.replace('}\n  ]', '}\n  "]"'),
+      (json: string) => json.replace('1,\n    2', '1 ","\n    2'),
+    ]) {
+      const { result } = install(
+        (m) => {
+          m.protocols = [1, 2]
+        },
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        [],
+        change,
+      )
+      expect(result.status).not.toBe(0)
+    }
+  })
   it('refuses signed archive traversal and symlinks before extracting anything', () => {
     const original = bundle
     try {
@@ -350,6 +492,55 @@ describe('signed Host bundle tools', () => {
       'versions/old',
     )
     expect(readdirSync(old).sort()).toEqual(['current', 'versions'])
+  })
+  it('restores a foreign launcher or missing launcher when current publication fails', () => {
+    for (const foreign of [true, false]) {
+      const { result, home, old } = installPrepared(
+        (home) => {
+          rmSync(launcher(home))
+          if (foreign) writeFileSync(launcher(home), 'source launcher')
+          const commands = join(home, 'commands')
+          mkdirSync(commands)
+          const realMv = execFileSync('sh', ['-c', 'command -v mv'], { encoding: 'utf8' }).trim()
+          writeFileSync(
+            join(commands, 'mv'),
+            `#!/bin/sh\ncase "$*" in *'/current '*) exit 1 ;; esac\nexec ${realMv} "$@"\n`,
+            { mode: 0o755 },
+          )
+          return { PATH: `${commands}:${process.env.PATH}` }
+        },
+        foreign ? ['--replace-launcher'] : [],
+      )
+      expect(result.status).not.toBe(0)
+      if (foreign) expect(readFileSync(launcher(home), 'utf8')).toBe('source launcher')
+      else expect(existsSync(launcher(home))).toBe(false)
+      expect(existsSync(`${launcher(home)}.before-release`)).toBe(false)
+      expect(readdirSync(old).sort()).toEqual(['current', 'versions'])
+      expect(readdirSync(join(old, 'versions'))).toEqual(['old'])
+    }
+  })
+  it('cleans up its owned install lock on HUP, INT and TERM', () => {
+    for (const [signal, code] of [
+      ['HUP', 129],
+      ['INT', 130],
+      ['TERM', 143],
+    ] as const) {
+      const { result, old } = installPrepared((home) => {
+        const commands = join(home, 'commands')
+        mkdirSync(commands)
+        const realMktemp = execFileSync('sh', ['-c', 'command -v mktemp'], {
+          encoding: 'utf8',
+        }).trim()
+        writeFileSync(
+          join(commands, 'mktemp'),
+          `#!/bin/sh\ncase "$*" in *'/phosphor-host/.install.'*) kill -${signal} "$PPID"; exit 1 ;; esac\nexec ${realMktemp} "$@"\n`,
+          { mode: 0o755 },
+        )
+        return { PATH: `${commands}:${process.env.PATH}` }
+      })
+      expect(result.status, result.stderr).toBe(code)
+      expect(readdirSync(old).sort()).toEqual(['current', 'versions'])
+    }
   })
   it('cleans up its environment-only signing key on success and failure', () => {
     const temp = join(dir, 'sign-tmp')
