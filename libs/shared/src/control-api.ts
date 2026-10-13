@@ -14,6 +14,8 @@
  * add a field without breaking an older one, and nothing unknown is stored.
  */
 
+import { GRANT_LIMITS, GRANT_PREFIX, type GrantClient } from './host-grant'
+
 export const CONTROL_API_VERSION = 1
 export const CONTROL_API_PREFIX = '/api/v1'
 export const DEFAULT_CONTROL_URL = 'https://phosphor.saccolabs.com'
@@ -61,6 +63,12 @@ export const CONTROL_ROUTES = {
   enrollmentApprove: `${CONTROL_API_PREFIX}/enrollments/approve`,
   /** GET, user: your machines and their latest state. */
   machines: `${CONTROL_API_PREFIX}/machines`,
+  /** POST, user: register a Desktop install. */
+  clients: `${CONTROL_API_PREFIX}/clients`,
+  /** POST, user: short-lived Host permission. */
+  grants: `${CONTROL_API_PREFIX}/grants`,
+  /** GET, public: verification keys for Host grants. */
+  grantKeys: `${CONTROL_API_PREFIX}/grant-keys`,
   /** GET, signed by an enrolled Host (x-phosphor-host): its own record. */
   hostSelf: `${CONTROL_API_PREFIX}/hosts/self`,
   /** POST, Host-signed: the 30-second heartbeat. */
@@ -339,9 +347,37 @@ export interface HeartbeatRequest {
   readonly endpoint: string | null
 }
 
+export interface ClientRegisterRequest {
+  readonly label: string
+}
+export interface ClientRegisterResponse {
+  readonly client: GrantClient
+}
+export interface GrantIssueRequest {
+  readonly hostId: string
+  readonly clientId: string
+}
+export interface GrantIssueResponse {
+  readonly grant: string
+  readonly expiresAt: string
+  readonly host: {
+    readonly id: string
+    readonly endpoint: string | null
+    readonly publicKey: string
+  }
+}
+export interface HostRevocations {
+  readonly epoch: number
+  readonly ownerId: string
+  readonly revoked: { readonly sessions: readonly string[]; readonly clients: readonly string[] }
+}
+
 export interface HeartbeatResponse {
   readonly accepted: true
   readonly nextInSec: number
+  readonly epoch?: number
+  readonly ownerId?: string
+  readonly revoked?: HostRevocations['revoked']
 }
 
 export interface HealthResponse {
@@ -675,7 +711,18 @@ export function parseHeartbeatResponse(value: unknown): Parsed<HeartbeatResponse
   if (!isRecord(value) || value.accepted !== true) return fail('accepted')
   if (!isCount(value.nextInSec, 3600) || value.nextInSec < CONTROL_LIMITS.heartbeatMinSec)
     return fail('nextInSec')
-  return ok({ accepted: true, nextInSec: value.nextInSec })
+  if (value.epoch !== undefined && (!isCount(value.epoch, 2147483647) || value.epoch < 1))
+    return fail('epoch')
+  if (value.ownerId !== undefined && !isUuid(value.ownerId)) return fail('ownerId')
+  const revoked = value.revoked === undefined ? undefined : parseRevoked(value.revoked)
+  if (revoked === null) return fail('revoked')
+  return ok({
+    accepted: true,
+    nextInSec: value.nextInSec,
+    ...(value.epoch !== undefined ? { epoch: value.epoch } : {}),
+    ...(value.ownerId !== undefined ? { ownerId: value.ownerId } : {}),
+    ...(revoked !== undefined ? { revoked } : {}),
+  })
 }
 
 export function parseHealthResponse(value: unknown): Parsed<HealthResponse> {
@@ -715,4 +762,61 @@ export function machineStatus(
   if (machine.state !== 'running') return 'down'
   const age = nowMs + clockOffsetMs - Date.parse(machine.lastSeenAt)
   return age <= CONTROL_LIMITS.downAfterSec * 1000 ? 'up' : 'down'
+}
+
+// ---------------------------------------------------------- Clients and grants
+
+export function parseClientRegisterRequest(value: unknown): Parsed<ClientRegisterRequest> {
+  const label = isRecord(value) ? normalizeLabel(value.label) : null
+  return label === null ? fail('label') : ok({ label })
+}
+export function parseClientRegisterResponse(value: unknown): Parsed<ClientRegisterResponse> {
+  if (!isRecord(value) || !isRecord(value.client) || !isUuid(value.client.id)) return fail('client')
+  const label = normalizeLabel(value.client.label)
+  if (label === null || label !== value.client.label) return fail('label')
+  return ok({ client: { id: value.client.id, label } })
+}
+export function parseGrantIssueRequest(value: unknown): Parsed<GrantIssueRequest> {
+  if (!isRecord(value) || !isUuid(value.hostId) || !isUuid(value.clientId)) return fail('ids')
+  return ok({ hostId: value.hostId, clientId: value.clientId })
+}
+export function parseGrantIssueResponse(value: unknown): Parsed<GrantIssueResponse> {
+  if (!isRecord(value) || !isRecord(value.host)) return fail('body')
+  if (
+    typeof value.grant !== 'string' ||
+    value.grant.length > GRANT_LIMITS.tokenChars ||
+    !value.grant.startsWith(GRANT_PREFIX) ||
+    !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]{86}$/.test(value.grant.slice(GRANT_PREFIX.length))
+  )
+    return fail('grant')
+  if (!isIso(value.expiresAt)) return fail('expiresAt')
+  if (!isUuid(value.host.id) || !isPublicKey(value.host.publicKey)) return fail('host')
+  const endpoint = optional(value.host.endpoint, isEndpoint)
+  if (endpoint === undefined) return fail('endpoint')
+  return ok({
+    grant: value.grant,
+    expiresAt: value.expiresAt,
+    host: { id: value.host.id, endpoint, publicKey: value.host.publicKey },
+  })
+}
+function parseRevoked(value: unknown): HostRevocations['revoked'] | null {
+  if (!isRecord(value)) return null
+  const lists: string[][] = []
+  for (const list of [value.sessions, value.clients]) {
+    if (!Array.isArray(list) || list.length > GRANT_LIMITS.revocations) return null
+    const ids: string[] = []
+    for (const id of list) {
+      if (!isUuid(id)) return null
+      ids.push(id)
+    }
+    lists.push(ids)
+  }
+  const [sessions, clients] = lists
+  return sessions && clients ? { sessions, clients } : null
+}
+export function parseHostRevocations(value: unknown): Parsed<HostRevocations> {
+  if (!isRecord(value) || !isUuid(value.ownerId)) return fail('ownerId')
+  if (!isCount(value.epoch, 2147483647) || value.epoch < 1) return fail('epoch')
+  const revoked = parseRevoked(value.revoked)
+  return revoked ? ok({ ownerId: value.ownerId, epoch: value.epoch, revoked }) : fail('revoked')
 }

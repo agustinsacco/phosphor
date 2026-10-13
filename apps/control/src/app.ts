@@ -23,6 +23,7 @@ import { me } from './routes/me'
 import { enrollments } from './routes/enrollments'
 import { machines } from './routes/machines'
 import { hosts, hostAuthentication } from './routes/hosts'
+import { grants } from './routes/grants'
 
 export interface AppDeps {
   config: Config
@@ -43,6 +44,9 @@ const routeMethods: Record<string, readonly string[]> = {
   [CONTROL_ROUTES.enrollmentLookup]: ['POST'],
   [CONTROL_ROUTES.enrollmentApprove]: ['POST'],
   [CONTROL_ROUTES.machines]: ['GET'],
+  [CONTROL_ROUTES.clients]: ['POST'],
+  [CONTROL_ROUTES.grants]: ['POST'],
+  [CONTROL_ROUTES.grantKeys]: ['GET'],
   [CONTROL_ROUTES.hostSelf]: ['GET'],
   [CONTROL_ROUTES.hostHeartbeat]: ['POST'],
   [CONTROL_ROUTES.hostRevoke]: ['POST'],
@@ -91,7 +95,10 @@ export function createApp(deps: AppDeps) {
       c.req.path.startsWith(CONTROL_ROUTES.machines + '/') &&
       c.req.path.slice(CONTROL_ROUTES.machines.length + 1).split('/').length === 1
         ? ['PATCH', 'DELETE']
-        : routeMethods[c.req.path]
+        : c.req.path.startsWith(CONTROL_ROUTES.clients + '/') &&
+            c.req.path.slice(CONTROL_ROUTES.clients.length + 1).split('/').length === 1
+          ? ['DELETE']
+          : routeMethods[c.req.path]
     if (c.req.method === 'OPTIONS' || (allowed && !allowed.includes(c.req.method))) {
       c.header('Allow', (allowed ?? ['GET']).join(', '))
       throw new ControlFailure('bad-request', 405)
@@ -106,6 +113,7 @@ export function createApp(deps: AppDeps) {
   enrollments(app, deps, auth, hostAuth, events)
   machines(app, deps, auth, events)
   hosts(app, deps, hostAuth, events)
+  grants(app, deps, auth, events)
   app.all('/*', (c) => {
     if (c.req.path.startsWith('/api/')) throw new ControlFailure('not-found')
     return serveStatic(c.req.raw, deps.config.siteDir)

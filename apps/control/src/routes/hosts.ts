@@ -8,6 +8,8 @@ import {
   parseHostSelfResponse,
   parseHeartbeatRequest,
   parseHeartbeatResponse,
+  parseHostRevocations,
+  type HostRevocations,
 } from '@phosphor/shared/control-api'
 import type { TraceEvents } from '../events'
 import type { AppDeps } from '../app'
@@ -55,8 +57,25 @@ export function hosts(app: Hono<Env>, deps: AppDeps, auth: HostAuthDeps, events:
       )
       outcome(value, 'accepted')
       events.accepted(c, id, input)
+      let revocations: HostRevocations | undefined
+      try {
+        revocations = parsed(
+          parseHostRevocations(await deps.supabase.rpc('control_host_revocations', { p_host: id })),
+        )
+      } catch (error) {
+        events.emit(c, 'heartbeat.revocations_unavailable', {
+          hostId: id,
+          reason: error instanceof ControlFailure ? error.code : 'unavailable',
+        })
+      }
       return c.json(
-        parsed(parseHeartbeatResponse({ accepted: true, nextInSec: CONTROL_LIMITS.heartbeatSec })),
+        parsed(
+          parseHeartbeatResponse({
+            accepted: true,
+            nextInSec: CONTROL_LIMITS.heartbeatSec,
+            ...revocations,
+          }),
+        ),
       )
     } catch (error) {
       const hostId = c.req.header(HOST_HEADERS.host)

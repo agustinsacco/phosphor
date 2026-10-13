@@ -1,4 +1,5 @@
 import { resolve } from 'node:path'
+import { parseGrantKeys, parseGrantOrigin } from './grants/keys'
 
 export function parseConfig(env: NodeJS.ProcessEnv) {
   const port = env.PORT ?? '5015'
@@ -46,6 +47,8 @@ export function parseConfig(env: NodeJS.ProcessEnv) {
     configured: Boolean(secretKey),
     trustProxy,
     edgeSecret,
+    grantKeys: parseGrantKeys(env.CONTROL_GRANT_KEYS),
+    publicOrigin: parseGrantOrigin(env.CONTROL_PUBLIC_ORIGIN),
   })
 }
 export type Config = ReturnType<typeof parseConfig>

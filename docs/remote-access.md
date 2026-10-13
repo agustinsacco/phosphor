@@ -291,7 +291,10 @@ npm run db:stop
 sessions or credentials in it. Other Supabase stacks are not stopped.
 Only GitHub can sign up, and GitHub here is a local fixture
 (`supabase/tests/fixtures/fake-github.cjs`); email sign-up is off. The pgTAP
-tests insert synthetic users inside a transaction and roll back. The pgTAP suite
+tests insert synthetic users inside a transaction and roll back. One file,
+`control_grants_race.test.sql`, needs two real connections to race grant
+issuance, so it commits one synthetic owner through `dblink` with the local
+stack's default password and deletes it before, after and on any error. The pgTAP suite
 exercises real Supabase roles and `auth.uid()`, including anonymous access,
 ownership isolation, disabled accounts, forbidden client writes and server-role
 access. CI starts/tests/stops its own stack and never receives hosted database

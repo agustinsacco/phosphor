@@ -5,12 +5,13 @@ name: Deploy Site
 # kustomization with the image pinned to the pushed DIGEST and wait for the
 # rollout. `latest` is published for discovery only; it is never what runs.
 #
-# Needs six repository secrets:
+# Needs seven repository secrets:
 #   DOCKER_HUB_USER / DOCKER_HUB_PASSWORD  push to docker.io/saccodigital
 #   TS_AUTH_KEY                            Tailscale auth key tagged tag:ci
 #   ULTRON_KUBE_CONFIG                     base64 kubeconfig for the k3s cluster
 #   SUPABASE_SECRET_KEY                    control RPC key
 #   CONTROL_EDGE_SECRET                    shared Cloudflare Transform Rule header
+#   CONTROL_GRANT_KEYS                     Host grant signing keys (kid=seed, comma-separated)
 
 on:
   push:
@@ -188,6 +189,7 @@ jobs:
           IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           CONTROL_EDGE_SECRET: ${{ secrets.CONTROL_EDGE_SECRET }}
+          CONTROL_GRANT_KEYS: ${{ secrets.CONTROL_GRANT_KEYS }}
         run: |
           set -euo pipefail
           export LC_ALL=C
@@ -199,6 +201,11 @@ jobs:
               exit 1
             fi
           done
+          # Shape only: the server checks every kid=seed entry strictly at startup.
+          if (( ${#CONTROL_GRANT_KEYS} < 1 || ${#CONTROL_GRANT_KEYS} > 4096 )) || [[ ! "$CONTROL_GRANT_KEYS" =~ ^[A-Za-z0-9_=,-]+$ ]]; then
+            echo "::error::Invalid or missing CONTROL_GRANT_KEYS"
+            exit 1
+          fi
           umask 077
           secret="$RUNNER_TEMP/phosphor-control-secret.yaml"
           manifest="$RUNNER_TEMP/phosphor-site.yaml"
@@ -217,7 +224,7 @@ jobs:
               echo "::warning::no docker-registry-key in namespace tars; pulling anonymously"
             fi
           fi
-          envsubst '${SUPABASE_SECRET_KEY} ${CONTROL_EDGE_SECRET}' \
+          envsubst '${SUPABASE_SECRET_KEY} ${CONTROL_EDGE_SECRET} ${CONTROL_GRANT_KEYS}' \
             < .infra/phosphor-site/secret.yaml > "$secret"
           if grep -Fq '${' "$secret"; then
             echo '::error::Unresolved Secret placeholder'

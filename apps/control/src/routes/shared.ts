@@ -29,6 +29,7 @@ export function outcome(value: Record<string, unknown>, success: string): void {
     case 'stale':
       throw new ControlFailure('conflict')
     case 'too-soon':
+    case 'too-many-requests':
       throw new ControlFailure('too-many-requests')
     case 'account-disabled':
       throw new ControlFailure('forbidden')

@@ -29,16 +29,28 @@ and machine state through signed heartbeats.
 - `GET /api/v1/hosts/self`: Host-signed identity and owner. Its signed body is empty.
 - `POST /api/v1/hosts/self/heartbeat`: Host-signed state and readiness. Repeated
   sequence numbers return 409; beats less than ten seconds apart return 429,
-  except a stopping beat. Accepted beats return the thirty-second interval.
+  except a stopping beat. Accepted beats return the thirty-second interval and
+  enrollment epoch, owner id and recent revoked session and client ids.
 - `POST /api/v1/hosts/self/revoke`: Host-signed removal, body exactly `{}`,
   returning 204 with no body. Revoked and unknown Hosts return 410.
+- `POST /api/v1/clients`: user-authenticated `{label}` registers a Desktop install
+  and returns `{client: {id, label}}`. At most twenty active clients per owner.
+  Registration is limited to ten per hour per user.
+- `DELETE /api/v1/clients/:id`: owner-only client revocation, 204 with no body.
+  Unknown, already revoked and other owners' clients return 404.
+- `POST /api/v1/grants`: user-authenticated `{hostId, clientId}` returns
+  `{grant, expiresAt, host: {id, endpoint, publicKey}}`. Both identities must be
+  active and owned by the caller. The verified access token must carry a UUID
+  `session_id`. Issuance is limited to 120 per minute per user.
+- `GET /api/v1/grant-keys`: public `{keys: [{kid, publicKey}]}`. Raw Ed25519 public
+  keys are base64url. This route alone uses `public, max-age=300` caching.
 
 Every user route except `/me` checks account suspension and refuses it with 403.
 Key conflicts and the per-account active Host limit return 409. All request and
 response fields pass through the shared contract's parsers; unknown fields are
 not returned or stored.
 
-Every API response is JSON with `no-store`, `nosniff`, `no-referrer`, a CSP that
+Every API response is JSON with `no-store` (except the public grant keyset), `nosniff`, `no-referrer`, a CSP that
 allows no content or framing, and a generated `x-request-id`. Errors use the
 contract's `ControlErrorBody`. Unknown API routes return 404; incorrect methods
 on registered API routes and OPTIONS return 405. There are no CORS headers.
@@ -127,17 +139,72 @@ that address bucket. Headers and comparison results are never logged. All in-mem
 process-local. Run a single replica; rollout overlap is not cross-process replay
 protection.
 
+## Grants and revocation
+
+Grants use `phosphor-grant.v1.<base64url(payload JSON)>.<base64url(signature)>`.
+Ed25519 signs the exact payload bytes, without a header or algorithm choice.
+Claims are `v`, `iss`, `kid`, `sub`, `sid`, `hostId`, `epoch`, `client: {id, label}`,
+`caps`, `iat`, `exp` and `jti`. Issuance includes all `HOST_CAPABILITIES` and sets
+`exp = iat + 300` seconds. Hosts still gate features by what they implement.
+The broker never receives lane ids, prompts or repository names. Issuance logs
+only `userId`, `hostId`, `clientId`, `jti` and `exp`. Client registration and
+revocation events carry only user and client ids. Session ids, grants, tokens,
+signatures and keys are never logged.
+
+`CONTROL_GRANT_KEYS` holds at most eight comma-separated `kid=seed` entries,
+with unique 1-64 character ids (letters, digits, `_` or `-`) and canonical
+base64url 32-byte Ed25519 seeds. The first entry signs; every entry publishes its
+public key. Invalid configuration fails startup without echoing any value.
+Unset keys make grant issuance and the public keyset return 503; enrollment,
+clients and machine routes still work. `tools/scripts/grant-key.mjs` prints one
+fresh entry to stdout only. Pipe it directly into the operator's secret store,
+not a file or log.
+
+To rotate, first append the new key while the old key still signs, then move the
+new key to the first position. Keep the old key published until existing grants
+and cached keysets have expired. The keyset response may be cached for five
+minutes; a Host that meets an unknown key id fetches the keyset again.
+`CONTROL_PUBLIC_ORIGIN` is the exact bare issuer origin, HTTPS or HTTP on
+`localhost` or `127.0.0.1` with a port for local stacks. Paths, queries,
+fragments and userinfo are refused. Hosts compare it to their configured
+control origin.
+
+Accepted heartbeats query the active Host's owner and epoch and return
+`revoked: {sessions, clients}`. Each list holds at most 100 ids, newest first:
+clients revoked in the last ten minutes, and tracked sessions issued in the
+last ten minutes whose Auth session no longer exists. Admission keeps every
+owner inside those lists, so a list never drops a revocation that still matters:
+registration refuses a client (429) once the owner has 100 clients that are live
+or were revoked in the last ten minutes, and issuance refuses a grant (429) for a
+new session once the owner has 100 sessions issued in the last ten minutes. A
+session already tracked always renews. Issuance takes the owner's account row
+lock first, so concurrent issues cannot both pass the cap. Cleanup of sessions
+older than ten minutes rechecks the age on each row it deletes, so a session
+refreshed by a concurrent issue is kept. The session table has RLS
+and no client policies or grants. Only the server may call the RPCs. The
+revocations RPC is a fixed-search-path security definer because Supabase's
+service role cannot read `auth.sessions`; it reads only session ids. Other
+RPCs remain security invokers. Client revocation or sign-out reaches open Host
+streams on the next successful heartbeat, normally within thirty seconds.
+If the revocation query fails after an accepted beat, the beat still succeeds
+but omits all three new fields and logs `heartbeat.revocations_unavailable`
+with only the Host id and an error code. Hosts treat missing fields as no news,
+not as clearing earlier revocations. The grant's five-minute lifetime bounds
+access during an outage; the ten-minute window covers a later successful beat.
+
 ## Configuration and local use
 
-| Variable                   | Default                | Constraint                                                                           |
-| -------------------------- | ---------------------- | ------------------------------------------------------------------------------------ |
-| `PORT`                     | `5015`                 | 0 through 65535; 0 selects a test port                                               |
-| `SITE_DIR`                 | `/app/site`            | Trusted built site directory                                                         |
-| `SUPABASE_URL`             | Hosted Phosphor origin | HTTPS, or HTTP on localhost, 127.0.0.1 or [::1] only                                 |
-| `SUPABASE_PUBLISHABLE_KEY` | Hosted publishable key | Public Auth apikey                                                                   |
-| `SUPABASE_SECRET_KEY`      | Unset                  | Secret RPC apikey; never put it in a URL or command argument                         |
-| `CONTROL_TRUST_PROXY`      | `none`                 | `none` or `cloudflare`                                                               |
-| `CONTROL_EDGE_SECRET`      | Unset                  | Required in Cloudflare mode: 32-512 letters, digits, `_` or `-`; ignored with `none` |
+| Variable                   | Default                          | Constraint                                                                              |
+| -------------------------- | -------------------------------- | --------------------------------------------------------------------------------------- |
+| `PORT`                     | `5015`                           | 0 through 65535; 0 selects a test port                                                  |
+| `SITE_DIR`                 | `/app/site`                      | Trusted built site directory                                                            |
+| `SUPABASE_URL`             | Hosted Phosphor origin           | HTTPS, or HTTP on localhost, 127.0.0.1 or [::1] only                                    |
+| `SUPABASE_PUBLISHABLE_KEY` | Hosted publishable key           | Public Auth apikey                                                                      |
+| `SUPABASE_SECRET_KEY`      | Unset                            | Secret RPC apikey; never put it in a URL or command argument                            |
+| `CONTROL_GRANT_KEYS`       | Unset                            | At most eight `kid=seed` entries, at most 4096 characters; first entry signs            |
+| `CONTROL_PUBLIC_ORIGIN`    | `https://phosphor.saccolabs.com` | Exact bare HTTPS origin, or HTTP on localhost or 127.0.0.1 with a port for local stacks |
+| `CONTROL_TRUST_PROXY`      | `none`                           | `none` or `cloudflare`                                                                  |
+| `CONTROL_EDGE_SECRET`      | Unset                            | Required in Cloudflare mode: 32-512 letters, digits, `_` or `-`; ignored with `none`    |
 
 ```bash
 npm run site:build
@@ -176,11 +243,13 @@ read-only root, no privilege escalation, RuntimeDefault seccomp, a 256Mi memory
 limit and fifteen seconds for the server's ten-second shutdown.
 
 Deploy Site builds this Dockerfile and pins the pushed image digest. The
-`phosphor-control` Secret supplies required `supabase-secret-key` and `edge-secret`
-keys. Neither reference is optional: missing configuration fails the rollout.
-The template holds only `${SUPABASE_SECRET_KEY}` and `${CONTROL_EDGE_SECRET}`.
-The workflow validates both repository secrets against `^[A-Za-z0-9_-]{32,512}$`,
-then uses restricted `envsubst` to render only those placeholders into a 0600
+`phosphor-control` Secret supplies required `supabase-secret-key`, `edge-secret`
+and `grant-keys` keys. No reference is optional: missing configuration fails the
+rollout. The template holds only `${SUPABASE_SECRET_KEY}`, `${CONTROL_EDGE_SECRET}`
+and `${CONTROL_GRANT_KEYS}`. The workflow validates the first two repository
+secrets against `^[A-Za-z0-9_-]{32,512}$` and the grant keys' shape (1 to 4096
+letters, digits, `_`, `-`, `=` or `,`; the server parses them strictly at
+startup), then uses restricted `envsubst` to render only those placeholders into a 0600
 file under `RUNNER_TEMP`. Unresolved placeholders fail. The Secret is applied on
 its own with kubectl's output suppressed, because diagnostics can carry its data
 in a form log masking misses; it is not part of the kustomization. Cleanup runs
