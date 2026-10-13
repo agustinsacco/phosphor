@@ -930,6 +930,40 @@ reopening the session. A live viewer keeps earlier items until it reattaches.
 During the post-compaction refresh, a snapshot keeps the earlier transcript,
 the divider and subsequent events in live order.
 
+### Streams
+
+`lanes/live.ts` binds each live projection to an epoch-scoped lane stream.
+A pi push is applied and published in one synchronous step; stderr stays on
+this machine. Sequence numbers start at 1, with snapshots at 0 before any event.
+Replay is bounded by count and bytes. Reentrant publication stays ordered through
+a bounded FIFO; a runaway listener causes a logged reset on the next macrotask,
+not an unbounded drain. Publications before that reset are covered by it;
+publications inside it follow normally. Viewers skip live frames already covered
+by their snapshot or replay cursor. Detach publishes the stored summary again
+when it differs from the live one.
+A returning viewer receives the missing suffix, or a reset snapshot if its cursor
+is evicted, ahead, or from another epoch.
+The first projection refresh also resets early viewers to the loaded transcript.
+Unattached lanes require a transcript port; no empty transcript is fabricated.
+Invalid live titles and models fall back to valid stored values, or null. Invalid
+stored branches become null. Summaries and topic changes pass the wire parser;
+invalid changes are skipped and logged by lane id only.
+
+The per-Host `lanes` topic sends a list, then deltas and attention on one counter.
+Finished runs, new needs-input transitions and failures increment persisted
+attention. A same-epoch cursor replays buffered notifications after the list,
+using their original cursors. Slow viewers discard increments without a private
+queue. Below half the backlog cap they receive one current snapshot or list;
+a list reset also replays buffered attention after the last delivered cursor.
+If replay fills the backlog, recovery continues from the last notification sent
+without repeating an unchanged list. A send failure closes the socket and its
+subscriptions. Subscription failure logs contain code, topic and trace, not the
+client-chosen subscription id.
+An oversized event becomes a reset. A snapshot or list that cannot fit ends only
+that subscription with `too-large`. Direct response traffic that would exceed
+the connection byte cap closes with 4429. Closing a manager removes its listeners
+and recovery timer. These are transport building blocks, not a network listener.
+
 ### Requests
 
 A session starts or resumes only from a request, which `session/request.ts`
