@@ -59,7 +59,9 @@ describe('ContinueButton', () => {
     const button = render()
     expect(button.disabled).toBe(false)
     expect(button.getAttribute('aria-label')).toBe('Continue')
-    expect(button.dataset.tooltip).toBe('Send "continue"')
+    expect(button.dataset.tooltip).toBe('Continue')
+    expect(button.dataset.tooltipDescription).toContain('Sends "continue"')
+    expect(button.dataset.tooltipDescription).toContain('Keeps your draft')
 
     await act(async () => button.click())
 

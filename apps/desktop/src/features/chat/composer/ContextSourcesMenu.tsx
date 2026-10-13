@@ -20,7 +20,8 @@ import { contextFileToggleState } from './contextFileToggle'
 
 /**
  * What a lane loads besides the conversation: instruction files (CLAUDE.md /
- * AGENTS.md) and MCP connectors, behind one chip in both composers.
+ * AGENTS.md) and MCP connectors, behind one readout in the status strip under
+ * both composers ("Rules 2/2 · MCP 6/9").
  *
  * Rules: on the home composer they set what new lanes start with. Inside a
  * lane they change that lane from its next model request AND the starting
@@ -68,7 +69,7 @@ export function ContextSourcesMenu({
         tooltip="Instruction files and connectors"
         data-tooltip-open={open}
         className={clsx(
-          'flex min-h-8 items-center rounded-md px-2 py-1 text-base tabular-nums transition-colors',
+          'flex items-center rounded px-1 py-0.5 tabular-nums transition-colors',
           open
             ? 'bg-bg-secondary text-text'
             : 'text-text-secondary hover:bg-bg-secondary hover:text-text',

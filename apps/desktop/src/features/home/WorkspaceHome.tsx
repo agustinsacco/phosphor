@@ -314,15 +314,15 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               onSubmit={() => void start()}
               onKeyDown={slash.handleKeyDown}
               onPasteFiles={attachments.addFiles}
-              placeholder="Describe a task or ask a question  ( / commands )"
+              placeholder="Describe a task or ask a question"
               rows={2}
             />
 
-            {/* Footer mirrors the chat composer: attachments and what the
-                lane will load on the left, model + thinking on the right,
-                submit at the far right. */}
-            <div className="flex flex-wrap items-center justify-between gap-2 px-2.5 pb-2">
-              <div className="flex min-w-0 flex-wrap items-center gap-1">
+            {/* Footer mirrors the chat composer: attach on the left, the
+                model · thinking chip and submit on the right, readouts in the
+                strip under the box. */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2.5 pb-2">
+              <div className="flex shrink-0 items-center gap-0.5">
                 <AttachButton onFiles={attachments.addFiles} />
                 <DictateButton
                   textareaRef={textareaRef}
@@ -331,10 +331,9 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
                     slash.sync(value)
                   }}
                 />
-                <ContextSourcesMenu workspacePath={workspacePath} />
               </div>
 
-              <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-1.5">
+              <div className="ml-auto flex min-w-0 items-center gap-1.5">
                 <HomeModelPicker
                   override={draft?.model}
                   onPick={(model) => useDraftsStore.getState().patch(draftKey, { model })}
@@ -347,6 +346,16 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
                 />
               </div>
             </div>
+          </div>
+          {/* The status strip, as under the chat composer. No session yet, so
+              only what new lanes will load. */}
+          <div className="text-text-tertiary @container flex min-h-6 flex-wrap items-center gap-x-3 gap-y-0.5 px-2 pt-1.5 text-sm">
+            <ContextSourcesMenu workspacePath={workspacePath} />
+            {text === '' && (
+              <span className="@xl:inline ml-auto hidden min-w-0 flex-1 basis-0 truncate text-right">
+                <span className="font-mono">/</span> commands
+              </span>
+            )}
           </div>
           {/* Why a message came back rather than becoming a session. */}
           {warning && <p className="text-warning mt-2 px-1 text-sm">{warning}</p>}

@@ -113,17 +113,21 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
 
   return (
     <div className="relative">
+      {/* A status-strip readout: the ring, then "36% of 200k". The warn and
+          critical colours sit on both the ring and the digits, so the state
+          reads at strip size. */}
       <TooltipButton
         ref={triggerRef}
+        data-testid="context-meter"
         onClick={() => setOpen((o) => !o)}
         title={
           percent === null
             ? 'Context: measuring — session usage'
             : `Context: ${percent}% of ${formatTokens(window)}${of}`
         }
-        className="hover:bg-bg-secondary flex items-center gap-1.5 rounded-md px-2 py-1 transition-colors"
+        className="text-text-secondary hover:bg-bg-secondary hover:text-text flex items-center gap-1 rounded px-1 py-0.5 transition-colors"
       >
-        <svg width="15" height="15" viewBox="0 0 16 16" className="-rotate-90">
+        <svg width="14" height="14" viewBox="0 0 16 16" className="-rotate-90 shrink-0">
           <circle
             cx="8"
             cy="8"
@@ -146,12 +150,10 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
           />
         </svg>
         <span
-          className={clsx(
-            'text-base tabular-nums',
-            critical ? 'text-danger' : warn ? 'text-warning' : 'text-text-secondary',
-          )}
+          className={clsx('tabular-nums', critical ? 'text-danger' : warn ? 'text-warning' : '')}
         >
           {percent === null ? '—' : `${percent}%`}
+          {window > 0 && <span className="text-text-tertiary"> of {formatTokens(window)}</span>}
         </span>
         {burning && (
           <span

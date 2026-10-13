@@ -1,10 +1,11 @@
 import { TooltipButton } from '@/components/Tooltip'
 import clsx from 'clsx'
+import { ChevronDownIcon } from '@/components/icons'
 
 /**
- * The composer's model and thinking chips, shared by both owners.
+ * The composer's model · thinking split chip, shared by both owners.
  *
- * Two components drive these: `ModelPicker` (a live session, writing pi over
+ * Two components drive it: `ModelPicker` (a live session, writing pi over
  * RPC) and `HomeModelPicker` (no session yet, writing pi's `settings.json`
  * defaults). That data split is deliberate — see the comment in
  * `HomeModelPicker`. The *presentation* was copy-pasted between them, and it
@@ -12,6 +13,10 @@ import clsx from 'clsx'
  * home still stacked it, and home named the provider for every model while
  * the session chip named it only when pi did not ship it. One of those was a
  * bug both times. The chrome lives here now so a change reaches both.
+ *
+ * The chip shows the model name and, as its right segment, the thinking
+ * level. The provider is not on the chip: it goes in the chip's tooltip and,
+ * for a session, in the status strip under the composer (`namedProvider`).
  */
 
 /**
@@ -36,7 +41,17 @@ const NATIVE_PROVIDERS = new Set([
   'together',
 ])
 
-const CHIP_CLASS = 'min-h-8 rounded-md px-2 py-1 text-lg transition-colors'
+/**
+ * The provider when it is worth naming, else nothing. Two providers can
+ * expose the same model name (native anthropic and the Claude Code CLI
+ * provider both offer "Claude Opus 5"), so for an installed provider the name
+ * alone cannot answer "what is actually serving this session".
+ */
+export function namedProvider(provider: string | undefined): string | undefined {
+  return provider !== undefined && !NATIVE_PROVIDERS.has(provider) ? provider : undefined
+}
+
+const CHIP_CLASS = 'h-8 px-2 text-base transition-colors'
 
 function chipTone(active: boolean): string {
   return active
@@ -59,7 +74,7 @@ export function ModelChip({
   loading,
   onClick,
   name,
-  provider,
+  grouped,
 }: {
   testId: string
   title?: string | undefined
@@ -71,10 +86,9 @@ export function ModelChip({
   onClick: () => void
   /** A node, not a string: home appends its own ` · unavailable` warnings. */
   name: React.ReactNode
-  /** Named only when it is not a provider pi ships. */
-  provider?: string | undefined
+  /** True when a `ThinkingChip` follows as the right half of the split. */
+  grouped?: boolean | undefined
 }): React.JSX.Element {
-  const named = provider !== undefined && !NATIVE_PROVIDERS.has(provider)
   return (
     <TooltipButton
       onClick={onClick}
@@ -85,29 +99,15 @@ export function ModelChip({
       className={clsx(
         CHIP_CLASS,
         'min-w-0 flex-1 text-left font-medium',
+        grouped ? 'rounded-l-md' : 'rounded-md',
         disabled ? 'cursor-default' : 'cursor-pointer',
         chipTone(active),
       )}
     >
-      {/* One line. Stacking the provider under the name gave the footer a
-          second row for a detail most sessions do not even show. */}
-      <span className="flex min-w-0 items-baseline gap-1.5">
-        <span className="truncate" data-testid="model-label">
-          {name}
-        </span>
-        {/* Two providers can expose the same model name (native anthropic
-            and the Claude Code CLI provider both offer "Claude Opus 5"), so
-            the name alone cannot answer "what is actually serving this
-            session". The provider gives up its width first, since the name
-            is what answers the question and the provider only disambiguates. */}
-        {named && (
-          <span
-            data-testid="model-provider"
-            className="text-text-tertiary min-w-0 shrink-[9999] truncate font-mono text-sm font-normal"
-          >
-            {provider}
-          </span>
-        )}
+      {/* One line, always: a name that does not fit truncates rather than
+          growing the footer a row. */}
+      <span className="block truncate" data-testid="model-label">
+        {name}
       </span>
     </TooltipButton>
   )
@@ -128,9 +128,15 @@ export function ThinkingChip({
     <TooltipButton
       onClick={onClick}
       data-testid={testId}
-      className={clsx(CHIP_CLASS, 'shrink-0 cursor-pointer', chipTone(active))}
+      tooltip="Thinking level"
+      className={clsx(
+        CHIP_CLASS,
+        'border-border flex shrink-0 cursor-pointer items-center gap-1 rounded-r-md border-l',
+        chipTone(active),
+      )}
     >
       {label}
+      <ChevronDownIcon size={10} className="text-text-tertiary" />
     </TooltipButton>
   )
 }

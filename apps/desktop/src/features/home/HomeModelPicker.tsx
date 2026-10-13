@@ -125,9 +125,10 @@ export function HomeModelPicker({
   }
 
   return (
-    <div className="relative flex min-w-0 max-w-full flex-1 items-center gap-1">
+    <div className="relative flex min-w-0 max-w-full flex-1 items-center">
       <ModelChip
         testId="home-model-picker"
+        grouped={levelsToRender.length > 1}
         active={open === 'model'}
         disabled={busy}
         loading={busy}
@@ -150,7 +151,6 @@ export function HomeModelPicker({
             </span>
           )
         }
-        provider={current?.provider}
       />
 
       {levelsToRender.length > 1 && (

@@ -8,10 +8,25 @@ The composer is one small field with several ways in.
 
 - Multi-line. Enter sends, Shift+Enter newline. IME confirmation keys never
   send.
-- **Continue:** a compact play icon immediately left of Send sends the literal
-  message `continue`, without sending or clearing the draft or attachments.
-  It is disabled while resuming, awaiting a reply, streaming or compacting, and
-  is available again in a reopened session after an app restart. It uses normal
+- **Two groups and a strip.** The row under the field holds controls only.
+  Left, what the agent gets: attach and the [Swarm](#swarm-authorization)
+  pill. Right, the engine then go: the model · thinking split chip, then
+  **Continue | Send** (Stop while a turn runs) behind a hairline. Each group
+  is one unit, so at a narrow width the right group drops to its own line
+  whole instead of chips wrapping one by one. Every readout sits in the
+  **status strip** under the box: the context ring with `36% of 200k` (opens
+  the [usage popover](#what-the-context-meters-popover-shows)),
+  `Rules 2/2 · MCP 6/9` (opens the [context sources](#context-files)
+  popover) and, for a provider pi does not ship, its name in mono. The strip
+  also holds the `/ @ !` cheat sheet while the field is empty, and is the line
+  a draft starting with `!` takes over to explain itself. The home composer
+  has the same shape, with only the rules and connectors in its strip.
+- **Continue:** a compact play icon immediately left of Send, behind a
+  hairline so the two never read as one slot, sends the literal message
+  `continue`, without sending or clearing the draft or attachments. It is the
+  recovery control (after a restart, a transient error or an unfinished turn):
+  disabled while resuming, awaiting a reply, streaming or compacting, and
+  available again in a reopened session after an app restart. It uses normal
   prompt delivery; if pi's process crashed, use **Resume session** first.
 - **Markdown list primitives.** Shift+Enter continues the list the caret is on
   (renumbering; an empty item steps out a level, then exits). Tab/Shift+Tab
@@ -482,10 +497,31 @@ activate subagent tools, duplicate the extension's skill, or widen task permissi
 Off keeps the existing normal delegation rules, including delegation explicitly
 requested by the user or authorized by project instructions.
 
-The enabled switch, amber composer outline and title badge reflect Pi's acknowledged
-state, not an optimistic renderer preference. Hover or keyboard focus briefly fans
-out the switch's glyph; reduced motion disables the animation. Enabled styling
-means authorization, not running work. Activity and inspection still use the existing
+The switch is a pill with four looks, all driven by Pi's acknowledged status
+(`composer/SwarmSwitch.tsx`, `swarm.css`), never an optimistic renderer
+preference. Its glyph is the Beacon with three signals on the orbit, and the
+geometry carries the state, so no look depends on colour or motion alone:
+
+- **Unavailable** (no status yet, or pi-subagents not loaded): dimmed, heads
+  pulled in, no hover reaction.
+- **Off**: quiet pill, heads pulled in; hover eases them outward as a preview.
+- **Pending** (a toggle Pi holds until the turn ends): dashed amber pill, an
+  `on next turn` / `off next turn` tag, a pulsing dot, the composer outline
+  dashed, and a toast ("Swarm turns on after this turn."). Clicking again
+  cancels the request and toasts "Swarm request cancelled." This is the state
+  that used to be an 11px suffix beside an unmoved knob, which read as a click
+  that did not take.
+- **On**: amber-soft fill, accent hairline and glyph, heads on the orbit; the
+  solid amber composer outline and the title badge. The fan-out animation
+  plays once, when Pi reports the switch going on: never on hover, and not
+  when a lane that is already on is reopened.
+
+While the command is in flight the heads orbit the nucleus. The switch's
+[action hint](ui-shell.md#action-tooltips) names the click (Enable Swarm,
+Disable Swarm, Cancel the pending change) with the state's sentence as its
+description, which is also the switch's accessible description; reduced motion
+disables every animation. Enabled styling means
+authorization, not running work. Activity and inspection still use the existing
 Subagents surfaces, including for normal lanes.
 
 `/phosphor-swarm on|off` is a host command in the bundled context extension. It
@@ -556,8 +592,8 @@ No new manager, scheduler or hard spawn budget is introduced.
 
 ## Context files
 
-Both composers carry a **Rules · MCP** chip beside the attach button
-(`composer/ContextSourcesMenu.tsx`); its popover holds two checkboxes,
+Both composers carry a **Rules · MCP** readout in the status strip under the
+box (`composer/ContextSourcesMenu.tsx`); its popover holds two checkboxes,
 **CLAUDE.md** and **AGENTS.md**, and the MCP connectors ([mcp.md](mcp.md)). Unchecked, the model is
 not sent the files of that name that pi found for the lane, which can be
 thousands of tokens on every request.
@@ -577,7 +613,7 @@ thousands of tokens on every request.
   reports its files (and on Home), the pane says file details are unavailable;
   a dimmed label with `none` means discovery found no matching file.
   A checkbox still controls the entire filename category across both scopes,
-  not an individual file. The chip's count is enabled categories, not files.
+  not an individual file. The readout's count is enabled categories, not files.
 - **Routines** always send every context file, whatever the preference: an
   unattended run keeps the project's rules ([routines.md](routines.md)). A
   routine-owned lane refuses a toggle, like any other manual command, until
@@ -596,10 +632,10 @@ when it is reopened later. Shared rules live in
 
 ## Session controls (per session)
 
-The model chip, thinking chip and context meter live in the **composer
-footer** (`Composer.tsx`, on the right; the attach button and the
-[Rules · MCP chip](#context-files) are on the left); the session's ⋮ menu is
-in the **top bar** (`app/TopBar.tsx` → `SessionMenu`).
+The model · thinking chip lives on the right of the **composer footer**
+(`Composer.tsx`; attach and Swarm are on the left), the context meter and the
+[Rules · MCP readout](#context-files) in the status strip under it; the
+session's ⋮ menu is in the **top bar** (`app/TopBar.tsx` → `SessionMenu`).
 
 - **Model picker** (from `get_available_models`), grouped by **family** by
   default so every route to one model sits under one header, toggleable to
@@ -609,16 +645,18 @@ in the **top bar** (`app/TopBar.tsx` → `SessionMenu`).
   ones a model offers is per model: a non-reasoning model has only `off`,
   `xhigh`/`max` are opt-in. A live session asks pi
   (`get_available_thinking_levels`); the home picker derives the same answer
-  from `libs/shared/src/thinking.ts`. The chip is hidden unless the model has more than
-  one level.
+  from `libs/shared/src/thinking.ts`. The segment is hidden unless the model has
+  more than one level.
 - **Two owners, one chip.** `ModelPicker` drives a live session over RPC
   (`set_model`). `HomeModelPicker` has no process to talk to, so it reads and
   writes pi's own `defaultProvider` / `defaultModel` / `defaultThinkingLevel`.
-  Both render `composer/ModelChip.tsx`, which owns the layout and the rule
-  that only a non-pi provider gets named.
+  Both render `composer/ModelChip.tsx`: the model name as the left segment,
+  the thinking level (with a caret) as the right. The provider is not on the
+  chip: it is in the chip's tooltip and, in a session, in the strip, named only
+  when pi does not ship it (`namedProvider`).
 - **Context meter**: % of window from `get_session_stats` (polled after each
-  `agent_end` and on demand), warn state near the compaction threshold, and
-  the popover below. The denominator is pi's context window, or the
+  `agent_end` and on demand), shown in the strip as `36% of 200k` with the
+  ring, warn state near the compaction threshold, and the popover below. The denominator is pi's context window, or the
   **context budget** where one applies (Settings → Agent → Context budget,
   200k unless set; `sessionContextBudget` in `libs/shared/src/context-budget.ts`): a
   session whose catalogue capacity is at least the budget gets a capped

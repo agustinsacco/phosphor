@@ -236,13 +236,19 @@ test('Swarm toggles lane authorization without sending a turn and honors reduced
     await expect(draft).toHaveValue('Keep this draft')
     await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled()
     await expect(page.getByText(/"version":1,"available":true/)).toHaveCount(0)
-    await toggle.hover()
-    expect(
-      await toggle
-        .locator('.swarm-satellite')
+    // The fan-out is tied to the off→on transition pi reported, not to hover;
+    // reduced motion drops it while the geometry still carries the state.
+    await expect(toggle).toHaveAttribute('data-state', 'on')
+    await expect(toggle).toHaveAttribute('data-activated', 'true')
+    const headAnimation = (): Promise<string> =>
+      toggle
+        .locator('.swarm-head')
         .first()
-        .evaluate((el) => getComputedStyle(el).animationName),
-    ).toBe('swarm-fan-out')
+        .evaluate((el) => getComputedStyle(el).animationName)
+    expect(await headAnimation()).toBe('swarm-fan-out')
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    expect(await headAnimation()).toBe('none')
+    await page.emulateMedia({ reducedMotion: null })
     await page.screenshot({ path: test.info().outputPath('swarm-enabled.png') })
     async function stubCommand(message: string): Promise<void> {
       const result = await page.evaluate(async (text) => {
@@ -268,7 +274,7 @@ test('Swarm toggles lane authorization without sending a turn and honors reduced
         toggle,
         page.getByTestId('model-chip'),
         page.getByRole('button', { name: 'Attach files', exact: true }),
-        page.getByRole('button', { name: '0%', exact: true }),
+        page.getByTestId('context-meter'),
         page.getByRole('button', { name: 'Send message', exact: true }),
       ]) {
         const box = (await control.boundingBox())!
@@ -330,29 +336,30 @@ test('Swarm toggles lane authorization without sending a turn and honors reduced
       await screenshot(`swarm-${theme}-narrow-enabled.png`)
       await toggle.focus()
       await page.keyboard.press('Space')
-      await expect(toggle).toContainText('Off next turn')
+      // Pending is loud now: dashed pill and outline, a tag, and a toast that
+      // says what the click did. It used to be an 11px suffix beside an
+      // unmoved knob, which read as a click that did not take.
+      await expect(toggle).toHaveAttribute('data-state', 'pending')
+      await expect(toggle).toContainText(/off next turn/i)
       await expect(toggle).toBeChecked() // native acknowledgement still says on
       await expect(toggle).toBeFocused()
       await expect(toggle).toHaveAttribute('aria-busy', 'true')
+      await expect(page.getByText('Swarm turns off after this turn.').last()).toBeVisible()
+      await expect(page.locator('[data-swarm-enabled]')).toHaveClass(/border-dashed/)
       await expectFooterFits()
       await screenshot(`swarm-${theme}-narrow-pending.png`)
       if (theme === 'light') {
         await page.keyboard.press('Space') // cancel the pending disable
-        await expect(toggle).not.toContainText('Off next turn')
+        await expect(toggle).toHaveAttribute('data-state', 'on')
+        await expect(page.getByText('Swarm request cancelled.').last()).toBeVisible()
+        await expect(page.locator('[data-swarm-enabled]')).not.toHaveClass(/border-dashed/)
       }
     }
     await stubCommand('/stub-settle-swarm')
     await expect(toggle).not.toBeChecked() // no second agent_end was emitted
     await expect(toggle).toHaveAttribute('aria-busy', 'false')
+    await expect(toggle).toHaveAttribute('data-state', 'off')
     await expect(toggle).toBeFocused()
-    await page.emulateMedia({ reducedMotion: 'reduce' })
-    expect(
-      await toggle
-        .locator('.swarm-satellite')
-        .first()
-        .evaluate((el) => getComputedStyle(el).animationName),
-    ).toBe('none')
-    await expect(toggle).not.toBeChecked()
     await expect(page.locator('[data-swarm-enabled="false"]')).toBeVisible()
     for (const theme of ['light', 'dark']) {
       await page.evaluate(
@@ -371,6 +378,16 @@ test('Swarm toggles lane authorization without sending a turn and honors reduced
     ).toHaveCount(0)
     await expect(page.getByTestId('user-message')).toHaveCount(messages)
     await expect(draft).toHaveValue('Keep this draft')
+    // Authorization is per lane: a new lane starts off even after this one was on.
+    await toggle.focus()
+    await page.keyboard.press('Space')
+    await expect(toggle).toBeChecked()
+    await page.getByRole('button', { name: /^New$/ }).click()
+    await page.getByPlaceholder('Describe a task or ask a question').fill('second lane')
+    await page.getByRole('button', { name: /Start session/i }).click()
+    const fresh = page.getByRole('switch', { name: 'Swarm', exact: true })
+    await expect(fresh).toHaveAttribute('data-state', 'off', { timeout: 20_000 })
+    await expect(fresh).not.toBeChecked()
   } finally {
     await shutdown(h)
   }
@@ -681,15 +698,13 @@ test('session chrome stays readable with long labels, laptop widths and zoom', a
         expect(box.x + box.width).toBeLessThanOrEqual(card!.x + card!.width + 1)
         expect(box.height).toBeGreaterThanOrEqual(32)
       }
-      // The provider rides on the model's own line. Stacking it under the
-      // name gave the footer a second row at every width, for a detail most
-      // sessions never show. A stacked provider drops a full line height.
-      const chip = await page.getByTestId('model-chip').evaluate((el) => {
-        const name = el.querySelector('[data-testid="model-label"]')!.getBoundingClientRect()
-        const provider = el.querySelector('[data-testid="model-provider"]')!.getBoundingClientRect()
-        return { drop: provider.top - name.top, line: name.height }
-      })
-      expect(chip.drop).toBeLessThan(chip.line / 2)
+      // The chip is one line at every width: a name that does not fit
+      // truncates rather than growing the footer a row.
+      const chip = await page.getByTestId('model-chip').evaluate((el) => ({
+        height: el.getBoundingClientRect().height,
+        line: el.querySelector('[data-testid="model-label"]')!.getBoundingClientRect().height,
+      }))
+      expect(chip.height).toBeLessThan(2 * chip.line)
       const switcher = page
         .getByTestId('right-pane')
         .getByRole('group', { name: 'Pane', exact: true })
@@ -3184,10 +3199,13 @@ test('reopens the last session on relaunch and continues without disturbing its 
       const sendButton = second.page.getByRole('button', { name: 'Send message', exact: true })
       await expect(continueButton).toBeEnabled()
       await expect(sendButton).toBeDisabled()
-      const next = await continueButton.evaluate((el) =>
-        el.nextElementSibling?.getAttribute('aria-label'),
+      // Continue sits immediately left of Send, behind a hairline.
+      const order = await second.page.evaluate(() =>
+        [...document.querySelectorAll('[aria-label="Continue"], [aria-label="Send message"]')].map(
+          (el) => el.getAttribute('aria-label'),
+        ),
       )
-      expect(next).toBe('Send message')
+      expect(order).toEqual(['Continue', 'Send message'])
       await composer.fill('Keep this draft for later')
       await continueButton.click()
       await expect(
