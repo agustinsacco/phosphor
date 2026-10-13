@@ -673,3 +673,49 @@ it.each([false, true])(
     expect(JSON.stringify(entries)).not.toContain('private path')
   },
 )
+
+it('keeps run alive and heartbeating when the API port is occupied', async () => {
+  const { createServer } = await import('node:http')
+  const { once } = await import('node:events')
+  const server = createServer()
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  const address = server.address()
+  if (!address || typeof address === 'string') throw new Error('Missing test address')
+  await machine.enrollOld()
+  await writeFile(
+    machine.configPath,
+    JSON.stringify({ ...machine.config, api: { port: address.port } }),
+    { mode: 0o600 },
+  )
+  const f = context()
+  const events: string[] = []
+  f.log = (_source, event) => events.push(event)
+  f.fetch = async () =>
+    Response.json({
+      accepted: true,
+      nextInSec: 30,
+      ownerId: '00000000-0000-4000-8000-000000000001',
+      epoch: 1,
+    })
+  f.wait = async (_ms, signal) => {
+    if (signal?.aborted) return
+    await new Promise<void>((resolve) =>
+      signal?.addEventListener('abort', () => resolve(), { once: true }),
+    )
+  }
+  let ended = false
+  const running = runHost(f).then((code) => {
+    ended = true
+    return code
+  })
+  try {
+    await vi.waitFor(() => expect(events).toContain('api.unavailable'))
+    expect(ended).toBe(false)
+    expect(events).toContain('heartbeat')
+  } finally {
+    machine.abort.abort()
+    expect(await running).toBe(0)
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+  }
+})

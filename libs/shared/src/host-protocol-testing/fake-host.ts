@@ -591,7 +591,7 @@ export function createFakeHost(options: FakeHostOptions) {
       clearTimeout(c.expiryTimer)
       c.expiryTimer = setTimeout(
         () => c.socket.close(4401, 'Grant expired'),
-        Math.max(0, grant.exp * 1000 - Date.now()),
+        Math.max(0, (grant.exp + CONTROL_LIMITS.signatureSkewSec) * 1000 - Date.now()),
       )
       if (renewal) {
         if (!authorized(c, 'sessions.read')) {

@@ -7,13 +7,14 @@ whether a machine can run sessions, `providers` which models pi can use there,
 and `accept` runs real sessions to prove it ([accept](#accept)). `login`,
 `status` and `logout` manage its machine identity in the control plane. `run`
 sends heartbeats; `service` runs it as a Linux systemd user service or a macOS
-LaunchAgent. It listens on nothing. `npm run build:host` builds it
+LaunchAgent. It listens only on loopback for grant-authenticated clients
+([API](#api)). `npm run build:host` builds it
 ([Build](#build)); signed releases carry their own pinned Node runtime. Desktop never runs a
 Host, and offline Desktop never needs one
 ([remote-access.md](remote-access.md)).
 
 The source is `apps/host/src/`. It imports Node builtins and the exported
-subpaths of `@phosphor/session-runtime` and `@phosphor/shared`, nothing else:
+subpaths of `@phosphor/session-runtime` and `@phosphor/shared`, plus `ws`:
 ESLint refuses Electron, `@shared/*` and `@/*`, and `boundary.test.ts` checks
 every library import against the package's exports.
 
@@ -486,8 +487,56 @@ creation is not supported by this service yet.
 `unknown` means the Host cannot say whether an operation took effect, after a
 restart, a transport failure or no answer within 30 seconds. Late answers are
 dropped and never change that receipt. Clients can ask for their own receipt
-status after reconnecting. The network API that serves this pipeline arrives
-with component 21; the Host still has no listener.
+status after reconnecting. The [API](#api) does not serve this pipeline yet.
+
+## API
+
+`phosphor run` listens on `127.0.0.1:47615` only, once an accepted heartbeat
+supplies the enrolled owner and epoch. `api.port` in config sets an integer
+from 1024 to 65535. A busy port logs `api.unavailable` and retries every minute;
+heartbeats continue. Tailscale Serve can expose the loopback endpoint on the
+Tailnet. The Host does not listen directly on a Tailscale address or use Funnel.
+
+`GET /v1/hello?challenge=<64 lowercase hex>` returns the Host hello and an
+Ed25519 proof over the Host id, runtime epoch and challenge. It is unauthenticated,
+uncached and limited to ten requests per second. `/v1/stream` upgrades to a
+WebSocket. Only GET is accepted. Host headers must name localhost or 127.0.0.1
+with the configured port, or a `.ts.net` name. Any Origin header is refused.
+
+The first text frame must be `auth {grant, challenge}` within ten seconds.
+The Host verifies the control-plane signature, issuer, Host id, owner, enrollment
+epoch, lifetime and revocations. Control public keys are cached, refreshed hourly
+and on an unknown key id at most once per minute. A failed refresh retains the
+old set. `ready` includes a proof signed with the enrolled machine key. Clients
+renew with `auth {grant}` and must retain their owner and client id. Expiry closes
+at `exp + 60 seconds`, matching the signature clock skew. Heartbeat revocations
+close matching sockets; a changed owner or epoch or removal closes all sockets.
+Missing heartbeat fields do not erase authority or revocations.
+
+There are no announced capabilities and no lanes served yet. Subscriptions and
+commands are forbidden; calls are unsupported. Client protocol pings receive
+pongs. WebSocket control pings keep the transport alive but do not reset the
+60-second text-frame idle deadline. There are at most 64 sockets and four per
+client. Up to 16 excess sockets get a close frame, then further upgrades get
+HTTP 429. Closing sockets count until closed or terminated after two seconds.
+At most 80 TCP sockets are accepted, including sockets that have not upgraded.
+HTTP headers and requests time out after ten seconds, checked each second.
+Drain closes upgraded sockets and destroys remaining TCP sockets before releasing
+the run lock.
+
+| Close code | Meaning                                                                        |
+| ---------- | ------------------------------------------------------------------------------ |
+| 1001       | Host stopping                                                                  |
+| 4400       | Malformed, binary or oversize client frame                                     |
+| 1009       | Transport rejects an oversize frame; the Host may log 1006 for that close      |
+| 4401       | Auth missing, unverifiable, expired or not yet valid; idle client              |
+| 4403       | Wrong authority, revoked grant or renewal identity change                      |
+| 4409       | Unsupported protocol version                                                   |
+| 4429       | Too many connections or queued bytes; HTTP 429 during an upgrade is equivalent |
+
+API logs contain event names, connection and client ids, close codes, durations
+and ports. They never contain grants, signatures, challenges, proofs, keys or
+header values.
 
 ## Running as a service
 

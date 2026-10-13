@@ -69,6 +69,9 @@ async function stageBuild(stage) {
     logLevel: 'warning',
     // Library source still uses the @shared/* alias internally.
     tsconfigRaw: { compilerOptions: { paths: { '@shared/*': ['./libs/shared/src/*'] } } },
+    banner: {
+      js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);",
+    },
     define: {
       ...(stamped ? { __PHOSPHOR_HOST_SOURCE_SHA__: JSON.stringify(stamped) } : {}),
       ...(releaseVersion
@@ -76,6 +79,18 @@ async function stageBuild(stage) {
         : {}),
     },
     plugins: [
+      {
+        name: 'ws-plain-js',
+        setup(b) {
+          b.onResolve({ filter: /^(bufferutil|utf-8-validate)$/ }, (args) => ({
+            path: args.path,
+            namespace: 'ws-optional',
+          }))
+          b.onLoad({ filter: /.*/, namespace: 'ws-optional' }, () => ({
+            contents: 'throw new Error("Optional native helper disabled")',
+          }))
+        },
+      },
       {
         name: 'host-boundary',
         setup(b) {

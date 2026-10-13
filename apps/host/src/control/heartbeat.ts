@@ -88,6 +88,8 @@ export interface HeartbeatPorts {
   hostVersion: string
   signal?: AbortSignal
   log(line: string): void
+  onAccepted?(reply: HeartbeatResponse): void
+  onRemoved?(): void
 }
 const UNKNOWN: Readiness = { pi: 'unknown', claude: 'unknown', tailscale: 'unknown' }
 export const REMOVED =
@@ -225,11 +227,13 @@ export function createHeartbeat(ports: HeartbeatPorts) {
               throw new IdentityFailure('Invalid heartbeat jitter.')
             delay = parsed.value.nextInSec * 1000 + jitter * 3000
             backoff = 5000
+            ports.onAccepted?.(parsed.value)
             log('connected')
           } catch (error) {
             if (ending) break
             if (!(error instanceof ControlFailure)) throw error
             if (error.code === 'gone') {
+              ports.onRemoved?.()
               log(REMOVED)
               return 77
             }

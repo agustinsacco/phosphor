@@ -35,7 +35,7 @@ Start with [overview.md](overview.md) for what Phosphor is, or
 The remote foundations do not enable remote execution. Host enrollment commands,
 Desktop approval clients, the control server's enrollment, machine and Host
 routes and their database functions exist. The server is not deployed yet.
-The Host checks a machine and runs local acceptance sessions; it has no listener.
+The Host checks a machine and runs local acceptance sessions; its loopback API authenticates grants but serves no lanes yet ([host.md](host.md#api)).
 
 ## The surfaces
 

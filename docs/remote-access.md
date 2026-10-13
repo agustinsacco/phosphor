@@ -44,10 +44,12 @@ Tokens stay in main. See [settings.md](settings.md#phosphor-account) and
 ## Host protocol
 
 `libs/shared/src/host-protocol.ts` defines protocol v1, its allowlist, parsers
-and limits. Hosts do not serve it yet; the contract kit runs against an
-in-memory fake Host, not a network listener. The future adapter uses
-`/v1/hello` and `/v1/stream` on loopback port 47615, exposed through Tailscale
-Serve, never Funnel. [Trust boundary](#trust-boundary) and
+and limits. The Host serves hello and grant authentication on `/v1/hello`
+and `/v1/stream`, on loopback port 47615 (configurable as `api.port`). It
+announces no capabilities and serves no lanes yet. The contract kit runs auth
+scenarios against the real connection and lane scenarios against an in-memory
+fake Host. Tailscale Serve can expose the loopback listener, never Funnel.
+[Host API](host.md#api) owns its admission, limits and close codes. [Trust boundary](#trust-boundary) and
 [Host machine identity](host.md#machine-identity) apply to this protocol too.
 
 Host, lane, client and request ids are UUIDs. Repository ids, connection ids
@@ -214,11 +216,10 @@ entry. Neither test is real-provider or remote-host acceptance.
 The locks are process-local. The Host's entry point is the `phosphor` CLI
 ([host.md](host.md)), a foreground CLI that checks a machine and runs
 acceptance sessions on it. It composes the session runtime with its own
-adapters. It has no inbound network listener; its control commands only make
-outbound requests.
-There is no durable Host ownership, authenticated network API,
-snapshot/replay protocol, command receipt store or controller lease
-implementation. A Host supplies its own machine adapters and authorization: it
+adapters. Its control commands make outbound requests. `run` also opens a
+loopback API after learning its owner and epoch from a heartbeat. The API
+authenticates grants but does not expose the lane services yet. There is no
+network lane execution, snapshot/replay or controller lease implementation. A Host supplies its own machine adapters and authorization: it
 builds pi's environment from its own config and never accepts spawn
 environment or executable inputs from a caller. No local daemon or login is
 required.

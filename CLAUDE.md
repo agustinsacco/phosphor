@@ -87,7 +87,7 @@ you want to watch.
    `apps/host` ([host.md](docs/host.md)) is the plain-Node Host CLI. It checks a
    machine (`doctor`) and proves it with real sessions (`accept`), which run on
    `apps/host/src/session/runtime.ts`: the same service and deletion over one
-   lock domain. It has no network listener. `login`, `status` and `logout` make
+   lock domain. It listens on 127.0.0.1 only, at `api.port`, for grant-authenticated clients ([host.md](docs/host.md#api)). `login`, `status` and `logout` make
    outbound Ed25519-signed control requests. `apps/control` serves the site and
    the control API (enrollment, machines, Host routes); it is not deployed yet.
    The control plane holds identity and machine metadata, never lane contents,

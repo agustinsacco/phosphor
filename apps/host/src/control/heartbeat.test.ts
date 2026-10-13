@@ -144,7 +144,9 @@ describe('heartbeat loop', () => {
     f.ports.client = async () => {
       throw new ControlFailure('gone')
     }
+    f.ports.onRemoved = vi.fn()
     expect(await createHeartbeat(f.ports).run()).toBe(77)
+    expect(f.ports.onRemoved).toHaveBeenCalledOnce()
     expect(f.logs).toEqual([
       'This machine was removed from your Phosphor account. Run phosphor login to add it again.',
     ])
@@ -540,4 +542,20 @@ describe('heartbeat sequence storage', () => {
       }
     },
   )
+})
+
+it('publishes only parsed accepted replies to the authority port', async () => {
+  const f = loopFixture()
+  f.ports.onAccepted = vi.fn()
+  await createHeartbeat(f.ports).run()
+  expect(f.ports.onAccepted).toHaveBeenCalledTimes(2)
+  expect(f.ports.onAccepted).toHaveBeenCalledWith({ accepted: true, nextInSec: 30 })
+  const invalid = loopFixture()
+  invalid.ports.onAccepted = vi.fn()
+  invalid.ports.client = async () => ({ accepted: true, nextInSec: 0 })
+  invalid.ports.wait = async () => {
+    invalid.signal.abort()
+  }
+  await createHeartbeat(invalid.ports).run()
+  expect(invalid.ports.onAccepted).not.toHaveBeenCalled()
 })

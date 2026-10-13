@@ -156,3 +156,15 @@ describe('control.url', () => {
     ).toBe('/control/secret')
   })
 })
+
+it('validates api.port bounds and refuses unknown API keys', () => {
+  for (const port of [1024, 65535])
+    expect(validateHostConfig({ ...minimal, api: { port } }).ok).toBe(true)
+  for (const port of [1023, 65536, 1024.5, '47615', null])
+    expect(errorsOf({ ...minimal, api: { port } }).map((e) => e.pointer)).toContain('/api/port')
+  expect(
+    errorsOf({ ...minimal, api: { port: 47615, bind: '0.0.0.0' } }).map((e) => e.pointer),
+  ).toContain('/api/bind')
+  expect(errorsOf({ ...minimal, api: null }).map((e) => e.pointer)).toContain('/api')
+  expect(errorsOf({ ...minimal, api: {} }).map((e) => e.pointer)).toContain('/api/port')
+})
