@@ -131,6 +131,10 @@
     "./pi/workspace-prompt": {
       "types": "./src/pi/workspace-prompt.ts",
       "default": "./src/pi/workspace-prompt.ts"
+    },
+    "./lanes/projection": {
+      "types": "./src/lanes/projection.ts",
+      "default": "./src/lanes/projection.ts"
     }
   },
   "nx": {
