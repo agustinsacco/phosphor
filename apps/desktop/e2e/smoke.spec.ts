@@ -2512,16 +2512,18 @@ test('the optimization tab reports headroom state without starting anything', as
     // Both new channels answered through the real main process: the manager
     // card resolved past "Checking Headroom…" (headroom:status) and the
     // savings tiles past "Reading session files…" (optimization:stats).
-    const switches = page.getByRole('switch')
-    await expect(switches.first()).toBeVisible({ timeout: 10_000 })
+    const compression = page.getByRole('switch', { name: 'Compress tool results', exact: true })
+    await expect(compression).toBeVisible({ timeout: 10_000 })
     await expect(page.getByText('Lanes with savings')).toBeVisible({ timeout: 10_000 })
 
     // Compression ships off — the Advisor says so, and the switch agrees.
     await expect(page.getByText('Tool-result compression is off')).toBeVisible()
-    await expect(switches.first()).toHaveAttribute('aria-checked', 'false')
+    await expect(compression).toHaveAttribute('aria-checked', 'false')
     // Text compression stays inert until a retrieve tool exists, and a switch
     // that cannot move must refuse the click rather than look live.
-    await expect(switches.nth(1)).toBeDisabled()
+    await expect(
+      page.getByRole('switch', { name: 'Compress search & log output', exact: true }),
+    ).toBeDisabled()
 
     await page.keyboard.press('Escape')
     await expect(page.getByRole('heading', { name: 'Optimization', exact: true })).toBeHidden()
