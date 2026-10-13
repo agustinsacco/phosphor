@@ -390,6 +390,28 @@ describe('parseSubagentNotice', () => {
     ).toMatchObject({ status: 'failed', headline: 'worker failed after detaching' })
   })
 
+  it('takes run identity only from structured details, one run or many', () => {
+    const text = 'Background task failed: **worker**\n\nboom'
+    expect(
+      parseSubagentNotice('subagent-notify', text, {
+        runs: [{ agent: 'worker', status: 'failed', runId: 'run-a' }],
+      }),
+    ).toMatchObject({ runId: 'run-a', runs: [{ runId: 'run-a', agent: 'worker' }] })
+    const grouped = parseSubagentNotice('subagent-notify', text, {
+      runs: [{ runId: 'run-a' }, { agent: 'scout', runId: 'run-b' }, { runId: 3 }, null],
+    })!
+    expect(grouped.runs).toEqual([
+      { runId: 'run-a', agent: undefined },
+      { runId: 'run-b', agent: 'scout' },
+    ])
+    expect(grouped.runId).toBeUndefined()
+    for (const details of [undefined, null, {}, { runs: 'x' }, { runs: [{ id: 'run-a' }] }]) {
+      const notice = parseSubagentNotice('subagent-notify', text, details)!
+      expect(notice.runId).toBeUndefined()
+      expect(notice.runs).toBeUndefined()
+    }
+  })
+
   it('keeps an unfamiliar header as the headline rather than inventing a status', () => {
     const notice = parseSubagentNotice('subagent-notify', 'Something else: **x**\nbody')!
     expect(notice).toMatchObject({

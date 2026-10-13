@@ -175,6 +175,7 @@ export function subagentHistory(
     if (typeof text !== 'string') continue
     const notice = parseSubagentNotice(message.customType, text, details)
     if (notice?.runId) runIds.add(notice.runId)
+    for (const run of notice?.runs ?? []) runIds.add(run.runId)
     if (notice?.workflowRunId) runIds.add(notice.workflowRunId)
     appendCustomItem(items, {
       id: entry.id,

@@ -456,14 +456,21 @@ scout · grep`) and which is **never printed as widget lines**
   `subagent-incremental-child-notify` records: a completed workflow child stays
   visible even while its siblings run. Explicit child/workflow IDs remain distinct;
   completion does not mean acceptance, and sibling status is labelled as of that
-  update. Recognized notices with a run ID offer
-  **Inspect run**, including from the Coordination log. This uses the same
-  ownership-checked extension command, never a writable child session.
-  `items/SubagentNotice.tsx` reads the header (`Background task completed:
-**scout**`) into "scout finished in the background" and folds the output
-  under it; a failure, a stop, or an unfamiliar control notice opens by default.
-  Structured attention notices show the workflow key, profile, exact run and
-  signal compactly, with the full original diagnostics behind the disclosure.
+  update. `items/SubagentNotice.tsx` reads the header (`Background task
+completed: **scout**`) into "scout finished in the background". **Every notice
+  starts folded to that one line** with its time, whatever its status; a
+  failure or an attention notice keeps its warning tone while folded. The
+  output, the signal, the run, workflow and request IDs and the original
+  diagnostics are all behind the disclosure. Run identity comes only from
+  native data: a `subagent-notify` completion's `details.runs[].runId`, a
+  workflow child's `Child run:` line, or an attention event's `runId`; never
+  the prose or an artifact path. A notice naming exactly one run shows
+  **Inspect run** on the folded line, including in the Coordination log, so
+  the run opens in the Subagents pane without expanding the card. A grouped
+  completion lists an **Inspect** link per run inside the disclosure. This
+  uses the same ownership-checked extension command, never a writable child
+  session. Structured attention notices name the workflow key and profile in
+  the headline and keep the signal with the diagnostics.
   A long-running tool warning is parent-facing, not proof of a stall or a human
   blocker. Historical signals remain historical; Phosphor does not mark them
   resolved merely because a later notice arrives.
@@ -488,9 +495,9 @@ native tool calls/results, including before compaction, with a separate
 200-launch bound. Detached launch receipts never imply current activity.
 Questions pair with parent replies by exact request/run identity, not agent
 names. Live pairing requires a successful native reply result; arguments alone
-are not delivery evidence. Paired cards fold when a reply arrives unless the
-reader chose their disclosure state. The original question notice remains
-available. A recorded reply does not prove the child acted on it.
+are not delivery evidence. A paired card adds "parent replied" to its folded
+line, and the reply opens with the question. The original question notice
+remains available. A recorded reply does not prove the child acted on it.
 The view describes evidence at read time, not current liveness.
 
 **Stop run** is available on a root inspection when the session advertises the

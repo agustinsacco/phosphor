@@ -62,8 +62,9 @@ describe('recorded pi-subagents workflow evidence', () => {
     if (item.kind !== 'custom') throw new Error('Expected notice')
     const html = renderToStaticMarkup(createElement(SubagentNoticeItem, { item }))
     expect(html).toContain('validation · worker needs parent attention')
-    expect(html).toContain('Elapsed time alone does not prove a stall')
-    expect(html).toContain('10000002')
+    // Folded: the signal and the diagnostics open together.
+    expect(html).toContain('aria-expanded="false"')
+    expect(html).not.toContain('Elapsed time alone does not prove a stall')
     expect(html).not.toContain('command.cancel')
     expect(html).not.toContain('Waiting on you')
   })

@@ -607,6 +607,11 @@ export function summarizeFleet(snapshot: FleetSnapshot): string {
 export interface SubagentNotice {
   kind: 'completion' | 'attention' | 'steering' | 'question' | 'reply'
   runId?: string
+  /**
+   * Every run a completion reports, from its structured `details.runs`
+   * (native IDs only). `runId` is set only when there is exactly one.
+   */
+  runs?: { runId: string; agent?: string }[]
   workflowRunId?: string
   /** Compact native signal; the full diagnostic stays in body. */
   summary?: string
@@ -712,8 +717,17 @@ export function parseSubagentNotice(
       body: rest,
     }
   }
+  // Current pi-subagents names each reported run in `details.runs`; older
+  // notices have no details. Never read a run ID out of the prose or a path.
+  const runs = list(rec(details)?.runs).flatMap((entry) => {
+    const runId = str(rec(entry)?.runId)
+    return runId ? [{ runId, agent: str(rec(entry)?.agent) }] : []
+  })
+  const identity = runs.length
+    ? { runs, ...(runs.length === 1 ? { runId: runs[0]!.runId } : {}) }
+    : {}
   const match = COMPLETION_HEADER.exec(first)
-  if (!match) return { kind: 'completion', agents: [], headline: plain, body: rest }
+  if (!match) return { kind: 'completion', agents: [], headline: plain, body: rest, ...identity }
   const status = match[2] as NonNullable<SubagentNotice['status']>
   const agents = [...match[4]!.matchAll(/\*\*([^*]+)\*\*/g)].map((m) => m[1]!.trim())
   const who = agents.length > 0 ? agents.join(', ') : 'A sub-agent'
@@ -724,5 +738,6 @@ export function parseSubagentNotice(
     agents,
     headline: `${who} ${STATUS_VERB[status]} ${where}`,
     body: rest,
+    ...identity,
   }
 }
