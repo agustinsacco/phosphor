@@ -620,3 +620,65 @@ it.each(['close', 'forbidden', 'sever'])('clears the replay timer on %s', async 
   timeout.mockRestore()
   clear.mockRestore()
 })
+
+it('answers closed after close drops a replay backlog', async () => {
+  const backpressure = { bytes: 0, writesBeforeFull: Infinity }
+  const t = await setup({ delay: 1500, backpressure })
+  t.pairs[0]?.dropNext(2)
+  const results = [
+    t.connection.send({ type: 'abort' }, t.laneId, 1),
+    t.connection.send({ type: 'abort' }, t.laneId, 1),
+  ]
+  await drain()
+  t.pairs[0]?.client.close(1001, 'Sever')
+  await drain()
+  backpressure.writesBeforeFull = 1
+  await vi.advanceTimersByTimeAsync(1000)
+  await drain()
+  expect(await t.connection.send({ type: 'abort' }, t.laneId, 1)).toMatchObject({
+    status: 'not-sent',
+    reason: 'not-connected',
+  })
+  t.connection.close()
+  expect(await t.connection.send({ type: 'abort' }, t.laneId, 1)).toMatchObject({
+    status: 'not-sent',
+    reason: 'closed',
+  })
+  expect((await Promise.all(results)).map((r) => r.status)).toEqual(['unknown', 'unknown'])
+  t.host.stop()
+  await drain()
+  expect(vi.getTimerCount()).toBe(0)
+})
+
+it('replays each pending command once, in order, after a sever during replay', async () => {
+  const backpressure = { bytes: 0, writesBeforeFull: Infinity }
+  const t = await setup({ delay: 1500, backpressure })
+  t.pairs[0]?.dropNext(2)
+  const results = [
+    t.connection.send({ type: 'prompt', message: 'First' }, t.laneId, 1),
+    t.connection.send({ type: 'prompt', message: 'Second' }, t.laneId, 1),
+  ]
+  await drain()
+  const original = t.writes.filter((f) => f.type === 'command')
+  expect(original).toHaveLength(2)
+  t.pairs[0]?.client.close(1001, 'Sever')
+  await drain()
+  backpressure.writesBeforeFull = 1
+  await vi.advanceTimersByTimeAsync(1000)
+  await drain()
+  // Only the first replayed; the second still waits for queue space.
+  expect(t.writes.filter((f) => f.type === 'command').slice(2)).toEqual(original.slice(0, 1))
+  t.pairs.at(-1)?.client.close(1001, 'Sever')
+  await drain()
+  backpressure.bytes = 0
+  backpressure.writesBeforeFull = Infinity
+  const mark = t.writes.length
+  await vi.advanceTimersByTimeAsync(1000)
+  await drain()
+  expect(t.writes.slice(mark).filter((f) => f.type === 'command')).toEqual(original)
+  t.connection.close()
+  await Promise.all(results)
+  t.host.stop()
+  await drain()
+  expect(vi.getTimerCount()).toBe(0)
+})
