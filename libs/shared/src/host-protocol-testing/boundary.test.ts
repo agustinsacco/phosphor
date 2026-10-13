@@ -19,9 +19,10 @@ function sources(directory: string): string[] {
 function forbiddenImports(file: string, text: string): string[] {
   if (file.endsWith('.astro')) {
     const frontmatter = /^---[^\S\r\n]*\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)?.[1]
-    const scripts = [...text.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gi)].flatMap(
-      (match) => (match[1] === undefined ? [] : [match[1]]),
-    )
+    // A quoted attribute may hold `>`, so the opening tag is read quote by quote.
+    const scripts = [
+      ...text.matchAll(/<script\b(?:[^>"']|"[^"]*"|'[^']*')*>([\s\S]*?)<\/script\s*>/gi),
+    ].flatMap((match) => (match[1] === undefined ? [] : [match[1]]))
     return [...(frontmatter === undefined ? [] : [frontmatter]), ...scripts].flatMap((source) =>
       forbiddenImports(file + '.ts', source),
     )
@@ -86,6 +87,9 @@ it('scans Astro frontmatter and script blocks but not template text', () => {
     "<script lang='ts'>import type { Kit } from '@phosphor/shared/host-protocol-testing'</script>",
     "---\r\nconst title = 'Page'\r\n---\r\n<script>const kit = import('@phosphor/shared/host-protocol-testing')</script>",
     "<script>const ok = true</script><script>const kit = require('@phosphor/shared/host-protocol-testing')</script>",
+    // A quoted attribute holding `>` must not end the opening tag early.
+    `<script type="module" data-note=">">import { createFakeHost } from '@phosphor/shared/host-protocol-testing'</script>`,
+    "<script data-note='a>b'>import '@phosphor/shared/host-protocol-testing'</script>",
   ])
     expect(forbiddenImports(file, text)).toHaveLength(1)
   expect(
