@@ -58,6 +58,15 @@ describe('phosphor', () => {
     [['serve'], 'unknown command "serve"'],
     [['accept'], 'accept needs --repository DIR'],
     [['accept', '--repository', 'repo'], '--repository needs an absolute path'],
+    [
+      ['accept', '--repository', '/a', '--repository', '/b'],
+      '--repository may only repeat for setup',
+    ],
+    [['doctor', '--replace'], 'doctor does not take --replace'],
+    [['doctor', '--pi', '/pi'], 'doctor does not take --pi'],
+    [['setup', '--pi', ''], '--repository, --pi and --node need a path'],
+    [['setup', '--node', ''], '--repository, --pi and --node need a path'],
+    [['setup', '--repository', ''], '--repository, --pi and --node need a path'],
     [['accept', '--repository', '/repo', '--lane', 'both'], '--lane is native, claude or all'],
     [['doctor', '--repository', '/repo'], 'doctor does not take --repository'],
     [['doctor', '--model', 'm'], 'doctor does not take --model'],
@@ -83,6 +92,54 @@ describe('phosphor', () => {
     expect(result).toMatchObject({ code: 64, stdout: '' })
     expect(result.stderr).toContain(problem)
     expect(result.stderr.endsWith(USAGE)).toBe(true)
+  })
+
+  it('runs setup with repeated relative repositories, overrides, replace and JSON', async () => {
+    machine = fakeMachine()
+    const options = {
+      cwd: machine.dir,
+      env: { ...machine.hostEnv, PATH: machine.bin },
+      home: machine.home,
+    }
+    const relative = machine.repository.slice(machine.dir.length + 1)
+    const node = machine.script(
+      'node',
+      'if [ "$1" = --version ]; then echo v22.22.3; else echo 0.87.1; fi',
+    )
+    const argv = [
+      'setup',
+      '--config',
+      machine.configPath,
+      '--replace',
+      '--pi',
+      machine.pi,
+      '--node',
+      node,
+      '--repository',
+      relative,
+      '--repository',
+      relative,
+    ]
+    const result = await run([...argv, '--json'], options)
+    expect(result).toMatchObject({ code: 0, stderr: '' })
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      next: 'phosphor doctor',
+      repositories: [machine.repository],
+    })
+    const existing = await run(['setup', '--config', machine.configPath], options)
+    expect(existing.code).toBe(0)
+    expect(existing.stdout).toContain('already set up; rerun with --replace')
+  })
+
+  it('prints missing-config setup guidance in both doctor renderers', async () => {
+    machine = fakeMachine()
+    const missing = join(machine.dir, 'missing.json')
+    expect((await run(['doctor', '--config', missing])).stdout).toContain(
+      'next: run phosphor setup',
+    )
+    expect(JSON.parse((await run(['doctor', '--config', missing, '--json'])).stdout).next).toBe(
+      'run phosphor setup',
+    )
   })
 
   it('runs doctor against --config, with the report alone on stdout', async () => {

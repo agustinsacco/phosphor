@@ -158,6 +158,15 @@ describe('doctor', () => {
     expect(statuses(report)).toEqual(['pass host-node', 'fail config'])
     expect(report.config.errors?.map((error) => error.pointer)).toEqual(['/run', '/version'])
     expect(renderDoctor(report)).toContain('        /version: must be 1')
+    expect(report.next).toBeUndefined()
+  })
+
+  it('names setup only when the config file is missing, in text and JSON', async () => {
+    rmSync(machine.configPath)
+    const report = await runDoctor(context())
+    expect(report.exitCode).toBe(78)
+    expect(JSON.parse(JSON.stringify(report)).next).toBe('run phosphor setup')
+    expect(renderDoctor(report).endsWith('next: run phosphor setup\n')).toBe(true)
   })
 
   it('exits 78 for a Node-script pi without /pi/node, 69 for a missing prerequisite', async () => {

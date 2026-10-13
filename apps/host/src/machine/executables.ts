@@ -205,7 +205,7 @@ async function realExecutable(path: string): Promise<{ real: string } | { proble
   }
 }
 
-async function versionOf(
+export async function versionOf(
   binaryPath: string,
   args: string[],
   environment: ProbeEnvironment,
