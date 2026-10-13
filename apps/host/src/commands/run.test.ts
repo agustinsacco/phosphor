@@ -1,5 +1,8 @@
-import { readdirSync } from 'node:fs'
-import { lstat, readFile, readdir, writeFile } from 'node:fs/promises'
+import { readdirSync, symlinkSync } from 'node:fs'
+import { openStore } from '../lanes/store'
+import { loadSqlite } from '../lanes/sqlite'
+import { hostStateDirectory } from '../lanes/state-dir'
+import { lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,13 +20,20 @@ const readiness: Readiness = { pi: 'ok', claude: 'ok', tailscale: 'ok' }
 let machine: ControlMachine
 beforeEach(async () => {
   machine = await controlMachine()
+  const repository = join(machine.root, 'repository')
+  await mkdir(repository)
+  machine.config.repositories = [repository]
+  await writeFile(machine.configPath, JSON.stringify(machine.config), { mode: 0o600 })
+  vi.stubEnv('PI_CODING_AGENT_SESSION_DIR', join(machine.root, 'sessions'))
 })
 afterEach(async () => {
   await machine.cleanup()
+  vi.unstubAllEnvs()
 })
 const context = (): RunContext => ({
   ...machine.context,
-  env: {},
+  env: { XDG_STATE_HOME: join(machine.root, 'state') },
+  home: machine.root,
   heartbeat: { readiness: async () => readiness, random: () => 0 },
 })
 describe('phosphor run', () => {
@@ -94,6 +104,40 @@ describe('phosphor run', () => {
     expect(atExit).toEqual([[]])
     expect(attached).toBe(1)
     expect(detached).toBe(1)
+  })
+  it('refuses unsafe storage and newer schemas with 78, naming state and releasing the lock', async () => {
+    await machine.enrollOld()
+    const f = context()
+    const directory = hostStateDirectory(f.env, f.home)
+    await mkdir(join(machine.root, 'state'), { recursive: true, mode: 0o700 })
+    symlinkSync(join(machine.root, 'repository'), directory)
+    expect(await runHost(f)).toBe(78)
+    expect(machine.calls).toEqual([])
+    expect(machine.output.join('\n')).toContain(directory)
+    expect(await readdir(identityDirectory(machine.configPath))).not.toContain('.run-lock')
+    const { unlink } = await import('node:fs/promises')
+    await unlink(directory)
+    const store = await openStore(directory, f.uid)
+    store.close()
+    const { DatabaseSync } = await loadSqlite()
+    const db = new DatabaseSync(join(directory, 'state.sqlite'))
+    db.exec('PRAGMA user_version=2')
+    db.close()
+    expect(await runHost(f)).toBe(78)
+    expect(machine.output.join('\n')).toContain('this state was written by a newer Host')
+    expect(machine.calls).toEqual([])
+  })
+  it('names the state folder on internal reconciliation failure with 70', async () => {
+    await machine.enrollOld()
+    await writeFile(
+      machine.configPath,
+      JSON.stringify({ ...machine.config, repositories: [join(machine.root, 'missing')] }),
+    )
+    const f = context()
+    expect(await runHost(f)).toBe(70)
+    expect(machine.output.join('\n')).toContain(hostStateDirectory(f.env, f.home))
+    expect(machine.calls).toEqual([])
+    expect(await readdir(identityDirectory(machine.configPath))).not.toContain('.run-lock')
   })
   it('requires enrollment before any network call', async () => {
     expect(await runHost(context())).toBe(69)
@@ -245,6 +289,8 @@ it('records retry delay and removal with exit 77 in the file without exception t
     }),
   ).toBe(77)
   const text = await readFile(join(machine.root, 'logs', 'phosphor.log'), 'utf8')
+  expect(text).toContain('[host] lanes.reconciled')
+  expect(text).toContain('"repositories":1,"lanes":0,"added":0,"removed":0')
   expect(text).toContain('[host] retry')
   expect(text).toContain('"delayMs":5000')
   expect(text).toContain('[host] removed')

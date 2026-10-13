@@ -1,4 +1,5 @@
-import { isAbsolute, join } from 'node:path'
+import { join } from 'node:path'
+import { hostStateDirectory } from '../lanes/state-dir'
 import { createFileLog, type RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { redact } from './environment'
 
@@ -7,9 +8,7 @@ import { redact } from './environment'
  * alike. A relative XDG_STATE_HOME is ignored, as the XDG spec asks.
  */
 export function hostLogDirectory(env: NodeJS.ProcessEnv, home: string): string {
-  const state = env.XDG_STATE_HOME
-  const base = state && isAbsolute(state) ? state : join(home, '.local', 'state')
-  return join(base, 'phosphor-host', 'logs')
+  return join(hostStateDirectory(env, home), 'logs')
 }
 
 export interface HostLog {

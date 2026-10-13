@@ -20,6 +20,9 @@ import { loadHostConfig } from '../config/load'
 import { checkReadiness } from '../machine/readiness'
 import { SHUTDOWN_SIGNALS, type Drainable, type ShutdownSignal } from '../shutdown'
 import { HOST_VERSION } from '../version'
+import { hostStateDirectory, StateFailure } from '../lanes/state-dir'
+import { openStore, type HostStore } from '../lanes/store'
+import { reconcile } from '../lanes/reconcile'
 
 /**
  * Shutdown exits as soon as the attached drain ends. A drain that ended before
@@ -31,10 +34,12 @@ export const RELEASE_WAIT_MS = 3000
 
 export interface RunContext extends ControlContext {
   env: NodeJS.ProcessEnv
+  home: string
   attach?: (target: Drainable) => () => void
   heartbeat?: Partial<Pick<HeartbeatPorts, 'readiness' | 'seq' | 'random'>>
 }
 async function runHostCommand(context: RunContext): Promise<number> {
+  let store: HostStore | undefined
   let release: (() => Promise<void>) | undefined
   let detach: (() => void) | undefined
   let later: ShutdownSignal | undefined
@@ -54,6 +59,18 @@ async function runHostCommand(context: RunContext): Promise<number> {
     const config = await loadHostConfig(context.configPath, context.uid)
     if (!config.ok)
       throw new IdentityFailure('Config is not usable. Run phosphor doctor to check it.')
+    const stateDirectory = hostStateDirectory(context.env, context.home)
+    try {
+      store = await openStore(stateDirectory, context.uid)
+      store.syncRepositories(config.config.repositories)
+      const counts = await reconcile(store, (skipped) =>
+        context.log?.('host', 'lanes.skipped', { skipped }),
+      )
+      context.log?.('host', 'lanes.reconciled', counts)
+    } catch (error) {
+      if (error instanceof StateFailure) throw error
+      throw new StateFailure(stateDirectory, 70, 'Could not reconcile lanes.')
+    }
     const { identity, key } = prepared.loaded
     const loop = createHeartbeat({
       now: context.now ?? Date.now,
@@ -100,15 +117,22 @@ async function runHostCommand(context: RunContext): Promise<number> {
     })
     return await loop.run()
   } catch (error) {
-    const result = controlResult(error, context.signal)
+    const result =
+      error instanceof StateFailure
+        ? { message: error.message, exitCode: error.exitCode }
+        : controlResult(error, context.signal)
     context.print(result.message)
     return result.exitCode
   } finally {
     detach?.()
     try {
-      await release?.()
+      store?.close()
     } finally {
-      released()
+      try {
+        await release?.()
+      } finally {
+        released()
+      }
     }
   }
 }
