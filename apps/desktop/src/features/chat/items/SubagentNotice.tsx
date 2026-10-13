@@ -13,8 +13,8 @@ import { SEGMENT } from '../transcriptFind'
  * pi-subagents delivers the completion as a custom message and marks a plain
  * success `display: false` so its TUI does not badge an idle tab. Phosphor
  * shows it anyway: the reply that follows quotes this result, and a reader
- * could not see why the model spoke again. Every notice starts as one line —
- * who, what happened, when — with the output, signal and identifiers behind
+ * could not see why the model spoke again. Every notice starts as one line
+ * (who, what happened, when), with the output, signal and identifiers behind
  * the disclosure. A failure keeps its warning tone while folded. When the
  * notice names exactly one native run, **Inspect run** opens it in the
  * Subagents pane without unfolding the card.
