@@ -7,6 +7,8 @@ import type { SessionMeta, SessionPush } from '@shared/models'
 import { shouldRefreshStatsOn, useSessionsStore } from './sessions'
 import { useFilesStore } from './files'
 import { getActiveWorkspace } from './workspaces'
+import { useChatStore } from './chat'
+import { SWARM_COMMAND } from '@phosphor/pi-extensions/swarm'
 
 const meta: SessionMeta = {
   path: '/repo/a.jsonl',
@@ -140,6 +142,92 @@ describe('createSession', () => {
     })
     useSessionsStore.setState({ live: {}, unread: {}, activeSessionId: null })
   })
+
+  it('waits for Swarm authorization before publishing the lane or sending its first prompt', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    piCommand.mockImplementation(async (_id, command) => {
+      if (command.type === 'get_commands')
+        return { success: true, data: { commands: [{ name: SWARM_COMMAND, source: 'extension' }] } }
+      if (command.message === '/phosphor-swarm on') await gate
+      return { success: true }
+    })
+    const starting = useSessionsStore
+      .getState()
+      .createSession('/repo', { firstPrompt: 'hello', swarm: true, autoName: false })
+    await vi.waitFor(() =>
+      expect(piCommand).toHaveBeenCalledWith('new-1', {
+        type: 'prompt',
+        message: '/phosphor-swarm on',
+      }),
+    )
+    expect(useSessionsStore.getState().live['new-1']).toBeUndefined()
+    expect(piCommand.mock.calls.some(([, c]) => c.message === 'hello')).toBe(false)
+    release()
+    await starting
+    expect(
+      piCommand.mock.calls.filter(([, c]) => c.type === 'prompt').map(([, c]) => c.message),
+    ).toEqual(['/phosphor-swarm on', 'hello'])
+    expect(
+      useChatStore.getState().sessions['new-1']!.items.filter((i) => i.kind === 'user'),
+    ).toMatchObject([{ text: 'hello' }])
+  })
+
+  it.each(['missing', 'template', 'query failure', 'command failure', 'transport failure'])(
+    'does not send the task when Swarm has a %s',
+    async (failure) => {
+      piCommand.mockImplementation(async (_id, command) => {
+        if (command.type === 'get_commands') {
+          if (failure === 'query failure') return { success: false, error: 'Cannot list commands' }
+          return {
+            success: true,
+            data: {
+              commands:
+                failure === 'missing'
+                  ? []
+                  : [
+                      {
+                        name: SWARM_COMMAND,
+                        source: failure === 'template' ? 'prompt' : 'extension',
+                      },
+                    ],
+            },
+          }
+        }
+        if (failure === 'transport failure') throw new Error('Connection lost')
+        return { success: false, error: 'Swarm requires pi-subagents' }
+      })
+      await expect(
+        useSessionsStore
+          .getState()
+          .createSession('/repo', { firstPrompt: 'do not send', swarm: true }),
+      ).rejects.toThrow()
+      expect(piCommand.mock.calls.some(([, c]) => c.message === 'do not send')).toBe(false)
+      expect(invoke).toHaveBeenCalledWith('pi:disposeSession', 'new-1')
+      expect(useSessionsStore.getState().live['new-1']).toBeUndefined()
+      expect(useSessionsStore.getState().creating).toBe(false)
+    },
+  )
+
+  it('sends an image-only first prompt without opting the next lane into Swarm', async () => {
+    const images = [{ type: 'image' as const, data: 'AAAA', mimeType: 'image/png' }]
+    await useSessionsStore
+      .getState()
+      .createSession('/repo', { firstPrompt: '', firstImages: images, autoName: false })
+    expect(piCommand.mock.calls.filter(([, c]) => c.type === 'prompt')).toEqual([
+      ['new-1', { type: 'prompt', message: '', images }],
+    ])
+  })
+
+  it.each([{ sessionPath: '/repo/saved.jsonl' }, { forkFrom: '/repo/saved.jsonl' }])(
+    'never reapplies a draft authorization to a resume or fork: %j',
+    async (options) => {
+      await useSessionsStore.getState().createSession('/repo', { ...options, swarm: true })
+      expect(piCommand.mock.calls.some(([, c]) => c.message === '/phosphor-swarm on')).toBe(false)
+    },
+  )
 
   it('records the folder main answered with, not the spelling it was asked for', async () => {
     // Main resolves symlinks before spawning pi. The sidebar groups by this

@@ -34,6 +34,8 @@ export interface Draft {
   attachments: PendingAttachment[]
   model?: { provider: string; id: string }
   thinking?: string
+  /** Explicit authorization for this unsent new lane, never a global default. */
+  swarm?: boolean
   workspacePath?: string
   preferWorktree?: boolean
 }
@@ -110,7 +112,7 @@ export const useDraftsStore = create<DraftsState>((set, get) => ({
 
 /** Empty means "nothing worth keeping" — do not persist a blank record. */
 export function isEmptyDraft(draft: Draft): boolean {
-  return draft.text.trim() === '' && draft.attachments.length === 0
+  return draft.text.trim() === '' && draft.attachments.length === 0 && !draft.swarm
 }
 
 // ---------- persistence ----------
@@ -164,6 +166,7 @@ async function persist(key: DraftKey, draft: Draft): Promise<void> {
     attachments: saved.map((entry) => entry.record).filter((a): a is DraftAttachment => a !== null),
     ...(draft.model ? { model: draft.model } : {}),
     ...(draft.thinking ? { thinking: draft.thinking } : {}),
+    ...(draft.swarm !== undefined ? { swarm: draft.swarm } : {}),
     ...(draft.workspacePath ? { workspacePath: draft.workspacePath } : {}),
     ...(draft.preferWorktree !== undefined ? { preferWorktree: draft.preferWorktree } : {}),
     updatedAt: Date.now(),
@@ -233,6 +236,7 @@ async function toDraft(record: ComposerDraftRecord): Promise<Draft> {
     attachments: attachments.filter((a): a is PendingAttachment => a !== null),
     ...(record.model ? { model: record.model } : {}),
     ...(record.thinking ? { thinking: record.thinking } : {}),
+    ...(record.swarm !== undefined ? { swarm: record.swarm } : {}),
     ...(record.workspacePath ? { workspacePath: record.workspacePath } : {}),
     ...(record.preferWorktree !== undefined ? { preferWorktree: record.preferWorktree } : {}),
   }

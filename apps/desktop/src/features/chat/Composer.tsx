@@ -1,28 +1,23 @@
 import { TooltipButton } from '@/components/Tooltip'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import clsx from 'clsx'
 import type { ImageContent } from '@shared/rpc'
 import { useChatStore } from '@/stores/chat'
-import { fuzzyFilter } from '@/lib/fuzzy'
 import { QueueChips } from './composer/QueueChips'
 import { ModelPicker } from './composer/ModelPicker'
 import { ContextMeter } from './composer/ContextMeter'
 import { ContinueButton } from './composer/ContinueButton'
-import { SwarmSwitch, swarmLook, useSwarm } from './composer/SwarmSwitch'
 import { ContextSourcesMenu } from './composer/ContextSourcesMenu'
 import { namedProvider } from './composer/ModelChip'
 import { submitBehavior } from './composer/submitBehavior'
-import { buildCommandEntries, CommandMenu, type NativeCommand } from './composer/CommandMenu'
+import { buildCommandEntries, type NativeCommand } from './composer/CommandMenu'
 import { useSlashMenu } from './composer/useSlashMenu'
-import { FileMentionMenu } from './composer/FileMentionMenu'
 import { RetryStrip } from './RetryStrip'
 import { recallNext, recallPrevious } from './promptHistory'
 import { AgentLaunchStrip, WorkingIndicator } from './WorkingIndicator'
 import { BackgroundWorkIndicator } from './BackgroundWorkIndicator'
 import { BootingIndicator, useSessionBooting } from './BootingIndicator'
 import { Spinner } from '@/components/icons'
-import { AttachButton, StopIconButton, SubmitIconButton } from '@/components/ComposerButtons'
-import { DictateButton } from '@/features/voice/DictateButton'
+import { StopIconButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { useChatUiStore } from './uiState'
 import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
 import { exportSessionHtml, renameSession } from '@/features/sessions/sessionActions'
@@ -34,19 +29,11 @@ import {
   toImageContents,
   type PendingAttachment,
 } from './attachments'
-import { AttachmentChips, DropOverlay } from './composer/AttachmentChips'
-import { useAttachments } from './composer/useAttachments'
-import { ComposerField } from './composer/ComposerField'
+import { ComposerInput } from './composer/ComposerInput'
 import { sessionDraftKey, useDraftsStore } from '@/stores/drafts'
 import { refreshSessionCommands, useSessionsStore } from '@/stores/sessions'
 import { useWritingStore } from '@/stores/writing'
 import { ipcErrorText } from '@shared/errors'
-
-interface MentionState {
-  /** Index of the '@' in the textarea value. */
-  anchor: number
-  query: string
-}
 
 export function Composer({
   sessionId,
@@ -89,38 +76,19 @@ export function Composer({
       previousKey.current = draftKey
     }
   }, [draftKey])
-  const [mention, setMention] = useState<MentionState | null>(null)
-  const [activeIndex, setActiveIndex] = useState(0)
-  const [workspaceFiles, setWorkspaceFiles] = useState<string[]>([])
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   /** ↑/↓ prompt recall: offset from the newest prompt, null = live draft. */
   const [historyIndex, setHistoryIndex] = useState<number | null>(null)
   const draftRef = useRef('')
   /** Timestamp of the last bare Escape, for Claude Code's Esc-Esc rewind. */
   const lastEscapeRef = useRef(0)
-  const attachments = useAttachments({
-    attachments: images,
-    onChange: setImages,
-    onReject: setAttachWarning,
-  })
   const isStreaming = useChatStore((s) => s.sessions[sessionId]?.isStreaming ?? false)
   const booting = useSessionBooting(sessionId)
-  const swarm = useSwarm(sessionId)
-  const swarmPending = swarmLook(swarm) === 'pending'
   const isCompacting = useChatStore((s) => s.sessions[sessionId]?.isCompacting ?? false)
   // Named in the status strip only when pi does not ship the provider: the
   // chip shows the model name alone, and two providers can offer one name.
   const provider = namedProvider(useChatStore((s) => s.sessions[sessionId]?.meta?.model?.provider))
   const piCommands = useChatStore((s) => s.sessions[sessionId]?.commands) ?? []
-
-  // Lazy-load the workspace file index the first time an @-mention opens.
-  const filesLoaded = useRef(false)
-  useEffect(() => {
-    if (mention && !filesLoaded.current) {
-      filesLoaded.current = true
-      void window.phosphor.invoke('fs:listFiles', workspacePath).then(setWorkspaceFiles)
-    }
-  }, [mention, workspacePath])
 
   // Prefill from a rewind (edit-and-resend) or extension set_editor_text.
   // Attachments are REPLACED, not appended: the prefill restores one specific
@@ -169,24 +137,6 @@ export function Composer({
     onOpen: () => void refreshSessionCommands(sessionId),
     focus: () => textareaRef.current?.focus(),
   })
-
-  const mentionMatches = useMemo(
-    () => (mention ? fuzzyFilter(mention.query, workspaceFiles, (f) => f, 12) : []),
-    [mention, workspaceFiles],
-  )
-
-  const updateOverlays = (value: string, caret: number): void => {
-    slash.sync(value)
-    // '@' mention: the token containing the caret starts with '@'.
-    const before = value.slice(0, caret)
-    const atMatch = /(^|\s)@([^\s@]*)$/.exec(before)
-    if (atMatch) {
-      setMention({ anchor: caret - atMatch[2]!.length - 1, query: atMatch[2]! })
-    } else {
-      setMention(null)
-    }
-    setActiveIndex(0)
-  }
 
   const send = useCallback(
     async (behavior?: 'steer' | 'followUp') => {
@@ -251,7 +201,6 @@ export function Composer({
       useDraftsStore.getState().clear(draftKey)
       setAttachWarning(null)
       slash.close()
-      setMention(null)
       setHistoryIndex(null)
 
       // An idle prompt renders its bubble now. A steer or follow-up does not:
@@ -306,46 +255,8 @@ export function Composer({
     }
   }, [sessionId, draftKey, setText])
 
-  const pickMention = (file: string): void => {
-    if (!mention) return
-    const after = text.slice(mention.anchor + 1 + mention.query.length)
-    const next = text.slice(0, mention.anchor) + file + (after.startsWith(' ') ? '' : ' ') + after
-    setText(next)
-    setMention(null)
-    textareaRef.current?.focus()
-  }
-
-  /** Runs before the field's own keymap; true means the key was consumed. */
+  /** Popup navigation is shared; session history is handled here. */
   const handleKeyDownFirst = (event: React.KeyboardEvent<HTMLTextAreaElement>): boolean => {
-    // Popup navigation captures arrows/enter/escape while open. The '/' menu
-    // goes first: both can match at once ("/foo@bar"), and it is the one that
-    // owns the whole value.
-    if (slash.handleKeyDown(event)) return true
-    const popupItems = slash.visible ? 0 : mention ? mentionMatches.length : 0
-    if (popupItems > 0) {
-      if (event.key === 'ArrowDown') {
-        event.preventDefault()
-        setActiveIndex((i) => (i + 1) % popupItems)
-        return true
-      }
-      if (event.key === 'ArrowUp') {
-        event.preventDefault()
-        setActiveIndex((i) => (i - 1 + popupItems) % popupItems)
-        return true
-      }
-      if ((event.key === 'Enter' && !event.shiftKey) || event.key === 'Tab') {
-        event.preventDefault()
-        const file = mentionMatches[activeIndex]
-        if (file) pickMention(file)
-        return true
-      }
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        setMention(null)
-        return true
-      }
-    }
-
     // ↑/↓ recall earlier prompts (Claude Code's REPL history). Browsing starts
     // only from an empty composer and ends at the first keystroke (see the
     // textarea's onChange), so the arrows go back to moving the caret the
@@ -411,71 +322,49 @@ export function Composer({
       <QueueChips sessionId={sessionId} />
 
       <div className="relative mx-auto max-w-3xl">
-        {slash.visible && (
-          <CommandMenu
-            query={slash.query ?? ''}
-            entries={slash.matches}
-            activeIndex={slash.activeIndex}
-            onHover={slash.setActiveIndex}
-            onPick={slash.pick}
-            onClose={slash.close}
-          />
-        )}
-        {!slash.visible && mention && mentionMatches.length > 0 && (
-          <FileMentionMenu
-            files={mentionMatches}
-            activeIndex={activeIndex}
-            onHover={setActiveIndex}
-            onPick={pickMention}
-            onClose={() => setMention(null)}
-          />
-        )}
-
-        <div
-          data-swarm-enabled={swarm?.enabled ?? false}
-          onDragOver={attachments.handleDragOver}
-          onDragLeave={attachments.handleDragLeave}
-          onDrop={attachments.handleDrop}
-          className={clsx(
-            'bg-surface relative rounded-xl border shadow-sm transition-colors',
-            attachments.dragging
-              ? 'border-accent ring-accent/25 ring-2'
-              : swarmPending
-                ? 'border-accent/60 border-dashed'
-                : swarm?.enabled
-                  ? 'border-accent ring-accent/10 ring-1'
-                  : 'border-border hover:border-border-focus focus-within:border-border-focus',
-          )}
+        <ComposerInput
+          workspacePath={workspacePath}
+          value={text}
+          textareaRef={textareaRef}
+          onChange={(value) => {
+            setText(value)
+            setHistoryIndex(null)
+          }}
+          onSubmit={(event) => void send(submitBehavior(event))}
+          onKeyDown={handleKeyDownFirst}
+          onKeyDownFallthrough={handleKeyDownLast}
+          autocomplete={historyIndex === null}
+          placeholder={placeholder}
+          attachments={images}
+          onAttachmentsChange={setImages}
+          onWarning={setAttachWarning}
+          slash={slash}
+          swarm={{ sessionId }}
+          scopeStatus={
+            isCompacting && (
+              <span className="text-text-secondary flex items-center gap-1.5 px-1 text-base">
+                <Spinner /> compacting…
+              </span>
+            )
+          }
+          modelPicker={<ModelPicker sessionId={sessionId} />}
+          actions={
+            <div className="flex shrink-0 items-center gap-0.5">
+              {booting && !isStreaming && <Spinner />}
+              <ContinueButton sessionId={sessionId} />
+              <span className="bg-border mx-0.5 h-4 w-px shrink-0" aria-hidden="true" />
+              {isStreaming ? (
+                <StopIconButton onClick={() => void abort()} />
+              ) : (
+                <SubmitIconButton
+                  disabled={!text.trim() && images.length === 0}
+                  onClick={() => void send()}
+                  label="Send message"
+                />
+              )}
+            </div>
+          }
         >
-          <DropOverlay visible={attachments.dragging} />
-          <AttachmentChips
-            attachments={images}
-            onRemove={attachments.remove}
-            onEdit={attachments.edit}
-          />
-
-          <ComposerField
-            value={text}
-            textareaRef={textareaRef}
-            onChange={(value, caret) => {
-              setText(value)
-              // Typing leaves history-browsing mode: the next ↑ starts again
-              // from the newest prompt rather than from wherever it was.
-              setHistoryIndex(null)
-              updateOverlays(value, caret)
-            }}
-            onSubmit={(event) => {
-              void send(submitBehavior(event))
-            }}
-            onKeyDown={handleKeyDownFirst}
-            onKeyDownFallthrough={handleKeyDownLast}
-            onPasteFiles={attachments.addFiles}
-            autocomplete={
-              !slash.visible && !mention && historyIndex === null && !text.startsWith('!')
-            }
-            placeholder={placeholder}
-          />
-
           {/* Only while a turn is running AND there is something to send: an
               always-present disabled row cost every reader a line of chrome
               for a control they could not use. */}
@@ -509,50 +398,7 @@ export function Composer({
               </TooltipButton>
             </div>
           )}
-
-          {/* The row holds controls only, in two groups that read left to
-              right as scope then run. Left: what the agent gets (attach,
-              Swarm). Right: the engine, then go. Each group is one unit — the
-              right one drops to its own line before any of its parts wrap,
-              where chips used to wrap one by one. Readouts live in the strip
-              under the box. Submit stays a quiet icon, never a filled pill. */}
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2.5 pb-2">
-            <div className="flex shrink-0 items-center gap-0.5">
-              <AttachButton onFiles={attachments.addFiles} />
-              <DictateButton textareaRef={textareaRef} onChange={setText} />
-              <SwarmSwitch sessionId={sessionId} />
-              {isCompacting && (
-                <span className="text-text-secondary flex items-center gap-1.5 px-1 text-base">
-                  <Spinner /> compacting…
-                </span>
-              )}
-            </div>
-
-            <div className="ml-auto flex min-w-0 items-center gap-1.5">
-              <ModelPicker sessionId={sessionId} />
-              <div className="flex shrink-0 items-center gap-0.5">
-                {/* While booting only: the send button flipping back to its
-                    idle self while pi is still starting is what made the
-                    composer look like it had swallowed the prompt. Once the
-                    turn runs, Stop already says so. */}
-                {booting && !isStreaming && <Spinner />}
-                {/* Continue is recovery, Send is the normal Enter: a hairline
-                    keeps them two controls, never one slot. */}
-                <ContinueButton sessionId={sessionId} />
-                <span className="bg-border mx-0.5 h-4 w-px shrink-0" aria-hidden="true" />
-                {isStreaming ? (
-                  <StopIconButton onClick={() => void abort()} />
-                ) : (
-                  <SubmitIconButton
-                    disabled={!text.trim() && images.length === 0}
-                    onClick={() => void send()}
-                    label="Send message"
-                  />
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+        </ComposerInput>
 
         {attachWarning && (
           <div className="text-warning px-2 pt-1.5 text-base" role="alert">

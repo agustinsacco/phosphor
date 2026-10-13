@@ -141,6 +141,32 @@ describe('useDraftsStore', () => {
     )
   })
 
+  it('persists and restores Swarm before typing, scoped to this draft and consumed on send', async () => {
+    const { useDraftsStore } = await import('./drafts')
+    useDraftsStore.getState().patch('home:/a', { swarm: true })
+    await flush()
+    const record = setCalls()[0]![1]
+    expect(record).toMatchObject({ text: '', swarm: true })
+    useDraftsStore.setState({ hydrated: false, drafts: {} })
+    invoke.mockResolvedValueOnce({ 'home:/a': record })
+    await useDraftsStore.getState().hydrate()
+    expect(useDraftsStore.getState().get('home:/a').swarm).toBe(true)
+    expect(useDraftsStore.getState().get('home:/b').swarm).toBeUndefined()
+    useDraftsStore.getState().clear('home:/a')
+    expect(useDraftsStore.getState().get('home:/a').swarm).toBeUndefined()
+  })
+
+  it('clears a Swarm-only draft when switched back off', async () => {
+    const { useDraftsStore } = await import('./drafts')
+    useDraftsStore.getState().patch('home:/a', { swarm: true })
+    await flush()
+    invoke.mockClear()
+    useDraftsStore.getState().patch('home:/a', { swarm: false })
+    await flush()
+    expect(invoke).toHaveBeenCalledWith('app:clearDraft', 'home:/a')
+    expect(setCalls()).toHaveLength(0)
+  })
+
   it('records the model the draft was composed against', async () => {
     const { useDraftsStore } = await import('./drafts')
     useDraftsStore.getState().patch('home:/a', {

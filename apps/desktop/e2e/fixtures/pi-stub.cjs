@@ -137,7 +137,7 @@ function publishSwarm() {
     statusKey: 'phosphor-swarm',
     statusText: JSON.stringify({
       version: 1,
-      available: true,
+      available: process.env.PHOSPHOR_E2E_SWARM_UNAVAILABLE !== '1',
       enabled: swarmEnabled,
       requested: swarmRequested,
     }),
@@ -671,6 +671,16 @@ function handle(cmd) {
     }
     case 'prompt': {
       if (/^\/phosphor-swarm (on|off)$/.test(cmd.message)) {
+        if (cmd.message.endsWith(' on') && process.env.PHOSPHOR_E2E_SWARM_UNAVAILABLE === '1') {
+          out({
+            id: cmd.id,
+            type: 'response',
+            command: 'prompt',
+            success: false,
+            error: 'Swarm requires pi-subagents loaded and available in this session.',
+          })
+          break
+        }
         swarmRequested = cmd.message.endsWith(' on')
         if (!agentStreaming) swarmEnabled = swarmRequested
         publishSwarm()

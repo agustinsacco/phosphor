@@ -64,6 +64,8 @@ export interface StartChatOptions {
   workspacePath: string
   prompt: string
   images?: ImageContent[]
+  /** Apply this draft's authorization before delivering its first prompt. */
+  swarm?: boolean
   /**
    * Navigation this send belongs to (`claimNav`), taken when the user hit
    * Enter. Everything that would take the screen is checked against it, so a
@@ -91,16 +93,15 @@ export interface StartChatResult {
  * transcript streams in on its own after that, and so does the name.
  */
 export async function startChat(options: StartChatOptions): Promise<StartChatResult> {
-  const { workspacePath, prompt, images, nav } = options
+  const { workspacePath, prompt, images, nav, swarm } = options
+  const initial = { firstPrompt: prompt, firstImages: images, nav, swarm }
   /** Is the user still waiting on this send, or have they moved on? */
   const claimed = (): boolean => nav === undefined || useSessionsStore.getState().navSeq === nav
   const isolate = await shouldIsolate(workspacePath)
 
   if (!isolate) {
     options.onPhase?.('starting')
-    const sessionId = await useSessionsStore
-      .getState()
-      .createSession(workspacePath, { firstPrompt: prompt, firstImages: images, nav })
+    const sessionId = await useSessionsStore.getState().createSession(workspacePath, initial)
     return { sessionId, workspacePath }
   }
 
@@ -120,9 +121,7 @@ export async function startChat(options: StartChatOptions): Promise<StartChatRes
     // message is worth more than the branch: start where we are and say why.
     options.onWarning?.(created.error)
     options.onPhase?.('starting')
-    const sessionId = await useSessionsStore
-      .getState()
-      .createSession(workspacePath, { firstPrompt: prompt, firstImages: images, nav })
+    const sessionId = await useSessionsStore.getState().createSession(workspacePath, initial)
     return { sessionId, workspacePath }
   }
 
@@ -142,15 +141,21 @@ export async function startChat(options: StartChatOptions): Promise<StartChatRes
   // would move the file tree and top bar out from under them.
   if (claimed()) useWorkspacesStore.getState().openWorkspace(cwd)
 
-  const sessionId = await useSessionsStore.getState().createSession(cwd, {
-    firstPrompt: prompt,
-    firstImages: images,
-    nav,
-    // The store's own auto-naming pass is suppressed because this flow owns
-    // naming end to end: the title has to reach the branch as well as the
-    // session, and two independent naming calls would mean two names.
-    autoName: false,
-  })
+  const sessionId = await useSessionsStore
+    .getState()
+    .createSession(cwd, {
+      ...initial,
+      // The store's own auto-naming pass is suppressed because this flow owns
+      // naming end to end: the title has to reach the branch as well as the
+      // session, and two independent naming calls would mean two names.
+      autoName: false,
+    })
+    .catch((error: unknown) => {
+      // Startup can reject Swarm before sending. Return to the composer that
+      // owns the restored draft, but never steal a newer navigation.
+      if (claimed()) useWorkspacesStore.getState().openWorkspace(workspacePath)
+      throw error
+    })
 
   const branch = created.worktree.branch ?? undefined
   // Deliberately not awaited: this is the ~13s call that used to be in front
