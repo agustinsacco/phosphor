@@ -1,10 +1,13 @@
-import { readFile, readdir } from 'node:fs/promises'
+import { writeFileSync } from 'node:fs'
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { controlMachine, type ControlMachine } from '../control/__fixtures__/machine'
 import { identityDirectory } from '../control/identity'
 import { HOST_UNIT, type ServiceRunner } from '../machine/systemd'
 import { runService, type ServiceContext } from './service'
+import { HOST_AGENT, launchdExit } from '../machine/launchd'
+import { hostLogDirectory } from '../machine/log'
 import { runCli } from '../cli'
 
 let machine: ControlMachine
@@ -134,11 +137,11 @@ describe('phosphor service', () => {
     expect(f.calls.some((call) => call.file === 'sudo')).toBe(false)
     expect(machine.output.join('\n')).not.toContain('secret')
   })
-  it('requires enrollment and refuses non-Linux without any service calls', async () => {
+  it('requires enrollment and refuses unsupported platforms without any service calls', async () => {
     const f = fixture()
     expect(await runService(f.context, 'install')).toBe(69)
     for (const action of ['install', 'status', 'restart', 'logs', 'uninstall'] as const)
-      expect(await runService({ ...f.context, platform: 'darwin' }, action)).toBe(69)
+      expect(await runService({ ...f.context, platform: 'win32' }, action)).toBe(69)
     expect(f.calls).toEqual([])
     expect(machine.output).toContain('not supported on this platform yet')
   })
@@ -280,4 +283,213 @@ it('logs service writes and execution, never captured environment or child outpu
   expect(text).not.toContain('must-not-appear')
   expect(text).not.toContain('/custom/bin')
   expect(text).not.toContain('secret=hidden')
+})
+
+function macFixture() {
+  const f = fixture()
+  f.context.platform = 'darwin'
+  f.context.env.XDG_STATE_HOME = join(machine.root, 'state')
+  if (!f.context.service) throw new Error('fixture')
+  f.context.service.runner = async (file, args, follow) => {
+    f.calls.push({ file, args, follow })
+    return {
+      code: 0,
+      stdout: 'state = running\npid = 123\nlast exit code = 0\nSECRET_TOKEN = hidden',
+    }
+  }
+  return {
+    ...f,
+    plist: join(machine.root, 'Library', 'LaunchAgents', `${HOST_AGENT}.plist`),
+    job: `gui/${f.context.uid}/${HOST_AGENT}`,
+  }
+}
+describe('phosphor service on macOS', () => {
+  it('installs with exact argv and pinned PATH, then restarts and uninstalls idempotently', async () => {
+    await machine.enrollOld()
+    const f = macFixture()
+    f.context.env.PATH = '/opt:/custom/bin::/bin:/opt'
+    expect(await runService(f.context, 'install')).toBe(0)
+    const text = await readFile(f.plist, 'utf8')
+    expect(text).toContain('<string>/opt:/custom/bin:/bin</string>')
+    expect(text).not.toContain('must-not-appear')
+    expect(f.calls.map(({ file, args }) => [file, args])).toEqual([
+      ['launchctl', ['bootout', f.job]],
+      ['launchctl', ['bootstrap', `gui/${f.context.uid}`, f.plist]],
+      ['launchctl', ['kickstart', '-k', f.job]],
+    ])
+    f.calls.length = 0
+    expect(await runService(f.context, 'restart')).toBe(0)
+    const config = await readFile(machine.configPath, 'utf8')
+    const identity = await machine.store.load()
+    expect(await runService(f.context, 'uninstall')).toBe(0)
+    expect(await runService(f.context, 'uninstall')).toBe(0)
+    expect(f.calls.map(({ args }) => args)).toEqual([
+      ['kickstart', '-k', f.job],
+      ['bootout', f.job],
+      ['bootout', f.job],
+    ])
+    await expect(readFile(f.plist)).rejects.toThrow()
+    expect(await readFile(machine.configPath, 'utf8')).toBe(config)
+    expect(await machine.store.load()).toEqual(identity)
+  })
+  it('requires enrollment and validates directories, uid and XML inputs before calls', async () => {
+    const f = macFixture()
+    expect(await runService(f.context, 'install')).toBe(69)
+    expect(f.calls).toEqual([])
+    await machine.enrollOld()
+    for (const context of [
+      { ...f.context, home: 'relative' },
+      { ...f.context, uid: undefined },
+      { ...f.context, uid: -1 },
+      { ...f.context, service: { ...f.context.service, node: '/node\npath' } },
+    ]) {
+      expect(await runService(context, 'install')).toBe(78)
+      expect(f.calls).toEqual([])
+    }
+    await expect(readFile(f.plist)).rejects.toThrow()
+  })
+  it('shows only safe status lines and the permanent failure reason', async () => {
+    await machine.enrollOld()
+    const f = macFixture()
+    await launchdExit(77, f.context.env, machine.root, 1000)
+    expect(await runService(f.context, 'status')).toBe(0)
+    expect(f.calls.map(({ args }) => args)).toEqual([['print', f.job]])
+    expect(machine.output).toContain('state = running')
+    expect(machine.output).toContain('pid = 123')
+    expect(machine.output).toContain('last exit code = 0')
+    expect(machine.output).toContain('Stopped permanently: machine removed')
+    expect(machine.output.join('\n')).not.toContain('hidden')
+  })
+  it.each([3, 1, null])(
+    'ignores only missing bootout code %s during install and uninstall',
+    async (code) => {
+      await machine.enrollOld()
+      const f = macFixture()
+      if (!f.context.service) throw new Error('fixture')
+      const original = f.context.service.runner
+      if (!original) throw new Error('fixture')
+      f.context.service.runner = async (...args) => {
+        const result = await original(...args)
+        return args[1][0] === 'bootout' ? { code, stdout: 'private error' } : result
+      }
+      expect(await runService(f.context, 'install')).toBe(code === 3 ? 0 : 75)
+      expect(f.calls.length).toBe(code === 3 ? 3 : 1)
+      expect(await runService(f.context, 'uninstall')).toBe(code === 3 ? 0 : 75)
+      if (code === 3) expect(await runService(f.context, 'uninstall')).toBe(0)
+      if (code !== 3) {
+        expect(await readFile(f.plist, 'utf8')).toContain('<plist')
+        expect(machine.output).toContain('The service could not be stopped.')
+      }
+      expect(machine.output.join('\n')).not.toContain('private error')
+    },
+  )
+  it.each(['bootstrap', 'kickstart'] as const)(
+    'retains the plist when install %s fails',
+    async (command) => {
+      await machine.enrollOld()
+      for (const code of [1, null]) {
+        const f = macFixture()
+        if (!f.context.service) throw new Error('fixture')
+        f.context.service.runner = async (_file, args) => ({
+          code: args[0] === command ? code : 0,
+          stdout: 'private error',
+        })
+        expect(await runService(f.context, 'install')).toBe(75)
+        expect(await readFile(f.plist, 'utf8')).toContain('<plist')
+        expect(machine.output.join('\n')).toContain('The service could not be installed.')
+        expect(machine.output.join('\n')).not.toContain('private error')
+      }
+    },
+  )
+  it.each(['status', 'restart'] as const)(
+    'reports %s missing jobs and runner failures safely',
+    async (action) => {
+      for (const code of [113, 1, null]) {
+        const f = macFixture()
+        if (!f.context.service) throw new Error('fixture')
+        f.context.service.runner = async () => ({ code, stdout: 'private error' })
+        expect(await runService(f.context, action)).toBe(75)
+        expect(machine.output.join('\n')).not.toContain('private error')
+        if (action === 'restart' && code === 113)
+          expect(machine.output.join('\n')).toContain('Run phosphor service install.')
+        if (action === 'status')
+          expect(machine.output).toContain('The service state could not be read.')
+      }
+    },
+  )
+  it('reads bounded Host and stderr tails and follows only the Host file', async () => {
+    const f = macFixture()
+    const directory = hostLogDirectory(f.context.env, machine.root)
+    await mkdir(directory, { recursive: true })
+    const hostLog = join(directory, 'phosphor.log')
+    await writeFile(hostLog, Array.from({ length: 300 }, (_, i) => `host ${i}\n`).join(''))
+    await writeFile(
+      join(directory, 'launchd.err.log'),
+      Array.from({ length: 70 }, (_, i) => `err ${i}\n`).join(''),
+    )
+    expect(await runService(f.context, 'logs')).toBe(0)
+    expect(machine.output[0]?.split('\n')).toHaveLength(200)
+    expect(machine.output[1]?.split('\n')).toHaveLength(50)
+    expect(f.calls).toEqual([])
+    expect(await runService(f.context, 'logs', true)).toBe(0)
+    expect(f.calls).toEqual([{ file: 'tail', args: ['-c', '+2591', '-F', hostLog], follow: true }])
+    if (!f.context.service) throw new Error('fixture')
+    f.context.service.runner = async () => ({ code: null, stdout: '' })
+    expect(await runService(f.context, 'logs', true)).toBe(75)
+  })
+  it('reports file failures with exit 75 and ignores only absent optional stderr', async () => {
+    const f = macFixture()
+    expect(await runService(f.context, 'logs')).toBe(75)
+    const directory = hostLogDirectory(f.context.env, machine.root)
+    await mkdir(directory, { recursive: true })
+    await writeFile(join(directory, 'phosphor.log'), 'host')
+    expect(await runService(f.context, 'logs')).toBe(0)
+    if (!f.context.service) throw new Error('fixture')
+    f.context.service.write = async () => {
+      throw new Error('private')
+    }
+    await machine.enrollOld()
+    expect(await runService(f.context, 'install')).toBe(75)
+    f.context.service.remove = async () => {
+      throw new Error('private')
+    }
+    expect(await runService(f.context, 'uninstall')).toBe(75)
+    expect(machine.output.join('\n')).not.toContain('private')
+  })
+})
+
+it('follows from the read end across intervening growth and starts missing logs at byte 1', async () => {
+  const f = macFixture()
+  const directory = hostLogDirectory(f.context.env, machine.root)
+  await mkdir(directory, { recursive: true })
+  const hostLog = join(directory, 'phosphor.log')
+  await writeFile(hostLog, 'first\n')
+  // The stderr print falls between the Host read and the follow invocation.
+  await writeFile(join(directory, 'launchd.err.log'), 'stderr')
+  f.context.print = (line) => {
+    machine.output.push(line)
+    if (line === 'stderr') writeFileSync(hostLog, 'first\nappended\n')
+  }
+  if (!f.context.service) throw new Error('fixture')
+  f.context.service.runner = async (file, args, follow) => {
+    f.calls.push({ file, args, follow })
+    const text = await readFile(hostLog, 'utf8')
+    const offset = args[1]
+    // Simulate tail's +byte start, not a fresh seek to EOF.
+    if (args[0] !== '-c' || offset !== '+7') throw new Error('lost read-to-follow bytes')
+    expect(text.slice(Number(offset.slice(1)) - 1)).toBe('appended\n')
+    return { code: 0, stdout: '' }
+  }
+  expect(await runService(f.context, 'logs', true)).toBe(0)
+  expect(f.calls).toEqual([{ file: 'tail', args: ['-c', '+7', '-F', hostLog], follow: true }])
+  const { unlink } = await import('node:fs/promises')
+  await unlink(hostLog)
+  f.calls.length = 0
+  f.context.print = () => {}
+  f.context.service.runner = async (file, args, follow) => {
+    f.calls.push({ file, args, follow })
+    return { code: 0, stdout: '' }
+  }
+  expect(await runService(f.context, 'logs', true)).toBe(0)
+  expect(f.calls).toEqual([{ file: 'tail', args: ['-c', '+1', '-F', hostLog], follow: true }])
 })

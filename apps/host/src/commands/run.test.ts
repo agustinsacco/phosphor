@@ -504,3 +504,91 @@ it('keeps a second signal code when it lands while run releases its lock', async
     ),
   ).toEqual([])
 })
+
+it('CLI supervisor maps missing enrollment and bounds stderr before startup', async () => {
+  const { mkdir, stat } = await import('node:fs/promises')
+  const { hostLogDirectory } = await import('../machine/log')
+  const { serviceExitPath } = await import('../machine/launchd')
+  const path = join(hostLogDirectory({}, machine.root), 'launchd.err.log')
+  await mkdir(hostLogDirectory({}, machine.root), { recursive: true })
+  await writeFile(path, 'x'.repeat(1024 * 1024 + 1))
+  expect(
+    await runCli(
+      ['run', '--supervisor', 'launchd', '--config', machine.configPath],
+      { stdout: () => {}, stderr: () => {} },
+      {
+        ...context(),
+        home: machine.root,
+        nodeVersion: process.versions.node,
+        defaultResourceRoot: '/unused',
+      },
+    ),
+  ).toBe(0)
+  expect((await stat(path)).size).toBe(256 * 1024)
+  expect(JSON.parse(await readFile(serviceExitPath({}, machine.root), 'utf8')).code).toBe(69)
+})
+it('supervisor logs and records removal without changing foreground runs', async () => {
+  await machine.enrollOld()
+  const { serviceExitPath } = await import('../machine/launchd')
+  const entries: unknown[] = []
+  const f: RunContext = {
+    ...context(),
+    supervisor: 'launchd',
+    home: machine.root,
+    log: (scope, message, data) => {
+      entries.push({ scope, message, data })
+    },
+    fetch: async () => new Response(null, { status: 410 }),
+  }
+  expect(await runHost(f)).toBe(0)
+  expect(entries).toContainEqual({ scope: 'service', message: 'stopped', data: { code: 77 } })
+  expect(JSON.parse(await readFile(serviceExitPath({}, machine.root), 'utf8')).code).toBe(77)
+  await writeFile(machine.configPath, '{}')
+  expect(await runHost(f)).toBe(0)
+  expect(JSON.parse(await readFile(serviceExitPath({}, machine.root), 'utf8')).code).toBe(78)
+})
+
+it('supervisor keeps a clean first signal at exit 0 without a permanent record', async () => {
+  await machine.enrollOld()
+  const { serviceExitPath } = await import('../machine/launchd')
+  const exits: number[] = []
+  const states: string[] = []
+  const shutdown = createShutdown({
+    exit: (code) => {
+      exits.push(code)
+    },
+    stderr: () => {},
+    stopProbes: () => {},
+  })
+  const f: RunContext = {
+    ...context(),
+    home: machine.root,
+    supervisor: 'launchd',
+    attach: shutdown.attach,
+    wait: (ms, signal) => setTimeout(ms, undefined, { signal }),
+    fetch: async (_url, init) => {
+      const value: unknown = JSON.parse(String(init?.body))
+      if (
+        value === null ||
+        typeof value !== 'object' ||
+        !('state' in value) ||
+        typeof value.state !== 'string'
+      )
+        throw new Error('fixture')
+      states.push(value.state)
+      if (value.state === 'stopping') return Response.json({ accepted: true, nextInSec: 30 })
+      return new Promise((_resolve, reject) =>
+        init?.signal?.addEventListener('abort', () => reject(new Error('cancelled')), {
+          once: true,
+        }),
+      )
+    },
+  }
+  const run = runHost(f)
+  await vi.waitFor(() => expect(states).toEqual(['running']))
+  await shutdown.signal('SIGTERM')
+  expect(await run).toBe(0)
+  expect(exits).toEqual([0])
+  expect(states).toEqual(['running', 'stopping'])
+  await expect(readFile(serviceExitPath({}, machine.root))).rejects.toThrow()
+})

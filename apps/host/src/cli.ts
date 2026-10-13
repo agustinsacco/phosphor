@@ -44,9 +44,10 @@ Set up a Host: setup, doctor, providers, accept, login, service install.
   login [--config FILE]            add this machine to your Phosphor account
   status [--config FILE] [--json]   check this machine with the control plane
   logout [--config FILE] [--local]  remove it; --local only forgets it here
-  run [--config FILE]              keep this machine online with heartbeats
+  run [--config FILE] [--supervisor launchd]
+                                    keep this machine online with heartbeats
   service install|status|restart|logs|uninstall [--config FILE]
-                                    manage the Linux user service; logs takes --follow
+                                    manage the Linux or macOS user service; logs takes --follow
   version [--json]                  print the Host's version
 
 exit codes: 0 ok, 1 an acceptance check failed, 64 usage, 69 prerequisite unavailable,
@@ -78,7 +79,7 @@ export type CliContext = Omit<DoctorContext, 'configPath'> & {
 const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   setup: ['config', 'json', 'repository', 'pi', 'node', 'replace'],
   doctor: ['config', 'json'],
-  run: ['config'],
+  run: ['config', 'supervisor'],
   service: ['config', 'follow'],
   login: ['config'],
   status: ['config', 'json'],
@@ -138,6 +139,8 @@ export async function runCli(
   if (login && !context.terminal) {
     return usage('providers login needs a terminal: over SSH, run ssh -t HOST phosphor ...')
   }
+  if (values.supervisor !== undefined && values.supervisor !== 'launchd')
+    return usage('--supervisor is launchd')
   if (values.config === '') return usage('--config needs a file')
   const lane = values.lane ?? 'all'
   if (!['native', 'claude', 'all'].includes(lane)) return usage('--lane is native, claude or all')
@@ -216,7 +219,11 @@ export async function runCli(
         print: (line: string) => io.stdout(line.endsWith('\n') ? line : `${line}\n`),
       }
       try {
-        if (command === 'run') return await runHost(run)
+        if (command === 'run')
+          return await runHost({
+            ...run,
+            supervisor: values.supervisor === 'launchd' ? 'launchd' : undefined,
+          })
         if (isServiceAction(extra[0])) return await runService(run, extra[0], values.follow)
       } finally {
         done()
@@ -334,6 +341,7 @@ function parse(argv: readonly string[]) {
     strict: true,
     options: {
       config: { type: 'string' },
+      supervisor: { type: 'string' },
       json: { type: 'boolean' },
       local: { type: 'boolean' },
       follow: { type: 'boolean' },

@@ -6,8 +6,8 @@ folders, apart from Desktop's own. `setup` writes its config. `doctor` checks
 whether a machine can run sessions, `providers` which models pi can use there,
 and `accept` runs real sessions to prove it ([accept](#accept)). `login`,
 `status` and `logout` manage its machine identity in the control plane. `run`
-sends heartbeats; on Linux, `service` runs it as a systemd user service. It listens on
-nothing. `npm run build:host` builds it
+sends heartbeats; `service` runs it as a Linux systemd user service or a macOS
+LaunchAgent. It listens on nothing. `npm run build:host` builds it
 ([Build](#build)); nothing installs or publishes it yet. Desktop never runs a
 Host, and offline Desktop never needs one
 ([remote-access.md](remote-access.md)).
@@ -55,7 +55,8 @@ Then run `setup`, `doctor`, `providers`, `accept`, `login` and `service install`
    and model (`ID`, which `pi --list-models` lists).
 5. `phosphor login` enrolls the machine. Approve its code and fingerprint in
    Desktop's Machines page.
-6. On Linux, `phosphor service install` keeps it online after logout and reboot.
+6. `phosphor service install` keeps a Linux Host online after logout and reboot,
+   or starts a macOS Host at login.
 
 ## setup
 
@@ -111,7 +112,7 @@ phosphor accept --repository DIR [--lane native|claude|all] [--keep-transcripts]
 phosphor login [--config FILE]
 phosphor status [--config FILE] [--json]
 phosphor logout [--config FILE] [--local]
-phosphor run [--config FILE]
+phosphor run [--config FILE] [--supervisor launchd]
 phosphor service install|status|restart|logs|uninstall [--config FILE]
 phosphor service logs [--config FILE] [--follow]
 phosphor version [--json]
@@ -421,8 +422,35 @@ sudo itself. Reinstall replaces the unit and restarts it.
 - `service uninstall` stops and disables the unit, removes it and reloads
   systemd. It is idempotent and never touches identity, config or provider data.
 
+On macOS, the same commands manage the per-user LaunchAgent
+`~/Library/LaunchAgents/com.saccolabs.phosphor-host.plist`. Install requires an
+enrolled identity, writes the plist atomically at 0644, unloads any old job,
+bootstraps it in `gui/<uid>` and starts it. It starts at login and restarts after
+a crash, with a 10-second throttle. No root or linger is needed. The plist pins
+node, bundle and config paths and captures only PATH, with node's directory first.
+Strings are XML-escaped; relative paths and control characters are refused.
+
+The LaunchAgent runs `run --supervisor launchd`. Only this supervisor value is
+accepted. Under this flag, permanent exits 64, 69, 77 and 78 log `service.stopped`
+and write `{ code, at }` to
+`${XDG_STATE_HOME:-~/.local/state}/phosphor-host/service-exit.json` at 0600, then
+exit 0 so launchd leaves the job stopped. Other exits and signal behavior do not
+change. A new supervised run clears the old record. `service status` shows only
+state, pid and last exit code from launchd, the recorded permanent failure reason,
+and the normal machine summary. It never prints launchd's environment dump.
+
+`service logs` reads the last 200 Host log lines and the last 50 lines of
+`launchd.err.log`, if present, from the Host log directory. Each read uses at most
+256 KiB. `--follow` starts at the next unread byte and follows the Host log by
+name across rotation; a missing file starts at byte 1. Standard output goes to `/dev/null`;
+launchd captures stderr in that error log. At supervised startup, an error log
+over 1 MiB is reduced to its last 256 KiB. Restart uses `kickstart -k`; a missing
+job asks you to install it. Uninstall unloads the job and removes only the plist,
+not config, identity or state. Missing jobs and files are already uninstalled.
+This service is for a remote Host; it is never needed on a Mac you use Desktop on.
+
 Service commands exit 69 on other platforms. No service command uses a shell;
-child stdin is ignored. Test runners replace systemctl, loginctl and journalctl.
+child stdin is ignored. Test runners replace service managers and log followers.
 
 ## pi's environment
 

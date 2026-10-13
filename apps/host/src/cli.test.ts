@@ -87,6 +87,10 @@ describe('phosphor', () => {
     [['status', '--local'], 'status does not take --local'],
     [['logout', '--json'], 'logout does not take --json'],
     [['login', 'extra'], 'unexpected argument'],
+    [['run', '--supervisor', 'systemd'], '--supervisor is launchd'],
+    [['run', '--supervisor', ''], '--supervisor is launchd'],
+    [['run', '--supervisor'], "Option '--supervisor <value>' argument missing"],
+    [['status', '--supervisor', 'launchd'], 'status does not take --supervisor'],
   ])('refuses %j with exit 64 and usage on stderr', async (argv, problem) => {
     const result = await run(argv)
     expect(result).toMatchObject({ code: 64, stdout: '' })

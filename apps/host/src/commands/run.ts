@@ -20,6 +20,7 @@ import { acquireIdentityLock } from '../control/lock'
 import { loadHostConfig } from '../config/load'
 import { checkReadiness } from '../machine/readiness'
 import { SHUTDOWN_SIGNALS, type Drainable, type ShutdownSignal } from '../shutdown'
+import { launchdExit, permanentServiceReason, prepareLaunchdRun } from '../machine/launchd'
 import { HOST_VERSION } from '../version'
 import { hostStateDirectory, StateFailure } from '../lanes/state-dir'
 import { openStore, type HostStore } from '../lanes/store'
@@ -36,6 +37,7 @@ export const RELEASE_WAIT_MS = 3000
 export interface RunContext extends ControlContext {
   env: NodeJS.ProcessEnv
   home: string
+  supervisor?: 'launchd'
   attach?: (target: Drainable) => () => void
   heartbeat?: Partial<Pick<HeartbeatPorts, 'readiness' | 'seq' | 'random'>>
   loadConfig?: typeof loadHostConfig
@@ -180,5 +182,20 @@ async function runHostCommand(context: RunContext): Promise<number> {
 }
 
 export function runHost(context: RunContext): Promise<number> {
-  return traceCommand(context, 'run', (traced) => runHostCommand({ ...context, ...traced }))
+  return traceCommand(context, 'run', async (traced) => {
+    if (context.supervisor !== 'launchd') return runHostCommand({ ...context, ...traced })
+    if (!context.home) {
+      context.print('The service command could not finish.')
+      return 75
+    }
+    try {
+      await prepareLaunchdRun(context.env, context.home)
+      const code = await runHostCommand({ ...context, ...traced })
+      if (permanentServiceReason(code)) traced.log?.('service', 'stopped', { code })
+      return await launchdExit(code, context.env, context.home, context.now?.() ?? Date.now())
+    } catch {
+      context.print('The service command could not finish.')
+      return 75
+    }
+  })
 }
