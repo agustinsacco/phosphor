@@ -26,6 +26,7 @@ type Attachment = {
   exited: boolean
   changing: boolean
   dirty: boolean
+  reconciliationPending: boolean
 }
 
 export function createLiveLanes(options: {
@@ -164,6 +165,13 @@ export function createLiveLanes(options: {
           } catch {
             /* Logging cannot stop pi. */
           }
+          if (!live.reconciliationPending) {
+            live.reconciliationPending = true
+            setImmediate(() => {
+              live.reconciliationPending = false
+              if (attached.get(laneId) === live) changed(laneId)
+            })
+          }
           break
         }
         let summary = summaryFor(laneId)
@@ -243,6 +251,7 @@ export function createLiveLanes(options: {
       exited: false,
       changing: false,
       dirty: false,
+      reconciliationPending: false,
     }
     attached.set(laneId, live)
     changed(laneId)

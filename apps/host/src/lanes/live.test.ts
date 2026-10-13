@@ -594,20 +594,115 @@ describe('live lane review guards', () => {
   })
 })
 
-it('bounds dirty transition passes and logs only the lane id', async () => {
+it('bounds dirty transition passes, logs only the lane id and reconciles every viewer next macrotask', async () => {
+  vi.useFakeTimers({ toFake: ['setImmediate', 'clearImmediate'] })
   const s = await setup()
   await s.live.attach(s.laneId, 'pi').ready
+  for (const id of ['one', 'two']) {
+    s.subscribe(`lane-${id}`)
+    s.subscriptions.handle({ type: 'subscribe', topic: 'lanes', id: `list-${id}` })
+  }
+  await tick()
+  s.frames.length = 0
   let summaries = 0
   const drop = s.live.lanesTopic.listen((frame) => {
     if (frame?.type !== 'lanes-delta') return
-    if (++summaries > 10) return
+    summaries++
     s.push({ type: frame.upsert[0]?.activity === 'working' ? 'agent_settled' : 'agent_start' })
   })
   s.push({ type: 'agent_start' })
   drop()
   expect(summaries).toBe(3)
   expect(s.log.mock.calls).toEqual([['lane.stream_reentrant_overflow', { laneId: s.laneId }]])
+  await tick()
+  expect(s.frames.findLast((f) => f.type === 'lanes-delta')).toMatchObject({
+    upsert: [{ activity: 'working' }],
+  })
+  expect(s.live.summaryFor(s.laneId)?.activity).toBe('idle')
+  await vi.advanceTimersToNextTimerAsync()
+  s.subscribe('new-lane')
+  s.subscriptions.handle({ type: 'subscribe', topic: 'lanes', id: 'new-list' })
+  await tick()
+  const summary = s.live.summaryFor(s.laneId)
+  expect(summary).toMatchObject({ activity: 'idle', attention: 2 })
+  for (const id of ['one', 'two']) {
+    expect(
+      s.frames.findLast(
+        (f) => f.type === 'event' && f.id === `lane-${id}` && f.event.kind === 'summary',
+      ),
+    ).toMatchObject({ event: { kind: 'summary', summary } })
+    expect(
+      s.frames.findLast((f) => f.type === 'lanes-delta' && f.id === `list-${id}`),
+    ).toMatchObject({ upsert: [summary] })
+  }
+  expect(s.frames.find((f) => f.type === 'snapshot' && f.id === 'new-lane')).toMatchObject({
+    snapshot: { summary },
+  })
+  expect(s.frames.find((f) => f.type === 'lanes' && f.id === 'new-list')).toMatchObject({
+    lanes: [summary],
+  })
+  expect(s.frames.findLast((f) => f.type === 'attention')).toMatchObject({
+    event: { attention: s.store.getLane(s.laneId)?.attention },
+  })
 })
+
+it('keeps one pending reconciliation and a fresh bounded batch per macrotask until listeners stop', async () => {
+  vi.useFakeTimers({ toFake: ['setImmediate', 'clearImmediate'] })
+  const s = await setup()
+  await s.live.attach(s.laneId, 'pi').ready
+  let summaries = 0
+  const drop = s.live.lanesTopic.listen((frame) => {
+    if (frame?.type !== 'lanes-delta') return
+    summaries++
+    s.push({ type: frame.upsert[0]?.activity === 'working' ? 'agent_settled' : 'agent_start' })
+  })
+  const scheduled = vi.spyOn(globalThis, 'setImmediate')
+  const delta = vi.spyOn(s.live.lanesTopic, 'delta')
+  cleanups.push(() => scheduled.mockRestore())
+  s.push({ type: 'agent_start' })
+  expect(summaries).toBe(3)
+  expect(scheduled).toHaveBeenCalledTimes(1)
+  s.push({ type: 'queue_update', steering: [], followUp: [] })
+  expect(summaries).toBe(6)
+  expect(scheduled).toHaveBeenCalledTimes(1)
+  await vi.advanceTimersToNextTimerAsync()
+  expect(summaries).toBe(9)
+  expect(scheduled).toHaveBeenCalledTimes(2)
+  drop()
+  await vi.advanceTimersToNextTimerAsync()
+  expect(summaries).toBe(9)
+  expect(scheduled).toHaveBeenCalledTimes(2)
+  expect(s.live.summaryFor(s.laneId)).toMatchObject({ activity: 'idle', attention: 5 })
+  expect(delta.mock.calls.at(-1)?.[0]).toEqual([s.live.summaryFor(s.laneId)])
+  expect(s.store.getLane(s.laneId)?.attention).toBe(5)
+  expect(s.log.mock.calls).toHaveLength(3)
+})
+
+it.each(['detach', 'reattach'] as const)(
+  'ignores a pending reconciliation after %s instead of reading a different attachment',
+  async (action) => {
+    vi.useFakeTimers({ toFake: ['setImmediate', 'clearImmediate'] })
+    const s = await setup()
+    await s.live.attach(s.laneId, 'old').ready
+    const drop = s.live.lanesTopic.listen((frame) => {
+      if (frame?.type === 'lanes-delta')
+        s.push({ type: frame.upsert[0]?.activity === 'working' ? 'agent_settled' : 'agent_start' })
+    })
+    s.push({ type: 'agent_start' })
+    drop()
+    s.live.detach(s.laneId)
+    if (action === 'reattach') await s.live.attach(s.laneId, 'new').ready
+    await tick()
+    const getLane = vi.spyOn(s.store, 'getLane')
+    const publish = vi.spyOn(s.live.streams, 'publish')
+    const delta = vi.spyOn(s.live.lanesTopic, 'delta')
+    await vi.advanceTimersToNextTimerAsync()
+    expect(getLane).not.toHaveBeenCalled()
+    expect(publish).not.toHaveBeenCalled()
+    expect(delta).not.toHaveBeenCalled()
+    expect(s.live.sessionFor(s.laneId)).toBe(action === 'reattach' ? 'new' : null)
+  },
+)
 
 describe('live lane summary supersession guards', () => {
   it.each(['control', 'detach'] as const)(
