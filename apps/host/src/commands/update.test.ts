@@ -104,6 +104,7 @@ describe('runUpdate', () => {
     }
     expect(await runUpdate(f.context)).toBe(0)
     expect(f.messages).toContain('already up to date')
+    expect(f.messages.some((m) => m.includes('newer Host protocol'))).toBe(false)
   })
   it('refuses a directory posing as the required program file before publication', async () => {
     const f = setup()
@@ -453,18 +454,30 @@ describe('runUpdate', () => {
       unchanged(f)
     },
   )
-  it('accepts a newer supported protocol and verifies a matching pinned release', async () => {
+  it('accepts a newer protocol, verifies a matching pinned release and says apps must update', async () => {
     const f = setup()
-    f.release(
-      '1.2.3',
-      bundle(),
-      (m) => {
-        m.protocols = [2]
-      },
-      '1.2.3',
-    )
+    const release = (protocols: number[]) =>
+      f.release(
+        '1.2.3',
+        bundle(),
+        (m) => {
+          m.protocols = protocols
+        },
+        '1.2.3',
+      )
+    const notice =
+      'This release speaks a newer Host protocol: apps that have not updated cannot connect.'
+    release([1, 2])
     expect(await runUpdate(f.context, { version: '1.2.3', check: true })).toBe(0)
+    expect(f.messages).not.toContain(notice)
+    release([2])
+    expect(await runUpdate(f.context, { version: '1.2.3', check: true })).toBe(0)
+    expect(f.messages.slice(-2)).toEqual(['Installed: 1.0.0; available: 1.2.3', notice])
     unchanged(f)
+    release([2])
+    expect(await runUpdate(f.context, { version: '1.2.3' })).toBe(0)
+    expect(readlinkSync(join(f.lib, 'current'))).toBe('versions/1.2.3')
+    expect(f.messages.slice(-2)).toEqual(['Selected Host 1.2.3.', notice])
   })
   it('removes the published folder and restores current if the metadata write fails', async () => {
     const f = setup()

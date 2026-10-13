@@ -286,7 +286,11 @@ Source installs print the release installer command instead. No release keys
 are pinned yet, so updates refuse until the operator pins a key.
 
 The updater verifies the signed manifest before reading its metadata, refuses
-a downgrade and checks this machine's artifact and protocol. `--check` reports
+a downgrade and checks this machine's artifact and protocol. A release must
+speak this Host's protocol or a newer one: a newer protocol is how a Host catches
+up with apps that already updated. When the release drops this Host's current
+protocol, `update` and `--check` say that apps which have not updated cannot
+connect, and `update --rollback` undoes it. `--check` reports
 installed and available versions without downloading the bundle. The
 `PHOSPHOR_HOST_RELEASE_URL` override is one flat asset folder for the manifest,
 its signature and the artifact, just like the installer. An empty override is unset.

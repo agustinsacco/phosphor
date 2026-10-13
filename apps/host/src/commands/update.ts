@@ -194,6 +194,7 @@ export async function runUpdate(
       )
         throw new UpdateFailure('Install changed; retry update.')
       let version: string
+      let notice: string | undefined
       if (options.rollback) {
         const record: unknown = JSON.parse(readBounded(join(layout.lib, 'install.json'), 1024))
         if (
@@ -235,12 +236,17 @@ export async function runUpdate(
         )
         if (!artifact || !signed.protocols.some((p) => p >= HOST_PROTOCOL_VERSION))
           throw new UpdateFailure('Release does not support this Host.', 69)
+        // A newer protocol is how a Host catches up with updated apps; say so when it drops ours.
+        if (!signed.protocols.includes(HOST_PROTOCOL_VERSION))
+          notice =
+            'This release speaks a newer Host protocol: apps that have not updated cannot connect.'
         if (options.check) {
           release()
           release = undefined
           await signalTurn()
           signal.throwIfAborted()
           context.print(`Installed: ${layout.version}; available: ${version}`)
+          if (notice) context.print(notice)
           return 0
         }
         if (version === layout.version) {
@@ -305,6 +311,7 @@ export async function runUpdate(
       if (!service.installed || (!service.running && !options.rollback))
         context.print(`restart phosphor run to use ${version}`)
       context.print(`Selected Host ${version}.`)
+      if (notice) context.print(notice)
       return 0
     } catch (error) {
       if (signal.aborted) return typeof signal.reason === 'number' ? signal.reason : 70
