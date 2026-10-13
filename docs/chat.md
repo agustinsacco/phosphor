@@ -165,6 +165,10 @@ The composer is one small field with several ways in.
   While unpinned, the content box is floored at the reader's viewport bottom,
   so a shrink reserves empty space below the last row instead of dragging them
   down.
+- **A row's size is known in the commit that mounts it**, not a ResizeObserver
+  frame later (`items/measureRow.ts`). The follow effect only ever bottoms out
+  on geometry the same commit produced, so a wheel in the frame after a turn
+  settles is never undone by a late `scrollTop = scrollHeight`.
 
 ## Message affordances
 

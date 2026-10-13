@@ -1,6 +1,6 @@
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import { measureElement as measureRowElement, useVirtualizer } from '@tanstack/react-virtual'
 import { useChatStore } from '@/stores/chat'
 import { useSettingsStore } from '@/stores/settings'
 import { MessageItemView } from './MessageItem'
@@ -15,6 +15,7 @@ import {
   REPIN_PX,
   tailFloor,
 } from './items/autoscroll'
+import { attachRow } from './items/measureRow'
 import { spacingFor } from './items/spacing'
 import { activeActivityId, buildTranscriptRows } from './items/transcriptRows'
 import { FindBar } from '@/components/search/FindBar'
@@ -129,6 +130,14 @@ export const MessageList = memo(function MessageList({
     overscan: 8,
     getItemKey: (index) => rows[index]?.id ?? index,
   })
+
+  // A row's size is known in the commit that mounts it, not a frame later:
+  // see items/measureRow.ts for the late follow write this prevents.
+  const measureRow = useCallback(
+    (el: HTMLDivElement | null): void =>
+      attachRow(virtualizer, (node) => measureRowElement(node, undefined, virtualizer), el),
+    [virtualizer],
+  )
 
   // Follow the stream while pinned. Deliberately dep-less (content grows on
   // every token) but deferred to the next frame so it lands after the
@@ -389,7 +398,7 @@ export const MessageList = memo(function MessageList({
                 key={virtualItem.key}
                 data-index={virtualItem.index}
                 data-find-row={row.id}
-                ref={virtualizer.measureElement}
+                ref={measureRow}
                 className="absolute left-6 right-6 top-0"
                 style={{ transform: `translateY(${virtualItem.start}px)` }}
               >

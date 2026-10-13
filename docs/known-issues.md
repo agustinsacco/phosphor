@@ -37,6 +37,20 @@ Two more that are worth reading in full because their history is misleading:
   "there is no cross-session manager" (CLAUDE.md fact 5) as deliberate and this
   as the cost of it.
 
+- **S14 — while following the tail, a collapsing activity row's re-measure
+  scrolls to the virtualizer's cached offset.** TanStack compensates a
+  re-measured row above the fold with `scrollTo(cachedOffset + delta)`, and
+  that cached offset is the last scroll event's value: one frame behind the
+  follow effect's `scrollTop = scrollHeight`. Each 220 ms activity-group
+  collapse (`.activity-group-body`) during a stream therefore overrides the
+  follow for several consecutive frames (measured: 11 frames at 120 Hz with the
+  view held ~1000 px above the tail, then one jump).
+  `apps/desktop/src/features/chat/MessageList.tsx` — `useVirtualizer`'s default
+  `scrollToFn`. A custom `scrollToFn` that drops adjustments while pinned and
+  applies them relative to the live `scrollTop` while unpinned is the likely
+  fix; it is not in yet because it changes read-back behaviour that only the
+  e2e transcript suite covers.
+
 **S13 — the captured reducer/e2e fixture uses the pre-0.84.0 wire shape.**
 `apps/desktop/src/features/chat/__fixtures__/real-session-events.jsonl` carries `message`
 and `assistantMessageEvent.partial` on all 193 `message_update` records and no
