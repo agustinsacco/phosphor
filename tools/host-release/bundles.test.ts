@@ -221,6 +221,8 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
     expect(build('real-other-temp', false).equals(bundle)).toBe(true)
   })
   it('carries no machine paths, source maps or sourceMappingURL in release text', () => {
+    const user = userInfo().username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const userSegment = new RegExp(`[/\\\\]${user}(?![A-Za-z0-9_.-])`)
     const unpacked = join(dir, 'scan')
     mkdirSync(unpacked)
     execFileSync('tar', ['-xzf', join(out, `phosphor-host-1.2.3-${target}.tar.gz`), '-C', unpacked])
@@ -229,8 +231,10 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
       expect(file).not.toMatch(/\.map$/)
       const text = readFileSync(join(unpacked, file)).toString('utf8')
       if (text.includes('\0')) continue // Node is the only binary in the bundle.
-      for (const forbidden of [root, tmpdir(), homedir(), userInfo().username, 'sourceMappingURL'])
+      for (const forbidden of [root, tmpdir(), homedir(), 'sourceMappingURL'])
         expect(text, `${file} contains ${forbidden}`).not.toContain(forbidden)
+      // A user name is also a word (CI's is `runner`); forbid it only as a path segment.
+      expect(text, `${file} contains a path through the user name`).not.toMatch(userSegment)
     }
   })
   it('recognizes both CLI entry points through paths containing spaces and percent signs', () => {
@@ -526,6 +530,49 @@ esac`,
       expect(readdirSync(old).sort()).toEqual(['current', 'versions'])
       expect(result.stdout).not.toContain('Next:')
     }
+  })
+  it('trusts the filesystem when a signal interrupts launcher removal during rollback', () => {
+    const { result, old, home } = installPrepared((home) => {
+      rmSync(launcher(home))
+      hook(home, 'mv', `case "$*" in *"/current "*) exit 1 ;; esac`)
+      return {
+        PATH: hook(
+          home,
+          'rm',
+          `case "$*" in *"/.local/bin/phosphor") "$real" "$@"; kill -TERM "$PPID"; exit 0 ;; esac`,
+        ),
+      }
+    })
+    expect(result.status, result.stderr).toBe(143)
+    expect(result.stderr).not.toContain('may have completed')
+    expect(execFileSync('readlink', [join(old, 'current')], { encoding: 'utf8' }).trim()).toBe(
+      'versions/old',
+    )
+    expect(readdirSync(join(old, 'versions'))).toEqual(['old'])
+    expect(existsSync(launcher(home))).toBe(false)
+    expect(result.stdout).toBe('')
+  })
+  it('never deletes the selected version when a selection read fails during cleanup', () => {
+    const { result, old } = installPrepared((home) => {
+      hook(
+        home,
+        'mv',
+        `case "$*" in *"/current "*) "$real" "$@" || exit "$?"; : > '${home}/moved'; exit 1 ;; esac`,
+      )
+      return {
+        PATH: hook(
+          home,
+          'readlink',
+          `if [ -e '${home}/moved' ] && [ ! -e '${home}/read' ]; then : > '${home}/read'; exit 1; fi`,
+        ),
+      }
+    })
+    expect(result.status, result.stderr).toBe(1)
+    expect(execFileSync('readlink', [join(old, 'current')], { encoding: 'utf8' }).trim()).toBe(
+      'versions/1.2.3',
+    )
+    expect(readdirSync(join(old, 'versions')).sort()).toEqual(['1.2.3', 'old'])
+    expect(existsSync(join(old, 'versions/1.2.3/VERSION'))).toBe(true)
   })
   it('protects lock mkdir and retirement from a signal sent to both parent and child', () => {
     for (const phase of ['acquire', 'retire']) {

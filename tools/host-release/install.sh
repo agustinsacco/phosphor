@@ -44,6 +44,9 @@ rename_safe() { ( trap '' HUP INT TERM; exec mv -f "$mvflag" "$@" ); }
 mkdir_safe() { ( trap '' HUP INT TERM; exec mkdir "$@" ); }
 selects_new() { [ -L "$root/current" ] && [ "$(readlink "$root/current")" = "versions/$version" ]; }
 command_is_ours() { [ -L "$command" ] && [ "$(readlink "$command")" = "$root/current/bin/phosphor" ]; }
+# Cleanup decides by filesystem state and values, not exit statuses: inside the
+# EXIT trap, dash resets $? to the exit status after a deferred signal's trap.
+current_target() { ( trap '' HUP INT TERM; exec readlink "$root/current" ) 2>/dev/null || :; }
 cleanup() {
   status=$?
   set +e
@@ -63,7 +66,8 @@ cleanup() {
       if [ ! -e "$command" ] && [ ! -L "$command" ]; then rename_safe "$backup" "$command"; fi
       if [ -e "$backup" ] || [ -L "$backup" ]; then restore_failed=1; fi
     elif [ "$restore_failed" = 0 ] && [ "$command_published" = 1 ] && command_is_ours; then
-      rm -f "$command" || restore_failed=1
+      rm -f "$command"
+      if command_is_ours; then restore_failed=1; fi
     fi
     if [ "$restore_failed" = 1 ]; then
       # Keep the complete new bundle. Roll forward only through entries we own.
@@ -76,13 +80,18 @@ cleanup() {
         fi
       fi
       printf '%s\n' 'Host installation may have completed; rerunning the installer is safe.' >&2
-    elif [ -n "$new_version" ] && ! selects_new; then rm -rf "$new_version"; fi
+    elif [ -n "$new_version" ]; then
+      case $(current_target) in "versions/$version") ;; *) rm -rf "$new_version" ;; esac
+    fi
   fi
   [ -z "$stage" ] || rm -rf "$stage"
   [ -z "$gate" ] || rmdir "$gate"
   if [ -n "$lock" ]; then
     destination=$root/.install-lock.retired.$$
-    if [ ! -e "$destination" ] && [ ! -L "$destination" ] && rename_safe "$lock" "$destination"; then retired=$destination; fi
+    if [ ! -e "$destination" ] && [ ! -L "$destination" ]; then
+      rename_safe "$lock" "$destination"
+      if [ -d "$destination" ] && [ ! -L "$destination" ]; then retired=$destination; fi
+    fi
   fi
   [ -z "$retired" ] || remove_retired "$retired"
   rm -rf "$tmp"
