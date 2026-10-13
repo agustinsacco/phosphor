@@ -2131,6 +2131,22 @@ function runNativeSubagentTurn() {
     () => out({ type: 'turn_start' }),
     () => out({ type: 'message_start', message: notify }),
     () => out({ type: 'message_end', message: notify }),
+    // Pi's get_entries reads its in-memory branch, which holds the notice as
+    // soon as it lands; an Inspect run link validates its run against it.
+    () =>
+      fs.appendFileSync(
+        SESSION_FILE,
+        JSON.stringify({
+          type: 'custom_message',
+          id: 'notify-scout',
+          parentId: sessionEntries().at(-1)?.id ?? null,
+          timestamp: new Date().toISOString(),
+          customType: notify.customType,
+          content: notify.content,
+          display: notify.display,
+          details: notify.details,
+        }) + '\n',
+      ),
     ...say('Scout reports: the auth flow enters at login.ts.'),
     () => out({ type: 'agent_end', messages: [] }),
     () => out({ type: 'agent_settled' }),

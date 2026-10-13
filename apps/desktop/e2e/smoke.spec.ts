@@ -4746,12 +4746,17 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
     })
     expect(completion.success).toBe(true)
 
-    // The run reports back: a compact card where the model woke up, folded
-    // because it succeeded. The chip remains as an entry to recorded history.
+    // The run reports back: one folded line where the model woke up, with a
+    // link straight to its run. The chip remains as an entry to recorded history.
     const notice = page.getByTestId('subagent-notice')
     await expect(notice).toContainText('scout finished in the background', { timeout: 30_000 })
     await expect(page.getByTestId('subagent-notice-body')).toHaveCount(0)
-    await notice.getByRole('button').click()
+    await page.screenshot({ path: test.info().outputPath('subagent-notice-folded.png') })
+    await notice.getByRole('button', { name: 'Inspect run' }).click()
+    await expect(inspector.getByRole('heading', { name: 'Map the auth flow' })).toBeVisible()
+    await expect(page.getByTestId('subagent-notice-body')).toHaveCount(0)
+    await inspector.getByRole('button', { name: 'Close pane', exact: true }).click()
+    await notice.getByRole('button', { name: /scout finished in the background/ }).click()
     await expect(page.getByTestId('subagent-notice-body')).toContainText('login.ts')
     await expect(page.getByText('Scout reports: the auth flow enters at login.ts.')).toBeVisible()
     await expect(chip).toHaveText('Subagents')
@@ -4795,10 +4800,10 @@ test('recorded workflow completions and attention stay visible, attributable and
     ).toBeVisible()
     const notices = page.getByTestId('subagent-notice')
     await expect(notices).toHaveCount(2)
+    // Every notice starts as one line; its signal and diagnostics open together.
     await expect(notices.nth(0)).toContainText('reviewer completed a workflow step')
-    await expect(notices.nth(0)).toContainText('Workflow was still running at this update')
     await expect(notices.nth(1)).toContainText('validation · worker needs parent attention')
-    await expect(notices.nth(1)).toContainText('Elapsed time alone does not prove a stall')
+    await expect(notices.nth(1)).not.toContainText('Elapsed time alone does not prove a stall')
     await expect(page.getByTestId('subagent-notice-body')).toHaveCount(0)
     await expect(page.getByTestId('subagent-chip')).toContainText('1 background run active')
     const background = page.getByTestId('background-work-indicator')
@@ -4922,7 +4927,14 @@ test('recorded workflow completions and attention stay visible, attributable and
       .nth(1)
       .getByRole('button', { name: /validation · worker/ })
       .click()
-    await expect(notices.nth(1).getByTestId('subagent-notice-body')).toContainText('command.cancel')
+    const attention = notices.nth(1).getByTestId('subagent-notice-body')
+    await expect(attention).toContainText('Elapsed time alone does not prove a stall')
+    await expect(attention).toContainText('command.cancel')
+    await notices
+      .nth(0)
+      .getByRole('button', { name: /reviewer completed a workflow step/ })
+      .click()
+    await expect(notices.nth(0)).toContainText('Workflow was still running at this update')
     // The in-lane entry opens the same native inspector, with exact root + step identity.
     await background.getByRole('button', { name: 'View subagents' }).click()
     await panel.getByRole('button', { name: 'Back to runs' }).click()

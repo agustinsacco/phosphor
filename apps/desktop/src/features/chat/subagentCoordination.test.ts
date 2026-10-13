@@ -35,9 +35,9 @@ describe('native subagent coordination', () => {
     if (item.kind !== 'custom') throw new Error('Expected custom message')
     const html = renderToStaticMarkup(createElement(SubagentNoticeItem, { item }))
     expect(html).toContain('worker asked the parent for guidance')
-    expect(html).toContain('Use the shared parser?')
-    expect(html).toContain('run-a')
-    expect(html).toContain('question-a')
+    // One line until opened: the question and its identifiers are behind it.
+    expect(html).toContain('aria-expanded="false"')
+    expect(html).not.toContain('Use the shared parser?')
     expect(html).not.toContain('Waiting on you')
     expect(html).not.toContain('replyHint')
   })

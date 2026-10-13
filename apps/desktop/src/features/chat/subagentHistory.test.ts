@@ -138,6 +138,20 @@ describe('branch-aware recorded coordination', () => {
       ]).items,
     ).toHaveLength(2)
   })
+  it('knows every run a completion names, so its Inspect links resolve on this branch', () => {
+    const notify = {
+      type: 'custom_message',
+      id: 'notify',
+      parentId: 'reply',
+      customType: 'subagent-notify',
+      content: 'Background tasks completed (2): **reviewer**, **scout**\n\n…',
+      display: false,
+      details: { runs: [{ agent: 'reviewer', runId: 'run-b' }, { runId: 'run-c' }] },
+    }
+    const history = subagentHistory([ask, reply, notify], 'notify')
+    expect([...history.runIds].sort()).toEqual(['run-a', 'run-b', 'run-c'])
+    expect(subagentHistory([ask, reply, notify], 'reply').runIds.has('run-b')).toBe(false)
+  })
   it('fails closed for missing leaves, empty branches and cycles', () => {
     expect(() => subagentHistory([ask, reply], 'missing')).toThrow('unavailable')
     expect(subagentHistory([ask, reply], null).items).toEqual([])
