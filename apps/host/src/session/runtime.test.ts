@@ -55,6 +55,7 @@ function boot(
     env?: Record<string, string>
     timings?: Partial<DrainTimings>
     ready?: boolean
+    dialogs?: 'cancel' | 'forward'
   } = {},
 ) {
   const environment = buildPiEnvironment({
@@ -85,7 +86,7 @@ function boot(
       contextBudget: '',
       log,
     },
-    { timings: { ...TIMINGS, ...options.timings } },
+    { timings: { ...TIMINGS, ...options.timings }, dialogs: options.dialogs },
   )
   current = runtime
   if (options.ready !== false) {
@@ -212,6 +213,30 @@ describe('the Host runtime', { timeout: 20_000 }, () => {
       /\[host\] dialog cancelled \{"sessionId":"[^"]+","method":"confirm","title":"Allow\?"\}/,
     )
     expect(written.match(/dialog cancelled/g)).toHaveLength(1)
+  })
+
+  it('forwards a dialog without cancelling and sends the controller response to pi', async () => {
+    const { runtime, log } = boot({ dialogs: 'forward' })
+    const sink = recorder()
+    const { sessionId } = await runtime.start({ repository: repo }, sink.deliver)
+    const asked = runtime.command(sessionId, { type: 'prompt', message: '/fake-ask' })
+    const push = await until(() => sink.requests('confirm').at(0), 'the forwarded dialog')
+    if (push.kind !== 'extension-ui') throw new Error('missing dialog')
+    expect(sink.stderr('FAKE_PI_DIALOG ')).toEqual([])
+    runtime.extensionUiResponse(sessionId, {
+      type: 'extension_ui_response',
+      id: push.request.id,
+      confirmed: true,
+    })
+    expect((await asked).success).toBe(true)
+    expect(await until(() => sink.stderr('FAKE_PI_DIALOG ').at(0), 'the response')).toBe(
+      'FAKE_PI_DIALOG {"confirmed":true}',
+    )
+    const written = readFileSync(log.path()!, 'utf8')
+    expect(written).toContain('dialog forwarded {"method":"confirm"}')
+    expect(written).not.toContain('dialog cancelled')
+    expect(written).not.toContain('Allow?')
+    expect(written).not.toContain('The fake asks')
   })
 
   it('deletes only a stopped session, and only by a request for its file', async () => {

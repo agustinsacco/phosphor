@@ -458,6 +458,25 @@ it is logged only by count and treated as unknown, never admitted again.
 Uninstall keeps State. Transcripts stay in
 pi's own session files; the database never copies their messages.
 
+## Commands and control
+
+`lanes/commands.ts` checks authenticated clients' lane mutations, records each
+request before acting, and returns a durable receipt. Repeats return the recorded
+receipt or `pending`, never run the operation again. Request id conflicts are
+refused. Each lane has a bounded serial queue; different lanes run concurrently.
+
+Fenced operations require the current controller and fence. A lane without a
+controller acquires one on admission. Takeover and release increase the fence
+and publish control before later operations. A disconnected controller keeps
+control. Only the controller can answer an open extension dialog. Marking a lane
+read needs no fence. Lane creation is not supported by this service yet.
+
+`unknown` means the Host cannot say whether an operation took effect, after a
+restart, a transport failure or no answer within 30 seconds. Late answers are
+dropped and never change that receipt. Clients can ask for their own receipt
+status after reconnecting. The network API that serves this pipeline arrives
+with component 21; the Host still has no listener.
+
 ## Running as a service
 
 After `phosphor login`, `phosphor run` reports the machine's readiness to the
@@ -770,13 +789,12 @@ library asks for. `accept` is its only caller.
 - **One service, one lock domain.** Starts, resumes and deletions go through
   the library's service and deletion, which share one registry and one
   path-lock domain, as on Desktop.
-- **Dialogs are cancelled.** Nothing can reach the Host to answer one until
-  component 07, so each `select`, `confirm`, `input` or `editor` request from
-  an extension is answered at once with pi's own cancel, which the extension
-  reads as no answer: undefined, or false for a confirm. The log records
-  `dialog cancelled`, and the request still reaches the session's delivery. A
-  flow that needs a person, such as the MCP adapter's callback paste, fails on
-  a Host for now.
+- **Dialogs are cancelled by default.** Each `select`, `confirm`, `input` or
+  `editor` request is answered with pi's cancel, which the extension reads as
+  no answer. The request still reaches delivery. With `dialogs: 'forward'`,
+  the runtime leaves requests open for controller answers through
+  `extensionUiResponse` and logs only the method. `accept` keeps the default;
+  remote wiring arrives with component 21.
 - **pi as pinned.** pi starts from `pi.node` and `pi.executable`, never a stub,
   with exactly the environment built above plus `PI_CLAUDE_CLI_CONTEXT=pi`:
   nothing the Host inherited reaches it. It loads the seven extensions from
