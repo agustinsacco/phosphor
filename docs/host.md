@@ -355,9 +355,9 @@ Network failures back off from 5 seconds to 5 minutes. A success resets the
 backoff. Rate limits wait 10 seconds; a stale sequence retries with a fresh one.
 A removed machine exits 77, keeps its identity and asks you to run login again.
 SIGTERM or SIGINT sends one stopping beat, waits at most 5 seconds, and exits 0
-whether or not that beat succeeds. A second signal exits immediately with its
-signal code, 130 for SIGINT. Either way it first releases its run lock, waiting
-at most 3 seconds: exiting inside that release once left
+whether or not that beat succeeds. A second signal cuts the beat short and exits
+with its own code, 130 for SIGINT. Either way it first releases its run lock,
+waiting at most 3 seconds: exiting inside that release once left
 `identity/.run-lock-recovery` behind, and every later run refused to start.
 
 On Linux, `phosphor service install` requires an enrolled identity and writes

@@ -1,5 +1,5 @@
 import { readdirSync } from 'node:fs'
-import { readFile, readdir, writeFile } from 'node:fs/promises'
+import { lstat, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -251,4 +251,65 @@ it('records retry delay and removal with exit 77 in the file without exception t
   expect(text).toContain('"exitCode":77')
   expect(text).toContain('"code":"TypeError"')
   expect(text).not.toContain(secret)
+})
+it('keeps a second signal code when it lands while run releases its lock', async () => {
+  await machine.enrollOld()
+  const exits: number[] = []
+  const shutdown = createShutdown({
+    exit: (code) => {
+      exits.push(code)
+    },
+    stderr: () => {},
+    stopProbes: () => {},
+  })
+  const states: string[] = []
+  let hold = false
+  let paused: (() => void) | undefined
+  let resume: (() => void) | undefined
+  const reached = new Promise<void>((resolve) => {
+    paused = resolve
+  })
+  const f = context()
+  f.lockPorts = {
+    pid: process.pid,
+    isAlive: () => false,
+    lstat: async (path) => {
+      if (hold && path.endsWith('.run-lock')) {
+        hold = false
+        paused?.()
+        await new Promise<void>((resolve) => {
+          resume = resolve
+        })
+      }
+      return lstat(path)
+    },
+  }
+  f.attach = shutdown.attach
+  f.wait = (ms, signal) => setTimeout(ms, undefined, { signal })
+  f.fetch = async (_url, init) => {
+    const request = JSON.parse(String(init?.body)) as { state: string }
+    states.push(request.state)
+    if (request.state === 'stopping') {
+      hold = true
+      return Response.json({ accepted: true, nextInSec: 30 })
+    }
+    return new Promise((_resolve, reject) =>
+      init?.signal?.addEventListener('abort', () => reject(new Error('cancelled')), { once: true }),
+    )
+  }
+  const run = runHost(f)
+  await vi.waitFor(() => expect(states).toEqual(['running']))
+  const first = shutdown.signal('SIGTERM')
+  await reached
+  const second = shutdown.signal('SIGINT')
+  await setTimeout(20)
+  resume?.()
+  await Promise.all([first, second, run])
+  // The first signal's waiter ends the process, but with the second's code.
+  expect(exits).toEqual([130])
+  expect(
+    (await readdir(identityDirectory(machine.configPath))).filter((name) =>
+      name.startsWith('.run-lock'),
+    ),
+  ).toEqual([])
 })
