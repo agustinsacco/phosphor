@@ -31,6 +31,9 @@ it('uses flat override assets and correct per-release paths, and refuses unsafe 
     'https://github.com/agustinsacco/Phosphor/releases/download/host-latest/phosphor-host.manifest.json',
   )
   expect(
+    releaseUrl({ PHOSPHOR_HOST_RELEASE_URL: '' }, 'host-latest', 'phosphor-host.manifest.json'),
+  ).toEqual(releaseUrl({}, 'host-latest', 'phosphor-host.manifest.json'))
+  expect(
     releaseUrl({ PHOSPHOR_HOST_RELEASE_URL: 'file:///tmp/assets/' }, 'host-v1.2.3', 'a.tar.gz')
       .href,
   ).toBe('file:///tmp/assets/a.tar.gz')
@@ -117,6 +120,13 @@ it('bounds HTTPS response bytes and enforces its inactivity deadline', async () 
   await expect(downloadRelease(new URL('https://example.test'), 4, signal())).rejects.toThrow(
     'timed out',
   )
+})
+it('refuses a redirect carrying credentials without sending a request to it', async () => {
+  replies([{ code: 302, location: 'https://user:secret@example.test/private' }, { code: 200 }])
+  await expect(downloadRelease(new URL('https://example.test'), 4, signal())).rejects.toThrow(
+    'Invalid release URL',
+  )
+  expect(https.request).toHaveBeenCalledTimes(1)
 })
 it('allocates one signed-size buffer only for the final response, not for redirects', async () => {
   replies([

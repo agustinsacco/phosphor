@@ -65,7 +65,9 @@ it('rejects linked locks and pid files', () => {
   expect(() => acquireInstallLock(f.lib)).toThrow('Install lock:')
   rmSync(lock)
   mkdirSync(lock)
-  symlinkSync(join(f.old, 'VERSION'), join(lock, 'pid'))
+  const pidFile = join(f.lib, 'dead-pid')
+  writeFileSync(pidFile, '999999999\n')
+  symlinkSync('../dead-pid', join(lock, 'pid'))
   expect(() => acquireInstallLock(f.lib)).toThrow('Install lock:')
 })
 it('reclaims dead installer owners but refuses a gate, changed owner or owner becoming live', () => {
@@ -108,10 +110,14 @@ it('sweeps at most 16 exact dead non-link retired folders, never lookalikes or l
   ])
     mkdirSync(join(f.lib, name))
   symlinkSync(f.old, join(f.lib, '.install-lock.retired.100'))
-  acquireInstallLock(f.lib, () => true)()
+  const live = join(f.lib, '.install-lock.retired.1')
+  mkdirSync(live)
+  writeFileSync(join(live, 'pid'), '1\n')
+  acquireInstallLock(f.lib, (pid) => pid !== 1)()
+  expect(readFileSync(join(live, 'pid'), 'utf8')).toBe('1\n')
   expect(
     readdirSync(f.lib).filter((n) => /^\.install-lock\.retired\.10000[0-9]+$/.test(n)),
-  ).toHaveLength(1)
+  ).toHaveLength(2)
   expect(existsSync(join(f.lib, '.install-lock.retired.01'))).toBe(true)
   expect(existsSync(join(f.lib, '.install-lock.retired.100'))).toBe(true)
   expect(deadPid(process.pid)).toBe(false)

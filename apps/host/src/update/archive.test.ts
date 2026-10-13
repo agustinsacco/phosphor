@@ -66,6 +66,20 @@ it('accepts 4096 entries, refuses 4097, duplicates and file/parent collisions', 
   ])
     expect(() => extractRelease(gzipSync(tar(names.map((name) => ({ name })))), folder())).toThrow()
 })
+it('rejects a duplicate with the archive validation error before writing the second entry', () => {
+  const path = folder()
+  expect(() =>
+    extractTar(
+      tar([
+        { name: 'lib/a', text: 'first' },
+        { name: 'lib/a', text: 'second' },
+      ]),
+      path,
+    ),
+  ).toThrow(new Error('Invalid release archive'))
+  expect(readFileSync(join(path, 'lib/a'), 'utf8')).toBe('first')
+  expect(readdirSync(join(path, 'lib'))).toEqual(['a'])
+})
 it('refuses bad checksums, truncated data, trailing garbage, missing terminators, empty archives and unsafe fields', () => {
   const bytes = tar([{ name: 'lib/a' }])
   const checksum = Buffer.from(bytes)

@@ -24,7 +24,7 @@ import { acquireInstallLock, hasCode } from '../update/lock'
 import { atomicRecord, readBounded } from '../update/files'
 import { decompressRelease, extractRelease } from '../update/archive'
 import { readRunHealth } from '../update/health'
-import { installLifetime } from '../update/lifetime'
+import { installLifetime, signalTurn } from '../update/lifetime'
 import { HOST_AGENT } from '../machine/launchd'
 import { HOST_UNIT, serviceRunner } from '../machine/systemd'
 import { hostStateDirectory } from '../lanes/state-dir'
@@ -108,16 +108,21 @@ export async function serviceState(
       running: loaded,
     }
   }
-  const installed =
-    context.platform === 'linux' &&
-    exists(
-      join(context.env.XDG_CONFIG_HOME ?? join(context.home, '.config'), 'systemd/user', HOST_UNIT),
-    )
+  if (context.platform !== 'linux') return { installed: false, running: false }
+  const running = await runner('systemctl', ['--user', 'is-active', '--quiet', HOST_UNIT])
+    .then((result) => result.code === 0)
+    .catch(() => false)
   return {
-    installed,
-    running:
-      installed &&
-      (await runner('systemctl', ['--user', 'is-active', '--quiet', HOST_UNIT])).code === 0,
+    installed:
+      running ||
+      exists(
+        join(
+          context.env.XDG_CONFIG_HOME ?? join(context.home, '.config'),
+          'systemd/user',
+          HOST_UNIT,
+        ),
+      ),
+    running,
   }
 }
 function exists(path: string): boolean {
@@ -231,10 +236,18 @@ export async function runUpdate(
         if (!artifact || !signed.protocols.some((p) => p >= HOST_PROTOCOL_VERSION))
           throw new UpdateFailure('Release does not support this Host.', 69)
         if (options.check) {
+          release()
+          release = undefined
+          await signalTurn()
+          signal.throwIfAborted()
           context.print(`Installed: ${layout.version}; available: ${version}`)
           return 0
         }
         if (version === layout.version) {
+          release()
+          release = undefined
+          await signalTurn()
+          signal.throwIfAborted()
           context.print('already up to date')
           return 0
         }
@@ -251,12 +264,14 @@ export async function runUpdate(
         )
         verifyReleaseArtifact(bytes, artifact)
         const tar = decompressRelease(bytes, context.update?.expandedCap)
+        // Drop the compressed buffer here. Peak is compressed plus decompressed,
+        // each capped at 256 MiB (512 MiB total, plus small verification buffers).
         bytes = Buffer.alloc(0)
         extractRelease(tar, stage, context.update?.expandedCap)
         if (
           readBounded(join(stage, 'VERSION'), 32).replace(/\n+$/, '') !== version ||
           !['bin/phosphor', 'node/bin/node', 'lib/phosphor.mjs'].every((n) =>
-            exists(join(stage ?? '', n)),
+            lstatSync(join(stage ?? '', n)).isFile(),
           )
         )
           throw new UpdateFailure('Invalid release bundle.')
@@ -281,9 +296,14 @@ export async function runUpdate(
             `update to ${version} failed its health check; rolled back to ${layout.version}`,
           )
         }
-      } else context.print(`restart phosphor run to use ${version}`)
+      }
       prune(layout, version, layout.version)
+      release()
+      release = undefined
+      await signalTurn()
       signal.throwIfAborted()
+      if (!service.installed || (!service.running && !options.rollback))
+        context.print(`restart phosphor run to use ${version}`)
       context.print(`Selected Host ${version}.`)
       return 0
     } catch (error) {

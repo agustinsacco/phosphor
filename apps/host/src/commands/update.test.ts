@@ -105,6 +105,28 @@ describe('runUpdate', () => {
     expect(await runUpdate(f.context)).toBe(0)
     expect(f.messages).toContain('already up to date')
   })
+  it('refuses a directory posing as the required program file before publication', async () => {
+    const f = setup()
+    const record = join(f.lib, 'install.json')
+    atomicRecord(record, { current: '1.0.0', previous: '0.9.0' }, 0o644)
+    const before = readFileSync(record, 'utf8')
+    f.release(
+      '1.2.3',
+      gzipSync(
+        tar([
+          { name: 'VERSION', text: '1.2.3' },
+          { name: 'bin/phosphor' },
+          { name: 'node/bin/node' },
+          { name: 'lib/phosphor.mjs/child' },
+        ]),
+      ),
+    )
+    expect(await runUpdate(f.context)).toBe(75)
+    expect(f.messages).toContain('Invalid release bundle.')
+    unchanged(f)
+    expect(readFileSync(record, 'utf8')).toBe(before)
+    expect(readdirSync(join(f.lib, 'versions'))).toEqual(['1.0.0'])
+  })
   it('verifies the signed exact size and hash before decompressing', async () => {
     for (const kind of ['hash', 'size']) {
       const f = setup()

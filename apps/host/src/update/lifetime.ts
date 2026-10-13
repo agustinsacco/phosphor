@@ -1,3 +1,4 @@
+import { setImmediate } from 'node:timers/promises'
 import { constants } from 'node:os'
 import { SHUTDOWN_SIGNALS, type Drainable } from '../shutdown'
 
@@ -34,4 +35,11 @@ export async function installLifetime<T>(
     detach?.()
     if (!attach) for (const { name, run } of listeners) process.off(name, run)
   }
+}
+
+/** Signals queued during poll are read at the next poll, after this turn's check.
+ * Two check-phase turns guarantee an intervening poll before success is reported. */
+export async function signalTurn(): Promise<void> {
+  await setImmediate()
+  await setImmediate()
 }

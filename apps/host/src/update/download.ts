@@ -82,7 +82,7 @@ export async function downloadRelease(
   })
 }
 export function releaseUrl(env: NodeJS.ProcessEnv, tag: string, file: string): URL {
-  const base = env.PHOSPHOR_HOST_RELEASE_URL ?? `${HOST_RELEASE_BASE_URL}/${tag}`
+  const base = env.PHOSPHOR_HOST_RELEASE_URL || `${HOST_RELEASE_BASE_URL}/${tag}`
   const url = new URL(`${base.replace(/\/$/, '')}/${file}`)
   if (
     !['https:', 'file:'].includes(url.protocol) ||

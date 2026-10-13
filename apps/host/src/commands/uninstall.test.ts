@@ -39,7 +39,7 @@ it('removes program and own launcher, uninstalls service first and keeps config,
     runner: async (_p, args) => {
       calls.push([...args])
       expect(existsSync(f.lib)).toBe(true)
-      return { code: 0, stdout: '', stderr: '' }
+      return { code: args.includes('is-active') ? 3 : 0, stdout: '', stderr: '' }
     },
   }
   const backup = join(f.home, '.local/bin/phosphor.before-release')
@@ -116,6 +116,80 @@ it('refuses symlinked data or launcher parents and wrong ownership before deleti
   symlinkSync(f.old, bin)
   expect(await runUninstall(f.context)).toBe(75)
   expect(existsSync(f.lib)).toBe(true)
+})
+it.each(['linux', 'darwin'] as const)(
+  'stops a loaded %s service even without its file',
+  async (platform) => {
+    const f = setup(),
+      calls: string[][] = []
+    f.context.platform = platform
+    let active = true
+    f.context.service = {
+      runner: async (_p, args) => {
+        calls.push([...args])
+        expect(existsSync(f.lib)).toBe(true)
+        if (args.includes('stop') || args.includes('bootout')) active = false
+        return {
+          code:
+            args.includes('is-active') || args.includes('print')
+              ? active
+                ? 0
+                : 3
+              : args.includes('disable')
+                ? 1
+                : 0,
+          stdout: args.includes('show') ? 'not-found' : '',
+          stderr: '',
+        }
+      },
+    }
+    expect(await runUninstall(f.context)).toBe(0)
+    expect(calls.some((args) => args.includes(platform === 'linux' ? 'stop' : 'bootout'))).toBe(
+      true,
+    )
+    expect(existsSync(f.lib)).toBe(false)
+  },
+)
+it.each(['nonzero', 'throws'])(
+  'uninstalls without a unit or systemd session (%s)',
+  async (kind) => {
+    const f = setup(),
+      calls: string[][] = []
+    f.context.service = {
+      runner: async (_p, args) => {
+        calls.push([...args])
+        if (kind === 'throws') throw new Error('No systemd session')
+        return { code: 1, stdout: '', stderr: '' }
+      },
+    }
+    expect(await runUninstall(f.context)).toBe(0)
+    expect(calls).toEqual([['--user', 'is-active', '--quiet', 'phosphor-host.service']])
+    expect(existsSync(f.lib)).toBe(false)
+  },
+)
+it('refuses to remove anything when a loaded Linux unit will not stop', async () => {
+  const f = setup(),
+    calls: string[][] = []
+  const unit = join(f.home, '.config/systemd/user/phosphor-host.service')
+  mkdirSync(join(unit, '..'), { recursive: true })
+  writeFileSync(unit, 'unit')
+  f.context.service = {
+    runner: async (_p, args) => {
+      calls.push([...args])
+      return { code: args.includes('stop') ? 1 : 0, stdout: '', stderr: '' }
+    },
+  }
+  expect(await runUninstall(f.context)).toBe(75)
+  expect(calls.filter((args) => args.includes('is-active'))).toHaveLength(2)
+  expect(calls.findIndex((args) => args.includes('stop'))).toBeLessThan(
+    calls.findIndex((args) => args.includes('disable')),
+  )
+  expect(f.messages).toContain('The service could not be stopped.')
+  expect(existsSync(unit)).toBe(true)
+  expect(existsSync(f.lib)).toBe(true)
+  expect(existsSync(join(f.home, '.local/bin/phosphor'))).toBe(true)
+  expect(existsSync(join(f.home, '.config/phosphor-host/marker'))).toBe(true)
+  expect(existsSync(join(f.home, '.local/state/phosphor-host/marker'))).toBe(true)
 })
 it('leaves the program in place if service uninstall fails', async () => {
   const f = setup(),

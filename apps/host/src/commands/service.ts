@@ -126,13 +126,18 @@ async function runServiceCommand(
       return 0
     }
     if (action === 'uninstall') {
-      // A missing unit is already uninstalled. Always finish the local removal and reload.
-      if ((await call(['disable', '--now', HOST_UNIT])).code !== 0) {
+      // A loaded unit can keep running after its file disappears.
+      await call(['stop', HOST_UNIT])
+      if ((await call(['disable', HOST_UNIT])).code !== 0) {
         const loaded = await call(['show', HOST_UNIT, '-p', 'LoadState', '--value'])
         if (loaded.code !== 0 || loaded.stdout.trim() !== 'not-found') {
           context.print('The service could not be stopped.')
           return 75
         }
+      }
+      if ((await call(['is-active', '--quiet', HOST_UNIT])).code === 0) {
+        context.print('The service could not be stopped.')
+        return 75
       }
       await (context.service?.remove ?? removeServiceUnit)(unit)
       context.log?.('service', 'unit.removed', { path: unit, trace: context.trace })

@@ -5,7 +5,7 @@ import { hostStateDirectory } from '../lanes/state-dir'
 import { checkedFolder } from '../update/files'
 import { acquireInstallLock, hasCode } from '../update/lock'
 import { commandLayout } from '../update/layout'
-import { installLifetime } from '../update/lifetime'
+import { installLifetime, signalTurn } from '../update/lifetime'
 import { runLogout } from './logout'
 import { runService } from './service'
 import { serviceState, type UpdateContext } from './update'
@@ -95,6 +95,7 @@ export async function runUninstall(
       } catch (error) {
         if (!hasCode(error, 'ENOENT')) throw error
       }
+      await signalTurn()
       signal.throwIfAborted()
       context.print('Host uninstalled.')
       return 0

@@ -22,7 +22,7 @@ function fixture() {
   const runner: ServiceRunner = async (file, args, follow) => {
     calls.push({ file, args, follow })
     return {
-      code: 0,
+      code: args.includes('is-active') ? 3 : 0,
       stdout: args.includes('show')
         ? 'ActiveState=active\nSubState=running\nMainPID=123\nExecMainStatus=0\nsecret=hidden'
         : 'yes',
@@ -205,8 +205,10 @@ describe('phosphor service', () => {
     const files = await readdir(identityDirectory(machine.configPath))
     expect(await runService(f.context, 'uninstall')).toBe(0)
     expect(await runService(f.context, 'uninstall')).toBe(0)
-    expect(f.calls.slice(0, 2).map(({ args }) => args)).toEqual([
-      ['--user', 'disable', '--now', HOST_UNIT],
+    expect(f.calls.slice(0, 4).map(({ args }) => args)).toEqual([
+      ['--user', 'stop', HOST_UNIT],
+      ['--user', 'disable', HOST_UNIT],
+      ['--user', 'is-active', '--quiet', HOST_UNIT],
       ['--user', 'daemon-reload'],
     ])
     expect(await readFile(machine.configPath, 'utf8')).toBe(config)
@@ -253,7 +255,13 @@ describe('phosphor service', () => {
         removes.push(path)
       }
       f.context.service.runner = async (_file, args) => ({
-        code: args.includes('disable') ? 1 : args.includes('show') ? code : 0,
+        code: args.includes('disable')
+          ? 1
+          : args.includes('show')
+            ? code
+            : args.includes('is-active')
+              ? 3
+              : 0,
         stdout: 'not-found',
       })
       expect(await runService(f.context, 'uninstall')).toBe(code === 0 ? 0 : 75)

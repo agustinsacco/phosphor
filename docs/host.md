@@ -289,7 +289,8 @@ The updater verifies the signed manifest before reading its metadata, refuses
 a downgrade and checks this machine's artifact and protocol. `--check` reports
 installed and available versions without downloading the bundle. The
 `PHOSPHOR_HOST_RELEASE_URL` override is one flat asset folder for the manifest,
-its signature and the artifact, just like the installer. Only HTTPS and offline
+its signature and the artifact, just like the installer. An empty override is unset.
+Only HTTPS and offline
 `file://` mirrors are accepted; redirects stay on HTTPS and stop after three.
 
 Downloads have byte caps and a 30-second inactivity deadline. The bundle must
@@ -321,6 +322,8 @@ health check. Rollback is the only way to select a lower version.
 ## Uninstalling
 
 `phosphor uninstall` uninstalls the user service and removes a release program.
+A running service is stopped even if its unit file or plist is missing. On Linux,
+a service that stays active leaves the program in place and exits 75.
 It removes `~/.local/bin/phosphor` only if that symlink points exactly at the
 release's `current/bin/phosphor`. A foreign launcher and
 `phosphor.before-release` stay untouched. Source installs print the bundle

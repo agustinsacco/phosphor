@@ -89,7 +89,7 @@ export function fixture() {
     configPath: join(home, '.config/phosphor-host/config.json'),
     print: (line) => messages.push(line),
     update: { node: join(old, 'node/bin/node'), bundle: join(old, 'lib/phosphor.mjs'), keys },
-    service: { runner: async () => ({ code: 0, stdout: '', stderr: '' }) },
+    service: { runner: async () => ({ code: 3, stdout: '', stderr: '' }) },
   }
   const release = (
     version = '1.2.3',
