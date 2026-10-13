@@ -855,7 +855,7 @@ library asks for. `accept` is its only caller.
   no answer. The request still reaches delivery. With `dialogs: 'forward'`,
   the runtime leaves requests open for controller answers through
   `extensionUiResponse` and logs only the method. `accept` keeps the default;
-  remote wiring arrives with component 21.
+  serving lanes over the [API](#api) arrives with component 21b.
 - **pi as pinned.** pi starts from `pi.node` and `pi.executable`, never a stub,
   with exactly the environment built above plus `PI_CLAUDE_CLI_CONTEXT=pi`:
   nothing the Host inherited reaches it. It loads the seven extensions from
