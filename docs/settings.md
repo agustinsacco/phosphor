@@ -5,7 +5,7 @@ A **modal**, not a second window (`ModalOverlay` in
 scale and the app's lifecycle. Cmd/Ctrl+, opens it; Cmd/Ctrl+/ opens it on
 Keybindings.
 
-Nine top-level tabs and five indented under Extensions. MCP Connectors is always
+Ten top-level tabs and five indented under Extensions. MCP Connectors is always
 present; the other four belong to packages. Subagents requires an installed
 package. The existing provider tabs also show for declared packages so their
 health/configuration screens remain reachable during setup. The package list
@@ -25,6 +25,7 @@ and a tab whose package vanished falls back to Extensions.
 | ↳ MCP Connectors | Curated OAuth catalog + custom servers                               | `mcp-adapter.json`, or the project's `.mcp.json`        |
 | Workspaces       | Lane naming/markers, new-session branching, recents, sandboxes       | Phosphor prefs; layout reset clears localStorage        |
 | Optimization     | Headroom tool-result compression + the Advisor                       | Phosphor prefs; `headroom:*` lifecycle in main          |
+| Voice            | Dictation on/off and which local speech model                        | Phosphor prefs; model files in `<userData>/voice/`      |
 | Advanced         | pi health, raw config editors, maintenance, discovered resources     | the pi files it edits; maintenance prefs                |
 | Keybindings      | Static reference sheet                                               | nothing                                                 |
 | About            | Versions, update check, pi drift warning, font licenses              | nothing                                                 |
@@ -342,6 +343,13 @@ installs anything. Every action is a button.
 - **Advisor**: findings computed from your session files and configuration.
   Never a model call, never an action taken for you. Each row is tip / warning
   / serious and jumps to the tab that fixes it.
+
+## Voice
+
+Voice input on or off, and the model (Moonshine Tiny or Base, English only).
+Turning it on downloads the model and turning it off deletes it; the tab
+shows progress, readiness or the failure with Retry. Behaviour, download and
+privacy rules are in [voice.md](voice.md).
 
 ## Advanced
 

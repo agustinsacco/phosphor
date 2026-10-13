@@ -40,7 +40,9 @@ describe('Desktop application and native install boundary', () => {
     expect(config.nsis).toMatchObject({ perMachine: false, deleteAppDataOnUninstall: false })
     expect(config.publish).toEqual({ provider: 'github', releaseType: 'draft' })
     const vite = readFileSync(join(app, 'electron.vite.config.ts'), 'utf8')
-    expect(vite).toContain("lib: { entry: 'electron/main.ts' }")
+    // out/main/main.js (the manifest's `main`) and the voice utility process beside it.
+    expect(vite).toContain("main: 'electron/main.ts'")
+    expect(vite).toContain("'voice-worker': 'electron/voice/worker.ts'")
     expect(vite).toContain("lib: { entry: 'electron/preload.ts' }")
     expect(vite).toContain("format: 'cjs'")
     expect(vite).toContain("entryFileNames: '[name].cjs'")

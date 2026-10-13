@@ -60,6 +60,11 @@ mac:
     NSDownloadsFolderUsageDescription: >-
       Phosphor reads files in this folder when you open a workspace there or ask
       the agent to work on one.
+    # Voice input (docs/voice.md). Without this string macOS kills the app
+    # outright the moment it opens the microphone, instead of asking.
+    NSMicrophoneUsageDescription: >-
+      Phosphor listens only while you dictate into the composer, and transcribes
+      on this computer.
   target:
     - target: dmg
       arch: [arm64, x64]

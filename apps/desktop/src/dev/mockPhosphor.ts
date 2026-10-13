@@ -23,6 +23,7 @@ import {
   type WorkspaceSearchResult,
 } from '@shared/workspace-search'
 import type { PiEvent, RpcCommand, RpcResponse } from '@shared/rpc'
+import { DEFAULT_VOICE_PREFS, VOICE_MODELS, type VoiceStatus } from '@shared/voice'
 import fixtureRaw from '../features/chat/__fixtures__/real-session-events.jsonl?raw'
 
 const fixtureEvents: PiEvent[] = fixtureRaw
@@ -716,6 +717,41 @@ function mockHeadroomStatus(): Record<string, unknown> {
     binaryPath: '/mock/.local/bin/headroom',
     proxy: { running: mockHeadroomRunning, url: 'http://127.0.0.1:8787', owned: true },
   }
+}
+
+/**
+ * Voice tab and composer microphone. Enabling "downloads" in a few steps;
+ * a dictation returns a canned sentence whatever was said.
+ */
+let mockVoice: VoiceStatus = {
+  prefs: DEFAULT_VOICE_PREFS,
+  phase: 'off',
+  receivedBytes: 0,
+  totalBytes: 0,
+}
+const mockVoiceListeners = new Set<(status: VoiceStatus) => void>()
+
+function setMockVoice(next: Partial<VoiceStatus>): VoiceStatus {
+  mockVoice = { ...mockVoice, ...next }
+  for (const listener of mockVoiceListeners) listener(mockVoice)
+  return mockVoice
+}
+
+function setMockVoicePrefs(prefs: VoiceStatus['prefs']): VoiceStatus {
+  if (!prefs.enabled) return setMockVoice({ prefs, phase: 'off', receivedBytes: 0, totalBytes: 0 })
+  const totalBytes = VOICE_MODELS.find((m) => m.id === prefs.model)?.downloadBytes ?? 0
+  ;[0.3, 0.7, 1].forEach((fraction, step) =>
+    setTimeout(
+      () =>
+        setMockVoice(
+          fraction === 1
+            ? { phase: 'ready', receivedBytes: totalBytes }
+            : { receivedBytes: Math.round(totalBytes * fraction) },
+        ),
+      600 * (step + 1),
+    ),
+  )
+  return setMockVoice({ prefs, phase: 'downloading', receivedBytes: 0, totalBytes })
 }
 
 /** Fake package-job streams: invoke returns a jobId, output arrives shortly after. */
@@ -1757,6 +1793,16 @@ export function installMockPhosphor(): void {
               'Installed 1 executable: headroom',
             ]),
           )
+        case 'voice:status':
+          return Promise.resolve(mockVoice)
+        case 'voice:setPrefs':
+          return Promise.resolve(setMockVoicePrefs(args[0] as VoiceStatus['prefs']))
+        case 'voice:start':
+        case 'voice:audio':
+        case 'voice:cancel':
+          return Promise.resolve(undefined)
+        case 'voice:stop':
+          return Promise.resolve({ text: 'Run the tests and tell me what fails.' })
         case 'optimization:stats': {
           const workspacePath = args[0] as string
           const sessions = MOCK_DISK_SESSIONS.filter((m) => m.cwd === workspacePath)
@@ -2337,6 +2383,11 @@ export function installMockPhosphor(): void {
     },
 
     onMachinesChanged: () => () => undefined,
+
+    onVoiceStatus: (listener) => {
+      mockVoiceListeners.add(listener)
+      return () => mockVoiceListeners.delete(listener)
+    },
 
     onAccountChanged: (listener) => {
       mockAccountListeners.add(listener)

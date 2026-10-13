@@ -16,7 +16,13 @@ export default defineConfig({
       },
     },
     build: {
-      lib: { entry: 'electron/main.ts' },
+      lib: {
+        entry: {
+          main: 'electron/main.ts',
+          // The voice utility process (electron/voice/index.ts forks it).
+          'voice-worker': 'electron/voice/worker.ts',
+        },
+      },
     },
   },
   preload: {

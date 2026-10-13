@@ -178,6 +178,10 @@ subscription providers:
 
 ![The @ file-mention menu, resolved against the workspace](docs/img/mentions.png)
 
+Turn on voice input in Settings → Voice and a microphone beside Attach
+dictates into the draft. The speech model runs on your computer, so audio never
+leaves it ([docs/voice.md](docs/voice.md)).
+
 ### Files: explorer and editor, on whichever side you like
 
 Create, rename, Trash, multi-select, copy/cut/paste, drop files and folders
@@ -471,11 +475,11 @@ apps/desktop/electron/            main process — owns every side effect
   main.ts            app lifecycle, window creation, quit teardown
   preload.ts         the contextBridge surface (one typed `subscribe` helper)
   ipc.ts             composition root: calls the per-domain handler registrars
-  ipc/               one module per channel-prefix family: 21 modules today
+  ipc/               one module per channel-prefix family: 22 modules today
                      (account, app, artifacts, claude-auth, clipboard, control, feedback, fs, git,
                       maintenance, mcp, optimization, packages, pi-auth,
                       pi-config, pi-session, pty, routines, sessions, skills,
-                      updates) plus handle.ts, the
+                      updates, voice) plus handle.ts, the
                       envelope unwrapper. The contract lives in libs/shared/src/ipc.ts;
                       ipc.ts is the composition root, so a handler module
                       never imports it back.
@@ -496,6 +500,8 @@ apps/desktop/electron/            main process — owns every side effect
                      enrollment approval and removal (account preview)
   headroom/          Headroom proxy supervisor (adopt/spawn/kill) + install job
   optimization/      the Advisor rules engine (pure functions, advice only)
+  voice/             voice input: pinned model download, the dictation service,
+                     the utility process that runs the speech model (docs/voice.md)
   pty/               node-pty manager + spawn-helper repair
   fs/                file service, git service/sync/worktrees (over the
                      runtime library's git/),
@@ -525,10 +531,10 @@ libs/shared/src/     types and pure logic shared by main + renderer
   remote-host.ts     Host hello validation and host-qualified resource keys
 apps/desktop/src/                 renderer (React) — pure UI over typed IPC
   app/               shell: App, TopBar, workspace picker, global shortcuts
-  features/          one folder per surface (17): chat, sessions, files,
+  features/          one folder per surface (18): chat, sessions, files,
                      terminal, artifacts, settings, home, worktrees,
                      workspaces, palette, updates, connectors, extension-ui,
-                     skills, routines, feedback, machines
+                     skills, routines, feedback, machines, voice
   components/        cross-feature primitives (Modal, PopupMenu, form, icons,
                      markdown renderers; search/: the find bar, its toggles,
                      finding and painting text in rendered DOM)

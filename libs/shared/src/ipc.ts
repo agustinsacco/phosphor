@@ -41,6 +41,7 @@ import type {
 import type { SkillImportPreview, SkillScope, SkillsListResult } from './skills'
 import type { WorkspaceSearchRequest, WorkspaceSearchResult } from './workspace-search'
 import type { FeedbackDraft, FeedbackState, FeedbackSubmitResult } from './feedback'
+import type { VoicePrefs, VoiceStatus } from './voice'
 import type {
   AddWorktreeBranch,
   AppPrefs,
@@ -864,6 +865,26 @@ export interface IpcInvokeMap {
   'headroom:install': { args: []; result: { jobId: string } }
   /** Folded savings + Advisor findings for one workspace. Read-only. */
   'optimization:stats': { args: [workspacePath: string]; result: OptimizationStats }
+
+  // ---- Voice input (Settings → Voice, docs/voice.md) ----
+  'voice:status': { args: []; result: VoiceStatus }
+  /**
+   * Persist the prefs. Enabled downloads the selected model when it is not on
+   * disk yet (progress on `voice:statusChanged`); disabled deletes every
+   * model file.
+   */
+  'voice:setPrefs': { args: [prefs: VoicePrefs]; result: VoiceStatus }
+  /**
+   * Begin a dictation for this window, loading the model if it is not
+   * resident. Rejects when voice is not ready or the microphone is refused.
+   * One dictation at a time: a new one cancels the last.
+   */
+  'voice:start': { args: []; result: void }
+  /** 16 kHz mono samples for the running dictation; ignored from any other window. */
+  'voice:audio': { args: [samples: Float32Array]; result: void }
+  /** End the dictation and return everything it heard. */
+  'voice:stop': { args: []; result: { text: string } }
+  'voice:cancel': { args: []; result: void }
   'git:commitAll': { args: [worktreePath: string, message: string]; result: { sha: string } }
   /** Merge into the main tree's current branch; aborts cleanly on conflict. */
   'git:mergeBranch': {
@@ -1052,6 +1073,8 @@ export interface PhosphorApi {
   onAccountChanged(listener: (view: AccountView) => void): () => void
   /** A change signal only. Refetch the enrolled machines through control:machines. */
   onMachinesChanged(listener: () => void): () => void
+  /** Voice prefs, download progress and readiness; returns unsubscribe. */
+  onVoiceStatus(listener: (status: VoiceStatus) => void): () => void
 
   /**
    * Absolute path for a dropped File (Electron `webUtils`). Non-image
