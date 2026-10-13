@@ -9,6 +9,9 @@ import {
 import type { Env } from './http'
 
 interface EventFields {
+  clientId?: string
+  jti?: string
+  exp?: number
   enrollmentId?: string
   hostId?: string
   userId?: string

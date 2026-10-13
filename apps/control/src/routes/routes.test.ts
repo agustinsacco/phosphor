@@ -52,6 +52,7 @@ function setup() {
   const results: Record<string, unknown> = {
     control_account: { enabled: true, maxHosts: 20 },
     control_host_key: { outcome: 'active', publicKey: key.publicKey },
+    control_host_revocations: { epoch: 1, ownerId: userId, revoked: { sessions: [], clients: [] } },
   }
   vi.mocked(deps.supabase.rpc).mockImplementation(async (name) => results[name])
   const app = createApp(deps)

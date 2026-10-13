@@ -14,8 +14,13 @@ insert into test_context select 'call-' || n.nspname || '.' || p.proname, to_jso
   where n.nspname = 'control_private' or (n.nspname = 'public' and p.proname like 'control\_%');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where (n.nspname = 'control_private' or (n.nspname = 'public' and p.proname like 'control\_%'))
-  and not p.prosecdef and p.proconfig = array['search_path=""']), 14::bigint,
-  'all twelve RPCs and two helpers are invokers with empty search_path');
+  and not p.prosecdef and p.proconfig = array['search_path=""']), 17::bigint,
+  'all RPCs except revocations and both helpers are invokers with empty search_path');
+select is((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where (n.nspname = 'control_private' or (n.nspname = 'public' and p.proname like 'control\_%'))
+  and p.prosecdef), 1::bigint, 'exactly one definer');
+select ok((select prosecdef and proconfig = array['search_path=""'] from pg_proc
+  where oid = 'public.control_host_revocations(uuid)'::regprocedure), 'only revocations is a definer with empty search_path');
 select ok(exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime'
   and schemaname = 'public' and tablename = 'remote_hosts'), 'hosts published to Realtime');
 select is((select count(*) from pg_class where oid in ('public.remote_enrollments'::regclass,
