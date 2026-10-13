@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
+import { avatarUrl } from './avatar'
 
 /**
  * The four Supabase Auth (GoTrue) calls Desktop's sign-in needs, and nothing
@@ -16,6 +17,7 @@ export interface AccountUser {
   readonly login: string | null
   readonly name: string | null
   readonly email: string | null
+  readonly avatarUrl?: string
 }
 
 export interface AuthSession {
@@ -72,6 +74,7 @@ function parseUser(value: unknown): AccountUser | null {
     login: text(meta.user_name) ?? text(meta.preferred_username),
     name: text(meta.full_name) ?? text(meta.name),
     email: text(value.email) ?? text(meta.email),
+    ...(avatarUrl(meta.avatar_url) ? { avatarUrl: avatarUrl(meta.avatar_url) ?? undefined } : {}),
   }
 }
 

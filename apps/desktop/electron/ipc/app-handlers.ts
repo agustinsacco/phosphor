@@ -34,7 +34,6 @@ import {
   markSessionSeen,
   recordWorkspace,
   setCollapsedWorkspaces,
-  setMachinesPreview,
   setFontPrefs,
   setLastSession,
   setModelPicks,
@@ -190,11 +189,6 @@ export function registerAppHandlers(): void {
 
   handle('app:setCollapsedWorkspaces', (_event, paths) => {
     setCollapsedWorkspaces(paths)
-  })
-
-  handle('app:setMachinesPreview', (_event, enabled) => {
-    if (typeof enabled !== 'boolean') throw new Error('Invalid preview flag.')
-    setMachinesPreview(enabled)
   })
 
   handle('app:recordWorkspace', (_event, path: string) => {

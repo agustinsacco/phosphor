@@ -15,8 +15,8 @@ vi.mock('electron', () => ({
 vi.mock('../account', () => ({
   accountAccessToken: async () => state.token,
   accountControlGeneration: () => 0,
-  // Signed out with the preview off: the live socket must stay closed.
-  accountSnapshot: () => ({ preview: false, account: { status: 'signed-out' } }),
+  // Signed out: the live socket must stay closed.
+  accountSnapshot: () => ({ account: { status: 'signed-out' } }),
   onAccountChange: () => () => undefined,
 }))
 const fetchImpl = vi.fn()
@@ -35,9 +35,11 @@ const invoke = (channel: string, ...args: unknown[]) => {
   return handler({}, ...args)
 }
 it('registers the channels and rejects malformed renderer inputs before a request', async () => {
-  expect(state.handlers.size).toBe(4)
+  expect(state.handlers.size).toBe(5)
   for (const [channel, args] of [
     ['control:lookupEnrollment', [7]],
+    ['control:renameMachine', ['../bad', 'x']],
+    ['control:renameMachine', ['11111111-1111-4111-8111-111111111111', '']],
     ['control:approveEnrollment', ['BCDFGHJK', {}]],
     ['control:approveEnrollment', ['wrong', 'bee1']],
     ['control:removeMachine', ['../../x']],
@@ -53,6 +55,7 @@ it('returns signed-out for every channel without a token and sends no request', 
     ['control:lookupEnrollment', ['BCDFGHJK']],
     ['control:approveEnrollment', ['BCDFGHJK', 'bee1']],
     ['control:removeMachine', ['11111111-1111-4111-8111-111111111111']],
+    ['control:renameMachine', ['11111111-1111-4111-8111-111111111111', 'new-label']],
   ] satisfies [string, unknown[]][])
     expect(await invoke(channel, ...args)).toMatchObject({ error: { code: 'signed-out' } })
   expect(fetchImpl).not.toHaveBeenCalled()

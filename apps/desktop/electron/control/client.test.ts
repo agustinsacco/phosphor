@@ -316,3 +316,36 @@ describe('createControlClient', () => {
     expect(h.fetchImpl).not.toHaveBeenCalled()
   })
 })
+
+it('renames with a validated UUID and label and parses the reply', async () => {
+  const h = harness()
+  for (const [id, label] of [
+    ['../escape', 'label'],
+    [MACHINE.id, ''],
+    [MACHINE.id, 'a'.repeat(81)],
+    [MACHINE.id, 'hidden\u202e'],
+  ]) {
+    expect(await h.client.renameMachine(id, label)).toMatchObject({
+      error: { code: 'bad-request' },
+    })
+  }
+  expect(h.fetchImpl).not.toHaveBeenCalled()
+  h.fetchImpl
+    .mockResolvedValueOnce(json(me))
+    .mockResolvedValueOnce(json({ machine: { ...MACHINE, label: 'a'.repeat(80) } }))
+  expect(await h.client.renameMachine(MACHINE.id, 'a'.repeat(80))).toMatchObject({
+    ok: true,
+    machine: { label: 'a'.repeat(80) },
+  })
+  expect(h.fetchImpl.mock.calls[1]?.[1]).toMatchObject({
+    method: 'PATCH',
+    body: JSON.stringify({ label: 'a'.repeat(80) }),
+  })
+  expect(String(h.fetchImpl.mock.calls[1]?.[0])).toBe(
+    `${DEFAULT_CONTROL_URL}${CONTROL_ROUTES.machines}/${MACHINE.id}`,
+  )
+  h.fetchImpl.mockResolvedValueOnce(json({ machine: { id: MACHINE.id } }))
+  expect(await h.client.renameMachine(MACHINE.id, 'new')).toMatchObject({
+    error: { code: 'internal' },
+  })
+})

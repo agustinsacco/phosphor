@@ -8,11 +8,10 @@ import type { Storage, Vault } from './vault'
  */
 export function accountView(
   state: AccountState,
-  preview: boolean,
   storage: () => Storage,
   savedMode: Vault['savedMode'] = () => null,
 ): AccountView {
-  if (state.status !== 'signed-in') return { preview, account: state }
+  if (state.status !== 'signed-in') return { account: state }
   const { login, name, email } = state.user
   const account = { status: 'signed-in' as const, user: { login, name, email } }
   if (state.remembered) {
@@ -21,11 +20,10 @@ export function accountView(
         ? 'Saved in a file only your user can read, because no keyring is running.'
         : undefined
     return {
-      preview,
       account: { ...account, remembered: true, ...(storageNote ? { storageNote } : {}) },
     }
   }
   const known = storage()
   const storageNote = known.ok ? 'the sign-in could not be saved' : known.reason
-  return { preview, account: { ...account, remembered: false, storageNote } }
+  return { account: { ...account, remembered: false, storageNote } }
 }

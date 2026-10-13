@@ -32,9 +32,9 @@ remain stronger than an interactive lease. Grants (18) will bound
 remote authority; routing and store isolation (28-30) will keep machines separate.
 
 **Touches.** Today `apps/desktop/electron/control/client.ts` handles HTTP directory
-requests; `EnrolledMachines.tsx` polls while its page is visible. Neither is a
-Host connection manager. `stores/machines.ts` mixes directory projection with
-separate samples, and `stores/sessions.ts` and `stores/chat.ts` use local session
+requests; `electron/control/live.ts` supplies directory change signals and
+fallback polling. Neither is a Host connection manager. `stores/machines.ts`
+projects only the enrolled directory, and `stores/sessions.ts` and `stores/chat.ts` use local session
 keys. The shared `hostResourceKey` helper will support isolation, but the stores
 and `libs/session-runtime/src/pi/session-events.ts` still need Host projections,
 network delivery and attach/detach separate from stop/dispose.
@@ -75,8 +75,7 @@ Screen and iOS 16.4 or newer; push is not a promise of background WebSockets.
 
 **Touches.** Today `apps/desktop/electron/routines/index.ts` raises OS notifications
 only for routine outcomes. `stores/sessions.ts` keeps background-lane unread
-counts in the renderer; `stores/machines.ts` only demonstrates a sample finish
-toast. Machine-owned events and durable read watermarks will replace neither with
+counts in the renderer; `stores/machines.ts` only projects directory status. Machine-owned events and durable read watermarks will replace neither with
 a cloud lane store. Desktop's notification adapter will need click navigation.
 
 **Open questions.** Define durable event retention and expiry of unreachable
@@ -236,7 +235,7 @@ Opt-in Tailscale discovery (22) will suggest candidates, never auto-trust them o
 scan ports. Service installers (24-25), lifecycle/retained-data rules (27), and
 the authenticated Host API (21) are prerequisites to a usable connection.
 
-**Touches.** `features/machines/AddMachineDialog.tsx` currently approves a code,
+**Touches.** `features/machines/AddMachineDialog.tsx` guides manual setup and approves a code,
 not an installation. Host config, `doctor`, identity and acceptance commands will
 supply preflight and post-install evidence. Desktop main will own SSH and verified
 transfer; provider credentials will stay on the Host. User approval must name

@@ -25,6 +25,7 @@ import { ComputerUseTab } from './tabs/ComputerUseTab'
 import { SubagentsTab } from './tabs/SubagentsTab'
 import { KeybindingsTab } from './tabs/KeybindingsTab'
 import { AboutTab } from './tabs/AboutTab'
+import { FeedbackButton } from '@/features/feedback/FeedbackButton'
 
 const isExtensionTab = (id: SettingsTab): boolean => EXTENSION_TABS.some((t) => t.id === id)
 
@@ -132,7 +133,7 @@ export function SettingsModal(): React.JSX.Element | null {
           <SettingsSearchField search={search} inputRef={inputRef} />
           <nav
             aria-label="Settings sections"
-            className="-mx-1 flex gap-0.5 overflow-x-auto px-1 md:mx-0 md:block md:overflow-y-auto md:px-0"
+            className="-mx-1 min-h-0 flex gap-0.5 overflow-x-auto px-1 md:mx-0 md:block md:flex-1 md:overflow-y-auto md:px-0"
           >
             {TABS.filter((t) => t.id !== 'connectors').map((t) => (
               <Fragment key={t.id}>
@@ -146,6 +147,9 @@ export function SettingsModal(): React.JSX.Element | null {
               </Fragment>
             ))}
           </nav>
+          <div className="border-border mt-auto border-t px-2 pt-3" data-testid="settings-footer">
+            <FeedbackButton />
+          </div>
         </aside>
 
         <div

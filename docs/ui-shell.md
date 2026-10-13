@@ -137,7 +137,7 @@ screen.
   unmounted volume is left alone rather than rewritten somewhere else. A
   fork's `parentSession` moves with it, since that path contains the parent's
   own mangled cwd.
-- **Flat nav rows**: `New`, `Artifacts`, `Skills`, `Routines`. `New` routes to the home
+- **Flat nav rows**: `New`, `Artifacts`, `Skills`, `Routines`, `Machines`. `New` routes to the home
   screen; it does not spawn a session, because the folder and the first prompt
   are chosen there. Artifacts, Skills, and Routines open global pages (below).
 - **Session list**: pinned, then sessions grouped by project. Each row: name
@@ -179,9 +179,18 @@ screen.
   "Couldn't load sessions" with Retry. A group is the main repo plus every lane
   under `<repo>/.phosphor/worktrees/`, folded in. An expanded group scans all of
   them; the 8-workspace cold-boot cap governs collapsed ones.
-- Footer: the **update pill** above Settings. Silent unless there is something
+- Footer: the **update pill** above the account row. Silent unless there is something
   to act on ([updates.md](updates.md)). Version and platform are in Settings →
   About.
+- **Account row**: a 28 px avatar, name and GitHub login when signed in, or
+  a neutral avatar and Sign in when signed out. Its popover opens above the
+  row. Signed in, it shows a 40 px avatar, name, login and email, Machines
+  with an online count, Settings with its shortcut, and Sign out. Signed out,
+  it offers optional GitHub sign-in and Settings. Signing in shows browser
+  progress and Cancel. The gear opens Settings directly. Keyboard navigation,
+  Escape and outside-click dismissal return focus to the row. No token reaches
+  this UI ([settings.md](settings.md#phosphor-account)). Send feedback lives
+  in the Settings footer ([feedback.md](feedback.md)).
 - Collapsible (Cmd/Ctrl+B), width-draggable.
 
 ## Pane system
@@ -346,8 +355,7 @@ The visual recipe lives in [style-guide.md](style-guide.md#action-hints).
 - **Routines** — local scheduled tasks producing fresh lanes, with configuration,
   next-run previews, history, and explicit unattended access. Runs are owned by
   main, not this page; closing it never stops the scheduler. See [routines.md](routines.md).
-- **Machines** (only while Settings → Advanced → Machines (preview) is on);
-  see [below](#machines-preview).
+- **Machines** is always available; see [below](#machines).
 - **Toasts** — a stack at the top right, under the top bar, newest first and
   capped at four (also used by extension `notify`). A notice about a lane
   names it the way its sidebar row does (marker and title) and clicking it
@@ -403,40 +411,37 @@ viewing home. Questions open their lane's
 existing dialog rather than gaining a second answer path. The ledger and
 collapsed project statistics remain below the tiles.
 
-## Machines preview
+## Machines
 
-The Machines page lists enrolled machines while the Phosphor account preview
-is on and signed in. Main fetches the control plane on page open, after actions
-and every 30 seconds while the page is visible. Rows show hostname, platform,
-Host version, readiness, lane counts and up/down based on the server clock.
-Add a machine looks up the code printed by `phosphor login`, shows its key
-fingerprint to compare, and asks for a label before approval. Remove confirms
-that the installation stays and must run `phosphor login` again to return.
-Tokens and all control traffic stay in main. No account means no control request.
+One bordered list starts with this computer, using real pi health, Claude and
+provider sign-in checks. Enrolled Hosts follow, sorted online first, then by
+label. Rows show a status dot, hostname, human platform name and architecture,
+status text, problem-only readiness chips (or Ready), and non-zero lane counts.
+The whole row opens a stable detail view; live updates do not reset selection.
+Signed out, only this computer is listed, with an optional GitHub sign-in panel.
+Signed in with no Hosts, a three-step source-install, setup and login guide links
+to the Host guide. There are no sample machines, remote lanes, machine filter,
+per-lane machine chip or Run on picker. All lanes still run on this computer.
 
-The preview is off by default (Settings → Advanced → Machines (preview),
-`AppPrefs.machinesPreview`). Signed out, the page labels bee1 and bee2 as samples
-and points to the Phosphor account switch. This computer's sample-page row uses
-real local data. The sidebar's four remote lanes stay sample-only even while
-signed in; enrolled machines add no lanes and cannot run remote sessions.
-Turning it off removes all of it: it closes the Machines page if it is open
-and withdraws its notices, and nothing opens the page while it is off.
+Main owns directory traffic. Realtime is only a debounced change signal, with
+60 s polling while disconnected. A 5 s local timer updates relative times and
+judges silent Hosts down after 90 s, using the server clock correction. No
+account means no control request. List loading, offline and account errors are
+explicit and offer retry.
 
-- **Sidebar**: a filter under the nav rows (All, This Mac, bee1, bee2), a
-  machine chip at the end of every lane row, and the made-up lanes inside the
-  project they belong to. A project is matched by its folder name, standing in
-  for the git remote the real thing will use; a project this computer does not
-  have gets its own group ("on bee1"). A down machine's lanes stay, greyed.
-  A group's lane search covers its made-up lanes too. Filtered to another
-  machine, this computer's lanes are off screen and out of reach: a selection
-  is cleared and "Select all lanes" is off.
-- **Signed-out sample page** (sidebar → Machines): each sample has a one-line
-  summary, and a page per machine with Overview, Lanes, Dependencies and
-  Logins. This computer's Logins tab is Settings → Accounts itself. A made-up
-  machine's buttons are disabled.
-- **A lane on another machine** opens on the Machines page as a placeholder
-  (title, machine, branch, PR, state); its chat comes with component 21.
-  "Pretend a lane finishes" sends the same notice a real lane does, and
-  clicking it opens that lane.
-- **Run on** sits beside the folder chip on the home screen. Only this
-  computer can be picked.
+Details share Status, Readiness and About sections. Host details include the
+last heartbeat, enrollment date, version, copyable fingerprint and machine id.
+Problems give plain-language fixes and copyable commands to run on that Host.
+A never-connected Host offers `phosphor run` and, on Linux,
+`phosphor service install`. A Host offline for over a day suggests
+`phosphor service status`. Rename edits the label inline: Enter or blur saves,
+Escape cancels, and failure restores the saved label with an inline error.
+Remove confirms that the Host stops at its next heartbeat and must run
+`phosphor login` again. Its files and installation stay on that machine.
+
+Add a machine is disabled while signed out. Its guided dialog has four steps:
+commands to run on the other machine, code entry, fingerprint comparison and
+editable label, then success with the run/service next step and View machine.
+Codes accept either case and an optional separator, format as four letters per
+group, and submit with Enter. Invalid, expired, rate-limited and network errors
+stay on the current step. Approval is enrollment, not a remote execution grant.

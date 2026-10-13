@@ -4,7 +4,7 @@ import clsx from 'clsx'
 import { useFeedbackStore } from './feedbackStore'
 
 /**
- * Sidebar footer entry to the feedback form, above Settings.
+ * Settings footer entry to the feedback form.
  *
  * Always a plain, quiet row — the feature has to be findable without ever
  * interrupting anyone. After enough real use it promotes itself once into a

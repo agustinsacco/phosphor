@@ -9,14 +9,12 @@ import { accountView } from './view'
 import { USER } from './__fixtures__/fakes'
 
 describe('accountView', () => {
-  it('passes a signed-out or signing-in state through with the preview flag', () => {
+  it('passes a signed-out or signing-in state through without a token', () => {
     const storage = vi.fn()
-    expect(accountView({ status: 'signed-out', error: 'x' }, true, storage)).toEqual({
-      preview: true,
+    expect(accountView({ status: 'signed-out', error: 'x' }, storage)).toEqual({
       account: { status: 'signed-out', error: 'x' },
     })
-    expect(accountView({ status: 'signing-in' }, false, storage)).toEqual({
-      preview: false,
+    expect(accountView({ status: 'signing-in' }, storage)).toEqual({
       account: { status: 'signing-in' },
     })
     expect(storage).not.toHaveBeenCalled()
@@ -24,7 +22,7 @@ describe('accountView', () => {
 
   it('hands the renderer who is signed in, never the account id', () => {
     const storage = vi.fn()
-    const view = accountView({ status: 'signed-in', user: USER, remembered: true }, true, storage)
+    const view = accountView({ status: 'signed-in', user: USER, remembered: true }, storage)
     expect(view.account).toEqual({
       status: 'signed-in',
       user: { login: 'octo', name: 'Octo Cat', email: 'octo@example.com' },
@@ -37,9 +35,9 @@ describe('accountView', () => {
 
   it('says why a sign-in is not remembered', () => {
     const state = { status: 'signed-in', user: USER, remembered: false } as const
-    const none = accountView(state, true, () => ({ ok: false, reason: 'no keyring is running' }))
+    const none = accountView(state, () => ({ ok: false, reason: 'no keyring is running' }))
     expect(none.account).toMatchObject({ remembered: false, storageNote: 'no keyring is running' })
-    const failed = accountView(state, true, () => ({ ok: true, kind: 'keychain' }))
+    const failed = accountView(state, () => ({ ok: true, kind: 'keychain' }))
     expect(failed.account).toMatchObject({ storageNote: 'the sign-in could not be saved' })
   })
 })
@@ -54,11 +52,10 @@ it('discloses plain files and never touches the cipher while building any view',
       const storage = vi.spyOn(cipher, 'storage')
       const encrypt = vi.spyOn(cipher, 'encrypt')
       const decrypt = vi.spyOn(cipher, 'decrypt')
-      const out = accountView({ status: 'signed-out' }, true, vault.storage, vault.savedMode)
+      const out = accountView({ status: 'signed-out' }, vault.storage, vault.savedMode)
       expect(out.account.status).toBe('signed-out')
       const view = accountView(
         { status: 'signed-in', user: USER, remembered: true },
-        true,
         vault.storage,
         vault.savedMode,
       )

@@ -1,3 +1,4 @@
+import type { MachineView } from '@shared/control-api'
 /**
  * Dev-only mock of the preload API so the renderer can run in a plain
  * browser (vite dev server without Electron). Replays the captured real
@@ -265,14 +266,79 @@ let mockAccount: AccountView['account'] = { status: 'signed-out' }
 
 /** The Phosphor account, signed in after a pretend browser round trip. */
 function mockAccountView(): AccountView {
-  return { preview: localStorage.getItem('mock:accountPreview') === '1', account: mockAccount }
+  const mode = localStorage.getItem('mock:accountState')
+  if (mode === 'signing-in') return { account: { status: 'signing-in' } }
+  if (mode === 'signed-in')
+    return {
+      account: {
+        status: 'signed-in',
+        user: { login: 'octo', name: 'Octo Cat', email: 'octo@example.com' },
+        remembered: true,
+      },
+    }
+  return { account: mockAccount }
 }
 
 function setMockAccount(next: AccountView['account']): AccountView {
+  localStorage.removeItem('mock:accountState')
   mockAccount = next
   const view = mockAccountView()
   for (const listener of mockAccountListeners) listener(view)
   return view
+}
+// Browser-only visual fixtures. Electron never imports this module.
+let harnessAdded: MachineView | null = null
+const harnessRemoved = new Set<string>()
+const harnessLabels = new Map<string, string>()
+function harnessMachine(id: string, label: string, lastSeenAt: string | null): MachineView {
+  return {
+    id,
+    label,
+    hostname: label,
+    platform: 'linux',
+    arch: 'x64',
+    hostVersion: '0.2.0',
+    keyFingerprint: '0123-4567-89ab-cdef',
+    enrolledAt: new Date(Date.now() - 86400000 * 3).toISOString(),
+    lastSeenAt,
+    state: lastSeenAt ? 'running' : null,
+    readiness: lastSeenAt ? { pi: 'ok', claude: 'ok', tailscale: 'ok' } : null,
+    lanes: { running: 0, waiting: 0 },
+    endpoint: null,
+  }
+}
+function harnessMachines(): MachineView[] {
+  const mixed = localStorage.getItem('mock:machinesState') === 'mixed'
+  const machines = mixed
+    ? [
+        {
+          ...harnessMachine(
+            '11111111-1111-4111-8111-111111111111',
+            'buildbox',
+            new Date().toISOString(),
+          ),
+          lanes: { running: 2, waiting: 1 },
+        },
+        harnessMachine(
+          '22222222-2222-4222-8222-222222222222',
+          'studio',
+          new Date(Date.now() - 10800000).toISOString(),
+        ),
+        harnessMachine('33333333-3333-4333-8333-333333333333', 'new-host', null),
+        {
+          ...harnessMachine(
+            '44444444-4444-4444-8444-444444444444',
+            'testbox',
+            new Date().toISOString(),
+          ),
+          readiness: { pi: 'ok', claude: 'signed-out', tailscale: 'stopped' },
+        } satisfies MachineView,
+      ]
+    : []
+  if (harnessAdded) machines.push(harnessAdded)
+  return machines
+    .filter((machine) => !harnessRemoved.has(machine.id))
+    .map((machine) => ({ ...machine, label: harnessLabels.get(machine.id) ?? machine.label }))
 }
 let mockClaudeLoginTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -924,11 +990,7 @@ export function installMockPhosphor(): void {
             worktrees: DEFAULT_APP_PREFS.worktrees,
             contextBudget: localStorage.getItem('mock:contextBudget') ?? '',
             contextFiles: mockContextFiles(),
-            machinesPreview: localStorage.getItem('mock:machinesPreview') === '1',
           })
-        case 'app:setMachinesPreview':
-          localStorage.setItem('mock:machinesPreview', args[0] === true ? '1' : '0')
-          return Promise.resolve(undefined)
         case 'app:setContextFile':
           localStorage.setItem(
             'mock:contextFiles',
@@ -1390,35 +1452,64 @@ export function installMockPhosphor(): void {
           mockClaudeAuth = { loggedIn: false }
           return Promise.resolve(undefined as never)
         case 'control:machines':
+          if (localStorage.getItem('mock:machinesState') === 'offline')
+            return Promise.resolve({
+              ok: false,
+              error: { code: 'offline', message: 'Offline' },
+            } as never)
+          if (localStorage.getItem('mock:machinesState') === 'loading')
+            return new Promise(() => undefined)
           return Promise.resolve(
-            (mockAccountView().preview && mockAccount.status === 'signed-in'
-              ? { ok: true, machines: [], serverTime: new Date().toISOString() }
+            (mockAccountView().account.status === 'signed-in'
+              ? { ok: true, machines: harnessMachines(), serverTime: new Date().toISOString() }
               : {
                   ok: false,
                   error: { code: 'signed-out', message: 'Sign in to Phosphor.' },
                 }) as never,
           )
         case 'control:lookupEnrollment':
-        case 'control:approveEnrollment':
+          return Promise.resolve(
+            (mockAccountView().account.status !== 'signed-in'
+              ? { ok: false, error: { code: 'signed-out' } }
+              : args[0] === 'BCDFGHJK'
+                ? {
+                    ok: true,
+                    hostname: 'buildbox',
+                    platform: 'linux',
+                    arch: 'x64',
+                    hostVersion: '0.2.0',
+                    keyFingerprint: '0123-4567-89ab-cdef',
+                    expiresAt: new Date(Date.now() + 600000).toISOString(),
+                  }
+                : { ok: false, error: { code: 'not-found' } }) as never,
+          )
+        case 'control:approveEnrollment': {
+          if (mockAccountView().account.status !== 'signed-in')
+            return Promise.resolve({ ok: false, error: { code: 'signed-out' } } as never)
+          const machine = harnessMachine(
+            '55555555-5555-4555-8555-555555555555',
+            String(args[1]),
+            null,
+          )
+          harnessAdded = machine
+          return Promise.resolve({ ok: true, machine } as never)
+        }
+        case 'control:renameMachine': {
+          if (mockAccountView().account.status !== 'signed-in')
+            return Promise.resolve({ ok: false, error: { code: 'signed-out' } } as never)
+          harnessLabels.set(String(args[0]), String(args[1]))
+          const machine = harnessMachines().find((entry) => entry.id === args[0])
+          return Promise.resolve(
+            (machine
+              ? { ok: true, machine: { ...machine, label: String(args[1]) } }
+              : { ok: false, error: { code: 'not-found' } }) as never,
+          )
+        }
         case 'control:removeMachine':
-          return Promise.resolve({
-            ok: false,
-            error: {
-              code:
-                mockAccountView().preview && mockAccount.status === 'signed-in'
-                  ? 'not-found'
-                  : 'signed-out',
-              message: 'No enrolled machine in the browser harness.',
-            },
-          } as never)
+          harnessRemoved.add(String(args[0]))
+          return Promise.resolve({ ok: true } as never)
         case 'account:get':
           return Promise.resolve(mockAccountView() as never)
-        case 'account:setPreview':
-          localStorage.setItem('mock:accountPreview', args[0] ? '1' : '0')
-          if (!args[0]) clearTimeout(mockAccountTimer)
-          return Promise.resolve(
-            setMockAccount(args[0] ? mockAccount : { status: 'signed-out' }) as never,
-          )
         case 'account:signIn':
           mockAccountTimer = setTimeout(() => {
             const user = { login: 'octo', name: 'Octo Cat', email: 'octo@example.com' }

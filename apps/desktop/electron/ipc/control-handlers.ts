@@ -43,5 +43,6 @@ export function registerControlHandlers(): void {
   handle('control:approveEnrollment', (_event, code, label) =>
     client.approveEnrollment(code, label),
   )
+  handle('control:renameMachine', (_event, id, label) => client.renameMachine(id, label))
   handle('control:removeMachine', (_event, id) => client.removeMachine(id))
 }

@@ -16,6 +16,7 @@ import {
 } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { AccountUser } from './gotrue'
+import { avatarUrl } from './avatar'
 
 /**
  * Where a remembered sign-in lives: the refresh token encrypted by the OS
@@ -119,7 +120,7 @@ export function createVault(
   function clear(): void {
     const failures: string[] = []
     // The credential first: if only one goes, it should be the secret.
-    for (const path of [tokenPath, plainPath, profilePath]) {
+    for (const path of [tokenPath, plainPath, profilePath, join(dir, 'avatar.json')]) {
       try {
         rmSync(path, { force: true })
       } catch (error) {
@@ -156,7 +157,13 @@ export function createVault(
     if (!isRecord(user) || typeof user.id !== 'string' || !user.id) return null
     const { login = null, name = null, email = null } = user
     if (!nullableText(login) || !nullableText(name) || !nullableText(email)) return null
-    return { id: user.id, login, name, email }
+    return {
+      id: user.id,
+      login,
+      name,
+      email,
+      ...(avatarUrl(user.avatarUrl) ? { avatarUrl: avatarUrl(user.avatarUrl) ?? undefined } : {}),
+    }
   }
 
   function encrypted(userId: string): string {
@@ -186,6 +193,8 @@ export function createVault(
     readProfile,
     readToken(userId) {
       removeCopiedPlain()
+      if (!exists(tokenPath) && !exists(plainPath))
+        throw new VaultUnreadable('the saved sign-in is missing')
       const storage = cipher.storage()
       if (!storage.ok) throw new VaultUnreadable(storage.reason)
       if (platform !== 'linux') {

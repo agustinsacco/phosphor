@@ -1,11 +1,12 @@
 # Remote access
 
 Remote execution is not enabled. Local Electron still needs no Phosphor login.
-Desktop has an optional GitHub sign-in behind a preview switch
-([settings.md](settings.md#phosphor-account-preview)). With Machines preview on,
-it lists enrolled machines and lets a person approve a Host code or remove a
-machine ([ui-shell.md](ui-shell.md#machines-preview)). Signed out, the page and
-sidebar keep sample machines. Enrollment is not an execution grant.
+Desktop has an optional GitHub sign-in in the sidebar footer
+([settings.md](settings.md#phosphor-account)). Machines is always available,
+with this computer's real status. Signed in, it lists enrolled Hosts and lets
+a person approve a Host code, rename or remove a machine
+([ui-shell.md](ui-shell.md#machines)). Signed out, it shows no sample Hosts.
+Enrollment is not an execution grant.
 The contract, schema, Host enrollment commands and Desktop approval clients exist.
 `apps/control` is the combined site and API server, but it is not deployed yet.
 It serves enrollment, the machine directory and Host routes, proven end to end
@@ -33,12 +34,12 @@ The Host doc owns pending-state recovery and identity storage. These outbound
 signed clients do not open a listener or start a heartbeat loop.
 
 Desktop's main-only control client supplies machine listing, code lookup,
-approval and removal through typed IPC. The signed-in preview compares the
-fingerprint, asks for a label and confirms removal; removal is not uninstall.
-The page refetches every 30 seconds while visible, not through Realtime.
-The sidebar and signed-out page retain separate samples. Tokens stay in main.
-See [settings.md](settings.md#phosphor-account-preview) and
-[ui-shell.md](ui-shell.md#machines-preview) for the UI contract.
+approval, rename and removal through typed IPC. The guided approval compares the
+fingerprint and asks for a label. Removal is confirmed and is not uninstall.
+Realtime changes trigger a debounced refetch, with a 60 s fallback while
+disconnected. A local 5 s timer judges up/down using the server clock offset.
+Tokens stay in main. See [settings.md](settings.md#phosphor-account) and
+[ui-shell.md](ui-shell.md#machines) for the UI contract.
 
 ## Trust boundary
 
@@ -53,7 +54,7 @@ execution authority. Local Desktop works without sign-in.
 Linux Desktop detects supported session keyrings before Chromium starts. Where
 Chromium reports `basic_text`, the vault uses a user-only refresh-token file,
 not hard-coded-key encryption; unknown or unavailable keyring backends refuse
-storage. [Settings](settings.md#phosphor-account-preview) owns these storage rules.
+storage. [Settings](settings.md#phosphor-account) owns these storage rules.
 Future execution and sharing directions live in [future-features.md](future-features.md).
 
 ## Portable session service

@@ -125,7 +125,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     ],
   ),
   ...section('accounts', null, [
-    ['Phosphor account', 'sign in github login machines'],
     ['Use a plan you already pay for', 'subscription sign in login oauth'],
     ['Billed per token', 'api key credit balance'],
   ]),
@@ -192,8 +191,6 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     ['pi health', 'version install'],
     ['pi settings.json', 'config edit raw'],
     ['pi models.json', 'custom providers local endpoints'],
-    ['Phosphor account (preview)', 'sign in github login machines'],
-    ['Machines (preview)', 'hosts remote bee sidebar filter run on'],
   ]),
   ...section(
     'advanced',

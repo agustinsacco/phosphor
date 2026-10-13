@@ -135,8 +135,8 @@ It has no inbound listener, heartbeat runner or remote lane API ([host.md](host.
 metadata, enrollment, the machine directory, and Host self, heartbeat and
 self-revocation routes over the shared `control-api.ts` contract and server-only
 SQL functions. It is not deployed yet.
-Desktop's main-only `control:*` clients back the signed-in Machines preview's
-approval and removal UI. There is no execution grant or lane transport here.
+Desktop's main-only `control:*` clients back the Machines page's
+approval, rename and removal UI. There is no execution grant or lane transport here.
 
 The control plane stores identity and machine metadata only, including Host public
 keys. Lanes, prompts, transcripts, paths and provider credentials stay off it.

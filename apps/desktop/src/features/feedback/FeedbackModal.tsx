@@ -111,7 +111,7 @@ export function FeedbackModal(): React.JSX.Element | null {
   // A fresh form every time it opens: feedback is a one-shot, and a stale
   // half-written draft from three weeks ago is worse than an empty box. The
   // refresh is what tells the form which of the two submit paths is live —
-  // the palette can open this without the sidebar button having run.
+  // the palette can open this without the Settings button having run.
   useEffect(() => {
     if (!open) return
     setDraft(EMPTY)
@@ -129,8 +129,13 @@ export function FeedbackModal(): React.JSX.Element | null {
   const patch = (over: Partial<FeedbackDraft>): void => setDraft({ ...draft, ...over })
 
   return (
-    <ModalOverlay onClose={close}>
-      <div className="border-border bg-bg flex max-h-[86vh] w-[560px] max-w-[94vw] flex-col overflow-hidden rounded-2xl border shadow-2xl">
+    <ModalOverlay onClose={close} z={50}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Send feedback"
+        className="border-border bg-bg flex max-h-[86vh] w-[560px] max-w-[94vw] flex-col overflow-hidden rounded-2xl border shadow-2xl"
+      >
         <header className="border-border flex items-start justify-between gap-4 border-b px-5 py-4">
           <div>
             <h2 className="text-xl font-semibold">How is Phosphor going?</h2>

@@ -4,7 +4,6 @@ import type { LoginFlowState, LoginProviderId, SubscriptionProviderStatus } from
 import { Button } from '@/components/form'
 import { CheckIcon, Spinner } from '@/components/icons'
 import { TerminalView } from '@/features/terminal/TerminalView'
-import { PhosphorAccountSection } from './PhosphorAccountSection'
 
 /**
  * Signing pi into a provider.
@@ -86,8 +85,6 @@ export function AccountsTab(): React.JSX.Element {
         Sign pi into a provider instead of pasting an API key. Signed-in providers put their models
         in the picker for every session.
       </p>
-
-      <PhosphorAccountSection />
 
       {providers === null ? (
         <div className="text-text-secondary mt-4 text-base">Checking…</div>

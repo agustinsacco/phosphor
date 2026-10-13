@@ -3,9 +3,9 @@ import type { FeedbackDraft, FeedbackState, FeedbackSubmitResult } from '@shared
 
 /**
  * Open/close state for the feedback form, plus the projection of main's
- * feedback state that decides whether the sidebar shows a nudge.
+ * feedback state that decides whether Settings shows a nudge.
  *
- * Kept out of `FeedbackModal.tsx` for the same reason settings is: the sidebar
+ * Kept out of `FeedbackModal.tsx` for the same reason settings is: the Settings
  * button and the command palette only need to open the form.
  */
 interface FeedbackStoreState {

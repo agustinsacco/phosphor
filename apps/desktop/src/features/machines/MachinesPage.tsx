@@ -1,446 +1,629 @@
-import { TooltipButton } from '@/components/Tooltip'
-import { useEffect, useState } from 'react'
-import clsx from 'clsx'
+import { useEffect, useRef, useState } from 'react'
+import { machineStatus, type MachineView } from '@shared/control-api'
 import type { ClaudeStatus, PiHealth, SubscriptionProviderStatus } from '@shared/models'
 import { PageShell } from '@/components/PageShell'
 import { PaneTitle } from '@/components/PaneShell'
-import { Button } from '@/components/form'
 import { StatTile } from '@/components/StatTile'
-import { AccountsTab } from '@/features/settings/tabs/AccountsTab'
-import { useMachinesStore, type MachineTab } from '@/stores/machines'
-import { useSessionsStore } from '@/stores/sessions'
-import {
-  FAKE_MACHINES,
-  LANE_STATE_LABEL,
-  LOCAL_MACHINE,
-  isLive,
-  localMachineName,
-  machineById,
-  machineStatus,
-  nextToFinish,
-  ago,
-  type FakeDependency,
-  type FakeMachine,
-} from './fakeMachines'
+import { Button } from '@/components/form'
+import { TooltipButton, tooltipProps } from '@/components/Tooltip'
+import { ModalOverlay, ModalPanel } from '@/components/Modal'
 import { useAccount } from '@/features/settings/useAccount'
-import { EnrolledMachines } from './EnrolledMachines'
-import { MachineChip, MachineDot, RemoteLaneRow } from './MachineSidebar'
+import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
+import { machinesAccountGeneration, useMachinesStore } from '@/stores/machines'
+import { useSessionsStore } from '@/stores/sessions'
+import { AddMachineDialog } from './AddMachineDialog'
+import { MachineLabel } from './MachineLabel'
+import { CopyCommand, HostGuide, HostSetup } from './MachineControls'
+import {
+  HOST_RUN,
+  HOST_SERVICE_INSTALL,
+  HOST_SERVICE_STATUS,
+  LOCAL_MACHINE,
+  PI_INSTALL,
+  localMachineLabel,
+  machineSubtitle,
+  platformName,
+  readinessFreshness,
+  readinessChecks,
+  relativeTime,
+  sortMachines,
+  statusText,
+  type ReadinessCheck,
+} from './machinePresentation'
+import { controlMessage } from './controlMessages'
 
-/** Why a made-up machine's buttons do nothing yet. */
-const NOT_YET = 'Preview: this needs Phosphor to reach the Host (component 21)'
-
-/**
- * The Machines preview's page: every machine, one machine's page, or a lane on
- * another machine. Signed in, the list is enrolled machines; signed out,
- * this computer's rows are real and bee1 and bee2 are samples.
- */
-export function MachinesPage(): React.JSX.Element {
-  const { view: account } = useAccount()
-  const signedIn = account?.preview === true && account.account.status === 'signed-in'
-  const view = useMachinesStore((s) => s.view)
-  const canFinish = useMachinesStore((s) => nextToFinish(s.lanes) !== undefined)
-  const show = useMachinesStore((s) => s.show)
-  return (
-    <PageShell
-      title={<PaneTitle label="Machines" meta="preview" />}
-      actions={
-        !signedIn && (
-          <Button
-            size="xs"
-            disabled={!canFinish}
-            onClick={() => useMachinesStore.getState().pretendFinished()}
-            title="Sends the notice a real lane sends when it finishes"
-          >
-            Pretend a lane finishes
-          </Button>
-        )
-      }
-    >
-      <div
-        data-testid="machines-page"
-        className="mx-auto w-full max-w-4xl flex-1 overflow-y-auto px-5 pb-8"
-      >
-        {signedIn ? (
-          <EnrolledMachines />
-        ) : (
-          <>
-            <p className="border-border bg-surface text-text-secondary mb-4 rounded-lg border px-3 py-2 text-sm">
-              Sample machines. Sign in under Settings → Advanced → Phosphor account to see yours.
-              bee1 and bee2 are not real. {localMachineName(window.phosphor.platform).long} is real.
-            </p>
-            {view.kind !== 'list' && (
-              <TooltipButton
-                onClick={() => show({ kind: 'list' })}
-                className="text-text-secondary hover:text-text mb-3 text-sm"
-              >
-                ← All machines
-              </TooltipButton>
-            )}
-            {view.kind === 'list' && <MachineList />}
-            {view.kind === 'machine' && <MachineDetail id={view.id} tab={view.tab} />}
-            {view.kind === 'lane' && <RemoteLaneView id={view.id} />}
-          </>
-        )}
-      </div>
-    </PageShell>
-  )
-}
-
-interface ThisComputer {
+interface Computer {
   health: PiHealth | null
-  providers: SubscriptionProviderStatus[] | null
   claude: ClaudeStatus | null
-  claudeCli: string | null
+  providers: SubscriptionProviderStatus[] | null
+  error: boolean
 }
-
-/** This computer's real state, read once per mount over the IPC Settings uses. */
-function useThisComputer(): ThisComputer {
-  const [state, setState] = useState<ThisComputer>({
+function useThisComputer(): Computer {
+  const [state, setState] = useState<Computer>({
     health: null,
-    providers: null,
     claude: null,
-    claudeCli: null,
+    providers: null,
+    error: false,
   })
   useEffect(() => {
-    let stale = false
-    const merge = (patch: Partial<ThisComputer>): void => {
-      if (!stale) setState((current) => ({ ...current, ...patch }))
+    let live = true
+    const merge = (patch: Partial<Computer>): void => {
+      if (live) setState((current) => ({ ...current, ...patch }))
     }
-    void window.phosphor.invoke('pi:health').then((health) => merge({ health }))
-    void window.phosphor.invoke('pi:subscriptionAuth').then((providers) => merge({ providers }))
-    void window.phosphor.invoke('packages:claudeStatus').then((claude) => merge({ claude }))
-    void window.phosphor.invoke('packages:list').then((packages) =>
-      merge({
-        claudeCli:
-          packages.find((entry) => entry.name === '@saccolabs/pi-claude-cli')?.version ?? null,
-      }),
+    void window.phosphor.invoke('pi:health').then(
+      (health) => merge({ health }),
+      () => merge({ error: true }),
+    )
+    void window.phosphor.invoke('packages:claudeStatus').then(
+      (claude) => merge({ claude }),
+      () => merge({ error: true }),
+    )
+    void window.phosphor.invoke('pi:subscriptionAuth').then(
+      (providers) => merge({ providers }),
+      () => merge({ error: true }),
     )
     return () => {
-      stale = true
+      live = false
     }
   }, [])
   return state
 }
-
-function signedInNames(computer: ThisComputer): string[] {
-  const names = (computer.providers ?? []).filter((p) => p.status === 'ready').map((p) => p.name)
-  if (computer.claude?.auth.loggedIn) names.push('Claude Code')
-  return names
-}
-
-function MachineList(): React.JSX.Element {
-  const computer = useThisComputer()
-  const liveHere = useSessionsStore((s) => Object.keys(s.live).length)
-  const lanes = useMachinesStore((s) => s.lanes)
-  const show = useMachinesStore((s) => s.show)
-  const local = localMachineName(window.phosphor.platform).long
-  const loginsHere = signedInNames(computer)
+function Dot({ online }: { online: boolean }): React.JSX.Element {
   return (
-    <div>
-      <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Machines</h2>
-        <Button size="xs" disabled title="Preview: adding a Host comes with enrollment (17)">
-          + Add a Host
-        </Button>
-      </div>
-      <div className="border-border divide-border divide-y rounded-lg border">
-        <MachineListRow
-          id={LOCAL_MACHINE}
-          name={local}
-          up
-          summary={[
-            `${liveHere} live`,
-            computer.health?.version ? `pi ${computer.health.version}` : 'pi …',
-            loginsHere.length ? loginsHere.map((name) => `${name} ✓`).join(' ') : 'no logins',
-          ]}
-          onOpen={() => show({ kind: 'machine', id: LOCAL_MACHINE, tab: 'overview' })}
-        />
-        {FAKE_MACHINES.map((machine) => (
-          <MachineListRow
-            key={machine.id}
-            id={machine.id}
-            name={machine.name}
-            up={machine.up}
-            summary={
-              machine.up
-                ? [
-                    `${lanes.filter((l) => l.machineId === machine.id && isLive(l)).length} live`,
-                    `pi ${machine.dependencies[0]?.version ?? '?'}`,
-                    machine.logins.map((l) => `${l.name} ${l.signedIn ? '✓' : '✗'}`).join(' '),
-                    ...(machine.hostUpdate ? ['Host update'] : []),
-                  ]
-                : [machineStatus(machine), `last seen v${machine.hostVersion}`]
-            }
-            onOpen={() => show({ kind: 'machine', id: machine.id, tab: 'overview' })}
-          />
-        ))}
-      </div>
-    </div>
+    <span
+      aria-hidden
+      className={`h-2 w-2 shrink-0 rounded-full ${online ? 'bg-success' : 'bg-text-tertiary'}`}
+    />
   )
 }
-
-function MachineListRow({
-  id,
-  name,
-  up,
-  summary,
+function ReadinessChips({ checks }: { checks: ReadinessCheck[] }): React.JSX.Element {
+  const problems = checks.filter((check) => !check.ok)
+  return (
+    <span className="flex flex-wrap gap-1.5">
+      {problems.length ? (
+        problems.map((check) => (
+          <span
+            key={check.name}
+            {...tooltipProps(check.detail)}
+            className="bg-warning/10 text-warning rounded px-2 py-0.5 text-sm"
+          >
+            {check.short}
+          </span>
+        ))
+      ) : (
+        <span className="text-success text-base">Ready</span>
+      )}
+    </span>
+  )
+}
+/**
+ * The right side of a row. Readiness shows only while it is current: a
+ * machine that never connected has reported nothing, and an offline one's
+ * last report may no longer be true (its status line already says offline).
+ */
+function RowSummary({
+  machine,
+  now,
+  offset,
+}: {
+  machine: MachineView
+  now: number
+  offset: number
+}): React.JSX.Element | null {
+  const freshness = readinessFreshness(machine, now, offset)
+  if (!machine.lastSeenAt)
+    return (
+      <span className="bg-accent-soft text-accent rounded px-2 py-0.5 text-sm">Finish setup</span>
+    )
+  if (freshness !== 'live') return null
+  return <ReadinessChips checks={readinessChecks(machine.readiness)} />
+}
+export function MachineRow({
+  machine,
+  now,
+  offset,
   onOpen,
 }: {
-  id: string
-  name: string
-  up: boolean
-  summary: string[]
+  machine: MachineView
+  now: number
+  offset: number
   onOpen: () => void
 }): React.JSX.Element {
   return (
     <TooltipButton
-      data-testid="machine-row"
-      tooltip={name}
-      data-machine={id}
+      tooltip={`Open ${machine.label}`}
+      data-testid="enrolled-machine-row"
+      data-status={machineStatus(machine, now, offset)}
+      className="hover:bg-bg-secondary focus-visible:bg-bg-secondary focus-visible:outline-accent flex w-full items-center gap-4 px-5 py-4 text-left transition-colors"
       onClick={onOpen}
-      className="hover:bg-bg-secondary flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors"
     >
-      <MachineDot up={up} />
-      <span className="w-28 shrink-0 font-medium">{name}</span>
-      <span
-        className={clsx(
-          'min-w-0 truncate text-sm',
-          up ? 'text-text-secondary' : 'text-text-tertiary',
+      <Dot online={machineStatus(machine, now, offset) === 'up'} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-lg font-medium">{machine.label}</span>
+        <span className="text-text-secondary mt-1 block truncate text-base">
+          {machineSubtitle(machine, now, offset)}
+        </span>
+      </span>
+      <span className="flex max-w-72 flex-col items-end gap-1.5">
+        <RowSummary machine={machine} now={now} offset={offset} />
+        {machine.lanes && (machine.lanes.running > 0 || machine.lanes.waiting > 0) && (
+          <span className="text-text-secondary text-sm">
+            {machine.lanes.running} running · {machine.lanes.waiting} waiting
+          </span>
         )}
-      >
-        {summary.join(' · ')}
+      </span>
+      <span aria-hidden className="text-text-tertiary">
+        ›
       </span>
     </TooltipButton>
   )
 }
-
-const TABS: { id: MachineTab; label: string }[] = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'lanes', label: 'Lanes' },
-  { id: 'dependencies', label: 'Dependencies' },
-  { id: 'logins', label: 'Logins' },
-]
-
-function MachineDetail({ id, tab }: { id: string; tab: MachineTab }): React.JSX.Element {
-  const machine = machineById(id)
-  const show = useMachinesStore((s) => s.show)
-  const local = id === LOCAL_MACHINE
-  const name = local ? localMachineName(window.phosphor.platform).long : (machine?.name ?? id)
+function Section({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}): React.JSX.Element {
   return (
-    <div data-testid="machine-detail" data-machine={id}>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <MachineDot up={local || machine?.up === true} />
-        <h2 className="text-xl font-semibold">{name}</h2>
-        <span className="text-text-secondary text-sm">
-          {local
-            ? `this computer · ${window.phosphor.platform === 'darwin' ? 'macOS' : window.phosphor.platform}`
-            : machine &&
-              `${machineStatus(machine)} · ${machine.platform} · Host ${machine.hostVersion}`}
-        </span>
-        {machine?.hostUpdate && (
-          <Button size="xs" disabled title={NOT_YET}>
-            Update to {machine.hostUpdate}
-          </Button>
-        )}
-      </div>
-      <div role="tablist" className="border-border mb-4 flex gap-1 border-b">
-        {TABS.map((t) => (
-          <TooltipButton
-            key={t.id}
-            role="tab"
-            aria-selected={tab === t.id}
-            onClick={() => show({ kind: 'machine', id, tab: t.id })}
-            className={clsx(
-              '-mb-px border-b-2 px-2.5 py-1.5 text-base transition-colors',
-              tab === t.id
-                ? 'border-accent text-text'
-                : 'text-text-secondary hover:text-text border-transparent',
-            )}
-          >
-            {t.label}
-          </TooltipButton>
-        ))}
-      </div>
-      {local ? (
-        <ThisComputerTab tab={tab} />
-      ) : (
-        machine && <FakeMachineTab machine={machine} tab={tab} />
+    <section className="border-border border-t pt-5">
+      <h3 className="text-text-tertiary mb-4 font-mono text-xs font-semibold uppercase tracking-wider">
+        {title}
+      </h3>
+      {children}
+    </section>
+  )
+}
+function Checks({
+  checks,
+  local = false,
+}: {
+  checks: ReadinessCheck[]
+  local?: boolean
+}): React.JSX.Element {
+  return (
+    <div className="space-y-4">
+      {checks.map((check) => (
+        <div key={check.name}>
+          <div className="flex items-center gap-2">
+            <Dot online={check.ok} />
+            <h4 className="text-lg font-medium">{check.name}</h4>
+          </div>
+          <p className="text-text-secondary mb-2 mt-1 text-base">{check.detail}</p>
+          {!check.ok && check.command && <CopyCommand command={check.command} />}
+        </div>
+      ))}
+      {local && (
+        <Button
+          onClick={() => {
+            useSettingsUiStore.getState().setTab('accounts')
+            useSettingsUiStore.getState().setOpen(true)
+          }}
+        >
+          Provider sign-ins
+        </Button>
       )}
     </div>
   )
 }
-
-function ThisComputerTab({ tab }: { tab: MachineTab }): React.JSX.Element {
+export function MachinesPage(): React.JSX.Element {
+  const { view: account, error: accountError } = useAccount()
+  const signedIn = account?.account.status === 'signed-in'
+  const state = useMachinesStore()
   const computer = useThisComputer()
   const liveHere = useSessionsStore((s) => Object.keys(s.live).length)
-  if (tab === 'logins') return <AccountsTab />
-  if (tab === 'lanes')
-    return (
-      <p className="text-text-secondary text-base">
-        {liveHere} live. This computer&apos;s lanes are the sidebar rows tagged{' '}
-        <MachineChip label={localMachineName(window.phosphor.platform).short} />.
-      </p>
-    )
-  const dependencies: FakeDependency[] = [
+  const [adding, setAdding] = useState(false)
+  const [removing, setRemoving] = useState<MachineView | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const live = useRef(true)
+  useEffect(() => {
+    live.current = true
+    return () => {
+      live.current = false
+    }
+  }, [])
+  const selected = state.view.kind === 'machine' ? state.view.id : null
+  const machine = state.machines.find((entry) => entry.id === selected)
+  const local = selected === LOCAL_MACHINE
+  const now = state.nowMs || Date.now()
+  const correctedNow = now + state.clockOffsetMs
+  const localChecks: ReadinessCheck[] = [
     {
       name: 'pi',
-      version: computer.health?.version ?? '',
-      note: computer.health?.ok ? 'runs lanes' : (computer.health?.reason ?? 'checking…'),
       ok: computer.health?.ok === true,
+      short: computer.health ? 'pi unavailable' : 'Checking pi',
+      detail: computer.health
+        ? computer.health.ok
+          ? `Ready · ${computer.health.version}`
+          : (computer.health.reason ?? 'Install pi to run lanes.')
+        : 'Checking pi…',
+      command: computer.health && !computer.health.ok ? PI_INSTALL : undefined,
     },
     {
-      name: 'pi-claude-cli',
-      version: computer.claudeCli ?? '',
-      note: computer.claudeCli ? 'runs Claude lanes' : 'not installed: no Claude lanes',
-      ok: computer.claudeCli !== null,
-    },
-    {
-      name: 'Claude Code',
-      version: computer.claude?.binary.version ?? '',
-      note: computer.claude?.auth.loggedIn ? 'logged in' : 'not logged in',
-      ok: computer.claude?.binary.found === true,
+      name: 'Claude',
+      ok: computer.claude?.binary.found === true && computer.claude.auth.loggedIn === true,
+      short: !computer.claude
+        ? 'Checking Claude'
+        : !computer.claude.binary.found
+          ? 'Claude missing'
+          : 'Claude signed out',
+      detail: computer.claude
+        ? !computer.claude.binary.found
+          ? 'Install the Claude CLI under Settings → Extensions → Claude Code.'
+          : computer.claude.auth.loggedIn
+            ? 'Signed in'
+            : 'Sign in under Settings → Accounts.'
+        : 'Checking Claude…',
     },
   ]
-  if (tab === 'dependencies')
-    return (
-      <DependencyTable dependencies={dependencies} note="Upgrades stay in Settings → Extensions." />
-    )
+  const back = (): void => {
+    state.show({ kind: 'list' })
+    setError(null)
+  }
+  async function remove(): Promise<void> {
+    if (!removing || busy) return
+    const generation = machinesAccountGeneration()
+    setBusy(true)
+    setError(null)
+    try {
+      const result = await window.phosphor.invoke('control:removeMachine', removing.id)
+      if (!live.current) return
+      if (
+        generation !== machinesAccountGeneration() ||
+        !useMachinesStore.getState().remoteEnabled
+      ) {
+        setError(controlMessage('signed-out'))
+        return
+      }
+      if (result.ok || result.error.code === 'not-found') {
+        setRemoving(null)
+        back()
+        setNotice(result.ok ? 'Machine removed.' : 'That machine was already removed.')
+        await state.refresh()
+      } else setError(controlMessage(result.error.code))
+    } catch {
+      if (live.current) setError(controlMessage('offline'))
+    } finally {
+      if (live.current) setBusy(false)
+    }
+  }
   return (
-    <div className="grid grid-cols-3 gap-3">
-      <StatTile label="Lanes" value={`${liveHere} live`} />
-      <StatTile label="pi" value={computer.health?.version ?? '…'} />
-      <StatTile label="Logins" value={String(signedInNames(computer).length)} />
-    </div>
-  )
-}
-
-function FakeMachineTab({
-  machine,
-  tab,
-}: {
-  machine: FakeMachine
-  tab: MachineTab
-}): React.JSX.Element {
-  // Select the stored array and filter here: a selector that returns a new
-  // array on every read makes zustand re-render without end.
-  const allLanes = useMachinesStore((s) => s.lanes)
-  const lanes = allLanes.filter((lane) => lane.machineId === machine.id)
-  if (tab === 'lanes')
-    return (
-      <div data-testid="machine-lanes">
-        {lanes.map((lane) => (
-          <RemoteLaneRow key={lane.id} lane={lane} />
-        ))}
-      </div>
-    )
-  if (tab === 'dependencies')
-    return <DependencyTable dependencies={machine.dependencies} disabled />
-  if (tab === 'logins')
-    return (
-      <div className="border-border divide-border divide-y rounded-lg border">
-        {machine.logins.map((login) => (
-          <div key={login.name} className="flex items-center gap-3 px-3 py-2">
-            <span className="flex-1 font-medium">{login.name}</span>
-            <span
-              className={login.signedIn ? 'text-success text-sm' : 'text-text-tertiary text-sm'}
+    <PageShell title={<PaneTitle label="Machines" />}>
+      <div data-testid="machines-page" className="flex-1 overflow-y-auto px-6 pb-10 pt-5">
+        <div className="mx-auto max-w-4xl space-y-6">
+          {selected && (
+            <TooltipButton
+              tooltip="Back to all machines"
+              className="text-text-secondary hover:text-text -mb-3 text-base"
+              onClick={back}
             >
-              {login.signedIn ? 'signed in' : 'not signed in'}
-            </span>
-            <Button size="xs" disabled title={NOT_YET}>
-              {login.signedIn ? 'Sign out' : 'Sign in'}
-            </Button>
-          </div>
-        ))}
-        <p className="text-text-tertiary px-3 py-2 text-sm">
-          On a real Host, Sign in runs that provider&apos;s own login there, as{' '}
-          <code>phosphor providers login</code> does today. The credential stays on the Host.
-        </p>
-      </div>
-    )
-  return (
-    <div className="grid grid-cols-3 gap-3">
-      <StatTile label="Lanes" value={`${lanes.filter(isLive).length} live`} />
-      <StatTile label="Status" value={machine.up ? 'up' : `down ${ago(machine.seenMinutesAgo)}`} />
-      <StatTile label="Logins" value={String(machine.logins.filter((l) => l.signedIn).length)} />
-    </div>
-  )
-}
-
-function DependencyTable({
-  dependencies,
-  disabled = false,
-  note,
-}: {
-  dependencies: FakeDependency[]
-  disabled?: boolean
-  note?: string
-}): React.JSX.Element {
-  return (
-    <div
-      className="border-border divide-border divide-y rounded-lg border"
-      data-testid="dependencies"
-    >
-      {dependencies.map((dependency) => (
-        <div key={dependency.name} className="flex items-center gap-3 px-3 py-2">
-          <span className="w-32 shrink-0 font-medium">{dependency.name}</span>
-          <span className="w-20 shrink-0 font-mono text-sm">{dependency.version || '-'}</span>
-          <span
-            className={clsx(
-              'flex-1 text-sm',
-              dependency.ok ? 'text-text-secondary' : 'text-warning',
+              ← Machines
+            </TooltipButton>
+          )}
+          <header className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              {machine && signedIn ? (
+                <MachineLabel
+                  key={machine.id}
+                  machine={machine}
+                  onSaved={(updated) => {
+                    useMachinesStore.setState((current) => ({
+                      machines: current.machines.map((entry) =>
+                        entry.id === updated.id ? updated : entry,
+                      ),
+                    }))
+                    void state.refresh()
+                  }}
+                />
+              ) : (
+                <h1 className="text-3xl font-semibold">
+                  {local ? localMachineLabel(window.phosphor.platform) : 'Machines'}
+                </h1>
+              )}
+              <p className="text-text-secondary mt-2 max-w-xl text-lg">
+                {machine
+                  ? machineSubtitle(machine, now, state.clockOffsetMs)
+                  : local
+                    ? `${platformName(window.phosphor.platform)} · Your local lanes run here`
+                    : "This computer and the Hosts you've added. Lanes on other machines come later."}
+              </p>
+            </div>
+            {!selected && (
+              <span {...tooltipProps(signedIn ? undefined : 'Sign in with GitHub to add machines')}>
+                <Button variant="primary" disabled={!signedIn} onClick={() => setAdding(true)}>
+                  Add a machine
+                </Button>
+              </span>
             )}
-          >
-            {dependency.ok ? '✓' : '✗'} {dependency.note}
-          </span>
-          {disabled && dependency.upgrade && (
-            <Button size="xs" disabled title={NOT_YET}>
-              Upgrade to {dependency.upgrade}
-            </Button>
+          </header>
+          {notice && (
+            <p role="status" className="text-success text-base">
+              {notice}
+            </p>
+          )}
+          {(accountError || state.error || (error && !removing)) && (
+            <div
+              role="alert"
+              className="border-border bg-bg-secondary rounded-lg border p-4 text-base"
+            >
+              {accountError ?? error ?? controlMessage(state.error ?? 'offline')}{' '}
+              <Button size="xs" onClick={() => void state.refresh()}>
+                Retry
+              </Button>
+            </div>
+          )}
+          {!selected ? (
+            <>
+              {state.loading && (
+                <p role="status" className="text-text-secondary text-base">
+                  Updating machines…
+                </p>
+              )}
+              <div className="border-border divide-border overflow-hidden rounded-lg border bg-surface divide-y">
+                <TooltipButton
+                  tooltip={`Open ${localMachineLabel(window.phosphor.platform)}`}
+                  data-testid="local-machine-row"
+                  className="hover:bg-bg-secondary focus-visible:bg-bg-secondary focus-visible:outline-accent flex w-full items-center gap-4 px-5 py-4 text-left"
+                  onClick={() => state.show({ kind: 'machine', id: LOCAL_MACHINE })}
+                >
+                  <Dot online />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-lg font-medium">
+                      {localMachineLabel(window.phosphor.platform)}
+                    </span>
+                    <span className="text-text-secondary mt-1 block text-base">
+                      {platformName(window.phosphor.platform)} · Online
+                      {liveHere > 0
+                        ? ` · ${liveHere} live ${liveHere === 1 ? 'lane' : 'lanes'}`
+                        : ''}
+                    </span>
+                  </span>
+                  <span className="hidden md:block">
+                    <ReadinessChips checks={localChecks} />
+                  </span>
+                  <span aria-hidden className="text-text-tertiary">
+                    ›
+                  </span>
+                </TooltipButton>
+                {signedIn &&
+                  sortMachines(state.machines, now, state.clockOffsetMs).map((entry) => (
+                    <MachineRow
+                      key={entry.id}
+                      machine={entry}
+                      now={now}
+                      offset={state.clockOffsetMs}
+                      onOpen={() => {
+                        setError(null)
+                        state.show({ kind: 'machine', id: entry.id })
+                      }}
+                    />
+                  ))}
+              </div>
+              {!signedIn ? (
+                <div className="border-border rounded-lg border p-5">
+                  <h2 className="text-lg font-medium">Sign in with GitHub to add other machines</h2>
+                  <p className="text-text-secondary mb-4 mt-1 text-base">
+                    Sign-in is optional. Your local lanes stay on this computer.
+                  </p>
+                  <Button
+                    disabled={account?.account.status === 'signing-in'}
+                    onClick={() => {
+                      void window.phosphor
+                        .invoke('account:signIn')
+                        .catch(() => setError('Could not start sign-in. Try again.'))
+                    }}
+                  >
+                    {account?.account.status === 'signing-in'
+                      ? 'Finish in your browser…'
+                      : 'Sign in with GitHub'}
+                  </Button>
+                </div>
+              ) : (
+                !state.loading &&
+                !state.error &&
+                !state.machines.length && (
+                  <section className="border-border rounded-lg border p-6">
+                    <h2 className="mb-2 text-xl font-semibold">Bring another machine online</h2>
+                    <p className="text-text-secondary mb-5 text-base">
+                      Run these steps on the other machine, then approve its code here.
+                    </p>
+                    <HostSetup collapsed />
+                    <div className="mt-5 flex items-center gap-4">
+                      <Button onClick={() => setAdding(true)}>Add a machine</Button>
+                      <HostGuide />
+                    </div>
+                  </section>
+                )
+              )}
+            </>
+          ) : local ? (
+            <div data-testid="machine-detail" className="space-y-6">
+              <Section title="Status">
+                <div className="grid grid-cols-2 gap-4">
+                  <StatTile label="State" value="Online" />
+                  <StatTile label="Live lanes" value={String(liveHere)} />
+                </div>
+              </Section>
+              <Section title="Readiness">
+                {computer.error && (
+                  <p role="alert" className="text-danger mb-3 text-base">
+                    Could not read all local checks. Open Settings to retry.
+                  </p>
+                )}
+                <Checks checks={localChecks} local />
+                <div className="mt-4 space-y-2">
+                  {computer.providers?.map((provider) => (
+                    <p key={provider.id} className="text-text-secondary text-base">
+                      {provider.name}: {provider.status === 'ready' ? 'Signed in' : 'Not signed in'}
+                    </p>
+                  ))}
+                </div>
+              </Section>
+              <Section title="About">
+                <p className="text-text-secondary text-base">
+                  {platformName(window.phosphor.platform)} · pi{' '}
+                  {computer.health?.version ?? 'not available'}
+                </p>
+                <p className="text-text-secondary mt-2 text-base">
+                  Local lanes run here. Sharing this computer comes later.
+                </p>
+              </Section>
+            </div>
+          ) : machine && signedIn ? (
+            <div data-testid="machine-detail" className="space-y-6">
+              {!machine.lastSeenAt && (
+                <div className="border-border bg-bg-secondary space-y-3 rounded-lg border p-5">
+                  <h2 className="text-xl font-semibold">Finish setting up {machine.label}</h2>
+                  <p className="text-text-secondary text-base">Try it now on {machine.label}:</p>
+                  <CopyCommand command={HOST_RUN} />
+                  <p className="text-text-secondary text-base">
+                    On Linux, keep it online after logout and reboot:
+                  </p>
+                  <CopyCommand command={HOST_SERVICE_INSTALL} />
+                </div>
+              )}
+              {machine.lastSeenAt &&
+                machineStatus(machine, now, state.clockOffsetMs) === 'down' &&
+                correctedNow - Date.parse(machine.lastSeenAt) > 86400000 && (
+                  <div className="border-border space-y-3 rounded-lg border p-5">
+                    <p className="text-text-secondary text-base">
+                      Offline for more than a day. Check the service on {machine.label}.
+                    </p>
+                    <CopyCommand command={HOST_SERVICE_STATUS} />
+                  </div>
+                )}
+              <Section title="Status">
+                <dl className="grid grid-cols-1 gap-4 text-base sm:grid-cols-3">
+                  <div>
+                    <dt className="text-text-secondary">State</dt>
+                    <dd className="mt-1 font-medium">
+                      {statusText(machine, now, state.clockOffsetMs)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-text-secondary">Last seen</dt>
+                    <dd className="mt-1">
+                      {machine.lastSeenAt
+                        ? relativeTime(machine.lastSeenAt, correctedNow)
+                        : 'No heartbeat yet'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-text-secondary">Enrolled</dt>
+                    <dd className="mt-1">{new Date(machine.enrolledAt).toLocaleDateString()}</dd>
+                  </div>
+                </dl>
+              </Section>
+              <Section title="Readiness">
+                {readinessFreshness(machine, now, state.clockOffsetMs) === 'none' ? (
+                  <p className="text-text-secondary text-base">
+                    {machine.label} reports pi, Claude and Tailscale once it first connects.
+                  </p>
+                ) : (
+                  <>
+                    {readinessFreshness(machine, now, state.clockOffsetMs) === 'stale' &&
+                      machine.lastSeenAt && (
+                        <p className="text-text-secondary mb-4 text-base">
+                          As last reported, {relativeTime(machine.lastSeenAt, correctedNow)}. It may
+                          have changed since.
+                        </p>
+                      )}
+                    <Checks checks={readinessChecks(machine.readiness)} />
+                  </>
+                )}
+              </Section>
+              <Section title="About">
+                <dl className="mb-5 grid grid-cols-2 gap-4 text-base">
+                  <div>
+                    <dt className="text-text-secondary">Hostname</dt>
+                    <dd>{machine.hostname}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-text-secondary">OS and architecture</dt>
+                    <dd>
+                      {platformName(machine.platform)} {machine.arch}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-text-secondary">Host version</dt>
+                    <dd>{machine.hostVersion ?? 'Not reported'}</dd>
+                  </div>
+                </dl>
+                <p className="text-text-secondary mb-2 text-base">Key fingerprint</p>
+                <CopyCommand command={machine.keyFingerprint} />
+                <p className="text-text-secondary mb-2 mt-4 text-base">Machine id</p>
+                <CopyCommand command={machine.id} />
+              </Section>
+              <Section title="Remove machine">
+                <p className="text-text-secondary mb-3 text-base">
+                  Remove this machine from your account. Its files and installation stay on the
+                  machine.
+                </p>
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    setError(null)
+                    setRemoving(machine)
+                  }}
+                >
+                  Remove machine
+                </Button>
+              </Section>
+            </div>
+          ) : (
+            <div className="border-border rounded-lg border p-5 text-base">
+              {signedIn
+                ? 'This machine is no longer in your account.'
+                : 'Sign in again to see this machine.'}
+              <Button className="ml-3" onClick={back}>
+                All machines
+              </Button>
+            </div>
           )}
         </div>
-      ))}
-      {note && <p className="text-text-tertiary px-3 py-2 text-sm">{note}</p>}
-    </div>
-  )
-}
-
-function RemoteLaneView({ id }: { id: string }): React.JSX.Element {
-  const lane = useMachinesStore((s) => s.lanes.find((l) => l.id === id))
-  const show = useMachinesStore((s) => s.show)
-  if (!lane) return <p className="text-text-secondary">This lane is gone.</p>
-  const machine = machineById(lane.machineId)
-  const name = machine?.name ?? lane.machineId
-  return (
-    <div data-testid="remote-lane-view" className="border-border rounded-lg border p-4">
-      <div className="mb-1 flex items-center gap-2">
-        <h2 className="text-xl font-semibold">{lane.title}</h2>
-        <MachineChip label={machine?.up ? name : `${name} · down`} />
       </div>
-      <p className="text-text-secondary mb-3 text-sm">
-        {LANE_STATE_LABEL[lane.state]} · ⎇ {lane.branch}
-        {lane.pr !== undefined && ` · PR #${lane.pr}`} · {lane.project} ·{' '}
-        {lane.minutesAgo === 0 ? 'just now' : `${ago(lane.minutesAgo)} ago`}
-      </p>
-      <p className="mb-4 text-base">
-        {machine?.up
-          ? `This lane runs on ${name}. Once Phosphor can reach a Host (component 21), its chat opens here like a lane on this computer, streamed from ${name}.`
-          : `${name} is down. This is what it last reported, ${ago(machine?.seenMinutesAgo ?? 0)} ago; the chat opens when it is back.`}
-      </p>
-      <div className="flex gap-2">
-        <Button
-          size="sm"
-          onClick={() => show({ kind: 'machine', id: lane.machineId, tab: 'overview' })}
+      {adding && <AddMachineDialog onClose={() => setAdding(false)} />}
+      {removing && (
+        <ModalOverlay
+          onClose={() => {
+            if (!busy) setRemoving(null)
+          }}
         >
-          Open {name}
-        </Button>
-        <Button
-          size="sm"
-          disabled={!isLive(lane) || !machine?.up}
-          onClick={() => useMachinesStore.getState().pretendFinished(lane.id)}
-        >
-          Pretend it finished
-        </Button>
-      </div>
-    </div>
+          <div role="dialog" aria-modal="true" aria-label="Remove machine">
+            <ModalPanel
+              width={480}
+              title={`Remove ${removing.label}?`}
+              footer={
+                <>
+                  <Button disabled={busy} onClick={() => setRemoving(null)}>
+                    Cancel
+                  </Button>
+                  <Button variant="danger" disabled={busy} onClick={() => void remove()}>
+                    {busy ? 'Removing…' : 'Remove machine'}
+                  </Button>
+                </>
+              }
+            >
+              <div className="space-y-3 p-5 text-base">
+                <p>
+                  The Host stops at its next heartbeat. Its files and installation stay on the
+                  machine.
+                </p>
+                <p className="text-text-secondary">
+                  Run <code>phosphor login</code> again on {removing.label} to bring it back.
+                </p>
+                {error && (
+                  <p role="alert" className="text-danger">
+                    {error}
+                  </p>
+                )}
+              </div>
+            </ModalPanel>
+          </div>
+        </ModalOverlay>
+      )}
+    </PageShell>
   )
 }
