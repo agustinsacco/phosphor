@@ -73,6 +73,11 @@ spec:
                 secretKeyRef:
                   name: phosphor-control
                   key: edge-secret
+            - name: CONTROL_GRANT_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: phosphor-control
+                  key: grant-keys
           resources:
             limits:
               memory: 256Mi

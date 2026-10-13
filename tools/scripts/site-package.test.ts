@@ -85,7 +85,7 @@ describe('independent apps/site package contract', () => {
     )
   })
 
-  it('renders only the two required Secret placeholders and preserves the rollout guards', () => {
+  it('renders only the three required Secret placeholders and preserves the rollout guards', () => {
     const deploy = read('.github/workflows/deploy-site.yml')
     expect(read('.infra/phosphor-site/secret.yaml')).toContain(
       "supabase-secret-key: '${SUPABASE_SECRET_KEY}'",
@@ -93,16 +93,22 @@ describe('independent apps/site package contract', () => {
     expect(read('.infra/phosphor-site/secret.yaml')).toContain(
       "edge-secret: '${CONTROL_EDGE_SECRET}'",
     )
+    expect(read('.infra/phosphor-site/secret.yaml')).toContain(
+      "grant-keys: '${CONTROL_GRANT_KEYS}'",
+    )
     // Applied on its own with suppressed output, never through the kustomization.
     expect(read('.infra/phosphor-site/kustomization.yaml')).not.toContain('secret.yaml')
     const pod = read('.infra/phosphor-site/deployment.yaml')
-    for (const key of ['supabase-secret-key', 'edge-secret']) expect(pod).toContain(`key: ${key}`)
+    for (const key of ['supabase-secret-key', 'edge-secret', 'grant-keys'])
+      expect(pod).toContain(`key: ${key}`)
     expect(pod).not.toMatch(/optional:\s*true/)
     // Both probes ask the process, not the site files.
     expect(pod.match(/path: \/healthz\n/g)).toHaveLength(2)
     expect(pod).not.toMatch(/path: \/\n/)
     expect(read('.infra/phosphor-site/service.yaml')).not.toContain('loadBalancerSourceRanges')
-    expect(deploy).toContain("envsubst '${SUPABASE_SECRET_KEY} ${CONTROL_EDGE_SECRET}'")
+    expect(deploy).toContain(
+      "envsubst '${SUPABASE_SECRET_KEY} ${CONTROL_EDGE_SECRET} ${CONTROL_GRANT_KEYS}'",
+    )
     expect(deploy).toContain('^[A-Za-z0-9_-]{32,512}$')
     expect(deploy).toContain('umask 077')
     expect(deploy).toContain("grep -Fq '${'")
@@ -159,7 +165,11 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
       if (args[0] === 'kustomize') process.stdout.write(fs.readFileSync(process.env.RUNNER_TEMP + '/template'))
       if (args[0] === 'apply' && args[2] !== '-') {
         const manifest = fs.readFileSync(args[2], 'utf8')
-        const secrets = [process.env.SUPABASE_SECRET_KEY, process.env.CONTROL_EDGE_SECRET]
+        const secrets = [
+          process.env.SUPABASE_SECRET_KEY,
+          process.env.CONTROL_EDGE_SECRET,
+          process.env.CONTROL_GRANT_KEYS,
+        ]
         if (args[2].endsWith('/phosphor-control-secret.yaml')) {
           if (!secrets.every((value) => manifest.includes(value))) process.exit(1)
           fs.writeFileSync(process.env.RUNNER_TEMP + '/mode', String(fs.statSync(args[2]).mode & 0o777))
@@ -183,12 +193,12 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
     binary(
       'envsubst',
       `
-      if (process.argv[2] !== '$' + '{SUPABASE_SECRET_KEY} $' + '{CONTROL_EDGE_SECRET}') process.exit(1)
+      if (process.argv[2] !== '$' + '{SUPABASE_SECRET_KEY} $' + '{CONTROL_EDGE_SECRET} $' + '{CONTROL_GRANT_KEYS}') process.exit(1)
       if (process.argv.length !== 3) process.exit(1)
       let input = ''
       process.stdin.on('data', chunk => input += chunk)
       process.stdin.on('end', () => {
-        for (const name of ['SUPABASE_SECRET_KEY', 'CONTROL_EDGE_SECRET'])
+        for (const name of ['SUPABASE_SECRET_KEY', 'CONTROL_EDGE_SECRET', 'CONTROL_GRANT_KEYS'])
           input = input.split('$' + '{' + name + '}').join(process.env[name])
         process.stdout.write(input + (process.env.LEAVE_PLACEHOLDER ? '$' + '{LEFT}' : ''))
       })
@@ -211,7 +221,19 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
     )
     const template = 'image: test:latest\n        phosphor.saccolabs.com/deploy-run: local\n'
     const secret = (length: number) => randomBytes(length).toString('base64url').slice(0, length)
-    const run = (supabase: string, edge: string, suffix = '', applyFail = '', leave = '') => {
+    const grantKeys = (count = 1) =>
+      Array.from(
+        { length: count },
+        (_, i) => `k${i}=${randomBytes(32).toString('base64url')}`,
+      ).join(',')
+    const run = (
+      supabase: string,
+      edge: string,
+      suffix = '',
+      applyFail = '',
+      leave = '',
+      grants = grantKeys(),
+    ) => {
       for (const name of ['calls', 'mode', 'applied']) rmSync(join(work, name), { force: true })
       writeFileSync(join(work, 'template'), template + suffix)
       const result = spawnSync('bash', ['-c', shell], {
@@ -223,6 +245,7 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
           RUNNER_TEMP: work,
           SUPABASE_SECRET_KEY: supabase,
           CONTROL_EDGE_SECRET: edge,
+          CONTROL_GRANT_KEYS: grants,
           IMAGE_NAME: 'test',
           IMAGE_DIGEST: 'sha256:' + 'a'.repeat(64),
           GITHUB_RUN_ID: '4242',
@@ -232,7 +255,7 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
         },
       })
       const output = result.stdout + result.stderr
-      for (const value of [supabase, edge]) {
+      for (const value of [supabase, edge, grants]) {
         expect(output.includes(value)).toBe(false)
         expect(output.includes(Buffer.from(value).toString('base64'))).toBe(false)
       }
@@ -261,6 +284,19 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
       expect(run(secret(32), invalid)).toBe(1)
       expect(existsSync(join(work, 'calls'))).toBe(false)
     }
+    // Grant keys: shape-checked here, strictly parsed by the server at startup.
+    expect(run(secret(32), secret(32), '', '', '', grantKeys(8))).toBe(0)
+    for (const invalid of [
+      grantKeys(1) + '+',
+      grantKeys(1) + ' ',
+      grantKeys(1) + '\n',
+      grantKeys(1) + 'é',
+      'k=' + 'a'.repeat(4095),
+    ]) {
+      expect(run(secret(32), secret(32), '', '', '', invalid)).toBe(1)
+      expect(existsSync(join(work, 'calls'))).toBe(false)
+    }
+    expect(run(secret(32), secret(32), '', '', '', 'k=' + 'a'.repeat(4094))).toBe(0)
     expect(run(secret(32), secret(32), '', '', '1')).toBe(1)
     expect(existsSync(join(work, 'mode'))).toBe(false)
     expect(run(secret(32), secret(32), '${UNRENDERED}')).toBe(1)
@@ -272,13 +308,14 @@ it('validates deployment secrets before I/O, renders privately and cleans up on 
     expect(existsSync(join(work, 'applied'))).toBe(false)
     // Empty secrets are refused too; avoid the output containment check for an empty string.
     const validation = shell.slice(0, shell.indexOf('umask 077'))
-    for (const missing of ['SUPABASE_SECRET_KEY', 'CONTROL_EDGE_SECRET']) {
+    for (const missing of ['SUPABASE_SECRET_KEY', 'CONTROL_EDGE_SECRET', 'CONTROL_GRANT_KEYS']) {
       const result = spawnSync('bash', ['-c', validation], {
         encoding: 'utf8',
         env: {
           LC_ALL: 'en_US.UTF-8',
           SUPABASE_SECRET_KEY: secret(32),
           CONTROL_EDGE_SECRET: secret(32),
+          CONTROL_GRANT_KEYS: grantKeys(),
           [missing]: '',
         },
       })

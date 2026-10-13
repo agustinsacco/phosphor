@@ -162,7 +162,8 @@ not a file or log.
 
 To rotate, first append the new key while the old key still signs, then move the
 new key to the first position. Keep the old key published until existing grants
-and cached keysets have expired. Hosts cache the public keyset for five minutes.
+and cached keysets have expired. The keyset response may be cached for five
+minutes; a Host that meets an unknown key id fetches the keyset again.
 `CONTROL_PUBLIC_ORIGIN` is the exact bare issuer origin, HTTPS or HTTP on
 `localhost` or `127.0.0.1` with a port for local stacks. Paths, queries,
 fragments and userinfo are refused. Hosts compare it to their configured
@@ -234,11 +235,13 @@ read-only root, no privilege escalation, RuntimeDefault seccomp, a 256Mi memory
 limit and fifteen seconds for the server's ten-second shutdown.
 
 Deploy Site builds this Dockerfile and pins the pushed image digest. The
-`phosphor-control` Secret supplies required `supabase-secret-key` and `edge-secret`
-keys. Neither reference is optional: missing configuration fails the rollout.
-The template holds only `${SUPABASE_SECRET_KEY}` and `${CONTROL_EDGE_SECRET}`.
-The workflow validates both repository secrets against `^[A-Za-z0-9_-]{32,512}$`,
-then uses restricted `envsubst` to render only those placeholders into a 0600
+`phosphor-control` Secret supplies required `supabase-secret-key`, `edge-secret`
+and `grant-keys` keys. No reference is optional: missing configuration fails the
+rollout. The template holds only `${SUPABASE_SECRET_KEY}`, `${CONTROL_EDGE_SECRET}`
+and `${CONTROL_GRANT_KEYS}`. The workflow validates the first two repository
+secrets against `^[A-Za-z0-9_-]{32,512}$` and the grant keys' shape (1 to 4096
+letters, digits, `_`, `-`, `=` or `,`; the server parses them strictly at
+startup), then uses restricted `envsubst` to render only those placeholders into a 0600
 file under `RUNNER_TEMP`. Unresolved placeholders fail. The Secret is applied on
 its own with kubectl's output suppressed, because diagnostics can carry its data
 in a form log masking misses; it is not part of the kustomization. Cleanup runs
