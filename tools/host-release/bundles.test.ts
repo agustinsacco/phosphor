@@ -2,6 +2,7 @@ import { execFileSync, spawnSync } from 'node:child_process'
 import {
   cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -10,7 +11,8 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir, userInfo } from 'node:os'
+import { pathToFileURL } from 'node:url'
 import { join, resolve } from 'node:path'
 import { createHash } from 'node:crypto'
 import { gunzipSync, gzipSync } from 'node:zlib'
@@ -143,7 +145,31 @@ function installPrepared(
 function launcher(home: string) {
   return join(home, '.local/bin/phosphor')
 }
-describe('signed Host bundle tools', () => {
+function hook(home: string, command: string, body: string) {
+  const commands = join(home, 'commands')
+  mkdirSync(commands, { recursive: true })
+  const real = execFileSync('sh', ['-c', `command -v ${command}`], { encoding: 'utf8' }).trim()
+  writeFileSync(
+    join(commands, command),
+    `#!/bin/sh\nreal='${real}'\n${body}\nexec "$real" "$@"\n`,
+    {
+      mode: 0o755,
+    },
+  )
+  return `${commands}:${process.env.PATH}`
+}
+function rerun(home: string, release: string) {
+  return spawnSync('sh', [script, '1.2.3'], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      HOME: home,
+      TMPDIR: join(home, 'temp'),
+      PHOSPHOR_HOST_RELEASE_URL: `file://${release}`,
+    },
+  })
+}
+describe('signed Host bundle tools', { timeout: 60_000 }, () => {
   it('builds byte-identical bundles and installs without system Node, including latest alias', () => {
     for (const requested of ['1.2.3', '']) {
       const { result, home } = install(undefined, undefined, undefined, undefined, requested)
@@ -154,6 +180,100 @@ describe('signed Host bundle tools', () => {
       })
       expect(version).toContain('1.2.3')
     }
+  })
+  it('keeps release bundles independent of TMPDIR and untracked machine files', () => {
+    const probe = `phosphor-untracked-probe-${process.pid}.txt`
+    expect(spawnSync('git', ['check-ignore', '-q', probe], { cwd: root }).status).toBe(1)
+    const commands = join(dir, 'build-commands')
+    mkdirSync(commands)
+    const realGit = execFileSync('sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim()
+    // Ignore this working patch, but preserve real git handling of the one probe.
+    writeFileSync(
+      join(commands, 'git'),
+      `#!/bin/sh
+real='${realGit}'
+[ "$1" = status ] || exec "$real" "$@"
+status=$("$real" "$@") || exit "$?"
+printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
+`,
+      { mode: 0o755 },
+    )
+    const build = (name: string, shim: boolean) => {
+      const temp = join(dir, `${name}-temp`)
+      mkdirSync(temp)
+      const output = join(dir, name)
+      node(
+        `import {buildBundle} from './tools/host-release/build-bundle.mjs'; await buildBundle(${JSON.stringify(target)},${JSON.stringify(output)},${JSON.stringify(cache)},${JSON.stringify({ version: '24.14.1', archives: { [target]: hash(readFileSync(join(cache, `node-v24.14.1-${target}.tar.gz`))) } })})`,
+        {
+          TMPDIR: temp,
+          ...(shim ? { PATH: `${commands}:${process.env.PATH}` } : {}),
+        },
+      )
+      return readFileSync(join(output, `phosphor-host-1.2.3-${target}.tar.gz`))
+    }
+    const clean = build('probe-before', true)
+    try {
+      writeFileSync(join(root, probe), 'Untracked machine data')
+      expect(build('probe-after', true).equals(clean)).toBe(true)
+    } finally {
+      rmSync(join(root, probe), { force: true })
+    }
+    expect(build('real-other-temp', false).equals(bundle)).toBe(true)
+  })
+  it('carries no machine paths, source maps or sourceMappingURL in release text', () => {
+    const unpacked = join(dir, 'scan')
+    mkdirSync(unpacked)
+    execFileSync('tar', ['-xzf', join(out, `phosphor-host-1.2.3-${target}.tar.gz`), '-C', unpacked])
+    for (const file of readdirSync(unpacked, { recursive: true, encoding: 'utf8' })) {
+      if (!lstatSync(join(unpacked, file)).isFile()) continue
+      expect(file).not.toMatch(/\.map$/)
+      const text = readFileSync(join(unpacked, file)).toString('utf8')
+      if (text.includes('\0')) continue // Node is the only binary in the bundle.
+      for (const forbidden of [root, tmpdir(), homedir(), userInfo().username, 'sourceMappingURL'])
+        expect(text, `${file} contains ${forbidden}`).not.toContain(forbidden)
+    }
+  })
+  it('recognizes both CLI entry points through paths containing spaces and percent signs', () => {
+    const path = join(dir, 'entry % space')
+    mkdirSync(path)
+    execFileSync('ln', [
+      '-s',
+      join(root, 'tools/host-release/build-bundle.mjs'),
+      join(path, 'build.mjs'),
+    ])
+    execFileSync('ln', [
+      '-s',
+      join(root, 'tools/host-release/manifest.mjs'),
+      join(path, 'manifest.mjs'),
+    ])
+    for (const name of ['build', 'manifest']) {
+      const entry = join(path, `${name}.mjs`)
+      const result = spawnSync(process.execPath, [entry, '--unknown'], { encoding: 'utf8' })
+      expect(result.status).not.toBe(0)
+      expect(result.stderr).toContain('Unknown option')
+      expect(
+        node(
+          `import {isEntryPoint} from './tools/host-release/common.mjs'; process.argv[1]=${JSON.stringify(entry)}; console.log(isEntryPoint(${JSON.stringify(pathToFileURL(entry).href)}))`,
+        ).trim(),
+      ).toBe('true')
+    }
+  })
+  it('documents the implemented lock protocol and does not claim an updater or publishing workflow exists', () => {
+    const docs = readFileSync(join(root, 'docs/host.md'), 'utf8')
+    for (const rule of [
+      'Any updater must',
+      'recovery/',
+      '.install-lock.retired.<own-pid>',
+      'Retire the whole',
+      'missing or malformed pid',
+      'no program deletes the',
+      'SIGKILL or power loss can leave a',
+      'No workflow publishes them',
+      '`phosphor update` does not exist yet',
+    ])
+      expect(docs).toContain(rule)
+    expect(docs).not.toContain('signals are\nignored')
+    expect(docs).not.toContain('The release workflow publishes')
   })
   it('is idempotent for the selected version and restores a missing launcher', () => {
     for (const missing of [false, true]) {
@@ -261,6 +381,288 @@ describe('signed Host bundle tools', () => {
         expect(readFileSync(join(old, '.install-lock/pid'), 'utf8')).toBe(`${owner}\n`)
       }
     }
+  })
+  it('defers HUP, INT and TERM during acquisition, reclamation and publication', () => {
+    for (const [signal, code] of [
+      ['HUP', 129],
+      ['INT', 130],
+      ['TERM', 143],
+    ] as const) {
+      for (const phase of ['acquire', 'gate', 'retire', 'publish']) {
+        const { result, old, home } = installPrepared(
+          (home) => {
+            const root = join(home, '.local/lib/phosphor-host')
+            if (phase === 'gate' || phase === 'retire') {
+              mkdirSync(join(root, '.install-lock'))
+              writeFileSync(join(root, '.install-lock/pid'), '2147483647\n')
+            }
+            if (phase === 'publish') {
+              rmSync(launcher(home))
+              writeFileSync(launcher(home), 'source launcher')
+            }
+            const command = phase === 'acquire' || phase === 'gate' ? 'mkdir' : 'mv'
+            const pattern = {
+              acquire: '*"/.install-lock"',
+              gate: '*"/.install-lock/recovery"',
+              retire: '*"/.install-lock "*',
+              publish: '*"/version "*',
+            }[phase]
+            const body = `case "$*" in ${pattern}) "$real" "$@" || exit "$?"; kill -${signal} "$PPID"; exit 0 ;; esac`
+            return { PATH: hook(home, command, body) }
+          },
+          phase === 'publish' ? ['--replace-launcher'] : [],
+        )
+        expect(result.status, `${phase}: ${result.stderr}`).toBe(code)
+        expect(result.stdout).not.toContain('Installed')
+        expect(result.stdout).not.toContain('Next:')
+        expect(readdirSync(old).sort()).toEqual(['current', 'versions'])
+        if (phase === 'publish') {
+          expect(
+            execFileSync('readlink', [join(old, 'current')], { encoding: 'utf8' }).trim(),
+          ).toBe('versions/1.2.3')
+          expect(execFileSync(launcher(home), ['version'], { encoding: 'utf8' })).toContain('1.2.3')
+          expect(readFileSync(`${launcher(home)}.before-release`, 'utf8')).toBe('source launcher')
+        } else expect(readdirSync(join(old, 'versions'))).toEqual(['old'])
+      }
+    }
+  })
+  it('rolls back from filesystem state when a signaled publication rename returns failure after moving', () => {
+    for (const [phase, signal, code] of [
+      ['version', 'TERM', 143],
+      ['backup', 'TERM', 143],
+      ['launcher', 'TERM', 143],
+      ['current', 'TERM', 143],
+      ['current', 'HUP', 129],
+      ['current', 'INT', 130],
+    ] as const) {
+      const { result, home, old } = installPrepared(
+        (home) => {
+          rmSync(launcher(home))
+          writeFileSync(launcher(home), 'source launcher')
+          const pattern = {
+            version: '*"/version "*',
+            backup: '*"/bin/phosphor "*"/phosphor.before-release"',
+            launcher: '*"/phosphor "*"/bin/phosphor"',
+            current: '*"/current "*',
+          }[phase]
+          return {
+            PATH: hook(
+              home,
+              'mv',
+              `case "$*" in ${pattern}) "$real" "$@" || exit "$?"; kill -${signal} "$PPID"; exit 1 ;; esac`,
+            ),
+          }
+        },
+        ['--replace-launcher'],
+      )
+      expect(result.status, `${phase}: ${result.stderr}`).toBe(code)
+      expect(execFileSync('readlink', [join(old, 'current')], { encoding: 'utf8' }).trim()).toBe(
+        'versions/old',
+      )
+      expect(readFileSync(launcher(home), 'utf8')).toBe('source launcher')
+      expect(existsSync(`${launcher(home)}.before-release`)).toBe(false)
+      expect(readdirSync(join(old, 'versions'))).toEqual(['old'])
+      expect(readdirSync(old).sort()).toEqual(['current', 'versions'])
+      expect(result.stdout).not.toContain('Next:')
+    }
+  })
+  it('protects lock mkdir and retirement from a signal sent to both parent and child', () => {
+    for (const phase of ['acquire', 'retire']) {
+      let release = ''
+      const { result, old, home } = installPrepared((home, folder) => {
+        release = folder
+        if (phase === 'retire') {
+          const lock = join(home, '.local/lib/phosphor-host/.install-lock')
+          mkdirSync(lock)
+          writeFileSync(join(lock, 'pid'), '2147483647\n')
+        }
+        const pattern = phase === 'acquire' ? '*"/.install-lock"' : '*"/.install-lock "*'
+        return {
+          PATH: hook(
+            home,
+            phase === 'acquire' ? 'mkdir' : 'mv',
+            `case "$*" in ${pattern}) "$real" "$@" || exit "$?"; kill -INT "$PPID"; kill -INT "$$"; exit 0 ;; esac`,
+          ),
+        }
+      })
+      expect(result.status, `${phase}: ${result.stderr}`).toBe(130)
+      expect(readdirSync(old).sort()).toEqual(['current', 'versions'])
+      expect(readdirSync(join(old, 'versions'))).toEqual(['old'])
+      expect(execFileSync('readlink', [join(old, 'current')], { encoding: 'utf8' }).trim()).toBe(
+        'versions/old',
+      )
+      const next = rerun(home, release)
+      expect(next.status, next.stderr).toBe(0)
+      expect(readdirSync(old).sort()).toEqual(['current', 'versions'])
+    }
+  })
+  it('protects publication mv from a signal sent to both parent and child', () => {
+    const { result, old, home } = installPrepared((home) => ({
+      PATH: hook(
+        home,
+        'mv',
+        `case "$*" in *"/current "*) "$real" "$@" || exit "$?"; kill -INT "$PPID"; kill -INT "$$"; exit 0 ;; esac`,
+      ),
+    }))
+    expect(result.status, result.stderr).toBe(130)
+    expect(execFileSync('readlink', [join(old, 'current')], { encoding: 'utf8' }).trim()).toBe(
+      'versions/1.2.3',
+    )
+    expect(execFileSync(launcher(home), ['version'], { encoding: 'utf8' })).toContain('1.2.3')
+    expect(readdirSync(old).sort()).toEqual(['current', 'versions'])
+    expect(result.stdout).not.toContain('Next:')
+  })
+  it('retains complete bundles and the backup if restoration or roll-forward fails', () => {
+    for (const failure of ['launcher', 'current', 'forward']) {
+      const { result, old, home } = installPrepared(
+        (home) => {
+          rmSync(launcher(home))
+          writeFileSync(launcher(home), 'source launcher')
+          return {
+            PATH: hook(
+              home,
+              'mv',
+              `case "$*" in
+  *"/restore-current "*) [ '${failure}' != current ] || exit 1 ;;
+  *"/phosphor.before-release "*"/bin/phosphor") [ '${failure}' = current ] || exit 1 ;;
+  *"/forward-current "*) [ '${failure}' != forward ] || exit 1 ;;
+  *"/current "*) "$real" "$@" || exit "$?"; kill -TERM "$PPID"; exit 1 ;;
+esac`,
+            ),
+          }
+        },
+        ['--replace-launcher'],
+      )
+      expect(result.status, result.stderr).toBe(143)
+      expect(result.stderr).toContain('may have completed; rerunning the installer is safe')
+      expect(readFileSync(`${launcher(home)}.before-release`, 'utf8')).toBe('source launcher')
+      expect(execFileSync('readlink', [launcher(home)], { encoding: 'utf8' }).trim()).toBe(
+        join(old, 'current/bin/phosphor'),
+      )
+      expect(
+        existsSync(join(old, 'current/marker')) ||
+          existsSync(join(old, 'current/lib/phosphor.mjs')),
+      ).toBe(true)
+      expect(existsSync(join(old, 'versions/1.2.3/lib/phosphor.mjs'))).toBe(true)
+      if (failure !== 'forward')
+        expect(execFileSync(launcher(home), ['version'], { encoding: 'utf8' })).toContain('1.2.3')
+      expect(readdirSync(old).sort()).toEqual(['current', 'versions'])
+    }
+  })
+  it('releases a held recovery gate on a signaled failure so the next installer can reclaim', () => {
+    for (const [signal, code] of [
+      ['HUP', 129],
+      ['INT', 130],
+      ['TERM', 143],
+    ] as const) {
+      let release = ''
+      const { result, home, old } = installPrepared((home, folder) => {
+        release = folder
+        const lock = join(home, '.local/lib/phosphor-host/.install-lock')
+        mkdirSync(lock)
+        writeFileSync(join(lock, 'pid'), '2147483647\n')
+        return {
+          KEEP_LOCK: '1',
+          PATH: hook(
+            home,
+            'mv',
+            `case "$*" in *"/.install-lock "*) kill -${signal} "$PPID"; exit 1 ;; esac`,
+          ),
+        }
+      })
+      expect(result.status, result.stderr).toBe(code)
+      expect(readdirSync(join(old, '.install-lock'))).toEqual(['pid'])
+      expect(readdirSync(old).sort()).toEqual(['.install-lock', 'current', 'versions'])
+      expect(rerun(home, release).status).toBe(0)
+      expect(readdirSync(old).sort()).toEqual(['current', 'versions'])
+    }
+  })
+  it('sweeps only dead exact non-symlink retired folders, at most sixteen per acquisition', () => {
+    const { result, old, home } = installPrepared((home) => {
+      const root = join(home, '.local/lib/phosphor-host')
+      for (let i = 0; i < 17; i++) {
+        const retired = join(root, `.install-lock.retired.${2147483600 + i}`)
+        mkdirSync(join(retired, 'recovery'), { recursive: true })
+        writeFileSync(join(retired, 'pid'), '2147483647\n')
+      }
+      mkdirSync(join(root, `.install-lock.retired.${process.pid}`))
+      mkdirSync(join(root, '.install-lock.retired.2147483647.extra'))
+      mkdirSync(join(home, 'outside'))
+      writeFileSync(join(home, 'outside/pid'), 'keep')
+      execFileSync('ln', [
+        '-s',
+        join(home, 'outside'),
+        join(root, '.install-lock.retired.2147483647'),
+      ])
+      return {}
+    })
+    expect(result.status, result.stderr).toBe(0)
+    const candidates = [
+      `.install-lock.retired.${process.pid}`,
+      ...Array.from({ length: 17 }, (_, i) => `.install-lock.retired.${2147483600 + i}`),
+    ]
+      .sort()
+      .slice(0, 16)
+    for (let i = 0; i < 17; i++) {
+      const name = `.install-lock.retired.${2147483600 + i}`
+      expect(existsSync(join(old, name)), name).toBe(!candidates.includes(name))
+    }
+    expect(existsSync(join(old, `.install-lock.retired.${process.pid}`))).toBe(true)
+    expect(existsSync(join(old, '.install-lock.retired.2147483647.extra'))).toBe(true)
+    expect(readFileSync(join(home, 'outside/pid'), 'utf8')).toBe('keep')
+  })
+  it('does not strand a lock when two reclaimers read the same dead pid before retirement', () => {
+    let release = ''
+    const wait = `await_file() { i=0; while [ ! -e "$1" ]; do i=$((i+1)); [ "$i" -le 1000 ] || exit 91; sleep 0.01; done; }`
+    const { result, home, old } = installPrepared((home, folder) => {
+      release = folder
+      const lock = join(home, '.local/lib/phosphor-host/.install-lock')
+      mkdirSync(lock)
+      writeFileSync(join(lock, 'pid'), '2147483647\n')
+      hook(
+        home,
+        'mkdir',
+        `${wait}
+case "$*" in *"/.install-lock/recovery")
+  if [ "\${RACER:-A}" = B ]; then
+    touch "$HOME/b-ready"; await_file "$HOME/retired"
+    "$real" "$@"; code=$?
+    touch "$HOME/b-gate"
+    [ "$code" != 0 ] || await_file "$HOME/a-rmdir"
+    exit "$code"
+  fi
+  (RACER=B sh '${script}' 1.2.3 > "$HOME/b-output" 2> "$HOME/b-error"; echo "$?" > "$HOME/b-status") &
+  await_file "$HOME/b-ready"
+;; esac`,
+      )
+      hook(
+        home,
+        'mv',
+        `${wait}
+case "$*" in *"/.install-lock "*)
+  "$real" "$@" || exit "$?"
+  touch "$HOME/retired"; await_file "$HOME/b-gate"; exit 0
+;; esac`,
+      )
+      const path = hook(
+        home,
+        'rmdir',
+        `${wait}
+case "$*" in
+  *"/.install-lock/recovery") "$real" "$@" || exit "$?"; touch "$HOME/retired"; await_file "$HOME/b-gate"; exit 0 ;;
+  *"/.install-lock") "$real" "$@"; code=$?; touch "$HOME/a-rmdir"; exit "$code" ;;
+esac`,
+      )
+      return { PATH: path }
+    })
+    expect(result.status, result.stderr).toBe(0)
+    // spawnSync waits for B too, since B shares the captured pipes.
+    expect(readFileSync(join(home, 'b-status'), 'utf8').trim()).toBe('1')
+    expect(readFileSync(join(home, 'b-error'), 'utf8')).toContain('Install lock:')
+    expect(readdirSync(old).sort()).toEqual(['current', 'versions'])
+    const third = rerun(home, release)
+    expect(third.status, third.stderr).toBe(0)
+    expect(third.stdout).toContain('already installed')
   })
   it('emits the contract protocols and signs a complete three-target manifest', () => {
     const output = join(dir, 'manifest-output')

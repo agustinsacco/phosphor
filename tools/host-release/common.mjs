@@ -1,8 +1,15 @@
 import { URL } from 'node:url'
 import { build } from 'esbuild'
 import { createHash } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { readFileSync, realpathSync } from 'node:fs'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
+export function isEntryPoint(url) {
+  return (
+    process.argv[1] !== undefined &&
+    realpathSync(process.argv[1]) === realpathSync(fileURLToPath(url))
+  )
+}
 export const root = fileURLToPath(new URL('../../', import.meta.url))
 export const pin = JSON.parse(readFileSync(new URL('node.json', import.meta.url), 'utf8'))
 export const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex')

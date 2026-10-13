@@ -2,7 +2,11 @@
 # Generated from HOST_RELEASE_KEYS by tools/host-release/installer.mjs.
 set -eu
 umask 077
-fail() { printf '%s\n' 'Host installation failed; existing install is unchanged.' >&2; exit 1; }
+critical=0
+pending=
+on_signal() { if [ "$critical" = 1 ]; then pending=${pending:-$1}; else exit "$1"; fi; }
+end_critical() { critical=0; [ -z "$pending" ] || exit "$pending"; }
+fail() { printf '%s\n' 'Host installation failed; existing install is unchanged.' >&2; exit "${pending:-1}"; }
 valid_version() {
   printf '%s\n' "$1" | awk -F. 'NR != 1 || NF != 3 {exit 1} {for(i=1;i<=3;i++) if ($i !~ /^[0-9]+$/ || length($i)>9 || (length($i)>1 && substr($i,1,1)=="0")) exit 1}'
 }
@@ -27,26 +31,64 @@ new_version=
 committed=0
 command_published=0
 lock=
+gate=
+retired=
 backup_moved=0
+remove_retired() {
+  rm -f "$1/pid"
+  if [ ! -L "$1/recovery" ]; then rmdir "$1/recovery" 2>/dev/null || :; fi
+  rmdir "$1"
+}
+# Keep child exit status truthful even when a signal reaches the process group.
+rename_safe() { ( trap '' HUP INT TERM; exec mv -f "$mvflag" "$@" ); }
+mkdir_safe() { ( trap '' HUP INT TERM; exec mkdir "$@" ); }
+selects_new() { [ -L "$root/current" ] && [ "$(readlink "$root/current")" = "versions/$version" ]; }
+command_is_ours() { [ -L "$command" ] && [ "$(readlink "$command")" = "$root/current/bin/phosphor" ]; }
 cleanup() {
   set +e
-  if [ "$committed" = 0 ] && [ "$command_published" = 1 ]; then
-    if [ "$backup_moved" = 1 ]; then :
-    elif [ -L "$stage/old-command" ]; then mv -f "$mvflag" "$stage/old-command" "$home/.local/bin/phosphor"
-    else rm -f "$home/.local/bin/phosphor"; fi
-  fi
-  if [ "$committed" = 0 ] && [ "$backup_moved" = 1 ]; then
-    mv -f "$mvflag" "$home/.local/bin/phosphor.before-release" "$home/.local/bin/phosphor"
+  critical=1
+  if [ "$committed" = 0 ]; then
+    restore_failed=0
+    if [ -n "$new_version" ] && selects_new; then
+      if [ -n "$old_current" ]; then
+        ln -s "$old_current" "$stage/restore-current" && rename_safe "$stage/restore-current" "$root/current"
+      else rm -f "$root/current"; fi
+      selects_new && restore_failed=1
+    fi
+    if [ "$restore_failed" = 0 ] && [ "$backup_moved" = 1 ] &&
+      { [ -e "$backup" ] || [ -L "$backup" ]; }; then
+      if command_is_ours; then rm -f "$command"; fi
+      if [ ! -e "$command" ] && [ ! -L "$command" ]; then rename_safe "$backup" "$command"; fi
+      if [ -e "$backup" ] || [ -L "$backup" ]; then restore_failed=1; fi
+    elif [ "$restore_failed" = 0 ] && [ "$command_published" = 1 ] && command_is_ours; then
+      rm -f "$command" || restore_failed=1
+    fi
+    if [ "$restore_failed" = 1 ]; then
+      # Keep the complete new bundle. Roll forward only through entries we own.
+      if [ -n "$new_version" ] && [ -d "$new_version" ]; then
+        if ! selects_new; then
+          ln -s "versions/$version" "$stage/forward-current" && rename_safe "$stage/forward-current" "$root/current"
+        fi
+        if [ ! -e "$command" ] && [ ! -L "$command" ]; then
+          ln -s "$root/current/bin/phosphor" "$stage/forward-command" && rename_safe "$stage/forward-command" "$command"
+        fi
+      fi
+      printf '%s\n' 'Host installation may have completed; rerunning the installer is safe.' >&2
+    elif [ -n "$new_version" ] && ! selects_new; then rm -rf "$new_version"; fi
   fi
   [ -z "$stage" ] || rm -rf "$stage"
-  if [ "$committed" = 0 ] && [ -n "$new_version" ]; then rm -rf "$new_version"; fi
-  if [ -n "$lock" ]; then rm -f "$lock/pid"; rmdir "$lock"; fi
+  [ -z "$gate" ] || rmdir "$gate"
+  if [ -n "$lock" ]; then
+    destination=$root/.install-lock.retired.$$
+    if [ ! -e "$destination" ] && [ ! -L "$destination" ] && rename_safe "$lock" "$destination"; then retired=$destination; fi
+  fi
+  [ -z "$retired" ] || remove_retired "$retired"
   rm -rf "$tmp"
 }
 trap cleanup 0
-trap 'exit 129' HUP
-trap 'exit 130' INT
-trap 'exit 143' TERM
+trap 'on_signal 129' HUP
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
 cat > "$tmp/allowed_signers" <<'PHOSPHOR_KEYS'
 @ALLOWED_SIGNERS@
 PHOSPHOR_KEYS
@@ -161,9 +203,25 @@ root=$home/.local/lib/phosphor-host
 lock_path=$root/.install-lock
 lock_refused() {
   printf 'Install lock: %s. Remove it only if no install or update is running.\n' "$lock_path" >&2
-  exit 1
+  exit "${pending:-1}"
 }
-if ! mkdir "$lock_path" 2>/dev/null; then
+# Sweep only exact, non-link retired folders, with bounded work.
+swept=0
+for leftover in "$root"/.install-lock.retired.*; do
+  suffix=${leftover##*.}
+  case $suffix in ''|*[!0-9]*|0) continue ;; esac
+  [ "${#suffix}" -le 10 ] || continue
+  [ ! -L "$leftover" ] && [ -d "$leftover" ] || continue
+  swept=$((swept + 1)); [ "$swept" -le 16 ] || break
+  if ! kill -0 "$suffix" 2>/dev/null; then
+    remove_retired "$leftover" || lock_refused
+  fi
+done
+# Defer signals before mkdir: ownership must be recorded even if a child
+# delivers a signal immediately after the directory is created.
+critical=1
+if ! mkdir_safe "$lock_path" 2>/dev/null; then
+  end_critical
   [ ! -L "$lock_path" ] && [ -d "$lock_path" ] || lock_refused
   [ ! -L "$lock_path/pid" ] && [ -f "$lock_path/pid" ] || lock_refused
   [ "$(wc -c < "$lock_path/pid" | tr -d ' ')" -le 20 ] || lock_refused
@@ -173,18 +231,25 @@ if ! mkdir "$lock_path" 2>/dev/null; then
   if kill -0 "$owner" 2>/dev/null; then lock_refused; fi
   # One reclaimer at a time, inside the old lock. Compare again under its gate
   # so two installers cannot delete the pid of a newly acquired lock.
-  mkdir "$lock_path/recovery" 2>/dev/null || lock_refused
-  if [ "$(cat "$lock_path/pid")" != "$owner" ] || kill -0 "$owner" 2>/dev/null; then
-    rmdir "$lock_path/recovery"
-    lock_refused
-  fi
-  rm "$lock_path/pid"
-  rmdir "$lock_path/recovery"
-  rmdir "$lock_path" || lock_refused
-  mkdir "$lock_path" 2>/dev/null || lock_refused
+  critical=1
+  mkdir_safe "$lock_path/recovery" 2>/dev/null || lock_refused
+  gate=$lock_path/recovery
+  if [ ! -f "$lock_path/pid" ] || [ -L "$lock_path/pid" ] ||
+    [ "$(cat "$lock_path/pid")" != "$owner" ] || kill -0 "$owner" 2>/dev/null; then lock_refused; fi
+  destination=$root/.install-lock.retired.$$
+  [ ! -e "$destination" ] && [ ! -L "$destination" ] || lock_refused
+  rename_safe "$lock_path" "$destination" || lock_refused
+  retired=$destination
+  gate=
+  remove_retired "$retired" || lock_refused
+  retired=
+  end_critical
+  critical=1
+  mkdir_safe "$lock_path" 2>/dev/null || lock_refused
 fi
 lock=$lock_path
-printf '%s\n' "$$" > "$lock/pid"
+printf '%s\n' "$$" > "$lock/pid" || fail
+end_critical
 [ ! -e "$root/current" ] || [ -L "$root/current" ] || fail
 already=0
 if [ -e "$root/versions/$version" ] || [ -L "$root/versions/$version" ]; then
@@ -215,32 +280,34 @@ if [ -e "$command" ] || [ -L "$command" ]; then
     foreign=1
   fi
 fi
+old_current=
+if [ -L "$root/current" ]; then old_current=$(readlink "$root/current"); fi
 stage=$(mktemp -d "$root/.install.XXXXXXXX")
-# Keep version publication and its cleanup bookkeeping indivisible to signals.
-trap '' HUP INT TERM
+# Cross-filesystem staging can be interrupted safely before publication.
 if [ "$already" = 0 ]; then
-  mv "$tmp/unpacked" "$stage/version"
-  mv "$stage/version" "$root/versions/$version"
-  new_version=$root/versions/$version
+  mv "$tmp/unpacked" "$stage/version" || fail
   ln -s "versions/$version" "$stage/current"
 fi
 ln -s "$root/current/bin/phosphor" "$stage/phosphor"
 if [ "$ours" = 1 ]; then cp -P "$command" "$stage/old-command"; fi
-# Signals are ignored during publication. A trap cannot remove a version that
-# current has selected, or leave a replaced source launcher without its backup.
+# Only same-filesystem renames occur while signals are deferred. Finish a
+# consistent publication, or roll it back, before honoring the signal.
+critical=1
+if [ "$already" = 0 ]; then
+  new_version=$root/versions/$version
+  rename_safe "$stage/version" "$new_version" || fail
+fi
 if [ "$foreign" = 1 ]; then
-  mv "$command" "$backup" || fail
   backup_moved=1
+  rename_safe "$command" "$backup" || fail
 fi
 if [ "$ours" = 0 ]; then
-  mv -f "$mvflag" "$stage/phosphor" "$command" || fail
   command_published=1
+  rename_safe "$stage/phosphor" "$command" || fail
 fi
-if [ "$already" = 0 ]; then mv -f "$mvflag" "$stage/current" "$root/current" || fail; fi
+if [ "$already" = 0 ]; then rename_safe "$stage/current" "$root/current" || fail; fi
 committed=1
-trap 'exit 129' HUP
-trap 'exit 130' INT
-trap 'exit 143' TERM
+end_critical
 if [ "$foreign" = 1 ]; then
   printf 'Previous launcher kept at %s. If a Host service is running, run phosphor service install again.\n' "$backup"
 fi

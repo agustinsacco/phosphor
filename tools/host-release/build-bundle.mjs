@@ -1,4 +1,3 @@
-import { URL } from 'node:url'
 import { Buffer } from 'node:buffer'
 import { execFileSync } from 'node:child_process'
 import {
@@ -15,7 +14,7 @@ import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { parseArgs } from 'node:util'
 import process from 'node:process'
-import { root, pin, sha256, contract } from './common.mjs'
+import { root, pin, sha256, contract, isEntryPoint } from './common.mjs'
 import { archive } from './archive.mjs'
 import { generateInstaller } from './installer.mjs'
 
@@ -92,7 +91,7 @@ export async function buildBundle(target, out, cache = join(out, '.node-cache'),
     rmSync(temp, { recursive: true, force: true })
   }
 }
-if (process.argv[1] === new URL(import.meta.url).pathname) {
+if (isEntryPoint(import.meta.url)) {
   const { values } = parseArgs({
     options: { target: { type: 'string' }, out: { type: 'string' }, cache: { type: 'string' } },
   })

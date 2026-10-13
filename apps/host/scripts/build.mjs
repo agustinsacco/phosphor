@@ -64,7 +64,7 @@ async function stageBuild(stage) {
     platform: 'node',
     format: 'esm',
     target: NODE_TARGET,
-    sourcemap: 'linked',
+    sourcemap: releaseVersion === undefined ? 'linked' : false,
     metafile: true,
     logLevel: 'warning',
     // Library source still uses the @shared/* alias internally.
@@ -132,7 +132,13 @@ async function stageBuild(stage) {
     name: 'phosphor',
     version: releaseVersion ?? `0.0.0-dev.${stamped?.slice(0, 7) ?? 'source'}`,
     sourceSha: stamped,
-    sourceDirty: stamped ? git('status', '--porcelain') !== '' : null,
+    sourceDirty: stamped
+      ? git(
+          'status',
+          '--porcelain',
+          ...(releaseVersion === undefined ? [] : ['--untracked-files=no']),
+        ) !== ''
+      : null,
     nodeTarget: NODE_TARGET,
     entry: OUTFILE,
     files,

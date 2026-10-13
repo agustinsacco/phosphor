@@ -21,8 +21,9 @@ every library import against the package's exports.
 
 ### Install from a release
 
-The release workflow publishes independent `host-v*` releases for Linux x64,
-Linux arm64 and macOS arm64. No release has been published yet. The operator
+This repository builds signed bundles, manifests and an installer for Linux x64,
+Linux arm64 and macOS arm64. No workflow publishes them and no release has been
+published yet. The release layout uses independent `host-v*` releases. The operator
 pins a release public key before publishing; an installer with no keys refuses
 installation. Each bundle carries Node 24.14.1, so no system Node is needed.
 The installer needs curl, ssh-keygen, tar, awk, base64, od and sha256sum or shasum.
@@ -48,8 +49,9 @@ provider installs are never changed. An already selected version with a matching
 `VERSION` is idempotent: the installer verifies the signed manifest, keeps the
 version folder untouched and makes sure the launcher is in place. Any other
 existing version folder is refused, with an instruction to run
-`phosphor update --rollback` or remove that folder before trying again. A
-`current` that is not a symlink is refused.
+`phosphor update --rollback` or remove that folder before trying again.
+`phosphor update` does not exist yet, so remove the folder for now. A `current`
+that is not a symlink is refused.
 
 A launcher symlink is ours only when it points exactly at
 `~/.local/lib/phosphor-host/current/bin/phosphor`. A different launcher is refused
@@ -58,13 +60,33 @@ symlink as `~/.local/bin/phosphor.before-release`; an existing backup or a
 directory at the launcher path is refused. If a Host service is already running,
 run `phosphor service install` again after replacing its launcher.
 
-The installer and `phosphor update` share
-`~/.local/lib/phosphor-host/.install-lock/`. Its `pid` file contains the owner's
-positive decimal process id followed by a newline. A live owner refuses another
-install or update; a dead owner's lock is reclaimed once. Missing or malformed
-pids are refused. Remove a refused lock only if no install or update is running.
-Exit, HUP, INT and TERM clean up the owned lock and temporary files; signals are
-ignored briefly while publishing the launcher and `current`.
+The installer uses `~/.local/lib/phosphor-host/.install-lock/`. Any updater must
+follow this same protocol. Acquire it with mkdir, then write the owner's positive
+decimal process id followed by a newline into `pid`. A live owner refuses another
+installer. A missing or malformed pid is refused too: its owner may still be
+writing it. Remove a refused lock only if no install or update is running.
+
+To reclaim a dead owner's lock, take the `recovery/` mkdir gate inside it,
+re-read the pid and require that it is unchanged and still dead. Retire the whole
+lock by renaming it to `.install-lock.retired.<own-pid>` before deleting its known
+contents (`pid`, `recovery/`) and the folder. The gate moves with the lock, so a
+second reclaimer cannot delete a new owner's lock. Try acquisition only once
+more. Owners also retire their locks by rename on exit; no program deletes the
+lock path in place. Cleanup releases only its own gate, retired folder or lock.
+Acquisition sweeps at most 16 exact, non-symlink retired folders whose pid is dead.
+
+HUP, INT and TERM are deferred during lock acquisition, reclamation and
+same-filesystem publication renames, never discarded. Outside those sections,
+they exit immediately. A signal during publication finishes a consistent install
+(or rolls back a failed step), cleans up and exits 129, 130 or 143 without a
+success message. Critical lock and publication children ignore those signals so
+their mkdir and rename status is reliable. Rollback checks the filesystem too, restores `current` and
+the launcher before deleting an unselected new version, and keeps the complete
+bundle and any backup if restoration fails. It then tries to select the new
+bundle and prints that installation may have completed and rerunning is safe.
+If that also fails, it deletes neither bundle. A completed install is idempotent
+on rerun. SIGKILL or power loss can leave a pid-less lock that requires manual
+removal. A dead owner's lock with a pid is reclaimed on the next run.
 
 ### Install from source
 
@@ -188,8 +210,9 @@ for dev builds (`0.0.0-dev.source` when no commit is stamped).
 `npm run build:host` writes `apps/host/dist/`, which git ignores. It runs
 `node apps/host/scripts/build.mjs`, which also takes `--out DIR` and `--sha SHA`:
 
-- `phosphor.mjs` and its linked source map: one ESM file for Node 22, built by
-  esbuild from `src/main.ts`. Run it as `node phosphor.mjs <command>`.
+- `phosphor.mjs`: one ESM file for Node 22, built by esbuild from `src/main.ts`.
+  Dev builds also carry a linked source map. Release builds have no source map
+  or `sourceMappingURL`. Run it as `node phosphor.mjs <command>`.
 - `pi-ext/`: the bundled extensions, copied with Desktop's filter (every `.ts`
   file but tests). A session loads them from beside the bundle unless the config
   sets `resourceRoot`.
@@ -200,7 +223,8 @@ for dev builds (`0.0.0-dev.source` when no commit is stamped).
 - `BUILD-INFO.json`: the version, the source commit, whether the tree had
   uncommitted changes, the Node target, and every file with its size and sha256.
 
-Release builds take strict `X.Y.Z` from `HOST_RELEASE_VERSION`. Otherwise the
+Release builds take strict `X.Y.Z` from `HOST_RELEASE_VERSION` and ignore
+untracked files when computing `sourceDirty`. Otherwise the
 version is `0.0.0-dev.<sha7>` of the source commit, HEAD unless `--sha` names
 another. The build fails if the bundle reaches Electron, `electron-store`,
 `electron-updater`, `node-pty`, Desktop or the site, imports anything but a Node

@@ -1,4 +1,3 @@
-import { URL } from 'node:url'
 import { Buffer } from 'node:buffer'
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, lstatSync } from 'node:fs'
@@ -6,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import process from 'node:process'
-import { root, pin, contract, sha256 } from './common.mjs'
+import { root, pin, contract, sha256, isEntryPoint } from './common.mjs'
 
 export function signManifest(bytes, namespace = contract.HOST_RELEASE_NAMESPACE) {
   const key = process.env.HOST_RELEASE_SIGNING_KEY
@@ -66,7 +65,7 @@ export function makeManifest(out) {
   writeFileSync(`${path}.sig`, signature)
   return path
 }
-if (process.argv[1] === new URL(import.meta.url).pathname) {
+if (isEntryPoint(import.meta.url)) {
   const { values } = parseArgs({ options: { out: { type: 'string' } } })
   makeManifest(resolve(values.out ?? '.'))
 }
