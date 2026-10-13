@@ -191,9 +191,12 @@ export function createHeartbeat(ports: HeartbeatPorts) {
         deadline.abort()
         // The run lock is released after the drain. A sequence write already
         // running lands first, so the next run reads it; a stuck disk waits 1 s.
+        // A second signal skips the wait: run's 3 s release wait must still cover
+        // the API's 2 s close grace.
         let timer: ReturnType<typeof setTimeout> | undefined
         await Promise.race([
           publication,
+          forced,
           new Promise<void>((resolve) => {
             timer = setTimeout(resolve, PUBLICATION_WAIT_MS)
             timer.unref()

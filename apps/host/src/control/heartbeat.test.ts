@@ -422,6 +422,33 @@ describe('heartbeat loop', () => {
     expect(await run).toBe(0)
     expect(vi.getTimerCount()).toBe(0)
   })
+  it('a second signal ends the wait for a sequence write at once', async () => {
+    vi.useFakeTimers()
+    const f = loopFixture()
+    f.ports.client = async (body) => {
+      f.requests.push(body)
+      return new Promise(() => {})
+    }
+    f.ports.wait = async () => {}
+    const write = f.ports.seq.write
+    f.ports.seq.write = async (value) =>
+      f.requests.length === 1 ? new Promise<void>(() => {}) : write(value)
+    const loop = createHeartbeat(f.ports)
+    const run = loop.run()
+    await vi.advanceTimersByTimeAsync(0)
+    let ended = false
+    const first = loop.drain().then(() => {
+      ended = true
+    })
+    await vi.advanceTimersByTimeAsync(10)
+    expect(ended).toBe(false)
+    await loop.drain()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(ended).toBe(true)
+    await first
+    expect(await run).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
+  })
   it('a second signal ends the drain at once without another stopping beat', async () => {
     const f = loopFixture()
     f.ports.client = async (body) => {
