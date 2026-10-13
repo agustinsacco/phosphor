@@ -19,13 +19,13 @@ import { claudeProjectDirName } from '@shared/claude-paths'
  */
 
 /** pi's agent config directory, overridable for tests and alternate installs. */
-export function piAgentDir(): string {
-  return process.env.PI_CODING_AGENT_DIR ?? join(homedir(), '.pi', 'agent')
+export function piAgentDir(env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
+  return env.PI_CODING_AGENT_DIR ?? join(home, '.pi', 'agent')
 }
 
 /** Root directory holding one subdirectory of session files per workspace. */
-export function piSessionsRoot(): string {
-  return process.env.PI_CODING_AGENT_SESSION_DIR ?? join(piAgentDir(), 'sessions')
+export function piSessionsRoot(env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
+  return env.PI_CODING_AGENT_SESSION_DIR ?? join(piAgentDir(env, home), 'sessions')
 }
 
 /**
@@ -96,8 +96,8 @@ export function clearRealCwdCache(): void {
 }
 
 /** Session directory for a workspace. */
-export function sessionDirForCwd(cwd: string): string {
-  return join(piSessionsRoot(), sessionDirNameForCwd(realCwd(cwd)))
+export function sessionDirForCwd(cwd: string, sessionsRoot: string = piSessionsRoot()): string {
+  return join(sessionsRoot, sessionDirNameForCwd(realCwd(cwd)))
 }
 
 /**

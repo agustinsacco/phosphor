@@ -1,5 +1,10 @@
-import { readdirSync } from 'node:fs'
-import { lstat, readFile, readdir, writeFile } from 'node:fs/promises'
+import { readdirSync, symlinkSync } from 'node:fs'
+import { openStore, type HostStore } from '../lanes/store'
+import { loadHostConfig } from '../config/load'
+import { reconcile } from '../lanes/reconcile'
+import { loadSqlite } from '../lanes/sqlite'
+import { hostStateDirectory } from '../lanes/state-dir'
+import { lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { setTimeout } from 'node:timers/promises'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -17,13 +22,21 @@ const readiness: Readiness = { pi: 'ok', claude: 'ok', tailscale: 'ok' }
 let machine: ControlMachine
 beforeEach(async () => {
   machine = await controlMachine()
+  const repository = join(machine.root, 'repository')
+  await mkdir(repository)
+  machine.config.repositories = [repository]
+  await writeFile(machine.configPath, JSON.stringify(machine.config), { mode: 0o600 })
 })
 afterEach(async () => {
   await machine.cleanup()
 })
 const context = (): RunContext => ({
   ...machine.context,
-  env: {},
+  env: {
+    XDG_STATE_HOME: join(machine.root, 'state'),
+    PI_CODING_AGENT_SESSION_DIR: join(machine.root, 'sessions'),
+  },
+  home: machine.root,
   heartbeat: { readiness: async () => readiness, random: () => 0 },
 })
 describe('phosphor run', () => {
@@ -94,6 +107,182 @@ describe('phosphor run', () => {
     expect(atExit).toEqual([[]])
     expect(attached).toBe(1)
     expect(detached).toBe(1)
+  })
+  it('waits for slow config loading past the release timeout on SIGTERM', async () => {
+    await machine.enrollOld()
+    let entered: () => void = () => {}
+    const loading = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    let resume: () => void = () => {}
+    const paused = new Promise<void>((resolve) => {
+      resume = resolve
+    })
+    const exits: number[] = []
+    const atExit: string[][] = []
+    const shutdown = createShutdown({
+      exit: (code) => {
+        exits.push(code)
+        atExit.push(
+          readdirSync(identityDirectory(machine.configPath)).filter((name) =>
+            name.startsWith('.run-lock'),
+          ),
+        )
+      },
+      stderr: () => {},
+      stopProbes: () => {},
+    })
+    const running = runHost({
+      ...context(),
+      attach: shutdown.attach,
+      loadConfig: async (...args) => {
+        entered()
+        await paused
+        return loadHostConfig(...args)
+      },
+    })
+    await loading
+    const stopping = shutdown.signal('SIGTERM')
+    try {
+      await setTimeout(RELEASE_WAIT_MS + 100)
+      expect(exits).toEqual([])
+    } finally {
+      resume()
+      await Promise.all([running, stopping])
+    }
+    expect(await running).toBe(0)
+    expect(exits).toEqual([0])
+    expect(atExit).toEqual([[]])
+    expect(machine.calls).toEqual([])
+  })
+  it.each([
+    { second: false, failInit: false },
+    { second: true, failInit: false },
+    { second: false, failInit: true },
+  ])(
+    'drains SIGTERM during reconciliation before exit, second: $second, failure: $failInit',
+    async ({ second, failInit }) => {
+      await machine.enrollOld()
+      let entered: () => void = () => {}
+      const scanning = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      let resume: () => void = () => {}
+      const paused = new Promise<void>((resolve) => {
+        resume = resolve
+      })
+      let opened: HostStore | undefined
+      const exits: number[] = []
+      const atExit: string[][] = []
+      const shutdown = createShutdown({
+        exit: (code) => {
+          exits.push(code)
+          atExit.push(
+            readdirSync(identityDirectory(machine.configPath)).filter((name) =>
+              name.startsWith('.run-lock'),
+            ),
+          )
+        },
+        stderr: () => {},
+        stopProbes: () => {},
+      })
+      const f = context()
+      f.attach = shutdown.attach
+      f.reconcile = async (store, ...args) => {
+        opened = store
+        entered()
+        await paused
+        if (failInit) throw new Error('private initialization failure')
+        return reconcile(store, ...args)
+      }
+      const running = runHost(f)
+      await scanning
+      const first = shutdown.signal('SIGTERM')
+      const later = second ? shutdown.signal('SIGINT') : Promise.resolve()
+      expect(exits).toEqual([])
+      resume()
+      await Promise.all([first, later])
+      expect(await running).toBe(failInit ? 70 : 0)
+      expect(exits).toEqual([second ? 130 : failInit ? 70 : 0])
+      expect(machine.output.join('\n')).not.toContain('private initialization failure')
+      expect(atExit).toEqual([[]])
+      expect(machine.calls).toEqual([])
+      const closedStore = opened
+      if (!closedStore) throw new Error('store was not opened')
+      expect(() => closedStore.listLanes()).toThrow(/closed|not open/)
+    },
+  )
+  it('refuses unsafe storage and newer schemas with 78, naming state and releasing the lock', async () => {
+    await machine.enrollOld()
+    const f = context()
+    const directory = hostStateDirectory(f.env, f.home)
+    await mkdir(join(machine.root, 'state'), { recursive: true, mode: 0o700 })
+    symlinkSync(join(machine.root, 'repository'), directory)
+    expect(await runHost(f)).toBe(78)
+    expect(machine.calls).toEqual([])
+    expect(machine.output.join('\n')).toContain(directory)
+    expect(await readdir(identityDirectory(machine.configPath))).not.toContain('.run-lock')
+    const { unlink } = await import('node:fs/promises')
+    await unlink(directory)
+    const store = await openStore(directory, f.uid)
+    store.close()
+    const { DatabaseSync } = await loadSqlite()
+    const db = new DatabaseSync(join(directory, 'state.sqlite'))
+    db.exec('PRAGMA user_version=2')
+    db.close()
+    expect(await runHost(f)).toBe(78)
+    expect(machine.output.join('\n')).toContain('this state was written by a newer Host')
+    expect(machine.calls).toEqual([])
+  })
+  it('names the state folder on an internal database open failure with 70', async () => {
+    await machine.enrollOld()
+    const f = context()
+    const directory = hostStateDirectory(f.env, f.home)
+    await mkdir(directory, { recursive: true, mode: 0o700 })
+    await writeFile(join(directory, 'state.sqlite'), 'not a database', { mode: 0o600 })
+    expect(await runHost(f)).toBe(70)
+    expect(machine.output.join('\n')).toContain(hostStateDirectory(f.env, f.home))
+    expect(machine.calls).toEqual([])
+    expect(await readdir(identityDirectory(machine.configPath))).not.toContain('.run-lock')
+  })
+  it('keeps heartbeating with unavailable repositories, reconciles present ones and logs only a count', async () => {
+    await machine.enrollOld()
+    await writeFile(
+      machine.configPath,
+      JSON.stringify({
+        ...machine.config,
+        repositories: [join(machine.root, 'missing'), ...machine.config.repositories],
+      }),
+    )
+    const f = context()
+    const { sessionDirForCwd } = await import('@phosphor/session-runtime/pi/pi-paths')
+    const { realpathSync } = await import('node:fs')
+    const { randomUUID } = await import('node:crypto')
+    const cwd = realpathSync.native(join(machine.root, 'repository'))
+    const directory = sessionDirForCwd(cwd, join(machine.root, 'sessions'))
+    await mkdir(directory, { recursive: true })
+    await writeFile(
+      join(directory, 'session.jsonl'),
+      JSON.stringify({ type: 'session', id: randomUUID(), cwd }) + '\n',
+    )
+    const log = vi.fn()
+    f.log = log
+    f.fetch = async () => Response.json({ accepted: true, nextInSec: 30 })
+    f.wait = async () => {
+      machine.abort.abort()
+    }
+    expect(await runHost(f)).toBe(0)
+    expect(log).toHaveBeenCalledWith('host', 'lanes.repositories_unavailable', { count: 1 })
+    expect(log).toHaveBeenCalledWith('host', 'lanes.reconciled', {
+      repositories: 1,
+      lanes: 1,
+      added: 1,
+      removed: 0,
+    })
+    expect(
+      log.mock.calls.filter(([, name]) => name === 'lanes.repositories_unavailable'),
+    ).toHaveLength(1)
+    expect(await readdir(identityDirectory(machine.configPath))).not.toContain('.run-lock')
   })
   it('requires enrollment before any network call', async () => {
     expect(await runHost(context())).toBe(69)
@@ -245,6 +434,8 @@ it('records retry delay and removal with exit 77 in the file without exception t
     }),
   ).toBe(77)
   const text = await readFile(join(machine.root, 'logs', 'phosphor.log'), 'utf8')
+  expect(text).toContain('[host] lanes.reconciled')
+  expect(text).toContain('"repositories":1,"lanes":0,"added":0,"removed":0')
   expect(text).toContain('[host] retry')
   expect(text).toContain('"delayMs":5000')
   expect(text).toContain('[host] removed')

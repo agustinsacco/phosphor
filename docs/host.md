@@ -131,7 +131,7 @@ not stamp a commit.
 | 70            | internal error, a failed cleanup or the drain deadline                                           |
 | 75            | control plane unreachable, invalid response, enrollment code expired or concurrent setup         |
 | 77            | this machine was removed from the account                                                        |
-| 78            | the config is invalid                                                                            |
+| 78            | the config or state storage is invalid                                                           |
 | 129, 130, 143 | ended by SIGHUP, SIGINT or SIGTERM, after stopping probes and sessions                           |
 
 ## Build
@@ -334,6 +334,38 @@ signature. No repository names, paths, transcripts or provider tokens
 leave the machine. Redirects are refused. Requests time out after 10 seconds;
 responses are capped at 64 KiB and validated with the shared wire contract.
 
+## State
+
+`phosphor run` opens `${XDG_STATE_HOME:-~/.local/state}/phosphor-host/state.sqlite`
+after taking the run lock. Relative `XDG_STATE_HOME` is ignored. The folder is
+0700 and the database is 0600. Symlinks, another owner's storage and group or
+other permissions are refused. A newer schema exits 78; other open failures
+exit 70 and name the folder.
+
+The SQLite WAL database holds repositories, stable lane ids, control fences and
+controllers, attention and read counters, and request receipts. On start, run
+reconciles pi's session files against the lane index and marks interrupted
+requests as unknown. Unavailable configured repositories become inactive, with
+one count-only log line; they do not stop heartbeats. Their ids stay stable when
+the folders return. Run scans active repository roots, up to 256 direct worktree
+folders per repository, and live lanes' folders. Worktree links and folders
+outside the repository are skipped. Removed lanes are kept for 30 days, with at
+most 1000 removed rows after reconciliation. A returning session file keeps its
+lane id until that row is pruned. Vanished files are removed before new files
+are admitted, so replacements can be indexed in one scan even at capacity.
+Corrupt lane and repository rows are skipped on reads and logged only by count;
+reads do not repair or delete them.
+
+Finished receipts are kept for 24 hours from completion, with at most 10000
+finished rows. After that lifetime a finished request id can be admitted as new.
+Unfinished requests survive pruning; at 10000 unfinished rows the store refuses
+new requests as busy. Receipt reads never reveal another client's request. A
+rejected receipt keeps its historic controller and fence, but computes that
+controller's connection state at read time. While a corrupt receipt is retained,
+it is logged only by count and treated as unknown, never admitted again.
+Uninstall keeps State. Transcripts stay in
+pi's own session files; the database never copies their messages.
+
 ## Running as a service
 
 After `phosphor login`, `phosphor run` reports the machine's readiness to the
@@ -358,7 +390,9 @@ SIGTERM or SIGINT sends one stopping beat, waits at most 5 seconds, and exits 0
 whether or not that beat succeeds. A second signal cuts the beat short and exits
 with its own code, 130 for SIGINT. Either way it first releases its run lock,
 waiting at most 3 seconds: exiting inside that release once left
-`identity/.run-lock-recovery` behind, and every later run refused to start.
+`identity/.run-lock-recovery` behind, and every later run refused to start. A
+signal during start-up stops reconciliation, closes the store and releases the
+run lock before exiting, without sending a heartbeat.
 
 On Linux, `phosphor service install` requires an enrolled identity and writes
 `${XDG_CONFIG_HOME:-~/.config}/systemd/user/phosphor-host.service` atomically with
@@ -529,8 +563,8 @@ unknown provider exits 64 and starts nothing.
 
 `phosphor accept --repository DIR` runs real sessions on this machine and
 reports what they proved. DIR must be inside a configured repository. Use an
-empty one that Desktop never opens: nothing guards a transcript against a second
-runtime until component 06. accept runs doctor first, and if the machine fails
+empty one that Desktop never opens: the lane store indexes transcripts but does
+not lock them against another process. accept runs doctor first, and if the machine fails
 it, prints doctor's report and exits with doctor's code.
 
 `--lane native` runs on pi's default provider and model, or on the model
@@ -658,7 +692,7 @@ counts too (see [Session commands](#session-commands)). A deletion names only
 the same file still under way, and unlinks only one of pi's session files: a
 regular `.jsonl`, not a link, directly in a folder of pi's session root. All of
 this holds within one Host process: a pi that Desktop or another process runs on
-the same file is not seen. Ownership across processes is component 06's.
+the same file is not seen. The lane store does not provide cross-process ownership.
 
 ### Session commands
 
