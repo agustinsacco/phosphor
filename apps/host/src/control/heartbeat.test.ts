@@ -21,6 +21,7 @@ import {
   createHeartbeat,
   createSequenceStore,
   type HeartbeatPorts,
+  PUBLICATION_WAIT_MS,
   untilAborted,
 } from './heartbeat'
 
@@ -358,6 +359,68 @@ describe('heartbeat loop', () => {
     expect(added.mock.contexts.filter((context) => context === patched)).toHaveLength(1049)
     expect(active).toBe(0)
     added.mockRestore()
+  })
+  it('lets a sequence write already running land before the drain ends', async () => {
+    const f = loopFixture()
+    let land: () => void = () => {}
+    let landed = false
+    f.ports.client = async (body) => {
+      f.requests.push(body)
+      return new Promise(() => {})
+    }
+    // The stopping deadline passes at once, as when the transport is slow.
+    f.ports.wait = async () => {}
+    const write = f.ports.seq.write
+    f.ports.seq.write = async (value) => {
+      if (f.requests.length === 1) {
+        await new Promise<void>((resolve) => {
+          land = resolve
+        })
+        landed = true
+      }
+      return write(value)
+    }
+    const loop = createHeartbeat(f.ports)
+    const run = loop.run()
+    await vi.waitFor(() => expect(f.requests).toHaveLength(1))
+    let ended = false
+    const stop = loop.drain().then(() => {
+      ended = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(ended).toBe(false)
+    land()
+    await stop
+    expect(landed).toBe(true)
+    expect(f.logs.at(-1)).toBe('stopped')
+    expect(await run).toBe(0)
+  })
+  it('waits at most PUBLICATION_WAIT_MS for a stuck sequence write', async () => {
+    vi.useFakeTimers()
+    const f = loopFixture()
+    f.ports.client = async (body) => {
+      f.requests.push(body)
+      return new Promise(() => {})
+    }
+    f.ports.wait = async () => {}
+    const write = f.ports.seq.write
+    f.ports.seq.write = async (value) =>
+      f.requests.length === 1 ? new Promise<void>(() => {}) : write(value)
+    const loop = createHeartbeat(f.ports)
+    const run = loop.run()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(f.requests).toHaveLength(1)
+    let ended = false
+    const stop = loop.drain().then(() => {
+      ended = true
+    })
+    await vi.advanceTimersByTimeAsync(PUBLICATION_WAIT_MS - 1)
+    expect(ended).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    await stop
+    expect(ended).toBe(true)
+    expect(await run).toBe(0)
+    expect(vi.getTimerCount()).toBe(0)
   })
   it('a second signal ends the drain at once without another stopping beat', async () => {
     const f = loopFixture()

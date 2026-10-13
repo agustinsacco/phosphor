@@ -122,6 +122,7 @@ export function untilAborted<T>(work: Promise<T>, signal: AbortSignal, fallback:
   })
 }
 
+export const PUBLICATION_WAIT_MS = 1000
 /** One serialized sender. Shutdown cancels the running request before publishing its final seq. */
 export function createHeartbeat(ports: HeartbeatPorts) {
   const running = new AbortController()
@@ -188,6 +189,17 @@ export function createHeartbeat(ports: HeartbeatPorts) {
         ])
       } finally {
         deadline.abort()
+        // The run lock is released after the drain. A sequence write already
+        // running lands first, so the next run reads it; a stuck disk waits 1 s.
+        let timer: ReturnType<typeof setTimeout> | undefined
+        await Promise.race([
+          publication,
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, PUBLICATION_WAIT_MS)
+            timer.unref()
+          }),
+        ])
+        clearTimeout(timer)
         log('stopped')
       }
       return { state: 'stopped' as const }
