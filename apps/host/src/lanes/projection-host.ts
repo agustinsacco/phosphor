@@ -51,6 +51,7 @@ export function createHostLaneProjection(options: {
         const result = full
           ? data(await options.runtime.command(options.sessionId, { type: 'get_messages' }))
           : undefined
+        if (stopped) return
         const stateResult = data(
           await options.runtime.command(options.sessionId, { type: 'get_state' }),
         )
@@ -73,7 +74,7 @@ export function createHostLaneProjection(options: {
         if (full) projection.settle(messages, state)
         else projection.setState(state)
       } catch {
-        options.log('lanes.refresh_failed', { laneId: options.laneId, reason })
+        if (!stopped) options.log('lanes.refresh_failed', { laneId: options.laneId, reason })
       }
     }
   }
@@ -84,6 +85,7 @@ export function createHostLaneProjection(options: {
     if (!refreshing)
       refreshing = runRefresh().finally(() => {
         refreshing = undefined
+        if (requested && !stopped) return refresh(false)
       })
     return refreshing
   }
@@ -91,16 +93,21 @@ export function createHostLaneProjection(options: {
     clearTimeout(timers.get(id))
     timers.delete(id)
   }
+  function dispose() {
+    stopped = true
+    requested = settle = false
+    for (const id of timers.keys()) clearTimer(id)
+  }
   return {
     refresh,
+    dispose,
     stateChanged: () => refresh(false),
     deliver(push: SessionPush) {
       if (push.kind === 'stderr' || stopped) return
       revision++
       projection.apply(push)
       if (push.kind === 'exit') {
-        stopped = true
-        for (const id of timers.keys()) clearTimer(id)
+        dispose()
       } else if (push.kind === 'event') {
         if (push.event.type === 'compaction_end') void refresh()
         else if (push.event.type === 'agent_end') void refresh(false)

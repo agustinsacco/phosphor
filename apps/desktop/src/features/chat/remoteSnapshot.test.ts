@@ -252,6 +252,156 @@ describe('remote snapshot equivalence', () => {
       assertCut(p, live, 'reconciled settle')
     },
   )
+  it('reconciles repeated messages by ordered overlap, preserving multiplicity', () => {
+    const message: AgentMessage = { role: 'user', content: 'same' }
+    const p = equivalent([])
+    p.markSettle()
+    let live = emptyChatSession()
+    for (let k = 0; k < 2; k++) {
+      const event: PiEvent = { type: 'message_end', message }
+      p.apply({ kind: 'event', event })
+      live = reduceChatEvent(live, event)
+      assertCut(p, live, `repeat ${k}`)
+    }
+    p.settle([message], null)
+    expect(p.view().messages).toEqual([message, message])
+    assertCut(p, live, 'repeated messages settled')
+  })
+  it.each(['extension', 'retry'] as const)(
+    'keeps %s error dividers and subsequent framing until settle',
+    (kind) => {
+      const message: AgentMessage =
+        kind === 'extension'
+          ? { role: 'user', content: 'next' }
+          : { role: 'assistant', content: [{ type: 'text', text: 'next' }] }
+      const events: PiEvent[] = [
+        ...(kind === 'retry'
+          ? [
+              {
+                type: 'auto_retry_start' as const,
+                attempt: 1,
+                maxAttempts: 1,
+                delayMs: 1,
+                errorMessage: 'retry',
+              },
+            ]
+          : []),
+        kind === 'extension'
+          ? { type: 'extension_error', error: 'failed' }
+          : { type: 'auto_retry_end', success: false, attempt: 1, finalError: 'failed' },
+        { type: 'message_start', message },
+        { type: 'message_end', message },
+      ]
+      const p = equivalent(events)
+      let live = events.reduce(reduceChatEvent, emptyChatSession())
+      assertCut(p, live, 'failed settle leaves barrier')
+      p.settle([message], null)
+      live = referenceAfterSettle([message])
+      assertCut(p, live, 'error barrier settled')
+      const next: PiEvent = { type: 'message_end', message: { role: 'user', content: 'later' } }
+      p.apply({ kind: 'event', event: next })
+      assertCut(p, reduceChatEvent(live, next), 'after error settle')
+    },
+  )
+  it('retains parallel tool execution until each tool result ends', () => {
+    const calls: AgentMessage = {
+      role: 'assistant',
+      content: ['A', 'B'].map((id) => ({ type: 'toolCall', id, name: 'read', arguments: {} })),
+    }
+    const result: AgentMessage = {
+      role: 'toolResult',
+      toolCallId: 'A',
+      toolName: 'read',
+      content: [],
+      isError: false,
+    }
+    const events: PiEvent[] = [
+      { type: 'message_start', message: calls },
+      { type: 'message_end', message: calls },
+      ...['A', 'B'].map((toolCallId): PiEvent => ({
+        type: 'tool_execution_start',
+        toolCallId,
+        toolName: 'read',
+        args: {},
+      })),
+      {
+        type: 'tool_execution_update',
+        toolCallId: 'B',
+        toolName: 'read',
+        args: {},
+        partialResult: { content: [{ type: 'text', text: 'partial' }] },
+      },
+      {
+        type: 'tool_execution_end',
+        toolCallId: 'A',
+        toolName: 'read',
+        result: { content: [] },
+        isError: false,
+      },
+      { type: 'message_end', message: result },
+      {
+        type: 'tool_execution_update',
+        toolCallId: 'B',
+        toolName: 'read',
+        args: {},
+        partialResult: { content: [{ type: 'text', text: 'new partial' }] },
+      },
+    ]
+    const p = equivalent(events)
+    expect(
+      p
+        .view()
+        .pending.filter((e) => 'toolCallId' in e)
+        .map((e) => e.toolCallId),
+    ).toEqual(['B', 'B'])
+    p.settle([calls, result], null)
+    assertCut(p, referenceAfterSettle([calls, result]), 'parallel tools settled')
+    const next: PiEvent = {
+      type: 'tool_execution_update',
+      toolCallId: 'B',
+      toolName: 'read',
+      args: {},
+      partialResult: { content: [] },
+    }
+    p.apply({ kind: 'event', event: next })
+    assertCut(p, reduceChatEvent(referenceAfterSettle([calls, result]), next), 'after tools settle')
+  })
+  it('preserves streaming through overflow, discarded message end and refresh', () => {
+    const overflow = { count: 0 }
+    const p = createLaneProjection({
+      now: () => 0,
+      overflow: () => {
+        overflow.count++
+      },
+    })
+    const message: AgentMessage = { role: 'assistant', content: [{ type: 'text', text: 'final' }] }
+    const events: PiEvent[] = [
+      { type: 'agent_start' },
+      { type: 'message_start', message: { role: 'assistant', content: [] } },
+      {
+        type: 'message_update',
+        assistantMessageEvent: {
+          type: 'text_delta',
+          contentIndex: 0,
+          delta: 'x'.repeat(HOST_LIMITS.replayBytes),
+        },
+      },
+      { type: 'message_end', message },
+    ]
+    let live = emptyChatSession()
+    for (const [k, event] of events.entries()) {
+      live = reduceChatEvent(live, event)
+      p.apply({ kind: 'event', event })
+      // The overflow cut is intentionally discarded; the final message restores its content.
+      if (event.type !== 'message_update') assertCut(p, live, `overflow cut ${k}`)
+    }
+    expect(overflow.count).toBe(1)
+    p.settle([message], null)
+    assertCut(p, live, 'overflow refresh preserves full live state')
+    const end: PiEvent = { type: 'agent_end', messages: [message] }
+    p.apply({ kind: 'event', event: end })
+    assertCut(p, reduceChatEvent(live, end), 'run ends after overflow')
+  })
   it('keeps chat equivalent while a dialog opens and is answered', () => {
     const p = equivalent([{ type: 'agent_start' }])
     const live = reduceChatEvent(emptyChatSession(), { type: 'agent_start' })

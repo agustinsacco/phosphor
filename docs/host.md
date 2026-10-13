@@ -873,7 +873,9 @@ library asks for. `accept` is its only caller.
 The lane projection holds settled pi messages, state, the turn in flight,
 open extension dialogs and the latest status, widget and title values. It never
 holds stderr. The Host binding refreshes it through the session runtime; this
-building block does not add a listener. Pending events and UI keys are bounded.
+building block does not add a listener. Its idempotent `dispose()` stops refreshes
+and clears timers without sending to pi or changing the last projection view.
+Pending events and UI keys are bounded.
 Snapshots reserve 64 KiB for the wire envelope. Oversized snapshots replace
 image data, oldest first, with `[image omitted: <n> KB]`; if they still do not
 fit, the binding returns `too-large` rather than truncating text.

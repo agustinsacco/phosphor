@@ -178,7 +178,16 @@ describe('lane projection', () => {
     }
     for (let k = 0; k < 100; k++) event(update)
     expect(p.view().pending).toHaveLength(1)
-    event({ type: 'message_end', message: { role: 'user', content: '' } })
+    event({
+      type: 'message_end',
+      message: {
+        role: 'toolResult',
+        toolCallId: 'tool',
+        toolName: 'read',
+        content: [],
+        isError: false,
+      },
+    })
     for (let k = 0; k < HOST_LIMITS.pendingEvents; k++) event({ type: 'turn_start' })
     expect(overflow).not.toHaveBeenCalled()
     expect(p.view().pending).toHaveLength(HOST_LIMITS.pendingEvents)
@@ -190,12 +199,24 @@ describe('lane projection', () => {
       HOST_LIMITS.replayBytes - new TextEncoder().encode(JSON.stringify([base])).length
     event({ ...base, error: 'x'.repeat(padding) })
     expect(overflow).toHaveBeenCalledOnce()
-    event({ type: 'message_end', message: { role: 'user', content: '' } })
+    p.settle([], null)
     event({ ...base, error: 'x'.repeat(padding + 1) })
     expect(overflow).toHaveBeenCalledTimes(2)
-    event({ type: 'message_end', message: { role: 'user', content: '' } })
+    p.settle([], null)
     event({ ...base, error: 'é'.repeat(padding) })
     expect(overflow).toHaveBeenCalledTimes(3)
+  })
+  it('bounds the error replay barrier across message ends', () => {
+    const { projection: p, event, overflow } = setup()
+    event({ type: 'extension_error', error: 'failed' })
+    for (let k = 1; k < HOST_LIMITS.pendingEvents - 1; k++) event({ type: 'turn_start' })
+    event({ type: 'message_end', message: { role: 'user', content: 'next' } })
+    expect(p.view().pending).toHaveLength(HOST_LIMITS.pendingEvents)
+    expect(p.view().pending[0]).toEqual({ type: 'extension_error', error: 'failed' })
+    expect(overflow).not.toHaveBeenCalled()
+    event({ type: 'turn_start' })
+    expect(overflow).toHaveBeenCalledOnce()
+    expect(p.view().pending.length).toBeLessThanOrEqual(HOST_LIMITS.pendingEvents)
   })
   it('bounds reconciliation marks and compares recorded messages by deep JSON value', () => {
     const { projection: p, event, overflow } = setup()

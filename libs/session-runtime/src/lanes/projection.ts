@@ -16,6 +16,14 @@ export type LaneProjectionView = Pick<
   'state' | 'messages' | 'pending' | 'dialogs' | 'ui'
 >
 
+function executionEvent(event: PiEvent) {
+  return (
+    event.type === 'tool_execution_start' ||
+    event.type === 'tool_execution_update' ||
+    event.type === 'tool_execution_end'
+  )
+}
+
 function messageJson(message: AgentMessage): string {
   return JSON.stringify(message, (_key, value: unknown) =>
     typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -65,9 +73,9 @@ export function createLaneProjection(options: { now: () => number; overflow: () 
     ) {
       discarding ||= messageStarted
       tail = []
-      barrier = barrier ? [] : undefined
+      barrier = barrier ? (run ? [run] : []) : undefined
       sinceMark = undefined
-      run = queue = retry = undefined
+      queue = retry = undefined
       options.overflow()
     }
   }
@@ -119,17 +127,29 @@ export function createLaneProjection(options: { now: () => number; overflow: () 
           options.overflow()
         }
       }
-      tail = []
+      const message = event.message
+      tail = tail.filter(
+        (e) =>
+          executionEvent(e) &&
+          !(message.role === 'toolResult' && e.toolCallId === message.toolCallId),
+      )
       return
     }
     if (event.type === 'auto_retry_start') {
       retry = event
       return
     }
-    if (event.type === 'compaction_start') {
+    if (
+      event.type === 'compaction_start' ||
+      event.type === 'extension_error' ||
+      (event.type === 'auto_retry_end' && !event.success)
+    ) {
+      // Hydration cannot reconstruct these dividers or their position in the live chat.
       barrier ??= pending()
-      compaction = event
-      return
+      if (event.type === 'compaction_start') {
+        compaction = event
+        return
+      }
     }
     if (event.type === 'auto_retry_end') retry = undefined
     if (event.type === 'compaction_end') compaction = undefined
@@ -237,15 +257,27 @@ export function createLaneProjection(options: { now: () => number; overflow: () 
     settle(nextMessages: readonly AgentMessage[], nextState: RpcSessionState | null) {
       if (compaction) return
       messages = [...nextMessages]
-      const recent = new Set(nextMessages.slice(-(sinceMark?.length || 0)).map(messageJson))
-      for (const message of sinceMark ?? [])
-        if (!recent.has(messageJson(message))) messages.push(message)
+      const marked = (sinceMark ?? []).map(messageJson)
+      const recent = marked.length ? nextMessages.slice(-marked.length).map(messageJson) : []
+      let matched = Math.min(recent.length, marked.length)
+      while (
+        matched &&
+        !marked.slice(0, matched).every((m, i) => m === recent[recent.length - matched + i])
+      )
+        matched--
+      messages.push(...(sinceMark ?? []).slice(matched))
       sinceMark = undefined
       state = nextState
       if (nextState) ended = undefined
       // The refreshed transcript includes compaction; keep only the later live tail.
       const compacted = tail.findLastIndex((event) => event.type === 'compaction_end')
       if (compacted >= 0) tail = tail.slice(compacted + 1)
+      tail = tail.filter(
+        (event) =>
+          !executionEvent(event) &&
+          event.type !== 'extension_error' &&
+          !(event.type === 'auto_retry_end' && !event.success),
+      )
       barrier = undefined
       active = !!run || !!nextState?.isStreaming || !!nextState?.isCompacting
     },

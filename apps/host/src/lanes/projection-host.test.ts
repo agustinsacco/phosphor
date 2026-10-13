@@ -185,6 +185,78 @@ describe('Host lane projection', () => {
     await b.stateChanged()
     expect(p.view().pending.some((e) => e.type === 'compaction_end')).toBe(true)
   })
+  it('drains a coalesced request arriving between completion and finalization', async () => {
+    const { binding: b, projection: p, command } = setup()
+    const original = p.setState
+    const applied = vi.spyOn(p, 'setState').mockImplementationOnce((next) => {
+      original(next)
+      // runRefresh returns after applying state. This runs before its finalizer.
+      queueMicrotask(() => {
+        void b.stateChanged()
+        void b.stateChanged()
+      })
+    })
+    await b.stateChanged()
+    expect(command.mock.calls.map((c) => c[1].type)).toEqual(['get_state', 'get_state'])
+    expect(applied).toHaveBeenCalledTimes(2)
+  })
+  it.each(['messages', 'state'] as const)(
+    'disposes timers and refresh queues while a %s read is outstanding',
+    async (read) => {
+      vi.useFakeTimers()
+      const { binding: b, projection: p, command } = setup()
+      let release: (response: RpcResponse) => void = () => {}
+      command.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            release = resolve
+          }),
+      )
+      b.deliver({
+        kind: 'extension-ui',
+        request: {
+          type: 'extension_ui_request',
+          id: 'dialog',
+          method: 'input',
+          title: 'ask',
+          timeout: 10,
+        },
+      })
+      b.deliver({
+        kind: 'event',
+        event: { type: 'queue_update', steering: ['queued'], followUp: [] },
+      })
+      const settled = vi.spyOn(p, 'settle')
+      const setState = vi.spyOn(p, 'setState')
+      const apply = vi.spyOn(p, 'apply')
+      const reading = read === 'messages' ? b.refresh() : b.stateChanged()
+      // Coalesce another full read while the first one is still outstanding.
+      void b.refresh()
+      const before = b.snapshot()
+      expect(vi.getTimerCount()).toBe(1)
+      b.dispose()
+      b.dispose()
+      expect(vi.getTimerCount()).toBe(0)
+      b.deliver({ kind: 'event', event: { type: 'agent_start' } })
+      await b.refresh()
+      await b.stateChanged()
+      release({
+        type: 'response',
+        command: read === 'messages' ? 'get_messages' : 'get_state',
+        success: true,
+        data: read === 'messages' ? { messages: [] } : state,
+      })
+      await reading
+      expect(settled).not.toHaveBeenCalled()
+      expect(setState).not.toHaveBeenCalled()
+      expect(apply).not.toHaveBeenCalled()
+      expect(command).toHaveBeenCalledOnce()
+      expect(b.snapshot()).toEqual(before)
+      vi.advanceTimersByTime(10)
+      expect(vi.getTimerCount()).toBe(0)
+      b.dispose()
+    },
+  )
   it('drives unref timeouts, resolves answers, replaces timers and clears on exit', () => {
     vi.useFakeTimers()
     const scheduled = vi.spyOn(globalThis, 'setTimeout')
@@ -252,6 +324,9 @@ describe('Host lane projection', () => {
     await reading
     expect(p.view().state).toBeNull()
     expect(p.activity()).toBe('failed')
+    b.dispose()
+    expect(p.activity()).toBe('failed')
+    expect(p.view().pending).toEqual([])
   })
   it('elides images oldest first without mutating the projection, then rejects oversized text', () => {
     const { binding: b, projection: p } = setup()
