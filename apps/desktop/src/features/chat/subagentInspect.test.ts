@@ -34,7 +34,12 @@ beforeEach(() => {
       requestId,
       asyncId: 'run-a',
       childId: 'child-a',
-      messages: [{ role: 'assistant', text: 'Checked the parser.' }],
+      messages: [
+        { role: 'assistant', text: 'Checked the parser.' },
+        { role: 'assistant', kind: 'toolCall', name: 'read', text: '[tool: read a.ts]' },
+        { role: 'toolResult', kind: 'toolResult', isError: true, text: 'ENOENT', extra: 'x' },
+        { role: 'toolResult', isError: 'yes', text: 'not boolean' },
+      ],
       truncated: { messages: 2 },
     })
     publish('lane-a')
@@ -45,10 +50,15 @@ afterEach(() => vi.useRealTimers())
 
 describe('read-only subagent inspection', () => {
   it('catches an emit-then-retract reply without reading a file or prompting a model', async () => {
-    await expect(request()).resolves.toMatchObject({
-      messages: [{ text: 'Checked the parser.' }],
-      truncated: true,
-    })
+    const inspection = await request()
+    expect(inspection).toMatchObject({ truncated: true })
+    // Reported kinds are kept as data; anything else is dropped, never inferred.
+    expect(inspection.messages).toEqual([
+      { role: 'assistant', text: 'Checked the parser.' },
+      { role: 'assistant', kind: 'toolCall', name: 'read', text: '[tool: read a.ts]' },
+      { role: 'toolResult', kind: 'toolResult', isError: true, text: 'ENOENT' },
+      { role: 'toolResult', text: 'not boolean' },
+    ])
     expect(piCommand.mock.calls[1]?.[1].message).toMatch(
       /^\/subagents-inspect-rpc [\w-]+ run-a child-a --lines 100$/,
     )

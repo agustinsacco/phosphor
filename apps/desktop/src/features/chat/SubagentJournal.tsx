@@ -101,7 +101,7 @@ export function SubagentJournal({
                       <TooltipSummary className="cursor-pointer">
                         {run.detached
                           ? 'Launch receipt · not a child result'
-                          : 'Output received by supervisor'}
+                          : 'Output received by parent'}
                       </TooltipSummary>
                       {run.returnedAt !== undefined && Number.isFinite(run.returnedAt) && (
                         <p className="text-text-tertiary text-xs">

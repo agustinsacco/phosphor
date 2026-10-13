@@ -5,7 +5,7 @@ import { PaneShell, PaneTitle } from '@/components/PaneShell'
 import { Button } from '@/components/form'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { errorText } from '@shared/errors'
-import { parseFleetWidget, SUBAGENT_ASYNC_WIDGET_KEY, isFleetActive } from './subagentRuns'
+import { parseFleetWidget, SUBAGENT_ASYNC_WIDGET_KEY, isFleetActive, shortId } from './subagentRuns'
 import { useChatStore } from '@/stores/chat'
 import { useLayoutStore } from '@/stores/layout'
 import { useSubagentInspection } from './useSubagentInspection'
@@ -20,12 +20,18 @@ import { subagentHistory } from './subagentHistory'
 import { SubagentActions } from './SubagentActions'
 import { SubagentJournal } from './SubagentJournal'
 import { SubagentStop } from './SubagentStopControl'
-import { SubagentTree } from './SubagentTree'
 import { SubagentPreview } from './SubagentPreview'
-import { useCurrentWork } from './currentWork'
+import { useCurrentWork, type WorkEntry } from './currentWork'
 import { SubagentDetail } from './tools/SubagentDetail'
-import { SubagentWorkRow } from './SubagentWorkRow'
-import { newestWork, supervisorHandoff, taskPreview, workTime } from './subagentPresentation'
+import { SubagentStateDot, SubagentWorkRow } from './SubagentWorkRow'
+import {
+  activityText,
+  elapsed,
+  newestWork,
+  stateWord,
+  supervisorHandoff,
+} from './subagentPresentation'
+import { useNow } from './useNow'
 
 export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.Element {
   const lines = useExtensionUiStore((s) => s.widgets[sessionId]?.[SUBAGENT_ASYNC_WIDGET_KEY]?.lines)
@@ -130,17 +136,120 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
   useEffect(() => {
     if (identity && restored === identity) saveSubagentView(identity, { view, target })
   }, [identity, restored, view, target])
-  const selected = selectedFleetNode(fleet, target)
-  const selectedEntry = work.entries.find(
-    (e) => e.runId === target?.runId && e.childId === target?.childId,
-  )
-  const handoff = target ? supervisorHandoff(work.tools, work.items, target) : undefined
-  const active = !!selected && isFleetActive(selected.state)
+  // An "Inspect run" link names the run. A single-agent run's activity lives
+  // in its one step, so the same agent is selected either way.
+  const selectedEntry = target
+    ? work.entries.find(
+        (e) =>
+          e.runId === target.runId &&
+          (e.childId === target.childId || (!target.childId && e.single)),
+      )
+    : undefined
+  const resolved: SubagentTarget | undefined =
+    target && selectedEntry?.single
+      ? { runId: target.runId, childId: selectedEntry.childId }
+      : target
+  const selected = selectedFleetNode(fleet, resolved)
+  const handoff = resolved
+    ? supervisorHandoff(work.tools, work.items, resolved, { single: !!selectedEntry?.single })
+    : undefined
+  const active = (!!selected && isFleetActive(selected.state)) || !!selectedEntry?.active
+  const now = useNow(work.entries.some((entry) => entry.active > 0))
   const { inspection, readAt, error, loading, refresh } = useSubagentInspection(
     sessionId,
-    target,
+    resolved,
     view === 'live' && !foregroundId && !covered && !(narrow && showList),
     active,
+  )
+  const foregroundEntry = work.entries.find((e) => !e.runId && e.toolCallId === foregroundId)
+  const ordered = newestWork(work.entries)
+  const keptForeground = new Set(
+    ordered
+      .filter((e) => !e.runId && e.toolCallId)
+      .filter((e, index) => e.active || e.toolCallId === foregroundId || index < 20)
+      .map((e) => e.id),
+  )
+  const visible = ordered.filter((e) => e.runId || keptForeground.has(e.id))
+  const items = navItems(visible)
+  const working = items.filter((item) => itemEntries(item).some(isCurrent))
+  const earlier = items.filter((item) => !working.includes(item))
+  const openEntry = (entry: WorkEntry): void => {
+    if (entry.runId) {
+      select({ runId: entry.runId, childId: entry.childId })
+      return
+    }
+    selectionRevision.current++
+    setRestoreError(undefined)
+    setTarget(undefined)
+    setForegroundId(entry.toolCallId)
+    setShowList(false)
+    focusDetail.current = true
+  }
+  const row = (entry: WorkEntry, grouped = false): React.JSX.Element => (
+    <SubagentWorkRow
+      key={entry.id}
+      entry={entry}
+      now={now}
+      grouped={grouped}
+      selected={
+        entry.runId
+          ? resolved?.runId === entry.runId && resolved?.childId === entry.childId
+          : foregroundId === entry.toolCallId
+      }
+      onClick={() => openEntry(entry)}
+    />
+  )
+  const renderItems = (list: NavItem[]): React.JSX.Element[] =>
+    list.map((item) =>
+      'entry' in item ? (
+        row(item.entry)
+      ) : (
+        <div key={item.group.id} className="min-w-0">
+          <TooltipButton
+            type="button"
+            aria-label={`${item.group.label} run`}
+            aria-pressed={resolved?.runId === item.group.id && !resolved?.childId}
+            onClick={() => select({ runId: item.group.id })}
+            className="text-text-secondary hover:text-text aria-pressed:bg-accent-soft block w-full truncate rounded px-2 py-1 text-left text-xs"
+          >
+            {item.group.label} · #{shortId(item.group.id)}
+          </TooltipButton>
+          <div className="border-border ml-3 border-l pl-1">
+            {item.entries.map((entry) => row(entry, true))}
+          </div>
+        </div>
+      ),
+    )
+  const header = (entry: WorkEntry | undefined, fallback: string): React.JSX.Element => (
+    <>
+      <h3
+        ref={detailTitle}
+        tabIndex={-1}
+        className="min-w-0 line-clamp-2 break-words font-semibold"
+      >
+        {entry?.title ?? fallback}
+      </h3>
+      <p className="text-text-secondary mt-1 flex min-w-0 items-center gap-1.5 text-xs">
+        {entry && <SubagentStateDot entry={entry} />}
+        <span className="min-w-0 truncate">
+          {[
+            entry?.label,
+            <span key="state" role="status">
+              {stateWord(entry?.state ?? selected?.state ?? 'no live snapshot')}
+            </span>,
+            entry?.startedAt !== undefined &&
+              elapsed((entry.active ? now : (entry.endedAt ?? now)) - entry.startedAt),
+            entry?.toolCount !== undefined &&
+              `${entry.toolCount} ${entry.toolCount === 1 ? 'tool' : 'tools'}`,
+            entry?.turnCount !== undefined &&
+              `${entry.turnCount} ${entry.turnCount === 1 ? 'turn' : 'turns'}`,
+            entry?.runId && `#${shortId(entry.runId)}`,
+          ]
+            .filter(Boolean)
+            .flatMap((part, i) => (i ? [' · ', part] : [part]))}
+        </span>
+      </p>
+    </>
   )
 
   return (
@@ -160,7 +269,7 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
             aria-pressed={view === 'live'}
             onClick={() => setView('live')}
           >
-            Runs & results
+            Agents
           </Button>
           <Button
             size="sm"
@@ -168,7 +277,7 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
             aria-pressed={view === 'history'}
             onClick={() => setView('history')}
           >
-            Recorded coordination
+            Coordination log
           </Button>
         </div>
         {restoreError && (
@@ -187,7 +296,7 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
         )}
         <div
           className={clsx(
-            'min-h-0 flex-1 overflow-hidden @min-[640px]:grid-cols-[15rem_minmax(0,1fr)]',
+            'min-h-0 flex-1 overflow-hidden @min-[640px]:grid-cols-[17rem_minmax(0,1fr)]',
             view === 'live' ? 'grid' : 'hidden',
           )}
         >
@@ -195,68 +304,26 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
             ref={navigation}
             aria-label="Agent runs"
             className={clsx(
-              'border-border min-h-0 overflow-y-auto overscroll-contain border-r p-2 @min-[640px]:block',
+              'border-border min-h-0 overflow-y-auto overscroll-contain border-r p-1.5 @min-[640px]:block',
               !showList && hasSelection && 'hidden',
             )}
           >
-            {work.entries.some((entry) => !entry.runId && entry.toolCallId) && (
-              <h3 className="text-text-secondary mb-1 px-2 text-xs font-medium">
-                Foreground · newest first
-              </h3>
+            {working.length > 0 && (
+              <h3 className="text-text-tertiary px-2 pt-1 pb-0.5 text-xs">Working</h3>
             )}
-            {newestWork(work.entries)
-              .filter((entry) => !entry.runId && entry.toolCallId)
-              .filter(
-                (entry, index) => entry.active || entry.toolCallId === foregroundId || index < 20,
-              )
-              .map((entry) => (
-                <SubagentWorkRow
-                  key={entry.id}
-                  entry={entry}
-                  source="foreground"
-                  selected={foregroundId === entry.toolCallId}
-                  onClick={() => {
-                    selectionRevision.current++
-                    setRestoreError(undefined)
-                    setTarget(undefined)
-                    setForegroundId(entry.toolCallId)
-                    setShowList(false)
-                    focusDetail.current = true
-                  }}
-                />
-              ))}
-            <h3 className="text-text-secondary mb-2 px-2 text-sm font-medium">Background runs</h3>
-            {fleet?.runs.length ? (
-              <SubagentTree
-                nodes={fleet.runs}
-                entries={work.entries}
-                target={target}
-                onSelect={select}
-              />
-            ) : (
-              <p className="text-text-secondary p-2 text-base">
-                No live snapshot. Recorded results remain in the conversation.
-              </p>
+            {renderItems(working)}
+            {earlier.length > 0 && (
+              <h3 className="text-text-tertiary px-2 pt-2 pb-0.5 text-xs">Earlier</h3>
             )}
-            {newestWork(work.entries)
-              .filter((entry) => entry.runId && !fleet?.runs.some((run) => run.id === entry.runId))
-              .map((entry) => (
-                <SubagentWorkRow
-                  key={entry.id}
-                  entry={entry}
-                  source="last known"
-                  selected={target?.runId === entry.runId && target?.childId === entry.childId}
-                  onClick={() => select({ runId: entry.runId!, childId: entry.childId })}
-                />
-              ))}
+            {renderItems(earlier)}
+            {!items.length && (
+              <p className="text-text-secondary p-2 text-sm">No agents in this conversation yet.</p>
+            )}
             {fleet?.incomplete && (
-              <p className="text-text-secondary p-2 text-sm">
-                Snapshot incomplete; some work may not be shown.
+              <p className="text-text-tertiary p-2 text-xs">
+                Some work was left out of the snapshot.
               </p>
             )}
-            <p className="text-text-secondary mt-3 px-2 text-sm">
-              Foreground details mirror their delegation tool row. Completion is not acceptance.
-            </p>
           </nav>
           <div
             className={clsx(
@@ -266,19 +333,14 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
           >
             {foregroundId ? (
               <>
-                <div className="border-border shrink-0 border-b p-3">
+                <div className="border-border shrink-0 border-b px-3 py-2">
                   <TooltipButton
-                    className="text-text-secondary mb-2 underline @min-[640px]:hidden"
+                    className="text-text-secondary mb-2 text-xs underline @min-[640px]:hidden"
                     onClick={() => setShowList(true)}
                   >
                     Back to runs
                   </TooltipButton>
-                  <h3 ref={detailTitle} tabIndex={-1} className="font-semibold">
-                    Foreground delegation
-                  </h3>
-                  <p className="text-text-secondary text-sm">
-                    Live tool evidence from this conversation. Completion is not acceptance.
-                  </p>
+                  {header(foregroundEntry, 'Foreground delegation')}
                 </div>
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                   {foreground ? (
@@ -288,15 +350,15 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
                   )}
                 </div>
               </>
-            ) : !target ? (
-              <p className="text-text-secondary p-4 text-base">
-                Select a run or child to read its task, recent messages and result.
+            ) : !resolved ? (
+              <p className="text-text-secondary p-4 text-sm">
+                Select an agent to see what it is doing, its task and its result.
               </p>
             ) : (
               <>
-                <div className="border-border shrink-0 border-b px-3 py-2 text-base">
+                <div className="border-border shrink-0 border-b px-3 py-2">
                   <TooltipButton
-                    className="text-text-secondary mb-2 rounded underline @min-[640px]:hidden"
+                    className="text-text-secondary mb-2 rounded text-xs underline @min-[640px]:hidden"
                     onClick={() => {
                       setShowList(true)
                       requestAnimationFrame(() =>
@@ -309,71 +371,56 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
                     Back to runs
                   </TooltipButton>
                   <div className="flex items-start justify-between gap-2">
-                    <h3
-                      ref={detailTitle}
-                      tabIndex={-1}
-                      className="min-w-0 line-clamp-2 break-words font-semibold"
-                    >
-                      {selectedEntry?.task
-                        ? taskPreview(selectedEntry.task)
-                        : (selected?.label ??
-                          selectedEntry?.label ??
-                          inspection?.label ??
-                          'Child inspection')}
-                    </h3>
+                    <div className="min-w-0 flex-1">
+                      {header(selectedEntry, selected?.label ?? inspection?.label ?? 'Agent')}
+                    </div>
                     <Button size="sm" disabled={loading} onClick={refresh}>
                       Refresh
                     </Button>
                   </div>
-                  <p className="text-text-secondary mt-1 text-sm" role="status">
-                    {selected?.state ?? selectedEntry?.state ?? 'Last known'}
-                    {` · ${workTime(selected?.startedAt ?? selectedEntry?.startedAt, selected?.endedAt ?? selectedEntry?.endedAt, selectedEntry?.requestedAt)}`}
-                    {readAt
-                      ? ` · Read at ${new Date(readAt).toLocaleTimeString()}`
-                      : loading
-                        ? ' · Reading child…'
-                        : ''}
-                  </p>
-                  <details className="mt-2" key={`${target.runId}:${target.childId}`}>
-                    <TooltipSummary className="text-text-secondary cursor-pointer text-sm">
+                  <details className="mt-1" key={`${resolved.runId}:${resolved.childId}`}>
+                    <TooltipSummary className="text-text-secondary cursor-pointer text-xs">
                       Details & actions
                     </TooltipSummary>
                     <div className="max-h-64 space-y-2 overflow-auto py-2">
-                      <p className="break-all font-mono text-sm">
-                        Run {target.runId}
-                        {target.childId ? ` · child ${target.childId}` : ''}
+                      <p className="break-all font-mono text-xs">
+                        Run {resolved.runId}
+                        {resolved.childId ? ` · child ${resolved.childId}` : ''}
                       </p>
-                      <p className="text-text-secondary text-sm">
-                        Run state at last read: {inspection?.status ?? 'unavailable'}.{' '}
-                        {target.childId &&
+                      <p className="text-text-secondary text-xs">
+                        Run state at last read: {inspection?.status ?? 'unavailable'}
+                        {readAt ? ` (${new Date(readAt).toLocaleTimeString()})` : ''}.{' '}
+                        {resolved.childId &&
+                          !selectedEntry?.single &&
                           'This can describe the containing run, not the selected step. '}
-                        Read-only inspection; Pi owns execution.{' '}
+                        Read-only; Pi owns execution.{' '}
                         {active
-                          ? 'Refreshes every 5 seconds while visible and focused.'
+                          ? 'Activity refreshes every 5 seconds while visible and focused.'
                           : 'Refresh to check again.'}
                       </p>
                       {inspection && readAt && (
                         <SubagentActions
                           sessionId={sessionId}
-                          target={target}
+                          target={resolved}
                           inspection={inspection}
                           readAt={readAt}
                           active={active}
                         />
                       )}
-                      {!target.childId && fleet?.runs.some((run) => run.id === target.runId) && (
-                        <SubagentStop sessionId={sessionId} runId={target.runId} />
-                      )}
+                      {fleet?.runs.some((run) => run.id === resolved.runId) &&
+                        (!resolved.childId || selectedEntry?.single) && (
+                          <SubagentStop sessionId={sessionId} runId={resolved.runId} />
+                        )}
                     </div>
                   </details>
                 </div>
                 {error && (
-                  <div className="border-border shrink-0 border-b p-3 text-base">
+                  <div className="border-border shrink-0 border-b p-3 text-sm">
                     <p role="alert" className="text-danger">
                       {error}
-                      {inspection && ' Any preview below is from the last successful read.'}
+                      {inspection && ' Any activity below is from the last successful read.'}
                     </p>
-                    <p className="text-text-secondary text-sm">
+                    <p className="text-text-secondary text-xs">
                       Automatic retries back off and pause after three failures. Refresh to retry.
                     </p>
                     <Button
@@ -384,19 +431,19 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
                     </Button>
                   </div>
                 )}
-                {inspection ? (
-                  <SubagentPreview
-                    key={`${target.runId}:${target.childId}`}
-                    inspection={inspection}
-                    handoff={handoff}
-                  />
-                ) : (
-                  <p className="text-text-secondary p-4 text-base">
-                    {loading
-                      ? 'Reading child…'
-                      : 'Inspection unavailable. Any saved snapshots remain in Artifacts.'}
+                {!inspection && !loading && !error && (
+                  <p className="text-text-secondary border-border shrink-0 border-b px-3 py-2 text-xs">
+                    Activity unavailable. Any saved snapshots remain in Artifacts.
                   </p>
                 )}
+                <SubagentPreview
+                  key={`${resolved.runId}:${resolved.childId}`}
+                  inspection={inspection}
+                  handoff={handoff}
+                  live={active}
+                  now={selectedEntry && active ? activityText(selectedEntry, now) : undefined}
+                  loading={loading}
+                />
               </>
             )}
           </div>
@@ -404,4 +451,29 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
       </PaneShell>
     </section>
   )
+}
+
+type NavItem = { entry: WorkEntry } | { group: { id: string; label: string }; entries: WorkEntry[] }
+const isCurrent = (entry: WorkEntry): boolean =>
+  entry.active > 0 || entry.state === 'status unavailable'
+const itemEntries = (item: NavItem): WorkEntry[] => ('entry' in item ? [item.entry] : item.entries)
+
+/** Children of one workflow or parallel run stay together, at their newest member's place. */
+function navItems(entries: WorkEntry[]): NavItem[] {
+  const groups = new Map<string, WorkEntry[]>()
+  const items: NavItem[] = []
+  for (const entry of entries) {
+    if (!entry.group) {
+      items.push({ entry })
+      continue
+    }
+    let members = groups.get(entry.group.id)
+    if (!members) {
+      members = []
+      groups.set(entry.group.id, members)
+      items.push({ group: entry.group, entries: members })
+    }
+    members.push(entry)
+  }
+  return items
 }
