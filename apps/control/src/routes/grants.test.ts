@@ -7,6 +7,7 @@ import {
   isPublicKey,
 } from '@phosphor/shared/control-api'
 import { HOST_CAPABILITIES } from '@phosphor/shared/remote-host'
+import { checkGrantClaims, parseGrantKeySet, splitGrant } from '@phosphor/shared/host-grant'
 import { createApp } from '../app'
 import { parseConfig } from '../config'
 import { dependencies, signingKey, userId } from '../test-support'
@@ -90,6 +91,26 @@ it('issues exactly the signed claims and publishes the matching public key, neve
   expect(publicRes.headers.get('cache-control')).toBe('public, max-age=300')
   const keyset: unknown = await publicRes.json()
   expect(keyset).toEqual(s.deps.config.grantKeys?.keyset)
+  // What the control plane serves and signs is what a Host accepts.
+  expect(parseGrantKeySet(keyset)).toEqual({ ok: true, value: keyset })
+  const split = splitGrant(value.grant)
+  if (!split.ok) throw new Error('the Host parser refused the grant')
+  expect(split.value.payload).toEqual(decoded)
+  expect(
+    checkGrantClaims(
+      split.value.payload,
+      {
+        iss: s.deps.config.publicOrigin,
+        hostId: s.hostId,
+        owner: userId,
+        epoch: 2,
+        revokedSessions: new Set(),
+        revokedClients: new Set(),
+      },
+      iat,
+      0,
+    ),
+  ).toBeNull()
   const key = s.deps.config.grantKeys?.keyset.keys[0]
   if (!key) throw new Error('missing key')
   expect(Object.keys(key).sort()).toEqual(['kid', 'publicKey'])
