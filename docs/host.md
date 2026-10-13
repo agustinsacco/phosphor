@@ -19,8 +19,23 @@ every library import against the package's exports.
 
 ## Setting up a Host
 
-Install the Host manually by copying a build to the machine ([Build](#build)).
-The installer comes with signed builds, component 23.
+There is no installer yet; it comes with signed builds (component 23). Until
+then, build the Host from source on the machine itself. It needs Node 22.19 or
+newer and git, and takes about ten seconds once dependencies are installed:
+
+```bash
+git clone --depth 1 https://github.com/agustinsacco/phosphor.git ~/src/phosphor
+cd ~/src/phosphor && npm ci --ignore-scripts
+npm run build:host -- --out ~/.local/share/phosphor-host
+mkdir -p ~/.local/bin
+printf '#!/bin/sh\nexec %s %s "$@"\n' "$(readlink -f "$(command -v node)")" ~/.local/share/phosphor-host/phosphor.mjs > ~/.local/bin/phosphor && chmod 755 ~/.local/bin/phosphor
+```
+
+The last line writes the `phosphor` command. It pins node's real path, not a
+version manager's per-shell link (fnm's `/run/user/.../fnm_multishells/...`
+is gone at logout). Copying a build made elsewhere ([Build](#build)) works too.
+Desktop's Add a machine dialog shows the same commands.
+
 Then run `setup`, `doctor`, `providers`, `accept`, `login` and `service install`.
 
 1. `phosphor setup --repository ~/src/project` detects programs and writes an
