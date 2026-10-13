@@ -88,6 +88,7 @@ export interface HeartbeatPorts {
   hostVersion: string
   signal?: AbortSignal
   log(line: string): void
+  endpoint?(): string | null
   onAccepted?(reply: HeartbeatResponse): void
   onRemoved?(): void
 }
@@ -155,7 +156,7 @@ export function createHeartbeat(ports: HeartbeatPorts) {
         uptimeSec: Math.max(0, Math.floor((ports.now() - started) / 1000)),
         readiness,
         lanes: { running: 0, waiting: 0 },
-        endpoint: null,
+        endpoint: ports.endpoint?.() ?? null,
       })
       if (!parsed.ok) throw new IdentityFailure('Invalid heartbeat metadata.')
       await ports.seq.write(seq)

@@ -35,12 +35,73 @@ const context = (overrides: Partial<DoctorContext> = {}): DoctorContext => ({
   nodeVersion: '22.22.3',
   defaultResourceRoot: '/nonexistent',
   probeTimeoutMs: 5_000,
+  tailscale: { which: async () => null, probe: vi.fn() },
   ...overrides,
 })
 const statuses = (report: DoctorReport) =>
   report.checks.map((check) => `${check.status} ${check.id}`)
 
 describe('doctor', () => {
+  it.each(['ours', 'absent', 'other', 'funnel', 'unknown', 'missing', 'stopped'] as const)(
+    'reports Tailscale serve %s and keeps missing Tailscale non-fatal',
+    async (state) => {
+      const name = 'bee.tail123.ts.net'
+      const serve =
+        state === 'ours'
+          ? JSON.stringify({
+              TCP: { 47615: { HTTPS: true } },
+              Web: {
+                [`${name}:47615`]: { Handlers: { '/': { Proxy: 'http://127.0.0.1:47615' } } },
+              },
+            })
+          : state === 'absent'
+            ? '{}'
+            : state === 'other'
+              ? '{"TCP":{"47615":{"HTTP":true}}}'
+              : state === 'funnel'
+                ? JSON.stringify({ AllowFunnel: { [`${name}:47615`]: true } })
+                : 'bad'
+      const probe = vi.fn(async (_file: string, args: readonly string[]) => ({
+        code: 0,
+        signal: null,
+        stdout:
+          args[0] === 'status'
+            ? JSON.stringify({
+                BackendState: state === 'stopped' ? 'Stopped' : 'Running',
+                Self: { DNSName: `${name}.` },
+                CertDomains: [name],
+              })
+            : serve,
+        stderr: 'TAILSCALE_PRIVATE_OUTPUT',
+        timedOut: false,
+        truncated: false,
+      }))
+      const report = await runDoctor(
+        context({
+          tailscale: { which: async () => (state === 'missing' ? null : '/fake/tailscale'), probe },
+        }),
+      )
+      expect(report.exitCode).toBe(state === 'other' || state === 'funnel' ? 78 : 0)
+      const check = report.checks.find((item) => item.id === 'Tailscale serve')
+      expect(check?.status).toBe(
+        state === 'missing' || state === 'stopped'
+          ? undefined
+          : state === 'ours'
+            ? 'pass'
+            : state === 'other' || state === 'funnel'
+              ? 'fail'
+              : 'warn',
+      )
+      const text = renderDoctor(report)
+      if (state === 'absent') expect(text).toContain('Run phosphor tailscale enable.')
+      if (state === 'other' || state === 'funnel')
+        expect(text).toContain('will not replace a route it did not make')
+      if (state === 'funnel') expect(text).toContain('publish the Host to the internet')
+      expect(text).not.toContain(name)
+      expect(text).not.toContain('TAILSCALE_PRIVATE_OUTPUT')
+    },
+  )
+
   it('passes a healthy machine: native lane, names-only environment, a valid hello', async () => {
     machine.signIn('openai-codex')
     const report = await runDoctor(context())
@@ -58,6 +119,7 @@ describe('doctor', () => {
       'info context-budget',
       'info accounts',
       'info compression',
+      'warn Tailscale',
     ])
     expect(report.checks).toContainEqual({
       id: 'providers',
@@ -222,6 +284,11 @@ describe('doctor', () => {
         summary: `${machine.agentDir} does not exist yet: run pi once as this user and log in`,
       },
       { id: 'providers', status: 'warn', summary: 'none is signed in: phosphor providers' },
+      {
+        id: 'Tailscale',
+        status: 'warn',
+        summary: 'Tailscale is missing: install Tailscale first.',
+      },
     ])
     expect(report.next).toBe('sign in to a provider: phosphor providers')
   })

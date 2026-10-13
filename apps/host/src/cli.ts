@@ -20,6 +20,7 @@ import { defaultConfigPath } from './config/load'
 import type { Drainable } from './shutdown'
 import { HOST_SOURCE_SHA, HOST_VERSION } from './version'
 import { launchdExit } from './machine/launchd'
+import { isTailscaleAction, runTailscale } from './commands/tailscale'
 
 export const USAGE = `usage: phosphor <command>
 
@@ -49,6 +50,8 @@ Set up a Host: setup, doctor, providers, accept, login, service install.
                                     keep this machine online with heartbeats
   service install|status|restart|logs|uninstall [--config FILE]
                                     manage the Linux or macOS user service; logs takes --follow
+  tailscale status|enable|disable [--config FILE]
+                                    expose the loopback API on your tailnet, never Funnel
   version [--json]                  print the Host's version
 
 exit codes: 0 ok, 1 an acceptance check failed, 64 usage, 69 prerequisite unavailable,
@@ -82,6 +85,7 @@ const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   doctor: ['config', 'json'],
   run: ['config', 'supervisor'],
   service: ['config', 'follow'],
+  tailscale: ['config'],
   login: ['config'],
   status: ['config', 'json'],
   logout: ['config', 'local'],
@@ -147,7 +151,10 @@ export async function runCli(
     return usage('service needs install, status, restart, logs or uninstall')
   if (service && values.follow && extra[0] !== 'logs')
     return usage('--follow is only for service logs')
-  const unexpected = extra[login ? 2 : service ? 1 : 0]
+  const tailscale = command === 'tailscale'
+  if (tailscale && !isTailscaleAction(extra[0]))
+    return usage('tailscale needs status, enable or disable')
+  const unexpected = extra[login ? 2 : service || tailscale ? 1 : 0]
   if (unexpected !== undefined) return usage(`unexpected argument "${unexpected}"`)
   const refused = Object.keys(values).find((option) => !allowed.includes(option))
   if (refused) return usage(`${name} does not take --${refused}`)
@@ -186,6 +193,11 @@ export async function runCli(
       return EXIT.ok
     }
     const configPath = values.config ?? defaultConfigPath(context.env, context.home)
+    if (tailscale && isTailscaleAction(extra[0])) {
+      const outcome = await runTailscale({ ...context, configPath }, extra[0], context.tailscale)
+      io.stdout(`${outcome.message}\n`)
+      return outcome.exitCode
+    }
     if (command === 'setup') {
       const report = await runSetup({
         ...context,

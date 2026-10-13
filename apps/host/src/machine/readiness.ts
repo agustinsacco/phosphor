@@ -8,6 +8,8 @@ import { parseLoggedIn } from './claude'
 import { buildPiEnvironment } from './environment'
 import { isNodeScript, which } from './executables'
 import { probe, type ProbeResult } from './probe'
+import { inspectTailscale, type TailscaleInspection } from './tailscale'
+export { tailscaleReadiness } from './tailscale'
 
 const clean = (run: ProbeResult) => !run.timedOut && !run.truncated && !run.error && !run.signal
 export function piReadiness(run: ProbeResult | null): Readiness['pi'] {
@@ -22,30 +24,6 @@ export function claudeReadiness(run: ProbeResult | null): Readiness['claude'] {
   const loggedIn = parseLoggedIn(run.stdout)
   return loggedIn === null ? 'unknown' : loggedIn ? 'ok' : 'signed-out'
 }
-export function tailscaleReadiness(run: ProbeResult | null): Readiness['tailscale'] {
-  if (!run) return 'missing'
-  if (!clean(run) || run.code !== 0) return 'unknown'
-  try {
-    const value: unknown = JSON.parse(run.stdout)
-    if (
-      value === null ||
-      typeof value !== 'object' ||
-      !('BackendState' in value) ||
-      typeof value.BackendState !== 'string'
-    )
-      return 'unknown'
-    if (value.BackendState !== 'Running') return 'stopped'
-    if (!('CertDomains' in value) || value.CertDomains === null) return 'no-https'
-    if (
-      !Array.isArray(value.CertDomains) ||
-      !value.CertDomains.every((item: unknown) => typeof item === 'string')
-    )
-      return 'unknown'
-    return value.CertDomains.length === 0 ? 'no-https' : 'ok'
-  } catch {
-    return 'unknown'
-  }
-}
 
 export const readinessPorts = {
   probe,
@@ -59,6 +37,7 @@ export async function checkReadiness(
   env: NodeJS.ProcessEnv,
   platform: NodeJS.Platform,
   ports = readinessPorts,
+  onTailscale?: (found: TailscaleInspection) => void,
 ): Promise<Readiness> {
   const environment = buildPiEnvironment({
     hostEnv: env,
@@ -82,12 +61,11 @@ export async function checkReadiness(
       pi = piReadiness(await ports.probe(exe, ['--version'], options))
   }
   const claude = await ports.which('claude', environment.env.PATH ?? '')
-  const tailscale = await ports.which('tailscale', env.PATH ?? '')
+  const tailscale = await inspectTailscale(config, env, platform, ports)
+  onTailscale?.(tailscale)
   return {
     pi,
     claude: claudeReadiness(claude ? await ports.probe(claude, ['auth', 'status'], options) : null),
-    tailscale: tailscaleReadiness(
-      tailscale ? await ports.probe(tailscale, ['status', '--json'], options) : null,
-    ),
+    tailscale: tailscale.readiness,
   }
 }

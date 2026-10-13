@@ -27,6 +27,7 @@ import { checkRepositories } from '../machine/repositories'
 import { checkExtensions } from '../machine/resources'
 import type { HostMachine } from '../session/runtime'
 import { HOST_VERSION } from '../version'
+import { inspectTailscale, tailscaleChecks, type tailscalePorts } from '../machine/tailscale'
 
 /** What a Host will offer once it can be reached (component 21). */
 const CAPABILITIES: HostCapability[] = ['sessions.read', 'sessions.control']
@@ -49,6 +50,7 @@ export interface DoctorContext {
   defaultResourceRoot: string
   /** Bound for each probe. Tests shorten it. */
   probeTimeoutMs?: number
+  tailscale?: typeof tailscalePorts
 }
 
 export interface Lane {
@@ -176,6 +178,11 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
   checks.push(budgetCheck(config.contextBudget ?? ''))
   checks.push(info('accounts', 'unavailable on a Host: pi uses the logins of the user running it'))
   checks.push(info('compression', 'unavailable on a Host: there is no Headroom proxy'))
+  checks.push(
+    ...tailscaleChecks(
+      await inspectTailscale(config, context.env, context.platform, context.tailscale),
+    ),
+  )
 
   const failed = [...new Set(checks.filter((c) => c.status === 'fail').map((c) => c.id))]
   const native: Lane =

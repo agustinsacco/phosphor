@@ -719,3 +719,77 @@ it('keeps run alive and heartbeating when the API port is occupied', async () =>
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }
 })
+
+it('refreshes the endpoint with readiness, caches between beats, and logs only changed route states', async () => {
+  await machine.enrollOld()
+  const name = 'bee.tail123.ts.net'
+  let index = 0
+  const logs: unknown[] = []
+  const probe = vi.fn(async (_file: string, args: readonly string[]) => ({
+    code: 0,
+    signal: null,
+    stderr: 'private output',
+    timedOut: false,
+    truncated: false,
+    stdout:
+      args[0] === 'status'
+        ? JSON.stringify({
+            BackendState: 'Running',
+            Self: { DNSName: `${name}.` },
+            CertDomains: [name],
+          })
+        : index < 2
+          ? JSON.stringify({
+              TCP: { 47615: { HTTPS: true } },
+              Web: {
+                [`${name}:47615`]: { Handlers: { '/': { Proxy: 'http://127.0.0.1:47615' } } },
+              },
+            })
+          : '{}',
+  }))
+  machine.onWait(() => {
+    if (++index === 22) machine.abort.abort()
+  })
+  const exit = await runHost({
+    ...context(),
+    heartbeat: {
+      random: () => 0,
+      readinessPorts: {
+        probe,
+        which: async (binary) => (binary === 'tailscale' ? '/fake/tailscale' : null),
+        isNodeScript: async () => false,
+        isFile: async () => false,
+        resolve: async () => null,
+      },
+    },
+    log: (scope, event, fields) => {
+      if (event === 'tailscale.endpoint') logs.push({ scope, event, fields })
+    },
+    fetch: async (url, init) => {
+      machine.calls.push({
+        path: new URL(String(url)).pathname,
+        method: init?.method ?? '',
+        body: String(init?.body),
+        headers: new Headers(init?.headers),
+        at: machine.context.now?.() ?? 0,
+      })
+      return Response.json({ accepted: true, nextInSec: 30 })
+    },
+  })
+  expect(exit).toBe(0)
+  const endpoints = machine.calls.map((call) => {
+    const value: unknown = JSON.parse(call.body)
+    return value !== null && typeof value === 'object' && 'endpoint' in value
+      ? value.endpoint
+      : undefined
+  })
+  expect(endpoints.slice(0, 10)).toEqual(Array.from({ length: 10 }, () => `https://${name}:47615`))
+  expect(endpoints.slice(10)).toEqual(Array.from({ length: 12 }, () => null))
+  expect(probe).toHaveBeenCalledTimes(6)
+  expect(logs).toEqual([
+    { scope: 'host', event: 'tailscale.endpoint', fields: { state: 'ours' } },
+    { scope: 'host', event: 'tailscale.endpoint', fields: { state: 'absent' } },
+  ])
+  expect(JSON.stringify(logs)).not.toContain(name)
+  expect(JSON.stringify(logs)).not.toContain('private')
+})

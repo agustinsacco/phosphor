@@ -103,6 +103,16 @@ function loopFixture() {
 }
 
 describe('heartbeat loop', () => {
+  it.each([null, 'https://bee.tail123.ts.net:47615'])(
+    'reads endpoint from its port: %s',
+    async (endpoint) => {
+      const f = loopFixture()
+      f.ports.endpoint = () => endpoint
+      await createHeartbeat(f.ports).run()
+      expect(f.requests.map((body) => body.endpoint)).toEqual([endpoint, endpoint, endpoint])
+    },
+  )
+
   it.each([0, 0.5, 1])(
     'schedules the server interval plus bounded jitter %s and publishes before sending',
     async (random) => {

@@ -19,6 +19,7 @@ import { validateHostConfig, type HostConfigV1 } from '../config/schema'
 import { buildPiEnvironment } from '../machine/environment'
 import { isNodeScript, resolvePi, versionOf, which } from '../machine/executables'
 import { probe } from '../machine/probe'
+import { inspectTailscale, setupTailscaleHint } from '../machine/tailscale'
 import { checkRepositories, isInsideRoot } from '../machine/repositories'
 import { redactStrings, type DoctorContext } from './doctor'
 
@@ -68,6 +69,11 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
       return stop(EXIT.config, 'the config is not usable; rerun with --replace to rewrite it')
     }
     summarize(report, old.config)
+    report.notes.push(
+      ...setupTailscaleHint(
+        await inspectTailscale(old.config, context.env, context.platform, context.tailscale),
+      ),
+    )
     return stop(EXIT.ok, 'already set up; rerun with --replace to rewrite it')
   }
   if (old && !old.ok) report.notes.push('the old config is not usable; replacing it')
@@ -147,6 +153,7 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
     ...(kept?.contextBudget !== undefined ? { contextBudget: kept.contextBudget } : {}),
     ...(kept?.accounts !== undefined ? { accounts: kept.accounts } : {}),
     ...(kept?.control !== undefined ? { control: kept.control } : {}),
+    ...(kept?.api !== undefined ? { api: kept.api } : {}),
     ...(kept?.resourceRoot !== undefined ? { resourceRoot: kept.resourceRoot } : {}),
     pi,
     repositories: [...new Set(repositories)],
@@ -225,6 +232,11 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
     )
     return stop(EXIT.internal, 'the written config could not be loaded')
   }
+  report.notes.push(
+    ...setupTailscaleHint(
+      await inspectTailscale(config, context.env, context.platform, context.tailscale),
+    ),
+  )
   report.next = 'phosphor doctor'
   return report
 }

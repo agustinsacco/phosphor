@@ -421,7 +421,8 @@ forgets the files only; the machine stays listed until removed in Desktop.
 Login, status, logout, run and service status contact the configured control
 plane. Enrollment sends the public key, hostname, platform, architecture and
 Host version. Status, logout and run send the enrolled UUID. Heartbeats send
-readiness and the Host version, with zero lane counts and a null endpoint.
+readiness and the Host version, with zero lane counts and the verified Tailscale
+endpoint, or null when no safe route is available (see [Tailscale](#tailscale)).
 Requests carry a timestamp, random nonce and Ed25519
 signature. No repository names, paths, transcripts or provider tokens
 leave the machine. Redirects are refused. Requests time out after 10 seconds;
@@ -494,8 +495,8 @@ status after reconnecting. The [API](#api) does not serve this pipeline yet.
 `phosphor run` listens on `127.0.0.1:47615` only, once an accepted heartbeat
 supplies the enrolled owner and epoch. `api.port` in config sets an integer
 from 1024 to 65535. A busy port logs `api.unavailable` and retries every minute;
-heartbeats continue. Tailscale Serve can expose the loopback endpoint on the
-Tailnet. The Host does not listen directly on a Tailscale address or use Funnel.
+heartbeats continue. [Tailscale Serve](#tailscale) exposes the loopback endpoint on the
+tailnet. The Host does not listen directly on a Tailscale address or use Funnel.
 
 `GET /v1/hello?challenge=<64 lowercase hex>` returns the Host hello and an
 Ed25519 proof over the Host id, runtime epoch and challenge. It is unauthenticated,
@@ -537,6 +538,45 @@ the run lock.
 API logs contain event names, connection and client ids, close codes, durations
 and ports. They never contain grants, signatures, challenges, proofs, keys or
 header values.
+
+## Tailscale
+
+`phosphor tailscale status|enable|disable [--config FILE]` manages only the
+configured `api.port` (default 47615). The API still listens on loopback only.
+`status` shows the route state, the endpoint the Host reports, and the next step.
+It exits 0 for the Host's route and 69 otherwise.
+
+`enable` runs exactly:
+
+```bash
+tailscale serve --bg --https=47615 http://127.0.0.1:47615
+```
+
+Both ports follow `api.port` when configured. The route persists in tailscaled
+across reboots. An already enabled route is left alone. `disable` runs
+`tailscale serve --https=47615 off` only for that exact Host route. An absent
+route is already disabled. Both changes require a verified status readback.
+
+On Linux, a nonzero serve exit may need the one-time fix
+`sudo tailscale set --operator=$USER`. Phosphor prints that hint; it never runs
+sudo or changes the operator itself. A failed change or readback exits 75.
+Missing or stopped Tailscale exits 69. An unverifiable route is not changed.
+
+The Host never uses Funnel. A Funnel route on this port would publish the Host
+to the internet and must be turned off. Funnel, a different proxy target, extra
+path handlers, HTTP or a TCP forwarder cause enable and disable to refuse with
+exit 78. The Host will not replace a route it did not make. Routes on other
+ports are left alone. `doctor` warns about an absent route and fails for Funnel
+or another route on this port. `setup` only suggests `phosphor tailscale enable`
+when Tailscale is running and the route is absent; it never changes serve config.
+
+At start and every five minutes, the readiness refresh verifies the running
+machine's certified `Self.DNSName` and serve config. Only an HTTPS route with
+one `/` handler proxying exactly to `http://127.0.0.1:<api.port>` and no Funnel
+produces the heartbeat endpoint `https://<machine>.<tailnet>.ts.net:<api.port>`.
+The endpoint is null for any other route, invalid name, missing certificate
+domain or failed probe. Logs record changed route states only, never Tailscale
+names, addresses or output.
 
 ## Running as a service
 
