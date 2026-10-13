@@ -87,7 +87,7 @@ function pick(target: Model): void {
   act(() => chip().click())
   const key = `${target.provider}/${target.id}`
   const row = [...document.querySelectorAll<HTMLButtonElement>('[data-testid="model-row"]')].find(
-    (r) => r.title === key,
+    (r) => r.dataset.tooltip! === key,
   )
   if (!row) throw new Error(`no row for ${key}`)
   act(() => row.click())

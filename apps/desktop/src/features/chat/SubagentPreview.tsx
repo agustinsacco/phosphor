@@ -1,3 +1,4 @@
+import { TooltipSummary } from '@/components/Tooltip'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { CopyButton } from '@/components/CopyButton'
 import { Button } from '@/components/form'
@@ -82,10 +83,10 @@ export function SubagentPreview({
                 if (e.currentTarget.open) pause()
               }}
             >
-              <summary className="text-text-secondary cursor-pointer">
+              <TooltipSummary className="text-text-secondary cursor-pointer">
                 Additional input in preview · {inputs.length}{' '}
                 {inputs.length === 1 ? 'message' : 'messages'}
-              </summary>
+              </TooltipSummary>
               <div className="max-h-64 space-y-3 overflow-auto pt-2 text-base">
                 {inputs.map((message, i) => (
                   <div key={i}>
@@ -125,9 +126,9 @@ export function SubagentPreview({
                 if (e.currentTarget.open) pause()
               }}
             >
-              <summary className="text-text-secondary cursor-pointer">
+              <TooltipSummary className="text-text-secondary cursor-pointer">
                 Supervisor received notification
-              </summary>
+              </TooltipSummary>
               <p className="text-text-tertiary py-1 text-xs">
                 A notification may contain an artifact reference rather than the full answer.
                 {handoff?.receivedAt !== undefined &&
@@ -147,11 +148,11 @@ export function SubagentPreview({
             if (e.currentTarget.open) pause()
           }}
         >
-          <summary className="text-text-secondary cursor-pointer py-1 font-medium">
+          <TooltipSummary className="text-text-secondary cursor-pointer py-1 font-medium">
             Activity · {calls} tool {calls === 1 ? 'call' : 'calls'} · {results}{' '}
             {results === 1 ? 'output' : 'outputs'} · {messages.length - calls - results}{' '}
             {messages.length - calls - results === 1 ? 'message' : 'messages'}
-          </summary>
+          </TooltipSummary>
           <p className="text-text-tertiary py-1 text-xs">
             Chronological preview. Per-message timing and call/result pairing are not reported.
           </p>
@@ -182,9 +183,9 @@ export function SubagentPreview({
                     if (e.currentTarget.open) pause()
                   }}
                 >
-                  <summary
+                  <TooltipSummary
                     className="text-text-secondary cursor-pointer truncate py-1.5"
-                    title={message.text.slice(0, 240)}
+                    data-tooltip={message.text.slice(0, 240)}
                   >
                     <span className="font-medium">{label}</span>
                     {!call && (
@@ -193,7 +194,7 @@ export function SubagentPreview({
                         · {message.text.replace(/\s+/g, ' ').slice(0, 160)}
                       </span>
                     )}
-                  </summary>
+                  </TooltipSummary>
                   <div className="pb-2">
                     <div className="flex justify-end">
                       <CopyButton text={message.text} />

@@ -67,6 +67,7 @@ export function EnrolledMachines(): React.JSX.Element {
                   event.preventDefault()
                   void window.phosphor.invoke('app:openExternal', event.currentTarget.href)
                 }}
+                data-tooltip="Open link"
               >
                 Host guide
               </a>

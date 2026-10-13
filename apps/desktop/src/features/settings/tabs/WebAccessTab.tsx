@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useCallback, useEffect, useState } from 'react'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { Button } from '@/components/form'
@@ -167,13 +168,13 @@ function ProviderRow({
             {configured ? 'Replace' : 'Set key'}
           </Button>
           {configured && (
-            <button
+            <TooltipButton
               onClick={() => onCommit('')}
               disabled={disabled}
               className="text-danger hover:bg-danger-soft rounded-md px-2 py-1 text-sm font-medium transition-colors disabled:opacity-50"
             >
               Clear
-            </button>
+            </TooltipButton>
           )}
         </div>
       )}

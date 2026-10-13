@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { memo } from 'react'
 import clsx from 'clsx'
 import { useLayoutStore, sessionPanes, type RightPane as RightPaneId } from '@/stores/layout'
@@ -77,7 +78,7 @@ function PaneSwitcher({
           { id: 'changes', label: 'Changes' },
         ] as const
       ).map(({ id, label }) => (
-        <button
+        <TooltipButton
           key={id}
           aria-pressed={active === id}
           onClick={() => useLayoutStore.getState().setRightPane(id)}
@@ -87,7 +88,7 @@ function PaneSwitcher({
           )}
         >
           {label}
-        </button>
+        </TooltipButton>
       ))}
     </div>
   )

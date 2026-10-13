@@ -20,7 +20,7 @@ export function LaneMarker({
       aria-hidden={onPick ? undefined : true}
       role={onPick ? 'button' : undefined}
       aria-label={onPick ? 'Change lane marker' : undefined}
-      title={onPick ? 'Change lane marker' : undefined}
+      data-tooltip={onPick ? 'Change lane marker' : undefined}
       tabIndex={onPick ? -1 : undefined}
       onClick={
         onPick

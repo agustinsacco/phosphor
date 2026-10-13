@@ -208,6 +208,7 @@ export const WorkspaceSearch = memo(function WorkspaceSearch({
             spellCheck={false}
             data-testid="workspace-search-input"
             className="find-field text-text placeholder:text-text-tertiary min-w-0 flex-1 bg-transparent py-0.5 text-sm outline-none"
+            data-tooltip="Search files"
           />
           <SearchOptionToggles
             options={options}
@@ -428,7 +429,7 @@ const FileRow = memo(function FileRow({
       aria-expanded={expanded}
       aria-selected={active}
       aria-label={`${file.path}, ${plural(file.matches.length, 'result')}`}
-      title={file.path}
+      data-tooltip={file.path}
       data-search-file={file.path}
       onClick={() => onChoose(row, false)}
       className={clsx(
@@ -471,7 +472,7 @@ const MatchRow = memo(function MatchRow({
       aria-level={2}
       aria-selected={active}
       aria-label={`Line ${match.line}: ${preview.trim()}`}
-      title={`Line ${match.line}, column ${match.column} · double-click to edit`}
+      data-tooltip={`Line ${match.line}, column ${match.column} · double-click to edit`}
       data-search-line={match.line}
       onClick={() => onChoose(row, false)}
       onDoubleClick={() => onChoose(row, true)}

@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { App } from './app/App'
+import { TooltipProvider } from './components/Tooltip'
 import { LoadingScreen } from './app/LoadingScreen'
 import { useSettingsStore } from './stores/settings'
 import { hostPlatform } from './lib/shortcuts'
@@ -32,22 +33,30 @@ async function bootstrap(): Promise<void> {
   document.documentElement.classList.add(`platform-${hostPlatform()}`)
 
   const root = ReactDOM.createRoot(document.getElementById('root')!)
-  root.render(<LoadingScreen />)
+  root.render(
+    <TooltipProvider>
+      <LoadingScreen />
+    </TooltipProvider>,
+  )
   try {
     // Show the startup surface while fonts settle, but keep metric-sensitive
     // editors/terminals unmounted until then. Appearance loads in parallel.
     await Promise.all([loadBundledFonts(), useSettingsStore.getState().hydrate()])
     root.render(
       <React.StrictMode>
-        <App />
+        <TooltipProvider>
+          <App />
+        </TooltipProvider>
       </React.StrictMode>,
     )
   } catch {
     root.render(
-      <LoadingScreen
-        error="Couldn’t load your preferences."
-        onRetry={() => window.location.reload()}
-      />,
+      <TooltipProvider>
+        <LoadingScreen
+          error="Couldn’t load your preferences."
+          onRetry={() => window.location.reload()}
+        />
+      </TooltipProvider>,
     )
   }
 }

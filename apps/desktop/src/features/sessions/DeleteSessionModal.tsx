@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useState } from 'react'
 import { ModalOverlay } from '@/components/Modal'
 import { useSessionsStore } from '@/stores/sessions'
@@ -51,20 +52,20 @@ export function DeleteSessionModal({
           </p>
         )}
         <div className="flex justify-end gap-2">
-          <button
+          <TooltipButton
             disabled={busy}
             onClick={onClose}
             className="border-border rounded-md border px-3 py-1 text-sm"
           >
             Cancel
-          </button>
-          <button
+          </TooltipButton>
+          <TooltipButton
             disabled={busy}
             onClick={() => void remove()}
             className="bg-danger rounded-md px-3 py-1 text-sm font-semibold text-white disabled:opacity-40"
           >
             {busy ? 'Deleting…' : 'Delete session'}
-          </button>
+          </TooltipButton>
         </div>
       </div>
     </ModalOverlay>

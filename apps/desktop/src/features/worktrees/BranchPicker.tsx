@@ -1,3 +1,4 @@
+import { TooltipButton, TooltipLabel, tooltipProps } from '@/components/Tooltip'
 import { useEffect, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import type { BranchInfo, WorktreeInfo } from '@shared/models'
@@ -222,7 +223,10 @@ export function BranchPicker({
             <span className="text-warning"> ±{mainWorktree?.dirtyCount}</span>
           )}
           {mainBehind > 0 && (
-            <span className="text-info" title={`${mainBehind} commits on ${mainInfo?.upstream}`}>
+            <span
+              className="text-info"
+              data-tooltip={`${mainBehind} commits on ${mainInfo?.upstream}`}
+            >
               {' '}
               ↓{mainBehind}
             </span>
@@ -247,7 +251,7 @@ export function BranchPicker({
             return (
               <div key={wt.path}>
                 <MenuRow active={false} disabled={busy} onClick={() => onSelectWorktree(wt)}>
-                  <span className="min-w-0 flex-1 truncate text-lg" title={wt.path}>
+                  <span className="min-w-0 flex-1 truncate text-lg" data-tooltip={wt.path}>
                     {workspaceName(wt.path)}
                     <span className="text-text-tertiary font-mono text-sm">
                       {' '}
@@ -265,7 +269,7 @@ export function BranchPicker({
                       e.stopPropagation()
                       onRemove(wt)
                     }}
-                    title="Remove worktree…"
+                    data-tooltip="Remove worktree…"
                     className="text-text-tertiary hover:text-danger shrink-0 px-1"
                   >
                     ✕
@@ -407,13 +411,14 @@ function WorktreeToggle({
   onChange: (value: boolean) => void
 }): React.JSX.Element {
   return (
-    <label
+    <TooltipLabel
       className="hover:bg-bg-secondary mx-2 mb-1 flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1.5 transition-colors"
-      title={
-        checked
-          ? 'Each branch you pick gets its own checkout under .phosphor/worktrees — your main tree is never touched.'
-          : 'Picking a branch checks it out in the main tree. Refused if the tree has uncommitted changes.'
-      }
+      {...tooltipProps({
+        label: 'Use worktrees',
+        description: checked
+          ? 'Each branch gets its own checkout'
+          : 'Branches check out in the main tree',
+      })}
     >
       <input
         type="checkbox"
@@ -426,7 +431,7 @@ function WorktreeToggle({
       <span className="text-text-tertiary shrink-0 text-sm">
         {checked ? 'isolated checkout' : 'checks out in place'}
       </span>
-    </label>
+    </TooltipLabel>
   )
 }
 
@@ -441,7 +446,7 @@ function InlineAction({
   onClick: () => void
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       onClick={onClick}
       disabled={busy}
       className={clsx(
@@ -449,7 +454,7 @@ function InlineAction({
       )}
     >
       ↓ {label}
-    </button>
+    </TooltipButton>
   )
 }
 

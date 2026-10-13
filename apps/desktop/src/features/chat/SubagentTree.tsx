@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useState } from 'react'
 import clsx from 'clsx'
 import { ChevronIcon } from '@/components/icons'
@@ -68,16 +69,16 @@ function AgentRow({
     <li className="min-w-0">
       <div className="flex min-w-0 items-start">
         {node.children.length > 0 && (
-          <button
+          <TooltipButton
             className="text-text-secondary mt-2 shrink-0 rounded p-1"
             aria-label={`${open ? 'Collapse' : 'Expand'} ${node.label}`}
             aria-expanded={open}
             onClick={() => setOpen(!open)}
           >
             <ChevronIcon expanded={open} />
-          </button>
+          </TooltipButton>
         )}
-        <button
+        <TooltipButton
           data-testid="subagent-nav-row"
           aria-label={`${label} ${node.state}${node.currentTool ? ` ${node.currentTool}` : ''}`}
           aria-pressed={selected}
@@ -93,7 +94,7 @@ function AgentRow({
           <span className="flex min-w-0 items-center gap-2 leading-4">
             <span
               className="min-w-0 flex-1 truncate font-medium"
-              title={taskPreview(entry?.task ?? node.label)}
+              data-tooltip={taskPreview(entry?.task ?? node.label)}
             >
               {entry?.task ? taskPreview(entry.task) : node.label}
             </span>
@@ -111,18 +112,21 @@ function AgentRow({
             </span>
             <span
               className="text-warning w-3 shrink-0 text-center"
-              title={node.attention ? 'Needs parent attention' : undefined}
+              data-tooltip={node.attention ? 'Needs parent attention' : undefined}
               aria-label={node.attention ? 'Needs parent attention' : undefined}
             >
               {node.attention ? '!' : ''}
             </span>
           </span>
-          <span className="text-text-secondary block truncate text-xs leading-4" title={activity}>
+          <span
+            className="text-text-secondary block truncate text-xs leading-4"
+            data-tooltip={activity}
+          >
             {entry?.task && `${label} · `}
             {activity}
           </span>
           <SubagentActivity node={node} />
-        </button>
+        </TooltipButton>
       </div>
       {open && node.children.length > 0 && (
         <div className="border-border ml-2 border-l pl-1">

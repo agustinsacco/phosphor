@@ -1,3 +1,4 @@
+import { TooltipLabel } from '@/components/Tooltip'
 import { useState } from 'react'
 import clsx from 'clsx'
 import {
@@ -69,13 +70,13 @@ export function ServerEditor({
         className="w-full font-mono"
       />
       <div className="flex items-center gap-3 text-base">
-        <label className="flex items-center gap-1">
+        <TooltipLabel className="flex items-center gap-1">
           <input type="radio" checked={kind === 'url'} onChange={() => setKind('url')} /> Remote URL
-        </label>
-        <label className="flex items-center gap-1">
+        </TooltipLabel>
+        <TooltipLabel className="flex items-center gap-1">
           <input type="radio" checked={kind === 'command'} onChange={() => setKind('command')} />{' '}
           Local command
-        </label>
+        </TooltipLabel>
       </div>
       {kind === 'url' ? (
         <TextInput
@@ -100,15 +101,15 @@ export function ServerEditor({
       />
       {initial === null && (
         <div className="flex items-center gap-3 text-base">
-          <label className="flex items-center gap-1">
+          <TooltipLabel className="flex items-center gap-1">
             <input
               type="radio"
               checked={scope === 'pi-global'}
               onChange={() => setScope('pi-global')}
             />
             Global (~/.pi/agent)
-          </label>
-          <label className={clsx('flex items-center gap-1', !workspacePath && 'opacity-50')}>
+          </TooltipLabel>
+          <TooltipLabel className={clsx('flex items-center gap-1', !workspacePath && 'opacity-50')}>
             <input
               type="radio"
               disabled={!workspacePath}
@@ -116,7 +117,7 @@ export function ServerEditor({
               onChange={() => setScope('pi-project')}
             />
             This project (.pi/mcp-adapter.json)
-          </label>
+          </TooltipLabel>
         </div>
       )}
       <div className="flex justify-end gap-2 pt-1">

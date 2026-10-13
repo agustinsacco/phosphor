@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { useChatStore } from '@/stores/chat'
@@ -167,7 +168,7 @@ function FileRow({
 
   return (
     <div className="hover:bg-bg-secondary/70 group flex w-full items-center gap-2 px-3 transition-colors">
-      <button
+      <TooltipButton
         ref={openRef}
         type="button"
         onClick={onOpen}
@@ -191,8 +192,8 @@ function FileRow({
           <span className="text-success">+{file.additions}</span>{' '}
           <span className="text-danger">−{file.deletions}</span>
         </span>
-      </button>
-      <button
+      </TooltipButton>
+      <TooltipButton
         onClick={(e) => runFileAction(revert(e))}
         disabled={!baselineRef && file.created}
         aria-label={`Revert ${file.relativePath}`}
@@ -213,7 +214,7 @@ function FileRow({
         >
           <path d="M3 7v6h6M3 13a9 9 0 1 0 3-7.7L3 8" />
         </svg>
-      </button>
+      </TooltipButton>
     </div>
   )
 }
@@ -273,7 +274,7 @@ function FileDiffView({
   return (
     <div className="flex h-full flex-col">
       <div className="border-border flex h-9 shrink-0 items-center gap-2 border-b px-2">
-        <button
+        <TooltipButton
           onClick={onBack}
           aria-label="Back to changed files"
           autoFocus
@@ -289,26 +290,29 @@ function FileDiffView({
           >
             <path d="m15 18-6-6 6-6" />
           </svg>
-        </button>
-        <span className="min-w-0 flex-1 truncate font-mono text-base" title={file.relativePath}>
+        </TooltipButton>
+        <span
+          className="min-w-0 flex-1 truncate font-mono text-base"
+          data-tooltip={file.relativePath}
+        >
           {file.relativePath}
         </span>
         <span className="shrink-0 font-mono text-base">
           <span className="text-success">+{file.additions}</span>{' '}
           <span className="text-danger">−{file.deletions}</span>
         </span>
-        <button
+        <TooltipButton
           onClick={() => setSideBySide((v) => !v)}
           className="border-border hover:bg-bg-secondary min-h-8 shrink-0 rounded-md border px-2 text-base font-medium transition-colors"
         >
           {sideBySide ? 'Inline' : 'Split'}
-        </button>
-        <button
+        </TooltipButton>
+        <TooltipButton
           onClick={() => void openFileInWorkspace(workspacePath, file.relativePath)}
           className="border-border hover:bg-bg-secondary min-h-8 shrink-0 rounded-md border px-2 text-base font-medium transition-colors"
         >
           Open file
-        </button>
+        </TooltipButton>
       </div>
       <div className="min-h-0 flex-1">
         {error && <div className="text-danger p-4 text-base">{error}</div>}

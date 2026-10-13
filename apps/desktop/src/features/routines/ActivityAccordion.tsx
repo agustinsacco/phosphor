@@ -1,3 +1,4 @@
+import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
 import { useMemo, useState } from 'react'
 import { DateTime } from 'luxon'
 import clsx from 'clsx'
@@ -128,7 +129,7 @@ export function ActivityAccordion({
           </select>
         )}
         {(['scheduled', 'one-off'] as const).map((trigger) => (
-          <button
+          <TooltipButton
             key={trigger}
             aria-pressed={filter.trigger === trigger}
             className={chip(filter.trigger === trigger)}
@@ -137,15 +138,15 @@ export function ActivityAccordion({
             }
           >
             {trigger === 'scheduled' ? 'Scheduled' : 'One-off'}
-          </button>
+          </TooltipButton>
         ))}
-        <button
+        <TooltipButton
           aria-pressed={filter.failedOnly}
           className={chip(filter.failedOnly)}
           onClick={() => setFilter({ ...filter, failedOnly: !filter.failedOnly })}
         >
           Failed only
-        </button>
+        </TooltipButton>
       </div>
       {!days.length && (
         <p className="border-border text-text-secondary rounded-lg border border-dashed p-4">
@@ -158,7 +159,7 @@ export function ActivityAccordion({
         const expanded = !(closed[day.key] ?? index > 0)
         return (
           <section key={day.key} className="mb-4">
-            <button
+            <TooltipButton
               aria-expanded={expanded}
               className="hover:text-text text-text-secondary flex w-full items-center gap-1.5 py-1 text-left"
               onClick={() => setClosed({ ...closed, [day.key]: expanded })}
@@ -169,7 +170,7 @@ export function ActivityAccordion({
                 {day.runs.length} {day.runs.length === 1 ? 'run' : 'runs'}
                 {day.runs.some(isFailure) ? ' · needs a look' : ''}
               </span>
-            </button>
+            </TooltipButton>
             {expanded && (
               <ul className="border-border bg-surface divide-border mt-1 divide-y rounded-lg border">
                 {day.runs.map((run) => (
@@ -254,7 +255,7 @@ function RunRow({
           >
             {activeRun(run) ? 'Open running lane' : 'Continue lane'}
           </Button>
-          <button
+          <TooltipButton
             aria-expanded={open}
             aria-label={open ? 'Hide run details' : 'Show run details'}
             title={open ? 'Hide details' : 'Details and result'}
@@ -262,7 +263,7 @@ function RunRow({
             onClick={onToggle}
           >
             <ChevronIcon expanded={open} size={12} />
-          </button>
+          </TooltipButton>
         </div>
       </div>
       {open && (
@@ -299,9 +300,9 @@ function RunRow({
             </Detail>
           </dl>
           <details>
-            <summary className="text-text-secondary hover:text-text cursor-pointer">
+            <TooltipSummary className="text-text-secondary hover:text-text cursor-pointer">
               Instructions used for this run
-            </summary>
+            </TooltipSummary>
             <p className="mt-2 whitespace-pre-wrap">{run.definition.instructions}</p>
           </details>
         </div>

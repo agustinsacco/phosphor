@@ -279,6 +279,39 @@ Tailwind; surfaces that take a theme object (Monaco, xterm, Mermaid, Chart)
 each carry a mirrored copy, listed in [style-guide.md](style-guide.md#color).
 All switch together, live, no reload.
 
+## Action tooltips
+
+`components/Tooltip.tsx` owns action hints across the renderer. One
+`TooltipProvider` wraps startup and the app, including portalled menus and
+modals. `TooltipButton` is an unstyled native button with the existing refs,
+events, and disabled semantics; the shared form, pane, composer, copy, and menu
+controls use it. It consumes legacy `title` props instead of emitting native
+browser tooltips, preserving descriptive information for assistive technology.
+Text actions reuse their supplied React labels. Icon actions supply a name;
+complex rows can supply an explicit `tooltip` string or structured `ActionHint`.
+`TooltipLabel` and `TooltipSummary` retain native label/disclosure semantics.
+Other custom targets use `tooltipProps()` or an explicit `data-tooltip`.
+
+The host reads only those opt-in attributes, not DOM text or native titles.
+It shares one pending opening and one visible bubble per window; Floating UI positions it
+above the target and flips/shifts at viewport edges. Positioning observers exist
+only while a hint is open. A source-contract test prevents new raw buttons and
+native tooltip titles; iframe titles remain accessible frame names. Third-party
+editor UI, native menus, terminal contents, and sandboxed HTML are not modified.
+
+Hover waits 650ms for every target. Leaving early cancels it; leaving a shown
+hint's target closes it after a 100ms grace. The bubble is click-through, so a
+hint that overlaps a neighbouring control never intercepts its click.
+Keyboard navigation shows hints immediately without moving focus, while mouse
+clicks and touch do not. Existing active-descendant pickers retain their input
+focus and option descriptions, rather than popping hints over the typing area.
+Click, scrolling, typing, focus loss, target removal/change, and window
+deactivation dismiss hints. A dismissed hint stays dismissed until a fresh
+entry/focus. Expanded menu triggers can set `data-tooltip-open` to suppress hints.
+Escape dismisses a visible hint before its menu/modal or a running turn, through
+the existing depth-aware Escape coordinator. Hints contain no interactive content.
+The visual recipe lives in [style-guide.md](style-guide.md#action-hints).
+
 ## Global surfaces
 
 - **Global pages** — Artifacts, Skills, and Routines (sidebar rows). Full-main-region

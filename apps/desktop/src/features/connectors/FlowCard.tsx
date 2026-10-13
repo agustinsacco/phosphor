@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useState } from 'react'
 import clsx from 'clsx'
 import { Button, TextInput } from '@/components/form'
@@ -83,8 +84,8 @@ function Note({
 
 function Dismiss({ onClick }: { onClick: () => void }): React.JSX.Element {
   return (
-    <button onClick={onClick} className="underline underline-offset-2">
+    <TooltipButton onClick={onClick} className="underline underline-offset-2">
       dismiss
-    </button>
+    </TooltipButton>
   )
 }

@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { ModalOverlay } from '@/components/Modal'
@@ -174,13 +175,13 @@ export function SettingsModal(): React.JSX.Element | null {
           )}
         </div>
 
-        <button
+        <TooltipButton
           onClick={close}
           aria-label="Close settings"
           className="text-text-tertiary hover:text-text hover:bg-bg-secondary absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-md transition-colors"
         >
           <CloseIcon size={14} />
-        </button>
+        </TooltipButton>
       </div>
     </ModalOverlay>
   )
@@ -205,7 +206,7 @@ function NavButton({
   onClick: () => void
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       onClick={onClick}
       aria-current={selected ? 'page' : undefined}
       className={clsx(
@@ -228,6 +229,6 @@ function NavButton({
           {count}
         </span>
       )}
-    </button>
+    </TooltipButton>
   )
 }

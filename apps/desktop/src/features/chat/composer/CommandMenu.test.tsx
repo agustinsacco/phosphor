@@ -118,8 +118,8 @@ describe('CommandMenu', () => {
     )
     const row = el.querySelector('[data-testid="command-menu-row"]')!
     expect(row.textContent).toContain('pi-web-access')
-    expect(row.getAttribute('title')).toContain('From: pi-web-access')
-    expect(row.getAttribute('title')).toContain('/pi-web-access/index.ts')
+    expect(row.getAttribute('data-tooltip')).toContain('From: pi-web-access')
+    expect(row.getAttribute('data-tooltip')).toContain('/pi-web-access/index.ts')
   })
 
   it('picks the row that was clicked', () => {

@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import type { ClaudeStatus, PiHealth, SubscriptionProviderStatus } from '@shared/models'
@@ -68,12 +69,12 @@ export function MachinesPage(): React.JSX.Element {
               bee1 and bee2 are not real. {localMachineName(window.phosphor.platform).long} is real.
             </p>
             {view.kind !== 'list' && (
-              <button
+              <TooltipButton
                 onClick={() => show({ kind: 'list' })}
                 className="text-text-secondary hover:text-text mb-3 text-sm"
               >
                 ← All machines
-              </button>
+              </TooltipButton>
             )}
             {view.kind === 'list' && <MachineList />}
             {view.kind === 'machine' && <MachineDetail id={view.id} tab={view.tab} />}
@@ -192,8 +193,9 @@ function MachineListRow({
   onOpen: () => void
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       data-testid="machine-row"
+      tooltip={name}
       data-machine={id}
       onClick={onOpen}
       className="hover:bg-bg-secondary flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors"
@@ -208,7 +210,7 @@ function MachineListRow({
       >
         {summary.join(' · ')}
       </span>
-    </button>
+    </TooltipButton>
   )
 }
 
@@ -243,7 +245,7 @@ function MachineDetail({ id, tab }: { id: string; tab: MachineTab }): React.JSX.
       </div>
       <div role="tablist" className="border-border mb-4 flex gap-1 border-b">
         {TABS.map((t) => (
-          <button
+          <TooltipButton
             key={t.id}
             role="tab"
             aria-selected={tab === t.id}
@@ -256,7 +258,7 @@ function MachineDetail({ id, tab }: { id: string; tab: MachineTab }): React.JSX.
             )}
           >
             {t.label}
-          </button>
+          </TooltipButton>
         ))}
       </div>
       {local ? (

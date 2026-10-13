@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { ipcErrorText } from '@shared/errors'
@@ -71,7 +72,7 @@ export function ChatImage({
 
   return (
     <>
-      <button
+      <TooltipButton
         type="button"
         onClick={() => (onOpen ? onOpen() : setOpen(true))}
         onContextMenu={(event) => {
@@ -81,9 +82,10 @@ export function ChatImage({
           event.stopPropagation()
           void copyChatImage(image)
         }}
-        title={
-          onOpen ? 'Click to annotate · right-click to copy' : 'Click to open · right-click to copy'
-        }
+        tooltip={{
+          label: onOpen ? 'Annotate image' : 'Open image',
+          description: 'Right-click to copy',
+        }}
         className={clsx(
           'hover:ring-accent/50 hover:shadow-md inline-flex max-w-full shrink-0 overflow-hidden rounded-lg outline-none transition-all hover:ring-2',
           onOpen ? 'cursor-pointer' : 'cursor-zoom-in',
@@ -95,7 +97,7 @@ export function ChatImage({
           draggable={false}
           className={clsx('block max-w-full', className)}
         />
-      </button>
+      </TooltipButton>
       {open && <ImageLightbox image={image} onClose={() => setOpen(false)} copy={copyChatImage} />}
     </>
   )

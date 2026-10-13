@@ -54,7 +54,7 @@ export function LaneActivity({ lane }: { lane: WorkbenchLane }): React.JSX.Eleme
           <ul className="border-border space-y-1 border-l pl-3">
             {fleet.runs.slice(-3).map((run) => (
               <li key={run.id} className="flex min-w-0 gap-2">
-                <span className="min-w-0 flex-1 truncate" title={run.label}>
+                <span className="min-w-0 flex-1 truncate" data-tooltip={run.label}>
                   {run.label}
                 </span>
                 <span className="text-text-secondary shrink-0 font-mono text-sm">{run.state}</span>

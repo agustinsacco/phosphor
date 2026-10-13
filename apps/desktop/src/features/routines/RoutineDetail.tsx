@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
 import { DateTime } from 'luxon'
 import clsx from 'clsx'
@@ -134,9 +135,12 @@ export function RoutineDetail(props: RoutineDetailProps): React.JSX.Element {
 
   return (
     <>
-      <button className="text-text-secondary hover:text-text mb-3 text-sm" onClick={props.onBack}>
+      <TooltipButton
+        className="text-text-secondary hover:text-text mb-3 text-sm"
+        onClick={props.onBack}
+      >
         ← Routines
-      </button>
+      </TooltipButton>
       <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="flex items-center gap-2.5 text-2xl font-semibold">
@@ -167,7 +171,7 @@ export function RoutineDetail(props: RoutineDetailProps): React.JSX.Element {
               </Button>
             </>
           )}
-          <button
+          <TooltipButton
             aria-label="More actions"
             aria-haspopup="menu"
             title="More actions"
@@ -175,7 +179,7 @@ export function RoutineDetail(props: RoutineDetailProps): React.JSX.Element {
             onClick={(e) => menu(e.currentTarget)}
           >
             <MoreIcon />
-          </button>
+          </TooltipButton>
         </div>
       </header>
       {routine.attention && (
@@ -230,13 +234,13 @@ export function RoutineDetail(props: RoutineDetailProps): React.JSX.Element {
             {routine.instructions}
           </p>
           {long && (
-            <button
+            <TooltipButton
               aria-expanded={instructions}
               className="text-text-secondary hover:text-text mt-1 text-sm"
               onClick={() => setInstructions(!instructions)}
             >
               {instructions ? 'Show less' : 'Show all'}
-            </button>
+            </TooltipButton>
           )}
         </div>
       </section>

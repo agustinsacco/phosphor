@@ -1,3 +1,4 @@
+import { TooltipButton, TooltipSummary, TooltipLabel } from '@/components/Tooltip'
 import { useEffect, useId, useState } from 'react'
 import { DateTime } from 'luxon'
 import clsx from 'clsx'
@@ -75,10 +76,12 @@ function ModelField({
   return (
     <>
       <span id={`${id}-label`}>Model</span>
-      <button
+      <TooltipButton
         id={id}
         type="button"
         data-testid="routine-model-picker"
+        tooltip="Choose routine model"
+        aria-expanded={open}
         aria-haspopup="dialog"
         aria-labelledby={`${id}-label ${id}`}
         onClick={() => {
@@ -105,7 +108,7 @@ function ModelField({
             {loading ? 'Loading models…' : 'Choose a model…'}
           </span>
         )}
-      </button>
+      </TooltipButton>
       {open && (
         <ModelMenu
           models={models}
@@ -253,7 +256,7 @@ export function RoutineEditor({
               Runs locally while Phosphor is open and this computer is awake.
             </p>
           </div>
-          <button
+          <TooltipButton
             aria-label="Close"
             title="Close · your changes are kept"
             className="text-text-tertiary hover:text-text hover:bg-bg-secondary rounded-md p-1.5"
@@ -261,7 +264,7 @@ export function RoutineEditor({
             disabled={busy}
           >
             <CloseIcon size={13} />
-          </button>
+          </TooltipButton>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
@@ -366,7 +369,7 @@ export function RoutineEditor({
                 className="border-border inline-flex flex-wrap rounded-md border p-0.5"
               >
                 {(Object.keys(PRESETS) as Preset[]).map((p) => (
-                  <button
+                  <TooltipButton
                     type="button"
                     key={p}
                     aria-pressed={preset === p}
@@ -379,7 +382,7 @@ export function RoutineEditor({
                     )}
                   >
                     {p}
-                  </button>
+                  </TooltipButton>
                 ))}
               </div>
               <div className="grid gap-3 sm:grid-cols-3">
@@ -472,7 +475,7 @@ export function RoutineEditor({
                   </label>
                 )}
                 {draft.schedule.kind !== 'manual' && (
-                  <label title="Pinned: the schedule keeps this timezone even when you travel.">
+                  <label data-tooltip="Pinned: the schedule keeps this timezone even when you travel.">
                     Timezone
                     <TextInput
                       className="mt-1 w-full"
@@ -517,7 +520,7 @@ export function RoutineEditor({
             </section>
 
             <details>
-              <summary className={clsx(EYEBROW, 'cursor-pointer')}>Advanced</summary>
+              <TooltipSummary className={clsx(EYEBROW, 'cursor-pointer')}>Advanced</TooltipSummary>
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
                 <label>
                   Reporting period
@@ -531,7 +534,7 @@ export function RoutineEditor({
                     <option value="previous-week">Previous week (Mon–Sun)</option>
                   </select>
                 </label>
-                <label title="0 skips missed runs instead of catching up.">
+                <label data-tooltip="0 skips missed runs instead of catching up.">
                   Catch-up window (h)
                   <TextInput
                     type="number"
@@ -559,7 +562,10 @@ export function RoutineEditor({
               </p>
             </details>
 
-            <label className="border-warning/40 bg-warning/5 flex items-start gap-2 rounded-lg border p-3">
+            <TooltipLabel
+              data-tooltip="Allow unattended tool access"
+              className="border-warning/40 bg-warning/5 flex items-start gap-2 rounded-lg border p-3"
+            >
               <input
                 type="checkbox"
                 className="mt-1"
@@ -574,7 +580,7 @@ export function RoutineEditor({
                   read-only mode.
                 </span>
               </span>
-            </label>
+            </TooltipLabel>
           </fieldset>
           {error && (
             <p role="alert" className="text-danger mt-4 whitespace-pre-wrap">

@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { iconButtonClass } from '@/components/ComposerButtons'
 import { ipcErrorText } from '@shared/errors'
 import { piCallOk } from '@/lib/rpc'
@@ -32,7 +33,7 @@ export function ContinueButton({ sessionId }: { sessionId: string }): React.JSX.
   }
 
   return (
-    <button
+    <TooltipButton
       type="button"
       onClick={() => void send()}
       disabled={disabled}
@@ -52,6 +53,6 @@ export function ContinueButton({ sessionId }: { sessionId: string }): React.JSX.
       >
         <path d="m8 5 11 7-11 7Z" />
       </svg>
-    </button>
+    </TooltipButton>
   )
 }

@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { memo, useContext, useMemo, useState } from 'react'
 import clsx from 'clsx'
 import { parseDisplayDiff, type DiffLine } from '../diff'
@@ -25,13 +26,13 @@ export const DiffView = memo(function DiffView({ diff }: { diff: string }): Reac
         </tbody>
       </table>
       {hidden > 0 && (
-        <button
+        <TooltipButton
           data-find-skip
           onClick={() => setExpanded(true)}
           className="text-text-tertiary hover:text-text block w-full py-1.5 text-center text-sm transition-colors"
         >
           Show {hidden} more lines
-        </button>
+        </TooltipButton>
       )}
     </div>
   )

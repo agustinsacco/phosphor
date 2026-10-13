@@ -1,3 +1,4 @@
+import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import type {
@@ -411,7 +412,7 @@ function AccountsSection({
 
       <div className="mt-2.5 flex items-center gap-3">
         {inFlight ? (
-          <button
+          <TooltipButton
             onClick={() => {
               void window.phosphor.invoke('claude:cancelLogin')
               onLoginState(null)
@@ -419,13 +420,13 @@ function AccountsSection({
             className="text-text-secondary hover:text-text text-base"
           >
             Cancel sign-in
-          </button>
+          </TooltipButton>
         ) : (
           <Button variant="secondary" disabled={disabled || busy} onClick={() => void start()}>
             Add account
           </Button>
         )}
-        <button
+        <TooltipButton
           onClick={() =>
             void mutate(async () =>
               onAccounts(await window.phosphor.invoke('claude:refreshAccountUsage')),
@@ -435,7 +436,7 @@ function AccountsSection({
           className="text-text-secondary hover:text-text text-base disabled:opacity-50"
         >
           Refresh usage
-        </button>
+        </TooltipButton>
       </div>
 
       <LoginProgress code={code} login={login} onCode={setCode} onSubmit={() => void submit()} />
@@ -445,7 +446,7 @@ function AccountsSection({
           <h4 className="mt-5 text-base font-semibold">Route new sessions</h4>
           <div className="border-border mt-2 divide-y rounded-lg border">
             {ROUTING_OPTIONS.map((option) => (
-              <label
+              <TooltipLabel
                 key={option.value}
                 className="hover:bg-surface-raised flex cursor-pointer items-start gap-3 px-3.5 py-2.5"
               >
@@ -469,7 +470,7 @@ function AccountsSection({
                   <div className="text-base font-medium">{option.title}</div>
                   <div className="text-text-tertiary text-sm">{option.detail}</div>
                 </div>
-              </label>
+              </TooltipLabel>
             ))}
           </div>
           {prefs?.mode !== 'specific' && (
@@ -548,6 +549,7 @@ function AccountRow({
             checked={pinned}
             disabled={busy}
             onChange={onPin}
+            data-tooltip={`Use ${account.label} for new sessions`}
           />
         ) : (
           <span
@@ -559,9 +561,10 @@ function AccountRow({
           />
         )}
 
-        <button
+        <TooltipButton
           type="button"
           onClick={onToggle}
+          tooltip={expanded ? 'Hide account details' : 'Show account details'}
           aria-expanded={expanded}
           className="min-w-0 flex-1 text-left"
         >
@@ -591,39 +594,39 @@ function AccountRow({
               Skipped by routing until this window resets.
             </div>
           )}
-        </button>
+        </TooltipButton>
 
         <div className="flex shrink-0 items-center gap-2">
-          <button
+          <TooltipButton
             onClick={() => onMove(index, -1)}
             disabled={busy || index === 0}
             aria-label={`Move ${account.label} up`}
             className="text-text-secondary hover:text-text px-1 text-base disabled:opacity-30"
           >
             ↑
-          </button>
-          <button
+          </TooltipButton>
+          <TooltipButton
             onClick={() => onMove(index, 1)}
             disabled={busy || index === count - 1}
             aria-label={`Move ${account.label} down`}
             className="text-text-secondary hover:text-text px-1 text-base disabled:opacity-30"
           >
             ↓
-          </button>
-          <button
+          </TooltipButton>
+          <TooltipButton
             onClick={onReauth}
             disabled={busy}
             className="text-text-secondary hover:text-text text-base disabled:opacity-50"
           >
             Sign in again
-          </button>
-          <button
+          </TooltipButton>
+          <TooltipButton
             onClick={onRemove}
             disabled={busy}
             className="text-danger text-base hover:underline disabled:opacity-50"
           >
             Remove
-          </button>
+          </TooltipButton>
         </div>
       </div>
 
@@ -693,12 +696,12 @@ function LoginProgress({
               Continue
             </Button>
           </div>
-          <button
+          <TooltipButton
             onClick={() => void window.phosphor.invoke('app:openExternal', login.url)}
             className="text-accent mt-2.5 block text-sm hover:underline"
           >
             Browser didn’t open? Open the sign-in page
-          </button>
+          </TooltipButton>
         </div>
       )}
     </div>
@@ -752,13 +755,13 @@ function UpdateRow({
         <span className="text-accent font-medium">v{latest} is available.</span>{' '}
         <span className="text-text-secondary">{note}</span>
       </div>
-      <button
+      <TooltipButton
         onClick={onUpdate}
         disabled={running}
         className="bg-accent hover:bg-accent-hover text-accent-text shrink-0 rounded-md px-2.5 py-1 text-base font-medium transition-colors disabled:opacity-50"
       >
         {running ? 'Updating…' : 'Update'}
-      </button>
+      </TooltipButton>
     </div>
   )
 }

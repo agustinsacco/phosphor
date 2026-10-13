@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { PhosphorLoader } from '@/components/PhosphorLoader'
 
 /** App startup only — later session switches keep their local loading states. */
@@ -24,14 +25,14 @@ export function LoadingScreen({
         {error && (
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             {onRetry && (
-              <button className="startup-action" onClick={onRetry}>
+              <TooltipButton className="startup-action" onClick={onRetry}>
                 Try again
-              </button>
+              </TooltipButton>
             )}
             {onContinue && (
-              <button className="startup-action" onClick={onContinue}>
+              <TooltipButton className="startup-action" onClick={onContinue}>
                 Continue without restoring
-              </button>
+              </TooltipButton>
             )}
           </div>
         )}

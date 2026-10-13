@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useRef, useState } from 'react'
 import clsx from 'clsx'
 import { MenuRow, PopupMenu } from '@/components/PopupMenu'
@@ -16,7 +17,7 @@ export function RunOnPicker(): React.JSX.Element {
   const local = localMachineName(window.phosphor.platform).long
   return (
     <span className="relative shrink-0">
-      <button
+      <TooltipButton
         ref={triggerRef}
         onClick={() => setOpen((o) => !o)}
         data-testid="run-on"
@@ -31,7 +32,7 @@ export function RunOnPicker(): React.JSX.Element {
         <span className="text-text-tertiary">Run on</span>
         <span>{local}</span>
         <ChevronIcon size={10} className="text-text-tertiary" />
-      </button>
+      </TooltipButton>
       {open && (
         <PopupMenu
           onClose={() => setOpen(false)}
@@ -50,7 +51,7 @@ export function RunOnPicker(): React.JSX.Element {
               active={false}
               disabled
               onClick={() => undefined}
-              title="Preview: starting a lane on a Host needs Phosphor to reach it (component 21)"
+              title="Remote runs are not available in the preview"
             >
               <MachineDot up={machine.up} />
               <span className="min-w-0 flex-1 truncate text-lg">{machine.name}</span>

@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import type { AssistantBlock, AssistantItem, CustomItem, ToolState, UserItem } from './reducer'
@@ -153,7 +154,7 @@ function CustomMessageItem({ item }: { item: CustomItem }): React.JSX.Element {
         {item.inContext && (
           <span
             className="bg-info/15 text-info rounded px-1.5 py-px text-2xs font-medium"
-            title="This message is included in the model's context"
+            data-tooltip="This message is included in the model's context"
           >
             in context
           </span>
@@ -229,27 +230,27 @@ function UserMessage({
        */}
       <div className="flex h-4 items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
         {(item.text || item.images?.length) && !item.optimistic && (
-          <button
+          <TooltipButton
             onClick={() => void rewind()}
             disabled={busy}
             title="Rewind to here"
             className="text-text-tertiary hover:text-text flex items-center transition-colors disabled:opacity-50"
           >
             <RewindIcon size={12} />
-          </button>
+          </TooltipButton>
         )}
-        <button
+        <TooltipButton
           onClick={() => useChatUiStore.getState().openForkPicker(sessionId)}
           title={`Rewind to an earlier message… (${formatShortcut('Esc Esc')})`}
           className="text-text-tertiary hover:text-text flex items-center transition-colors"
         >
           <BranchIcon size={12} />
-        </button>
+        </TooltipButton>
         {item.text && <CopyButton text={item.text} size="sm" />}
         {item.timestamp != null && (
           <span
             className="text-text-tertiary text-sm leading-none"
-            title={absoluteTime(item.timestamp)}
+            data-tooltip={absoluteTime(item.timestamp)}
           >
             {relativeTime(item.timestamp)}
           </span>
@@ -384,6 +385,7 @@ export function ErrorBlock({ message }: { message?: string }): React.JSX.Element
                   target="_blank"
                   rel="noreferrer"
                   className="text-accent hover:underline"
+                  data-tooltip="Open link"
                 >
                   {remedy.label}
                 </a>
@@ -418,8 +420,9 @@ function RawErrorDetails({ raw, parsed }: { raw: string; parsed: ParsedError }):
 
   return (
     <div className="mt-1.5">
-      <button
+      <TooltipButton
         onClick={() => setOpen((wasOpen) => !wasOpen)}
+        tooltip={open ? 'Hide provider response' : 'Show provider response'}
         aria-expanded={open}
         className="text-text-tertiary hover:text-text-secondary text-sm transition-colors"
       >
@@ -427,7 +430,7 @@ function RawErrorDetails({ raw, parsed }: { raw: string; parsed: ParsedError }):
         {!open && facts.length > 0 && (
           <span className="text-text-tertiary/70"> · {facts.join(' · ')}</span>
         )}
-      </button>
+      </TooltipButton>
       {open && (
         <div className="border-danger/20 mt-1.5 rounded-md border">
           <div className="border-danger/20 flex items-center justify-between border-b px-2 py-1">

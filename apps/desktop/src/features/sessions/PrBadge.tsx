@@ -51,7 +51,7 @@ export function PrBadge({ pr }: { pr: GhPullRequest | null }): React.JSX.Element
       role={pr ? 'link' : undefined}
       tabIndex={-1}
       aria-label={pr ? `${chip.title}. Open on GitHub` : chip.title}
-      title={pr ? `${chip.title}\nClick to open on GitHub` : chip.title}
+      data-tooltip={pr ? `${chip.title}\nClick to open on GitHub` : chip.title}
       onClick={
         pr
           ? (event) => {

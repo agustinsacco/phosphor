@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useState } from 'react'
 import type { SkillScope } from '@shared/skills'
 import { validateSkillName, SKILL_DESCRIPTION_MAX } from '@shared/skills'
@@ -94,7 +95,7 @@ export function NewSkillModal({
                 ['project', 'This project'],
               ] as const
             ).map(([id, label]) => (
-              <button
+              <TooltipButton
                 key={id}
                 onClick={() => setScope(id)}
                 className={
@@ -104,7 +105,7 @@ export function NewSkillModal({
                 }
               >
                 {label}
-              </button>
+              </TooltipButton>
             ))}
           </div>
         </div>

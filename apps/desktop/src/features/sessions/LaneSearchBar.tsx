@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useRef } from 'react'
 import { CloseIcon, SearchIcon } from '@/components/icons'
 
@@ -59,13 +60,14 @@ export function LaneSearchBar({
           // `lane-search-field` opts out of the global keyboard focus ring —
           // the bordered row around it is the focus signal. See index.css.
           className="lane-search-field text-text placeholder:text-text-tertiary min-w-0 flex-1 bg-transparent text-xs leading-4 outline-none"
+          data-tooltip="Search lanes"
         />
         {applied && (
           <>
             <span className="text-text-tertiary shrink-0 text-2xs tabular-nums">
               {matchCount}/{total}
             </span>
-            <button
+            <TooltipButton
               onClick={onClear}
               title="Clear search"
               aria-label="Clear search"
@@ -73,7 +75,7 @@ export function LaneSearchBar({
               className="text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-4 w-4 shrink-0 items-center justify-center rounded transition-colors active:scale-90"
             >
               <CloseIcon size={10} strokeWidth={2.5} />
-            </button>
+            </TooltipButton>
           </>
         )}
       </div>

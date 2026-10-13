@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
 import { useChatStore } from '@/stores/chat'
 import { piCallOk } from '@/lib/rpc'
@@ -34,15 +35,15 @@ export function RetryStrip({ sessionId }: { sessionId: string }): React.JSX.Elem
           Retrying ({retry.attempt}/{retry.maxAttempts})
           {remaining > 0 ? ` in ${Math.ceil(remaining / 1000)}s` : '…'}
         </span>
-        <span className="text-text-tertiary flex-1 truncate" title={retry.errorMessage}>
+        <span className="text-text-tertiary flex-1 truncate" data-tooltip={retry.errorMessage}>
           {retry.errorMessage}
         </span>
-        <button
+        <TooltipButton
           onClick={() => void cancel()}
           className="text-text-secondary hover:text-danger shrink-0 text-base font-medium transition-colors"
         >
           Cancel
-        </button>
+        </TooltipButton>
       </div>
     </div>
   )

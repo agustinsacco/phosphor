@@ -1,3 +1,4 @@
+import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
@@ -107,7 +108,7 @@ export function BulkDeleteModal({
 
         {summary.needsAcknowledgement && (
           <div className="px-5 pb-3">
-            <label className="border-danger bg-danger-soft flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 text-sm">
+            <TooltipLabel className="border-danger bg-danger-soft flex cursor-pointer items-start gap-2 rounded-md border px-3 py-2 text-sm">
               <input
                 type="checkbox"
                 checked={acknowledged}
@@ -118,7 +119,7 @@ export function BulkDeleteModal({
                 {summary.deletable.length === 1 ? 'This lane' : 'Some of these lanes'} would lose
                 work ({describeWarnings(summary.warnings)}). I understand.
               </span>
-            </label>
+            </TooltipLabel>
           </div>
         )}
 
@@ -129,13 +130,13 @@ export function BulkDeleteModal({
               : 'Transcripts go to the Trash.'}
           </span>
           <span className="flex-1" />
-          <button
+          <TooltipButton
             onClick={onCancel}
             className="border-border text-text-secondary hover:text-text rounded-md border px-3 py-1 text-sm"
           >
             Cancel
-          </button>
-          <button
+          </TooltipButton>
+          <TooltipButton
             disabled={!canDelete}
             onClick={() =>
               onConfirm({ removeWorktree, deleteBranch, discardChanges: hasDirty && acknowledged })
@@ -143,7 +144,7 @@ export function BulkDeleteModal({
             className="bg-danger rounded-md px-3 py-1 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             {count === 1 ? 'Delete lane' : `Delete ${count} lanes`}
-          </button>
+          </TooltipButton>
         </div>
       </div>
     </ModalOverlay>
@@ -191,7 +192,7 @@ function Option({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <label
+    <TooltipLabel
       className={clsx(
         'flex items-start gap-2 py-1.5 text-sm',
         disabled ? 'cursor-default opacity-55' : 'cursor-pointer',
@@ -208,7 +209,7 @@ function Option({
         {label}
         <span className="text-text-tertiary mt-0.5 block text-xs">{children}</span>
       </span>
-    </label>
+    </TooltipLabel>
   )
 }
 
@@ -278,9 +279,10 @@ export function BulkDeleteProgressPopover(): React.JSX.Element | null {
           fading && '-translate-y-1 opacity-0',
         )}
       >
-        <button
+        <TooltipButton
           type="button"
           data-testid="bulk-delete-toggle"
+          tooltip={expanded ? 'Hide details' : 'Show details'}
           aria-expanded={expanded}
           aria-controls="bulk-delete-details"
           onClick={() => setExpanded((open) => !open)}
@@ -305,7 +307,7 @@ export function BulkDeleteProgressPopover(): React.JSX.Element | null {
           </span>
           {running && <span className="text-text-tertiary text-xs tabular-nums">{percent}%</span>}
           <ChevronIcon expanded={expanded} className="text-text-tertiary" />
-        </button>
+        </TooltipButton>
 
         <div className="bg-chip h-1 w-full overflow-hidden">
           <div
@@ -348,7 +350,7 @@ export function BulkDeleteProgressPopover(): React.JSX.Element | null {
                       <span className="min-w-0 flex-1 truncate">{lane.title}</span>
                       {result?.error && (
                         <span
-                          title={result.error}
+                          data-tooltip={result.error}
                           className={clsx(
                             'max-w-40 shrink-0 truncate text-2xs',
                             result.ok ? 'text-warning' : 'text-danger',
@@ -375,14 +377,14 @@ export function BulkDeleteProgressPopover(): React.JSX.Element | null {
               </span>
               <span className="flex-1" />
               {running && (
-                <button
+                <TooltipButton
                   type="button"
                   onClick={() => useSessionsStore.getState().cancelBulkDelete()}
                   disabled={cancelled}
                   className="border-border text-text-secondary hover:text-text rounded-md border px-2.5 py-1 text-xs disabled:opacity-40"
                 >
                   {cancelled ? 'Stopping…' : 'Stop'}
-                </button>
+                </TooltipButton>
               )}
             </div>
           </div>

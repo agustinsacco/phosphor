@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { memo, useState } from 'react'
 import { SandboxedHtml } from '@/components/SandboxedHtml'
 import clsx from 'clsx'
@@ -42,7 +43,7 @@ function ToggleTab({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <button
+    <TooltipButton
       onClick={onClick}
       className={clsx(
         'rounded-md px-2.5 py-1 text-base font-medium transition-colors',
@@ -50,6 +51,6 @@ function ToggleTab({
       )}
     >
       {children}
-    </button>
+    </TooltipButton>
   )
 }

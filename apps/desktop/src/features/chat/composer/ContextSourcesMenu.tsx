@@ -1,3 +1,4 @@
+import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
@@ -55,7 +56,7 @@ export function ContextSourcesMenu({
 
   return (
     <div className="relative">
-      <button
+      <TooltipButton
         ref={triggerRef}
         type="button"
         data-testid="context-sources"
@@ -64,11 +65,8 @@ export function ContextSourcesMenu({
           setOpen((current) => !current)
         }}
         aria-expanded={open}
-        title={
-          sessionId
-            ? 'Instruction files and MCP connectors this lane loads'
-            : 'Instruction files and MCP connectors new lanes load'
-        }
+        tooltip="Instruction files and connectors"
+        data-tooltip-open={open}
         className={clsx(
           'flex min-h-8 items-center rounded-md px-2 py-1 text-base tabular-nums transition-colors',
           open
@@ -77,7 +75,7 @@ export function ContextSourcesMenu({
         )}
       >
         {label}
-      </button>
+      </TooltipButton>
       {open && (
         <PopupMenu
           onClose={() => setOpen(false)}
@@ -95,13 +93,14 @@ export function ContextSourcesMenu({
           <div className="max-h-60 overflow-y-auto" role="group" aria-label="Context files">
             {rules.map(({ kind, state, toggle }) => (
               <div key={kind}>
-                <label title={state.title} className={ROW_CLASS}>
+                <TooltipLabel data-tooltip={state.title} className={ROW_CLASS}>
                   <input
                     type="checkbox"
                     checked={state.checked}
                     aria-label={CONTEXT_FILE_LABELS[kind]}
                     onChange={(event) => toggle(event.target.checked)}
                     className="accent-[var(--px-accent)]"
+                    data-tooltip={CONTEXT_FILE_LABELS[kind]}
                   />
                   <span
                     className={clsx(
@@ -119,7 +118,7 @@ export function ContextSourcesMenu({
                         ? `~${formatTokens(state.tokens)}`
                         : ''}
                   </span>
-                </label>
+                </TooltipLabel>
                 {state.files && state.files.length > 0 && (
                   <ul
                     className="space-y-2 px-3 pb-2 pl-9"
@@ -130,7 +129,7 @@ export function ContextSourcesMenu({
                         <div className="flex items-center justify-between gap-2">
                           <span
                             className="font-medium"
-                            title={
+                            data-tooltip={
                               file.scope === 'global'
                                 ? 'User instructions from pi’s agent directory, shared across projects.'
                                 : file.scope === 'project'
@@ -148,7 +147,7 @@ export function ContextSourcesMenu({
                             {state.checked ? 'Included' : 'Excluded'} · ~{formatTokens(file.tokens)}
                           </span>
                         </div>
-                        <div className="break-all font-mono text-xs" title={file.path}>
+                        <div className="break-all font-mono text-xs" data-tooltip={file.path}>
                           {file.path}
                         </div>
                       </li>
@@ -177,7 +176,7 @@ export function ContextSourcesMenu({
                 {servers.map((server) => {
                   const direct = directToolsSummary(server.config.directTools)
                   return (
-                    <label key={server.name} className={ROW_CLASS}>
+                    <TooltipLabel key={server.name} className={ROW_CLASS}>
                       <input
                         type="checkbox"
                         checked={server.config.disabled !== true}
@@ -190,12 +189,12 @@ export function ContextSourcesMenu({
                       {direct && (
                         <span
                           className="text-warning shrink-0 text-sm"
-                          title={`directTools (${direct}): these tools skip the mcp gateway and cost their full schema on every request. Change it in Settings → Connectors.`}
+                          data-tooltip={`directTools (${direct}): these tools skip the mcp gateway and cost their full schema on every request. Change it in Settings → Connectors.`}
                         >
                           direct
                         </span>
                       )}
-                    </label>
+                    </TooltipLabel>
                   )
                 })}
               </div>
@@ -204,7 +203,7 @@ export function ContextSourcesMenu({
           )}
 
           <div className="border-border mt-1 border-t px-3 pt-1.5 pb-1">
-            <button
+            <TooltipButton
               type="button"
               onClick={() => {
                 setOpen(false)
@@ -215,7 +214,7 @@ export function ContextSourcesMenu({
               className="text-text-secondary hover:text-text text-sm"
             >
               Manage connectors…
-            </button>
+            </TooltipButton>
           </div>
         </PopupMenu>
       )}

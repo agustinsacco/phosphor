@@ -1,3 +1,4 @@
+import { TooltipSummary } from '@/components/Tooltip'
 import { Button, Row, SectionTitle } from '@/components/form'
 import { PhosphorLockup } from '@/components/PhosphorMark'
 import type { AboutInfo } from '@shared/models'
@@ -108,7 +109,7 @@ export function AboutTab(): React.JSX.Element {
       </Row>
 
       <details className="mt-4 text-base">
-        <summary>Bundled font licenses</summary>
+        <TooltipSummary>Bundled font licenses</TooltipSummary>
         <pre className="text-text-secondary mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-sm">
           {`${interLicense}\n\n${monoLicense}`}
         </pre>

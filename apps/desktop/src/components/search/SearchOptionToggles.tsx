@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import clsx from 'clsx'
 import type { SearchOptions } from '@shared/text-search'
 import { formatShortcut } from '@/lib/shortcuts'
@@ -37,7 +38,7 @@ export function SearchOptionToggles({
       {OPTION_TOGGLES.map((toggle) => {
         const title = `${toggle.label} (${formatShortcut('alt', toggle.letter)})`
         return (
-          <button
+          <TooltipButton
             key={toggle.key}
             type="button"
             title={title}
@@ -53,7 +54,7 @@ export function SearchOptionToggles({
             )}
           >
             {toggle.glyph}
-          </button>
+          </TooltipButton>
         )
       })}
     </div>

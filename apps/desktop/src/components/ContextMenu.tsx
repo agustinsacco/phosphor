@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
@@ -104,9 +105,13 @@ export function ContextMenuHost(): React.JSX.Element | null {
       {state.items.map((item, index) => (
         <div key={index}>
           {item.separatorAbove && <div className="border-border my-1 border-t" />}
-          <button
+          <TooltipButton
             disabled={item.disabled}
-            title={item.hint ? `${item.label} — ${item.hint}` : undefined}
+            tooltip={{
+              label: item.label,
+              description: item.hint,
+              shortcut: item.shortcut ? [item.shortcut] : undefined,
+            }}
             onClick={() => {
               setState(null)
               item.onClick()
@@ -121,7 +126,7 @@ export function ContextMenuHost(): React.JSX.Element | null {
             {item.shortcut && (
               <span className="text-text-tertiary shrink-0 font-mono text-sm">{item.shortcut}</span>
             )}
-          </button>
+          </TooltipButton>
         </div>
       ))}
     </div>,

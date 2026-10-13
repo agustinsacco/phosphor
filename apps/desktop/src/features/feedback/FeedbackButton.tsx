@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useEffect } from 'react'
 import clsx from 'clsx'
 import { useFeedbackStore } from './feedbackStore'
@@ -19,7 +20,7 @@ export function FeedbackButton(): React.JSX.Element {
 
   return (
     <div className="flex items-center">
-      <button
+      <TooltipButton
         onClick={() => useFeedbackStore.getState().setOpen(true)}
         data-testid="feedback-button"
         data-nudge={nudge ? 'true' : 'false'}
@@ -41,16 +42,16 @@ export function FeedbackButton(): React.JSX.Element {
         <span className="min-w-0 flex-1 truncate">
           {nudge ? 'How is Phosphor going?' : 'Send feedback'}
         </span>
-      </button>
+      </TooltipButton>
       {nudge && (
-        <button
+        <TooltipButton
           onClick={() => void useFeedbackStore.getState().dismissNudge()}
           aria-label="Dismiss"
           title="Don't ask again"
           className="text-text-tertiary hover:text-text mb-1 shrink-0 rounded px-1 text-sm"
         >
           ✕
-        </button>
+        </TooltipButton>
       )}
     </div>
   )

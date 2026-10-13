@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useCallback, useEffect, useState } from 'react'
 import type { PiPackageEntry } from '@shared/models'
 import { useActiveWorkspace } from '@/stores/workspaces'
@@ -84,12 +85,12 @@ export function ExtensionsTab(): React.JSX.Element {
       </div>
       <p className="text-text-tertiary mt-2 text-sm">
         Browse the full ecosystem at{' '}
-        <button
+        <TooltipButton
           onClick={() => void window.phosphor.invoke('app:openExternal', 'https://pi.dev/packages')}
           className="hover:text-text underline"
         >
           pi.dev/packages
-        </button>
+        </TooltipButton>
         . Packages run with full system access — review before installing.
       </p>
 
@@ -198,7 +199,10 @@ function PackageRow({
             <span className="text-warning text-sm">installs on next session start</span>
           )}
           {entry.filtered && (
-            <span className="text-text-tertiary text-sm" title="Resource filters in settings">
+            <span
+              className="text-text-tertiary text-sm"
+              data-tooltip="Resource filters in settings"
+            >
               filtered
             </span>
           )}
@@ -207,21 +211,21 @@ function PackageRow({
         {entry.installed && <PackageContents entry={entry} />}
       </div>
       {updatable && (
-        <button
+        <TooltipButton
           onClick={onUpdate}
           disabled={busy}
           className="bg-accent hover:bg-accent-hover text-accent-text mr-1 shrink-0 rounded-md px-2.5 py-1 text-base font-medium transition-colors disabled:opacity-50"
         >
           Update
-        </button>
+        </TooltipButton>
       )}
-      <button
+      <TooltipButton
         onClick={onRemove}
         disabled={busy}
         className="text-danger hover:bg-danger-soft shrink-0 rounded-md px-2 py-1 text-sm font-medium transition-colors disabled:opacity-50"
       >
         Remove
-      </button>
+      </TooltipButton>
     </div>
   )
 }
@@ -261,9 +265,12 @@ function PackageContents({ entry }: { entry: PiPackageEntry }): React.JSX.Elemen
             <dd className="text-text-secondary min-w-0 font-mono break-words">
               {names.map((name) => (kind === 'prompts' ? `/${name}` : name)).join(', ')}
               {kind === 'skills' && (
-                <button onClick={openSkills} className="text-accent ml-2 font-sans hover:underline">
+                <TooltipButton
+                  onClick={openSkills}
+                  className="text-accent ml-2 font-sans hover:underline"
+                >
                   View in Skills
-                </button>
+                </TooltipButton>
               )}
             </dd>
           </div>

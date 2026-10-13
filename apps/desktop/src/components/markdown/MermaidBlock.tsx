@@ -81,7 +81,7 @@ export const MermaidBlock = memo(function MermaidBlock({
         role="button"
         tabIndex={0}
         aria-label="Expand Mermaid diagram"
-        title="Expand diagram"
+        data-tooltip="Expand diagram"
         onClick={() => setZoomed(true)}
         onKeyDown={(event) => {
           if (event.key === 'Enter' || event.key === ' ') {

@@ -211,7 +211,7 @@ describe('ContextMeter', () => {
     seed({ tokens: 208_000, contextWindow: 128_000, percent: 162.5 }, provider)
     render()
     expect(document.body.textContent).toContain('163%')
-    expect(document.querySelector('button')?.title).not.toContain('budget')
+    expect(document.querySelector('button')?.dataset.tooltip).not.toContain('budget')
   })
 
   describe.each(['pi-claude-cli', 'openai-codex'])('a large-window %s session', (provider) => {
@@ -221,7 +221,9 @@ describe('ContextMeter', () => {
       seed({ tokens: 150_000, contextWindow: 1_000_000, percent: 15 }, provider)
       render()
       expect(document.body.textContent).toContain('75%')
-      expect(document.querySelector('button')?.title).toMatch(/^Context: 75% of .* budget$/)
+      expect(document.querySelector('button')?.dataset.tooltip).toMatch(
+        /^Context: 75% of .* budget$/,
+      )
     })
 
     it('reads the configured budget', () => {

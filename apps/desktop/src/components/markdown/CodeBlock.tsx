@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { highlightCode } from './highlighter'
@@ -95,15 +96,15 @@ export const CodeBlock = memo(function CodeBlock({
         </span>
         <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover/code:opacity-100">
           {actions}
-          <button
+          <TooltipButton
             title="Open as artifact"
             onClick={() => void promoteToArtifact(code, language)}
             className="text-text-tertiary hover:text-text hover:bg-bg-secondary flex h-6 items-center gap-1 rounded-md px-1.5 text-sm transition-colors"
           >
             <ArtifactsIcon size={12} />
-          </button>
+          </TooltipButton>
           {SHELL_LANGUAGES.has(language.toLowerCase()) && (
-            <button
+            <TooltipButton
               title="Run in terminal (pastes, doesn't execute)"
               onClick={() => {
                 const workspacePath = getActiveWorkspace()
@@ -121,7 +122,7 @@ export const CodeBlock = memo(function CodeBlock({
               >
                 <path d="m5 7 5 5-5 5M13 17h6" />
               </svg>
-            </button>
+            </TooltipButton>
           )}
           <CopyButton text={code} />
         </div>

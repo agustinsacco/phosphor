@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import { useChatStore } from '@/stores/chat'
 import { unqueueMessage } from './queueActions'
 
@@ -44,7 +45,7 @@ function QueueChip({
   const steer = kind === 'steer'
   return (
     <div
-      title={text || (steer ? 'Steering message queued' : 'Follow-up message queued')}
+      data-tooltip={text || (steer ? 'Steering message queued' : 'Follow-up message queued')}
       className={
         steer
           ? 'bg-accent-soft text-accent border-accent/25 flex max-w-full items-center gap-1.5 rounded-full border py-1 pl-3 pr-2 text-base'
@@ -55,14 +56,14 @@ function QueueChip({
         {steer ? 'Steer queued' : 'Follow-up queued'}
       </span>
       {text && <span className="truncate">{text}</span>}
-      <button
+      <TooltipButton
         onClick={() => void unqueueMessage(sessionId, kind, index, text)}
         aria-label={steer ? 'Remove queued steering message' : 'Remove queued follow-up message'}
         title="Remove — the agent has not read this yet"
         className="shrink-0 rounded-full px-1 text-xs opacity-60 transition-opacity hover:opacity-100"
       >
         ✕
-      </button>
+      </TooltipButton>
     </div>
   )
 }

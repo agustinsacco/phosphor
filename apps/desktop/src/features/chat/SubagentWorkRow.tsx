@@ -1,3 +1,4 @@
+import { TooltipButton } from '@/components/Tooltip'
 import type { WorkEntry } from './currentWork'
 import { taskPreview, workTime } from './subagentPresentation'
 import { shortId } from './subagentRuns'
@@ -18,13 +19,16 @@ export function SubagentWorkRow({
   const title = entry.task ? taskPreview(entry.task) : entry.label
   const time = workTime(entry.startedAt, entry.endedAt, entry.requestedAt)
   return (
-    <button
+    <TooltipButton
       type="button"
       onClick={onClick}
       aria-label={label}
       aria-description={`${title}. ${time}. ${entry.id}`}
       aria-pressed={selected}
-      title={`${(entry.task ?? entry.label).slice(0, 500)}\n${time}\n${entry.id}`}
+      tooltip={{
+        label: title.length > 120 ? `${title.slice(0, 119)}…` : title,
+        description: `${time} · ${entry.id}`,
+      }}
       className="text-text hover:bg-bg-secondary aria-pressed:bg-accent-soft block w-full min-w-0 rounded-md px-2 py-1.5 text-left focus-visible:outline-2 focus-visible:outline-accent"
     >
       <span className="flex items-baseline gap-2 text-sm">
@@ -45,6 +49,6 @@ export function SubagentWorkRow({
           ? entry.toolCallId.slice(-8)
           : shortId(entry.childId ?? entry.runId ?? entry.id)}
       </span>
-    </button>
+    </TooltipButton>
   )
 }

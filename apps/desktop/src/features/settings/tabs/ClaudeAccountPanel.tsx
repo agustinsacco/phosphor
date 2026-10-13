@@ -1,3 +1,4 @@
+import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
 import { useCallback, useEffect, useState } from 'react'
 import clsx from 'clsx'
 import type { ClaudeAccountView, ClaudeUsageSnapshotResult } from '@shared/models'
@@ -92,7 +93,7 @@ export function ClaudeAccountPanel({
           })}
           {state.snapshot.contributing && (
             <details className="text-text-tertiary text-sm">
-              <summary className="cursor-pointer">What&apos;s contributing</summary>
+              <TooltipSummary className="cursor-pointer">What&apos;s contributing</TooltipSummary>
               <pre className="mt-1 max-h-52 overflow-auto whitespace-pre-wrap font-sans leading-snug">
                 {state.snapshot.contributing}
               </pre>
@@ -188,7 +189,7 @@ function LaneRow({
         {folder && <span className="text-text-tertiary shrink-0 font-mono text-2xs">{folder}</span>}
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-2">
-        <button
+        <TooltipButton
           onClick={() =>
             void action.run(async () => void (await moveSessionToAccount(sessionId, accountId)))
           }
@@ -197,9 +198,9 @@ function LaneRow({
           className="text-text-secondary hover:text-text text-sm disabled:opacity-40"
         >
           Restart
-        </button>
+        </TooltipButton>
         {targets.map((target) => (
-          <button
+          <TooltipButton
             key={target.id}
             onClick={() =>
               void action.run(async () => void (await moveSessionToAccount(sessionId, target.id)))
@@ -209,7 +210,7 @@ function LaneRow({
           >
             Move to {target.label}
             {target.held ? ' (also held)' : ''}
-          </button>
+          </TooltipButton>
         ))}
         {action.busy && <Spinner />}
       </div>

@@ -1,3 +1,4 @@
+import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
 import { useState } from 'react'
 import clsx from 'clsx'
 import type { CustomItem } from '../reducer'
@@ -61,8 +62,9 @@ export function SubagentNoticeItem({
           : 'border-border/60',
       )}
     >
-      <button
+      <TooltipButton
         onClick={() => expandable && setChosen(!open)}
+        tooltip={expandable ? (open ? 'Hide notice' : 'Show notice') : false}
         aria-expanded={expandable ? open : undefined}
         disabled={!expandable}
         className={clsx(
@@ -94,31 +96,33 @@ export function SubagentNoticeItem({
             className="text-text-tertiary ml-auto"
           />
         )}
-      </button>
+      </TooltipButton>
       {notice.summary && (
         <p className="text-text-secondary px-1 py-1 text-base">{notice.summary}</p>
       )}
       {(notice.runId || notice.requestId) && (
         <div className="text-text-secondary flex flex-wrap gap-x-3 px-1 py-1 font-mono text-sm">
           {notice.runId && (
-            <span title={notice.runId}>
+            <span data-tooltip={notice.runId}>
               run {shortId(notice.runId)}
               {notice.childIndex !== undefined ? ` · child ${notice.childIndex}` : ''}
             </span>
           )}
           {notice.workflowRunId && (
-            <span title={notice.workflowRunId}>workflow {shortId(notice.workflowRunId)}</span>
+            <span data-tooltip={notice.workflowRunId}>
+              workflow {shortId(notice.workflowRunId)}
+            </span>
           )}
           {notice.runId && onInspect && (
-            <button
+            <TooltipButton
               className="text-accent hover:underline"
               onClick={() => onInspect(notice.runId!)}
             >
               Inspect run
-            </button>
+            </TooltipButton>
           )}
           {notice.requestId && (
-            <span title={notice.requestId}>request {shortId(notice.requestId)}</span>
+            <span data-tooltip={notice.requestId}>request {shortId(notice.requestId)}</span>
           )}
           {validTime && (
             <time dateTime={validTime.toISOString()}>{validTime.toLocaleTimeString()}</time>
@@ -141,7 +145,7 @@ export function SubagentNoticeItem({
           )}
           {questionBody && (
             <details className="mt-2">
-              <summary className="cursor-pointer">Original notice</summary>
+              <TooltipSummary className="cursor-pointer">Original notice</TooltipSummary>
               <Markdown text={notice.body} />
             </details>
           )}

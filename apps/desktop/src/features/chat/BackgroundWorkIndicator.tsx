@@ -1,3 +1,4 @@
+import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
 import { useId, useState } from 'react'
 import { SubagentWorkRow } from './SubagentWorkRow'
 import { newestWork } from './subagentPresentation'
@@ -38,7 +39,7 @@ function CurrentWorkSummary({ sessionId }: { sessionId: string }): React.JSX.Ele
       <div className="bg-bg-secondary border-border rounded-lg border px-3 py-1.5 text-sm">
         <div className="flex items-start gap-2">
           {!parentBusy && active > 0 && <PhosphorLoader decorative animated />}
-          <button
+          <TooltipButton
             type="button"
             aria-label={expanded ? 'Collapse current work' : 'Expand current work'}
             aria-expanded={expanded}
@@ -47,7 +48,7 @@ function CurrentWorkSummary({ sessionId }: { sessionId: string }): React.JSX.Ele
             className="text-text hover:bg-bg -ml-1 flex size-6 shrink-0 items-center justify-center rounded focus-visible:outline-2 focus-visible:outline-accent"
           >
             <ChevronIcon expanded={expanded} />
-          </button>
+          </TooltipButton>
           <span className="text-text min-w-0 flex-1 py-0.5 font-medium" role="status">
             {parentBusy ? 'Parent working' : 'Parent idle'} · {active} subagents active
             {attention > 0 && ` · ${attention} needs parent attention`}
@@ -55,13 +56,13 @@ function CurrentWorkSummary({ sessionId }: { sessionId: string }): React.JSX.Ele
             {incomplete && ' · Snapshot incomplete'}
             {!current.length && recent.length > 0 && ' · Recent work'}
           </span>
-          <button
+          <TooltipButton
             type="button"
             onClick={() => openSubagents(sessionId)}
             className="text-text-secondary hover:text-text shrink-0 rounded px-1 py-0.5 underline underline-offset-2 focus-visible:outline-2 focus-visible:outline-accent"
           >
             View subagents
-          </button>
+          </TooltipButton>
         </div>
         <div id={detailsId} hidden={!expanded} className="mt-1">
           {(unknown.length > 0 || incomplete) && (
@@ -87,9 +88,9 @@ function CurrentWorkSummary({ sessionId }: { sessionId: string }): React.JSX.Ele
           </div>
           {recent.length > 0 && (
             <details className="text-text-secondary mt-1 border-t border-border pt-1 text-xs">
-              <summary className="cursor-pointer">
+              <TooltipSummary className="cursor-pointer">
                 Recent work · completion is not acceptance
-              </summary>
+              </TooltipSummary>
               {recent.map((entry) => (
                 <SubagentWorkRow key={entry.id} entry={entry} onClick={() => open(entry)} />
               ))}
