@@ -287,7 +287,12 @@ it('accepts exactly maxPayload bytes, closes one byte over with 1009 and keeps s
   ws.send(text + ' ')
   expect((await closed)[0]).toBe(1009)
   expect((await auth()).frame.type).toBe('ready')
-  expect(logs.join('\n')).toContain('"code":1006')
+  // The Host logs the oversize socket's close after its own close handshake or
+  // the 2 s terminate grace, which can land after the next admission.
+  await vi.waitFor(() => expect(logs.join('\n')).toContain('"code":1006'), {
+    timeout: 3000,
+    interval: 10,
+  })
 })
 it('rejects binary first frames with 4401, later ones with 4400, and drains with 1001', async () => {
   start()
