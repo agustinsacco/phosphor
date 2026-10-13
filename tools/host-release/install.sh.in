@@ -45,8 +45,10 @@ mkdir_safe() { ( trap '' HUP INT TERM; exec mkdir "$@" ); }
 selects_new() { [ -L "$root/current" ] && [ "$(readlink "$root/current")" = "versions/$version" ]; }
 command_is_ours() { [ -L "$command" ] && [ "$(readlink "$command")" = "$root/current/bin/phosphor" ]; }
 cleanup() {
+  status=$?
   set +e
   critical=1
+  trap - 0
   if [ "$committed" = 0 ]; then
     restore_failed=0
     if [ -n "$new_version" ] && selects_new; then
@@ -84,6 +86,9 @@ cleanup() {
   fi
   [ -z "$retired" ] || remove_retired "$retired"
   rm -rf "$tmp"
+  critical=0
+  [ -z "$pending" ] || exit "$pending"
+  return "$status"
 }
 trap cleanup 0
 trap 'on_signal 129' HUP
@@ -208,8 +213,8 @@ lock_refused() {
 # Sweep only exact, non-link retired folders, with bounded work.
 swept=0
 for leftover in "$root"/.install-lock.retired.*; do
-  suffix=${leftover##*.}
-  case $suffix in ''|*[!0-9]*|0) continue ;; esac
+  suffix=${leftover#"$root/.install-lock.retired."}
+  case $suffix in ''|*[!0-9]*|0*) continue ;; esac
   [ "${#suffix}" -le 10 ] || continue
   [ ! -L "$leftover" ] && [ -d "$leftover" ] || continue
   swept=$((swept + 1)); [ "$swept" -le 16 ] || break
@@ -308,6 +313,8 @@ fi
 if [ "$already" = 0 ]; then rename_safe "$stage/current" "$root/current" || fail; fi
 committed=1
 end_critical
+# Finish cleanup before claiming success; it can record a deferred signal too.
+cleanup
 if [ "$foreign" = 1 ]; then
   printf 'Previous launcher kept at %s. If a Host service is running, run phosphor service install again.\n' "$backup"
 fi

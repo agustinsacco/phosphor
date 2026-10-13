@@ -272,6 +272,9 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
       '`phosphor update` does not exist yet',
     ])
       expect(docs).toContain(rule)
+    expect(docs.replace(/\s+/g, ' ')).toContain(
+      'SIGKILL or power loss can leave a pid-less lock or an abandoned `.install-lock/recovery` gate. Both require manual removal after confirming no installer or updater is running; the refusal message names `.install-lock`.',
+    )
     expect(docs).not.toContain('signals are\nignored')
     expect(docs).not.toContain('The release workflow publishes')
   })
@@ -425,6 +428,64 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
         } else expect(readdirSync(join(old, 'versions'))).toEqual(['old'])
       }
     }
+  })
+  it('honors HUP, INT and TERM during owned-lock cleanup before printing success', () => {
+    for (const [signal, code] of [
+      ['HUP', 129],
+      ['INT', 130],
+      ['TERM', 143],
+    ] as const) {
+      const { result, old, home } = installPrepared(
+        (home) => {
+          rmSync(launcher(home))
+          writeFileSync(launcher(home), 'source launcher')
+          return {
+            PATH: hook(
+              home,
+              'mv',
+              `case "$*" in *"/.install-lock "*) "$real" "$@" || exit "$?"; kill -${signal} "$PPID"; exit 0 ;; esac`,
+            ),
+          }
+        },
+        ['--replace-launcher'],
+      )
+      expect(result.status, result.stderr).toBe(code)
+      expect(execFileSync('readlink', [join(old, 'current')], { encoding: 'utf8' }).trim()).toBe(
+        'versions/1.2.3',
+      )
+      expect(execFileSync(launcher(home), ['version'], { encoding: 'utf8' })).toContain('1.2.3')
+      expect(readFileSync(`${launcher(home)}.before-release`, 'utf8')).toBe('source launcher')
+      expect(readdirSync(old).sort()).toEqual(['current', 'versions'])
+      expect(result.stdout).toBe('')
+    }
+  })
+  it('honors TERM during cleanup of a failed publication and preserves the old install', () => {
+    const { result, old, home } = installPrepared(
+      (home) => {
+        rmSync(launcher(home))
+        writeFileSync(launcher(home), 'source launcher')
+        return {
+          PATH: hook(
+            home,
+            'mv',
+            `case "$*" in
+  *"/.install-lock "*) "$real" "$@" || exit "$?"; kill -TERM "$PPID"; exit 0 ;;
+  *"/current "*) exit 1 ;;
+esac`,
+          ),
+        }
+      },
+      ['--replace-launcher'],
+    )
+    expect(result.status, result.stderr).toBe(143)
+    expect(execFileSync('readlink', [join(old, 'current')], { encoding: 'utf8' }).trim()).toBe(
+      'versions/old',
+    )
+    expect(readFileSync(launcher(home), 'utf8')).toBe('source launcher')
+    expect(existsSync(`${launcher(home)}.before-release`)).toBe(false)
+    expect(readdirSync(join(old, 'versions'))).toEqual(['old'])
+    expect(readdirSync(old).sort()).toEqual(['current', 'versions'])
+    expect(result.stdout).toBe('')
   })
   it('rolls back from filesystem state when a signaled publication rename returns failure after moving', () => {
     for (const [phase, signal, code] of [
@@ -610,6 +671,34 @@ esac`,
     expect(existsSync(join(old, `.install-lock.retired.${process.pid}`))).toBe(true)
     expect(existsSync(join(old, '.install-lock.retired.2147483647.extra'))).toBe(true)
     expect(readFileSync(join(home, 'outside/pid'), 'utf8')).toBe('keep')
+  })
+  it('leaves non-exact retired names byte-for-byte untouched without counting them toward the sweep', () => {
+    const names = [
+      'extra.2147483647',
+      'keep.2147483647',
+      '0123',
+      ...Array.from({ length: 16 }, (_, i) => `0${2147483600 + i}`),
+      '',
+      '21474836470',
+    ]
+    const contents = Buffer.from('retired pid contents\n\0unchanged')
+    const { result, old } = installPrepared((home) => {
+      const root = join(home, '.local/lib/phosphor-host')
+      for (const suffix of [...names, '2147483647']) {
+        const retired = join(root, `.install-lock.retired.${suffix}`)
+        mkdirSync(join(retired, 'recovery'), { recursive: true })
+        writeFileSync(join(retired, 'pid'), contents)
+      }
+      return {}
+    })
+    expect(result.status, result.stderr).toBe(0)
+    expect(existsSync(join(old, '.install-lock.retired.2147483647'))).toBe(false)
+    for (const suffix of names) {
+      const retired = join(old, `.install-lock.retired.${suffix}`)
+      expect(readdirSync(retired).sort()).toEqual(['pid', 'recovery'])
+      expect(readFileSync(join(retired, 'pid')).equals(contents)).toBe(true)
+      expect(readdirSync(join(retired, 'recovery'))).toEqual([])
+    }
   })
   it('does not strand a lock when two reclaimers read the same dead pid before retirement', () => {
     let release = ''

@@ -85,8 +85,10 @@ the launcher before deleting an unselected new version, and keeps the complete
 bundle and any backup if restoration fails. It then tries to select the new
 bundle and prints that installation may have completed and rerunning is safe.
 If that also fails, it deletes neither bundle. A completed install is idempotent
-on rerun. SIGKILL or power loss can leave a pid-less lock that requires manual
-removal. A dead owner's lock with a pid is reclaimed on the next run.
+on rerun. SIGKILL or power loss can leave a pid-less lock or an abandoned
+`.install-lock/recovery` gate. Both require manual removal after confirming no
+installer or updater is running; the refusal message names `.install-lock`.
+A dead owner's lock with a pid and no recovery gate is reclaimed on the next run.
 
 ### Install from source
 
