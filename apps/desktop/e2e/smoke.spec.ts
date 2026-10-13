@@ -4417,7 +4417,7 @@ test('a parallel delegation shows every child working at once, then settles', as
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible()
     await expect(page.getByTestId('session-row').first()).toBeVisible()
     const current = page.getByTestId('background-work-indicator')
-    await expect(current).toContainText('Parent working · 3 subagents active')
+    await expect(current.getByRole('status')).toHaveText('3 agents working · parent working')
     await expect(page.getByRole('button', { name: 'Subagents pane', exact: true })).toBeVisible()
     await expect(page.locator('[data-tooltip="3 subagents active"]')).toHaveText('3')
     await page.keyboard.press('ControlOrMeta+k')
@@ -4425,9 +4425,9 @@ test('a parallel delegation shows every child working at once, then settles', as
     await page.getByText('Toggle artifacts pane', { exact: true }).click()
     await expect(current).toBeInViewport()
     await current.getByRole('button', { name: 'Expand current work' }).click()
-    await current.getByRole('button', { name: /Workflow: running/ }).click()
+    await current.getByRole('button', { name: /^scout, worker, researcher: running/ }).click()
     const inspection = page.getByRole('region', { name: 'Subagents', exact: true })
-    await expect(inspection.getByRole('heading', { name: 'Foreground delegation' })).toBeVisible()
+    await expect(inspection.getByRole('heading', { name: '4 delegated tasks' })).toBeVisible()
     await expect(inspection.getByTestId('subagent-child')).toHaveCount(4)
     await expect(inspection).toContainText('bash npm test -- src/auth')
     await page.screenshot({ path: test.info().outputPath('subagents-parallel.png') })
@@ -4483,7 +4483,7 @@ test('the home workbench keeps parallel lanes visible and reuses subagent inspec
     const inspector = page.getByRole('region', { name: 'Subagents', exact: true })
     await expect(inspector).toBeVisible()
     await expect(board).toBeHidden()
-    await inspector.getByRole('button', { name: 'scout running grep' }).click()
+    await inspector.getByRole('button', { name: 'scout: running · grep' }).click()
     await expect(inspector).toContainText('Inspection: following login.ts to verify.ts.')
     await inspector.getByRole('button', { name: 'Close pane', exact: true }).click()
     await page.getByRole('button', { name: /^New$/ }).click()
@@ -4535,7 +4535,13 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
 
     // While the reviewer runs, its row says who, and what it is on right now.
     await expect(page.getByText('Delegating to')).toBeVisible({ timeout: 60_000 })
-    await expect(page.getByText('read src/auth.ts · 3 tools')).toBeVisible()
+    await expect(
+      page.getByTestId('transcript-scroll').getByText('read src/auth.ts · 3 tools'),
+    ).toBeVisible()
+    // The summary above the composer shows the same live step without expanding.
+    await expect(page.getByTestId('current-work-ticker')).toHaveText(
+      'Review the auth diff for regressions · read src/auth.ts · 3 tools',
+    )
 
     await expect(
       page.getByText('Reviewer found one nit; scout is mapping the auth flow in the background.'),
@@ -4549,27 +4555,32 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
     )
 
     const background = page.getByTestId('background-work-indicator')
-    await expect(background.getByRole('status')).toContainText('Parent idle · 1 subagents active')
+    await expect(background.getByRole('status')).toHaveText('1 agent working · parent idle')
     await expect(background.getByRole('button', { name: 'Expand current work' })).toHaveAttribute(
       'aria-expanded',
       'false',
     )
     await expect(background.getByRole('button', { name: 'scout: running · grep' })).toBeHidden()
-    await expect(background).toContainText('The parent is idle')
+    // Collapsed, one line still says who is working and on what.
+    await expect(background.getByTestId('current-work-ticker')).toHaveText(
+      'Map the auth flow · grep · 2 tools',
+    )
     await expect(page.getByTestId('working-indicator')).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0)
     await background.getByRole('button', { name: 'View subagents' }).click()
     const inspector = page.getByRole('region', { name: 'Subagents', exact: true })
     await expect(inspector).toBeVisible()
-    await inspector.getByRole('button', { name: 'scout running', exact: true }).click()
+    // A single-agent run is one row, not a run plus its step.
+    await expect(inspector.getByRole('button', { name: /^scout: / })).toHaveCount(1)
+    await inspector.getByRole('button', { name: 'scout: running · grep' }).click()
+    await expect(inspector.getByRole('heading', { name: 'Map the auth flow' })).toBeVisible()
+    await expect(inspector.getByRole('region', { name: 'Live activity' })).toContainText('grep')
     await inspector.getByText('Details & actions', { exact: true }).click()
     await inspector.getByRole('button', { name: 'Stop run…' }).click()
     await expect(inspector).toContainText('stopped runs cannot resume')
     await inspector.getByRole('button', { name: 'Cancel', exact: true }).click()
-    await inspector.getByRole('button', { name: 'Back to runs' }).click()
-    await inspector.getByRole('button', { name: 'scout running grep' }).click()
     await expect(inspector).toContainText('Inspection: following login.ts to verify.ts.')
-    await expect(inspector).toContainText('Bounded preview')
+    await expect(inspector).toContainText('Older activity was left out of this read.')
     expect(await inspector.innerText()).not.toContain('PI_SUBAGENT_INSPECT_JSON')
     await page.screenshot({ path: test.info().outputPath('subagents-inspector.png') })
     await inspector.getByRole('button', { name: 'Close pane', exact: true }).click()
@@ -4590,7 +4601,7 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
     await expect(childCard).toContainText('No regressions found')
     await expect(childCard.getByTestId('subagent-output')).not.toHaveAttribute('open', '')
     await expect(page.getByTestId('subagent-supervisor-output')).toContainText(
-      'Output received by supervisor',
+      'Output received by parent',
     )
     await expect(page.getByTestId('subagent-supervisor-output')).toContainText(
       'No regressions found',
@@ -4621,11 +4632,11 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
     await expect(page.getByTestId('subagent-notice-body')).toContainText('login.ts')
     await expect(page.getByText('Scout reports: the auth flow enters at login.ts.')).toBeVisible()
     await expect(chip).toHaveText('Subagents')
-    await expect(background).toContainText('0 subagents active')
-    await expect(background).toContainText('Recent work')
-    await expect(background).not.toContainText('Status unavailable')
+    await expect(background.getByRole('status')).toHaveText('No agents working · parent idle')
+    await expect(background).toContainText('Recently finished')
+    await expect(background).not.toContainText('status unavailable')
     await chip.click()
-    await inspector.getByRole('button', { name: 'Recorded coordination' }).click()
+    await inspector.getByRole('button', { name: 'Coordination log' }).click()
     await expect(inspector).toContainText('worker asked the parent for guidance')
     await expect(inspector).toContainText('parent replied')
     await inspector
@@ -4666,8 +4677,8 @@ test('recorded workflow completions and attention stay visible, attributable and
     await expect(page.getByTestId('subagent-notice-body')).toHaveCount(0)
     await expect(page.getByTestId('subagent-chip')).toContainText('1 background run active')
     const background = page.getByTestId('background-work-indicator')
-    await expect(background).toContainText(
-      'Parent idle · 2 subagents active · 1 needs parent attention',
+    await expect(background.getByRole('status')).toHaveText(
+      '2 agents working · 1 needs parent attention · parent idle',
     )
     const expandWork = background.getByRole('button', { name: 'Expand current work' })
     await expect(expandWork).toHaveAttribute('aria-expanded', 'false')
@@ -4689,8 +4700,8 @@ test('recorded workflow completions and attention stay visible, attributable and
     await page.getByText('Toggle artifacts pane', { exact: true }).click()
     await expect(background).toBeInViewport()
     for (const [message, expected] of [
-      ['/stub-hide-workflow-status', 'Status unavailable'],
-      ['/stub-restore-workflow-status', '2 subagents active'],
+      ['/stub-hide-workflow-status', '2 status unavailable'],
+      ['/stub-restore-workflow-status', '2 agents working'],
     ]) {
       const response = await page.evaluate(async (message) => {
         const live = await window.phosphor.invoke('pi:listLiveSessions')
@@ -4712,7 +4723,7 @@ test('recorded workflow completions and attention stay visible, attributable and
     const direct = page.getByRole('region', { name: 'Subagents', exact: true })
     await expect(direct).toContainText('child validation')
     await direct.getByRole('button', { name: 'Close pane', exact: true }).click()
-    await expect(background).toContainText('The parent is idle. You can still message it.')
+    await expect(background.getByRole('status')).toContainText('parent idle')
     await expect(page.getByTestId('working-indicator')).toHaveCount(0)
     const sidebarWorking = page.getByTestId('session-row').getByText('Working', { exact: true })
     await expect(sidebarWorking).toBeVisible()
@@ -4750,9 +4761,9 @@ test('recorded workflow completions and attention stay visible, attributable and
         await expect(panel).toContainText('Run 10000001-0000-4000-8000-000000000000')
         if (width < 1000) await panel.getByRole('button', { name: 'Back to runs' }).click()
         await expect(
-          panel.getByRole('button', { name: 'reviewer complete', exact: true }),
+          panel.getByRole('button', { name: 'reviewer: complete', exact: true }),
         ).toBeVisible()
-        await expect(panel.getByRole('button', { name: 'qa running', exact: true })).toBeVisible()
+        await expect(panel.getByRole('button', { name: 'qa: running', exact: true })).toBeVisible()
         // A notice's child is not an advertised root Stop target.
         await expect(panel.getByRole('button', { name: 'Stop run…' })).toHaveCount(0)
         expect(await panel.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
@@ -4764,7 +4775,7 @@ test('recorded workflow completions and attention stay visible, attributable and
     await notices.nth(1).getByRole('button', { name: 'Inspect run' }).click()
     const panel = page.getByRole('region', { name: 'Subagents', exact: true })
     await expect(panel).toContainText('The previous bash command has finished')
-    await panel.getByRole('button', { name: 'Recorded coordination' }).click()
+    await panel.getByRole('button', { name: 'Coordination log' }).click()
     await expect(panel.getByTestId('subagent-notice')).toHaveCount(2)
     await expect(panel.getByTestId('subagent-notice').first()).toContainText(
       'needs parent attention',
@@ -4778,8 +4789,8 @@ test('recorded workflow completions and attention stay visible, attributable and
     const output = panel.getByRole('region', { name: 'Agent output' })
     await expect(output.getByText(/^CHANGES_REQUESTED:/)).toBeVisible()
     // This historical fixture uses the UI-only `custom` role, not `customMessage`.
-    await expect(output).toContainText('delivery to the supervisor is not confirmed')
-    await expect(output).not.toContainText('Supervisor received notification')
+    await expect(output).toContainText("From the agent's record")
+    await expect(output).not.toContainText('Parent was notified')
     await panel.getByRole('button', { name: 'Close pane', exact: true }).click()
     // The full original diagnostic remains available, but does not bury chat.
     await notices
@@ -4790,7 +4801,7 @@ test('recorded workflow completions and attention stay visible, attributable and
     // The in-lane entry opens the same native inspector, with exact root + step identity.
     await background.getByRole('button', { name: 'View subagents' }).click()
     await panel.getByRole('button', { name: 'Back to runs' }).click()
-    await panel.getByRole('button', { name: 'validation running', exact: true }).click()
+    await panel.getByRole('button', { name: /^validation: running/ }).click()
     await expect(panel).toContainText('Validation: full suite is running')
     const settled = await page.evaluate(async () => {
       const live = await window.phosphor.invoke('pi:listLiveSessions')
@@ -4801,8 +4812,8 @@ test('recorded workflow completions and attention stay visible, attributable and
       })
     })
     expect(settled.success).toBe(true)
-    await expect(background).toContainText('0 subagents active')
-    await expect(background).toContainText('Recent work')
+    await expect(background.getByRole('status')).toHaveText('No agents working · parent idle')
+    await expect(background).toContainText('Recently finished')
     await expect(sidebarWorking).toHaveCount(0)
     // Live completion does not dismiss an inspection or rewrite historical warnings.
     await expect(panel).toBeVisible()
@@ -4861,7 +4872,7 @@ test('subagent inspection, steering and saved snapshots survive compaction and a
     await expect(page.getByTestId('background-work-indicator')).toBeVisible()
     await page.getByRole('button', { name: 'View subagents' }).click()
     const panel = page.getByRole('region', { name: 'Subagents', exact: true })
-    await panel.getByRole('button', { name: 'validation running', exact: true }).click()
+    await panel.getByRole('button', { name: /^validation: running/ }).click()
     await expect(panel).toContainText('Validation: full suite is running')
     for (const width of [1440, 900]) {
       await first.app.evaluate(
@@ -4917,8 +4928,8 @@ test('subagent inspection, steering and saved snapshots survive compaction and a
     ).toBe(true)
     await expect(panel).toContainText('Native inspection artifacts expired')
     await expect(panel).toContainText('last successful read')
-    await expect(page.getByTestId('background-work-indicator')).toContainText('Recent work')
-    await expect(page.getByTestId('background-work-indicator')).toContainText('0 subagents active')
+    await expect(page.getByTestId('background-work-indicator')).toContainText('Recently finished')
+    await expect(page.getByTestId('background-work-indicator')).toContainText('No agents working')
     await expect(panel.getByRole('button', { name: 'Stop run…' })).toHaveCount(0)
   } finally {
     await first.app.close()
@@ -4941,7 +4952,7 @@ test('subagent inspection, steering and saved snapshots survive compaction and a
     const panel = p.getByRole('region', { name: 'Subagents', exact: true })
     await expect(panel).toContainText('child validation')
     await expect(panel).toContainText('Native inspection artifacts expired')
-    await panel.getByRole('button', { name: 'Recorded coordination' }).click()
+    await panel.getByRole('button', { name: 'Coordination log' }).click()
     await expect(panel).toContainText('reviewer completed a workflow step')
     await expect(panel).toContainText('Steering delivered to the addressed child')
     await panel.getByRole('button', { name: 'Close pane', exact: true }).click()
@@ -4985,7 +4996,7 @@ test('subagent pane owns scrolling, keeps rows stable and preserves drafts acros
     const pane = page.getByRole('region', { name: 'Subagents', exact: true })
     await pane.getByRole('button', { name: 'Fullscreen pane' }).click()
     const nav = pane.getByRole('navigation', { name: 'Agent runs' })
-    const row = nav.getByRole('button', { name: /^validation running/ })
+    const row = nav.getByRole('button', { name: /^validation: running/ })
     await row.click()
     const transcript = pane.getByTestId('subagent-transcript')
     await expect(transcript.getByRole('region', { name: 'Agent input' })).toBeVisible()
@@ -5010,10 +5021,8 @@ test('subagent pane owns scrolling, keeps rows stable and preserves drafts acros
     }
     await transcript.hover()
     await page.mouse.wheel(0, -10000)
-    // Opening Activity already pauses following, so the button below cannot
-    // signal that the asynchronous wheel scroll has finished (notably on Linux).
+    // The wheel scroll is asynchronous (notably on Linux): wait for it to land.
     await expect.poll(() => transcript.evaluate((el) => el.scrollTop)).toBe(0)
-    await expect(pane.getByRole('button', { name: 'Jump to latest' })).toBeVisible()
     await transcript.evaluate((el) => {
       el.scrollTop = 100
     })

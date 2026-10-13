@@ -1,6 +1,15 @@
 import { expect, it } from 'vitest'
 import type { CustomItem, ToolState } from './chatItems'
-import { newestWork, supervisorHandoff, taskPreview, workTime } from './subagentPresentation'
+import {
+  activityText,
+  distinctTitles,
+  elapsed,
+  newestWork,
+  shortenPaths,
+  supervisorHandoff,
+  taskPreview,
+  workTime,
+} from './subagentPresentation'
 
 const tool: ToolState = {
   toolCallId: 't',
@@ -74,4 +83,71 @@ it('never calls a detached launch receipt a final output', () => {
     result: { ...tool.result!, details: { background: true, runId: 'a' } },
   }
   expect(supervisorHandoff({ t: detached }, [], { runId: 'a' })).toEqual({ input: tool.args!.task })
+})
+
+it('titles prompts by their first distinct sentence, with paths shortened for display', () => {
+  const shared = 'You are a worker. Read the brief at /Users/me/repo/briefs/plan.md first.'
+  expect(
+    distinctTitles([
+      `${shared}\nImplement \`desktop-first-class.md\`.`,
+      `${shared}\nImplement remote.md.`,
+      undefined,
+      '## Map the parser',
+    ]),
+  ).toEqual([
+    'Implement desktop-first-class.md.',
+    'Implement remote.md.',
+    undefined,
+    'Map the parser',
+  ])
+  // Alone, a prompt is its opening sentence.
+  expect(distinctTitles([shared])).toEqual(['You are a worker.'])
+  expect(distinctTitles(['x'.repeat(200)])[0]).toHaveLength(120)
+  expect(shortenPaths('see /a/b/c.ts and ~/x/y/, not a/b or https://h.io/a/b')).toBe(
+    'see c.ts and y, not a/b or https://h.io/a/b',
+  )
+})
+
+it('says what a running agent is doing from reported facts only', () => {
+  expect(elapsed(-5)).toBe('0s')
+  expect(elapsed(12_900)).toBe('12s')
+  expect(elapsed(425_000)).toBe('7m 05s')
+  expect(elapsed(3_840_000)).toBe('1h 04m')
+  const now = 100_000
+  expect(activityText({ active: 1, currentTool: 'bash', currentToolStartedAt: 88_000 }, now)).toBe(
+    'bash 12s',
+  )
+  expect(activityText({ active: 1, lastActivityAt: 95_000, toolCount: 1 }, now)).toBe(
+    'working · 1 tool',
+  )
+  expect(activityText({ active: 1, lastActivityAt: 40_000, toolCount: 3 }, now)).toBe(
+    'quiet 1m 00s · 3 tools',
+  )
+  expect(activityText({ active: 1 }, now)).toBe('working')
+  // Finished work keeps its counters but never a current tool.
+  expect(activityText({ active: 0, currentTool: 'bash', toolCount: 2 }, now)).toBe('2 tools')
+})
+
+it("treats a single run's step as the launch, and a parallel step as its own prompt", () => {
+  expect(
+    supervisorHandoff({ t: tool }, [], { runId: 'a', childId: 'step:0' }, { single: true }),
+  ).toMatchObject({
+    kind: 'tool-result',
+    input: tool.args!.task,
+    output: 'Final receipt',
+  })
+  const parallel: ToolState = {
+    ...tool,
+    args: {
+      tasks: [
+        { agent: 'scout', task: 'Map' },
+        { agent: 'reviewer', task: 'Review' },
+      ],
+    },
+  }
+  expect(
+    supervisorHandoff({ t: parallel }, [notice(['a'])], { runId: 'a', childId: 'step:1' }),
+  ).toEqual({
+    input: 'Review',
+  })
 })

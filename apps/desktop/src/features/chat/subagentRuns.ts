@@ -75,6 +75,8 @@ export type SubagentCall =
       script?: string
       /** A named workflow resource. */
       workflow?: string
+      /** `tasks` (parallel) or `chain` entries, by the native step index. */
+      tasks?: { agent?: string; task?: string }[]
     }
   | { kind: 'manage'; action: string; target?: string; topic?: string }
 
@@ -88,6 +90,12 @@ export function subagentCall(args: Rec | undefined): SubagentCall {
       topic: str(args?.topic),
     }
   }
+  const entries = list(args?.tasks ?? args?.chain)
+  // A chain with a nested parallel group flattens into steps that no longer
+  // line up with its entries, so it binds no prompt by index at all.
+  const tasks = entries.some((entry) => 'parallel' in (rec(entry) ?? {}))
+    ? []
+    : entries.map((entry) => ({ agent: str(rec(entry)?.agent), task: str(rec(entry)?.task) }))
   return {
     kind: 'launch',
     agent: str(args?.agent),
@@ -95,6 +103,7 @@ export function subagentCall(args: Rec | undefined): SubagentCall {
     async: args?.async === true,
     script: str(args?.workflowScript) ?? str(args?.workflowScriptPath),
     workflow: args?.workflow === true ? 'inline workflow' : str(args?.workflow),
+    ...(tasks.length ? { tasks } : {}),
   }
 }
 
@@ -452,6 +461,7 @@ export interface FleetNode {
   startedAt?: number
   endedAt?: number
   currentTool?: string
+  currentToolStartedAt?: number
   lastActivityAt?: number
   toolCount?: number
   turnCount?: number
@@ -511,6 +521,7 @@ function fleetNode(
     startedAt: num(node?.startedAt),
     endedAt: num(node?.endedAt),
     currentTool: str(activity?.currentTool),
+    currentToolStartedAt: num(activity?.currentToolStartedAt),
     lastActivityAt: num(activity?.lastActivityAt),
     toolCount: num(activity?.toolCount),
     turnCount: num(activity?.turnCount),

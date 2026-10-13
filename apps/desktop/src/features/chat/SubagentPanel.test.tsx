@@ -86,7 +86,7 @@ it('restores an exact historical selection after compaction without recreating l
   await render()
   expect(inspectSubagent).toHaveBeenCalledWith('process', 'run', undefined, expect.any(AbortSignal))
   expect(el.textContent).toContain('Retained preview')
-  expect(el.textContent).toContain('No live snapshot')
+  expect(el.textContent).toContain('no live snapshot')
 })
 it('does not restore a target on an abandoned branch or transfer preferences to a clone', async () => {
   saveSubagentView('native', { view: 'live', target: { runId: 'abandoned' } })
@@ -132,15 +132,16 @@ it('opens the exact foreground tool without sending an inspection command and fo
     argsText: '',
     args: { agent: 'reviewer', task: 'Review auth' },
     status: 'running' as const,
+    startedAt: 2,
     output: null,
   }
   useChatStore.setState({
-    sessions: { process: { ...chat, isStreaming: true, tools: { fg: tool } } },
+    sessions: { process: { ...chat, isStreaming: true, agentStartedAt: 1, tools: { fg: tool } } },
   })
   openForegroundSubagent('process', 'fg')
   await render()
-  expect(el.textContent).toContain('Foreground delegation')
-  expect(el.textContent).toContain('Review auth')
+  expect(el.querySelector('h3[tabindex="-1"]')?.textContent).toBe('Review auth')
+  expect(el.textContent).toContain('reviewer · running')
   expect(inspectSubagent).not.toHaveBeenCalled()
   expect(command).not.toHaveBeenCalled()
   await act(async () =>
@@ -168,12 +169,12 @@ it('opens the exact foreground tool without sending an inspection command and fo
   )
   expect(el.textContent).toContain('Reviewed auth safely')
   await act(async () => useChatStore.getState().setMeta('process', meta('clone')))
-  expect(el.textContent).not.toContain('Foreground delegation')
+  expect(el.textContent).not.toContain('Reviewed auth safely')
 })
 
 it('restores the history tab without starting inspection', async () => {
   saveSubagentView('native', { view: 'history', target: { runId: 'run' } })
   await render()
   expect(inspectSubagent).not.toHaveBeenCalled()
-  expect(el.querySelector('button[aria-pressed="true"]')?.textContent).toBe('Recorded coordination')
+  expect(el.querySelector('button[aria-pressed="true"]')?.textContent).toBe('Coordination log')
 })

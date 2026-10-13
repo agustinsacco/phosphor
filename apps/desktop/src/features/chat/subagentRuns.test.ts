@@ -101,6 +101,19 @@ describe('subagentCall', () => {
     })
   })
 
+  it('keeps parallel prompts by index, but none for a chain whose groups flatten', () => {
+    const tasks = [{ agent: 'scout', task: 'Map' }, { agent: 'reviewer' }]
+    expect(subagentCall({ tasks })).toMatchObject({
+      tasks: [
+        { agent: 'scout', task: 'Map' },
+        { agent: 'reviewer', task: undefined },
+      ],
+    })
+    expect(subagentCall({ chain: tasks })).toMatchObject({ tasks: [{ task: 'Map' }, {}] })
+    expect(subagentCall({ chain: [{ parallel: tasks }, ...tasks] })).not.toHaveProperty('tasks')
+    expect(subagentCall({ agent: 'x', task: 'y' })).not.toHaveProperty('tasks')
+  })
+
   it('names the agents a workflow script mentions, once each', () => {
     expect(
       scriptAgents(
