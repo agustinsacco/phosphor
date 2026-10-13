@@ -9,8 +9,7 @@ import { useStartingChatStore } from '@/stores/startingChat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { ipcErrorText } from '@shared/errors'
 import { useSessionsStore } from '@/stores/sessions'
-import { AttachButton, SubmitIconButton } from '@/components/ComposerButtons'
-import { DictateButton } from '@/features/voice/DictateButton'
+import { SubmitIconButton } from '@/components/ComposerButtons'
 import { HomeModelPicker } from './HomeModelPicker'
 import { LaneBoard, useLaneBoard } from './LaneBoard'
 import { Ledger } from './Ledger'
@@ -22,12 +21,10 @@ import { projectName } from '@/lib/path'
 import { WorkspaceChip } from '@/features/workspaces/WorkspaceChip'
 import { BranchControl } from '@/features/worktrees/BranchControl'
 import { composePrompt, toImageContents, type PendingAttachment } from '@/features/chat/attachments'
-import { AttachmentChips, DropOverlay } from '@/features/chat/composer/AttachmentChips'
-import { useAttachments } from '@/features/chat/composer/useAttachments'
-import { ComposerField } from '@/features/chat/composer/ComposerField'
+import { ComposerInput } from '@/features/chat/composer/ComposerInput'
 import { useWritingStore } from '@/stores/writing'
 import { ContextSourcesMenu } from '@/features/chat/composer/ContextSourcesMenu'
-import { buildCommandEntries, CommandMenu } from '@/features/chat/composer/CommandMenu'
+import { buildCommandEntries } from '@/features/chat/composer/CommandMenu'
 import { useSlashMenu } from '@/features/chat/composer/useSlashMenu'
 import { NO_COMMANDS, usePiCommandsStore } from '@/stores/piCommands'
 import { homeDraftKey, useDraftsStore } from '@/stores/drafts'
@@ -67,11 +64,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   const starting = useStartingChatStore((s) => s.starting !== null)
   const failedDraft = useStartingChatStore((s) => s.draft)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const attachments = useAttachments({
-    attachments: images,
-    onChange: setImages,
-    onReject: setWarning,
-  })
+  const swarm = draft?.swarm ?? false
   /*
    * The `/` menu, same component and same keymap as the chat composer.
    *
@@ -128,6 +121,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
     useDraftsStore.getState().patch(draftKey, {
       text: failedDraft.text,
       attachments: failedDraft.attachments,
+      swarm: failedDraft.swarm,
       workspacePath,
     })
     setWarning(failedDraft.message)
@@ -137,7 +131,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
 
   const start = async (): Promise<void> => {
     const message = text.trim()
-    if (!message || starting) return
+    if ((!message && images.length === 0) || starting) return
     setWarning(null)
 
     const prompt = composePrompt(message, images)
@@ -170,6 +164,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
         workspacePath,
         prompt,
         images: sent,
+        swarm,
         nav,
         onPhase: (next) => useStartingChatStore.getState().setPhase(next),
         // A toast, not an inline note under the composer: the session did
@@ -195,6 +190,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
         workspacePath,
         text: message,
         attachments: images,
+        swarm,
         message: `Couldn't start this session. ${ipcErrorText(error)}`,
       })
     }
@@ -257,7 +253,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
       </div>
 
       <div className="flex flex-col items-center px-4 pb-6 pt-4 sm:px-6">
-        <div className="relative w-full max-w-2xl">
+        <div className="relative w-full max-w-3xl">
           {/*
             Folder, branch and isolation, on one row above the composer.
 
@@ -277,88 +273,47 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               <IsolateToggle checked={isolate} disabled={starting} workspacePath={workspacePath} />
             )}
           </div>
-          {slash.visible && (
-            <CommandMenu
-              query={slash.query ?? ''}
-              entries={slash.matches}
-              status={commandsStatus}
-              errorMessage={commandsError}
-              activeIndex={slash.activeIndex}
-              onHover={slash.setActiveIndex}
-              onPick={slash.pick}
-              onClose={slash.close}
-            />
-          )}
-          {/* One seamless card: the submit affordance sits inside the field
-              (a quiet ⏎ glyph), never as a second bordered row. */}
-          <div
-            onDragOver={attachments.handleDragOver}
-            onDragLeave={attachments.handleDragLeave}
-            onDrop={attachments.handleDrop}
-            className={clsx(
-              'bg-surface relative rounded-xl border shadow-sm transition-colors',
-              attachments.dragging
-                ? 'border-accent ring-accent/25 ring-2'
-                : 'border-border hover:border-border-focus focus-within:border-border-focus',
-            )}
-          >
-            <DropOverlay visible={attachments.dragging} />
-            <AttachmentChips
-              attachments={images}
-              onRemove={attachments.remove}
-              onEdit={attachments.edit}
-            />
-            <ComposerField
-              value={text}
-              textareaRef={textareaRef}
-              onChange={(value) => {
-                setText(value)
-                slash.sync(value)
-              }}
-              onSubmit={() => void start()}
-              onKeyDown={slash.handleKeyDown}
-              onPasteFiles={attachments.addFiles}
-              autocomplete={!slash.visible}
-              placeholder="Describe a task or ask a question"
-              rows={2}
-            />
-
-            {/* Footer mirrors the chat composer: attach on the left, the
-                model · thinking chip and submit on the right, readouts in the
-                strip under the box. */}
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2.5 pb-2">
-              <div className="flex shrink-0 items-center gap-0.5">
-                <AttachButton onFiles={attachments.addFiles} />
-                <DictateButton
-                  textareaRef={textareaRef}
-                  onChange={(value) => {
-                    setText(value)
-                    slash.sync(value)
-                  }}
-                />
-              </div>
-
-              <div className="ml-auto flex min-w-0 items-center gap-1.5">
-                <HomeModelPicker
-                  override={draft?.model}
-                  onPick={(model) => useDraftsStore.getState().patch(draftKey, { model })}
-                />
-                <SubmitIconButton
-                  busy={starting}
-                  disabled={!text.trim()}
-                  onClick={() => void start()}
-                  label="Start session"
-                />
-              </div>
-            </div>
-          </div>
+          <ComposerInput
+            workspacePath={workspacePath}
+            value={text}
+            textareaRef={textareaRef}
+            onChange={setText}
+            onSubmit={() => void start()}
+            placeholder="Describe a task or ask a question"
+            rows={2}
+            attachments={images}
+            onAttachmentsChange={setImages}
+            onWarning={setWarning}
+            slash={slash}
+            commandStatus={commandsStatus}
+            commandError={commandsError}
+            swarm={{
+              enabled: swarm,
+              onChange: (enabled) => useDraftsStore.getState().patch(draftKey, { swarm: enabled }),
+            }}
+            modelPicker={
+              <HomeModelPicker
+                override={draft?.model}
+                onPick={(model) => useDraftsStore.getState().patch(draftKey, { model })}
+              />
+            }
+            actions={
+              <SubmitIconButton
+                busy={starting}
+                disabled={!text.trim() && images.length === 0}
+                onClick={() => void start()}
+                label="Start session"
+              />
+            }
+          />
           {/* The status strip, as under the chat composer. No session yet, so
               only what new lanes will load. */}
           <div className="text-text-tertiary @container flex min-h-6 flex-wrap items-center gap-x-3 gap-y-0.5 px-2 pt-1.5 text-sm">
             <ContextSourcesMenu workspacePath={workspacePath} />
             {text === '' && (
               <span className="@xl:inline ml-auto hidden min-w-0 flex-1 basis-0 truncate text-right">
-                <span className="font-mono">/</span> commands
+                <span className="font-mono">/</span> commands · <span className="font-mono">@</span>{' '}
+                files
               </span>
             )}
           </div>

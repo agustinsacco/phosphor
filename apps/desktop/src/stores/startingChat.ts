@@ -43,6 +43,7 @@ export interface ComposerDraft {
   workspacePath: string
   text: string
   attachments: PendingAttachment[]
+  swarm?: boolean
   /** Why it came back. Shown under the composer. */
   message: string
 }

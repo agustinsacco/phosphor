@@ -209,6 +209,120 @@ test('action hints stay quiet and dismiss before menus or dialogs', async () => 
   }
 })
 
+test('new lane shares Swarm and file mentions, applying authorization before the first prompt', async () => {
+  const workspace = await scratchDir('phosphor-e2e-swarm-')
+  const log = join(workspace, 'commands.jsonl')
+  const h = await launch({ workspace, env: { PHOSPHOR_E2E_COMMAND_LOG: log } })
+  const { page } = h
+  const prompts = async () =>
+    (await readFile(log, 'utf8').catch(() => ''))
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+      .filter((c) => c.type === 'prompt')
+      .map((c) => c.message)
+  try {
+    await openWorkspace(page)
+    const toggle = page.getByRole('switch', { name: 'Swarm', exact: true })
+    await expect(toggle).not.toBeChecked()
+    await toggle.focus()
+    await page.keyboard.press('Space')
+    await expect(toggle).toBeChecked()
+    expect(await prompts()).toEqual([])
+    // The choice survives a renderer reload even before any text is entered.
+    await expect
+      .poll(() =>
+        page.evaluate(async () =>
+          Object.values((await window.phosphor.invoke('app:getPrefs')).drafts).some(
+            (draft) => draft.swarm,
+          ),
+        ),
+      )
+      .toBe(true)
+    await page.reload()
+    const home = page.getByPlaceholder('Describe a task or ask a question')
+    await expect(home).toBeVisible()
+    await expect(toggle).toBeChecked()
+    await home.fill('Review @hello')
+    await expect(page.getByRole('button', { name: 'hello.ts', exact: true })).toBeVisible()
+    await home.press('Enter') // selects the mention; does not send
+    await expect(home).toHaveValue('Review hello.ts ')
+    expect(await prompts()).toEqual([])
+    await home.press('Enter')
+    await expect(page.getByTestId('user-message')).toHaveCount(1)
+    await expect(toggle).toBeChecked()
+    await expect.poll(prompts).toEqual(['/phosphor-swarm on', 'Review hello.ts'])
+    await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled({
+      timeout: 20_000,
+    })
+    const live = page.getByPlaceholder(/Describe a task…/i)
+    await live.fill('Check @hello')
+    await expect(page.getByRole('button', { name: 'hello.ts', exact: true })).toBeVisible()
+    await live.press('Tab')
+    await expect(live).toHaveValue('Check hello.ts ')
+    await page.getByRole('button', { name: /^New$/ }).click()
+    await expect(home).toBeVisible()
+    await expect(toggle).not.toBeChecked() // not a global preference
+    await page.screenshot({ path: test.info().outputPath('new-lane-shared-composer.png') })
+  } finally {
+    await shutdown(h)
+  }
+})
+
+test('new lane restores its draft and Swarm choice if pi-subagents is unavailable', async () => {
+  const h = await launch({ env: { PHOSPHOR_E2E_SWARM_UNAVAILABLE: '1' } })
+  const { page } = h
+  try {
+    await openWorkspace(page)
+    const home = page.getByPlaceholder('Describe a task or ask a question')
+    const toggle = page.getByRole('switch', { name: 'Swarm', exact: true })
+    await toggle.click()
+    await home.fill('Keep this task')
+    await home.press('Enter')
+    await expect(
+      page.getByText(/Couldn't start this session.*Swarm requires pi-subagents/),
+    ).toBeVisible()
+    await expect(home).toHaveValue('Keep this task')
+    await expect(toggle).toBeChecked()
+    await expect(page.getByTestId('user-message')).toHaveCount(0)
+    await toggle.click()
+    await home.press('Enter')
+    await expect(page.getByTestId('user-message')).toHaveCount(1)
+  } finally {
+    await shutdown(h)
+  }
+})
+
+test('new lane accepts an image-only first prompt', async () => {
+  const h = await launch()
+  const { page } = h
+  try {
+    await openWorkspace(page)
+    await page.evaluate((png) => {
+      const dataTransfer = new DataTransfer()
+      dataTransfer.items.add(
+        new File([Uint8Array.from(atob(png), (c) => c.charCodeAt(0))], 'dot.png', {
+          type: 'image/png',
+        }),
+      )
+      document
+        .querySelector('[data-swarm-enabled]')!
+        .dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer }))
+    }, PNG_1X1)
+    await expect(page.getByRole('button', { name: 'Attached image', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Start session', exact: true }).click()
+    // Image-only messages have no text bubble (the user-message test id).
+    await expect(page.getByPlaceholder(/Describe a task…/i)).toBeVisible()
+    await expect(page.getByRole('img', { name: 'Attached image', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Continue', exact: true })).toBeEnabled({
+      timeout: 20_000,
+    })
+  } finally {
+    await shutdown(h)
+  }
+})
+
 test('Swarm toggles lane authorization without sending a turn and honors reduced motion', async () => {
   const h = await launch()
   const { page } = h

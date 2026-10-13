@@ -6,6 +6,11 @@ The composer is one small field with several ways in.
 
 ## Composer
 
+- New and existing lanes use **`composer/ComposerInput.tsx`**, not separate
+  input cards: the same field, attachments, dictation, slash/file menus, Swarm
+  control, and toolbar layout. Model and submit controls bind to draft defaults
+  or a live session. History, shell execution, Continue, Stop, queues and context
+  usage require an existing session.
 - Multi-line. Enter sends, Shift+Enter newline. IME confirmation keys never
   send.
 - **Two groups and a strip.** The row under the field holds controls only.
@@ -77,6 +82,7 @@ The composer is one small field with several ways in.
   Attach records until clicked again, then inserts the transcript at the caret
   without sending. Undo removes it. Transcribed locally ([voice.md](voice.md)).
 - Images: paste or drag → thumbnails → sent as `images[]` with the prompt.
+  Both composers accept attachment-only messages, including the first message.
 - **Clicking a pending image opens the annotator** (`features/chat/imageEditor/`),
   not the lightbox. Box, circle, arrow, pen, highlighter, text and numbered
   markers, with colour, size, undo/redo and select-to-move/resize. ⌘V (or
@@ -536,9 +542,18 @@ activate subagent tools, duplicate the extension's skill, or widen task permissi
 Off keeps the existing normal delegation rules, including delegation explicitly
 requested by the user or authorized by project instructions.
 
-The switch is a pill with four looks, all driven by Pi's acknowledged status
-(`composer/SwarmSwitch.tsx`, `swarm.css`), never an optimistic renderer
-preference. Its glyph is the Beacon with three signals on the orbit, and the
+**Before a lane exists**, the same switch records an explicit choice on that
+workspace's unsent draft, including across restarts. Its hint explains that
+pi-subagents availability is checked on startup. The choice is consumed on send,
+not inherited by the next new lane or another workspace. Startup verifies the
+host command is registered and awaits its successful application **before the
+first prompt**, in both plain folders and worktrees. If unavailable or rejected,
+no task runs: the draft and choice return with an error, and the unused process
+is disposed. A missing command is never sent as an ordinary model prompt.
+
+In an **existing lane**, the switch is a pill with four looks, all driven by Pi's
+acknowledged status (`composer/SwarmSwitch.tsx`, `swarm.css`), never an optimistic
+renderer preference. Its glyph is the Beacon with three signals on the orbit, and the
 geometry carries the state, so no look depends on colour or motion alone:
 
 - **Unavailable** (no status yet, or pi-subagents not loaded): dimmed, heads

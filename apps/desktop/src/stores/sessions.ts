@@ -12,6 +12,7 @@ import {
   type RewoundSessions,
 } from '@/features/sessions/rewound'
 import { piCallOk, rehydrateTranscript } from '@/lib/rpc'
+import { requestSwarm } from '@/lib/swarm'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { clearBurnSamples, recordBurnSample } from '@/lib/burnRate'
 import {
@@ -182,6 +183,8 @@ interface SessionsState {
       name?: string
       firstPrompt?: string
       firstImages?: ImageContent[]
+      /** Explicit new-lane draft choice. Never applied to a resume or fork. */
+      swarm?: boolean
       /**
        * Generate a title for this session once its first message exists.
        * Defaults to true. `startChat` sets it false because it owns naming for
@@ -965,6 +968,18 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       useChatStore.getState().ensure(phosphorId, { resuming: Boolean(options.sessionPath) })
       attachSessionPushHandler(phosphorId)
 
+      // Configure before publishing the lane or sending its first prompt. A
+      // refused/missing host command must not silently run the task without
+      // the authorization the user selected, or become an ordinary prompt.
+      if (options.swarm && !options.sessionPath && !options.forkFrom) {
+        try {
+          await requestSwarm(phosphorId, true)
+        } catch (error) {
+          await get().disposeSession(phosphorId)
+          throw error
+        }
+      }
+
       // Git baseline for the Files Changed panel ("changes since session start").
       void window.phosphor
         .invoke('git:sessionBaseline', workspacePath)
@@ -1032,7 +1047,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       void bootstrapped
 
       const firstPrompt = options.firstPrompt
-      if (firstPrompt) {
+      if (firstPrompt !== undefined && (firstPrompt.trim() || options.firstImages?.length)) {
         const images = options.firstImages?.length ? options.firstImages : undefined
         useChatStore.getState().addUserMessage(phosphorId, firstPrompt, images)
         void piCallOk(phosphorId, {
@@ -1056,6 +1071,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         // being false means no pass here.
         const autoNameAllowed = lanePrefs().autoName
         if (
+          firstPrompt.trim() &&
           autoNameAllowed &&
           options.autoName !== false &&
           !options.name &&

@@ -2,15 +2,10 @@ import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import './swarm.css'
 import clsx from 'clsx'
-import {
-  SWARM_COMMAND,
-  SWARM_STATUS_KEY,
-  parseSwarmStatus,
-  type SwarmStatus,
-} from '@phosphor/pi-extensions/swarm'
+import { SWARM_STATUS_KEY, parseSwarmStatus, type SwarmStatus } from '@phosphor/pi-extensions/swarm'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useChatStore } from '@/stores/chat'
-import { piCall, piCallOk } from '@/lib/rpc'
+import { requestSwarm } from '@/lib/swarm'
 import { ipcErrorText } from '@shared/errors'
 
 export function useSwarm(sessionId: string): SwarmStatus | null {
@@ -125,13 +120,9 @@ export function SwarmSwitch({ sessionId }: { sessionId: string }): React.JSX.Ele
   const state = useSwarm(sessionId)
   const [sending, setSending] = useState(false)
   const locked = useRef(false)
-  const hintId = useId()
   const look = swarmLook(state)
   const pending = look === 'pending'
-  const enabled = state?.enabled ?? false
   const unavailable = look === 'unavailable'
-  const hint = swarmHint(state)
-  const activated = useActivation(enabled)
 
   // A click's receipt. Armed before the command goes out, because pi publishes
   // the new status before it answers the prompt, so the status can land first.
@@ -156,14 +147,8 @@ export function SwarmSwitch({ sessionId }: { sessionId: string }): React.JSX.Ele
     receipt.current = { requested, cancel: pending }
     let sent = false
     try {
-      const commands = await piCall(sessionId, { type: 'get_commands' })
-      if (!commands) return // piCall already surfaced the original failure.
-      if (!commands.commands.some((c) => c.name === SWARM_COMMAND && c.source === 'extension'))
-        throw new Error('This lane does not support the Swarm control. Restart it to update.')
-      sent = await piCallOk(sessionId, {
-        type: 'prompt',
-        message: `/${SWARM_COMMAND} ${requested ? 'on' : 'off'}`,
-      })
+      await requestSwarm(sessionId, requested)
+      sent = true
     } catch (error) {
       useChatStore.getState().setError(sessionId, ipcErrorText(error))
     } finally {
@@ -173,6 +158,27 @@ export function SwarmSwitch({ sessionId }: { sessionId: string }): React.JSX.Ele
     }
   }
 
+  return <SwarmControl state={state} sending={sending} onToggle={() => void toggle()} />
+}
+
+/** Same switch for a draft choice and a live, extension-confirmed state. */
+export function SwarmControl({
+  state,
+  sending = false,
+  hint = swarmHint(state),
+  onToggle,
+}: {
+  state: SwarmStatus | null
+  sending?: boolean
+  hint?: string
+  onToggle: () => void
+}): React.JSX.Element {
+  const hintId = useId()
+  const look = swarmLook(state)
+  const pending = look === 'pending'
+  const enabled = state?.enabled ?? false
+  const unavailable = look === 'unavailable'
+  const activated = useActivation(enabled)
   return (
     <TooltipButton
       type="button"
@@ -186,7 +192,9 @@ export function SwarmSwitch({ sessionId }: { sessionId: string }): React.JSX.Ele
       data-state={look}
       data-activated={activated ? 'true' : undefined}
       data-applying={sending ? 'true' : undefined}
-      onClick={() => void toggle()}
+      onClick={() => {
+        if (!sending && !unavailable) onToggle()
+      }}
       className={clsx(
         'swarm-switch flex h-8 shrink-0 items-center gap-1.5 rounded-full pr-2.5 pl-2 text-base font-medium transition-colors',
         look === 'unavailable' && 'cursor-default opacity-50',

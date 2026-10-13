@@ -669,6 +669,8 @@ export interface ComposerDraftRecord {
    */
   model?: { provider: string; id: string }
   thinking?: string
+  /** Swarm choice for an unsent new lane, not a preference for later lanes. */
+  swarm?: boolean
   workspacePath?: string
   preferWorktree?: boolean
   updatedAt: number
