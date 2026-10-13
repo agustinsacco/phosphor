@@ -41,6 +41,36 @@ disconnected. A local 5 s timer judges up/down using the server clock offset.
 Tokens stay in main. See [settings.md](settings.md#phosphor-account) and
 [ui-shell.md](ui-shell.md#machines) for the UI contract.
 
+## Desktop Host connections
+
+Main keeps one authenticated socket per up Host with a bare HTTPS `.ts.net`
+origin, up to 32 sockets. It follows account and machine-directory changes.
+Sign-out or account change closes sockets and clears remote memory. Down Hosts
+retain their last-known lane summaries in memory only. Removing a Host drops
+its cache. Endpoint changes close the old socket before opening another.
+
+Client ids live in a separate main-only electron-store, one per account with
+at most eight entries. Grants are cached only until their renewal time. Main
+verifies each Host's challenge proof with its enrolled public key before
+trusting its ready frame. Connections renew grants and send text keepalives.
+Transient failures reconnect with bounded backoff. Forbidden access and an
+unsupported protocol stop retries; a wrong-machine proof stops until the
+machine directory changes. Oversize closes query receipts rather than resend
+commands. Other reconnects resend unchanged commands under 60 seconds, then
+ask receipt status. Unknown means the action's outcome remains uncertain.
+Local `not-sent` results (`too-large`, `too-many-pending`, `not-connected` or
+`closed`) never write or queue a command. `not-connected` is transient; callers
+may try a fresh action once ready. `closed` means no automatic retry.
+
+`hosts:snapshot` exposes `no-address`, `connecting`, `ready`, `reconnecting`,
+`wrong-machine`, `unsupported` and `signed-out` states. `hosts:changed` is a
+250 ms debounced refetch signal. Repositories, lane summaries, cursors, the last
+50 attention events and open lane streams stay in memory. No transcript is
+written to the client's disk. This plumbing adds no UI or remote IPC routing.
+Remote surfaces remain absent until a Host announces their capabilities.
+`IPC_SCOPE` classifies every invoke channel as app-local or machine-scoped;
+it does not route them yet.
+
 ## Host protocol
 
 `libs/shared/src/host-protocol.ts` defines protocol v1, its allowlist, parsers
@@ -111,7 +141,7 @@ All three sides timestamp each line in ISO 8601 UTC with milliseconds.
 
 - Desktop: `~/Library/Logs/Phosphor/phosphor.log` on macOS,
   `~/.config/Phosphor/logs/phosphor.log` on Linux. Main writes `[account]`,
-  `[control]` and `[machines]` lines. Test profiles use their own log folder.
+  `[control]`, `[machines]` and `[hosts]` lines. Test profiles use their own log folder.
 - Host: `${XDG_STATE_HOME:-~/.local/state}/phosphor-host/logs/phosphor.log`.
   The owner-only file rotates at 5 MB. `login`, `status`, `logout`, `run` and
   service commands write there without changing terminal output.

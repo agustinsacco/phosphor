@@ -84,6 +84,10 @@
       "types": "./src/host-release.ts",
       "default": "./src/host-release.ts"
     },
+    "./ipc-scope": {
+      "types": "./src/ipc-scope.ts",
+      "default": "./src/ipc-scope.ts"
+    },
     "./ipc": {
       "types": "./src/ipc.ts",
       "default": "./src/ipc.ts"

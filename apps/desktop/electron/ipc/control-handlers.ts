@@ -21,6 +21,19 @@ const client = createControlClient({
   log,
 })
 
+export const controlClient = () => client
+const machineListeners = new Set<() => void>()
+export function onMachinesChanged(listener: () => void): () => void {
+  machineListeners.add(listener)
+  return () => {
+    machineListeners.delete(listener)
+  }
+}
+function machinesChanged() {
+  broadcast('control:machinesChanged', undefined)
+  for (const listener of machineListeners) listener()
+}
+
 export function registerControlHandlers(): void {
   const off = onAccountChange((view) => {
     if (view.account.status !== 'signed-in') client.clearObservations()
@@ -31,7 +44,7 @@ export function registerControlHandlers(): void {
     log,
     subscribe: onAccountChange,
     timers: liveTimers,
-    broadcast: () => broadcast('control:machinesChanged', undefined),
+    broadcast: machinesChanged,
     realtime: (changed, joined) =>
       createRealtime({
         log,

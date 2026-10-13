@@ -1,6 +1,7 @@
 import { realpathSync } from 'node:fs'
 import { basename, sep } from 'node:path'
 import Store from 'electron-store'
+import { cleanClients, type RemoteClients } from './hosts/client-id'
 import {
   blobIdsOf,
   canonicalPaths,
@@ -502,3 +503,17 @@ export function recordWorkspace(path: string, name: string): void {
   }
   s.set('lastWorkspacePath', real)
 }
+
+// Separate main-only store: account ids must not enter renderer preferences.
+let remoteStore: Store<{ remoteClients: RemoteClients }> | null = null
+function remotePrefs() {
+  remoteStore ??= new Store<{ remoteClients: RemoteClients }>({
+    name: 'remote-clients',
+    defaults: { remoteClients: {} },
+  })
+  return remoteStore
+}
+export const getRemoteClients = (): RemoteClients =>
+  cleanClients(remotePrefs().get('remoteClients'))
+export const setRemoteClients = (clients: RemoteClients): void =>
+  remotePrefs().set('remoteClients', cleanClients(clients))

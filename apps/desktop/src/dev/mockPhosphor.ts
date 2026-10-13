@@ -1458,6 +1458,8 @@ export function installMockPhosphor(): void {
         case 'claude:logout':
           mockClaudeAuth = { loggedIn: false }
           return Promise.resolve(undefined as never)
+        case 'hosts:snapshot':
+          return {}
         case 'control:machines':
           if (localStorage.getItem('mock:machinesState') === 'offline')
             return Promise.resolve({
@@ -2495,6 +2497,7 @@ export function installMockPhosphor(): void {
       return () => mockClaudeLoginListeners.delete(listener)
     },
 
+    onHostsChanged: () => () => undefined,
     onMachinesChanged: () => () => undefined,
 
     onVoiceStatus: (listener) => {

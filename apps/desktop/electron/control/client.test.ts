@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import { CONTROL_ROUTES, DEFAULT_CONTROL_URL, CONTROL_ERROR_STATUS } from '@shared/control-api'
 import { controlUrl, createControlClient } from './client'
@@ -568,4 +568,39 @@ it('keeps fingerprints authoritative when overlapping windows swap pending trace
   expect(events[2].trace).not.toBe(events[0].trace)
   for (const code of ['BCDFGHJK', 'BCDFGHJL'])
     expect(JSON.stringify(log.mock.calls)).not.toContain(code)
+})
+
+it('validates client and grant requests and replies through the main control transport', async () => {
+  const h = harness(),
+    hostId = randomUUID(),
+    clientId = randomUUID()
+  const grant = `phosphor-grant.v1.${randomBytes(32).toString('base64url')}.${randomBytes(64).toString('base64url')}`
+  const reply = {
+    grant,
+    expiresAt: new Date(Date.now() + 300_000).toISOString(),
+    host: {
+      id: hostId,
+      endpoint: 'https://test.ts.net',
+      publicKey: randomBytes(32).toString('base64url'),
+    },
+  }
+  h.fetchImpl.mockImplementation(async (url) =>
+    String(url).endsWith('/me')
+      ? json(me)
+      : String(url).endsWith('/clients')
+        ? json({ client: { id: clientId, label: 'Viewer' } })
+        : json(reply),
+  )
+  expect(await h.client.registerClient('Viewer')).toMatchObject({
+    ok: true,
+    client: { id: clientId },
+  })
+  expect(await h.client.grant(hostId, clientId)).toMatchObject({ ok: true, host: { id: hostId } })
+  expect(h.fetchImpl.mock.calls.at(-1)?.[1]?.body).toBe(JSON.stringify({ hostId, clientId }))
+  const count = h.fetchImpl.mock.calls.length
+  expect(await h.client.grant('bad', clientId)).toMatchObject({ error: { code: 'bad-request' } })
+  expect(await h.client.registerClient('\n')).toMatchObject({ error: { code: 'bad-request' } })
+  expect(h.fetchImpl).toHaveBeenCalledTimes(count)
+  h.fetchImpl.mockResolvedValueOnce(json({ ...reply, host: { ...reply.host, publicKey: 'bad' } }))
+  expect(await h.client.grant(hostId, clientId)).toMatchObject({ error: { code: 'internal' } })
 })
