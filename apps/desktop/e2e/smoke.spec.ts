@@ -5127,11 +5127,14 @@ test('the updater stays dormant in an unpackaged run', async () => {
   }
 })
 
-test('feedback is reachable from the sidebar and never nags a fresh install', async () => {
+test('feedback is reachable from the Settings footer and never nags a fresh install', async () => {
   const harness = await launch()
   const { page } = harness
   try {
     await openWorkspace(page)
+    // It lives in the Settings footer, not the sidebar.
+    await expect(page.getByTestId('feedback-button')).toHaveCount(0)
+    await page.getByRole('button', { name: 'Settings' }).click()
 
     // A first-run profile has one launch and no history, so the row is the
     // quiet variant: findable, no dot, no dismiss, no popup anywhere.
