@@ -80,6 +80,10 @@
       "types": "./src/host-protocol-testing/index.ts",
       "default": "./src/host-protocol-testing/index.ts"
     },
+    "./host-release": {
+      "types": "./src/host-release.ts",
+      "default": "./src/host-release.ts"
+    },
     "./ipc": {
       "types": "./src/ipc.ts",
       "default": "./src/ipc.ts"

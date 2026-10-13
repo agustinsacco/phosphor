@@ -8,7 +8,7 @@ and `accept` runs real sessions to prove it ([accept](#accept)). `login`,
 `status` and `logout` manage its machine identity in the control plane. `run`
 sends heartbeats; `service` runs it as a Linux systemd user service or a macOS
 LaunchAgent. It listens on nothing. `npm run build:host` builds it
-([Build](#build)); nothing installs or publishes it yet. Desktop never runs a
+([Build](#build)); signed releases carry their own pinned Node runtime. Desktop never runs a
 Host, and offline Desktop never needs one
 ([remote-access.md](remote-access.md)).
 
@@ -19,9 +19,81 @@ every library import against the package's exports.
 
 ## Setting up a Host
 
-There is no installer yet; it comes with signed builds (component 23). Until
-then, build the Host from source on the machine itself. It needs Node 22.19 or
-newer and git, and takes about ten seconds once dependencies are installed:
+### Install from a release
+
+This repository builds signed bundles, manifests and an installer for Linux x64,
+Linux arm64 and macOS arm64. No workflow publishes them and no release has been
+published yet. The release layout uses independent `host-v*` releases. The operator
+pins a release public key before publishing; an installer with no keys refuses
+installation. Each bundle carries Node 24.14.1, so no system Node is needed.
+The installer needs curl, ssh-keygen, tar, awk, base64, od and sha256sum or shasum.
+
+```sh
+curl -fsSL https://github.com/agustinsacco/Phosphor/releases/download/host-latest/install.sh | sh
+```
+
+The generated installer verifies the manifest's OpenSSH Ed25519 signature in
+namespace `phosphor-host-release` against embedded pinned keys. It then checks
+the selected tarball's byte count and SHA-256 before extracting it. With no
+version argument, it reads the signed manifest from the rolling `host-latest`
+release and downloads the artifact from the signed version's `host-v*` release.
+Host releases never replace Desktop's latest release. To pin a version, save
+`install.sh` and run `sh install.sh X.Y.Z`. `PHOSPHOR_HOST_RELEASE_URL` overrides
+the asset folder for an offline mirror (`file://` works too).
+
+Programs live in `~/.local/lib/phosphor-host/versions/<version>/`. An atomic
+symlink replacement selects `current`; `~/.local/bin/phosphor` points at its
+launcher. Add `~/.local/bin` to PATH, then run `phosphor setup`. A failed
+verification leaves an existing install untouched. Config, identity, state and
+provider installs are never changed. An already selected version with a matching
+`VERSION` is idempotent: the installer verifies the signed manifest, keeps the
+version folder untouched and makes sure the launcher is in place. Any other
+existing version folder is refused, with an instruction to run
+`phosphor update --rollback` or remove that folder before trying again.
+`phosphor update` does not exist yet, so remove the folder for now. A `current`
+that is not a symlink is refused.
+
+A launcher symlink is ours only when it points exactly at
+`~/.local/lib/phosphor-host/current/bin/phosphor`. A different launcher is refused
+unless `--replace-launcher` is passed. That flag keeps a user-owned file or
+symlink as `~/.local/bin/phosphor.before-release`; an existing backup or a
+directory at the launcher path is refused. If a Host service is already running,
+run `phosphor service install` again after replacing its launcher.
+
+The installer uses `~/.local/lib/phosphor-host/.install-lock/`. Any updater must
+follow this same protocol. Acquire it with mkdir, then write the owner's positive
+decimal process id followed by a newline into `pid`. A live owner refuses another
+installer. A missing or malformed pid is refused too: its owner may still be
+writing it. Remove a refused lock only if no install or update is running.
+
+To reclaim a dead owner's lock, take the `recovery/` mkdir gate inside it,
+re-read the pid and require that it is unchanged and still dead. Retire the whole
+lock by renaming it to `.install-lock.retired.<own-pid>` before deleting its known
+contents (`pid`, `recovery/`) and the folder. The gate moves with the lock, so a
+second reclaimer cannot delete a new owner's lock. Try acquisition only once
+more. Owners also retire their locks by rename on exit; no program deletes the
+lock path in place. Cleanup releases only its own gate, retired folder or lock.
+Acquisition sweeps at most 16 exact, non-symlink retired folders whose pid is dead.
+
+HUP, INT and TERM are deferred during lock acquisition, reclamation and
+same-filesystem publication renames, never discarded. Outside those sections,
+they exit immediately. A signal during publication finishes a consistent install
+(or rolls back a failed step), cleans up and exits 129, 130 or 143 without a
+success message. Critical lock and publication children ignore those signals so
+their mkdir and rename status is reliable. Rollback checks the filesystem too, restores `current` and
+the launcher before deleting an unselected new version, and keeps the complete
+bundle and any backup if restoration fails. It then tries to select the new
+bundle and prints that installation may have completed and rerunning is safe.
+If that also fails, it deletes neither bundle. A completed install is idempotent
+on rerun. SIGKILL or power loss can leave a pid-less lock or an abandoned
+`.install-lock/recovery` gate. Both require manual removal after confirming no
+installer or updater is running; the refusal message names `.install-lock`.
+A dead owner's lock with a pid and no recovery gate is reclaimed on the next run.
+
+### Install from source
+
+A source install still works. Build on the machine itself with Node 22.19 or
+newer and git. It takes about ten seconds once dependencies are installed:
 
 ```bash
 git clone --depth 1 https://github.com/agustinsacco/phosphor.git ~/src/phosphor
@@ -120,8 +192,8 @@ phosphor version [--json]
 
 stdout carries only the report or the JSON. Usage errors and accept's progress
 go to stderr.
-`version` prints `0.0.0-dev.<sha7>`, or `0.0.0-dev.source` when the build did
-not stamp a commit.
+`version` prints the independent Host release version, or `0.0.0-dev.<sha7>`
+for dev builds (`0.0.0-dev.source` when no commit is stamped).
 
 | Exit          | Meaning                                                                                          |
 | ------------- | ------------------------------------------------------------------------------------------------ |
@@ -140,8 +212,9 @@ not stamp a commit.
 `npm run build:host` writes `apps/host/dist/`, which git ignores. It runs
 `node apps/host/scripts/build.mjs`, which also takes `--out DIR` and `--sha SHA`:
 
-- `phosphor.mjs` and its linked source map: one ESM file for Node 22, built by
-  esbuild from `src/main.ts`. Run it as `node phosphor.mjs <command>`.
+- `phosphor.mjs`: one ESM file for Node 22, built by esbuild from `src/main.ts`.
+  Dev builds also carry a linked source map. Release builds have no source map
+  or `sourceMappingURL`. Run it as `node phosphor.mjs <command>`.
 - `pi-ext/`: the bundled extensions, copied with Desktop's filter (every `.ts`
   file but tests). A session loads them from beside the bundle unless the config
   sets `resourceRoot`.
@@ -152,8 +225,10 @@ not stamp a commit.
 - `BUILD-INFO.json`: the version, the source commit, whether the tree had
   uncommitted changes, the Node target, and every file with its size and sha256.
 
-The version is `0.0.0-dev.<sha7>` of the source commit, HEAD unless `--sha`
-names another. The build fails if the bundle reaches Electron, `electron-store`,
+Release builds take strict `X.Y.Z` from `HOST_RELEASE_VERSION` and ignore
+untracked files when computing `sourceDirty`. Otherwise the
+version is `0.0.0-dev.<sha7>` of the source commit, HEAD unless `--sha` names
+another. The build fails if the bundle reaches Electron, `electron-store`,
 `electron-updater`, `node-pty`, Desktop or the site, imports anything but a Node
 builtin, or lacks one of the seven extensions. It only replaces an empty folder or
 an earlier build: a real folder whose `BUILD-INFO.json` is a regular file naming
@@ -168,8 +243,24 @@ build cannot be moved back either, the output is gone and the build names the
 folder beside it that holds the earlier one. An earlier build that cannot be
 deleted once the new one is in place is left beside the output, possibly in
 part, and the build names it. A build killed outright can leave a
-`.phosphor-build-*` folder. Nothing is signed; real versions and signed bundles
-are component 23's.
+`.phosphor-build-*` folder. `tools/host-release/build-bundle.mjs --target TARGET --out DIR` wraps that
+build with the Node archive pinned in `tools/host-release/node.json`. It checks
+the committed SHA-256 on download and on cache reuse. Its sorted ustar entries
+have fixed timestamps, owners and modes; repeated builds of the same tree on
+one platform are byte-identical. The archive includes Node and its license,
+`lib/` with the Host and its resources, `VERSION`, and a POSIX launcher that
+resolves symlinks without `readlink -f`.
+
+After all three targets are built, `tools/host-release/manifest.mjs --out DIR`
+writes a manifest with version, protocols, pinned Node version, source commit,
+and each artifact's target, file, bytes and SHA-256. It signs the exact bytes
+with `ssh-keygen -Y sign`, namespace `phosphor-host-release`, hash `sha512`.
+`HOST_RELEASE_SIGNING_KEY` supplies an OpenSSH Ed25519 private key, never a
+path. A 0600 temporary key file is removed on success and failure. The public
+keys have one source, `HOST_RELEASE_KEYS` in `libs/shared/src/host-release.ts`;
+the builder generates `install.sh` from those keys. Host's release verifier
+uses Node crypto to verify SSHSIG and parse the bounded manifest before an
+artifact's size and hash are checked.
 
 `bundle.test.ts` builds into a scratch folder and checks `BUILD-INFO.json`
 against the files, the imports, and `pi-ext/`, and that a folder that is not an
