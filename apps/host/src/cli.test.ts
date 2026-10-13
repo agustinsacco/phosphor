@@ -23,7 +23,19 @@ afterEach(() => {
   machine = undefined
 })
 
+// Every argv the CLI tests feed in also checks the raw scan against parseArgs.
+function expectScanAgrees(argv: readonly string[]) {
+  let parsed: ReturnType<typeof parseArgs>
+  try {
+    parsed = parseArgs({ ...CLI_PARSE_CONFIG, args: [...argv] })
+  } catch {
+    return
+  }
+  expect(scannedCommand(argv), JSON.stringify(argv)).toBe(parsed.positionals[0])
+}
+
 async function run(argv: readonly string[], context: Partial<CliContext> = {}) {
+  expectScanAgrees(argv)
   const out = { stdout: '', stderr: '' }
   const code = await runCli(
     argv,
@@ -126,15 +138,7 @@ describe('phosphor', () => {
       ['--config', 'run'],
       ['--config=run', 'doctor'],
     ]
-    for (const argv of cases) {
-      let parsed: ReturnType<typeof parseArgs>
-      try {
-        parsed = parseArgs({ ...CLI_PARSE_CONFIG, args: [...argv] })
-      } catch {
-        continue
-      }
-      expect(scannedCommand(argv), JSON.stringify(argv)).toBe(parsed.positionals[0])
-    }
+    for (const argv of cases) expectScanAgrees(argv)
   })
   it('does not mistake --config run for the command', () => {
     const parsed = parseArgs({ ...CLI_PARSE_CONFIG, args: [...CONFIG_RUN_VALUE] })
