@@ -23,6 +23,7 @@ import type { Drainable } from '../shutdown'
 const hooks = vi.hoisted(() => ({
   rename: undefined as ((from: string, to: string) => void) | undefined,
   read: undefined as ((url: unknown) => void) | undefined,
+  rmdir: undefined as ((path: string) => void) | undefined,
   protocol: 1,
   decompressed: 0,
 }))
@@ -37,6 +38,10 @@ vi.mock('node:fs', async (original) => {
     renameSync: (from: string, to: string) => {
       fs.renameSync(from, to)
       hooks.rename?.(from, to)
+    },
+    rmdirSync: (path: string) => {
+      fs.rmdirSync(path)
+      hooks.rmdir?.(path)
     },
   }
 })
@@ -66,6 +71,7 @@ function setup() {
 afterEach(() => {
   hooks.rename = undefined
   hooks.read = undefined
+  hooks.rmdir = undefined
   hooks.protocol = 1
   hooks.decompressed = 0
   for (const f of fixtures.splice(0)) f.cleanup()
@@ -102,6 +108,9 @@ describe('runUpdate', () => {
       node: join(f.lib, 'current/node/bin/node'),
       bundle: join(f.lib, 'current/lib/phosphor.mjs'),
     }
+    f.release('1.2.3', bundle(), (m) => {
+      m.protocols = [2]
+    })
     expect(await runUpdate(f.context)).toBe(0)
     expect(f.messages).toContain('already up to date')
     expect(f.messages.some((m) => m.includes('newer Host protocol'))).toBe(false)
@@ -382,6 +391,7 @@ describe('runUpdate', () => {
       expect(calls.some((args) => args.includes('restart') || args.includes('kickstart'))).toBe(
         true,
       )
+      expect(f.messages).toEqual(['Phosphor Host service restarted.', 'Selected Host 1.2.3.'])
     }
   })
   it.each(['old version', 'old start', 'future', 'bad record', 'missing'])(
@@ -433,6 +443,10 @@ describe('runUpdate', () => {
     atomicRecord(record, { current: '1.0.0', previous: '0.9.0' }, 0o644)
     expect(await runUpdate(f.context, { rollback: true })).toBe(0)
     expect(readlinkSync(join(f.lib, 'current'))).toBe('versions/0.9.0')
+    expect(f.messages.slice(-2)).toEqual([
+      'restart phosphor run to use 0.9.0',
+      'Selected Host 0.9.0.',
+    ])
   })
   it.each(['folder', 'VERSION', 'executable', 'metadata'])(
     'refuses a linked rollback %s without reading a network asset',
@@ -504,6 +518,40 @@ describe('runUpdate', () => {
     ).toBe(false)
     expect(f.messages.some((m) => m.startsWith('Selected Host'))).toBe(false)
   })
+  it.each(['check', 'up to date', 'update'] as const)(
+    'claims no %s result after a signal that arrives as the lock is released',
+    async (kind) => {
+      const f = setup()
+      if (kind === 'up to date') {
+        expect(await runUpdate(f.context)).toBe(0)
+        f.context.update = {
+          ...f.context.update,
+          node: join(f.lib, 'current/node/bin/node'),
+          bundle: join(f.lib, 'current/lib/phosphor.mjs'),
+        }
+      }
+      // A newer-only release, so the protocol notice would be printed too.
+      f.release('1.2.3', bundle(), (m) => {
+        m.protocols = [2]
+      })
+      let target: Drainable | undefined
+      f.context.attach = (t) => {
+        target = t
+        return () => {}
+      }
+      hooks.rmdir = (path) => {
+        // Release retires the lock by rename, then removes it.
+        if (path.startsWith(join(f.lib, '.install-lock.retired.'))) void target?.drain('SIGINT')
+      }
+      const before = f.messages.length
+      expect(await runUpdate(f.context, { check: kind === 'check' })).toBe(130)
+      expect(f.messages.slice(before)).toEqual([])
+      expect(readlinkSync(join(f.lib, 'current'))).toBe(
+        kind === 'check' ? 'versions/1.0.0' : 'versions/1.2.3',
+      )
+      expect(readdirSync(f.lib).some((n) => /^\.(staging-|install-lock)/.test(n))).toBe(false)
+    },
+  )
   it('cleans staging and own lock after a signal during artifact download', async () => {
     const f = setup()
     let target: Drainable | undefined

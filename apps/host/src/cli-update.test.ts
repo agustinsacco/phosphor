@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest'
 import { runCli } from './cli'
-import { fixture } from './update/__fixtures__/release'
+import { bundle, fixture } from './update/__fixtures__/release'
 const fixtures: ReturnType<typeof fixture>[] = []
 function setup() {
   const f = fixture()
@@ -47,6 +47,17 @@ it('dispatches update check with JSON and offline rollback, and exposes help', a
   expect(JSON.parse(stdout.pop() ?? '')).toEqual({
     exitCode: 0,
     messages: ['Installed: 1.0.0; available: 1.2.3'],
+  })
+  f.release('1.2.3', bundle(), (m) => {
+    m.protocols = [2]
+  })
+  expect(await runCli(['update', '--check', '--json'], io, context)).toBe(0)
+  expect(JSON.parse(stdout.pop() ?? '')).toEqual({
+    exitCode: 0,
+    messages: [
+      'Installed: 1.0.0; available: 1.2.3',
+      'This release speaks a newer Host protocol: apps that have not updated cannot connect.',
+    ],
   })
   expect(await runCli(['update', '--rollback', '--json'], io, context)).toBe(75)
   expect(JSON.parse(stdout.pop() ?? '').exitCode).toBe(75)
