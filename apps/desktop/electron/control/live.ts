@@ -1,7 +1,9 @@
 import type { AccountView } from '@shared/account'
+import type { TraceLog } from './observations'
 import type { createRealtime, LiveTimers } from './realtime'
 
 export function createMachinesLive(deps: {
+  log?: TraceLog
   snapshot: () => AccountView
   subscribe: (listener: (view: AccountView) => void) => () => void
   realtime: (
@@ -21,10 +23,14 @@ export function createMachinesLive(deps: {
     old?.stop()
     joined = false
     if (debounce !== undefined) deps.timers.clear(debounce)
-    if (fallback !== undefined) deps.timers.clear(fallback)
+    if (fallback !== undefined) {
+      deps.log?.('machines', 'fallback.stopped')
+      deps.timers.clear(fallback)
+    }
     debounce = fallback = undefined
   }
   function poll(): void {
+    if (fallback === undefined) deps.log?.('machines', 'fallback.started')
     fallback = deps.timers.after(() => {
       if (!joined) deps.broadcast()
       poll()
@@ -44,7 +50,10 @@ export function createMachinesLive(deps: {
       (next) => {
         if (next === joined) return
         joined = next
-        if (fallback !== undefined) deps.timers.clear(fallback)
+        if (fallback !== undefined) {
+          deps.log?.('machines', 'fallback.stopped')
+          deps.timers.clear(fallback)
+        }
         fallback = undefined
         if (!next && client) poll()
       },

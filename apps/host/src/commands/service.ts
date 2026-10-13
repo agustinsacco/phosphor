@@ -1,6 +1,6 @@
 import { userInfo } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
-import { controlResult, prepareControl, withCommandLock } from '../control/command'
+import { traceCommand, controlResult, prepareControl, withCommandLock } from '../control/command'
 import { IdentityFailure } from '../control/identity'
 import {
   HOST_UNIT,
@@ -34,7 +34,7 @@ export interface ServiceContext extends RunContext {
     remove?: typeof removeServiceUnit
   }
 }
-export async function runService(
+async function runServiceCommand(
   context: ServiceContext,
   action: ServiceAction,
   follow = false,
@@ -45,7 +45,17 @@ export async function runService(
   }
   const runner =
     context.service?.runner ?? serviceRunner(context.env, context.print, context.signal)
-  const call = (args: readonly string[]) => runner('systemctl', ['--user', ...args])
+  const invoke: ServiceRunner = async (program, args, stream) => {
+    context.log?.('service', 'exec', { program, args, trace: context.trace })
+    const result = await runner(program, args, stream)
+    context.log?.('service', 'exec.finished', {
+      program,
+      exitCode: result.code,
+      trace: context.trace,
+    })
+    return result
+  }
+  const call = (args: readonly string[]) => invoke('systemctl', ['--user', ...args])
   const unit = join(
     context.env.XDG_CONFIG_HOME ?? join(context.home, '.config'),
     'systemd',
@@ -78,6 +88,7 @@ export async function runService(
         path.filter(Boolean).join(':'),
       )
       await (context.service?.write ?? writeServiceUnit)(unit, text)
+      context.log?.('service', 'unit.written', { path: unit, trace: context.trace })
       if (
         (await call(['daemon-reload'])).code !== 0 ||
         (await call(['enable', '--now', HOST_UNIT])).code !== 0 ||
@@ -88,7 +99,7 @@ export async function runService(
         )
         return 75
       }
-      if ((await runner('loginctl', ['enable-linger', user])).code !== 0)
+      if ((await invoke('loginctl', ['enable-linger', user])).code !== 0)
         context.print(
           `The service is running. To keep it running after logout, run: sudo loginctl enable-linger ${user}`,
         )
@@ -105,6 +116,7 @@ export async function runService(
         }
       }
       await (context.service?.remove ?? removeServiceUnit)(unit)
+      context.log?.('service', 'unit.removed', { path: unit, trace: context.trace })
       if ((await call(['daemon-reload'])).code !== 0) {
         context.print('The service manager could not reload.')
         return 75
@@ -118,7 +130,7 @@ export async function runService(
         return 0
       }
     } else if (action === 'logs') {
-      const result = await runner(
+      const result = await invoke(
         'journalctl',
         ['--user', '-u', HOST_UNIT, '-n', '200', '--no-pager', ...(follow ? ['-f'] : [])],
         true,
@@ -143,7 +155,7 @@ export async function runService(
         )
           context.print(line)
       }
-      const linger = await runner('loginctl', ['show-user', user, '-p', 'Linger', '--value'])
+      const linger = await invoke('loginctl', ['show-user', user, '-p', 'Linger', '--value'])
       context.print(
         `Linger: ${linger.code !== 0 ? 'unknown' : linger.stdout.trim() === 'yes' ? 'on' : 'off'}`,
       )
@@ -158,4 +170,14 @@ export async function runService(
     context.print(result.message)
     return result.exitCode
   }
+}
+
+export function runService(
+  context: ServiceContext,
+  action: ServiceAction,
+  follow = false,
+): Promise<number> {
+  return traceCommand(context, `service.${action}`, (traced) =>
+    runServiceCommand({ ...context, ...traced }, action, follow),
+  )
 }

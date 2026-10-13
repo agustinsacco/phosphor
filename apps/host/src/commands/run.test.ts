@@ -217,3 +217,29 @@ it('shutdown uses run exit 0 on the first signal and 130 immediately on a second
   await clean.signal('SIGTERM')
   expect(cleanExits).toEqual([0])
 })
+
+it('records retry delay and removal with exit 77 in the file without exception text', async () => {
+  await machine.enrollOld()
+  const { createHostLog } = await import('../machine/log')
+  const secret = crypto.randomUUID()
+  const log = createHostLog(join(machine.root, 'logs'), [])
+  let calls = 0
+  expect(
+    await runHost({
+      ...context(),
+      log: log.write,
+      fetch: async () => {
+        calls++
+        if (calls === 1) throw new TypeError(secret)
+        return new Response(null, { status: 410 })
+      },
+    }),
+  ).toBe(77)
+  const text = await readFile(join(machine.root, 'logs', 'phosphor.log'), 'utf8')
+  expect(text).toContain('[host] retry')
+  expect(text).toContain('"delayMs":5000')
+  expect(text).toContain('[host] removed')
+  expect(text).toContain('"exitCode":77')
+  expect(text).toContain('"code":"TypeError"')
+  expect(text).not.toContain(secret)
+})

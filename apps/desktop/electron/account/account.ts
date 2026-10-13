@@ -1,4 +1,13 @@
-import { AuthRefused, pkcePair, type AccountUser, type AuthSession, type GoTrue } from './gotrue'
+import { randomBytes } from 'node:crypto'
+import { isUuid } from '@shared/control-api'
+import {
+  AuthUnavailable,
+  AuthRefused,
+  pkcePair,
+  type AccountUser,
+  type AuthSession,
+  type GoTrue,
+} from './gotrue'
 import { listenForCallback, type CallbackListener, type CallbackPage } from './loopback'
 import type { Vault } from './vault'
 
@@ -70,6 +79,22 @@ export function createAccount(ports: AccountPorts): Account {
   let current: AccountState = { status: 'signed-out' }
   let session: AuthSession | null = null
   let generation = 0
+  let trace = ''
+  const event = (
+    name: string,
+    fields?: { userId?: string | null; login?: string | null; reason?: string },
+    operationTrace = trace,
+  ) => ports.log(`${name} ${JSON.stringify({ trace: operationTrace, ...fields })}`)
+  const reasonClass = (error: unknown) =>
+    error instanceof AuthRefused
+      ? 'AuthRefused'
+      : error instanceof AuthUnavailable
+        ? 'AuthUnavailable'
+        : 'Error'
+  const userFields = (user: AccountUser) => ({
+    userId: isUuid(user.id) ? user.id : null,
+    login: user.login && /^[A-Za-z0-9-]{1,39}$/.test(user.login) ? user.login : null,
+  })
   let signing: { promise: Promise<AccountState>; abort: AbortController } | null = null
   let refreshing: Promise<AuthSession | null> | null = null
   /** Requests to Supabase in flight, each bounded by REQUEST_MS or REVOKE_MS. */
@@ -103,7 +128,7 @@ export function createAccount(ports: AccountPorts): Account {
     try {
       ports.vault.clear()
     } catch (problem) {
-      ports.log(`could not delete the saved sign-in: ${reason(problem)}`)
+      event('could not delete the saved sign-in', { reason: reasonClass(problem) })
       const note = `The saved sign-in could not be deleted (${reason(problem)}).`
       return signedOut(error ? `${error} ${note}` : `Signed out, but: ${note}`)
     }
@@ -115,7 +140,9 @@ export function createAccount(ports: AccountPorts): Account {
     return track(
       ports.auth
         .revoke(accessToken, signal)
-        .catch((problem: unknown) => ports.log(`could not revoke a session: ${reason(problem)}`)),
+        .catch((problem: unknown) =>
+          event('could not revoke a session', { reason: reasonClass(problem) }),
+        ),
     )
   }
 
@@ -126,7 +153,7 @@ export function createAccount(ports: AccountPorts): Account {
       return ports.vault.save(fresh.user, fresh.refreshToken)
     } catch (problem) {
       // The token on disk may be the one just consumed; do not leave it behind.
-      ports.log(`could not save the sign-in: ${reason(problem)}`)
+      event('could not save the sign-in', { reason: reasonClass(problem) })
       try {
         ports.vault.clear()
       } catch {
@@ -136,7 +163,12 @@ export function createAccount(ports: AccountPorts): Account {
     }
   }
 
-  async function run(gen: number, signal: AbortSignal): Promise<AccountState> {
+  async function run(
+    gen: number,
+    signal: AbortSignal,
+    operationTrace: string,
+  ): Promise<AccountState> {
+    const signin: typeof event = (name, fields) => event(name, fields, operationTrace)
     const live = (): boolean => gen === generation
     const { verifier, challenge } = pkcePair()
     let listener: CallbackListener | null = null
@@ -144,13 +176,20 @@ export function createAccount(ports: AccountPorts): Account {
       listener = await listenForCallback(ports.callbackMs ?? CALLBACK_MS, signal)
       if (!live()) return current
       await ports.openExternal(ports.auth.authorizeUrl(listener.url, challenge))
+      signin('sign-in.browser-opened')
       const outcome = await listener.outcome
+      if (outcome.kind !== 'timeout' && outcome.kind !== 'cancelled')
+        signin('sign-in.callback-received')
       if (!live() || outcome.kind === 'cancelled') {
         listener.finish(CANCELLED)
         return current
       }
-      if (outcome.kind === 'timeout') return signedOut('Sign-in timed out. Try again.')
+      if (outcome.kind === 'timeout') {
+        signin('sign-in.failed', { reason: 'timeout' })
+        return signedOut('Sign-in timed out. Try again.')
+      }
       if (outcome.kind === 'denied') {
+        signin('sign-in.failed', { reason: 'denied' })
         listener.finish(CANCELLED)
         const why = outcome.description || outcome.errorCode || outcome.error
         return signedOut(`GitHub sign-in did not finish: ${why}`)
@@ -168,11 +207,12 @@ export function createAccount(ports: AccountPorts): Account {
         title: 'Signed in to Phosphor',
         message: `Signed in as ${label(fresh.user)}. You can close this tab.`,
       })
+      signin('sign-in.finished', userFields(fresh.user))
       return set({ status: 'signed-in', user: fresh.user, remembered })
     } catch (problem) {
       listener?.finish(live() ? FAILED : CANCELLED)
       if (!live()) return current
-      ports.log(`sign-in failed: ${reason(problem)}`)
+      signin(`sign-in failed: ${reasonClass(problem)}`, { reason: reasonClass(problem) })
       return signedOut(`Sign-in failed: ${reason(problem)}`)
     } finally {
       listener?.close()
@@ -189,6 +229,7 @@ export function createAccount(ports: AccountPorts): Account {
       try {
         token = session?.refreshToken ?? ports.vault.readToken(current.user.id)
       } catch (problem) {
+        event('session.refresh.failed', { reason: 'storage' })
         forget(`The saved sign-in could not be read (${reason(problem)}). Sign in again.`)
         return null
       }
@@ -197,8 +238,9 @@ export function createAccount(ports: AccountPorts): Account {
         fresh = await track(ports.auth.refresh(token))
       } catch (problem) {
         if (!live()) return null
+        event('session.refresh.failed', { reason: reasonClass(problem) })
         if (problem instanceof AuthRefused) {
-          ports.log(`session ended: ${problem.code ?? problem.status}`)
+          event('session ended', { reason: 'AuthRefused' })
           forget('Your Phosphor session ended. Sign in again.')
           return null
         }
@@ -212,6 +254,7 @@ export function createAccount(ports: AccountPorts): Account {
       // sign-out (even one this set() triggers) revokes it, not this refresh.
       refreshing = null
       const remembered = keep(fresh)
+      event('session.refresh.succeeded', userFields(fresh.user))
       set({ status: 'signed-in', user: fresh.user, remembered })
       return fresh
     }
@@ -234,10 +277,12 @@ export function createAccount(ports: AccountPorts): Account {
     signIn() {
       if (signing) return signing.promise
       if (current.status === 'signed-in') return Promise.resolve(current)
+      trace = randomBytes(8).toString('hex')
+      event('sign-in.started')
       const gen = ++generation
       const abort = new AbortController()
       set({ status: 'signing-in' })
-      const promise = run(gen, abort.signal).finally(() => {
+      const promise = run(gen, abort.signal, trace).finally(() => {
         if (signing?.promise === promise) signing = null
       })
       signing = { promise, abort }
@@ -246,6 +291,7 @@ export function createAccount(ports: AccountPorts): Account {
 
     cancel() {
       if (!signing) return
+      event('sign-in.cancelled')
       generation++
       signing.abort.abort()
       signing = null
@@ -253,8 +299,10 @@ export function createAccount(ports: AccountPorts): Account {
     },
 
     async signOut() {
+      event('sign-out')
       const was = current
       if (signing) {
+        event('sign-in.cancelled')
         signing.abort.abort()
         signing = null
       }
@@ -287,7 +335,9 @@ export function createAccount(ports: AccountPorts): Account {
             if (!access && token) access = (await ports.auth.refresh(token, signal)).accessToken
             if (access) await ports.auth.revoke(access, signal)
           } catch (problem) {
-            ports.log(`signed out here; the server session was not revoked: ${reason(problem)}`)
+            event('signed out here; the server session was not revoked', {
+              reason: reasonClass(problem),
+            })
           }
         })(),
       )

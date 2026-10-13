@@ -41,6 +41,78 @@ disconnected. A local 5 s timer judges up/down using the server clock offset.
 Tokens stay in main. See [settings.md](settings.md#phosphor-account) and
 [ui-shell.md](ui-shell.md#machines) for the UI contract.
 
+## Tracing a machine
+
+All three sides timestamp each line in ISO 8601 UTC with milliseconds.
+
+- Desktop: `~/Library/Logs/Phosphor/phosphor.log` on macOS,
+  `~/.config/Phosphor/logs/phosphor.log` on Linux. Main writes `[account]`,
+  `[control]` and `[machines]` lines. Test profiles use their own log folder.
+- Host: `${XDG_STATE_HOME:-~/.local/state}/phosphor-host/logs/phosphor.log`.
+  The owner-only file rotates at 5 MB. `login`, `status`, `logout`, `run` and
+  service commands write there without changing terminal output.
+- Server: JSON lines on stdout. Read them with
+  `kubectl -n phosphor logs deploy/phosphor-site | grep -v '"route":"site"'`.
+  `/healthz` and `kube-probe/` requests are already suppressed.
+
+Each control call records `method`, the route template (never the query),
+`status`, `ms`, `requestId` and `trace`. Client failures add `code`; server
+failures add `error`. Transport failures have status 0 and no request id.
+The server returns `x-request-id`; clients record only its validated hex value.
+The logging-only headers `x-phosphor-client` and `x-phosphor-trace` identify the
+client kind/version and a 16-character lowercase hex operation id. A Host
+command or Desktop refresh gets a new trace. Lookup and approval share a trace.
+The pending lookup trace expires with the enrollment, capped at 15 minutes.
+A failed lookup, sign-out or account change clears it; approval consumes it.
+Two Add-a-machine attempts in separate windows at the same time may share or
+swap trace ids. Join lookup to approval by `keyFingerprint`, which each response
+supplies; the trace is a convenience, not the authoritative join.
+Desktop sign-in has its own account trace. Missing or malformed correlation
+headers record `client: "invalid"`; they do not change authorization or limits.
+
+For example, enrolling bee1 produces this order:
+
+1. Desktop calls `/me`, then `/machines` with one refresh trace.
+2. Host calls `POST /enrollments`. `enrollment.created` links the enrollment id
+   to the key fingerprint, hostname, OS, architecture and Host version.
+3. Host polls every five seconds with its login trace. `enrollment.poll` records
+   the enrollment id and pending result.
+4. Desktop looks up the code, then approves. `enrollment.lookup` records the
+   fingerprint and user id. `enrollment.approved` links the same fingerprint to
+   the Host id, user id and label. Fingerprint joins these events to creation;
+   the enrollment id joins creation to polling. No code appears in a log.
+5. Host polls and learns its approved Host id.
+6. Host saves `identity/host.json`, then calls `GET /hosts/self` for its self
+   check. The identity is saved before this check, so a failed check still leaves
+   a saved identity that `phosphor status` can inspect.
+7. Once `phosphor run` starts, each heartbeat has an access line and a client
+   call line with its sequence. The first accepted beat this server process
+   sees, or one after more than 90 seconds of silence, emits `host.connected`.
+   A running/stopping or readiness change emits `host.state` once per observed
+   transition. Removal emits `host.removed`; a removed Host's beat emits
+   `host.refused` with reason `gone`.
+
+Server heartbeat observation is process-local, capped at 10,000 Hosts with the
+least recently beaten evicted. Restarting the server emits `host.connected`
+again on each Host's next accepted beat. Refused beats do not update this history.
+Desktop logs initial machine states and transitions only when `/machines` is
+fetched, correcting its clock with `serverTime`. A silent machine's offline
+observation appears at the next fetch, not on a separate logging timer. A
+missing machine is observed as removed once. This history is capped at 1,000
+Hosts and cleared on sign-out or account change. Server heartbeat events and
+`lastSeenAt` are the liveness record; Desktop lines show what a fetch observed.
+Realtime join, leave, error and fallback polling start/stop lines explain why a
+refresh may follow.
+
+Logs never include user codes, access or refresh tokens, cookies, auth headers,
+private or public keys, signatures, nonces, edge secrets, peer/client addresses or raw
+request/response bodies. A public key appears only as its fingerprint. Errors
+record a bounded code or reason class, not a peer's message or exception text.
+The server never logs source/socket addresses or `cf-connecting-ip`. Clients
+never log resolved addresses or local interface addresses. The Host logs only
+the configured control origin, including a numeric origin when configured,
+never userinfo, paths or queries.
+
 ## Trust boundary
 
 The control plane holds identity and machine metadata only. Host public keys

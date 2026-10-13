@@ -2,11 +2,17 @@ import { randomInt } from 'node:crypto'
 import { setTimeout } from 'node:timers/promises'
 import {
   controlResult,
+  traceCommand,
   prepareControl,
   withCommandLock,
   type ControlContext,
 } from '../control/command'
-import { createHeartbeat, createSequenceStore, type HeartbeatPorts } from '../control/heartbeat'
+import {
+  REMOVED,
+  createHeartbeat,
+  createSequenceStore,
+  type HeartbeatPorts,
+} from '../control/heartbeat'
 import { identityDirectory, IdentityFailure } from '../control/identity'
 import { acquireIdentityLock } from '../control/lock'
 import { loadHostConfig } from '../config/load'
@@ -19,7 +25,7 @@ export interface RunContext extends ControlContext {
   attach?: (target: Drainable) => () => void
   heartbeat?: Partial<Pick<HeartbeatPorts, 'readiness' | 'seq' | 'random'>>
 }
-export async function runHost(context: RunContext): Promise<number> {
+async function runHostCommand(context: RunContext): Promise<number> {
   let release: (() => Promise<void>) | undefined
   let detach: (() => void) | undefined
   try {
@@ -38,14 +44,30 @@ export async function runHost(context: RunContext): Promise<number> {
       now: context.now ?? Date.now,
       wait: context.wait ?? ((ms, signal) => setTimeout(ms, undefined, { signal })),
       random: context.heartbeat?.random ?? (() => randomInt(3001) / 3000),
-      client: (body, signal) => prepared.client.heartbeat(identity.hostId, key, body, signal),
+      client: (body, signal) => {
+        context.log?.('host', 'heartbeat', {
+          seq: body.seq,
+          state: body.state,
+          trace: context.trace,
+        })
+        return prepared.client.heartbeat(identity.hostId, key, body, signal)
+      },
       readiness:
         context.heartbeat?.readiness ??
         (() => checkReadiness(config.config, context.env, context.platform)),
       seq: context.heartbeat?.seq ?? createSequenceStore(directory, context.uid, identity.hostId),
       hostVersion: HOST_VERSION,
       signal: context.signal,
-      log: context.print,
+      log: (line) => {
+        const retry = /^retrying in ([0-9.]+)s$/.exec(line)
+        context.log?.('host', line === REMOVED ? 'removed' : retry ? 'retry' : 'state', {
+          state: line,
+          trace: context.trace,
+          ...(line === REMOVED ? { exitCode: 77 } : {}),
+          ...(retry ? { delayMs: Number(retry[1]) * 1000 } : {}),
+        })
+        context.print(line)
+      },
     })
     detach = context.attach?.({
       ...loop,
@@ -60,4 +82,8 @@ export async function runHost(context: RunContext): Promise<number> {
     detach?.()
     await release?.()
   }
+}
+
+export function runHost(context: RunContext): Promise<number> {
+  return traceCommand(context, 'run', (traced) => runHostCommand({ ...context, ...traced }))
 }

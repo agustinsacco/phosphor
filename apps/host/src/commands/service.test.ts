@@ -263,3 +263,21 @@ describe('phosphor service', () => {
     ])
   })
 })
+
+it('logs service writes and execution, never captured environment or child output', async () => {
+  const f = fixture()
+  await machine.enrollOld()
+  const { createHostLog } = await import('../machine/log')
+  const log = createHostLog(join(machine.root, 'logs'), [f.context.env.SECRET_TOKEN ?? ''])
+  f.context.log = log.write
+  for (const action of ['install', 'restart', 'uninstall'] as const)
+    expect(await runService(f.context, action)).toBe(0)
+  const text = await readFile(join(machine.root, 'logs', 'phosphor.log'), 'utf8')
+  expect(text).toContain('unit.written')
+  expect(text).toContain('unit.removed')
+  expect(text).toContain('"program":"systemctl"')
+  expect(text).toContain('"program":"loginctl"')
+  expect(text).not.toContain('must-not-appear')
+  expect(text).not.toContain('/custom/bin')
+  expect(text).not.toContain('secret=hidden')
+})

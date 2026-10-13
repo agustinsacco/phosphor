@@ -499,3 +499,31 @@ describe('machine status', () => {
     expect(machineRoute(ID)).toBe(`/api/v1/machines/${ID}`)
   })
 })
+
+describe('control trace header validators', () => {
+  it('accepts only bounded client versions and lowercase 16-byte hex text', async () => {
+    const { isControlClient, isControlTrace, CONTROL_TRACE_HEADERS } = await import('./control-api')
+    expect(CONTROL_TRACE_HEADERS).toEqual({
+      client: 'x-phosphor-client',
+      trace: 'x-phosphor-trace',
+    })
+    for (const kind of ['desktop', 'host']) {
+      expect(isControlClient(`${kind}/${'a'.repeat(40)}`)).toBe(true)
+      expect(isControlClient(`${kind}/${'a'.repeat(41)}`)).toBe(false)
+      expect(isControlClient(`${kind}/1.2.3-dev+build`)).toBe(true)
+    }
+    for (const value of ['', null, 'host/', 'other/1', 'host/1 secret', 'host/1\n', 'host/1/2'])
+      expect(isControlClient(value)).toBe(false)
+    expect(isControlTrace('0123456789abcdef')).toBe(true)
+    for (const value of [
+      '',
+      null,
+      '0123456789abcde',
+      '0123456789abcdef0',
+      '0123456789ABCDEf',
+      '0123456789abcdeg',
+      '0123456789abcdef\n',
+    ])
+      expect(isControlTrace(value)).toBe(false)
+  })
+})

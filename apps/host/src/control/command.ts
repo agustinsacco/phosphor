@@ -1,6 +1,12 @@
+import { randomBytes } from 'node:crypto'
 import { setTimeout } from 'node:timers/promises'
 import { acquireIdentityLock, LockBusy, type LockPorts } from './lock'
-import { DEFAULT_CONTROL_URL, type HostSelfResponse } from '@phosphor/shared/control-api'
+import {
+  DEFAULT_CONTROL_URL,
+  isControlTrace,
+  type HostSelfResponse,
+} from '@phosphor/shared/control-api'
+import { HOST_VERSION } from '../version'
 import { EXIT } from '../checks'
 import { loadHostConfig } from '../config/load'
 import { createControlClient, ControlFailure, type ClientPorts, type ControlClient } from './client'
@@ -104,4 +110,29 @@ export function waitForPoll(context: ControlContext, ms: number): Promise<void> 
   return context.wait
     ? context.wait(ms, context.signal)
     : setTimeout(ms, undefined, { signal: context.signal })
+}
+
+/** One trace per command; nested service status calls keep their caller's trace. */
+export async function traceCommand<T extends { exitCode: number } | number>(
+  context: ControlContext,
+  command: string,
+  run: (context: ControlContext) => Promise<T>,
+): Promise<T> {
+  const traced = {
+    ...context,
+    trace: isControlTrace(context.trace) ? context.trace : randomBytes(8).toString('hex'),
+  }
+  traced.log?.('host', 'start', { command, trace: traced.trace, hostVersion: HOST_VERSION })
+  try {
+    const result = await run(traced)
+    traced.log?.('host', 'end', {
+      command,
+      trace: traced.trace,
+      exitCode: typeof result === 'number' ? result : result.exitCode,
+    })
+    return result
+  } catch (error) {
+    traced.log?.('host', 'end', { command, trace: traced.trace, exitCode: EXIT.internal })
+    throw error
+  }
 }

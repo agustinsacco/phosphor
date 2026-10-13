@@ -349,3 +349,223 @@ it('renames with a validated UUID and label and parses the reply', async () => {
     error: { code: 'internal' },
   })
 })
+
+it('links lookup and approve calls, separates refreshes, and logs no token, code or peer text', async () => {
+  const token = randomBytes(32).toString('hex')
+  const peerSecret = randomBytes(32).toString('hex')
+  const log = vi.fn()
+  const headers: Headers[] = []
+  let generation = 0
+  let signedOut = false
+  const client = createControlClient({
+    baseUrl: () => DEFAULT_CONTROL_URL,
+    accessToken: async () => (signedOut ? null : token),
+    generation: () => generation,
+    version: () => '1.2.3',
+    now: () => Date.parse(LOOKUP.expiresAt) - 1000,
+    log,
+    fetch: async (url, init) => {
+      headers.push(new Headers(init?.headers))
+      const path = new URL(String(url)).pathname
+      if (init?.method === 'DELETE')
+        return new Response(null, { status: 204, headers: { 'x-request-id': '1'.repeat(32) } })
+      const body =
+        path === CONTROL_ROUTES.me
+          ? me
+          : path === CONTROL_ROUTES.enrollmentLookup
+            ? LOOKUP
+            : path === CONTROL_ROUTES.enrollmentApprove
+              ? { machine: MACHINE }
+              : { machines: [MACHINE], serverTime: new Date().toISOString() }
+      return new Response(JSON.stringify(body), {
+        headers: { 'content-type': 'application/json', 'x-request-id': '1'.repeat(32) },
+      })
+    },
+  })
+  await client.machines()
+  await client.lookupEnrollment('BCDF-GHJK')
+  await client.approveEnrollment('BCDF-GHJK', 'bee1')
+  await client.machines()
+  expect(await client.removeMachine(MACHINE.id)).toEqual({ ok: true })
+  const calls = log.mock.calls.filter(([, message]) => message === 'call').map(([, , data]) => data)
+  expect(calls.map((call) => call.route)).toEqual([
+    CONTROL_ROUTES.me,
+    CONTROL_ROUTES.machines,
+    CONTROL_ROUTES.enrollmentLookup,
+    CONTROL_ROUTES.enrollmentApprove,
+    CONTROL_ROUTES.machines,
+    CONTROL_ROUTES.machines + '/:id',
+  ])
+  expect(calls[0].trace).toBe(calls[1].trace)
+  expect(calls[2].trace).toBe(calls[3].trace)
+  expect(new Set([calls[1].trace, calls[2].trace, calls[4].trace]).size).toBe(3)
+  for (let n = 0; n < headers.length; n++) {
+    expect(headers[n]?.get('x-phosphor-client')).toBe('desktop/1.2.3')
+    expect(headers[n]?.get('x-phosphor-trace')).toBe(calls[n].trace)
+    expect(calls[n]).toMatchObject({
+      status: n === 5 ? 204 : 200,
+      requestId: '1'.repeat(32),
+      code: null,
+    })
+  }
+  expect(log.mock.calls.filter(([scope]) => scope === 'machines')).toHaveLength(1)
+  generation++
+  await client.machines()
+  expect(log.mock.calls.filter(([scope]) => scope === 'machines')).toHaveLength(2)
+  client.clearObservations()
+  await client.machines()
+  expect(log.mock.calls.filter(([scope]) => scope === 'machines')).toHaveLength(3)
+  signedOut = true
+  await client.machines()
+  signedOut = false
+  await client.machines()
+  expect(log.mock.calls.filter(([scope]) => scope === 'machines')).toHaveLength(4)
+  const failed = createControlClient({
+    baseUrl: () => DEFAULT_CONTROL_URL,
+    accessToken: async () => token,
+    generation: () => 0,
+    log,
+    fetch: async () =>
+      new Response(JSON.stringify({ error: { code: 'unavailable', message: peerSecret } }), {
+        status: 503,
+        headers: { 'x-request-id': peerSecret },
+      }),
+  })
+  await failed.machines()
+  expect(log).toHaveBeenLastCalledWith(
+    'control',
+    'call',
+    expect.objectContaining({ status: 503, requestId: null, code: 'unavailable' }),
+  )
+  const text = JSON.stringify(log.mock.calls)
+  for (const secret of [token, 'BCDFGHJK', 'BCDF-GHJK', peerSecret])
+    expect(text).not.toContain(secret)
+})
+
+it('logs a safe network class, not the transport exception name or message', async () => {
+  const secret = randomBytes(32).toString('hex')
+  const log = vi.fn()
+  const client = createControlClient({
+    baseUrl: () => DEFAULT_CONTROL_URL,
+    accessToken: async () => secret,
+    generation: () => 0,
+    log,
+    fetch: async () => {
+      throw new TypeError(secret)
+    },
+  })
+  expect(await client.machines()).toMatchObject({ ok: false, error: { code: 'offline' } })
+  expect(log).toHaveBeenLastCalledWith(
+    'control',
+    'call',
+    expect.objectContaining({ code: 'TypeError', status: 0, requestId: null }),
+  )
+  expect(JSON.stringify(log.mock.calls)).not.toContain(secret)
+})
+
+it('bounds pending enrollment traces by expiry, clears failures and account changes, and consumes approval', async () => {
+  let now = Date.parse(LOOKUP.expiresAt) - 1000
+  let generation = 0
+  let fail = false
+  let token: string | null = randomBytes(32).toString('hex')
+  let expiresAt = LOOKUP.expiresAt
+  const log = vi.fn()
+  const client = createControlClient({
+    baseUrl: () => DEFAULT_CONTROL_URL,
+    accessToken: async () => token,
+    generation: () => generation,
+    now: () => now,
+    log,
+    fetch: async (url) => {
+      const path = new URL(String(url)).pathname
+      return path === CONTROL_ROUTES.me
+        ? json(me)
+        : path === CONTROL_ROUTES.enrollmentLookup
+          ? fail
+            ? json({ error: { code: 'not-found', message: 'not-found' } }, 404)
+            : json({ ...LOOKUP, expiresAt })
+          : json({ machine: MACHINE })
+    },
+  })
+  const lastTrace = () => log.mock.calls.at(-1)?.[2].trace
+  await client.lookupEnrollment('BCDFGHJK')
+  const first = lastTrace()
+  now += 999
+  await client.approveEnrollment('BCDFGHJK', 'bee1')
+  expect(lastTrace()).toBe(first)
+  await client.approveEnrollment('BCDFGHJK', 'bee1')
+  expect(lastTrace()).not.toBe(first)
+  now -= 999
+  await client.lookupEnrollment('BCDFGHJK')
+  const second = lastTrace()
+  now += 1000
+  await client.approveEnrollment('BCDFGHJK', 'bee1')
+  expect(lastTrace()).not.toBe(second)
+  expiresAt = new Date(now + 60 * 60_000).toISOString()
+  await client.lookupEnrollment('BCDFGHJK')
+  const capped = lastTrace()
+  now += 15 * 60_000
+  await client.approveEnrollment('BCDFGHJK', 'bee1')
+  expect(lastTrace()).not.toBe(capped)
+  await client.lookupEnrollment('BCDFGHJK')
+  const beforeFailure = lastTrace()
+  fail = true
+  await client.lookupEnrollment('BCDFGHJK')
+  const failed = lastTrace()
+  await client.approveEnrollment('BCDFGHJK', 'bee1')
+  expect(lastTrace()).not.toBe(beforeFailure)
+  expect(lastTrace()).not.toBe(failed)
+  fail = false
+  await client.lookupEnrollment('BCDFGHJK')
+  const beforeChange = lastTrace()
+  generation++
+  await client.approveEnrollment('BCDFGHJK', 'bee1')
+  expect(lastTrace()).not.toBe(beforeChange)
+  await client.lookupEnrollment('BCDFGHJK')
+  const beforeSignOut = lastTrace()
+  token = null
+  await client.machines()
+  token = randomBytes(32).toString('hex')
+  await client.approveEnrollment('BCDFGHJK', 'bee1')
+  expect(lastTrace()).not.toBe(beforeSignOut)
+})
+
+it('keeps fingerprints authoritative when overlapping windows swap pending traces', async () => {
+  const log = vi.fn()
+  let resolveFirst: ((response: Response) => void) | undefined
+  let lookups = 0
+  const other = '1234-5678-90ab-cdef'
+  const client = createControlClient({
+    baseUrl: () => DEFAULT_CONTROL_URL,
+    accessToken: async () => randomBytes(32).toString('hex'),
+    generation: () => 0,
+    log,
+    now: () => Date.parse(LOOKUP.expiresAt) - 1000,
+    fetch: async (url) => {
+      const path = new URL(String(url)).pathname
+      if (path === CONTROL_ROUTES.me) return json(me)
+      if (path === CONTROL_ROUTES.enrollmentApprove)
+        return json({ machine: { ...MACHINE, keyFingerprint: other } })
+      lookups++
+      if (lookups === 1)
+        return new Promise<Response>((resolve) => {
+          resolveFirst = resolve
+        })
+      return json({ ...LOOKUP, keyFingerprint: other })
+    },
+  })
+  const first = client.lookupEnrollment('BCDFGHJK')
+  await vi.waitFor(() => expect(resolveFirst).toBeTypeOf('function'))
+  await client.lookupEnrollment('BCDFGHJL')
+  resolveFirst?.(json(LOOKUP))
+  await first
+  await client.approveEnrollment('BCDFGHJL', 'bee1')
+  const events = log.mock.calls
+    .filter(([, name]) => name.startsWith('enrollment.'))
+    .map(([, name, data]) => ({ name, ...data }))
+  expect(events.map((entry) => entry.keyFingerprint)).toEqual([other, LOOKUP.keyFingerprint, other])
+  expect(events[2].trace).toBe(events[1].trace)
+  expect(events[2].trace).not.toBe(events[0].trace)
+  for (const code of ['BCDFGHJK', 'BCDFGHJL'])
+    expect(JSON.stringify(log.mock.calls)).not.toContain(code)
+})

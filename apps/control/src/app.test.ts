@@ -305,3 +305,48 @@ it('limits user verification misses per IP, with cache hits and pre-check failur
   expect(logs).not.toContain(edgeSecret)
   expect(logs).not.toContain('x-phosphor-edge')
 })
+
+it('suppresses probes, classifies static requests, and never reflects malformed trace headers', async () => {
+  const deps = dependencies()
+  const app = createApp(deps)
+  for (const path of ['/healthz', '/api/v1/health', '/']) {
+    await app.request(path, { headers: { 'user-agent': 'kube-probe/1.0' } })
+  }
+  await app.request('/healthz')
+  expect(deps.log).not.toHaveBeenCalled()
+  for (const [client, trace] of [
+    ['host/1 secret', '0'.repeat(16)],
+    ['host/1', 'A'.repeat(16)],
+    ['host/' + '1'.repeat(41), '0'.repeat(16)],
+  ] as const) {
+    await app.request('/api/v1/me', {
+      headers: { 'x-phosphor-client': client, 'x-phosphor-trace': trace },
+    })
+    expect(deps.log).toHaveBeenLastCalledWith(
+      expect.objectContaining({ client: 'invalid', error: 'unauthenticated', status: 401 }),
+    )
+  }
+  const accepted = await app.request('/api/v1/me', {
+    headers: {
+      authorization: `Bearer ${token(deps.clock() / 1000 + 100)}`,
+      'x-phosphor-client': 'host/1 secret',
+      'x-phosphor-trace': 'A'.repeat(16),
+    },
+  })
+  expect(accepted.status).toBe(200)
+  expect(deps.log).toHaveBeenLastCalledWith(
+    expect.objectContaining({ client: 'invalid', trace: null, error: null, status: 200 }),
+  )
+  expect(deps.supabase.getUser).toHaveBeenCalledTimes(1)
+  await app.request('/')
+  expect(deps.log).toHaveBeenLastCalledWith(
+    expect.objectContaining({ route: 'site', pathClass: 'page' }),
+  )
+  await app.request('/_astro/app.js')
+  expect(deps.log).toHaveBeenLastCalledWith(
+    expect.objectContaining({ route: 'site', pathClass: 'asset' }),
+  )
+  const text = JSON.stringify(vi.mocked(deps.log).mock.calls)
+  expect(text).not.toContain('host/1 secret')
+  expect(text).not.toContain('A'.repeat(16))
+})

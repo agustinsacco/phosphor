@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { CONTROL_LIMITS, CONTROL_ROUTES, type ControlErrorBody } from '@phosphor/shared/control-api'
+import { TraceEvents, type EventLog } from './events'
 import type { Config } from './config'
 import {
   apiHeaders,
@@ -28,7 +29,7 @@ export interface AppDeps {
   clock: () => number
   random: (size: number) => Uint8Array
   fetch: typeof fetch
-  log: (entry: RequestLog) => void
+  log: (entry: RequestLog | EventLog) => void
   supabase: Supabase
   limits: RateLimiter
   nonces: { key: NonceCache; host: NonceCache }
@@ -48,6 +49,7 @@ const routeMethods: Record<string, readonly string[]> = {
 }
 export function createApp(deps: AppDeps) {
   const app = new Hono<Env>()
+  const events = new TraceEvents(deps.clock, deps.log)
   app.use('*', requestMiddleware(deps.clock, deps.random, deps.log))
   app.use('*', apiHeaders)
   app.use('*', async (c, next) => {
@@ -60,6 +62,7 @@ export function createApp(deps: AppDeps) {
   })
   app.onError((error, c) => {
     const failure = error instanceof ControlFailure ? error : new ControlFailure('internal')
+    c.set('error', failure.code)
     const body: ControlErrorBody = { error: { code: failure.code, message: failure.code } }
     return c.newResponse(JSON.stringify(body), failure.status, {
       'Content-Type': 'application/json; charset=utf-8',
@@ -100,9 +103,9 @@ export function createApp(deps: AppDeps) {
   const auth = createUserAuth(deps.supabase, deps.clock, deps.limits)
   const hostAuth = hostAuthentication(deps)
   app.get(CONTROL_ROUTES.me, me(auth, deps.supabase))
-  enrollments(app, deps, auth, hostAuth)
-  machines(app, deps, auth)
-  hosts(app, deps, hostAuth)
+  enrollments(app, deps, auth, hostAuth, events)
+  machines(app, deps, auth, events)
+  hosts(app, deps, hostAuth, events)
   app.all('/*', (c) => {
     if (c.req.path.startsWith('/api/')) throw new ControlFailure('not-found')
     return serveStatic(c.req.raw, deps.config.siteDir)

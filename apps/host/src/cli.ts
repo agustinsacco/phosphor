@@ -2,6 +2,7 @@ import { isAbsolute } from 'node:path'
 import { parseArgs } from 'node:util'
 import { errorText } from '@phosphor/shared/errors'
 import { HOST_PROTOCOL_VERSION } from '@phosphor/shared/remote-host'
+import { createHostLog, hostLogDirectory } from './machine/log'
 import { EXIT } from './checks'
 import { renderAccept, runAccept, type AcceptLane } from './commands/accept'
 import { renderDoctor, runDoctor, type DoctorContext } from './commands/doctor'
@@ -180,6 +181,14 @@ export async function runCli(
       io.stdout(values.json ? `${JSON.stringify(report, null, 2)}\n` : renderSetup(report))
       return report.exitCode
     }
+    const controlLog = ['login', 'status', 'logout', 'run', 'service'].includes(command)
+      ? createHostLog(
+          hostLogDirectory(context.env, context.home),
+          Object.values(context.env).filter(
+            (value): value is string => typeof value === 'string' && value.length >= 8,
+          ),
+        )
+      : null
     if (command === 'run' || service) {
       const controller = new AbortController()
       let done: () => void = () => {}
@@ -199,6 +208,7 @@ export async function runCli(
       const run = {
         ...context,
         ...context.control,
+        log: controlLog?.write,
         configPath,
         signal: context.control?.signal
           ? AbortSignal.any([controller.signal, context.control.signal])
@@ -233,6 +243,7 @@ export async function runCli(
       const control = {
         ...context,
         ...context.control,
+        log: controlLog?.write,
         configPath,
         signal,
         print: (line: string) => io.stdout(`${line}\n`),

@@ -1,4 +1,10 @@
-import { CONTROL_ERROR_STATUS, type ControlErrorCode } from '@phosphor/shared/control-api'
+import {
+  CONTROL_TRACE_HEADERS,
+  isControlClient,
+  isControlTrace,
+  CONTROL_ERROR_STATUS,
+  type ControlErrorCode,
+} from '@phosphor/shared/control-api'
 import type { MiddlewareHandler } from 'hono'
 import { isIP } from 'node:net'
 import { createHash, timingSafeEqual } from 'node:crypto'
@@ -24,7 +30,14 @@ export type Env = {
       socket?: { remoteAddress?: string }
     }
   }
-  Variables: { rawBody: Uint8Array; actor: string; requestId: string; user: User; ip: string }
+  Variables: {
+    rawBody: Uint8Array
+    actor: string
+    requestId: string
+    user: User
+    ip: string
+    error: ControlErrorCode
+  }
 }
 export interface RequestLog {
   ts: string
@@ -35,6 +48,10 @@ export interface RequestLog {
   status: number
   ms: number
   actor: string
+  client: string
+  trace: string | null
+  error: ControlErrorCode | null
+  pathClass?: 'page' | 'asset'
 }
 
 export async function readBytes(
@@ -87,6 +104,9 @@ export function requestMiddleware(
     c.set('actor', 'anon')
     await next()
     c.header('x-request-id', c.get('requestId'))
+    if (c.req.path === '/healthz' || c.req.header('user-agent')?.startsWith('kube-probe/')) return
+    const client = c.req.header(CONTROL_TRACE_HEADERS.client)
+    const trace = c.req.header(CONTROL_TRACE_HEADERS.trace)
     log({
       ts: new Date(start).toISOString(),
       level: 'info',
@@ -102,6 +122,19 @@ export function requestMiddleware(
       status: c.res.status,
       ms: Math.max(0, clock() - start),
       actor: c.get('actor'),
+      client: isControlClient(client) && isControlTrace(trace) ? client : 'invalid',
+      trace: isControlTrace(trace) ? trace : null,
+      error: c.res.status >= 400 ? (c.get('error') ?? 'not-found') : null,
+      ...(!c.req.path.startsWith('/api/')
+        ? {
+            pathClass:
+              c.req.path.startsWith('/_astro/') ||
+              c.req.path.startsWith('/fonts/') ||
+              /\.(?!html$)[a-z0-9]{1,10}$/i.test(c.req.path)
+                ? ('asset' as const)
+                : ('page' as const),
+          }
+        : {}),
     })
   }
 }
