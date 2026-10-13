@@ -88,6 +88,7 @@ export interface HeartbeatPorts {
   hostVersion: string
   signal?: AbortSignal
   log(line: string): void
+  endpoint?(): string | null
   onAccepted?(reply: HeartbeatResponse): void
   onRemoved?(): void
 }
@@ -121,6 +122,7 @@ export function untilAborted<T>(work: Promise<T>, signal: AbortSignal, fallback:
   })
 }
 
+export const PUBLICATION_WAIT_MS = 1000
 /** One serialized sender. Shutdown cancels the running request before publishing its final seq. */
 export function createHeartbeat(ports: HeartbeatPorts) {
   const running = new AbortController()
@@ -155,7 +157,7 @@ export function createHeartbeat(ports: HeartbeatPorts) {
         uptimeSec: Math.max(0, Math.floor((ports.now() - started) / 1000)),
         readiness,
         lanes: { running: 0, waiting: 0 },
-        endpoint: null,
+        endpoint: ports.endpoint?.() ?? null,
       })
       if (!parsed.ok) throw new IdentityFailure('Invalid heartbeat metadata.')
       await ports.seq.write(seq)
@@ -187,6 +189,20 @@ export function createHeartbeat(ports: HeartbeatPorts) {
         ])
       } finally {
         deadline.abort()
+        // The run lock is released after the drain. A sequence write already
+        // running lands first, so the next run reads it; a stuck disk waits 1 s.
+        // A second signal skips the wait: run's 3 s release wait must still cover
+        // the API's 2 s close grace.
+        let timer: ReturnType<typeof setTimeout> | undefined
+        await Promise.race([
+          publication,
+          forced,
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, PUBLICATION_WAIT_MS)
+            timer.unref()
+          }),
+        ])
+        clearTimeout(timer)
         log('stopped')
       }
       return { state: 'stopped' as const }

@@ -94,8 +94,9 @@ describe('readiness mappings', () => {
     ).toEqual({ pi: 'ok', claude: 'ok', tailscale: 'no-https' })
     expect(probe.mock.calls.map((call) => call.slice(0, 2))).toEqual([
       ['/p/node', ['/p/pi', '--version']],
-      ['/p/claude', ['auth', 'status']],
       ['/p/tailscale', ['status', '--json']],
+      ['/p/tailscale', ['serve', 'status', '--json']],
+      ['/p/claude', ['auth', 'status']],
     ])
     for (const call of probe.mock.calls) expect(call).toHaveLength(3)
   })

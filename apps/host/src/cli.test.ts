@@ -48,6 +48,7 @@ async function run(argv: readonly string[], context: Partial<CliContext> = {}) {
       hostname: 'bee1',
       nodeVersion: '22.22.3',
       defaultResourceRoot: '/nonexistent',
+      tailscale: { which: async () => null, probe: vi.fn() },
       ...context,
     },
   )
@@ -59,6 +60,10 @@ const VERSION_CASES = [['version'], ['version', '--json']] as const
 const HELP_CASES = [['help'], ['--help'], ['-h'], ['doctor', '--help']] as const
 const USAGE_CASES: [string[], string][] = [
   [[], 'no command given'],
+  [['tailscale'], 'tailscale needs status, enable or disable'],
+  [['tailscale', 'funnel'], 'tailscale needs status, enable or disable'],
+  [['tailscale', 'status', 'extra'], 'unexpected argument'],
+  [['tailscale', 'status', '--json'], 'tailscale does not take --json'],
   [['serve'], 'unknown command "serve"'],
   [['accept'], 'accept needs --repository DIR'],
   [['accept', '--repository', 'repo'], '--repository needs an absolute path'],
@@ -470,4 +475,19 @@ describe('control commands', () => {
       await control.cleanup()
     }
   })
+})
+
+describe('tailscale CLI dispatch', () => {
+  it.each(['status', 'enable', 'disable'])(
+    'dispatches %s with config and probe port',
+    async (action) => {
+      machine = fakeMachine()
+      const result = await run(['tailscale', action, '--config', machine.configPath], {
+        tailscale: { which: async () => null, probe: vi.fn() },
+      })
+      expect(result.code).toBe(69)
+      expect(result.stdout).toContain('Tailscale is missing')
+      expect(result.stderr).toBe('')
+    },
+  )
 })

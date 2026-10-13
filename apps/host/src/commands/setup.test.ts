@@ -48,6 +48,7 @@ beforeEach(async () => {
     repositories: [repository],
     // Generous: a full parallel suite can delay a fake executable past a second.
     probeTimeoutMs: 15_000,
+    tailscale: { which: async () => null, probe: vi.fn() },
   }
   await executable('pi', 'echo 0.87.1')
 })
@@ -577,4 +578,80 @@ describe('setup existing config and permissions', () => {
     expect((await runSetup(context)).exitCode).toBe(78)
     await nothingWritten()
   })
+})
+
+describe('setup Tailscale hint', () => {
+  it.each(['ours', 'absent', 'other', 'funnel', 'unknown', 'missing', 'stopped'] as const)(
+    'only suggests enable for an absent running route: %s',
+    async (state) => {
+      await oldConfig()
+      const name = 'bee.tail123.ts.net'
+      const serve =
+        state === 'ours'
+          ? JSON.stringify({
+              TCP: { 47615: { HTTPS: true } },
+              Web: {
+                [`${name}:47615`]: { Handlers: { '/': { Proxy: 'http://127.0.0.1:47615' } } },
+              },
+            })
+          : state === 'absent'
+            ? '{}'
+            : state === 'other'
+              ? '{"TCP":{"47615":{"HTTP":true}}}'
+              : state === 'funnel'
+                ? JSON.stringify({ AllowFunnel: { [`${name}:47615`]: true } })
+                : 'bad'
+      const probe = vi.fn(async (_file: string, args: readonly string[]) => ({
+        code: 0,
+        signal: null,
+        stdout:
+          args[0] === 'status'
+            ? JSON.stringify({
+                BackendState: state === 'stopped' ? 'Stopped' : 'Running',
+                Self: { DNSName: `${name}.` },
+                CertDomains: [name],
+              })
+            : serve,
+        stderr: 'private',
+        timedOut: false,
+        truncated: false,
+      }))
+      context.tailscale = {
+        which: async () => (state === 'missing' ? null : '/fake/tailscale'),
+        probe,
+      }
+      const report = await runSetup(context)
+      expect(report.exitCode).toBe(0)
+      expect(renderSetup(report).includes('Run phosphor tailscale enable.')).toBe(
+        state === 'absent',
+      )
+      expect(probe.mock.calls.every((call) => call[1].includes('status'))).toBe(true)
+      expect(renderSetup(report)).not.toContain(name)
+    },
+  )
+})
+
+it('preserves api.port on replace and names it in the Tailscale hint', async () => {
+  await oldConfig({ api: { port: 50001 } })
+  context.replace = true
+  const probe = vi.fn(async (_file: string, args: readonly string[]) => ({
+    code: 0,
+    signal: null,
+    stdout:
+      args[0] === 'status'
+        ? '{"BackendState":"Running","Self":{"DNSName":"bee.tail123.ts.net."},"CertDomains":["bee.tail123.ts.net"]}'
+        : '{}',
+    stderr: '',
+    timedOut: false,
+    truncated: false,
+  }))
+  context.tailscale = { which: async () => '/fake/tailscale', probe }
+  const report = await runSetup(context)
+  expect(report.exitCode).toBe(0)
+  expect((await saved()).api).toEqual({ port: 50001 })
+  expect(renderSetup(report)).toContain('Port 50001: Run phosphor tailscale enable.')
+  expect(probe.mock.calls.map((call) => call[1])).toEqual([
+    ['status', '--json'],
+    ['serve', 'status', '--json'],
+  ])
 })

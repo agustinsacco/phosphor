@@ -20,7 +20,7 @@ import {
 import { identityDirectory, IdentityFailure } from '../control/identity'
 import { acquireIdentityLock } from '../control/lock'
 import { loadHostConfig } from '../config/load'
-import { checkReadiness } from '../machine/readiness'
+import { checkReadiness, readinessPorts } from '../machine/readiness'
 import { SHUTDOWN_SIGNALS, type Drainable, type ShutdownSignal } from '../shutdown'
 import {
   launchdExit,
@@ -48,7 +48,9 @@ export interface RunContext extends ControlContext {
   afterRunLock?: () => void
   stderrIdentity?: LaunchdRunPorts['stderrIdentity']
   attach?: (target: Drainable) => () => void
-  heartbeat?: Partial<Pick<HeartbeatPorts, 'readiness' | 'seq' | 'random'>>
+  heartbeat?: Partial<Pick<HeartbeatPorts, 'readiness' | 'seq' | 'random'>> & {
+    readinessPorts?: typeof readinessPorts
+  }
   loadConfig?: typeof loadHostConfig
   reconcile?: typeof reconcile
 }
@@ -156,7 +158,10 @@ async function runHostCommand(context: RunContext): Promise<number> {
           log: (event, fields) => context.log?.('host', event, fields),
         })
       }
+      let endpoint: string | null = null
+      let routeState = ''
       loop = createHeartbeat({
+        endpoint: () => endpoint,
         onAccepted: authority.accept,
         onRemoved: authority.remove,
         now: context.now ?? Date.now,
@@ -172,7 +177,20 @@ async function runHostCommand(context: RunContext): Promise<number> {
         },
         readiness:
           context.heartbeat?.readiness ??
-          (() => checkReadiness(config.config, context.env, context.platform)),
+          (() =>
+            checkReadiness(
+              config.config,
+              context.env,
+              context.platform,
+              context.heartbeat?.readinessPorts ?? readinessPorts,
+              (found) => {
+                endpoint = found.endpoint
+                if (routeState !== found.state) {
+                  routeState = found.state
+                  context.log?.('host', 'tailscale.endpoint', { state: found.state })
+                }
+              },
+            )),
         seq: context.heartbeat?.seq ?? createSequenceStore(directory, context.uid, identity.hostId),
         hostVersion: HOST_VERSION,
         signal: context.signal,
