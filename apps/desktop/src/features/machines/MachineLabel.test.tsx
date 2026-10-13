@@ -97,3 +97,14 @@ it('does not apply a late reply after sign-out and sign-in', async () => {
   await key('Enter')
   expect(saved).not.toHaveBeenCalled()
 })
+it('returns focus to Rename after Escape and after a save', async () => {
+  const rename = (): HTMLButtonElement | undefined =>
+    Array.from(container.querySelectorAll('button')).find((b) => b.textContent === 'Rename')
+  await edit('other')
+  await key('Escape')
+  expect(document.activeElement).toBe(rename())
+  invoke.mockResolvedValue({ ok: true, machine: { ...MACHINE, label: 'other' } })
+  await edit('other')
+  await key('Enter')
+  expect(document.activeElement).toBe(rename())
+})

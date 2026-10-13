@@ -196,3 +196,27 @@ it('shows readiness on a row only while it is current, and names this Mac once',
   expect(container.textContent).toContain('reports pi, Claude and Tailscale once it first connects')
   expect(container.textContent).not.toContain('Sign in to Claude on this machine')
 })
+it('refreshes the list when an approval lands after the dialog closed', async () => {
+  const refresh = vi.fn(async () => undefined)
+  useMachinesStore.setState({ refresh } as never)
+  let finish: ((value: unknown) => void) | undefined
+  await render()
+  await click('Add a machine')
+  await click('I have a code')
+  await input('Code', 'BCDFGHJK')
+  await click('Look up code')
+  await input('Machine label', 'bee1')
+  invoke.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+  )
+  await click('Approve machine')
+  await act(async () =>
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
+  )
+  expect(document.querySelector('[role=dialog]')).toBeNull()
+  await act(async () => finish?.({ ok: true, machine: MACHINE }))
+  expect(refresh).toHaveBeenCalledOnce()
+})

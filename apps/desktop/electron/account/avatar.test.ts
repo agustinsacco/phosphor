@@ -135,16 +135,20 @@ it('caps declared and streamed image bytes at 256 KiB, including one byte past',
 })
 it('stores a bounded avatar beside the profile, tied to its owner, and deletes it on sign-out', () => {
   const cache = createAvatarCache(dir)
-  expect(cache.read(USER.id)).toBeNull()
+  expect(cache.read(USER.id, URL)).toBeNull()
   const data = 'data:image/png;base64,AQID'
-  cache.save(USER.id, data)
-  expect(cache.read(USER.id)).toBe(data)
-  expect(cache.read('other-user')).toBeNull()
+  cache.save(USER.id, URL, data)
+  expect(cache.read(USER.id, URL)).toBe(data)
+  expect(cache.read('other-user', URL)).toBeNull()
+  // A new avatar address is a miss, not the old face.
+  expect(cache.read(USER.id, 'https://avatars.githubusercontent.com/u/123?v=5')).toBeNull()
+  cache.save(USER.id, 'https://example.com/a.png', data)
+  expect(cache.read(USER.id, URL)).toBe(data)
   if (process.platform !== 'win32') {
     expect(statSync(dir).mode & 0o777).toBe(0o700)
     expect(statSync(join(dir, 'avatar.json')).mode & 0o777).toBe(0o600)
     chmodSync(join(dir, 'avatar.json'), 0o644)
-    expect(cache.read(USER.id)).toBeNull()
+    expect(cache.read(USER.id, URL)).toBeNull()
   }
   const vault = createVault(dir, fakeCipher().cipher)
   vault.clear()
@@ -157,25 +161,27 @@ it('rejects damaged, oversized and non-canonical cached images without leaking e
     'data:image/png;base64,AR==',
     `data:image/png;base64,${Buffer.alloc(AVATAR_BYTES + 1).toString('base64')}`,
   ]) {
-    cache.save(USER.id, dataUrl)
+    cache.save(USER.id, URL, dataUrl)
     expect(readdirSync(dir)).toEqual([])
-    writeFileSync(join(dir, 'avatar.json'), JSON.stringify({ userId: USER.id, dataUrl }), {
-      mode: 0o600,
-    })
-    expect(cache.read(USER.id)).toBeNull()
+    writeFileSync(
+      join(dir, 'avatar.json'),
+      JSON.stringify({ userId: USER.id, source: URL, dataUrl }),
+      { mode: 0o600 },
+    )
+    expect(cache.read(USER.id, URL)).toBeNull()
     rmSync(join(dir, 'avatar.json'))
   }
   writeFileSync(join(dir, 'avatar.json'), '{', { mode: 0o600 })
-  expect(cache.read(USER.id)).toBeNull()
+  expect(cache.read(USER.id, URL)).toBeNull()
 })
 it('does not follow a symlink when reading the cache', () => {
   const path = join(dir, 'avatar.json')
   const target = join(dir, 'other.json')
   writeFileSync(
     target,
-    JSON.stringify({ userId: USER.id, dataUrl: 'data:image/png;base64,AQID' }),
+    JSON.stringify({ userId: USER.id, source: URL, dataUrl: 'data:image/png;base64,AQID' }),
     { mode: 0o600 },
   )
   symlinkSync(target, path)
-  expect(createAvatarCache(dir).read(USER.id)).toBeNull()
+  expect(createAvatarCache(dir).read(USER.id, URL)).toBeNull()
 })

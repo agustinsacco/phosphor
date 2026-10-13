@@ -185,7 +185,9 @@ session file exists and a signed-in request needs a token.
 - **Avatar**: main fetches only HTTPS GitHub avatars from
   `avatars.githubusercontent.com`, without credentials or redirects, with a
   256 KiB cap and a 10 s timeout. Raster image content types only. The
-  owner-only cache sits beside `profile.json` and is tied to the account id.
+  owner-only cache sits beside `profile.json` and is tied to the account id
+  and avatar address. It shows a face at once; each sign-in and launch still
+  fetches once, because GitHub keeps the address when the picture changes.
   The renderer loads a data URL under its existing CSP. Failure uses initials
   on a deterministic theme colour.
 - **Every window shows what main pushes** on `account:changed`. An action's own

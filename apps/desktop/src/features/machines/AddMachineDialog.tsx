@@ -56,6 +56,9 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
           normalizedCode,
           normalizedLabel,
         )
+        // The store outlives this dialog: a machine approved after closing still appears.
+        if (result.ok && generation === machinesAccountGeneration())
+          void useMachinesStore.getState().refresh()
         if (!live.current) return
         if (generation !== machinesAccountGeneration()) {
           setError(controlMessage('signed-out'))
@@ -64,7 +67,6 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
         if (result.ok && useMachinesStore.getState().remoteEnabled) {
           setAdded(result.machine)
           setStep('done')
-          void useMachinesStore.getState().refresh()
         } else setError(controlMessage(result.ok ? 'signed-out' : result.error.code))
       }
     } catch {

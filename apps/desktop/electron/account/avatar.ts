@@ -86,12 +86,12 @@ function validDataUrl(value: unknown): value is string {
 }
 
 export function createAvatarCache(dir: string): {
-  read(userId: string): string | null
-  save(userId: string, dataUrl: string): void
+  read(userId: string, source: string): string | null
+  save(userId: string, source: string, dataUrl: string): void
 } {
   const path = join(dir, 'avatar.json')
   return {
-    read(userId) {
+    read(userId, source) {
       let fd: number | undefined
       try {
         fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
@@ -119,6 +119,8 @@ export function createAvatarCache(dir: string): {
           value === null ||
           !('userId' in value) ||
           value.userId !== userId ||
+          !('source' in value) ||
+          value.source !== source ||
           !('dataUrl' in value) ||
           !validDataUrl(value.dataUrl)
         )
@@ -130,13 +132,16 @@ export function createAvatarCache(dir: string): {
         if (fd !== undefined) closeSync(fd)
       }
     },
-    save(userId, dataUrl) {
-      if (!validDataUrl(dataUrl) || !userId || userId.length > 256) return
+    save(userId, source, dataUrl) {
+      if (!validDataUrl(dataUrl) || !userId || userId.length > 256 || !avatarUrl(source)) return
       mkdirSync(dir, { recursive: true, mode: 0o700 })
       chmodSync(dir, 0o700)
       const temp = `${path}.${randomBytes(6).toString('hex')}.tmp`
       try {
-        writeFileSync(temp, JSON.stringify({ userId, dataUrl }), { mode: 0o600, flag: 'wx' })
+        writeFileSync(temp, JSON.stringify({ userId, source, dataUrl }), {
+          mode: 0o600,
+          flag: 'wx',
+        })
         renameSync(temp, path)
       } finally {
         rmSync(temp, { force: true })

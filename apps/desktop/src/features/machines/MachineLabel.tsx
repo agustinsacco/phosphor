@@ -20,6 +20,14 @@ export function MachineLabel({
   const pending = useRef(false)
   const live = useRef(true)
   const trigger = useRef<HTMLButtonElement>(null)
+  const [refocus, setRefocus] = useState(false)
+  // The Rename button is not rendered while editing, so focus it once it is back.
+  useEffect(() => {
+    if (refocus && !editing && !busy) {
+      trigger.current?.focus()
+      setRefocus(false)
+    }
+  }, [refocus, editing, busy])
   useEffect(() => {
     live.current = true
     return () => {
@@ -30,7 +38,7 @@ export function MachineLabel({
     active.current = false
     setEditing(false)
     setLabel(machine.label)
-    trigger.current?.focus()
+    setRefocus(true)
   }
   async function save(): Promise<void> {
     if (!active.current || pending.current) return

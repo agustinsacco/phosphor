@@ -138,14 +138,17 @@ function publishAccountChange(state: AccountState): void {
     const identity = `${state.user.id}:${state.user.avatarUrl ?? ''}`
     if (identity !== avatarIdentity) {
       avatarIdentity = identity
-      avatar = avatarCache?.read(state.user.id) ?? null
+      const source = state.user.avatarUrl
+      avatar = source ? (avatarCache?.read(state.user.id, source) ?? null) : null
       const generation = ++avatarGeneration
-      if (state.user.avatarUrl && !avatar)
-        void fetchAvatar(state.user.avatarUrl).then((image) => {
-          if (!image || generation !== avatarGeneration) return
+      // The cache shows a face at once; GitHub keeps the URL when the picture
+      // changes, so each sign-in and launch still fetches once to refresh it.
+      if (source)
+        void fetchAvatar(source).then((image) => {
+          if (!image || generation !== avatarGeneration || image === avatar) return
           avatar = image
           try {
-            avatarCache?.save(state.user.id, image)
+            avatarCache?.save(state.user.id, source, image)
           } catch {
             /* Initials remain available. */
           }
