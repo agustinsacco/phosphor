@@ -203,6 +203,7 @@ describe('tailscale probes and presentation', () => {
         { which: async () => '/fake/tailscale', probe },
       )
       expect(found.state).toBe(state)
+      expect(found.name).toBe(name)
       expect(found.endpoint).toBe(state === 'ours' ? `https://${name}:${port}` : null)
       expect(probe.mock.calls.map((call) => call.slice(0, 2))).toEqual([
         ['/fake/tailscale', ['status', '--json']],
@@ -219,6 +220,22 @@ describe('tailscale probes and presentation', () => {
       expect(JSON.stringify(checks)).not.toContain(name)
     },
   )
+  it.each([
+    { ...status, CertDomains: [] },
+    { ...status, Self: { DNSName: 'BEE.tail123.ts.net.' } },
+  ])('does not suggest enable without a usable certified name: %j', async (statusValue) => {
+    const probe = vi.fn(async (_file: string, args: readonly string[]) =>
+      result(args[0] === 'status' ? JSON.stringify(statusValue) : '{}'),
+    )
+    const found = await inspectTailscale(config, {}, 'linux', {
+      which: async () => '/fake/tailscale',
+      probe,
+    })
+    expect(found.readiness).toBe(statusValue.CertDomains.length === 0 ? 'no-https' : 'ok')
+    expect(found.state).toBe('absent')
+    expect(found.name).toBeNull()
+    expect(setupTailscaleHint(found)).toEqual([])
+  })
   it.each([
     'missing',
     'stopped',

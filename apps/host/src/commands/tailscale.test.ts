@@ -103,6 +103,57 @@ describe('phosphor tailscale', () => {
       }
     },
   )
+  it.each(['status', 'enable', 'disable'] as const)(
+    '%s refuses an unusable self name without running a mutation',
+    async (action) => {
+      for (const initial of ['{}', 'bad']) {
+        const ports = fake(
+          initial,
+          ours,
+          0,
+          JSON.stringify({
+            BackendState: 'Running',
+            Self: { DNSName: 'BEE.tail123.ts.net.' },
+            CertDomains: [name],
+          }),
+        )
+        const found = await runTailscale(context(), action, ports)
+        expect(found.exitCode).toBe(69)
+        expect(found.message).toContain(
+          'Tailscale did not report a usable .ts.net name for this machine; check tailscale status.',
+        )
+        expect(calls(ports)).toEqual([
+          ['status', '--json'],
+          ['serve', 'status', '--json'],
+        ])
+        if (action === 'status') expect(found.message).toContain('Endpoint: null')
+      }
+    },
+  )
+  it.each(['enable', 'disable'] as const)(
+    '%s keeps route refusals ahead of an unusable self name',
+    async (action) => {
+      for (const initial of [other, funnel]) {
+        const ports = fake(
+          initial,
+          initial,
+          0,
+          JSON.stringify({
+            BackendState: 'Running',
+            Self: { DNSName: 'BEE.tail123.ts.net.' },
+            CertDomains: [name],
+          }),
+        )
+        const found = await runTailscale(context(), action, ports)
+        expect(found.exitCode).toBe(78)
+        expect(found.message).toContain('the Host will not replace a route it did not make')
+        expect(calls(ports)).toEqual([
+          ['status', '--json'],
+          ['serve', 'status', '--json'],
+        ])
+      }
+    },
+  )
   it.each(['enable', 'disable'] as const)('%s requires verified readback', async (action) => {
     const ports = fake(action === 'enable' ? '{}' : ours)
     const found = await runTailscale(context(), action, ports)
@@ -147,7 +198,11 @@ describe('phosphor tailscale', () => {
         '{"BackendState":"Running","CertDomains":[]}',
       ]) {
         const ports = fake('{}', '{}', 0, text)
-        expect((await runTailscale(context(), action, ports)).exitCode).toBe(69)
+        const found = await runTailscale(context(), action, ports)
+        expect(found.exitCode).toBe(69)
+        expect(found.message).toContain(
+          text.includes('Stopped') ? 'Tailscale is stopped' : 'Tailscale HTTPS is not available',
+        )
         expect(calls(ports).every((args) => args.includes('status'))).toBe(true)
       }
       const unknown = fake('bad')

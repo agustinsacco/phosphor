@@ -155,7 +155,7 @@ Setup validates the candidate and runs doctor's pi resolution before writing.
 Failed checks exit 69 or 78 and write nothing. An existing valid config is
 summarized and left untouched, with exit 0. An invalid one is left untouched
 with safe errors and exit 78. `--replace` rewrites it, keeping `hostId`,
-`contextBudget`, `environment.pass`, `accounts`, `control` and `resourceRoot`
+`contextBudget`, `environment.pass`, `accounts`, `control`, `api.port` and `resourceRoot`
 when the old config loads and validates. A broken old file is replaced with a
 note. A symlink is replaced, never written through.
 
@@ -188,6 +188,7 @@ phosphor logout [--config FILE] [--local]
 phosphor run [--config FILE] [--supervisor launchd]
 phosphor service install|status|restart|logs|uninstall [--config FILE]
 phosphor service logs [--config FILE] [--follow]
+phosphor tailscale status|enable|disable [--config FILE]
 phosphor version [--json]
 ```
 
@@ -560,7 +561,8 @@ route is already disabled. Both changes require a verified status readback.
 On Linux, a nonzero serve exit may need the one-time fix
 `sudo tailscale set --operator=$USER`. Phosphor prints that hint; it never runs
 sudo or changes the operator itself. A failed change or readback exits 75.
-Missing or stopped Tailscale exits 69. An unverifiable route is not changed.
+Missing or stopped Tailscale, or an unusable certified `.ts.net` name, exits 69.
+An unverifiable route is not changed.
 
 The Host never uses Funnel. A Funnel route on this port would publish the Host
 to the internet and must be turned off. Funnel, a different proxy target, extra
@@ -568,7 +570,8 @@ path handlers, HTTP or a TCP forwarder cause enable and disable to refuse with
 exit 78. The Host will not replace a route it did not make. Routes on other
 ports are left alone. `doctor` warns about an absent route and fails for Funnel
 or another route on this port. `setup` only suggests `phosphor tailscale enable`
-when Tailscale is running and the route is absent; it never changes serve config.
+when Tailscale is running with a usable certified name and the route is absent;
+it never changes serve config.
 
 At start and every five minutes, the readiness refresh verifies the running
 machine's certified `Self.DNSName` and serve config. Only an HTTPS route with

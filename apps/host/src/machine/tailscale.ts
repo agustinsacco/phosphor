@@ -93,6 +93,7 @@ export function serveRoute(
 }
 
 export interface TailscaleInspection {
+  name: string | null
   readiness: Readiness['tailscale']
   state: ServeRoute
   endpoint: string | null
@@ -135,7 +136,7 @@ export async function inspectTailscale(
     const serve = await ports.probe(executable, ['serve', 'status', '--json'], options)
     if (successfulProbe(serve)) state = serveRoute(serve.stdout, port, name ?? '', port)
   }
-  return { readiness, state, endpoint: serveEndpoint(name, state, port), executable, port }
+  return { name, readiness, state, endpoint: serveEndpoint(name, state, port), executable, port }
 }
 export function serveEndpoint(name: string | null, state: ServeRoute, port: number): string | null {
   if (!name || state !== 'ours' || !name.endsWith('.ts.net')) return null
@@ -188,10 +189,7 @@ export function tailscaleChecks(found: TailscaleInspection): Check[] {
   return checks
 }
 export function setupTailscaleHint(found: TailscaleInspection): string[] {
-  return found.readiness !== 'missing' &&
-    found.readiness !== 'stopped' &&
-    found.readiness !== 'unknown' &&
-    found.state === 'absent'
+  return found.readiness === 'ok' && found.name !== null && found.state === 'absent'
     ? [`Port ${found.port}: Run phosphor tailscale enable.`]
     : []
 }

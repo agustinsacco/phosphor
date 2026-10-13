@@ -27,18 +27,25 @@ export async function runTailscale(
     }
   const inspect = () => inspectTailscale(loaded.config, context.env, context.platform, ports)
   const found = await inspect()
-  const { state, port, executable } = found
+  const { state, port, executable, name } = found
+  const unusableName =
+    'Tailscale did not report a usable .ts.net name for this machine; check tailscale status.'
   if (action === 'status')
     return {
-      exitCode: state === 'ours' ? EXIT.ok : EXIT.unavailable,
+      exitCode: state === 'ours' && name !== null ? EXIT.ok : EXIT.unavailable,
       message:
         `Tailscale serve: ${state}\nEndpoint: ${found.endpoint ?? 'null'}\n` +
-        (found.readiness === 'ok' ? routeMessage(state, port) : tailscaleMessage(found.readiness)),
+        (found.readiness !== 'ok'
+          ? tailscaleMessage(found.readiness)
+          : name === null
+            ? unusableName
+            : routeMessage(state, port)),
     }
   if (state === 'other' || state === 'funnel')
     return { exitCode: EXIT.config, message: routeMessage(state, port) }
   if (!executable || found.readiness !== 'ok')
     return { exitCode: EXIT.unavailable, message: tailscaleMessage(found.readiness) }
+  if (name === null) return { exitCode: EXIT.unavailable, message: unusableName }
   if (state === 'unknown') return { exitCode: EXIT.unavailable, message: routeMessage(state, port) }
   if ((action === 'enable' && state === 'ours') || (action === 'disable' && state === 'absent'))
     return {
