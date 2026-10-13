@@ -293,3 +293,36 @@ it("lets a single run's own state win over its step", () => {
   expect(state('failed', 'running')).toMatchObject({ state: 'failed', active: 0 })
   expect(state('complete', 'complete')).toMatchObject({ state: 'complete', active: 0 })
 })
+
+it('keeps a title when its agent finishes and a sibling is still running', () => {
+  const state = {
+    ...emptyChatSession(),
+    tools: {
+      a: launch('a', RUN_A, { agent: 'worker', task: `${preamble}Write desktop.md` }),
+      b: launch('b', RUN_B, { agent: 'worker', task: `${preamble}Write remote.md` }),
+    },
+  }
+  const done = singleRun(RUN_B)
+  done.state = 'complete'
+  done.children[0]!.state = 'complete'
+  const { entries } = currentWork(state, snapshotOf([singleRun(RUN_A), done]))
+  expect(entries.map((e) => [e.active, e.title])).toEqual([
+    [1, 'Write desktop.md'],
+    [0, 'Write remote.md'],
+  ])
+})
+
+it('marks a coordinating workflow as its own group and a detached solo launch as single', () => {
+  const workflow = structuredClone(fixture.snapshot.runs[0]!)
+  workflow.children.forEach((child) => (child.state = 'complete'))
+  const { entries } = currentWork(emptyChatSession(), snapshotOf([workflow]))
+  const root = entries.find((e) => !e.childId)!
+  expect(root).toMatchObject({ active: 1, group: { id: workflow.id } })
+  expect(entries.filter((e) => e.childId).every((e) => e.group?.id === workflow.id)).toBe(true)
+  const detached = currentWork(
+    { ...emptyChatSession(), tools: { a: launch('a', RUN_A, { agent: 'worker', task: 'Map' }) } },
+    null,
+  ).entries[0]
+  expect(detached).toMatchObject({ runId: RUN_A, single: true, state: 'status unavailable' })
+  expect(detached?.childId).toBeUndefined()
+})

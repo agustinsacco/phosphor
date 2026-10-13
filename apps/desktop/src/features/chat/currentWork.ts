@@ -12,7 +12,7 @@ import {
   type FleetSnapshot,
 } from './subagentRuns'
 import { toolDetails, tryParseArgs } from './tools/toolSummaries'
-import { distinctTitles } from './subagentPresentation'
+import { distinctTitles, isSoloLaunch } from './subagentPresentation'
 
 export interface WorkEntry {
   id: string
@@ -35,9 +35,9 @@ export interface WorkEntry {
   toolCallId?: string
   runId?: string
   childId?: string
-  /** The one step of a single-agent run: the run and the agent are the same work. */
+  /** A single-agent run, shown once: the run and its one step are the same work. */
   single?: boolean
-  /** The workflow or parallel run this child belongs to. */
+  /** The workflow or parallel run this entry belongs to, or is (no `childId`). */
   group?: { id: string; label: string }
   /** A title when there is no single prompt, e.g. one call naming four tasks. */
   fallbackTitle?: string
@@ -108,9 +108,10 @@ function backgroundEntries(nodes: FleetNode[], root?: FleetNode): WorkEntry[] {
       ]
     }
     const children = backgroundEntries(node.children, root ?? node)
+    const group = root ?? (node.children.length ? node : undefined)
     const own: WorkEntry = {
       ...nodeEntry(node, root?.id ?? node.id, root ? node.id : undefined),
-      ...(root ? { group: { id: root.id, label: root.label } } : {}),
+      ...(group ? { group: { id: group.id, label: group.label } } : {}),
     }
     if (!children.length) return [own]
     // A workflow can be coordinating between child runs. Its own activity is
@@ -167,6 +168,7 @@ export function currentWork(
           id: root.id,
           label: step?.label ?? root.label,
           startedAt: step?.startedAt ?? root.startedAt,
+          endedAt: step?.endedAt ?? root.endedAt,
           toolCount: step?.toolCount ?? root.toolCount,
           turnCount: step?.turnCount ?? root.turnCount,
           state: terminal,
@@ -269,18 +271,15 @@ export function currentWork(
       toolCount: run?.children.length
         ? run.children.reduce((sum, child) => sum + (child.toolCount ?? 0), 0)
         : undefined,
+      ...(detached && run?.runId && isSoloLaunch(call) ? { single: true } : {}),
     })
   }
-  // Titles are compared within the set a reader sees together: current work
-  // apart from history, so an old launch cannot hide a live brief's name.
-  const current = entries.filter((e) => e.active || e.state === 'status unavailable')
-  const past = entries.filter((e) => !current.includes(e))
-  for (const set of [current, past]) {
-    const titles = distinctTitles(set.map((entry) => entry.task))
-    set.forEach((entry, i) => {
-      entry.title = titles[i] ?? entry.fallbackTitle
-    })
-  }
+  // Compared across the whole lane, so a title does not change when its
+  // agent finishes or a sibling starts.
+  const titles = distinctTitles(entries.map((entry) => entry.task))
+  entries.forEach((entry, i) => {
+    entry.title = titles[i] ?? entry.fallbackTitle
+  })
   return {
     entries,
     incomplete: !!(fleet ?? remembered?.snapshot)?.incomplete,
