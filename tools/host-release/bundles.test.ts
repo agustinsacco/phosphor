@@ -223,6 +223,9 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
   it('carries no machine paths, source maps or sourceMappingURL in release text', () => {
     const user = userInfo().username.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     const userSegment = new RegExp(`[/\\\\]${user}(?![A-Za-z0-9_.-])`)
+    const buildTemps = [tmpdir(), realpathSync(tmpdir())].flatMap((temp) =>
+      ['phosphor-bundle-', 'phosphor-sign-'].map((prefix) => join(temp, prefix)),
+    )
     const unpacked = join(dir, 'scan')
     mkdirSync(unpacked)
     execFileSync('tar', ['-xzf', join(out, `phosphor-host-1.2.3-${target}.tar.gz`), '-C', unpacked])
@@ -231,7 +234,8 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
       expect(file).not.toMatch(/\.map$/)
       const text = readFileSync(join(unpacked, file)).toString('utf8')
       if (text.includes('\0')) continue // Node is the only binary in the bundle.
-      for (const forbidden of [root, tmpdir(), homedir(), 'sourceMappingURL'])
+      // `/tmp` alone is also prose; forbid the build's own temp folders instead.
+      for (const forbidden of [root, dir, homedir(), ...buildTemps, 'sourceMappingURL'])
         expect(text, `${file} contains ${forbidden}`).not.toContain(forbidden)
       // A user name is also a word (CI's is `runner`); forbid it only as a path segment.
       expect(text, `${file} contains a path through the user name`).not.toMatch(userSegment)
