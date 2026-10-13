@@ -725,5 +725,11 @@ it('does not observe refused beats, logs failed lookup and refused polls, and su
   )
   request.headers.set('user-agent', 'kube-probe/1')
   expect((await h.app.request(request)).status).toBe(200)
-  expect(vi.mocked(h.deps.log).mock.calls.length).toBe(count)
+  // A probe user agent hides nothing: the access line and the event both log.
+  const added = vi
+    .mocked(h.deps.log)
+    .mock.calls.slice(count)
+    .map(([entry]) => entry)
+  expect(added).toHaveLength(2)
+  expect(added).toContainEqual(expect.objectContaining({ event: 'enrollment.created' }))
 })

@@ -70,8 +70,10 @@ it('logs login, status, run and logout to the owner file with per-command traces
       expect(header.get('x-phosphor-trace')).toMatch(/^[0-9a-f]{16}$/)
     }
     const text = await readFile(join(hostLogDirectory(env, machine.root), 'phosphor.log'), 'utf8')
-    for (const command of ['login', 'status', 'run', 'logout']) {
+    for (const [index, command] of ['login', 'status', 'run', 'logout'].entries()) {
       expect(text).toContain(`"command":"${command}"`)
+      // The id a command's requests send is the one its own log lines carry.
+      expect(text).toContain(`"command":"${command}","trace":"${traceGroups[index]?.[0]}"`)
     }
     expect(text).toContain('enrollment.created')
     expect(text).toContain('enrollment.poll')

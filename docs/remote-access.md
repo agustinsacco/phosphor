@@ -53,7 +53,7 @@ All three sides timestamp each line in ISO 8601 UTC with milliseconds.
   service commands write there without changing terminal output.
 - Server: JSON lines on stdout. Read them with
   `kubectl -n phosphor logs deploy/phosphor-site | grep -v '"route":"site"'`.
-  `/healthz` and `kube-probe/` requests are already suppressed.
+  Only `/healthz` (the Kubernetes probes) is left out of the log.
 
 Each control call records `method`, the route template (never the query),
 `status`, `ms`, `requestId` and `trace`. Client failures add `code`; server

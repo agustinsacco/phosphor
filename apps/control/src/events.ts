@@ -38,7 +38,6 @@ export class TraceEvents {
     private readonly log: (entry: EventLog) => void,
   ) {}
   emit(c: Context<Env>, event: string, fields: EventFields): void {
-    if (c.req.path === '/healthz' || c.req.header('user-agent')?.startsWith('kube-probe/')) return
     const trace = c.req.header(CONTROL_TRACE_HEADERS.trace)
     this.log({
       ts: new Date(this.clock()).toISOString(),

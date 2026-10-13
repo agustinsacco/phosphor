@@ -93,9 +93,11 @@ JWTs. Fetches have five-second deadlines and a 64 KB response cap. RPC output
 is validated before reaching the wire. Each access line includes `ts`, `level`,
 `requestId`, `method`, route pattern, `status`, `ms`, `actor`, `client`, `trace`
 and `error` (null on success). Malformed logging-only client or trace headers
-record `client: "invalid"`; an invalid trace is null. Static requests use
+record `client: "invalid"`; no client header records `client: null`, and an
+invalid trace is null. The two are judged separately. Static requests use
 `route: "site"` and `pathClass: "page"` or `"asset"`, never a concrete path.
-`/healthz` and requests with a `kube-probe/` user agent do not log.
+Only `/healthz`, the probes' path, does not log. Nothing a caller sends, such
+as its user agent, can keep a request or an event out of the log.
 
 Domain lines add `event`, the request id, trace and timestamp. Creation and
 polling link by enrollment id; lookup and approval link by fingerprint. Accepted

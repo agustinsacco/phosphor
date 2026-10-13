@@ -309,21 +309,39 @@ it('limits user verification misses per IP, with cache hits and pre-check failur
 it('suppresses probes, classifies static requests, and never reflects malformed trace headers', async () => {
   const deps = dependencies()
   const app = createApp(deps)
-  for (const path of ['/healthz', '/api/v1/health', '/']) {
-    await app.request(path, { headers: { 'user-agent': 'kube-probe/1.0' } })
-  }
+  await app.request('/healthz', { headers: { 'user-agent': 'kube-probe/1.0' } })
   await app.request('/healthz')
   expect(deps.log).not.toHaveBeenCalled()
+  // A probe's user agent is anyone's to send: it must not hide a request.
+  for (const path of ['/api/v1/health', '/']) {
+    await app.request(path, { headers: { 'user-agent': 'kube-probe/1.0' } })
+  }
+  expect(deps.log).toHaveBeenCalledTimes(2)
+  await app.request('/api/v1/me')
+  expect(deps.log).toHaveBeenLastCalledWith(
+    expect.objectContaining({ client: null, trace: null, status: 401 }),
+  )
+  await app.request('/api/v1/me', {
+    headers: { 'x-phosphor-client': 'host/1', 'x-phosphor-trace': 'A'.repeat(16) },
+  })
+  expect(deps.log).toHaveBeenLastCalledWith(
+    expect.objectContaining({ client: 'host/1', trace: null, status: 401 }),
+  )
   for (const [client, trace] of [
     ['host/1 secret', '0'.repeat(16)],
-    ['host/1', 'A'.repeat(16)],
     ['host/' + '1'.repeat(41), '0'.repeat(16)],
+    ['', '0'.repeat(16)],
   ] as const) {
     await app.request('/api/v1/me', {
       headers: { 'x-phosphor-client': client, 'x-phosphor-trace': trace },
     })
     expect(deps.log).toHaveBeenLastCalledWith(
-      expect.objectContaining({ client: 'invalid', error: 'unauthenticated', status: 401 }),
+      expect.objectContaining({
+        client: 'invalid',
+        trace: '0'.repeat(16),
+        error: 'unauthenticated',
+        status: 401,
+      }),
     )
   }
   const accepted = await app.request('/api/v1/me', {

@@ -48,7 +48,8 @@ export interface RequestLog {
   status: number
   ms: number
   actor: string
-  client: string
+  /** null when the caller sent no client header (older clients, curl). */
+  client: string | null
   trace: string | null
   error: ControlErrorCode | null
   pathClass?: 'page' | 'asset'
@@ -104,7 +105,9 @@ export function requestMiddleware(
     c.set('actor', 'anon')
     await next()
     c.header('x-request-id', c.get('requestId'))
-    if (c.req.path === '/healthz' || c.req.header('user-agent')?.startsWith('kube-probe/')) return
+    // Only the probe path is quiet. A user agent is the caller's to choose, so
+    // matching one here would let any request keep itself out of the log.
+    if (c.req.path === '/healthz') return
     const client = c.req.header(CONTROL_TRACE_HEADERS.client)
     const trace = c.req.header(CONTROL_TRACE_HEADERS.trace)
     log({
@@ -122,7 +125,7 @@ export function requestMiddleware(
       status: c.res.status,
       ms: Math.max(0, clock() - start),
       actor: c.get('actor'),
-      client: isControlClient(client) && isControlTrace(trace) ? client : 'invalid',
+      client: client === undefined ? null : isControlClient(client) ? client : 'invalid',
       trace: isControlTrace(trace) ? trace : null,
       error: c.res.status >= 400 ? (c.get('error') ?? 'not-found') : null,
       ...(!c.req.path.startsWith('/api/')
