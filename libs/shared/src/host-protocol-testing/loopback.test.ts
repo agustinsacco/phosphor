@@ -1,0 +1,61 @@
+import { afterEach, expect, it, vi } from 'vitest'
+import { createLoopbackPair } from './loopback'
+
+afterEach(() => vi.useRealTimers())
+it('delivers serialized frames asynchronously and in order, pauses, drops and severs both ends', async () => {
+  const pair = createLoopbackPair()
+  const received: string[] = [],
+    closed: number[] = []
+  pair.server.onMessage((text) => received.push(text))
+  pair.client.onClose((code) => closed.push(code))
+  pair.server.onClose((code) => closed.push(code))
+  pair.client.send('{"n":1}')
+  expect(received).toEqual([])
+  await Promise.resolve()
+  expect(received).toEqual(['{"n":1}'])
+  pair.pause()
+  pair.client.send('{"n":2}')
+  pair.dropNext(1)
+  pair.client.send('{"n":3}')
+  pair.client.send('{"n":4}')
+  await Promise.resolve()
+  expect(received).toHaveLength(1)
+  expect(pair.client.bufferedBytes()).toBe(14)
+  pair.resume()
+  await Promise.resolve()
+  expect(received).toEqual(['{"n":1}', '{"n":2}', '{"n":4}'])
+  expect(pair.client.bufferedBytes()).toBe(0)
+  pair.sever()
+  await Promise.resolve()
+  expect(closed).toEqual([1006, 1006])
+  expect(pair.client.isOpen()).toBe(false)
+  expect(() => pair.client.send('{}')).toThrow('closed')
+  expect(() => pair.dropNext(-1)).toThrow('drop count')
+})
+it('rejects limits that are invalid or exceed the contract', () => {
+  for (const value of [0, -1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER]) {
+    expect(() => createLoopbackPair({ inboundFrameBytes: value })).toThrow('limit')
+    expect(() => createLoopbackPair({ outboundFrameBytes: value })).toThrow('limit')
+    expect(() => createLoopbackPair({ queueBytes: value })).toThrow('limit')
+  }
+})
+it('enforces exact UTF-8 inbound/outbound frame and queue limits', async () => {
+  const pair = createLoopbackPair({ inboundFrameBytes: 4, outboundFrameBytes: 4, queueBytes: 8 })
+  const codes: number[] = []
+  pair.server.onClose((code) => codes.push(code))
+  pair.client.send('😀')
+  await Promise.resolve()
+  pair.server.send('😀')
+  expect(() => pair.server.send('😀a')).toThrow('Outbound')
+  await Promise.resolve()
+  pair.client.send('😀a')
+  await Promise.resolve()
+  expect(codes).toEqual([4400])
+  const queued = createLoopbackPair({ queueBytes: 4 })
+  queued.pause()
+  queued.server.send('😀')
+  expect(queued.server.bufferedBytes()).toBe(4)
+  queued.server.send('a')
+  expect(queued.server.isOpen()).toBe(false)
+  expect(queued.server.bufferedBytes()).toBe(0)
+})

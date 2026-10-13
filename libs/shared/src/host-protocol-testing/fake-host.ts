@@ -28,12 +28,13 @@ import {
   type AttentionEvent,
 } from '../host-protocol'
 import type { HostCapability } from '../remote-host'
-import type { ExtensionUIRequest, PiEvent, AgentMessage } from '../rpc'
+import type { ExtensionUIRequest, PiEvent, AgentMessage, ThinkingLevel } from '../rpc'
 
 type Limits = { -readonly [K in keyof typeof HOST_LIMITS]: number }
 type Command = Extract<ClientFrame, { type: 'command' }>
 interface Lane {
   summary: LaneSummary
+  thinkingLevel: ThinkingLevel
   seq: number
   events: { cursor: StreamCursor; event: LaneEvent; bytes: number }[]
   replayBytes: number
@@ -113,6 +114,9 @@ export function createFakeHost(options: FakeHostOptions) {
   function prune() {
     for (const [id, r] of receipts)
       if (Date.now() - r.at >= limits.receiptTtlMs && r.receipt.status !== 'pending') forget(id)
+    const finished = [...receipts].filter(([, r]) => r.receipt.status !== 'pending')
+    for (const [id] of finished.slice(0, Math.max(0, finished.length - limits.receiptsKept)))
+      forget(id)
   }
   function catchUp(c: Connection, id: string): HostFrame | null {
     const sub = c.subscriptions.get(id)
@@ -192,7 +196,21 @@ export function createFakeHost(options: FakeHostOptions) {
     return {
       cursor: { epoch, seq: lane.seq },
       summary: lane.summary,
-      state: null,
+      state:
+        lane.summary.activity === 'stopped' || lane.summary.activity === 'failed'
+          ? null
+          : {
+              sessionId: lane.summary.laneId,
+              thinkingLevel: lane.thinkingLevel,
+              isStreaming: lane.summary.activity === 'working',
+              isCompacting: false,
+              steeringMode: 'all',
+              followUpMode: 'all',
+              autoCompactionEnabled: true,
+              messageCount: lane.messages.length,
+              pendingMessageCount: lane.pending.length,
+              ...(lane.summary.title !== null ? { sessionName: lane.summary.title } : {}),
+            },
       messages: lane.messages,
       pending: lane.pending,
       dialogs: lane.dialogs,
@@ -236,6 +254,9 @@ export function createFakeHost(options: FakeHostOptions) {
   function summary(lane: Lane) {
     lane.summary = { ...lane.summary, updatedAt: now() }
     publish(lane, { kind: 'summary', summary: lane.summary })
+    announce(lane)
+  }
+  function announce(lane: Lane) {
     const cursor = { epoch, seq: ++hostSeq }
     for (const c of connections)
       for (const s of c.subscriptions.values())
@@ -271,8 +292,9 @@ export function createFakeHost(options: FakeHostOptions) {
     summary(lane)
   }
   function push(lane: Lane, event: PiEvent) {
+    if (lane.pending.length >= limits.pendingEvents)
+      throw new Error('Scripted pending limit exceeded')
     lane.pending.push(event)
-    if (lane.pending.length > limits.pendingEvents) lane.pending.shift()
     publish(lane, { kind: 'pi', push: { kind: 'event', event } })
   }
   function turn(lane: Lane) {
@@ -302,6 +324,7 @@ export function createFakeHost(options: FakeHostOptions) {
     notify(lane, 'finished')
   }
   function deliver(requestId: string, stored: Stored) {
+    if (stored.receipt.status !== 'pending') prune()
     for (const c of connections)
       if (
         c.grant?.client.id === stored.clientId &&
@@ -341,21 +364,16 @@ export function createFakeHost(options: FakeHostOptions) {
       deliver(f.requestId, old)
       return
     }
-    if (!authorized(c, 'sessions.control')) {
-      rejected(c, f.requestId, 'forbidden')
-      return
-    }
     if (c.pending >= limits.pendingCommandsPerConnection) {
       rejected(c, f.requestId, 'too-many-requests')
       return
     }
-    if (receipts.size >= limits.receiptsKept) {
-      const evict = [...receipts].find(([, r]) => r.receipt.status !== 'pending')
-      if (!evict) {
-        rejected(c, f.requestId, 'too-many-requests')
-        return
-      }
-      forget(evict[0])
+    if (
+      [...receipts.values()].filter((r) => r.receipt.status === 'pending').length >=
+      limits.receiptsKept
+    ) {
+      rejected(c, f.requestId, 'busy')
+      return
     }
     const stored: Stored = {
       clientId: grant.client.id,
@@ -373,6 +391,10 @@ export function createFakeHost(options: FakeHostOptions) {
         ...(lane ? { control: lane.summary.control } : {}),
       }
       deliver(f.requestId, stored)
+    }
+    if (!authorized(c, 'sessions.control')) {
+      reject('forbidden')
+      return
     }
     let lane = f.laneId ? lanes.get(f.laneId) : undefined
     if (f.op.type === 'lane.create') {
@@ -394,7 +416,7 @@ export function createFakeHost(options: FakeHostOptions) {
           title: f.op.name ?? null,
           branch: f.op.worktree?.branch ?? null,
           worktree: f.op.worktree !== null,
-          model: null,
+          model: f.op.provider && f.op.model ? { provider: f.op.provider, id: f.op.model } : null,
           activity: 'idle',
           createdAt: now(),
           updatedAt: now(),
@@ -405,6 +427,7 @@ export function createFakeHost(options: FakeHostOptions) {
             controller: { clientId: grant.client.id, label: grant.client.label, connected: true },
           },
         },
+        thinkingLevel: f.op.thinkingLevel === undefined ? 'off' : thinkingLevel(f.op.thinkingLevel),
         seq: 0,
         events: [],
         replayBytes: 0,
@@ -414,7 +437,7 @@ export function createFakeHost(options: FakeHostOptions) {
         ui: new Map(),
       }
       lanes.set(laneId, lane)
-      summary(lane)
+      announce(lane)
       stored.receipt = { requestId: f.requestId, status: 'done', laneId, fence: 1 }
       deliver(f.requestId, stored)
       return
@@ -472,6 +495,8 @@ export function createFakeHost(options: FakeHostOptions) {
     } else if (f.op.type === 'set_session_name') {
       l.summary = { ...l.summary, title: f.op.name }
       summary(l)
+    } else if (f.op.type === 'set_thinking_level') {
+      l.thinkingLevel = f.op.level
     } else if (f.op.type === 'set_model') {
       l.summary = { ...l.summary, model: { provider: f.op.provider, id: f.op.modelId } }
       summary(l)
@@ -483,6 +508,11 @@ export function createFakeHost(options: FakeHostOptions) {
       timers.delete(timer)
       c.pending--
       if (epoch !== startingEpoch || stored.receipt.status !== 'pending') return
+      if (l.summary.activity === 'failed') {
+        stored.receipt = { requestId: f.requestId, status: 'unknown' }
+        deliver(f.requestId, stored)
+        return
+      }
       if (f.op.type === 'prompt') turn(l)
       stored.receipt = { requestId: f.requestId, status: 'done', fence: l.summary.control.fence }
       deliver(f.requestId, stored)
@@ -548,8 +578,10 @@ export function createFakeHost(options: FakeHostOptions) {
         Math.max(0, grant.exp * 1000 - Date.now()),
       )
       if (renewal) {
-        for (const [id, s] of c.subscriptions)
-          if (!authorized(c, 'sessions.read')) c.subscriptions.delete(id)
+        if (!authorized(c, 'sessions.read')) {
+          c.subscriptions.clear()
+          c.stale.clear()
+        }
         send(c, { type: 'auth-renewed', grantExpiresAt: new Date(grant.exp * 1000).toISOString() })
       } else {
         const challenge = f.challenge ?? ''
@@ -573,6 +605,17 @@ export function createFakeHost(options: FakeHostOptions) {
           client: grant.client,
           capabilities: grant.caps.filter((cap) => caps.includes(cap)),
         })
+        for (const l of lanes.values()) {
+          const controller = l.summary.control.controller
+          if (controller?.clientId === grant.client.id && !controller.connected) {
+            l.summary = {
+              ...l.summary,
+              control: { ...l.summary.control, controller: { ...controller, connected: true } },
+            }
+            publish(l, { kind: 'control', control: l.summary.control })
+            summary(l)
+          }
+        }
       }
       return
     }
@@ -693,7 +736,16 @@ export function createFakeHost(options: FakeHostOptions) {
                 ? { models: [] }
                 : f.method === 'lane.commands'
                   ? { commands: [] }
-                  : { turns: l.messages.length }
+                  : {
+                      sessionId: laneId,
+                      userMessages: 0,
+                      assistantMessages: l.messages.length,
+                      toolCalls: 0,
+                      toolResults: 0,
+                      totalMessages: l.messages.length,
+                      tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+                      cost: 0,
+                    }
         send(c, { type: 'result', id: f.id, ok: true, data })
         break
       }
@@ -816,7 +868,7 @@ export function createFakeHost(options: FakeHostOptions) {
             [...l.ui.keys()].filter((k) => k.startsWith(prefix)).length >= bound
           )
             throw new Error('UI keys full')
-          if (utf8Length(JSON.stringify(request)) > limits.outboundFrameBytes)
+          if (utf8Length(JSON.stringify(request)) > HOST_LIMITS.outboundFrameBytes)
             throw new Error('UI request too large')
           l.ui.set(key, request)
         }
@@ -886,4 +938,19 @@ function paramsLane(v: unknown): string | null {
 }
 function limitKey(key: string): key is keyof Limits {
   return key in HOST_LIMITS
+}
+
+function thinkingLevel(value: string): ThinkingLevel {
+  switch (value) {
+    case 'off':
+    case 'minimal':
+    case 'low':
+    case 'medium':
+    case 'high':
+    case 'xhigh':
+    case 'max':
+      return value
+    default:
+      throw new Error('Invalid thinking level')
+  }
 }

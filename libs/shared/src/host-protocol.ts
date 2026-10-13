@@ -12,6 +12,7 @@
  * ("Host protocol").
  */
 import { isUuid, isControlTrace, isIsoTime, normalizeLabel, type Parsed } from './control-api'
+import { GRANT_LIMITS } from './host-grant'
 import { HOST_CAPABILITIES, validateHostHello } from './remote-host'
 import type { SessionPush } from './models'
 import { HOST_PROTOCOL_VERSION, type HostCapability, type HostHello } from './remote-host'
@@ -19,6 +20,7 @@ import type {
   AgentMessage,
   ExtensionUIRequest,
   ExtensionUIResponse,
+  ImageContent,
   PiEvent,
   RpcCommand,
   RpcSessionState,
@@ -40,7 +42,7 @@ export const HOST_API_ROUTES = {
 export const HOST_LIMITS = {
   /** Client to Host, UTF-8 bytes. Prompts with images need the room. */
   inboundFrameBytes: 8 * 1024 * 1024,
-  /** Host to client, UTF-8 bytes. A larger snapshot is a protocol error on the Host. */
+  /** Host to client, UTF-8 bytes. Oversize subscriptions fail with too-large. */
   outboundFrameBytes: 16 * 1024 * 1024,
   /** The first frame must be `auth` within this. */
   authTimeoutMs: 10_000,
@@ -497,7 +499,7 @@ export function isLaneBranchName(v: unknown): v is string {
   return (
     text(v, 200) &&
     /^[!-~]+$/.test(v) &&
-    !/[~^:?*\[\\]/.test(v) &&
+    !/[~^:?*[\\]/.test(v) &&
     !v.includes('..') &&
     !v.includes('@{') &&
     v !== '@' &&
@@ -511,15 +513,20 @@ export function isLaneBranchName(v: unknown): v is string {
 }
 
 const thinking = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const
-function images(v: unknown): import('./rpc').ImageContent[] | null {
+function imageData(v: unknown): v is string {
+  // Avoid a repeated-group regex: multi-megabyte images can exhaust the regex stack.
+  if (!text(v, HOST_LIMITS.inboundFrameBytes) || v.length % 4 !== 0) return false
+  const unpadded = v.endsWith('==') ? v.slice(0, -2) : v.endsWith('=') ? v.slice(0, -1) : v
+  return /^[A-Za-z0-9+/]+$/.test(unpadded)
+}
+function images(v: unknown): ImageContent[] | null {
   if (!Array.isArray(v) || v.length > 16) return null
-  const out: import('./rpc').ImageContent[] = []
+  const out: ImageContent[] = []
   for (const item of v) {
     if (
       !record(item) ||
       item.type !== 'image' ||
-      !text(item.data, HOST_LIMITS.inboundFrameBytes) ||
-      !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(item.data) ||
+      !imageData(item.data) ||
       !member(item.mimeType, ['image/png', 'image/jpeg', 'image/gif', 'image/webp'])
     )
       return null
@@ -633,7 +640,7 @@ export function parseClientFrame(s: string): ClientFrameParse {
   switch (v.type) {
     case 'auth':
       if (
-        !text(v.grant, 4096) ||
+        !text(v.grant, GRANT_LIMITS.tokenChars) ||
         (v.challenge !== undefined &&
           (typeof v.challenge !== 'string' || !/^[0-9a-f]{64}$/.test(v.challenge)))
       )
@@ -828,7 +835,14 @@ function snapshot(v: unknown): LaneSnapshot | null {
   const ui = list(v.ui, HOST_LIMITS.uiStatusKeys + HOST_LIMITS.uiWidgetKeys + 1, (x) =>
     piUi(x) ? x : null,
   )
-  return messages && pending && dialogs && ui
+  if (
+    !ui ||
+    ui.filter((request) => request.method === 'setStatus').length > HOST_LIMITS.uiStatusKeys ||
+    ui.filter((request) => request.method === 'setWidget').length > HOST_LIMITS.uiWidgetKeys ||
+    ui.filter((request) => request.method === 'setTitle').length > 1
+  )
+    return null
+  return messages && pending && dialogs
     ? { cursor: c, summary: s, state: v.state, messages, pending, dialogs, ui }
     : null
 }

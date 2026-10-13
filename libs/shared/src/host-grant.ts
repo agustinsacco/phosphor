@@ -52,7 +52,7 @@ export interface GrantPayload {
   /** Unix seconds. */
   readonly iat: number
   readonly exp: number
-  /** 16 hex, unique per grant; logged, never reused as a secret. */
+  /** 16 hex, unique per grant. Never log grants or their nonces. */
   readonly jti: string
 }
 

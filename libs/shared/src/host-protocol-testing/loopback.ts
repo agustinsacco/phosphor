@@ -8,15 +8,15 @@ export interface LoopbackOptions {
 
 /** Test transport: even paused traffic has a byte cap, and never runs inline. */
 export function createLoopbackPair(options: LoopbackOptions = {}) {
-  const inbound = Math.min(
-    options.inboundFrameBytes ?? HOST_LIMITS.inboundFrameBytes,
-    HOST_LIMITS.inboundFrameBytes,
-  )
-  const outbound = Math.min(
-    options.outboundFrameBytes ?? HOST_LIMITS.outboundFrameBytes,
-    HOST_LIMITS.outboundFrameBytes,
-  )
-  const cap = Math.min(options.queueBytes ?? HOST_LIMITS.sendQueueBytes, HOST_LIMITS.sendQueueBytes)
+  function limit(value: number | undefined, maximum: number): number {
+    if (value === undefined) return maximum
+    if (!Number.isSafeInteger(value) || value < 1 || value > maximum)
+      throw new Error('Invalid loopback limit')
+    return value
+  }
+  const inbound = limit(options.inboundFrameBytes, HOST_LIMITS.inboundFrameBytes)
+  const outbound = limit(options.outboundFrameBytes, HOST_LIMITS.outboundFrameBytes)
+  const cap = limit(options.queueBytes, HOST_LIMITS.sendQueueBytes)
   let open = true,
     paused = false,
     dropped = 0,

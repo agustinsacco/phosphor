@@ -43,6 +43,13 @@ export interface ConformanceOptions {
   inboundFrameBytes: number
   outboundFrameBytes: number
   sendQueueBytes: number
+  receiptsKept: number
+  receiptTtlMs: number
+  connectionsPerClient: number
+  replayBytes: number
+  attentionReplay: number
+  uiStatusKeys: number
+  uiWidgetKeys: number
 }
 export type HostConformanceFactory = (limits: Partial<ConformanceOptions>) => HostConformanceHarness
 const challenge = 'a'.repeat(64)
@@ -247,6 +254,8 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       await flush()
       const start = snapshots(c)[0]
       if (!start) throw new Error('Missing snapshot')
+      expect(start.snapshot.cursor.seq).toBe(0)
+      expect(start.snapshot.state?.sessionId).toBe(laneId)
       h.driver.emitTurn(laneId)
       await flush()
       const stream = events(c)
@@ -353,6 +362,27 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       reconnect.send({ type: 'receipt-status', requestId: done.requestId })
       await flush()
       expect(receipts(reconnect, done.requestId)).toEqual([done])
+    })
+    it('reports an interrupted running command as unknown without resurrecting a failed lane', async () => {
+      const c = await auth(),
+        laneId = await create(c),
+        requestId = h.requestId()
+      c.send({ type: 'subscribe', id: 'lane', topic: 'lane', laneId })
+      c.send({
+        type: 'command',
+        requestId,
+        laneId,
+        fence: 1,
+        op: { type: 'prompt', message: 'Hello' },
+      })
+      await flush()
+      h.driver.failLane(laneId)
+      await flush(5)
+      expect(receipts(c, requestId)).toEqual([{ requestId, status: 'unknown' }])
+      expect(events(c).at(-1)?.event).toMatchObject({
+        kind: 'summary',
+        summary: { activity: 'failed' },
+      })
     })
     it('refuses control without the capability and runs the M2 calls', async () => {
       const c = await auth(),
@@ -538,6 +568,10 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
       expect(snapshots(a)).toHaveLength(1)
       expect(snapshots(a)[0]?.reset).toBe(true)
       expect(snapshots(a)[0]?.snapshot.messages).toHaveLength(20)
+      b.send({ type: 'unsubscribe', id: 'lane' })
+      b.send({ type: 'subscribe', id: 'lane', topic: 'lane', laneId })
+      await flush()
+      expect(snapshots(a)[0]?.snapshot.messages).toEqual(snapshots(b)[0]?.snapshot.messages)
       const cursor = snapshots(a)[0]?.snapshot.cursor.seq ?? -1
       h.driver.emitTurn(laneId)
       await flush()
@@ -550,6 +584,176 @@ export function defineHostConformance(name: string, factory: HostConformanceFact
           .filter((e) => e.cursor.seq > cursor)
           .map((e) => e.cursor.seq),
       )
+    })
+    it('keeps controller ownership across disconnect and reconnect without changing its fence', async () => {
+      const a = await auth(),
+        laneId = await create(a),
+        b = await auth({ client: otherClient })
+      b.send({ type: 'subscribe', id: 'lane', topic: 'lane', laneId })
+      await flush()
+      a.sever()
+      await flush()
+      expect(events(b).find((e) => e.event.kind === 'control')?.event).toMatchObject({
+        kind: 'control',
+        control: { fence: 1, controller: { connected: false } },
+      })
+      const next = await auth()
+      expect(events(b).at(-2)?.event).toMatchObject({
+        kind: 'control',
+        control: { fence: 1, controller: { connected: true } },
+      })
+      expect(await command(next, laneId, { type: 'abort' })).toMatchObject({
+        status: 'done',
+        fence: 1,
+      })
+    })
+    it('delivers a terminal receipt to each waiting socket of the same client only once', async () => {
+      const a = await auth(),
+        laneId = await create(a),
+        b = await auth(),
+        requestId = h.requestId()
+      const frame: ClientFrame = {
+        type: 'command',
+        requestId,
+        laneId,
+        fence: 1,
+        op: { type: 'prompt', message: 'Hello' },
+      }
+      a.send(frame)
+      b.send({ type: 'receipt-status', requestId })
+      await flush()
+      expect(receipts(b, requestId).map((r) => r.status)).toEqual(['pending'])
+      await flush(5)
+      for (const c of [a, b]) {
+        c.send(frame)
+        c.send({ type: 'receipt-status', requestId })
+      }
+      await flush()
+      for (const c of [a, b])
+        expect(receipts(c, requestId).filter((r) => r.status === 'done')).toHaveLength(1)
+    })
+    it('caps finished and started receipts separately, prunes by age and does not leak pruned results', async () => {
+      h.driver.stop()
+      h = factory({ receiptsKept: 1, receiptTtlMs: 20, commandDelayMs: 5 })
+      const c = await auth(),
+        laneId = await create(c),
+        first = h.requestId(),
+        second = h.requestId()
+      c.send({ type: 'command', requestId: first, laneId, fence: 1, op: { type: 'abort' } })
+      c.send({ type: 'command', requestId: second, laneId, fence: 1, op: { type: 'abort' } })
+      await flush()
+      expect(receipts(c, second)).toMatchObject([{ status: 'rejected', code: 'busy' }])
+      await flush(5)
+      const reconnect = await auth()
+      reconnect.send({ type: 'receipt-status', requestId: first })
+      await flush()
+      expect(receipts(reconnect, first)).toMatchObject([{ status: 'done' }])
+      await command(c, laneId, { type: 'lane.markRead', upTo: 0 })
+      const lookup = await auth()
+      lookup.send({ type: 'receipt-status', requestId: first })
+      await flush()
+      expect(receipts(lookup, first)).toEqual([{ requestId: first, status: 'unknown' }])
+      const latest = await command(c, laneId, { type: 'abort' })
+      await flush(14)
+      const beforeExpiry = await auth()
+      beforeExpiry.send({ type: 'receipt-status', requestId: latest.requestId })
+      await flush()
+      expect(receipts(beforeExpiry, latest.requestId)).toEqual([latest])
+      await flush(1)
+      lookup.send({ type: 'receipt-status', requestId: latest.requestId })
+      await flush()
+      expect(receipts(lookup, latest.requestId)).toEqual([
+        { requestId: latest.requestId, status: 'unknown' },
+      ])
+    })
+    it('gates read operations and removes subscriptions when renewal drops read authority', async () => {
+      const c = await auth(),
+        laneId = await create(c),
+        denied = await auth({ client: otherClient, caps: [] })
+      denied.send({ type: 'subscribe', id: 'all', topic: 'lanes' })
+      denied.send({ type: 'call', id: 'repositories', method: 'host.repositories' })
+      await flush()
+      expect(denied.frames).toContainEqual({
+        type: 'subscribe-failed',
+        id: 'all',
+        code: 'forbidden',
+      })
+      expect(denied.frames.at(-1)).toMatchObject({
+        type: 'result',
+        ok: false,
+        error: { code: 'forbidden' },
+      })
+      c.send({ type: 'subscribe', id: 'lane', topic: 'lane', laneId })
+      await flush()
+      c.send({ type: 'auth', grant: h.mintGrant({ caps: [] }) })
+      await flush()
+      c.frames.length = 0
+      h.driver.emitTurn(laneId)
+      await flush()
+      expect(c.frames).toEqual([])
+    })
+    it('bounds replay by bytes and attention by count, resetting when replay is unavailable', async () => {
+      h.driver.stop()
+      h = factory({ replayBytes: 1, attentionReplay: 1 })
+      const c = await auth(),
+        laneId = await create(c)
+      c.send({ type: 'subscribe', id: 'lane', topic: 'lane', laneId })
+      c.send({ type: 'subscribe', id: 'all', topic: 'lanes' })
+      await flush()
+      const start = snapshots(c)[0]
+      if (!start) throw new Error('Missing snapshot')
+      h.driver.emitTurn(laneId)
+      h.driver.emitTurn(laneId)
+      await flush()
+      c.send({ type: 'unsubscribe', id: 'lane' })
+      c.send({ type: 'unsubscribe', id: 'all' })
+      c.send({
+        type: 'subscribe',
+        id: 'resume',
+        topic: 'lane',
+        laneId,
+        after: start.snapshot.cursor,
+      })
+      c.send({ type: 'subscribe', id: 'attention', topic: 'lanes', after: start.snapshot.cursor })
+      await flush()
+      expect(snapshots(c).at(-1)?.reset).toBe(true)
+      expect(c.frames.filter((f) => f.type === 'attention' && f.id === 'attention')).toHaveLength(1)
+    })
+    it('replaces an oversize event with a reset, and ends only an oversize lanes subscription', async () => {
+      h.driver.stop()
+      h = factory({ outboundFrameBytes: 1800 })
+      const c = await auth(),
+        laneId = await create(c)
+      c.send({ type: 'subscribe', id: 'lane', topic: 'lane', laneId })
+      await flush()
+      h.driver.emitUi(laneId, {
+        type: 'extension_ui_request',
+        id: 'notice',
+        method: 'notify',
+        message: 'x'.repeat(2000),
+      })
+      await flush()
+      expect(snapshots(c).at(-1)?.reset).toBe(true)
+      expect(
+        events(c).some((f) => f.event.kind === 'pi' && f.event.push.kind === 'extension-ui'),
+      ).toBe(false)
+      await create(c)
+      await create(c)
+      await create(c)
+      c.send({ type: 'subscribe', id: 'all', topic: 'lanes' })
+      await flush()
+      expect(c.frames).toContainEqual({ type: 'subscribe-failed', id: 'all', code: 'too-large' })
+      expect(c.socket.isOpen()).toBe(true)
+    })
+    it('caps connections per client without affecting existing sockets', async () => {
+      h.driver.stop()
+      h = factory({ connectionsPerClient: 1 })
+      const a = await auth(),
+        b = client()
+      b.send({ type: 'auth', grant: h.mintGrant(), challenge })
+      await flush()
+      expect(b.closed).toEqual([4429])
+      expect(a.socket.isOpen()).toBe(true)
     })
     it('fails only an oversize subscription or call, leaving another lane streaming', async () => {
       h.driver.stop()
