@@ -22,6 +22,7 @@ import { ArtifactsPage } from '@/features/artifacts/ArtifactsPage'
 import { MachinesPage } from '@/features/machines/MachinesPage'
 import { TopBar } from './TopBar'
 import { ContextMenuHost } from '@/components/ContextMenu'
+import { TextFieldMenu } from '@/features/writing/TextFieldMenu'
 import { RightPane } from '@/features/files/RightPane'
 import { FuzzyFinder } from '@/features/files/FuzzyFinder'
 import { useGlobalShortcuts } from './useGlobalShortcuts'
@@ -296,6 +297,7 @@ export function App(): React.JSX.Element {
         </div>
         <FuzzyFinder workspacePath={currentWorkspace} />
         <ContextMenuHost />
+        <TextFieldMenu />
         <ExtensionDialogHost />
         <PromptHost />
         <ToastHost />

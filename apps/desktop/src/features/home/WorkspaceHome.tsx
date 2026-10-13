@@ -25,6 +25,7 @@ import { composePrompt, toImageContents, type PendingAttachment } from '@/featur
 import { AttachmentChips, DropOverlay } from '@/features/chat/composer/AttachmentChips'
 import { useAttachments } from '@/features/chat/composer/useAttachments'
 import { ComposerField } from '@/features/chat/composer/ComposerField'
+import { useWritingStore } from '@/stores/writing'
 import { ContextSourcesMenu } from '@/features/chat/composer/ContextSourcesMenu'
 import { buildCommandEntries, CommandMenu } from '@/features/chat/composer/CommandMenu'
 import { useSlashMenu } from '@/features/chat/composer/useSlashMenu'
@@ -138,6 +139,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
     const message = text.trim()
     if (!message || starting) return
     setWarning(null)
+    useWritingStore.getState().recordPrompt(message)
 
     const prompt = composePrompt(message, images)
     const sent = toImageContents(images)
@@ -314,6 +316,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               onSubmit={() => void start()}
               onKeyDown={slash.handleKeyDown}
               onPasteFiles={attachments.addFiles}
+              autocomplete={!slash.visible}
               placeholder="Describe a task or ask a question"
               rows={2}
             />

@@ -38,6 +38,19 @@ The composer is one small field with several ways in.
 - **Formatting is keyboard-only**: bold, italic, inline code (Cmd/Ctrl+E), code
   block, lists and links (Cmd/Ctrl+Shift+K). No toolbar. Edits go through
   Chromium's `insertText`, so native Undo/Redo works.
+- **Spelling.** Chromium underlines misspelled words in every text field.
+  Right-clicking one opens the app's menu with up to five suggestions, _Add to
+  dictionary_, then Cut / Copy / Paste / Select all; picking a suggestion goes
+  through `insertText`, so Undo works. Electron has no menu of its own, so
+  before this a right-click in a text field did nothing. Details and the
+  switch: [settings.md](settings.md#writing).
+- **Autocomplete** (off by default, Settings → Writing): ghost text after the
+  caret, learned from the prompts you send. Tab or → at the end takes it all,
+  ⌥→ (Ctrl+→ off macOS) one word. Esc only hides it, like closing a popup, so
+  hiding a suggestion never stops a run or arms the rewind. It stays hidden
+  while the `/` or `@` popup is open, during ↑/↓ recall, in `!` shell mode,
+  during IME composition and whenever the caret is not at the end. Local and
+  instant; no model is called.
 - **Long prompts:** Cmd/Ctrl+Shift+X opens the field to half the window height
   without losing selection or draft. It stays a Markdown textarea, not a
   WYSIWYG editor.

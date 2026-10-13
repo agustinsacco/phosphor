@@ -39,6 +39,7 @@ import { useAttachments } from './composer/useAttachments'
 import { ComposerField } from './composer/ComposerField'
 import { sessionDraftKey, useDraftsStore } from '@/stores/drafts'
 import { refreshSessionCommands, useSessionsStore } from '@/stores/sessions'
+import { useWritingStore } from '@/stores/writing'
 import { ipcErrorText } from '@shared/errors'
 
 interface MentionState {
@@ -242,6 +243,7 @@ export function Composer({
         return
       }
 
+      useWritingStore.getState().recordPrompt(message)
       const imagePayload: ImageContent[] = toImageContents(images)
       // Non-image attachments ride along as paths in the prompt: pi's protocol
       // has no document type, so the agent opens them with its own tools.
@@ -467,6 +469,9 @@ export function Composer({
             onKeyDown={handleKeyDownFirst}
             onKeyDownFallthrough={handleKeyDownLast}
             onPasteFiles={attachments.addFiles}
+            autocomplete={
+              !slash.visible && !mention && historyIndex === null && !text.startsWith('!')
+            }
             placeholder={placeholder}
           />
 

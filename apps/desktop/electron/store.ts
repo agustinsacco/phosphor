@@ -36,6 +36,7 @@ import {
   type ContextFileKind,
   type ContextFilePrefs,
 } from '@shared/context-files'
+import { normalizeWritingPrefs, type WritingPrefs } from '@shared/writing'
 import { migrateRenamedPrefs, type RawPrefs } from './prefs-migrations'
 
 /**
@@ -172,6 +173,7 @@ export function getPrefs(): AppPrefs {
     // default budget, the same as unset.
     contextBudget: stringOrEmpty(s.get('contextBudget')),
     contextFiles: normalizeContextFilePrefs(s.get('contextFiles')),
+    writing: normalizeWritingPrefs(s.get('writing')),
     drafts: s.get('drafts') ?? {},
   }
 }
@@ -275,6 +277,17 @@ export function setContextFile(kind: ContextFileKind, included: boolean): Contex
     [kind]: included === true,
   }
   prefs().set('contextFiles', next)
+  return next
+}
+
+/** See AppPrefs.writing. Read alone because a send checks it, and getPrefs resolves paths. */
+export function getWritingPrefs(): WritingPrefs {
+  return normalizeWritingPrefs(prefs().get('writing'))
+}
+
+export function setWritingPrefs(value: WritingPrefs): WritingPrefs {
+  const next = normalizeWritingPrefs(value)
+  prefs().set('writing', next)
   return next
 }
 

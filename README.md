@@ -218,9 +218,9 @@ compaction and the session itself.
 
 ### Settings, and not only in dark
 
-Appearance, agent, accounts, extensions, connectors, workspaces, optimization,
-advanced, keybindings, about. Light theme included, because diff review at 2am
-is a real workflow.
+Appearance, writing, agent, accounts, extensions, connectors, workspaces,
+optimization, voice, advanced, keybindings, about. Light theme included,
+because diff review at 2am is a real workflow.
 
 ![The Appearance tab](docs/img/settings.png)
 
@@ -477,11 +477,11 @@ apps/desktop/electron/            main process — owns every side effect
   main.ts            app lifecycle, window creation, quit teardown
   preload.ts         the contextBridge surface (one typed `subscribe` helper)
   ipc.ts             composition root: calls the per-domain handler registrars
-  ipc/               one module per channel-prefix family: 22 modules today
+  ipc/               one module per channel-prefix family: 23 modules today
                      (account, app, artifacts, claude-auth, clipboard, control, feedback, fs, git,
                       maintenance, mcp, optimization, packages, pi-auth,
                       pi-config, pi-session, pty, routines, sessions, skills,
-                      updates, voice) plus handle.ts, the
+                      updates, voice, writing) plus handle.ts, the
                       envelope unwrapper. The contract lives in libs/shared/src/ipc.ts;
                       ipc.ts is the composition root, so a handler module
                       never imports it back.
@@ -514,6 +514,7 @@ apps/desktop/electron/            main process — owns every side effect
   maintenance/       worktree reclaim: a pure policy that judges, a sweep that
                      does the git and the disk, a scheduler that rate-limits it
   updates/           update check + download state machine
+  writing/           the prompts autocomplete learns from (Settings → Writing)
   store.ts           app prefs (electron-store, constructed lazily)
 libs/session-runtime/src/  Electron-free source modules, not a separate service
   pi/                pi RPC transport, strict LF JSONL framing, activity tracking,
@@ -533,10 +534,11 @@ libs/shared/src/     types and pure logic shared by main + renderer
   remote-host.ts     Host hello validation and host-qualified resource keys
 apps/desktop/src/                 renderer (React) — pure UI over typed IPC
   app/               shell: App, TopBar, workspace picker, global shortcuts
-  features/          one folder per surface (18): chat, sessions, files,
+  features/          one folder per surface (20): chat, sessions, files,
                      terminal, artifacts, settings, home, worktrees,
                      workspaces, palette, updates, connectors, extension-ui,
-                     skills, routines, feedback, machines, voice
+                     skills, routines, feedback, machines, account, voice,
+                     writing
   components/        cross-feature primitives (Modal, PopupMenu, form, icons,
                      markdown renderers; search/: the find bar, its toggles,
                      finding and painting text in rendered DOM)

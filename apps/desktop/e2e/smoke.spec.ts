@@ -842,6 +842,75 @@ test('composer formatting participates in native undo and redo', async () => {
   }
 })
 
+test('text fields get a right-click menu, and composers learn autocomplete', async () => {
+  const harness = await launch()
+  const { page, app } = harness
+  const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
+  try {
+    await openWorkspace(page)
+    const home = page.getByPlaceholder('Describe a task or ask a question')
+    const menu = page.getByTestId('context-menu')
+
+    // Electron has no menu of its own: Paste and Select all run in main, on
+    // the field that was right-clicked.
+    await app.evaluate(({ clipboard }) => clipboard.writeText('pasted from the menu'))
+    await home.click({ button: 'right' })
+    await expect(menu.getByRole('button', { name: 'Cut' })).toBeDisabled()
+    await menu.getByRole('button', { name: 'Paste' }).click()
+    await expect(home).toHaveValue('pasted from the menu')
+    await home.click({ button: 'right' })
+    await menu.getByRole('button', { name: 'Select all' }).click()
+    await expect
+      .poll(() => home.evaluate((el: HTMLTextAreaElement) => [el.selectionStart, el.selectionEnd]))
+      .toEqual([0, 'pasted from the menu'.length])
+
+    // macOS: the system spellchecker answers synchronously, so the fix is
+    // deterministic there. Hunspell (Windows, Linux) downloads its
+    // dictionary first, so it is not asserted.
+    if (process.platform === 'darwin') {
+      await home.fill('recieve')
+      await home.click({ button: 'right', position: { x: 30, y: 22 } })
+      await menu.getByRole('button', { name: 'receive', exact: true }).click()
+      await expect(home).toHaveValue('receive')
+      // A re-render writes React's state back to the DOM; the fix must be in it.
+      await home.press(`${mod}+Shift+x`)
+      await home.press(`${mod}+Shift+x`)
+      await expect(home).toHaveValue('receive')
+      await home.press(`${mod}+z`)
+      await expect(home).toHaveValue('recieve')
+    }
+    await home.fill('')
+
+    // Autocomplete is off until Settings → Writing turns it on.
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await page.getByRole('button', { name: 'Writing', exact: true }).click()
+    const toggle = page
+      .locator('[data-setting-row]')
+      .filter({ has: page.getByText('Autocomplete', { exact: true }) })
+      .getByRole('switch')
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-checked', 'true')
+    await page.keyboard.press('Escape')
+
+    await home.fill('please review the diff for regressions')
+    await home.press('Enter')
+    await expect(page.getByText(/Done:\s*hello\.ts\s*updated\./)).toBeVisible({ timeout: 30_000 })
+    const chat = page.getByPlaceholder(/Describe a task…/i)
+    await chat.pressSequentially('please review th')
+    await expect(page.getByTestId('composer-suggestion')).toContainText('e diff for regressions')
+    await chat.press('Tab')
+    await expect(chat).toHaveValue('please review the diff for regressions')
+
+    // Learned in main, where it survives a restart.
+    const userData = await app.evaluate(({ app }) => app.getPath('userData'))
+    await expect
+      .poll(() => readFile(join(userData, 'writing', 'prompts.jsonl'), 'utf8').catch(() => ''))
+      .toContain('please review the diff for regressions')
+  } finally {
+    await shutdown(harness)
+  }
+})
+
 test('composer shortcuts format selections, insert links and expand long drafts', async () => {
   const harness = await launch()
   const { page } = harness

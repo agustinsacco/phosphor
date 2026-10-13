@@ -68,11 +68,19 @@ function clipboardBindings(): Binding[] {
   ]
 }
 
+/** Settings → Writing → Autocomplete. Taking one word is ⌥→ on macOS, Ctrl+→ elsewhere. */
+function autocompleteBindings(): Binding[] {
+  return [
+    [['Tab / →'], 'Accept autocomplete suggestion'],
+    [[hostPlatform() === 'darwin' ? 'alt' : 'ctrl', '→'], 'Accept one word of the suggestion'],
+  ]
+}
+
 /** The tables this tab shows, in order. Settings search indexes the same ones. */
 export function keybindingGroups(): Array<{ title: string; bindings: Binding[] }> {
   return [
     { title: 'App', bindings: APP },
-    { title: 'Chat', bindings: CHAT },
+    { title: 'Chat', bindings: [...CHAT, ...autocompleteBindings()] },
     {
       title: 'Formatting',
       bindings: FORMATTING_ACTIONS.map<Binding>((binding) => [

@@ -3,6 +3,7 @@ import { type ExtensionUIRequest, type PiEvent } from './rpc'
 import { DEFAULT_FEEDBACK_PREFS, type FeedbackPrefs } from './feedback'
 import { DEFAULT_CONTEXT_FILE_PREFS, type ContextFilePrefs } from './context-files'
 import { DEFAULT_VOICE_PREFS, type VoicePrefs } from './voice'
+import { DEFAULT_WRITING_PREFS, type WritingPrefs } from './writing'
 
 export interface PiHealth {
   ok: boolean
@@ -611,6 +612,8 @@ export interface AppPrefs {
    * (`shared/context-files.ts`).
    */
   contextFiles: ContextFilePrefs
+  /** Spelling and autocomplete in Phosphor's text fields (`shared/writing.ts`). */
+  writing: WritingPrefs
   /**
    * Set once the one-time check for a leftover `compaction.enabled: false` in
    * pi's global settings.json has run (`electron/pi/compaction-reset.ts`).
@@ -838,6 +841,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
   feedback: DEFAULT_FEEDBACK_PREFS,
   contextBudget: '',
   contextFiles: DEFAULT_CONTEXT_FILE_PREFS,
+  writing: DEFAULT_WRITING_PREFS,
   claudeAccounts: DEFAULT_CLAUDE_ACCOUNT_PREFS,
   drafts: {},
 }

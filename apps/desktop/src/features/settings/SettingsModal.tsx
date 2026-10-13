@@ -11,6 +11,7 @@ import { highlightPattern } from './settingsQuery'
 import { revealSetting, usePaintMatches } from './settingsHighlight'
 import { SettingsSearchField, SettingsSearchResults, useSettingsSearch } from './SettingsSearch'
 import { AppearanceTab } from './tabs/AppearanceTab'
+import { WritingTab } from './tabs/WritingTab'
 import { AgentTab } from './tabs/AgentTab'
 import { AccountsTab } from './tabs/AccountsTab'
 import { ExtensionsTab } from './tabs/ExtensionsTab'
@@ -161,6 +162,7 @@ export function SettingsModal(): React.JSX.Element | null {
           ) : (
             <>
               {effectiveTab === 'appearance' && <AppearanceTab />}
+              {effectiveTab === 'writing' && <WritingTab />}
               {effectiveTab === 'agent' && <AgentTab />}
               {effectiveTab === 'accounts' && <AccountsTab />}
               {effectiveTab === 'extensions' && <ExtensionsTab />}

@@ -33,7 +33,8 @@ import {
   hideWindowsForE2E,
   overlayFor,
 } from './window-chrome'
-import { getPrefs } from './store'
+import { getPrefs, getWritingPrefs } from './store'
+import { applySpellcheck } from './ipc/writing-handlers'
 import { initDebugLog, log } from './debug-log'
 import { artifactScheme, registerArtifactProtocol } from './artifacts/artifact-protocol'
 import { fileScheme, isFrameEscape, registerFileProtocol } from './fs/file-protocol'
@@ -245,6 +246,8 @@ if (!singleInstance) {
     // Before the first window: artifact iframes read Chromium's scheme, not
     // the app's theme class, so this has to be right at first paint.
     applyThemeSource(getPrefs().theme)
+    // Settings → Writing → Check spelling. Chromium's default is on.
+    applySpellcheck(getWritingPrefs().spellcheck)
     registerIpcHandlers()
     // Before anything can start a session (routines do, at launch): indexes
     // each session's artifacts as its turns end, then catches up with every
