@@ -102,7 +102,8 @@ as its user agent, can keep a request or an event out of the log.
 Domain lines add `event`, the request id, trace and timestamp. Creation and
 polling link by enrollment id; lookup and approval link by fingerprint. Accepted
 beats emit connection and state transitions once per process observation;
-removal and refused removed-Host beats have their own events. The bounded
+removal and refused removed-Host beats have their own events; a refused beat's
+host id and a failed poll's enrollment id are claimed, not verified. The bounded
 10,000-Host observation history evicts the least recently beaten Host and resets
 on process restart. Nothing logs headers, bodies, tokens, codes, keys, peer/client IPs,
 edge secrets or peer error messages. [Tracing a machine](remote-access.md#tracing-a-machine)

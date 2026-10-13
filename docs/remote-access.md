@@ -67,8 +67,9 @@ A failed lookup, sign-out or account change clears it; approval consumes it.
 Two Add-a-machine attempts in separate windows at the same time may share or
 swap trace ids. Join lookup to approval by `keyFingerprint`, which each response
 supplies; the trace is a convenience, not the authoritative join.
-Desktop sign-in has its own account trace. Missing or malformed correlation
-headers record `client: "invalid"`; they do not change authorization or limits.
+Desktop sign-in has its own account trace. A malformed client header records
+`client: "invalid"` and a missing one `null`; a missing or malformed trace is
+`null`. Neither changes authorization or limits.
 
 For example, enrolling bee1 produces this order:
 
@@ -89,8 +90,11 @@ For example, enrolling bee1 produces this order:
    call line with its sequence. The first accepted beat this server process
    sees, or one after more than 90 seconds of silence, emits `host.connected`.
    A running/stopping or readiness change emits `host.state` once per observed
-   transition. Removal emits `host.removed`; a removed Host's beat emits
-   `host.refused` with reason `gone`.
+   transition. Removal emits `host.removed`; a beat naming a removed Host emits
+   `host.refused` with reason `gone`. That check runs before the signature, so
+   the host id in `host.refused` is claimed, not proven. A failed poll's
+   `enrollment.poll` likewise carries the claimed enrollment id and the
+   failure code as its result.
 
 Server heartbeat observation is process-local, capped at 10,000 Hosts with the
 least recently beaten evicted. Restarting the server emits `host.connected`

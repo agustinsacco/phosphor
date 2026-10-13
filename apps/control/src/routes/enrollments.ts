@@ -109,7 +109,11 @@ export function enrollments(
       })
       return c.json(response)
     } catch (error) {
-      events.emit(c, 'enrollment.poll', { enrollmentId: input.enrollmentId, result: 'refused' })
+      // The failure's own code: an outage is not a refusal. The id is only claimed here.
+      events.emit(c, 'enrollment.poll', {
+        enrollmentId: input.enrollmentId,
+        result: error instanceof ControlFailure ? error.code : 'internal',
+      })
       throw error
     }
   })

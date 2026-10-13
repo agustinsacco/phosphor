@@ -578,7 +578,7 @@ it('records a sign-in trace, refresh and sign-out, but never exception text or c
     },
   })
   await failed.account.signIn()
-  expect(logs.join('\n')).toContain('sign-in failed: Error')
+  expect(logs.join('\n')).toMatch(/sign-in\.failed.*"reason":"Error"/)
   expect(logs.join('\n')).not.toContain(secret)
   const cancelled = setup({ browser: fakeBrowser(() => null) })
   const work = cancelled.account.signIn()

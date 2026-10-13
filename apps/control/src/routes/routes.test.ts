@@ -677,7 +677,7 @@ it('writes the ordered enrollment story and accepted host transitions, without s
   expect(text).not.toContain('p_code_hash')
 })
 
-it('does not observe refused beats, logs failed lookup and refused polls, and suppresses probe events', async () => {
+it('does not observe refused beats, logs failed lookup and failed polls by code, and suppresses probe events', async () => {
   const h = setup()
   h.results.control_host_heartbeat = { outcome: 'stale' }
   expect((await h.call(R.hostHeartbeat, 'POST', heartbeat, 'host')).status).toBe(409)
@@ -703,7 +703,11 @@ it('does not observe refused beats, logs failed lookup and refused polls, and su
   h.results.control_enrollment_poll = { outcome: 'not-found' }
   expect((await h.call(R.enrollmentPoll, 'POST', { enrollmentId: userId }, 'key')).status).toBe(404)
   expect(h.deps.log).toHaveBeenCalledWith(
-    expect.objectContaining({ event: 'enrollment.poll', enrollmentId: userId, result: 'refused' }),
+    expect.objectContaining({
+      event: 'enrollment.poll',
+      enrollmentId: userId,
+      result: 'not-found',
+    }),
   )
   const count = vi.mocked(h.deps.log).mock.calls.length
   h.results.control_enrollment_create = {

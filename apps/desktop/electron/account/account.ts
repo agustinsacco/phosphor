@@ -212,7 +212,7 @@ export function createAccount(ports: AccountPorts): Account {
     } catch (problem) {
       listener?.finish(live() ? FAILED : CANCELLED)
       if (!live()) return current
-      signin(`sign-in failed: ${reasonClass(problem)}`, { reason: reasonClass(problem) })
+      signin('sign-in.failed', { reason: reasonClass(problem) })
       return signedOut(`Sign-in failed: ${reason(problem)}`)
     } finally {
       listener?.close()
