@@ -159,6 +159,14 @@
     "./writing": {
       "types": "./src/writing.ts",
       "default": "./src/writing.ts"
+    },
+    "./host-protocol-files": {
+      "types": "./src/host-protocol-files.ts",
+      "default": "./src/host-protocol-files.ts"
+    },
+    "./host-protocol-machine": {
+      "types": "./src/host-protocol-machine.ts",
+      "default": "./src/host-protocol-machine.ts"
     }
   },
   "dependencies": {

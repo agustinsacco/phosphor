@@ -1193,3 +1193,42 @@ Host-only change selects `host` and `tooling` and never releases Desktop. Root
 `npm run typecheck:host` and `npm run build:host` run in the validator and in
 CI's checks job; the unit tests, the bundle's included, run with every other
 suite in `npm test`.
+
+## Machine features
+
+Read-only feature modules exist but are not served until the API registers them.
+`workspaces.read` covers `files.list` (tracked and non-ignored untracked paths),
+`files.read` (text or binary size), `git.status` (per-path status, branch, ahead
+and behind), `git.diff` (working or staged unified diff), and `git.show` (a file
+at `HEAD` or a hex commit, including a session baseline).
+
+Queries require a stored, non-removed lane inside an active repository. Paths
+are relative to its cwd; traversal, symlink escapes and `.git` reads are refused.
+Lists stop with `too-large` above 20,000 entries. Text and diffs are capped at
+2 MiB. File reads classify binary by a NUL in the first 2 MiB; larger files
+without a NUL in that sample return `too-large`. Git blobs over 2 MiB return
+`too-large` before reading content, including binary blobs. Smaller binary
+blobs return their size without content. Errors contain no paths or tool output.
+Git runs with inherited `GIT_*` variables dropped, no pager, fsmonitor, external
+diff or textconv, and no lazy fetch of missing objects. Clean filters that the
+machine owner configured (Git LFS, for example) still run during `git.status` and
+`git.diff`, as they do for the owner's own git. Turning them off can falsely report
+filtered files, including Git LFS files, as modified. A caller cannot choose or
+change the command.
+
+The `skills.read` feature answers `machine.models` with the Host pi's model
+catalogue and `machine.providers` with provider names and readiness only. It
+never returns credentials or provider diagnostic text. Probes use the Host's
+validated pi binary and configured environment, not call parameters.
+
+`skills.list {laneId?}` resolves global skills and, when a lane is named, that
+lane's project skills through pi. `skills.read {name, laneId?, file?}` resolves
+again without remembering earlier calls. A project skill wins over a global
+skill of the same name. Without a lane, only global skills are available.
+`file` is relative to the skill bundle; it defaults to the resolved skill's
+markdown file. Reads reject escapes and `.git`, cap text at 2 MiB, and label
+binary files without returning content. Lists cap at 500 skills and 1,000 models.
+
+These methods are not served until the API registers the feature. Artifacts
+are not served: Desktop's artifact library reads its Electron userData store,
+which does not exist on a Host.
