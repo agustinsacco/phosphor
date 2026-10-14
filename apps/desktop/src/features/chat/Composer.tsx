@@ -1,5 +1,5 @@
 import { TooltipButton } from '@/components/Tooltip'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ImageContent } from '@shared/rpc'
 import { useChatStore } from '@/stores/chat'
 import { QueueChips } from './composer/QueueChips'
@@ -305,6 +305,25 @@ export function Composer({
     lastEscapeRef.current = now
   }
 
+  /*
+   * Everything that does not read the draft is built once per session, so a
+   * keystroke re-renders the field and not every strip around it. React bails
+   * out of an element it has seen before, and these subscribe to the chat
+   * store themselves; while a turn streams, re-rendering them on every key
+   * competed with the transcript for the same frames.
+   */
+  const modelPicker = useMemo(() => <ModelPicker sessionId={sessionId} />, [sessionId])
+  const continueButton = useMemo(() => <ContinueButton sessionId={sessionId} />, [sessionId])
+  const readouts = useMemo(
+    () => (
+      <>
+        <ContextMeter sessionId={sessionId} />
+        <ContextSourcesMenu workspacePath={workspacePath} sessionId={sessionId} />
+      </>
+    ),
+    [sessionId, workspacePath],
+  )
+
   const placeholder = isStreaming
     ? `Steer with Enter · queue follow-up with ${formatShortcut('alt', 'Enter')} · Esc to stop`
     : booting
@@ -313,13 +332,7 @@ export function Composer({
 
   return (
     <div className="shrink-0 px-3 pb-4 pt-1 sm:px-5">
-      <WorkingIndicator sessionId={sessionId} />
-      <BootingIndicator sessionId={sessionId} />
-      <BackgroundWorkIndicator sessionId={sessionId} />
-      <AgentLaunchStrip sessionId={sessionId} />
-      <RetryStrip sessionId={sessionId} />
-      <WidgetSlot sessionId={sessionId} placement="aboveEditor" />
-      <QueueChips sessionId={sessionId} />
+      <ComposerStrips sessionId={sessionId} />
 
       <div className="relative mx-auto max-w-3xl">
         <ComposerInput
@@ -347,11 +360,11 @@ export function Composer({
               </span>
             )
           }
-          modelPicker={<ModelPicker sessionId={sessionId} />}
+          modelPicker={modelPicker}
           actions={
             <div className="flex shrink-0 items-center gap-0.5">
               {booting && !isStreaming && <Spinner />}
-              <ContinueButton sessionId={sessionId} />
+              {continueButton}
               <span className="bg-border mx-0.5 h-4 w-px shrink-0" aria-hidden="true" />
               {isStreaming ? (
                 <StopIconButton onClick={() => void abort()} />
@@ -417,8 +430,7 @@ export function Composer({
             </span>
           ) : (
             <>
-              <ContextMeter sessionId={sessionId} />
-              <ContextSourcesMenu workspacePath={workspacePath} sessionId={sessionId} />
+              {readouts}
               {provider && (
                 <span className="truncate font-mono" data-tooltip={`Served by ${provider}`}>
                   {provider}
@@ -436,11 +448,42 @@ export function Composer({
             </>
           )}
         </div>
-        <WidgetSlot sessionId={sessionId} placement="belowEditor" />
+        <BelowEditorWidgets sessionId={sessionId} />
       </div>
     </div>
   )
 }
+
+/**
+ * The status strips above the field. Memoised on the session id: they read
+ * the chat store directly, so the draft changing is never a reason to render
+ * them again.
+ */
+const ComposerStrips = memo(function ComposerStrips({
+  sessionId,
+}: {
+  sessionId: string
+}): React.JSX.Element {
+  return (
+    <>
+      <WorkingIndicator sessionId={sessionId} />
+      <BootingIndicator sessionId={sessionId} />
+      <BackgroundWorkIndicator sessionId={sessionId} />
+      <AgentLaunchStrip sessionId={sessionId} />
+      <RetryStrip sessionId={sessionId} />
+      <WidgetSlot sessionId={sessionId} placement="aboveEditor" />
+      <QueueChips sessionId={sessionId} />
+    </>
+  )
+})
+
+const BelowEditorWidgets = memo(function BelowEditorWidgets({
+  sessionId,
+}: {
+  sessionId: string
+}): React.JSX.Element {
+  return <WidgetSlot sessionId={sessionId} placement="belowEditor" />
+})
 
 async function runCompact(sessionId: string): Promise<void> {
   await piCallOk(sessionId, { type: 'compact' })

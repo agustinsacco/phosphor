@@ -221,6 +221,18 @@ export const MessageList = memo(function MessageList({
           setPinnedNow(true)
         }
       }
+      // The composer below grows a line as a draft wraps (and gains its steer
+      // row on the first keystroke of a running turn). The virtualizer only
+      // re-renders when its visible range changes, so nothing ran the follow
+      // effect: the tail sat under the composer until the next stream update,
+      // then snapped. A pinned view keeps the tail in sight at once.
+      let viewport = el.clientHeight
+      const resizeObserver = new ResizeObserver(() => {
+        if (el.clientHeight === viewport) return
+        viewport = el.clientHeight
+        if (pinnedRef.current) scrollToBottom(el)
+      })
+      resizeObserver.observe(el)
       el.addEventListener('wheel', onWheel, { passive: true })
       el.addEventListener('touchmove', unpin, { passive: true })
       el.addEventListener('keydown', onKeyDown)
@@ -228,6 +240,7 @@ export const MessageList = memo(function MessageList({
       el.addEventListener('pointerup', onPointerUp)
       el.addEventListener('scrollend', onScrollEnd)
       detachRef.current = () => {
+        resizeObserver.disconnect()
         el.removeEventListener('wheel', onWheel)
         el.removeEventListener('touchmove', unpin)
         el.removeEventListener('keydown', onKeyDown)
@@ -236,7 +249,7 @@ export const MessageList = memo(function MessageList({
         el.removeEventListener('scrollend', onScrollEnd)
       }
     },
-    [releaseFollow, setPinnedNow],
+    [releaseFollow, setPinnedNow, scrollToBottom],
   )
 
   const handleScroll = useCallback((): void => {
