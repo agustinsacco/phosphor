@@ -62,27 +62,21 @@ describe('connector catalog', () => {
     expect(connectorUrl(notion, { readOnly: true })).toBe('https://mcp.notion.com/mcp')
   })
 
-  it('writes an explicit auth mode so a later header cannot disable OAuth', () => {
+  it('writes only the URL for a dynamically registered connector — pi signs in on its own', () => {
     const notion = CONNECTORS.find((c) => c.id === 'notion')!
-    expect(buildConnectorConfig(notion)).toEqual({
-      url: 'https://mcp.notion.com/mcp',
-      auth: 'oauth',
-      lifecycle: 'lazy-keep-alive',
-    })
+    expect(buildConnectorConfig(notion)).toEqual({ url: 'https://mcp.notion.com/mcp' })
   })
 
   it('writes a pre-registered client as a public PKCE client by default', () => {
     // Slack only accepts a loopback redirect URL from a PKCE app, and a PKCE
     // app's token exchange carries no secret. An empty secret must not reach
-    // mcp.json: the adapter reads one as client_secret_post.
+    // mcp.json, where it would still be sent as one.
     const slack = CONNECTORS.find((c) => c.id === 'slack')!
     expect(buildConnectorConfig(slack, { clientId: 'abc', clientSecret: '  ' })).toEqual({
       url: 'https://mcp.slack.com/mcp',
-      auth: 'oauth',
-      lifecycle: 'lazy-keep-alive',
       oauth: {
         clientId: 'abc',
-        redirectUri: OAUTH_REDIRECT_URI,
+        callbackUrl: OAUTH_REDIRECT_URI,
         scope: SLACK_USER_SCOPES.join(' '),
       },
     })
@@ -171,21 +165,7 @@ describe('connector catalog', () => {
     // And the pin has to survive into mcp.json, or the default applies anyway.
     expect(buildConnectorConfig(questrade)).toEqual({
       url: 'https://mcp.questrade.com/v1/brokerage/mcp',
-      auth: 'oauth',
-      lifecycle: 'lazy-keep-alive',
       oauth: { scope: QUESTRADE_READ_SCOPES.join(' ') },
     })
-  })
-
-  it('makes new connectors keep their connection, not the adapter lazy default', () => {
-    // `lazy` drops the socket after every call, so a signed-in connector
-    // reports `cached` and the row used to offer "Sign in" for it.
-    for (const entry of CONNECTORS) {
-      const config =
-        entry.authKind === 'preregistered'
-          ? buildConnectorConfig(entry, { clientId: 'a' })
-          : buildConnectorConfig(entry)
-      expect(config.lifecycle).toBe('lazy-keep-alive')
-    }
   })
 })

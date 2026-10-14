@@ -6,7 +6,7 @@ scale and the app's lifecycle. Cmd/Ctrl+, opens it; Cmd/Ctrl+/ opens it on
 Keybindings.
 
 Eleven top-level tabs and five indented under Extensions. MCP Connectors is always
-present; the other four belong to packages. Subagents requires an installed
+present, since pi's MCP support is built in; the other four belong to packages. Subagents requires an installed
 package. The existing provider tabs also show for declared packages so their
 health/configuration screens remain reachable during setup. The package list
 is re-read on every open, so a fresh install gets its tab without a restart,
@@ -23,7 +23,7 @@ and a tab whose package vanished falls back to Extensions.
 | ↳ Web access     | The `pi-web-access` provider: search, fetch, PDF                     | `web-search.json`                                       |
 | ↳ Subagents      | Delegation guide, profile precedence, configuration ownership        | global Pi settings through the shared raw editor        |
 | ↳ Computer use   | Info page for `@injaneity/pi-computer-use`                           | nothing (read-only)                                     |
-| ↳ MCP Connectors | Curated OAuth catalog + custom servers                               | `mcp-adapter.json`, or the project's `.mcp.json`        |
+| ↳ MCP Connectors | pi's built-in MCP: curated OAuth catalog + custom servers            | `~/.pi/agent/mcp.json` or `<ws>/.pi/mcp.json`           |
 | Workspaces       | Lane naming/markers, new-session branching, recents, sandboxes       | Phosphor prefs; layout reset clears localStorage        |
 | Optimization     | Headroom tool-result compression + the Advisor                       | Phosphor prefs; `headroom:*` lifecycle in main          |
 | Voice            | Dictation on/off and which local speech model                        | Phosphor prefs; model files in `<userData>/voice/`      |
@@ -166,8 +166,8 @@ balance, not an included allowance.
   `pi auth check --json`, and a Sign in button that drives pi's TUI off-screen.
 - That off-screen pi runs in an empty folder under userData (`pi-sign-in`)
   with `--no-approve --no-extensions`, because any startup dialog swallows the
-  typed `/login`. Home is not neutral: a `~/.mcp.json` there is a project MCP
-  config, and its trust question used to stall every sign-in. The login
+  typed `/login`. Home is not neutral: pi treats its cwd as a project, and
+  project config there can open a startup dialog. The login
   terminal uses the same folder and `--no-approve` but keeps extensions.
 - A sign-in that stops at a screen it does not recognise logs that screen to
   the debug log (`[login]`), and an ended flow (signed in, cancelled or
@@ -318,16 +318,20 @@ type, scroll) and the accessibility permissions it needs.
 
 ### MCP Connectors
 
-Nested under Extensions, since a connector is configuration for the MCP adapter
-rather than a top-level app concern.
+Nested under Extensions, since a connector is configuration for pi rather
+than a top-level app concern.
 
-- **Connectors**: the curated OAuth catalog (Linear, Notion, Braintrust,
-  Datadog, Supabase, Questrade, Fellow, Slack). Add, sign in, reconnect,
-  remove. Add starts the sign-in itself. Signing in drives the adapter's own
-  `/mcp-auth`; Phosphor holds no tokens and only writes `mcp-adapter.json` (or the
-  project's `.mcp.json`).
-- **MCP**: the `mcp-adapter.json` resolution chain, custom servers, raw JSON repair.
-- Both are specified in [mcp.md](mcp.md).
+- **Connected**: every server pi resolves from its global and project
+  `mcp.json`, with its state from `pi mcp list` (**Check again**), Sign in,
+  enabled, exposure, Edit and Remove. Signing in runs `pi mcp login`; Phosphor
+  holds no tokens and only writes `mcp.json`.
+- **Add a connector**: the curated OAuth catalog (Linear, Notion, Braintrust,
+  Datadog, Supabase, Questrade, Fellow, Slack). Add writes the entry and
+  starts the sign-in itself.
+- **Advanced**: both config files and the raw JSON editor, for repair.
+- While pi-mcp-adapter or its config is still present, the tab shows only the
+  migration card instead.
+- All of it is specified in [mcp.md](mcp.md).
 
 ## Workspaces
 

@@ -35,6 +35,7 @@ import { SettingsModal } from '@/features/settings/SettingsModal'
 import { FeedbackModal } from '@/features/feedback/FeedbackModal'
 import { useTerminalStore } from '@/stores/terminal'
 import { attachConnectorAuthListener } from '@/stores/connectors'
+import { noticeMcpMigration } from '@/features/connectors/migrationNotice'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { useModelCatalogueStore } from '@/stores/modelCatalogue'
 import { useDraftsStore } from '@/stores/drafts'
@@ -102,6 +103,10 @@ export function App(): React.JSX.Element {
   // Headless connector authorization runs in main (no session needed), so its
   // progress arrives as a broadcast rather than on a session's channel.
   useEffect(() => attachConnectorAuthListener(), [])
+  // pi-mcp-adapter users keep their tools until they move; tell them once per launch.
+  useEffect(() => {
+    if (health?.ok) void noticeMcpMigration()
+  }, [health?.ok])
   useEffect(() => attachMachinesListener(), [])
   useEffect(() => attachRemoteLanesListener(), [])
 

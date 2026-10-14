@@ -21,7 +21,7 @@ import { log } from '../debug-log'
 import { createLaneReload } from '@phosphor/session-runtime/pi/lane-reload'
 import { createLaneConfigFingerprint } from './lane-config'
 
-/** MCP config changes reach running lanes before their next turn. */
+/** MCP and package config changes reach running lanes before their next turn. */
 const laneReload = createLaneReload({
   fingerprint: createLaneConfigFingerprint(),
   log,

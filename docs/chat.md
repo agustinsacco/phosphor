@@ -114,8 +114,8 @@ The composer is one small field with several ways in.
     element by construction.
   - **Search** (`commandScore` in `apps/desktop/src/lib/fuzzy.ts`) ranks exact name, then
     name prefix, then a whole segment (`/debug` → `skill:debug`), then a
-    segment prefix (`/mcp` → `pi-mcp`), then a subsequence, then a substring of
-    the description (`/status` → "Show MCP server status"). `:` is a word
+    segment prefix (`/deb` → `skill:debug`), then a subsequence, then a
+    substring of the description (`/status` → "Show MCP server status"). `:` is a word
     boundary. Nothing typed: grouped Phosphor / Extensions / Prompts / Skills
     with section headers, pi's registration order within a group.
   - **Every row says where it comes from** (`commandCatalogue.ts`): pi's
@@ -124,31 +124,28 @@ The composer is one small field with several ways in.
     local skill — and the tooltip carries the whole description, the file
     path and any aliases.
   - **Aliases fold.** Two commands from the same file with the same description
-    are one row (pi-mcp-adapter's `/mcp` + `/pi-mcp`); the alias stays
-    searchable and is named in the tooltip. Matching is on payload equality,
-    never on a hardcoded name.
-  - **MCP prompts are badged PROMPT**, not EXTENSION, and their origin names
-    the server (`notion · MCP prompt`), detected from the adapter's
-    `mcp__<server>__<prompt>` naming.
-  - **`/mcp-auth` is demoted**: not in the browse list, still found when typed,
-    described with a pointer to Settings ▸ MCP Connectors (which drives it —
-    see [mcp.md](mcp.md#settings--connectors) for why a hand-run flow is the
-    dangerous one).
+    are one row (an extension registering one handler under two names); the
+    alias stays searchable and is named in the tooltip. Matching is on payload
+    equality, never on a hardcoded name.
+  - **Host controls are demoted**: `/phosphor-context-files`,
+    `/phosphor-reload` and `/phosphor-swarm` are not in the browse list, are
+    still found when typed, and are described with a pointer to the control
+    that sends them.
   - **The list stays fresh.** Main broadcasts `pi:commandsChanged` after a
-    package install/remove/update, an mcp.json write, a skill mutation or a pi
+    package install/remove/update, the MCP migration, a skill mutation or a pi
     sign-in; the renderer drops the home composer's per-folder cache and
     re-issues `get_commands` on every live session. The chat composer also
-    re-asks its own session on `/`, throttled to once per 30 s, which is what
-    catches an in-chat `/mcp reconnect`. A live pi does not load a newly
+    re-asks its own session on `/`, throttled to once per 30 s, which catches
+    commands an extension registers mid-session. A live pi does not load a newly
     installed extension until it restarts, so for packages only the home
     composer changes.
   - **The menu never silently vanishes.** With nothing to list it shows why:
     loading (the home probe spawns a pi), pi unreachable (with the reason from
     `pi:commands`' `error`), or no match — in which case Enter is not consumed
     and sends the text to pi as a prompt, as the row says.
-  - Not possible today: argument completion (`/mcp ⇥` → `reconnect`,
-    `tools`, …). pi-mcp-adapter defines `getArgumentCompletions`, but pi's RPC
-    exposes no command for it.
+  - Not possible today: argument completion (`/mcp ⇥` → `reconnect`, …). An
+    extension can define `getArgumentCompletions`, but pi's RPC exposes no
+    command for it.
 - Composer widget slots above/below for extension `setWidget`;
   `set_editor_text` prefills the input.
 
@@ -877,15 +874,15 @@ An absurd total or a dominant Unmeasured slice is evidence about the provider's
 
 **MCP servers** breaks the MCP slice down per connector, as chips
 (`name  loaded/total  ~tokens`), because a single slice cannot say which
-server to disconnect. `loaded` is how many of the server's tools have a schema
-in the window right now, `total` is how many it offers (from the adapter's
-status snapshot; `?` until it reports), and the tokens are the schema cost.
-Under the gateway a server is **one proxy tool** (`mcp__<server>`, tens of
-tokens each, identical across servers) and reads `0/61`: its tools are fetched
-on demand and never carried in context. A server with `directTools`, or a
-search-mode activation, is the exception: those schemas land in the window and
-the chip reads `12/61` with a cost in the thousands
-([mcp.md](mcp.md#the-claude-provider-reaches-mcp-through-pi-not-around-it)).
+server to change. `loaded` is how many of the server's tools have a schema
+in the window right now, `total` is how many tools pi registered for it once
+it connected (`?` from a session whose extension did not say), and the tokens
+are the schema cost. Under pi's default `codemode` exposure a server reads
+`0/61`: up, and its tools reached through pi's `codemode` and `tool_search`,
+never carried in context. A `direct` server, or tools `tool_search` has
+loaded, are the exception: those schemas land in the window and the chip
+reads `12/61` with a cost in the thousands
+([mcp.md](mcp.md#exposure-how-tools-reach-the-model)).
 
 **ChatGPT plan usage** uses the same dials for the account signed into pi's
 `openai-codex` provider. Main asks `pi auth check --provider openai-codex

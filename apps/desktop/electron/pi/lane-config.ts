@@ -3,17 +3,33 @@ import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { mcpConfigPaths, mcpDirs, type McpDirs } from './mcp-config'
 
+/** A file a lane's extensions read at startup, and the part of it that matters. */
+export interface LaneConfigFile {
+  path: string
+  /** Narrow the parsed JSON to what decides the lane's extensions; whole file when absent. */
+  pick?: (value: unknown) => unknown
+}
+
+/** The settings that decide which extensions load, and nothing pi rewrites on its own. */
+function extensionSettings(value: unknown): unknown {
+  if (!value || typeof value !== 'object') return value
+  const { packages, extensions } = value as Record<string, unknown>
+  return { packages, extensions }
+}
+
 /**
- * Every MCP config file pi-mcp-adapter 5.x reads for a lane in `cwd`:
- * Phosphor's managed chain plus the two Pi `mcp.json` files the adapter also
- * imports. Files the adapter discovers elsewhere (other clients' configs,
- * packages) are not watched; a change there reaches new lanes only.
+ * What pi reads for a lane in `cwd` that only a reload brings in: the global
+ * and project `mcp.json`, and the `packages` / `extensions` of both
+ * `settings.json` files. The settings matter for MCP too: moving off
+ * pi-mcp-adapter removes its package and turns pi's built-in MCP back on
+ * there. Servers an extension registers itself are not config, and a trust
+ * decision made later reaches new lanes only.
  */
-export function laneConfigPaths(cwd: string, dirs: McpDirs = mcpDirs()): string[] {
+export function laneConfigFiles(cwd: string, dirs: McpDirs = mcpDirs()): LaneConfigFile[] {
   return [
-    ...mcpConfigPaths(cwd, dirs).map(({ path }) => path),
-    join(dirs.piAgent, 'mcp.json'),
-    join(cwd, '.pi', 'mcp.json'),
+    ...mcpConfigPaths(cwd, dirs).map(({ path }) => ({ path })),
+    { path: join(dirs.piAgent, 'settings.json'), pick: extensionSettings },
+    { path: join(cwd, '.pi', 'settings.json'), pick: extensionSettings },
   ]
 }
 
@@ -34,14 +50,14 @@ function digest(text: string): string {
 }
 
 /**
- * A lane's MCP config fingerprint, for `createLaneReload`. It runs before every
+ * A lane's config fingerprint, for `createLaneReload`. It runs before every
  * prompt, so a file is only read again when its stat changed; an unchanged
  * set of files costs a handful of `stat` calls.
  */
 export function createLaneConfigFingerprint(dirs?: () => McpDirs) {
   const cache = new Map<string, { signature: string; digest: string }>()
 
-  async function fileDigest(path: string): Promise<string> {
+  async function fileDigest({ path, pick }: LaneConfigFile): Promise<string> {
     let signature: string
     try {
       const s = await stat(path)
@@ -60,9 +76,10 @@ export function createLaneConfigFingerprint(dirs?: () => McpDirs) {
     }
     let value: string
     try {
-      value = canonical(JSON.parse(text))
+      const parsed: unknown = JSON.parse(text)
+      value = canonical(pick ? pick(parsed) : parsed)
     } catch {
-      // The adapter will fail on it too; any edit to it is still a change.
+      // pi will fail on it too; any edit to it is still a change.
       value = text
     }
     const result = digest(value)
@@ -71,8 +88,10 @@ export function createLaneConfigFingerprint(dirs?: () => McpDirs) {
   }
 
   return async function fingerprint(cwd: string): Promise<string> {
-    const paths = laneConfigPaths(cwd, dirs?.())
-    const parts = await Promise.all(paths.map(async (path) => `${path}=${await fileDigest(path)}`))
+    const files = laneConfigFiles(cwd, dirs?.())
+    const parts = await Promise.all(
+      files.map(async (file) => `${file.path}=${await fileDigest(file)}`),
+    )
     return digest(parts.join('\n'))
   }
 }

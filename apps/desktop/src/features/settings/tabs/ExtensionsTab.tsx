@@ -70,8 +70,8 @@ export function ExtensionsTab(): React.JSX.Element {
     <div className="max-w-2xl">
       <h2 className="text-xl font-semibold">Extensions</h2>
       <p className="text-text-secondary mt-1 text-base">
-        pi packages — extensions, skills, prompts and themes. Changes apply to new sessions.
-        Installs run through pi&apos;s own package manager.
+        pi packages — extensions, skills, prompts and themes. Open sessions pick up changes before
+        their next message. Installs run through pi&apos;s own package manager.
       </p>
 
       <h3 className="mt-5 text-lg font-semibold">Recommended</h3>

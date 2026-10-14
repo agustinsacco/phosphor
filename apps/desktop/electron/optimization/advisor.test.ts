@@ -90,7 +90,7 @@ describe('adviseOptimization', () => {
     expect(down.find((f) => f.id === 'headroom-down')!.severity).toBe('warning')
   })
 
-  it('tips on MCP schema weight at three connected servers, not below', () => {
+  it('tips on MCP schema weight at three direct-tool servers, not below', () => {
     expect(adviseOptimization(input({ mcpServerCount: 2 }))).toEqual([])
     const findings = adviseOptimization(input({ mcpServerCount: 4 }))
     expect(findings.find((f) => f.id === 'mcp-weight')!.settingsTab).toBe('connectors')

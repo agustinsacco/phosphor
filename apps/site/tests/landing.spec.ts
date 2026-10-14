@@ -193,7 +193,7 @@ test('header links go to the repo and straight to the latest release', async ({ 
 test('actual layouts use native controls and keyboard navigation', async ({ page }) => {
   await page.goto('/')
   await expect(page.locator('h1')).toHaveText(/One mission\.\s*Many agents\.\s*Your IDE\./)
-  await expect(page.locator('.package-card')).toHaveCount(5)
+  await expect(page.locator('.package-card')).toHaveCount(4)
   await expect(page.locator('.connector-grid > a')).toHaveCount(8)
   await page.locator('#surface summary').click()
   for (const id of ['left', 'full', 'right']) {
@@ -233,7 +233,7 @@ test('guide handoffs, privacy labels, skip link, and reduced motion', async ({ p
     .getByRole('link', { name: 'MCP connectors' })
     .click()
   await expect(page.locator('#slack')).toContainText('PKCE')
-  await expect(page.locator('#adapter')).toContainText('pi install npm:pi-mcp-adapter')
+  await expect(page.locator('#builtin')).toContainText('MCP is built into pi')
 })
 
 test('swarm story distinguishes evidence, example roles and authorization', async ({ page }) => {

@@ -2,17 +2,26 @@ import { TooltipLabel } from '@/components/Tooltip'
 import { useState } from 'react'
 import clsx from 'clsx'
 import {
-  directToolsText,
-  parseDirectToolsText,
+  MCP_EXPOSURES,
+  type McpExposure,
   type McpResolvedServer,
+  type McpScope,
   type McpServerConfig,
-  type McpWriteScope,
 } from '@shared/mcp'
 import { Button, TextInput } from '@/components/form'
 
+/** What each exposure costs and buys, in the words the editor shows. */
+export const EXPOSURE_HINTS: Record<McpExposure, string> = {
+  codemode: 'Scripts find and call the tools. Nothing in context until used. (default)',
+  deferred: 'Loaded by tool search when needed, then called directly.',
+  direct: 'Declared on every request, like a built-in tool. Costs the full schemas.',
+  hidden: 'Connected, but its tools are unreachable.',
+}
+
 /**
  * Add or edit one mcp.json entry. Split out of ConnectorsTab so the tab reads
- * as a list rather than a list plus a form.
+ * as a list rather than a list plus a form. Keys this form does not show
+ * (headers, oauth, env, …) are kept as they were.
  */
 export function ServerEditor({
   initial,
@@ -23,36 +32,37 @@ export function ServerEditor({
   initial: McpResolvedServer | null
   workspacePath?: string
   onClose: () => void
-  onSave: (scope: McpWriteScope, name: string, config: McpServerConfig) => void
+  onSave: (scope: McpScope, name: string, config: McpServerConfig) => void
 }): React.JSX.Element {
+  const base = initial?.defined
   const [name, setName] = useState(initial?.name ?? '')
-  const [kind, setKind] = useState<'url' | 'command'>(initial?.config.command ? 'command' : 'url')
-  const [url, setUrl] = useState(initial?.config.url ?? '')
+  const [kind, setKind] = useState<'url' | 'command'>(base?.command ? 'command' : 'url')
+  const [url, setUrl] = useState(base?.url ?? '')
   const [command, setCommand] = useState(
-    [initial?.config.command, ...(initial?.config.args ?? [])].filter(Boolean).join(' '),
+    [base?.command, ...(base?.args ?? [])].filter(Boolean).join(' '),
   )
-  // `true` and "search" are adapter forms too; a list-only reading threw on them.
-  const [directTools, setDirectTools] = useState(directToolsText(initial?.config.directTools))
-  const editableScope: McpWriteScope =
-    initial?.scope === 'pi-global' || initial?.scope === 'pi-project' ? initial.scope : 'pi-global'
-  const [scope, setScope] = useState<McpWriteScope>(editableScope)
+  const [exposure, setExposure] = useState<McpExposure>(base?.exposure ?? 'codemode')
+  const [scope, setScope] = useState<McpScope>(initial?.scope ?? 'global')
 
   const save = (): void => {
-    const config: McpServerConfig = { ...(initial?.config ?? {}) }
+    const config: McpServerConfig = { ...(base ?? {}) }
     delete config.url
     delete config.command
     delete config.args
     if (kind === 'url') {
       config.url = url.trim()
+      delete config.env
+      delete config.cwd
     } else {
       const [cmd = '', ...args] = command.trim().split(/\s+/)
       config.command = cmd
       if (args.length) config.args = args
-      else delete config.args
+      delete config.headers
+      delete config.oauth
+      delete config.auth
     }
-    const tools = parseDirectToolsText(directTools)
-    if (tools !== undefined) config.directTools = tools
-    else delete config.directTools
+    if (exposure === 'codemode') delete config.exposure
+    else config.exposure = exposure
     onSave(scope, name.trim(), config)
   }
 
@@ -82,7 +92,7 @@ export function ServerEditor({
         <TextInput
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://mcp.example.com/sse"
+          placeholder="https://mcp.example.com/mcp"
           className="w-full font-mono"
         />
       ) : (
@@ -93,30 +103,39 @@ export function ServerEditor({
           className="w-full font-mono"
         />
       )}
-      <TextInput
-        value={directTools}
-        onChange={(e) => setDirectTools(e.target.value)}
-        placeholder="directTools: tool names, comma-separated, or all (optional)"
-        className="w-full font-mono"
-      />
+      <label className="flex items-center gap-2 text-base">
+        <span className="text-text-secondary">Tools reach the model</span>
+        <select
+          aria-label="Exposure"
+          value={exposure}
+          onChange={(e) => setExposure(e.target.value as McpExposure)}
+          className="border-border bg-bg-secondary rounded px-1.5 py-0.5"
+        >
+          {MCP_EXPOSURES.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="text-text-tertiary text-sm">
+        {EXPOSURE_HINTS[exposure]}
+        {initial?.overridden && ' This project overrides it, and the override wins here.'}
+      </div>
       {initial === null && (
         <div className="flex items-center gap-3 text-base">
           <TooltipLabel className="flex items-center gap-1">
-            <input
-              type="radio"
-              checked={scope === 'pi-global'}
-              onChange={() => setScope('pi-global')}
-            />
-            Global (~/.pi/agent)
+            <input type="radio" checked={scope === 'global'} onChange={() => setScope('global')} />
+            Global (~/.pi/agent/mcp.json)
           </TooltipLabel>
           <TooltipLabel className={clsx('flex items-center gap-1', !workspacePath && 'opacity-50')}>
             <input
               type="radio"
               disabled={!workspacePath}
-              checked={scope === 'pi-project'}
-              onChange={() => setScope('pi-project')}
+              checked={scope === 'project'}
+              onChange={() => setScope('project')}
             />
-            This project (.pi/mcp-adapter.json)
+            This project (.pi/mcp.json)
           </TooltipLabel>
         </div>
       )}

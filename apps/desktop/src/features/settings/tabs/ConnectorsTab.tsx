@@ -1,22 +1,21 @@
-import { TooltipButton, TooltipLabel, tooltipProps } from '@/components/Tooltip'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
-  directToolsSummary,
-  type McpCacheEntry,
-  type McpCachedTool,
+  exposesDirectTools,
+  exposureSummary,
   type McpConfigsResult,
+  type McpListResult,
   type McpResolvedServer,
   type McpScope,
+  type McpServerReport,
 } from '@shared/mcp'
-import type { ConnectorCheckResult } from '@shared/connectors'
+import type { PiPackageEntry } from '@shared/models'
 import { errorText } from '@shared/errors'
-import { stripAnsi } from '@shared/ansi'
 import { useActiveWorkspace } from '@/stores/workspaces'
-import { useSessionsStore } from '@/stores/sessions'
-import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useConnectorsStore, type ConnectFlow } from '@/stores/connectors'
 import { FlowCard } from '@/features/connectors/FlowCard'
+import { MigrationCard, adapterPackages } from '@/features/connectors/MigrationCard'
 import { ServerEditor } from '@/features/connectors/ServerEditor'
 import { ChevronIcon } from '@/components/icons'
 import { Button, TextInput } from '@/components/form'
@@ -29,84 +28,72 @@ import {
   type ConnectorEntry,
   type ConnectorSetup,
 } from '@/features/connectors/catalog'
-import {
-  CHECK_DOT,
-  MCP_STATUS_STATUS_KEY,
-  checkResultLabel,
-  connectorAction,
-  connectorActionLabel,
-  parseMcpStatus,
-  stateLabel,
-  type McpServerState,
-} from '@/features/connectors/mcpStatus'
-import { usePackageJob } from '../usePackageJob'
-import { JobOutput } from '../JobOutput'
+import { STATE_DOT, stateLabel } from '@/features/connectors/mcpStatus'
 import { ConfigFileEditor, mcpConfigFile } from '../ConfigFileEditor'
 
 const SCOPE_LABELS: Record<McpScope, string> = {
-  xdg: '~/.config/mcp',
-  agents: '~/.agents',
-  'agents-dir': '~/.agents/mcp',
-  'pi-global': 'pi global',
-  project: 'project .mcp.json',
-  'pi-project': 'project .pi',
+  global: 'global',
+  project: 'project',
 }
 
-const ADAPTER_PACKAGE = 'npm:pi-mcp-adapter'
+/** An HTTP server pi signs in to with OAuth: no Authorization header, no provider token. */
+function usesOAuth(server: McpResolvedServer): boolean {
+  const { config } = server
+  if (!config.url || config.auth) return false
+  return !Object.keys(config.headers ?? {}).some((name) => name.toLowerCase() === 'authorization')
+}
 
 /**
  * Settings → Connectors: every MCP server a session can reach, in one list.
  *
- * This was two tabs. They were two views of one list — a connector IS an MCP
- * server, and connecting one writes the `pi-global` scope of the very chain
- * the other tab resolved, so the same rows appeared twice with different
- * affordances. Worse, only the catalog view had the adapter's structured
- * per-server state, so the view that listed EVERY server was the one that
- * could not say whether any of them worked.
+ * The list is pi's own resolution of its two mcp.json files, enriched with
+ * catalog metadata where a server's URL matches a known connector, and with
+ * the state `pi mcp list` reports. The catalog is an add affordance, not a
+ * separate world. The files themselves live under Advanced, because they are
+ * repair tools rather than daily controls.
  *
- * The list is now the resolved chain (the truth), enriched with catalog
- * metadata where a server's URL matches a known connector. The catalog is an
- * add affordance, not a separate world. Scope resolution, raw JSON repair and
- * the adapter's install state live under Advanced, because they are repair
- * tools rather than daily controls.
- *
- * Phosphor still never holds a token: it writes mcp.json and drives the adapter's
- * own `/mcp-auth`. See docs/mcp.md.
+ * Phosphor never holds a token: it writes mcp.json and runs pi's own
+ * `pi mcp login` / `logout`. See docs/mcp.md.
  */
 export function ConnectorsTab(): React.JSX.Element {
-  const workspacePath = useActiveWorkspace()
-  const activeSessionId = useSessionsStore((s) => s.activeSessionId)
+  const workspacePath = useActiveWorkspace() ?? undefined
   const [configs, setConfigs] = useState<McpConfigsResult | null>(null)
-  const [cache, setCache] = useState<McpCacheEntry[]>([])
-  const [packages, setPackages] = useState<string[] | null>(null)
+  const [packages, setPackages] = useState<PiPackageEntry[] | null>(null)
+  const [report, setReport] = useState<McpListResult | null>(null)
+  const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<McpResolvedServer | null>(null)
   const [rawEdit, setRawEdit] = useState<McpScope | null>(null)
   const [advanced, setAdvanced] = useState(false)
-  const [checks, setChecks] = useState<Record<string, ConnectorCheck>>({})
 
   const flows = useConnectorsStore((s) => s.flows)
-  const statusText = useExtensionUiStore((s) =>
-    activeSessionId ? s.statuses[activeSessionId]?.[MCP_STATUS_STATUS_KEY] : undefined,
-  )
-  const status = useMemo(() => parseMcpStatus(statusText), [statusText])
 
   const refresh = useCallback(async (): Promise<void> => {
     try {
-      const [nextConfigs, nextCache, packageEntries] = await Promise.all([
-        window.phosphor.invoke('mcp:readConfigs', workspacePath ?? undefined),
-        window.phosphor.invoke('mcp:readCache'),
+      const [nextConfigs, nextPackages] = await Promise.all([
+        window.phosphor.invoke('mcp:readConfigs', workspacePath),
         // Per-scope package entries — pi loads BOTH scopes' packages, so the
         // merged settings view (where a project array shadows global) would
-        // misreport the adapter as missing.
-        window.phosphor.invoke('packages:list', workspacePath ?? undefined),
+        // miss an adapter installed in the other one.
+        window.phosphor.invoke('packages:list', workspacePath),
       ])
       setConfigs(nextConfigs)
-      setCache(nextCache)
-      setPackages(packageEntries.map((entry) => entry.spec))
+      setPackages(nextPackages)
     } catch (err) {
       setError(errorText(err))
+    }
+  }, [workspacePath])
+
+  /** `pi mcp list`: connect every enabled server once and keep what it says. */
+  const check = useCallback(async (): Promise<void> => {
+    setChecking(true)
+    try {
+      setReport(await window.phosphor.invoke('mcp:list', workspacePath))
+    } catch (err) {
+      setReport({ ok: false, message: errorText(err) })
+    } finally {
+      setChecking(false)
     }
   }, [workspacePath])
 
@@ -114,43 +101,24 @@ export function ConnectorsTab(): React.JSX.Element {
     void refresh()
   }, [refresh])
 
-  // Test, Reload, a finished sign-in and a session's own lazy connects all
-  // rewrite the adapter's cache; main watches it so the tool lists follow.
-  useEffect(() => window.phosphor.onMcpCacheChanged(() => void refresh()), [refresh])
+  const adapters = useMemo(() => adapterPackages(packages ?? []), [packages])
+  const legacy = Boolean(configs?.legacy) || adapters.length > 0
 
-  const installJob = usePackageJob(() => void refresh())
-  const adapterInstalled = packages?.some((p) => p.includes('pi-mcp-adapter')) ?? false
+  // State is worth one round of connections per visit, not per render: it
+  // spawns every local server and opens every remote one.
+  const hasServers = (configs?.servers.length ?? 0) > 0
+  useEffect(() => {
+    if (packages !== null && !legacy && hasServers) void check()
+  }, [check, packages, legacy, hasServers])
 
-  /** Run one reconnect for a row and keep its verdict. */
-  const track = async (
-    serverName: string,
-    via: CheckVia,
-    run: () => Promise<ConnectorCheckResult>,
-  ): Promise<void> => {
-    setChecks((c) => ({ ...c, [serverName]: { status: 'running', via } }))
-    let result: ConnectorCheckResult
-    try {
-      result = await run()
-    } catch (err) {
-      result = { serverName, outcome: 'unknown', detail: errorText(err) }
-    }
-    setChecks((c) => ({ ...c, [serverName]: { status: 'done', via, result } }))
-  }
-
-  /**
-   * Test one connector: the adapter reconnects it and reports what happened.
-   * Needs no session, so this works from the home screen — which is where the
-   * question "is this thing up?" is actually asked. It runs in a throwaway pi,
-   * so an open session's connection is untouched; Reload is the one for that.
-   */
-  const runCheck = (serverName: string): Promise<void> =>
-    track(serverName, 'test', () =>
-      window.phosphor.invoke('mcp:checkServer', serverName, workspacePath ?? undefined),
-    )
-
-  /** Reload one server inside the active session. */
-  const runReload = (sessionId: string, serverName: string): Promise<void> =>
-    track(serverName, 'reload', () => useConnectorsStore.getState().reload(sessionId, serverName))
+  // A sign-in that finishes while the tab is open changes what pi can reach;
+  // ask again. One that finished before it opened is already in the first check.
+  const signedIn = Object.values(flows).filter((flow) => flow.phase === 'connected').length
+  const seenSignIns = useRef(signedIn)
+  useEffect(() => {
+    if (signedIn > seenSignIns.current) void check()
+    seenSignIns.current = signedIn
+  }, [signedIn, check])
 
   const act = async (fn: () => Promise<unknown>): Promise<void> => {
     setError(null)
@@ -162,7 +130,7 @@ export function ConnectorsTab(): React.JSX.Element {
     }
   }
 
-  /** Catalog entries that are not already in the resolved chain. */
+  /** Catalog entries that are not already configured. */
   const unconfigured = useMemo(() => {
     const taken = new Set<string>()
     for (const server of configs?.servers ?? []) {
@@ -172,59 +140,28 @@ export function ConnectorsTab(): React.JSX.Element {
     return CONNECTORS.filter((entry) => !taken.has(entry.id))
   }, [configs])
 
+  const reports = report?.ok ? report.servers : []
+  const projectFile = configs?.files.find((file) => file.scope === 'project')
+  const untrusted =
+    configs?.projectTrust && !configs.projectTrust.trusted && projectFile?.exists
+      ? configs.projectTrust
+      : null
+  const problems = [...(configs?.errors ?? []), ...(report?.ok ? report.errors : [])]
+
   return (
     <div className="max-w-2xl">
       <h2 className="text-xl font-semibold">MCP Connectors</h2>
       <p className="text-text-secondary mt-1 text-base">
-        Services reachable over the Model Context Protocol, provided to sessions by the{' '}
-        <span className="font-mono">pi-mcp-adapter</span> package (3.x required). Signing in runs
-        the adapter&apos;s own OAuth flow — it stores the tokens in your operating system&apos;s
-        credential store, and Phosphor never holds a copy.
+        Services reachable over the Model Context Protocol, connected by pi’s built-in MCP support.
+        Signing in runs pi’s own OAuth flow — pi stores the tokens, and Phosphor never holds a copy.
       </p>
 
-      {configs?.warnings?.map((warning) => (
-        <div
-          key={warning}
-          role="alert"
-          className="border-warning/30 bg-warning/10 mt-3 rounded-lg border px-3.5 py-2.5 text-sm break-words"
-        >
-          {warning}
-        </div>
-      ))}
-
-      {packages !== null && !adapterInstalled && (
-        <div className="border-warning/30 bg-warning/10 mt-3 rounded-lg border px-3.5 py-2.5">
-          <div className="flex items-center justify-between gap-3 text-base">
-            <span className="text-text-secondary">
-              The adapter package is not installed — nothing below will load.
-            </span>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => {
-                setError(null)
-                void installJob.start(() =>
-                  window.phosphor.invoke(
-                    'packages:run',
-                    'install',
-                    ADAPTER_PACKAGE,
-                    'global',
-                    undefined,
-                  ),
-                )
-              }}
-              disabled={installJob.running}
-              className="shrink-0"
-            >
-              {installJob.running ? 'Installing…' : 'Install'}
-            </Button>
-          </div>
-          <JobOutput
-            running={installJob.running}
-            output={installJob.output}
-            exitCode={installJob.exitCode}
-          />
-        </div>
+      {legacy && packages !== null && (
+        <MigrationCard
+          workspacePath={workspacePath}
+          adapters={adapters}
+          onDone={() => void refresh()}
+        />
       )}
 
       {error && (
@@ -233,189 +170,201 @@ export function ConnectorsTab(): React.JSX.Element {
         </div>
       )}
 
-      {/* Configured servers — the resolved chain, which is the truth. Kept
-          FIRST so its controls are what a reader reaches for by default. */}
-      <div className="mt-5 flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Connected</h3>
-        <Button size="sm" onClick={() => setAdding(true)}>
-          Add custom server…
-        </Button>
-      </div>
-      <div className="mt-2 space-y-2">
-        {configs?.servers.map((server) => {
-          const entry = connectorForUrl(server.config.url)
-          const live = status?.servers.find((s) => s.name === server.name)
-          return (
-            <ConfiguredRow
-              key={server.name}
-              server={server}
-              entry={entry}
-              state={live?.state ?? null}
-              toolCount={live?.toolCount ?? 0}
-              cache={cache.find((c) => c.name === server.name)}
-              flow={flows[server.name]}
-              sessionId={activeSessionId}
-              check={checks[server.name]}
-              onCheck={() => void runCheck(server.name)}
-              onReload={() => {
-                if (activeSessionId) void runReload(activeSessionId, server.name)
-              }}
-              onToggle={(disabled) =>
-                void act(() =>
-                  window.phosphor.invoke(
-                    'mcp:setDisabled',
-                    server.scope,
-                    workspacePath ?? undefined,
-                    server.name,
-                    disabled,
-                  ),
-                )
-              }
-              onKeepAlive={(keep) =>
-                void act(() =>
-                  window.phosphor.invoke(
-                    'mcp:upsertServer',
-                    server.scope === 'pi-project' ? 'pi-project' : 'pi-global',
-                    workspacePath ?? undefined,
-                    server.name,
-                    { ...server.config, lifecycle: keep ? 'lazy-keep-alive' : 'lazy' },
-                  ),
-                )
-              }
-              onRemove={() =>
-                void act(() =>
-                  window.phosphor.invoke(
-                    'mcp:removeServer',
-                    server.scope,
-                    workspacePath ?? undefined,
-                    server.name,
-                  ),
-                )
-              }
-              onEdit={() => setEditing(server)}
-            />
-          )
-        })}
-        {configs && configs.servers.length === 0 && (
-          <div className="text-text-tertiary py-3 text-base">No MCP servers configured yet.</div>
-        )}
-      </div>
-
-      {/* The curated catalog, reduced to what it actually is: an add button
-          with a vetted URL behind it. */}
-      {unconfigured.length > 0 && (
+      {!legacy && (
         <>
-          <h3 className="mt-6 text-lg font-semibold">Add a connector</h3>
-          <div className="mt-2 space-y-2">
-            {unconfigured.map((entry) => (
-              <CatalogRow
-                key={entry.id}
-                entry={entry}
-                onAdd={(choice) =>
-                  void act(async () => {
-                    await window.phosphor.invoke(
-                      'mcp:upsertServer',
-                      'pi-global',
-                      undefined,
-                      entry.serverName,
-                      buildConnectorConfig(entry, choice),
-                    )
-                    // Adding was never the goal; being signed in is. Add used
-                    // to only write mcp.json, so the connector landed in the
-                    // list above still needing a separate Sign in — which
-                    // reads as "Add did nothing", most sharply on Slack,
-                    // where you have just pasted a client id and expect a
-                    // browser.
-                    //
-                    // Headless on purpose, even with a session open: a live
-                    // session's adapter loaded mcp.json when it started, so
-                    // it has never heard of the server just written and would
-                    // refuse the command.
-                    await useConnectorsStore.getState().connect(entry.serverName)
-                  })
-                }
-              />
-            ))}
-          </div>
-        </>
-      )}
+          {[...new Set(problems)].map((problem) => (
+            <div
+              key={problem}
+              role="alert"
+              className="border-warning/30 bg-warning/10 mt-3 rounded-lg border px-3.5 py-2.5 text-sm break-words"
+            >
+              {problem}
+            </div>
+          ))}
 
-      {/* Repair tools, not daily controls. */}
-      <TooltipButton
-        onClick={() => setAdvanced((a) => !a)}
-        className="text-text-tertiary hover:text-text mt-6 flex items-center gap-1.5 text-base"
-      >
-        <ChevronIcon size={8} expanded={advanced} />
-        Advanced
-      </TooltipButton>
-      {advanced && (
-        <div className="mt-2">
-          {adapterInstalled && (
-            <div className="border-border bg-bg-secondary/50 rounded-lg border px-3.5 py-2.5">
-              <div className="flex items-center gap-2 text-base">
-                <span className="bg-success h-1.5 w-1.5 rounded-full" />
-                <span className="text-text">pi-mcp-adapter is in pi&apos;s packages</span>
-                <AdapterSessionStatus />
-              </div>
+          {untrusted && (
+            <div
+              role="alert"
+              className="border-warning/30 bg-warning/10 mt-3 rounded-lg border px-3.5 py-2.5 text-sm"
+            >
+              pi ignores this project’s <span className="font-mono">.pi/mcp.json</span> until you
+              trust the folder ({untrusted.path}). Run <span className="font-mono">pi</span> once in
+              a terminal there and choose Trust.
             </div>
           )}
 
-          <h4 className="mt-4 text-base font-semibold">Config files</h4>
-          <p className="text-text-tertiary mt-0.5 text-sm">
-            Resolution order, lowest → highest — later files override earlier ones per server name.
-          </p>
-          <div className="border-border mt-2 divide-y rounded-lg border">
-            {configs?.files.map((file) => (
-              <div key={file.scope} className="flex items-center gap-2 px-3 py-1.5 text-base">
-                <span className="text-text-secondary w-32 shrink-0">
-                  {SCOPE_LABELS[file.scope]}
-                </span>
-                <span
-                  className="text-text-tertiary min-w-0 flex-1 truncate font-mono text-sm"
-                  data-tooltip={file.path}
+          {report && !report.ok && (
+            <div className="text-danger mt-3 text-sm">
+              Could not check servers: {report.message}
+            </div>
+          )}
+
+          {/* Configured servers, as pi resolves them. Kept FIRST so their
+              controls are what a reader reaches for by default. */}
+          <div className="mt-5 flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Connected</h3>
+            <div className="flex items-center gap-1.5">
+              {hasServers && (
+                <Button
+                  size="sm"
+                  onClick={() => void check()}
+                  disabled={checking}
+                  tooltip={{
+                    label: 'Check connections',
+                    description: 'No session, no tokens spent',
+                  }}
                 >
-                  {file.path}
-                </span>
-                {file.malformed ? (
-                  <span className="text-danger shrink-0 text-sm" data-tooltip={file.error}>
-                    malformed
-                  </span>
-                ) : file.exists ? (
-                  <span className="text-text-tertiary shrink-0 text-sm">
-                    {file.serverNames.length} server{file.serverNames.length === 1 ? '' : 's'}
-                  </span>
-                ) : (
-                  <span className="text-text-tertiary/60 shrink-0 text-sm">absent</span>
-                )}
-                <TooltipButton
-                  onClick={() => setRawEdit(file.scope)}
-                  className="text-text-tertiary hover:text-text shrink-0 text-sm underline-offset-2 hover:underline"
-                >
-                  Edit
-                </TooltipButton>
-              </div>
-            ))}
+                  {checking ? 'Checking…' : 'Check again'}
+                </Button>
+              )}
+              <Button size="sm" onClick={() => setAdding(true)}>
+                Add custom server…
+              </Button>
+            </div>
           </div>
-        </div>
+          <div className="mt-2 space-y-2">
+            {configs?.servers.map((server) => (
+              <ConfiguredRow
+                key={server.name}
+                server={server}
+                entry={connectorForUrl(server.config.url)}
+                report={reports.find((r) => r.name === server.name)}
+                checking={checking}
+                flow={flows[server.name]}
+                onSignIn={() =>
+                  void useConnectorsStore.getState().connect(server.name, workspacePath)
+                }
+                onToggle={(enabled) =>
+                  void act(() =>
+                    window.phosphor.invoke(
+                      'mcp:setEnabled',
+                      // An override decides enabled for this project, so it is changed there.
+                      server.overridden ? 'project' : server.scope,
+                      workspacePath,
+                      server.name,
+                      enabled,
+                    ),
+                  )
+                }
+                onRemove={() =>
+                  void act(async () => {
+                    // Credentials first: pi finds them through the config entry.
+                    if (usesOAuth(server)) {
+                      await window.phosphor.invoke('mcp:logout', server.name, workspacePath)
+                    }
+                    await window.phosphor.invoke(
+                      'mcp:removeServer',
+                      server.scope,
+                      workspacePath,
+                      server.name,
+                    )
+                  })
+                }
+                onEdit={() => setEditing(server)}
+              />
+            ))}
+            {configs && configs.servers.length === 0 && (
+              <div className="text-text-tertiary py-3 text-base">
+                No MCP servers configured yet.
+              </div>
+            )}
+          </div>
+
+          {/* The curated catalog, reduced to what it actually is: an add button
+              with a vetted URL behind it. */}
+          {unconfigured.length > 0 && (
+            <>
+              <h3 className="mt-6 text-lg font-semibold">Add a connector</h3>
+              <div className="mt-2 space-y-2">
+                {unconfigured.map((entry) => (
+                  <CatalogRow
+                    key={entry.id}
+                    entry={entry}
+                    onAdd={(choice) =>
+                      void act(async () => {
+                        await window.phosphor.invoke(
+                          'mcp:upsertServer',
+                          'global',
+                          undefined,
+                          entry.serverName,
+                          buildConnectorConfig(entry, choice),
+                        )
+                        // Adding was never the goal; being signed in is. Add
+                        // starts the sign-in itself, so it does not read as
+                        // "Add did nothing" — most sharply on Slack, where you
+                        // have just pasted a client id and expect a browser.
+                        await useConnectorsStore.getState().connect(entry.serverName, workspacePath)
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Repair tools, not daily controls. */}
+          <TooltipButton
+            onClick={() => setAdvanced((a) => !a)}
+            className="text-text-tertiary hover:text-text mt-6 flex items-center gap-1.5 text-base"
+          >
+            <ChevronIcon size={8} expanded={advanced} />
+            Advanced
+          </TooltipButton>
+          {advanced && (
+            <div className="mt-2">
+              <h4 className="text-base font-semibold">Config files</h4>
+              <p className="text-text-tertiary mt-0.5 text-sm">
+                A project entry replaces the global one with the same name; one with no command or
+                url only turns it on or off, or changes its exposure.
+              </p>
+              <div className="border-border mt-2 divide-y rounded-lg border">
+                {configs?.files.map((file) => (
+                  <div key={file.scope} className="flex items-center gap-2 px-3 py-1.5 text-base">
+                    <span className="text-text-secondary w-20 shrink-0">
+                      {SCOPE_LABELS[file.scope]}
+                    </span>
+                    <span
+                      className="text-text-tertiary min-w-0 flex-1 truncate font-mono text-sm"
+                      data-tooltip={file.path}
+                    >
+                      {file.path}
+                    </span>
+                    {file.malformed ? (
+                      <span className="text-danger shrink-0 text-sm" data-tooltip={file.error}>
+                        malformed
+                      </span>
+                    ) : file.exists ? (
+                      <span className="text-text-tertiary shrink-0 text-sm">
+                        {file.serverNames.length} server{file.serverNames.length === 1 ? '' : 's'}
+                      </span>
+                    ) : (
+                      <span className="text-text-tertiary/60 shrink-0 text-sm">absent</span>
+                    )}
+                    <TooltipButton
+                      onClick={() => setRawEdit(file.scope)}
+                      className="text-text-tertiary hover:text-text shrink-0 text-sm underline-offset-2 hover:underline"
+                    >
+                      Edit
+                    </TooltipButton>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {(adding || editing) && (
         <ServerEditor
           initial={editing}
-          workspacePath={workspacePath ?? undefined}
+          workspacePath={workspacePath}
           onClose={() => {
             setAdding(false)
             setEditing(null)
           }}
           onSave={(scope, name, config) =>
             void act(async () => {
-              await window.phosphor.invoke(
-                'mcp:upsertServer',
-                scope,
-                workspacePath ?? undefined,
-                name,
-                config,
-              )
+              await window.phosphor.invoke('mcp:upsertServer', scope, workspacePath, name, config)
               setAdding(false)
               setEditing(null)
             })
@@ -425,7 +374,7 @@ export function ConnectorsTab(): React.JSX.Element {
 
       {rawEdit && (
         <ConfigFileEditor
-          source={mcpConfigFile(rawEdit, workspacePath ?? undefined)}
+          source={mcpConfigFile(rawEdit, workspacePath)}
           onClose={() => {
             setRawEdit(null)
             void refresh()
@@ -436,89 +385,50 @@ export function ConnectorsTab(): React.JSX.Element {
   )
 }
 
-/**
- * Which reconnect produced a row's verdict: Test, in a throwaway pi, or
- * Reload, in the active session.
- */
-type CheckVia = 'test' | 'reload'
-
-/** One row's reconnect: in flight, or the verdict it produced. */
-type ConnectorCheck =
-  | { status: 'running'; via: CheckVia }
-  | { status: 'done'; via: CheckVia; result: ConnectorCheckResult }
-
-const STATE_DOT: Record<McpServerState, string> = {
-  connected: 'bg-success',
-  'needs-auth': 'bg-warning',
-  failed: 'bg-danger',
-  cached: 'bg-info',
-  disabled: 'bg-border-strong',
-  'not-connected': 'bg-border-strong',
-}
-
-/**
- * One resolved server. Carries the config controls the MCP tab had AND the
- * auth controls the Connectors tab had, because they always described the
- * same row.
- */
+/** One configured server, with what pi last said about it. */
 function ConfiguredRow({
   server,
   entry,
-  state,
-  toolCount,
-  cache,
+  report,
+  checking,
   flow,
-  sessionId,
-  check,
-  onCheck,
-  onReload,
+  onSignIn,
   onToggle,
-  onKeepAlive,
   onRemove,
   onEdit,
 }: {
   server: McpResolvedServer
   entry: ConnectorEntry | undefined
-  state: McpServerState | null
-  toolCount: number
-  cache?: McpCacheEntry
+  report: McpServerReport | undefined
+  checking: boolean
   flow?: ConnectFlow
-  sessionId: string | null
-  check?: ConnectorCheck
-  onCheck: () => void
-  onReload: () => void
-  onToggle: (disabled: boolean) => void
-  onKeepAlive: (keep: boolean) => void
+  onSignIn: () => void
+  onToggle: (enabled: boolean) => void
   onRemove: () => void
   onEdit: () => void
 }): React.JSX.Element {
   const [showTools, setShowTools] = useState(false)
-  const disabled = server.config.disabled === true
+  const disabled = server.config.enabled === false
   const transport = server.config.url
     ? server.config.url
     : [server.config.command, ...(server.config.args ?? [])].join(' ')
-  // Only a remote server has an OAuth flow to run; a stdio command has none.
-  const signInable = Boolean(server.config.url)
-  const action = connectorAction(state, Boolean(sessionId))
-  const keepAlive =
-    server.config.lifecycle === 'lazy-keep-alive' ||
-    server.config.lifecycle === 'keep-alive' ||
-    server.config.lifecycle === 'eager'
-  const directTools = directToolsSummary(server.config.directTools)
-  const checked = check?.status === 'done' ? check : undefined
-  const running = check?.status === 'running' ? check.via : undefined
-  // Sign-in is an OAuth flow, so only a remote server has one. Reload is any
-  // server the session can reconnect — the adapter refuses a disabled one.
-  const showAction = action === 'sign-in' ? signInable : !disabled
-  const toolTotal = cache?.tools.length ?? 0
+  // Config is the truth for on/off; a report from before a toggle is not.
+  const state = disabled ? 'disabled' : report?.state
+  const oauth = usesOAuth(server)
+  const showSignIn = oauth && !disabled && state !== 'connected'
+  const exposure = exposureSummary(server.config)
+  const tools = !disabled && report ? report.tools : []
+  const scopeLabel = server.overridden
+    ? 'global · project override'
+    : server.replacesGlobal
+      ? 'project · replaces global'
+      : SCOPE_LABELS[server.scope]
 
   return (
     <div
       className="border-border bg-surface rounded-xl border"
       data-testid={`connector-${entry?.id ?? server.name}`}
     >
-      {/* Identity on the left, the two actions on the right. The actions never
-          wrap: the left column is the one that gives up width. */}
       <div className="flex items-start gap-3 px-3.5 pt-3 pb-2.5">
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
@@ -531,45 +441,17 @@ function ConfiguredRow({
             >
               {server.name}
             </span>
-            <span
-              className="bg-bg-secondary text-text-tertiary shrink-0 rounded px-1.5 py-px text-xs"
-              data-tooltip={`Defined in ${SCOPE_LABELS[server.scope]}`}
-            >
-              {SCOPE_LABELS[server.scope]}
+            <span className="bg-bg-secondary text-text-tertiary shrink-0 rounded px-1.5 py-px text-xs">
+              {scopeLabel}
             </span>
-            {checked && (
-              <span
-                className="text-text-secondary flex shrink-0 items-center gap-1.5 text-sm"
-                data-tooltip={
-                  'detail' in checked.result && checked.result.detail
-                    ? `Last ${checked.via} — ${checked.result.detail}`
-                    : checked.via === 'reload'
-                      ? "Result of the last reload, which reconnected the session's connection"
-                      : 'Result of the last test, which reconnected the server'
-                }
-              >
-                <span
-                  className={clsx('h-1.5 w-1.5 rounded-full', CHECK_DOT[checked.result.outcome])}
-                />
-                {checkResultLabel(checked.result)}
-              </span>
-            )}
-            {!checked && !state && !sessionId && (
-              <span
-                className="text-text-tertiary shrink-0 text-sm"
-                data-tooltip="Per-server state comes from the MCP adapter, which runs inside a session"
-              >
-                state unknown
-              </span>
-            )}
-            {!checked && state && (
-              <span
-                className="text-text-tertiary flex shrink-0 items-center gap-1.5 text-sm"
-                data-tooltip={`${server.name}: ${stateLabel(state)}`}
-              >
+            {state ? (
+              <span className="text-text-secondary flex shrink-0 items-center gap-1.5 text-sm">
                 <span className={clsx('h-1.5 w-1.5 rounded-full', STATE_DOT[state])} />
-                {stateLabel(state)}
-                {state === 'connected' && toolCount > 0 && ` · ${toolCount} tools`}
+                {stateLabel({ state, tools })}
+              </span>
+            ) : (
+              <span className="text-text-tertiary shrink-0 text-sm">
+                {checking ? 'checking…' : 'not checked'}
               </span>
             )}
           </div>
@@ -584,131 +466,57 @@ function ConfiguredRow({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5">
+        {showSignIn && (
           <Button
             size="sm"
-            className="whitespace-nowrap"
-            onClick={onCheck}
-            disabled={Boolean(running)}
-            tooltip={{ label: 'Test connector', description: 'Separate session, no tokens spent' }}
-            aria-description="Reconnect in a separate pi session and report the result. Does not change your open session."
+            className="shrink-0 whitespace-nowrap"
+            variant={state === 'needs-auth' ? 'primary' : undefined}
+            onClick={onSignIn}
           >
-            {running === 'test' ? 'Testing…' : 'Test'}
+            Sign in
           </Button>
-          {showAction && (
-            <Button
-              size="sm"
-              className="whitespace-nowrap"
-              variant={action === 'sign-in' && state === 'needs-auth' ? 'primary' : undefined}
-              disabled={action === 'reload' && Boolean(running)}
-              tooltip={
-                action === 'reload'
-                  ? {
-                      label: 'Reload connector',
-                      description: 'Refresh this session’s connection and tools',
-                    }
-                  : 'Sign in'
-              }
-              aria-description={
-                action === 'reload'
-                  ? 'Uses the session’s starting configuration without re-authorizing.'
-                  : undefined
-              }
-              onClick={() => {
-                // Reload rides the adapter's own /mcp-adapter reconnect, which needs
-                // the process holding the connection. Signing in does not,
-                // and runs headless.
-                if (action === 'sign-in') {
-                  void useConnectorsStore.getState().connect(server.name, sessionId ?? undefined)
-                } else {
-                  onReload()
-                }
-              }}
-            >
-              {running === 'reload' ? 'Reloading…' : connectorActionLabel(action)}
-            </Button>
-          )}
-        </div>
+        )}
       </div>
 
-      {(directTools ||
-        (checked && 'detail' in checked.result && checked.result.detail) ||
-        flow) && (
+      {((report?.error && !disabled) || exposesDirectTools(server.config) || flow) && (
         <div className="px-3.5 pb-2.5">
-          {directTools && (
-            <div className="text-warning text-sm">
-              direct: <span className="font-mono">{directTools}</span> — these register as top-level
-              tools instead of going through the <span className="font-mono">mcp</span> gateway, so
-              they cost their full schema in every request.
+          {report?.error && !disabled && (
+            <div className="text-danger text-sm break-words">{report.error}</div>
+          )}
+          {exposesDirectTools(server.config) && (
+            <div className="text-warning mt-1 text-sm first:mt-0">
+              Direct tools are declared on every request, so they cost their full schema each time.
             </div>
           )}
-
-          {checked && 'detail' in checked.result && checked.result.detail && (
-            <div
-              className={clsx(
-                'mt-1 text-sm first:mt-0',
-                checked.result.outcome === 'failed' || checked.result.outcome === 'missing'
-                  ? 'text-danger'
-                  : 'text-text-tertiary',
-              )}
-            >
-              {checked.result.detail}
-            </div>
-          )}
-
           {flow && <FlowCard serverName={server.name} flow={flow} />}
         </div>
       )}
 
       {/* Settings for the row, and the tool disclosure. */}
       <div className="border-border text-text-tertiary flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t px-3.5 py-2 text-sm">
-        {toolTotal > 0 ? (
+        {tools.length > 0 ? (
           <TooltipButton
             onClick={() => setShowTools((s) => !s)}
             aria-expanded={showTools}
             className="hover:text-text flex items-center gap-1.5"
           >
             <ChevronIcon size={8} expanded={showTools} />
-            {toolTotal} tool{toolTotal === 1 ? '' : 's'}
+            {tools.length} tool{tools.length === 1 ? '' : 's'}
           </TooltipButton>
-        ) : (
-          <span data-tooltip="The adapter caches a server's tool list the first time it connects">
-            no tools cached yet
-          </span>
-        )}
-        {server.shadows.length > 0 && (
-          <span data-tooltip="Lower-precedence files also define this server">
-            shadows {server.shadows.map((s) => SCOPE_LABELS[s]).join(', ')}
-          </span>
-        )}
+        ) : null}
+        <span data-tooltip="How its tools reach the model. Change it in Edit.">
+          exposure: {exposure ?? 'codemode'}
+        </span>
 
         <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1.5">
           <TooltipLabel className="hover:text-text flex items-center gap-1.5">
             <input
               type="checkbox"
               checked={!disabled}
-              onChange={(e) => onToggle(!e.target.checked)}
+              onChange={(e) => onToggle(e.target.checked)}
             />
             enabled
           </TooltipLabel>
-          {signInable && (
-            <TooltipLabel
-              className="hover:text-text flex items-center gap-1.5"
-              {...tooltipProps({
-                label: 'Keep connected',
-                description: keepAlive
-                  ? 'Stays open after the first tool call'
-                  : 'Connects per call, then drops',
-              })}
-            >
-              <input
-                type="checkbox"
-                checked={keepAlive}
-                onChange={(e) => onKeepAlive(e.target.checked)}
-              />
-              keep connected
-            </TooltipLabel>
-          )}
           <span className="bg-border h-3.5 w-px" aria-hidden />
           <TooltipButton
             onClick={onEdit}
@@ -717,12 +525,7 @@ function ConfiguredRow({
             Edit
           </TooltipButton>
           <TooltipButton
-            onClick={() => {
-              if (signInable) {
-                void useConnectorsStore.getState().disconnect(server.name, sessionId ?? undefined)
-              }
-              onRemove()
-            }}
+            onClick={onRemove}
             className="hover:text-danger underline-offset-2 hover:underline"
           >
             Remove
@@ -730,26 +533,16 @@ function ConfiguredRow({
         </div>
       </div>
 
-      {showTools && cache && cache.tools.length > 0 && <ToolList tools={cache.tools} />}
+      {showTools && tools.length > 0 && <ToolList tools={tools} />}
     </div>
   )
 }
 
-/**
- * A server's cached tools, name and description each. Filterable once the
- * list is long enough that scanning it is the slow way — Linear alone
- * offers dozens.
- */
-function ToolList({ tools }: { tools: McpCachedTool[] }): React.JSX.Element {
+/** A server's tool names, filterable once the list is long. */
+function ToolList({ tools }: { tools: string[] }): React.JSX.Element {
   const [query, setQuery] = useState('')
   const needle = query.trim().toLowerCase()
-  const shown = needle
-    ? tools.filter(
-        (tool) =>
-          tool.name.toLowerCase().includes(needle) ||
-          tool.description?.toLowerCase().includes(needle),
-      )
-    : tools
+  const shown = needle ? tools.filter((tool) => tool.toLowerCase().includes(needle)) : tools
 
   return (
     <div className="border-border border-t px-3.5 py-2.5">
@@ -762,27 +555,16 @@ function ToolList({ tools }: { tools: McpCachedTool[] }): React.JSX.Element {
           className="mb-2 w-full"
         />
       )}
-      <ul className="divide-border max-h-80 divide-y overflow-y-auto">
+      <ul className="max-h-80 overflow-y-auto">
         {shown.map((tool) => (
-          <li key={tool.name} className="py-1.5 first:pt-0 last:pb-0">
-            <div className="text-text font-mono text-sm break-all">{tool.name}</div>
-            {tool.description && (
-              <div
-                className="text-text-tertiary mt-0.5 line-clamp-2 text-sm leading-snug"
-                data-tooltip={tool.description}
-              >
-                {tool.description}
-              </div>
-            )}
+          <li key={tool} className="text-text py-0.5 font-mono text-sm break-all">
+            {tool}
           </li>
         ))}
         {shown.length === 0 && (
           <li className="text-text-tertiary py-1.5 text-sm">No tool matches “{query.trim()}”.</li>
         )}
       </ul>
-      <div className="text-text-tertiary mt-2 text-xs">
-        Cached by the adapter from the server&apos;s last connection.
-      </div>
     </div>
   )
 }
@@ -946,28 +728,5 @@ function SetupSteps({ setup }: { setup: ConnectorSetup }): React.JSX.Element {
         </div>
       )}
     </div>
-  )
-}
-
-/** Live-ish status: the adapter's setStatus line for the active session. */
-function AdapterSessionStatus(): React.JSX.Element | null {
-  const activeSessionId = useSessionsStore((s) => s.activeSessionId)
-  const statuses = useExtensionUiStore((s) =>
-    activeSessionId ? s.statuses[activeSessionId] : undefined,
-  )
-  const mcpStatus = useMemo(() => {
-    for (const [key, text] of Object.entries(statuses ?? {})) {
-      if (key.toLowerCase().includes('mcp') || stripAnsi(text).toLowerCase().includes('mcp')) {
-        return stripAnsi(text)
-      }
-    }
-    return null
-  }, [statuses])
-
-  if (!mcpStatus) return null
-  return (
-    <span className="text-text-tertiary text-sm" data-tooltip="Reported by pi-mcp-adapter">
-      · {mcpStatus}
-    </span>
   )
 }

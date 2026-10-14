@@ -45,8 +45,8 @@ const LANE = {
 const server = (name: string, config: McpResolvedServer['config']): McpResolvedServer => ({
   name,
   config,
-  scope: 'pi-global',
-  shadows: [],
+  defined: config,
+  scope: 'global',
 })
 
 describe('contextFileToggleState', () => {
@@ -85,9 +85,9 @@ describe('ContextSourcesMenu', () => {
   let failContextFile = false
   const invoke = vi.fn(async (channel: string, ...args: unknown[]) => {
     if (channel === 'mcp:readConfigs') return { servers, files: [] }
-    if (channel === 'mcp:setDisabled') {
+    if (channel === 'mcp:setEnabled') {
       servers = servers.map((s) =>
-        s.name === args[2] ? { ...s, config: { ...s.config, disabled: args[3] as boolean } } : s,
+        s.name === args[2] ? { ...s, config: { ...s.config, enabled: args[3] as boolean } } : s,
       )
     }
     if (channel === 'app:setContextFile' && failContextFile) throw new Error('lane gone')
@@ -195,16 +195,16 @@ describe('ContextSourcesMenu', () => {
     expect(toast).toHaveBeenCalledWith(expect.stringContaining('lane gone'), 'error')
   })
 
-  it('turns a server off for new lanes and flags one that skips the gateway', async () => {
+  it('turns a server off for new lanes and flags one with direct tools', async () => {
     servers = [
       server('linear', { url: 'https://mcp.linear.app/mcp' }),
-      server('knowledge', { url: 'https://k.local/mcp', directTools: true }),
+      server('knowledge', { url: 'https://k.local/mcp', exposure: 'direct' }),
     ]
     await render()
     expect(trigger().textContent).toBe('Rules 2/2 · MCP 2/2')
     expect(box('knowledge').closest('label')!.textContent).toContain('direct')
     await act(async () => box('knowledge').click())
-    expect(invoke).toHaveBeenCalledWith('mcp:setDisabled', 'pi-global', '/repo', 'knowledge', true)
+    expect(invoke).toHaveBeenCalledWith('mcp:setEnabled', 'global', '/repo', 'knowledge', false)
     expect(trigger().textContent).toBe('Rules 2/2 · MCP 1/2')
   })
 
@@ -218,13 +218,33 @@ describe('ContextSourcesMenu', () => {
     expect(invoke).toHaveBeenCalledWith('mcp:readConfigs', '/repo/.phosphor/worktrees/lane')
     await act(async () => box('linear').click())
     expect(invoke).toHaveBeenCalledWith(
-      'mcp:setDisabled',
-      'pi-global',
+      'mcp:setEnabled',
+      'global',
       '/repo/.phosphor/worktrees/lane',
       'linear',
-      true,
+      false,
     )
     useSessionsStore.setState({ live: {} })
+  })
+
+  it('says which servers the lane has connected, from its context breakdown', async () => {
+    servers = [
+      server('linear', { url: 'https://mcp.linear.app/mcp' }),
+      server('slack', { url: 'https://mcp.slack.com/mcp' }),
+    ]
+    useExtensionUiStore.setState({
+      statuses: {
+        s1: {
+          [CONTEXT_BREAKDOWN_STATUS_KEY]: JSON.stringify({
+            parts: {},
+            mcpByServer: { linear: { tokens: 0, count: 0, toolCount: 40 } },
+          }),
+        },
+      },
+    })
+    await render('s1')
+    expect(box('linear').closest('label')!.textContent).toContain('40 tools')
+    expect(box('slack').closest('label')!.textContent).not.toContain('tools')
   })
 
   it('re-reads the servers when Settings closes, since it edits the same files', async () => {
@@ -232,7 +252,7 @@ describe('ContextSourcesMenu', () => {
     await render()
     expect(trigger().textContent).toBe('Rules 2/2 · MCP 1/1')
     await act(async () => useSettingsUiStore.getState().setOpen(true))
-    servers = [server('linear', { url: 'https://mcp.linear.app/mcp', disabled: true })]
+    servers = [server('linear', { url: 'https://mcp.linear.app/mcp', enabled: false })]
     await act(async () => useSettingsUiStore.getState().setOpen(false))
     expect(trigger().textContent).toBe('Rules 2/2 · MCP 0/1')
   })

@@ -40,10 +40,6 @@
       "types": "./pi-ext/lane-reload.ts",
       "default": "./pi-ext/lane-reload.ts"
     },
-    "./mcp-status": {
-      "types": "./pi-ext/mcp-status.ts",
-      "default": "./pi-ext/mcp-status.ts"
-    },
     "./message-ledger": {
       "types": "./pi-ext/message-ledger.ts",
       "default": "./pi-ext/message-ledger.ts"

@@ -1,12 +1,11 @@
 ---
 import Guide from '../../layouts/Guide.astro'
 import Capture from '../../components/Capture.astro'
-import Command from '../../components/Command.astro'
 import { connectors, doc, piDoc, shot } from '../../lib/content'
 const sections: [string, string][] = [
-  ['adapter', '1. Install the adapter'],
+  ['builtin', '1. MCP is built into pi'],
   ['connect', '2. Connect a service'],
-  ['verify', '3. Test and use it'],
+  ['verify', '3. Check and use it'],
   ['catalog', 'Connector requirements'],
   ['custom', 'Custom MCP servers'],
   ['permissions', 'Permissions and troubleshooting'],
@@ -15,21 +14,22 @@ const sections: [string, string][] = [
 
 <Guide
   title="Connect your services"
-  description="Let the agent use the services you pick. Install the MCP adapter, sign in to a service, and test the connection before you rely on it."
+  description="Let the agent use the services you pick. Add a service, sign in through your browser, and check the connection before you rely on it."
   sections={sections}
 >
-  <section id="adapter">
-    <h2>1. Install the MCP adapter</h2>
+  <section id="builtin">
+    <h2>1. MCP is built into pi</h2>
     <p>
-      MCP is the protocol. A connector is one configured MCP server. pi has MCP support of its own,
-      but Phosphor’s connectors work through the <strong>MCP adapter</strong> package, which replaces
-      it in sessions and handles sign-in. Install it from Settings → Extensions, or run:
+      MCP is the protocol. A connector is one configured MCP server. pi 1.2.0 and later connect MCP
+      servers themselves, so there is nothing to install: open <strong
+        >Settings → Extensions → MCP Connectors</strong
+      > and add a service.
     </p>
-    <Command cmd="pi install npm:pi-mcp-adapter" label="Install the MCP adapter" />
     <p>
-      <strong>Settings → Extensions → MCP Connectors</strong> shows up before the adapter is installed,
-      and its Advanced section can install it too. Installing the adapter doesn’t connect any service
-      by itself.
+      Used the MCP adapter package before? The tab first shows a card that moves your servers to
+      pi’s own <code>mcp.json</code>, backs up every file it changes, and removes the adapter. It
+      lists every change before you choose <strong>Move to pi’s MCP</strong>. Sign in again to each
+      service afterwards: the adapter’s tokens don’t carry over.
     </p>
   </section>
   <section id="connect">
@@ -39,48 +39,42 @@ const sections: [string, string][] = [
         Find the service under <strong>Add a connector</strong> and fill in any required fields, like
         the Datadog site or Slack client ID.
       </li><li>
-        Choose <strong>Add</strong>. Phosphor writes the configuration and starts the adapter’s
-        authorization flow.
+        Choose <strong>Add</strong>. Phosphor writes the configuration and starts pi’s sign-in.
       </li><li>
-        Finish signing in through your browser. Check the scopes and which account or workspace
-        you’re granting.
+        pi opens your browser. Finish signing in there, and check the scopes and which account or
+        workspace you’re granting.
       </li><li>
-        Go back to Phosphor. If the adapter asks for a callback URL, follow its prompt. Don’t share
-        that URL or its code anywhere else.
+        Go back to Phosphor. The row shows the sign-in link with <strong>Open again</strong> in case you
+        closed the tab, and <strong>Cancel</strong>.
       </li>
     </ol>
     <Capture
       image={shot('guide-connectors')}
-      alt="MCP Connectors showing connected servers, Test controls, and a catalog of services in an example configuration."
-      caption="A connection has a status, a scope, and an explicit Test action"
+      alt="MCP Connectors showing connected servers with their status, a Check again button, and a catalog of services in an example configuration."
+      caption="A connection has a status, a scope, and a Check again button"
       provenance="Settings demo · example data"
     />
-    <p>
-      The full-size image only has example config too. OAuth credentials live in the adapter’s
-      credential store, not in Phosphor.
-    </p>
+    <p>The full-size image only has example config too. pi keeps the OAuth tokens, not Phosphor.</p>
   </section>
   <section id="verify">
-    <h2>3. Test the connection, then the task</h2>
+    <h2>3. Check the connection, then the task</h2>
     <p>
-      Choose <strong>Test</strong> on the server’s row. It opens a fresh connection through the adapter
-      and reports Up with a tool count, Needs sign-in, Down, Disabled, Not in config, or Test inconclusive.
+      Opening the tab checks every enabled server once, and <strong>Check again</strong> repeats it. Each
+      row then reads Up with a tool count, Needs sign-in, Down, Disconnected, or Disabled.
     </p>
     <p>
-      Signing in and testing don’t call a model, so they cost no tokens. With no live session, a
-      <strong>State unknown</strong> result doesn’t mean it’s broken. Cached tool names don’t mean the
-      service is reachable either.
+      Signing in and checking don’t call a model and need no open session, so they cost no tokens. A
+      running chat picks up a new sign-in on its next message.
     </p>
     <p>
-      Start a new session after changing config. Ask for something small and read-only, like “Find
-      the Linear issue I specify and summarize its acceptance criteria. Do not change it.” Check the
-      tool result, not just the answer. Tool calls during a task use normal model tokens and may
-      count against the service’s quota.
+      Ask for something small and read-only, like “Find the Linear issue I specify and summarize its
+      acceptance criteria. Do not change it.” Check the tool result, not just the answer. Tool calls
+      during a task use normal model tokens and may count against the service’s quota.
     </p>
     <p>
-      By default the gateway lets the agent look up tool details when it needs them, instead of
-      sending every schema with every request. Configuring tools as direct skips that and uses more
-      context.
+      By default pi doesn’t send every tool’s schema with every request. The agent finds tools with
+      a search and calls them from a short script, which shows in the chat as “Ran a script”.
+      Setting a server’s exposure to direct skips that and uses more context on every request.
     </p>
   </section>
   <section id="catalog">
@@ -114,8 +108,9 @@ const sections: [string, string][] = [
       package you install.
     </p>
     <p>
-      Test it after saving, then start a new session to load it. If a project server overrides a
-      global one with the same name, Advanced shows the raw config and which one wins.
+      Check it after saving. A running chat loads the change before its next message. A project
+      server replaces a global one with the same name, and pi only reads a project’s config once
+      you’ve trusted the folder: run <code>pi</code> in a terminal there and choose Trust.
     </p>
     <p>
       Using your Claude subscription? Add servers here too. Phosphor keeps the Claude CLI’s own MCP
@@ -125,16 +120,15 @@ const sections: [string, string][] = [
   <section id="permissions">
     <h2>Permissions and troubleshooting</h2>
     <ul>
-      <li><strong>Needs sign-in:</strong> use Sign in or Reconnect for the account you want.</li><li
-      >
-        <strong>Down or inconclusive:</strong> check the server URL, your network, that the adapter is
-        installed, and anything a local command needs. Then Test again.
+      <li><strong>Needs sign-in:</strong> use Sign in for the account you want.</li><li>
+        <strong>Down:</strong> check the server URL, your network, and anything a local command needs.
+        Then Check again.
       </li><li>
         <strong>Slack’s Add is disabled:</strong> finish setting up your Slack app first: client ID, redirect
         URI, PKCE, and scopes. “Set up the app” on the card has the manifest.
       </li><li>
-        <strong>Tools missing from a running chat:</strong> start a new session. The adapter only reads
-        its config at startup.
+        <strong>Tools missing from a running chat:</strong> send another message. Phosphor reloads a chat’s
+        MCP config before its next turn when it changed.
       </li><li>
         <strong>The wrong config wins:</strong> check scope and overrides in Advanced instead of copying
         credentials into more files.
@@ -147,8 +141,8 @@ const sections: [string, string][] = [
     </p>
     <p>
       <a href={doc('mcp.md')}>MCP configuration, scope resolution, and OAuth reference</a> · <a
-        href="/guides/extensions/#mcp">MCP adapter package</a
-      > · <a href={piDoc('mcp')}>pi’s built-in MCP</a>
+        href={piDoc('mcp')}>pi’s built-in MCP</a
+      >
     </p>
   </section>
 </Guide>

@@ -16,13 +16,12 @@ import { recordAppLaunch } from './feedback/feedback-service'
 import { maintenanceScheduler } from './ipc/maintenance-handlers'
 import { registry } from './registry'
 import { ptyManager } from './pty/pty-manager'
-import { disposeConnectorAuth } from './pi/connector-auth'
+import { disposeMcpLogins } from './pi/mcp-cli'
 import { ensureDesktopArtifactSkill } from './pi/session-launch'
 import { cancelAllLogins } from './pi/login-flow'
 import { cancelAllClaudeLogins } from './pi/claude-login'
 import { unwatchAll } from './pi/session-watcher'
 import { unwatchAllWorkspaces } from './fs/workspace-watcher'
-import { unwatchMcpCache } from './pi/mcp-cache-watcher'
 import { settleAccount } from './account'
 import { configureLinuxKeyring } from './account/keyring'
 import { startUpdateChecks, stopUpdateChecks } from './updates/updater'
@@ -344,9 +343,9 @@ function beginQuit(): void {
   // pty out from under it would leave that timer running against a dead id.
   cancelAllLogins()
   cancelAllClaudeLogins()
-  // A connector flow owns its own throwaway pi child — not in the registry, so
-  // disposeAll below would not touch it, and it holds the OAuth callback port.
-  disposeConnectorAuth()
+  // A connector sign-in is its own `pi mcp login` child — not in the registry,
+  // so disposeAll below would not touch it, and it holds the OAuth callback port.
+  disposeMcpLogins()
   ptyManager.killAll()
   // Stop admission and persist interrupted routine outcomes before disposing
   // unrelated sessions. Routine cancellation owns its nested process tree.
@@ -356,7 +355,6 @@ function beginQuit(): void {
       settleAccount(),
       unwatchAll(),
       unwatchAllWorkspaces(),
-      unwatchMcpCache(),
     ]).finally(() => {
       quitComplete = true
       app.quit()

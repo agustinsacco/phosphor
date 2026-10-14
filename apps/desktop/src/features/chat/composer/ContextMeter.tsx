@@ -349,15 +349,14 @@ function ContextComposition({
 /**
  * Which connector is costing what, and how much of it is actually loaded.
  *
- * Six connected servers with promoted tools can occupy more of the window than
- * the conversation does, and the single "MCP tools" slice cannot say which one
- * to disable. Absent until the adapter reports its servers.
+ * Servers with direct tools can occupy more of the window than the
+ * conversation does, and the single "MCP tools" slice cannot say which one to
+ * change. Absent until pi has connected a server.
  *
  * Each chip is `name  loaded/total  ~tokens`: how many of the server's tools
- * have a schema in the window right now (`directTools`, or a search-mode
- * activation) out of how many it offers, then the schema cost. A bare token
- * figure used to be the only number, and seven identical gateway proxies all
- * reading "34" was taken for seven servers with 34 tools each.
+ * have a schema in the window right now (`direct`, or loaded by tool search)
+ * out of how many it offers, then the schema cost. A server behind codemode
+ * reads `0/N`: up, and costing nothing until a script calls it.
  *
  * Chips rather than rows: what matters per server is a name and two numbers,
  * and a row each spent a line of height on 25 characters of it.
@@ -383,7 +382,7 @@ function McpServers({
           >
             <span className="max-w-[9rem] truncate">{row.name}</span>
             <span className="tabular-nums">
-              {row.direct}/{row.toolCount === null ? '?' : row.toolCount}
+              {row.count}/{row.toolCount === null ? '?' : row.toolCount}
             </span>
             <span className="text-text-tertiary tabular-nums">~{formatTokens(row.tokens)}</span>
           </span>
@@ -395,12 +394,11 @@ function McpServers({
 
 function mcpServerTitle(row: ReturnType<typeof mcpServerRows>[number]): string {
   const offered = row.toolCount === null ? 'an unknown number of' : String(row.toolCount)
-  const proxies = row.count - row.direct
-  const proxy =
-    proxies > 0
-      ? ` The MCP gateway's proxy tool for this server is in the window too; the rest of its tools are fetched through it on demand, not carried in context.`
+  const rest =
+    row.toolCount !== null && row.count < row.toolCount
+      ? ' The rest are reached through codemode or tool search, not carried in context.'
       : ''
-  return `${row.name}: ${row.direct} of ${offered} tools loaded as schemas in the window, ~${formatTokens(row.tokens)} tokens in all.${proxy}`
+  return `${row.name}: ${row.count} of ${offered} tools loaded as schemas in the window, ~${formatTokens(row.tokens)} tokens in all.${rest}`
 }
 
 /**

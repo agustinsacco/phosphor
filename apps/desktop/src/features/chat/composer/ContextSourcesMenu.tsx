@@ -6,7 +6,7 @@ import {
   CONTEXT_FILE_LABELS,
   type ContextFileKind,
 } from '@shared/context-files'
-import { directToolsSummary } from '@shared/mcp'
+import { exposesDirectTools } from '@shared/mcp'
 import { ipcErrorText } from '@shared/errors'
 import { formatTokens } from '@/lib/format'
 import { PopupMenu } from '@/components/PopupMenu'
@@ -29,12 +29,13 @@ import { contextFileToggleState } from './contextFileToggle'
  * what its pi reports (`pi-ext/context-files.ts`), not from the preference,
  * which may have moved on since the lane started.
  *
- * Connectors: the servers' own `disabled` flag, as in Settings. The adapter
- * reads it when a lane starts; a running lane picks a change up right before
- * its next turn, when Phosphor reloads its extensions
+ * Connectors: the servers' own `enabled` flag, as in Settings. pi reads it
+ * when a lane starts; a running lane picks a change up right before its next
+ * turn, when Phosphor reloads its extensions
  * (`libs/session-runtime/src/pi/lane-reload.ts`). Inside a lane the files are
  * read from the lane's own folder, a worktree's included, since that is the
- * `.mcp.json` its adapter loads.
+ * `.pi/mcp.json` its pi loads. A lane also says which servers it has
+ * connected, through its context breakdown.
  */
 export function ContextSourcesMenu({
   workspacePath,
@@ -51,6 +52,13 @@ export function ContextSourcesMenu({
   )
   const mcp = useMcpServers(laneFolder ?? workspacePath)
   const servers = mcp.servers ?? []
+  const breakdownText = useExtensionUiStore((s) =>
+    sessionId ? s.statuses[sessionId]?.[CONTEXT_BREAKDOWN_STATUS_KEY] : undefined,
+  )
+  const connected = useMemo(
+    () => parseContextBreakdown(breakdownText)?.mcpByServer,
+    [breakdownText],
+  )
 
   const rulesOn = rules.filter((rule) => rule.state.checked).length
   const label = `Rules ${rulesOn}/${rules.length}${servers.length > 0 ? ` · MCP ${mcp.enabled}/${servers.length}` : ''}`
@@ -175,22 +183,31 @@ export function ContextSourcesMenu({
               />
               <div className="max-h-60 overflow-y-auto" role="group" aria-label="Connectors">
                 {servers.map((server) => {
-                  const direct = directToolsSummary(server.config.directTools)
+                  const direct = exposesDirectTools(server.config)
+                  const tools = connected?.[server.name]?.toolCount
                   return (
                     <TooltipLabel key={server.name} className={ROW_CLASS}>
                       <input
                         type="checkbox"
-                        checked={server.config.disabled !== true}
+                        checked={server.config.enabled !== false}
                         onChange={(event) => void mcp.setEnabled(server, event.target.checked)}
                         className="accent-[var(--px-accent)]"
                       />
                       <span className="text-text min-w-0 flex-1 truncate font-mono">
                         {server.name}
                       </span>
+                      {typeof tools === 'number' && (
+                        <span
+                          className="text-text-tertiary shrink-0 text-sm"
+                          data-tooltip="Connected in this lane"
+                        >
+                          {tools} tool{tools === 1 ? '' : 's'}
+                        </span>
+                      )}
                       {direct && (
                         <span
                           className="text-warning shrink-0 text-sm"
-                          data-tooltip={`directTools (${direct}): these tools skip the mcp gateway and cost their full schema on every request. Change it in Settings → Connectors.`}
+                          data-tooltip="Direct tools are declared on every request and cost their full schema each time. Change it in Settings → Connectors."
                         >
                           direct
                         </span>
