@@ -728,7 +728,9 @@ resume; glob `<projectDir>/*/subagents/agent-<taskId>.jsonl` instead), and
   mount. The `Test provider` run is not free (it spends a little plan quota),
   so it stays behind a button.
 - Settings edits apply to **new sessions**; pi reads config at spawn. Every
-  mutating surface says so.
+  mutating surface says so. The exceptions are MCP servers and installed
+  packages: running lanes reload before their next prompt
+  ([mcp.md](mcp.md#in-a-session)).
 
 ## The Claude Code provider
 

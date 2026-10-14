@@ -197,8 +197,9 @@ re-publishes only when the set of MCP tools changed. A codemode server reads
 ([chat.md](chat.md#what-the-context-meters-popover-shows)).
 
 **Running lanes pick config changes up before their next turn.** pi reads
-`mcp.json` when a lane starts, so main reloads a lane's extensions right
-before a prompt whose MCP config changed since the lane last loaded it
+`mcp.json` and its package settings when a lane starts, so main reloads a
+lane's extensions right before a prompt whose config changed since the lane
+last loaded it
 (`libs/session-runtime/src/pi/lane-reload.ts`, inside pi
 `libs/pi-extensions/pi-ext/lane-reload.ts`). The process, transcript, model
 and thinking level stay. On pi 1.2.0 a server turned off loses its tools and a
@@ -208,11 +209,14 @@ newly enabled one is back, with its exposure, on the next request.
   follow-up joins the running turn), not for host controls, not for routine
   lanes. Turns the agent starts itself (a sub-agent's completion waking the
   parent) wait for your next message.
-- **What counts as a change.** A fingerprint of the lane's two files, global
-  and `<lane>/.pi/mcp.json` (`apps/desktop/electron/pi/lane-config.ts`). Files
-  are re-read only when their stat changes, and hashed as canonical JSON, so a
-  reformat or an unchanged save is not a change. A trust decision made later
-  reaches new lanes only.
+- **What counts as a change.** A fingerprint of the lane's two `mcp.json`
+  files, global and `<lane>/.pi/mcp.json`, plus `packages` and `extensions` in
+  both `settings.json` files (`apps/desktop/electron/pi/lane-config.ts`). The
+  settings are what the migration changes, so an open lane drops the adapter
+  and turns pi's MCP on in the same reload; other settings pi rewrites itself,
+  such as the last model, do not count. Files are re-read only when their stat
+  changes, and hashed as canonical JSON, so a reformat or an unchanged save is
+  not a change. A trust decision made later reaches new lanes only.
 - **Refusals wait, they never force.** pi-subagents keeps background children
   across a reload but stops a running async workflow and detached foreground
   children, and a pending completion must reach the parent first. The
@@ -270,6 +274,12 @@ built-in alone:
   `!builtin:mcp`;
 - the pi-mcp-adapter package is installed, in either scope.
 
+Until then the adapter keeps working: pi loads it and nothing is rewritten.
+Phosphor just no longer shows or signs in to those servers. So people find the
+card without opening Settings, every launch with the adapter set up globally
+shows a notice, "Move your MCP connectors", that opens Connectors
+(`apps/desktop/src/features/connectors/migrationNotice.ts`). It moves nothing.
+
 **The card previews the whole change** (`mcp:migrationPlan`): each server and
 the file it goes to, with a note for anything translated or dropped; servers
 that cannot move, with the reason; the files renamed; whether the built-in is
@@ -287,8 +297,9 @@ removal still leaves a working setup once the package goes:
      `.pi/mcp-adapter.json`) with its field-by-field merge, to get the config
      each server actually ran with;
    - writes the translated servers into pi's `mcp.json` for the same scope,
-     after copying an existing file to `.bak-<time>`. A server only pi's
-     `mcp.json` already defined is left alone;
+     after copying an existing file to `.bak-<time>`. pi's `mcp.json` was one
+     of the adapter's files (older adapters kept everything there), so its
+     entries are translated too; one already in pi's shape is left alone;
    - renames the adapter's own files to `.migrated-<time>`;
    - removes `-builtin:mcp` / `!builtin:mcp` from pi's settings, after a
      `.bak-<time>` copy.
@@ -297,6 +308,10 @@ removal still leaves a working setup once the package goes:
 
 Files the adapter shared with other MCP clients (`~/.config/mcp/mcp.json`,
 `~/.agents/mcp.json`, `.mcp.json`) are read for the merge and never written.
+Only scopes the adapter was running are planned: one with its own file, and
+both while pi's MCP is turned off. So once global config has moved, a project
+that still has `.pi/mcp-adapter.json` moves only its own servers, and the
+shared files are not merged into the global file a second time.
 
 **Translation** (`translateEntry` in `apps/desktop/electron/pi/mcp-migration.ts`)
 keeps what pi understands and says what it drops. Some examples: a bearer token
@@ -312,7 +327,10 @@ Adapter-only settings with no meaning in pi (`lifecycle`, `idleTimeout`,
 **Sign in again afterwards.** Credentials do not move: the adapter kept its
 tokens in the OS credential store and pi keeps its own, so every OAuth server
 signs in once more, and the card names them. The adapter's old tokens stay in
-the credential store. Open sessions switch over before their next message.
+the credential store. Open sessions switch over before their next message:
+the lane reload follows the `packages` and `extensions` settings as well as
+`mcp.json` ([In a session](#in-a-session)), so a lane that reloads between the
+two steps reloads again once the package is gone.
 
 The adapter's commands (`/mcp-auth`, `/mcp-adapter`, `/pi-mcp`, its MCP
 prompts) and its `mcp` / `mcpScript` tools go with the package.

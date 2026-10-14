@@ -3371,8 +3371,8 @@ test('Connectors: moves pi-mcp-adapter config to pi’s built-in MCP', async () 
   const { page } = harness
   try {
     await openWorkspace(page)
-    await page.getByRole('button', { name: 'Settings' }).click()
-    await page.getByRole('button', { name: 'MCP Connectors', exact: true }).click()
+    // Every launch says so, outside Settings, and the notice is the way in.
+    await page.getByRole('button', { name: 'Open Connectors: Move your MCP connectors' }).click()
 
     // Nothing is touched until the user has read the plan and asked.
     await expect(page.getByText('Move your connectors to pi’s built-in MCP')).toBeVisible({

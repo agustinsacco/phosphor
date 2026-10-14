@@ -10,9 +10,9 @@ import type { PiRpcClient } from './rpc-client'
 
 export interface LaneReloadDeps {
   /**
-   * What a lane's extensions read when they start (its MCP config), from the
-   * lane's own folder. Cheap: it runs before every prompt. Null when it cannot
-   * be read, which never triggers a reload.
+   * What a lane's extensions read when they start (MCP and package config),
+   * from the lane's own folder. Cheap: it runs before every prompt. Null when
+   * it cannot be read, which never triggers a reload.
    */
   fingerprint: (cwd: string) => Promise<string | null>
   log: RuntimeLog

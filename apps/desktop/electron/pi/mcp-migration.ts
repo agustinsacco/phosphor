@@ -1,5 +1,6 @@
 import { copyFile, mkdir, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { isDeepStrictEqual } from 'node:util'
 import {
   isMcpExposure,
   isMcpOverride,
@@ -20,8 +21,13 @@ import { disablesBuiltinMcp, mcpDirs, serverProblem, type McpDirs } from './mcp-
  * reads two files and replaces whole entries. So the migration replays the
  * adapter's merge to get the config each server actually ran with, translates
  * that into pi's shape, and writes it to pi's own file for the same scope.
- * Servers that only pi's `mcp.json` defined already are pi config and are
- * left alone.
+ * pi's own `mcp.json` was one of the adapter's files (once its main one), so
+ * its entries are translated too; one already in pi's shape is left alone.
+ *
+ * Only scopes the adapter was running are planned: one with its own file, and
+ * every scope while it had pi's MCP turned off. Once moved, a later run (a
+ * project that still has an adapter file) leaves global config alone, rather
+ * than merging the shared files into it again.
  *
  * Nothing is deleted. Target files are backed up before they are written, the
  * adapter's own files are renamed out of the way, and files shared with other
@@ -316,9 +322,16 @@ export function buildPlan(sources: ReadSource[], settings: unknown): McpMigratio
     builtinDisabled: disablesBuiltinMcp(settings),
     blocked: sources.filter((s) => s.malformed).map((s) => s.path),
   }
+  const owns = (scope: McpScope): boolean =>
+    sources.some((s) => s.scope === scope && s.owned && s.exists)
+  const adapterRan = {
+    global: owns('global') || plan.builtinDisabled,
+    project: owns('global') || plan.builtinDisabled || owns('project'),
+  }
   const names = new Set<string>()
   for (const scope of ['global', 'project'] as const) {
-    const merged = new Map<string, { entry: Entry; sources: string[]; adapter: boolean }>()
+    if (!adapterRan[scope]) continue
+    const merged = new Map<string, { entry: Entry; sources: string[]; piOnly: boolean }>()
     for (const source of sources.filter((s) => s.scope === scope && s.exists)) {
       const servers = isRecord(source.raw.mcpServers) ? source.raw.mcpServers : {}
       for (const [name, value] of Object.entries(servers)) {
@@ -327,7 +340,7 @@ export function buildPlan(sources: ReadSource[], settings: unknown): McpMigratio
         merged.set(name, {
           entry: mergeAdapterEntry(previous?.entry, value),
           sources: [...(previous?.sources ?? []), source.path],
-          adapter: (previous?.adapter ?? false) || !source.target,
+          piOnly: (previous?.piOnly ?? true) && source.target,
         })
       }
       if (source.owned && Array.isArray(source.raw.imports) && source.raw.imports.length > 0) {
@@ -338,17 +351,17 @@ export function buildPlan(sources: ReadSource[], settings: unknown): McpMigratio
         })
       }
     }
-    for (const [name, { entry, sources: from, adapter }] of merged) {
-      // Already pi config, defined nowhere else: nothing to migrate.
-      if (!adapter) {
-        names.add(name)
-        continue
-      }
+    for (const [name, { entry, sources: from, piOnly }] of merged) {
       const source = from[from.length - 1]!
       const translated =
         isMcpOverride(entry as McpServerConfig) && entry.socket === undefined
           ? translatePartial(entry, scope)
           : translateEntry(name, entry, scope)
+      // Only in pi's file, and already in pi's shape: nothing to move.
+      if (piOnly && 'config' in translated && isDeepStrictEqual(translated.config, entry)) {
+        names.add(name)
+        continue
+      }
       if ('skip' in translated) {
         plan.skipped.push({ name, source, reason: translated.skip })
         continue

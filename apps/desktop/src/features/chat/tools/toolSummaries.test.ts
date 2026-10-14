@@ -162,6 +162,14 @@ describe('summarizeTool', () => {
     )
   })
 
+  it('names the first awaited call of a codemode script, past its scaffolding', () => {
+    const code =
+      '// read-only listing\ntry {\n  const v = await tools.mcp__snowflake__list_semantic_views({})\n} catch {}'
+    expect(summarizeTool(tool({ toolName: 'codemode', args: { code } })).object).toBe(
+      'const v = await tools.mcp__snowflake__list_semantic_views({})',
+    )
+  })
+
   it("summarizes pi's tool_search by its query", () => {
     const t = tool({ toolName: 'tool_search', args: { query: 'linear issues' } })
     expect(summarizeTool(t)).toMatchObject({ label: 'Searched tools for', object: 'linear issues' })

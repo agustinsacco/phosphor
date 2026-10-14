@@ -1,14 +1,14 @@
 /**
  * `/phosphor-reload <token>`: rebuild this lane's extensions between turns so
- * configuration they read at startup (MCP servers above all) reaches a lane
+ * configuration they read at startup (MCP servers and packages) reaches a lane
  * that is already running.
  *
  * pi's reload keeps the process, the transcript, the model and the thinking
  * level, and starts every extension again from its module (verified on pi
- * 1.2.0's built-in MCP: a disabled server's tools are gone and a newly
- * enabled one is back, with its exposure, on the next request). Phosphor main sends this right
- * before a prompt, only when the lane's MCP config changed since it loaded it
- * (`libs/session-runtime/src/pi/lane-reload.ts`).
+ * 1.2.0: a disabled MCP server's tools are gone, a newly enabled one is back
+ * with its exposure, and a package removed from settings is unloaded).
+ * Phosphor main sends this right before a prompt, only when the lane's config
+ * changed since it loaded it (`libs/session-runtime/src/pi/lane-reload.ts`).
  *
  * It is refused, never forced, when:
  * - the lane is mid-run (pi would rebuild tools under a running turn);

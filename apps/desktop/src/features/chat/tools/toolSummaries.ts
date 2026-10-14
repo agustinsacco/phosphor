@@ -250,13 +250,16 @@ export function summarizeTool(tool: ToolState, workspacePath?: string): ToolSumm
     }
     case 'codemode': {
       // pi's script runner, which is how MCP tools are called by default. The
-      // calls inside the script are nested and get no rows of their own.
+      // calls inside the script are nested and get no rows of their own, so
+      // the row names the first thing the script waits on (a tool call, as a
+      // rule) rather than its scaffolding (`try {`).
       const code =
         typeof args?.code === 'string' ? args.code : partialStringArg(tool.argsText, 'code')
-      const line = code
-        ?.split('\n')
+      const lines = (code ?? '')
+        .split('\n')
         .map((text) => text.trim())
-        .find((text) => text && !text.startsWith('//'))
+        .filter((text) => text && !text.startsWith('//'))
+      const line = lines.find((text) => /\bawait\b/.test(text)) ?? lines[0]
       return {
         label: running ? 'Running a script' : 'Ran a script',
         object: line ? truncate(line, 64) : undefined,

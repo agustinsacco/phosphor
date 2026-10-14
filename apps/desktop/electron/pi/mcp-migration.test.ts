@@ -201,7 +201,7 @@ describe('mergeAdapterEntry', () => {
 })
 
 describe('planMcpMigration', () => {
-  it('replays the adapter chain into pi’s files, leaving pi-only servers alone', async () => {
+  it('replays the adapter chain into pi’s files, leaving pi-shaped servers alone', async () => {
     await write(join(dirs.xdgConfig, 'mcp', 'mcp.json'), {
       mcpServers: { shared: { command: 'shared-mcp' } },
     })
@@ -235,6 +235,45 @@ describe('planMcpMigration', () => {
     ])
     expect(plan.builtinDisabled).toBe(true)
     expect(plan.blocked).toEqual([])
+  })
+
+  it('translates adapter entries in pi’s own mcp.json, which the adapter read too', async () => {
+    // Older adapters kept their config in pi's mcp.json; pi rejects `auth: "oauth"`.
+    await write(join(dirs.piAgent, 'mcp.json'), {
+      mcpServers: {
+        linear: { url: 'https://mcp.linear.app/mcp', auth: 'oauth', lifecycle: 'eager' },
+        native: { url: 'https://n.test', exposure: 'direct' },
+      },
+    })
+    await write(join(dirs.piAgent, 'settings.json'), { extensions: ['-builtin:mcp'] })
+
+    const plan = await planMcpMigration(undefined, dirs)
+    expect(plan.servers.map((s) => [s.name, s.config])).toEqual([
+      ['linear', { url: 'https://mcp.linear.app/mcp' }],
+    ])
+    await runMcpMigration(undefined, dirs)
+    expect(await read(join(dirs.piAgent, 'mcp.json'))).toEqual({
+      mcpServers: {
+        linear: { url: 'https://mcp.linear.app/mcp' },
+        native: { url: 'https://n.test', exposure: 'direct' },
+      },
+    })
+  })
+
+  it('after the move, plans only a project that still has an adapter file', async () => {
+    // pi's MCP is on and the global adapter file is gone, but a shared file
+    // still names a server the user removed from pi's config since.
+    await write(join(dirs.xdgConfig, 'mcp', 'mcp.json'), {
+      mcpServers: { removed: { command: 'gone' } },
+    })
+    await write(join(dirs.piAgent, 'settings.json'), { extensions: [] })
+    await write(join(workspace, '.pi', 'mcp-adapter.json'), {
+      mcpServers: { local: { command: 'l', lifecycle: 'eager' } },
+    })
+
+    const plan = await planMcpMigration(workspace, dirs)
+    expect(plan.servers.map((s) => [s.scope, s.name])).toEqual([['project', 'local']])
+    expect(plan.retire).toEqual([join(workspace, '.pi', 'mcp-adapter.json')])
   })
 
   it('blocks on a file it cannot read', async () => {
@@ -295,6 +334,7 @@ describe('runMcpMigration', () => {
   it('never writes the shared files it read', async () => {
     const shared = join(dirs.home, '.agents', 'mcp.json')
     await write(shared, { mcpServers: { s: { command: 's' } } })
+    await write(join(dirs.piAgent, 'settings.json'), { extensions: ['-builtin:mcp'] })
     const before = await readFile(shared, 'utf8')
     await runMcpMigration(undefined, dirs)
     expect(await readFile(shared, 'utf8')).toBe(before)

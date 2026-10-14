@@ -1,5 +1,5 @@
 import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   exposesDirectTools,
@@ -111,10 +111,13 @@ export function ConnectorsTab(): React.JSX.Element {
     if (packages !== null && !legacy && hasServers) void check()
   }, [check, packages, legacy, hasServers])
 
-  // A finished sign-in changes what pi can reach; ask again.
+  // A sign-in that finishes while the tab is open changes what pi can reach;
+  // ask again. One that finished before it opened is already in the first check.
   const signedIn = Object.values(flows).filter((flow) => flow.phase === 'connected').length
+  const seenSignIns = useRef(signedIn)
   useEffect(() => {
-    if (signedIn > 0) void check()
+    if (signedIn > seenSignIns.current) void check()
+    seenSignIns.current = signedIn
   }, [signedIn, check])
 
   const act = async (fn: () => Promise<unknown>): Promise<void> => {
