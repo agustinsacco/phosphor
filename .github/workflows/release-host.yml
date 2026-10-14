@@ -22,8 +22,44 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  native:
+    name: Native PTY (${{ matrix.target }})
+    if: github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: linux-x64, runner: ubuntu-22.04 }
+          - { target: linux-arm64, runner: ubuntu-22.04-arm }
+          - { target: darwin-arm64, runner: macos-14 }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.14.1
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Build and verify native PTY with the bundled Node
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          node --input-type=module -e 'import {nodeArchive} from "./tools/host-release/build-bundle.mjs"; await nodeArchive(process.env.TARGET, process.env.RUNNER_TEMP + "/node-cache")'
+          V=$(node -p "require('./tools/host-release/node.json').version")
+          tar -xzf "$RUNNER_TEMP/node-cache/node-v$V-$TARGET.tar.gz" -C "$RUNNER_TEMP"
+          node tools/host-release/build-native.mjs --out "$RUNNER_TEMP/native" --node "$RUNNER_TEMP/node-v$V-$TARGET/bin/node"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: host-native-${{ matrix.target }}
+          path: ${{ runner.temp }}/native
+          if-no-files-found: error
+
   release:
     name: Build, sign and publish the Host
+    needs: native
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     permissions:
@@ -100,6 +136,11 @@ jobs:
       - name: Install
         run: npm ci --no-audit --no-fund
 
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: host-native-*
+          path: native-artifacts
+
       - name: Build the three bundles
         env:
           HOST_RELEASE_VERSION: ${{ inputs.version }}
@@ -107,7 +148,7 @@ jobs:
           set -euo pipefail
           node tools/host-release/installer.mjs --require
           for target in linux-x64 linux-arm64 darwin-arm64; do
-            node tools/host-release/build-bundle.mjs --target "$target" --out dist --cache "$RUNNER_TEMP/node-cache"
+            node tools/host-release/build-bundle.mjs --target "$target" --out dist --cache "$RUNNER_TEMP/node-cache" --native "native-artifacts/host-native-$target"
           done
 
       - name: Sign the manifest

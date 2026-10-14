@@ -54,6 +54,22 @@ it('refuses a version that is not X.Y.Z, already exists or is not higher than th
       expect(line, line).toMatch(/^\s+[A-Z_]+: \$\{\{ inputs\.version \}\}$|^Publish host-v/)
 })
 
+it('builds node-pty on each target runner and stages it into that target only', () => {
+  const native = workflow.slice(workflow.indexOf('  native:'), workflow.indexOf('  release:'))
+  for (const [target, runner] of [
+    ['linux-x64', 'ubuntu-22.04'],
+    ['linux-arm64', 'ubuntu-22.04-arm'],
+    ['darwin-arm64', 'macos-14'],
+  ])
+    expect(native).toContain(`{ target: ${target}, runner: ${runner} }`)
+  expect(native).not.toContain('secrets.')
+  expect(native).toContain('build-native.mjs')
+  expect(workflow).toContain('    needs: native\n')
+  expect(step('Build the three bundles')).toContain(
+    '--native "native-artifacts/host-native-$target"',
+  )
+})
+
 it('resumes a failed publication from the same commit without replacing published bytes', () => {
   const publish = step('Publish host-v')
   expect(publish).toContain('if [[ "$RESUME" != true ]]; then')
