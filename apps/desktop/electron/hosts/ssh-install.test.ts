@@ -36,11 +36,12 @@ process.stdin.on('data', (data) => input += data)
 process.stdin.on('end', () => {
  fs.appendFileSync(process.env.INPUT, JSON.stringify(input) + '\\n')
  if (process.env.HOLD === 'yes') {
- fs.writeFileSync(process.env.PID, String(process.pid))
+ // The pid file is the test's go signal, so the child exists before it does.
  if (process.env.CHILD === 'yes') {
    const child = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {stdio: 'ignore'})
    fs.writeFileSync(process.env.CHILD_PID, String(child.pid))
  }
+ fs.writeFileSync(process.env.PID, String(process.pid))
  setInterval(() => {}, 1000); return
  }
  if (command.includes('login')) {
@@ -63,7 +64,9 @@ process.stdin.on('end', () => {
    process.exitCode = Number(process.env.FAIL_CODE)
    return
  }
- setTimeout(() => process.exit(0), 20)
+ // Login exits on its own once its delayed output is written; a fixed exit
+ // timer could fire first on a loaded machine and drop that output.
+ if (!command.includes('login')) setTimeout(() => process.exit(0), 20)
 })
 `,
     { mode: 0o700 },
