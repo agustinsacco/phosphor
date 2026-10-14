@@ -192,6 +192,16 @@ The composer is one small field with several ways in.
   frame later (`items/measureRow.ts`). The follow effect only ever bottoms out
   on geometry the same commit produced, so a wheel in the frame after a turn
   settles is never undone by a late `scrollTop = scrollHeight`.
+- **A following view keeps the tail in sight when the viewport resizes.** The
+  composer grows as a draft wraps, and gains its steer row on the first key of
+  a running turn; the virtualizer does not re-render for that, so the
+  scroller's own ResizeObserver bottoms out a pinned view. An unpinned one is
+  left where it is.
+- **Typing renders the field, not the strips around it.** The composer's
+  status strips, model picker and readouts subscribe to the chat store
+  themselves and are memoised on the session, so a keystroke never re-renders
+  them (`Composer.renders.test.tsx`). The transcript never subscribes to the
+  draft at all.
 
 ## Message affordances
 
