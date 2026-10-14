@@ -336,6 +336,15 @@ it('shows the model each agent was asked to run on, per step for a parallel laun
   // Unreported (the snapshot is withdrawn) and live, the same launch names it.
   expect(currentWork(state, null).entries[0]?.model).toBe(model)
   expect(currentWork(state, snapshotOf([singleRun(RUN_A)])).entries[0]?.model).toBe(model)
+  // The model pi-subagents reports the step running on wins over the request.
+  const resolved = singleRun(RUN_A)
+  Object.assign(resolved.children[0]!, { model: 'pi-claude-cli/claude-haiku-4-5', thinking: 'low' })
+  expect(currentWork(state, snapshotOf([resolved])).entries[0]?.model).toBe(
+    'pi-claude-cli/claude-haiku-4-5:low',
+  )
+  expect(
+    currentWork(state, null, { snapshot: snapshotOf([resolved]), receivedAt: 1 }).entries[0]?.model,
+  ).toBe('pi-claude-cli/claude-haiku-4-5:low')
   const parallel = {
     id: RUN_B,
     kind: 'subagent',

@@ -20,8 +20,9 @@ export interface WorkEntry {
   /** The agent profile, e.g. `worker`. Several entries can share it. */
   label: string
   /**
-   * The model the child ran on when its details report one (foreground),
-   * else the one the parent asked for. Unset: the agent's default, unknown here.
+   * The model the child runs on when pi-subagents reports it (foreground
+   * details, or a background step's snapshot), else the one the parent asked
+   * for. Unset: the agent's default, unknown here.
    */
   model?: string
   /** Display title from the delegated prompt; identity stays on the IDs below. */
@@ -68,6 +69,7 @@ function nodeEntry(node: FleetNode, runId: string, childId?: string): WorkEntry 
   return {
     id: `${runId}:${node.id}`,
     label: node.label,
+    model: node.model,
     startedAt: node.startedAt,
     endedAt: node.endedAt,
     lastActivityAt: node.lastActivityAt,
@@ -227,6 +229,7 @@ export function currentWork(
         {
           id: root.id,
           label: step?.label ?? root.label,
+          model: step?.model ?? root.model,
           startedAt: step?.startedAt ?? root.startedAt,
           endedAt: step?.endedAt ?? root.endedAt,
           toolCount: step?.toolCount ?? root.toolCount,

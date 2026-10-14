@@ -474,6 +474,8 @@ export interface FleetNode {
   turnCount?: number
   /** pi-subagents' watchdog flagged it (`needs_attention`). */
   attention: boolean
+  /** Step nodes: the model the child runs on, with its thinking level as a suffix. */
+  model?: string
   children: FleetNode[]
 }
 
@@ -520,6 +522,8 @@ function fleetNode(
   }
   if (depth === 4 && list(node?.children).length) budget.incomplete = true
   const activity = rec(node?.activity)
+  const model = str(node?.model)
+  const thinking = str(node?.thinking)
   return {
     id,
     kind: str(node?.kind) ?? 'subagent',
@@ -533,6 +537,8 @@ function fleetNode(
     toolCount: num(activity?.toolCount),
     turnCount: num(activity?.turnCount),
     attention: activity?.state === 'needs_attention',
+    // pi-subagents reports the resolved model and its thinking level apart.
+    model: model && thinking && !model.endsWith(`:${thinking}`) ? `${model}:${thinking}` : model,
     // The extension caps depth at 3; one more here costs nothing and never
     // recurses on a malicious payload.
     children:

@@ -378,11 +378,13 @@ scout · grep`) and which is **never printed as widget lines**
   has been open, else `working`, or `quiet 40s` after 15 seconds without a
   report, then the reported tool count and `#<run>`. A long tool name truncates;
   its duration and the counts do not, and the run ID gives way first. The model
-  is the one a foreground child reports running on, else the one the launch
-  asked for (a step's own `model`, then the call's), with the provider dropped
+  is the one pi-subagents reports the child running on (foreground details, or a
+  snapshot step's `model` and `thinking`, which pi-subagents publishes only once
+  nicobailon/pi-subagents#2893 ships), else the one the launch asked for (a
+  step's own `model`, then the call's), with the provider dropped
   (`gpt-6.1-sol:medium`); the tooltip, the panel header and the background launch
-  note keep the full ID. A launch that names none uses the agent's default,
-  which neither the snapshot nor the completion reports, so no model is shown. Each
+  note keep the full ID. A background launch that names no model, on a
+  pi-subagents without that field, shows none. Each
   step's prompt binds by its native index
   for parallel and plain chains; a chain with nested parallel groups binds none,
   and a workflow prompt is never a child's task. Both lines are fixed height, so
