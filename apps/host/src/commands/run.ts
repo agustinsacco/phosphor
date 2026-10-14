@@ -1,3 +1,6 @@
+import { loadHostPty } from '../terminals/native'
+import { createTerminals, type HostTerminals } from '../terminals/service'
+import { terminalState } from '../terminals/state'
 import { createAuthority } from '../api/authority'
 import { startApi } from '../api/server'
 import { randomBytes, randomInt } from 'node:crypto'
@@ -80,6 +83,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
   let runtimeDrain: ReturnType<HostRuntime['drain']> | undefined
   let live: ReturnType<typeof createLiveLanes> | undefined
   let commands: ReturnType<typeof createLaneCommands> | undefined
+  let terminals: HostTerminals | undefined
   let lanes: LaneService | undefined
   // The store opens before the API; defer receipt delivery and presence until it starts.
   const sink: {
@@ -108,6 +112,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
         runtimeDrain ??= runtime?.drain('run finished')
         await Promise.all([stoppingApi, runtimeDrain])
         await commands?.close()
+        terminals?.close()
         live?.close()
         store?.close()
       } finally {
@@ -219,7 +224,22 @@ async function runHostCommand(context: RunContext): Promise<number> {
           log: (event, fields) => log.write('host', event, fields),
         })
         const binding = createRuntimeLanes({ runtime, store, live, log: log.write })
+        const native = loadHostPty()
+        if (native)
+          terminals = createTerminals({
+            native,
+            epoch,
+            env: machine.env,
+            context: {
+              store,
+              env: context.env,
+              home: context.home,
+              log: (event, fields) => log.write('host', event, fields),
+            },
+            ...terminalState(stateDirectory),
+          })
         commands = createLaneCommands({
+          terminals,
           store,
           ...binding,
           runtime: binding,
@@ -238,6 +258,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           log: (event, fields) => log.write('host', event, fields),
         }
         const features = [
+          ...(terminals ? [terminals.feature] : []),
           createFilesFeature(featureContext),
           createGitFeature(featureContext),
           createSkillsFeature(featureContext),
@@ -254,6 +275,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
         const activeLive = live
         const activeStore = store
         lanes = {
+          terminals,
           epoch,
           capabilities: [
             ...new Set([

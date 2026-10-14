@@ -61,3 +61,14 @@ without leaving the session, and so a shell always sits in the right checkout.
   shell exists and none can start, the paste is
   dropped, since the pane is already showing the spawn error.
 - Used by onboarding: "open a terminal running `pi` to log in".
+
+## Host terminals
+
+The Host protocol supports lane-owned PTYs when `ready` includes `terminal`.
+Viewers can watch; only the current controller can type. PTYs survive client
+disconnects, not Host restarts. The Host chooses the login shell, environment
+and lane directory. Routines never type into them. UTF-8 scrollback is bounded
+to 256 KiB and 2048 chunks; reconnects replay a valid cursor or reset to that tail.
+Input is sequenced and acknowledged, never automatically retried after uncertainty.
+Desktop remote terminal tabs are not wired yet. Local tabs keep the behavior above.
+See [Host terminals](host.md#host-terminals) for the wire limits and native build.

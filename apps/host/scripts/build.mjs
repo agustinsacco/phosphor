@@ -16,6 +16,7 @@ import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { build } from 'esbuild'
+import { validateNative } from '../../../tools/host-release/build-native.mjs'
 import { buildInto, INFO } from './output.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
@@ -27,7 +28,14 @@ const FORBIDDEN = [
   /^apps\/(desktop|site)\//,
 ]
 
-const { values } = parseArgs({ options: { out: { type: 'string' }, sha: { type: 'string' } } })
+const { values } = parseArgs({
+  options: {
+    out: { type: 'string' },
+    sha: { type: 'string' },
+    native: { type: 'string' },
+    target: { type: 'string' },
+  },
+})
 const out = resolve(values.out ?? join(ROOT, 'apps/host/dist'))
 const sha = values.sha ?? git('rev-parse', 'HEAD')
 const releaseVersion = process.env.HOST_RELEASE_VERSION
@@ -117,6 +125,11 @@ async function stageBuild(stage) {
   const foreign = [...new Set(imports.filter((path) => !isBuiltin(path)))]
   if (foreign.length > 0) {
     throw new Error(`the bundle imports ${foreign.join(', ')}, which are not Node builtins`)
+  }
+
+  if (values.native) {
+    validateNative(resolve(values.native), values.target ?? `${process.platform}-${process.arch}`)
+    cpSync(resolve(values.native), join(stage, 'native/node-pty'), { recursive: true })
   }
 
   // Every session loads these from <bundle folder>/pi-ext, with Desktop's filter.

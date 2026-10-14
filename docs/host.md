@@ -239,7 +239,7 @@ Release builds take strict `X.Y.Z` from `HOST_RELEASE_VERSION` and ignore
 untracked files when computing `sourceDirty`. Otherwise the
 version is `0.0.0-dev.<sha7>` of the source commit, HEAD unless `--sha` names
 another. The build fails if the bundle reaches Electron, `electron-store`,
-`electron-updater`, `node-pty`, Desktop or the site, imports anything but a Node
+`electron-updater`, a direct `node-pty` import, Desktop or the site, imports anything but a Node
 builtin, or lacks one of the seven extensions. It only replaces an empty folder or
 an earlier build: a real folder whose `BUILD-INFO.json` is a regular file naming
 `phosphor`, schema 1, that lists every other file in it. Anything else, a link
@@ -1296,3 +1296,46 @@ binary files without returning content. Lists cap at 500 skills and 1,000 models
 These methods are not served until the API registers the feature. Artifacts
 are not served: Desktop's artifact library reads its Electron userData store,
 which does not exist on a Host.
+
+### Host terminals
+
+A Host with `lib/native/node-pty/` announces `terminal` only after its fixed-relative
+loader succeeds. No global module lookup is used. Build the native resources on
+the matching runner with `node tools/host-release/build-native.mjs --out DIR --node NODE`.
+`NODE` must be the pinned Node 24.14.1 for that runner. node-pty is pinned to 1.1.0.
+The builder discards Desktop's rebuilt addon, uses the shipped macOS prebuild or
+rebuilds for the pinned Node, and proves spawn, resize, output and exit with that Node.
+Pass the resulting directory to `build-bundle.mjs --native DIR`. Its target marker
+must match `--target`. Native resources and the license are included in BUILD-INFO
+and signed archive hashes. The macOS spawn helper has mode 0755 in the archive.
+Linux uses node-pty's fork path and does not need the macOS helper.
+
+`terminal.list {laneId}` returns identities and status, never paths. Receipt-backed
+`terminal.create`, `terminal.resize` and `terminal.kill` require `terminal`,
+`sessions.control`, and the current lane fence. Create accepts dimensions only.
+The Host resolves the account's login shell and supplies its built lane environment
+and the admitted lane directory. Limits are 8 retained terminals per lane and 32
+per Host, including exited/interrupted entries until explicitly killed.
+
+Client disconnects leave PTYs running. Lane removal kills them within one second,
+even without a connected client. Host shutdown kills them; after restart, retained
+identities are `interrupted`. Only identities and status persist in private Host
+state. Input and scrollback never reach disk. A routine never types into a terminal.
+
+Viewers with `terminal` may subscribe to topic `terminal`. Output has an epoch and
+monotonic sequence, chunks of at most 16 KiB UTF-8, and replay bounded by 256 KiB
+and 2048 chunks. Missing, old, future or foreign-epoch cursors return
+`terminal.reset` with bounded scrollback, status, and the last consumed `inputSeq`.
+Only the current controller with both capabilities may send `terminal.input`.
+Input is at most 4096 UTF-8 bytes per frame and 64 KiB per second per terminal.
+Sequences must be exactly the last consumed sequence plus one. A write consumes its
+sequence before entering the PTY, even if delivery becomes uncertain. Acknowledgements
+report acceptance, not shell execution. Clients never retry uncertain input; a fresh
+reset supplies the consumed sequence. Grant renewal removes terminal subscriptions
+immediately when capability is lost. Slow consumers are disconnected rather than
+buffering unbounded output.
+
+Receipts and receipt-status replies are owner-only, not capability-gated.
+Terminal receipts carry no content, only an opaque terminal id.
+Every action that uses it checks the connection's current `terminal` capability;
+holding an id grants no authority.

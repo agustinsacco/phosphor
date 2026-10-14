@@ -6,7 +6,7 @@ import {
 } from '@phosphor/shared/host-protocol'
 import { streamLimits, type LaneStreams, type LanesTopic, type StreamLimits } from './stream'
 
-type Subscribe = Extract<ClientFrame, { type: 'subscribe' }>
+type Subscribe = Extract<ClientFrame, { type: 'subscribe'; topic: 'lanes' | 'lane' }>
 type Subscription = {
   request: Subscribe
   stale: boolean
@@ -201,5 +201,11 @@ export function createSubscriptions(
     }
   }
   socket.onClose(close)
-  return { handle, close, queuedBytes: () => 0, size: () => subscriptions.size }
+  return {
+    handle,
+    close,
+    queuedBytes: () => 0,
+    size: () => subscriptions.size,
+    has: (id: string) => subscriptions.has(id),
+  }
 }

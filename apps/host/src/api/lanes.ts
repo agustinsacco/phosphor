@@ -35,12 +35,15 @@ export function createLaneAdapter(
     let inFlight = 0
     const pending = new Set<string>()
     const interests = new Map<string, 'command' | 'status'>()
+    const terminalSubscriptions = new Map<string, () => void>()
     let subscriptions: ReturnType<typeof createSubscriptions> | undefined
     function close() {
       if (closed) return
       closed = true
       subscriptions?.close()
       subscriptions = undefined
+      for (const unsubscribe of terminalSubscriptions.values()) unsubscribe()
+      terminalSubscriptions.clear()
       pending.clear()
       interests.clear()
       peers.delete(connectionId)
@@ -96,6 +99,10 @@ export function createLaneAdapter(
     }
     function renew(next: readonly HostCapability[]) {
       caps = next
+      if (!caps.includes('terminal')) {
+        for (const unsubscribe of terminalSubscriptions.values()) unsubscribe()
+        terminalSubscriptions.clear()
+      }
       if (!caps.includes('sessions.read')) {
         subscriptions?.close()
         subscriptions = undefined
@@ -127,7 +134,37 @@ export function createLaneAdapter(
       renew,
       handle(frame) {
         if (closed || !socket.isOpen()) return
-        if (frame.type === 'subscribe' || frame.type === 'unsubscribe') {
+        if (frame.type === 'subscribe') {
+          if (
+            terminalSubscriptions.has(frame.id) ||
+            (frame.topic === 'terminal' && subscriptions?.has(frame.id))
+          )
+            return send({ type: 'subscribe-failed', id: frame.id, code: 'bad-request' })
+          if (
+            terminalSubscriptions.size + (subscriptions?.size() ?? 0) >=
+            limits.subscriptionsPerConnection
+          )
+            return send({ type: 'subscribe-failed', id: frame.id, code: 'too-many' })
+        }
+        if (frame.type === 'terminal.input') {
+          const accepted =
+            caps.includes('terminal') &&
+            caps.includes('sessions.control') &&
+            (service.terminals?.input(client.id, frame) ?? false)
+          send({ type: 'terminal.ack', terminalId: frame.terminalId, seq: frame.seq, accepted })
+        } else if (frame.type === 'subscribe' && frame.topic === 'terminal') {
+          if (!caps.includes('terminal'))
+            return send({ type: 'subscribe-failed', id: frame.id, code: 'forbidden' })
+          const unsubscribe = service.terminals?.subscribe(frame, (f) => {
+            if (caps.includes('terminal')) send(f)
+          })
+          if (unsubscribe) terminalSubscriptions.set(frame.id, unsubscribe)
+          else send({ type: 'subscribe-failed', id: frame.id, code: 'unknown-lane' })
+        } else if (frame.type === 'subscribe' || frame.type === 'unsubscribe') {
+          if (frame.type === 'unsubscribe') {
+            terminalSubscriptions.get(frame.id)?.()
+            terminalSubscriptions.delete(frame.id)
+          }
           if (subscriptions) subscriptions.handle(frame)
           else if (frame.type === 'subscribe')
             send({ type: 'subscribe-failed', id: frame.id, code: 'forbidden' })
@@ -139,7 +176,10 @@ export function createLaneAdapter(
             stop()
           }
         } else if (frame.type === 'command') {
-          if (!caps.includes('sessions.control'))
+          if (
+            !caps.includes('sessions.control') ||
+            !caps.includes(service.commands.capabilityFor?.(frame.op) ?? 'sessions.control')
+          )
             return send({
               type: 'receipt',
               receipt: {
