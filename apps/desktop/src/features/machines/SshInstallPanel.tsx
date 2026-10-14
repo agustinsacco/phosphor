@@ -6,12 +6,14 @@ import { Button, TextInput } from '@/components/form'
 
 export function SshInstallPanel({
   onEnrollment,
+  initialTarget = '',
   onState,
 }: {
+  initialTarget?: string
   onEnrollment: (code: string, fingerprint: string) => void
   onState: (event: SshInstallEvent | null) => void
 }): React.JSX.Element {
-  const [target, setTarget] = useState('')
+  const [target, setTarget] = useState(initialTarget)
   const [repository, setRepository] = useState('')
   const [state, setState] = useState<SshInstallEvent | null>(null)
   const [error, setError] = useState('')

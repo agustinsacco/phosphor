@@ -543,6 +543,24 @@ Local test success does not imply deployment.
 
 ## Install a Host over SSH
 
+The Add a machine dialog guides Before you start → Install → Online → Providers.
+It checks the signed-in Phosphor account and reads Tailscale status on this computer.
+A failed check offers fixed recovery guidance and manual installation remains available.
+The Online step follows the enrolled directory entry, distinguishes first connection
+from offline, and explains how to recover an enrolled but unreachable Host. Providers
+reads the Host's provider readiness and opens the machine page's Readiness section
+for Sign in. The manual fallback is `phosphor providers login PROVIDER` over SSH.
+Provider credentials stay on the Host.
+
+Optional Tailscale peer suggestions are off by default and persisted in Desktop
+preferences. Main runs only `tailscale status --json`, without a shell, with a five
+second timeout and 1 MiB output limit. Only fixed status codes and, when opted in,
+peer DNS names, OS and online flags reach the renderer. No addresses, keys, tags,
+user identities or command output are logged or exposed. Suggestions show online
+peers excluding enrolled endpoint hostnames, not machine labels. Picking a suggestion
+only fills the SSH target. It does not connect, enroll, trust or scan a peer.
+Install remains an explicit action with the existing fingerprint approval checks.
+
 Machines > Add a machine > Install over SSH uses the system `ssh` in Desktop
 main, only for installation and repair. Enter `user@host` or an SSH config alias.
 Desktop uses your agent, keys and known_hosts. It never requests a password or

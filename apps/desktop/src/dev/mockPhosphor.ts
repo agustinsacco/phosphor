@@ -1,3 +1,4 @@
+let mockTailscaleDiscovery = false
 import {
   mockRemoteAction,
   onMockRemoteChanged,
@@ -1477,6 +1478,11 @@ export function installMockPhosphor(): void {
         case 'claude:logout':
           mockClaudeAuth = { loggedIn: false }
           return Promise.resolve(undefined as never)
+        case 'hosts:tailscaleStatus':
+          return { code: 'not-installed', discovery: mockTailscaleDiscovery, peers: [] } as never
+        case 'hosts:setTailscaleDiscovery':
+          mockTailscaleDiscovery = args[0] === true
+          return undefined
         case 'hosts:sshInstall':
           throw new Error('SSH installation needs the Desktop app.')
         case 'hosts:sshInstallCancel':

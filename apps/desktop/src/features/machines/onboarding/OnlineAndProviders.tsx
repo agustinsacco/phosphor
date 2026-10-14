@@ -1,0 +1,106 @@
+import { useEffect, useState } from 'react'
+import { machineStatus, type MachineView } from '@shared/control-api'
+import type { MachineProvider } from '@shared/host-protocol-machine'
+import { useMachinesStore } from '@/stores/machines'
+import { Button } from '@/components/form'
+import { CopyCommand } from '../MachineControls'
+import { HOST_RUN, HOST_SERVICE_STATUS, HOST_SERVICE_INSTALL } from '../machinePresentation'
+
+export function OnlineAndProviders({
+  added,
+  providers,
+  onProviders,
+  onOpen,
+}: {
+  added: MachineView
+  providers: boolean
+  onProviders: () => void
+  onOpen: () => void
+}): React.JSX.Element {
+  const directory = useMachinesStore()
+  const machine = directory.machines.find((m) => m.id === added.id) ?? added
+  const online =
+    machineStatus(machine, directory.nowMs || Date.now(), directory.clockOffsetMs) === 'up'
+  const [readiness, setReadiness] = useState<MachineProvider[] | null>(null)
+  const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
+  useEffect(() => {
+    if (!providers) return
+    let live = true
+    setReadiness(null)
+    setFailed(false)
+    void window.phosphor.invoke('hosts:providers', added.id).then(
+      (value) => {
+        if (live) setReadiness(value)
+      },
+      () => {
+        if (live) setFailed(true)
+      },
+    )
+    return () => {
+      live = false
+    }
+  }, [providers, added.id, attempt])
+  if (!providers)
+    return (
+      <section className="space-y-3" aria-label="Online">
+        <h2 className="text-xl font-semibold">{added.label} added</h2>
+        <p role="status">
+          {online
+            ? 'Online. The Host is reporting to Phosphor.'
+            : !machine.lastSeenAt
+              ? 'Waiting for the first connection. Stuck at setting up? Start the Host and check its service.'
+              : 'Offline. Wake the machine and check Tailscale and the Host service.'}
+        </p>
+        <CopyCommand command={HOST_RUN} />
+        <CopyCommand command={HOST_SERVICE_STATUS} />
+        <CopyCommand command={HOST_SERVICE_INSTALL} />
+        <p className="text-text-secondary">
+          Enrolled but not reachable? Confirm both computers are on the same tailnet, MagicDNS and
+          HTTPS certificates are enabled, and Tailscale access rules allow the Host endpoint.
+          Enrollment alone does not prove reachability.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => void directory.refresh()}>Refresh online status</Button>
+          <Button onClick={onProviders}>Continue to Providers</Button>
+        </div>
+      </section>
+    )
+  return (
+    <section className="space-y-3" aria-label="Providers">
+      <h2 className="text-xl font-semibold">Choose how the Host runs models</h2>
+      <p className="text-text-secondary">
+        Provider credentials stay on {added.label}, not on this computer.
+      </p>
+      {readiness?.map((provider) => (
+        <p key={provider.id}>
+          {provider.name}:{' '}
+          {provider.status === 'ready'
+            ? 'Ready'
+            : provider.status === 'not_ready'
+              ? 'Sign-in needed'
+              : 'Not reported'}
+        </p>
+      ))}
+      {!readiness && (
+        <p role="status">
+          {failed
+            ? 'Host not reachable. Bring it online, then check readiness again.'
+            : 'Checking provider readiness…'}
+        </p>
+      )}
+      {readiness?.length === 0 && (
+        <p>No providers reported yet. Check the machine’s Readiness section.</p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => setAttempt((n) => n + 1)}>Check readiness again</Button>
+        <Button onClick={onOpen}>Open machine Readiness</Button>
+      </div>
+      <p>
+        Use Sign in in the machine’s Readiness section. If unavailable, run this in a terminal over
+        SSH, replacing PROVIDER with your provider:
+      </p>
+      <CopyCommand command="phosphor providers login PROVIDER" />
+    </section>
+  )
+}

@@ -1,3 +1,4 @@
+import type { TailscaleStatus } from './tailscale-status'
 import type { MachineModel, MachineProvider } from './host-protocol-machine'
 import type { SshInstallEvent } from './ssh-install'
 import type { HostCapability } from './remote-host'
@@ -181,6 +182,8 @@ export interface HostAttention {
 }
 
 export interface IpcInvokeMap {
+  'hosts:tailscaleStatus': { args: []; result: TailscaleStatus }
+  'hosts:setTailscaleDiscovery': { args: [enabled: boolean]; result: void }
   'hosts:sshInstall': { args: [target: string, repository?: string]; result: { jobId: string } }
   'hosts:sshInstallCancel': { args: [jobId: string]; result: void }
   // Read-only machine catalogues, independent of an open lane.

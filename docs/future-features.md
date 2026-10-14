@@ -163,20 +163,6 @@ rewrites can corrupt continuity. Primitive differences can change behavior even
 when every transferred byte verifies. A sleeping source cannot complete a
 handoff, so transfer must finish before sleep.
 
-## Guided Host onboarding and discovery
-
-Desktop installs signed Host bundles over SSH, performs setup and enrollment,
-and installs the user service. [remote-access.md](remote-access.md#install-a-host-over-ssh)
-owns that built flow.
-
-Component 36 adds guided onboarding and opt-in Tailscale discovery to suggest
-candidates. Discovery never auto-trusts machines or scans ports. Provider
-credentials stay on the Host. Guidance needs explicit prerequisite checks and
-manual fallbacks when provider login or Tailscale HTTPS is unavailable.
-
-**Risks.** Discovery is not identity proof. Removing a directory entry is neither
-uninstall nor evidence of success.
-
 ## Voice input beyond English dictation
 
 **Problem.** [Voice input](voice.md) dictates English only, starts from a mouse

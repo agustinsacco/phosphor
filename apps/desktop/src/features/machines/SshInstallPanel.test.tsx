@@ -12,6 +12,9 @@ let container: HTMLDivElement
 let push: (event: SshInstallEvent) => void
 let lookupFingerprint: string
 const invoke = vi.fn(async (channel: string): Promise<unknown> => {
+  if (channel === 'account:get') return { account: { status: 'signed-in' } }
+  if (channel === 'hosts:tailscaleStatus')
+    return { code: 'not-installed', discovery: false, peers: [] }
   if (channel === 'hosts:sshInstall') return { jobId: 'job' }
   if (channel === 'control:lookupEnrollment')
     return { ok: true, ...LOOKUP, keyFingerprint: lookupFingerprint }
@@ -27,6 +30,7 @@ beforeEach(() => {
   push = () => undefined
   vi.stubGlobal('phosphor', {
     invoke,
+    onAccountChanged: () => () => undefined,
     onSshInstall: (_job: string, listener: typeof push) => {
       push = listener
       return () => undefined
@@ -61,6 +65,7 @@ async function input(label: string, value: string) {
 }
 async function start() {
   await act(async () => root.render(<AddMachineDialog onClose={() => undefined} />))
+  await click('Continue to Install')
   await click('Install over SSH')
   await input('SSH target', 'alice@bee')
   await input('Repository on that machine', 'src/project')

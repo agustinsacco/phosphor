@@ -1,3 +1,5 @@
+import { BeforeYouStart } from './onboarding/BeforeYouStart'
+import { OnlineAndProviders } from './onboarding/OnlineAndProviders'
 import { SshInstallPanel } from './SshInstallPanel'
 import { useEffect, useRef, useState } from 'react'
 import {
@@ -6,16 +8,18 @@ import {
   type EnrollmentLookupResponse,
   type MachineView,
 } from '@shared/control-api'
+import { TooltipSummary } from '@/components/Tooltip'
 import { ModalOverlay, ModalPanel } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
 import { machinesAccountGeneration, useMachinesStore } from '@/stores/machines'
 import { controlMessage } from './controlMessages'
-import { HOST_RUN, HOST_SERVICE_INSTALL, formatCode, platformName } from './machinePresentation'
+import { formatCode, platformName } from './machinePresentation'
 import { CopyCommand, HostGuide, HostSetup } from './MachineControls'
 
-type Step = 'on-machine' | 'code' | 'confirm' | 'finishing' | 'done'
+type Step = 'before' | 'providers' | 'on-machine' | 'code' | 'confirm' | 'finishing' | 'done'
 export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
-  const [step, setStep] = useState<Step>('on-machine')
+  const [step, setStep] = useState<Step>('before')
+  const [suggestedTarget, setSuggestedTarget] = useState('')
   const [ssh, setSsh] = useState(false)
   const [sshFingerprint, setSshFingerprint] = useState<string | null>(null)
   const [code, setCode] = useState('')
@@ -70,7 +74,7 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
           setStep('confirm')
         } else setError(controlMessage(result.ok ? 'signed-out' : result.error.code))
       } else if (step === 'confirm' && normalizedLabel) {
-        if (ssh && (!details || details.keyFingerprint !== sshFingerprint)) {
+        if (sshFingerprint && (!details || details.keyFingerprint !== sshFingerprint)) {
           setError('The fingerprints do not match. Do not approve this machine.')
           return
         }
@@ -89,7 +93,7 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
         }
         if (result.ok && useMachinesStore.getState().remoteEnabled) {
           setAdded(result.machine)
-          setStep(ssh && !sshDone.current ? 'finishing' : 'done')
+          setStep(sshFingerprint && !sshDone.current ? 'finishing' : 'done')
         } else setError(controlMessage(result.ok ? 'signed-out' : result.error.code))
       }
     } catch {
@@ -107,7 +111,7 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
           width={600}
           title="Add a machine"
           footer={
-            step === 'done' ? (
+            step === 'done' || step === 'providers' ? (
               <>
                 <Button onClick={onClose}>Close</Button>
                 <Button
@@ -127,30 +131,34 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
                 <Button
                   disabled={busy}
                   onClick={() => {
-                    if (step === 'on-machine') onClose()
+                    if (step === 'before') onClose()
+                    else if (step === 'on-machine') setStep('before')
                     else {
                       setStep(step === 'confirm' ? 'code' : 'on-machine')
                       setError(null)
                     }
                   }}
                 >
-                  {step === 'on-machine' ? 'Cancel' : 'Back'}
+                  {step === 'before' ? 'Cancel' : 'Back'}
                 </Button>
                 <Button
                   variant="primary"
-                  disabled={busy || (step !== 'on-machine' && !valid)}
+                  disabled={busy || (step !== 'before' && step !== 'on-machine' && !valid)}
                   onClick={() => {
-                    if (step === 'on-machine') setStep('code')
+                    if (step === 'before') setStep('on-machine')
+                    else if (step === 'on-machine') setStep('code')
                     else void submit()
                   }}
                 >
                   {busy
                     ? 'Working…'
-                    : step === 'on-machine'
-                      ? 'I have a code'
-                      : step === 'code'
-                        ? 'Look up code'
-                        : 'Approve machine'}
+                    : step === 'before'
+                      ? 'Continue to Install'
+                      : step === 'on-machine'
+                        ? 'I have a code'
+                        : step === 'code'
+                          ? 'Look up code'
+                          : 'Approve machine'}
                 </Button>
               </>
             )
@@ -163,19 +171,51 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
             }}
             className="max-h-[65vh] space-y-4 overflow-y-auto px-6 py-5 text-base"
           >
-            <p className="text-text-tertiary font-mono text-xs uppercase tracking-wider">
-              {step === 'on-machine'
-                ? '1 · On the machine'
-                : step === 'code'
-                  ? '2 · Enter the code'
-                  : step === 'confirm'
-                    ? '3 · Confirm'
-                    : step === 'finishing'
-                      ? '4 · Finishing install'
-                      : '4 · Done'}
-            </p>
-            {ssh && (
+            <ol
+              aria-label="Setup steps"
+              className="text-text-tertiary flex flex-wrap gap-3 text-sm"
+            >
+              {['Before you start', 'Install', 'Online', 'Providers'].map((title, index) => (
+                <li
+                  key={title}
+                  aria-current={
+                    (step === 'before' ? 0 : step === 'done' ? 2 : step === 'providers' ? 3 : 1) ===
+                    index
+                      ? 'step'
+                      : undefined
+                  }
+                  className={
+                    (step === 'before' ? 0 : step === 'done' ? 2 : step === 'providers' ? 3 : 1) ===
+                    index
+                      ? 'text-accent font-semibold'
+                      : ''
+                  }
+                >
+                  {index + 1} · {title}
+                </li>
+              ))}
+            </ol>
+            {step === 'before' && (
+              <BeforeYouStart
+                onPick={(target) => {
+                  setSuggestedTarget(target)
+                  setSsh(true)
+                  setStep('on-machine')
+                }}
+              />
+            )}
+            {step === 'on-machine' && (
+              <div className="space-y-3">
+                <h2 className="text-xl font-semibold">Prepare the other machine</h2>
+                <p className="text-text-secondary">
+                  Install over SSH from here, or run the terminal commands on the machine you want
+                  to add.
+                </p>
+              </div>
+            )}
+            {ssh && step !== 'before' && step !== 'done' && step !== 'providers' && (
               <SshInstallPanel
+                initialTarget={suggestedTarget}
                 onState={(event) => {
                   sshDone.current = event?.kind === 'done' && event.step === 'service'
                   if (sshDone.current)
@@ -192,13 +232,19 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
             )}
             {step === 'on-machine' && (
               <>
-                <h2 className="text-xl font-semibold">Prepare the other machine</h2>
-                <p className="text-text-secondary">
-                  Run these commands on the machine you want to add, not on this computer.
-                </p>
-                <Button onClick={() => setSsh(true)}>Install over SSH</Button>
-                <HostSetup />
-                <HostGuide />
+                {!ssh && <Button onClick={() => setSsh(true)}>Install over SSH</Button>}
+                {ssh ? (
+                  <details className="space-y-3">
+                    <TooltipSummary>Prefer terminal commands?</TooltipSummary>
+                    <HostSetup />
+                    <HostGuide />
+                  </details>
+                ) : (
+                  <>
+                    <HostSetup />
+                    <HostGuide />
+                  </>
+                )}
               </>
             )}
             {step === 'code' && (
@@ -263,18 +309,17 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
             {step === 'finishing' && added && (
               <h2 className="text-xl font-semibold">Finishing install on {added.label}...</h2>
             )}
-            {step === 'done' && added && (
-              <>
-                <h2 className="text-xl font-semibold">{added.label} added</h2>
-                <p className="text-text-secondary">
-                  Start the Host on {added.label} to bring it online.
-                </p>
-                <CopyCommand command={HOST_RUN} />
-                <p className="text-text-secondary">
-                  On Linux, keep it online after logout and reboot:
-                </p>
-                <CopyCommand command={HOST_SERVICE_INSTALL} />
-              </>
+            {step === 'done' && sshDone.current && <p>Host service installed.</p>}
+            {(step === 'done' || step === 'providers') && added && (
+              <OnlineAndProviders
+                added={added}
+                providers={step === 'providers'}
+                onProviders={() => setStep('providers')}
+                onOpen={() => {
+                  useMachinesStore.getState().show({ kind: 'machine', id: added.id })
+                  onClose()
+                }}
+              />
             )}
             {error && (
               <p role="alert" className="text-danger bg-danger-soft rounded-md p-3">
