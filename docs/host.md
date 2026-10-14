@@ -1209,3 +1209,20 @@ Lists stop with `too-large` above 20,000 entries. Text and diffs are capped at
 without a NUL in that sample return `too-large`. Git blobs over 2 MiB return
 `too-large` before reading content, including binary blobs. Smaller binary
 blobs return their size without content. Errors contain no paths or tool output.
+
+The `skills.read` feature answers `machine.models` with the Host pi's model
+catalogue and `machine.providers` with provider names and readiness only. It
+never returns credentials or provider diagnostic text. Probes use the Host's
+validated pi binary and configured environment, not call parameters.
+
+`skills.list {laneId?}` resolves global skills and, when a lane is named, that
+lane's project skills through pi. `skills.read {name, laneId?, file?}` resolves
+again without remembering earlier calls. A project skill wins over a global
+skill of the same name. Without a lane, only global skills are available.
+`file` is relative to the skill bundle; it defaults to the resolved skill's
+markdown file. Reads reject escapes and `.git`, cap text at 2 MiB, and label
+binary files without returning content. Lists cap at 500 skills and 1,000 models.
+
+These methods are not served until the API registers the feature. Artifacts
+are not served: Desktop's artifact library reads its Electron userData store,
+which does not exist on a Host.
