@@ -62,10 +62,10 @@
 .swarm-switch[data-state='pending']::after {
   content: '';
   position: absolute;
-  top: 3px;
-  right: 5px;
-  width: 6px;
-  height: 6px;
+  top: 1px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: var(--px-warning);
   animation: swarm-pulse 1.2s ease-in-out infinite;

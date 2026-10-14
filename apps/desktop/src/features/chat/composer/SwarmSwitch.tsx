@@ -72,12 +72,18 @@ export function SwarmBadge({ sessionId }: { sessionId: string }): React.JSX.Elem
  * on. Without a `data-state` ancestor (the title-bar badge) they sit on the
  * shell.
  */
-export function SwarmMark({ className }: { className?: string }): React.JSX.Element {
+export function SwarmMark({
+  className,
+  size = 16,
+}: {
+  className?: string
+  size?: number
+}): React.JSX.Element {
   return (
     <svg
       className={clsx('swarm-mark', className)}
-      width="16"
-      height="16"
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
       aria-hidden="true"
     >
@@ -196,14 +202,17 @@ export function SwarmControl({
         if (!sending && !unavailable) onToggle()
       }}
       className={clsx(
-        'swarm-switch flex h-8 shrink-0 items-center gap-1.5 rounded-full pr-2.5 pl-2 text-base font-medium transition-colors',
+        'swarm-switch flex h-6 shrink-0 items-center gap-1 rounded-full pr-2 pl-1.5 text-base font-medium transition-colors',
         look === 'unavailable' && 'cursor-default opacity-50',
         look === 'off' && 'text-text-secondary hover:bg-bg-secondary hover:text-text',
         look === 'pending' && 'text-text',
         look === 'on' && 'bg-accent-soft text-text',
       )}
     >
-      <SwarmMark className={clsx((look === 'on' || look === 'pending') && 'text-accent')} />
+      <SwarmMark
+        size={14}
+        className={clsx((look === 'on' || look === 'pending') && 'text-accent')}
+      />
       <span>Swarm</span>
       {pending && (
         <span role="status" className="text-accent text-2xs font-mono tracking-wide uppercase">
