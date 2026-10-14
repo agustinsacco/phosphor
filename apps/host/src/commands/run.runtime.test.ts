@@ -9,12 +9,14 @@ import type * as Runtime from '../session/runtime'
 import type * as Store from '../lanes/store'
 import type { LaneService } from '../lanes/service'
 
+const sink = vi.hoisted(() => ({ deliver: vi.fn(), isConnected: vi.fn(() => true) }))
 const hooks = vi.hoisted(
   (): {
     machine: Omit<Runtime.HostMachine, 'log'> | null
     order: string[]
     lanes: LaneService | undefined
     epoch: string
+    connected?: (id: string) => boolean
     dialogs?: 'cancel' | 'forward'
   } => ({ machine: null, order: [], lanes: undefined, epoch: '' }),
 )
@@ -27,6 +29,8 @@ vi.mock('../api/server', () => ({
     hooks.epoch = options.runtimeEpoch
     return {
       ready: Promise.resolve(),
+      deliver: sink.deliver,
+      isConnected: sink.isConnected,
       stop: async () => {
         hooks.order.push('api')
       },
@@ -56,6 +60,7 @@ vi.mock('../lanes/store', async (original) => {
     ...module,
     openStore: async (...args: Parameters<typeof module.openStore>) => {
       const store = await module.openStore(...args)
+      hooks.connected = args[2]?.isConnected
       const close = store.close.bind(store)
       vi.spyOn(store, 'close').mockImplementation(() => {
         hooks.order.push('store')
@@ -66,6 +71,8 @@ vi.mock('../lanes/store', async (original) => {
   }
 })
 afterEach(() => {
+  sink.deliver.mockClear()
+  sink.isConnected.mockClear()
   hooks.machine = null
   hooks.order = []
   hooks.lanes = undefined
@@ -103,6 +110,7 @@ describe('run lane composition', () => {
         const log = vi.fn()
         let failedExit: number | undefined
         let forcedCount = 0
+        let connected = false
         const result = await runHost({
           ...control.context,
           env: { XDG_STATE_HOME: join(control.root, 'state'), PI_CODING_AGENT_DIR: pi.agentDir },
@@ -123,6 +131,12 @@ describe('run lane composition', () => {
           wait: async (_ms, signal) => {
             if (signal?.aborted) return
             if (hooks.order.includes('api')) return new Promise(() => {})
+            connected = hooks.connected?.('client') ?? false
+            hooks.lanes?.commands.status(
+              '12345678-1234-4234-8234-123456789012',
+              '12345678-1234-4234-8234-123456789012',
+              '0123456789abcdef',
+            )
             failedExit = target?.exitCode?.('SIGTERM', false)
             const draining = target?.drain('SIGTERM')
             let forced: Promise<unknown> | undefined
@@ -136,7 +150,14 @@ describe('run lane composition', () => {
         expect(result, control.output.join('\n')).toBe(0)
         expect(hooks.epoch).toMatch(/^[a-f0-9]{16}$/)
         expect(failedExit).toBe(70)
+        expect(connected).toBe(true)
+        expect(sink.isConnected).toHaveBeenCalledWith('client')
         if (available) {
+          expect(sink.deliver).toHaveBeenCalledWith(
+            '12345678-1234-4234-8234-123456789012',
+            { requestId: '12345678-1234-4234-8234-123456789012', status: 'unknown' },
+            '0123456789abcdef',
+          )
           expect(hooks.dialogs).toBe('forward')
           expect(hooks.lanes?.epoch).toBe(hooks.epoch)
           expect(hooks.lanes?.capabilities).toEqual(['sessions.read', 'sessions.control'])

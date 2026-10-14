@@ -449,7 +449,15 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       default:
         return rejected(job, 'unsupported', true)
     }
-    terminal(job, { requestId, status: 'done', fence: admittedFence }, true)
+    terminal(
+      job,
+      {
+        requestId,
+        status: 'done',
+        ...(admittedFence === undefined ? {} : { fence: admittedFence }),
+      },
+      true,
+    )
   }
   async function lifecycle(
     laneId: string,

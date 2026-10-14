@@ -51,6 +51,7 @@ interface Connection {
   wanted: Set<string>
   delivered: Set<string>
   pending: number
+  calls: number
   stale: Set<string>
   recoveryTimer?: ReturnType<typeof setTimeout>
   authTimer: ReturnType<typeof setTimeout>
@@ -370,8 +371,8 @@ export function createFakeHost(options: FakeHostOptions) {
         rejected(c, f.requestId, 'conflict')
         return
       }
-      if (!c.delivered.has(f.requestId)) c.wanted.add(f.requestId)
-      deliver(f.requestId, old)
+      send(c, { type: 'receipt', receipt: old.receipt })
+      if (old.receipt.status === 'pending') c.wanted.add(f.requestId)
       return
     }
     if (c.pending >= limits.pendingCommandsPerConnection) {
@@ -662,8 +663,8 @@ export function createFakeHost(options: FakeHostOptions) {
         if (!r || r.clientId !== c.grant.client.id)
           send(c, { type: 'receipt', receipt: { requestId: f.requestId, status: 'unknown' } })
         else {
-          if (!c.delivered.has(f.requestId)) c.wanted.add(f.requestId)
-          deliver(f.requestId, r)
+          send(c, { type: 'receipt', receipt: r.receipt })
+          if (r.receipt.status === 'pending') c.wanted.add(f.requestId)
         }
         break
       }
@@ -746,6 +747,10 @@ export function createFakeHost(options: FakeHostOptions) {
           send(c, { type: 'result', id: f.id, ok: true, data: repositories })
           break
         }
+        if (c.calls >= limits.pendingCommandsPerConnection) {
+          c.socket.close(4429, 'Too many calls')
+          break
+        }
         const laneId = paramsLane(f.params)
         const l = laneId ? lanes.get(laneId) : undefined
         if (!laneId) {
@@ -775,7 +780,14 @@ export function createFakeHost(options: FakeHostOptions) {
                       tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
                       cost: 0,
                     }
-        send(c, { type: 'result', id: f.id, ok: true, data })
+        c.calls++
+        const timer = setTimeout(() => {
+          timers.delete(timer)
+          c.calls--
+          if (c.socket.isOpen() && authorized(c, 'sessions.read'))
+            send(c, { type: 'result', id: f.id, ok: true, data })
+        }, 0)
+        timers.add(timer)
         break
       }
     }
@@ -803,6 +815,7 @@ export function createFakeHost(options: FakeHostOptions) {
         wanted: new Set(),
         delivered: new Set(),
         pending: 0,
+        calls: 0,
         stale: new Set(),
         authTimer: setTimeout(() => socket.close(4401, 'Auth timeout'), limits.authTimeoutMs),
       }

@@ -779,6 +779,25 @@ describe('lane command guards and operations', () => {
     expect(summaryEvent.summary).not.toHaveProperty('removedAt')
   })
 
+  it('persists unfenced markRead on a stopped lane without runtime or folder I/O', async () => {
+    sessions.clear()
+    const folder = vi.spyOn(folders, 'prepareLaneFolder')
+    store.bumpAttention(lane.laneId)
+    const request = frame({ type: 'lane.markRead', upTo: 1 })
+    await service.submit(one, request)
+    expect(last(request.requestId)).toEqual({ requestId: request.requestId, status: 'done' })
+    expect(store.getReceipt(request.requestId, one.id)).toEqual(last(request.requestId))
+    expect(store.getLane(lane.laneId)?.read).toBe(1)
+    expect(command).not.toHaveBeenCalled()
+    expect(ports.sessions.start).not.toHaveBeenCalled()
+    expect(ports.sessions.stop).not.toHaveBeenCalled()
+    expect(ports.resumeLane).not.toHaveBeenCalled()
+    expect(ports.stopLane).not.toHaveBeenCalled()
+    expect(folder).not.toHaveBeenCalled()
+    service.status(one.id, request.requestId)
+    expect(receipts(request.requestId)).toEqual([last(request.requestId), last(request.requestId)])
+  })
+
   it('marks read even when the projection has no summary', async () => {
     ports.summaryFor = () => null
     store.bumpAttention(lane.laneId)

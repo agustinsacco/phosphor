@@ -1,6 +1,7 @@
 # Remote access
 
-Remote execution is not enabled. Local Electron still needs no Phosphor login.
+Desktop remote execution is not enabled. The Host API serves remote lanes when
+pi is usable. Local Electron still needs no Phosphor login.
 Desktop has an optional GitHub sign-in in the sidebar footer
 ([settings.md](settings.md#phosphor-account)). Machines is always available,
 with this computer's real status. Signed in, it lists enrolled Hosts and lets
@@ -120,8 +121,11 @@ and `/v1/stream`, on loopback port 47615 (configurable as `api.port`). It
 announces session capabilities only when supplied a lane service. Without it,
 the API remains authentication-only. The network adapter multiplexes authenticated
 subscriptions, commands, receipt status and calls over each socket. Adapter tests
-use a fake lane service and loopback sockets; the contract kit runs auth scenarios
-against the real connection and lane scenarios against an in-memory fake Host. Tailscale Serve can expose the loopback listener, never Funnel.
+use a fake lane service and loopback sockets. The contract kit also runs every
+scenario against the real in-process Host with a temporary SQLite store, signed
+grants and a scripted runtime port. The fake Host passes the same suite. A separate
+fake-pi subprocess test proves runtime startup, streaming, stop, resume and drain.
+Tailscale Serve can expose the loopback listener, never Funnel.
 [Host API](host.md#api) owns its admission, limits and close codes. [Trust boundary](#trust-boundary) and
 [Host machine identity](host.md#machine-identity) apply to this protocol too.
 

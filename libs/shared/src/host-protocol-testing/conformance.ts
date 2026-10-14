@@ -61,6 +61,7 @@ export interface ConformanceOptions {
 export type HostConformanceFactory = (
   limits: Partial<ConformanceOptions>,
 ) => HostConformanceHarness | Promise<HostConformanceHarness>
+const scenarioPendingCap = 2
 const challenge = 'a'.repeat(64)
 const otherClient = { id: '00000000-0000-4000-8000-000000000002', label: 'Other viewer' }
 
@@ -81,7 +82,7 @@ export function defineHostConformance(
         authTimeoutMs: 20,
         commandDelayMs: 5,
         subscriptionsPerConnection: 3,
-        pendingCommandsPerConnection: 2,
+        pendingCommandsPerConnection: scenarioPendingCap,
         replayEvents: 30,
       })
       const reason = h.skippedScenarios?.[t.task.name]
@@ -363,9 +364,12 @@ export function defineHostConformance(
       await flush(5)
       expect(receipts(c, requestId).map((r) => r.status)).toEqual(['pending', 'done'])
       expect(h.driver.executions()).toBe(before + 1)
+      const observer = await auth()
       c.send(frame)
       await flush()
-      expect(receipts(c, requestId).filter((r) => r.status === 'done')).toHaveLength(1)
+      expect(receipts(c, requestId).filter((r) => r.status === 'done')).toHaveLength(2)
+      expect(receipts(observer, requestId)).toEqual([])
+      expect(h.driver.executions()).toBe(before + 1)
       c.send({ ...frame, op: { type: 'abort' } })
       await flush()
       expect(receipts(c, requestId).at(-1)).toMatchObject({ status: 'rejected', code: 'conflict' })
@@ -518,9 +522,11 @@ export function defineHostConformance(
         'lane.stats',
         'lane.models',
         'lane.commands',
-      ])
+      ]) {
         c.send({ type: 'call', id: method.replace('.', '_'), method, params: { laneId } })
-      c.send({ type: 'call', id: 'unsupported', method: 'other.method' })
+        await flush()
+      }
+      c.send({ type: 'call', id: 'unsupported', method: 'other.method', params: {} })
       await flush()
       expect(c.frames.slice(resultStart).filter((f) => f.type === 'result' && f.ok)).toHaveLength(6)
       expect(c.frames.at(-1)).toMatchObject({
@@ -528,6 +534,32 @@ export function defineHostConformance(
         ok: false,
         error: { code: 'unsupported' },
       })
+    })
+    it('bounds in-flight calls at the configured pending cap', async (t) => {
+      if (lacks('sessions.read', 'sessions.control'))
+        t.skip('requires sessions.read and sessions.control')
+      const pendingCommandsPerConnection = scenarioPendingCap
+      await h.driver.stop()
+      h = await factory({ pendingCommandsPerConnection })
+      const boundary = await auth(),
+        laneId = await create(boundary)
+      const resultsBefore = boundary.frames.filter((f) => f.type === 'result').length
+      for (let i = 0; i < pendingCommandsPerConnection; i++)
+        boundary.send({ type: 'call', id: 'call' + i, method: 'lane.state', params: { laneId } })
+      await flush()
+      expect(boundary.socket.isOpen()).toBe(true)
+      expect(boundary.frames.filter((f) => f.type === 'result' && f.ok)).toHaveLength(
+        resultsBefore + pendingCommandsPerConnection,
+      )
+      boundary.send({ type: 'call', id: 'released', method: 'lane.state', params: { laneId } })
+      await flush()
+      expect(boundary.frames.at(-1)).toMatchObject({ type: 'result', id: 'released', ok: true })
+      const excess = await auth()
+      for (let i = 0; i <= pendingCommandsPerConnection; i++)
+        excess.send({ type: 'call', id: 'call' + i, method: 'lane.state', params: { laneId } })
+      await flush()
+      expect(excess.closed).toEqual([4429])
+      expect(boundary.socket.isOpen()).toBe(true)
     })
     it('serializes takeover for all viewers, fences the old controller, releases and acquires before pi events', async (t) => {
       if (lacks('sessions.read', 'sessions.control'))
@@ -793,18 +825,32 @@ export function defineHostConformance(
         fence: 1,
         op: { type: 'prompt', message: 'Hello' },
       }
+      const before = h.driver.executions()
       a.send(frame)
       b.send({ type: 'receipt-status', requestId })
       await flush()
       expect(receipts(b, requestId).map((r) => r.status)).toEqual(['pending'])
       await flush(5)
-      for (const c of [a, b]) {
-        c.send(frame)
-        c.send({ type: 'receipt-status', requestId })
-      }
-      await flush()
       for (const c of [a, b])
         expect(receipts(c, requestId).filter((r) => r.status === 'done')).toHaveLength(1)
+      for (const [sender, other] of [
+        [a, b],
+        [b, a],
+      ]) {
+        if (!sender || !other) throw new Error('Missing viewer')
+        const oldSender = receipts(sender, requestId).length
+        const oldOther = receipts(other, requestId).length
+        sender.send(frame)
+        sender.send({ type: 'receipt-status', requestId })
+        await flush()
+        expect(
+          receipts(sender, requestId)
+            .slice(oldSender)
+            .map((r) => r.status),
+        ).toEqual(['done', 'done'])
+        expect(receipts(other, requestId)).toHaveLength(oldOther)
+        expect(h.driver.executions()).toBe(before + 1)
+      }
     })
     it('caps finished and started receipts separately, prunes by age and does not leak pruned results', async (t) => {
       if (lacks('sessions.read', 'sessions.control'))
@@ -824,6 +870,8 @@ export function defineHostConformance(
       reconnect.send({ type: 'receipt-status', requestId: first })
       await flush()
       expect(receipts(reconnect, first)).toMatchObject([{ status: 'done' }])
+      // Count pruning breaks same-millisecond ties by request id, not admission order.
+      await flush(1)
       await command(c, laneId, { type: 'lane.markRead', upTo: 0 })
       const lookup = await auth()
       lookup.send({ type: 'receipt-status', requestId: first })

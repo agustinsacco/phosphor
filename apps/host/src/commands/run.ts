@@ -77,7 +77,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
   let live: ReturnType<typeof createLiveLanes> | undefined
   let commands: ReturnType<typeof createLaneCommands> | undefined
   let lanes: LaneService | undefined
-  // Part I assigns the API adapter's functions to this deferred sink.
+  // The store opens before the API; defer receipt delivery and presence until it starts.
   const sink: {
     deliver(clientId: string, receipt: Receipt, connectionId?: string): void
     isConnected(clientId: string): boolean
@@ -267,6 +267,8 @@ async function runHostCommand(context: RunContext): Promise<number> {
             context.log?.('host', event, fields),
         }
         api = startApi(options)
+        sink.deliver = api.deliver
+        sink.isConnected = api.isConnected
       }
       let endpoint: string | null = null
       let routeState = ''
