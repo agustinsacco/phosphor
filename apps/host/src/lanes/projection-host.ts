@@ -104,7 +104,8 @@ export function createHostLaneProjection(options: {
     dispose,
     stateChanged: () => refresh(false),
     deliver(push: SessionPush) {
-      if (push.kind === 'stderr' || stopped) return
+      // resync is Desktop-local; a Host runtime never produces it.
+      if (push.kind === 'stderr' || push.kind === 'resync' || stopped) return
       revision++
       projection.apply(push)
       if (push.kind === 'exit') {

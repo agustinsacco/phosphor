@@ -1,3 +1,9 @@
+import {
+  mockRemoteAction,
+  onMockRemoteChanged,
+  mockRemoteHosts,
+  mockRemoteInfo,
+} from './mockRemoteLanes'
 import type { MachineView } from '@shared/control-api'
 /**
  * Dev-only mock of the preload API so the renderer can run in a plain
@@ -394,6 +400,8 @@ const MOCK_DANGEROUS_COMMAND = [
 
 function respond(command: RpcCommand): RpcResponse {
   switch (command.type) {
+    case 'get_messages':
+      return { type: 'response', command: 'get_messages', success: true, data: { messages: [] } }
     case 'get_state':
       return {
         type: 'response',
@@ -1459,7 +1467,21 @@ export function installMockPhosphor(): void {
           mockClaudeAuth = { loggedIn: false }
           return Promise.resolve(undefined as never)
         case 'hosts:snapshot':
-          return {}
+          return localStorage.getItem('mock:remoteLanes') === '1'
+            ? structuredClone(mockRemoteHosts)
+            : {}
+        case 'hosts:openLane':
+        case 'hosts:createLane':
+          if (localStorage.getItem('mock:remoteLanes') === '1')
+            return Promise.resolve(mockRemoteInfo)
+          return Promise.reject(new Error('Remote lanes are not available in the browser harness.'))
+        case 'hosts:setFocusedLane':
+        case 'hosts:stopLane':
+        case 'hosts:resumeLane':
+        case 'hosts:takeControl':
+        case 'hosts:markRead':
+          if (localStorage.getItem('mock:remoteLanes') === '1') mockRemoteAction(channel)
+          return Promise.resolve(undefined as never)
         case 'control:machines':
           if (localStorage.getItem('mock:machinesState') === 'offline')
             return Promise.resolve({
@@ -2497,7 +2519,9 @@ export function installMockPhosphor(): void {
       return () => mockClaudeLoginListeners.delete(listener)
     },
 
-    onHostsChanged: () => () => undefined,
+    onHostsChanged: onMockRemoteChanged,
+    onHostAttention: () => () => undefined,
+    onHostOpenLane: () => () => undefined,
     onMachinesChanged: () => () => undefined,
 
     onVoiceStatus: (listener) => {

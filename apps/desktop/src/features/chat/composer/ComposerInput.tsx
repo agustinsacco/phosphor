@@ -13,7 +13,7 @@ import type { useSlashMenu } from './useSlashMenu'
 import { SwarmControl, SwarmSwitch, swarmLook, useSwarm } from './SwarmSwitch'
 
 interface ComposerInputProps extends Omit<ComposerFieldProps, 'onPasteFiles'> {
-  workspacePath: string
+  workspacePath?: string
   attachments: PendingAttachment[]
   onAttachmentsChange: (attachments: PendingAttachment[]) => void
   onWarning: (message: string) => void
@@ -55,7 +55,7 @@ export function ComposerInput({
   const [activeIndex, setActiveIndex] = useState(0)
   const [index, setIndex] = useState<{ workspacePath: string; files: string[] } | null>(null)
   useEffect(() => {
-    if (!mention || index?.workspacePath === workspacePath) return
+    if (!workspacePath || !mention || index?.workspacePath === workspacePath) return
     let cancelled = false
     void window.phosphor
       .invoke('fs:listFiles', workspacePath)
@@ -73,7 +73,7 @@ export function ComposerInput({
   }, [field.value])
   const matches = useMemo(
     () =>
-      mention && index?.workspacePath === workspacePath
+      mention && index && index.workspacePath === workspacePath
         ? fuzzyFilter(mention.query, index.files, (f) => f, 12)
         : [],
     [mention, index, workspacePath],
@@ -143,9 +143,9 @@ export function ComposerInput({
       )}
       <div
         data-swarm-enabled={enabled}
-        onDragOver={attachments.handleDragOver}
+        onDragOver={workspacePath ? attachments.handleDragOver : undefined}
         onDragLeave={attachments.handleDragLeave}
-        onDrop={attachments.handleDrop}
+        onDrop={workspacePath ? attachments.handleDrop : undefined}
         className={clsx(
           'bg-surface relative rounded-xl border shadow-sm transition-colors',
           attachments.dragging
@@ -167,7 +167,7 @@ export function ComposerInput({
           {...field}
           onChange={change}
           onKeyDown={keyDown}
-          onPasteFiles={attachments.addFiles}
+          onPasteFiles={workspacePath ? attachments.addFiles : () => undefined}
           autocomplete={
             field.autocomplete !== false &&
             !slash.visible &&
@@ -178,17 +178,18 @@ export function ComposerInput({
         {children}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2.5 pb-2">
           <div className="flex shrink-0 items-center gap-0.5">
-            <AttachButton onFiles={attachments.addFiles} />
+            {workspacePath && <AttachButton onFiles={attachments.addFiles} />}
             <DictateButton textareaRef={field.textareaRef} onChange={change} />
-            {'sessionId' in swarm ? (
-              <SwarmSwitch sessionId={swarm.sessionId} />
-            ) : (
-              <SwarmControl
-                state={{ version: 1, available: true, enabled, requested: enabled }}
-                hint="Authorize delegation for this new lane. Requires pi-subagents; checked before the first prompt. Nothing launches until you send."
-                onToggle={() => swarm.onChange(!enabled)}
-              />
-            )}
+            {workspacePath &&
+              ('sessionId' in swarm ? (
+                <SwarmSwitch sessionId={swarm.sessionId} />
+              ) : (
+                <SwarmControl
+                  state={{ version: 1, available: true, enabled, requested: enabled }}
+                  hint="Authorize delegation for this new lane. Requires pi-subagents; checked before the first prompt. Nothing launches until you send."
+                  onToggle={() => swarm.onChange(!enabled)}
+                />
+              ))}
             {scopeStatus}
           </div>
           <div className="ml-auto flex min-w-0 items-center gap-1.5">

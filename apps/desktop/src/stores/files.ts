@@ -284,6 +284,7 @@ export const useFilesStore = create<FilesState>((set, get) => ({
   },
 
   openFile: async (workspacePath, path, target) => {
+    if (workspacePath.startsWith('host:')) return
     const reveal: Partial<OpenFile> = {}
     if (target !== undefined) {
       reveal.pendingReveal = {

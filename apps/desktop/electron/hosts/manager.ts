@@ -147,6 +147,8 @@ export function createHostManager(ports: {
   }
   return {
     changed: notify,
+    connection: (hostId: string) => connections.get(hostId)?.connection,
+    label: (hostId: string) => list?.machines.find((m) => m.id === hostId)?.label ?? hostId,
     present: (hostId: string) => !!list?.machines.some((m) => m.id === hostId),
     disabled: disable,
     snapshot(): HostsSnapshot {

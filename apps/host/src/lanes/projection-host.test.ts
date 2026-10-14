@@ -425,7 +425,7 @@ describe('Host lane projection', () => {
       })
       const session = await runtime.start({ repository: machine.repository }, (push) => {
         if (route.binding) route.binding.deliver(push)
-        else if (push.kind !== 'stderr') p.apply(push)
+        else if (push.kind !== 'stderr' && push.kind !== 'resync') p.apply(push)
       })
       const binding = createHostLaneProjection({
         runtime,

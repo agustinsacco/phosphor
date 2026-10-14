@@ -935,3 +935,26 @@ Both keys arrive through pi's extension-UI status channel into
 `stores/extensionUi.ts`, keyed by session. `composer/contextBreakdown.ts` and
 `composer/rateLimit.ts` each return `null` for a missing or malformed payload,
 so a bad push degrades to "section absent" rather than a broken meter.
+
+## Remote lanes
+
+Hosts that announce `sessions.read` show their lanes in the sidebar. The machine
+filter lists All machines, This Mac, and each capable Host. Every remote row is
+tagged with its machine. Offline Hosts keep their last-known rows in memory,
+greyed and labelled offline. A dot means the Host's attention counter exceeds
+its read counter. Opening a lane or reading it in a focused window marks it read
+on the Host. Clicking a Host notification opens that lane.
+
+Remote lanes use the same transcript renderer as local lanes. The header shows
+the machine. The control strip names the controller. Viewers see a read-only
+composer and an explicit Take control action; there is no automatic takeover.
+Controllers can prompt, steer, queue, abort, compact, change model and thinking,
+answer dialogs, stop and resume. New lane on a machine asks for its repository,
+optional branch and name, and optional provider and model ids.
+
+Files, Changes, Terminal, Artifacts and Subagents panes show “Not available on
+remote lanes yet.” instead of local machine data. Local workspace controls,
+file mentions, attachments, transcript export and local account usage are not
+available inside a remote lane. Remote transcripts remain in memory. Drafts use
+Host-qualified lane keys. A reconnect reset replaces history through the normal
+hydration path.

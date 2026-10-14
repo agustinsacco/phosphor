@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, webFrame, webUtils } from 'electron'
-import type { IpcInvokeChannel, IpcInvokeMap, PhosphorApi } from '@shared/ipc'
+import type { HostAttention, IpcInvokeChannel, IpcInvokeMap, PhosphorApi } from '@shared/ipc'
 import { sessionEventChannel } from '@shared/ipc'
 import type {
   SessionPush,
@@ -76,6 +76,9 @@ const api: PhosphorApi = {
   onAccountChanged: (listener) => subscribe<[AccountView]>('account:changed', listener),
 
   onHostsChanged: (listener) => subscribe<[]>('hosts:changed', listener),
+  onHostAttention: (listener) => subscribe<[HostAttention]>('hosts:attention', listener),
+  onHostOpenLane: (listener) =>
+    subscribe<[{ hostId: string; laneId: string }]>('hosts:openLaneRequested', listener),
   onMachinesChanged: (listener) => subscribe<[]>('control:machinesChanged', listener),
 
   onVoiceStatus: (listener) => subscribe<[VoiceStatus]>('voice:statusChanged', listener),

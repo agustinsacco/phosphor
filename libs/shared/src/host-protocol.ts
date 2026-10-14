@@ -177,7 +177,7 @@ export interface LaneSnapshot {
 }
 
 /** `stderr` never crosses the wire: it can hold paths and environment. */
-export type LanePiPush = Exclude<SessionPush, { kind: 'stderr' }>
+export type LanePiPush = Exclude<SessionPush, { kind: 'stderr' | 'resync' }>
 
 export type LaneEvent =
   | { readonly kind: 'pi'; readonly push: LanePiPush }

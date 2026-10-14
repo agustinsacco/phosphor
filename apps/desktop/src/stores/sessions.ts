@@ -1,5 +1,11 @@
 import { create } from 'zustand'
-import type { GitInfo, SessionMeta, SessionScanStatus, SessionPush } from '@shared/models'
+import type {
+  GitInfo,
+  SessionMeta,
+  SessionScanStatus,
+  SessionPush,
+  LiveSessionInfo,
+} from '@shared/models'
 import type { ImageContent, PiEvent } from '@shared/rpc'
 import { useChatStore } from './chat'
 import { useNamingStore } from './naming'
@@ -65,6 +71,8 @@ export function shouldRefreshStatsOn(
  */
 
 interface LiveSessionEntry {
+  target?: LiveSessionInfo['target']
+  laneId?: string
   phosphorId: string
   workspacePath: string
   /** Disk session file, learned from get_state after spawn. */
@@ -210,7 +218,12 @@ interface SessionsState {
    * returns null for a session it has never heard of, dropping the whole app
    * to the workspace picker. Idempotent.
    */
-  adoptSession: (sessionId: string, workspacePath: string, diskPath?: string) => Promise<void>
+  adoptSession: (
+    sessionId: string,
+    workspacePath: string,
+    diskPath?: string,
+    info?: LiveSessionInfo,
+  ) => Promise<void>
   activate: (sessionId: string | null) => void
   disposeSession: (sessionId: string) => Promise<void>
   /**
@@ -435,7 +448,7 @@ export async function bootstrapSession(phosphorId: string): Promise<void> {
     }
     chat.setMeta(phosphorId, state.value.data)
     const diskPath = state.value.data.sessionFile
-    if (diskPath) {
+    if (diskPath && useSessionsStore.getState().live[phosphorId]?.target?.kind !== 'remote') {
       useSessionsStore.setState((s) => ({
         live: {
           ...s.live,
@@ -616,10 +629,18 @@ async function cleanupLocalSessionState(sessionId: string): Promise<void> {
   }))
 }
 
+export async function forgetRemoteSession(sessionId: string): Promise<void> {
+  if (useSessionsStore.getState().live[sessionId]?.target?.kind === 'remote')
+    await cleanupLocalSessionState(sessionId)
+}
+
 function attachSessionPushHandler(phosphorId: string): void {
   const unsubscribe = window.phosphor.onSessionPush(phosphorId, (push: SessionPush) => {
     const chatStore = useChatStore.getState()
     switch (push.kind) {
+      case 'resync':
+        void rehydrateTranscript(phosphorId).then(() => bootstrapSession(phosphorId))
+        break
       case 'event': {
         const wasStreaming = chatStore.sessions[phosphorId]?.isStreaming ?? false
         chatStore.applyEvent(phosphorId, push.event)
@@ -627,7 +648,11 @@ function attachSessionPushHandler(phosphorId: string): void {
         // "fully done", which already accounts for retries and queued
         // follow-ups. A lane finishing off-screen says so, and clicking the
         // notice goes there.
-        if (wasStreaming && !useChatStore.getState().sessions[phosphorId]?.isStreaming) {
+        if (
+          wasStreaming &&
+          !useChatStore.getState().sessions[phosphorId]?.isStreaming &&
+          useSessionsStore.getState().live[phosphorId]?.target?.kind !== 'remote'
+        ) {
           void import('@/features/sessions/laneNotices').then(({ noticeLaneSettled }) =>
             noticeLaneSettled(phosphorId),
           )
@@ -635,6 +660,7 @@ function attachSessionPushHandler(phosphorId: string): void {
         if (
           push.event.type === 'tool_execution_end' &&
           !push.event.isError &&
+          useSessionsStore.getState().live[phosphorId]?.target?.kind !== 'remote' &&
           isArtifactWriteTool(push.event.toolName)
         ) {
           void import('./artifacts').then(({ useArtifactsStore }) =>
@@ -653,7 +679,10 @@ function attachSessionPushHandler(phosphorId: string): void {
           // lazy directories immediately; the watcher remains the targeted
           // fast path for ordinary external changes.
           const workspacePath = useSessionsStore.getState().live[phosphorId]?.workspacePath
-          if (workspacePath) {
+          if (
+            workspacePath &&
+            useSessionsStore.getState().live[phosphorId]?.target?.kind !== 'remote'
+          ) {
             void import('./files').then(({ useFilesStore }) =>
               useFilesStore.getState().refreshLoadedDirs(workspacePath),
             )
@@ -1086,7 +1115,7 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
     }
   },
 
-  adoptSession: async (sessionId, workspacePath, diskPath) => {
+  adoptSession: async (sessionId, workspacePath, diskPath, info) => {
     if (get().live[sessionId]) return
     useChatStore.getState().ensure(sessionId, { resuming: true })
     attachSessionPushHandler(sessionId)
@@ -1094,7 +1123,16 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
       // diskPath only when the caller already knows it; `bootstrapSession`'s
       // `get_state` is what supplies it for a reload re-adoption, and resume
       // matching waits on that round trip.
-      live: { ...s.live, [sessionId]: { phosphorId: sessionId, workspacePath, diskPath } },
+      live: {
+        ...s.live,
+        [sessionId]: {
+          phosphorId: sessionId,
+          workspacePath,
+          diskPath,
+          target: info?.target,
+          laneId: info?.laneId,
+        },
+      },
       unread: { ...s.unread, [sessionId]: 0 },
     }))
     try {
@@ -1193,6 +1231,13 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
         useExtensionUiStore.getState().dismissSessionToast(sessionId),
       )
     const live = sessionId ? get().live[sessionId] : undefined
+    if (live?.target?.kind === 'remote') {
+      if (live.laneId)
+        void window.phosphor
+          .invoke('hosts:markRead', live.target.hostId, live.laneId)
+          .catch(() => undefined)
+      return
+    }
     void window.phosphor.invoke('app:setLastSession', live?.diskPath)
     if (live?.diskPath) get().markSeen(live.diskPath)
     // Keep the persisted workspace paired with the persisted session —

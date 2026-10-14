@@ -1,4 +1,5 @@
-import { app } from 'electron'
+import type { SessionPush } from '@shared/models'
+import { app, BrowserWindow, Notification } from 'electron'
 import { hostname } from 'node:os'
 import { accountUserId, onAccountChange } from '../account'
 import { broadcast } from '../broadcast'
@@ -11,6 +12,14 @@ import { createHostManager } from '../hosts/manager'
 import { openHostSocket } from '../hosts/socket'
 import { controlClient, onMachinesChanged } from './control-handlers'
 import { handle } from './handle'
+import { createRemoteLanes, type RemoteLanes } from '../hosts/remote-lanes'
+import { createHostAttention } from '../hosts/attention'
+
+let remote: RemoteLanes | undefined
+export function remoteLanes(): RemoteLanes {
+  if (!remote) throw new Error('Remote lanes are not ready.')
+  return remote
+}
 
 export function registerHostsHandlers(): void {
   const control = controlClient()
@@ -30,7 +39,10 @@ export function registerHostsHandlers(): void {
     machinesChanged: onMachinesChanged,
     machines: () => control.machines(),
     clearGrants: (id) => grants.clear(id),
-    changed: () => broadcast('hosts:changed', undefined),
+    changed: () => {
+      remote?.reconcile()
+      broadcast('hosts:changed', undefined)
+    },
     connection: (hostId, endpoint) =>
       createHostConnection({
         hostId,
@@ -40,9 +52,89 @@ export function registerHostsHandlers(): void {
         clearGrant: () => grants.clear(hostId),
         changed: () => manager.changed(),
         disabled: () => manager.disabled(),
+        onAttention: (event) => attention.receive(hostId, event),
         log,
       }),
   })
-  app.once('will-quit', () => manager.stop())
+  remote = createRemoteLanes({
+    connection: manager.connection,
+    present: manager.present,
+    label: manager.label,
+    changed: manager.changed,
+  })
+  const attention = createHostAttention({
+    label: manager.label,
+    focused: (hostId, laneId) =>
+      BrowserWindow.getAllWindows().some(
+        (win) => win.isFocused() && remoteLanes().focused(hostId, laneId, win.webContents.id),
+      ),
+    publish: (event) => broadcast('hosts:attention', event),
+    notify: (title, body, click) => {
+      if (!Notification.isSupported()) return
+      const notification = new Notification({ title, body })
+      notification.once('click', click)
+      notification.show()
+    },
+    open: (hostId, laneId) => {
+      const win = BrowserWindow.getAllWindows().find((w) => !w.isDestroyed())
+      if (win) {
+        win.show()
+        win.focus()
+        win.webContents.send('hosts:openLaneRequested', { hostId, laneId })
+      }
+    },
+  })
+  let user = accountUserId()
+  const off = onAccountChange(() => {
+    const next = accountUserId()
+    if (next !== user) {
+      remote?.clear()
+      attention.clear()
+      user = next
+    }
+  })
+  const windows = new Set<number>()
+  function window(event: Electron.IpcMainInvokeEvent) {
+    const sender = event.sender
+    if (!windows.has(sender.id)) {
+      windows.add(sender.id)
+      sender.once('destroyed', () => {
+        remote?.closeWindow(sender.id)
+        windows.delete(sender.id)
+      })
+    }
+    return {
+      id: sender.id,
+      send: (channel: string, push: SessionPush) => sender.send(channel, push),
+      destroyed: () => sender.isDestroyed(),
+    }
+  }
+  app.once('will-quit', () => {
+    off()
+    remote?.clear()
+    manager.stop()
+  })
+  handle('hosts:openLane', (event, hostId, laneId) =>
+    remoteLanes().open(window(event), hostId, laneId),
+  )
+  handle('hosts:createLane', (event, hostId, input) =>
+    remoteLanes().create(window(event), hostId, input),
+  )
+  handle('hosts:stopLane', (_event, hostId, laneId) =>
+    remoteLanes().action(hostId, laneId, 'lane.stop'),
+  )
+  handle('hosts:resumeLane', (_event, hostId, laneId) =>
+    remoteLanes().action(hostId, laneId, 'lane.resume'),
+  )
+  handle('hosts:takeControl', (_event, hostId, laneId) =>
+    remoteLanes().action(hostId, laneId, 'control.take'),
+  )
+  handle('hosts:markRead', (_event, hostId, laneId) =>
+    remoteLanes().action(hostId, laneId, 'lane.markRead'),
+  )
+  handle('hosts:setFocusedLane', (event, target) => {
+    window(event)
+    remoteLanes().setFocused(event.sender.id, target)
+  })
   handle('hosts:snapshot', () => manager.snapshot())
 }

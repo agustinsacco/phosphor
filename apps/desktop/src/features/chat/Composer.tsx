@@ -1,3 +1,4 @@
+import { hostResourceKey } from '@shared/remote-host'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ImageContent } from '@shared/rpc'
@@ -52,7 +53,12 @@ export function Composer({
    * moves the draft across when pi finally tells us the path.
    */
   const diskPath = useSessionsStore((s) => s.live[sessionId]?.diskPath)
-  const draftKey = sessionDraftKey(diskPath, sessionId)
+  const entry = useSessionsStore((s) => s.live[sessionId])
+  const remote = entry?.target?.kind === 'remote'
+  const draftKey =
+    entry?.target?.kind === 'remote' && entry.laneId
+      ? hostResourceKey(entry.target, 'session', entry.laneId)
+      : sessionDraftKey(diskPath, sessionId)
   const draft = useDraftsStore((s) => s.drafts[draftKey])
   const text = draft?.text ?? ''
   const images = draft?.attachments ?? EMPTY_ATTACHMENTS
@@ -111,18 +117,22 @@ export function Composer({
         description: 'Compact conversation context now',
         run: () => void runCompact(sessionId),
       },
-      {
-        name: 'export',
-        description: 'Export this session as HTML',
-        run: () => void exportSessionHtml(sessionId),
-      },
+      ...(!remote
+        ? [
+            {
+              name: 'export',
+              description: 'Export this session as HTML',
+              run: () => void exportSessionHtml(sessionId),
+            },
+          ]
+        : []),
       {
         name: 'name',
         description: 'Rename this session',
         run: () => void renameSession(sessionId),
       },
     ],
-    [sessionId],
+    [sessionId, remote],
   )
 
   const commandEntries = useMemo(
@@ -296,7 +306,7 @@ export function Composer({
     // Esc Esc → rewind, as in Claude Code. The first press is left alone so
     // it can still blur/close whatever else is listening.
     const now = Date.now()
-    if (now - lastEscapeRef.current < DOUBLE_ESCAPE_MS) {
+    if (!remote && now - lastEscapeRef.current < DOUBLE_ESCAPE_MS) {
       event.preventDefault()
       lastEscapeRef.current = 0
       useChatUiStore.getState().openForkPicker(sessionId)
@@ -318,10 +328,10 @@ export function Composer({
     () => (
       <>
         <ContextMeter sessionId={sessionId} />
-        <ContextSourcesMenu workspacePath={workspacePath} sessionId={sessionId} />
+        {!remote && <ContextSourcesMenu workspacePath={workspacePath} sessionId={sessionId} />}
       </>
     ),
-    [sessionId, workspacePath],
+    [sessionId, workspacePath, remote],
   )
 
   const placeholder = isStreaming
@@ -336,7 +346,7 @@ export function Composer({
 
       <div className="relative mx-auto max-w-3xl">
         <ComposerInput
-          workspacePath={workspacePath}
+          workspacePath={remote ? undefined : workspacePath}
           value={text}
           textareaRef={textareaRef}
           onChange={(value) => {
@@ -352,7 +362,7 @@ export function Composer({
           onAttachmentsChange={setImages}
           onWarning={setAttachWarning}
           slash={slash}
-          swarm={{ sessionId }}
+          swarm={remote ? { enabled: false, onChange: () => undefined } : { sessionId }}
           scopeStatus={
             isCompacting && (
               <span className="text-text-secondary flex items-center gap-1.5 px-1 text-base">
@@ -438,7 +448,7 @@ export function Composer({
               )}
               {/* Yields before it wraps: it fills what the readouts leave and
                   truncates, and a strip narrower than 36rem drops it. */}
-              {text === '' && !isStreaming && (
+              {!remote && text === '' && !isStreaming && (
                 <span className="@xl:inline ml-auto hidden min-w-0 flex-1 basis-0 truncate text-right">
                   <span className="font-mono">/</span> commands ·{' '}
                   <span className="font-mono">@</span> files · <span className="font-mono">!</span>{' '}

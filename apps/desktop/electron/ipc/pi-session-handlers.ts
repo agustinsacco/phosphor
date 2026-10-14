@@ -1,4 +1,6 @@
 import { handle } from './handle'
+import { remoteLanes } from './hosts-handlers'
+import { isRemoteHandle } from '../hosts/remote-lanes'
 import { desktopSessions } from '../pi/session-runtime'
 import { checkPiHealth } from '../pi/health'
 import { piStubPath } from '../pi/stub'
@@ -45,14 +47,25 @@ export function registerPiSessionHandlers(): void {
   handle('pi:createSession', (event, options: CreateSessionOptions) =>
     desktopSessions.create(options, event.sender),
   )
-  handle('pi:command', (_event, sessionId: string, command: RpcCommand) =>
-    desktopSessions.command(sessionId, command),
+  handle('pi:command', (event, sessionId: string, command: RpcCommand) =>
+    isRemoteHandle(sessionId)
+      ? remoteLanes().command(event.sender.id, sessionId, command)
+      : desktopSessions.command(sessionId, command),
   )
-  handle('pi:extensionUiResponse', (_event, sessionId: string, response: ExtensionUIResponse) =>
-    desktopSessions.respond(sessionId, response),
+  handle('pi:extensionUiResponse', (event, sessionId: string, response: ExtensionUIResponse) =>
+    isRemoteHandle(sessionId)
+      ? remoteLanes().respond(event.sender.id, sessionId, response)
+      : desktopSessions.respond(sessionId, response),
   )
-  handle('pi:disposeSession', (_event, sessionId: string) => desktopSessions.dispose(sessionId))
-  handle('pi:listLiveSessions', () => desktopSessions.list())
+  handle('pi:disposeSession', (event, sessionId: string) =>
+    isRemoteHandle(sessionId)
+      ? remoteLanes().dispose(event.sender.id, sessionId)
+      : desktopSessions.dispose(sessionId),
+  )
+  handle('pi:listLiveSessions', (event) => [
+    ...desktopSessions.list(),
+    ...remoteLanes().list(event.sender.id),
+  ])
 
   // Best-effort: naming is a nicety, so every failure path returns null and
   // the session keeps its first-message-derived title.
