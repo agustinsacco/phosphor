@@ -1977,8 +1977,11 @@ test('explorer copies, cuts, multi-drags and imports disk-backed files', async (
         .dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }))
       document.querySelector('#drop-fixture')!.remove()
     })
-    await expect.poll(() => existsSync(join(workspace, 'report.pdf'))).toBe(true)
-    expect(await readFile(join(workspace, 'report.pdf'))).toEqual(await readFile(source))
+    // A copy creates the file before its bytes land, so wait for the content itself.
+    const expected = await readFile(source)
+    await expect
+      .poll(() => readFile(join(workspace, 'report.pdf')).catch(() => Buffer.alloc(0)))
+      .toEqual(expected)
     await expect(explorer).toHaveAttribute('aria-busy', 'false')
 
     // Seed the native OS file-list format, then paste through the focused explorer.
