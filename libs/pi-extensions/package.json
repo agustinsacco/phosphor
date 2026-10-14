@@ -44,6 +44,10 @@
       "types": "./pi-ext/mcp-status.ts",
       "default": "./pi-ext/mcp-status.ts"
     },
+    "./message-ledger": {
+      "types": "./pi-ext/message-ledger.ts",
+      "default": "./pi-ext/message-ledger.ts"
+    },
     "./optional/permission-gate": {
       "types": "./pi-ext/optional/permission-gate.ts",
       "default": "./pi-ext/optional/permission-gate.ts"

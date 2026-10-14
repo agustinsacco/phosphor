@@ -39,7 +39,17 @@ export interface McpServerCost {
 export interface ContextBreakdown {
   totalTokens: number | null
   contextWindow: number | null
-  parts: { messages: number; systemPrompt: number; tools: number; mcpTools: number }
+  parts: {
+    messages: number
+    /**
+     * Reasoning the model holds beyond its visible summary, measured from
+     * usage by the extension's message ledger. Absent from older payloads.
+     */
+    thinking?: number
+    systemPrompt: number
+    tools: number
+    mcpTools: number
+  }
   /** `messages` is what is in context: entries since the last compaction. */
   counts: { tools: number; mcpTools: number; messages: number }
   /** Approximate MCP schema cost per server. Absent from older payloads. */
@@ -78,7 +88,7 @@ export interface BreakdownSlice {
  */
 export function measuredTokens(breakdown: ContextBreakdown): number {
   const p = breakdown.parts
-  return p.messages + p.systemPrompt + p.tools + p.mcpTools
+  return p.messages + (p.thinking ?? 0) + p.systemPrompt + p.tools + p.mcpTools
 }
 
 /** The parts that do not change between turns: prompt and schemas. */
@@ -96,7 +106,8 @@ function fixedTokens(breakdown: ContextBreakdown): number {
  * 9,914-token system prompt rendered as 44.1k then 22.5k across four turns of
  * one Claude session. The remainder is the `unmeasured` slice instead.
  *
- * Down is taken from the MESSAGES first, and from the fixed parts only as a
+ * Down is taken from the MESSAGES first, then from thinking (measured from
+ * usage, so the firmest variable figure), and from the fixed parts only as a
  * last resort. The prompt and the schemas are the same size on every turn and
  * the extension measures them exactly (the text is in hand); the message
  * estimate is the one that overshoots. Scaling all four
@@ -104,11 +115,19 @@ function fixedTokens(breakdown: ContextBreakdown): number {
  * proxies into 237, and made seven identical proxy schemas read as "34" on
  * one session and "77" on the next.
  */
-function fit(breakdown: ContextBreakdown, total: number): { messages: number; fixed: number } {
+function fit(
+  breakdown: ContextBreakdown,
+  total: number,
+): { messages: number; thinking: number; fixed: number } {
   const fixed = fixedTokens(breakdown)
-  if (total <= 0) return { messages: 0, fixed: 0 }
-  if (fixed > total) return { messages: 0, fixed: total / fixed }
-  return { messages: Math.min(breakdown.parts.messages, total - fixed), fixed: 1 }
+  if (total <= 0) return { messages: 0, thinking: 0, fixed: 0 }
+  if (fixed > total) return { messages: 0, thinking: 0, fixed: total / fixed }
+  const thinking = Math.min(breakdown.parts.thinking ?? 0, total - fixed)
+  return {
+    messages: Math.min(breakdown.parts.messages, total - fixed - thinking),
+    thinking,
+    fixed: 1,
+  }
 }
 
 /**
@@ -128,6 +147,7 @@ export function parseContextBreakdown(statusText: string | undefined): ContextBr
       contextWindow: typeof parsed.contextWindow === 'number' ? parsed.contextWindow : null,
       parts: {
         messages: num(parts.messages),
+        thinking: num(parts.thinking),
         systemPrompt: num(parts.systemPrompt),
         tools: num(parts.tools),
         mcpTools: num(parts.mcpTools),
@@ -241,6 +261,13 @@ export function breakdownSlices(
       hint: 'Messages the model currently holds: everything since the last compaction, tool results included. The Session count below is every message in the file.',
     },
     {
+      key: 'thinking',
+      label: 'Thinking',
+      tokens: Math.round(fitted.thinking),
+      color: 'var(--px-merged)',
+      hint: "The model's full reasoning, which stays in the window. The transcript shows only a summary of it, so it is measured from pi's usage figures instead.",
+    },
+    {
       key: 'systemPrompt',
       label: 'System prompt',
       tokens: fixed(parts.systemPrompt),
@@ -275,7 +302,7 @@ export function breakdownSlices(
       tokens: unmeasured,
       percent: pct(unmeasured),
       color: 'var(--px-text-tertiary)',
-      hint: "Counted by pi but not visible from inside it: whatever the provider wraps around pi's context (on Claude Code, the CLI's framing of pi's tools and history) and drift between the character estimate and the real tokenizer.",
+      hint: "Counted by pi but not visible from inside it: whatever the provider wraps around pi's context (on Claude Code, the CLI's framing of pi's tools and history) and the estimate's error on whatever could not be measured from usage: the prompt, the tool schemas, and history from before the provider last rebuilt the request.",
     })
   }
 
