@@ -61,9 +61,52 @@ describe('session-context', () => {
     ])
       expect(parseSessionEntries(input)).toBeNull()
     expect(parseSessionEntries(`bad\n\n${text(header)}`)).toEqual([header])
-    expect(parseSessionEntries(`${text(header)}\nnull`)).toBeNull()
-    expect(parseSessionEntries(`${text(header)}\n[]`)).toBeNull()
+    for (const value of [1, 'truthy', true, []])
+      expect(parseSessionEntries(text(header, value))).toBeNull()
   })
+  it('skips falsey parsed lines before and after the header without counting them', () => {
+    const falsey = [null, false, 0, '']
+    expect(
+      parseSessionEntries(text(...falsey, header, ...falsey, entry('a'), ...falsey), 2),
+    ).toEqual([header, entry('a')])
+  })
+  it('does not migrate a non-numeric version', () => {
+    const entries = [
+      { ...header, version: 'x' },
+      { ...entry('a'), message: { role: 'hookMessage', content: 'unchanged' } },
+    ]
+    expect(parseSessionEntries(text(...entries))).toEqual(entries)
+  })
+  it('uses fresh symbols for v1 ids and compaction references', () => {
+    const input = readFileSync(`${fixtures}/v1.jsonl`, 'utf8')
+    const entries = parseSessionEntries(input)
+    const again = parseSessionEntries(input)
+    expect(entries).not.toBeNull()
+    const ids = entries?.filter((entry) => entry.type !== 'session').map((entry) => entry.id)
+    expect(ids?.every((id) => typeof id === 'symbol')).toBe(true)
+    expect(new Set(ids).size).toBe(ids?.length)
+    expect(ids?.some((id) => again?.some((entry) => entry.id === id))).toBe(false)
+    const compaction = entries?.find((entry) => entry.type === 'compaction')
+    expect(typeof compaction?.firstKeptEntryId).toBe('symbol')
+    expect(ids).toContain(compaction?.firstKeptEntryId)
+  })
+  it.each(['custom_message', 'branch_summary', 'compaction'])(
+    'uses Date constructor timestamps for %s',
+    (type) => {
+      for (const [timestamp, expected] of [
+        [0, 0],
+        [null, 0],
+        [undefined, NaN],
+        ['2026-01-01T00:00:00.000Z', 1767225600000],
+      ]) {
+        const messages = sessionContext([
+          { type, id: 'a', timestamp, summary: 'summary', customType: 'note', content: 'note' },
+        ])?.messages
+        expect(messages).toHaveLength(1)
+        expect(messages?.[0]?.timestamp).toBe(expected)
+      }
+    },
+  )
   it('splits on LF only and preserves U+2028 and U+2029', () => {
     const entries = parseSessionEntries(
       text(header, {
@@ -165,11 +208,12 @@ const content = fs.readFileSync(session, 'utf8')
 const lines = content.split('\\n')
 assert.equal(lines[0], 'bad')
 assert.equal(lines[1], '')
-assert.equal(fs.realpathSync(JSON.parse(lines[2]).cwd), process.cwd())
-assert.equal(lines[3], '{malformed}')
-assert.equal(lines.length, 5)
+assert.deepEqual(lines.slice(2, 6), ['null', 'false', '0', '""'])
+assert.equal(fs.realpathSync(JSON.parse(lines[6]).cwd), process.cwd())
+assert.equal(lines[7], '{malformed}')
+assert.equal(lines.length, 9)
 assert.equal(content.endsWith('\\n'), false)
-const message = JSON.parse(lines[4]).message
+const message = JSON.parse(lines[8]).message
 process.stdin.setEncoding('utf8')
 process.stdin.once('data', (data) => {
   assert.deepEqual(JSON.parse(data), { id: 'golden', type: 'get_messages' })
@@ -182,7 +226,7 @@ process.stdin.once('data', (data) => {
       { mode: 0o700 },
     )
     const input = (mode: string) =>
-      `bad\n\n${text({ ...header, cwd: '/tmp' })}\n{malformed}\n${text({ ...entry('a'), message: { role: 'user', content: mode } })}`
+      `bad\n\nnull\nfalse\n0\n""\n${text({ ...header, cwd: '/tmp' })}\n{malformed}\n${text({ ...entry('a'), message: { role: 'user', content: mode } })}`
     const env = { ...process.env, PATH: bin, TMPDIR: temporary }
     writeFileSync(join(output, 'test.jsonl'), input('valid'))
     execFileSync(process.execPath, [join(output, 'generate.mjs')], { env, stdio: 'pipe' })

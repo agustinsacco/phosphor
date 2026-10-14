@@ -1,0 +1,42 @@
+[
+  {
+    "role": "user",
+    "content": "hello world "
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "toolCall",
+        "id": "t",
+        "name": "read",
+        "arguments": {
+          "path": "test.txt"
+        }
+      }
+    ],
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5"
+  },
+  {
+    "role": "toolResult",
+    "content": [
+      {
+        "type": "text",
+        "text": "result"
+      }
+    ],
+    "toolCallId": "t",
+    "toolName": "read",
+    "isError": false
+  },
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "done"
+      }
+    ]
+  }
+]

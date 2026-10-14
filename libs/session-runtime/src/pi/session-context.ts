@@ -21,21 +21,23 @@ export function parseSessionEntries(text: string, maxEntries = 200_000): Session
     } catch {
       continue
     }
+    if (!value) continue
     if (!record(value)) return null
     entries.push(value)
     if (entries.length > maxEntries) return null
   }
   const header = entries[0]
   if (!header || header.type !== 'session' || typeof header.id !== 'string') return null
-  const version = typeof header.version === 'number' ? header.version : 1
+  const version = Number(header.version ?? 1)
   if (version < 2) {
-    let previous: string | null = null
-    for (const [index, entry] of entries.entries()) {
+    let previous: symbol | null = null
+    for (const entry of entries) {
       if (entry.type === 'session') continue
-      // Migrated ids are internal only; deterministic ids preserve the same parent chain.
-      entry.id = `migrated-${index}`
+      // Internal symbols keep fresh migration ids distinct from all references in the file.
+      const id = Symbol()
+      entry.id = id
       entry.parentId = previous
-      previous = `migrated-${index}`
+      previous = id
       if (entry.type === 'compaction' && typeof entry.firstKeptEntryIndex === 'number') {
         const target = entries[entry.firstKeptEntryIndex]
         if (target && target.type !== 'session') entry.firstKeptEntryId = target.id
@@ -64,7 +66,14 @@ function contextMessages(entry: SessionEntryLike): unknown[] | null {
     }
     return [value]
   }
-  const timestamp = typeof entry.timestamp === 'string' ? Date.parse(entry.timestamp) : NaN
+  const value = entry.timestamp
+  const timestamp = new Date(
+    typeof value === 'string' || typeof value === 'number'
+      ? value
+      : value !== null && typeof value === 'object'
+        ? String(value)
+        : Number(value),
+  ).getTime()
   if (entry.type === 'custom_message')
     return [
       {

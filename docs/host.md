@@ -1026,6 +1026,9 @@ file, with `state: null`. A null or missing file means an empty transcript: pi
 persists messages only when a turn ends. The same snapshot size and image omission
 rule applies. Reads are synchronous, capped at 64 MiB, and cached for four lanes;
 invalid or inaccessible files return `unknown-lane`. This port is not served yet.
+The reader trusts the owner's pi sessions folder; a process that can write it
+can race the containment check.
+
 ### Streams
 
 `lanes/live.ts` binds each live projection to an epoch-scoped lane stream.

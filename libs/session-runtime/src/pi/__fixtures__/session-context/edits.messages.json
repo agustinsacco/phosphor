@@ -1,0 +1,29 @@
+[
+  {
+    "role": "user",
+    "content": "latest replacement"
+  },
+  {
+    "role": "toolResult",
+    "toolCallId": "t",
+    "toolName": "read",
+    "isError": false,
+    "content": [
+      {
+        "type": "text",
+        "text": "tool replacement"
+      }
+    ]
+  },
+  {
+    "role": "custom",
+    "customType": "note",
+    "content": "custom replacement",
+    "display": true,
+    "timestamp": 1767225600000
+  },
+  {
+    "role": "user",
+    "content": []
+  }
+]

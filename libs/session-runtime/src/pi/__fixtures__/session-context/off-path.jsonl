@@ -1,0 +1,5 @@
+{"type": "session", "version": 3, "id": "fixture-session", "timestamp": "2026-01-01T00:00:00.000Z", "cwd": "/tmp"}
+{"type": "message", "id": "a", "parentId": null, "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "user", "content": "root kept"}}
+{"type": "message", "id": "b", "parentId": "a", "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "user", "content": "sibling ignored"}}
+{"type": "compaction", "id": "c", "parentId": "b", "timestamp": "2026-01-01T00:00:00.000Z", "summary": "off-path summary ignored", "tokensBefore": 10, "firstKeptEntryId": "b"}
+{"type": "message", "id": "d", "parentId": "a", "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "user", "content": "leaf kept"}}

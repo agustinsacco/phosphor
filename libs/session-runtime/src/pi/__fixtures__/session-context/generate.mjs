@@ -34,6 +34,7 @@ for (const name of (await readdir(directory)).filter((name) => name.endsWith('.j
       } catch {
         continue
       }
+      if (!entry) continue
       if (!rewritten) {
         if (entry?.type !== 'session' || typeof entry.id !== 'string')
           throw new Error(`invalid fixture header in ${name}`)
