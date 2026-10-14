@@ -1,4 +1,5 @@
 /** App-level domain types shared between main and renderer. */
+import type { HostTarget } from './remote-host'
 import { type ExtensionUIRequest, type PiEvent } from './rpc'
 import { DEFAULT_FEEDBACK_PREFS, type FeedbackPrefs } from './feedback'
 import { DEFAULT_CONTEXT_FILE_PREFS, type ContextFilePrefs } from './context-files'
@@ -77,6 +78,9 @@ export interface LiveSessionInfo {
   pid?: number
   /** Known even when the transcript is missing or the process has crashed. */
   diskPath?: string
+  /** Absent means this machine. A remote handle names its Host and lane (29). */
+  target?: HostTarget
+  laneId?: string
 }
 
 /** Pushed on the per-session event channel. */

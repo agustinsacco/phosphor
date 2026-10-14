@@ -1,4 +1,4 @@
-import type { HostCapability } from './remote-host'
+import type { HostCapability, HostTarget } from './remote-host'
 import type { RepositorySummary, LaneSummary, StreamCursor } from './host-protocol'
 /**
  * Typed IPC contract between main and renderer.
@@ -157,8 +157,35 @@ export interface HostConnectionView {
 }
 export type HostsSnapshot = Record<string, HostConnectionView>
 
+/** A new lane on a Host (11). The Host picks the folder; never a path from here. */
+export interface RemoteLaneCreate {
+  repositoryId: string
+  worktree?: { branch: string }
+  name?: string
+  provider?: string
+  model?: string
+  thinkingLevel?: string
+}
+/** An attention event from any Host, for in-app and OS notifications (49). */
+export interface HostAttention {
+  hostId: string
+  laneId: string
+  kind: 'finished' | 'needs-input' | 'failed' | 'routine'
+  title: string
+  at: string
+}
+
 export interface IpcInvokeMap {
   'hosts:snapshot': { args: []; result: HostsSnapshot }
+  /** Opens a remote lane: returns an opaque handle (LiveSessionInfo.sessionId) whose
+   * pi:command, pi:extensionUiResponse, pi:disposeSession and pi:event:<id> main routes
+   * to the Host. Disposing a handle unsubscribes; it never stops the lane. */
+  'hosts:openLane': { args: [hostId: string, laneId: string]; result: LiveSessionInfo }
+  'hosts:createLane': { args: [hostId: string, input: RemoteLaneCreate]; result: LiveSessionInfo }
+  'hosts:stopLane': { args: [hostId: string, laneId: string]; result: void }
+  'hosts:resumeLane': { args: [hostId: string, laneId: string]; result: void }
+  'hosts:takeControl': { args: [hostId: string, laneId: string]; result: void }
+  'hosts:markRead': { args: [hostId: string, laneId: string]; result: void }
   'routines:list': { args: []; result: RoutinesSnapshot }
   'routines:save': { args: [input: RoutineInput, id?: string, revision?: number]; result: void }
   'routines:check': { args: [input: RoutineInput]; result: RoutineCheck }
@@ -1119,6 +1146,10 @@ export interface PhosphorApi {
   /** A change signal only. Refetch the enrolled machines through control:machines. */
   onMachinesChanged(listener: () => void): () => void
   onHostsChanged(listener: () => void): () => void
+  /** Attention from any Host (49). */
+  onHostAttention(listener: (event: HostAttention) => void): () => void
+  /** A notification was clicked: open this remote lane. */
+  onHostOpenLane(listener: (target: { hostId: string; laneId: string }) => void): () => void
   /** Voice prefs, download progress and readiness; returns unsubscribe. */
   onVoiceStatus(listener: (status: VoiceStatus) => void): () => void
 

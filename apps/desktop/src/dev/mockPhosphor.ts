@@ -1460,6 +1460,14 @@ export function installMockPhosphor(): void {
           return Promise.resolve(undefined as never)
         case 'hosts:snapshot':
           return {}
+        case 'hosts:openLane':
+        case 'hosts:createLane':
+          return Promise.reject(new Error('Remote lanes are not available in the browser harness.'))
+        case 'hosts:stopLane':
+        case 'hosts:resumeLane':
+        case 'hosts:takeControl':
+        case 'hosts:markRead':
+          return Promise.resolve(undefined as never)
         case 'control:machines':
           if (localStorage.getItem('mock:machinesState') === 'offline')
             return Promise.resolve({
@@ -2498,6 +2506,8 @@ export function installMockPhosphor(): void {
     },
 
     onHostsChanged: () => () => undefined,
+    onHostAttention: () => () => undefined,
+    onHostOpenLane: () => () => undefined,
     onMachinesChanged: () => () => undefined,
 
     onVoiceStatus: (listener) => {

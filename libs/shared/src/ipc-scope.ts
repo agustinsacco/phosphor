@@ -3,6 +3,12 @@ import type { IpcInvokeChannel } from './ipc'
 /** Classification only. Remote routing is added by each feature's owner. */
 export const IPC_SCOPE: Record<IpcInvokeChannel, 'app' | 'machine'> = {
   'hosts:snapshot': 'app',
+  'hosts:openLane': 'app',
+  'hosts:createLane': 'app',
+  'hosts:stopLane': 'app',
+  'hosts:resumeLane': 'app',
+  'hosts:takeControl': 'app',
+  'hosts:markRead': 'app',
   'routines:list': 'machine',
   'routines:save': 'machine',
   'routines:check': 'machine',
