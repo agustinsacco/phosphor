@@ -286,7 +286,7 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
       ).toBe('true')
     }
   })
-  it('documents the implemented lock and updater without claiming a publishing workflow exists', () => {
+  it('documents the implemented lock, updater and the manual Host Release workflow', () => {
     const docs = readFileSync(join(root, 'docs/host.md'), 'utf8')
     for (const rule of [
       'Any updater must',
@@ -296,7 +296,8 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
       'missing or malformed pid',
       'no program deletes the',
       'SIGKILL or power loss can leave a',
-      'No workflow publishes them',
+      'The manual **Host Release** workflow',
+      'refuses to build while `HOST_RELEASE_KEYS` is',
       '## Updating',
       '## Uninstalling',
       '`phosphor update`',
