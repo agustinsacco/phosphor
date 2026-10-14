@@ -220,7 +220,7 @@ export async function versionOf(
 }
 
 /**
- * Validate the pinned node and pi and work out how to start pi. pi 0.87.1
+ * Validate the pinned node and pi and work out how to start pi. pi 1.2.0
  * is `dist/bundle/cli.js` with a node shebang, so it runs as node plus the
  * cli: the shebang would otherwise look node up on a PATH the Host builds.
  */

@@ -164,6 +164,10 @@ export function reduceChatEvent(state: ChatSessionState, event: PiEvent): ChatSe
       return applyMessageEnd(state, event.message)
 
     case 'tool_execution_start':
+      // A call another tool made (a codemode script) is no block of any
+      // message, and could adopt a placeholder that belongs to a real one.
+      // Its parent's row and result carry it.
+      if (event.parentToolCallId) return state
       // The id may be unknown here: providers that withhold tool identity
       // during streaming leave a placeholder entry to adopt (see toolIdentity).
       return withExecutionIdentity(state, event.toolCallId, event.toolName, (existing) => ({
@@ -177,6 +181,7 @@ export function reduceChatEvent(state: ChatSessionState, event: PiEvent): ChatSe
       }))
 
     case 'tool_execution_update':
+      if (event.parentToolCallId) return state
       // Adopt first: a placeholder may still be holding this call's identity,
       // and dropping the event would strand the partial output.
       return withExecutionIdentity(state, event.toolCallId, event.toolName, (existing) => ({
@@ -192,6 +197,7 @@ export function reduceChatEvent(state: ChatSessionState, event: PiEvent): ChatSe
       }))
 
     case 'tool_execution_end':
+      if (event.parentToolCallId) return state
       return withExecutionIdentity(state, event.toolCallId, event.toolName, (existing) => ({
         ...(existing ?? {
           toolCallId: event.toolCallId,
@@ -204,6 +210,7 @@ export function reduceChatEvent(state: ChatSessionState, event: PiEvent): ChatSe
         isError: event.isError,
         status: event.isError ? 'error' : 'done',
         endedAt: Date.now(),
+        ...(event.durationMs !== undefined ? { durationMs: event.durationMs } : {}),
       }))
 
     case 'queue_update':
@@ -499,6 +506,7 @@ function toolStateForResult(existing: ToolState | undefined, result: ToolResultM
     isError: result.isError,
     status: result.isError ? 'error' : 'done',
     endedAt: base.endedAt ?? Date.now(),
+    ...(result.durationMs !== undefined ? { durationMs: result.durationMs } : {}),
   }
 }
 

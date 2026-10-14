@@ -58,8 +58,8 @@ describe('moveSessionToAccount', () => {
   })
 
   it('refuses a lane with no session file, rather than losing it', async () => {
-    // pi writes the file when the first turn ENDS, so a lane mid-first-turn has
-    // nothing to resume from: disposing it would throw the thread away.
+    // pi writes the file when the first message is sent, so a lane that never
+    // got one has nothing to resume from: disposing it would throw it away.
     const { useSessionsStore } = await import('./sessions')
     useSessionsStore.setState({ live: { s2: { phosphorId: 's2', workspacePath: '/w' } } })
 

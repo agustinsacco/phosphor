@@ -1,11 +1,19 @@
 # 02 — pi Integration Reference
 
-`MIN_PI_VERSION` is **0.87.1**: the context budget relies on pi's native
-between-tool-cycle compaction, verified with a real RPC process and a local fake
-provider. The protocol mirror in `libs/shared/src/rpc.ts` was last re-verified
-against **0.87.1**, with pi-claude-cli 0.10.0: every command and its fields
-match `rpc-types.d.ts`, every event and content type it names is one pi emits,
-and the live smoke below passed. Usage and tool-call identity fields remain
+`MIN_PI_VERSION` is **1.2.0**. The context budget relies on pi's native
+between-tool-cycle compaction (0.87.1+), verified with a real RPC process and a
+local fake provider. Phosphor reads three 1.x fields: a prompt's
+`data.disposition` (`handled` means an extension command consumed it and no run
+starts, so the composer drops its optimistic bubble and booting strip),
+`agent_settled.aborted` (a lane that was stopped gets no "finished" notice) and
+`durationMs` on `tool_execution_end` and tool results (a bash row's time, also
+after a reload). Tool events with `parentToolCallId` are calls another tool made,
+such as a codemode script's; the chat reducer and routine outcomes ignore them,
+since no assistant message holds them. The protocol mirror in
+`libs/shared/src/rpc.ts` was last re-verified against **1.2.0**, with
+pi-claude-cli 0.10.0: every command and its fields match `rpc-types.d.ts`,
+every event and content type it names is one pi emits, and the live smoke below
+passed. Usage and tool-call identity fields remain
 optional for historical records. The 0.84.0 streaming-shape change is in that
 file's header. See [One context budget](cli-providers.md#one-context-budget) for
 the session-local window cap.
@@ -80,7 +88,7 @@ branch from `get_entries` instead.
 
 The full `PiEvent` union in `libs/shared/src/rpc.ts`:
 
-`agent_start` / `agent_end` (all messages of the run, `willRetry?`) / **`agent_settled`** · `turn_start` / `turn_end` (assistant message + toolResults) · `message_start` / `message_update` / `message_end` · `tool_execution_start` (toolCallId, toolName, args) / `tool_execution_update` (**partialResult is accumulated — replace, don't append**) / `tool_execution_end` (result, isError) · `queue_update` (steering[], followUp[]) · `compaction_start`/`compaction_end` (reason manual|threshold|overflow; `willRetry` on overflow success) · `auto_retry_start` (attempt, maxAttempts, delayMs, errorMessage) / `auto_retry_end` · **`bash_execution_update`** · **`summarization_retry_scheduled` / `summarization_retry_attempt_start` / `summarization_retry_finished`** · `extension_error`.
+`agent_start` / `agent_end` (all messages of the run, `willRetry?`) / **`agent_settled`** (`aborted`) · `turn_start` / `turn_end` (assistant message + toolResults) · `message_start` / `message_update` / `message_end` · `tool_execution_start` (toolCallId, toolName, args) / `tool_execution_update` (**partialResult is accumulated — replace, don't append**) / `tool_execution_end` (result, isError, `durationMs?`); all three carry `parentToolCallId?` on a nested call · `queue_update` (steering[], followUp[]) · `compaction_start`/`compaction_end` (reason manual|threshold|overflow; `willRetry` on overflow success) · `auto_retry_start` (attempt, maxAttempts, delayMs, errorMessage) / `auto_retry_end` · **`bash_execution_update`** · **`summarization_retry_scheduled` / `summarization_retry_attempt_start` / `summarization_retry_finished`** · `extension_error`.
 
 The five late additions (bolded above), and why they matter:
 

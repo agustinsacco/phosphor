@@ -193,7 +193,7 @@ describe('phosphor', () => {
     const relative = machine.repository.slice(machine.dir.length + 1)
     const node = machine.script(
       'node',
-      'if [ "$1" = --version ]; then echo v22.22.3; else echo 0.87.1; fi',
+      'if [ "$1" = --version ]; then echo v22.22.3; else echo 1.2.0; fi',
     )
     const argv = [
       'setup',

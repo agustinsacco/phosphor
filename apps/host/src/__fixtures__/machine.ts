@@ -60,7 +60,7 @@ export function fakeMachine(
   options: { piVersion?: string; manifestVersion?: string; engines?: unknown; rpc?: boolean } = {},
 ) {
   const dir = mkdtempSync(join(realpathSync(tmpdir()), 'phosphor-host-'))
-  const version = options.piVersion ?? '0.87.1'
+  const version = options.piVersion ?? '1.2.0'
   const pkg = join(dir, 'pi')
   const cli = join(pkg, 'dist/bundle/cli.js')
   mkdirSync(dirname(cli), { recursive: true })

@@ -193,7 +193,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
       store.activate(sessionId)
     } else
       throw new Error(
-        'No transcript is available yet. The run may have stopped before pi wrote its first turn.',
+        'No transcript is available yet. The run may have stopped before pi saved its first message.',
       )
   }
 

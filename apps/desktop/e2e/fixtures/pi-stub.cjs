@@ -357,6 +357,19 @@ const DIFF = ' 1 export function hello() {\n-2   return "old"\n+2   return "new"
 const PATCH = `--- a/hello.ts\n+++ b/hello.ts\n@@ -1,3 +1,3 @@\n export function hello() {\n-  return "old"\n+  return "new"\n }`
 
 /**
+ * pi's `data.disposition` for an accepted prompt (pi >= 0.99). The stub's
+ * `/...` scenarios stand in for extension commands, which pi reports as
+ * `handled`: no run starts on their account. A skill (`/skill:`) expands into
+ * a prompt and starts one, like plain text.
+ */
+function promptDisposition(cmd) {
+  if (cmd.streamingBehavior && agentStreaming) return 'queued'
+  const message = typeof cmd.message === 'string' ? cmd.message : ''
+  if (message.startsWith('/') && !message.startsWith('/skill:')) return 'handled'
+  return 'started'
+}
+
+/**
  * A forked branch pi has not written yet (header first), or null.
  *
  * pi's `createBranchedSession` writes the new file at once only when the
@@ -684,7 +697,13 @@ function handle(cmd) {
         swarmRequested = cmd.message.endsWith(' on')
         if (!agentStreaming) swarmEnabled = swarmRequested
         publishSwarm()
-        out({ id: cmd.id, type: 'response', command: 'prompt', success: true })
+        out({
+          id: cmd.id,
+          type: 'response',
+          command: 'prompt',
+          success: true,
+          data: { disposition: 'handled' },
+        })
         break
       }
       if (compacting) {
@@ -697,7 +716,13 @@ function handle(cmd) {
         })
         break
       }
-      out({ id: cmd.id, type: 'response', command: 'prompt', success: true })
+      out({
+        id: cmd.id,
+        type: 'response',
+        command: 'prompt',
+        success: true,
+        data: { disposition: promptDisposition(cmd) },
+      })
       contextTokens = CONTEXT_TOKENS
       // Scenario switch, keyed off the prompt text: the default turn is what
       // most tests assert on, so extra scenarios must not change it.
@@ -928,7 +953,7 @@ function handle(cmd) {
           aborted: false,
           willRetry: false,
         })
-        out({ type: 'agent_settled' })
+        out({ type: 'agent_settled', aborted: false })
         break
       }
       if (message === 'queue-hold' || message.endsWith('\nroutine-e2e-hold')) {
@@ -1026,7 +1051,7 @@ function handle(cmd) {
       if (queueHold) {
         queueHold = false
         out({ type: 'agent_end', messages: [] })
-        out({ type: 'agent_settled' })
+        out({ type: 'agent_settled', aborted: true })
       }
       break
 
@@ -1265,7 +1290,7 @@ function runTurn() {
     out({ type: 'message_end', message })
   })
   push(() => out({ type: 'agent_end', messages: [] }))
-  push(() => out({ type: 'agent_settled' }))
+  push(() => out({ type: 'agent_settled', aborted: false }))
 
   // Sequential so a step may await (used to hold a tool "running").
   void (async () => {
@@ -1313,7 +1338,7 @@ function runTextTurn(
         },
       }),
     () => out({ type: 'agent_end', messages: [] }),
-    () => out({ type: 'agent_settled' }),
+    () => out({ type: 'agent_settled', aborted: false }),
   ])
 }
 
@@ -1403,7 +1428,7 @@ function runArtifactLinkTurn() {
         },
       }),
     () => out({ type: 'agent_end', messages: [] }),
-    () => out({ type: 'agent_settled' }),
+    () => out({ type: 'agent_settled', aborted: false }),
   ])
 }
 
@@ -1465,7 +1490,7 @@ function runLongArtifactTurn() {
         },
       }),
     () => out({ type: 'agent_end', messages: [] }),
-    () => out({ type: 'agent_settled' }),
+    () => out({ type: 'agent_settled', aborted: false }),
   ])
 }
 
@@ -1557,7 +1582,7 @@ function runLongStreamTurn() {
     }),
   )
   steps.push(() => out({ type: 'agent_end', messages: [] }))
-  steps.push(() => out({ type: 'agent_settled' }))
+  steps.push(() => out({ type: 'agent_settled', aborted: false }))
 
   play(steps)
 }
@@ -1622,7 +1647,7 @@ function runThinkingTurn() {
         },
       }),
     () => out({ type: 'agent_end', messages: [] }),
-    () => out({ type: 'agent_settled' }),
+    () => out({ type: 'agent_settled', aborted: false }),
   ])
 }
 
@@ -1748,7 +1773,7 @@ function runManyTurnsTurn(tailGroup = false) {
     }),
   )
   steps.push(() => out({ type: 'agent_end', messages: [] }))
-  steps.push(() => out({ type: 'agent_settled' }))
+  steps.push(() => out({ type: 'agent_settled', aborted: false }))
   play(steps, 3)
 }
 
@@ -1848,7 +1873,7 @@ function runSubagentTurn() {
     }),
   )
   steps.push(() => out({ type: 'agent_end', messages: [] }))
-  steps.push(() => out({ type: 'agent_settled' }))
+  steps.push(() => out({ type: 'agent_settled', aborted: false }))
 
   play(steps)
 }
@@ -2126,7 +2151,7 @@ function runNativeSubagentTurn() {
       }),
     ...say('Reviewer found one nit; scout is mapping the auth flow in the background.'),
     () => out({ type: 'agent_end', messages: [] }),
-    () => out({ type: 'agent_settled' }),
+    () => out({ type: 'agent_settled', aborted: false }),
     () => completion,
     // The run reports back: the widget goes, the muted completion lands, and
     // the model is woken to read it.
@@ -2159,7 +2184,7 @@ function runNativeSubagentTurn() {
       ),
     ...say('Scout reports: the auth flow enters at login.ts.'),
     () => out({ type: 'agent_end', messages: [] }),
-    () => out({ type: 'agent_settled' }),
+    () => out({ type: 'agent_settled', aborted: false }),
   ])
 }
 
@@ -2337,7 +2362,7 @@ function runParallelAgentsTurn() {
       }),
     ...say('All four reported. Refresh now lives in session.ts and the auth tests pass.'),
     () => out({ type: 'agent_end', messages: [] }),
-    () => out({ type: 'agent_settled' }),
+    () => out({ type: 'agent_settled', aborted: false }),
   ])
 }
 
@@ -2403,6 +2428,6 @@ function runManyItemsTurn() {
     }),
   )
   steps.push(() => out({ type: 'agent_end', messages: [] }))
-  steps.push(() => out({ type: 'agent_settled' }))
+  steps.push(() => out({ type: 'agent_settled', aborted: false }))
   play(steps, 4)
 }

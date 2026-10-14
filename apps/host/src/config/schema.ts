@@ -14,7 +14,7 @@ export interface HostConfigV1 {
   /** Defaults to the short hostname, sanitized. */
   hostId?: string
   pi: {
-    /** Required when `executable` is a Node script, as pi 0.87.1 is. */
+    /** Required when `executable` is a Node script, as an npm-installed pi is. */
     node?: string
     /** What `command -v pi` prints. */
     executable: string

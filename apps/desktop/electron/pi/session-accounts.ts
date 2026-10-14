@@ -3,12 +3,12 @@
  *
  * A session's account is decided at spawn, but the thing it has to be recorded
  * against — the session's own `.jsonl` path — does not exist yet: pi writes the
- * file when the first turn ends, and the renderer only learns the path from
- * `get_state`. So the pick is parked here under the Phosphor session id and
+ * file when the first message is sent, and the renderer only learns the path
+ * from `get_state`. So the pick is parked here under the Phosphor session id and
  * claimed by `claude:bindSession` once the path is known.
  *
  * Deliberately not persisted. An entry for a session disposed before its
- * first turn dies with the process, and the binding it would have written is
+ * first message dies with the process, and the binding it would have written is
  * one no resume will ever look for.
  */
 const bySession = new Map<string, string>()

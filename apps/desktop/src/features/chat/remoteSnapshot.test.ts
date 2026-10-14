@@ -460,7 +460,7 @@ describe('remote snapshot equivalence', () => {
       { type: 'agent_end', messages: [] },
       { type: 'message_start', message: { role: 'user', content: 'next' } },
       { type: 'message_end', message: { role: 'user', content: 'next' } },
-      { type: 'agent_settled' },
+      { type: 'agent_settled', aborted: false },
     ]))
   it('matches an auto-retry', () =>
     equivalent([
@@ -468,7 +468,7 @@ describe('remote snapshot equivalence', () => {
       { type: 'agent_end', messages: [], willRetry: true },
       { type: 'auto_retry_start', attempt: 1, maxAttempts: 3, delayMs: 100, errorMessage: 'retry' },
       { type: 'auto_retry_end', success: false, attempt: 1, finalError: 'failed' },
-      { type: 'agent_settled' },
+      { type: 'agent_settled', aborted: false },
     ]))
   it('matches compaction', () =>
     equivalent([
@@ -480,7 +480,7 @@ describe('remote snapshot equivalence', () => {
         result: { summary: 'summary', firstKeptEntryId: 'entry', tokensBefore: 20 },
         aborted: false,
       },
-      { type: 'agent_settled' },
+      { type: 'agent_settled', aborted: false },
     ]))
   it('coalesces 4,001 toolcall deltas without overflowing', () => {
     let overflows = 0

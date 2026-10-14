@@ -22,7 +22,7 @@ import { StopIconButton, SubmitIconButton } from '@/components/ComposerButtons'
 import { useChatUiStore } from './uiState'
 import { WidgetSlot } from '@/features/extension-ui/ExtensionUiHosts'
 import { exportSessionHtml, renameSession } from '@/features/sessions/sessionActions'
-import { piCallOk } from '@/lib/rpc'
+import { piCallAccepted, piCallOk } from '@/lib/rpc'
 import { formatShortcut } from '@/lib/shortcuts'
 import {
   composePrompt,
@@ -227,14 +227,20 @@ export function Composer({
       }
 
       try {
-        await piCallOk(sessionId, {
+        const accepted = await piCallAccepted(sessionId, {
           type: 'prompt',
           message: messageWithFiles,
           ...(imagePayload.length ? { images: imagePayload } : {}),
           ...(isStreaming ? { streamingBehavior: behavior ?? 'steer' } : {}),
         })
+        if (!accepted) return
         // Only once pi took it, so a failed send typed again is not learned twice.
         useWritingStore.getState().recordPrompt(message)
+        // An extension command consumed it: no run starts, so no event will
+        // ever clear the booting strip or confirm the bubble.
+        if (accepted.data?.disposition === 'handled') {
+          chat.promptHandled(sessionId, messageWithFiles)
+        }
       } catch (error) {
         // `piCallOk` reports a rejected envelope; an IPC-level rejection (the
         // session's process died mid-send, or main refused a Claude prompt on

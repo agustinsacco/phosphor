@@ -161,7 +161,7 @@ describe('resolving pi', () => {
     expect(launch).toEqual({
       binaryPath: process.execPath,
       prefixArgs: [machine.cli],
-      version: '0.87.1',
+      version: '1.2.0',
     })
   })
 
@@ -181,15 +181,15 @@ describe('resolving pi', () => {
 
   it('runs a native pi directly', async () => {
     machine = fakeMachine()
-    const pi = machine.script('native-pi', 'echo "pi 0.88.0"')
+    const pi = machine.script('native-pi', 'echo "pi 1.3.0"')
     expect(await resolvePi({ executable: pi }, piEnv(machine))).toEqual({
-      checks: [{ id: 'pi', status: 'pass', summary: `${pi} 0.88.0` }],
-      launch: { binaryPath: pi, prefixArgs: [], version: '0.88.0' },
+      checks: [{ id: 'pi', status: 'pass', summary: `${pi} 1.3.0` }],
+      launch: { binaryPath: pi, prefixArgs: [], version: '1.3.0' },
     })
   })
 
   it.each([
-    ['an old pi', { piVersion: '0.86.0' }, 'is pi 0.86.0; Phosphor needs 0.87.1 or newer'],
+    ['an old pi', { piVersion: '0.86.0' }, 'is pi 0.86.0; Phosphor needs 1.2.0 or newer'],
     [
       'a version its package disowns',
       { manifestVersion: '0.90.0' },

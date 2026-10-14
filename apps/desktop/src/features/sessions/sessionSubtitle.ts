@@ -12,8 +12,8 @@ export interface SubtitleSegment {
  * The one field a subtitle needs, rather than a whole `SessionMeta`.
  *
  * A live session with no file on disk yet has no `SessionMeta` at all, and it
- * needs this same subtitle — pi does not write a session file until a turn
- * ends, so that row is on screen for the length of the first turn.
+ * needs this same subtitle — pi writes no file until the first message is
+ * sent, and the folder watcher reports it only after its debounce.
  */
 export interface SubtitleSource {
   mtimeMs?: number

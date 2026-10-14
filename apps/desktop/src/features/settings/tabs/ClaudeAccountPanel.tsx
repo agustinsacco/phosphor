@@ -216,7 +216,7 @@ function LaneRow({
       </div>
       {!resumable && (
         <p className="text-text-tertiary mt-0.5 text-2xs">
-          Nothing saved yet — pi writes the session file when the first turn ends.
+          Nothing saved yet — pi writes the session file when the first message is sent.
         </p>
       )}
       {action.error && <p className="text-danger mt-0.5 text-2xs">{action.error}</p>}

@@ -9,7 +9,7 @@
  */
 
 /** Newest pi minor line Phosphor has been verified against, as `major.minor`. */
-export const VERIFIED_PI_LINE = '0.87'
+export const VERIFIED_PI_LINE = '1.2'
 
 function parseLine(version: string): [number, number] | null {
   const parts = version.trim().split('.')

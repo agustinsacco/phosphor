@@ -121,11 +121,14 @@ you want to watch.
   `apps/desktop/electron/pi/print-mode.ts` (`stdio[0] = 'ignore'`). The e2e stub cannot
   catch a regression — it prints and exits without reading stdin — so the guard
   is `apps/desktop/electron/pi/print-mode.test.ts`.
-- **pi writes a session's file only when a turn ENDS**, not incrementally. A
-  name set mid-turn does not reach the disk scan until the reply lands, so
-  every surface showing a LIVE session's title prefers the chat store's
-  `meta.sessionName` over the scanned `meta.name`, and a session keeps its
-  placeholder sidebar row (`PendingSessionRow`) for the whole first turn.
+- **pi creates a session's file when the first user message is sent**, then
+  appends each entry as it lands (pi 1.2.0: a mid-turn `set_session_name` is on
+  disk before the reply). A session disposed before its first prompt has no
+  file. The disk scan still lags behind the watcher's `awaitWriteFinish` and
+  debounce, so every surface showing a LIVE session's title prefers the chat
+  store's `meta.sessionName` over the scanned `meta.name`, and a new session
+  shows a placeholder sidebar row (`PendingSessionRow`) until the scan finds
+  its file.
 - **`apps/desktop/electron/store.ts` constructs its electron-store lazily on purpose** —
   a module-scope `new Store()` would resolve `userData` before main.ts can
   redirect it for E2E, leaking test state into real prefs.

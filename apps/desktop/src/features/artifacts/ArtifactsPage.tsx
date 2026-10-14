@@ -151,8 +151,8 @@ function ArtifactRow({
   row: GlobalArtifactRow
   onView: (key: string) => void
 }): React.JSX.Element {
-  // A live session's own name beats the scanned one (pi writes the session
-  // file only when a turn ends), same rule as the sidebar rows.
+  // A live session's own name beats the scanned one (the disk scan lags a
+  // rename by its debounce), same rule as the sidebar rows.
   const liveName = useChatStore((s) =>
     row.phosphorId ? s.sessions[row.phosphorId]?.meta?.sessionName : undefined,
   )

@@ -72,6 +72,12 @@ interface ChatStore {
   addUserMessage: (sessionId: string, text: string, images?: ImageContent[]) => void
   /** Drop the "waiting for pi to start" state without an agent event (abort). */
   clearPromptSent: (sessionId: string) => void
+  /**
+   * pi answered a prompt `handled`: an extension command consumed it and no
+   * run starts. Its optimistic bubble never reaches the transcript, so it goes,
+   * and so does the booting state no agent event would clear.
+   */
+  promptHandled: (sessionId: string, text: string) => void
   addBashItem: (sessionId: string, item: Omit<BashItem, 'id' | 'kind'>) => string
   updateBashItem: (sessionId: string, id: string, patch: Partial<BashItem>) => void
   hydrate: (sessionId: string, messages: AgentMessage[]) => void
@@ -139,6 +145,20 @@ export const useChatStore = create<ChatStore>((set) => ({
         ? s
         : { sessions: patchSession(s.sessions, sessionId, { promptSentAt: null }) },
     ),
+
+  promptHandled: (sessionId, text) =>
+    set((state) => ({
+      sessions: chats.patch(state.sessions, sessionId, (session) => {
+        const index = session.items.findLastIndex(
+          (item) => item.kind === 'user' && item.optimistic === true && item.text === text,
+        )
+        return {
+          ...session,
+          items: index === -1 ? session.items : session.items.toSpliced(index, 1),
+          promptSentAt: null,
+        }
+      }),
+    })),
 
   addBashItem: (sessionId, item) => {
     const id = newItemId()

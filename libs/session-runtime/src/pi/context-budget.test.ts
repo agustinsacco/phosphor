@@ -73,7 +73,7 @@ it('reads live budget and pause policy, and sends diagnostics only to its inject
     () => paused,
   )
   const settled = async () => {
-    events.emit('event', { type: 'agent_settled' })
+    events.emit('event', { type: 'agent_settled', aborted: false })
     await runtime.withBudgetCompaction('session', 'prompt', async () => {})
   }
   try {

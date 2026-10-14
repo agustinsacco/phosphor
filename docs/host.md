@@ -383,7 +383,7 @@ on Linux and macOS alike. No environment variable names it.
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `hostId`           | Optional. Defaults to the short hostname, made to fit the HostHello identifier pattern.                                                                                             |
 | `pi.executable`    | What `command -v pi` prints.                                                                                                                                                        |
-| `pi.node`          | The node that runs pi. Required when `pi.executable` resolves to a Node script, as pi 0.87.1 does.                                                                                  |
+| `pi.node`          | The node that runs pi. Required when `pi.executable` resolves to a Node script, as an npm-installed pi does.                                                                        |
 | `resourceRoot`     | Holds `pi-ext/` and `skills/`. Defaults to the running bundle's own folder.                                                                                                         |
 | `repositories`     | 1 to 64 folders that sessions may run in. Never `/`.                                                                                                                                |
 | `contextBudget`    | Desktop's grammar; `""` or absent is the 200k default. A value Desktop would quietly replace with the default, such as `77k`, is an error.                                          |
@@ -809,7 +809,7 @@ An invalid existing config does not get that next step.
 | `environment`             | Warns about ambient authority, and about passed names the Host's environment does not have.                                                                                                                                                                                                                         | warning    |
 | `hello`                   | The HostHello holds no secret value of pi's environment. One that would is never shown or presented; the check names the field and the variable, never the value.                                                                                                                                                   | 78         |
 | `pi-node`                 | An executable file whose `--version` satisfies pi's `engines.node` as npm checks engines, prereleases included: npm comparators (`>=`, `^`, `~` and the rest) joined by spaces and `\|\|`. A range with any other part, such as `22.x`, or one that is not a string, fails. 22.19.0 or newer when pi declares none. | 69         |
-| `pi`                      | A Node script needs `pi.node` (78). `--version` is 0.87.1 or newer and matches pi's own package.json when it has one.                                                                                                                                                                                               | 69         |
+| `pi`                      | A Node script needs `pi.node` (78). `--version` is 1.2.0 or newer and matches pi's own package.json when it has one.                                                                                                                                                                                                | 69         |
 | `git`                     | `git --version` succeeds for the first `git` on pi's PATH.                                                                                                                                                                                                                                                          | 69         |
 | `extensions`              | The seven bundled extensions, and every helper they import from beside themselves, are under `<resourceRoot>/pi-ext/`.                                                                                                                                                                                              | 69         |
 | `repository`              | Each root resolves to an existing folder other than `/`. A root holding the home folder, or one level under `/`, warns; one that is not a git repository is noted.                                                                                                                                                  | 69         |
@@ -1080,7 +1080,7 @@ the divider and subsequent events in live order.
 
 The unattached snapshot reader reads a stopped lane's context from pi's session
 file, with `state: null`. A null or missing file means an empty transcript: pi
-persists messages only when a turn ends. The same snapshot size and image omission
+creates the file when the first message is sent. The same snapshot size and image omission
 rule applies. Reads are synchronous, capped at 64 MiB, and cached for four lanes;
 invalid or inaccessible files return `unknown-lane`. This port is not served yet.
 The reader trusts the owner's pi sessions folder; a process that can write it

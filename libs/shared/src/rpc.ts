@@ -1,6 +1,6 @@
 /**
  * pi RPC protocol types, mirrored from the installed
- * @earendil-works/pi-coding-agent (re-verified against 0.84.4):
+ * @earendil-works/pi-coding-agent (re-verified against 1.2.0):
  *   dist/modes/rpc/rpc-mode.js  (the command switch — the real command list)
  *   dist/modes/rpc/rpc-types.d.ts
  *   docs/rpc.md
@@ -24,6 +24,10 @@
  *   0.84.3  put tool-call id + name on `toolcall_start` directly (the
  *           supported replacement for reading them off `partial`)
  *   0.84.4  added the `clear_queue` command
+ *   0.99.0  added `data.disposition` to `prompt` / `steer` / `follow_up`, and
+ *           nested tool calls (`parentToolCallId`) from tools such as codemode
+ *   1.1.0   added `aborted` to `agent_settled` and `durationMs` to
+ *           `tool_execution_end` and to tool results
  * The delta fields below are optional because a minimum-version install may
  * predate 0.84.2/0.84.3; every reader must tolerate their absence.
  */
@@ -157,6 +161,8 @@ export interface ToolResultMessage {
   details?: unknown
   isError: boolean
   timestamp?: number
+  /** Milliseconds the execution took (monotonic); absent for legacy results. */
+  durationMs?: number
 }
 
 export interface BashExecutionMessage {
@@ -243,7 +249,8 @@ export interface ToolPartialResult {
 export type PiEvent =
   | { type: 'agent_start' }
   | { type: 'agent_end'; messages: AgentMessage[]; willRetry?: boolean }
-  | { type: 'agent_settled' }
+  /** `aborted` is true when the run ended because it was aborted. */
+  | { type: 'agent_settled'; aborted: boolean }
   | { type: 'turn_start' }
   | { type: 'turn_end'; message: AgentMessage; toolResults: ToolResultMessage[] }
   | { type: 'message_start'; message: AgentMessage }
@@ -253,11 +260,17 @@ export type PiEvent =
    */
   | { type: 'message_update'; usage?: Usage; assistantMessageEvent: AssistantMessageEvent }
   | { type: 'message_end'; message: AgentMessage }
+  /**
+   * Tool execution events. `parentToolCallId` marks a call another tool made
+   * while it ran (a codemode script calling tools); it is not a block of any
+   * assistant message, and the parent's result records it in `nestedCalls`.
+   */
   | {
       type: 'tool_execution_start'
       toolCallId: string
       toolName: string
       args: Record<string, unknown>
+      parentToolCallId?: string
     }
   | {
       type: 'tool_execution_update'
@@ -265,6 +278,7 @@ export type PiEvent =
       toolName: string
       args: Record<string, unknown>
       partialResult: ToolPartialResult
+      parentToolCallId?: string
     }
   | {
       type: 'tool_execution_end'
@@ -272,6 +286,9 @@ export type PiEvent =
       toolName: string
       result: ToolPartialResult
       isError: boolean
+      parentToolCallId?: string
+      /** How long `execute()` took (monotonic); absent when the tool did not run. */
+      durationMs?: number
     }
   | { type: 'queue_update'; steering: string[]; followUp: string[] }
   | { type: 'compaction_start'; reason: CompactionReason }
@@ -319,6 +336,16 @@ export interface CompactionResult {
 }
 
 // ---------- commands (stdin) ----------
+
+/**
+ * What pi did with a submitted input. `handled`: an extension command or input
+ * handler consumed it and no run started for it, so no `agent_settled` will
+ * follow on its account. `queued`: it joins the running run. `started`: pi
+ * accepted it to start a run. It describes this input only, not other work an
+ * extension may start.
+ */
+export type QueuedInputDisposition = 'handled' | 'queued'
+export type PromptDisposition = QueuedInputDisposition | 'started'
 
 export type StreamingBehavior = 'steer' | 'followUp'
 export type QueueMode = 'all' | 'one-at-a-time'
@@ -446,9 +473,9 @@ export type RpcResponse<TData = unknown> = RpcSuccessResponse<TData> | RpcErrorR
 
 /** Per-command response data payloads. */
 export interface RpcResponseDataMap {
-  prompt: undefined
-  steer: undefined
-  follow_up: undefined
+  prompt: { disposition: PromptDisposition }
+  steer: { disposition: QueuedInputDisposition }
+  follow_up: { disposition: QueuedInputDisposition }
   abort: undefined
   new_session: { cancelled: boolean }
   get_state: RpcSessionState

@@ -31,7 +31,7 @@ export function notifyLane(
   const title =
     notice.title ??
     sessionTitle({
-      // Live name first: pi writes a rename to disk only when a turn ends.
+      // Live name first: the disk scan lags a rename by its debounce.
       explicitName: chat?.meta?.sessionName ?? scanned?.name,
       firstUserText:
         (firstUser?.kind === 'user' ? firstUser.text : undefined) ?? scanned?.firstUserText,
@@ -69,14 +69,13 @@ export function laneOnScreen(sessionId: string): boolean {
 /**
  * A lane's run just settled. Say so if the user is somewhere else.
  *
- * Nothing for the lane on screen — the transcript already shows it — and
- * nothing for an aborted run, which only the stop control produces.
+ * Nothing for the lane on screen: the transcript already shows it. The
+ * caller skips an aborted run, which only the stop control produces.
  */
 export function noticeLaneSettled(sessionId: string): void {
   if (laneOnScreen(sessionId)) return
   const items = useChatStore.getState().sessions[sessionId]?.items ?? []
   const outcome = laneOutcome(items)
-  if (!outcome) return
   if (outcome.kind === 'error') {
     notifyLane(sessionId, {
       kind: 'error',

@@ -81,8 +81,8 @@ export type TurnEnd = 'idle' | 'ended' | 'unfinished'
 const POLL_MS = 20
 
 /**
- * Abort a turn in flight and wait for it to end, since pi writes a session
- * file when a turn ends: stopping pi mid-turn would lose that turn.
+ * Abort a turn in flight and wait for it to end, since pi writes a reply to
+ * the session file when it ends: stopping pi mid-reply would lose it.
  */
 export async function endTurn(client: TurnClient, ms: number): Promise<TurnEnd> {
   if (!client.alive) return 'idle'

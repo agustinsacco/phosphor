@@ -112,7 +112,7 @@ to cut it.
   `libs/pi-extensions/pi-ext/context-budget.ts`, which uses `pi.setModel` with cloned metadata to
   cap the session window. pi retains its normal response reserve: a 400k budget
   with the default reserve compacts above 383,616 tokens. Catalogue models and
-  global pi settings are unchanged. Phosphor requires pi 0.87.1 or newer.
+  global pi settings are unchanged. Phosphor requires pi 1.2.0 or newer.
 - Main sends `/phosphor-context-budget` at startup, before prompts, after the
   auto-compaction toggle, and when the preference changes. This extension
   command runs no model. Changes during a run wait for the next completed tool

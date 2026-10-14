@@ -342,7 +342,7 @@ describe('doctor', () => {
   it('renders a readable report', async () => {
     const text = renderDoctor(await runDoctor(context()))
     expect(text).toMatch(/^phosphor 0\.0\.0-dev\.source · node 22\.22\.3 · linux\n/)
-    expect(text).toContain(`  ok    pi              ${machine.cli} 0.87.1, started with node\n`)
+    expect(text).toContain(`  ok    pi              ${machine.cli} 1.2.0, started with node\n`)
     expect(text).toContain('\nlanes\n  native  available\n  claude  unavailable: ')
     expect(text.endsWith('\nready\nnext: sign in to a provider: phosphor providers\n')).toBe(true)
   })
