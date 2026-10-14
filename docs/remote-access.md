@@ -116,10 +116,14 @@ fall through to this machine's filesystem or subprocesses.
 ## Remote read panes
 
 Remote Files and Changes require `workspaces.read` in the Host's ready frame.
-Files lists tracked and untracked non-ignored paths and opens text read-only.
+Files lists tracked and untracked non-ignored paths. Controllers with
+`workspaces.write` and `sessions.control` can edit text, create files and folders,
+rename, copy, move and trash entries inside the lane. Saves compare the SHA-256
+revision read by the editor; conflicts preserve edits and require a refresh.
+Uncertain saves preserve edits and are never retried automatically.
 Changes shows git status and an inline read-only diff against HEAD. Binary files
-and oversized text use placeholders. These panes never mount local editors,
-preview protocols, filesystem watchers or file management actions. They refresh
+and oversized text use placeholders. Remote text uses in-memory Monaco models, never local preview protocols or
+filesystem watchers. They refresh
 on focused lane summary changes (including turn end), reconnects and manual refresh.
 Streamed text does not reload the pane. Added and untracked files use an empty
 original. If HEAD cannot be read, its placeholder does not discard current text.
@@ -132,7 +136,9 @@ The live chat picker keeps the lane's full pi model list through `lane.models`,
 requiring `sessions.read`. Stopped lanes do not fall back to a machine catalogue.
 Skills requires `skills.read`. Remote Skills shows the installed list
 and SKILL.md read-only, with no export, upload, discovery installs or mutations.
-Unsupported panes retain the not-available state. All writes remain refused.
+Unsupported panes retain the not-available state. Remote attachments remain
+refused with the existing not-available message; no local path is sent to pi.
+The six `fs:` mutation channels route to fenced Host commands, not local I/O.
 
 Workspace reads resolve through the window's focused open lane. The opaque
 workspace key must match that lane, so two worktrees in one repository are not

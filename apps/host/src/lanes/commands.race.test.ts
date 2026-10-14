@@ -1556,3 +1556,52 @@ it('a late dialog answer cannot publish after close', async () => {
   await running
   expect(publish).not.toHaveBeenCalled()
 })
+
+it('fences file mutations, requires both caps, records before I/O and deduplicates', async () => {
+  const execute = vi.fn(async (_laneId: string, _op: unknown) => {
+    expect(store.getReceipt(request.requestId, writer.id)?.status).toBe('pending')
+    return { ok: true as const }
+  })
+  ports.writes = { capabilityFor: () => 'workspaces.write', execute }
+  service = createLaneCommands(ports)
+  const writer: LaneCommandClient = { ...one, caps: ['sessions.control', 'workspaces.write'] }
+  const request = frame({ type: 'files.create', path: 'a', kind: 'file' })
+  await service.submit(one, request)
+  expect(last(request.requestId)).toMatchObject({ code: 'forbidden' })
+  expect(execute).not.toHaveBeenCalled()
+  await service.submit({ ...writer, caps: ['workspaces.write'] }, request)
+  expect(last(request.requestId)).toMatchObject({ code: 'forbidden' })
+  expect(execute).not.toHaveBeenCalled()
+  await service.submit(writer, request)
+  expect(last(request.requestId)).toMatchObject({ status: 'done', fence: 2 })
+  await service.submit(writer, request)
+  expect(execute).toHaveBeenCalledTimes(1)
+  await service.submit({ ...two, caps: writer.caps }, frame({ type: 'files.delete', path: 'a' }, 2))
+  expect(sent.at(-1)?.receipt).toMatchObject({ status: 'rejected', code: 'not-controller' })
+  await service.submit(writer, frame({ type: 'files.delete', path: 'a' }, 1))
+  expect(sent.at(-1)?.receipt).toMatchObject({ status: 'rejected', code: 'stale-fence' })
+  expect(execute).toHaveBeenCalledTimes(1)
+})
+
+it.each(['renewal', 'control', 'close'])(
+  'refuses queued file I/O after %s permission loss',
+  async (loss) => {
+    const execute = vi.fn(async () => ({ ok: true as const }))
+    ports.writes = { capabilityFor: () => 'workspaces.write', execute }
+    service = createLaneCommands(ports)
+    let caps: LaneCommandClient['caps'] = ['sessions.control', 'workspaces.write']
+    const writer = { ...one, caps, currentCaps: () => caps }
+    const response = deferred<void>()
+    ports.stopLane = () => response.promise
+    const held = service.submit(writer, frame({ type: 'lane.stop' }))
+    const request = frame({ type: 'files.create', path: 'a', kind: 'file' }, 2)
+    const queued = service.submit(writer, request)
+    caps =
+      loss === 'renewal' ? ['sessions.control'] : loss === 'control' ? ['workspaces.write'] : []
+    response.release()
+    await held
+    await queued
+    expect(execute).not.toHaveBeenCalled()
+    expect(last(request.requestId)).toMatchObject({ status: 'rejected', code: 'forbidden' })
+  },
+)

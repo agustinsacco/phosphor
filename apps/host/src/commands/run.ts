@@ -1,6 +1,7 @@
 import { loadHostPty } from '../terminals/native'
 import { createTerminals, type HostTerminals } from '../terminals/service'
 import { terminalState } from '../terminals/state'
+import { createWrites } from '../features/writes'
 import { createAuthority } from '../api/authority'
 import { startApi } from '../api/server'
 import { randomBytes, randomInt } from 'node:crypto'
@@ -263,8 +264,15 @@ async function runHostCommand(context: RunContext): Promise<number> {
             },
             ...terminalState(stateDirectory),
           })
+        const featureContext: FeatureContext = {
+          store,
+          env: context.env,
+          home: context.home,
+          log: (event, fields) => log.write('host', event, fields),
+        }
         commands = createLaneCommands({
           terminals,
+          writes: createWrites(featureContext),
           store,
           ...binding,
           runtime: binding,
@@ -277,12 +285,6 @@ async function runHostCommand(context: RunContext): Promise<number> {
           now: context.now ?? Date.now,
           log: log.write,
         })
-        const featureContext: FeatureContext = {
-          store,
-          env: context.env,
-          home: context.home,
-          log: (event, fields) => log.write('host', event, fields),
-        }
         const features = [
           ...(terminals ? [terminals.feature] : []),
           routines.feature,
@@ -309,6 +311,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
             ...new Set([
               'sessions.read' as const,
               'sessions.control' as const,
+              'workspaces.write' as const,
               ...features.map((feature) => feature.capability),
             ]),
           ],

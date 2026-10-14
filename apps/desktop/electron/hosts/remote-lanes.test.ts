@@ -929,3 +929,60 @@ it('does not broadcast Host changes for ten pi text deltas but preserves summary
   await drain()
   expect(t.changed).toHaveBeenCalled()
 })
+
+it('routes file writes with the current fence and rechecks capabilities, focus and handles', async () => {
+  const t = await setup()
+  const opening = t.lanes.open(t.window, t.hostId, t.laneId)
+  await drain()
+  const info = await opening
+  t.lanes.setFocused(1, { hostId: t.hostId, laneId: t.laneId })
+  const lane = t.lanes.readLane(1, info.workspacePath)
+  if (!lane) throw new Error('Missing lane')
+  const op = { type: 'files.create' as const, path: 'a', kind: 'file' as const }
+  const send = vi.spyOn(t.c, 'send').mockResolvedValue({ requestId: randomUUID(), status: 'done' })
+  const snapshot = t.c.snapshot()
+  const view = vi.spyOn(t.c, 'snapshot').mockReturnValue(snapshot)
+  await expect(lane.write(op)).rejects.toThrow(REMOTE_UNAVAILABLE)
+  expect(send).not.toHaveBeenCalled()
+  const writable = {
+    ...snapshot,
+    capabilities: ['sessions.read', 'sessions.control', 'workspaces.write'] as const,
+  }
+  view.mockReturnValue({ ...writable, capabilities: [...writable.capabilities] })
+  await expect(lane.write(op)).resolves.toBeUndefined()
+  expect(send).toHaveBeenLastCalledWith(
+    op,
+    t.laneId,
+    snapshot.lanes.find((l) => l.laneId === t.laneId)?.control.fence,
+  )
+  send.mockResolvedValue({ requestId: randomUUID(), status: 'rejected', code: 'conflict' })
+  await expect(lane.write(op)).rejects.toThrow('changed-on-disk')
+  send.mockResolvedValue({ requestId: randomUUID(), status: 'unknown' })
+  await expect(lane.write(op)).rejects.toThrow('File mutation not confirmed')
+  send.mockImplementation(async () => {
+    view.mockReturnValue(snapshot)
+    return { requestId: randomUUID(), status: 'done' }
+  })
+  await expect(lane.write(op)).rejects.toThrow(REMOTE_UNAVAILABLE)
+  view.mockReturnValue({ ...writable, capabilities: [...writable.capabilities] })
+  send.mockImplementation(async () => {
+    t.lanes.setFocused(1, null)
+    return { requestId: randomUUID(), status: 'done' }
+  })
+  await expect(lane.write(op)).rejects.toThrow(REMOTE_UNAVAILABLE)
+  t.lanes.setFocused(1, { hostId: t.hostId, laneId: t.laneId })
+  send.mockImplementation(async () => {
+    t.connection.mockReturnValue(undefined)
+    return { requestId: randomUUID(), status: 'done' }
+  })
+  await expect(lane.write(op)).rejects.toThrow(REMOTE_UNAVAILABLE)
+  t.connection.mockReturnValue(t.c)
+  send.mockImplementation(async () => {
+    t.lanes.dispose(1, info.sessionId)
+    return { requestId: randomUUID(), status: 'done' }
+  })
+  await expect(lane.write(op)).rejects.toThrow(REMOTE_UNAVAILABLE)
+  t.lanes.clear()
+  t.c.close()
+  t.host.stop()
+})

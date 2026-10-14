@@ -16,7 +16,8 @@ export interface FileParams {
   ref?: string
 }
 export type FileRead =
-  { binary: true; size: number } | { binary: false; size: number; content: string }
+  | { binary: true; size: number }
+  | { binary: false; size: number; content: string; revision?: string | null }
 export interface FileList {
   files: string[]
 }
@@ -32,6 +33,9 @@ export interface GitStatus {
 }
 function record(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+export function isRevision(v: unknown): v is string | null {
+  return v === null || (typeof v === 'string' && /^[a-f0-9]{64}$/.test(v))
 }
 export function isFilePath(v: unknown): v is string {
   return (
@@ -105,7 +109,11 @@ export function parseFileResult(method: string, v: unknown): FileResult | null {
       v.size <= FILE_LIMITS.textBytes &&
       textSize(v.content) <= FILE_LIMITS.textBytes
     )
-      return { binary: false, size: v.size, content: v.content }
+      return method === 'files.read'
+        ? isRevision(v.revision)
+          ? { binary: false, size: v.size, content: v.content, revision: v.revision }
+          : null
+        : { binary: false, size: v.size, content: v.content }
   }
   if (
     method === 'git.status' &&

@@ -163,6 +163,7 @@ describe('run lane composition', () => {
           expect(hooks.lanes?.capabilities).toEqual([
             'sessions.read',
             'sessions.control',
+            'workspaces.write',
             'routines',
             'workspaces.read',
             'skills.read',

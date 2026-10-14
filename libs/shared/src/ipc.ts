@@ -1009,7 +1009,10 @@ export interface IpcInvokeMap {
   'fs:openInDefaultApp': { args: [path: string]; result: OpenInDefaultAppResult }
   /** macOS Quick Look panel; a no-op elsewhere. Never executes the file. */
   'fs:quickLook': { args: [path: string]; result: void }
-  'fs:writeFile': { args: [path: string, content: string]; result: { mtimeMs: number } }
+  'fs:writeFile': {
+    args: [path: string, content: string, expected?: string | null]
+    result: { mtimeMs: number; revision?: string }
+  }
   'fs:createFile': { args: [path: string]; result: void }
   'fs:createDir': { args: [path: string]; result: void }
   'fs:rename': { args: [from: string, to: string]; result: void }

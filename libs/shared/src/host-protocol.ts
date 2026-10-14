@@ -8,6 +8,7 @@ import {
   type TerminalSubscribe,
   type TerminalFrame,
 } from './host-protocol-terminals'
+import { parseFileWriteOp, type FileWriteOp } from './host-protocol-writes'
 /**
  * Host protocol v1: the only language Desktop (and later the PWA) speaks to a
  * Host, over one WebSocket per client per Host, reached through Tailscale.
@@ -232,6 +233,7 @@ export type LanePiOp = DistributiveOmit<Extract<RpcCommand, { type: LanePiOpType
 export type LaneOp =
   | TerminalOp
   | RoutineOp
+  | FileWriteOp
   | LanePiOp
   | { readonly type: 'extension_ui_response'; readonly response: ExtensionUIResponse }
   | {
@@ -562,6 +564,8 @@ function response(v: unknown): ExtensionUIResponse | null {
   return v.cancelled === true ? { type: v.type, id: v.id, cancelled: true } : null
 }
 function op(v: unknown): LaneOp | null {
+  const write = parseFileWriteOp(v)
+  if (write) return write
   if (!record(v)) return null
   if (typeof v.type === 'string' && v.type.startsWith('terminal.')) return parseTerminalOp(v)
   if (typeof v.type === 'string' && v.type.startsWith('routine.')) return parseRoutineOp(v)

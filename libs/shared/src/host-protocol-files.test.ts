@@ -49,7 +49,14 @@ describe('host protocol files', () => {
       binary: true,
       size: 3,
     })
-    expect(parseFileResult('files.read', { binary: false, size: 1, content: 'x' })).not.toBeNull()
+    expect(
+      parseFileResult('files.read', {
+        binary: false,
+        size: 1,
+        content: 'x',
+        revision: 'a'.repeat(64),
+      }),
+    ).not.toBeNull()
     expect(parseFileResult('files.read', { binary: true, size: 3, content: 'secret' })).toBeNull()
     expect(parseFileResult('files.read', { binary: false, size: -1, content: '' })).toBeNull()
     expect(

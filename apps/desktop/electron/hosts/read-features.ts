@@ -110,6 +110,7 @@ export async function readFeature(
         path: args[0],
         content: result.binary ? '' : result.content,
         binary: result.binary,
+        ...(!result.binary ? { revision: result.revision } : {}),
         size: result.size,
         mtimeMs: 0,
       }

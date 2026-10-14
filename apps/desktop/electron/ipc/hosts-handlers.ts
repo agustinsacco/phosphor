@@ -1,3 +1,4 @@
+import { routeRemoteWrite } from '../hosts/write-features'
 import type { SessionPush } from '@shared/models'
 import { app, BrowserWindow, Notification } from 'electron'
 import { hostname } from 'node:os'
@@ -108,7 +109,10 @@ export function registerHostsHandlers(): void {
         ]).then(([local, remote]) => [...local, ...remote]),
       }
     }
-    return routeRemoteRead(channel, args, (key) => remoteLanes().readLane(windowId, key))
+    return (
+      routeRemoteWrite(channel, args, (key) => remoteLanes().readLane(windowId, key)) ??
+      routeRemoteRead(channel, args, (key) => remoteLanes().readLane(windowId, key))
+    )
   })
   const attention = createHostAttention({
     label: manager.label,

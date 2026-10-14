@@ -1261,7 +1261,7 @@ suite in `npm test`.
 
 ## Machine features
 
-`run` registers the read-only features only when the machine is usable.
+`run` registers the read features and file mutations only when the machine is usable.
 `workspaces.read` covers `files.list` (tracked and non-ignored untracked paths),
 `files.read` (text or binary size), `git.status` (per-path status, branch, ahead
 and behind), `git.diff` (working or staged unified diff), and `git.show` (a file
@@ -1306,6 +1306,38 @@ The portable indexer and library live in `libs/session-runtime/src/artifacts/`.
 No client names a session file, blob hash or storage path. Removed lanes are
 excluded, including lanes removed during a read, even when derived blobs remain.
 The API checks `artifacts.read` before execution and before delivery.
+
+### File mutations
+
+`workspaces.write` and `sessions.control` are both required at command admission
+and again when a queued write starts. A closed connection has no permissions.
+`files.write`, `files.create`, `files.rename`, `files.delete` and `files.transfer`
+are lane-scoped, controller-only and fenced. Receipts are owner-only, not
+capability-gated; receipts carry no content. They retain the existing durable
+pending/done/rejected/unknown and deduplication rules. Attachments remain refused.
+
+Text reads include the SHA-256 revision of the exact bytes read, or null for a
+missing file. Writes accept at most 2 MiB and require that revision (`expected`);
+null means create only. A mismatch returns `conflict`. Writes stage an exclusive
+temporary file in the same directory, fsync, rehash the target and replace it.
+A new target uses link/unlink so a racing create is never overwritten. Temporary
+files are removed on failure. Create uses exclusive open or non-recursive mkdir.
+Regular-file rename uses link/unlink without replacement. Directory rename checks
+that the destination is absent. Transfers share Desktop's naming and no-merge
+rules, stay inside the lane and bound traversal to 40,000 guard checks. Directory
+copies reserve the destination with exclusive mkdir before copying children.
+
+Mutations lstat every component from the resolved lane root, refuse symlinks and
+`.git`, and recheck parent realpaths before I/O. Node has no portable openat or
+rename-no-replace for directories: an owner process can swap an ancestor after a
+check, replace a directory destination before rename, or change existing bytes
+between the last hash and replacement. These are same-user residual windows,
+not isolation from the machine owner. Delete moves to `~/.Trash` on macOS or
+`$XDG_DATA_HOME/Trash` (default `~/.local/share/Trash`) elsewhere, with exclusive
+`.trashinfo` metadata on Linux. DeletionDate uses local time. Trash components are
+validated as non-symlink directories, created one level at a time with mode 0700,
+and destination parent realpaths are rechecked before metadata creation and the move.
+Cross-device moves are refused, never copy-deleted.
 
 ### Host terminals
 

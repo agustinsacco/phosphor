@@ -75,11 +75,16 @@ describe('files feature', () => {
     expect(JSON.stringify(list)).not.toContain('ignored')
     expect(await feature.call('files.read', { laneId: f.laneId, path: 'tracked' })).toEqual({
       ok: true,
-      data: { binary: false, size: 4, content: 'old\n' },
+      data: {
+        binary: false,
+        size: 4,
+        content: 'old\n',
+        revision: expect.stringMatching(/^[a-f0-9]{64}$/),
+      },
     })
     expect(await feature.call('files.read', { laneId: f.laneId, path: 'binary' })).toEqual({
       ok: true,
-      data: { binary: true, size: 3 },
+      data: { binary: true, size: 3, revision: expect.any(String) },
     })
   })
   it('enforces text cap at and above the boundary, including large binary', async () => {
@@ -93,7 +98,7 @@ describe('files feature', () => {
     await writeFile(join(f.root, 'large'), Buffer.alloc(FILE_LIMITS.textBytes + 1))
     expect(await feature.call('files.read', { laneId: f.laneId, path: 'large' })).toEqual({
       ok: true,
-      data: { binary: true, size: FILE_LIMITS.textBytes + 1 },
+      data: { binary: true, size: FILE_LIMITS.textBytes + 1, revision: expect.any(String) },
     })
   })
   it('rejects traversal, absolute, metadata, directories and symlink escapes', async () => {
