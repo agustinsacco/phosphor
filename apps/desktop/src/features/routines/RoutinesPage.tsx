@@ -30,11 +30,23 @@ interface EditorState {
 }
 
 export function RoutinesPage({ workspacePath }: { workspacePath: string }): React.JSX.Element {
-  const snapshot = useRoutinesStore((s) => s.snapshot)
+  const localSnapshot = useRoutinesStore((s) => s.snapshot)
+  const machines = useRoutinesStore((s) => s.machines)
+  const remote = useRoutinesStore((s) => s.remote)
+  const snapshot = localSnapshot
+    ? {
+        ...localSnapshot,
+        routines: [...localSnapshot.routines, ...Object.values(remote).flatMap((r) => r.routines)],
+      }
+    : null
+  const [machine, setMachine] = useState('')
   const loadError = useRoutinesStore((s) => s.error)
   const draft = useRoutinesStore((s) => s.draft)
   const unsaved = useRoutinesStore((s) => !!s.editorDrafts[NEW_ROUTINE])
   const [selected, setSelected] = useState<string | null>(null)
+  const selectedHostRows = selected?.startsWith('host:')
+    ? remote[selected.split('/')[0] ?? '']
+    : undefined
   const [editor, setEditor] = useState<EditorState | null>(null)
   const [deleting, setDeleting] = useState<Routine | null>(null)
   const [search, setSearch] = useState('')
@@ -51,11 +63,18 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
     const refresh = (): void => {
       void useRoutinesStore.getState().refresh()
     }
-    const off = window.phosphor.onRoutinesChanged(refresh)
+    const off = window.phosphor.onRoutinesChanged((event) => {
+      if (event?.machine) void useRoutinesStore.getState().refreshMachine(event.machine)
+      else refresh()
+    })
+    const offHosts = window.phosphor.onHostsChanged(() => {
+      void useRoutinesStore.getState().refreshConnections()
+    })
     window.addEventListener('focus', refresh)
     refresh()
     return () => {
       off()
+      offHosts()
       window.removeEventListener('focus', refresh)
     }
   }, [])
@@ -107,7 +126,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
     return () => {
       stale = true
     }
-  }, [selected, snapshot, loaded])
+  }, [selected, localSnapshot, selectedHostRows, loaded])
 
   const act = async (operation: () => Promise<unknown>): Promise<void> => {
     setBusy(true)
@@ -127,6 +146,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
   const list = (snapshot?.routines ?? [])
     .filter(
       (r) =>
+        (!machine || (r.machine?.id ?? 'local') === machine) &&
         r.archived === archived &&
         `${r.name} ${r.workspacePath}`.toLowerCase().includes(search.toLowerCase()),
     )
@@ -257,6 +277,19 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
         ) : (
           <>
             <div className="mb-4 flex flex-wrap items-center gap-2">
+              <select
+                aria-label="Machine filter"
+                value={machine}
+                onChange={(e) => setMachine(e.target.value)}
+              >
+                <option value="">All machines</option>
+                <option value="local">This computer</option>
+                {machines.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
               <TextInput
                 aria-label="Search routines"
                 className="min-w-0 flex-1"
@@ -270,11 +303,27 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
               <Button
                 disabled={busy}
                 size="sm"
-                onClick={() => void act(() => window.phosphor.invoke('routines:pauseAll'))}
+                onClick={() =>
+                  void act(() =>
+                    window.phosphor.invoke(
+                      'routines:pauseAll',
+                      machine.startsWith('host:') ? machine : undefined,
+                    ),
+                  )
+                }
               >
-                Pause all
+                {machine.startsWith('host:')
+                  ? `Pause all on ${machines.find((m) => m.id === machine)?.label}`
+                  : 'Pause all'}
               </Button>
             </div>
+            {machines
+              .filter((m) => (!machine || machine === m.id) && remote[m.id]?.unavailable)
+              .map((m) => (
+                <p role="status" key={m.id}>
+                  {m.label}: routines unavailable. Refresh to reconnect.
+                </p>
+              ))}
             {!list.length && (
               <div className="border-border rounded-xl border p-6">
                 <h2 className="text-xl font-semibold">Save a task. Give it a schedule.</h2>
@@ -352,6 +401,9 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                             {r.workspacePath}
                           </span>
                         </span>
+                        <span className="text-text-tertiary text-sm">
+                          {r.machine?.label ?? 'This computer'}
+                        </span>
                         <span className="shrink-0 text-right text-sm">
                           <span
                             className={clsx(
@@ -419,6 +471,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
           pristine={editor.pristine}
           draftKey={editor.key}
           existing={editor.existing}
+          machines={machines}
           onClose={() => setEditor(null)}
           onSaved={() => {
             setEditor(null)

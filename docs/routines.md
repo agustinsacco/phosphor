@@ -203,7 +203,27 @@ pending run workspaces are protected from automatic maintenance reclamation.
 The Host daemon owns its own scheduler and SQLite database at
 `<state>/routines/state.sqlite`. It runs schedules with every client closed.
 Desktop's local scheduler, notifications, background setting and database do not
-change. The remote routines editor and Desktop routing are not connected yet.
+change. The Routines page lists this computer and every connected machine that
+announces `routines`, with a machine tag and filter. Local rows load first;
+each unavailable machine has its own status and never hides local routines.
+Definitions and history are fetched independently and refreshed on Host
+`routines-changed` invalidations or connection changes.
+
+Choose a machine in New routine. After creation that machine is fixed. On a
+Host, the workspace picker lists only that machine's configured repository
+labels, not folders or Host paths. Save paused creates a paused, untrusted
+routine. Reopen Edit, acknowledge unattended full tool access, then choose
+**Enable on <machine>** as a separate explicit save. Enable, Run now and Delete
+are disabled without `sessions.control`, with the existing read-only hint.
+Main checks capabilities again, even if a renderer tries to bypass the UI.
+The machine filter scopes **Pause all** to that machine; All machines keeps
+the local Pause all behavior.
+
+Remote history shows only status and scheduled/started/ended timestamps. Host
+transcripts, working folders and execution diagnostics do not reach Desktop.
+An uncertain mutation displays “The outcome is unknown. Refresh before taking
+another action.” It is never resent. Refresh loads the machine's current
+state before another mutation is admitted.
 
 Remote definitions name a configured `repositoryId`, never a filesystem path.
 Creation always stores a paused, untrusted definition. A later explicit controller

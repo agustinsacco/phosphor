@@ -3,6 +3,8 @@ import { create } from 'zustand'
 import {
   newRoutine,
   type RoutineInput,
+  type Routine,
+  type RoutineMachine,
   type RoutineLaneIndex,
   type RoutinesSnapshot,
 } from '@shared/routines'
@@ -21,6 +23,8 @@ export interface EditorDraft {
 }
 
 interface RoutinesState {
+  machines: RoutineMachine[]
+  remote: Record<string, { routines: Routine[]; unavailable: boolean }>
   snapshot: RoutinesSnapshot | null
   /** Lanes the routines still own; the sidebar hides exactly these paths. */
   laneIndex: RoutineLaneIndex
@@ -34,11 +38,18 @@ interface RoutinesState {
    */
   editorDrafts: Record<string, EditorDraft>
   refresh: () => Promise<void>
+  refreshMachine: (machine: string) => Promise<void>
+  refreshConnections: () => Promise<void>
   refreshLaneIndex: () => Promise<void>
 }
 let sequence = 0
 let laneSequence = 0
-export const useRoutinesStore = create<RoutinesState>((set) => ({
+let remoteSequence = 0
+let connectionSequence = 0
+const machineRequests = new Map<string, number>()
+export const useRoutinesStore = create<RoutinesState>((set, get) => ({
+  machines: [],
+  remote: {},
   snapshot: null,
   laneIndex: NO_LANES,
   error: null,
@@ -48,9 +59,53 @@ export const useRoutinesStore = create<RoutinesState>((set) => ({
     const request = ++sequence
     try {
       const snapshot = await window.phosphor.invoke('routines:list')
-      if (request === sequence) set({ snapshot, error: snapshot.error })
+      if (request !== sequence) return
+      const machines = snapshot.machines ?? []
+      set({
+        snapshot,
+        error: snapshot.error,
+        machines,
+        remote: Object.fromEntries(
+          machines.map((m) => [m.id, { routines: [], unavailable: !m.available }]),
+        ),
+      })
+      // Local data is published first. Each machine settles independently.
+      machineRequests.clear()
+      for (const machine of machines) if (machine.available) void get().refreshMachine(machine.id)
     } catch (error) {
       if (request === sequence) set({ error: String(error) })
+    }
+  },
+  refreshConnections: async () => {
+    const request = ++connectionSequence
+    try {
+      const snapshot = await window.phosphor.invoke('routines:list')
+      if (
+        request === connectionSequence &&
+        JSON.stringify(snapshot.machines ?? []) !== JSON.stringify(get().machines)
+      )
+        await get().refresh()
+    } catch {
+      /* Directory refreshes do not replace the local page with an error. */
+    }
+  },
+  refreshMachine: async (machine) => {
+    if (!get().machines.some((m) => m.id === machine && m.available)) return
+    const epoch = sequence
+    const request = ++remoteSequence
+    machineRequests.set(machine, request)
+    const current = () => epoch === sequence && machineRequests.get(machine) === request
+    try {
+      const result = await window.phosphor.invoke('routines:list', machine)
+      if (current())
+        set((state) => ({
+          remote: { ...state.remote, [machine]: { routines: result.routines, unavailable: false } },
+        }))
+    } catch {
+      if (current())
+        set((state) => ({
+          remote: { ...state.remote, [machine]: { routines: [], unavailable: true } },
+        }))
     }
   },
   refreshLaneIndex: async () => {

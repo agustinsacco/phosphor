@@ -571,6 +571,9 @@ untrusted; explicit later acknowledgment and operations that start or delete wor
 require both `routines` and `sessions.control`. Read and work-reducing operations
 require `routines` alone. All mutations use the Host receipt ledger and never
 retry an uncertain outcome. The `routines-changed` lanes-topic event is a small
-invalidation, not routine contents. Desktop remote routine routing is not wired
-in this Host-only implementation. Local Desktop routines are unchanged.
+invalidation, not routine contents. Desktop lists local and remote routines
+in one machine-tagged, filterable page. Main routes opaque routine keys to
+machine-scoped receipt commands and parses every Host result before mapping it.
+The renderer sees repository labels, never Host routine paths. Failed or slow
+machines settle separately from local rows. Local Desktop routines are unchanged.
 See [the routine contract](routines.md#host-routines).

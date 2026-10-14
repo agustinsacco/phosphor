@@ -25,8 +25,11 @@ import { REMOTE_UNAVAILABLE } from '../hosts/lane-ops'
 import { routeRemoteRead } from '../hosts/read-features'
 import { createRemoteLanes, type RemoteLanes } from '../hosts/remote-lanes'
 import { createRemoteTerminals } from '../hosts/terminals'
+import { createRemoteRoutines } from '../hosts/routines'
 import { createHostAttention } from '../hosts/attention'
 
+let routines: ReturnType<typeof createRemoteRoutines> | undefined
+export const remoteRoutineMachines = () => routines?.machines() ?? []
 let remote: RemoteLanes | undefined
 export function remoteLanes(): RemoteLanes {
   if (!remote) throw new Error('Remote lanes are not ready.')
@@ -65,6 +68,7 @@ export function registerHostsHandlers(): void {
         clearGrant: () => grants.clear(hostId),
         changed: () => manager.changed(),
         disabled: () => manager.disabled(),
+        onRoutinesChanged: () => broadcast('routines:changed', { machine: `host:${hostId}` }),
         onAttention: (event) => attention.receive(hostId, event),
         log,
       }),
@@ -96,9 +100,17 @@ export function registerHostsHandlers(): void {
       if (sender && !sender.isDestroyed()) sender.send(channel, value)
     },
   })
+  routines = createRemoteRoutines({
+    connection: manager.connection,
+    hosts: () => Object.keys(manager.snapshot()),
+    view: (host) => manager.snapshot()[host],
+    label: manager.label,
+  })
   setRemoteReadRouter((windowId, channel, args) => {
     const terminal = terminals.route(windowId, channel, args)
     if (terminal) return terminal
+    const routine = routines?.route(channel, args)
+    if (routine) return routine
     const key = args[0]
     if (
       channel === 'artifacts:forSession' &&
@@ -157,6 +169,7 @@ export function registerHostsHandlers(): void {
     const next = accountUserId()
     if (next !== user) {
       terminals?.clear()
+      routines?.clear()
       remote?.clear()
       attention.clear()
       user = next
@@ -183,6 +196,7 @@ export function registerHostsHandlers(): void {
     off()
     terminals?.clear()
     remote?.clear()
+    routines = undefined
     manager.stop()
   })
   handle('hosts:openLane', (event, hostId, laneId) =>

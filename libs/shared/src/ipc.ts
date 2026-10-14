@@ -193,8 +193,16 @@ export interface IpcInvokeMap {
   'hosts:resumeLane': { args: [hostId: string, laneId: string]; result: void }
   'hosts:takeControl': { args: [hostId: string, laneId: string]; result: void }
   'hosts:markRead': { args: [hostId: string, laneId: string]; result: void }
-  'routines:list': { args: []; result: RoutinesSnapshot }
-  'routines:save': { args: [input: RoutineInput, id?: string, revision?: number]; result: void }
+  'routines:list': { args: [machine?: string]; result: RoutinesSnapshot }
+  'routines:save': {
+    args: [
+      input: RoutineInput & { repositoryId?: string },
+      id?: string,
+      revision?: number,
+      machine?: string,
+    ]
+    result: void
+  }
   'routines:check': { args: [input: RoutineInput]; result: RoutineCheck }
   'routines:history': { args: [routineId: string, offset: number]; result: RoutineRun[] }
   'routines:laneIndex': { args: []; result: RoutineLaneIndex }
@@ -205,7 +213,7 @@ export interface IpcInvokeMap {
   'routines:archive': { args: [routineId: string]; result: void }
   /** Removes the routine and its history; trashes lanes it still owns. */
   'routines:delete': { args: [routineId: string]; result: void }
-  'routines:pauseAll': { args: []; result: void }
+  'routines:pauseAll': { args: [machine?: string]; result: void }
   'routines:background': { args: [enabled: boolean]; result: void }
   'pi:health': { args: []; result: PiHealth }
   'pi:createSession': { args: [CreateSessionOptions]; result: LiveSessionInfo }
@@ -1114,7 +1122,7 @@ export interface PhosphorApi {
   /** Session-dir change notifications (chokidar); returns unsubscribe. */
   onSessionsChanged(listener: (payload: { workspacePath: string }) => void): () => void
   /** Invalidation only; reconnecting windows read an authoritative snapshot. */
-  onRoutinesChanged(listener: () => void): () => void
+  onRoutinesChanged(listener: (event?: { machine?: string }) => void): () => void
 
   /**
    * The set of slash commands pi would resolve has changed — a package was

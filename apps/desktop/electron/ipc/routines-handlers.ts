@@ -2,6 +2,7 @@ import { realpathSync } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 import { validateRoutine, type RoutineInput } from '@shared/routines'
+import { remoteRoutineMachines } from './hosts-handlers'
 import { handle } from './handle'
 import { routineScheduler, routinesSnapshot } from '../routines'
 import { configureRoutineBackground } from '../routines/background'
@@ -27,7 +28,7 @@ async function input(raw: unknown): Promise<RoutineInput> {
 }
 
 export function registerRoutinesHandlers(): void {
-  handle('routines:list', () => routinesSnapshot())
+  handle('routines:list', () => ({ ...routinesSnapshot(), machines: remoteRoutineMachines() }))
   handle('routines:save', async (_event, raw, routineId, revision) => {
     const r = await input(raw)
     if (routineId !== undefined) id(routineId)

@@ -264,3 +264,12 @@ export function parseRoutineHistory(v: unknown): RemoteRoutineRun[] | null {
   }
   return result
 }
+
+/** Receipt data is untrusted too; no diagnostic or filesystem fields are accepted. */
+export function parseRoutineReceiptData(op: RoutineOp, v: unknown): boolean {
+  if (!record(v)) return false
+  if (op.type === 'routine.save')
+    return keys(v, ['routineId', 'revision']) && uuid(v.routineId) && integer(v.revision, 1)
+  if (op.type === 'routine.run') return keys(v, ['runId']) && uuid(v.runId)
+  return keys(v, [])
+}
