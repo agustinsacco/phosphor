@@ -202,6 +202,13 @@ async function setup() {
     setCurrent: () => {
       current = false
     },
+    controller: () => {
+      lane = {
+        ...lane,
+        control: { ...lane.control, controller: { clientId, label: 'Test', connected: true } },
+      }
+      refresh()
+    },
     viewer: () => {
       lane = { ...lane, control: { ...lane.control, controller: null } }
       refresh()
@@ -571,18 +578,147 @@ it('malformed Host terminal results fail closed with fixed messages', async () =
   t.connection.close()
 })
 
-it('accepts the 64 KiB boundary and refuses concurrent input without retaining it', async () => {
+it('queues ordinary keystrokes in order until the delayed acknowledgement', async () => {
   const t = await setup(),
     id = await t.create()
   await t.attach(id)
-  const writing = t.route('pty:write', id, 'x'.repeat(65536))
-  await expect(t.route('pty:write', id, 'queued')).rejects.toThrow('refused')
+  t.noAck()
+  const first = t.route('pty:write', id, 'a')
+  const second = t.route('pty:write', id, 'b')
   await drain()
-  await writing
+  expect(t.frames.filter((f) => f.type === 'terminal.input')).toMatchObject([{ seq: 1, data: 'a' }])
+  t.raw({ type: 'terminal.ack', terminalId: t.terminalId, seq: 1, accepted: true })
+  await drain()
+  expect(t.frames.filter((f) => f.type === 'terminal.input')).toMatchObject([
+    { seq: 1, data: 'a' },
+    { seq: 2, data: 'b' },
+  ])
+  t.raw({ type: 'terminal.ack', terminalId: t.terminalId, seq: 2, accepted: true })
+  await drain()
+  await Promise.all([first, second])
+  t.connection.close()
+})
+it.each(['timeout', 'reset', 'control', 'rejection', 'disposal', 'generation'] as const)(
+  'drops queued input after %s without sending it',
+  async (reason) => {
+    const t = await setup(),
+      id = await t.create()
+    await t.attach(id)
+    t.noAck()
+    const first = t.route('pty:write', id, 'a')
+    const second = t.route('pty:write', id, 'private')
+    const rejected = expect(second).rejects.toThrow('Terminal input dropped.')
+    await drain()
+    if (reason === 'timeout') await vi.advanceTimersByTimeAsync(5000)
+    else {
+      if (reason === 'reset') {
+        t.reset()
+        await drain()
+        expect(t.inputDropped).toHaveBeenCalledTimes(1)
+      }
+      if (reason === 'control') {
+        t.viewer()
+        await drain()
+        t.bridge.reconcile()
+        expect(t.inputDropped).toHaveBeenCalledTimes(1)
+      }
+      if (reason === 'disposal') {
+        t.bridge.clear()
+        expect(t.inputDropped).toHaveBeenCalledTimes(1)
+      }
+      if (reason === 'generation') await t.reconnect()
+      t.raw({
+        type: 'terminal.ack',
+        terminalId: t.terminalId,
+        seq: 1,
+        accepted: reason !== 'rejection',
+      })
+    }
+    await drain()
+    await first
+    await rejected
+    expect(t.frames.filter((f) => f.type === 'terminal.input')).toHaveLength(1)
+    expect(t.inputDropped.mock.calls).toEqual([[]])
+    t.connection.close()
+  },
+)
+it('a dropped active queued write cannot resume if control returns before its ack', async () => {
+  const t = await setup(),
+    id = await t.create()
+  await t.attach(id)
+  t.noAck()
+  const first = t.route('pty:write', id, 'a')
+  const second = t.route('pty:write', id, 'x'.repeat(5000))
+  const rejected = expect(second).rejects.toThrow('Terminal input dropped.')
+  await drain()
+  t.raw({ type: 'terminal.ack', terminalId: t.terminalId, seq: 1, accepted: true })
+  await drain()
+  t.viewer()
+  await drain()
+  t.bridge.reconcile()
+  await rejected
+  t.controller()
+  await drain()
+  t.raw({ type: 'terminal.ack', terminalId: t.terminalId, seq: 2, accepted: true })
+  await drain()
+  await first
+  expect(t.frames.filter((f) => f.type === 'terminal.input')).toHaveLength(2)
+  const next = t.route('pty:write', id, 'next')
+  await drain()
+  expect(t.frames.filter((f) => f.type === 'terminal.input').at(-1)).toMatchObject({
+    seq: 3,
+    data: 'next',
+  })
+  t.raw({ type: 'terminal.ack', terminalId: t.terminalId, seq: 3, accepted: true })
+  await drain()
+  await next
+  expect(t.inputDropped.mock.calls).toEqual([[]])
+  t.connection.close()
+})
+it('64 KiB UTF-8 pending overflow refuses only the new input', async () => {
+  const t = await setup(),
+    id = await t.create()
+  await t.attach(id)
+  t.noAck()
+  const first = t.route('pty:write', id, 'a')
+  const pending = t.route('pty:write', id, '😀'.repeat(16384))
+  await expect(t.route('pty:write', id, 'b')).rejects.toThrow('Terminal input refused.')
+  for (let seq = 1; seq <= 17; seq++) {
+    await drain()
+    t.raw({ type: 'terminal.ack', terminalId: t.terminalId, seq, accepted: true })
+  }
+  await drain()
+  await Promise.all([first, pending])
   const input = t.frames.filter((f) => f.type === 'terminal.input')
-  expect(input).toHaveLength(16)
-  expect(input.every((f) => f.data === 'x'.repeat(4096))).toBe(true)
-  expect(input.map((f) => f.seq)).toEqual(Array.from({ length: 16 }, (_, i) => i + 1))
+  expect(input).toHaveLength(17)
+  expect(
+    input
+      .slice(1)
+      .map((f) => f.data)
+      .join(''),
+  ).toBe('😀'.repeat(16384))
+  expect(t.inputDropped).not.toHaveBeenCalled()
+  t.connection.close()
+})
+it('attach timeout closes its watch, ignores late reset, and allows fresh attach', async () => {
+  const t = await setup(),
+    id = await t.create()
+  t.pauseReset()
+  const attaching = t.route('pty:attach', id)
+  const rejected = expect(attaching).rejects.toThrow('Terminal unavailable.')
+  await drain()
+  await vi.advanceTimersByTimeAsync(5000)
+  await rejected
+  t.reset('late')
+  await drain()
+  expect(t.emit).not.toHaveBeenCalled()
+  expect(t.frames.filter((f) => f.type === 'unsubscribe')).toHaveLength(1)
+  await expect(t.route('pty:write', id, 'a')).rejects.toThrow('Read-only')
+  const retry = t.route('pty:attach', id)
+  await drain()
+  t.reset('fresh')
+  await drain()
+  expect(await retry).toEqual({ scrollback: 'fresh' })
   t.connection.close()
 })
 it('an unaccepted input refuses further input until a fresh reset', async () => {
@@ -622,5 +758,45 @@ it('another window cannot receive an existing terminal identity from create', as
   const pending = routed.result
   await drain()
   await expect(pending).rejects.toThrow('Not available')
+  t.connection.close()
+})
+it('a superseded attach timeout leaves the newer attach synchronized', async () => {
+  const t = await setup(),
+    id = await t.create()
+  t.pauseReset()
+  const first = t.route('pty:attach', id).catch((error: Error) => error.message)
+  await drain()
+  await vi.advanceTimersByTimeAsync(3000)
+  // The second subscribe must reach the Host before its reset is sent.
+  const second = t.route('pty:attach', id)
+  await drain()
+  t.reset('fresh')
+  await drain()
+  expect(await second).toEqual({ scrollback: 'fresh' })
+  await vi.advanceTimersByTimeAsync(3000)
+  expect(await first).toBe('Terminal unavailable.')
+  const writing = t.route('pty:write', id, 'still live')
+  await drain()
+  await writing
+  expect(t.frames.filter((f) => f.type === 'terminal.input')).toMatchObject([
+    { seq: 1, data: 'still live' },
+  ])
+  t.connection.close()
+})
+it('queued input behind an unaccepted write is rejected at once, never sent', async () => {
+  const t = await setup(),
+    id = await t.create()
+  await t.attach(id)
+  t.noAck()
+  t.pauseReset()
+  const first = t.route('pty:write', id, 'a')
+  await drain()
+  const queued = t.route('pty:write', id, 'b').catch((error: Error) => error.message)
+  await drain()
+  await vi.advanceTimersByTimeAsync(5000)
+  await first
+  expect(await queued).toBe('Terminal input dropped.')
+  expect(t.inputDropped).toHaveBeenCalledTimes(1)
+  expect(t.frames.filter((f) => f.type === 'terminal.input').map((f) => f.data)).toEqual(['a'])
   t.connection.close()
 })

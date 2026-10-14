@@ -51,6 +51,8 @@ export const TerminalView = memo(function TerminalView({
   const [searchQuery, setSearchQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
   const pendingPaste = useTerminalStore((s) => s.pendingPaste)
+  const [attachError, setAttachError] = useState(false)
+  const retryAttachRef = useRef<() => void>(() => {})
   const [ready, setReady] = useState(false)
   const [stagedCommand, setStagedCommand] = useState<string | null>(null)
 
@@ -113,10 +115,14 @@ export const TerminalView = memo(function TerminalView({
     }
     const remote = ptyId.startsWith('remote-pty-')
     let held = ''
+    let failed = false
     let attachVersion = 0
     const attach = (): void => {
       const version = ++attachVersion
       held = ''
+      failed = false
+      setAttachError(false)
+      setReady(false)
       replayed = false
       void window.phosphor
         .invoke('pty:attach', ptyId)
@@ -126,12 +132,20 @@ export const TerminalView = memo(function TerminalView({
           if (scrollback || held) writeOutput(scrollback + held)
           held = ''
           replayed = true
+          if (remote) sendResize()
         })
-        .catch(() => undefined)
+        .catch(() => {
+          if (!remote || termRef.current !== term || version !== attachVersion) return
+          failed = true
+          held = ''
+          setReady(false)
+          setAttachError(true)
+        })
     }
+    retryAttachRef.current = attach
     const unsubscribeData = window.phosphor.onPtyData(ptyId, (data) => {
       if (replayed) writeOutput(data)
-      else if (remote) {
+      else if (remote && !failed) {
         // Remote output after the reset cut may beat the IPC attach reply.
         if (held.length + data.length > 262144) attach()
         else held += data
@@ -146,7 +160,7 @@ export const TerminalView = memo(function TerminalView({
 
     // Resize plumbing (pane drags included).
     const sendResize = (): void => {
-      if (!readOnlyRef.current)
+      if (!readOnlyRef.current && (!remote || replayed))
         void window.phosphor
           .invoke('pty:resize', ptyId, term.cols, term.rows)
           .catch(() => undefined)
@@ -302,6 +316,12 @@ export const TerminalView = memo(function TerminalView({
 
   return (
     <div className={visible ? 'relative h-full min-h-0 w-full' : 'hidden'}>
+      {attachError && (
+        <div role="alert" className="bg-surface-raised absolute inset-x-2 top-2 z-10 p-2">
+          Terminal unavailable.{' '}
+          <TooltipButton onClick={() => retryAttachRef.current()}>Retry</TooltipButton>
+        </div>
+      )}
       {searchOpen && (
         <div className="border-border bg-surface-raised absolute right-2 top-2 z-10 flex items-center gap-1 rounded-lg border p-1 shadow-md">
           <input

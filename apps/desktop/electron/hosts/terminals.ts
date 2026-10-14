@@ -32,6 +32,9 @@ type Entry = {
   resetVersion: number
   ended: boolean
   busy: boolean
+  pending: { data: string; resolve: () => void; reject: (error: Error) => void }[]
+  pendingBytes: number
+  dropVersion: number
   watch?: ReturnType<Connection['watchTerminal']>
 }
 
@@ -43,9 +46,18 @@ export function createRemoteTerminals(ports: {
   emit: (windowId: number, channel: string, value: string | number) => void
 }) {
   const entries = new Map<string, Entry>()
+  function dropPending(e: Entry) {
+    if (!e.pending.length) return
+    e.dropVersion++
+    ports.inputDropped?.()
+    for (const item of e.pending) item.reject(new Error('Terminal input dropped.'))
+    e.pending = []
+    e.pendingBytes = 0
+  }
   function valid(e: Entry) {
     const c = e.lane.connection
     return (
+      entries.get(e.id) === e &&
       e.lane.current() &&
       c.incarnation().runtimeEpoch === e.epoch &&
       c.snapshot().state === 'ready' &&
@@ -154,6 +166,9 @@ export function createRemoteTerminals(ports: {
       resetVersion: 0,
       ended: false,
       busy: false,
+      pending: [],
+      pendingBytes: 0,
+      dropVersion: 0,
     })
     return { ptyId: id }
   }
@@ -163,11 +178,22 @@ export function createRemoteTerminals(ports: {
     e.synchronized = false
     return new Promise((resolve, reject) => {
       let initial = true
-      const timer = setTimeout(() => reject(new Error('Terminal unavailable.')), 5000)
+      let closed = false
+      const timer = setTimeout(() => {
+        closed = true
+        // A superseded attach only settles itself; the newer watch owns the entry.
+        if (e.watch !== watch) return reject(new Error('Terminal unavailable.'))
+        e.watch?.close()
+        e.synchronized = false
+        dropPending(e)
+        reject(new Error('Terminal unavailable.'))
+      }, 5000)
       timer.unref()
-      e.watch = e.lane.connection.watchTerminal(e.terminalId, (frame) => {
-        if (!valid(e)) return
+      const watch = (e.watch = e.lane.connection.watchTerminal(e.terminalId, (frame) => {
+        if (closed || !valid(e)) return
         if (frame.type === 'subscribe-failed') {
+          closed = true
+          e.watch?.close()
           e.synchronized = false
           clearTimeout(timer)
           reject(new Error(REMOTE_UNAVAILABLE))
@@ -175,6 +201,7 @@ export function createRemoteTerminals(ports: {
         }
         if (frame.type === 'terminal.ack') return
         if (frame.type === 'terminal.reset') {
+          dropPending(e)
           e.resetVersion++
           e.cursor = { epoch: frame.epoch, seq: frame.seq }
           e.inputSeq = frame.inputSeq
@@ -205,69 +232,98 @@ export function createRemoteTerminals(ports: {
           e.ended = true
           ports.emit(windowId, `pty:exit:${id}`, frame.exitCode)
         }
-      })
+      }))
     })
   }
   async function write(windowId: number, id: string, data: string) {
     const e = owned(windowId, id)
     writable(e)
-    // Reject concurrent or oversized IPC writes rather than retaining a private input queue.
-    if (e.busy || typeof data !== 'string' || terminalBytes(data) > 64 * 1024)
+    if (typeof data !== 'string' || terminalBytes(data) > 64 * 1024)
       throw new Error('Terminal input refused.')
+    if (e.busy) {
+      if (e.pendingBytes + terminalBytes(data) > 64 * 1024)
+        throw new Error('Terminal input refused.')
+      return new Promise<void>((resolve, reject) => {
+        e.pending.push({ data, resolve, reject })
+        e.pendingBytes += terminalBytes(data)
+      })
+    }
     e.busy = true
+    const dropVersion = e.dropVersion
     try {
-      let chunk = ''
-      let bytes = 0
-      const chunks: string[] = []
-      for (const char of data) {
-        const size = terminalBytes(char)
-        if (bytes + size > TERMINAL_LIMITS.inputBytes) {
-          chunks.push(chunk)
-          chunk = ''
-          bytes = 0
-        }
-        chunk += char
-        bytes += size
-      }
-      if (chunk) chunks.push(chunk)
-      for (const text of chunks) {
-        writable(e)
-        const generation = e.generation
-        const resetVersion = e.resetVersion
-        const seq = e.inputSeq + 1
-        const accepted = await e.lane.connection.input(e.terminalId, seq, text)
-        if (
-          !valid(e) ||
-          generation !== e.lane.connection.incarnation().generation ||
-          resetVersion !== e.resetVersion
-        ) {
-          // A reset may beat this continuation. Never overwrite its fresh sequence or readiness.
-          if (resetVersion === e.resetVersion) e.synchronized = false
-          else if (generation === e.lane.connection.incarnation().generation) {
-            if (accepted) e.inputSeq = Math.max(e.inputSeq, seq)
-            else {
-              e.synchronized = false
-              e.watch?.reset()
-            }
+      let queued: Entry['pending'][number] | undefined
+      do {
+        let chunk = ''
+        let bytes = 0
+        const chunks: string[] = []
+        for (const char of data) {
+          const size = terminalBytes(char)
+          if (bytes + size > TERMINAL_LIMITS.inputBytes) {
+            chunks.push(chunk)
+            chunk = ''
+            bytes = 0
           }
-          ports.inputDropped?.()
-          return
+          chunk += char
+          bytes += size
         }
-        if (!accepted) {
-          ports.inputDropped?.()
-          e.synchronized = false
-          e.watch?.reset()
-          return
+        if (chunk) chunks.push(chunk)
+        for (const text of chunks) {
+          writable(e)
+          const generation = e.generation
+          const resetVersion = e.resetVersion
+          const seq = e.inputSeq + 1
+          const accepted = await e.lane.connection.input(e.terminalId, seq, text)
+          if (
+            !valid(e) ||
+            generation !== e.lane.connection.incarnation().generation ||
+            resetVersion !== e.resetVersion
+          ) {
+            // A reset may beat this continuation. Never overwrite its fresh sequence or readiness.
+            if (resetVersion === e.resetVersion) e.synchronized = false
+            else if (generation === e.lane.connection.incarnation().generation) {
+              if (accepted) e.inputSeq = Math.max(e.inputSeq, seq)
+              else {
+                e.synchronized = false
+                e.watch?.reset()
+              }
+            }
+            if (!e.pending.length && dropVersion === e.dropVersion) ports.inputDropped?.()
+            return
+          }
+          if (!accepted) {
+            if (!e.pending.length && dropVersion === e.dropVersion) ports.inputDropped?.()
+            e.synchronized = false
+            e.watch?.reset()
+            return
+          }
+          e.inputSeq = seq
+          if (dropVersion !== e.dropVersion) return
+          writable(e)
         }
-        e.inputSeq = seq
-        writable(e)
-      }
+        if (queued && e.pending[0] === queued) {
+          const item = e.pending.shift()!
+          e.pendingBytes -= terminalBytes(item.data)
+          item.resolve()
+        }
+        if (!e.pending.length) break
+        queued = e.pending[0]!
+        data = queued.data
+      } while (queued)
+    } catch {
+      if (!e.pending.length && dropVersion === e.dropVersion) ports.inputDropped?.()
     } finally {
+      dropPending(e)
       e.busy = false
     }
   }
   function reconcile() {
     for (const [id, e] of entries) {
+      if (
+        !valid(e) ||
+        !control(e.lane) ||
+        e.generation !== e.lane.connection.incarnation().generation
+      )
+        dropPending(e)
       if (!e.lane.current() || e.epoch !== e.lane.connection.incarnation().runtimeEpoch) {
         e.watch?.close()
         entries.delete(id)
@@ -284,6 +340,7 @@ export function createRemoteTerminals(ports: {
     clear(windowId?: number) {
       for (const [id, e] of entries)
         if (windowId === undefined || e.windowId === windowId) {
+          dropPending(e)
           e.watch?.close()
           entries.delete(id)
         }
@@ -312,6 +369,7 @@ export function createRemoteTerminals(ports: {
           return mutate(e, { type: 'terminal.resize', terminalId: e.terminalId, cols: a, rows: b })
         if (channel === 'pty:kill') {
           await mutate(e, { type: 'terminal.kill', terminalId: e.terminalId })
+          dropPending(e)
           e.watch?.close()
           entries.delete(id)
           return
