@@ -1193,3 +1193,19 @@ Host-only change selects `host` and `tooling` and never releases Desktop. Root
 `npm run typecheck:host` and `npm run build:host` run in the validator and in
 CI's checks job; the unit tests, the bundle's included, run with every other
 suite in `npm test`.
+
+## Machine features
+
+Read-only feature modules exist but are not served until the API registers them.
+`workspaces.read` covers `files.list` (tracked and non-ignored untracked paths),
+`files.read` (text or binary size), `git.status` (per-path status, branch, ahead
+and behind), `git.diff` (working or staged unified diff), and `git.show` (a file
+at `HEAD` or a hex commit, including a session baseline).
+
+Queries require a stored, non-removed lane inside an active repository. Paths
+are relative to its cwd; traversal, symlink escapes and `.git` reads are refused.
+Lists stop with `too-large` above 20,000 entries. Text and diffs are capped at
+2 MiB. File reads classify binary by a NUL in the first 2 MiB; larger files
+without a NUL in that sample return `too-large`. Git blobs over 2 MiB return
+`too-large` before reading content, including binary blobs. Smaller binary
+blobs return their size without content. Errors contain no paths or tool output.
