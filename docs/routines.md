@@ -198,17 +198,71 @@ History is retained until the routine is deleted or the app data is removed;
 automatic retention is not implemented. Non-archived routine source folders and
 pending run workspaces are protected from automatic maintenance reclamation.
 
+## Host routines
+
+The Host daemon owns its own scheduler and SQLite database at
+`<state>/routines/state.sqlite`. It runs schedules with every client closed.
+Desktop's local scheduler, notifications, background setting and database do not
+change. The remote routines editor and Desktop routing are not connected yet.
+
+Remote definitions name a configured `repositoryId`, never a filesystem path.
+Creation always stores a paused, untrusted definition. A later explicit controller
+save can acknowledge full unattended tool access and enable the schedule. That
+acknowledgment persists in Host SQLite; a browser lease never enables automation.
+
+| Operation                                            | Connection capabilities           |
+| ---------------------------------------------------- | --------------------------------- |
+| List, history, cancel, skip next, archive, pause all | `routines`                        |
+| Save paused and untrusted                            | `routines`                        |
+| Save trusted or enabled, run now, delete             | `routines` and `sessions.control` |
+
+Machine-scoped commands carry request ids, have no lane id or fence, and use the
+Host receipt ledger. Admission uses the current connection capabilities, including
+a second check when queued work reaches execution. Closed connections have no
+capabilities for queued work. Receipts remain client-scoped and are not
+capability-gated. A duplicate command returns its receipt, never another execution.
+An uncertain delivery or restart does not automatically repeat external effects.
+
+The portable engine keeps the same two-worker limit, source-folder serialization,
+calendar/DST rules, catch-up policy and failure pauses as Desktop. The Host runner
+uses the shared session service and deletion path-lock domain. It verifies the
+exact model, disables automatic retries before the first prompt, blocks unexpected
+dialogs without answering them and disposes its worker after completion. Folder
+code tasks refuse dirty repositories; either intent refuses a live session in the
+source folder. Failed worktree isolation never falls back to the source folder.
+Running routine sessions reject manual mutation and manual stop.
+
+A routine never types into a terminal. It does not claim terminal occupancy or
+exclude a shell editing the same folder. Terminals and external editors are not a
+filesystem lock. Use isolated worktrees when simultaneous edits are possible.
+
+`routines.list` returns at most 100 definitions, including archived definitions.
+`routines.history` returns at most 50 status/timestamp records, with a bounded
+pagination offset. Neither returns Host session paths, working folders, account
+ids or private execution diagnostics. Full run snapshots and output remain in
+Host SQLite. Delete refuses a running execution or more than 1,000 history rows.
+It archives first so no schedule starts during transcript removal, removes owned
+transcripts through the shared runtime, then deletes the definition and history.
+A partially failed deletion is not retried automatically. Worktrees are retained.
+Small `routines-changed` invalidations publish on the lanes topic; subscribers
+refetch the routines queries.
+
 ## Code map and tests
 
+- `libs/shared/src/routines-types.ts`: dependency-free routine shapes.
+- `libs/shared/src/host-protocol-routines.ts`: bounded Host wire parsers.
+- `apps/host/src/routines/`: daemon wiring, repository identity mapping and runner.
 - `libs/shared/src/routines.ts`: schema validation, cron/timezone calculations, reporting
   periods, deterministic execution prompt. Uses cron-parser and Luxon.
-- `apps/desktop/electron/routines/`: SQLite repository, routine-only scheduler, runner,
-  ownership guard, startup wiring, and background tray. `preflight.ts` holds
+- `libs/session-runtime/src/routines/`: SQLite repository, routine-only scheduler,
+  outcome classification and ownership guard. The scheduler takes a lifecycle port.
+- `apps/desktop/electron/routines/`: thin portable-engine exports, Desktop shutdown
+  approval adapter, runner, startup wiring and background tray. `preflight.ts` holds
   the folder-task gates so the runner and `routines:check` cannot disagree
   about what blocks a run.
 - `apps/desktop/electron/pi/session-runtime.ts`: Desktop bindings for `libs/session-runtime/src/pi/` startup
   and session admission. Routine startup and interactive IPC use the same
-  provider-guarded service; routine scheduling/execution remains local.
+  provider-guarded service; routine startup and execution remain owned by their execution machine.
 - `apps/desktop/electron/ipc/routines-handlers.ts`, `libs/shared/src/ipc.ts`, `apps/desktop/electron/preload.ts`:
   typed operations and snapshot invalidations. `apps/desktop/src/dev/mockRoutines.ts` is a
   clearly labelled browser simulation with no model execution.

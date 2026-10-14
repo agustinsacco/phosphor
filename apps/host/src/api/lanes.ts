@@ -178,10 +178,10 @@ export function createLaneAdapter(
             stop()
           }
         } else if (frame.type === 'command') {
-          if (
-            !caps.includes('sessions.control') ||
-            !caps.includes(service.commands.capabilityFor?.(frame.op) ?? 'sessions.control')
-          )
+          const required: readonly HostCapability[] = service.commands.capabilityFor?.(
+            frame.op,
+          ) ?? ['sessions.control']
+          if (!required.every((cap) => caps.includes(cap)))
             return send({
               type: 'receipt',
               receipt: {

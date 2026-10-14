@@ -9,7 +9,7 @@ export interface LaneService {
   epoch: string
   capabilities: readonly HostCapability[]
   commands: {
-    capabilityFor?(op: LaneCommandFrame['op']): HostCapability
+    capabilityFor?(op: LaneCommandFrame['op']): readonly HostCapability[] | null
     submit(client: LaneCommandClient, frame: LaneCommandFrame): Promise<void>
     status(clientId: string, requestId: string, connectionId?: string): void
   }

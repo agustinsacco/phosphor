@@ -588,10 +588,11 @@ close matching sockets; a changed owner or epoch or removal closes all sockets.
 Missing heartbeat fields do not erase authority or revocations.
 
 With a usable machine, hello announces `sessions.read`, `sessions.control`,
-`workspaces.read` and `skills.read`.
+`workspaces.read`, `skills.read` and `routines`.
 Ready capabilities are the intersection of Host and grant capabilities.
 `sessions.read` admits subscriptions and the six read-only lane calls;
-`sessions.control` admits commands. Receipt status is client-scoped and needs
+`sessions.control` admits lane commands. Routine commands use the capability matrix
+below. Receipt status is client-scoped and needs
 neither capability. Without a lane service, no capabilities are announced:
 subscriptions and commands are forbidden and calls are unsupported. Losing read
 permission on renewal ends subscriptions; regaining it permits new subscriptions.
@@ -1351,3 +1352,42 @@ Receipts and receipt-status replies are owner-only, not capability-gated.
 Terminal receipts carry no content, only an opaque terminal id.
 Every action that uses it checks the connection's current `terminal` capability;
 holding an id grants no authority.
+
+## Daemon routines
+
+With a usable session runtime, the daemon registers `routines` and runs the
+portable routines scheduler over `<state>/routines/state.sqlite`. Its directory
+is owned and mode 0700; SQLite and sidecars must be owned regular files with mode
+0600, never symlinks. No client must remain connected for an enabled schedule.
+The Host bundle uses only builtin SQLite, with bundled pure-JavaScript calendar
+helpers. Desktop's local routines use the same engine with their existing
+Electron shutdown approval, runner and notifications.
+
+`routines.list {}` and `routines.history {routineId, offset?}` require `routines`.
+They return bounded definitions and history metadata without Host paths.
+Machine commands are `routine.save`, `routine.run`, `routine.cancel`,
+`routine.skipNext`, `routine.archive`, `routine.delete` and `routine.pauseAll`.
+They have no lane id or fence and use the same durable request receipts as lanes.
+
+| Command                                                      | Required capabilities              |
+| ------------------------------------------------------------ | ---------------------------------- |
+| Save paused/untrusted, cancel, skip next, archive, pause all | `routines`                         |
+| Save trusted/enabled, run, delete                            | `routines` plus `sessions.control` |
+
+Creation always starts paused and untrusted. A later controller save explicitly
+acknowledges unattended full tool access, stored durably in Host SQLite.
+Authorization is checked against current capabilities before admission and again
+before queued execution. Closed connections have no capabilities for queued work.
+Receipts remain scoped to the requesting client and are not capability-gated.
+Changes publish a small `routines-changed` invalidation on the lanes topic. Routine ids, definitions and
+output are not logged.
+
+The runner starts only in configured repositories, resolves `repositoryId`
+locally and uses the session runtime's shared admission and path-lock domain.
+It keeps the two-worker/source-folder limits, exact model check, catch-up/DST
+policy, no automatic retries, failed-isolation refusal and blocked dialogs.
+Routine ownership guards manual commands, resumes and deletion; the idle
+context-budget fallback pauses while a routine owns its session. Shutdown stops
+scheduling and workers before closing the routines database. A routine never
+uses a terminal; a live shell is not an occupancy lock. See [routines.md](routines.md#host-routines)
+for bounds, deletion policy and the connection capability matrix.
