@@ -1,0 +1,4 @@
+{"type": "session", "version": 1, "id": "fixture-session", "timestamp": "2026-01-01T00:00:00.000Z", "cwd": "/tmp"}
+{"type": "message", "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "user", "content": "kept despite string references"}}
+{"type": "context_edit", "timestamp": "2026-01-01T00:00:00.000Z", "targetId": "migrated-1", "replacement": null}
+{"type": "context_edit", "timestamp": "2026-01-01T00:00:00.000Z", "targetId": "deadbeef", "replacement": null}

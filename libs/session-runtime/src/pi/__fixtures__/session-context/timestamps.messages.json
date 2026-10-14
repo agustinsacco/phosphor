@@ -1,0 +1,64 @@
+[
+  {
+    "role": "compactionSummary",
+    "summary": "null timestamp",
+    "tokensBefore": 10,
+    "timestamp": 0
+  },
+  {
+    "role": "user",
+    "content": "timestamp context"
+  },
+  {
+    "role": "custom",
+    "customType": "note",
+    "content": "timestamp 0",
+    "display": true,
+    "timestamp": 0
+  },
+  {
+    "role": "branchSummary",
+    "summary": "timestamp 0",
+    "fromId": "a",
+    "timestamp": 0
+  },
+  {
+    "role": "custom",
+    "customType": "note",
+    "content": "timestamp 1",
+    "display": true,
+    "timestamp": 0
+  },
+  {
+    "role": "branchSummary",
+    "summary": "timestamp 1",
+    "fromId": "a",
+    "timestamp": 0
+  },
+  {
+    "role": "custom",
+    "customType": "note",
+    "content": "timestamp 2",
+    "display": true,
+    "timestamp": null
+  },
+  {
+    "role": "branchSummary",
+    "summary": "timestamp 2",
+    "fromId": "a",
+    "timestamp": null
+  },
+  {
+    "role": "custom",
+    "customType": "note",
+    "content": "timestamp 3",
+    "display": true,
+    "timestamp": 1767225600000
+  },
+  {
+    "role": "branchSummary",
+    "summary": "timestamp 3",
+    "fromId": "a",
+    "timestamp": 1767225600000
+  }
+]

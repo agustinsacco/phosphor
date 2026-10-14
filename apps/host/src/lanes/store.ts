@@ -349,7 +349,7 @@ export class HostStore {
     if (patch.model !== undefined) text(patch.model, 128)
     if (patch.updatedAt !== undefined) timestamp(patch.updatedAt)
   }
-  ensureLane(input: LaneInput): StoredLane {
+  ensureLane(input: LaneInput, options: { controller?: Controller } = {}): StoredLane {
     check(/^[0-9a-f]{16}$/.test(input.repositoryId))
     absolutePath(input.cwd)
     if (input.sessionFile !== null) absolutePath(input.sessionFile)
@@ -385,10 +385,11 @@ export class HostStore {
           .run(str(existing, 'lane_id'))
         return this.requireLane(str(existing, 'lane_id'))
       }
+      if (options.controller !== undefined) this.validateController(options.controller)
       const id = randomUUID()
       const now = this.clock()
       this.db
-        .prepare(`INSERT INTO lanes VALUES (?,?,?,?,?,?,?,?,?,?,?,1,NULL,NULL,0,0,NULL)`)
+        .prepare(`INSERT INTO lanes VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,?,0,0,NULL)`)
         .run(
           id,
           repositoryId,
@@ -401,6 +402,8 @@ export class HostStore {
           input.model ?? null,
           now,
           input.updatedAt === undefined ? now : timestamp(input.updatedAt),
+          options.controller?.clientId ?? null,
+          options.controller?.label ?? null,
         )
       return this.requireLane(id)
     })

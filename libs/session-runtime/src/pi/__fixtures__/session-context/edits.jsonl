@@ -1,0 +1,9 @@
+{"type": "session", "version": 3, "id": "fixture-session", "timestamp": "2026-01-01T00:00:00.000Z", "cwd": "/tmp"}
+{"type": "message", "id": "a", "parentId": null, "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "user", "content": "original"}}
+{"type": "message", "id": "b", "parentId": "a", "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "toolResult", "toolCallId": "t", "toolName": "read", "isError": false, "content": []}}
+{"type": "custom_message", "id": "c", "parentId": "b", "timestamp": "2026-01-01T00:00:00.000Z", "customType": "note", "content": "old custom", "display": true}
+{"type": "message", "id": "d", "parentId": "c", "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "user"}}
+{"type": "context_edit", "id": "e", "parentId": "d", "timestamp": "2026-01-01T00:00:00.000Z", "targetId": "a", "replacement": {"content": "first replacement"}}
+{"type": "context_edit", "id": "f", "parentId": "e", "timestamp": "2026-01-01T00:00:00.000Z", "targetId": "a", "replacement": {"content": "latest replacement"}}
+{"type": "context_edit", "id": "g", "parentId": "f", "timestamp": "2026-01-01T00:00:00.000Z", "targetId": "b", "replacement": {"content": "tool replacement"}}
+{"type": "context_edit", "id": "h", "parentId": "g", "timestamp": "2026-01-01T00:00:00.000Z", "targetId": "c", "replacement": {"content": "custom replacement"}}

@@ -1,0 +1,11 @@
+{"type": "session", "version": 3, "id": "fixture-session", "timestamp": "2026-01-01T00:00:00.000Z", "cwd": "/tmp"}
+{"type": "message", "id": "a", "parentId": null, "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "user", "content": "timestamp context"}}
+{"type": "compaction", "id": "b", "parentId": "a", "timestamp": null, "summary": "null timestamp", "tokensBefore": 10, "firstKeptEntryId": "a"}
+{"type": "custom_message", "id": "custom_message-0", "parentId": "b", "timestamp": 0, "customType": "note", "content": "timestamp 0", "display": true}
+{"type": "branch_summary", "id": "branch_summary-0", "parentId": "custom_message-0", "timestamp": 0, "summary": "timestamp 0", "fromId": "a"}
+{"type": "custom_message", "id": "custom_message-1", "parentId": "branch_summary-0", "timestamp": null, "customType": "note", "content": "timestamp 1", "display": true}
+{"type": "branch_summary", "id": "branch_summary-1", "parentId": "custom_message-1", "timestamp": null, "summary": "timestamp 1", "fromId": "a"}
+{"type": "custom_message", "id": "custom_message-2", "parentId": "branch_summary-1", "customType": "note", "content": "timestamp 2", "display": true}
+{"type": "branch_summary", "id": "branch_summary-2", "parentId": "custom_message-2", "summary": "timestamp 2", "fromId": "a"}
+{"type": "custom_message", "id": "custom_message-3", "parentId": "branch_summary-2", "timestamp": "2026-01-01T00:00:00.000Z", "customType": "note", "content": "timestamp 3", "display": true}
+{"type": "branch_summary", "id": "branch_summary-3", "parentId": "custom_message-3", "timestamp": "2026-01-01T00:00:00.000Z", "summary": "timestamp 3", "fromId": "a"}

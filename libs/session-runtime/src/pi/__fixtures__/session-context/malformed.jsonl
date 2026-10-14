@@ -1,0 +1,6 @@
+
+not-json
+{"type": "session", "version": 3, "id": "fixture-session", "timestamp": "2026-01-01T00:00:00.000Z", "cwd": "/tmp"}
+
+{bad}
+{"type": "message", "id": "a", "parentId": null, "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "user", "content": "last"}}

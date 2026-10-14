@@ -549,8 +549,7 @@ next queued operation first republishes fresh control from the store. Until that
 succeeds it cannot run. A takeover or release still returns `done` for its durable
 change; an operation whose admission publication failed returns `failed internal`
 without dispatching. A disconnected controller keeps control. Only the controller
-can answer an open extension dialog. Marking a lane read needs no fence. Lane
-creation is not supported by this service yet.
+can answer an open extension dialog. Marking a lane read needs no fence.
 
 `unknown` means the Host cannot say whether an operation took effect, after a
 restart, a transport failure or no answer within 30 seconds. Late answers are
@@ -978,6 +977,32 @@ library asks for. `accept` is its only caller.
 - **The same git.** Creating the runtime sets the Host's own PATH to pi's, so
   the git the Host asks about a repository is the git pi runs.
 
+### Creating lanes
+
+The lane command service creates lanes in an active configured repository or a new
+worktree under `<repo>/.phosphor/worktrees/`. The creator controls the lane at
+fence 1. Creation still returns `done` if its initial control publication fails;
+it tries the summary and the next lane operation republishes control first.
+An unexpected projection error after attachment returns `unknown`, not `failed`.
+The API does not wire this service yet.
+
+Worktrees use a valid git branch, never the default branch or one checked out
+elsewhere. The branch with `/` replaced by `-` names the folder: 1 to 100 ASCII
+letters, digits, dots, underscores or hyphens, starting with a letter or digit,
+without `..`. Existing folders are refused. New branches start from the local
+`origin/<default>` ref, then the default branch, then `HEAD`. No fetch runs.
+On failure, the service stops any session it started and removes only the worktree
+it created, without force. It removes a branch it created only if its commit has
+not moved. Dirty worktrees are left in place. A failed attachment hides the stored
+lane row.
+For an existing branch, a clean worktree registered by another process at the same
+path at the same instant can be removed, but never one with changes.
+A process that can write the repository folder can still race git between the
+containment check and the spawn; the Host trusts the owner's repository folders.
+
+A provider id is at most 64 characters; a model id is at most 128. A model alone
+uses pi's provider selection. A provider alone does not change that selection.
+
 ### Lane snapshots
 
 The lane projection holds settled pi messages, state, the turn in flight,
@@ -995,6 +1020,14 @@ After compaction, an attaching viewer sees the compacted transcript, the same as
 reopening the session. A live viewer keeps earlier items until it reattaches.
 During the post-compaction refresh, a snapshot keeps the earlier transcript,
 the divider and subsequent events in live order.
+
+The unattached snapshot reader reads a stopped lane's context from pi's session
+file, with `state: null`. A null or missing file means an empty transcript: pi
+persists messages only when a turn ends. The same snapshot size and image omission
+rule applies. Reads are synchronous, capped at 64 MiB, and cached for four lanes;
+invalid or inaccessible files return `unknown-lane`. This port is not served yet.
+The reader trusts the owner's pi sessions folder; a process that can write it
+can race the containment check.
 
 ### Streams
 

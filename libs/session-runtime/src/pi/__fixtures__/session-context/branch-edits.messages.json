@@ -1,0 +1,27 @@
+[
+  {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "replacement"
+      }
+    ]
+  },
+  {
+    "role": "branchSummary",
+    "summary": "branch recap",
+    "fromId": "b",
+    "timestamp": 1767225600000
+  },
+  {
+    "role": "custom",
+    "customType": "note",
+    "content": "custom",
+    "display": false,
+    "details": {
+      "source": "fixture"
+    },
+    "timestamp": 1767225600000
+  }
+]

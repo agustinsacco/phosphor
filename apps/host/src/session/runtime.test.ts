@@ -271,6 +271,13 @@ describe('the Host runtime', { timeout: 20_000 }, () => {
       const receipts: Receipt[] = []
       const commands = createLaneCommands({
         store,
+        sessions: {
+          start: async () => {
+            throw new Error('unused')
+          },
+          attach: async () => {},
+          stop: async () => {},
+        },
         runtime,
         resumeLane: async () => {},
         stopLane: async () => {},

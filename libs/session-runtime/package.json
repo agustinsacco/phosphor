@@ -88,6 +88,10 @@
       "types": "./src/pi/session-activity.ts",
       "default": "./src/pi/session-activity.ts"
     },
+    "./pi/session-context": {
+      "types": "./src/pi/session-context.ts",
+      "default": "./src/pi/session-context.ts"
+    },
     "./pi/session-cwd": {
       "types": "./src/pi/session-cwd.ts",
       "default": "./src/pi/session-cwd.ts"

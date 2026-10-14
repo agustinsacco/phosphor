@@ -1,0 +1,12 @@
+{"type": "session", "version": "3", "id": "fixture-session", "timestamp": "2026-01-01T00:00:00.000Z", "cwd": "/tmp"}
+{"type": "message", "id": "a", "parentId": null, "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "user", "content": "root"}}
+{"type": "message", "id": "b", "parentId": "a", "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "user", "content": "skipped branch"}}
+{"type": "message", "id": "c", "parentId": "a", "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "assistant", "content": [{"type": "text", "text": "replace me"}]}}
+{"type": "branch_summary", "id": "d", "parentId": "c", "timestamp": "2026-01-01T00:00:00.000Z", "summary": "branch recap", "fromId": "b"}
+{"type": "branch_summary", "id": "empty", "parentId": "d", "timestamp": "2026-01-01T00:00:00.000Z", "summary": "", "fromId": "b"}
+{"type": "custom_message", "id": "e", "parentId": "empty", "timestamp": "2026-01-01T00:00:00.000Z", "customType": "note", "content": "custom", "display": false, "details": {"source": "fixture"}}
+{"type": "context_edit", "id": "f", "parentId": "e", "timestamp": "2026-01-01T00:00:00.000Z", "targetId": "c", "replacement": {"content": "replacement"}}
+{"type": "context_edit", "id": "g", "parentId": "f", "timestamp": "2026-01-01T00:00:00.000Z", "targetId": "a", "replacement": null}
+{"type": "model_change", "id": "h", "parentId": "g", "timestamp": "2026-01-01T00:00:00.000Z", "provider": "anthropic", "modelId": "claude-sonnet-4-5"}
+{"type": "thinking_level_change", "id": "i", "parentId": "h", "timestamp": "2026-01-01T00:00:00.000Z", "thinkingLevel": "high"}
+{"type": "custom", "id": "j", "parentId": "i", "timestamp": "2026-01-01T00:00:00.000Z", "customType": "not-context", "data": {"text": "ignore"}}

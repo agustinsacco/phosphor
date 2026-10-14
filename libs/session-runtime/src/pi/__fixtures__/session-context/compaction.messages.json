@@ -1,0 +1,20 @@
+[
+  {
+    "role": "system",
+    "content": "checkpoint"
+  },
+  {
+    "role": "compactionSummary",
+    "summary": "summary",
+    "tokensBefore": 10,
+    "timestamp": 1767225600000
+  },
+  {
+    "role": "user",
+    "content": "keep"
+  },
+  {
+    "role": "user",
+    "content": "after"
+  }
+]

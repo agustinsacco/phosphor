@@ -1,0 +1,8 @@
+{"type": "session", "version": 3, "id": "fixture-session", "timestamp": "2026-01-01T00:00:00.000Z", "cwd": "/tmp"}
+{"type": "message", "id": "a", "parentId": null, "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "user", "content": "discard"}}
+{"type": "message", "id": "b", "parentId": "a", "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "user", "content": "keep"}}
+{"type": "message", "id": "s", "parentId": "b", "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "system", "content": "skip kept system"}}
+{"type": "compaction", "id": "c", "parentId": "s", "timestamp": "2026-01-01T00:00:00.000Z", "summary": "first summary", "tokensBefore": 10, "firstKeptEntryId": "b", "systemMessage": {"role": "system", "content": "first system"}}
+{"type": "message", "id": "d", "parentId": "c", "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "user", "content": "after first"}}
+{"type": "compaction", "id": "e", "parentId": "d", "timestamp": "2026-01-01T00:00:00.000Z", "summary": "second summary", "tokensBefore": 20, "firstKeptEntryId": "b", "systemMessage": {"role": "system", "content": "second system"}}
+{"type": "message", "id": "f", "parentId": "e", "timestamp": "2026-01-01T00:00:00.000Z", "message": {"role": "user", "content": "after second"}}
