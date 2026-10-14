@@ -66,14 +66,9 @@ function contextMessages(entry: SessionEntryLike): unknown[] | null {
     }
     return [value]
   }
-  const value = entry.timestamp
-  const timestamp = new Date(
-    typeof value === 'string' || typeof value === 'number'
-      ? value
-      : value !== null && typeof value === 'object'
-        ? String(value)
-        : Number(value),
-  ).getTime()
+  // pi's message constructors run new Date(timestamp) on the raw JSON value, and only
+  // for the entries below: an entry pi ignores never has its timestamp converted.
+  const timestamp = () => new Date(entry.timestamp as string | number).getTime()
   if (entry.type === 'custom_message')
     return [
       {
@@ -82,17 +77,24 @@ function contextMessages(entry: SessionEntryLike): unknown[] | null {
         content: entry.content ?? [],
         display: entry.display,
         details: entry.details,
-        timestamp,
+        timestamp: timestamp(),
       },
     ]
   if (entry.type === 'branch_summary' && entry.summary)
-    return [{ role: 'branchSummary', summary: entry.summary, fromId: entry.fromId, timestamp }]
+    return [
+      {
+        role: 'branchSummary',
+        summary: entry.summary,
+        fromId: entry.fromId,
+        timestamp: timestamp(),
+      },
+    ]
   if (entry.type === 'compaction') {
     const summary = {
       role: 'compactionSummary',
       summary: entry.summary,
       tokensBefore: entry.tokensBefore,
-      timestamp,
+      timestamp: timestamp(),
     }
     return entry.systemMessage ? [entry.systemMessage, summary] : [summary]
   }

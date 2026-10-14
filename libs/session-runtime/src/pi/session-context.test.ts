@@ -50,6 +50,25 @@ describe('session-context', () => {
     const golden: unknown = JSON.parse(readFileSync(`${fixtures}/v1.messages.json`, 'utf8'))
     expect(JSON.parse(JSON.stringify(entries && sessionContext(entries)?.messages))).toEqual(golden)
   })
+  it('never converts the timestamp of an entry pi ignores', () => {
+    const lines = readFileSync(`${fixtures}/leaf-entries.jsonl`, 'utf8').split('\n')
+    const golden: unknown = JSON.parse(
+      readFileSync(`${fixtures}/leaf-entries.messages.json`, 'utf8'),
+    )
+    for (const type of ['label', 'session_info', 'model_change']) {
+      const changed = lines.map((line) => {
+        if (!line.trim()) return line
+        const entry = JSON.parse(line) as Record<string, unknown>
+        // An object whose conversion to a primitive throws.
+        if (entry.type === type) entry.timestamp = { toString: null, valueOf: null }
+        return JSON.stringify(entry)
+      })
+      const entries = parseSessionEntries(changed.join('\n'))
+      expect(JSON.parse(JSON.stringify(entries && sessionContext(entries)?.messages))).toEqual(
+        golden,
+      )
+    }
+  })
   it('requires the first parsed entry to be a header with a string id', () => {
     for (const input of [
       '',
