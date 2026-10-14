@@ -1,9 +1,16 @@
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
-import { useTerminalStore, sessionTerminals, ensureTerminalTab } from '@/stores/terminal'
+import {
+  useTerminalStore,
+  sessionTerminals,
+  ensureTerminalTab,
+  terminalAccess,
+} from '@/stores/terminal'
 import { PaneIconButton, PaneShell, PaneTitle } from '@/components/PaneShell'
 import { TerminalView } from './TerminalView'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useSessionsStore } from '@/stores/sessions'
 import { CloseIcon } from '@/components/icons'
 
 /**
@@ -21,6 +28,9 @@ export const TerminalPane = memo(function TerminalPane({
   sessionId: string
   workspacePath: string
 }): React.JSX.Element {
+  useRemoteLanesStore((s) => s.hosts)
+  useSessionsStore((s) => s.live)
+  const access = terminalAccess(sessionId)
   const bySession = useTerminalStore((s) => s.bySession)
   const tabs = useTerminalStore((s) => sessionTerminals(s, sessionId).tabs)
   const activeId = useTerminalStore((s) => sessionTerminals(s, sessionId).activeId)
@@ -40,14 +50,14 @@ export const TerminalPane = memo(function TerminalPane({
   // pty:create left no tab, no error, and no way to ask again.
   const spawnRequested = useRef(new Set<string>())
   useEffect(() => {
-    if (spawnRequested.current.has(sessionId)) return
+    if (access !== 'control' || spawnRequested.current.has(sessionId)) return
     const current = sessionTerminals(useTerminalStore.getState(), sessionId)
     if (current.tabs.length > 0 || current.error !== null) return
     spawnRequested.current.add(sessionId)
     void ensureTerminalTab(sessionId, workspacePath).then((ptyId) => {
       if (ptyId === null) spawnRequested.current.delete(sessionId)
     })
-  }, [sessionId, workspacePath, error])
+  }, [sessionId, workspacePath, error, access])
 
   // Clearing the error re-arms the first-open effect above (it lists `error`
   // as a dep). With tabs already open that effect is a no-op, so a failed "+"
@@ -109,6 +119,7 @@ export const TerminalPane = memo(function TerminalPane({
                   <span>{tab.title}</span>
                 )}
                 <TooltipButton
+                  disabled={access !== 'control'}
                   aria-label={`Close ${tab.title}`}
                   onClick={(e) => {
                     e.stopPropagation()
@@ -124,21 +135,23 @@ export const TerminalPane = memo(function TerminalPane({
         </>
       }
       actions={
-        <PaneIconButton
-          title="New terminal"
-          onClick={() => void useTerminalStore.getState().createTab(sessionId, workspacePath)}
-        >
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
+        access !== 'unavailable' && (
+          <PaneIconButton
+            title={access === 'viewer' ? 'View terminal' : 'New terminal'}
+            onClick={() => void useTerminalStore.getState().createTab(sessionId, workspacePath)}
           >
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </PaneIconButton>
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+          </PaneIconButton>
+        )
       }
     >
       <div className="terminal-surface min-h-0 flex-1 p-1.5">
@@ -147,16 +160,29 @@ export const TerminalPane = memo(function TerminalPane({
             <TerminalView
               key={tab.ptyId}
               ptyId={tab.ptyId}
+              readOnly={terminalAccess(owner) !== 'control'}
               visible={owner === sessionId && tab.ptyId === activeId}
             />
           )),
         )}
-        {tabs.length === 0 && error === null && (
+        {access !== 'control' && (
+          <div className="text-text-tertiary px-2 py-1 text-sm">
+            {access === 'unavailable'
+              ? 'Not available on remote lanes yet.'
+              : 'Read-only. Take control to send messages.'}
+          </div>
+        )}
+        {access === 'control' && tabs.length === 0 && error === null && (
           <div className="text-text-tertiary flex h-full items-center justify-center text-base">
             Starting shell…
           </div>
         )}
-        {error !== null && <SpawnError message={error} onRetry={retry} inline={tabs.length > 0} />}
+        {error !== null &&
+          (access === 'control' ? (
+            <SpawnError message={error} onRetry={retry} inline={tabs.length > 0} />
+          ) : (
+            <div className="text-text-tertiary px-2 text-sm">{error}</div>
+          ))}
       </div>
     </PaneShell>
   )

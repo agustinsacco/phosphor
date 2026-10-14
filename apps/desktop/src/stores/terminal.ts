@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { drop, keyedSlice } from './keyedSlice'
 import { useLayoutStore } from './layout'
 import { useSessionsStore } from './sessions'
+import { useRemoteLanesStore, canControlSession } from './remoteLanes'
 import { ipcErrorText } from '@shared/errors'
 
 export interface TerminalTab {
@@ -96,10 +97,12 @@ export const useTerminalStore = create<TerminalState>((set, get) => ({
     set((s) =>
       patchSession(s, sessionId, (t) => ({
         error: null,
-        tabs: [
-          ...t.tabs,
-          { ptyId, title: `Terminal ${t.tabs.length + 1}`, exited: false, running: false },
-        ],
+        tabs: t.tabs.some((tab) => tab.ptyId === ptyId)
+          ? t.tabs
+          : [
+              ...t.tabs,
+              { ptyId, title: `Terminal ${t.tabs.length + 1}`, exited: false, running: false },
+            ],
         activeId: ptyId,
       })),
     )
@@ -230,4 +233,13 @@ export async function runInTerminal(
   if (ptyId === null) return // The pane displays the spawn error.
   // A fence's closing newline is formatting, not permission to run it.
   useTerminalStore.getState().queuePaste(ptyId, command.replace(/[\r\n]+$/, ''), !!options.execute)
+}
+
+/** Remote terminals use the same tabs, but never inherit local input authority. */
+export function terminalAccess(sessionId: string): 'control' | 'viewer' | 'unavailable' {
+  const session = useSessionsStore.getState().live[sessionId]
+  if (session?.target?.kind !== 'remote') return 'control'
+  const host = useRemoteLanesStore.getState().hosts[session.target.hostId]
+  if (host?.state !== 'ready' || !host.capabilities.includes('terminal')) return 'unavailable'
+  return canControlSession(sessionId) ? 'control' : 'viewer'
 }

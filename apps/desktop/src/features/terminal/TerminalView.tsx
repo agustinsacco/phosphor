@@ -33,10 +33,14 @@ function pasteFromClipboard(term: Terminal): void {
 export const TerminalView = memo(function TerminalView({
   ptyId,
   visible,
+  readOnly = false,
 }: {
   ptyId: string
   visible: boolean
+  readOnly?: boolean
 }): React.JSX.Element {
+  const readOnlyRef = useRef(readOnly)
+  readOnlyRef.current = readOnly
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -77,7 +81,8 @@ export const TerminalView = memo(function TerminalView({
 
     // Renderer → PTY
     const dataDisposable = term.onData((data) => {
-      void window.phosphor.invoke('pty:write', ptyId, data)
+      if (!readOnlyRef.current)
+        void window.phosphor.invoke('pty:write', ptyId, data).catch(() => undefined)
     })
 
     /*
@@ -106,14 +111,33 @@ export const TerminalView = memo(function TerminalView({
         if (termRef.current === term) setReady(true)
       })
     }
+    const remote = ptyId.startsWith('remote-pty-')
+    let held = ''
+    let attachVersion = 0
+    const attach = (): void => {
+      const version = ++attachVersion
+      held = ''
+      replayed = false
+      void window.phosphor
+        .invoke('pty:attach', ptyId)
+        .then(({ scrollback }) => {
+          if (termRef.current !== term || version !== attachVersion) return
+          if (remote) term.reset()
+          if (scrollback || held) writeOutput(scrollback + held)
+          held = ''
+          replayed = true
+        })
+        .catch(() => undefined)
+    }
     const unsubscribeData = window.phosphor.onPtyData(ptyId, (data) => {
       if (replayed) writeOutput(data)
+      else if (remote) {
+        // Remote output after the reset cut may beat the IPC attach reply.
+        if (held.length + data.length > 262144) attach()
+        else held += data
+      }
     })
-    void window.phosphor.invoke('pty:attach', ptyId).then(({ scrollback }) => {
-      if (termRef.current !== term) return // disposed mid-flight
-      if (scrollback) writeOutput(scrollback)
-      replayed = true
-    })
+    attach()
 
     const unsubscribeExit = window.phosphor.onPtyExit(ptyId, (exitCode) => {
       term.write(`\r\n\x1b[2m[process exited with code ${exitCode}]\x1b[0m\r\n`)
@@ -122,7 +146,10 @@ export const TerminalView = memo(function TerminalView({
 
     // Resize plumbing (pane drags included).
     const sendResize = (): void => {
-      void window.phosphor.invoke('pty:resize', ptyId, term.cols, term.rows)
+      if (!readOnlyRef.current)
+        void window.phosphor
+          .invoke('pty:resize', ptyId, term.cols, term.rows)
+          .catch(() => undefined)
     }
     const observer = new ResizeObserver(() => {
       if (container.clientWidth > 0 && container.clientHeight > 0) {
@@ -154,7 +181,7 @@ export const TerminalView = memo(function TerminalView({
         return false
       }
       if (action === 'paste') {
-        pasteFromClipboard(term)
+        if (!readOnlyRef.current) pasteFromClipboard(term)
         return false
       }
       return true
@@ -172,6 +199,10 @@ export const TerminalView = memo(function TerminalView({
       termRef.current = null
     }
   }, [ptyId])
+
+  useEffect(() => {
+    if (termRef.current) termRef.current.options.disableStdin = readOnly
+  }, [readOnly])
 
   // Live theme + font switching.
   useEffect(() => {
@@ -202,7 +233,7 @@ export const TerminalView = memo(function TerminalView({
 
   // "Run in terminal" paste queue.
   useEffect(() => {
-    if (visible && ready && pendingPaste?.ptyId === ptyId && termRef.current) {
+    if (!readOnly && visible && ready && pendingPaste?.ptyId === ptyId && termRef.current) {
       const paste = useTerminalStore.getState().consumePaste(ptyId)
       if (paste) {
         const term = termRef.current
@@ -219,7 +250,7 @@ export const TerminalView = memo(function TerminalView({
         term.focus()
       }
     }
-  }, [pendingPaste, visible, ready, ptyId])
+  }, [pendingPaste, visible, ready, ptyId, readOnly])
 
   /*
    * Right-click used to paste blind. It now opens the app's context menu, so
@@ -239,6 +270,7 @@ export const TerminalView = memo(function TerminalView({
       },
       {
         label: 'Paste',
+        disabled: readOnly,
         shortcut: formatShortcut(...mod, 'V'),
         onClick: () => pasteFromClipboard(term),
       },
@@ -261,7 +293,7 @@ export const TerminalView = memo(function TerminalView({
 
   const runStagedCommand = (): void => {
     const term = termRef.current
-    if (!term || stagedCommand === null) return
+    if (readOnly || !term || stagedCommand === null) return
     term.paste(stagedCommand.replace(/[\r\n]+$/, ''))
     term.input('\r', true)
     setStagedCommand(null)
