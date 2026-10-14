@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { dedupeTitle, sanitizeTitle, titleArgs, titlePrompt } from './session-naming'
+import {
+  CLAUDE_TITLE_FALLBACK,
+  dedupeTitle,
+  pickTitleModel,
+  sanitizeTitle,
+  titleArgs,
+  titleAttempts,
+  titlePrompt,
+  type TitleCandidate,
+} from './session-naming'
 
 describe('titleArgs', () => {
   it('always strips tools, context files, skills and templates', () => {
-    const args = titleArgs({ claudeCli: false })
+    const args = titleArgs()
     for (const flag of [
       '-p',
       '--no-session',
@@ -17,18 +26,102 @@ describe('titleArgs', () => {
     expect(args).not.toContain('--model')
   })
 
-  it('never disables extension discovery — providers register through it', () => {
-    // `-ne` turns pi-claude-cli into an unknown provider and the whole
-    // naming run errors. Verified against real pi; see titleArgs docs.
-    for (const claudeCli of [true, false]) {
-      expect(titleArgs({ claudeCli })).not.toContain('--no-extensions')
-    }
+  it('always turns thinking off, whatever the default level', () => {
+    const args = titleArgs({ model: CLAUDE_TITLE_FALLBACK })
+    expect(args[args.indexOf('--thinking') + 1]).toBe('off')
   })
 
-  it('pins the Claude provider run to Haiku with an explicit provider', () => {
-    const args = titleArgs({ claudeCli: true })
-    expect(args[args.indexOf('--provider') + 1]).toBe('pi-claude-cli')
-    expect(args[args.indexOf('--model') + 1]).toBe('claude-haiku-4-5')
+  it('names a model only with an explicit provider', () => {
+    const args = titleArgs({ model: { provider: 'kimi-coding', id: 'kimi-k2-turbo' } })
+    expect(args[args.indexOf('--provider') + 1]).toBe('kimi-coding')
+    expect(args[args.indexOf('--model') + 1]).toBe('kimi-k2-turbo')
+  })
+
+  it('disables discovery only on a fast boot, loading the listed extensions', () => {
+    // `-ne` alone makes pi-claude-cli an unknown provider, so a fast boot
+    // must carry the provider's extension; a full boot must not use `-ne`.
+    expect(titleArgs({ extensions: null })).not.toContain('--no-extensions')
+    const args = titleArgs({ extensions: ['/pkg/index.ts'] })
+    expect(args).toContain('--no-extensions')
+    expect(args[args.indexOf('-e') + 1]).toBe('/pkg/index.ts')
+  })
+})
+
+describe('pickTitleModel', () => {
+  const m = (provider: string, id: string, input: number, output: number): TitleCandidate => ({
+    provider,
+    id,
+    cost: { input, output },
+  })
+  const catalogue = [
+    m('pi-claude-cli', 'claude-opus-5-5', 5, 25),
+    m('pi-claude-cli', 'claude-haiku-4-5-20251001', 1, 5),
+    m('pi-claude-cli', 'claude-haiku-4-5', 1, 5),
+    m('pi-claude-cli', 'claude-haiku-5-5', 0.1, 0.5),
+    m('amazon-bedrock', 'us.anthropic.claude-opus-4-1-v1:0', 15, 75),
+    m('amazon-bedrock', 'us.anthropic.claude-haiku-4-5-v1:0', 1, 5),
+    m('amazon-bedrock', 'anthropic.claude-3-haiku-v1:0', 0.25, 1.25),
+    m('amazon-bedrock', 'mistral.voxtral-mini-3b-2507', 0.04, 0.04),
+    m('amazon-bedrock', 'us.amazon.nova-micro-v1:0', 0.035, 0.14),
+    m('openrouter', 'anthropic/claude-sonnet-5', 3, 15),
+    m('openrouter', 'anthropic/claude-haiku-4-5', 1, 5),
+    m('openrouter', 'google/gemma-4-31b-it:free', 0, 0),
+    m('openrouter', 'openai/gpt-6-luna', 0.1, 0.5),
+    m('kimi-coding', 'kimi-k2', 0.6, 2.5),
+    m('kimi-coding', 'kimi-k2-turbo', 0.3, 1.2),
+    m('local', 'qwen-local', 0, 0),
+  ]
+
+  it('picks the cheapest model of the default provider', () => {
+    expect(pickTitleModel(catalogue, 'pi-claude-cli', 'claude-opus-5-5')).toEqual({
+      provider: 'pi-claude-cli',
+      id: 'claude-haiku-5-5',
+    })
+    expect(pickTitleModel(catalogue, 'kimi-coding', 'kimi-k2')?.id).toBe('kimi-k2-turbo')
+  })
+
+  it('stays in the default family and region, and skips non-chat models', () => {
+    // Not voxtral (speech), not nova (another vendor), not the unprefixed
+    // Claude 3 (a different inference profile than the user reaches).
+    expect(
+      pickTitleModel(catalogue, 'amazon-bedrock', 'us.anthropic.claude-opus-4-1-v1:0')?.id,
+    ).toBe('us.anthropic.claude-haiku-4-5-v1:0')
+    // Not the free tier, not another vendor through the same router.
+    expect(pickTitleModel(catalogue, 'openrouter', 'anthropic/claude-sonnet-5')?.id).toBe(
+      'anthropic/claude-haiku-4-5',
+    )
+  })
+
+  it('prefers the alias over the dated snapshot at the same price', () => {
+    const twins = catalogue.filter(
+      (x) => x.id.startsWith('claude-haiku-4') || x.id.includes('opus-5'),
+    )
+    expect(pickTitleModel(twins, 'pi-claude-cli', 'claude-opus-5-5')?.id).toBe('claude-haiku-4-5')
+  })
+
+  it('keeps the default when it is already cheapest, unpriced or unknown', () => {
+    expect(pickTitleModel(catalogue, 'kimi-coding', 'kimi-k2-turbo')).toBeNull()
+    expect(pickTitleModel(catalogue, 'local', 'qwen-local')).toBeNull()
+    expect(pickTitleModel(catalogue, 'kimi-coding', 'not-in-catalogue')).toBeNull()
+    expect(pickTitleModel(catalogue, undefined, undefined)).toBeNull()
+    expect(pickTitleModel([], 'pi-claude-cli', 'claude-opus-5-5')).toBeNull()
+  })
+})
+
+describe('titleAttempts', () => {
+  const haiku = { provider: 'pi-claude-cli', id: 'claude-haiku-5-5' }
+
+  it('tries a fast boot, then a full boot, then the fallback model', () => {
+    expect(titleAttempts(haiku, ['/ext.ts'], CLAUDE_TITLE_FALLBACK)).toEqual([
+      { model: haiku, extensions: ['/ext.ts'] },
+      { model: haiku, extensions: null },
+      { model: CLAUDE_TITLE_FALLBACK, extensions: null },
+    ])
+  })
+
+  it('drops duplicate runs', () => {
+    expect(titleAttempts(null, null, null)).toEqual([{ model: null, extensions: null }])
+    expect(titleAttempts(CLAUDE_TITLE_FALLBACK, null, CLAUDE_TITLE_FALLBACK)).toHaveLength(1)
   })
 })
 
