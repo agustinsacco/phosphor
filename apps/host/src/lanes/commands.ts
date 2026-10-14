@@ -1,5 +1,5 @@
 import { parseTerminalOp } from '@phosphor/shared/host-protocol-terminals'
-import type { HostTerminals } from '../terminals/service'
+import { TerminalForbidden, type HostTerminals } from '../terminals/service'
 import {
   HOST_LIMITS,
   UNFENCED_OPS,
@@ -27,6 +27,7 @@ export interface LaneCommandClient {
   label: string
   connectionId?: string
   caps: readonly HostCapability[]
+  currentCaps?: () => readonly HostCapability[]
 }
 export interface LaneCommandPorts {
   terminals?: HostTerminals
@@ -251,6 +252,12 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
   function execute(job: Job, queue: LaneQueue): Execution | void {
     const { frame, client } = job
     const { requestId, laneId, op } = frame
+    const terminalOp = parseTerminalOp(op)
+    const terminalAllowed = () => {
+      const caps = client.currentCaps?.() ?? client.caps
+      return caps.includes('terminal') && caps.includes('sessions.control')
+    }
+    if (terminalOp && !terminalAllowed()) return rejected(job, 'forbidden', true)
     if (queue.controlUnpublished && laneId !== undefined) {
       const control = store.getLane(laneId)?.control
       if (!control) {
@@ -377,21 +384,26 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       )
         return controlFailure(job)
     }
-    const terminalOp = parseTerminalOp(op)
     if (terminalOp) {
       const terminals = ports.terminals
       if (!terminals) return rejected(job, 'unsupported', true)
-      const completion = dispatch(job, queue, () => terminals.execute(laneId, terminalOp)).then(
-        (result) => {
-          terminal(
-            job,
-            result.answered
-              ? { requestId, status: 'done', data: result.value, fence: admittedFence }
-              : { requestId, status: 'unknown' },
-            true,
-          )
-        },
-      )
+      const completion = dispatch(job, queue, async () => {
+        try {
+          return { data: await terminals.execute(laneId, terminalOp, terminalAllowed) }
+        } catch (error) {
+          if (error instanceof TerminalForbidden) return { forbidden: true }
+          throw error
+        }
+      }).then((result) => {
+        if (result.answered && result.value.forbidden) return rejected(job, 'forbidden', true)
+        terminal(
+          job,
+          result.answered
+            ? { requestId, status: 'done', data: result.value.data, fence: admittedFence }
+            : { requestId, status: 'unknown' },
+          true,
+        )
+      })
       return { completion, detached: false }
     }
     if (piCommand && sessionId !== null) {

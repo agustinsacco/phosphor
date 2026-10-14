@@ -158,8 +158,10 @@ export function createLaneAdapter(
           const unsubscribe = service.terminals?.subscribe(frame, (f) => {
             if (caps.includes('terminal')) send(f)
           })
-          if (unsubscribe) terminalSubscriptions.set(frame.id, unsubscribe)
-          else send({ type: 'subscribe-failed', id: frame.id, code: 'unknown-lane' })
+          if (unsubscribe) {
+            if (closed) unsubscribe()
+            else terminalSubscriptions.set(frame.id, unsubscribe)
+          } else send({ type: 'subscribe-failed', id: frame.id, code: 'unknown-lane' })
         } else if (frame.type === 'subscribe' || frame.type === 'unsubscribe') {
           if (frame.type === 'unsubscribe') {
             terminalSubscriptions.get(frame.id)?.()
@@ -199,7 +201,13 @@ export function createLaneAdapter(
             })
           pending.add(frame.requestId)
           interest(frame.requestId, 'command')
-          const sender = { id: client.id, label: client.label, caps, connectionId }
+          const sender = {
+            id: client.id,
+            label: client.label,
+            caps,
+            currentCaps: () => (closed ? [] : caps),
+            connectionId,
+          }
           void (async () => {
             try {
               await service.commands.submit(sender, frame)

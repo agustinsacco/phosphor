@@ -17,6 +17,8 @@ import type { HostFeature, FeatureContext } from '../features/feature'
 import { laneRoot } from '../features/files'
 import type { HostPty, HostPtyModule } from './native'
 
+export class TerminalForbidden extends Error {}
+
 type Entry = TerminalSummary & {
   pty?: HostPty
   seq: number
@@ -151,12 +153,18 @@ export function createTerminals(options: {
     }
     flush()
   }
-  async function execute(laneId: string, input: TerminalOp): Promise<unknown> {
+  async function execute(
+    laneId: string,
+    input: TerminalOp,
+    authorized: () => boolean = () => true,
+  ): Promise<unknown> {
+    if (!authorized()) throw new TerminalForbidden('forbidden')
     if (closed) throw new Error('unavailable')
     const op = parseTerminalOp(input)
     if (!op) throw new Error('bad-request')
     reap()
     const cwd = await laneRoot(options.context, laneId)
+    if (!authorized()) throw new TerminalForbidden('forbidden')
     if (closed) throw new Error('unavailable')
     if (op.type === 'terminal.create') {
       // laneRoot awaits I/O: recheck limits after it, before any spawn.

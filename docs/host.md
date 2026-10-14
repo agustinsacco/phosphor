@@ -1312,7 +1312,10 @@ Linux uses node-pty's fork path and does not need the macOS helper.
 
 `terminal.list {laneId}` returns identities and status, never paths. Receipt-backed
 `terminal.create`, `terminal.resize` and `terminal.kill` require `terminal`,
-`sessions.control`, and the current lane fence. Create accepts dimensions only.
+`sessions.control`, and the current lane fence. Queued terminal operations recheck
+both capabilities when execution starts and after directory admission, before PTY
+mutation. Capability loss or a closed connection rejects queued work as `forbidden`.
+Create accepts dimensions only.
 The Host resolves the account's login shell and supplies its built lane environment
 and the admitted lane directory. Limits are 8 retained terminals per lane and 32
 per Host, including exited/interrupted entries until explicitly killed.
