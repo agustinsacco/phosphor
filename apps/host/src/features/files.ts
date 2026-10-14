@@ -68,7 +68,13 @@ export const safeGit = async (cwd: string, args: string[], maxBuffer?: number) =
   try {
     return await git(cwd, ['--no-pager', '-c', 'core.fsmonitor=false', ...args], {
       isolateEnv: true,
-      env: { GIT_LITERAL_PATHSPECS: '1', GIT_OPTIONAL_LOCKS: '0', GIT_CONFIG_COUNT: '0' },
+      // No lazy fetch of missing objects: a read never reaches the network.
+      env: {
+        GIT_LITERAL_PATHSPECS: '1',
+        GIT_OPTIONAL_LOCKS: '0',
+        GIT_CONFIG_COUNT: '0',
+        GIT_NO_LAZY_FETCH: '1',
+      },
       ...(maxBuffer === undefined ? {} : { maxBuffer }),
     })
   } catch (error) {

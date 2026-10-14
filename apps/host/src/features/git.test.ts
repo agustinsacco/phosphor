@@ -204,7 +204,11 @@ describe('git feature', () => {
       rejected('too-large'),
     )
     const diffCall = spy.mock.calls.find(([, args]) => args.includes('diff'))
-    expect(diffCall?.[2]).toMatchObject({ maxBuffer: FILE_LIMITS.textBytes, isolateEnv: true })
+    expect(diffCall?.[2]).toMatchObject({
+      maxBuffer: FILE_LIMITS.textBytes,
+      isolateEnv: true,
+      env: { GIT_NO_LAZY_FETCH: '1', GIT_OPTIONAL_LOCKS: '0' },
+    })
   })
   it('caps lists and diffs without truncation at exact boundaries', async () => {
     const original = (await vi.importActual<typeof fs>('node:fs/promises')).realpath

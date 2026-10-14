@@ -1209,6 +1209,11 @@ Lists stop with `too-large` above 20,000 entries. Text and diffs are capped at
 without a NUL in that sample return `too-large`. Git blobs over 2 MiB return
 `too-large` before reading content, including binary blobs. Smaller binary
 blobs return their size without content. Errors contain no paths or tool output.
+Git runs with inherited `GIT_*` variables dropped, no pager, fsmonitor, external
+diff or textconv, and no lazy fetch of missing objects. Clean filters that the
+machine owner configured (Git LFS, for example) still run during `git.status` and
+`git.diff`, as they do for the owner's own git. Turning them off would report every
+filtered file as modified, and a caller cannot choose or change the command.
 
 The `skills.read` feature answers `machine.models` with the Host pi's model
 catalogue and `machine.providers` with provider names and readiness only. It
