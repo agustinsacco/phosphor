@@ -211,7 +211,12 @@ Definitions and history are fetched independently and refreshed on Host
 
 Choose a machine in New routine. After creation that machine is fixed. On a
 Host, the workspace picker lists only that machine's configured repository
-labels, not folders or Host paths. Save paused creates a paused, untrusted
+labels, not folders or Host paths. Drafts keep the machine and repository selection
+with their inputs. A repository no longer offered is cleared and requires a fresh
+choice before saving. A missing machine never falls back to this computer; an
+existing routine stays locked to its machine and cannot save while it is absent.
+Remote list rows say **Open for run history**, not whether a run has occurred.
+Save paused creates a paused, untrusted
 routine. Reopen Edit, acknowledge unattended full tool access, then choose
 **Enable on <machine>** as a separate explicit save. Enable, Run now and Delete
 are disabled without `sessions.control`, with the existing read-only hint.

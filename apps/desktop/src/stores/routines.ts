@@ -20,6 +20,8 @@ export const NEW_ROUTINE = 'new'
 export interface EditorDraft {
   input: RoutineInput
   revision: number | null
+  machineId: string
+  repositoryId: string
 }
 
 interface RoutinesState {
@@ -150,10 +152,10 @@ export function keepEditorDraft(key: string, draft: EditorDraft | null): void {
  * The draft to reopen for `key`, if it is still valid. An edit started from
  * an older revision is dropped: saving it would be refused as stale anyway.
  */
-export function editorDraft(key: string, revision: number | null): RoutineInput | null {
+export function editorDraft(key: string, revision: number | null): EditorDraft | null {
   const draft = useRoutinesStore.getState().editorDrafts[key]
   if (!draft) return null
-  if (draft.revision === revision) return draft.input
+  if (draft.revision === revision) return draft
   keepEditorDraft(key, null)
   return null
 }

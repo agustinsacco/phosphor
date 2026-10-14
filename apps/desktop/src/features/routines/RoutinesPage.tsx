@@ -15,7 +15,13 @@ import { PaneTitle } from '@/components/PaneShell'
 import { Button, TextInput } from '@/components/form'
 import { ModalOverlay } from '@/components/Modal'
 import { presentText } from '@/stores/prompt'
-import { editorDraft, keepEditorDraft, NEW_ROUTINE, useRoutinesStore } from '@/stores/routines'
+import {
+  editorDraft,
+  keepEditorDraft,
+  NEW_ROUTINE,
+  useRoutinesStore,
+  type EditorDraft,
+} from '@/stores/routines'
 import { useSessionsStore } from '@/stores/sessions'
 import { ActivityAccordion } from './ActivityAccordion'
 import { RoutineDetail, routineTone, scheduleLabel } from './RoutineDetail'
@@ -27,6 +33,7 @@ interface EditorState {
   input: RoutineInput
   pristine: RoutineInput
   existing?: Routine
+  restored?: EditorDraft
 }
 
 export function RoutinesPage({ workspacePath }: { workspacePath: string }): React.JSX.Element {
@@ -86,20 +93,25 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
    */
   const create = (input?: RoutineInput): void => {
     const blank = newRoutine(workspacePath)
+    const restored = input ? undefined : (editorDraft(NEW_ROUTINE, null) ?? undefined)
     setEditor({
+      restored,
       key: NEW_ROUTINE,
-      input: input ?? editorDraft(NEW_ROUTINE, null) ?? blank,
+      input: input ?? restored?.input ?? blank,
       pristine: blank,
     })
   }
   /** Edit a saved routine, resuming unsaved changes made to this revision. */
-  const edit = (routine: Routine, start: RoutineInput): void =>
+  const edit = (routine: Routine, start: RoutineInput): void => {
+    const restored = editorDraft(routine.id, routine.revision) ?? undefined
     setEditor({
+      restored,
       key: routine.id,
-      input: editorDraft(routine.id, routine.revision) ?? start,
+      input: restored?.input ?? start,
       pristine: start,
       existing: routine,
     })
+  }
 
   // Context-menu drafts are consumed once; no hidden schedule is created.
   useEffect(() => {
@@ -414,7 +426,11 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                             {scheduleLabel(r)}
                           </span>
                           <span className="text-text-tertiary block">
-                            {last ? `Last: ${RUN_LABELS[last.status]}` : 'Not run yet'}
+                            {r.machine
+                              ? 'Open for run history'
+                              : last
+                                ? `Last: ${RUN_LABELS[last.status]}`
+                                : 'Not run yet'}
                           </span>
                         </span>
                       </TooltipButton>
@@ -467,6 +483,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
       {editor && (
         <RoutineEditor
           key={editor.key}
+          restored={editor.restored}
           initial={editor.input}
           pristine={editor.pristine}
           draftKey={editor.key}

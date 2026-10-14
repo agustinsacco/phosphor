@@ -16,7 +16,7 @@ import { Button, TextInput } from '@/components/form'
 import { CloseIcon } from '@/components/icons'
 import { ModelMenu } from '@/features/chat/composer/ModelMenu'
 import { catalogueEmptyText, useModelCatalogueStore } from '@/stores/modelCatalogue'
-import { keepEditorDraft } from '@/stores/routines'
+import { keepEditorDraft, type EditorDraft } from '@/stores/routines'
 
 const SELECT = 'border-border bg-surface text-text w-full rounded-md border px-2.5 py-1.5'
 const EYEBROW = 'text-text-tertiary font-mono text-xs uppercase tracking-wide'
@@ -138,6 +138,7 @@ function ModelField({
  */
 export function RoutineEditor({
   initial,
+  restored,
   pristine,
   draftKey,
   existing,
@@ -146,6 +147,7 @@ export function RoutineEditor({
   onSaved,
 }: {
   initial: RoutineInput
+  restored?: EditorDraft
   /** What Reset returns to: a blank routine, or the saved one being edited. */
   pristine: RoutineInput
   /** `editorDrafts` key: the routine id, or NEW_ROUTINE. */
@@ -155,29 +157,54 @@ export function RoutineEditor({
   onClose: () => void
   onSaved: () => void
 }): React.JSX.Element {
-  const [machineId, setMachineId] = useState(existing?.machine?.id ?? 'local')
+  const pristineMachineId = existing?.machine?.id ?? 'local'
+  const pristineRepositoryId = existing?.machine?.repositoryId ?? ''
+  const [machineId, setMachineId] = useState(restored?.machineId ?? pristineMachineId)
   const machine = machines.find((m) => m.id === machineId)
   const remote = machineId !== 'local'
-  const [repositoryId, setRepositoryId] = useState(existing?.machine?.repositoryId ?? '')
+  const [repositoryId, setRepositoryId] = useState(restored?.repositoryId ?? pristineRepositoryId)
   const [draft, setDraft] = useState(initial)
   const [preset, setPreset] = useState<Preset>(initialPreset(initial.schedule))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [check, setCheck] = useState<RoutineCheck | null>(null)
   const [picking, setPicking] = useState(false)
-  const dirty = !same(draft, pristine)
+  const dirty =
+    !same(draft, pristine) ||
+    machineId !== pristineMachineId ||
+    repositoryId !== pristineRepositoryId
+  const targetValid =
+    machineId === 'local' ||
+    (!!machine?.available && machine.repositories.some((r) => r.id === repositoryId))
+
+  useEffect(() => {
+    if (machineId === 'local') return
+    if (!machine && !existing) setMachineId('')
+    // Only a machine that answers can say a repository is gone; an absent one keeps it.
+    if (machine && !machine.repositories.some((r) => r.id === repositoryId)) {
+      setRepositoryId('')
+      setDraft((r) => ({ ...r, workspacePath: '', trusted: false }))
+    }
+  }, [machineId, machine, repositoryId, existing])
 
   // Mirrored on every change rather than on close, so that unmounting with
   // the page (a sidebar click) keeps the work too.
   useEffect(() => {
-    keepEditorDraft(draftKey, dirty ? { input: draft, revision: existing?.revision ?? null } : null)
-  }, [draft, dirty, draftKey, existing?.revision])
+    keepEditorDraft(
+      draftKey,
+      dirty
+        ? { input: draft, revision: existing?.revision ?? null, machineId, repositoryId }
+        : null,
+    )
+  }, [draft, dirty, draftKey, existing?.revision, machineId, repositoryId])
 
   const update = (patch: Partial<RoutineInput>): void => {
     setDraft((r) => ({ ...r, ...patch, trusted: false }))
     setCheck(null)
   }
   const reset = (): void => {
+    setMachineId(pristineMachineId)
+    setRepositoryId(pristineRepositoryId)
     setDraft(pristine)
     setPreset(initialPreset(pristine.schedule))
     setCheck(null)
@@ -324,7 +351,7 @@ export function RoutineEditor({
                 <select
                   aria-label="Routine machine"
                   className={SELECT}
-                  value={machineId}
+                  value={remote && !machine ? '' : machineId}
                   disabled={!!existing}
                   onChange={(e) => {
                     setMachineId(e.target.value)
@@ -332,6 +359,7 @@ export function RoutineEditor({
                     update({ trusted: false, enabled: false })
                   }}
                 >
+                  <option value="">Choose an available machine</option>
                   <option value="local">This computer</option>
                   {machines.map((m) => (
                     <option key={m.id} value={m.id} disabled={!m.available}>
@@ -340,6 +368,9 @@ export function RoutineEditor({
                   ))}
                 </select>
               </label>
+              {remote && !machine && existing && (
+                <p className="text-text-tertiary">Machine routines are unavailable.</p>
+              )}
               {remote ? (
                 <label className="block">
                   Repository
@@ -677,6 +708,7 @@ export function RoutineEditor({
           <Button
             disabled={
               busy ||
+              !targetValid ||
               (remote &&
                 (!repositoryId || !machine?.available || (draft.trusted && !machine.control)))
             }
@@ -692,7 +724,10 @@ export function RoutineEditor({
                   : undefined
               }
               disabled={
-                busy || !draft.trusted || (remote && (!machine?.control || !machine.available))
+                busy ||
+                !targetValid ||
+                !draft.trusted ||
+                (remote && (!machine?.control || !machine.available))
               }
               variant="primary"
               onClick={() => void save(true)}

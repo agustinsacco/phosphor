@@ -100,6 +100,10 @@ it('tags local and remote rows, filters by machine and refreshes on routines-cha
   expect(rows).toHaveLength(2)
   expect(rows[0]?.textContent).toContain('This computer')
   expect(rows[1]?.textContent).toContain('bee1')
+  expect(rows[0]?.textContent).toContain('Not run yet')
+  expect(rows[0]?.textContent).not.toContain('Open for run history')
+  expect(rows[1]?.textContent).toContain('Open for run history')
+  expect(rows[1]?.textContent).not.toContain('Not run yet')
   const filter = container.querySelector<HTMLSelectElement>('[aria-label="Machine filter"]')
   await act(async () => {
     if (filter) filter.value = host
@@ -114,7 +118,7 @@ it('tags local and remote rows, filters by machine and refreshes on routines-cha
 })
 it('requires explicit unattended acknowledgement for Enable on bee1 and fixes the machine', async () => {
   await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
-  await click('Remote taskHost repobee1PausedNot run yet')
+  await click('Remote taskHost repobee1PausedOpen for run history')
   await click('Edit')
   const select = document.querySelector<HTMLSelectElement>('[aria-label="Routine machine"]')
   expect(select?.disabled).toBe(true)
@@ -152,7 +156,7 @@ it('disables enable and run for a remote viewer with the existing read-only hint
     routines: [{ ...remote, trusted: true, machine: { ...remote.machine, control: false } }],
   }))
   await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
-  await click('Remote taskHost repobee1PausedNot run yet')
+  await click('Remote taskHost repobee1PausedOpen for run history')
   const run = Array.from(document.querySelectorAll('button')).find(
     (b) => b.textContent === 'Run now',
   )
@@ -184,8 +188,139 @@ it('does not refresh the selected machine history when another machine changes',
     return null
   })
   await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
-  await click('Remote taskHost repobee1PausedNot run yet')
+  await click('Remote taskHost repobee1PausedOpen for run history')
   const calls = invoke.mock.calls.length
   await act(async () => changed({ machine: other }))
   expect(invoke.mock.calls.slice(calls)).toEqual([['routines:list', other]])
+})
+
+const choose = async (label: string, value: string) => {
+  const select = document.querySelector<HTMLSelectElement>(`[aria-label="${label}"]`)
+  expect(select).not.toBeNull()
+  await act(async () => {
+    select!.value = value
+    select!.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+}
+const saveButton = () =>
+  Array.from(document.querySelectorAll('button')).find((b) => b.textContent === 'Save paused')!
+const closeEditor = async () => {
+  const close = document.querySelector<HTMLButtonElement>('[role=dialog] [aria-label=Close]')
+  await act(async () => close!.click())
+}
+
+it('resumes a new remote draft with its machine and repository and resets both with input', async () => {
+  await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
+  await click('New routine')
+  await choose('Routine machine', host)
+  await choose('Routine repository', machine.repositories[0]!.id)
+  await closeEditor()
+  await click('Resume draft')
+  expect(document.querySelector<HTMLSelectElement>('[aria-label="Routine machine"]')?.value).toBe(
+    host,
+  )
+  expect(
+    document.querySelector<HTMLSelectElement>('[aria-label="Routine repository"]')?.value,
+  ).toBe(machine.repositories[0]!.id)
+  await click('Reset')
+  expect(document.querySelector<HTMLSelectElement>('[aria-label="Routine machine"]')?.value).toBe(
+    'local',
+  )
+  expect(document.querySelector('[aria-label="Routine repository"]')).toBeNull()
+  expect(useRoutinesStore.getState().editorDrafts).toEqual({})
+})
+
+it('saves the changed repository after closing and reopening an existing remote draft', async () => {
+  const nextRepository = { id: 'fedcba9876543210', name: 'Other repo' }
+  invoke.mockImplementation(async (channel, target) => {
+    if (channel === 'routines:list')
+      return target
+        ? { ...snapshot, routines: [remote] }
+        : {
+            ...snapshot,
+            machines: [{ ...machine, repositories: [...machine.repositories, nextRepository] }],
+          }
+    return defaultInvoke(channel, target)
+  })
+  await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
+  await click('Remote taskHost repobee1PausedOpen for run history')
+  await click('Edit')
+  await choose('Routine repository', nextRepository.id)
+  await closeEditor()
+  await click('Edit')
+  expect(
+    document.querySelector<HTMLSelectElement>('[aria-label="Routine repository"]')?.value,
+  ).toBe(nextRepository.id)
+  const trust = document.querySelector<HTMLInputElement>('input[type=checkbox]')
+  await act(async () => trust!.click())
+  await click('Enable on bee1')
+  expect(invoke).toHaveBeenCalledWith(
+    'routines:save',
+    expect.objectContaining({
+      repositoryId: nextRepository.id,
+      workspacePath: nextRepository.name,
+      trusted: true,
+    }),
+    remote.id,
+    remote.revision,
+    host,
+  )
+})
+
+it('clears a restored repository no longer offered and requires a fresh choice', async () => {
+  await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
+  await click('Remote taskHost repobee1PausedOpen for run history')
+  await click('Edit')
+  await choose('Routine repository', machine.repositories[0]!.id)
+  await closeEditor()
+  const replacement = { id: 'fedcba9876543210', name: 'Replacement' }
+  await act(async () =>
+    useRoutinesStore.setState({ machines: [{ ...machine, repositories: [replacement] }] }),
+  )
+  await click('Edit')
+  expect(
+    document.querySelector<HTMLSelectElement>('[aria-label="Routine repository"]')?.value,
+  ).toBe('')
+  expect(saveButton().disabled).toBe(true)
+  expect(useRoutinesStore.getState().editorDrafts[remote.id]?.repositoryId).toBe('')
+  expect(useRoutinesStore.getState().editorDrafts[remote.id]?.input.workspacePath).toBe('')
+  await act(async () => saveButton().click())
+  expect(invoke.mock.calls.some(([c]) => c === 'routines:save')).toBe(false)
+  await choose('Routine repository', replacement.id)
+  expect(saveButton().disabled).toBe(false)
+})
+
+it('clears a missing machine on a new draft without falling back to local', async () => {
+  await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
+  await click('New routine')
+  await choose('Routine machine', host)
+  await choose('Routine repository', machine.repositories[0]!.id)
+  await closeEditor()
+  await act(async () => useRoutinesStore.setState({ machines: [] }))
+  await click('Resume draft')
+  expect(document.querySelector<HTMLSelectElement>('[aria-label="Routine machine"]')?.value).toBe(
+    '',
+  )
+  expect(saveButton().disabled).toBe(true)
+  expect(document.querySelector('[aria-label="Workspace"]')).toBeNull()
+  expect(useRoutinesStore.getState().editorDrafts.new?.machineId).toBe('')
+})
+
+it('keeps an existing routine machine locked while absent and sends nothing', async () => {
+  await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
+  await click('Remote taskHost repobee1PausedOpen for run history')
+  await act(async () => useRoutinesStore.setState({ machines: [] }))
+  await click('Edit')
+  const select = document.querySelector<HTMLSelectElement>('[aria-label="Routine machine"]')!
+  expect(select.disabled).toBe(true)
+  expect(select.value).toBe('')
+  expect(document.body.textContent).toContain('Machine routines are unavailable.')
+  expect(saveButton().disabled).toBe(true)
+  await act(async () => saveButton().click())
+  expect(invoke.mock.calls.some(([c]) => c === 'routines:save')).toBe(false)
+  await act(async () => useRoutinesStore.setState({ machines: [machine] }))
+  expect(
+    document.querySelector<HTMLSelectElement>('[aria-label="Routine repository"]')?.value,
+  ).toBe(machine.repositories[0]!.id)
+  expect(saveButton().disabled).toBe(false)
 })
