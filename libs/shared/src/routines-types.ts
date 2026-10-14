@@ -26,6 +26,7 @@ export interface Routine extends RoutineInput {
   nextAt: number | null
   attention: string | null
   archived: boolean
+  machine?: { id: string; label: string; repositoryId: string; control: boolean }
 }
 
 /**
@@ -87,8 +88,17 @@ export interface RoutineRun {
 export type RoutineLaneIndex = Record<string, { routineId: string; runId: string }>
 
 export interface RoutinesSnapshot {
+  machines?: RoutineMachine[]
   routines: Routine[]
   runs: RoutineRun[]
   background: boolean
   error: string | null
+}
+
+export interface RoutineMachine {
+  id: string
+  label: string
+  available: boolean
+  control: boolean
+  repositories: { id: string; name: string }[]
 }

@@ -960,7 +960,13 @@ export function installMockPhosphor(): void {
         : 'linux',
 
     invoke: (channel: string, ...args: unknown[]) => {
-      if (channel.startsWith('routines:')) return mockRoutineCall(channel, args)
+      if (channel.startsWith('routines:')) {
+        if (args.some((arg) => typeof arg === 'string' && arg.startsWith('host:')))
+          return Promise.reject(
+            new Error('Machine routines are unavailable in the browser harness.'),
+          )
+        return mockRoutineCall(channel, args)
+      }
       switch (channel) {
         case 'pi:health':
           return Promise.resolve({

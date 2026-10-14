@@ -2,7 +2,7 @@ import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
 import { DateTime } from 'luxon'
 import clsx from 'clsx'
-import type { Routine, RoutineRun } from '@shared/routines'
+import { RUN_LABELS, activeRun, type Routine, type RoutineRun } from '@shared/routines'
 import { Button } from '@/components/form'
 import { showMenuBelow } from '@/components/ContextMenu'
 import { MoreIcon } from '@/components/icons'
@@ -103,7 +103,12 @@ export function RoutineDetail(props: RoutineDetailProps): React.JSX.Element {
         ? []
         : [
             routine.enabled
-              ? { label: 'Pause', hint: 'no new runs', disabled: busy, onClick: props.onPause }
+              ? {
+                  label: 'Pause',
+                  hint: 'no new runs',
+                  disabled: busy || routine.machine?.control === false,
+                  onClick: props.onPause,
+                }
               : { label: 'Review and enable', disabled: busy, onClick: props.onReview },
             {
               label: 'Skip next run',
@@ -126,9 +131,13 @@ export function RoutineDetail(props: RoutineDetailProps): React.JSX.Element {
           ]),
       {
         label: 'Delete…',
+        hint:
+          routine.machine?.control === false
+            ? 'Read-only. Take control to send messages.'
+            : undefined,
         danger: true,
         separatorAbove: routine.archived,
-        disabled: busy || running,
+        disabled: busy || running || routine.machine?.control === false,
         onClick: props.onDelete,
       },
     ])
@@ -151,6 +160,7 @@ export function RoutineDetail(props: RoutineDetailProps): React.JSX.Element {
             <span className="min-w-0 truncate">{routine.name}</span>
           </h1>
           <p className={clsx('mt-1', routine.attention ? 'text-warning' : 'text-text-secondary')}>
+            {routine.machine ? `${routine.machine.label} · ` : ''}
             {running ? 'Running now · ' : ''}
             {scheduleLabel(routine)}
           </p>
@@ -160,8 +170,19 @@ export function RoutineDetail(props: RoutineDetailProps): React.JSX.Element {
             <>
               <Button
                 variant="primary"
-                disabled={busy || !routine.trusted || !!routine.attention}
-                title={routine.trusted ? undefined : 'Acknowledge unattended access in Edit first.'}
+                disabled={
+                  busy ||
+                  !routine.trusted ||
+                  !!routine.attention ||
+                  routine.machine?.control === false
+                }
+                title={
+                  routine.machine?.control === false
+                    ? 'Read-only. Take control to send messages.'
+                    : routine.trusted
+                      ? undefined
+                      : 'Acknowledge unattended access in Edit first.'
+                }
                 onClick={props.onRun}
               >
                 {running ? 'Run already active' : 'Run now'}
@@ -244,30 +265,61 @@ export function RoutineDetail(props: RoutineDetailProps): React.JSX.Element {
           )}
         </div>
       </section>
-      <ActivityAccordion
-        heading={
-          <>
-            <h2 className="text-lg font-semibold">Runs</h2>
-            <p className="text-text-tertiary text-sm">
-              Finished means a written result, not verified claims. A retry can repeat external
-              changes.
-            </p>
-          </>
-        }
-        runs={history}
-        routines={[routine]}
-        routineId={routine.id}
-        busy={busy}
-        onContinue={props.onContinue}
-        onCancel={props.onCancel}
-        footer={
-          props.more && (
-            <Button size="sm" disabled={busy} onClick={props.onLoadMore}>
+      {routine.machine ? (
+        <section>
+          <h2 className="text-lg font-semibold">Runs on {routine.machine.label}</h2>
+          <p className="text-text-tertiary text-sm">
+            Status and timestamps only. Transcripts remain on the Host.
+          </p>
+          <ul>
+            {history.map((run) => (
+              <li key={run.id} className="border-border border-b py-3">
+                <strong>{RUN_LABELS[run.status]}</strong>
+                <p>Scheduled {time(run.scheduledAt, routine.timezone)}</p>
+                <p>
+                  Started {time(run.startedAt, routine.timezone)} · Ended{' '}
+                  {time(run.endedAt, routine.timezone)}
+                </p>
+                {activeRun(run) && (
+                  <Button disabled={busy} onClick={() => props.onCancel(run)}>
+                    Cancel run
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+          {props.more && (
+            <Button disabled={busy} onClick={props.onLoadMore}>
               Load older runs
             </Button>
-          )
-        }
-      />
+          )}
+        </section>
+      ) : (
+        <ActivityAccordion
+          heading={
+            <>
+              <h2 className="text-lg font-semibold">Runs</h2>
+              <p className="text-text-tertiary text-sm">
+                Finished means a written result, not verified claims. A retry can repeat external
+                changes.
+              </p>
+            </>
+          }
+          runs={history}
+          routines={[routine]}
+          routineId={routine.id}
+          busy={busy}
+          onContinue={props.onContinue}
+          onCancel={props.onCancel}
+          footer={
+            props.more && (
+              <Button size="sm" disabled={busy} onClick={props.onLoadMore}>
+                Load older runs
+              </Button>
+            )
+          }
+        />
+      )}
     </>
   )
 }

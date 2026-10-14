@@ -37,6 +37,7 @@ export function createHostConnection(ports: {
   grant: () => Promise<GrantIssueResponse>
   clearGrant: () => void
   changed: () => void
+  onRoutinesChanged?: () => void
   onAttention?: (event: Extract<HostFrame, { type: 'attention' }>['event']) => void
   disabled?: () => void
   log?: TraceLog
@@ -361,6 +362,13 @@ export function createHostConnection(ports: {
               : f.cursor.seq,
         },
       })
+    } else if (f.type === 'routines-changed' && f.id === 'lanes') {
+      if (!view.cursor || view.cursor.epoch !== f.cursor.epoch || f.cursor.seq <= view.cursor.seq)
+        return
+      if (f.cursor.seq !== view.cursor.seq + 1) subscribe('lanes')
+      // Only the routines surface changed; do not invalidate every Host query.
+      view = { ...view, cursor: f.cursor }
+      ports.onRoutinesChanged?.()
     } else if ((f.type === 'lanes-delta' || f.type === 'attention') && f.id === 'lanes') {
       if (!view.cursor || view.cursor.epoch !== f.cursor.epoch) return
       if (f.type === 'attention') {

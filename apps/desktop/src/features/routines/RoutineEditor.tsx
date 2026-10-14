@@ -8,6 +8,7 @@ import {
   type Routine,
   type RoutineCheck,
   type RoutineInput,
+  type RoutineMachine,
   type RoutineSchedule,
 } from '@shared/routines'
 import { ModalOverlay } from '@/components/Modal'
@@ -15,7 +16,7 @@ import { Button, TextInput } from '@/components/form'
 import { CloseIcon } from '@/components/icons'
 import { ModelMenu } from '@/features/chat/composer/ModelMenu'
 import { catalogueEmptyText, useModelCatalogueStore } from '@/stores/modelCatalogue'
-import { keepEditorDraft } from '@/stores/routines'
+import { keepEditorDraft, type EditorDraft } from '@/stores/routines'
 
 const SELECT = 'border-border bg-surface text-text w-full rounded-md border px-2.5 py-1.5'
 const EYEBROW = 'text-text-tertiary font-mono text-xs uppercase tracking-wide'
@@ -137,40 +138,73 @@ function ModelField({
  */
 export function RoutineEditor({
   initial,
+  restored,
   pristine,
   draftKey,
   existing,
+  machines = [],
   onClose,
   onSaved,
 }: {
   initial: RoutineInput
+  restored?: EditorDraft
   /** What Reset returns to: a blank routine, or the saved one being edited. */
   pristine: RoutineInput
   /** `editorDrafts` key: the routine id, or NEW_ROUTINE. */
   draftKey: string
   existing?: Routine
+  machines?: RoutineMachine[]
   onClose: () => void
   onSaved: () => void
 }): React.JSX.Element {
+  const pristineMachineId = existing?.machine?.id ?? 'local'
+  const pristineRepositoryId = existing?.machine?.repositoryId ?? ''
+  const [machineId, setMachineId] = useState(restored?.machineId ?? pristineMachineId)
+  const machine = machines.find((m) => m.id === machineId)
+  const remote = machineId !== 'local'
+  const [repositoryId, setRepositoryId] = useState(restored?.repositoryId ?? pristineRepositoryId)
   const [draft, setDraft] = useState(initial)
   const [preset, setPreset] = useState<Preset>(initialPreset(initial.schedule))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [check, setCheck] = useState<RoutineCheck | null>(null)
   const [picking, setPicking] = useState(false)
-  const dirty = !same(draft, pristine)
+  const dirty =
+    !same(draft, pristine) ||
+    machineId !== pristineMachineId ||
+    repositoryId !== pristineRepositoryId
+  const targetValid =
+    machineId === 'local' ||
+    (!!machine?.available && machine.repositories.some((r) => r.id === repositoryId))
+
+  useEffect(() => {
+    if (machineId === 'local') return
+    if (!machine && !existing) setMachineId('')
+    // Only a machine that answers can say a repository is gone; an absent one keeps it.
+    if (machine && !machine.repositories.some((r) => r.id === repositoryId)) {
+      setRepositoryId('')
+      setDraft((r) => ({ ...r, workspacePath: '', trusted: false }))
+    }
+  }, [machineId, machine, repositoryId, existing])
 
   // Mirrored on every change rather than on close, so that unmounting with
   // the page (a sidebar click) keeps the work too.
   useEffect(() => {
-    keepEditorDraft(draftKey, dirty ? { input: draft, revision: existing?.revision ?? null } : null)
-  }, [draft, dirty, draftKey, existing?.revision])
+    keepEditorDraft(
+      draftKey,
+      dirty
+        ? { input: draft, revision: existing?.revision ?? null, machineId, repositoryId }
+        : null,
+    )
+  }, [draft, dirty, draftKey, existing?.revision, machineId, repositoryId])
 
   const update = (patch: Partial<RoutineInput>): void => {
     setDraft((r) => ({ ...r, ...patch, trusted: false }))
     setCheck(null)
   }
   const reset = (): void => {
+    setMachineId(pristineMachineId)
+    setRepositoryId(pristineRepositoryId)
     setDraft(pristine)
     setPreset(initialPreset(pristine.schedule))
     setCheck(null)
@@ -187,8 +221,15 @@ export function RoutineEditor({
     setError('')
     try {
       const input = normalized(enabled)
-      if (enabled) await window.phosphor.invoke('routines:check', input)
-      await window.phosphor.invoke('routines:save', input, existing?.id, existing?.revision)
+      if (enabled && !remote) await window.phosphor.invoke('routines:check', input)
+      const routedInput = remote ? { ...input, repositoryId } : input
+      await window.phosphor.invoke(
+        'routines:save',
+        routedInput,
+        existing?.id,
+        existing?.revision,
+        remote ? machineId : undefined,
+      )
       keepEditorDraft(draftKey, null)
       onSaved()
     } catch (cause) {
@@ -253,7 +294,9 @@ export function RoutineEditor({
               {existing ? 'Edit routine' : 'New routine'}
             </h2>
             <p className="text-text-secondary mt-1">
-              Runs locally while Phosphor is open and this computer is awake.
+              {remote
+                ? `Runs on ${machine?.label ?? 'the Host'} with every client closed.`
+                : 'Runs locally while Phosphor is open and this computer is awake.'}
             </p>
           </div>
           <TooltipButton
@@ -304,28 +347,78 @@ export function RoutineEditor({
             <section className="space-y-3">
               <h3 className={EYEBROW}>Where and how</h3>
               <label className="block">
-                Workspace
-                <div className="mt-1 flex gap-1">
-                  <TextInput
-                    aria-label="Workspace"
-                    className="min-w-0 flex-1"
-                    value={draft.workspacePath}
-                    onChange={(e) => update({ workspacePath: e.target.value })}
-                  />
-                  <Button
-                    onClick={() =>
-                      void window.phosphor
-                        .invoke('app:selectFolder')
-                        .then((path) => {
-                          if (path) update({ workspacePath: path })
-                        })
-                        .catch((cause: unknown) => setError(String(cause)))
-                    }
-                  >
-                    Choose…
-                  </Button>
-                </div>
+                Machine
+                <select
+                  aria-label="Routine machine"
+                  className={SELECT}
+                  value={remote && !machine ? '' : machineId}
+                  disabled={!!existing}
+                  onChange={(e) => {
+                    setMachineId(e.target.value)
+                    setRepositoryId('')
+                    update({ trusted: false, enabled: false })
+                  }}
+                >
+                  <option value="">Choose an available machine</option>
+                  <option value="local">This computer</option>
+                  {machines.map((m) => (
+                    <option key={m.id} value={m.id} disabled={!m.available}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
               </label>
+              {remote && !machine && existing && (
+                <p className="text-text-tertiary">Machine routines are unavailable.</p>
+              )}
+              {remote ? (
+                <label className="block">
+                  Repository
+                  <select
+                    aria-label="Routine repository"
+                    className={SELECT}
+                    value={repositoryId}
+                    onChange={(e) => {
+                      setRepositoryId(e.target.value)
+                      update({
+                        workspacePath:
+                          machine?.repositories.find((r) => r.id === e.target.value)?.name ?? '',
+                      })
+                    }}
+                  >
+                    <option value="">Choose a configured repository</option>
+                    {machine?.repositories.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <label className="block">
+                  Workspace
+                  <div className="mt-1 flex gap-1">
+                    <TextInput
+                      aria-label="Workspace"
+                      className="min-w-0 flex-1"
+                      value={draft.workspacePath}
+                      onChange={(e) => update({ workspacePath: e.target.value })}
+                    />
+                    <Button
+                      onClick={() =>
+                        void window.phosphor
+                          .invoke('app:selectFolder')
+                          .then((path) => {
+                            if (path) update({ workspacePath: path })
+                          })
+                          .catch((cause: unknown) => setError(String(cause)))
+                      }
+                    >
+                      Choose…
+                    </Button>
+                  </div>
+                </label>
+              )}
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="flex flex-col gap-1">
                   <ModelField
@@ -569,6 +662,7 @@ export function RoutineEditor({
               <input
                 type="checkbox"
                 className="mt-1"
+                disabled={remote && (!existing || !machine?.control || !machine.available)}
                 checked={draft.trusted}
                 onChange={(e) => setDraft((r) => ({ ...r, trusted: e.target.checked }))}
               />
@@ -606,19 +700,47 @@ export function RoutineEditor({
             Reset
           </Button>
           <span className="flex-1" />
-          <Button disabled={busy} onClick={() => void checkSetup()}>
-            Check setup
-          </Button>
-          <Button disabled={busy} onClick={() => void save(false)}>
+          {!remote && (
+            <Button disabled={busy} onClick={() => void checkSetup()}>
+              Check setup
+            </Button>
+          )}
+          <Button
+            disabled={
+              busy ||
+              !targetValid ||
+              (remote &&
+                (!repositoryId || !machine?.available || (draft.trusted && !machine.control)))
+            }
+            onClick={() => void save(false)}
+          >
             Save paused
           </Button>
-          <Button
-            disabled={busy || !draft.trusted}
-            variant="primary"
-            onClick={() => void save(true)}
-          >
-            {busy ? 'Saving…' : existing ? 'Save and enable' : 'Enable routine'}
-          </Button>
+          {(!remote || existing) && (
+            <Button
+              title={
+                remote && !machine?.control
+                  ? 'Read-only. Take control to send messages.'
+                  : undefined
+              }
+              disabled={
+                busy ||
+                !targetValid ||
+                !draft.trusted ||
+                (remote && (!machine?.control || !machine.available))
+              }
+              variant="primary"
+              onClick={() => void save(true)}
+            >
+              {busy
+                ? 'Saving…'
+                : remote
+                  ? `Enable on ${machine?.label ?? 'machine'}`
+                  : existing
+                    ? 'Save and enable'
+                    : 'Enable routine'}
+            </Button>
+          )}
         </div>
       </div>
     </ModalOverlay>
