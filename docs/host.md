@@ -287,8 +287,10 @@ replacement itself, with renames and deletions that fail.
 
 Release installs support `phosphor update`, `phosphor update --check` and
 `phosphor update --version X.Y.Z`. Add `--json` for a machine-readable result.
-Source installs print the release installer command instead. No release keys
-are pinned yet, so updates refuse until the operator pins a key.
+Source installs print the release installer command instead. One release key
+is pinned in `HOST_RELEASE_KEYS`; its private half exists only as the
+`HOST_RELEASE_SIGNING_KEY` repository secret. To rotate, append the new public
+key, publish a release signed with the old one, then switch the secret.
 
 The updater verifies the signed manifest before reading its metadata, refuses
 a downgrade and checks this machine's artifact and protocol. A release must
