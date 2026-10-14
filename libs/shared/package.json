@@ -187,6 +187,10 @@
     "./routines-types": {
       "types": "./src/routines-types.ts",
       "default": "./src/routines-types.ts"
+    },
+    "./host-protocol-writes": {
+      "types": "./src/host-protocol-writes.ts",
+      "default": "./src/host-protocol-writes.ts"
     }
   },
   "dependencies": {

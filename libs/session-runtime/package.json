@@ -171,6 +171,10 @@
     "./routines/ownership": {
       "types": "./src/routines/ownership.ts",
       "default": "./src/routines/ownership.ts"
+    },
+    "./files/mutations": {
+      "types": "./src/files/mutations.ts",
+      "default": "./src/files/mutations.ts"
     }
   },
   "nx": {

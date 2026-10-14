@@ -10,6 +10,24 @@ import type { SessionPush } from '@shared/models'
 
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
 vi.mock('./MonacoEditor', () => ({
+  releaseFileModel: vi.fn(),
+  MonacoEditor: ({
+    value,
+    onChange,
+    onSave,
+    readOnly,
+  }: {
+    value: string
+    onChange(value: string): void
+    onSave(): void
+    readOnly: boolean
+  }) => (
+    <div>
+      <textarea value={value} readOnly={readOnly} onChange={(e) => onChange(e.target.value)} />
+      <button onClick={() => onChange('edited')}>Edit</button>
+      <button onClick={onSave}>Editor save</button>
+    </div>
+  ),
   MonacoDiff: ({ originalText, modifiedText }: { originalText: string; modifiedText: string }) => (
     <div>
       Diff: {originalText} {modifiedText}
@@ -206,6 +224,106 @@ it.each(['??', 'A ', 'AM', ' M'])(
         status === ' M',
       )
       expect(container.textContent).not.toContain('Not available on remote lanes yet.')
+    } finally {
+      act(() => root.unmount())
+    }
+  },
+)
+
+it.each(['success', 'conflict', 'unknown'])(
+  'keeps revision-safe edits on %s saves',
+  async (outcome) => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    const target = mockRemoteInfo.target
+    if (target?.kind !== 'remote') throw new Error('Missing remote fixture')
+    const sessionId = mockRemoteInfo.sessionId
+    useSessionsStore.setState({
+      live: { [sessionId]: { phosphorId: sessionId, ...mockRemoteInfo } },
+    })
+    const fixture = mockRemoteHosts[target.hostId]
+    if (!fixture) throw new Error('Missing Host fixture')
+    useRemoteLanesStore.setState({
+      hosts: {
+        [target.hostId]: {
+          ...fixture,
+          state: 'ready',
+          capabilities: [
+            'sessions.read',
+            'sessions.control',
+            'workspaces.read',
+            'workspaces.write',
+          ],
+          lanes: fixture.lanes.map((lane) => ({
+            ...lane,
+            control: {
+              ...lane.control,
+              controller: { self: true, label: 'Desktop', connected: true },
+            },
+          })),
+        },
+      },
+    })
+    const revision = 'a'.repeat(64)
+    const invoke = vi.fn(async (channel: string, ..._args: unknown[]) => {
+      if (channel === 'fs:listFiles') return ['a.ts']
+      if (channel === 'git:statusMap') return {}
+      if (channel === 'fs:readFile') return { content: 'original', binary: false, revision }
+      if (channel === 'fs:writeFile') {
+        if (outcome !== 'success')
+          throw new Error(outcome === 'conflict' ? 'changed-on-disk' : 'unknown')
+        return { revision: 'b'.repeat(64), mtimeMs: 1 }
+      }
+      throw new Error('Unexpected channel')
+    })
+    vi.stubGlobal('phosphor', { invoke })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    async function click(label: string) {
+      const button = [...container.querySelectorAll('button')].find((b) => b.textContent === label)
+      if (!button) throw new Error(`Missing button ${label}`)
+      await act(async () => button.click())
+    }
+    try {
+      await act(async () =>
+        root.render(
+          <RemoteFilesPane
+            workspacePath={mockRemoteInfo.workspacePath}
+            sessionId={sessionId}
+            changes={false}
+          />,
+        ),
+      )
+      await click(' a.ts')
+      await click('Edit')
+      await click('Editor save')
+      expect(invoke).toHaveBeenCalledWith(
+        'fs:writeFile',
+        `${mockRemoteInfo.workspacePath}/a.ts`,
+        'edited',
+        revision,
+      )
+      expect(container.querySelector('textarea')?.value).toBe('edited')
+      expect(
+        container.textContent?.includes(outcome === 'unknown' ? 'Reload file' : 'Discard edits'),
+      ).toBe(outcome !== 'success')
+      if (outcome === 'conflict') expect(container.textContent).toContain('File changed on disk')
+      if (outcome === 'unknown') {
+        expect(container.textContent).toContain('Do not retry an uncertain save')
+        const save = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Save')
+        expect(save?.disabled).toBe(true)
+        await click('Save')
+        await click('Editor save')
+        expect(invoke.mock.calls.filter(([channel]) => channel === 'fs:writeFile')).toHaveLength(1)
+        expect(container.querySelector('textarea')?.value).toBe('edited')
+        await click('Reload file')
+        expect(container.querySelector('textarea')?.value).toBe('original')
+        await click('Edit')
+        await click('Editor save')
+        expect(invoke.mock.calls.filter(([channel]) => channel === 'fs:writeFile')).toHaveLength(2)
+      }
+      expect(invoke.mock.calls.filter(([channel]) => channel === 'fs:writeFile')).toHaveLength(
+        outcome === 'unknown' ? 2 : 1,
+      )
     } finally {
       act(() => root.unmount())
     }

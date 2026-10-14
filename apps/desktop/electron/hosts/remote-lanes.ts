@@ -13,7 +13,7 @@ import { createLaneProjection } from '@phosphor/session-runtime/lanes/projection
 import type { createHostConnection, LaneFrame } from './connection'
 import { laneOperation, receiptResponse, REMOTE_UNAVAILABLE } from './lane-ops'
 import type { HostCapability } from '@shared/remote-host'
-import type { ReadLane } from './read-features'
+import type { WriteLane } from './write-features'
 
 type Connection = ReturnType<typeof createHostConnection>
 export interface RemoteWindow {
@@ -294,7 +294,7 @@ export function createRemoteLanes(ports: {
   }
   return {
     open,
-    readLane(windowId: number, key?: string): ReadLane | null {
+    readLane(windowId: number, key?: string): WriteLane | null {
       const target = focused.get(windowId)
       if (!target) {
         if (key?.startsWith('host:')) throw new Error(REMOTE_UNAVAILABLE)
@@ -314,6 +314,36 @@ export function createRemoteLanes(ports: {
       return {
         laneId: h.laneId,
         workspacePath: h.info.workspacePath,
+        async write(op) {
+          const c = connection(h.hostId, true)
+          const current = focused.get(windowId)
+          const summary = c.snapshot().lanes.find((l) => l.laneId === h.laneId)
+          if (
+            !summary ||
+            ports.connection(h.hostId) !== h.connection ||
+            !handles.has(h.info.sessionId) ||
+            current?.hostId !== h.hostId ||
+            current.laneId !== h.laneId ||
+            !c.snapshot().capabilities.includes('workspaces.write')
+          )
+            throw new Error(REMOTE_UNAVAILABLE)
+          const receipt = await c.send(op, h.laneId, summary.control.fence)
+          const after = focused.get(windowId)
+          if (
+            !handles.has(h.info.sessionId) ||
+            ports.connection(h.hostId) !== c ||
+            c.snapshot().state !== 'ready' ||
+            !c.snapshot().capabilities.includes('workspaces.write') ||
+            !c.snapshot().capabilities.includes('sessions.control') ||
+            after?.hostId !== h.hostId ||
+            after.laneId !== h.laneId
+          )
+            throw new Error(REMOTE_UNAVAILABLE)
+          if (receipt.status === 'rejected' && receipt.code === 'conflict')
+            throw new Error('changed-on-disk')
+          if (receipt.status !== 'done') throw new Error('File mutation not confirmed.')
+          return receipt.data
+        },
         async call(capability, method, params) {
           const data = await readCall(h, capability, method, params)
           const current = focused.get(windowId)

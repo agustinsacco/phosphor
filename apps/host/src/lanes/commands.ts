@@ -1,5 +1,7 @@
 import { parseTerminalOp } from '@phosphor/shared/host-protocol-terminals'
 import { TerminalForbidden, type HostTerminals } from '../terminals/service'
+import { parseFileWriteOp, type FileWriteOp } from '@phosphor/shared/host-protocol-writes'
+import type { WriteOutcome } from '../features/writes'
 import {
   HOST_LIMITS,
   UNFENCED_OPS,
@@ -37,6 +39,10 @@ export interface LaneCommandClient {
 export interface LaneCommandPorts {
   terminals?: HostTerminals
   store: HostStore
+  writes?: {
+    capabilityFor(type: string): HostCapability | null
+    execute(laneId: string, op: FileWriteOp): Promise<WriteOutcome>
+  }
   sessions: LaneSessions
   runtime: Pick<HostRuntime, 'command' | 'extensionUiResponse'>
   /** Wiring owns projection delivery and the live-session mapping. */
@@ -162,7 +168,9 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     const routine = parseRoutineOp(op)
     if (routine)
       return routineRequiresControl(routine) ? ['routines', 'sessions.control'] : ['routines']
-    return parseTerminalOp(op) ? ['terminal', 'sessions.control'] : ['sessions.control']
+    if (parseTerminalOp(op)) return ['terminal', 'sessions.control']
+    const write = op.type.startsWith('files.') ? ports.writes?.capabilityFor(op.type) : null
+    return write ? [write, 'sessions.control'] : ['sessions.control']
   }
   function rejected(job: Job, code: RejectCode, recorded: boolean): void {
     terminal(job, { requestId: job.frame.requestId, status: 'rejected', code }, recorded)
@@ -270,6 +278,12 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       return caps.includes('terminal') && caps.includes('sessions.control')
     }
     if (terminalOp && !terminalAllowed()) return rejected(job, 'forbidden', true)
+    if (op.type.startsWith('files.')) {
+      const caps = client.currentCaps?.() ?? client.caps
+      const capability = ports.writes?.capabilityFor(op.type)
+      if (!caps.includes('sessions.control') || !capability || !caps.includes(capability))
+        return rejected(job, 'forbidden', true)
+    }
     if (queue.controlUnpublished && laneId !== undefined) {
       const control = store.getLane(laneId)?.control
       if (!control) {
@@ -435,6 +449,25 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
           true,
         )
       })
+      return { completion, detached: false }
+    }
+    if (op.type.startsWith('files.')) {
+      const write = parseFileWriteOp(op)
+      if (!write || !ports.writes) return rejected(job, 'unsupported', true)
+      const writes = ports.writes
+      const completion = dispatch(job, queue, () => writes.execute(laneId, write)).then(
+        (result) => {
+          if (!result.answered)
+            return terminal(job, { requestId, status: 'unknown' }, true, result.reason)
+          terminal(
+            job,
+            result.value.ok
+              ? { requestId, status: 'done', data: result.value.data, fence: admittedFence }
+              : { requestId, status: 'rejected', code: result.value.code },
+            true,
+          )
+        },
+      )
       return { completion, detached: false }
     }
     if (piCommand && sessionId !== null) {

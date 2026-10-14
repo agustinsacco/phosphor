@@ -12,13 +12,20 @@ it('maps each read to the fixed method, capability and Desktop shape without Hos
   const files = lane({ files: ['a.ts'] })
   expect(await readFeature('fs:listFiles', [root], files)).toEqual(['a.ts'])
   expect(files.call).toHaveBeenCalledWith('workspaces.read', 'files.list', { laneId: files.laneId })
-  const text = lane({ binary: false, size: 2, content: 'hi', secretPath: '/host/private' })
+  const text = lane({
+    binary: false,
+    size: 2,
+    content: 'hi',
+    revision: 'a'.repeat(64),
+    secretPath: '/host/private',
+  })
   expect(await readFeature('fs:readFile', [`${root}/a.ts`], text)).toEqual({
     path: `${root}/a.ts`,
     content: 'hi',
     size: 2,
     binary: false,
     mtimeMs: 0,
+    revision: 'a'.repeat(64),
   })
   expect(text.call).toHaveBeenCalledWith('workspaces.read', 'files.read', {
     laneId: text.laneId,
@@ -108,14 +115,19 @@ it('parses untrusted results and enforces exact list and text bounds', async () 
     await readFeature(
       'fs:readFile',
       [`${root}/a`],
-      lane({ content, binary: false, size: content.length }),
+      lane({ content, binary: false, size: content.length, revision: 'a'.repeat(64) }),
     ),
   ).toMatchObject({ size: content.length })
   await expect(
     readFeature(
       'fs:readFile',
       [`${root}/a`],
-      lane({ content: content + 'a', binary: false, size: content.length + 1 }),
+      lane({
+        content: content + 'a',
+        binary: false,
+        size: content.length + 1,
+        revision: 'a'.repeat(64),
+      }),
     ),
   ).rejects.toThrow()
   for (const [channel, args, data] of [

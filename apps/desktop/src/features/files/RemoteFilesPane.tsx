@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { TooltipButton } from '@/components/Tooltip'
-import { MonacoDiff } from './MonacoEditor'
+import { MonacoDiff, MonacoEditor, releaseFileModel } from './MonacoEditor'
 import { languageForPath } from '@/lib/monaco'
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
+import { canControlSession } from '@/stores/remoteLanes'
+import { promptText } from '@/stores/prompt'
 
-/** Remote reads never mount the local editor, preview protocols or filesystem watcher. */
+/** Remote content stays in memory. No local preview protocols or filesystem watcher. */
 export function RemoteFilesPane({
   workspacePath,
   sessionId,
@@ -26,6 +28,17 @@ export function RemoteFilesPane({
   const [selected, setSelected] = useState<string | null>(null)
   const [content, setContent] = useState('')
   const [before, setBefore] = useState('')
+  const [revision, setRevision] = useState<string | null | undefined>()
+  const [editable, setEditable] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [uncertain, setUncertain] = useState(false)
+  const dirtyRef = useRef(false)
+  dirtyRef.current = dirty
+  const writable =
+    host?.state === 'ready' &&
+    host.capabilities.includes('workspaces.write') &&
+    canControlSession(sessionId)
   const [error, setError] = useState<string | null>(null)
   const available = host?.state === 'ready' && host.capabilities.includes('workspaces.read')
   const laneId = useSessionsStore((s) => s.live[sessionId]?.laneId)
@@ -59,8 +72,11 @@ export function RemoteFilesPane({
   }, [workspacePath, available, summary, connectionState, runtimeEpoch, refresh])
   useEffect(() => {
     let alive = true
+    if (dirtyRef.current) return
     setContent('')
     setBefore('')
+    setEditable(false)
+    setRevision(undefined)
     if (selected && available)
       void Promise.all([
         changes && status[selected]?.includes('D')
@@ -74,6 +90,9 @@ export function RemoteFilesPane({
       ]).then(
         ([file, old]) => {
           if (alive) {
+            setUncertain(false)
+            setRevision('revision' in file ? file.revision : undefined)
+            setEditable(!changes && !file.binary && !file.tooLarge && 'revision' in file)
             setContent(
               file.binary ? 'Binary file' : file.tooLarge ? 'File too large' : file.content,
             )
@@ -91,17 +110,147 @@ export function RemoteFilesPane({
       alive = false
     }
   }, [workspacePath, selected, changes, available, refresh, status])
+  useEffect(() => {
+    if (!selected) return
+    const path = `${workspacePath}/${selected}`
+    return () => releaseFileModel(path)
+  }, [workspacePath, selected])
+  async function save() {
+    if (!selected || !writable || !editable || busy || uncertain || revision === undefined) return
+    setBusy(true)
+    try {
+      const result = await window.phosphor.invoke(
+        'fs:writeFile',
+        `${workspacePath}/${selected}`,
+        content,
+        revision,
+      )
+      setRevision(result.revision)
+      setDirty(false)
+      setError(null)
+    } catch (error) {
+      if (!(error instanceof Error && error.message.includes('changed-on-disk'))) setUncertain(true)
+      setError(
+        error instanceof Error && error.message.includes('changed-on-disk')
+          ? 'File changed on disk. Discard your edits and refresh before saving.'
+          : 'Save not confirmed. Your edits are kept. Do not retry an uncertain save.',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+  async function action(kind: 'file' | 'directory' | 'rename' | 'delete' | 'copy' | 'move') {
+    if (!writable || busy || dirty) return
+    const value = await promptText({
+      title:
+        kind === 'delete'
+          ? 'Type the path to confirm deletion'
+          : kind === 'copy' || kind === 'move'
+            ? 'Destination folder (lane-relative, . for root)'
+            : 'Lane-relative path',
+      initialValue: kind === 'rename' || kind === 'delete' ? (selected ?? '') : '',
+    })
+    if (!value || (kind === 'delete' && value !== selected)) return
+    setBusy(true)
+    try {
+      const path = `${workspacePath}/${value}`
+      if (kind === 'file') await window.phosphor.invoke('fs:createFile', path)
+      if (kind === 'directory') await window.phosphor.invoke('fs:createDir', path)
+      if (kind === 'rename' && selected)
+        await window.phosphor.invoke('fs:rename', `${workspacePath}/${selected}`, path)
+      if (kind === 'delete') await window.phosphor.invoke('fs:trash', path)
+      if ((kind === 'copy' || kind === 'move') && selected)
+        await window.phosphor.invoke(
+          'fs:transfer',
+          workspacePath,
+          `${workspacePath}/${selected}`,
+          value === '.' ? workspacePath : path,
+          kind,
+        )
+      setSelected(null)
+      setRefresh((n) => n + 1)
+      setError(null)
+    } catch {
+      setError('File action not confirmed.')
+    } finally {
+      setBusy(false)
+    }
+  }
   if (!available) return <p className="p-4">{REMOTE_UNAVAILABLE}</p>
   return (
     <div className="flex h-full min-h-0 flex-col overflow-auto p-3">
       <div>
-        Read-only <TooltipButton onClick={() => setRefresh((n) => n + 1)}>Refresh</TooltipButton>
+        {!writable && 'Read-only '}
+        <TooltipButton onClick={() => setRefresh((n) => n + 1)}>Refresh</TooltipButton>
+        {writable && !changes && (
+          <>
+            <TooltipButton disabled={busy || dirty} onClick={() => void action('file')}>
+              New file
+            </TooltipButton>
+            <TooltipButton disabled={busy || dirty} onClick={() => void action('directory')}>
+              New folder
+            </TooltipButton>
+            <TooltipButton
+              disabled={busy || dirty || !selected}
+              onClick={() => void action('rename')}
+            >
+              Rename
+            </TooltipButton>
+            <TooltipButton
+              disabled={busy || dirty || !selected}
+              onClick={() => void action('delete')}
+            >
+              Trash
+            </TooltipButton>
+            <TooltipButton
+              disabled={busy || dirty || !selected}
+              onClick={() => void action('copy')}
+            >
+              Copy to folder
+            </TooltipButton>
+            <TooltipButton
+              disabled={busy || dirty || !selected}
+              onClick={() => void action('move')}
+            >
+              Move to folder
+            </TooltipButton>
+            <TooltipButton
+              disabled={busy || uncertain || !dirty || !editable}
+              onClick={() => void save()}
+            >
+              Save
+            </TooltipButton>
+          </>
+        )}
+        {dirty && (
+          <TooltipButton
+            disabled={busy}
+            onClick={() => {
+              setDirty(false)
+              dirtyRef.current = false
+              setRefresh((n) => n + 1)
+            }}
+          >
+            {uncertain ? 'Reload file' : 'Discard edits'}
+          </TooltipButton>
+        )}
       </div>
-      {error && <p role="alert">{error}</p>}
+      {(uncertain || error) && (
+        <p role="alert">
+          {uncertain
+            ? 'Save not confirmed. Your edits are kept. Do not retry an uncertain save.'
+            : error}
+        </p>
+      )}
       <div className="flex min-h-0 flex-1 gap-3">
         <div className="w-1/3 overflow-auto">
           {(changes ? Object.keys(status) : files).map((path) => (
-            <TooltipButton className="block text-left" key={path} onClick={() => setSelected(path)}>
+            <TooltipButton
+              className="block text-left"
+              key={path}
+              disabled={dirty || busy}
+              onClick={() => setSelected(path)}
+            >
               {status[path]} {path}
             </TooltipButton>
           ))}
@@ -113,6 +262,18 @@ export function RemoteFilesPane({
               modifiedText={content}
               language={languageForPath(selected)}
               renderSideBySide={false}
+            />
+          ) : selected && editable ? (
+            <MonacoEditor
+              path={`${workspacePath}/${selected}`}
+              language={languageForPath(selected)}
+              value={content}
+              readOnly={!writable || busy}
+              onChange={(value) => {
+                setContent(value)
+                setDirty(true)
+              }}
+              onSave={() => void save()}
             />
           ) : (
             <pre>{content}</pre>

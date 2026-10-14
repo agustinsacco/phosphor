@@ -21,11 +21,18 @@ previous keyboard focus on dismissal.
 ## Remote lanes
 
 With `workspaces.read`, remote Files lists the lane's tracked and untracked
-non-ignored paths and opens text read-only. Changes lists git status and shows
+non-ignored paths. With `workspaces.write` and `sessions.control`, the controller
+can edit text with Cmd/Ctrl+S or Save, create files and folders, rename, copy, move
+and trash entries. Actions accept lane-relative paths; trash requires typing the
+selected path. Viewers remain read-only. Saves use a SHA-256 revision, not an
+mtime: a conflict keeps the buffer until the user discards and refreshes.
+Uncertain saves keep edits and disable both Save and Cmd/Ctrl+S until Reload file
+reads the file again. Reload file discards the edited buffer.
+Changes lists git status and shows
 an inline read-only Monaco diff against HEAD. Binary and oversized files use
 placeholders. The pane refreshes on focused lane summary changes, reconnects and its
-Refresh button, never a local filesystem watcher. Create, rename, delete, save,
-search, preview, quick look and open-in-app are not offered remotely. Without
+Refresh button, never a local filesystem watcher. Dirty buffers are not reloaded.
+Search, preview, quick look, external imports and open-in-app are not offered remotely. Without
 the capability, the pane shows “Not available on remote lanes yet.”
 See [remote-access.md](remote-access.md#remote-read-panes) for routing and bounds.
 

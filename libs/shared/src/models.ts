@@ -300,6 +300,7 @@ export interface DirEntry {
 }
 
 export interface FileContent {
+  revision?: string | null
   path: string
   content: string
   size: number

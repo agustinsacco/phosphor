@@ -452,6 +452,50 @@ describe('lane adapter', () => {
     expect(h.service.calls.call).not.toHaveBeenCalled()
     expect(h.service.commands.status).toHaveBeenCalledOnce()
   })
+  it('requires write and control capabilities at admission but delivers owner receipts after renewal', async () => {
+    h.service.capabilities = ['sessions.read', 'sessions.control', 'workspaces.write']
+    h.service.commands.capabilityFor = (op) =>
+      op.type.startsWith('files.') ? ['workspaces.write', 'sessions.control'] : null
+    const a = await ready()
+    const requestId = randomUUID()
+    const frame = {
+      type: 'command',
+      requestId,
+      laneId: randomUUID(),
+      fence: 1,
+      op: { type: 'files.create', path: 'a', kind: 'file' },
+    }
+    a.send(frame)
+    await flush()
+    expect(receipts(a.frames).at(-1)).toMatchObject({ status: 'rejected', code: 'forbidden' })
+    expect(h.service.commands.submit).not.toHaveBeenCalled()
+    a.auth(['workspaces.write'], false)
+    await flush()
+    a.send(frame)
+    await flush()
+    expect(h.service.commands.submit).not.toHaveBeenCalled()
+    a.auth(['sessions.control', 'workspaces.write'], false)
+    await flush()
+    a.send(frame)
+    await flush()
+    expect(h.service.commands.submit).toHaveBeenCalledOnce()
+    const sender = vi.mocked(h.service.commands.submit).mock.calls[0]?.[0]
+    expect(sender?.currentCaps?.()).toContain('workspaces.write')
+    a.auth([], false)
+    await flush()
+    expect(sender?.currentCaps?.()).toEqual([])
+    h.adapter.deliver(h.claims.client.id, { requestId, status: 'done' })
+    await flush()
+    expect(receipts(a.frames).at(-1)).toMatchObject({ requestId, status: 'done' })
+    a.send({ type: 'receipt-status', requestId })
+    await flush()
+    expect(h.service.commands.status).toHaveBeenCalled()
+    a.auth(['sessions.control', 'workspaces.write'], false)
+    await flush()
+    expect(sender?.currentCaps?.()).toContain('workspaces.write')
+    h.stop()
+    expect(sender?.currentCaps?.()).toEqual([])
+  })
   it('forwards subscription limits and unsubscribe without retaining old topic listeners', async () => {
     h.stop()
     h = fixture({ limits: { subscriptionsPerConnection: 1 } })

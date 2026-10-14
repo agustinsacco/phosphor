@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { constants } from 'node:fs'
 import { lstat, open, realpath, stat } from 'node:fs/promises'
 import { join, relative, isAbsolute, sep } from 'node:path'
@@ -138,7 +139,7 @@ export function createFilesFeature(context: FeatureContext): HostFeature {
           return { ok: true, data: { files } }
         }
         if (!p.path) throw new FileFailure('bad-request')
-        const full = await checkedPath(root, p.path)
+        const full = await checkedPath(root, p.path, true)
         const before = await lstat(full)
         if (!before.isFile()) throw new FileFailure('bad-request')
         const handle = await open(
@@ -162,12 +163,23 @@ export function createFilesFeature(context: FeatureContext): HostFeature {
           }
           return {
             ok: true,
-            data: readResult(bytes.subarray(0, count), Math.max(after.size, count)),
+            data: {
+              ...readResult(bytes.subarray(0, count), Math.max(after.size, count)),
+              revision: createHash('sha256').update(bytes.subarray(0, count)).digest('hex'),
+            },
           }
         } finally {
           await handle.close()
         }
       } catch (error) {
+        if (
+          method === 'files.read' &&
+          typeof error === 'object' &&
+          error !== null &&
+          'code' in error &&
+          error.code === 'ENOENT'
+        )
+          return { ok: true, data: { binary: false, size: 0, content: '', revision: null } }
         const result = failure(error)
         context.log('feature-query', {
           laneId: p.laneId,
