@@ -11,12 +11,14 @@ export function MachinePicker({
   onChange,
   includeAll = false,
   placement,
+  bordered,
 }: {
   value: string
   capability: HostCapability
   onChange: (machine: string) => void
   includeAll?: boolean
   placement?: 'above' | 'below'
+  bordered?: boolean
 }): React.JSX.Element {
   const hosts = useRemoteLanesStore((s) => s.hosts)
   useMachinesStore((s) => s.machines)
@@ -26,6 +28,7 @@ export function MachinePicker({
   return (
     <ChoiceMenu
       label="Machine"
+      bordered={bordered}
       placement={placement}
       value={value}
       onChange={onChange}
@@ -48,7 +51,11 @@ export function MachinePicker({
           : includeAll && value === ''
             ? 'All machines'
             : machineLabel(value)}
-        {unavailable ? ' (unavailable)' : ''}
+        {unavailable
+          ? ' (unavailable)'
+          : hosts[value] && hosts[value]?.state !== 'ready'
+            ? ' (not connected)'
+            : ''}
       </span>
     </ChoiceMenu>
   )

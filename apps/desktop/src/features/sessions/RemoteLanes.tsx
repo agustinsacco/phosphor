@@ -13,7 +13,7 @@ import { LaneSearchBar } from './LaneSearchBar'
 import { laneMatches, laneQueryTerms } from './laneSearch'
 import { relativeTimeShort } from '@/lib/time'
 import { MachinePicker } from '@/features/machines/MachinePicker'
-import { TooltipButton } from '@/components/Tooltip'
+import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
 import { useEffect, useRef, useState } from 'react'
 import { isLaneBranchName } from '@shared/host-protocol'
 import { ModalOverlay, ModalPanel } from '@/components/Modal'
@@ -130,7 +130,6 @@ function RemoteRepositoryGroup({
           name={name}
           collapsed={collapsed}
           onClick={() => setCollapsed(!collapsed)}
-          liveCount={ready ? lanes.filter((l) => l.activity === 'working').length : 0}
         >
           {!ready && (
             <span className="text-text-tertiary shrink-0 rounded bg-chip px-1 text-2xs font-normal normal-case tracking-normal">
@@ -349,62 +348,85 @@ export function NewRemoteLane({
             void create()
           }}
         >
-          <MachinePicker
-            value={hostId}
-            capability="sessions.control"
-            onChange={(id) => {
-              if (id === 'local') {
-                useSessionsStore.getState().activate(null)
-                onClose()
-              } else onMachine(id)
-            }}
-          />
+          <div className="space-y-1">
+            <label className="text-text-secondary block text-sm">Machine</label>
+            <MachinePicker
+              bordered
+              value={hostId}
+              capability="sessions.control"
+              onChange={(id) => {
+                if (id === 'local') {
+                  onMachine(null)
+                  useSessionsStore.getState().activate(null)
+                  onClose()
+                } else onMachine(id)
+              }}
+            />
+          </div>
           {host?.state !== 'ready' && <p>Machine not connected. Wait for reconnection.</p>}
-          <label className="text-text-secondary block text-sm">Repository</label>
-          <ChoiceMenu
-            label="Repository"
-            value={repositoryId}
-            choices={(host?.repositories ?? []).map((repo) => ({
-              value: repo.id,
-              label: repo.name,
-            }))}
-            onChange={setRepositoryId}
-          >
-            {host?.repositories.find((repo) => repo.id === repositoryId)?.name ??
-              'Choose repository'}
-          </ChoiceMenu>
-          <TextInput
-            aria-label="New branch (optional)"
-            placeholder="New branch (optional)"
-            className="w-full"
-            maxLength={200}
-            value={branch}
-            onChange={(event) => setBranch(event.target.value)}
-          />
-          <TextInput
-            aria-label="Lane name (optional)"
-            placeholder="Name (optional)"
-            className="w-full"
-            maxLength={200}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-          <TextInput
-            aria-label="Provider (optional)"
-            placeholder="Provider (optional)"
-            className="w-full"
-            maxLength={200}
-            value={provider}
-            onChange={(event) => setProvider(event.target.value)}
-          />
-          <TextInput
-            aria-label="Model (optional)"
-            placeholder="Model (optional)"
-            className="w-full"
-            maxLength={200}
-            value={model}
-            onChange={(event) => setModel(event.target.value)}
-          />
+          <div className="space-y-1">
+            <label className="text-text-secondary block text-sm">Repository</label>
+            <ChoiceMenu
+              bordered
+              label="Repository"
+              value={repositoryId}
+              choices={(host?.repositories ?? []).map((repo) => ({
+                value: repo.id,
+                label: repo.name,
+              }))}
+              onChange={setRepositoryId}
+            >
+              {host?.repositories.find((repo) => repo.id === repositoryId)?.name ??
+                'Choose repository'}
+            </ChoiceMenu>
+          </div>
+          <label className="text-text-secondary block space-y-1 text-sm">
+            <span>New branch</span>
+            <TextInput
+              aria-label="New branch (optional)"
+              placeholder="New branch (optional)"
+              className="w-full"
+              maxLength={200}
+              value={branch}
+              onChange={(event) => setBranch(event.target.value)}
+            />
+          </label>
+          <label className="text-text-secondary block space-y-1 text-sm">
+            <span>Name</span>
+            <TextInput
+              aria-label="Lane name (optional)"
+              placeholder="Name (optional)"
+              className="w-full"
+              maxLength={200}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+          <details className="text-text-secondary space-y-3 text-sm">
+            <TooltipSummary className="cursor-pointer">Advanced</TooltipSummary>
+            <label className="block space-y-1">
+              <span>Provider</span>
+              <TextInput
+                aria-label="Provider (optional)"
+                placeholder="Provider (optional)"
+                className="w-full"
+                maxLength={200}
+                value={provider}
+                onChange={(event) => setProvider(event.target.value)}
+              />
+            </label>
+            <label className="block space-y-1">
+              <span>Model</span>
+              <TextInput
+                aria-label="Model (optional)"
+                placeholder="Model (optional)"
+                className="w-full"
+                maxLength={200}
+                value={model}
+                onChange={(event) => setModel(event.target.value)}
+              />
+            </label>
+          </details>
           {error && <p role="alert">{error}</p>}
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" onClick={onClose}>

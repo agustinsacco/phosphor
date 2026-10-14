@@ -61,11 +61,11 @@ export function MachineDot({ state }: { state?: HostConnectionView['state'] }): 
   return (
     <span
       aria-hidden="true"
-      className={`size-1.5 shrink-0 rounded-full ${state === 'ready' ? 'bg-success' : state === 'connecting' || state === 'reconnecting' ? 'bg-warning animate-pulse' : !state || state === 'no-address' ? 'bg-info' : 'bg-text-tertiary'}`}
+      className={`size-2 shrink-0 rounded-full ${state === 'ready' ? 'bg-success' : state === 'connecting' || state === 'reconnecting' ? 'bg-warning animate-pulse' : !state || state === 'no-address' ? 'bg-info' : 'bg-text-tertiary'}`}
     />
   )
 }
-function activityText(counts: MachineActivity): string {
+export function activityText(counts: MachineActivity): string {
   return (
     [
       counts.running && `${counts.running} running`,
@@ -77,33 +77,47 @@ function activityText(counts: MachineActivity): string {
   )
 }
 export function MachineLabelLine({ id }: { id: string }): React.JSX.Element {
-  const state = useRemoteLanesStore((s) => s.hosts[id]?.state)
+  const local = useLocalMachineActivity()
+  const host = useRemoteLanesStore((s) => s.hosts[id])
+  const machine = useMachinesStore((s) => s.machines.find((m) => m.id === id))
+  const now = useMachinesStore((s) => s.nowMs)
   return (
-    <div className="text-text-tertiary flex items-center gap-1.5 px-2 pb-0.5 pt-3 text-xs">
-      <MachineDot state={id === 'local' ? 'ready' : state} />
-      {id === 'local' ? 'This Mac' : machineLabel(id)}
+    <div className="border-border mt-4 border-t px-2 pt-3">
+      <div className="text-text-secondary flex items-center gap-2 text-sm font-medium">
+        <MachineGlyph local={id === 'local'} />
+        <span className="min-w-0 flex-1 truncate">
+          {id === 'local' ? 'This Mac' : machineLabel(id)}
+        </span>
+        <MachineDot state={id === 'local' ? 'ready' : host?.state} />
+      </div>
+      <div className="text-text-tertiary mt-1 text-xs">
+        {id === 'local' ? activityText(local) : machineStateText(host, machine?.lastSeenAt, now)}
+      </div>
     </div>
   )
 }
-export function MachineSwitcher(): React.JSX.Element | null {
-  const enabled = useMachinesStore((s) => s.remoteEnabled)
-  const machines = useMachinesStore((s) => s.machines)
-  const now = useMachinesStore((s) => s.nowMs)
-  const hosts = useRemoteLanesStore((s) => s.hosts)
-  const selected = useRemoteLanesStore((s) => s.filter)
+function machineStateText(
+  host: HostConnectionView | undefined,
+  lastSeenAt: string | null | undefined,
+  now: number,
+): string {
+  const state = host?.state
+  return state === 'ready'
+    ? activityText(remoteActivity(host))
+    : state === 'connecting' || state === 'reconnecting'
+      ? 'Reconnecting…'
+      : !state || state === 'no-address'
+        ? 'Setting up…'
+        : `Down${lastSeenAt ? ` · seen ${relativeTime(lastSeenAt, now || Date.now())}` : ''}`
+}
+
+function useLocalMachineActivity(): MachineActivity {
   const live = useSessionsStore((s) => s.live)
   const disk = useSessionsStore((s) => s.disk)
   const seen = useSessionsStore((s) => s.seenSessions)
   const unread = useSessionsStore((s) => s.unread)
   const chats = useChatStore((s) => s.sessions)
   const dialogs = useExtensionUiStore((s) => s.dialogs)
-  useEffect(() => {
-    useRemoteLanesStore.getState().setFilter('local')
-  }, [])
-  useEffect(() => {
-    if (!enabled) useRemoteLanesStore.getState().setFilter('local')
-  }, [enabled])
-  if (!enabled) return null
   const local = emptyActivity()
   const newPaths = new Set(
     Object.values(disk)
@@ -121,6 +135,23 @@ export function MachineSwitcher(): React.JSX.Element | null {
     local.running += Number(chat?.isStreaming === true)
     local.needsYou += Number(!!chat?.error || dialogs.some((d) => d.sessionId === entry.phosphorId))
   }
+  return local
+}
+
+export function MachineSwitcher(): React.JSX.Element | null {
+  const enabled = useMachinesStore((s) => s.remoteEnabled)
+  const machines = useMachinesStore((s) => s.machines)
+  const now = useMachinesStore((s) => s.nowMs)
+  const hosts = useRemoteLanesStore((s) => s.hosts)
+  const selected = useRemoteLanesStore((s) => s.filter)
+  const local = useLocalMachineActivity()
+  useEffect(() => {
+    useRemoteLanesStore.getState().setFilter('local')
+  }, [])
+  useEffect(() => {
+    if (!enabled) useRemoteLanesStore.getState().setFilter('local')
+  }, [enabled])
+  if (!enabled) return null
   const ids = [...new Set([...machines.map((m) => m.id), ...Object.keys(hosts)])]
   const activity: Record<string, MachineActivity> = {
     local,
@@ -133,13 +164,7 @@ export function MachineSwitcher(): React.JSX.Element | null {
     const machine = machines.find((m) => m.id === id)
     const state = id === 'local' ? 'ready' : host?.state
     const detail =
-      id === 'local' || state === 'ready'
-        ? activityText(activity[id] ?? emptyActivity())
-        : state === 'connecting' || state === 'reconnecting'
-          ? 'Reconnecting…'
-          : !state || state === 'no-address'
-            ? 'Setting up…'
-            : `Down${machine?.lastSeenAt ? ` · seen ${relativeTime(machine.lastSeenAt, now || Date.now())}` : ''}`
+      id === 'local' ? activityText(local) : machineStateText(host, machine?.lastSeenAt, now)
     return (
       <span className="flex items-start gap-2.5">
         <span className="text-text-tertiary pt-1">
@@ -151,7 +176,6 @@ export function MachineSwitcher(): React.JSX.Element | null {
             <span className="truncate font-medium">
               {id === 'local' ? 'This Mac' : machineLabel(id)}
             </span>
-            {id === 'local' && <span className="text-text-tertiary ml-auto text-xs">default</span>}
           </span>
           <span className="text-text-tertiary block truncate text-sm">{detail}</span>
         </span>
@@ -163,6 +187,7 @@ export function MachineSwitcher(): React.JSX.Element | null {
       <ChoiceMenu
         value={selected}
         label="Machine filter"
+        triggerClassName="text-text group flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1 text-left text-lg transition-colors hover:bg-sidebar-hover"
         header={
           <div className="text-text-tertiary flex justify-between px-3 py-2 text-xs">
             <span className="font-semibold uppercase tracking-wider">Machines</span>
@@ -190,8 +215,10 @@ export function MachineSwitcher(): React.JSX.Element | null {
           } else useRemoteLanesStore.getState().setFilter(id)
         }}
       >
-        <MachineGlyph local={selected === 'local'} />
-        <span className="min-w-0 flex-1 truncate font-medium">
+        <span className="text-text-secondary group-hover:text-text flex size-[22px] shrink-0 items-center justify-center">
+          <MachineGlyph local={selected === 'local'} />
+        </span>
+        <span className="min-w-0 flex-1 truncate">
           {selected === 'local'
             ? 'This Mac'
             : selected === 'all'
@@ -201,23 +228,33 @@ export function MachineSwitcher(): React.JSX.Element | null {
         {!!(others.running || others.new || others.needsYou) && (
           <span
             aria-label="Activity on other machines"
-            data-tooltip="Activity on other machines"
-            className="flex shrink-0 items-center gap-1.5 text-xs tabular-nums"
+            data-tooltip={`Other machines: ${[others.running && `${others.running} running`, others.new && `${others.new} new`, others.needsYou && `${others.needsYou} need you`].filter(Boolean).join(' · ')}`}
+            className="flex shrink-0 items-center gap-2 text-xs tabular-nums"
           >
             {!!others.running && (
-              <span className="flex items-center gap-0.5">
+              <span
+                aria-label={`${others.running} running`}
+                className="text-accent flex items-center gap-1"
+              >
                 <PhosphorLoader size={12} decorative />
                 {others.running}
               </span>
             )}
             {!!others.new && (
-              <span className="bg-accent-soft text-accent rounded px-1 py-px">
+              <span
+                aria-label={`${others.new} new`}
+                className="bg-accent-soft text-accent rounded px-1 py-px"
+              >
                 {others.new} new
               </span>
             )}
             {!!others.needsYou && (
-              <span className="text-warning" aria-label={`${others.needsYou} need you`}>
-                {others.needsYou} !
+              <span
+                className="text-warning flex items-center gap-1"
+                aria-label={`${others.needsYou} need you`}
+              >
+                <span className="bg-warning size-1.5 rounded-full" />
+                {others.needsYou}
               </span>
             )}
           </span>

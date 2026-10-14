@@ -439,7 +439,11 @@ Signed out, only this computer is listed, with an optional GitHub sign-in panel.
 Signed in with no Hosts, a three-step source-install, setup and login guide links
 to the Host guide. There are no sample machines. Remote lanes, machine filters
 and per-lane connection chips use authenticated Host snapshots. The home
-machine picker defaults to This Mac; remote choices select configured repositories.
+machine picker follows the sidebar selection (All machines uses This Mac), with
+a user override until the next sidebar change. Remote choices open the configured
+repository dialog. Host-targeted submit opens that same dialog without sending or
+clearing the composer draft, never starting locally if the Host is unavailable.
+Provider and Model are under its collapsed Advanced disclosure.
 
 Main owns directory traffic. Realtime is only a debounced change signal, with
 60 s polling while disconnected. A 5 s local timer updates relative times and

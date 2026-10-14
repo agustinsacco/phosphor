@@ -1,3 +1,4 @@
+import { useComposerMachine } from './useComposerMachine'
 import { MachinePicker } from '@/features/machines/MachinePicker'
 import { NewRemoteLane } from '@/features/sessions/RemoteLanes'
 import { TooltipSummary, TooltipLabel, tooltipProps } from '@/components/Tooltip'
@@ -33,6 +34,7 @@ import { homeDraftKey, useDraftsStore } from '@/stores/drafts'
 
 /** Workspace workbench with the existing first-prompt composer kept in reach. */
 export function WorkspaceHome({ workspacePath }: { workspacePath: string }): React.JSX.Element {
+  const [composerMachine, setComposerMachine] = useComposerMachine()
   const [creatingOn, setCreatingOn] = useState<string | null>(null)
   const [stats, setStats] = useState<WorkspaceSessionStats | null>(null)
   const [username, setUsername] = useState('')
@@ -135,6 +137,10 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   const start = async (): Promise<void> => {
     const message = text.trim()
     if ((!message && images.length === 0) || starting) return
+    if (composerMachine !== 'local') {
+      setCreatingOn(composerMachine)
+      return
+    }
     setWarning(null)
 
     const prompt = composePrompt(message, images)
@@ -272,15 +278,21 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           <div className="mb-2 flex flex-wrap items-center gap-1.5 px-0.5">
             <MachinePicker
               placement="above"
-              value={creatingOn ?? 'local'}
+              value={composerMachine}
               capability="sessions.control"
-              onChange={(id) => setCreatingOn(id === 'local' ? null : id)}
+              onChange={(id) => {
+                setComposerMachine(id)
+                setCreatingOn(id === 'local' ? null : id)
+              }}
             />
             {creatingOn && (
               <NewRemoteLane
                 key={creatingOn}
                 hostId={creatingOn}
-                onMachine={setCreatingOn}
+                onMachine={(id) => {
+                  setCreatingOn(id)
+                  setComposerMachine(id ?? 'local')
+                }}
                 onClose={() => setCreatingOn(null)}
               />
             )}

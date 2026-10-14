@@ -109,6 +109,7 @@ export function PopupMenu({
 }
 
 export function MenuRow({
+  type,
   active,
   disabled,
   onClick,
@@ -121,6 +122,7 @@ export function MenuRow({
   ariaSelected,
   children,
 }: {
+  type?: 'button'
   active: boolean
   /** `option` inside a `PopupMenu role="listbox"`; the id is what its `aria-activedescendant` names. */
   id?: string
@@ -156,6 +158,7 @@ export function MenuRow({
   const row = (
     <TooltipButton
       ref={ref}
+      type={type}
       id={id}
       role={role}
       aria-selected={ariaSelected}

@@ -651,3 +651,10 @@ Host with an empty repository shows “No lanes yet” and its capability-gated 
 Remote actions retain the fixed reconnection/unavailable hints and main's
 capability, readiness and stale-connection checks. Creating a remote lane never
 falls back to local creation.
+
+The home composer follows the sidebar machine selection (All machines uses This
+Mac). A picker override lasts until the next sidebar selection change. This target
+is window-local renderer state, never persisted. Submitting with a Host targeted
+opens the existing remote-lane dialog and keeps the composer draft; it does not
+send a first prompt or start a local session, including when that Host is down or
+unavailable. Closing the dialog keeps the target.

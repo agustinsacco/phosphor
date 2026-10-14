@@ -18,6 +18,8 @@ export function ChoiceMenu({
   children,
   header,
   placement = 'below',
+  triggerClassName,
+  bordered = false,
 }: {
   value: string
   choices: MenuChoice[]
@@ -26,6 +28,8 @@ export function ChoiceMenu({
   children: React.ReactNode
   header?: React.ReactNode
   placement?: 'above' | 'below'
+  triggerClassName?: string
+  bordered?: boolean
 }): React.JSX.Element {
   const id = useId()
   const trigger = useRef<HTMLButtonElement>(null)
@@ -86,11 +90,15 @@ export function ChoiceMenu({
     >
       <TooltipButton
         ref={trigger}
+        type="button"
         aria-label={label}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
-        className="text-text-secondary hover:text-text hover:bg-sidebar-hover flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-base transition-colors"
+        className={
+          triggerClassName ??
+          `text-text-secondary hover:text-text hover:bg-sidebar-hover flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-base transition-colors ${bordered ? 'border-border border' : ''}`
+        }
         onClick={() => {
           setIndex(
             Math.max(
@@ -101,7 +109,11 @@ export function ChoiceMenu({
           setOpen(!open)
         }}
       >
-        <span className="flex min-w-0 flex-1 items-center gap-2">{children}</span>
+        <span
+          className={`flex min-w-0 flex-1 items-center ${triggerClassName ? 'gap-2.5' : 'gap-2'}`}
+        >
+          {children}
+        </span>
         <ChevronDownIcon size={12} />
       </TooltipButton>
       {open && (
@@ -113,13 +125,14 @@ export function ChoiceMenu({
           ariaLabel={label}
           tabIndex={-1}
           ariaActiveDescendant={`${id}-${index}`}
-          className={`absolute left-0 z-40 max-h-[70vh] w-72 overflow-y-auto py-1 ${placement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+          className={`[&:focus-visible]:outline-accent outline-none focus-visible:ring-1 focus-visible:ring-accent absolute left-0 z-40 max-h-[70vh] w-72 overflow-y-auto py-1 ${placement === 'above' ? 'bottom-full mb-1' : 'top-full mt-1'}`}
           fitViewport
         >
           {header}
           {choices.map((choice, i) => (
             <MenuRow
               key={choice.value}
+              type="button"
               active={i === index}
               disabled={choice.disabled}
               id={`${id}-${i}`}

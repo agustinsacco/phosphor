@@ -165,3 +165,23 @@ it('repository plus preselects that repository without sending a local creation'
     repositoryId: 'second',
   })
 })
+it('labels each elsewhere signal and gives the cluster a readable breakdown, without a default caption', () => {
+  const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
+  const lane = host.lanes[0]!
+  host.lanes = [
+    { ...lane, activity: 'working' },
+    { ...lane, laneId: 'needs-you', activity: 'needs-input' },
+  ]
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
+  act(() => root.render(<MachineSwitcher />))
+  const cluster = container.querySelector('[aria-label="Activity on other machines"]')!
+  expect(cluster.getAttribute('data-tooltip')).toBe(
+    'Other machines: 1 running · 2 new · 1 need you',
+  )
+  expect(cluster.querySelector('[aria-label="1 running"]')).not.toBeNull()
+  expect(cluster.querySelector('[aria-label="2 new"]')).not.toBeNull()
+  expect(cluster.querySelector('[aria-label="1 need you"]')).not.toBeNull()
+  expect(cluster.textContent).not.toContain('!')
+  click('Machine filter')
+  expect(container.querySelector('[role=listbox]')?.textContent).not.toContain('default')
+})

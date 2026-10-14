@@ -305,3 +305,39 @@ it('rejects pending counts immediately on reconnect before effect cleanup', asyn
   expect(button('Skills').textContent).toContain('Unavailable')
   expect(invoke).toHaveBeenCalledTimes(1)
 })
+it('choosing This Mac in the remote dialog explicitly updates the composer target', () => {
+  const onMachine = vi.fn()
+  const onClose = vi.fn()
+  act(() =>
+    root.render(<NewRemoteLane hostId={MOCK_HOST_ID} onMachine={onMachine} onClose={onClose} />),
+  )
+  act(() => document.querySelector<HTMLButtonElement>('[aria-label=Machine]')!.click())
+  act(() => button('This Mac').click())
+  expect(onMachine).toHaveBeenCalledWith(null)
+  expect(onClose).toHaveBeenCalledExactlyOnceWith()
+  expect(invoke.mock.calls.some(([channel]) => channel === 'hosts:createLane')).toBe(false)
+})
+
+it('machine and repository menu actions never submit the remote creation form', async () => {
+  invoke.mockRejectedValue(new Error('unavailable'))
+  act(() =>
+    root.render(<NewRemoteLane hostId={MOCK_HOST_ID} onMachine={() => {}} onClose={() => {}} />),
+  )
+  for (const label of ['Machine', 'Repository']) {
+    act(() => document.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click())
+    const selected = document.querySelector<HTMLButtonElement>('[role=option][aria-selected=true]')!
+    act(() => selected.click())
+  }
+  expect(invoke).not.toHaveBeenCalled()
+  const form = document.querySelector<HTMLFormElement>('form')!
+  expect(
+    [...form.querySelectorAll('button')]
+      .filter((button) => button.type === 'submit')
+      .map((button) => button.textContent),
+  ).toEqual(['Create lane'])
+  // requestSubmit models the browser's implicit Enter submission, which jsdom does not synthesize.
+  await act(async () => form.requestSubmit())
+  expect(invoke).toHaveBeenCalledExactlyOnceWith('hosts:createLane', MOCK_HOST_ID, {
+    repositoryId: '0000000000000001',
+  })
+})
