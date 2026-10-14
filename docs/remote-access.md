@@ -153,6 +153,7 @@ focused lane fail closed. The renderer discards stale replies.
 The global Artifacts library includes local artifacts and artifacts from ready
 Hosts announcing `artifacts.read`, tagged with the machine label. Remote library
 keys name opaque lane/slug resources, not Host session ids or filesystem paths.
+A failing machine is absent from the listing; local rows and other machines still load.
 Stored remote rows open read-only in the library; live rows can open their lane.
 Removed lanes are excluded because no admitted lane authorizes their read.
 Local deleted-session retention is unchanged. Host indexes and blobs stay on

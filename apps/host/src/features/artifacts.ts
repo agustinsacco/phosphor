@@ -2,8 +2,12 @@ import { constants } from 'node:fs'
 import { open } from 'node:fs/promises'
 import { join } from 'node:path'
 import { isUtf8 } from 'node:buffer'
-import { indexSessionFile, writeIndex } from '@phosphor/session-runtime/artifacts/artifact-indexer'
-import { blobFile, type SessionArtifactIndex } from '@phosphor/pi-extensions/artifact-store'
+import {
+  indexSessionFile,
+  writeIndex,
+  blobFile,
+  type SessionArtifactIndex,
+} from '@phosphor/session-runtime/artifacts/artifact-indexer'
 import {
   ARTIFACT_LIMITS,
   parseArtifactParams,
@@ -20,7 +24,15 @@ export function createArtifactsFeature(
   context: FeatureContext & { store: FeatureContext['store'] & Pick<HostStore, 'listLanes'> },
 ): HostFeature {
   const root = join(hostStateDirectory(context.env, context.home), 'artifacts')
-  let running = false
+  let pending = 0
+  let tail = Promise.resolve()
+  function admitted(laneId: string): boolean {
+    const lane = context.store.getLane(laneId)
+    return !!lane && lane.removedAt === null
+  }
+  function requireLane(laneId: string): void {
+    if (!admitted(laneId)) throw new FeatureFailure('unknown-lane')
+  }
   async function index(laneId: string): Promise<SessionArtifactIndex | null> {
     const lane = context.store.getLane(laneId)
     if (!lane || lane.removedAt !== null) throw new FeatureFailure('unknown-lane')
@@ -35,8 +47,15 @@ export function createArtifactsFeature(
     async call(method, params) {
       const parsed = parseArtifactParams(method, params)
       if (!parsed) return featureError(new FeatureFailure('bad-request'))
-      if (running) return featureError(new FeatureFailure('internal'))
-      running = true
+      // One active call plus eight FIFO waiters. Call errors have no busy code.
+      if (pending >= 9) return featureError(new FeatureFailure('internal'))
+      pending++
+      const previous = tail
+      let release = () => {}
+      tail = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      await previous
       try {
         if (method === 'artifacts.list') {
           const lanes = parsed.laneId
@@ -49,6 +68,7 @@ export function createArtifactsFeature(
           const items: ArtifactMeta[] = []
           let metadataBytes = 0
           for (const laneId of lanes) {
+            if (!parsed.laneId && !admitted(laneId)) continue
             const saved = await index(laneId)
             if (!saved) continue
             for (const a of Object.values(saved.artifacts)) {
@@ -77,10 +97,12 @@ export function createArtifactsFeature(
             }
           }
           if (!parseArtifactList(items)) throw new FeatureFailure('too-large')
-          return { ok: true, data: items }
+          if (parsed.laneId) requireLane(parsed.laneId)
+          return { ok: true, data: items.filter((item) => admitted(item.laneId)) }
         }
         if (!parsed.laneId || !parsed.slug) throw new FeatureFailure('bad-request')
         const saved = await index(parsed.laneId)
+        requireLane(parsed.laneId)
         const versions = saved?.artifacts[parsed.slug]?.versions
           .filter((v) => v.onBranch)
           .sort((a, b) => a.version - b.version)
@@ -90,6 +112,7 @@ export function createArtifactsFeature(
             : versions?.find((v) => v.version === parsed.version)
         if (!version) throw new FeatureFailure('bad-request')
         if (version.bytes > ARTIFACT_LIMITS.contentBytes) throw new FeatureFailure('too-large')
+        let content: string
         const fd = await open(
           blobFile(root, version.sha256),
           constants.O_RDONLY | constants.O_NOFOLLOW,
@@ -107,13 +130,12 @@ export function createArtifactsFeature(
           }
           if (length !== version.bytes || !isUtf8(bytes.subarray(0, length)))
             throw new FeatureFailure('internal')
-          return {
-            ok: true,
-            data: { version: version.version, content: bytes.subarray(0, length).toString('utf8') },
-          }
+          content = bytes.subarray(0, length).toString('utf8')
         } finally {
           await fd.close()
         }
+        requireLane(parsed.laneId)
+        return { ok: true, data: { version: version.version, content } }
       } catch (error) {
         return featureError(
           error instanceof Error && error.message === 'session-too-large'
@@ -121,7 +143,8 @@ export function createArtifactsFeature(
             : error,
         )
       } finally {
-        running = false
+        pending--
+        release()
       }
     },
   }

@@ -104,7 +104,7 @@ export function registerHostsHandlers(): void {
       return {
         result: Promise.all([
           artifactLibrary.list(key),
-          remoteArtifactListings(artifactHosts()),
+          remoteArtifactListings(artifactHosts()).catch(() => []),
         ]).then(([local, remote]) => [...local, ...remote]),
       }
     }

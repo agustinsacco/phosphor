@@ -118,7 +118,9 @@ export async function remoteSessionArtifacts(lane: ReadLane): Promise<ArtifactSn
 export async function remoteArtifactListings(hosts: ArtifactHost[]): Promise<ArtifactListing[]> {
   const rows: ArtifactListing[] = []
   for (const host of hosts) {
-    rows.push(...(await list(host)).map((a) => listing(host, a)))
+    // A disconnected or invalid machine must not hide other machines' rows.
+    const items = await list(host).catch(() => [])
+    rows.push(...items.map((a) => listing(host, a)))
     if (rows.length > ARTIFACT_LIMITS.count) throw new Error(REMOTE_UNAVAILABLE)
   }
   return rows

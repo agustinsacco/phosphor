@@ -16,6 +16,8 @@ import {
 import { readLinesFrom, readSignature } from '../pi/session-fold'
 import { extractText } from '../pi/session-content'
 
+export { blobFile, type SessionArtifactIndex } from '@phosphor/pi-extensions/artifact-store'
+
 /**
  * Reads a pi session file into its artifact index, writing each distinct
  * version's content to the store as it goes.

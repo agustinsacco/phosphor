@@ -144,3 +144,21 @@ it('bounds version requests even when contents are empty', async () => {
   await expect(remoteSessionArtifacts({ laneId, workspacePath: '', call })).rejects.toThrow()
   expect(call).toHaveBeenCalledTimes(1)
 })
+
+it('library omits failing machines but retains healthy machines', async () => {
+  const failed: ArtifactHost = {
+    ...host,
+    hostId: 'failed',
+    call: async () => {
+      throw new Error('unavailable')
+    },
+  }
+  const invalid: ArtifactHost = {
+    ...host,
+    hostId: 'invalid',
+    call: async () => [{ path: '/private' }],
+  }
+  const rows = await remoteArtifactListings([failed, host, invalid])
+  expect(rows).toHaveLength(1)
+  expect(rows[0]?.machine).toBe('bee')
+})
