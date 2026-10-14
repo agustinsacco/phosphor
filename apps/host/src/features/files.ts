@@ -64,10 +64,25 @@ export async function checkedPath(root: string, path: string, missing = false): 
     throw new FileFailure('bad-request')
   }
 }
-export const safeGit = (cwd: string, args: string[]) =>
-  git(cwd, ['--no-pager', '-c', 'core.fsmonitor=false', ...args], {
-    env: { GIT_LITERAL_PATHSPECS: '1', GIT_OPTIONAL_LOCKS: '0', GIT_CONFIG_COUNT: '0' },
-  })
+export const safeGit = async (cwd: string, args: string[], maxBuffer?: number) => {
+  try {
+    return await git(cwd, ['--no-pager', '-c', 'core.fsmonitor=false', ...args], {
+      isolateEnv: true,
+      env: { GIT_LITERAL_PATHSPECS: '1', GIT_OPTIONAL_LOCKS: '0', GIT_CONFIG_COUNT: '0' },
+      ...(maxBuffer === undefined ? {} : { maxBuffer }),
+    })
+  } catch (error) {
+    if (
+      maxBuffer !== undefined &&
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER'
+    )
+      throw new FileFailure('too-large')
+    throw error
+  }
+}
 export async function listedPaths(root: string, path = '.'): Promise<string[]> {
   const out = await safeGit(root, [
     'ls-files',

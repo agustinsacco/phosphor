@@ -28,15 +28,19 @@ export function createGitFeature(context: FeatureContext): HostFeature {
         if (method !== 'git.show') await listedPaths(root, p.path ?? '.')
         if (method === 'git.diff') {
           const diff = bounded(
-            await safeGit(root, [
-              'diff',
-              '--no-ext-diff',
-              '--no-textconv',
-              '--relative',
-              ...(p.staged ? ['--cached'] : []),
-              '--',
-              p.path ?? '.',
-            ]),
+            await safeGit(
+              root,
+              [
+                'diff',
+                '--no-ext-diff',
+                '--no-textconv',
+                '--relative',
+                ...(p.staged ? ['--cached'] : []),
+                '--',
+                p.path ?? '.',
+              ],
+              FILE_LIMITS.textBytes,
+            ),
           )
           return { ok: true, data: { diff } }
         }
@@ -57,7 +61,7 @@ export function createGitFeature(context: FeatureContext): HostFeature {
           if (!Number.isSafeInteger(size) || size < 0) throw new FileFailure('internal')
           // The shared runner has its own 64 MiB buffer cap; avoid materializing oversized blobs.
           if (size > FILE_LIMITS.textBytes) throw new FileFailure('too-large')
-          const content = await safeGit(root, ['cat-file', 'blob', object])
+          const content = await safeGit(root, ['cat-file', 'blob', object], FILE_LIMITS.textBytes)
           return { ok: true, data: readResult(Buffer.from(content), size) }
         }
         const raw = await safeGit(root, ['status', '--porcelain=v1', '-z', '-uall', '--', '.'])

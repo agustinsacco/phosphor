@@ -64,6 +64,36 @@ describe('git', () => {
   })
 })
 
+describe('git options', () => {
+  it('isolateEnv drops inherited GIT_ variables but keeps explicit ones', async () => {
+    const saved = process.env.GIT_DIR
+    process.env.GIT_DIR = join(repo, 'no-such-git-dir')
+    try {
+      await expect(git(repo, ['rev-parse', '--git-dir'])).rejects.toThrow()
+      expect(await git(repo, ['rev-parse', '--git-dir'], { isolateEnv: true, trim: true })).toBe(
+        '.git',
+      )
+      expect(
+        await git(repo, ['config', '--get', 'phx.test'], {
+          isolateEnv: true,
+          trim: true,
+          env: { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'phx.test', GIT_CONFIG_VALUE_0: 'kept' },
+        }),
+      ).toBe('kept')
+    } finally {
+      if (saved === undefined) delete process.env.GIT_DIR
+      else process.env.GIT_DIR = saved
+    }
+  })
+  it('maxBuffer sets the output cap for one call', async () => {
+    await writeFile(join(repo, 'a.txt'), 'z'.repeat(4096))
+    await expect(git(repo, ['diff'], { maxBuffer: 1024 })).rejects.toMatchObject({
+      code: 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER',
+    })
+    expect((await git(repo, ['diff'], { maxBuffer: 1024 * 1024 })).length).toBeGreaterThan(4096)
+  })
+})
+
 describe('gitErrorText', () => {
   it("keeps git's reason and drops the command echo and hints", () => {
     const error = Object.assign(new Error('Command failed: git branch -d task-1\nerror: x'), {

@@ -174,6 +174,38 @@ describe('git feature', () => {
         ),
     ).toBe(true)
   })
+  it('ignores an inherited GIT_DIR and reads only the lane repository', async () => {
+    const other = join(f.base, 'other')
+    await mkdir(other)
+    await git(other, ['init'])
+    await git(other, ['config', 'user.name', 'Test'])
+    await git(other, ['config', 'user.email', 'test@example.invalid'])
+    await writeFile(join(other, 'tracked'), 'other repository\n')
+    await git(other, ['add', 'tracked'])
+    await git(other, ['commit', '-m', 'other'])
+    const saved = process.env.GIT_DIR
+    process.env.GIT_DIR = join(other, '.git')
+    try {
+      const shown = await createGitFeature(f.context).call('git.show', {
+        laneId: f.laneId,
+        path: 'tracked',
+        ref: 'HEAD',
+      })
+      expect(shown).toMatchObject({ ok: true, data: { binary: false, content: 'old\n' } })
+    } finally {
+      if (saved === undefined) delete process.env.GIT_DIR
+      else process.env.GIT_DIR = saved
+    }
+  })
+  it('stops a real diff at the output cap before holding it all', async () => {
+    await writeFile(join(f.root, 'tracked'), 'y'.repeat(FILE_LIMITS.textBytes + 1024) + '\n')
+    const spy = vi.spyOn(runner, 'git')
+    expect(await createGitFeature(f.context).call('git.diff', { laneId: f.laneId })).toEqual(
+      rejected('too-large'),
+    )
+    const diffCall = spy.mock.calls.find(([, args]) => args.includes('diff'))
+    expect(diffCall?.[2]).toMatchObject({ maxBuffer: FILE_LIMITS.textBytes, isolateEnv: true })
+  })
   it('caps lists and diffs without truncation at exact boundaries', async () => {
     const original = (await vi.importActual<typeof fs>('node:fs/promises')).realpath
     vi.spyOn(fs, 'realpath').mockImplementation(async (path, options) => {

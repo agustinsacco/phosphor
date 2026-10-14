@@ -35,6 +35,13 @@ export interface GitOptions {
    * every other git call in the process must keep using the real index.
    */
   env?: Record<string, string>
+  /**
+   * Drop every inherited `GIT_*` variable before `env` applies, so `cwd` alone
+   * picks the repository (an inherited `GIT_DIR` would otherwise win).
+   */
+  isolateEnv?: boolean
+  /** This call's output cap (default 64 MiB); past it the call throws before more is held. */
+  maxBuffer?: number
 }
 
 const TIMEOUT_MS = 30_000
@@ -70,8 +77,19 @@ export async function git(cwd: string, args: string[], options: GitOptions = {})
     const { stdout } = await execFileAsync('git', args, {
       cwd,
       timeout: TIMEOUT_MS,
-      maxBuffer: MAX_BUFFER,
-      ...(options.env ? { env: { ...process.env, ...options.env } } : {}),
+      maxBuffer: options.maxBuffer ?? MAX_BUFFER,
+      ...(options.env || options.isolateEnv
+        ? {
+            env: {
+              ...(options.isolateEnv
+                ? Object.fromEntries(
+                    Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')),
+                  )
+                : process.env),
+              ...options.env,
+            },
+          }
+        : {}),
     })
     return options.trim ? stdout.trim() : stdout
   } catch (error) {
