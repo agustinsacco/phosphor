@@ -275,6 +275,15 @@ Desktop sign-in has its own account trace. A malformed client header records
 `client: "invalid"` and a missing one `null`; a missing or malformed trace is
 `null`. Neither changes authorization or limits.
 
+The Host API accepts `x-phosphor-trace` on `/v1/hello`. Desktop main generates a
+new trace per WebSocket connection and sends it in the optional `auth.trace`
+field, including renewals. Both use exactly 16 lowercase hex characters. Invalid
+hello headers are omitted from logs; invalid auth traces reject the frame. The
+Host records the connection trace on `api.connected`, `api.command`,
+`api.receipt` and `api.closed`. These events contain only safe operation, outcome,
+close code and duration fields, never wire ids, paths or content. Traces do not
+authorize requests.
+
 For example, enrolling bee1 produces this order:
 
 1. Desktop calls `/me`, then `/machines` with one refresh trace.
@@ -577,3 +586,19 @@ machine-scoped receipt commands and parses every Host result before mapping it.
 The renderer sees repository labels, never Host routine paths. Failed or slow
 machines settle separately from local rows. Local Desktop routines are unchanged.
 See [the routine contract](routines.md#host-routines).
+
+## Testing remote lanes
+
+`npm run test:e2e -- remote.spec.ts machines.spec.ts account.spec.ts` launches
+isolated Desktop profiles with the pi stub. The remote spec also builds and runs
+the real dev Host CLI with ordinary disposable config, identity, SQLite state
+and its own fake pi. A loopback control fixture signs short-lived grants with a
+throwaway key. It checks the machine-tagged sidebar lane, streamed response,
+second-client takeover into viewer mode and Files content.
+
+Only an unpackaged Desktop accepts `PHOSPHOR_E2E_HOST_ENDPOINT`, and only as
+`https://127.0.0.1:<port>` with port 1024 through 65535 and no trailing slash,
+path, credentials, query or fragment. Main admits that exact endpoint alongside
+the unchanged production `.ts.net` rule, and uses plaintext WebSocket only for
+that endpoint's `/v1/stream`. Other origins retain TLS. No Host test hook or
+renderer network access is added.

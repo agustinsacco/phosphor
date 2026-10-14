@@ -2,7 +2,12 @@ import { desktopElectronLaunchOptions } from '../../../../tools/scripts/desktop-
 import { expect, _electron as electron } from '@playwright/test'
 import { createHash, randomBytes } from 'node:crypto'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
-import { createServer, type IncomingHttpHeaders } from 'node:http'
+import {
+  createServer,
+  type IncomingHttpHeaders,
+  type IncomingMessage,
+  type ServerResponse,
+} from 'node:http'
 import { join, resolve } from 'node:path'
 import { MACHINE, LOOKUP } from '../../src/features/machines/__fixtures__/control'
 import type { MachineView } from '../../../../libs/shared/src/control-api'
@@ -10,12 +15,19 @@ import { scratchDir } from './scratch'
 import { configureTestTeardown } from './shutdown'
 
 /** Disposable loopback-only Auth and directory. No keychain or hosted service. */
-export async function accountControlFixture(initial: MachineView[] = []) {
+export async function accountControlFixture(
+  initial: MachineView[] = [],
+  options: {
+    userId?: string
+    env?: NodeJS.ProcessEnv
+    route?: (req: IncomingMessage, res: ServerResponse, body: unknown) => boolean
+  } = {},
+) {
   const secrets = [
     randomBytes(32).toString('base64url'),
     randomBytes(32).toString('base64url'),
     randomBytes(32).toString('base64url'),
-    'user-e2e-1',
+    options.userId ?? 'user-e2e-1',
   ]
   const calls: { path: string; body: unknown; headers: IncomingHttpHeaders }[] = []
   const state = { challenge: '', logoutDelayMs: 0, answered: [] as boolean[], machines: initial }
@@ -38,6 +50,7 @@ export async function accountControlFixture(initial: MachineView[] = []) {
         res.end()
         return
       }
+      if (options.route?.(req, res, body)) return
       if (calls.length < 1000)
         calls.push({ path: url.pathname + url.search, body, headers: req.headers })
       const json = (status: number, value: unknown): void => {
@@ -125,47 +138,74 @@ export async function accountControlFixture(initial: MachineView[] = []) {
       json(404, { error: { code: 'not-found', message: 'Not found.' } })
     })
   })
+  // Each resource registers its own cleanup as it is made, so a failed setup leaks nothing.
+  const cleanups: (() => Promise<unknown>)[] = []
+  const release = async (): Promise<void> => {
+    const errors: unknown[] = []
+    for (const step of cleanups.splice(0).reverse()) await step().catch((e) => errors.push(e))
+    if (errors.length > 0) throw errors[0]
+  }
+  const guard = async <T>(step: () => Promise<T>): Promise<T> => {
+    try {
+      return await step()
+    } catch (error) {
+      await release().catch(() => {})
+      throw error
+    }
+  }
   await new Promise<void>((done) => server.listen(0, '127.0.0.1', done))
+  cleanups.push(() => new Promise<void>((done) => server.close(() => done())))
   const address = server.address()
   if (!address || typeof address === 'string') throw new Error('Missing loopback address')
   const url = `http://127.0.0.1:${address.port}`
-  const scratch = await scratchDir('phosphor-account-control-')
+  const scratch = await guard(() => scratchDir('phosphor-account-control-'))
+  cleanups.push(() => rm(scratch, { recursive: true, force: true }))
   const workspace = join(scratch, 'workspace')
   const userData = join(scratch, 'prefs')
-  await mkdir(workspace)
-  await mkdir(userData)
-  await writeFile(
-    join(userData, 'config.json'),
-    JSON.stringify({ lastWorkspacePath: workspace, accountPreview: false, machinesPreview: false }),
-  )
-  const env = { ...process.env }
-  delete env.ELECTRON_RENDERER_URL
-  delete env.NODE_ENV_ELECTRON_VITE
-  delete env.ELECTRON_CLI_ARGS
-  const app = await electron.launch({
-    ...desktopElectronLaunchOptions([resolve(import.meta.dirname, '../..')]),
-    env: {
-      ...env,
-      NODE_ENV: 'production',
-      PHOSPHOR_PI_STUB: resolve(import.meta.dirname, 'pi-stub.cjs'),
-      PHOSPHOR_TEST_USER_DATA: userData,
-      PI_CODING_AGENT_DIR: join(scratch, 'agent'),
-      PHOSPHOR_SUPABASE_URL: url,
-      PHOSPHOR_SUPABASE_KEY: 'e2e-publishable-key',
-      PHOSPHOR_CONTROL_URL: url,
-      PHOSPHOR_ACCOUNT_NO_KEYCHAIN: '1',
-    },
-  })
-  configureTestTeardown(app)
-  await app.evaluate(({ shell }) => {
-    const openedUrls: string[] = []
-    Object.assign(globalThis, { openedUrls })
-    shell.openExternal = async (url) => {
-      openedUrls.push(url)
-    }
-  })
-  const page = await app.firstWindow()
-  await expect(page.getByTestId('app-shell')).toBeVisible()
+  const { app, page } = await guard(() => launch())
+  async function launch() {
+    await mkdir(workspace)
+    await mkdir(userData)
+    await writeFile(
+      join(userData, 'config.json'),
+      JSON.stringify({
+        lastWorkspacePath: workspace,
+        accountPreview: false,
+        machinesPreview: false,
+      }),
+    )
+    const env = { ...process.env }
+    delete env.ELECTRON_RENDERER_URL
+    delete env.NODE_ENV_ELECTRON_VITE
+    delete env.ELECTRON_CLI_ARGS
+    const app = await electron.launch({
+      ...desktopElectronLaunchOptions([resolve(import.meta.dirname, '../..')]),
+      env: {
+        ...env,
+        NODE_ENV: 'production',
+        PHOSPHOR_PI_STUB: resolve(import.meta.dirname, 'pi-stub.cjs'),
+        PHOSPHOR_TEST_USER_DATA: userData,
+        PI_CODING_AGENT_DIR: join(scratch, 'agent'),
+        PHOSPHOR_SUPABASE_URL: url,
+        PHOSPHOR_SUPABASE_KEY: 'e2e-publishable-key',
+        PHOSPHOR_CONTROL_URL: url,
+        PHOSPHOR_ACCOUNT_NO_KEYCHAIN: '1',
+        ...options.env,
+      },
+    })
+    configureTestTeardown(app)
+    cleanups.push(() => app.close())
+    await app.evaluate(({ shell }) => {
+      const openedUrls: string[] = []
+      Object.assign(globalThis, { openedUrls })
+      shell.openExternal = async (url) => {
+        openedUrls.push(url)
+      }
+    })
+    const page = await app.firstWindow()
+    await expect(page.getByTestId('app-shell')).toBeVisible()
+    return { app, page }
+  }
   const opened = (): Promise<string[]> =>
     app.evaluate(() =>
       'openedUrls' in globalThis && Array.isArray(globalThis.openedUrls)
@@ -207,9 +247,7 @@ export async function accountControlFixture(initial: MachineView[] = []) {
     close: async () => {
       if (closed) return
       closed = true
-      await app.close()
-      await new Promise<void>((done) => server.close(() => done()))
-      await rm(scratch, { recursive: true, force: true })
+      await release()
     },
   }
 }

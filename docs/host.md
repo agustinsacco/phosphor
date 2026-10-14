@@ -1226,6 +1226,14 @@ held open by a process that left its group would otherwise keep it running.
 
 ### Log
 
+The Host API logs `api.hello` with a validated `x-phosphor-trace` header when
+present. WebSocket `auth.trace` is optional and strictly validated as 16 lowercase
+hex characters. Its initial value follows the connection through `api.connected`,
+command admission (`api.command` with operation), receipt delivery (`api.receipt`
+with status), and `api.closed` with code and duration. These API events omit ids,
+paths, grants and content; field values match `^[A-Za-z0-9._-]{1,64}$`. Missing
+traces are omitted, and renewal does not change the connection trace.
+
 `${XDG_STATE_HOME:-~/.local/state}/phosphor-host/logs/phosphor.log`, rotating at
 5 MB like Desktop's. Every line starts with ISO 8601 UTC and milliseconds.
 `login`, `status`, `logout` and `run` log start and end with the exit code and

@@ -15,7 +15,10 @@ vi.mock('../hosts/client-id', () => ({ createClientIds: () => ({}) }))
 vi.mock('../hosts/grants', () => ({ createGrants: () => ({}) }))
 vi.mock('../hosts/connection', () => ({ createHostConnection: vi.fn() }))
 vi.mock('../hosts/manager', () => ({ createHostManager: () => ({ snapshot: () => ({}) }) }))
-vi.mock('../hosts/socket', () => ({ openHostSocket: vi.fn() }))
+vi.mock('../hosts/socket', () => ({
+  openHostSocket: vi.fn(),
+  e2eHostEndpoint: () => undefined,
+}))
 vi.mock('./control-handlers', () => ({ controlClient: () => ({}), onMachinesChanged: vi.fn() }))
 vi.mock('./handle', () => ({ handle: vi.fn(), setRemoteReadRouter: mocks.router }))
 vi.mock('../hosts/artifacts', () => ({

@@ -3,6 +3,7 @@ import type { ControlResult, HostsSnapshot } from '@shared/ipc'
 import { hostEndpoint, type createHostConnection, type HostConnectionSnapshot } from './connection'
 
 export function createHostManager(ports: {
+  testEndpoint?: string
   user: () => string | null
   clientId: () => string | null
   resetReplacementBudget: () => void
@@ -64,7 +65,7 @@ export function createHostManager(ports: {
       }
     }
     for (const m of list.machines) {
-      if (!hostEndpoint(m.endpoint)) {
+      if (!hostEndpoint(m.endpoint, ports.testEndpoint)) {
         cached[m.id] = {
           ...cached[m.id],
           state: 'no-address',

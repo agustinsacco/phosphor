@@ -340,7 +340,12 @@ export type ClientFrame =
   | TerminalInput
   | TerminalSubscribe
   /** First frame (with `challenge`), and later to renew (without). */
-  | { readonly type: 'auth'; readonly grant: string; readonly challenge?: string }
+  | {
+      readonly type: 'auth'
+      readonly grant: string
+      readonly challenge?: string
+      readonly trace?: string
+    }
   | {
       readonly type: 'subscribe'
       readonly id: string
@@ -669,6 +674,8 @@ export function parseClientFrame(s: string): ClientFrameParse {
   switch (v.type) {
     case 'auth':
       if (
+        !Object.keys(v).every((key) => ['type', 'grant', 'challenge', 'trace'].includes(key)) ||
+        (v.trace !== undefined && !isControlTrace(v.trace)) ||
         !text(v.grant, GRANT_LIMITS.tokenChars) ||
         (v.challenge !== undefined &&
           (typeof v.challenge !== 'string' || !/^[0-9a-f]{64}$/.test(v.challenge)))
@@ -678,6 +685,7 @@ export function parseClientFrame(s: string): ClientFrameParse {
         type: v.type,
         grant: v.grant,
         ...(v.challenge !== undefined ? { challenge: v.challenge } : {}),
+        ...(v.trace !== undefined ? { trace: v.trace } : {}),
       })
     case 'terminal.input': {
       const input = parseTerminalInput(v)

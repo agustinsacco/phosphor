@@ -10,7 +10,7 @@ import { createClientIds } from '../hosts/client-id'
 import { createGrants } from '../hosts/grants'
 import { createHostConnection } from '../hosts/connection'
 import { createHostManager } from '../hosts/manager'
-import { openHostSocket } from '../hosts/socket'
+import { e2eHostEndpoint, openHostSocket } from '../hosts/socket'
 import { controlClient, onMachinesChanged } from './control-handlers'
 import { handle, setRemoteReadRouter } from './handle'
 import {
@@ -37,6 +37,7 @@ export function remoteLanes(): RemoteLanes {
 }
 
 export function registerHostsHandlers(): void {
+  const testEndpoint = e2eHostEndpoint(process.env, app.isPackaged)
   const control = controlClient()
   const clients = createClientIds({
     user: accountUserId,
@@ -47,6 +48,7 @@ export function registerHostsHandlers(): void {
   })
   const grants = createGrants({ control, clients, present: (id) => manager.present(id) })
   const manager = createHostManager({
+    testEndpoint,
     user: accountUserId,
     clientId: clients.current,
     resetReplacementBudget: clients.resetReplacementBudget,
@@ -63,7 +65,8 @@ export function registerHostsHandlers(): void {
       createHostConnection({
         hostId,
         endpoint,
-        socket: (url) => openHostSocket(url, log),
+        testEndpoint,
+        socket: (url) => openHostSocket(url, log, testEndpoint),
         grant: () => grants.grantFor(hostId),
         clearGrant: () => grants.clear(hostId),
         changed: () => manager.changed(),
