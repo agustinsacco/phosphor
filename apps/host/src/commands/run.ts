@@ -46,6 +46,10 @@ import type { LaneService } from '../lanes/service'
 import type { Receipt } from '@phosphor/shared/host-protocol'
 import { seedArtifactSkill } from '@phosphor/session-runtime/bundled-skills'
 import { join } from 'node:path'
+import { createFilesFeature } from '../features/files'
+import { createGitFeature } from '../features/git'
+import { createSkillsFeature } from '../features/skills'
+import type { FeatureContext } from '../features/feature'
 
 /**
  * Shutdown exits as soon as the attached drain ends. A drain that ended before
@@ -227,7 +231,19 @@ async function runHostCommand(context: RunContext): Promise<number> {
           now: context.now ?? Date.now,
           log: log.write,
         })
+        const featureContext: FeatureContext = {
+          store,
+          env: context.env,
+          home: context.home,
+          log: (event, fields) => log.write('host', event, fields),
+        }
+        const features = [
+          createFilesFeature(featureContext),
+          createGitFeature(featureContext),
+          createSkillsFeature(featureContext),
+        ]
         const calls = createLaneCalls({
+          features,
           store,
           live,
           runtime,
@@ -239,7 +255,13 @@ async function runHostCommand(context: RunContext): Promise<number> {
         const activeStore = store
         lanes = {
           epoch,
-          capabilities: ['sessions.read', 'sessions.control'],
+          capabilities: [
+            ...new Set([
+              'sessions.read' as const,
+              'sessions.control' as const,
+              ...features.map((feature) => feature.capability),
+            ]),
+          ],
           commands,
           calls,
           streams: live.streams,

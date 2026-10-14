@@ -585,14 +585,17 @@ at `exp + 60 seconds`, matching the signature clock skew. Heartbeat revocations
 close matching sockets; a changed owner or epoch or removal closes all sockets.
 Missing heartbeat fields do not erase authority or revocations.
 
-With a lane service wired, hello announces `sessions.read` and `sessions.control`.
+With a usable machine, hello announces `sessions.read`, `sessions.control`,
+`workspaces.read` and `skills.read`.
 Ready capabilities are the intersection of Host and grant capabilities.
 `sessions.read` admits subscriptions and the six read-only lane calls;
 `sessions.control` admits commands. Receipt status is client-scoped and needs
 neither capability. Without a lane service, no capabilities are announced:
 subscriptions and commands are forbidden and calls are unsupported. Losing read
 permission on renewal ends subscriptions; regaining it permits new subscriptions.
-A call answered after read permission is lost or the socket closes is not sent.
+Each call requires its own method capability before execution and before delivery.
+A call answered after that permission is lost or the socket closes is not sent.
+Unknown methods answer `unsupported`.
 
 Each socket holds at most 32 unanswered commands and 32 in-flight calls.
 Another command answers `rejected too-many-requests` without executing; another
@@ -1255,7 +1258,7 @@ suite in `npm test`.
 
 ## Machine features
 
-Read-only feature modules exist but are not served until the API registers them.
+`run` registers the read-only features only when the machine is usable.
 `workspaces.read` covers `files.list` (tracked and non-ignored untracked paths),
 `files.read` (text or binary size), `git.status` (per-path status, branch, ahead
 and behind), `git.diff` (working or staged unified diff), and `git.show` (a file

@@ -8,6 +8,8 @@ import { piMessages, piState } from './pi-results'
 import type { SnapshotResult } from './projection-host'
 import type { CallOutcome } from './service'
 import type { HostStore } from './store'
+import type { HostCapability } from '@phosphor/shared/remote-host'
+import type { HostFeature } from '../features/feature'
 
 const record = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -52,13 +54,24 @@ export function createLaneCalls(options: {
   unattached(laneId: string): SnapshotResult | null
   now(): number
   log: RuntimeLog
+  features?: readonly HostFeature[]
 }) {
+  const features = new Map<string, HostFeature>()
+  for (const feature of options.features ?? [])
+    for (const method of feature.methods) features.set(method, feature)
   return {
+    capabilityFor(method: string): HostCapability | null {
+      if (method === 'host.repositories' || queries.has(method)) return 'sessions.read'
+      return features.get(method)?.capability ?? null
+    },
     async call(method: string, params: unknown): Promise<CallOutcome> {
+      const feature = features.get(method)
+      if (feature) return feature.call(method, params)
+      const command = queries.get(method)
+      if (method !== 'host.repositories' && !command) return failure('unsupported')
       if (!record(params)) return failure('bad-request')
       if (method === 'host.repositories')
         return { ok: true, data: options.store.listRepositories() }
-      const command = queries.get(method)
       if (!command) return failure('unsupported')
       const laneId = params.laneId
       if (typeof laneId !== 'string' || !isUuid(laneId)) return failure('bad-request')

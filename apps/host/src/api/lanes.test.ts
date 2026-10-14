@@ -42,7 +42,10 @@ function fixture(limits: Parameters<typeof createLaneAdapter>[1] = {}) {
     streams: createLaneStreams({ epoch, snapshot: () => null }),
     lanesTopic: createLanesTopic({ epoch, list: () => ({ lanes: [], repositories: [] }) }),
     controllerPresence: vi.fn(),
-    calls: { call: vi.fn(async (): Promise<CallOutcome> => ({ ok: true, data: null })) },
+    calls: {
+      capabilityFor: () => 'sessions.read',
+      call: vi.fn(async (): Promise<CallOutcome> => ({ ok: true, data: null })),
+    },
     commands: {
       submit: vi.fn(async (client, frame) => {
         const connectionId =
@@ -262,6 +265,66 @@ describe('lane adapter', () => {
     await flush()
     expect(receipts(a.frames).map((r) => r.requestId)).toEqual([last, id])
   })
+  it.each(['workspaces.read', 'skills.read'] as const)(
+    'gates feature calls on %s, not sessions.read, and permits unsupported replies',
+    async (capability) => {
+      h.service.capabilities = ['sessions.read', capability]
+      h.service.calls.capabilityFor = (method) => (method === 'unknown.read' ? null : capability)
+      const a = h.connect()
+      a.auth(['sessions.read'])
+      await flush()
+      a.send({ type: 'call', id: 'denied', method: 'feature.read' })
+      await flush()
+      expect(a.frames.at(-1)).toMatchObject({ type: 'result', error: { code: 'forbidden' } })
+      expect(h.service.calls.call).not.toHaveBeenCalled()
+      a.auth([capability], false)
+      await flush()
+      a.send({ type: 'call', id: 'allowed', method: 'feature.read' })
+      await flush()
+      expect(a.frames.at(-1)).toMatchObject({ type: 'result', id: 'allowed', ok: true })
+      h.service.calls.call = vi.fn(async (): Promise<CallOutcome> => ({
+        ok: false,
+        error: { code: 'unsupported', message: 'unsupported' },
+      }))
+      a.auth([], false)
+      await flush()
+      a.send({ type: 'call', id: 'unknown', method: 'unknown.read' })
+      await flush()
+      expect(a.frames.at(-1)).toMatchObject({ type: 'result', error: { code: 'unsupported' } })
+    },
+  )
+  it.each([
+    ['workspaces.read', false],
+    ['workspaces.read', true],
+    ['skills.read', false],
+    ['skills.read', true],
+  ] as const)(
+    'suppresses %s results and errors after renewal loss (error: %s)',
+    async (capability, failure) => {
+      h.service.capabilities = ['sessions.read', capability]
+      h.service.calls.capabilityFor = () => capability
+      let resolve: (outcome: CallOutcome) => void = () => {}
+      let reject: (error: Error) => void = () => {}
+      h.service.calls.call = vi.fn(
+        () =>
+          new Promise<CallOutcome>((r, fail) => {
+            resolve = r
+            reject = fail
+          }),
+      )
+      const a = h.connect()
+      a.auth(['sessions.read', capability])
+      await flush()
+      a.send({ type: 'call', id: 'pending', method: 'feature.read' })
+      await flush()
+      a.auth(['sessions.read'], false)
+      await flush()
+      if (failure) reject(new Error('private output'))
+      else resolve({ ok: true, data: 'private output' })
+      await flush()
+      expect(a.frames.some((frame) => frame.type === 'result')).toBe(false)
+    },
+  )
   it('caps concurrent calls at the exact limit then closes 4429', async () => {
     h.stop()
     h = fixture({ limits: { pendingCommandsPerConnection: 1 } })

@@ -5,12 +5,15 @@ import type { LaneStreams, LanesTopic } from './stream'
 
 export interface LaneService {
   epoch: string
-  capabilities: readonly HostCapability[] // ['sessions.read', 'sessions.control']
+  capabilities: readonly HostCapability[]
   commands: {
     submit(client: LaneCommandClient, frame: LaneCommandFrame): Promise<void>
     status(clientId: string, requestId: string, connectionId?: string): void
   }
-  calls: { call(method: string, params: unknown): Promise<CallOutcome> }
+  calls: {
+    call(method: string, params: unknown): Promise<CallOutcome>
+    capabilityFor(method: string): HostCapability | null
+  }
   streams: LaneStreams
   lanesTopic: LanesTopic
   /** Publishes the current control of every active lane this client controls. */

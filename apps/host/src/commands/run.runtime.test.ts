@@ -160,7 +160,21 @@ describe('run lane composition', () => {
           )
           expect(hooks.dialogs).toBe('forward')
           expect(hooks.lanes?.epoch).toBe(hooks.epoch)
-          expect(hooks.lanes?.capabilities).toEqual(['sessions.read', 'sessions.control'])
+          expect(hooks.lanes?.capabilities).toEqual([
+            'sessions.read',
+            'sessions.control',
+            'workspaces.read',
+            'skills.read',
+          ])
+          for (const method of ['files.list', 'files.read', 'git.status', 'git.diff', 'git.show'])
+            expect(hooks.lanes?.calls.capabilityFor(method)).toBe('workspaces.read')
+          for (const method of [
+            'machine.models',
+            'machine.providers',
+            'skills.list',
+            'skills.read',
+          ])
+            expect(hooks.lanes?.calls.capabilityFor(method)).toBe('skills.read')
           expect(hooks.lanes?.streams.cursor('12345678-1234-4234-8234-123456789012').epoch).toBe(
             hooks.epoch,
           )
