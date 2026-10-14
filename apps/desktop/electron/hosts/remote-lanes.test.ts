@@ -172,7 +172,10 @@ it('opens one window-owned opaque handle, hydrates in memory, and streams pi unc
   expect(
     t.pushes.some(({ push }) => push.kind === 'extension-ui' && push.request.method === 'confirm'),
   ).toBe(true)
-  const state = await t.lanes.command(1, info.sessionId, { type: 'get_state' })
+  // get_state asks the Host (lane.state); the Host answers asynchronously.
+  const stating = t.lanes.command(1, info.sessionId, { type: 'get_state' })
+  await drain()
+  const state = await stating
   expect(state.success && state.data).not.toHaveProperty('sessionFile')
   const history = await t.lanes.command(1, info.sessionId, { type: 'get_messages' })
   expect(history.success && history.data).toHaveProperty('messages')
