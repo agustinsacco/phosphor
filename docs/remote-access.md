@@ -512,3 +512,15 @@ Cancel or closing the dialog kills the local SSH process group. It does not roll
 back a completed remote step or revoke an approved machine. Retry is explicit.
 Failures show fixed guidance and a collapsible, bounded last 20 lines of remote
 output. Output, targets, codes and fingerprints stay out of Desktop logs.
+
+### Terminal capability
+
+Hosts with their target's native node-pty resources announce `terminal` after the
+fixed-relative loader succeeds. The Host serves lane-scoped terminal list,
+fenced create/resize/kill commands, sequenced controller-only input, and bounded
+output subscriptions. Viewers may watch but cannot type. Revoking the terminal
+capability detaches subscriptions and refuses input. No terminal input or output
+is sent to control or persisted on Desktop. Native resources are built per OS and
+architecture with pinned Node and included in the signed release archive.
+Desktop remote terminal UI routing is not implemented yet. The protocol and Host
+limits are documented in [Host terminals](host.md#host-terminals).

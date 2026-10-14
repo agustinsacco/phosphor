@@ -108,7 +108,8 @@ describe('the Host bundle', () => {
     ].map((match) => match[1]!)
     expect(specifiers.length).toBeGreaterThan(5)
     expect(specifiers.filter((specifier) => !isBuiltin(specifier))).toEqual([])
-    expect(source).not.toMatch(/electron|node-pty|apps\/desktop/)
+    expect(source).not.toMatch(/electron|apps\/desktop/)
+    expect(source).toContain('./native/node-pty/lib/index.js')
   })
 
   it('carries the six extensions and their helpers, and no tests', () => {

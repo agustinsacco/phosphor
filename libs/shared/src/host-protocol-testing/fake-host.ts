@@ -47,7 +47,7 @@ interface Lane {
 interface Connection {
   socket: FrameSocket
   grant: GrantPayload | null
-  subscriptions: Map<string, Extract<ClientFrame, { type: 'subscribe' }>>
+  subscriptions: Map<string, Extract<ClientFrame, { type: 'subscribe'; topic: 'lanes' | 'lane' }>>
   wanted: Set<string>
   delivered: Set<string>
   pending: number
@@ -669,6 +669,10 @@ export function createFakeHost(options: FakeHostOptions) {
         break
       }
       case 'subscribe': {
+        if (f.topic === 'terminal') {
+          send(c, { type: 'subscribe-failed', id: f.id, code: 'bad-request' })
+          break
+        }
         if (!authorized(c, 'sessions.read')) {
           send(c, { type: 'subscribe-failed', id: f.id, code: 'forbidden' })
           break

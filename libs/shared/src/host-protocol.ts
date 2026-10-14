@@ -1,3 +1,13 @@
+import {
+  parseTerminalOp,
+  parseTerminalInput,
+  parseTerminalSubscribe,
+  parseTerminalFrame,
+  type TerminalOp,
+  type TerminalInput,
+  type TerminalSubscribe,
+  type TerminalFrame,
+} from './host-protocol-terminals'
 /**
  * Host protocol v1: the only language Desktop (and later the PWA) speaks to a
  * Host, over one WebSocket per client per Host, reached through Tailscale.
@@ -219,6 +229,7 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 export type LanePiOp = DistributiveOmit<Extract<RpcCommand, { type: LanePiOpType }>, 'id'>
 
 export type LaneOp =
+  | TerminalOp
   | LanePiOp
   | { readonly type: 'extension_ui_response'; readonly response: ExtensionUIResponse }
   | {
@@ -322,6 +333,8 @@ export const CAPABILITY_FOR = {
 // ---------- frames ----------
 
 export type ClientFrame =
+  | TerminalInput
+  | TerminalSubscribe
   /** First frame (with `challenge`), and later to renew (without). */
   | { readonly type: 'auth'; readonly grant: string; readonly challenge?: string }
   | {
@@ -360,6 +373,7 @@ export type ClientFrame =
   | { readonly type: 'ping'; readonly at: number }
 
 export type HostFrame =
+  | TerminalFrame
   | {
       readonly type: 'ready'
       readonly protocolVersion: typeof HOST_PROTOCOL_VERSION
@@ -546,6 +560,7 @@ function response(v: unknown): ExtensionUIResponse | null {
 }
 function op(v: unknown): LaneOp | null {
   if (!record(v)) return null
+  if (typeof v.type === 'string' && v.type.startsWith('terminal.')) return parseTerminalOp(v)
   switch (v.type) {
     case 'prompt':
     case 'steer':
@@ -625,6 +640,9 @@ function op(v: unknown): LaneOp | null {
 const laneOps = [
   ...LANE_PI_OPS,
   'extension_ui_response',
+  'terminal.create',
+  'terminal.resize',
+  'terminal.kill',
   'lane.create',
   'lane.resume',
   'lane.stop',
@@ -652,7 +670,15 @@ export function parseClientFrame(s: string): ClientFrameParse {
         grant: v.grant,
         ...(v.challenge !== undefined ? { challenge: v.challenge } : {}),
       })
+    case 'terminal.input': {
+      const input = parseTerminalInput(v)
+      return input ? good(input) : bad()
+    }
     case 'subscribe': {
+      if (v.topic === 'terminal') {
+        const subscription = parseTerminalSubscribe(v)
+        return subscription ? good(subscription) : bad()
+      }
       const after = v.after === undefined ? undefined : cursor(v.after)
       if (!frameId(v.id) || after === null || (v.trace !== undefined && !isControlTrace(v.trace)))
         return bad()
@@ -951,6 +977,10 @@ export function parseHostFrame(s: string): Parsed<HostFrame> {
   const v = p.value
   const good = (value: HostFrame): Parsed<HostFrame> => ({ ok: true, value })
   const bad = (): Parsed<HostFrame> => ({ ok: false, reason: 'host-frame' })
+  if (typeof v.type === 'string' && v.type.startsWith('terminal.')) {
+    const frame = parseTerminalFrame(v)
+    return frame ? good(frame) : bad()
+  }
   switch (v.type) {
     case 'ready': {
       if (

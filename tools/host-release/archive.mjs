@@ -27,7 +27,15 @@ export function archive(folder) {
     const octal = (value, offset, size) =>
       text(value.toString(8).padStart(size - 1, '0') + '\0', offset, size)
     text(path, 0, 100)
-    octal(path === 'bin/phosphor' || path === 'node/bin/node' ? 0o755 : 0o644, 100, 8)
+    octal(
+      path === 'bin/phosphor' ||
+        path === 'node/bin/node' ||
+        path === 'lib/native/node-pty/build/Release/spawn-helper'
+        ? 0o755
+        : 0o644,
+      100,
+      8,
+    )
     octal(0, 108, 8)
     octal(0, 116, 8)
     octal(data.length, 124, 12)

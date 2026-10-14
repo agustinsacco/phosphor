@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os'
 import { parseArgs } from 'node:util'
 import process from 'node:process'
 import { root, pin, sha256, contract, isEntryPoint } from './common.mjs'
+import { validateNative } from './build-native.mjs'
 import { archive } from './archive.mjs'
 import { generateInstaller } from './installer.mjs'
 
@@ -50,21 +51,37 @@ export async function nodeArchive(target, cache, nodePin = pin) {
   if (!existsSync(path)) writeFileSync(path, bytes, { flag: 'wx' })
   return bytes
 }
-export async function buildBundle(target, out, cache = join(out, '.node-cache'), nodePin = pin) {
+export async function buildBundle(
+  target,
+  out,
+  cache = join(out, '.node-cache'),
+  nodePin = pin,
+  native,
+) {
   const version = process.env.HOST_RELEASE_VERSION
   if (!version || !contract.HOST_RELEASE_VERSION_PATTERN.test(version))
     throw new Error('Invalid HOST_RELEASE_VERSION')
   if (!contract.HOST_RELEASE_TARGETS.includes(target)) throw new Error('Unsupported bundle target')
+  if (native) validateNative(native, target)
   const node = await nodeArchive(target, cache, nodePin)
   const temp = mkdtempSync(join(tmpdir(), 'phosphor-bundle-'))
   try {
     const stage = join(temp, 'stage')
     mkdirSync(join(stage, 'bin'), { recursive: true })
     mkdirSync(join(stage, 'node/bin'), { recursive: true })
-    execFileSync(process.execPath, ['apps/host/scripts/build.mjs', '--out', join(stage, 'lib')], {
-      cwd: root,
-      stdio: 'pipe',
-    })
+    execFileSync(
+      process.execPath,
+      [
+        'apps/host/scripts/build.mjs',
+        '--out',
+        join(stage, 'lib'),
+        ...(native ? ['--native', native, '--target', target] : []),
+      ],
+      {
+        cwd: root,
+        stdio: 'pipe',
+      },
+    )
     const checkedArchive = join(temp, 'node.tar.gz')
     writeFileSync(checkedArchive, node)
     const prefix = `node-v${nodePin.version}-${target}`
@@ -93,11 +110,18 @@ export async function buildBundle(target, out, cache = join(out, '.node-cache'),
 }
 if (isEntryPoint(import.meta.url)) {
   const { values } = parseArgs({
-    options: { target: { type: 'string' }, out: { type: 'string' }, cache: { type: 'string' } },
+    options: {
+      target: { type: 'string' },
+      out: { type: 'string' },
+      cache: { type: 'string' },
+      native: { type: 'string' },
+    },
   })
   await buildBundle(
     values.target,
     resolve(values.out ?? '.'),
     values.cache && resolve(values.cache),
+    pin,
+    values.native && resolve(values.native),
   )
 }

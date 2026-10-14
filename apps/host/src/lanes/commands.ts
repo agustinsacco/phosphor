@@ -1,3 +1,5 @@
+import { parseTerminalOp } from '@phosphor/shared/host-protocol-terminals'
+import { TerminalForbidden, type HostTerminals } from '../terminals/service'
 import {
   HOST_LIMITS,
   UNFENCED_OPS,
@@ -25,8 +27,10 @@ export interface LaneCommandClient {
   label: string
   connectionId?: string
   caps: readonly HostCapability[]
+  currentCaps?: () => readonly HostCapability[]
 }
 export interface LaneCommandPorts {
+  terminals?: HostTerminals
   store: HostStore
   sessions: LaneSessions
   runtime: Pick<HostRuntime, 'command' | 'extensionUiResponse'>
@@ -145,6 +149,9 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       reason,
     })
   }
+  function capabilityFor(op: LaneCommandFrame['op']): HostCapability {
+    return parseTerminalOp(op) ? 'terminal' : 'sessions.control'
+  }
   function rejected(job: Job, code: RejectCode, recorded: boolean): void {
     terminal(job, { requestId: job.frame.requestId, status: 'rejected', code }, recorded)
   }
@@ -245,6 +252,12 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
   function execute(job: Job, queue: LaneQueue): Execution | void {
     const { frame, client } = job
     const { requestId, laneId, op } = frame
+    const terminalOp = parseTerminalOp(op)
+    const terminalAllowed = () => {
+      const caps = client.currentCaps?.() ?? client.caps
+      return caps.includes('terminal') && caps.includes('sessions.control')
+    }
+    if (terminalOp && !terminalAllowed()) return rejected(job, 'forbidden', true)
     if (queue.controlUnpublished && laneId !== undefined) {
       const control = store.getLane(laneId)?.control
       if (!control) {
@@ -370,6 +383,28 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
         !publish(laneId, { kind: 'control', control: admission.control }, queue)
       )
         return controlFailure(job)
+    }
+    if (terminalOp) {
+      const terminals = ports.terminals
+      if (!terminals) return rejected(job, 'unsupported', true)
+      const completion = dispatch(job, queue, async () => {
+        try {
+          return { data: await terminals.execute(laneId, terminalOp, terminalAllowed) }
+        } catch (error) {
+          if (error instanceof TerminalForbidden) return { forbidden: true }
+          throw error
+        }
+      }).then((result) => {
+        if (result.answered && result.value.forbidden) return rejected(job, 'forbidden', true)
+        terminal(
+          job,
+          result.answered
+            ? { requestId, status: 'done', data: result.value.data, fence: admittedFence }
+            : { requestId, status: 'unknown' },
+          true,
+        )
+      })
+      return { completion, detached: false }
     }
     if (piCommand && sessionId !== null) {
       const completion = dispatch(job, queue, () => runtime.command(sessionId, piCommand)).then(
@@ -510,11 +545,15 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     cleanup(key, queue)
   }
   return {
+    capabilityFor,
     submit(client: LaneCommandClient, frame: LaneCommandFrame): Promise<void> {
       if (closing) return Promise.resolve()
       const jobBase = { client, frame, started: ports.now() }
       const immediate = { ...jobBase, resolve: () => {} }
-      if (!client.caps.includes('sessions.control')) {
+      if (
+        !client.caps.includes('sessions.control') ||
+        !client.caps.includes(capabilityFor(frame.op))
+      ) {
         rejected(immediate, 'forbidden', false)
         return Promise.resolve()
       }
