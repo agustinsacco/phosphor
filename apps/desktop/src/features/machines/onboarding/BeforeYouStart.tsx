@@ -81,13 +81,14 @@ export function BeforeYouStart({
         <h3 className="flex items-center gap-2 font-medium">
           <CheckStatus passed={signedIn} /> Phosphor account
         </h3>
-        <p className="text-text-secondary">
+        <p className="text-text-secondary pl-6">
           {signedIn
             ? 'Signed in to Phosphor.'
             : 'Sign in with GitHub in Settings → Accounts before approving a machine.'}
         </p>
         {!signedIn && (
           <Button
+            className="ml-6"
             onClick={() => {
               useSettingsUiStore.getState().setTab('accounts')
               useSettingsUiStore.getState().setOpen(true)
@@ -100,13 +101,13 @@ export function BeforeYouStart({
           <CheckStatus passed={status?.code === 'ready'} checking={busy} /> Tailscale on this
           computer
         </h3>
-        <p role="status" className="text-text-secondary">
+        <p role="status" className="text-text-secondary pl-6">
           {busy ? 'Checking Tailscale…' : status ? fixes[status.code] : 'Checking Tailscale…'}
         </p>
         {error === 'save' && (
           <p role="alert">Could not save discovery. Your preference has not changed. Try again.</p>
         )}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 pl-6">
           <Button disabled={busy} onClick={() => void check()}>
             Check again
           </Button>

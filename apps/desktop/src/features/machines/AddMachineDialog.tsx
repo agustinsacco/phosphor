@@ -199,9 +199,9 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
                       <CheckIcon size={14} />
                     </span>
                   ) : (
-                    index + 1
+                    `${index + 1} ·`
                   )}{' '}
-                  · {title}
+                  {title}
                 </li>
               ))}
             </ol>
