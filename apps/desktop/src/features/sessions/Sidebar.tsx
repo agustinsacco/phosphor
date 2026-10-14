@@ -1,3 +1,5 @@
+import { RemoteLanes } from './RemoteLanes'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { TooltipButton } from '@/components/Tooltip'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
@@ -90,6 +92,7 @@ export function Sidebar({
   workspacePath: string
   onInitialReady?: (ready: boolean) => void
 }): React.JSX.Element {
+  const machineFilter = useRemoteLanesStore((s) => s.filter)
   const disk = useSessionsStore((s) => s.disk)
   const scanStatus = useSessionsStore((s) => s.scanStatus)
   const live = useSessionsStore((s) => s.live)
@@ -209,8 +212,9 @@ export function Sidebar({
     // paths are appended, so activating or creating a session cannot promote
     // any existing workspace.
     const paths = new Set(cleanRecents.map((workspace) => workspace.path))
-    paths.add(workspacePath)
-    for (const entry of Object.values(live)) paths.add(entry.workspacePath)
+    if (!workspacePath.startsWith('host:')) paths.add(workspacePath)
+    for (const entry of Object.values(live))
+      if (entry.target?.kind !== 'remote') paths.add(entry.workspacePath)
     for (const worktree of worktreeDirs) paths.add(worktree.path)
     return [...paths].filter(Boolean)
   }, [workspacePath, live, cleanRecents, worktreeDirs])
@@ -869,7 +873,12 @@ export function Sidebar({
         }
       </nav>
 
-      <div data-session-scroll className="flex-1 overflow-y-auto px-2 pb-2">
+      <RemoteLanes />
+      <div
+        data-session-scroll
+        hidden={machineFilter !== 'all' && machineFilter !== 'local'}
+        className="flex-1 overflow-y-auto px-2 pb-2"
+      >
         {!sidebarLoading && pinnedMetas.length > 0 && (
           <>
             <SectionLabel>Pinned</SectionLabel>

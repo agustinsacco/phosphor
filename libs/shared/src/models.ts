@@ -85,6 +85,7 @@ export interface LiveSessionInfo {
 
 /** Pushed on the per-session event channel. */
 export type SessionPush =
+  | { kind: 'resync' }
   | { kind: 'event'; event: PiEvent }
   | { kind: 'extension-ui'; request: ExtensionUIRequest }
   | { kind: 'stderr'; text: string }

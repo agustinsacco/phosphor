@@ -48,6 +48,7 @@ import { useContextBudgetStore } from '@/stores/contextBudgetPref'
 import { sessionContextBudget } from '@shared/context-budget'
 
 export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.Element | null {
+  const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats)
   const model = useChatStore((s) => s.sessions[sessionId]?.meta?.model)
   const catalogueWindow = useChatStore(
@@ -260,8 +261,8 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
               </div>
             </div>
             <HeadroomSavings statusText={headroomStatus} />
-            {isClaudeCliModel(model) && <PlanUsage sessionId={sessionId} />}
-            {model?.provider === 'openai-codex' && <CodexPlanUsage />}
+            {!remote && isClaudeCliModel(model) && <PlanUsage sessionId={sessionId} />}
+            {!remote && model?.provider === 'openai-codex' && <CodexPlanUsage />}
             <PlanLimits statusText={rateLimitStatus} />
           </div>
         </PopupMenu>

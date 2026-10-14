@@ -1,3 +1,5 @@
+import { RemoteLaneControls } from '@/features/machines/RemoteLaneControls'
+import { canControlSession, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -54,8 +56,22 @@ function AnsiText({ text }: { text: string }): React.JSX.Element {
 
 /** Modal host for extension dialogs (select / confirm / input / editor). */
 export function ExtensionDialogHost(): React.JSX.Element | null {
+  useRemoteLanesStore((s) => s.hosts)
   const dialog = useExtensionUiStore((s) => s.dialogs[0])
   if (!dialog) return null
+  if (!canControlSession(dialog.sessionId))
+    return (
+      <div
+        role="status"
+        className="bg-surface border-border fixed bottom-4 right-4 z-50 max-w-lg rounded border p-4 shadow-lg"
+      >
+        <p>{dialog.request.title}</p>
+        {'message' in dialog.request && <p>{dialog.request.message}</p>}
+        {'options' in dialog.request && <p>{dialog.request.options.join(' · ')}</p>}
+        <p className="text-text-secondary text-sm">Read-only. Only the controller can answer.</p>
+        <RemoteLaneControls sessionId={dialog.sessionId} />
+      </div>
+    )
   // A permission gate asking to run a command is a review, not a question:
   // the command is the content and the generic sheet rendered it as a title.
   const approval = parseCommandApproval(dialog.request)

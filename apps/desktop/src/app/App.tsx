@@ -1,3 +1,4 @@
+import { attachRemoteLanesListener, useActiveMachine } from '@/stores/remoteLanes'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
@@ -42,6 +43,7 @@ import { attachMachinesListener } from '@/stores/machines'
 
 export function App(): React.JSX.Element {
   const [health, setHealth] = useState<PiHealth | null>(null)
+  const remote = useActiveMachine().kind === 'remote'
   const currentWorkspace = useActiveWorkspace()
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
   const starting = useStartingChatStore((s) => s.starting)
@@ -101,6 +103,7 @@ export function App(): React.JSX.Element {
   // progress arrives as a broadcast rather than on a session's channel.
   useEffect(() => attachConnectorAuthListener(), [])
   useEffect(() => attachMachinesListener(), [])
+  useEffect(() => attachRemoteLanesListener(), [])
 
   // Main says the slash-command set changed (package, MCP server, skill):
   // drop the home composer's lists and re-ask every live session.
@@ -127,7 +130,7 @@ export function App(): React.JSX.Element {
           if (cancelled) return
           void useSessionsStore
             .getState()
-            .adoptSession(orphan.sessionId, orphan.workspacePath, orphan.diskPath)
+            .adoptSession(orphan.sessionId, orphan.workspacePath, orphan.diskPath, orphan)
             .catch(() => undefined)
         }
 
@@ -179,7 +182,7 @@ export function App(): React.JSX.Element {
   }, [health?.ok, initialDataReady, restoring, currentWorkspace, sidebarVisible, sidebarReady])
 
   const loading = !startupComplete || startupError !== null
-  useGlobalShortcuts(!loading)
+  useGlobalShortcuts(!loading && !remote)
   const loadingScreen = (
     <LoadingScreen
       message={
@@ -244,7 +247,10 @@ export function App(): React.JSX.Element {
         <TopBar workspacePath={currentWorkspace} />
         <div className="flex min-h-0 flex-1">
           {sidebarVisible && (
-            <Sidebar workspacePath={currentWorkspace} onInitialReady={setSidebarReady} />
+            <Sidebar
+              workspacePath={remote ? '' : currentWorkspace}
+              onInitialReady={setSidebarReady}
+            />
           )}
           <main className="relative min-w-0 flex-1">
             {/*
@@ -282,7 +288,9 @@ export function App(): React.JSX.Element {
           */}
             {page && (
               <div data-testid="global-page" className="bg-bg absolute inset-0 z-30">
-                {page === 'routines' ? (
+                {remote && page !== 'machines' ? (
+                  <p className="p-6">Not available on remote lanes yet.</p>
+                ) : page === 'routines' ? (
                   <RoutinesPage workspacePath={currentWorkspace} />
                 ) : page === 'skills' ? (
                   <SkillsPage workspacePath={currentWorkspace} />
@@ -295,14 +303,14 @@ export function App(): React.JSX.Element {
             )}
           </main>
         </div>
-        <FuzzyFinder workspacePath={currentWorkspace} />
+        {!remote && <FuzzyFinder workspacePath={currentWorkspace} />}
         <ContextMenuHost />
         <TextFieldMenu />
         <ExtensionDialogHost />
         <PromptHost />
         <ToastHost />
         <BulkDeleteProgressPopover />
-        <CommandPalette workspacePath={currentWorkspace} />
+        {!remote && <CommandPalette workspacePath={currentWorkspace} />}
         <SettingsModal />
         <FeedbackModal />
       </div>

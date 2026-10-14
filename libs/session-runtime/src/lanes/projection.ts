@@ -204,6 +204,8 @@ export function createLaneProjection(options: { now: () => number; overflow: () 
   }
   return {
     apply(push: LanePiPush) {
+      // resync is a Desktop-local signal and never comes from pi.
+      if (push.kind === 'resync') return
       if (push.kind === 'event') {
         if (discarding && push.event.type === 'message_update') return
         event(push.event)

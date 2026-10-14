@@ -1,3 +1,5 @@
+import { useActiveMachine } from '@/stores/remoteLanes'
+import { MachineChip } from '@/features/machines/RemoteLaneControls'
 import { TooltipButton } from '@/components/Tooltip'
 import clsx from 'clsx'
 import { useChatStore } from '@/stores/chat'
@@ -39,6 +41,7 @@ import { useCurrentWork } from '@/features/chat/currentWork'
  * moving between the home composer and the chat header.
  */
 export function TopBar({ workspacePath }: { workspacePath: string }): React.JSX.Element {
+  const remote = useActiveMachine().kind === 'remote'
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
   const sidebarVisible = useLayoutStore((s) => s.sidebarVisible)
 
@@ -63,8 +66,9 @@ export function TopBar({ workspacePath }: { workspacePath: string }): React.JSX.
           meant to solve, reintroduced. One surface owns them per screen. */}
       {activeSessionId ? (
         <>
-          <WorkspaceChip workspacePath={workspacePath} compact />
-          <BranchControl workspacePath={workspacePath} />
+          {!remote && <WorkspaceChip workspacePath={workspacePath} compact />}
+          {!remote && <BranchControl workspacePath={workspacePath} />}
+          <MachineChip sessionId={activeSessionId} />
           <ActiveSessionControls sessionId={activeSessionId} />
         </>
       ) : (
@@ -79,6 +83,7 @@ export function TopBar({ workspacePath }: { workspacePath: string }): React.JSX.
  * height and gutters on the home screen, where there is no session to describe.
  */
 function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.Element {
+  const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
   const sessionName = useChatStore((s) => s.sessions[sessionId]?.meta?.sessionName)
   // pi never auto-titles, so fall back to the thread's own first prompt — the
   // same chain the sidebar uses (see lib/sessionTitle).
@@ -126,7 +131,7 @@ function ActiveSessionControls({ sessionId }: { sessionId: string }): React.JSX.
       </IconButton>
       <ArtifactsButton sessionId={sessionId} active={rightPane === 'artifacts'} />
       <SubagentsButton sessionId={sessionId} active={rightPane === 'subagents'} />
-      <SessionMenu sessionId={sessionId} />
+      {!remote && <SessionMenu sessionId={sessionId} />}
     </>
   )
 }

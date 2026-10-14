@@ -1,4 +1,4 @@
-import type { HostCapability, HostTarget } from './remote-host'
+import type { HostCapability } from './remote-host'
 import type { RepositorySummary, LaneSummary, StreamCursor } from './host-protocol'
 /**
  * Typed IPC contract between main and renderer.
@@ -177,6 +177,10 @@ export interface HostAttention {
 
 export interface IpcInvokeMap {
   'hosts:snapshot': { args: []; result: HostsSnapshot }
+  'hosts:setFocusedLane': {
+    args: [target: { hostId: string; laneId: string } | null]
+    result: void
+  }
   /** Opens a remote lane: returns an opaque handle (LiveSessionInfo.sessionId) whose
    * pi:command, pi:extensionUiResponse, pi:disposeSession and pi:event:<id> main routes
    * to the Host. Disposing a handle unsubscribes; it never stops the lane. */

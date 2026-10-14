@@ -22,6 +22,12 @@ function setup() {
 }
 
 describe('lane projection', () => {
+  it('ignores Desktop-local resync signals', () => {
+    const { projection, event } = setup()
+    event({ type: 'agent_start' })
+    projection.apply({ kind: 'resync' })
+    expect(projection.activity()).toBe('working')
+  })
   it('has no Node, Electron or DOM dependencies', () => {
     expect(readFileSync(new URL('./projection.ts', import.meta.url), 'utf8')).not.toMatch(
       /node:|\b(electron|document|window|process|Buffer|setTimeout)\b/,

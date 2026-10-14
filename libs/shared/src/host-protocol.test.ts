@@ -515,6 +515,7 @@ describe('host-protocol Host parser', () => {
       { kind: 'control', control: {} },
       { kind: 'summary', summary: { ...summary, laneId: '00000000-0000-4000-8000-000000000002' } },
       { kind: 'dialog-resolved', dialogId: 'bad.id' },
+      { kind: 'pi', push: { kind: 'resync' } },
       { kind: 'pi', push: { kind: 'event', event: {} } },
       { kind: 'pi', push: { kind: 'extension-ui', request: {} } },
     ])

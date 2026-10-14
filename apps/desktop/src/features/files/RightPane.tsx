@@ -1,3 +1,6 @@
+import { useSessionsStore } from '@/stores/sessions'
+import { REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { MachineChip } from '@/features/machines/RemoteLaneControls'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo } from 'react'
 import clsx from 'clsx'
@@ -21,10 +24,24 @@ export const RightPane = memo(function RightPane({
 }): React.JSX.Element | null {
   // Read via `sessionId` rather than the active-session hook: this component
   // is already told which session it renders, and the two must not disagree.
+  const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
   const rightPane = useLayoutStore((s) => sessionPanes(s, sessionId).pane)
   const side = useLayoutStore((s) => sessionPanes(s, sessionId).side)
   const expanded = useLayoutStore((s) => sessionPanes(s, sessionId).expanded)
   if (!rightPane) return null
+  if (remote)
+    return (
+      <PaneShell
+        title={
+          <>
+            <span>{rightPane}</span>
+            <MachineChip sessionId={sessionId} />
+          </>
+        }
+      >
+        <p className="p-4">{REMOTE_UNAVAILABLE}</p>
+      </PaneShell>
+    )
 
   return (
     // Gutter + rounded card so the pane reads as a panel resting on the app

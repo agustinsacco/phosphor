@@ -1,3 +1,6 @@
+import { useRemoteLanesStore, canControlSession } from '@/stores/remoteLanes'
+import { useSessionsStore } from '@/stores/sessions'
+import { RemoteLaneControls } from '@/features/machines/RemoteLaneControls'
 import { MessageList } from './MessageList'
 import { Composer } from './Composer'
 import { ForkPickerModal } from './ForkPickerModal'
@@ -21,9 +24,13 @@ export function ChatView({
   sessionId: string
   workspacePath: string
 }): React.JSX.Element {
+  useRemoteLanesStore((s) => s.hosts)
+  const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
+  const controllable = canControlSession(sessionId)
   return (
     <div className="flex h-full min-w-0 flex-col">
-      <CrashBanner sessionId={sessionId} workspacePath={workspacePath} />
+      {!remote && <CrashBanner sessionId={sessionId} workspacePath={workspacePath} />}
+      <RemoteLaneControls sessionId={sessionId} />
       <NoModelsBanner sessionId={sessionId} />
       <RewoundBanner sessionId={sessionId} />
       <MessageList sessionId={sessionId} />
@@ -32,9 +39,15 @@ export function ChatView({
       <div className="shrink-0 px-6 pt-1">
         <RateLimitBanner sessionId={sessionId} className="mx-auto w-full max-w-3xl" />
       </div>
-      <Composer sessionId={sessionId} workspacePath={workspacePath} />
+      {controllable ? (
+        <Composer sessionId={sessionId} workspacePath={workspacePath} />
+      ) : (
+        <p role="status" className="p-6 text-sm">
+          Read-only. Take control to send messages.
+        </p>
+      )}
       <StatusStrip sessionId={sessionId} />
-      <ForkPickerModal sessionId={sessionId} />
+      {!remote && <ForkPickerModal sessionId={sessionId} />}
     </div>
   )
 }

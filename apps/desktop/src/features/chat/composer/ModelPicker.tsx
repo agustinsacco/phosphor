@@ -21,6 +21,7 @@ import { ModelChip, ModelChipSkeleton, ThinkingChip } from './ModelChip'
  *     wrong for most models.
  */
 export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Element | null {
+  const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
   const models = useChatStore((s) => s.sessions[sessionId]?.models) ?? []
   const modelsLoaded = useChatStore((s) => s.sessions[sessionId]?.modelsLoaded ?? false)
@@ -60,7 +61,7 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
       // Use pi's response rather than the menu row: pi may normalize or enrich
       // the model record, and it is the authority for the live session.
       const crossedProvider = currentModel?.provider !== selected.provider
-      if (crossedProvider) {
+      if (crossedProvider && !remote) {
         // A provider switch changes more than the model record: provider
         // runtimes may have different context/message contracts. Rebind pi
         // from disk so the next turn starts with the persisted model change,
