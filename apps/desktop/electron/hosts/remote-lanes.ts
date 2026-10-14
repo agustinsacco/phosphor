@@ -294,6 +294,21 @@ export function createRemoteLanes(ports: {
   }
   return {
     open,
+    terminalLane(windowId: number, sessionId: string, workspace: string) {
+      const h = owned(windowId, sessionId)
+      if (workspace !== h.info.workspacePath) throw new Error(REMOTE_UNAVAILABLE)
+      const c = h.connection
+      return {
+        hostId: h.hostId,
+        laneId: h.laneId,
+        connection: c,
+        current: () =>
+          handles.get(sessionId) === h &&
+          h.connection === c &&
+          c === ports.connection(h.hostId) &&
+          c.snapshot().lanes.some((l) => l.laneId === h.laneId),
+      }
+    },
     readLane(windowId: number, key?: string): WriteLane | null {
       const target = focused.get(windowId)
       if (!target) {

@@ -986,3 +986,31 @@ it('routes file writes with the current fence and rechecks capabilities, focus a
   t.c.close()
   t.host.stop()
 })
+it.each(['replacement', 'removal', 'dispose'] as const)(
+  'terminal handle is invalidated by %s',
+  async (reason) => {
+    const t = await setup()
+    const opening = t.lanes.open(t.window, t.hostId, t.laneId)
+    await drain()
+    const info = await opening
+    const lane = t.lanes.terminalLane(1, info.sessionId, info.workspacePath)
+    expect(lane.current()).toBe(true)
+    if (reason === 'replacement') {
+      const replacement = t.connect('first')
+      await drain()
+      t.connection.mockReturnValue(replacement)
+      t.lanes.reconcile()
+      expect(lane.current()).toBe(false)
+      replacement.close()
+    } else if (reason === 'removal') {
+      const snapshot = t.c.snapshot()
+      vi.spyOn(t.c, 'snapshot').mockReturnValue({ ...snapshot, lanes: [] })
+      expect(lane.current()).toBe(false)
+    } else {
+      t.lanes.dispose(1, info.sessionId)
+      expect(lane.current()).toBe(false)
+    }
+    t.lanes.clear()
+    t.c.close()
+  },
+)

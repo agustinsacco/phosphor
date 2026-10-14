@@ -1,3 +1,4 @@
+import type { TerminalFrame } from '@shared/host-protocol-terminals'
 import { createPublicKey, randomBytes, randomUUID, verify } from 'node:crypto'
 import { isEndpoint, type GrantIssueResponse } from '@shared/control-api'
 import {
@@ -82,6 +83,23 @@ export function createHostConnection(ports: {
     string,
     { laneId: string; cursor?: StreamCursor; listener: (frame: LaneFrame) => void }
   >()
+  let runtimeEpoch = ''
+  const terminals = new Map<
+    string,
+    {
+      terminalId: string
+      listener: (f: TerminalFrame | Extract<HostFrame, { type: 'subscribe-failed' }>) => void
+    }
+  >()
+  const inputs = new Map<string, { seq: number; resolve: (accepted: boolean) => void }>()
+  function dropInputs() {
+    for (const input of inputs.values()) input.resolve(false)
+    inputs.clear()
+  }
+  function subscribeTerminal(id: string, terminalId: string) {
+    if (!write({ type: 'subscribe', topic: 'terminal', id, terminalId }))
+      socket?.close(1000, 'Transport failed')
+  }
   const attention: Extract<HostFrame, { type: 'attention' }>[] = []
   function later(fn: () => void, ms: number) {
     const timer = setTimeout(() => {
@@ -171,6 +189,8 @@ export function createHostConnection(ports: {
       })
     calls.clear()
     watches.clear()
+    terminals.clear()
+    dropInputs()
   }
   function failed(code: number, error?: string) {
     if (stopped) return
@@ -180,6 +200,7 @@ export function createHostConnection(ports: {
     )
       error = 'offline'
     generation++
+    dropInputs()
     for (const timer of timers) clearTimeout(timer)
     timers.clear()
     replay.length = 0
@@ -289,6 +310,7 @@ export function createHostConnection(ports: {
       timers.clear()
       attempt = 0
       lastPong = now()
+      runtimeEpoch = f.hello.runtimeEpoch
       replay.push(...pending.keys())
       update({
         state: 'ready',
@@ -304,6 +326,7 @@ export function createHostConnection(ports: {
       })
       subscribe('lanes', undefined, view.cursor)
       for (const [id, w] of watches) subscribe(id, w.laneId, w.cursor)
+      for (const [id, w] of terminals) subscribeTerminal(id, w.terminalId)
       replayPending()
       renew(f.grantExpiresAt)
       beat()
@@ -363,6 +386,21 @@ export function createHostConnection(ports: {
         }
         update({ lanes: [...lanes.values()], cursor: f.cursor })
       }
+    } else if (f.type === 'terminal.ack') {
+      const input = inputs.get(f.terminalId)
+      if (input?.seq === f.seq) {
+        inputs.delete(f.terminalId)
+        input.resolve(f.accepted)
+      }
+    } else if (
+      f.type === 'terminal.reset' ||
+      f.type === 'terminal.output' ||
+      f.type === 'terminal.exit'
+    ) {
+      const w = terminals.get(f.id)
+      if (w?.terminalId === f.terminalId) w.listener(f)
+    } else if (f.type === 'subscribe-failed' && terminals.has(f.id)) {
+      terminals.get(f.id)?.listener(f)
     } else if (f.type === 'snapshot' || f.type === 'event' || f.type === 'subscribe-failed') {
       const w = watches.get(f.id)
       if (w && (f.type === 'subscribe-failed' || f.laneId === w.laneId)) {
@@ -398,15 +436,17 @@ export function createHostConnection(ports: {
         w.listener(f.type === 'snapshot' ? { ...f, reset } : f)
       } else if (f.type === 'subscribe-failed' && f.id === 'lanes') update({ lastError: f.code })
     } else if (f.type === 'receipt' && f.receipt.status !== 'pending') {
+      const receiptOp = pending.get(f.receipt.requestId)?.frame.op.type
       pending.get(f.receipt.requestId)?.resolve(f.receipt)
       pending.delete(f.receipt.requestId)
       clearTimeout(expiries.get(f.receipt.requestId))
       expiries.delete(f.receipt.requestId)
-      log('hosts', 'receipt', {
-        hostId: ports.hostId,
-        requestId: f.receipt.requestId,
-        status: f.receipt.status,
-      })
+      if (receiptOp && !receiptOp.startsWith('terminal.'))
+        log('hosts', 'receipt', {
+          hostId: ports.hostId,
+          requestId: f.receipt.requestId,
+          status: f.receipt.status,
+        })
     } else if (f.type === 'result') {
       const c = calls.get(f.id)
       if (c) {
@@ -457,6 +497,48 @@ export function createHostConnection(ports: {
   void connect()
   return {
     snapshot: () => structuredClone(view),
+    incarnation: () => ({ generation, runtimeEpoch }),
+    watchTerminal(
+      terminalId: string,
+      listener: (f: TerminalFrame | Extract<HostFrame, { type: 'subscribe-failed' }>) => void,
+    ) {
+      if (stopped || watches.size + terminals.size >= HOST_LIMITS.subscriptionsPerConnection - 1)
+        throw new Error('Subscription unavailable.')
+      const id = randomUUID()
+      terminals.set(id, { terminalId, listener })
+      if (view.state === 'ready') subscribeTerminal(id, terminalId)
+      return {
+        reset: () => subscribeTerminal(id, terminalId),
+        close: () => {
+          terminals.delete(id)
+          if (view.state === 'ready') write({ type: 'unsubscribe', id })
+        },
+      }
+    },
+    input(terminalId: string, seq: number, data: string): Promise<boolean> {
+      if (stopped || view.state !== 'ready' || inputs.has(terminalId)) return Promise.resolve(false)
+      return new Promise((resolve) => {
+        const timer = later(() => {
+          const pending = inputs.get(terminalId)
+          if (pending?.seq === seq) {
+            inputs.delete(terminalId)
+            pending.resolve(false)
+          }
+        }, 5000)
+        const settle = (accepted: boolean) => {
+          clearTimeout(timer)
+          timers.delete(timer)
+          resolve(accepted)
+        }
+        inputs.set(terminalId, { seq, resolve: settle })
+        timer.unref()
+        if (!write({ type: 'terminal.input', terminalId, seq, data })) {
+          inputs.delete(terminalId)
+          settle(false)
+          socket?.close(1000, 'Transport failed')
+        }
+      })
+    },
     attention: () => structuredClone(attention),
     close() {
       attention.length = 0

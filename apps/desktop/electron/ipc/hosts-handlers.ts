@@ -24,6 +24,7 @@ import { artifactLibrary } from '../artifacts/artifact-sync'
 import { REMOTE_UNAVAILABLE } from '../hosts/lane-ops'
 import { routeRemoteRead } from '../hosts/read-features'
 import { createRemoteLanes, type RemoteLanes } from '../hosts/remote-lanes'
+import { createRemoteTerminals } from '../hosts/terminals'
 import { createHostAttention } from '../hosts/attention'
 
 let remote: RemoteLanes | undefined
@@ -52,6 +53,7 @@ export function registerHostsHandlers(): void {
     clearGrants: (id) => grants.clear(id),
     changed: () => {
       remote?.reconcile()
+      terminals?.reconcile()
       broadcast('hosts:changed', undefined)
     },
     connection: (hostId, endpoint) =>
@@ -82,7 +84,21 @@ export function registerHostsHandlers(): void {
       ]
     })
   }
+  const terminals = createRemoteTerminals({
+    inputDropped: () => log('hosts', 'terminal_input_dropped'),
+    lane: (windowId, sessionId, workspace) =>
+      remoteLanes().terminalLane(windowId, sessionId, workspace),
+    clientId: clients.current,
+    emit: (windowId, channel, value) => {
+      const sender = BrowserWindow.getAllWindows().find(
+        (w) => w.webContents.id === windowId,
+      )?.webContents
+      if (sender && !sender.isDestroyed()) sender.send(channel, value)
+    },
+  })
   setRemoteReadRouter((windowId, channel, args) => {
+    const terminal = terminals.route(windowId, channel, args)
+    if (terminal) return terminal
     const key = args[0]
     if (
       channel === 'artifacts:forSession' &&
@@ -140,6 +156,7 @@ export function registerHostsHandlers(): void {
   const off = onAccountChange(() => {
     const next = accountUserId()
     if (next !== user) {
+      terminals?.clear()
       remote?.clear()
       attention.clear()
       user = next
@@ -151,6 +168,7 @@ export function registerHostsHandlers(): void {
     if (!windows.has(sender.id)) {
       windows.add(sender.id)
       sender.once('destroyed', () => {
+        terminals?.clear(sender.id)
         remote?.closeWindow(sender.id)
         windows.delete(sender.id)
       })
@@ -163,6 +181,7 @@ export function registerHostsHandlers(): void {
   }
   app.once('will-quit', () => {
     off()
+    terminals?.clear()
     remote?.clear()
     manager.stop()
   })

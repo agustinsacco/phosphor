@@ -549,8 +549,17 @@ output subscriptions. Viewers may watch but cannot type. Revoking the terminal
 capability detaches subscriptions and refuses input. No terminal input or output
 is sent to control or persisted on Desktop. Native resources are built per OS and
 architecture with pinned Node and included in the signed release archive.
-Desktop remote terminal UI routing is not implemented yet. The protocol and Host
-limits are documented in [Host terminals](host.md#host-terminals).
+Desktop remote lane terminal tabs use opaque main-owned ids and the existing
+PTY IPC contract. Only the current controller with `terminal` and
+`sessions.control` can create, type, resize or kill. Viewers watch existing
+terminals read-only. Input is never resent after uncertainty; reconnect resets
+scrollback and resumes from the Host's consumed input sequence. Mutations stay
+suspended until that reset arrives and the new connection still grants control
+and both capabilities. Missing terminal capability keeps the unavailable state.
+Host restarts, replaced connections and closed or removed lanes end the Desktop
+mapping.
+The protocol and Host limits are documented in [Host terminals](host.md#host-terminals)
+and Desktop behavior in [terminal.md](terminal.md#host-terminals).
 
 ## Host routine boundary
 

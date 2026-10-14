@@ -70,5 +70,26 @@ disconnects, not Host restarts. The Host chooses the login shell, environment
 and lane directory. Routines never type into them. UTF-8 scrollback is bounded
 to 256 KiB and 2048 chunks; reconnects replay a valid cursor or reset to that tail.
 Input is sequenced and acknowledged, never automatically retried after uncertainty.
-Desktop remote terminal tabs are not wired yet. Local tabs keep the behavior above.
+Desktop routes remote lane tabs through main's terminal bridge. The renderer sees
+only opaque Desktop ids. Create, resize and kill use receipts and the current lane
+fence; typing uses main-owned input sequence numbers with at most 4096 UTF-8 bytes
+per frame. A write stops at the first uncertain acknowledgement and is never
+resent. While a frame is in flight, main queues up to 64 KiB of new UTF-8 input
+and sends it in order after accepted acknowledgements. Overflow refuses only the
+new write. Queued writes reject with fixed text and are discarded on uncertainty,
+reset, invalidation, or loss of control or capabilities. No input is logged.
+Reconnect suspends mutations until a fresh reset supplies `inputSeq`.
+Reset scrollback clears and redraws the terminal after a stream gap, without
+repeating output. An attach without a reset within five seconds closes its watch
+and shows "Terminal unavailable." with an explicit Retry control. Failed attaches
+discard held output; Retry attaches anew and redraws fresh scrollback. Controllers
+send the current fitted terminal size after successful attach. Interrupted terminals appear ended. A Host restart or replaced
+connection ends the Desktop mapping instead of binding it to a new PTY. Closing
+its lane handle or removing the lane also invalidates the mapping.
+Viewers can use View terminal to watch an existing shell. Reopening the same
+Host terminal selects its existing tab. An empty list shows "Read-only: no
+terminals available." They do not auto-create
+shells, and input, resize and kill are disabled. The pane shows the read-only
+hint. Without the `terminal` capability it shows "Not available on remote lanes
+yet." Local tabs keep the behavior above.
 See [Host terminals](host.md#host-terminals) for the wire limits and native build.
