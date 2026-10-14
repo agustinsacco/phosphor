@@ -13,7 +13,10 @@ export function signManifest(bytes, namespace = contract.HOST_RELEASE_NAMESPACE)
   const temp = mkdtempSync(join(tmpdir(), 'phosphor-sign-'))
   try {
     const path = join(temp, 'key')
-    writeFileSync(path, key, { mode: 0o600, flag: 'wx' })
+    // A secret store can drop the final newline (gh secret set from stdin does),
+    // and OpenSSH refuses a private key without one, so restore LF line ends.
+    const normalized = `${key.replace(/\r\n?/g, '\n').replace(/\n*$/, '')}\n`
+    writeFileSync(path, normalized, { mode: 0o600, flag: 'wx' })
     const publicKey = execFileSync('ssh-keygen', ['-y', '-f', path], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
