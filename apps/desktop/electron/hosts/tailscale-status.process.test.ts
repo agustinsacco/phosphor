@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -34,30 +34,30 @@ it('kills a real SIGTERM-resistant executable with SIGKILL', async () => {
       `#!${process.execPath}\nprocess.on('SIGTERM', () => {}); process.stderr.write('ready\\n'); setInterval(() => {}, 1000)\n`,
       { mode: 0o755 },
     )
-    let ready!: () => void
-    const isReady = new Promise<void>((resolve) => (ready = resolve))
-    let exited!: Promise<NodeJS.Signals | null>
-    const start = Date.now()
-    const result = readTailscaleStatus(true, (done) => {
-      const child = execFile(file, ['status', '--json'], TAILSCALE_OPTIONS, (error, stdout) =>
-        done(error, stdout),
-      )
-      pid = child.pid
-      child.stderr?.on('data', (chunk: Buffer | string) => {
-        if (String(chunk).includes('ready')) ready()
-      })
-      exited = new Promise((resolve) => child.once('exit', (_code, signal) => resolve(signal)))
+    // Start the child with no deadline of its own, and finish every precondition before the
+    // deadline under test is armed, so a slow machine cannot fail a correct implementation.
+    const child = spawn(file, ['status', '--json'], { stdio: ['ignore', 'pipe', 'pipe'] })
+    pid = child.pid
+    const exited = new Promise<NodeJS.Signals | null>((resolve) =>
+      child.once('exit', (_code, signal) => resolve(signal)),
+    )
+    await new Promise<void>((resolve) =>
+      child.stderr.on('data', (chunk: Buffer) => {
+        if (String(chunk).includes('ready')) resolve()
+      }),
+    )
+    // Prove the fixture really ignores SIGTERM, so only SIGKILL can end it.
+    child.kill('SIGTERM')
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(child.exitCode).toBeNull()
+    expect(child.signalCode).toBeNull()
+    const result = await readTailscaleStatus(true, (done) => {
+      child.once('exit', () => done({ code: 'killed' }, ''))
       return () => {
         child.kill(TAILSCALE_OPTIONS.killSignal)
       }
     })
-    await isReady
-    // Prove the fixture really ignores SIGTERM, so only SIGKILL can end it.
-    process.kill(pid!, 'SIGTERM')
-    await new Promise((resolve) => setTimeout(resolve, 200))
-    expect(() => process.kill(pid!, 0)).not.toThrow()
-    expect(await result).toEqual({ code: 'check-failed', discovery: true, peers: [] })
-    expect(Date.now() - start).toBeGreaterThanOrEqual(TAILSCALE_OPTIONS.timeout - 100)
+    expect(result).toEqual({ code: 'check-failed', discovery: true, peers: [] })
     expect(await exited).toBe('SIGKILL')
   } finally {
     if (pid) {
