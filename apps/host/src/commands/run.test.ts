@@ -17,6 +17,31 @@ import { RELEASE_WAIT_MS, runHost } from './run'
 import { createShutdown } from '../shutdown'
 import { createHeartbeat } from '../control/heartbeat'
 import { runCli } from '../cli'
+import { readRunHealth } from '../update/health'
+import type { Drainable } from '../shutdown'
+import { HOST_VERSION } from '../version'
+import type * as Client from '../control/client'
+
+const clientHooks = vi.hoisted(() => ({ invalidAnswer: false }))
+vi.mock('../control/client', async (original) => {
+  const client = await original<typeof Client>()
+  return {
+    ...client,
+    createControlClient: (...args: Parameters<typeof client.createControlClient>) => {
+      const real = client.createControlClient(...args)
+      return {
+        ...real,
+        heartbeat: async (...args: Parameters<typeof real.heartbeat>) => {
+          const answer = await real.heartbeat(...args)
+          // Bypass the client's earlier validator to exercise run's own admission guard.
+          return clientHooks.invalidAnswer && args[2].state === 'running'
+            ? { ...answer, nextInSec: 0 }
+            : answer
+        },
+      }
+    },
+  }
+})
 
 const readiness: Readiness = { pi: 'ok', claude: 'ok', tailscale: 'ok' }
 let machine: ControlMachine
@@ -28,6 +53,7 @@ beforeEach(async () => {
   await writeFile(machine.configPath, JSON.stringify(machine.config), { mode: 0o600 })
 })
 afterEach(async () => {
+  clientHooks.invalidAnswer = false
   await machine.cleanup()
 })
 const context = (): RunContext => ({
@@ -40,6 +66,49 @@ const context = (): RunContext => ({
   heartbeat: { readiness: async () => readiness, random: () => 0 },
 })
 describe('phosphor run', () => {
+  it.each(['accepted', 'unavailable', 'invalid', 'invalid-client'])(
+    'publishes health only after an accepted running heartbeat: %s',
+    async (response) => {
+      const accepted = response === 'accepted'
+      clientHooks.invalidAnswer = response === 'invalid-client'
+      await machine.enrollOld()
+      let target: Drainable | undefined
+      const c = context(),
+        state = hostStateDirectory(c.env, c.home)
+      let observed = false
+      expect(
+        await runHost({
+          ...c,
+          attach: (t) => {
+            target = t
+            return () => {}
+          },
+          fetch: async (_url, init) => {
+            const body: unknown = JSON.parse(String(init?.body))
+            if (body && typeof body === 'object' && 'state' in body && body.state === 'stopping')
+              return Response.json({ accepted: true, nextInSec: 30 })
+            return accepted || response === 'invalid-client'
+              ? Response.json({ accepted: true, nextInSec: 30 })
+              : response === 'invalid'
+                ? Response.json({ accepted: false, nextInSec: 30 })
+                : new Response('', { status: 503 })
+          },
+          wait: async (ms, signal) => {
+            if (ms === 5000 && observed) return setTimeout(ms, undefined, { signal })
+            observed = true
+            const record = readRunHealth(state)
+            if (accepted) {
+              expect(record?.version).toBe(HOST_VERSION)
+              expect(record?.pid).toBe(process.pid)
+            } else expect(record).toBeNull()
+            await target?.drain('SIGTERM')
+          },
+        }),
+      ).toBe(0)
+      expect(observed).toBe(true)
+      if (!accepted) expect(readRunHealth(state)).toBeNull()
+    },
+  )
   it('dispatches CLI run through one shutdown attachment and sends stopping on SIGTERM', async () => {
     await machine.enrollOld()
     const exits: number[] = []

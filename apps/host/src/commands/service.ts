@@ -23,6 +23,7 @@ import {
 import { hostLogDirectory } from '../machine/log'
 import { renderStatus, runStatus } from './status'
 import type { RunContext } from './run'
+import { serviceProgram } from '../update/layout'
 
 export type ServiceAction = 'install' | 'status' | 'restart' | 'logs' | 'uninstall'
 export function isServiceAction(value: unknown): value is ServiceAction {
@@ -88,14 +89,18 @@ async function runServiceCommand(
         context.print('Run phosphor login first.')
         return 69
       }
-      const node = context.service?.node ?? process.execPath
+      const { node, bundle } = serviceProgram(
+        context.service?.node ?? process.execPath,
+        context.service?.bundle ?? resolve(process.argv[1] ?? ''),
+        context.home,
+      )
       // The node directory leads: a version manager's shell entry (fnm's per-shell
       // multishell directory) is gone after logout, while execPath is the real path.
       const nodeDir = dirname(node)
       const path = [nodeDir, ...(context.env.PATH ?? '').split(':').filter((d) => d !== nodeDir)]
       const text = serviceUnit(
         node,
-        context.service?.bundle ?? resolve(process.argv[1] ?? ''),
+        bundle,
         resolve(context.configPath),
         path.filter(Boolean).join(':'),
       )
@@ -121,13 +126,18 @@ async function runServiceCommand(
       return 0
     }
     if (action === 'uninstall') {
-      // A missing unit is already uninstalled. Always finish the local removal and reload.
-      if ((await call(['disable', '--now', HOST_UNIT])).code !== 0) {
+      // A loaded unit can keep running after its file disappears.
+      await call(['stop', HOST_UNIT])
+      if ((await call(['disable', HOST_UNIT])).code !== 0) {
         const loaded = await call(['show', HOST_UNIT, '-p', 'LoadState', '--value'])
         if (loaded.code !== 0 || loaded.stdout.trim() !== 'not-found') {
           context.print('The service could not be stopped.')
           return 75
         }
+      }
+      if ((await call(['is-active', '--quiet', HOST_UNIT])).code === 0) {
+        context.print('The service could not be stopped.')
+        return 75
       }
       await (context.service?.remove ?? removeServiceUnit)(unit)
       context.log?.('service', 'unit.removed', { path: unit, trace: context.trace })
@@ -222,18 +232,16 @@ async function runLaunchdService(
         context.print('Run phosphor login first.')
         return 69
       }
-      const node = context.service?.node ?? process.execPath
+      const { node, bundle } = serviceProgram(
+        context.service?.node ?? process.execPath,
+        context.service?.bundle ?? resolve(process.argv[1] ?? ''),
+        context.home,
+      )
       const nodeDir = dirname(node)
       const path = [nodeDir, ...(context.env.PATH ?? '').split(':').filter((d) => d !== nodeDir)]
         .filter(Boolean)
         .join(':')
-      const text = launchAgentPlist(
-        node,
-        context.service?.bundle ?? resolve(process.argv[1] ?? ''),
-        resolve(context.configPath),
-        path,
-        logDir,
-      )
+      const text = launchAgentPlist(node, bundle, resolve(context.configPath), path, logDir)
       await mkdir(logDir, { recursive: true, mode: 0o700 })
       await (context.service?.write ?? writeServiceUnit)(plist, text)
       context.log?.('service', 'unit.written', { path: plist, trace: context.trace })

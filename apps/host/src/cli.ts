@@ -19,6 +19,9 @@ import type { ControlContext } from './control/command'
 import { defaultConfigPath } from './config/load'
 import type { Drainable } from './shutdown'
 import { HOST_SOURCE_SHA, HOST_VERSION } from './version'
+import { runUpdate, type UpdateContext } from './commands/update'
+import { runUninstall } from './commands/uninstall'
+import { HOST_RELEASE_VERSION_PATTERN } from '@phosphor/shared/host-release'
 import { launchdExit } from './machine/launchd'
 import { isTailscaleAction, runTailscale } from './commands/tailscale'
 
@@ -52,6 +55,9 @@ Set up a Host: setup, doctor, providers, accept, login, service install.
                                     manage the Linux or macOS user service; logs takes --follow
   tailscale status|enable|disable [--config FILE]
                                     expose the loopback API on your tailnet, never Funnel
+  update [--version X.Y.Z] [--check] [--json]
+  update --rollback [--json]        select the previous installed release offline
+  uninstall [--purge --yes] [--json] remove the program and service; keep data by default
   version [--json]                  print the Host's version
 
 exit codes: 0 ok, 1 an acceptance check failed, 64 usage, 69 prerequisite unavailable,
@@ -77,6 +83,7 @@ export type CliContext = Omit<DoctorContext, 'configPath'> & {
   /** Control-plane I/O replaced in tests. */
   heartbeat?: RunContext['heartbeat']
   service?: ServiceContext['service']
+  update?: UpdateContext['update']
   control?: Pick<ControlContext, 'fetch' | 'now' | 'random' | 'signal' | 'wait' | 'store' | 'arch'>
 }
 
@@ -101,6 +108,8 @@ const COMMAND_OPTIONS: Record<string, readonly string[]> = {
     'claude-model',
   ],
   version: ['json'],
+  update: ['version', 'check', 'rollback', 'json'],
+  uninstall: ['purge', 'yes', 'json'],
 }
 
 export async function runCli(
@@ -181,6 +190,15 @@ export async function runCli(
     return usage('--repository, --pi and --node need a path')
   }
 
+  if (
+    command === 'update' &&
+    ((values.version !== undefined && !HOST_RELEASE_VERSION_PATTERN.test(values.version)) ||
+      (values.rollback && (values.version !== undefined || values.check)))
+  )
+    return usage('invalid update options')
+  if (command === 'uninstall' && Boolean(values.purge) !== Boolean(values.yes))
+    return usage('--purge and --yes are both required')
+
   try {
     if (command === 'version') {
       const version = {
@@ -197,6 +215,25 @@ export async function runCli(
       const outcome = await runTailscale({ ...context, configPath }, extra[0], context.tailscale)
       io.stdout(`${outcome.message}\n`)
       return outcome.exitCode
+    }
+    if (command === 'update' || command === 'uninstall') {
+      const messages: string[] = []
+      const install = {
+        ...context,
+        ...context.control,
+        configPath,
+        print: (line: string) => {
+          if (messages.length < 256) messages.push(line)
+        },
+      }
+      const exitCode =
+        command === 'update'
+          ? await runUpdate(install, values)
+          : await runUninstall(install, values.purge, values.yes)
+      io.stdout(
+        values.json ? `${JSON.stringify({ exitCode, messages })}\n` : messages.join('\n') + '\n',
+      )
+      return exitCode
     }
     if (command === 'setup') {
       const report = await runSetup({
@@ -366,6 +403,11 @@ export const CLI_PARSE_CONFIG = {
   strict: true,
   options: {
     config: { type: 'string' },
+    version: { type: 'string' },
+    check: { type: 'boolean' },
+    rollback: { type: 'boolean' },
+    purge: { type: 'boolean' },
+    yes: { type: 'boolean' },
     supervisor: { type: 'string' },
     json: { type: 'boolean' },
     local: { type: 'boolean' },

@@ -1,6 +1,8 @@
 import { createAuthority } from '../api/authority'
 import { startApi } from '../api/server'
 import { randomInt } from 'node:crypto'
+import { parseHeartbeatResponse } from '@phosphor/shared/control-api'
+import { healthWriter } from '../update/health'
 import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
 import { constants } from 'node:os'
 import { setTimeout } from 'node:timers/promises'
@@ -160,6 +162,12 @@ async function runHostCommand(context: RunContext): Promise<number> {
       }
       let endpoint: string | null = null
       let routeState = ''
+      const accepted = healthWriter(
+        stateDirectory,
+        context.uid,
+        HOST_VERSION,
+        context.now ?? Date.now,
+      )
       loop = createHeartbeat({
         endpoint: () => endpoint,
         onAccepted: authority.accept,
@@ -167,13 +175,16 @@ async function runHostCommand(context: RunContext): Promise<number> {
         now: context.now ?? Date.now,
         wait: context.wait ?? ((ms, signal) => setTimeout(ms, undefined, { signal })),
         random: context.heartbeat?.random ?? (() => randomInt(3001) / 3000),
-        client: (body, signal) => {
+        client: async (body, signal) => {
           context.log?.('host', 'heartbeat', {
             seq: body.seq,
             state: body.state,
             trace: context.trace,
           })
-          return prepared.client.heartbeat(identity.hostId, key, body, signal)
+          const answer = await prepared.client.heartbeat(identity.hostId, key, body, signal)
+          if (body.state === 'running' && !signal.aborted && parseHeartbeatResponse(answer).ok)
+            accepted()
+          return answer
         },
         readiness:
           context.heartbeat?.readiness ??
