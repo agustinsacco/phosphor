@@ -24,20 +24,32 @@ export function sshArgs(target: string, command: string): string[] {
     'StrictHostKeyChecking=yes',
     '-o',
     'ConnectTimeout=15',
+    '-o',
+    'ForwardAgent=no',
+    '-o',
+    'ForwardX11=no',
+    '-o',
+    'ClearAllForwardings=yes',
     '--',
     target,
     command,
   ]
 }
 export function parseSshEnrollment(output: string): { code: string; fingerprint: string } | null {
-  const code = normalizeUserCode(
-    /and enter: {2}([BCDFGHJKLMNPQRSTVWXZ]{4}-[BCDFGHJKLMNPQRSTVWXZ]{4})\r?\n/.exec(output)?.[1],
+  const codeLine = /and enter: {2}([BCDFGHJKLMNPQRSTVWXZ]{4}-[BCDFGHJKLMNPQRSTVWXZ]{4})\r?\n/.exec(
+    output,
   )
+  if (!codeLine) return null
+  const code = normalizeUserCode(codeLine[1])
   const fingerprint =
     /(?:^|\n)Key fingerprint: ([0-9a-f]{4}(?:-[0-9a-f]{4}){3})\. Phosphor shows the same one\./.exec(
-      output,
-    )?.[1]
-  return code && fingerprint ? { code, fingerprint } : null
+      output.slice(codeLine.index + codeLine[0].length),
+    )
+  const fingerprintValue =
+    fingerprint?.index === 0 && fingerprint[0].startsWith('Key fingerprint: ')
+      ? fingerprint[1]
+      : undefined
+  return code && fingerprintValue ? { code, fingerprint: fingerprintValue } : null
 }
 interface Job {
   id: string
@@ -99,6 +111,7 @@ export function createSshInstaller(ports: Ports) {
       })
       job.child = child
       let output = ''
+      let loginOutput = ''
       let enrollmentSent = false
       const stopped = new Promise<boolean>((resolve) => {
         job.stopVerification = () => resolve(false)
@@ -114,10 +127,11 @@ export function createSshInstaller(ports: Ports) {
         ports.timeoutMs ?? (step === 'login' ? CONTROL_LIMITS.enrollmentTtlSec * 1000 : 600_000),
       )
       // Keep only bounded recent text, including an unterminated line.
-      const receive = (text: string) => {
+      const receive = (text: string, stdout: boolean) => {
         output = (output + text).slice(-32768)
-        if (step === 'login' && !enrollmentSent) {
-          const enrollment = parseSshEnrollment(output)
+        if (step === 'login' && stdout && !enrollmentSent) {
+          loginOutput = (loginOutput + text).slice(-32768)
+          const enrollment = parseSshEnrollment(loginOutput)
           if (enrollment) {
             enrollmentSent = true
             verified = Promise.race([
@@ -137,8 +151,8 @@ export function createSshInstaller(ports: Ports) {
       }
       for (const stream of [child.stdout, child.stderr]) {
         const decoder = new StringDecoder('utf8')
-        stream.on('data', (data: Buffer) => receive(decoder.write(data)))
-        stream.on('end', () => receive(decoder.end()))
+        stream.on('data', (data: Buffer) => receive(decoder.write(data), stream === child.stdout))
+        stream.on('end', () => receive(decoder.end(), stream === child.stdout))
       }
       const finish = async (code: number | null) => {
         if (finished) return

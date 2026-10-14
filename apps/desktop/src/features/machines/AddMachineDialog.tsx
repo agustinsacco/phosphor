@@ -13,7 +13,7 @@ import { controlMessage } from './controlMessages'
 import { HOST_RUN, HOST_SERVICE_INSTALL, formatCode, platformName } from './machinePresentation'
 import { CopyCommand, HostGuide, HostSetup } from './MachineControls'
 
-type Step = 'on-machine' | 'code' | 'confirm' | 'done'
+type Step = 'on-machine' | 'code' | 'confirm' | 'finishing' | 'done'
 export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
   const [step, setStep] = useState<Step>('on-machine')
   const [ssh, setSsh] = useState(false)
@@ -24,6 +24,7 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
   const [label, setLabel] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const sshDone = useRef(false)
   const pending = useRef(false)
   const live = useRef(true)
   useEffect(() => {
@@ -88,7 +89,7 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
         }
         if (result.ok && useMachinesStore.getState().remoteEnabled) {
           setAdded(result.machine)
-          setStep('done')
+          setStep(ssh && !sshDone.current ? 'finishing' : 'done')
         } else setError(controlMessage(result.ok ? 'signed-out' : result.error.code))
       }
     } catch {
@@ -119,6 +120,8 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
                   View machine
                 </Button>
               </>
+            ) : step === 'finishing' ? (
+              <Button onClick={onClose}>Cancel</Button>
             ) : (
               <>
                 <Button
@@ -167,10 +170,17 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
                   ? '2 · Enter the code'
                   : step === 'confirm'
                     ? '3 · Confirm'
-                    : '4 · Done'}
+                    : step === 'finishing'
+                      ? '4 · Finishing install'
+                      : '4 · Done'}
             </p>
             {ssh && (
               <SshInstallPanel
+                onState={(event) => {
+                  sshDone.current = event?.kind === 'done' && event.step === 'service'
+                  if (sshDone.current)
+                    setStep((current) => (current === 'finishing' ? 'done' : current))
+                }}
                 onEnrollment={(value, fingerprint) => {
                   setCode(value)
                   setSshFingerprint(fingerprint)
@@ -249,6 +259,9 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
                   </p>
                 )}
               </>
+            )}
+            {step === 'finishing' && added && (
+              <h2 className="text-xl font-semibold">Finishing install on {added.label}...</h2>
             )}
             {step === 'done' && added && (
               <>

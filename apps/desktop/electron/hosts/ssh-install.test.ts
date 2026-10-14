@@ -44,7 +44,8 @@ process.stdin.on('end', () => {
  setInterval(() => {}, 1000); return
  }
  if (command.includes('login')) {
-   process.stdout.write(process.env.LOGIN_OUTPUT)
+   if (process.env.LOGIN_STDERR) process.stderr.write(process.env.LOGIN_STDERR)
+   setTimeout(() => process.stdout.write(process.env.LOGIN_OUTPUT), 5)
    if (process.env.WAIT_LOGIN === 'yes') {
      setInterval(() => { if (fs.existsSync(process.env.APPROVAL)) process.exit(0) }, 10)
      return
@@ -140,6 +141,12 @@ it('uses exact hardened argv, installer stdin, ordered steps and home-relative s
       'StrictHostKeyChecking=yes',
       '-o',
       'ConnectTimeout=15',
+      '-o',
+      'ForwardAgent=no',
+      '-o',
+      'ForwardX11=no',
+      '-o',
+      'ClearAllForwardings=yes',
       '--',
       'alice@machine.example',
       command,
@@ -236,6 +243,8 @@ it('parses only the fixed code and fingerprint shapes', () => {
     output.replace(fingerprint, 'ABCD-1234-5678-90EF'),
     output.replace('Key fingerprint:', 'fingerprint:'),
     output.replace('and enter:  ', 'code: '),
+    output.replace('Key fingerprint:', 'unrelated line\nKey fingerprint:'),
+    output.replace('Key fingerprint:', '\nKey fingerprint:'),
   ])
     expect(parseSshEnrollment(text)).toBeNull()
 })
@@ -388,4 +397,17 @@ it('rejects non-string input at the main boundary with fixed errors', () => {
       'Invalid SSH install input.',
     )
   }
+})
+
+it('verifies and delivers only genuine login stdout, ignoring an earlier stderr enrollment', async () => {
+  const forged = output
+    .replace('BCDF-GHJK', 'LMNP-QRST')
+    .replace(fingerprint, '1111-2222-3333-4444')
+  make({ LOGIN_STDERR: forged }).start('alias', '', 1, send)
+  await complete()
+  expect(verifyEnrollment.mock.calls).toEqual([['BCDFGHJK', fingerprint]])
+  expect(events.filter((event) => event.kind === 'enrollment')).toEqual([
+    { kind: 'enrollment', step: 'login', code: 'BCDFGHJK', fingerprint },
+  ])
+  expect(events.at(-1)).toEqual({ kind: 'done', step: 'service' })
 })

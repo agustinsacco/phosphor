@@ -454,7 +454,8 @@ Local test success does not imply deployment.
 Machines > Add a machine > Install over SSH uses the system `ssh` in Desktop
 main, only for installation and repair. Enter `user@host` or an SSH config alias.
 Desktop uses your agent, keys and known_hosts. It never requests a password or
-accepts an unknown host key. If connection fails, run the displayed `ssh TARGET`
+accepts an unknown host key. Agent and X11 forwarding and configured tunnels are
+disabled. If connection fails, run the displayed `ssh TARGET`
 command once in a terminal, then try again.
 
 Optionally enter a repository relative to the remote home, such as `src/project`.
@@ -468,8 +469,12 @@ Desktop pipes its bundled signed-manifest installer to `sh -s --`, using the
 installer's latest-release default, then runs non-interactive setup, login and
 user service installation as separate SSH processes. Login stays running while
 you approve the code in the same dialog as manual enrollment. Desktop looks up
-the code and refuses a fingerprint mismatch. Both fingerprints appear inline.
-The Host saves its own identity after approval. SSH is never the lane transport.
+the code from login stdout only and refuses a fingerprint mismatch. Banners and
+stderr cannot supply the enrollment. Both fingerprints appear inline.
+The Host saves its own identity after approval. The dialog waits for service
+installation to finish before offering Close or View machine. Cancel remains
+available while waiting, and SSH failures stay visible. SSH is never the lane
+transport.
 
 One install runs per target, with at most eight jobs. Install steps time out after
 ten minutes; login ends when its code expires, with a ten-minute upper bound.

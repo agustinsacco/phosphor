@@ -6,8 +6,10 @@ import { Button, TextInput } from '@/components/form'
 
 export function SshInstallPanel({
   onEnrollment,
+  onState,
 }: {
   onEnrollment: (code: string, fingerprint: string) => void
+  onState: (event: SshInstallEvent | null) => void
 }): React.JSX.Element {
   const [target, setTarget] = useState('')
   const [repository, setRepository] = useState('')
@@ -21,6 +23,8 @@ export function SshInstallPanel({
   const repositoryInput = useRef<HTMLInputElement>(null)
   const enrollment = useRef(onEnrollment)
   enrollment.current = onEnrollment
+  const reportState = useRef(onState)
+  reportState.current = onState
   useEffect(() => {
     live.current = true
     return () => {
@@ -39,6 +43,7 @@ export function SshInstallPanel({
     setBusy(true)
     setError('')
     setState(null)
+    reportState.current(null)
     try {
       const result = await window.phosphor.invoke('hosts:sshInstall', target, repository)
       if (!live.current) {
@@ -49,6 +54,7 @@ export function SshInstallPanel({
       off.current?.()
       off.current = window.phosphor.onSshInstall(result.jobId, (event) => {
         setState(event)
+        reportState.current(event)
         if (event.kind === 'enrollment') enrollment.current(event.code, event.fingerprint)
         if (event.kind === 'failed' || event.kind === 'done' || event.kind === 'cancelled') {
           job.current = null

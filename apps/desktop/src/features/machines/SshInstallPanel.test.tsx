@@ -79,7 +79,22 @@ it('shows progress, inline code and both fingerprints, then uses existing approv
   expect(document.body.textContent?.match(/abcd-1234-5678-90ef/g)).toHaveLength(2)
   await click('Approve machine')
   expect(invoke).toHaveBeenCalledWith('control:approveEnrollment', 'BCDFGHJK', LOOKUP.hostname)
+  expect(document.body.textContent).toContain(`Finishing install on ${MACHINE.label}...`)
+  expect(document.body.textContent).not.toContain('View machine')
+  expect(
+    Array.from(document.querySelectorAll('button')).some(
+      (button) => button.textContent === 'Close',
+    ),
+  ).toBe(false)
+  expect(
+    Array.from(document.querySelectorAll('button')).some(
+      (button) => button.textContent === 'Cancel',
+    ),
+  ).toBe(true)
+  await act(async () => push({ kind: 'progress', step: 'service' }))
+  expect(document.body.textContent).not.toContain('View machine')
   await act(async () => push({ kind: 'done', step: 'service' }))
+  expect(document.body.textContent).toContain('View machine')
   expect(document.body.textContent).toContain('Host service installed.')
 })
 it('refuses mismatch and cannot approve a previous or mismatched enrollment', async () => {
@@ -121,4 +136,31 @@ it('shows bounded remote failure details, focuses repository, retries and cancel
   expect(
     invoke.mock.calls.filter(([channel]) => channel === 'hosts:sshInstallCancel'),
   ).toHaveLength(2)
+})
+
+it('shows service failure after approval without completion UI', async () => {
+  await start()
+  await act(async () =>
+    push({ kind: 'enrollment', step: 'login', code: 'BCDFGHJK', fingerprint: lookupFingerprint }),
+  )
+  await click('Approve machine')
+  await act(async () =>
+    push({
+      kind: 'failed',
+      step: 'service',
+      message: 'Host service failed. Try again.',
+      output: [],
+    }),
+  )
+  expect(document.body.textContent).toContain('Host service failed. Try again.')
+  expect(document.body.textContent).not.toContain('View machine')
+})
+it('cancels the SSH job when closing after approval but before service completion', async () => {
+  await start()
+  await act(async () =>
+    push({ kind: 'enrollment', step: 'login', code: 'BCDFGHJK', fingerprint: lookupFingerprint }),
+  )
+  await click('Approve machine')
+  act(() => root.render(null))
+  expect(invoke).toHaveBeenCalledWith('hosts:sshInstallCancel', 'job')
 })
