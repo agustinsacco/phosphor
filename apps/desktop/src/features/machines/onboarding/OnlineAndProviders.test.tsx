@@ -38,7 +38,7 @@ it('follows directory online state and reads provider readiness without owning s
         machines: [{ ...MACHINE, lastSeenAt: new Date(now).toISOString(), state: 'running' }],
       }),
     )
-    expect(container.textContent).toContain('Online. The Host is reporting')
+    expect(container.textContent).toContain('bee1 is online')
     await act(async () => useMachinesStore.setState({ nowMs: now + 600000 }))
     expect(container.textContent).toContain('Offline. Wake the machine')
     await render(true)
@@ -56,6 +56,53 @@ it('follows directory online state and reads provider readiness without owning s
   } finally {
     act(() => root.unmount())
     useMachinesStore.setState({ machines: [] })
+    vi.unstubAllGlobals()
+  }
+})
+
+it('keeps troubleshooting collapsed, orders recovery commands and advances only once online after a beat', async () => {
+  vi.useFakeTimers()
+  vi.stubGlobal('phosphor', { invoke: vi.fn(async () => []) })
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const now = Date.now()
+  useMachinesStore.setState({ machines: [MACHINE], nowMs: now, clockOffsetMs: 0 })
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  const next = vi.fn()
+  try {
+    await act(async () =>
+      root.render(
+        <OnlineAndProviders
+          added={MACHINE}
+          providers={false}
+          onOpen={() => {}}
+          onProviders={next}
+        />,
+      ),
+    )
+    expect(container.querySelector('details')?.open).toBe(false)
+    expect(container.querySelector('summary')?.textContent).toBe('Stuck?')
+    expect([...container.querySelectorAll('code')].map((c) => c.textContent)).toEqual([
+      'phosphor service status',
+      'phosphor service install',
+      'phosphor run',
+    ])
+    expect(container.querySelector('button')?.textContent).not.toBe('Continue to Providers')
+    await act(async () => vi.advanceTimersByTime(2000))
+    expect(next).not.toHaveBeenCalled()
+    await act(async () =>
+      useMachinesStore.setState({
+        machines: [{ ...MACHINE, lastSeenAt: new Date(now).toISOString(), state: 'running' }],
+      }),
+    )
+    expect(container.textContent).toContain('bee1 is online')
+    await act(async () => vi.advanceTimersByTime(1499))
+    expect(next).not.toHaveBeenCalled()
+    await act(async () => vi.advanceTimersByTime(1))
+    expect(next).toHaveBeenCalledOnce()
+  } finally {
+    act(() => root.unmount())
+    vi.useRealTimers()
     vi.unstubAllGlobals()
   }
 })

@@ -1,3 +1,5 @@
+import { CheckIcon, ReloadIcon } from '@/components/icons'
+import { TooltipSummary } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
 import { machineStatus, type MachineView } from '@shared/control-api'
 import type { MachineProvider } from '@shared/host-protocol-machine'
@@ -41,29 +43,42 @@ export function OnlineAndProviders({
       live = false
     }
   }, [providers, added.id, attempt])
+  useEffect(() => {
+    if (providers || !online) return
+    const timer = setTimeout(onProviders, 1500)
+    return () => clearTimeout(timer)
+  }, [online, providers, onProviders])
   if (!providers)
     return (
       <section className="space-y-3" aria-label="Online">
         <h2 className="text-xl font-semibold">{added.label} added</h2>
-        <p role="status">
-          {online
-            ? 'Online. The Host is reporting to Phosphor.'
-            : !machine.lastSeenAt
-              ? 'Waiting for the first connection. Stuck at setting up? Start the Host and check its service.'
+        <p role="status" className="flex items-center gap-2 font-medium">
+          {online ? (
+            <CheckIcon size={18} className="text-success" />
+          ) : (
+            <ReloadIcon size={18} className="text-accent animate-spin" />
+          )}
+          {online ? `${added.label} is online` : `Waiting for ${added.label} to connect…`}
+        </p>
+        <details className="space-y-3 text-text-secondary">
+          <TooltipSummary>Stuck?</TooltipSummary>
+          <p>
+            {!machine.lastSeenAt
+              ? 'Waiting for the first connection. Start the Host and check its service.'
               : 'Offline. Wake the machine and check Tailscale and the Host service.'}
-        </p>
-        <CopyCommand command={HOST_RUN} />
-        <CopyCommand command={HOST_SERVICE_STATUS} />
-        <CopyCommand command={HOST_SERVICE_INSTALL} />
-        <p className="text-text-secondary">
-          Enrolled but not reachable? Confirm both computers are on the same tailnet, MagicDNS and
-          HTTPS certificates are enabled, and Tailscale access rules allow the Host endpoint.
-          Enrollment alone does not prove reachability.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={() => void directory.refresh()}>Refresh online status</Button>
-          <Button onClick={onProviders}>Continue to Providers</Button>
-        </div>
+          </p>
+          <p>1. Check the Host service.</p>
+          <CopyCommand command={HOST_SERVICE_STATUS} />
+          <p>2. If no service is installed, install it.</p>
+          <CopyCommand command={HOST_SERVICE_INSTALL} />
+          <p>3. For debugging, run the Host in the foreground.</p>
+          <CopyCommand command={HOST_RUN} />
+          <p>
+            Enrolled but not reachable? Confirm both computers are on the same tailnet, MagicDNS and
+            HTTPS certificates are enabled, and Tailscale access rules allow the Host endpoint.
+            Enrollment alone does not prove reachability.
+          </p>
+        </details>
       </section>
     )
   return (

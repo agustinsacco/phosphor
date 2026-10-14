@@ -30,7 +30,13 @@ describe('Tailscale read-only boundary', () => {
     expect(exec).toHaveBeenCalledWith(
       'tailscale',
       ['status', '--json'],
-      { timeout: 5000, maxBuffer: 1048576, encoding: 'utf8', windowsHide: true },
+      {
+        timeout: 5000,
+        killSignal: 'SIGKILL',
+        maxBuffer: 1048576,
+        encoding: 'utf8',
+        windowsHide: true,
+      },
       expect.any(Function),
     )
   })

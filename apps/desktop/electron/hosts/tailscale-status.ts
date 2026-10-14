@@ -3,6 +3,7 @@ import type { TailscalePeer, TailscaleStatus } from '@shared/tailscale-status'
 
 export const TAILSCALE_OPTIONS = {
   timeout: 5_000,
+  killSignal: 'SIGKILL' as const,
   maxBuffer: 1_048_576,
   encoding: 'utf8' as const,
   windowsHide: true,
@@ -58,25 +59,37 @@ export function parseTailscaleStatus(output: string, discovery: boolean): Tailsc
 
 export type TailscaleRunner = (
   done: (error: { code?: string | number } | null, output: string) => void,
-) => void
+) => void | (() => void)
 const run: TailscaleRunner = (done) => {
-  execFile('tailscale', ['status', '--json'], TAILSCALE_OPTIONS, (error, stdout) =>
+  const child = execFile('tailscale', ['status', '--json'], TAILSCALE_OPTIONS, (error, stdout) =>
     done(error, stdout),
   )
+  return () => {
+    child.kill('SIGKILL')
+  }
 }
 export function readTailscaleStatus(
   discovery: boolean,
   runner: TailscaleRunner = run,
 ): Promise<TailscaleStatus> {
-  return new Promise((resolve) =>
-    runner((error, output) => {
-      if (error)
-        resolve({
-          code: error.code === 'ENOENT' ? 'not-installed' : 'check-failed',
-          discovery,
-          peers: [],
-        })
-      else resolve(parseTailscaleStatus(output, discovery))
-    }),
-  )
+  return new Promise((resolve) => {
+    const failure = (code: TailscaleStatus['code'] = 'check-failed'): TailscaleStatus => ({
+      code,
+      discovery,
+      peers: [],
+    })
+    // execFile waits for stdio to close. Bound IPC even if a descendant holds a pipe open.
+    const deadline = setTimeout(() => {
+      resolve(failure())
+      cancel?.()
+    }, TAILSCALE_OPTIONS.timeout)
+    const cancel = runner((error, output) => {
+      clearTimeout(deadline)
+      resolve(
+        error
+          ? failure(error.code === 'ENOENT' ? 'not-installed' : 'check-failed')
+          : parseTailscaleStatus(output, discovery),
+      )
+    })
+  })
 }

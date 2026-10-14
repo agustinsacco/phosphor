@@ -547,19 +547,24 @@ The Add a machine dialog guides Before you start → Install → Online → Prov
 It checks the signed-in Phosphor account and reads Tailscale status on this computer.
 A failed check offers fixed recovery guidance and manual installation remains available.
 The Online step follows the enrolled directory entry, distinguishes first connection
-from offline, and explains how to recover an enrolled but unreachable Host. Providers
+from offline, and keeps recovery commands in the collapsed Stuck? disclosure. Once online,
+it advances to Providers after a short pause. Back preserves a running SSH installation,
+including its target, repository, progress and fingerprint approval. Providers
 reads the Host's provider readiness and opens the machine page's Readiness section
 for Sign in. The manual fallback is `phosphor providers login PROVIDER` over SSH.
 Provider credentials stay on the Host.
 
 Optional Tailscale peer suggestions are off by default and persisted in Desktop
 preferences. Main runs only `tailscale status --json`, without a shell, with a five
-second timeout and 1 MiB output limit. Only fixed status codes and, when opted in,
+second deadline, forced termination and 1 MiB output limit. A failed status read
+clears suggestions without reverting a successfully saved discovery preference. Only fixed status codes and, when opted in,
 peer DNS names, OS and online flags reach the renderer. No addresses, keys, tags,
 user identities or command output are logged or exposed. Suggestions show online
 peers excluding enrolled endpoint hostnames, not machine labels. Picking a suggestion
 only fills the SSH target. It does not connect, enroll, trust or scan a peer.
 Install remains an explicit action with the existing fingerprint approval checks.
+While an SSH installation is running or awaiting approval, suggestions cannot replace
+its target; return to Install to resume it. Idle installations can use another suggestion.
 
 Machines > Add a machine > Install over SSH uses the system `ssh` in Desktop
 main, only for installation and repair. Enter `user@host` or an SSH config alias.

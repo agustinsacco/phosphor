@@ -1,3 +1,5 @@
+import { machineStatus } from '@shared/control-api'
+import { CheckIcon } from '@/components/icons'
 import { BeforeYouStart } from './onboarding/BeforeYouStart'
 import { OnlineAndProviders } from './onboarding/OnlineAndProviders'
 import { SshInstallPanel } from './SshInstallPanel'
@@ -21,6 +23,7 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
   const [step, setStep] = useState<Step>('before')
   const [suggestedTarget, setSuggestedTarget] = useState('')
   const [ssh, setSsh] = useState(false)
+  const [sshActive, setSshActive] = useState(false)
   const [sshFingerprint, setSshFingerprint] = useState<string | null>(null)
   const [code, setCode] = useState('')
   const [details, setDetails] = useState<EnrollmentLookupResponse | null>(null)
@@ -103,6 +106,12 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
       if (live.current) setBusy(false)
     }
   }
+  const directory = useMachinesStore()
+  const currentMachine = directory.machines.find((m) => m.id === added?.id) ?? added
+  const online =
+    currentMachine &&
+    machineStatus(currentMachine, directory.nowMs || Date.now(), directory.clockOffsetMs) === 'up'
+  const stepIndex = step === 'before' ? 0 : step === 'done' ? 2 : step === 'providers' ? 3 : 1
   const valid = step === 'code' ? !!normalizedCode : !!normalizedLabel
   return (
     <ModalOverlay onClose={onClose}>
@@ -117,11 +126,15 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
                 <Button
                   variant="primary"
                   onClick={() => {
+                    if (step === 'done' && online) {
+                      setStep('providers')
+                      return
+                    }
                     if (added) useMachinesStore.getState().show({ kind: 'machine', id: added.id })
                     onClose()
                   }}
                 >
-                  View machine
+                  {step === 'done' && online ? 'Continue to Providers' : 'View machine'}
                 </Button>
               </>
             ) : step === 'finishing' ? (
@@ -178,25 +191,24 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
               {['Before you start', 'Install', 'Online', 'Providers'].map((title, index) => (
                 <li
                   key={title}
-                  aria-current={
-                    (step === 'before' ? 0 : step === 'done' ? 2 : step === 'providers' ? 3 : 1) ===
-                    index
-                      ? 'step'
-                      : undefined
-                  }
-                  className={
-                    (step === 'before' ? 0 : step === 'done' ? 2 : step === 'providers' ? 3 : 1) ===
-                    index
-                      ? 'text-accent font-semibold'
-                      : ''
-                  }
+                  aria-current={stepIndex === index ? 'step' : undefined}
+                  className={`flex items-center gap-1 ${stepIndex === index ? 'text-accent font-semibold' : stepIndex > index ? 'text-success' : ''}`}
                 >
-                  {index + 1} · {title}
+                  {stepIndex > index ? (
+                    <span aria-label="Completed">
+                      <CheckIcon size={14} />
+                    </span>
+                  ) : (
+                    index + 1
+                  )}{' '}
+                  · {title}
                 </li>
               ))}
             </ol>
             {step === 'before' && (
               <BeforeYouStart
+                installActive={sshActive}
+                onReturnToInstall={() => setStep('on-machine')}
                 onPick={(target) => {
                   setSuggestedTarget(target)
                   setSsh(true)
@@ -213,22 +225,27 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
                 </p>
               </div>
             )}
-            {ssh && step !== 'before' && step !== 'done' && step !== 'providers' && (
-              <SshInstallPanel
-                initialTarget={suggestedTarget}
-                onState={(event) => {
-                  sshDone.current = event?.kind === 'done' && event.step === 'service'
-                  if (sshDone.current)
-                    setStep((current) => (current === 'finishing' ? 'done' : current))
-                }}
-                onEnrollment={(value, fingerprint) => {
-                  setCode(value)
-                  setSshFingerprint(fingerprint)
-                  setStep('code')
-                  setDetails(null)
-                  void submit(value, fingerprint, true)
-                }}
-              />
+            {ssh && (
+              <div hidden={step === 'before' || step === 'done' || step === 'providers'}>
+                <SshInstallPanel
+                  initialTarget={suggestedTarget}
+                  onState={(event) => {
+                    setSshActive(
+                      event === null || event.kind === 'progress' || event.kind === 'enrollment',
+                    )
+                    sshDone.current = event?.kind === 'done' && event.step === 'service'
+                    if (sshDone.current)
+                      setStep((current) => (current === 'finishing' ? 'done' : current))
+                  }}
+                  onEnrollment={(value, fingerprint) => {
+                    setCode(value)
+                    setSshFingerprint(fingerprint)
+                    setStep('code')
+                    setDetails(null)
+                    void submit(value, fingerprint, true)
+                  }}
+                />
+              </div>
             )}
             {step === 'on-machine' && (
               <>

@@ -3,6 +3,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { SshInstallEvent } from '@shared/ssh-install'
+import { SshInstallPanel } from './SshInstallPanel'
 import { AddMachineDialog } from './AddMachineDialog'
 import { useMachinesStore } from '@/stores/machines'
 import { LOOKUP, MACHINE } from './__fixtures__/control'
@@ -168,4 +169,34 @@ it('cancels the SSH job when closing after approval but before service completio
   await click('Approve machine')
   act(() => root.render(null))
   expect(invoke).toHaveBeenCalledWith('hosts:sshInstallCancel', 'job')
+})
+
+it('updates a preserved idle target but never a running job target', async () => {
+  const render = async (target: string) =>
+    act(async () =>
+      root.render(
+        <SshInstallPanel initialTarget={target} onState={() => {}} onEnrollment={() => {}} />,
+      ),
+    )
+  await render('first')
+  await render('second')
+  expect(document.querySelector('input')?.value).toBe('second')
+  await click('Install Host')
+  await render('third')
+  expect(document.querySelector('input')?.value).toBe('second')
+  expect(invoke).toHaveBeenCalledWith('hosts:sshInstall', 'second', '')
+})
+
+it('reports a rejected start as idle so discovery can select another target', async () => {
+  const state = vi.fn()
+  invoke.mockRejectedValueOnce(new Error('unavailable'))
+  await act(async () =>
+    root.render(<SshInstallPanel initialTarget="first" onState={state} onEnrollment={() => {}} />),
+  )
+  await click('Install Host')
+  expect(state).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'failed' }))
+  await act(async () =>
+    root.render(<SshInstallPanel initialTarget="second" onState={state} onEnrollment={() => {}} />),
+  )
+  expect(document.querySelector('input')?.value).toBe('second')
 })

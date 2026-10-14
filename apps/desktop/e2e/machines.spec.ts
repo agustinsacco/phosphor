@@ -78,6 +78,7 @@ test('signed-in directory walks guided enrollment, stable detail, rename and con
     )
     await dialog.getByRole('button', { name: 'Approve machine' }).click()
     await expect(dialog).toContainText('bee1 added')
+    await dialog.getByText('Stuck?', { exact: true }).click()
     await expect(dialog).toContainText('phosphor service install')
     await dialog.getByRole('button', { name: 'View machine' }).click()
     await expect(page.getByTestId('machine-detail')).toContainText('Finish setting up bee1')
@@ -108,10 +109,15 @@ test('signed-in directory walks guided enrollment, stable detail, rename and con
 test('onboarding steps and opt-in suggestions in dark and light', async () => {
   const testInfo = test.info()
   const bin = await mkdtemp(join(tmpdir(), 'phosphor-tailscale-'))
+  const config = join(bin, 'status.json')
+  const setDiscovery = (peers: boolean, delay = 0) =>
+    writeFile(config, JSON.stringify({ peers, delay }))
+  await setDiscovery(true)
   await writeFile(
     join(bin, 'tailscale'),
     `#!/usr/bin/env node
-console.log(JSON.stringify({BackendState:'Running',CurrentTailnet:{MagicDNSEnabled:true},CertDomains:['desktop.tail123.ts.net'],Peer:{fixture:{DNSName:'buildbox.tail123.ts.net.',OS:'linux',Online:true,TailscaleIPs:['100.1.2.3']}}}))
+const config = JSON.parse(require('node:fs').readFileSync(${JSON.stringify(config)}, 'utf8'));
+setTimeout(() => console.log(JSON.stringify({BackendState:'Running',CurrentTailnet:{MagicDNSEnabled:true},CertDomains:['desktop.tail123.ts.net'],Peer:config.peers ? {fixture:{DNSName:'buildbox.tail123.ts.net.',OS:'linux',Online:true,TailscaleIPs:['100.1.2.3']}} : {}})), config.delay)
 `,
     { mode: 0o755 },
   )
@@ -135,9 +141,18 @@ console.log(JSON.stringify({BackendState:'Running',CurrentTailnet:{MagicDNSEnabl
       await expect(toggle).toHaveAttribute('aria-checked', 'false')
       await dialog.screenshot({ path: join(shots, `${theme}-before.png`) })
       await toggle.click()
-      const suggestion = dialog.getByRole('button', { name: 'buildbox.tail123.ts.net · linux' })
+      const suggestion = dialog.getByRole('button', { name: 'Use buildbox.tail123.ts.net' })
       await expect(suggestion).toBeVisible()
       await dialog.screenshot({ path: join(shots, `${theme}-discovery.png`) })
+      await setDiscovery(false, 1500)
+      await dialog.getByRole('button', { name: 'Check again' }).click()
+      await expect(dialog).toContainText('Loading suggestions…')
+      await dialog.screenshot({ path: join(shots, `${theme}-discovery-loading.png`) })
+      await expect(dialog).toContainText('No other online machines found on your tailnet.')
+      await dialog.screenshot({ path: join(shots, `${theme}-discovery-empty.png`) })
+      await setDiscovery(true)
+      await dialog.getByRole('button', { name: 'Check again' }).click()
+      await expect(suggestion).toBeVisible()
       await suggestion.click()
       await expect(dialog.getByRole('textbox', { name: 'SSH target', exact: true })).toHaveValue(
         'buildbox.tail123.ts.net',
@@ -145,15 +160,36 @@ console.log(JSON.stringify({BackendState:'Running',CurrentTailnet:{MagicDNSEnabl
       await dialog.screenshot({ path: join(shots, `${theme}-install.png`) })
       await dialog.getByRole('button', { name: 'I have a code' }).click()
       await dialog.getByRole('textbox', { name: 'Code', exact: true }).fill('BCDFGHJK')
+      await dialog.screenshot({ path: join(shots, `${theme}-code.png`) })
       await dialog.getByRole('button', { name: 'Look up code' }).click()
+      await dialog.screenshot({ path: join(shots, `${theme}-confirm.png`) })
       await dialog.getByRole('button', { name: 'Approve machine' }).click()
       // Picking a suggestion did not start SSH. Manual enrollment completes directly.
-      await expect(dialog).toContainText('Waiting for the first connection')
+      await expect(dialog).toContainText('Waiting for bee1 to connect…')
       await dialog.screenshot({ path: join(shots, `${theme}-online.png`) })
-      await dialog.getByRole('button', { name: 'Continue to Providers' }).click()
+      await expect(dialog.locator('details').filter({ hasText: 'Stuck?' })).not.toHaveAttribute(
+        'open',
+        '',
+      )
+      await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+      h.state.approvedMachine = {
+        ...MACHINE,
+        lastSeenAt: new Date().toISOString(),
+        state: 'running',
+      }
+      await page.getByRole('button', { name: 'Add a machine', exact: true }).first().click()
+      await dialog.getByRole('button', { name: 'Continue to Install' }).click()
+      await dialog.getByRole('button', { name: 'I have a code' }).click()
+      await dialog.getByRole('textbox', { name: 'Code', exact: true }).fill('BCDFGHJK')
+      await dialog.getByRole('button', { name: 'Look up code' }).click()
+      await dialog.getByRole('button', { name: 'Approve machine' }).click()
+      await expect(dialog).toContainText('bee1 is online')
+      await expect(dialog.getByRole('button', { name: 'Continue to Providers' })).toBeVisible()
+      await dialog.screenshot({ path: join(shots, `${theme}-online-ready.png`) })
       await expect(dialog).toContainText('Host not reachable')
       await dialog.screenshot({ path: join(shots, `${theme}-providers.png`) })
       await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+      h.state.approvedMachine = MACHINE
     }
   } finally {
     await h.close()

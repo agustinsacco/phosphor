@@ -30,7 +30,13 @@ export async function accountControlFixture(
     options.userId ?? 'user-e2e-1',
   ]
   const calls: { path: string; body: unknown; headers: IncomingHttpHeaders }[] = []
-  const state = { challenge: '', logoutDelayMs: 0, answered: [] as boolean[], machines: initial }
+  const state = {
+    challenge: '',
+    logoutDelayMs: 0,
+    answered: [] as boolean[],
+    machines: initial,
+    approvedMachine: MACHINE,
+  }
   const code = randomBytes(16).toString('hex')
   const server = createServer((req, res) => {
     let gone = false
@@ -110,7 +116,7 @@ export async function accountControlFixture(
         'label' in body &&
         typeof body.label === 'string'
       ) {
-        const machine = { ...MACHINE, label: body.label }
+        const machine = { ...state.approvedMachine, label: body.label }
         state.machines = [machine]
         return json(200, { machine })
       }
