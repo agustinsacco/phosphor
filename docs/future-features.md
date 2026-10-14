@@ -151,7 +151,9 @@ transfer (31-32) and the engine (45) will back these per-primitive operations:
 - Artifacts have indexes and version blobs (`electron/artifacts/artifact-library.ts`
   and `libs/pi-extensions/pi-ext/artifact-store.ts`). Copy must preserve referenced
   versions and integrity, not send temporary preview URLs or overwrite identity.
-- Routines are SQLite rows, schedules and run history (`electron/routines/repository.ts`).
+- Routines are SQLite rows, schedules and run history (`libs/session-runtime/src/routines/repository.ts`).
+  The Host already owns a daemon scheduler; cross-machine copying and Desktop
+  remote routine routing remain future work.
   Copy should separate a definition from execution history, remap workspace/model
   choices and keep imported schedules inactive until explicitly enabled.
 - Extensions are pi packages with specs and versions. `electron/pi/packages.ts`

@@ -73,6 +73,7 @@ describe('routine-only admission', () => {
     h.scheduler.runNow(c.id, 'c')
     h.scheduler.runNow(d.id, 'd')
     expect(execute).toHaveBeenCalledTimes(2)
+    expect(execute.mock.calls.map(([run]) => run.routineId)).toEqual([a.id, c.id])
     expect(h.repo.pending().filter((r) => r.status === 'queued')).toHaveLength(2)
     h.scheduler.cancel(ra.id)
     await vi.waitFor(() => expect(execute).toHaveBeenCalledTimes(3))

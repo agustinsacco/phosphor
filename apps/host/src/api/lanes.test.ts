@@ -8,6 +8,7 @@ import {
   type Receipt,
 } from '@phosphor/shared/host-protocol'
 import { createLoopbackPair } from '@phosphor/shared/host-protocol-testing'
+import { parseRoutineOp, routineRequiresControl } from '@phosphor/shared/host-protocol-routines'
 import type { HostCapability } from '@phosphor/shared/remote-host'
 import type { LaneService, CallOutcome } from '../lanes/service'
 import { createLaneStreams, createLanesTopic } from '../lanes/stream'
@@ -156,6 +157,54 @@ describe('lane adapter', () => {
     await flush()
     return c
   }
+  it('admits machine routine reductions without lane control and gates starts twice', async () => {
+    h.service.capabilities = ['sessions.read', 'sessions.control', 'routines']
+    h.service.commands.capabilityFor = (op) => {
+      const routine = parseRoutineOp(op)
+      return routine
+        ? routineRequiresControl(routine)
+          ? ['routines', 'sessions.control']
+          : ['routines']
+        : ['sessions.control']
+    }
+    const viewer = await ready(h.claims.client, ['routines'])
+    const reductionId = randomUUID()
+    viewer.send({ type: 'command', requestId: reductionId, op: { type: 'routine.pauseAll' } })
+    await flush()
+    expect(h.service.commands.submit).toHaveBeenCalledTimes(1)
+    const rejectedId = randomUUID()
+    viewer.send({
+      type: 'command',
+      requestId: rejectedId,
+      op: { type: 'routine.run', routineId: randomUUID() },
+    })
+    await flush()
+    expect(receipts(viewer.frames).at(-1)).toMatchObject({
+      requestId: rejectedId,
+      status: 'rejected',
+      code: 'forbidden',
+    })
+    const controller = await ready(h.claims.client, ['routines', 'sessions.control'])
+    const requestId = randomUUID()
+    controller.send({
+      type: 'command',
+      requestId,
+      op: { type: 'routine.run', routineId: randomUUID() },
+    })
+    await flush()
+    expect(h.service.commands.submit).toHaveBeenCalledTimes(2)
+    controller.auth(['routines'], false)
+    await flush()
+    const sender = vi.mocked(h.service.commands.submit).mock.calls.at(-1)?.[0]
+    expect(sender?.currentCaps?.()).toEqual(['routines'])
+    h.done(requestId)
+    await flush()
+    expect(receipts(controller.frames).at(-1)).toMatchObject({ requestId, status: 'done' })
+    controller.send({ type: 'receipt-status', requestId })
+    await flush()
+    expect(receipts(controller.frames).at(-1)?.status).toBe('done')
+  })
+
   it('fans execution out only to interested same-client sockets; conflict is attempt-only', async () => {
     const a = await ready(),
       b = await ready(),

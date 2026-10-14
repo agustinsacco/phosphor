@@ -46,6 +46,7 @@ export function streamLimits(input: Partial<StreamLimits> = {}): StreamLimits {
 
 type LaneFrame = Omit<Extract<HostFrame, { type: 'event' }>, 'id'>
 type TopicFrame =
+  | Omit<Extract<HostFrame, { type: 'routines-changed' }>, 'id'>
   | Omit<Extract<HostFrame, { type: 'lanes-delta' }>, 'id'>
   | Omit<Extract<HostFrame, { type: 'attention' }>, 'id'>
 type Listener<T> = (frame: T | null) => void
@@ -224,7 +225,11 @@ export function createLanesTopic(options: {
       /* Fail closed. */
     }
     const ids =
-      frame.type === 'attention' ? [frame.event.laneId] : frame.upsert.map((s) => s.laneId)
+      frame.type === 'attention'
+        ? [frame.event.laneId]
+        : frame.type === 'lanes-delta'
+          ? frame.upsert.map((s) => s.laneId)
+          : []
     for (const id of ids) {
       try {
         options.invalid?.(id)
@@ -237,6 +242,9 @@ export function createLanesTopic(options: {
   return {
     cursor,
     snapshot: () => ({ type: 'lanes' as const, cursor: cursor(), ...options.list() }),
+    routinesChanged() {
+      deliver({ type: 'routines-changed', cursor: next() })
+    },
     delta(upsert: readonly LaneSummary[], remove: readonly string[] = []) {
       if (
         !valid({

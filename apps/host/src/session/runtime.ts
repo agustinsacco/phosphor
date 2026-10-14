@@ -38,6 +38,8 @@ import {
   type DrainTimings,
   type Lifecycle,
 } from './lifecycle'
+import type { SessionServiceRuntime } from '@phosphor/session-runtime/pi/session-service'
+import type { SessionExecution } from '@phosphor/session-runtime/pi/session-policy'
 import { parseSessionRequest } from './request'
 
 /** What a validated Host knows about its machine. 05-D assembles it from doctor's checks. */
@@ -89,6 +91,7 @@ export function createHostRuntime(
     life?: Lifecycle
     timings?: Partial<DrainTimings>
     dialogs?: 'cancel' | 'forward'
+    routines?: SessionServiceRuntime<Delivery>['routines']
   } = {},
 ) {
   const { log, roots } = machine
@@ -140,7 +143,7 @@ export function createHostRuntime(
     budget: {
       watch: budget.watchContextBudget,
       read: () => machine.contextBudget,
-      paused: () => false,
+      paused: (id) => options.routines?.owns(id) ?? false,
     },
     accounts: { remember: () => {}, forget: () => {}, hold: async () => {} },
     recordWorkspace: () => {},
@@ -177,13 +180,13 @@ export function createHostRuntime(
     readBudget: () => machine.contextBudget,
     withBudgetCompaction: budget.withBudgetCompaction,
     forgetAccount: () => {},
-    routines: NO_ROUTINES,
+    routines: options.routines ?? NO_ROUTINES,
   })
   const deleteLane = createSessionDeletion({
     registry,
     paths,
-    ownsRoutine: () => false,
-    cancelRoutine: async () => {},
+    ownsRoutine: options.routines?.owns ?? NO_ROUTINES.owns,
+    cancelRoutine: options.routines?.cancel ?? NO_ROUTINES.cancel,
     forgetAccount: () => {},
     deleteTranscript: unlinkTranscript,
     deleteDraft: async () => {},
@@ -271,6 +274,21 @@ export function createHostRuntime(
   return {
     life,
     drain,
+    /** Internal runner only: still uses the shared service and path-lock domain. */
+    async startRoutine(request: unknown, deliver: Delivery, execution: SessionExecution) {
+      return service.create(await parse(request), deliver, { ...execution, unattended: true })
+    },
+    routineClient(id: string) {
+      if (!options.routines?.owns(id)) throw new Error('not a routine session')
+      const session = registry.get(id)
+      if (!session) throw new Error('routine session unavailable')
+      return session.client
+    },
+    async stopRoutine(id: string) {
+      if (!options.routines?.owns(id)) throw new Error('not a routine session')
+      const session = registry.get(id)
+      if (session) await stopSession(session, registry, timings)
+    },
     list: (): LiveSessionInfo[] => registry.list(),
     /** Start a session, or resume one from its file. One already running is refused. */
     async start(request: unknown, deliver: Delivery = ignore): Promise<LiveSessionInfo> {
@@ -310,6 +328,7 @@ export function createHostRuntime(
     },
     /** Let a turn in flight end and be saved, then stop pi and its process group. */
     async stop(id: string): Promise<void> {
+      if (options.routines?.owns(id)) throw new Error('routine owns this session')
       const session = registry.get(id)
       if (!session) throw new Error(`Unknown session: ${id}`)
       await stopSession(session, registry, timings)

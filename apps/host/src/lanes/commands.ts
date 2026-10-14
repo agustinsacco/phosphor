@@ -10,6 +10,11 @@ import {
   type RejectCode,
 } from '@phosphor/shared/host-protocol'
 import type { HostCapability } from '@phosphor/shared/remote-host'
+import {
+  parseRoutineOp,
+  routineRequiresControl,
+  type RoutineOp,
+} from '@phosphor/shared/host-protocol-routines'
 import type { RpcCommand } from '@phosphor/shared/rpc'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import { commandRefusal, type HostRuntime } from '../session/runtime'
@@ -25,9 +30,9 @@ export type LaneCommandFrame = Extract<ClientFrame, { type: 'command' }>
 export interface LaneCommandClient {
   id: string
   label: string
+  currentCaps?: () => readonly HostCapability[]
   connectionId?: string
   caps: readonly HostCapability[]
-  currentCaps?: () => readonly HostCapability[]
 }
 export interface LaneCommandPorts {
   terminals?: HostTerminals
@@ -47,6 +52,9 @@ export interface LaneCommandPorts {
   deliver(clientId: string, receipt: Receipt, connectionId?: string): void
   now(): number
   log: RuntimeLog
+  routines?: {
+    execute(op: RoutineOp, requestId: string, caps: readonly HostCapability[]): Promise<unknown>
+  }
   refusal?: (command: RpcCommand) => string | null
 }
 type Terminal = Exclude<Receipt, { status: 'pending' }>
@@ -149,8 +157,12 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       reason,
     })
   }
-  function capabilityFor(op: LaneCommandFrame['op']): HostCapability {
-    return parseTerminalOp(op) ? 'terminal' : 'sessions.control'
+  /** Every capability an op needs, at admission and again when a queued op starts. */
+  function capabilityFor(op: LaneCommandFrame['op']): readonly HostCapability[] {
+    const routine = parseRoutineOp(op)
+    if (routine)
+      return routineRequiresControl(routine) ? ['routines', 'sessions.control'] : ['routines']
+    return parseTerminalOp(op) ? ['terminal', 'sessions.control'] : ['sessions.control']
   }
   function rejected(job: Job, code: RejectCode, recorded: boolean): void {
     terminal(job, { requestId: job.frame.requestId, status: 'rejected', code }, recorded)
@@ -265,6 +277,25 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
         return rejected(job, 'unknown-lane', true)
       }
       if (!publish(laneId, { kind: 'control', control }, queue)) return controlFailure(job)
+    }
+    const routine = parseRoutineOp(op)
+    if (routine) {
+      const caps = client.currentCaps?.() ?? client.caps
+      if (
+        !caps.includes('routines') ||
+        (routineRequiresControl(routine) && !caps.includes('sessions.control'))
+      )
+        return rejected(job, 'forbidden', true)
+      if (!ports.routines) return rejected(job, 'unsupported', true)
+      if (laneId !== undefined || frame.fence !== undefined)
+        return rejected(job, 'bad-request', true)
+      const completion = dispatch(job, queue, () =>
+        ports.routines?.execute(routine, requestId, caps),
+      ).then((result) => {
+        if (!result.answered) return terminal(job, { requestId, status: 'unknown' }, true)
+        terminal(job, { requestId, status: 'done', data: result.value }, true)
+      })
+      return { completion, detached: false }
     }
     if (op.type === 'lane.create') {
       const repository = store.listRepositories().find((entry) => entry.id === op.repositoryId)
@@ -550,10 +581,8 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       if (closing) return Promise.resolve()
       const jobBase = { client, frame, started: ports.now() }
       const immediate = { ...jobBase, resolve: () => {} }
-      if (
-        !client.caps.includes('sessions.control') ||
-        !client.caps.includes(capabilityFor(frame.op))
-      ) {
+      const caps = client.currentCaps?.() ?? client.caps
+      if (!capabilityFor(frame.op).every((cap) => caps.includes(cap))) {
         rejected(immediate, 'forbidden', false)
         return Promise.resolve()
       }

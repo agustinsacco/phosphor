@@ -53,6 +53,7 @@ import { createFilesFeature } from '../features/files'
 import { createGitFeature } from '../features/git'
 import { createArtifactsFeature } from '../features/artifacts'
 import { createSkillsFeature } from '../features/skills'
+import { createHostRoutines, routineOwnership, type HostRoutines } from '../routines/service'
 import type { FeatureContext } from '../features/feature'
 
 /**
@@ -80,6 +81,8 @@ export interface RunContext extends ControlContext {
 }
 async function runHostCommand(context: RunContext): Promise<number> {
   let api: ReturnType<typeof startApi> | undefined
+  let routines: HostRoutines | undefined
+  let routinesStop: Promise<void> | undefined
   let runtime: HostRuntime | undefined
   let runtimeDrain: ReturnType<HostRuntime['drain']> | undefined
   let live: ReturnType<typeof createLiveLanes> | undefined
@@ -110,10 +113,12 @@ async function runHostCommand(context: RunContext): Promise<number> {
     try {
       try {
         const stoppingApi = api?.stop()
+        routinesStop ??= routines?.stop()
         runtimeDrain ??= runtime?.drain('run finished')
-        await Promise.all([stoppingApi, runtimeDrain])
+        await Promise.all([stoppingApi, runtimeDrain, routinesStop])
         await commands?.close()
         terminals?.close()
+        await routines?.close()
         live?.close()
         store?.close()
       } finally {
@@ -144,6 +149,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           later = reason as ShutdownSignal
         initAbort.abort()
         const stoppingApi = api?.stop()
+        routinesStop ??= routines?.stop()
         if (runtime) {
           if (!runtimeDrain) runtimeDrain = runtime.drain(reason)
           else void runtime.drain(reason)
@@ -154,7 +160,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           await initialization?.catch(() => {})
           result = { state: 'stopped' }
         }
-        await Promise.all([stoppingApi, runtimeDrain])
+        await Promise.all([stoppingApi, runtimeDrain, routinesStop])
         if (runtimeDrain && (await runtimeDrain).state === 'failed') result = { state: 'failed' }
         await Promise.race([unlocked, setTimeout(RELEASE_WAIT_MS, undefined, { ref: false })])
         return result
@@ -201,7 +207,16 @@ async function runHostCommand(context: RunContext): Promise<number> {
       if (inspection.machine) {
         const machine = inspection.machine
         const log = createHostLog(hostLogDirectory(context.env, context.home), inspection.secrets)
-        runtime = createHostRuntime({ ...machine, log }, { dialogs: 'forward' })
+        runtime = createHostRuntime(
+          { ...machine, log },
+          {
+            dialogs: 'forward',
+            routines: routineOwnership(async (id) => {
+              if (!routines) throw new Error('routine service unavailable')
+              await routines.cancelSession(id)
+            }),
+          },
+        )
         runtime.life.to('validating')
         seedArtifactSkill(
           machine.resourceRoot,
@@ -224,6 +239,15 @@ async function runHostCommand(context: RunContext): Promise<number> {
           sessionsRoot: piSessionsRoot(context.env, context.home),
           log: (event, fields) => log.write('host', event, fields),
         })
+        const activeTopic = live.lanesTopic
+        routines = createHostRoutines({
+          directory: hostStateDirectory(context.env, context.home),
+          uid: context.uid,
+          store,
+          runtime,
+          changed: () => activeTopic.routinesChanged(),
+          now: context.now,
+        })
         const binding = createRuntimeLanes({ runtime, store, live, log: log.write })
         const native = loadHostPty()
         if (native)
@@ -244,6 +268,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           store,
           ...binding,
           runtime: binding,
+          routines,
           sessionFor: live.sessionFor,
           openDialogs: live.openDialogs,
           summaryFor: live.summaryFor,
@@ -260,6 +285,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
         }
         const features = [
           ...(terminals ? [terminals.feature] : []),
+          routines.feature,
           createFilesFeature(featureContext),
           createGitFeature(featureContext),
           createSkillsFeature(featureContext),
@@ -296,6 +322,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
                 activeLive.publish(lane.laneId, { kind: 'control', control: lane.control })
           },
         }
+        routines.start()
       } else context.log?.('host', 'lanes.unavailable', { reason: 'machine-unusable' })
       initAbort.signal.throwIfAborted()
       launchApi = () => {

@@ -155,6 +155,22 @@
     "./pi/session-content": {
       "types": "./src/pi/session-content.ts",
       "default": "./src/pi/session-content.ts"
+    },
+    "./routines/repository": {
+      "types": "./src/routines/repository.ts",
+      "default": "./src/routines/repository.ts"
+    },
+    "./routines/scheduler": {
+      "types": "./src/routines/scheduler.ts",
+      "default": "./src/routines/scheduler.ts"
+    },
+    "./routines/outcome": {
+      "types": "./src/routines/outcome.ts",
+      "default": "./src/routines/outcome.ts"
+    },
+    "./routines/ownership": {
+      "types": "./src/routines/ownership.ts",
+      "default": "./src/routines/ownership.ts"
     }
   },
   "nx": {

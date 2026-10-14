@@ -22,6 +22,7 @@ import {
  * ("Host protocol").
  */
 import { isUuid, isControlTrace, isIsoTime, normalizeLabel, type Parsed } from './control-api'
+import { parseRoutineOp, ROUTINE_OPS, type RoutineOp } from './host-protocol-routines'
 import { GRANT_LIMITS } from './host-grant'
 import { HOST_CAPABILITIES, validateHostHello } from './remote-host'
 import type { SessionPush } from './models'
@@ -230,6 +231,7 @@ export type LanePiOp = DistributiveOmit<Extract<RpcCommand, { type: LanePiOpType
 
 export type LaneOp =
   | TerminalOp
+  | RoutineOp
   | LanePiOp
   | { readonly type: 'extension_ui_response'; readonly response: ExtensionUIResponse }
   | {
@@ -401,6 +403,7 @@ export type HostFrame =
       readonly upsert: readonly LaneSummary[]
       readonly remove: readonly string[]
     }
+  | { readonly type: 'routines-changed'; readonly id: string; readonly cursor: StreamCursor }
   | {
       readonly type: 'attention'
       readonly id: string
@@ -561,6 +564,7 @@ function response(v: unknown): ExtensionUIResponse | null {
 function op(v: unknown): LaneOp | null {
   if (!record(v)) return null
   if (typeof v.type === 'string' && v.type.startsWith('terminal.')) return parseTerminalOp(v)
+  if (typeof v.type === 'string' && v.type.startsWith('routine.')) return parseRoutineOp(v)
   switch (v.type) {
     case 'prompt':
     case 'steer':
@@ -638,6 +642,7 @@ function op(v: unknown): LaneOp | null {
   }
 }
 const laneOps = [
+  ...ROUTINE_OPS,
   ...LANE_PI_OPS,
   'extension_ui_response',
   'terminal.create',
@@ -703,6 +708,8 @@ export function parseClientFrame(s: string): ClientFrameParse {
       const operation = op(v.op)
       if (
         !operation ||
+        (operation.type.startsWith('routine.') &&
+          (v.laneId !== undefined || v.fence !== undefined)) ||
         (v.laneId !== undefined && !isUuid(v.laneId)) ||
         (v.fence !== undefined && !integer(v.fence, 1)) ||
         (v.trace !== undefined && !isControlTrace(v.trace))
@@ -1026,6 +1033,14 @@ export function parseHostFrame(s: string): Parsed<HostFrame> {
         l = list(v.lanes, HOST_LIMITS.lanesPerHost, summary)
       return frameId(v.id) && c && r && l
         ? good({ type: v.type, id: v.id, cursor: c, repositories: r, lanes: l })
+        : bad()
+    }
+    case 'routines-changed': {
+      const c = cursor(v.cursor, 1)
+      return frameId(v.id) &&
+        c &&
+        Object.keys(v).every((key) => ['type', 'id', 'cursor'].includes(key))
+        ? good({ type: v.type, id: v.id, cursor: c })
         : bad()
     }
     case 'lanes-delta': {

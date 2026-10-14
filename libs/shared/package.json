@@ -179,6 +179,14 @@
     "./host-protocol-artifacts": {
       "types": "./src/host-protocol-artifacts.ts",
       "default": "./src/host-protocol-artifacts.ts"
+    },
+    "./host-protocol-routines": {
+      "types": "./src/host-protocol-routines.ts",
+      "default": "./src/host-protocol-routines.ts"
+    },
+    "./routines-types": {
+      "types": "./src/routines-types.ts",
+      "default": "./src/routines-types.ts"
     }
   },
   "dependencies": {

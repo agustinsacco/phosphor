@@ -369,6 +369,8 @@ function handle(cmd) {
       const last = messages.findLast((m) => m.role === 'assistant')
       return respond(cmd, { text: last ? last.content.map((block) => block.text).join('') : null })
     }
+    case 'set_auto_retry':
+      return respond(cmd, { enabled: cmd.enabled })
     default:
       fail(cmd, 'unsupported in fake')
   }

@@ -545,3 +545,17 @@ is sent to control or persisted on Desktop. Native resources are built per OS an
 architecture with pinned Node and included in the signed release archive.
 Desktop remote terminal UI routing is not implemented yet. The protocol and Host
 limits are documented in [Host terminals](host.md#host-terminals).
+
+## Host routine boundary
+
+The Host announces `routines` only when its daemon scheduler is registered.
+Definitions use configured repository identities rather than client-chosen paths.
+The routines database and scheduler live on the Host, so acknowledged schedules
+run without Desktop or browser connections. Initial saves are paused and
+untrusted; explicit later acknowledgment and operations that start or delete work
+require both `routines` and `sessions.control`. Read and work-reducing operations
+require `routines` alone. All mutations use the Host receipt ledger and never
+retry an uncertain outcome. The `routines-changed` lanes-topic event is a small
+invalidation, not routine contents. Desktop remote routine routing is not wired
+in this Host-only implementation. Local Desktop routines are unchanged.
+See [the routine contract](routines.md#host-routines).
