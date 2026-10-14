@@ -448,3 +448,39 @@ uses that returned version without changing its SQL. Later deployments must
 reconcile the ledger before applying anything; do not replay an existing schema
 under a second version. Hosted changes require explicit target verification.
 Local test success does not imply deployment.
+
+## Install a Host over SSH
+
+Machines > Add a machine > Install over SSH uses the system `ssh` in Desktop
+main, only for installation and repair. Enter `user@host` or an SSH config alias.
+Desktop uses your agent, keys and known_hosts. It never requests a password or
+accepts an unknown host key. Agent and X11 forwarding and configured tunnels are
+disabled. If connection fails, run the displayed `ssh TARGET`
+command once in a terminal, then try again.
+
+Optionally enter a repository relative to the remote home, such as `src/project`.
+It must already exist. Only letters, digits, dots, underscores, hyphens and path
+separators are allowed, with no `.` or `..` segments or leading hyphens. Without
+it, setup uses the existing config or the remote working directory's git root.
+If neither exists, choose a repository and retry. pi and the installer prerequisites
+must already be installed on the machine ([host.md](host.md#setup)).
+
+Desktop pipes its bundled signed-manifest installer to `sh -s --`, using the
+installer's latest-release default, then runs non-interactive setup, login and
+user service installation as separate SSH processes. Login stays running while
+you approve the code in the same dialog as manual enrollment. Desktop looks up
+the code from login stdout only and refuses a fingerprint mismatch. Banners and
+stderr cannot supply the enrollment. Desktop discards login stdout through a fresh
+per-job sentinel and fails the step if that sentinel is missing. Both fingerprints
+appear inline.
+The Host saves its own identity after approval. The dialog waits for service
+installation to finish before offering Close or View machine. Cancel remains
+available while waiting, and SSH failures stay visible. SSH is never the lane
+transport.
+
+One install runs per target, with at most eight jobs. Install steps time out after
+ten minutes; login ends when its code expires, with a ten-minute upper bound.
+Cancel or closing the dialog kills the local SSH process group. It does not roll
+back a completed remote step or revoke an approved machine. Retry is explicit.
+Failures show fixed guidance and a collapsible, bounded last 20 lines of remote
+output. Output, targets, codes and fingerprints stay out of Desktop logs.

@@ -2,6 +2,8 @@ import type { IpcInvokeChannel } from './ipc'
 
 /** Classification only. Remote routing is added by each feature's owner. */
 export const IPC_SCOPE: Record<IpcInvokeChannel, 'app' | 'machine'> = {
+  'hosts:sshInstall': 'app',
+  'hosts:sshInstallCancel': 'app',
   'hosts:snapshot': 'app',
   'hosts:setFocusedLane': 'app',
   'hosts:openLane': 'app',

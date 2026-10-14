@@ -1466,6 +1466,10 @@ export function installMockPhosphor(): void {
         case 'claude:logout':
           mockClaudeAuth = { loggedIn: false }
           return Promise.resolve(undefined as never)
+        case 'hosts:sshInstall':
+          throw new Error('SSH installation needs the Desktop app.')
+        case 'hosts:sshInstallCancel':
+          return undefined
         case 'hosts:snapshot':
           return localStorage.getItem('mock:remoteLanes') === '1'
             ? structuredClone(mockRemoteHosts)
@@ -2519,6 +2523,7 @@ export function installMockPhosphor(): void {
       return () => mockClaudeLoginListeners.delete(listener)
     },
 
+    onSshInstall: () => () => undefined,
     onHostsChanged: onMockRemoteChanged,
     onHostAttention: () => () => undefined,
     onHostOpenLane: () => () => undefined,
