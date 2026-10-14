@@ -62,7 +62,9 @@ screen.
 ## Left sidebar (Claude Desktop style)
 
 Signed-in windows show a compact machine menu beneath the main navigation. Each
-window starts on **This Mac**, and selection stays in memory only. Its right edge
+window starts on **This Mac**, and selection stays in memory only, including
+while the sidebar is hidden. Signing out or removing the selected machine resets
+the selection to This Mac. Its right edge
 summarizes activity on other machines; All machines has no “elsewhere” activity.
 The menu supports arrow keys, Enter, Escape with focus return, and outside-click
 dismissal. Add machine opens Machines with the existing add dialog.

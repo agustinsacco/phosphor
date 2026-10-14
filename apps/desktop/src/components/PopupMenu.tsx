@@ -1,3 +1,4 @@
+import { useEscapeKey } from './Modal'
 import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useRef, useState } from 'react'
 
@@ -43,6 +44,8 @@ export function PopupMenu({
   const ref = useRef<HTMLDivElement>(null)
   const [computedStyle, setComputedStyle] = useState<React.CSSProperties>({})
 
+  useEscapeKey(onClose)
+
   // Do not float the trigger's hint over the menu it already opened.
   useEffect(() => {
     const trigger = triggerRef?.current
@@ -74,17 +77,9 @@ export function PopupMenu({
       if (triggerRef?.current?.contains(target)) return
       onClose()
     }
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') {
-        event.stopPropagation()
-        onClose()
-      }
-    }
     window.addEventListener('mousedown', handler)
-    window.addEventListener('keydown', onKeyDown)
     return () => {
       window.removeEventListener('mousedown', handler)
-      window.removeEventListener('keydown', onKeyDown)
     }
   }, [onClose, triggerRef])
 

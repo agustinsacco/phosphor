@@ -58,6 +58,17 @@ export const useRemoteLanesStore = create<{
   setFilter: (filter) => set({ filter }),
 }))
 
+// Window-local selection survives sidebar remounts, but not account or directory removal.
+useMachinesStore.subscribe((state, previous) => {
+  const { filter, setFilter } = useRemoteLanesStore.getState()
+  if (
+    !state.remoteEnabled ||
+    (previous.machines.some((machine) => machine.id === filter) &&
+      !state.machines.some((machine) => machine.id === filter))
+  )
+    setFilter('local')
+})
+
 export async function adoptRemoteLane(info: LiveSessionInfo, nav: number): Promise<void> {
   if (info.target?.kind !== 'remote' || !info.laneId) throw new Error('Invalid remote lane.')
   await useSessionsStore

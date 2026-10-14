@@ -1,5 +1,6 @@
 import { isUnseen } from './unseen'
-import { useEffect } from 'react'
+import { useMemo } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import type { HostConnectionView } from '@shared/ipc'
 import { ChoiceMenu } from '@/components/ChoiceMenu'
 import { MachinesIcon } from '@/components/icons'
@@ -77,7 +78,6 @@ export function activityText(counts: MachineActivity): string {
   )
 }
 export function MachineLabelLine({ id }: { id: string }): React.JSX.Element {
-  const local = useLocalMachineActivity()
   const host = useRemoteLanesStore((s) => s.hosts[id])
   const machine = useMachinesStore((s) => s.machines.find((m) => m.id === id))
   const now = useMachinesStore((s) => s.nowMs)
@@ -91,7 +91,7 @@ export function MachineLabelLine({ id }: { id: string }): React.JSX.Element {
         <MachineDot state={id === 'local' ? 'ready' : host?.state} />
       </div>
       <div className="text-text-tertiary mt-1 text-xs">
-        {id === 'local' ? activityText(local) : machineStateText(host, machine?.lastSeenAt, now)}
+        {id === 'local' ? <LocalActivityText /> : machineStateText(host, machine?.lastSeenAt, now)}
       </div>
     </div>
   )
@@ -111,47 +111,65 @@ function machineStateText(
         : `Down${lastSeenAt ? ` · seen ${relativeTime(lastSeenAt, now || Date.now())}` : ''}`
 }
 
+function LocalActivityText(): React.JSX.Element {
+  return <>{activityText(useLocalMachineActivity())}</>
+}
+
 function useLocalMachineActivity(): MachineActivity {
   const live = useSessionsStore((s) => s.live)
   const disk = useSessionsStore((s) => s.disk)
   const seen = useSessionsStore((s) => s.seenSessions)
   const unread = useSessionsStore((s) => s.unread)
-  const chats = useChatStore((s) => s.sessions)
-  const dialogs = useExtensionUiStore((s) => s.dialogs)
-  const local = emptyActivity()
-  const newPaths = new Set(
-    Object.values(disk)
-      .flat()
-      .filter((meta) => isUnseen(seen, meta.path, meta.lastActivityAt))
-      .map((meta) => meta.path),
+  const newPaths = useMemo(
+    () =>
+      new Set(
+        Object.values(disk)
+          .flat()
+          .filter((meta) => isUnseen(seen, meta.path, meta.lastActivityAt))
+          .map((meta) => meta.path),
+      ),
+    [disk, seen],
   )
-  for (const [id, count] of Object.entries(unread)) {
-    if (count && live[id]?.target?.kind !== 'remote') newPaths.add(live[id]?.diskPath ?? id)
-  }
-  local.new = newPaths.size
-  for (const entry of Object.values(live)) {
-    if (entry.target?.kind === 'remote') continue
-    const chat = chats[entry.phosphorId]
-    local.running += Number(chat?.isStreaming === true)
-    local.needsYou += Number(!!chat?.error || dialogs.some((d) => d.sessionId === entry.phosphorId))
-  }
-  return local
+  const newCount = useMemo(() => {
+    const paths = new Set(newPaths)
+    for (const [id, count] of Object.entries(unread)) {
+      if (count && live[id]?.target?.kind !== 'remote') paths.add(live[id]?.diskPath ?? id)
+    }
+    return paths.size
+  }, [newPaths, unread, live])
+  const localIds = useMemo(
+    () =>
+      Object.values(live)
+        .filter((entry) => entry.target?.kind !== 'remote')
+        .map((entry) => entry.phosphorId),
+    [live],
+  )
+  const dialogIds = useExtensionUiStore(
+    useShallow((s) => localIds.filter((id) => s.dialogs.some((d) => d.sessionId === id))),
+  )
+  const [running, needsYou] = useChatStore(
+    useShallow(
+      (s) =>
+        [
+          localIds.filter((id) => s.sessions[id]?.isStreaming === true).length,
+          localIds.filter((id) => !!s.sessions[id]?.error || dialogIds.includes(id)).length,
+        ] as const,
+    ),
+  )
+  return { running, new: newCount, needsYou }
 }
 
 export function MachineSwitcher(): React.JSX.Element | null {
   const enabled = useMachinesStore((s) => s.remoteEnabled)
+  return enabled ? <EnabledMachineSwitcher /> : null
+}
+
+function EnabledMachineSwitcher(): React.JSX.Element {
   const machines = useMachinesStore((s) => s.machines)
   const now = useMachinesStore((s) => s.nowMs)
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const selected = useRemoteLanesStore((s) => s.filter)
   const local = useLocalMachineActivity()
-  useEffect(() => {
-    useRemoteLanesStore.getState().setFilter('local')
-  }, [])
-  useEffect(() => {
-    if (!enabled) useRemoteLanesStore.getState().setFilter('local')
-  }, [enabled])
-  if (!enabled) return null
   const ids = [...new Set([...machines.map((m) => m.id), ...Object.keys(hosts)])]
   const activity: Record<string, MachineActivity> = {
     local,
