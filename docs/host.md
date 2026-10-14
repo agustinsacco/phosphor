@@ -1082,7 +1082,7 @@ The unattached snapshot reader reads a stopped lane's context from pi's session
 file, with `state: null`. A null or missing file means an empty transcript: pi
 persists messages only when a turn ends. The same snapshot size and image omission
 rule applies. Reads are synchronous, capped at 64 MiB, and cached for four lanes;
-invalid or inaccessible files return `unknown-lane`. This port is not served yet.
+invalid or inaccessible files return `unknown-lane`. The running Host serves this reader for stopped lanes.
 The reader trusts the owner's pi sessions folder; a process that can write it
 can race the containment check.
 

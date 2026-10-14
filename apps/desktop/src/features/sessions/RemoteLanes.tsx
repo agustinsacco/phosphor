@@ -1,5 +1,6 @@
+import { MachinePicker } from '@/features/machines/MachinePicker'
 import { TooltipButton } from '@/components/Tooltip'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { isLaneBranchName } from '@shared/host-protocol'
 import { ModalOverlay } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
@@ -50,7 +51,7 @@ export function RemoteLanes(): React.JSX.Element | null {
           >
             <div className="text-text-secondary text-sm">
               {machineLabel(id)}
-              {host.state !== 'ready' && ' is offline'}
+              {host.state !== 'ready' && ' is offline · last known'}
             </div>
             {host.lanes.map((lane) => (
               <TooltipButton
@@ -70,7 +71,7 @@ export function RemoteLanes(): React.JSX.Element | null {
                 {lane.attention > lane.read && <span aria-label="Unread">● </span>}
                 {lane.title || 'Untitled lane'}{' '}
                 <span className="text-text-tertiary text-sm">
-                  {machineLabel(id)} · {lane.activity}
+                  {machineLabel(id)} · {host.state === 'ready' ? lane.activity : 'last known'}
                 </span>
               </TooltipButton>
             ))}
@@ -82,18 +83,37 @@ export function RemoteLanes(): React.JSX.Element | null {
           </section>
         ))}
       {error && <p role="alert">{error}</p>}
-      {creating && <NewRemoteLane hostId={creating} onClose={() => setCreating(null)} />}
+      {creating && (
+        <NewRemoteLane
+          key={creating}
+          hostId={creating}
+          onMachine={setCreating}
+          onClose={() => setCreating(null)}
+        />
+      )}
     </div>
   )
 }
 
-function NewRemoteLane({
+export function NewRemoteLane({
   hostId,
+  onMachine,
   onClose,
 }: {
   hostId: string
+  onMachine: (hostId: string | null) => void
   onClose: () => void
 }): React.JSX.Element {
+  const mounted = useRef(true)
+  const navigation = useRef<number | null>(null)
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      const sessions = useSessionsStore.getState()
+      if (navigation.current !== null && sessions.navSeq === navigation.current) sessions.claimNav()
+    }
+  }, [])
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
   const [repositoryId, setRepositoryId] = useState(host?.repositories[0]?.id ?? '')
   const [branch, setBranch] = useState('')
@@ -114,6 +134,7 @@ function NewRemoteLane({
     }
     setBusy(true)
     const nav = useSessionsStore.getState().claimNav()
+    navigation.current = nav
     try {
       const info = await window.phosphor.invoke('hosts:createLane', hostId, {
         repositoryId,
@@ -121,8 +142,9 @@ function NewRemoteLane({
         ...(name ? { name } : {}),
         ...(model ? { model, provider } : {}),
       })
+      if (!mounted.current) return
       await adoptRemoteLane(info, nav)
-      onClose()
+      if (mounted.current) onClose()
     } catch {
       setError('The Host could not confirm creation. Check the lane list before retrying.')
     } finally {
@@ -139,6 +161,17 @@ function NewRemoteLane({
         }}
       >
         <h2>New lane on {machineLabel(hostId)}</h2>
+        <MachinePicker
+          value={hostId}
+          capability="sessions.control"
+          onChange={(id) => {
+            if (id === 'local') {
+              useSessionsStore.getState().activate(null)
+              onClose()
+            } else onMachine(id)
+          }}
+        />
+        {host?.state !== 'ready' && <p>Machine not connected. Wait for reconnection.</p>}
         <label className="block">
           Repository
           <select
@@ -182,7 +215,15 @@ function NewRemoteLane({
           onChange={(event) => setModel(event.target.value)}
         />
         {error && <p role="alert">{error}</p>}
-        <Button type="submit" disabled={busy || !repositoryId}>
+        <Button
+          type="submit"
+          disabled={
+            busy ||
+            !repositoryId ||
+            host?.state !== 'ready' ||
+            !host.capabilities.includes('sessions.control')
+          }
+        >
           Create lane
         </Button>
         <Button type="button" onClick={onClose}>

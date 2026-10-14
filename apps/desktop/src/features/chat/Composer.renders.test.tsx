@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { hostResourceKey } from '@shared/remote-host'
 import { expect, it, vi } from 'vitest'
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -82,4 +83,66 @@ it('typing re-renders none of the strips and readouts around the field', async (
     'abc de',
   )
   root.unmount()
+})
+
+it('disables a disconnected remote composer and restores it from the ready snapshot', async () => {
+  const { useSessionsStore } = await import('@/stores/sessions')
+  const { useRemoteLanesStore } = await import('@/stores/remoteLanes')
+  const { mockRemoteInfo, mockRemoteHosts, MOCK_HOST_ID } = await import('@/dev/mockRemoteLanes')
+  const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID])
+  if (!host?.lanes[0]?.control.controller) throw new Error('Missing host')
+  host.lanes[0].control.controller.self = true
+  useSessionsStore.setState({
+    live: {
+      [mockRemoteInfo.sessionId]: { ...mockRemoteInfo, phosphorId: mockRemoteInfo.sessionId },
+    },
+  })
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: { ...host, state: 'down' } } })
+  useChatStore.getState().ensure(mockRemoteInfo.sessionId)
+  const el = document.createElement('div')
+  document.body.append(el)
+  const root = createRoot(el)
+  try {
+    await act(async () =>
+      root.render(
+        <Composer
+          sessionId={mockRemoteInfo.sessionId}
+          workspacePath={mockRemoteInfo.workspacePath}
+        />,
+      ),
+    )
+    expect(el.querySelector('fieldset')?.disabled).toBe(true)
+    expect(el.querySelector('textarea')?.matches(':disabled')).toBe(true)
+    expect(el.textContent).toContain('Machine not connected. Wait for reconnection.')
+    const command = vi.spyOn(window.phosphor, 'piCommand')
+    await act(async () =>
+      useDraftsStore
+        .getState()
+        .setText(
+          hostResourceKey(
+            { kind: 'remote', hostId: MOCK_HOST_ID },
+            'session',
+            mockRemoteInfo.laneId ?? '',
+          ),
+          'must not send',
+        ),
+    )
+    const textarea = el.querySelector('textarea')
+    await act(async () =>
+      textarea?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+    )
+    expect(command).not.toHaveBeenCalledWith(
+      mockRemoteInfo.sessionId,
+      expect.objectContaining({ type: 'prompt' }),
+    )
+    command.mockRestore()
+
+    await act(async () => useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } }))
+    expect(el.querySelector('fieldset')?.disabled).toBe(false)
+  } finally {
+    act(() => root.unmount())
+    el.remove()
+    useRemoteLanesStore.setState({ hosts: {} })
+    useSessionsStore.setState({ live: {} })
+  }
 })

@@ -1,3 +1,4 @@
+import { machineReads } from '../hosts/machine-reads'
 import { routeRemoteWrite } from '../hosts/write-features'
 import type { SessionPush } from '@shared/models'
 import { app, BrowserWindow, Notification } from 'electron'
@@ -76,6 +77,10 @@ export function registerHostsHandlers(): void {
         log,
       }),
   })
+  const catalogues = machineReads(manager.connection)
+  handle('hosts:models', (_event, hostId) => catalogues.models(hostId))
+  handle('hosts:providers', (_event, hostId) => catalogues.providers(hostId))
+  handle('hosts:skills', (_event, hostId) => catalogues.skills(hostId))
   remote = createRemoteLanes({
     connection: manager.connection,
     present: manager.present,
@@ -115,6 +120,8 @@ export function registerHostsHandlers(): void {
     const routine = routines?.route(channel, args)
     if (routine) return routine
     const key = args[0]
+    if (typeof key === 'string' && /^host:[^/]+\/machine(?:\/|$)/.test(key))
+      return routeRemoteRead(channel, args, () => catalogues.lane(key.slice(5).split('/')[0] ?? ''))
     if (
       channel === 'artifacts:forSession' &&
       typeof key === 'string' &&

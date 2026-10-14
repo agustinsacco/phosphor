@@ -12,6 +12,7 @@ export const mockRemoteInfo: LiveSessionInfo = {
 export const mockRemoteHosts: HostsSnapshot = {
   [MOCK_HOST_ID]: {
     state: 'ready',
+    connectionToken: 'mock-connection-1',
     capabilities: ['sessions.read', 'sessions.control'],
     repositories: [{ id: '0000000000000001', name: 'Demo repository', path: '/remote/demo' }],
     lanes: [

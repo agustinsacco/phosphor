@@ -1476,6 +1476,11 @@ export function installMockPhosphor(): void {
           throw new Error('SSH installation needs the Desktop app.')
         case 'hosts:sshInstallCancel':
           return undefined
+        case 'hosts:models':
+        case 'hosts:providers':
+          return []
+        case 'hosts:skills':
+          return { skills: [], probe: 'rpc', userRoot: `host:${args[0]}/machine` }
         case 'hosts:snapshot':
           return localStorage.getItem('mock:remoteLanes') === '1'
             ? structuredClone(mockRemoteHosts)

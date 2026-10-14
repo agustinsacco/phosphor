@@ -51,6 +51,7 @@ export function createHostConnection(ports: {
   const log = ports.log ?? (() => {})
   let view: HostConnectionSnapshot = {
     state: 'connecting',
+    connectionToken: randomUUID(),
     capabilities: [],
     repositories: [],
     lanes: [],
@@ -478,6 +479,7 @@ export function createHostConnection(ports: {
       return
     }
     const epoch = ++generation
+    update({ connectionToken: randomUUID() })
     started = now()
     trace = randomBytes(8).toString('hex')
     log('hosts', 'connect', { hostId: ports.hostId, trace })

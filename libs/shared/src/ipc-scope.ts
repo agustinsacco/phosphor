@@ -4,6 +4,9 @@ import type { IpcInvokeChannel } from './ipc'
 export const IPC_SCOPE: Record<IpcInvokeChannel, 'app' | 'machine'> = {
   'hosts:sshInstall': 'app',
   'hosts:sshInstallCancel': 'app',
+  'hosts:models': 'machine',
+  'hosts:providers': 'machine',
+  'hosts:skills': 'machine',
   'hosts:snapshot': 'app',
   'hosts:setFocusedLane': 'app',
   'hosts:openLane': 'app',

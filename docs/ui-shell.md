@@ -334,6 +334,10 @@ The visual recipe lives in [style-guide.md](style-guide.md#action-hints).
   tagged ("Session deleted", or "Folder missing" when its workspace is gone)
   and its artifact opens read-only on the page; a deleted session's can be
   removed there.
+- **Skills machine context** follows the active lane by default. Its header switcher
+  offers This Mac and Hosts announcing `skills.read`. Remote skills are read-only;
+  unavailable machines never fall back to local skills. Remote machines show their
+  models and providers on the Skills page; This Mac shows them in Settings.
 - **Skills discovery** is a capability workbench: outcome filters, task fit,
   evidence and limitations precede an expandable review/install section.
   Vercel React guidance and NVIDIA cuOpt routing install at reviewed commit
@@ -420,8 +424,9 @@ status text, problem-only readiness chips (or Ready), and non-zero lane counts.
 The whole row opens a stable detail view; live updates do not reset selection.
 Signed out, only this computer is listed, with an optional GitHub sign-in panel.
 Signed in with no Hosts, a three-step source-install, setup and login guide links
-to the Host guide. There are no sample machines, remote lanes, machine filter,
-per-lane machine chip or Run on picker. All lanes still run on this computer.
+to the Host guide. There are no sample machines. Remote lanes, machine filters
+and per-lane connection chips use authenticated Host snapshots. The home
+machine picker defaults to This Mac; remote choices select configured repositories.
 
 Main owns directory traffic. Realtime is only a debounced change signal, with
 60 s polling while disconnected. A 5 s local timer updates relative times and
@@ -431,6 +436,8 @@ explicit and offer retry.
 
 Details share Status, Readiness and About sections. Host details include the
 last heartbeat, enrollment date, version, copyable fingerprint and machine id.
+On this machine lists lanes and capability-gated skills, routines and artifact
+counts, with links to machine-filtered pages. Down lanes stay labelled last known.
 Problems give plain-language fixes and copyable commands to run on that Host.
 A never-connected Host offers `phosphor run` and, on Linux,
 `phosphor service install`. A Host offline for over a day suggests

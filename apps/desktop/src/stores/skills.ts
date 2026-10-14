@@ -1,3 +1,5 @@
+import { machineReadGeneration } from './machineReadGeneration'
+import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from './remoteLanes'
 import { create } from 'zustand'
 import type { SkillsListResult } from '@shared/skills'
 
@@ -18,6 +20,8 @@ interface SkillsState {
   select: (dir: string | null) => void
 }
 
+let selectionGeneration = 0
+
 export const useSkillsStore = create<SkillsState>((set, get) => ({
   byWorkspace: {},
   loading: {},
@@ -25,19 +29,37 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
   tab: 'yours',
   selectedDir: null,
   refresh: async (workspacePath) => {
+    const hostId = workspacePath.startsWith('host:')
+      ? workspacePath.slice(5).split('/')[0]
+      : undefined
+    const host = hostId ? useRemoteLanesStore.getState().hosts[hostId] : undefined
+    const generation = hostId ? machineReadGeneration(hostId) : undefined
+    const selection = selectionGeneration
+    const current = () => !hostId || machineReadGeneration(hostId) === generation
+    if (hostId && (host?.state !== 'ready' || !host.capabilities.includes('skills.read'))) {
+      set((s) => ({ error: { ...s.error, [workspacePath]: REMOTE_UNAVAILABLE } }))
+      return
+    }
     set((state) => ({ loading: { ...state.loading, [workspacePath]: true } }))
     try {
       const result = await window.phosphor.invoke('skills:list', workspacePath)
+      if (!current()) return
       set((state) => ({
         byWorkspace: { ...state.byWorkspace, [workspacePath]: result },
         loading: { ...state.loading, [workspacePath]: false },
         error: { ...state.error, [workspacePath]: undefined },
       }))
       const { selectedDir } = get()
-      if (selectedDir && !result.skills.some((skill) => skill.dir === selectedDir)) {
+      if (
+        selection === selectionGeneration &&
+        selectedDir &&
+        (hostId ? selectedDir.startsWith(`${workspacePath}/`) : !selectedDir.startsWith('host:')) &&
+        !result.skills.some((skill) => skill.dir === selectedDir)
+      ) {
         set({ selectedDir: null })
       }
     } catch (cause) {
+      if (!current()) return
       set((state) => ({
         loading: { ...state.loading, [workspacePath]: false },
         error: {
@@ -47,6 +69,12 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
       }))
     }
   },
-  setTab: (tab) => set({ tab, selectedDir: null }),
-  select: (dir) => set({ selectedDir: dir }),
+  setTab: (tab) => {
+    selectionGeneration++
+    set({ tab, selectedDir: null })
+  },
+  select: (dir) => {
+    selectionGeneration++
+    set({ selectedDir: dir })
+  },
 }))

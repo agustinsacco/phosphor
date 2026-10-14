@@ -44,6 +44,7 @@ it('shows read-only files and diffs, refreshes on turn end and summary, never wa
   const sessionId = mockRemoteInfo.sessionId
   useSessionsStore.setState({ live: { [sessionId]: { phosphorId: sessionId, ...mockRemoteInfo } } })
   const host = {
+    connectionToken: 'test-connection-1',
     state: 'ready' as const,
     capabilities: ['sessions.read', 'workspaces.read'] as const,
     repositories: [],
@@ -186,6 +187,7 @@ it.each(['??', 'A ', 'AM', ' M'])(
     useRemoteLanesStore.setState({
       hosts: {
         [target.hostId]: {
+          connectionToken: 'test-connection-1',
           state: 'ready',
           capabilities: ['workspaces.read'],
           repositories: [],
@@ -246,6 +248,7 @@ it.each(['success', 'conflict', 'unknown'])(
       hosts: {
         [target.hostId]: {
           ...fixture,
+          connectionToken: 'test-connection-1',
           state: 'ready',
           capabilities: [
             'sessions.read',

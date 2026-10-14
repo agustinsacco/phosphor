@@ -33,7 +33,13 @@ it('requires ready artifact capability and discards replies after capability los
   const hydrate = vi.spyOn(useArtifactsStore.getState(), 'hydrate')
   const container = document.createElement('div')
   const root = createRoot(container)
-  const view = { state: 'ready' as const, capabilities: [], lanes: [], repositories: [] }
+  const view = {
+    connectionToken: 'test-connection-1',
+    state: 'ready' as const,
+    capabilities: [],
+    lanes: [],
+    repositories: [],
+  }
   try {
     await act(async () => {
       useRemoteLanesStore.setState({ hosts: { [hostId]: view } })

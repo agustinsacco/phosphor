@@ -1,3 +1,4 @@
+import { OnThisMachine } from './OnThisMachine'
 import { useEffect, useRef, useState } from 'react'
 import { machineStatus, type MachineView } from '@shared/control-api'
 import type { ClaudeStatus, PiHealth, SubscriptionProviderStatus } from '@shared/models'
@@ -556,6 +557,7 @@ export function MachinesPage(): React.JSX.Element {
                 <p className="text-text-secondary mb-2 mt-4 text-base">Machine id</p>
                 <CopyCommand command={machine.id} />
               </Section>
+              <OnThisMachine hostId={machine.id} />
               <Section title="Remove machine">
                 <p className="text-text-secondary mb-3 text-base">
                   Remove this machine from your account. Its files and installation stay on the

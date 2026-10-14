@@ -87,7 +87,13 @@ it('reloads a different lane in the same repository instead of retaining the fir
   })
   useRemoteLanesStore.setState({
     hosts: {
-      [hostId]: { state: 'ready', capabilities: ['workspaces.read'], lanes: [], repositories: [] },
+      [hostId]: {
+        connectionToken: 'test-connection-1',
+        state: 'ready',
+        capabilities: ['workspaces.read'],
+        lanes: [],
+        repositories: [],
+      },
     },
   })
   const container = document.createElement('div')
@@ -106,5 +112,76 @@ it('reloads a different lane in the same repository instead of retaining the fir
     act(() => root.unmount())
     useRemoteLanesStore.setState({ hosts: {} })
     vi.unstubAllGlobals()
+  }
+})
+
+it('blocks remote pane reads while down and recovers without reload', async () => {
+  const { useRemoteLanesStore } = await import('@/stores/remoteLanes')
+  const { mockRemoteHosts, MOCK_HOST_ID } = await import('@/dev/mockRemoteLanes')
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const invoke = vi.fn(async (channel: string) =>
+    channel === 'fs:listFiles' ? ['recovered.ts'] : {},
+  )
+  vi.stubGlobal('phosphor', { invoke, onSessionPush: () => () => {} })
+  const host = mockRemoteHosts[MOCK_HOST_ID]
+  if (!host) throw new Error('Missing host')
+  const ready = { ...host, capabilities: ['workspaces.read' as const] }
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: { ...ready, state: 'down' } } })
+  useSessionsStore.setState({
+    live: {
+      [mockRemoteInfo.sessionId]: { ...mockRemoteInfo, phosphorId: mockRemoteInfo.sessionId },
+    },
+  })
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    useLayoutStore.getState().setRightPane('files', mockRemoteInfo.sessionId)
+    await act(async () =>
+      root.render(
+        <RightPane
+          sessionId={mockRemoteInfo.sessionId}
+          workspacePath={mockRemoteInfo.workspacePath}
+        />,
+      ),
+    )
+    expect(container.textContent).toContain('Machine not connected. Wait for reconnection.')
+    expect(invoke).not.toHaveBeenCalled()
+    await act(async () => useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: ready } }))
+    expect(invoke).toHaveBeenCalledWith('fs:listFiles', mockRemoteInfo.workspacePath)
+    expect(container.textContent).toContain('recovered.ts')
+  } finally {
+    act(() => root.unmount())
+    useRemoteLanesStore.setState({ hosts: {} })
+    vi.unstubAllGlobals()
+  }
+})
+
+it('does not mount a terminal when a ready machine lacks terminal capability', async () => {
+  const { useRemoteLanesStore } = await import('@/stores/remoteLanes')
+  const { mockRemoteHosts, MOCK_HOST_ID } = await import('@/dev/mockRemoteLanes')
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  useSessionsStore.setState({
+    live: {
+      [mockRemoteInfo.sessionId]: { ...mockRemoteInfo, phosphorId: mockRemoteInfo.sessionId },
+    },
+  })
+  useRemoteLanesStore.setState({ hosts: structuredClone(mockRemoteHosts) })
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    useLayoutStore.getState().setRightPane('terminal', mockRemoteInfo.sessionId)
+    act(() =>
+      root.render(
+        <RightPane
+          sessionId={mockRemoteInfo.sessionId}
+          workspacePath={mockRemoteInfo.workspacePath}
+        />,
+      ),
+    )
+    expect(container.textContent).toContain('Not available on remote lanes yet.')
+    expect(useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]?.state).toBe('ready')
+  } finally {
+    act(() => root.unmount())
+    useRemoteLanesStore.setState({ hosts: {} })
   }
 })

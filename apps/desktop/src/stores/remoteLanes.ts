@@ -6,6 +6,16 @@ import { forgetRemoteSession, useSessionsStore } from './sessions'
 import { useMachinesStore } from './machines'
 
 const LOCAL: HostTarget = Object.freeze({ kind: 'local' })
+export const REMOTE_NOT_READY = 'Machine not connected. Wait for reconnection.'
+
+export function connectionLabel(state: HostConnectionView['state'] | undefined): string {
+  return state === 'ready'
+    ? 'Connected'
+    : state === 'connecting' || state === 'reconnecting'
+      ? 'Reconnecting'
+      : 'Down'
+}
+
 export const REMOTE_UNAVAILABLE = 'Not available on remote lanes yet.'
 
 export function useActiveMachine(): HostTarget {

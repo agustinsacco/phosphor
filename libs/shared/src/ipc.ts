@@ -1,3 +1,4 @@
+import type { MachineModel, MachineProvider } from './host-protocol-machine'
 import type { SshInstallEvent } from './ssh-install'
 import type { HostCapability } from './remote-host'
 import type { RepositorySummary, LaneSummary, StreamCursor } from './host-protocol'
@@ -141,7 +142,10 @@ export type HostLaneView = Omit<LaneSummary, 'control'> & {
 }
 
 export interface HostConnectionView {
+  /** Opaque main-owned transport incarnation, independent of the Host runtime epoch. */
+  connectionToken: string
   state:
+    | 'down'
     | 'no-address'
     | 'connecting'
     | 'ready'
@@ -179,6 +183,10 @@ export interface HostAttention {
 export interface IpcInvokeMap {
   'hosts:sshInstall': { args: [target: string, repository?: string]; result: { jobId: string } }
   'hosts:sshInstallCancel': { args: [jobId: string]; result: void }
+  // Read-only machine catalogues, independent of an open lane.
+  'hosts:models': { args: [hostId: string]; result: MachineModel[] }
+  'hosts:providers': { args: [hostId: string]; result: MachineProvider[] }
+  'hosts:skills': { args: [hostId: string]; result: SkillsListResult }
   'hosts:snapshot': { args: []; result: HostsSnapshot }
   'hosts:setFocusedLane': {
     args: [target: { hostId: string; laneId: string } | null]

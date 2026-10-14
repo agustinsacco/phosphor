@@ -1,3 +1,5 @@
+import { MachinePicker } from '@/features/machines/MachinePicker'
+import { NewRemoteLane } from '@/features/sessions/RemoteLanes'
 import { TooltipSummary, TooltipLabel, tooltipProps } from '@/components/Tooltip'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
@@ -31,6 +33,7 @@ import { homeDraftKey, useDraftsStore } from '@/stores/drafts'
 
 /** Workspace workbench with the existing first-prompt composer kept in reach. */
 export function WorkspaceHome({ workspacePath }: { workspacePath: string }): React.JSX.Element {
+  const [creatingOn, setCreatingOn] = useState<string | null>(null)
   const [stats, setStats] = useState<WorkspaceSessionStats | null>(null)
   const [username, setUsername] = useState('')
   const laneBoard = useLaneBoard(workspacePath)
@@ -267,6 +270,19 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             the composer and get clipped behind the OS window controls.
           */}
           <div className="mb-2 flex flex-wrap items-center gap-1.5 px-0.5">
+            <MachinePicker
+              value={creatingOn ?? 'local'}
+              capability="sessions.control"
+              onChange={(id) => setCreatingOn(id === 'local' ? null : id)}
+            />
+            {creatingOn && (
+              <NewRemoteLane
+                key={creatingOn}
+                hostId={creatingOn}
+                onMachine={setCreatingOn}
+                onClose={() => setCreatingOn(null)}
+              />
+            )}
             <WorkspaceChip workspacePath={workspacePath} />
             {isRepo && <BranchControl workspacePath={workspacePath} />}
             {isRepo && (
