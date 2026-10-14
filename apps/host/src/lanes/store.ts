@@ -61,6 +61,7 @@ export type StoreLimits = {
   [Key in 'receiptsKept' | 'lanesPerHost' | 'repositoriesPerHost']: number
 }
 export interface StorePorts {
+  onLaneRemoved?: (laneId: string) => void
   now?: () => number
   receiptTtlMs?: number
   isConnected?: (clientId: string) => boolean
@@ -132,7 +133,7 @@ export class HostStore {
   readonly limits: Readonly<StoreLimits>
   constructor(
     private readonly db: DatabaseSync,
-    ports: StorePorts,
+    private readonly ports: StorePorts,
   ) {
     this.receiptTtlMs = ports.receiptTtlMs ?? HOST_LIMITS.receiptTtlMs
     integer(this.receiptTtlMs, 1)
@@ -445,6 +446,7 @@ export class HostStore {
         .prepare('UPDATE lanes SET removed_at=? WHERE lane_id=? AND removed_at IS NULL')
         .run(this.clock(), id),
     )
+    this.ports.onLaneRemoved?.(id)
   }
   pruneRemovedLanes(now: number = this.clock()): void {
     integer(now)

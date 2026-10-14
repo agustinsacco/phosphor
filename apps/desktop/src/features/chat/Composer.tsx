@@ -27,6 +27,7 @@ import { piCallAccepted, piCallOk } from '@/lib/rpc'
 import { formatShortcut } from '@/lib/shortcuts'
 import {
   composePrompt,
+  remotePromptAttachments,
   fromImageContents,
   toImageContents,
   type PendingAttachment,
@@ -60,6 +61,13 @@ export function Composer({
     entry?.target?.kind === 'remote' ? s.hosts[entry.target.hostId] : undefined,
   )
   const disconnected = remote && host?.state !== 'ready'
+  const remoteAttachments =
+    remote &&
+    host?.state === 'ready' &&
+    host.capabilities.includes('workspaces.write') &&
+    host.capabilities.includes('sessions.control') &&
+    canControlSession(sessionId)
+  const uploading = useRef(false)
   const draftKey =
     entry?.target?.kind === 'remote' && entry.laneId
       ? hostResourceKey(entry.target, 'session', entry.laneId)
@@ -157,7 +165,7 @@ export function Composer({
     async (behavior?: 'steer' | 'followUp') => {
       if (!canControlSession(sessionId)) return
       const message = text.trim()
-      if (!message && images.length === 0) return
+      if ((!message && images.length === 0) || uploading.current) return
 
       const chat = useChatStore.getState()
 
@@ -209,22 +217,69 @@ export function Composer({
         return
       }
 
-      const imagePayload: ImageContent[] = toImageContents(images)
+      // Remote sends await uploads and receipts while the next draft stays editable.
+      const submitted = remote
+        ? images.map((a) => ({
+            ...a,
+            draftAttachmentId: a.draftAttachmentId ?? crypto.randomUUID(),
+          }))
+        : images
+      const submittedIds = new Set(submitted.map((a) => a.draftAttachmentId))
+      let textEdited = false
+      const unsubscribe = remote
+        ? useDraftsStore.subscribe((next, previous) => {
+            if (next.drafts[draftKey]?.text !== previous.drafts[draftKey]?.text) textEdited = true
+          })
+        : () => undefined
+      if (remote) setImages(submitted)
+      let consumed = false
+      const finishRemoteDraft = (success: boolean) => {
+        if (!remote) return
+        const current = useDraftsStore.getState().get(draftKey)
+        useDraftsStore.getState().patch(draftKey, {
+          ...(success && !textEdited ? { text: '' } : {}),
+          attachments: current.attachments.filter(
+            (a) =>
+              !submittedIds.has(a.draftAttachmentId) ||
+              (!success && !(consumed && a.kind === 'file' && a.data !== undefined)),
+          ),
+        })
+      }
+      const imagePayload: ImageContent[] = toImageContents(submitted)
       // Non-image attachments ride along as paths in the prompt: pi's protocol
       // has no document type, so the agent opens them with its own tools.
-      const messageWithFiles = composePrompt(message, images)
+      let messageWithFiles: string
+      try {
+        if (remote && images.length && !remoteAttachments)
+          throw new Error('Attachment upload unavailable.')
+        uploading.current = true
+        const attached = remote
+          ? await remotePromptAttachments(submitted, (files) => {
+              consumed = true
+              return window.phosphor.invoke('hosts:uploadAttachments', sessionId, files)
+            })
+          : images
+        messageWithFiles = composePrompt(message, attached)
+      } catch (error) {
+        finishRemoteDraft(false)
+        chat.setError(sessionId, ipcErrorText(error))
+        unsubscribe()
+        uploading.current = false
+        return
+      }
 
-      useDraftsStore.getState().clear(draftKey)
+      if (!remote) useDraftsStore.getState().clear(draftKey)
       setAttachWarning(null)
       slash.close()
       setHistoryIndex(null)
 
-      // An idle prompt renders its bubble now. A steer or follow-up does not:
+      // Local idle prompts render now; remote prompts wait for the Host echo,
+      // which can arrive before the receipt. A steer or follow-up does not:
       // pi holds it in a queue (shown as a chip) and the reducer appends the
       // bubble at its `message_end`, where pi actually delivered it. Drawing it
       // at send time put it above work the agent did before reading it, so a
       // follow-up looked like a steer and an aborted queue showed it twice.
-      if (!isStreaming) {
+      if (!remote && !isStreaming) {
         chat.addUserMessage(
           sessionId,
           messageWithFiles,
@@ -239,7 +294,12 @@ export function Composer({
           ...(imagePayload.length ? { images: imagePayload } : {}),
           ...(isStreaming ? { streamingBehavior: behavior ?? 'steer' } : {}),
         })
-        if (!accepted) return
+        // A refused prompt keeps a remote draft and its attachments for another try.
+        if (!accepted) {
+          finishRemoteDraft(false)
+          return
+        }
+        finishRemoteDraft(true)
         // Only once pi took it, so a failed send typed again is not learned twice.
         useWritingStore.getState().recordPrompt(message)
         // An extension command consumed it: no run starts, so no event will
@@ -248,13 +308,15 @@ export function Composer({
           chat.promptHandled(sessionId, messageWithFiles)
         }
       } catch (error) {
-        // `piCallOk` reports a rejected envelope; an IPC-level rejection (the
-        // session's process died mid-send, or main refused a Claude prompt on
-        // an outdated provider) still lands here.
+        finishRemoteDraft(false)
+        // IPC-level rejections (a dead process or an outdated provider) land here.
         chat.setError(sessionId, ipcErrorText(error))
+      } finally {
+        unsubscribe()
+        uploading.current = false
       }
     },
-    [sessionId, text, images, isStreaming, draftKey],
+    [sessionId, text, images, isStreaming, draftKey, remote, remoteAttachments, setImages],
   )
 
   const abort = useCallback(async () => {
@@ -363,6 +425,7 @@ export function Composer({
       >
         <ComposerInput
           workspacePath={remote ? undefined : workspacePath}
+          remoteAttachments={remoteAttachments}
           value={text}
           textareaRef={textareaRef}
           onChange={(value) => {

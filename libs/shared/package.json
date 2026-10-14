@@ -8,6 +8,10 @@
       "types": "./src/host-protocol-providers.ts",
       "default": "./src/host-protocol-providers.ts"
     },
+    "./host-protocol-attachments": {
+      "types": "./src/host-protocol-attachments.ts",
+      "default": "./src/host-protocol-attachments.ts"
+    },
     "./host-protocol-terminals": {
       "types": "./src/host-protocol-terminals.ts",
       "default": "./src/host-protocol-terminals.ts"

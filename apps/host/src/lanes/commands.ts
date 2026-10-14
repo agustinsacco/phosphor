@@ -1,5 +1,7 @@
 import { parseProviderLoginOp } from '@phosphor/shared/host-protocol-providers'
 import type { ProviderLogins } from '../providers/login'
+import { parseAttachmentOp } from '@phosphor/shared/host-protocol-attachments'
+import type { HostAttachments } from '../features/attachments'
 import { parseTerminalOp } from '@phosphor/shared/host-protocol-terminals'
 import { TerminalForbidden, type HostTerminals } from '../terminals/service'
 import { parseFileWriteOp, type FileWriteOp } from '@phosphor/shared/host-protocol-writes'
@@ -40,6 +42,7 @@ export interface LaneCommandClient {
 }
 export interface LaneCommandPorts {
   providerLogins?: ProviderLogins
+  attachments?: HostAttachments
   terminals?: HostTerminals
   store: HostStore
   writes?: {
@@ -168,6 +171,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
   }
   /** Every capability an op needs, at admission and again when a queued op starts. */
   function capabilityFor(op: LaneCommandFrame['op']): readonly HostCapability[] {
+    if (parseAttachmentOp(op)) return ['workspaces.write', 'sessions.control']
     const routine = parseRoutineOp(op)
     if (routine)
       return routineRequiresControl(routine) ? ['routines', 'sessions.control'] : ['routines']
@@ -275,6 +279,11 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
   function execute(job: Job, queue: LaneQueue): Execution | void {
     const { frame, client } = job
     const { requestId, laneId, op } = frame
+    if (parseAttachmentOp(op)) {
+      const caps = client.currentCaps?.() ?? client.caps
+      if (!caps.includes('workspaces.write') || !caps.includes('sessions.control'))
+        return rejected(job, 'forbidden', true)
+    }
     const terminalOp = parseTerminalOp(op)
     const terminalAllowed = () => {
       const caps = client.currentCaps?.() ?? client.caps
@@ -443,6 +452,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
           true,
         )
       }
+      if (admission.control.fence !== lane.control.fence) ports.attachments?.abort(laneId)
       admittedFence = admission.control.fence
       if (
         admission.control.fence !== lane.control.fence &&
@@ -467,6 +477,26 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
           result.answered
             ? { requestId, status: 'done', data: result.value.data, fence: admittedFence }
             : { requestId, status: 'unknown' },
+          true,
+        )
+      })
+      return { completion, detached: false }
+    }
+    const attachment = parseAttachmentOp(op)
+    if (attachment) {
+      const attachments = ports.attachments
+      if (!attachments || admittedFence === undefined) return rejected(job, 'unsupported', true)
+      const fence = admittedFence
+      const completion = dispatch(job, queue, () =>
+        attachments.execute({ laneId, clientId: client.id, fence }, attachment),
+      ).then((result) => {
+        if (!result.answered)
+          return terminal(job, { requestId, status: 'unknown' }, true, result.reason)
+        terminal(
+          job,
+          result.value.ok
+            ? { requestId, status: 'done', data: result.value.data, fence }
+            : { requestId, status: 'rejected', code: result.value.code },
           true,
         )
       })
@@ -526,6 +556,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
         return { completion, detached: true }
       }
       case 'control.take': {
+        ports.attachments?.abort(laneId)
         const control = store.takeControl(laneId, { clientId: client.id, label: client.label })
         publish(laneId, { kind: 'control', control }, queue)
         return terminal(job, { requestId, status: 'done', fence: control.fence }, true)
@@ -538,6 +569,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
             { requestId, status: 'rejected', code: 'not-controller', control: released.control },
             true,
           )
+        ports.attachments?.abort(laneId)
         publish(laneId, { kind: 'control', control: released.control }, queue)
         return terminal(job, { requestId, status: 'done', fence: released.control.fence }, true)
       }

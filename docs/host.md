@@ -1343,7 +1343,7 @@ and again when a queued write starts. A closed connection has no permissions.
 `files.write`, `files.create`, `files.rename`, `files.delete` and `files.transfer`
 are lane-scoped, controller-only and fenced. Receipts are owner-only, not
 capability-gated; receipts carry no content. They retain the existing durable
-pending/done/rejected/unknown and deduplication rules. Attachments remain refused.
+pending/done/rejected/unknown and deduplication rules.
 
 Text reads include the SHA-256 revision of the exact bytes read, or null for a
 missing file. Writes accept at most 2 MiB and require that revision (`expected`);
@@ -1367,6 +1367,41 @@ not isolation from the machine owner. Delete moves to `~/.Trash` on macOS or
 validated as non-symlink directories, created one level at a time with mode 0700,
 and destination parent realpaths are rechecked before metadata creation and the move.
 Cross-device moves are refused, never copy-deleted.
+
+### Attachments
+
+`attachments.begin {name, size, mime}`, `attachments.chunk {uploadId, index, data}`
+and `attachments.commit {uploadId, sha256}` use lane-scoped receipts. All three
+require `workspaces.write` and `sessions.control`, the current fence and control
+of the lane. Upload ids bind to the creating client, lane and fence. A control
+change deletes open uploads. Chunks are strictly ordered, at most 256 KiB decoded;
+a duplicate or gap aborts the upload. Commit verifies declared size and SHA-256
+against both received and stored bytes. No unknown outcome is retried by Desktop.
+
+Files are at most 20 MiB. Desktop allows ten attachments per prompt. The Host
+bounds concurrency to ten open uploads per lane, rather than counting files per
+message. It charges begun bytes, with a minimum 64 KiB per begin, against a 64 MiB
+rolling hour per lane. A private, atomically replaced ledger retains 61 minute
+buckets, conservatively keeping charges for up to one extra minute. Invalid or
+unreadable ledgers charge the full hour; a backwards clock never frees quota.
+
+The Host stores committed files under its state directory at
+`attachments/<laneId>/`, never inside the repository. Directories are 0700;
+exclusive files and quota ledgers are 0600. Names are sanitized. Partial files
+live in the sibling `attachments-tmp/<laneId>/` directory, expire after one hour
+and are swept on startup and every minute. Startup also deletes storage for
+unknown or removed lanes. Finalized lane removal deletes files, partial uploads
+and the ledger. Sweeps do not follow symlinks. Final names are reserved exclusively
+before atomic rename; as with file writes, Node cannot eliminate same-user
+ancestor-swap races without portable openat support.
+
+Commit returns a small Host-local path. This is the documented path exception:
+Desktop uses it in the prompt's `<attached-files>` block, exactly like local
+non-image attachments, so pi on the Host can read the file. The path is visible
+only where local attachment paths are visible, including the sent message.
+Bytes, paths and upload ids are not logged. Inline images keep the normal pi
+`images[]` flow; Desktop main refuses encoded image prompt frames above the
+inbound frame limit minus a 1 KiB margin before sending, preserving the image draft.
 
 ### Host terminals
 

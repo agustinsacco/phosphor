@@ -163,8 +163,14 @@ The live chat picker keeps the lane's full pi model list through `lane.models`,
 requiring `sessions.read`. Stopped lanes do not fall back to a machine catalogue.
 Skills requires `skills.read`. Remote Skills shows the installed list
 and SKILL.md read-only, with no export, upload, discovery installs or mutations.
-Unsupported panes retain the not-available state. Remote attachments remain
-refused with the existing not-available message; no local path is sent to pi.
+Unsupported panes retain the not-available state. Remote attachments require a
+ready Host with `workspaces.write` and `sessions.control` and the current controller.
+Main uploads document bytes with fenced begin/chunk/commit receipts before sending
+the prompt. Upload failure or uncertainty never sends the prompt and never resends
+a chunk. The committed Host path is the sole attachment-path exception: it appears
+in the same `<attached-files>` prompt block as a local document, not in a new UI
+surface. Local file paths are never sent to Host pi. See [Host attachments](host.md#attachments)
+for limits, quota, storage and cleanup.
 The six `fs:` mutation channels route to fenced Host commands, not local I/O.
 
 Workspace reads resolve through the window's focused open lane. The opaque

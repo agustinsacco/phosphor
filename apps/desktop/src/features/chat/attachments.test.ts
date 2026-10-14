@@ -121,3 +121,54 @@ describe('annotatedName', () => {
     expect(annotatedName('image-1', false)).toBe('image-1-annotated.png')
   })
 })
+
+it('preflights ten remote attachments and never returns a partial batch after uncertainty', async () => {
+  const { remotePromptAttachments } = await import('./attachments')
+  const doc: PendingAttachment = {
+    kind: 'file',
+    path: '',
+    name: 'a.pdf',
+    size: 3,
+    data: 'YWJj',
+    mime: 'application/pdf',
+  }
+  let calls = 0
+  const upload = async () => {
+    calls++
+    return ['/host/a.pdf']
+  }
+  await expect(remotePromptAttachments(Array(11).fill(doc), upload)).rejects.toThrow('At most 10')
+  await expect(remotePromptAttachments([file('/local/file')], upload)).rejects.toThrow(
+    'Pick the attachment again',
+  )
+  expect(calls).toBe(0)
+  expect(composePrompt('read', await remotePromptAttachments([doc], upload))).toContain(
+    '/host/a.pdf',
+  )
+  await expect(remotePromptAttachments([doc], async () => [])).rejects.toThrow('not confirmed')
+  await expect(
+    remotePromptAttachments([doc], async () => {
+      throw new Error('unknown')
+    }),
+  ).rejects.toThrow('unknown')
+})
+
+it('reads remote picks as bytes without resolving or retaining a local path', async () => {
+  const { toAttachment } = await import('./attachments')
+  const document = new File(['abc'], 'report.pdf', { type: 'application/pdf' })
+  const attachment = await toAttachment(
+    document,
+    () => {
+      throw new Error('local path resolver must not run')
+    },
+    true,
+  )
+  expect(attachment).toEqual({
+    kind: 'file',
+    name: 'report.pdf',
+    size: 3,
+    path: '',
+    data: 'YWJj',
+    mime: 'application/pdf',
+  })
+})

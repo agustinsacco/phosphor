@@ -316,3 +316,29 @@ describe('isEmptyDraft', () => {
     expect(isEmptyDraft({ text: '', attachments: [IMAGE] })).toBe(false)
   })
 })
+
+it('bounds remote document bytes across all drafts and releases on remove, abandon and clear', async () => {
+  const { useDraftsStore } = await import('./drafts')
+  const doc: PendingAttachment = {
+    kind: 'file',
+    path: '',
+    name: 'remote.pdf',
+    size: 16 * 1024 * 1024,
+    data: 'A'.repeat(4 * Math.ceil((16 * 1024 * 1024) / 3) - 2) + '==',
+  }
+  for (const key of ['one', 'two', 'three', 'four'])
+    useDraftsStore.getState().setAttachments(key, [doc])
+  expect(() => useDraftsStore.getState().setAttachments('five', [doc])).toThrow(
+    'Remote attachments are full.',
+  )
+  expect(useDraftsStore.getState().get('five').attachments).toEqual([])
+  useDraftsStore.getState().setAttachments('one', [])
+  useDraftsStore.getState().setAttachments('five', [doc])
+  useDraftsStore.getState().releaseRemoteFiles('two')
+  useDraftsStore.getState().setAttachments('six', [doc])
+  useDraftsStore.getState().clear('three')
+  useDraftsStore.getState().setAttachments('seven', [doc])
+  await flush()
+  expect(JSON.stringify(setCalls())).not.toContain('remote.pdf')
+  expect(invoke.mock.calls.some(([channel]) => channel === 'app:writeDraftBlob')).toBe(false)
+})

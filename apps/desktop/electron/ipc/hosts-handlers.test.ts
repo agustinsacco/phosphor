@@ -3,6 +3,8 @@ import type { ArtifactListing } from '@shared/artifacts'
 
 const mocks = vi.hoisted(() => ({
   router: vi.fn(),
+  handle: vi.fn(),
+  readLane: vi.fn(),
   localList: vi.fn(),
   remoteList: vi.fn(),
 }))
@@ -20,7 +22,7 @@ vi.mock('../hosts/socket', () => ({
   e2eHostEndpoint: () => undefined,
 }))
 vi.mock('./control-handlers', () => ({ controlClient: () => ({}), onMachinesChanged: vi.fn() }))
-vi.mock('./handle', () => ({ handle: vi.fn(), setRemoteReadRouter: mocks.router }))
+vi.mock('./handle', () => ({ handle: mocks.handle, setRemoteReadRouter: mocks.router }))
 vi.mock('../hosts/artifacts', () => ({
   createArtifactHost: vi.fn(),
   remoteSessionArtifacts: vi.fn(),
@@ -29,7 +31,9 @@ vi.mock('../hosts/artifacts', () => ({
 }))
 vi.mock('../artifacts/artifact-sync', () => ({ artifactLibrary: { list: mocks.localList } }))
 vi.mock('../hosts/read-features', () => ({ routeRemoteRead: vi.fn() }))
-vi.mock('../hosts/remote-lanes', () => ({ createRemoteLanes: () => ({}) }))
+vi.mock('../hosts/remote-lanes', () => ({
+  createRemoteLanes: () => ({ readLane: mocks.readLane }),
+}))
 vi.mock('../hosts/attention', () => ({ createHostAttention: () => ({}) }))
 
 import { registerHostsHandlers } from './hosts-handlers'
@@ -57,4 +61,28 @@ it('library loads local rows even when the remote listing rejects', async () => 
   if (typeof router !== 'function') throw new Error('Missing router')
   expect(await router(1, 'artifacts:list', [['/local']]).result).toEqual([local])
   expect(mocks.localList).toHaveBeenCalledWith(['/local'])
+})
+
+it('attachment IPC resolves only the owning opaque lane and fails closed without one', async () => {
+  mocks.handle.mockClear()
+  registerHostsHandlers()
+  const handler: unknown = mocks.handle.mock.calls.find(
+    ([channel]) => channel === 'hosts:uploadAttachments',
+  )?.[1]
+  if (typeof handler !== 'function') throw new Error('Missing attachment handler')
+  mocks.readLane.mockReturnValue(null)
+  expect(() => handler({ sender: { id: 7 } }, 'remote-handle', [])).toThrow()
+  expect(mocks.readLane).toHaveBeenCalledWith(7, 'remote-handle')
+  const write = vi.fn(async (op) =>
+    op.type === 'attachments.begin'
+      ? { uploadId: 'a'.repeat(32) }
+      : { path: '/host/attachments/a.pdf' },
+  )
+  mocks.readLane.mockReturnValue({ write })
+  expect(
+    await handler({ sender: { id: 7 } }, 'remote-handle', [
+      { name: 'empty.pdf', mime: 'application/pdf', data: '' },
+    ]),
+  ).toEqual(['/host/attachments/a.pdf'])
+  expect(write).toHaveBeenCalledTimes(2)
 })

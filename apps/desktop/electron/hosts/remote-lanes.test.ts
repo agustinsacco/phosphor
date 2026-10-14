@@ -930,62 +930,76 @@ it('does not broadcast Host changes for ten pi text deltas but preserves summary
   expect(t.changed).toHaveBeenCalled()
 })
 
-it('routes file writes with the current fence and rechecks capabilities, focus and handles', async () => {
-  const t = await setup()
-  const opening = t.lanes.open(t.window, t.hostId, t.laneId)
-  await drain()
-  const info = await opening
-  t.lanes.setFocused(1, { hostId: t.hostId, laneId: t.laneId })
-  const lane = t.lanes.readLane(1, info.workspacePath)
-  if (!lane) throw new Error('Missing lane')
-  const op = { type: 'files.create' as const, path: 'a', kind: 'file' as const }
-  const send = vi.spyOn(t.c, 'send').mockResolvedValue({ requestId: randomUUID(), status: 'done' })
-  const snapshot = t.c.snapshot()
-  const view = vi.spyOn(t.c, 'snapshot').mockReturnValue(snapshot)
-  await expect(lane.write(op)).rejects.toThrow(REMOTE_UNAVAILABLE)
-  expect(send).not.toHaveBeenCalled()
-  const writable = {
-    ...snapshot,
-    capabilities: ['sessions.read', 'sessions.control', 'workspaces.write'] as const,
-  }
-  view.mockReturnValue({ ...writable, capabilities: [...writable.capabilities] })
-  await expect(lane.write(op)).resolves.toBeUndefined()
-  expect(send).toHaveBeenLastCalledWith(
-    op,
-    t.laneId,
-    snapshot.lanes.find((l) => l.laneId === t.laneId)?.control.fence,
-  )
-  send.mockResolvedValue({ requestId: randomUUID(), status: 'rejected', code: 'conflict' })
-  await expect(lane.write(op)).rejects.toThrow('changed-on-disk')
-  send.mockResolvedValue({ requestId: randomUUID(), status: 'unknown' })
-  await expect(lane.write(op)).rejects.toThrow('File mutation not confirmed')
-  send.mockImplementation(async () => {
-    view.mockReturnValue(snapshot)
-    return { requestId: randomUUID(), status: 'done' }
-  })
-  await expect(lane.write(op)).rejects.toThrow(REMOTE_UNAVAILABLE)
-  view.mockReturnValue({ ...writable, capabilities: [...writable.capabilities] })
-  send.mockImplementation(async () => {
-    t.lanes.setFocused(1, null)
-    return { requestId: randomUUID(), status: 'done' }
-  })
-  await expect(lane.write(op)).rejects.toThrow(REMOTE_UNAVAILABLE)
-  t.lanes.setFocused(1, { hostId: t.hostId, laneId: t.laneId })
-  send.mockImplementation(async () => {
-    t.connection.mockReturnValue(undefined)
-    return { requestId: randomUUID(), status: 'done' }
-  })
-  await expect(lane.write(op)).rejects.toThrow(REMOTE_UNAVAILABLE)
-  t.connection.mockReturnValue(t.c)
-  send.mockImplementation(async () => {
-    t.lanes.dispose(1, info.sessionId)
-    return { requestId: randomUUID(), status: 'done' }
-  })
-  await expect(lane.write(op)).rejects.toThrow(REMOTE_UNAVAILABLE)
-  t.lanes.clear()
-  t.c.close()
-  t.host.stop()
-})
+it.each(['files', 'attachments'] as const)(
+  'routes %s with the current fence and rechecks capabilities, focus and handles',
+  async (kind) => {
+    const t = await setup()
+    const opening = t.lanes.open(t.window, t.hostId, t.laneId)
+    await drain()
+    const info = await opening
+    t.lanes.setFocused(1, { hostId: t.hostId, laneId: t.laneId })
+    const lane = t.lanes.readLane(1, info.workspacePath)
+    if (!lane) throw new Error('Missing lane')
+    const op =
+      kind === 'files'
+        ? { type: 'files.create' as const, path: 'a', kind: 'file' as const }
+        : { type: 'attachments.begin' as const, name: 'a.pdf', size: 1, mime: 'application/pdf' }
+    const send = vi
+      .spyOn(t.c, 'send')
+      .mockResolvedValue({ requestId: randomUUID(), status: 'done' })
+    const snapshot = t.c.snapshot()
+    const view = vi.spyOn(t.c, 'snapshot').mockReturnValue(snapshot)
+    await expect(lane.write(op)).rejects.toThrow(REMOTE_UNAVAILABLE)
+    expect(send).not.toHaveBeenCalled()
+    const writable = {
+      ...snapshot,
+      capabilities: ['sessions.read', 'sessions.control', 'workspaces.write'] as const,
+    }
+    view.mockReturnValue({ ...writable, capabilities: [...writable.capabilities] })
+    await expect(lane.write(op)).resolves.toBeUndefined()
+    expect(send).toHaveBeenLastCalledWith(
+      op,
+      t.laneId,
+      snapshot.lanes.find((l) => l.laneId === t.laneId)?.control.fence,
+    )
+    send.mockResolvedValue({ requestId: randomUUID(), status: 'rejected', code: 'conflict' })
+    await expect(lane.write(op)).rejects.toThrow('changed-on-disk')
+    send.mockResolvedValue({ requestId: randomUUID(), status: 'unknown' })
+    await expect(lane.write(op)).rejects.toThrow('File mutation not confirmed')
+    send.mockImplementation(async () => {
+      view.mockReturnValue(snapshot)
+      return { requestId: randomUUID(), status: 'done' }
+    })
+    await expect(lane.write(op)).rejects.toThrow(REMOTE_UNAVAILABLE)
+    view.mockReturnValue({ ...writable, capabilities: [...writable.capabilities] })
+    send.mockImplementation(async () => {
+      t.lanes.setFocused(1, null)
+      return { requestId: randomUUID(), status: 'done' }
+    })
+    await expect(lane.write(op)).rejects.toThrow(REMOTE_UNAVAILABLE)
+    t.lanes.setFocused(1, { hostId: t.hostId, laneId: t.laneId })
+    send.mockImplementation(async () => {
+      view.mockReturnValue({ ...writable, capabilities: [...writable.capabilities], lanes: [] })
+      return { requestId: randomUUID(), status: 'done' }
+    })
+    await expect(lane.write(op)).rejects.toThrow(REMOTE_UNAVAILABLE)
+    view.mockReturnValue({ ...writable, capabilities: [...writable.capabilities] })
+    send.mockImplementation(async () => {
+      t.connection.mockReturnValue(undefined)
+      return { requestId: randomUUID(), status: 'done' }
+    })
+    await expect(lane.write(op)).rejects.toThrow(REMOTE_UNAVAILABLE)
+    t.connection.mockReturnValue(t.c)
+    send.mockImplementation(async () => {
+      t.lanes.dispose(1, info.sessionId)
+      return { requestId: randomUUID(), status: 'done' }
+    })
+    await expect(lane.write(op)).rejects.toThrow(REMOTE_UNAVAILABLE)
+    t.lanes.clear()
+    t.c.close()
+    t.host.stop()
+  },
+)
 it.each(['replacement', 'removal', 'dispose'] as const)(
   'terminal handle is invalidated by %s',
   async (reason) => {
@@ -1012,5 +1026,86 @@ it.each(['replacement', 'removal', 'dispose'] as const)(
     }
     t.lanes.clear()
     t.c.close()
+  },
+)
+
+it('preflights remote image frames in main before send, accepting just under the margin', async () => {
+  const t = await setup()
+  const opening = t.lanes.open(t.window, t.hostId, t.laneId)
+  await drain()
+  const info = await opening
+  const send = vi.spyOn(t.c, 'send').mockResolvedValue({ requestId: randomUUID(), status: 'done' })
+  const message = 'é'.repeat(32)
+  const op = {
+    type: 'prompt' as const,
+    message,
+    images: [{ type: 'image' as const, mimeType: 'image/png', data: '' }],
+  }
+  const overhead = Buffer.byteLength(
+    JSON.stringify({
+      type: 'command',
+      requestId: randomUUID(),
+      laneId: t.laneId,
+      fence: 1,
+      trace: 'a'.repeat(16),
+      op,
+    }),
+  )
+  const size = HOST_LIMITS.inboundFrameBytes - 1024 - overhead
+  op.images[0]!.data = 'A'.repeat(size + 4)
+  const before = t.frames.length
+  expect(await t.lanes.command(1, info.sessionId, op)).toMatchObject({
+    success: false,
+    error: 'Image too large for a remote lane.',
+  })
+  expect(send).not.toHaveBeenCalled()
+  expect(t.frames).toHaveLength(before)
+  op.images[0]!.data = 'A'.repeat(size - 4)
+  expect(await t.lanes.command(1, info.sessionId, op)).toMatchObject({ success: true })
+  expect(send).toHaveBeenCalledOnce()
+  t.lanes.dispose(1, info.sessionId)
+  t.c.close()
+})
+
+it.each(['connection', 'handle', 'focus'] as const)(
+  'refuses attachment write before any frame when its %s changes',
+  async (changed) => {
+    const t = await setup()
+    const opening = t.lanes.open(t.window, t.hostId, t.laneId)
+    await drain()
+    const info = await opening
+    t.lanes.setFocused(1, { hostId: t.hostId, laneId: t.laneId })
+    const lane = t.lanes.readLane(1, info.sessionId)
+    if (!lane) throw new Error('Missing lane')
+    const writable = {
+      ...t.c.snapshot(),
+      capabilities: ['sessions.read', 'sessions.control', 'workspaces.write'] as const,
+    }
+    vi.spyOn(t.c, 'snapshot').mockReturnValue({
+      ...writable,
+      capabilities: [...writable.capabilities],
+    })
+    const replacement = changed === 'connection' ? t.connect('first') : t.c
+    await drain()
+    if (replacement !== t.c) {
+      vi.spyOn(replacement, 'snapshot').mockReturnValue({
+        ...writable,
+        capabilities: [...writable.capabilities],
+      })
+      t.connection.mockReturnValue(replacement)
+    }
+    if (changed === 'handle') t.lanes.dispose(1, info.sessionId)
+    if (changed === 'focus') t.lanes.setFocused(1, null)
+    const send = vi
+      .spyOn(replacement, 'send')
+      .mockResolvedValue({ requestId: randomUUID(), status: 'done' })
+    await expect(
+      lane.write({ type: 'attachments.begin', name: 'a.pdf', size: 0, mime: '' }),
+    ).rejects.toThrow(REMOTE_UNAVAILABLE)
+    expect(send).not.toHaveBeenCalled()
+    t.lanes.clear()
+    replacement.close()
+    t.c.close()
+    t.host.stop()
   },
 )

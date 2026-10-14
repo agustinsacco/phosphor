@@ -13,6 +13,7 @@ import type { useSlashMenu } from './useSlashMenu'
 import { SwarmControl, SwarmSwitch, swarmLook, useSwarm } from './SwarmSwitch'
 
 interface ComposerInputProps extends Omit<ComposerFieldProps, 'onPasteFiles'> {
+  remoteAttachments?: boolean
   workspacePath?: string
   attachments: PendingAttachment[]
   onAttachmentsChange: (attachments: PendingAttachment[]) => void
@@ -30,6 +31,7 @@ interface ComposerInputProps extends Omit<ComposerFieldProps, 'onPasteFiles'> {
 /** The input card for both new and existing lanes. Only lifecycle controls are slots. */
 export function ComposerInput({
   workspacePath,
+  remoteAttachments = false,
   attachments: images,
   onAttachmentsChange,
   onWarning,
@@ -44,6 +46,7 @@ export function ComposerInput({
   ...field
 }: ComposerInputProps): React.JSX.Element {
   const attachments = useAttachments({
+    remote: remoteAttachments,
     attachments: images,
     onChange: onAttachmentsChange,
     onReject: onWarning,
@@ -143,9 +146,9 @@ export function ComposerInput({
       )}
       <div
         data-swarm-enabled={enabled}
-        onDragOver={workspacePath ? attachments.handleDragOver : undefined}
+        onDragOver={workspacePath || remoteAttachments ? attachments.handleDragOver : undefined}
         onDragLeave={attachments.handleDragLeave}
-        onDrop={workspacePath ? attachments.handleDrop : undefined}
+        onDrop={workspacePath || remoteAttachments ? attachments.handleDrop : undefined}
         className={clsx(
           'bg-surface relative rounded-xl border shadow-sm transition-colors',
           attachments.dragging
@@ -167,7 +170,7 @@ export function ComposerInput({
           {...field}
           onChange={change}
           onKeyDown={keyDown}
-          onPasteFiles={workspacePath ? attachments.addFiles : () => undefined}
+          onPasteFiles={workspacePath || remoteAttachments ? attachments.addFiles : () => undefined}
           autocomplete={
             field.autocomplete !== false &&
             !slash.visible &&
@@ -178,7 +181,9 @@ export function ComposerInput({
         {children}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2.5 pb-2">
           <div className="flex shrink-0 items-center gap-0.5">
-            {workspacePath && <AttachButton onFiles={attachments.addFiles} />}
+            {(workspacePath || remoteAttachments) && (
+              <AttachButton onFiles={attachments.addFiles} />
+            )}
             <DictateButton textareaRef={field.textareaRef} onChange={change} />
             {workspacePath &&
               ('sessionId' in swarm ? (
