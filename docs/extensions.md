@@ -375,9 +375,10 @@ still holds every version; the store indexes it.
   every version on every branch with an `onBranch` flag, plus the scan
   position. The format and read side live in `libs/pi-extensions/pi-ext/artifact-store.ts`;
   ids and slugs are regex-checked before they reach a path.
-- **Main is the only writer** (`apps/desktop/electron/artifacts/`:
-  `artifact-indexer.ts` reads one file, `artifact-library.ts` owns the store,
-  `artifact-sync.ts` wires it up). It indexes a session file incrementally
+- **Desktop main is the local writer.** The portable modules in
+  `libs/session-runtime/src/artifacts/` read session files and own the store;
+  `apps/desktop/electron/artifacts/artifact-sync.ts` wires them up. It indexes a
+  session file incrementally
   (resuming at the last byte read, rescanning when the file was rewritten or
   the branch moved under old versions) on `agent_end`, `compaction_end` and pi
   exit, when a pane asks, right before a delete, and in a one-file-at-a-time
@@ -547,6 +548,16 @@ the lane leaves out; the system-prompt estimate excludes the left-out ones.
 `mcp-status.ts` exists for the same reason in the other direction: the adapter
 publishes each server's state on that bus, but pi's RPC has no channel for it.
 It forwards the snapshot verbatim.
+
+### Remote artifact storage
+
+The Node-only artifact indexer and library live in
+`libs/session-runtime/src/artifacts/`; Desktop's artifact modules re-export them.
+A Host indexes its admitted lanes on demand into its state directory. Remote
+artifact previews use the same local sandboxed viewer after bounded content
+fetches. The global library tags remote rows with their machine. Removed Host
+lanes do not appear in that library; local deleted-session artifacts remain.
+See [remote artifacts](remote-access.md#remote-artifacts) for the wire limits.
 
 ### The status channel is a wire contract
 

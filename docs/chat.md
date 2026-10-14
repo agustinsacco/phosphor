@@ -969,9 +969,11 @@ Controllers can prompt, steer, queue, abort, compact, change model and thinking,
 answer dialogs, stop and resume. New lane on a machine asks for its repository,
 optional branch and name, and optional provider and model ids.
 
-Files, Changes, Terminal, Artifacts and Subagents panes show “Not available on
+Terminal and Subagents panes show “Not available on
 remote lanes yet.” instead of local machine data. Local workspace controls,
 file mentions, attachments, transcript export and local account usage are not
 available inside a remote lane. Remote transcripts remain in memory. Drafts use
 Host-qualified lane keys. A reconnect reset replaces history through the normal
 hydration path.
+
+Remote Artifacts requires `artifacts.read`; see [remote artifacts](remote-access.md#remote-artifacts).

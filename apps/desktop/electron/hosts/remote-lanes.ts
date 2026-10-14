@@ -306,6 +306,7 @@ export function createRemoteLanes(ports: {
       if (
         !h ||
         (key !== undefined &&
+          key !== h.info.sessionId &&
           key !== h.info.workspacePath &&
           !key.startsWith(`${h.info.workspacePath}/`))
       )

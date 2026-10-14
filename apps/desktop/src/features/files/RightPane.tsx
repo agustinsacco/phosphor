@@ -10,6 +10,7 @@ import { FilesPane } from './FilesPane'
 import { RemoteFilesPane } from './RemoteFilesPane'
 import { FilesChangedPane } from './FilesChangedPane'
 import { TerminalPane } from '@/features/terminal/TerminalPane'
+import { RemoteArtifactsPane } from '@/features/artifacts/RemoteArtifactsPane'
 import { ArtifactsPane } from '@/features/artifacts/ArtifactsPane'
 import { SubagentPanel } from '@/features/chat/SubagentPanel'
 
@@ -47,6 +48,8 @@ export const RightPane = memo(function RightPane({
             sessionId={sessionId}
             changes={rightPane === 'changes'}
           />
+        ) : rightPane === 'artifacts' ? (
+          <RemoteArtifactsPane sessionId={sessionId} workspacePath={workspacePath} />
         ) : (
           <p className="p-4">{REMOTE_UNAVAILABLE}</p>
         )}

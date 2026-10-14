@@ -1,4 +1,5 @@
 import { basename } from '@/lib/path'
+import type { HostsSnapshot } from '@shared/ipc'
 import type { ArtifactListing } from '@shared/artifacts'
 import { normalizeArtifactType, type Artifact } from '@/stores/artifacts'
 
@@ -8,6 +9,7 @@ import { normalizeArtifactType, type Artifact } from '@/stores/artifacts'
  * is testable without React.
  */
 export interface GlobalArtifactRow {
+  machine?: string
   key: string
   id: string
   title: string
@@ -28,6 +30,7 @@ export interface GlobalArtifactRow {
 }
 
 export interface LiveSessionArtifacts {
+  machine?: string
   phosphorId: string
   diskPath?: string
   workspacePath: string
@@ -53,6 +56,7 @@ export function mergeGlobalArtifacts(
       revision: listing.revision,
       row: {
         key: listing.key,
+        machine: listing.machine,
         id: listing.id,
         title: listing.title,
         type: normalizeArtifactType(listing.type),
@@ -82,6 +86,7 @@ export function mergeGlobalArtifacts(
         revision: `live:${key}`,
         row: {
           key,
+          machine: row?.machine ?? session.machine,
           id: artifact.id,
           title: artifact.title,
           type: artifact.type,
@@ -124,4 +129,10 @@ function foldForks(rows: Array<{ row: GlobalArtifactRow; revision: string }>): G
     )
     return { ...first!, copies: rest.length }
   })
+}
+
+export function canViewStoredArtifact(key: string, hosts: HostsSnapshot): boolean {
+  if (!key.startsWith('host:')) return true
+  const host = hosts[key.slice(5).split('/')[0] ?? '']
+  return host?.state === 'ready' && host.capabilities.includes('artifacts.read')
 }

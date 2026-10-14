@@ -27,6 +27,8 @@ export interface ArtifactSnapshot {
 
 /** One row of the global Artifacts page. No content. */
 export interface ArtifactListing {
+  /** Remote machine label, absent for the local store. */
+  machine?: string
   /** `<sessionId>/<id>`: the same ref the model uses for it. */
   key: string
   sessionId: string

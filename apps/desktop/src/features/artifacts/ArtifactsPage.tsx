@@ -8,6 +8,7 @@ import {
   useArtifactsStore,
   type Artifact,
 } from '@/stores/artifacts'
+import { useRemoteLanesStore, machineLabel, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
@@ -18,7 +19,11 @@ import { projectName } from '@/lib/path'
 import { relativeTimeShort } from '@/lib/time'
 import { artifactGlyph } from './artifactKinds'
 import { ArtifactWorkspace } from './ArtifactsPane'
-import { mergeGlobalArtifacts, type GlobalArtifactRow } from './globalArtifacts'
+import {
+  mergeGlobalArtifacts,
+  canViewStoredArtifact,
+  type GlobalArtifactRow,
+} from './globalArtifacts'
 
 /**
  * Global Artifacts page (sidebar → Artifacts): every artifact Phosphor's
@@ -33,6 +38,7 @@ import { mergeGlobalArtifacts, type GlobalArtifactRow } from './globalArtifacts'
  * session's can also be removed.
  */
 export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
+  const hosts = useRemoteLanesStore((s) => s.hosts)
   const bySession = useArtifactsStore((s) => s.bySession)
   const live = useSessionsStore((s) => s.live)
   // Reload when a session opens, closes or changes on disk, so a session
@@ -47,7 +53,7 @@ export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
     // Only the latest answer lands: an earlier, slower one must not win.
     let current = true
     const paths = Object.values(useSessionsStore.getState().live).flatMap((l) =>
-      l.diskPath ? [l.diskPath] : [],
+      l.target?.kind !== 'remote' && l.diskPath ? [l.diskPath] : [],
     )
     window.phosphor
       .invoke('artifacts:list', paths)
@@ -56,23 +62,41 @@ export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
     return () => {
       current = false
     }
-  }, [liveIds, disk, removals])
+  }, [liveIds, disk, removals, hosts])
 
   const rows = useMemo(
     () =>
       mergeGlobalArtifacts(
-        stored ?? [],
-        Object.values(live).map((l) => ({
-          phosphorId: l.phosphorId,
-          diskPath: l.diskPath,
-          workspacePath: l.workspacePath,
-          artifacts: bySession[l.phosphorId] ?? {},
-        })),
+        (stored ?? []).filter((row) => canViewStoredArtifact(row.key, hosts)),
+        Object.values(live)
+          .filter((l) => {
+            if (l.target?.kind !== 'remote') return true
+            const host = hosts[l.target.hostId]
+            return host?.state === 'ready' && host.capabilities.includes('artifacts.read')
+          })
+          .map((l) => ({
+            machine: l.target?.kind === 'remote' ? machineLabel(l.target.hostId) : undefined,
+            phosphorId: l.phosphorId,
+            diskPath:
+              l.target?.kind === 'remote' && l.laneId
+                ? `host:${l.target.hostId}/lane:${l.laneId}`
+                : l.diskPath,
+            workspacePath: l.workspacePath,
+            artifacts: bySession[l.phosphorId] ?? {},
+          })),
       ),
-    [stored, live, bySession],
+    [stored, live, bySession, hosts],
   )
 
   if (viewing) {
+    if (!canViewStoredArtifact(viewing, hosts))
+      return (
+        <PageShell
+          title={<TooltipButton onClick={() => setViewing(null)}>← All artifacts</TooltipButton>}
+        >
+          <p className="p-4">{REMOTE_UNAVAILABLE}</p>
+        </PageShell>
+      )
     return (
       <StoredArtifactView
         key={viewing}
@@ -178,6 +202,7 @@ function ArtifactRow({
       className="hover:bg-bg-secondary flex w-full cursor-pointer items-start gap-2.5 rounded-md px-2 py-1.5 text-left"
     >
       <span className="shrink-0 pt-0.5 text-base leading-none">{artifactGlyph(row.type)}</span>
+      {row.machine && <span className="text-text-secondary shrink-0 text-xs">{row.machine}</span>}
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline gap-2">
           <span className="min-w-0 truncate text-base font-medium">{row.title}</span>

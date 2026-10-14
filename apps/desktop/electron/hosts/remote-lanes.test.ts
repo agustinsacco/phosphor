@@ -791,91 +791,122 @@ it('reports unknown at 60 seconds offline and asks status, never resending the o
   t.host.stop()
 })
 
-it('resolves only the window focused lane and gates reads before and after calls', async () => {
-  const t = await setup()
-  const opening = t.lanes.open(t.window, t.hostId, t.laneId)
-  await drain()
-  const info = await opening
-  expect(() => t.lanes.readLane(1, info.workspacePath)).toThrow(REMOTE_UNAVAILABLE)
-  t.lanes.setFocused(1, { hostId: t.hostId, laneId: t.laneId })
-  expect(() => t.lanes.readLane(2, info.workspacePath)).toThrow(REMOTE_UNAVAILABLE)
-  expect(() => t.lanes.readLane(1, info.workspacePath + 'x')).toThrow(REMOTE_UNAVAILABLE)
-  const lane = t.lanes.readLane(1, info.workspacePath)
-  if (!lane) throw new Error('Missing lane')
-  const call = vi
-    .spyOn(t.c, 'call')
-    .mockResolvedValue({ type: 'result', id: randomUUID(), ok: true, data: { files: ['a'] } })
-  await expect(lane.call('workspaces.read', 'files.list', { laneId: t.laneId })).rejects.toThrow(
-    REMOTE_UNAVAILABLE,
-  )
-  expect(call).not.toHaveBeenCalled()
-  const snapshot = t.c.snapshot()
-  const view = vi.spyOn(t.c, 'snapshot').mockImplementation(() => ({
-    ...snapshot,
-    capabilities: ['sessions.read', 'workspaces.read', 'skills.read'],
-  }))
-  expect(await lane.call('workspaces.read', 'files.list', { laneId: t.laneId })).toEqual({
-    files: ['a'],
-  })
-  call.mockImplementation(async () => {
-    view.mockReturnValue({ ...snapshot, capabilities: ['sessions.read'] })
-    return { type: 'result', id: randomUUID(), ok: true, data: { files: ['a'] } }
-  })
-  await expect(lane.call('workspaces.read', 'files.list', { laneId: t.laneId })).rejects.toThrow(
-    REMOTE_UNAVAILABLE,
-  )
-  view.mockReturnValue({
-    ...snapshot,
-    capabilities: ['sessions.read', 'workspaces.read', 'skills.read'],
-  })
-  call.mockResolvedValue({
-    type: 'result',
-    id: randomUUID(),
-    ok: false,
-    error: { code: 'internal', message: '/private output' },
-  })
-  await expect(lane.call('workspaces.read', 'files.list', {})).rejects.toThrow(REMOTE_UNAVAILABLE)
-  call.mockResolvedValue({ type: 'result', id: randomUUID(), ok: true, data: { models: [] } })
-  expect(await t.lanes.command(1, info.sessionId, { type: 'get_available_models' })).toMatchObject({
-    success: true,
-    data: { models: [] },
-  })
-  expect(call).toHaveBeenLastCalledWith('lane.models', { laneId: t.laneId })
-  expect(call).not.toHaveBeenCalledWith('machine.models', expect.anything())
-  call.mockImplementation(async () => {
+it.each(['workspaces.read', 'artifacts.read'] as const)(
+  'resolves the focused lane and gates %s before and after calls',
+  async (capability) => {
+    const t = await setup()
+    const opening = t.lanes.open(t.window, t.hostId, t.laneId)
+    await drain()
+    const info = await opening
+    expect(() => t.lanes.readLane(1, info.workspacePath)).toThrow(REMOTE_UNAVAILABLE)
+    t.lanes.setFocused(1, { hostId: t.hostId, laneId: t.laneId })
+    expect(() => t.lanes.readLane(2, info.workspacePath)).toThrow(REMOTE_UNAVAILABLE)
+    expect(() => t.lanes.readLane(1, info.workspacePath + 'x')).toThrow(REMOTE_UNAVAILABLE)
+    const lane = t.lanes.readLane(
+      1,
+      capability === 'artifacts.read' ? info.sessionId : info.workspacePath,
+    )
+    if (!lane) throw new Error('Missing lane')
+    const call = vi
+      .spyOn(t.c, 'call')
+      .mockResolvedValue({ type: 'result', id: randomUUID(), ok: true, data: { files: ['a'] } })
+    await expect(
+      lane.call(capability, capability === 'artifacts.read' ? 'artifacts.list' : 'files.list', {
+        laneId: t.laneId,
+      }),
+    ).rejects.toThrow(REMOTE_UNAVAILABLE)
+    expect(call).not.toHaveBeenCalled()
+    const snapshot = t.c.snapshot()
+    const view = vi.spyOn(t.c, 'snapshot').mockImplementation(() => ({
+      ...snapshot,
+      capabilities: ['sessions.read', 'workspaces.read', 'skills.read', 'artifacts.read'],
+    }))
+    expect(
+      await lane.call(
+        capability,
+        capability === 'artifacts.read' ? 'artifacts.list' : 'files.list',
+        { laneId: t.laneId },
+      ),
+    ).toEqual({
+      files: ['a'],
+    })
+    call.mockImplementation(async () => {
+      view.mockReturnValue({ ...snapshot, capabilities: ['sessions.read'] })
+      return { type: 'result', id: randomUUID(), ok: true, data: { files: ['a'] } }
+    })
+    await expect(
+      lane.call(capability, capability === 'artifacts.read' ? 'artifacts.list' : 'files.list', {
+        laneId: t.laneId,
+      }),
+    ).rejects.toThrow(REMOTE_UNAVAILABLE)
     view.mockReturnValue({
       ...snapshot,
-      state: 'reconnecting',
-      capabilities: ['sessions.read', 'workspaces.read'],
+      capabilities: ['sessions.read', 'workspaces.read', 'skills.read', 'artifacts.read'],
     })
-    return { type: 'result', id: randomUUID(), ok: true, data: { files: ['a'] } }
-  })
-  await expect(lane.call('workspaces.read', 'files.list', {})).rejects.toThrow(REMOTE_UNAVAILABLE)
-  view.mockReturnValue({ ...snapshot, capabilities: ['sessions.read', 'workspaces.read'] })
-  call.mockImplementation(async () => {
-    t.lanes.setFocused(1, null)
-    return { type: 'result', id: randomUUID(), ok: true, data: { files: ['a'] } }
-  })
-  await expect(lane.call('workspaces.read', 'files.list', {})).rejects.toThrow(REMOTE_UNAVAILABLE)
-  t.lanes.setFocused(1, { hostId: t.hostId, laneId: t.laneId })
-  call.mockImplementation(async () => {
-    t.connection.mockReturnValue(undefined)
-    return { type: 'result', id: randomUUID(), ok: true, data: { files: ['a'] } }
-  })
-  await expect(lane.call('workspaces.read', 'files.list', {})).rejects.toThrow(REMOTE_UNAVAILABLE)
-  t.connection.mockReturnValue(t.c)
-  call.mockImplementation(async () => {
-    t.lanes.dispose(1, info.sessionId)
-    const reopening = t.lanes.open(t.window, t.hostId, t.laneId)
-    await drain()
-    await reopening
+    call.mockResolvedValue({
+      type: 'result',
+      id: randomUUID(),
+      ok: false,
+      error: { code: 'internal', message: '/private output' },
+    })
+    await expect(
+      lane.call(capability, capability === 'artifacts.read' ? 'artifacts.list' : 'files.list', {}),
+    ).rejects.toThrow(REMOTE_UNAVAILABLE)
+    call.mockResolvedValue({ type: 'result', id: randomUUID(), ok: true, data: { models: [] } })
+    expect(
+      await t.lanes.command(1, info.sessionId, { type: 'get_available_models' }),
+    ).toMatchObject({
+      success: true,
+      data: { models: [] },
+    })
+    expect(call).toHaveBeenLastCalledWith('lane.models', { laneId: t.laneId })
+    expect(call).not.toHaveBeenCalledWith('machine.models', expect.anything())
+    call.mockImplementation(async () => {
+      view.mockReturnValue({
+        ...snapshot,
+        state: 'reconnecting',
+        capabilities: ['sessions.read', 'workspaces.read', 'artifacts.read'],
+      })
+      return { type: 'result', id: randomUUID(), ok: true, data: { files: ['a'] } }
+    })
+    await expect(
+      lane.call(capability, capability === 'artifacts.read' ? 'artifacts.list' : 'files.list', {}),
+    ).rejects.toThrow(REMOTE_UNAVAILABLE)
+    view.mockReturnValue({
+      ...snapshot,
+      capabilities: ['sessions.read', 'workspaces.read', 'artifacts.read'],
+    })
+    call.mockImplementation(async () => {
+      t.lanes.setFocused(1, null)
+      return { type: 'result', id: randomUUID(), ok: true, data: { files: ['a'] } }
+    })
+    await expect(
+      lane.call(capability, capability === 'artifacts.read' ? 'artifacts.list' : 'files.list', {}),
+    ).rejects.toThrow(REMOTE_UNAVAILABLE)
     t.lanes.setFocused(1, { hostId: t.hostId, laneId: t.laneId })
-    return { type: 'result', id: randomUUID(), ok: true, data: { files: ['a'] } }
-  })
-  await expect(lane.call('workspaces.read', 'files.list', {})).rejects.toThrow(REMOTE_UNAVAILABLE)
-  t.lanes.clear()
-  t.c.close()
-})
+    call.mockImplementation(async () => {
+      t.connection.mockReturnValue(undefined)
+      return { type: 'result', id: randomUUID(), ok: true, data: { files: ['a'] } }
+    })
+    await expect(
+      lane.call(capability, capability === 'artifacts.read' ? 'artifacts.list' : 'files.list', {}),
+    ).rejects.toThrow(REMOTE_UNAVAILABLE)
+    t.connection.mockReturnValue(t.c)
+    call.mockImplementation(async () => {
+      t.lanes.dispose(1, info.sessionId)
+      const reopening = t.lanes.open(t.window, t.hostId, t.laneId)
+      await drain()
+      await reopening
+      t.lanes.setFocused(1, { hostId: t.hostId, laneId: t.laneId })
+      return { type: 'result', id: randomUUID(), ok: true, data: { files: ['a'] } }
+    })
+    await expect(
+      lane.call(capability, capability === 'artifacts.read' ? 'artifacts.list' : 'files.list', {}),
+    ).rejects.toThrow(REMOTE_UNAVAILABLE)
+    t.lanes.clear()
+    t.c.close()
+  },
+)
 
 it('does not broadcast Host changes for ten pi text deltas but preserves summary changes', async () => {
   const t = await setup()

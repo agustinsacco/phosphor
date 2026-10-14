@@ -265,7 +265,7 @@ describe('lane adapter', () => {
     await flush()
     expect(receipts(a.frames).map((r) => r.requestId)).toEqual([last, id])
   })
-  it.each(['workspaces.read', 'skills.read'] as const)(
+  it.each(['workspaces.read', 'skills.read', 'artifacts.read'] as const)(
     'gates feature calls on %s, not sessions.read, and permits unsupported replies',
     async (capability) => {
       h.service.capabilities = ['sessions.read', capability]
@@ -294,6 +294,8 @@ describe('lane adapter', () => {
     },
   )
   it.each([
+    ['artifacts.read', false],
+    ['artifacts.read', true],
     ['workspaces.read', false],
     ['workspaces.read', true],
     ['skills.read', false],

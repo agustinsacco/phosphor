@@ -175,6 +175,10 @@
     "./host-protocol-machine": {
       "types": "./src/host-protocol-machine.ts",
       "default": "./src/host-protocol-machine.ts"
+    },
+    "./host-protocol-artifacts": {
+      "types": "./src/host-protocol-artifacts.ts",
+      "default": "./src/host-protocol-artifacts.ts"
     }
   },
   "dependencies": {

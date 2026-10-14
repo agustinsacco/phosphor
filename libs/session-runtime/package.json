@@ -139,12 +139,29 @@
     "./lanes/projection": {
       "types": "./src/lanes/projection.ts",
       "default": "./src/lanes/projection.ts"
+    },
+    "./artifacts/artifact-indexer": {
+      "types": "./src/artifacts/artifact-indexer.ts",
+      "default": "./src/artifacts/artifact-indexer.ts"
+    },
+    "./artifacts/artifact-library": {
+      "types": "./src/artifacts/artifact-library.ts",
+      "default": "./src/artifacts/artifact-library.ts"
+    },
+    "./pi/session-fold": {
+      "types": "./src/pi/session-fold.ts",
+      "default": "./src/pi/session-fold.ts"
+    },
+    "./pi/session-content": {
+      "types": "./src/pi/session-content.ts",
+      "default": "./src/pi/session-content.ts"
     }
   },
   "nx": {
     "includedScripts": []
   },
   "dependencies": {
-    "@phosphor/shared": "0.0.0"
+    "@phosphor/shared": "0.0.0",
+    "@phosphor/pi-extensions": "0.0.0"
   }
 }

@@ -1293,9 +1293,18 @@ skill of the same name. Without a lane, only global skills are available.
 markdown file. Reads reject escapes and `.git`, cap text at 2 MiB, and label
 binary files without returning content. Lists cap at 500 skills and 1,000 models.
 
-These methods are not served until the API registers the feature. Artifacts
-are not served: Desktop's artifact library reads its Electron userData store,
-which does not exist on a Host.
+The registered `artifacts.read` feature indexes an admitted lane's session file on
+request under `hostStateDirectory()/artifacts`. `artifacts.list {laneId?}` returns
+current-branch metadata for one lane or all admitted lanes, capped at 2,000 artifacts
+and 1,000 versions per artifact, with 4 MiB of metadata per list.
+`artifacts.read {laneId, slug, version?}` returns
+one version, defaulting to the latest, capped at 2 MiB of UTF-8 content. Session
+scans cap at 32 MiB. Calls run in FIFO order with at most eight waiting calls;
+additional calls answer `internal` because call errors have no `busy` code.
+The portable indexer and library live in `libs/session-runtime/src/artifacts/`.
+No client names a session file, blob hash or storage path. Removed lanes are
+excluded, including lanes removed during a read, even when derived blobs remain.
+The API checks `artifacts.read` before execution and before delivery.
 
 ### Host terminals
 
