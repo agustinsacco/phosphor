@@ -549,8 +549,7 @@ next queued operation first republishes fresh control from the store. Until that
 succeeds it cannot run. A takeover or release still returns `done` for its durable
 change; an operation whose admission publication failed returns `failed internal`
 without dispatching. A disconnected controller keeps control. Only the controller
-can answer an open extension dialog. Marking a lane read needs no fence. Lane
-creation is not supported by this service yet.
+can answer an open extension dialog. Marking a lane read needs no fence.
 
 `unknown` means the Host cannot say whether an operation took effect, after a
 restart, a transport failure or no answer within 30 seconds. Late answers are
@@ -993,6 +992,10 @@ On failure, the service stops any session it started and removes only the worktr
 it created, without force. It removes a branch it created only if its commit has
 not moved. Dirty worktrees are left in place. A failed attachment hides the stored
 lane row.
+For an existing branch, a clean worktree registered by another process at the same
+path at the same instant can be removed, but never one with changes.
+A process that can write the repository folder can still race git between the
+containment check and the spawn; the Host trusts the owner's repository folders.
 
 A provider id is at most 64 characters; a model id is at most 128. A model alone
 uses pi's provider selection. A provider alone does not change that selection.

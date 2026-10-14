@@ -1111,6 +1111,143 @@ describe('lane.create', () => {
     expect(last(request.requestId)).toMatchObject({ code: 'too-many-requests' })
     expect(ports.sessions.stop).toHaveBeenCalledWith('new-session')
   })
+  it('keeps same-branch creation serialized beyond the deadline until rollback settles', async () => {
+    let owned = false
+    const undo = vi.fn(async () => {
+      expect(owned).toBe(true)
+      owned = false
+    })
+    const folder = vi.spyOn(folders, 'prepareLaneFolder').mockImplementation(async () => {
+      expect(owned).toBe(false)
+      owned = true
+      return { cwd: lane.cwd, branch: 'same', undo }
+    })
+    const gate = deferred<{ sessionId: string; sessionFile: null }>()
+    const entered = deferred<void>()
+    vi.mocked(ports.sessions.start).mockImplementationOnce(() => {
+      entered.release()
+      return gate.promise
+    })
+    const first = create({ worktree: { branch: 'same' } })
+    const a = service.submit(one, first)
+    await entered.promise
+    await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+    expect(last(first.requestId)?.status).toBe('unknown')
+    const second = create({ worktree: { branch: 'same' } })
+    const b = service.submit(two, second)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(folder).toHaveBeenCalledTimes(1)
+    expect(ports.sessions.start).toHaveBeenCalledTimes(1)
+    gate.reject(new Error('start failed'))
+    await Promise.all([a, b])
+    expect(undo).toHaveBeenCalledTimes(1)
+    expect(owned).toBe(true)
+    expect(last(second.requestId)?.status).toBe('done')
+    expect(receipts(first.requestId)).toHaveLength(1)
+  })
+  it('publishes and attaches a late success while keeping only the unknown receipt', async () => {
+    vi.spyOn(folders, 'prepareLaneFolder').mockResolvedValue({
+      cwd: lane.cwd,
+      branch: null,
+      undo: async () => {},
+    })
+    const gate = deferred<void>()
+    const entered = deferred<string>()
+    vi.mocked(ports.sessions.attach).mockImplementation(async (laneId, sessionId) => {
+      entered.release(laneId)
+      await gate.promise
+      sessions.set(laneId, sessionId)
+    })
+    const request = create()
+    const running = service.submit(one, request)
+    const laneId = await entered.promise
+    await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+    expect(receipts(request.requestId)).toEqual([
+      { requestId: request.requestId, status: 'unknown' },
+    ])
+    expect(events).toEqual([])
+    gate.release()
+    await running
+    expect(store.getLane(laneId)?.removedAt).toBeNull()
+    expect(sessions.get(laneId)).toBe('new-session')
+    expect(events.map(({ event }) => event.kind)).toEqual(['control', 'summary'])
+    expect(events[0]?.event).toMatchObject({
+      control: { fence: 1, controller: { clientId: one.id } },
+    })
+    expect(receipts(request.requestId)).toHaveLength(1)
+  })
+  it('holds the created lane queue during attach and publishes fence 1 before a queued take', async () => {
+    vi.spyOn(folders, 'prepareLaneFolder').mockResolvedValue({
+      cwd: lane.cwd,
+      branch: null,
+      undo: async () => {},
+    })
+    const gate = deferred<void>()
+    const entered = deferred<string>()
+    vi.mocked(ports.sessions.attach).mockImplementation(async (laneId) => {
+      entered.release(laneId)
+      await gate.promise
+    })
+    const request = create()
+    const running = service.submit(one, request)
+    const laneId = await entered.promise
+    const take = frame({ type: 'control.take' }, 1, laneId)
+    const queued = service.submit(two, take)
+    expect(events).toEqual([])
+    expect(store.getLane(laneId)?.control.fence).toBe(1)
+    gate.release()
+    await Promise.all([running, queued])
+    expect(events.map(({ event }) => event.kind)).toEqual(['control', 'summary', 'control'])
+    expect(events[0]?.event).toMatchObject({ control: { fence: 1 } })
+    expect(events[2]?.event).toMatchObject({ control: { fence: 2 } })
+    expect(last(request.requestId)).toMatchObject({ status: 'done', fence: 1 })
+  })
+  it('republishes failed initial control on the created lane queue before the next op', async () => {
+    vi.spyOn(folders, 'prepareLaneFolder').mockResolvedValue({
+      cwd: lane.cwd,
+      branch: null,
+      undo: async () => {},
+    })
+    const publish = ports.publish
+    ports.publish = vi.fn(publish).mockImplementationOnce(() => {
+      throw new Error('publish')
+    })
+    const request = create()
+    await service.submit(one, request)
+    const created = store.listLanes().find((entry) => entry.laneId !== lane.laneId)
+    if (!created) throw new Error('missing lane')
+    expect(last(request.requestId)).toMatchObject({
+      status: 'failed',
+      error: { message: "the lane's control change could not be published" },
+    })
+    const take = frame({ type: 'control.take' }, 1, created.laneId)
+    await service.submit(two, take)
+    expect(events.map(({ event }) => event.kind)).toEqual(['control', 'control'])
+    expect(events[0]?.event).toMatchObject({ control: { fence: 1 } })
+    expect(events[1]?.event).toMatchObject({ control: { fence: 2 } })
+  })
+  it('releases the created lane hold after failed attach and queued ops see unknown-lane', async () => {
+    vi.spyOn(folders, 'prepareLaneFolder').mockResolvedValue({
+      cwd: lane.cwd,
+      branch: null,
+      undo: async () => {},
+    })
+    const gate = deferred<void>()
+    const entered = deferred<string>()
+    vi.mocked(ports.sessions.attach).mockImplementation(async (laneId) => {
+      entered.release(laneId)
+      await gate.promise
+    })
+    const request = create()
+    const running = service.submit(one, request)
+    const laneId = await entered.promise
+    const take = frame({ type: 'control.take' }, 1, laneId)
+    const queued = service.submit(two, take)
+    gate.reject(new Error('attach'))
+    await Promise.all([running, queued])
+    expect(events).toEqual([])
+    expect(last(take.requestId)).toMatchObject({ status: 'rejected', code: 'unknown-lane' })
+  })
   it('serializes two creates and reports unknown at the answer deadline without a late receipt', async () => {
     vi.spyOn(folders, 'prepareLaneFolder').mockResolvedValue({
       cwd: lane.cwd,
@@ -1144,9 +1281,9 @@ describe('lane.create', () => {
     const running = service.submit(one, request)
     await lateEntered.promise
     await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
-    await running
     expect(last(request.requestId)).toMatchObject({ status: 'unknown' })
     late.release({ sessionId: 'late', sessionFile: null })
+    await running
     await vi.advanceTimersByTimeAsync(0)
     expect(receipts(request.requestId)).toHaveLength(1)
   })

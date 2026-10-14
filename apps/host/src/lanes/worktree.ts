@@ -1,4 +1,14 @@
-import { appendFileSync, lstatSync, mkdirSync, readFileSync, realpathSync } from 'node:fs'
+import {
+  appendFileSync,
+  closeSync,
+  constants,
+  fstatSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readSync,
+  realpathSync,
+} from 'node:fs'
 import { join, resolve } from 'node:path'
 import { isLaneBranchName } from '@phosphor/shared/host-protocol'
 import { git } from '@phosphor/session-runtime/git/git-exec'
@@ -41,11 +51,23 @@ export async function prepareLaneFolder(input: {
   const undo = async () => {
     if (!created) return
     try {
+      let registeredPath = path
+      try {
+        registeredPath = realpathSync.native(path)
+      } catch {
+        // A failed add may have registered a folder that is already gone.
+      }
       const registered = (await run(['worktree', 'list', '--porcelain']))
-        .split('\n')
-        .includes(`worktree ${path}`)
-      if (registered) await run(['worktree', 'remove', path])
-      else {
+        .split('\n\n')
+        .find((entry) =>
+          entry
+            .split('\n')
+            .some((line) => line === `worktree ${path}` || line === `worktree ${registeredPath}`),
+        )
+      if (registered) {
+        if (!registered.split('\n').includes(`branch refs/heads/${branch}`)) return
+        await run(['worktree', 'remove', path])
+      } else {
         try {
           lstatSync(path)
           throw new Error('unregistered folder')
@@ -54,8 +76,7 @@ export async function prepareLaneFolder(input: {
         }
       }
       created = false
-      if (madeBranch && (await optional(['rev-parse', `refs/heads/${branch}`])) === baseCommit)
-        await run(['branch', '-D', branch])
+      if (madeBranch) await run(['update-ref', '-d', `refs/heads/${branch}`, baseCommit])
     } catch (error) {
       const code =
         typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
@@ -85,15 +106,11 @@ export async function prepareLaneFolder(input: {
           : await run(['rev-parse', '--abbrev-ref', 'HEAD'])
     }
     if (branch === defaultBranch) refuse('The default branch stays in the main tree.')
-    for (const folder of [join(root, '.phosphor'), join(root, '.phosphor', 'worktrees')]) {
-      try {
-        mkdirSync(folder)
-      } catch (error) {
-        if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
-      }
-      const stat = lstatSync(folder)
-      if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('folder')
+    const checkFolders = () => {
+      for (const folder of [join(root, '.phosphor'), join(root, '.phosphor', 'worktrees')])
+        directory(folder)
     }
+    checkFolders()
     try {
       lstatSync(path)
       refuse('A worktree folder for that branch already exists.')
@@ -116,20 +133,9 @@ export async function prepareLaneFolder(input: {
     )
       refuse('That branch is checked out in another worktree.')
     const common = resolve(root, await run(['rev-parse', '--git-common-dir']))
-    const exclude = join(common, 'info', 'exclude')
-    mkdirSync(join(common, 'info'), { recursive: true })
-    let ignored = ''
-    try {
-      ignored = readFileSync(exclude, 'utf8')
-    } catch (error) {
-      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
-    }
-    if (!ignored.split(/\r?\n/).includes('/.phosphor/'))
-      appendFileSync(exclude, `${ignored && !ignored.endsWith('\n') ? '\n' : ''}/.phosphor/\n`)
-    if (existing) {
-      created = true
-      await run(['worktree', 'add', path, branch])
-    } else {
+    directory(join(common, 'info'))
+    excludeWorktrees(join(common, 'info', 'exclude'))
+    if (!existing) {
       const remote = await exists(`refs/remotes/origin/${defaultBranch}`)
       const base = remote
         ? `origin/${defaultBranch}`
@@ -137,11 +143,13 @@ export async function prepareLaneFolder(input: {
           ? defaultBranch
           : 'HEAD'
       baseCommit = await run(['rev-parse', '--verify', `${base}^{commit}`])
-      // Pin the start point so a concurrent ref update cannot change what undo owns.
+      await run(['update-ref', `refs/heads/${branch}`, baseCommit, '0'.repeat(baseCommit.length)])
       madeBranch = true
       created = true
-      await run(['worktree', 'add', '-b', branch, path, baseCommit])
     }
+    checkFolders()
+    created = true
+    await run(['worktree', 'add', path, branch])
     const cwd = realpathSync.native(path)
     if (cwd !== join(realpathSync.native(root), '.phosphor', 'worktrees', slug))
       throw new Error('folder')
@@ -150,5 +158,53 @@ export async function prepareLaneFolder(input: {
     await undo()
     if (error instanceof LaneFolderError) throw error
     throw new LaneFolderError('The worktree could not be created.')
+  }
+}
+
+function directory(path: string): void {
+  try {
+    mkdirSync(path)
+  } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error
+  }
+  const stat = lstatSync(path)
+  if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('folder')
+}
+function excludeWorktrees(path: string): void {
+  const cap = 1024 * 1024
+  const regular = (fd: number) => {
+    const stat = fstatSync(fd)
+    if (!stat.isFile() || stat.size > cap) throw new Error('exclude')
+  }
+  let ignored = ''
+  let fd: number | undefined
+  try {
+    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW)
+    regular(fd)
+    const buffer = Buffer.alloc(cap)
+    let size = 0
+    while (size < cap) {
+      const count = readSync(fd, buffer, size, cap - size, size)
+      if (!count) break
+      size += count
+    }
+    regular(fd)
+    ignored = buffer.toString('utf8', 0, size)
+  } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
+  } finally {
+    if (fd !== undefined) closeSync(fd)
+  }
+  if (ignored.split(/\r?\n/).includes('/.phosphor/')) return
+  fd = openSync(
+    path,
+    constants.O_WRONLY | constants.O_APPEND | constants.O_CREAT | constants.O_NOFOLLOW,
+    0o644,
+  )
+  try {
+    regular(fd)
+    appendFileSync(fd, `${ignored && !ignored.endsWith('\n') ? '\n' : ''}/.phosphor/\n`)
+  } finally {
+    closeSync(fd)
   }
 }

@@ -16,7 +16,12 @@ export interface LaneSessions {
 }
 export async function createLane(
   ports: { store: HostStore; sessions: LaneSessions; log: RuntimeLog },
-  input: { root: string; op: Extract<LaneOp, { type: 'lane.create' }>; controller: Controller },
+  input: {
+    root: string
+    op: Extract<LaneOp, { type: 'lane.create' }>
+    controller: Controller
+    onStored?: (laneId: string) => void
+  },
 ): Promise<StoredLane> {
   const { op, controller } = input
   const folder = await prepareLaneFolder({
@@ -49,6 +54,7 @@ export async function createLane(
       { controller },
     )
     laneId = lane.laneId
+    input.onStored?.(laneId)
     await ports.sessions.attach(laneId, sessionId)
     return lane
   } catch (error) {

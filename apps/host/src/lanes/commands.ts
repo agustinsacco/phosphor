@@ -54,6 +54,7 @@ type Job = {
 type LaneQueue = {
   jobs: Job[]
   outstanding: number
+  holds: number
   draining: boolean
   controlUnpublished: boolean
 }
@@ -137,8 +138,22 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     terminal(job, { requestId: job.frame.requestId, status: 'rejected', code }, recorded)
   }
   function cleanup(key: string, queue: LaneQueue): void {
-    if (!queue.draining && !queue.jobs.length && !queue.outstanding && !queue.controlUnpublished)
+    if (
+      !queue.draining &&
+      !queue.jobs.length &&
+      !queue.outstanding &&
+      !queue.holds &&
+      !queue.controlUnpublished
+    )
       queues.delete(key)
+  }
+  function queueFor(key: string): LaneQueue {
+    let queue = queues.get(key)
+    if (!queue) {
+      queue = { jobs: [], outstanding: 0, holds: 0, draining: false, controlUnpublished: false }
+      queues.set(key, queue)
+    }
+    return queue
   }
   function publish(laneId: string, event: LaneEvent, queue: LaneQueue): boolean {
     try {
@@ -237,15 +252,30 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
         return rejected(job, 'bad-request', true)
       if (store.listLanes().length >= store.limits.lanesPerHost)
         return rejected(job, 'too-many-requests', true)
-      const completion = dispatch(job, queue, async () => {
+      let held: { laneId: string; queue: LaneQueue } | undefined
+      const work = (async () => {
         try {
-          return {
-            lane: await createLane(ports, {
-              root: repository.path,
-              op,
-              controller: { clientId: client.id, label: client.label },
-            }),
-          }
+          const created = await createLane(ports, {
+            root: repository.path,
+            op,
+            controller: { clientId: client.id, label: client.label },
+            onStored: (laneId) => {
+              const laneQueue = queueFor(laneId)
+              laneQueue.holds++
+              held = { laneId, queue: laneQueue }
+            },
+          })
+          if (!held) throw new Error('missing lane queue')
+          if (!publish(created.laneId, { kind: 'control', control: created.control }, held.queue))
+            return {
+              error: {
+                code: 'internal' as const,
+                message: "the lane's control change could not be published",
+              },
+            }
+          const summary = ports.summaryFor(created.laneId)
+          if (summary) publish(created.laneId, { kind: 'summary', summary }, held.queue)
+          return { lane: created }
         } catch (error) {
           if (error instanceof LaneCapacityReached) return { capacity: true }
           const code =
@@ -259,8 +289,14 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
                 error instanceof LaneFolderError ? error.message : 'the lane could not start',
             },
           }
+        } finally {
+          if (held) {
+            held.queue.holds--
+            if (!held.queue.draining) void drain(held.laneId, held.queue).catch(() => {})
+          }
         }
-      }).then((result) => {
+      })()
+      const receiptPath = dispatch(job, queue, () => work).then((result) => {
         if (!result.answered)
           return terminal(job, { requestId, status: 'unknown' }, true, result.reason)
         if (result.value.capacity) return rejected(job, 'too-many-requests', true)
@@ -268,16 +304,20 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
           return terminal(job, { requestId, status: 'failed', error: result.value.error }, true)
         const created = result.value.lane
         if (!created) throw new Error('missing lane')
-        if (!publish(created.laneId, { kind: 'control', control: created.control }, queue))
-          return controlFailure(job)
-        const summary = ports.summaryFor(created.laneId)
-        if (summary) publish(created.laneId, { kind: 'summary', summary }, queue)
         terminal(job, { requestId, status: 'done', laneId: created.laneId, fence: 1 }, true)
       })
+      const completion = Promise.all([
+        receiptPath,
+        work.then(
+          () => {},
+          () => {},
+        ),
+      ]).then(() => {})
       return { completion, detached: false }
     }
     const lane = laneId === undefined ? null : store.getLane(laneId)
-    if (!lane || laneId === undefined) return rejected(job, 'unknown-lane', true)
+    if (!lane || lane.removedAt !== null || laneId === undefined)
+      return rejected(job, 'unknown-lane', true)
     const sessionId = ports.sessionFor(laneId)
     const piCommand = toPiCommand(op, requestId)
     if ((piCommand || op.type === 'extension_ui_response') && sessionId === null)
@@ -416,7 +456,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
   }
   async function drain(key: string, queue: LaneQueue): Promise<void> {
     queue.draining = true
-    while (queue.jobs.length) {
+    while (queue.jobs.length && !queue.holds) {
       const job = queue.jobs[0]
       if (!job) break
       let execution: Execution | void = undefined
@@ -472,12 +512,9 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
         rejected(immediate, begin.kind, false)
         return Promise.resolve()
       }
-      if (!queue) {
-        queue = { jobs: [], outstanding: 0, draining: false, controlUnpublished: false }
-        queues.set(key, queue)
-      }
+      queue ??= queueFor(key)
       const completion = new Promise<void>((resolve) => queue.jobs.push({ ...jobBase, resolve }))
-      if (!queue.draining) void drain(key, queue).catch(() => {})
+      if (!queue.draining && !queue.holds) void drain(key, queue).catch(() => {})
       return completion
     },
     status(clientId: string, requestId: string): void {

@@ -71,8 +71,8 @@ beforeEach(() => {
 })
 const ports = () => ({ sessions, store, log: () => {} })
 it('prepares, starts, stores with the creator, then attaches', async () => {
-  expect(await createLane(ports(), input)).toBe(lane)
-  expect(order).toEqual(['folder', 'start', 'ensure', 'attach'])
+  expect(await createLane(ports(), { ...input, onStored: () => order.push('hold') })).toBe(lane)
+  expect(order).toEqual(['folder', 'start', 'ensure', 'hold', 'attach'])
   expect(sessions.start).toHaveBeenCalledWith({
     repository: '/repo/worktree',
     name: 'Name',
