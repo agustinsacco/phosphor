@@ -138,9 +138,14 @@ describe('the Host bundle', () => {
       encoding: 'utf8',
     })
     expect(built.status, built.stderr).toBe(0)
-    expect(readFileSync(join(again, 'BUILD-INFO.json'), 'utf8')).toBe(
-      readFileSync(join(out, 'BUILD-INFO.json'), 'utf8'),
-    )
+    // sourceDirty reads the live git status, which a concurrent write elsewhere
+    // in the checkout can flip between the two builds; every other field must match.
+    const info = (at: string) => {
+      const { sourceDirty, ...rest } = JSON.parse(readFileSync(join(at, 'BUILD-INFO.json'), 'utf8'))
+      expect(typeof sourceDirty).toBe('boolean')
+      return rest
+    }
+    expect(info(again)).toEqual(info(out))
     expect(readdirSync(dir).filter((name) => name.startsWith('.phosphor-build-'))).toEqual([])
   })
 
