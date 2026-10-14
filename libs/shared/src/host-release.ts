@@ -5,8 +5,15 @@ export interface HostReleaseKey {
   id: string
   publicKey: string
 }
-// The operator adds the release signing public key before publishing releases.
-export const HOST_RELEASE_KEYS: readonly HostReleaseKey[] = []
+// Release signing public keys. The private half exists only as the
+// HOST_RELEASE_SIGNING_KEY repository secret. Append a new key before rotating.
+export const HOST_RELEASE_KEYS: readonly HostReleaseKey[] = [
+  {
+    id: 'phosphor-host-release-2026-10',
+    publicKey:
+      'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINswBTu86+bi4tXFWnoIf6lHw0MwkPtqnqyN+KfxM3AN phosphor-host-release',
+  },
+]
 export const HOST_RELEASE_MANIFEST_MAX_BYTES = 16 * 1024
 export const HOST_RELEASE_ARTIFACT_MAX_BYTES = 256 * 1024 * 1024
 export const HOST_RELEASE_VERSION_PATTERN =

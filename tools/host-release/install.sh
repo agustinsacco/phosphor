@@ -104,7 +104,7 @@ trap 'on_signal 129' HUP
 trap 'on_signal 130' INT
 trap 'on_signal 143' TERM
 cat > "$tmp/allowed_signers" <<'PHOSPHOR_KEYS'
-
+phosphor-release namespaces="phosphor-host-release" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINswBTu86+bi4tXFWnoIf6lHw0MwkPtqnqyN+KfxM3AN
 PHOSPHOR_KEYS
 [ -n "$(tr -d '\n' < "$tmp/allowed_signers")" ] || fail
 repo=https://github.com/agustinsacco/Phosphor/releases/download
