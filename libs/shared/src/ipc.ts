@@ -1,3 +1,4 @@
+import type { SshInstallEvent } from './ssh-install'
 import type { HostCapability } from './remote-host'
 import type { RepositorySummary, LaneSummary, StreamCursor } from './host-protocol'
 /**
@@ -176,6 +177,8 @@ export interface HostAttention {
 }
 
 export interface IpcInvokeMap {
+  'hosts:sshInstall': { args: [target: string, repository?: string]; result: { jobId: string } }
+  'hosts:sshInstallCancel': { args: [jobId: string]; result: void }
   'hosts:snapshot': { args: []; result: HostsSnapshot }
   'hosts:setFocusedLane': {
     args: [target: { hostId: string; laneId: string } | null]
@@ -1149,6 +1152,7 @@ export interface PhosphorApi {
   onAccountChanged(listener: (view: AccountView) => void): () => void
   /** A change signal only. Refetch the enrolled machines through control:machines. */
   onMachinesChanged(listener: () => void): () => void
+  onSshInstall(jobId: string, listener: (event: SshInstallEvent) => void): () => void
   onHostsChanged(listener: () => void): () => void
   /** Attention from any Host (49). */
   onHostAttention(listener: (event: HostAttention) => void): () => void

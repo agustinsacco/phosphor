@@ -1,3 +1,4 @@
+import type { SshInstallEvent } from '@shared/ssh-install'
 import { contextBridge, ipcRenderer, webFrame, webUtils } from 'electron'
 import type { HostAttention, IpcInvokeChannel, IpcInvokeMap, PhosphorApi } from '@shared/ipc'
 import { sessionEventChannel } from '@shared/ipc'
@@ -75,6 +76,11 @@ const api: PhosphorApi = {
 
   onAccountChanged: (listener) => subscribe<[AccountView]>('account:changed', listener),
 
+  onSshInstall: (jobId, listener) => {
+    const off = subscribe<[SshInstallEvent]>(`hosts:sshInstall:${jobId}`, listener)
+    ipcRenderer.send('hosts:sshInstallReady', jobId)
+    return off
+  },
   onHostsChanged: (listener) => subscribe<[]>('hosts:changed', listener),
   onHostAttention: (listener) => subscribe<[HostAttention]>('hosts:attention', listener),
   onHostOpenLane: (listener) =>

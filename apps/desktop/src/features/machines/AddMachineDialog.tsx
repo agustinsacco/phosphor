@@ -1,3 +1,4 @@
+import { SshInstallPanel } from './SshInstallPanel'
 import { useEffect, useRef, useState } from 'react'
 import {
   normalizeLabel,
@@ -15,6 +16,8 @@ import { CopyCommand, HostGuide, HostSetup } from './MachineControls'
 type Step = 'on-machine' | 'code' | 'confirm' | 'done'
 export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
   const [step, setStep] = useState<Step>('on-machine')
+  const [ssh, setSsh] = useState(false)
+  const [sshFingerprint, setSshFingerprint] = useState<string | null>(null)
   const [code, setCode] = useState('')
   const [details, setDetails] = useState<EnrollmentLookupResponse | null>(null)
   const [added, setAdded] = useState<MachineView | null>(null)
@@ -31,18 +34,33 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
   }, [])
   const normalizedCode = normalizeUserCode(code)
   const normalizedLabel = normalizeLabel(label)
-  async function submit(): Promise<void> {
-    if (pending.current || !normalizedCode || (step === 'confirm' && !normalizedLabel)) return
+  async function submit(
+    enrollmentCode = normalizedCode,
+    fingerprint = sshFingerprint,
+    lookupOnly = false,
+  ): Promise<void> {
+    if (
+      pending.current ||
+      !enrollmentCode ||
+      (!lookupOnly && step === 'confirm' && !normalizedLabel)
+    )
+      return
     pending.current = true
     const generation = machinesAccountGeneration()
     setBusy(true)
     setError(null)
     try {
-      if (step === 'code') {
-        const result = await window.phosphor.invoke('control:lookupEnrollment', normalizedCode)
+      if (step === 'code' || lookupOnly) {
+        const result = await window.phosphor.invoke('control:lookupEnrollment', enrollmentCode)
         if (!live.current) return
         if (generation !== machinesAccountGeneration()) {
           setError(controlMessage('signed-out'))
+          return
+        }
+        if (result.ok && fingerprint && result.keyFingerprint !== fingerprint) {
+          setError(
+            'The fingerprints do not match. Cancel installation. Do not approve this machine.',
+          )
           return
         }
         if (result.ok && useMachinesStore.getState().remoteEnabled) {
@@ -51,9 +69,13 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
           setStep('confirm')
         } else setError(controlMessage(result.ok ? 'signed-out' : result.error.code))
       } else if (step === 'confirm' && normalizedLabel) {
+        if (ssh && (!details || details.keyFingerprint !== sshFingerprint)) {
+          setError('The fingerprints do not match. Do not approve this machine.')
+          return
+        }
         const result = await window.phosphor.invoke(
           'control:approveEnrollment',
-          normalizedCode,
+          enrollmentCode,
           normalizedLabel,
         )
         // The store outlives this dialog: a machine approved after closing still appears.
@@ -147,12 +169,24 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
                     ? '3 · Confirm'
                     : '4 · Done'}
             </p>
+            {ssh && (
+              <SshInstallPanel
+                onEnrollment={(value, fingerprint) => {
+                  setCode(value)
+                  setSshFingerprint(fingerprint)
+                  setStep('code')
+                  setDetails(null)
+                  void submit(value, fingerprint, true)
+                }}
+              />
+            )}
             {step === 'on-machine' && (
               <>
                 <h2 className="text-xl font-semibold">Prepare the other machine</h2>
                 <p className="text-text-secondary">
                   Run these commands on the machine you want to add, not on this computer.
                 </p>
+                <Button onClick={() => setSsh(true)}>Install over SSH</Button>
                 <HostSetup />
                 <HostGuide />
               </>
@@ -192,6 +226,12 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
                   Compare this fingerprint with what phosphor login printed. Only approve a machine
                   you recognise.
                 </p>
+                {sshFingerprint && (
+                  <>
+                    <p>Enrollment code: {formatCode(code)}</p>
+                    <p>Host fingerprint: {sshFingerprint}</p>
+                  </>
+                )}
                 <CopyCommand command={details.keyFingerprint} />
                 <label className="block">
                   Machine label
