@@ -23,7 +23,7 @@ previous keyboard focus on dismissal.
 With `workspaces.read`, remote Files lists the lane's tracked and untracked
 non-ignored paths and opens text read-only. Changes lists git status and shows
 an inline read-only Monaco diff against HEAD. Binary and oversized files use
-placeholders. The pane refreshes on lane summaries, turn end, snapshots and its
+placeholders. The pane refreshes on focused lane summary changes, reconnects and its
 Refresh button, never a local filesystem watcher. Create, rename, delete, save,
 search, preview, quick look and open-in-app are not offered remotely. Without
 the capability, the pane shows “Not available on remote lanes yet.”

@@ -120,7 +120,9 @@ Files lists tracked and untracked non-ignored paths and opens text read-only.
 Changes shows git status and an inline read-only diff against HEAD. Binary files
 and oversized text use placeholders. These panes never mount local editors,
 preview protocols, filesystem watchers or file management actions. They refresh
-on lane summaries, turn end, reconnect snapshots and manual refresh.
+on focused lane summary changes (including turn end), reconnects and manual refresh.
+Streamed text does not reload the pane. Added and untracked files use an empty
+original. If HEAD cannot be read, its placeholder does not discard current text.
 
 Main routes only `fs:listFiles`, `fs:readFile`, `git:statusMap`, `git:showFileAt`,
 `skills:list` and `skills:readFile` to the read features, and only when the call
@@ -129,7 +131,7 @@ stays local even while a remote lane is focused.
 The live chat picker keeps the lane's full pi model list through `lane.models`,
 requiring `sessions.read`. Stopped lanes do not fall back to a machine catalogue.
 Skills requires `skills.read`. Remote Skills shows the installed list
-and SKILL.md read-only, with no upload, discovery installs or mutations.
+and SKILL.md read-only, with no export, upload, discovery installs or mutations.
 Unsupported panes retain the not-available state. All writes remain refused.
 
 Workspace reads resolve through the window's focused open lane. The opaque

@@ -97,6 +97,36 @@ async function setup(delay = 0) {
             pair.client.onMessage((text) => {
               const frame = parseHostFrame(text)
               if (!delivery.receipts && frame.ok && frame.value.type === 'receipt') return
+              // Feed text deltas through the real connection and lane projection.
+              if (
+                frame.ok &&
+                frame.value.type === 'event' &&
+                frame.value.event.kind === 'pi' &&
+                frame.value.event.push.kind === 'extension-ui' &&
+                frame.value.event.push.request.method === 'setStatus' &&
+                frame.value.event.push.request.statusKey === 'test-delta'
+              ) {
+                cb(
+                  JSON.stringify({
+                    ...frame.value,
+                    event: {
+                      kind: 'pi',
+                      push: {
+                        kind: 'event',
+                        event: {
+                          type: 'message_update',
+                          assistantMessageEvent: {
+                            type: 'text_delta',
+                            contentIndex: 0,
+                            delta: 'text',
+                          },
+                        },
+                      },
+                    },
+                  }),
+                )
+                return
+              }
               cb(text)
             }),
         }
@@ -114,11 +144,12 @@ async function setup(delay = 0) {
   }
   const c = connect('first')
   const connection = vi.fn((id: string) => (id === hostId ? c : undefined))
+  const changed = vi.fn()
   const lanes = createRemoteLanes({
     connection,
     present: (id) => id === hostId,
     label: () => 'bee1',
-    changed: vi.fn(),
+    changed,
   })
   await drain()
   const creation = c.send({ type: 'lane.create', repositoryId: '0123456789abcdef', worktree: null })
@@ -129,6 +160,7 @@ async function setup(delay = 0) {
   if (created.status !== 'done' || !created.laneId) throw new Error('No test lane')
   return {
     c,
+    changed,
     connection,
     delivery,
     lanes,
@@ -843,4 +875,26 @@ it('resolves only the window focused lane and gates reads before and after calls
   await expect(lane.call('workspaces.read', 'files.list', {})).rejects.toThrow(REMOTE_UNAVAILABLE)
   t.lanes.clear()
   t.c.close()
+})
+
+it('does not broadcast Host changes for ten pi text deltas but preserves summary changes', async () => {
+  const t = await setup()
+  const opening = t.lanes.open(t.window, t.hostId, t.laneId)
+  await drain()
+  await opening
+  t.changed.mockClear()
+  for (let i = 0; i < 10; i++) {
+    t.host.emitUi(t.laneId, {
+      type: 'extension_ui_request',
+      method: 'setStatus',
+      id: `s${i}`,
+      statusKey: 'test-delta',
+      statusText: 'stream',
+    })
+  }
+  await drain()
+  expect(t.changed).not.toHaveBeenCalled()
+  t.host.emitTurn(t.laneId)
+  await drain()
+  expect(t.changed).toHaveBeenCalled()
 })

@@ -166,7 +166,13 @@ export function createRemoteLanes(ports: {
         resync(h)
       }
     }
-    ports.changed()
+    // Pi pushes already have their own delivery bus. Only lane metadata changes
+    // need a Host snapshot refresh (sidebar, control and attention).
+    if (
+      frame.type === 'snapshot' ||
+      (frame.type === 'event' && (frame.event.kind === 'summary' || frame.event.kind === 'control'))
+    )
+      ports.changed()
   }
   function owned(windowId: number, id: string) {
     const h = handles.get(id)

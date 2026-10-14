@@ -481,15 +481,17 @@ function SkillDetail({
             Update
           </Button>
         )}
-        <Button
-          size="sm"
-          disabled={pending != null}
-          onClick={() =>
-            void run('export', () => window.phosphor.invoke('skills:export', skill.dir))
-          }
-        >
-          Export
-        </Button>
+        {!workspacePath.startsWith('host:') && (
+          <Button
+            size="sm"
+            disabled={pending != null}
+            onClick={() =>
+              void run('export', () => window.phosphor.invoke('skills:export', skill.dir))
+            }
+          >
+            Export
+          </Button>
+        )}
         {skill.writable && (
           <Button
             size="sm"

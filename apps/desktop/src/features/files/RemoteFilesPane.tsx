@@ -28,18 +28,11 @@ export function RemoteFilesPane({
   const [before, setBefore] = useState('')
   const [error, setError] = useState<string | null>(null)
   const available = host?.state === 'ready' && host.capabilities.includes('workspaces.read')
-  useEffect(
-    () =>
-      window.phosphor.onSessionPush(sessionId, (push) => {
-        if (
-          push.kind === 'resync' ||
-          (push.kind === 'event' &&
-            (push.event.type === 'agent_end' || push.event.type === 'turn_end'))
-        )
-          setRefresh((n) => n + 1)
-      }),
-    [sessionId],
-  )
+  const laneId = useSessionsStore((s) => s.live[sessionId]?.laneId)
+  // Host objects are replaced by unrelated lanes and control/stream updates.
+  const summary = JSON.stringify(host?.lanes.find((lane) => lane.laneId === laneId))
+  const connectionState = host?.state
+  const runtimeEpoch = host?.cursor?.epoch
   useEffect(() => {
     let alive = true
     setFiles([])
@@ -63,7 +56,7 @@ export function RemoteFilesPane({
     return () => {
       alive = false
     }
-  }, [workspacePath, available, host, refresh])
+  }, [workspacePath, available, summary, connectionState, runtimeEpoch, refresh])
   useEffect(() => {
     let alive = true
     setContent('')
@@ -73,8 +66,10 @@ export function RemoteFilesPane({
         changes && status[selected]?.includes('D')
           ? Promise.resolve({ content: '', binary: false, tooLarge: false })
           : window.phosphor.invoke('fs:readFile', `${workspacePath}/${selected}`),
-        changes
-          ? window.phosphor.invoke('git:showFileAt', workspacePath, 'HEAD', selected)
+        changes && status[selected] !== '??' && !status[selected]?.startsWith('A')
+          ? window.phosphor
+              .invoke('git:showFileAt', workspacePath, 'HEAD', selected)
+              .catch(() => undefined)
           : Promise.resolve(null),
       ]).then(
         ([file, old]) => {
@@ -82,8 +77,10 @@ export function RemoteFilesPane({
             setContent(
               file.binary ? 'Binary file' : file.tooLarge ? 'File too large' : file.content,
             )
+            // A failed HEAD read (undefined) keeps the current file and says so, rather
+            // than showing a message as if it were the file's earlier content.
             setBefore(old ?? '')
-            setError(null)
+            setError(old === undefined ? 'The HEAD version could not be read.' : null)
           }
         },
         () => {

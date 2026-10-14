@@ -131,7 +131,7 @@ it('keeps remote skills read-only, gates capability and never offers local insta
     `${workspacePath}/skill:remote-skill`,
     'SKILL.md',
   )
-  for (const label of ['Delete', 'Edit', 'Publish', 'Update'])
+  for (const label of ['Delete', 'Edit', 'Publish', 'Update', 'Export'])
     expect(container.textContent).not.toContain(label)
   await act(async () => useRemoteLanesStore.setState({ hosts: {} }))
   expect(container.textContent).toContain('Not available on remote lanes yet.')

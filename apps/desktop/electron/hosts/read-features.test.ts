@@ -32,9 +32,9 @@ it('maps each read to the fixed method, capability and Desktop shape without Hos
       lane({ status: { 'a.ts': ' M' }, branch: 'main', ahead: 0, behind: 0 }),
     ),
   ).toEqual({ 'a.ts': ' M' })
-  const skills = lane([
-    { name: 'test-skill', description: 'test', scope: 'project', dir: '/private' },
-  ])
+  const skills = lane({
+    skills: [{ name: 'test-skill', description: 'test', scope: 'project', dir: '/private' }],
+  })
   const result = await readFeature('skills:list', [root], skills)
   expect(result).toMatchObject({ skills: [{ dir: `${root}/skill:test-skill`, writable: false }] })
   expect(JSON.stringify(result)).not.toContain('/private')
@@ -125,7 +125,7 @@ it('parses untrusted results and enforces exact list and text bounds', async () 
       { status: { '/host/private': ' M' }, branch: null, ahead: 0, behind: 0 },
     ],
     ['git:showFileAt', [root, 'HEAD', 'a'], { binary: false, size: 1, content: 1 }],
-    ['skills:list', [root], [{ name: '../escape', description: '', scope: 'user' }]],
+    ['skills:list', [root], { skills: [{ name: '../escape', description: '', scope: 'user' }] }],
     ['skills:readFile', [`${root}/skill:ok`, 'SKILL.md'], { content: 1, size: 1, binary: false }],
   ] as const)
     await expect(readFeature(channel, [...args], lane(data))).rejects.toThrow()
@@ -134,10 +134,18 @@ it('parses untrusted results and enforces exact list and text bounds', async () 
 it('bounds skill lists and UTF-8 text even when the Host underreports size', async () => {
   const skill = { name: 'ok', description: 'OK', scope: 'user' }
   expect(
-    await readFeature('skills:list', [root], lane(Array(MACHINE_LIMITS.skills).fill(skill))),
+    await readFeature(
+      'skills:list',
+      [root],
+      lane({ skills: Array(MACHINE_LIMITS.skills).fill(skill) }),
+    ),
   ).toMatchObject({ probe: 'rpc' })
   await expect(
-    readFeature('skills:list', [root], lane(Array(MACHINE_LIMITS.skills + 1).fill(skill))),
+    readFeature(
+      'skills:list',
+      [root],
+      lane({ skills: Array(MACHINE_LIMITS.skills + 1).fill(skill) }),
+    ),
   ).rejects.toThrow()
   const content = 'é'.repeat(MACHINE_LIMITS.textBytes / 2)
   expect(
@@ -172,4 +180,14 @@ it('routes only host: workspace keys; global and local calls stay local', () => 
   expect(readLane).toHaveBeenCalledWith(root)
   expect(() => routeRemoteRead('fs:listFiles', [root], () => null)).toThrow()
   expect(READ_CHANNELS.has('pi:catalogueModels')).toBe(false)
+})
+
+it('accepts the exact createSkillsFeature skills.list data envelope and rejects bare arrays', async () => {
+  // apps/host/src/features/skills.ts:140 returns data: { skills: skills.map((s) => s.skill) }.
+  const skill = { name: 'ok', description: 'OK', scope: 'user' }
+  expect(await readFeature('skills:list', [root], lane({ skills: [skill] }))).toMatchObject({
+    skills: [{ name: 'ok' }],
+  })
+  for (const data of [[skill], null, {}, { skills: null }, { skills: {} }])
+    await expect(readFeature('skills:list', [root], lane(data))).rejects.toThrow()
 })

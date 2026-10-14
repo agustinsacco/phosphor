@@ -1,5 +1,6 @@
 import { parseFileParams, parseFileResult } from '@shared/host-protocol-files'
 import {
+  machineRecord,
   parseMachineParams,
   parseMachineSkills,
   parseSkillReadResult,
@@ -114,7 +115,7 @@ export async function readFeature(
       }
     }
   } else if (method === 'skills.list') {
-    const skills = parseMachineSkills(data)
+    const skills = machineRecord(data) ? parseMachineSkills(data.skills) : null
     // The read parser accepts only canonical skill names. Do not expose unusable keys.
     if (skills && skills.every((s) => parseMachineParams('skills.read', { name: s.name })))
       return {
