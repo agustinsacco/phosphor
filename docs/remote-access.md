@@ -1,7 +1,7 @@
 # Remote access
 
-Desktop remote execution is not enabled. The Host API serves remote lanes when
-pi is usable. Local Electron still needs no Phosphor login.
+Desktop routes remote lanes over the authenticated Host connection. The Host API
+serves remote lanes when pi is usable. Local Electron still needs no Phosphor login.
 Desktop has an optional GitHub sign-in in the sidebar footer
 ([settings.md](settings.md#phosphor-account)). Machines is always available,
 with this computer's real status. Signed in, it lists enrolled Hosts and lets
@@ -112,6 +112,34 @@ local lane. Read counters come from the Host and clear unread across clients.
 Unrouted machine channels reject opaque remote workspace keys and remote handles,
 including nested options, with “Not available on remote lanes yet.” They never
 fall through to this machine's filesystem or subprocesses.
+
+## Remote read panes
+
+Remote Files and Changes require `workspaces.read` in the Host's ready frame.
+Files lists tracked and untracked non-ignored paths and opens text read-only.
+Changes shows git status and an inline read-only diff against HEAD. Binary files
+and oversized text use placeholders. These panes never mount local editors,
+preview protocols, filesystem watchers or file management actions. They refresh
+on focused lane summary changes (including turn end), reconnects and manual refresh.
+Streamed text does not reload the pane. Added and untracked files use an empty
+original. If HEAD cannot be read, its placeholder does not discard current text.
+
+Main routes only `fs:listFiles`, `fs:readFile`, `git:statusMap`, `git:showFileAt`,
+`skills:list` and `skills:readFile` to the read features, and only when the call
+names a `host:` workspace. A call with no workspace, such as the global model catalogue,
+stays local even while a remote lane is focused.
+The live chat picker keeps the lane's full pi model list through `lane.models`,
+requiring `sessions.read`. Stopped lanes do not fall back to a machine catalogue.
+Skills requires `skills.read`. Remote Skills shows the installed list
+and SKILL.md read-only, with no export, upload, discovery installs or mutations.
+Unsupported panes retain the not-available state. All writes remain refused.
+
+Workspace reads resolve through the window's focused open lane. The opaque
+workspace key must match that lane, so two worktrees in one repository are not
+chosen by repository id alone. Without a focused lane, remote reads fail closed.
+File and skill keys contain no Host filesystem root. Main validates params and
+parses every feature result with the shared bounded parsers, and rechecks the
+connection and capability after each reply. Errors expose only fixed text.
 
 ## Host protocol
 

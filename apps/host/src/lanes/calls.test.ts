@@ -28,8 +28,9 @@ let sessionId: string | null
 let snapshot: SnapshotResult | null
 let reply: RpcResponse
 const command = vi.fn(async () => reply)
-function calls() {
+function calls(features: Parameters<typeof createLaneCalls>[0]['features'] = []) {
   return createLaneCalls({
+    features,
     store,
     live: { sessionFor: () => sessionId },
     runtime: { command },
@@ -73,6 +74,37 @@ afterEach(() => {
   vi.useRealTimers()
 })
 describe('lane calls', () => {
+  it('dispatches exact registered names with their capabilities, preserving lane methods', async () => {
+    const call = vi.fn(async () => ({ ok: true as const, data: 'feature' }))
+    const c = calls([
+      { capability: 'workspaces.read', methods: ['files.list', 'git.status'], call },
+      { capability: 'skills.read', methods: ['machine.models', 'skills.list'], call },
+    ])
+    for (const method of ['files.list', 'git.status', 'machine.models', 'skills.list']) {
+      expect(c.capabilityFor(method)).toBe(
+        method.startsWith('files.') || method.startsWith('git.')
+          ? 'workspaces.read'
+          : 'skills.read',
+      )
+      expect(await c.call(method, { laneId: lane.laneId })).toEqual({ ok: true, data: 'feature' })
+      expect(call).toHaveBeenLastCalledWith(method, { laneId: lane.laneId })
+    }
+    for (const method of [
+      'host.repositories',
+      'lane.state',
+      'lane.messages',
+      'lane.stats',
+      'lane.models',
+      'lane.commands',
+    ])
+      expect(c.capabilityFor(method)).toBe('sessions.read')
+    for (const method of ['files.list.extra', 'FILES.list', 'machine.model', 'raw-pi-rpc']) {
+      expect(c.capabilityFor(method)).toBeNull()
+      expect(await c.call(method, {})).toMatchObject({ error: { code: 'unsupported' } })
+    }
+    expect(call).toHaveBeenCalledTimes(4)
+    expect(await c.call('lane.state', { laneId: lane.laneId })).toEqual({ ok: true, data: state })
+  })
   it('allows only six methods, validates object params and UUID, excludes removed lanes', async () => {
     const c = calls()
     for (const params of [null, undefined, [], 'text'])

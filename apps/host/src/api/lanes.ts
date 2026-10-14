@@ -169,7 +169,8 @@ export function createLaneAdapter(
             }
           })()
         } else if (frame.type === 'call') {
-          if (!caps.includes('sessions.read'))
+          const capability = service.calls.capabilityFor(frame.method)
+          if (capability !== null && !caps.includes(capability))
             return send({
               type: 'result',
               id: frame.id,
@@ -181,7 +182,8 @@ export function createLaneAdapter(
           void (async () => {
             try {
               const outcome = await service.calls.call(frame.method, frame.params)
-              if (closed || !socket.isOpen() || !caps.includes('sessions.read')) return
+              if (closed || !socket.isOpen() || (capability !== null && !caps.includes(capability)))
+                return
               const result: HostFrame = { type: 'result', id: frame.id, ...outcome }
               if (Buffer.byteLength(JSON.stringify(result)) > limits.outboundFrameBytes)
                 send({
@@ -192,7 +194,7 @@ export function createLaneAdapter(
                 })
               else send(result)
             } catch {
-              if (!closed && socket.isOpen() && caps.includes('sessions.read'))
+              if (!closed && socket.isOpen() && (capability === null || caps.includes(capability)))
                 send({
                   type: 'result',
                   id: frame.id,

@@ -73,3 +73,66 @@ it('keeps every offering pinned and external plugins outside the installer allow
     }
   }
 })
+
+it('keeps remote skills read-only, gates capability and never offers local installation', async () => {
+  const { useRemoteLanesStore } = await import('@/stores/remoteLanes')
+  const hostId = '00000000-0000-4000-8000-000000000001'
+  const workspacePath = `host:${hostId}/0123456789abcdef`
+  const invoke = vi.fn().mockResolvedValue({ content: 'skill text', binary: false, size: 10 })
+  vi.stubGlobal('phosphor', { invoke })
+  vi.spyOn(useSkillsStore.getState(), 'refresh').mockResolvedValue(undefined)
+  useSkillsStore.setState({
+    tab: 'discover',
+    selectedDir: null,
+    byWorkspace: {
+      [workspacePath]: {
+        skills: [
+          {
+            name: 'remote-skill',
+            description: 'Remote skill',
+            dir: `${workspacePath}/skill:remote-skill`,
+            scope: 'user',
+            source: 'host',
+            origin: 'top-level',
+            writable: false,
+            borrowed: false,
+            draft: false,
+            files: [{ path: 'SKILL.md', size: 0 }],
+            totalSize: 0,
+            warnings: [],
+          },
+        ],
+        probe: 'rpc',
+        userRoot: workspacePath,
+      },
+    },
+  })
+  useRemoteLanesStore.setState({ hosts: {} })
+  await act(async () => root.render(<SkillsPage workspacePath={workspacePath} />))
+  expect(container.textContent).toContain('Not available on remote lanes yet.')
+  const host = {
+    state: 'ready' as const,
+    capabilities: ['skills.read'] as const,
+    repositories: [],
+    lanes: [],
+  }
+  await act(async () =>
+    useRemoteLanesStore.setState({
+      hosts: { [hostId]: { ...host, capabilities: [...host.capabilities] } },
+    }),
+  )
+  expect(container.textContent).toContain('Remote skill')
+  expect(container.textContent).not.toContain('Discover')
+  expect(container.textContent).not.toContain('New skill')
+  expect(container.textContent).not.toContain('Upload')
+  await act(async () => useSkillsStore.getState().select(`${workspacePath}/skill:remote-skill`))
+  expect(invoke).toHaveBeenCalledWith(
+    'skills:readFile',
+    `${workspacePath}/skill:remote-skill`,
+    'SKILL.md',
+  )
+  for (const label of ['Delete', 'Edit', 'Publish', 'Update', 'Export'])
+    expect(container.textContent).not.toContain(label)
+  await act(async () => useRemoteLanesStore.setState({ hosts: {} }))
+  expect(container.textContent).toContain('Not available on remote lanes yet.')
+})

@@ -799,7 +799,10 @@ function laneService(): LaneService {
     epoch,
     capabilities: ['sessions.read', 'sessions.control'],
     commands: { submit: vi.fn(async () => {}), status: vi.fn() },
-    calls: { call: vi.fn(async () => ({ ok: true as const, data: null })) },
+    calls: {
+      capabilityFor: () => 'sessions.read',
+      call: vi.fn(async () => ({ ok: true as const, data: null })),
+    },
     streams: createLaneStreams({ epoch, snapshot: () => null }),
     lanesTopic: createLanesTopic({ epoch, list: () => ({ lanes: [], repositories: [] }) }),
     controllerPresence: vi.fn(),
