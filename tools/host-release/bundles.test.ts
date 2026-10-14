@@ -1128,6 +1128,12 @@ esac`,
     ).toThrow(/Release signing failed/)
     expect(readdirSync(temp)).toEqual([])
   })
+  it('signs with a key whose secret store dropped the final newline or used CRLF', () => {
+    const sign = `import {signManifest} from './tools/host-release/manifest.mjs'; process.stdout.write(signManifest(Buffer.from('test')).toString('utf8'))`
+    for (const key of [privateKey.trimEnd(), privateKey.trimEnd().replace(/\n/g, '\r\n')]) {
+      expect(node(sign, { HOST_RELEASE_SIGNING_KEY: key })).toContain('BEGIN SSH SIGNATURE')
+    }
+  })
   it.runIf(process.env.PHOSPHOR_HOST_RELEASE_NETWORK === '1')(
     'checks the official pinned archive on this platform',
     async () => {
