@@ -141,6 +141,26 @@ File and skill keys contain no Host filesystem root. Main validates params and
 parses every feature result with the shared bounded parsers, and rechecks the
 connection and capability after each reply. Errors expose only fixed text.
 
+## Remote artifacts
+
+The lane's Artifacts pane requires `artifacts.read` in the Host's ready frame.
+Main uses the lane handle, never a session file path, to fetch metadata and each
+current-branch version. A call caps total content at 8 MiB and each version at
+2 MiB, with at most 1,000 version reads per call. Invalid replies, changed
+connections, revoked capability or a changed
+focused lane fail closed. The renderer discards stale replies.
+
+The global Artifacts library includes local artifacts and artifacts from ready
+Hosts announcing `artifacts.read`, tagged with the machine label. Remote library
+keys name opaque lane/slug resources, not Host session ids or filesystem paths.
+Stored remote rows open read-only in the library; live rows can open their lane.
+Removed lanes are excluded because no admitted lane authorizes their read.
+Local deleted-session retention is unchanged. Host indexes and blobs stay on
+the Host; Desktop holds remote contents in memory only.
+
+HTML staging remains local through `phosphor-artifact://`. Its sandbox never
+uses `allow-same-origin`, and its policy grants no network access.
+
 ## Host protocol
 
 `libs/shared/src/host-protocol.ts` defines protocol v1, its allowlist, parsers

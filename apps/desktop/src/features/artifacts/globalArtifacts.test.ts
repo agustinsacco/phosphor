@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ArtifactListing } from '@shared/artifacts'
 import type { Artifact } from '@/stores/artifacts'
-import { mergeGlobalArtifacts } from './globalArtifacts'
+import { mergeGlobalArtifacts, canViewStoredArtifact } from './globalArtifacts'
 
 const stored = (over: Partial<ArtifactListing> = {}): ArtifactListing => ({
   key: 'sid/guide',
@@ -149,4 +149,53 @@ describe('mergeGlobalArtifacts', () => {
       ['b', 2, 0],
     ])
   })
+})
+
+it('merges an open remote lane into its opaque library row without losing the machine tag', () => {
+  const session =
+    'host:22222222-2222-4222-8222-222222222222/lane:11111111-1111-4111-8111-111111111111'
+  const key = `${session}/artifact:guide`
+  const rows = mergeGlobalArtifacts(
+    [
+      stored({
+        key,
+        sessionId: session,
+        sessionFile: session,
+        cwd: session,
+        workspaceExists: false,
+        machine: 'bee',
+      }),
+    ],
+    [
+      {
+        phosphorId: 'remote-1234567890abcdef',
+        diskPath: session,
+        workspacePath: session,
+        artifacts: { guide: liveArtifact(3, 200) },
+      },
+    ],
+  )
+  expect(rows).toHaveLength(1)
+  expect(rows[0]).toMatchObject({
+    key,
+    machine: 'bee',
+    phosphorId: 'remote-1234567890abcdef',
+    version: 3,
+  })
+})
+
+it('hides remote library rows and open viewers when ready artifact capability is absent', () => {
+  const key = 'host:bee/lane:opaque/artifact:guide'
+  const view = { state: 'ready' as const, capabilities: [], lanes: [], repositories: [] }
+  expect(canViewStoredArtifact('local/guide', {})).toBe(true)
+  expect(canViewStoredArtifact(key, {})).toBe(false)
+  expect(canViewStoredArtifact(key, { bee: view })).toBe(false)
+  expect(canViewStoredArtifact(key, { bee: { ...view, capabilities: ['artifacts.read'] } })).toBe(
+    true,
+  )
+  expect(
+    canViewStoredArtifact(key, {
+      bee: { ...view, state: 'reconnecting', capabilities: ['artifacts.read'] },
+    }),
+  ).toBe(false)
 })

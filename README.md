@@ -510,7 +510,8 @@ apps/desktop/electron/            main process — owns every side effect
                      workspace watcher, workspace search (worker thread)
   artifacts/         the `phosphor-artifact://` protocol — model HTML on its
                      own origin, so it runs JS without weakening the app CSP;
-                     and the artifact store's indexer and library
+                     and thin wiring to the portable artifact indexer and library
+                     in session-runtime
   maintenance/       worktree reclaim: a pure policy that judges, a sweep that
                      does the git and the disk, a scheduler that rate-limits it
   updates/           update check + download state machine

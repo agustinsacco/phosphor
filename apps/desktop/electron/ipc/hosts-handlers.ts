@@ -12,6 +12,15 @@ import { createHostManager } from '../hosts/manager'
 import { openHostSocket } from '../hosts/socket'
 import { controlClient, onMachinesChanged } from './control-handlers'
 import { handle, setRemoteReadRouter } from './handle'
+import {
+  createArtifactHost,
+  remoteSessionArtifacts,
+  remoteArtifactListings,
+  remoteArtifactRead,
+  type ArtifactHost,
+} from '../hosts/artifacts'
+import { artifactLibrary } from '../artifacts/artifact-sync'
+import { REMOTE_UNAVAILABLE } from '../hosts/lane-ops'
 import { routeRemoteRead } from '../hosts/read-features'
 import { createRemoteLanes, type RemoteLanes } from '../hosts/remote-lanes'
 import { createHostAttention } from '../hosts/attention'
@@ -63,9 +72,44 @@ export function registerHostsHandlers(): void {
     label: manager.label,
     changed: manager.changed,
   })
-  setRemoteReadRouter((windowId, channel, args) =>
-    routeRemoteRead(channel, args, (key) => remoteLanes().readLane(windowId, key)),
-  )
+  function artifactHosts(): ArtifactHost[] {
+    return Object.entries(manager.snapshot()).flatMap(([hostId, view]) => {
+      const c = manager.connection(hostId)
+      if (!c || view.state !== 'ready' || !view.capabilities.includes('artifacts.read')) return []
+      return [
+        createArtifactHost(hostId, manager.label(hostId), c, () => manager.connection(hostId)),
+      ]
+    })
+  }
+  setRemoteReadRouter((windowId, channel, args) => {
+    const key = args[0]
+    if (
+      channel === 'artifacts:forSession' &&
+      typeof key === 'string' &&
+      key.startsWith('remote-')
+    ) {
+      const lane = remoteLanes().readLane(windowId, key)
+      if (!lane) throw new Error(REMOTE_UNAVAILABLE)
+      return { result: remoteSessionArtifacts(lane) }
+    }
+    if (channel === 'artifacts:read' && typeof key === 'string' && key.startsWith('host:'))
+      return { result: remoteArtifactRead(key, artifactHosts()) }
+    if (channel === 'artifacts:list') {
+      if (
+        !Array.isArray(key) ||
+        key.length > 2000 ||
+        key.some((p) => typeof p !== 'string' || p.startsWith('host:') || p.startsWith('remote-'))
+      )
+        throw new Error(REMOTE_UNAVAILABLE)
+      return {
+        result: Promise.all([
+          artifactLibrary.list(key),
+          remoteArtifactListings(artifactHosts()),
+        ]).then(([local, remote]) => [...local, ...remote]),
+      }
+    }
+    return routeRemoteRead(channel, args, (key) => remoteLanes().readLane(windowId, key))
+  })
   const attention = createHostAttention({
     label: manager.label,
     focused: (hostId, laneId) =>

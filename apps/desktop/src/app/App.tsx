@@ -288,7 +288,7 @@ export function App(): React.JSX.Element {
           */}
             {page && (
               <div data-testid="global-page" className="bg-bg absolute inset-0 z-30">
-                {remote && page !== 'machines' ? (
+                {remote && page !== 'machines' && page !== 'artifacts' ? (
                   <p className="p-6">Not available on remote lanes yet.</p>
                 ) : page === 'routines' ? (
                   <RoutinesPage workspacePath={currentWorkspace} />

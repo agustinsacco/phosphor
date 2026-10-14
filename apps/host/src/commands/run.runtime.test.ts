@@ -165,7 +165,10 @@ describe('run lane composition', () => {
             'sessions.control',
             'workspaces.read',
             'skills.read',
+            'artifacts.read',
           ])
+          for (const method of ['artifacts.list', 'artifacts.read'])
+            expect(hooks.lanes?.calls.capabilityFor(method)).toBe('artifacts.read')
           for (const method of ['files.list', 'files.read', 'git.status', 'git.diff', 'git.show'])
             expect(hooks.lanes?.calls.capabilityFor(method)).toBe('workspaces.read')
           for (const method of [

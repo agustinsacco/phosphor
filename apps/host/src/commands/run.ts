@@ -51,6 +51,7 @@ import { seedArtifactSkill } from '@phosphor/session-runtime/bundled-skills'
 import { join } from 'node:path'
 import { createFilesFeature } from '../features/files'
 import { createGitFeature } from '../features/git'
+import { createArtifactsFeature } from '../features/artifacts'
 import { createSkillsFeature } from '../features/skills'
 import type { FeatureContext } from '../features/feature'
 
@@ -262,6 +263,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           createFilesFeature(featureContext),
           createGitFeature(featureContext),
           createSkillsFeature(featureContext),
+          createArtifactsFeature({ ...featureContext, store }),
         ]
         const calls = createLaneCalls({
           features,
