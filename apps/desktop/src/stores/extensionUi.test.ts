@@ -1,75 +1,31 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { useExtensionUiStore } from './extensionUi'
-import { useConnectorsStore } from './connectors'
-
-const invoke = vi.fn(async (..._args: unknown[]) => undefined)
 
 beforeEach(() => {
-  invoke.mockClear()
   useExtensionUiStore.setState({ dialogs: [], statuses: {}, widgets: {}, toasts: [] })
-  useConnectorsStore.setState({ flows: {} })
-  // @ts-expect-error partial preload surface
-  window.phosphor = { invoke }
 })
 
-const oauthRequest = {
-  type: 'extension_ui_request' as const,
-  id: 'req-1',
-  method: 'input' as const,
-  title:
-    'Complete linear OAuth\n\nhttps://linear.app/oauth/authorize?state=1\n\n' +
-    'Approve access, then paste the full localhost callback URL below.',
-}
-
 describe('extension UI requests', () => {
-  it('routes the adapter OAuth prompt to the connector flow, not to a dialog', () => {
-    useExtensionUiStore.getState().handleRequest('s1', oauthRequest)
-    expect(useExtensionUiStore.getState().dialogs).toEqual([])
-    expect(useConnectorsStore.getState().flows.linear).toMatchObject({
-      phase: 'awaiting-browser',
-      requestId: 'req-1',
-    })
-    expect(invoke).toHaveBeenCalledWith(
-      'app:openExternal',
-      'https://linear.app/oauth/authorize?state=1',
-    )
-  })
-
-  it('leaves every other input prompt as an ordinary dialog', () => {
+  it('shows an input prompt as an ordinary dialog — pi’s own /mcp sign-in included', () => {
     useExtensionUiStore.getState().handleRequest('s1', {
       type: 'extension_ui_request',
-      id: 'req-2',
+      id: 'req-1',
       method: 'input',
       title: 'Commit message?',
     })
     expect(useExtensionUiStore.getState().dialogs).toHaveLength(1)
   })
 
-  it('settles a flow on the adapter notification, and still shows the toast', () => {
-    useExtensionUiStore.getState().handleRequest('s1', oauthRequest)
+  it('shows a notification as a toast', () => {
     useExtensionUiStore.getState().handleRequest('s1', {
       type: 'extension_ui_request',
-      id: 'req-3',
+      id: 'req-2',
       method: 'notify',
-      message: 'OAuth authentication successful for "linear".',
+      message: 'MCP servers need attention:\n  linear: needs sign-in\nRun /mcp to fix.',
+      notifyType: 'warning',
     })
-    expect(useConnectorsStore.getState().flows.linear).toEqual({ phase: 'connected' })
     expect(useExtensionUiStore.getState().toasts).toHaveLength(1)
-  })
-
-  it('settles a Settings reload on the adapter reconnect notice, and still shows the toast', async () => {
-    const piCommand = vi.fn(async () => ({ success: true, data: undefined }))
-    // @ts-expect-error partial preload surface
-    window.phosphor = { invoke, piCommand }
-    const reload = useConnectorsStore.getState().reload('s1', 'linear')
-    useExtensionUiStore.getState().handleRequest('s1', {
-      type: 'extension_ui_request',
-      id: 'req-4',
-      method: 'notify',
-      message: 'MCP: Reconnected to linear (81 tools, 0 resources)',
-    })
-    await expect(reload).resolves.toMatchObject({ outcome: 'connected', toolCount: 81 })
-    expect(useExtensionUiStore.getState().toasts).toHaveLength(1)
+    expect(useExtensionUiStore.getState().dialogs).toEqual([])
   })
 })

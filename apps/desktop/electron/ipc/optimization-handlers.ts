@@ -3,6 +3,7 @@ import { handle } from './handle'
 import { headroomSupervisor } from '../headroom/proxy'
 import { runHeadroomInstall } from '../headroom/install'
 import { listSessions } from '../pi/session-scanner'
+import { exposesDirectTools } from '@shared/mcp'
 import { readMcpConfigs } from '../pi/mcp-config'
 import { adviseOptimization } from '../optimization/advisor'
 import { getPrefs } from '../store'
@@ -57,7 +58,9 @@ export function registerOptimizationHandlers(): void {
           proxyRunning: status.proxy.running,
         },
         sessions,
-        mcpServerCount: mcp.servers.filter((s) => !s.config.disabled).length,
+        mcpServerCount: mcp.servers.filter(
+          (s) => s.config.enabled !== false && exposesDirectTools(s.config),
+        ).length,
       }),
     }
   })

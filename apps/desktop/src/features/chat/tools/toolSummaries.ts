@@ -61,7 +61,10 @@ export function settledVerb(toolName: string | null, args?: Record<string, unkno
     case 'read':
       return 'Read'
     case 'bash':
+    case 'codemode':
       return 'Ran'
+    case 'tool_search':
+      return 'Searched'
     case 'edit':
       return 'Edited'
     case 'write':
@@ -243,6 +246,28 @@ export function summarizeTool(tool: ToolState, workspacePath?: string): ToolSumm
           : version != null
             ? `v${version}`
             : undefined,
+      }
+    }
+    case 'codemode': {
+      // pi's script runner, which is how MCP tools are called by default. The
+      // calls inside the script are nested and get no rows of their own.
+      const code =
+        typeof args?.code === 'string' ? args.code : partialStringArg(tool.argsText, 'code')
+      const line = code
+        ?.split('\n')
+        .map((text) => text.trim())
+        .find((text) => text && !text.startsWith('//'))
+      return {
+        label: running ? 'Running a script' : 'Ran a script',
+        object: line ? truncate(line, 64) : undefined,
+        mono: !!line,
+      }
+    }
+    case 'tool_search': {
+      const query = typeof args?.query === 'string' ? args.query : undefined
+      return {
+        label: running ? 'Searching tools for' : 'Searched tools for',
+        object: query ? truncate(query, 48) : undefined,
       }
     }
     case 'subagent': {

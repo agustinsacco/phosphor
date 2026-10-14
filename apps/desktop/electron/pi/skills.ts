@@ -2,10 +2,10 @@
  * Skills page backend: what skills resolve, and every mutation on them.
  *
  * Resolution asks pi itself — a throwaway `pi --mode rpc --no-session`
- * answering `get_commands` (the connector-auth/model-catalogue machinery, no
- * tokens spent). pi's answer carries each skill's path, scope and source, so
- * Phosphor never re-implements the discovery chain (six roots, settings arrays,
- * packages, trust). When pi can't run, or answers with no skills at all (the
+ * answering `get_commands` (the model-catalogue machinery, no tokens spent).
+ * pi's answer carries each skill's path, scope and source, so Phosphor never
+ * re-implements the discovery chain (six roots, settings arrays, packages,
+ * trust). When pi can't run, or answers with no skills at all (the
  * e2e stub does), a filesystem scan of the roots Phosphor knows about keeps the
  * page honest instead of empty — labelled `probe: 'scan'` so the UI can say
  * the list is approximate.

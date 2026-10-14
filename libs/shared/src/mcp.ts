@@ -1,106 +1,102 @@
 /**
- * MCP configuration model, mirroring the `pi-mcp-adapter` package's
- * documented config chain. pi core has no MCP support; the adapter reads
- * config files with this precedence (lowest → highest):
+ * MCP configuration model, mirroring pi's built-in MCP support (pi ≥ 1.2.0).
  *
- *   xdg        ~/.config/mcp/mcp.json
- *   agents     ~/.agents/mcp.json
- *   agents-dir ~/.agents/mcp/mcp.json
- *   pi-global  ~/.pi/agent/mcp-adapter.json      (honors PI_CODING_AGENT_DIR)
- *   project    <workspace>/.mcp.json
- *   pi-project <workspace>/.pi/mcp-adapter.json
+ * pi reads two files, both in the `mcpServers` shape other MCP clients use:
+ *
+ *   global   <agent dir>/mcp.json        (honors PI_CODING_AGENT_DIR)
+ *   project  <workspace>/.pi/mcp.json    (only when pi trusts the project)
+ *
+ * A project entry replaces a global entry with the same name. A project entry
+ * without `command`, `url` or `type` is an override: it changes only
+ * `enabled`, `exposure` and `toolExposure` of the global server it names.
  */
-export const MCP_SCOPES = [
-  'xdg',
-  'agents',
-  'agents-dir',
-  'pi-global',
-  'project',
-  'pi-project',
-] as const
+export const MCP_SCOPES = ['global', 'project'] as const
 
 export type McpScope = (typeof MCP_SCOPES)[number]
 
-/** Scopes the UI offers for writes (the chain's global + project overrides). */
-export type McpWriteScope = 'pi-global' | 'pi-project'
-
-/** The adapter's `directTools` forms. */
-export type McpDirectTools = string[] | boolean | 'search'
-
 /**
- * What `directTools` puts in front of the model on every request, or null when
- * the server stays behind the `mcp` gateway (unset, `false`, `"search"`).
+ * How a server's tools reach the model (pi's `McpExposure`):
+ * - `codemode` (default): callable from codemode scripts, which find them by search.
+ * - `deferred`: declared once `tool_search` loads them, then called directly.
+ * - `direct`: declared to the model on every request, like a built-in tool.
+ * - `hidden`: registered but unreachable.
  */
-export function directToolsSummary(value: unknown): string | null {
-  if (value === true) return 'all tools'
-  if (!Array.isArray(value)) return null
-  const names = value.filter((name): name is string => typeof name === 'string' && name !== '')
-  if (names.length === 0) return null
-  return names.slice(0, 4).join(', ') + (names.length > 4 ? ` +${names.length - 4}` : '')
+export const MCP_EXPOSURES = ['codemode', 'deferred', 'direct', 'hidden'] as const
+
+export type McpExposure = (typeof MCP_EXPOSURES)[number]
+
+export function isMcpExposure(value: unknown): value is McpExposure {
+  return typeof value === 'string' && (MCP_EXPOSURES as readonly string[]).includes(value)
 }
 
-const DIRECT_TOOLS_KEYWORDS = new Set(['all', 'search'])
+/** pi's rule for server names. Anything else fails validation and never loads. */
+export const MCP_SERVER_NAME = /^[A-Za-z0-9_-]+$/
 
-/**
- * The server editor's text for a `directTools` value. A list holding one tool
- * that happens to be named `all` or `search` gets a trailing comma, so saving
- * it again keeps a list instead of switching the server to that mode.
- */
-export function directToolsText(value: unknown): string {
-  if (value === true) return 'all'
-  if (value === 'search') return 'search'
-  if (!Array.isArray(value)) return ''
-  const text = value.filter((name) => typeof name === 'string').join(', ')
-  return DIRECT_TOOLS_KEYWORDS.has(text.trim().toLowerCase()) ? `${text},` : text
+/** The namespace of a server's tools: `mcp__<server>`, `-` turned into `_`. */
+export function mcpNamespace(server: string): string {
+  return `mcp__${server.replace(/-/g, '_')}`
 }
 
-/**
- * The editor's text back to a `directTools` value; undefined means unset. Only
- * the bare words `all` and `search` are modes; any comma makes a tool list.
- */
-export function parseDirectToolsText(text: string): McpDirectTools | undefined {
-  const trimmed = text.trim()
-  if (trimmed.toLowerCase() === 'all') return true
-  if (trimmed.toLowerCase() === 'search') return 'search'
-  const names = trimmed
-    .split(',')
-    .map((name) => name.trim())
-    .filter(Boolean)
-  return names.length > 0 ? names : undefined
+/** OAuth client settings, for servers without dynamic client registration. */
+export interface McpOAuthConfig {
+  clientId?: string
+  clientSecret?: string
+  callbackPort?: number
+  /** Loopback redirect URI registered for `clientId`. */
+  callbackUrl?: string
+  scope?: string
+  clientName?: string
+  clientRegistration?: 'dcr' | 'cimd'
+  authServerMetadataUrl?: string
 }
 
-/** One server entry as stored in adapter config (`mcpServers.<name>`). */
+/** One `mcpServers.<name>` entry, as pi reads it. Unknown keys are kept on writes. */
 export interface McpServerConfig {
-  /** Remote server URL (exactly one of url/command). */
+  type?: 'stdio' | 'http' | 'streamable-http'
+  /** Streamable HTTP endpoint (exactly one of url/command). */
   url?: string
+  headers?: Record<string, string>
+  oauth?: McpOAuthConfig
+  /** Send a pi `/login` provider's token instead of OAuth. Global file only. */
+  auth?: { provider: string }
   /** Local stdio server command (exactly one of url/command). */
   command?: string
   args?: string[]
   env?: Record<string, string>
-  /**
-   * Tools promoted to first-class pi tools instead of the lazy proxy: a list,
-   * `true` for every tool, or `"search"` to load them through tool search.
-   */
-  directTools?: McpDirectTools
-  /**
-   * Adapter connection lifecycle. Defaults to `lazy` — connect on first tool
-   * call, drop afterwards — which leaves an authenticated server reporting
-   * `cached` between uses. `lazy-keep-alive` holds the connection open once
-   * established, so it stays `connected`.
-   */
-  lifecycle?: 'keep-alive' | 'lazy' | 'lazy-keep-alive' | 'eager'
-  disabled?: boolean
+  cwd?: string
+  /** Default `codemode`. */
+  exposure?: McpExposure
+  /** Per-tool exposure; keys are the server's own tool names or `*` patterns. */
+  toolExposure?: Record<string, McpExposure>
+  /** `false` keeps the entry without connecting. Default true. */
+  enabled?: boolean
+  description?: string
+  /** Per-request timeout, seconds. */
+  timeout?: number
   [key: string]: unknown
 }
 
-/** A server after precedence resolution across the chain. */
+/** Whether an entry only overrides a global server (pi's `isOverride`). */
+export function isMcpOverride(config: McpServerConfig): boolean {
+  return config.command === undefined && config.url === undefined && config.type === undefined
+}
+
+/** A server after pi's resolution of the two files. */
 export interface McpResolvedServer {
   name: string
+  /** The effective config: a project override is already applied. */
   config: McpServerConfig
-  /** Scope whose file won (defines the effective config). */
+  /** The entry as written in its own file — what an edit starts from. */
+  defined: McpServerConfig
+  /** The file that defines the server. */
   scope: McpScope
-  /** Lower-precedence scopes that also define this name. */
-  shadows: McpScope[]
+  /**
+   * The project file overrides this global server's enabled/exposure/toolExposure,
+   * so those are decided there.
+   */
+  overridden?: boolean
+  /** A project definition replaces a global one with the same name. */
+  replacesGlobal?: boolean
 }
 
 export interface McpFileState {
@@ -112,21 +108,94 @@ export interface McpFileState {
   serverNames: string[]
 }
 
+/** Whether pi will read the workspace's `.pi/mcp.json`. */
+export interface McpProjectTrust {
+  /** Canonical folder pi checks. */
+  path: string
+  trusted: boolean
+  /** Where the answer comes from: an entry in pi's trust store, or its default. */
+  source: 'trust-store' | 'default'
+}
+
 export interface McpConfigsResult {
-  /** Legacy pi files are not adapter config; never migrate them implicitly. */
-  warnings?: string[]
   servers: McpResolvedServer[]
   files: McpFileState[]
+  /** Entries pi rejects, with the reason — they never load. */
+  errors: string[]
+  /** Null without a workspace. */
+  projectTrust: McpProjectTrust | null
+  /** pi-mcp-adapter config is still present: Settings offers the migration. */
+  legacy: boolean
 }
 
-/** Cached server metadata from the adapter's ~/.pi/agent/mcp-cache.json. */
-export interface McpCacheEntry {
-  name: string
-  tools: McpCachedTool[]
+/** The exposure badge for a server, or null at pi's default (codemode, no per-tool changes). */
+export function exposureSummary(config: McpServerConfig): string | null {
+  const exposure = isMcpExposure(config.exposure) ? config.exposure : 'codemode'
+  const overrides = Object.keys(config.toolExposure ?? {}).length
+  if (exposure === 'codemode' && overrides === 0) return null
+  const tools = overrides > 0 ? ` +${String(overrides)} tool rule${overrides === 1 ? '' : 's'}` : ''
+  return `${exposure}${tools}`
 }
 
-/** One cached tool. The description is the server's own, capped for display. */
-export interface McpCachedTool {
+/** Whether any of a server's tools cost their full schema on every request. */
+export function exposesDirectTools(config: McpServerConfig): boolean {
+  if (config.exposure === 'direct') return true
+  return Object.values(config.toolExposure ?? {}).includes('direct')
+}
+
+// ---------- `pi mcp list --json` ----------
+
+/** pi's connection states; `disabled` for a server that is turned off. */
+export type McpServerState =
+  'connected' | 'needs-auth' | 'failed' | 'disconnected' | 'connecting' | 'closed' | 'disabled'
+
+/** One server in `pi mcp list --json`. */
+export interface McpServerReport {
   name: string
-  description?: string
+  scope: string
+  source: string
+  override?: string
+  enabled: boolean
+  exposure: string
+  transport: string
+  state: McpServerState
+  /** The server's own tool names, in its order. */
+  tools: string[]
+  error?: string
+}
+
+/** A finished `pi mcp list`. `note` is pi's word on an untrusted project file. */
+export type McpListResult =
+  | { ok: true; servers: McpServerReport[]; errors: string[]; note?: string }
+  | { ok: false; message: string }
+
+// ---------- pi-mcp-adapter migration ----------
+
+/** One server the migration writes. */
+export interface McpMigrationServer {
+  name: string
+  scope: McpScope
+  /** The adapter-side files that defined it, lowest precedence first. */
+  sources: string[]
+  config: McpServerConfig
+  /** What changed in translation, for the preview. */
+  notes: string[]
+}
+
+export interface McpMigrationPlan {
+  servers: McpMigrationServer[]
+  /** Entries that cannot move, with the reason. */
+  skipped: Array<{ name: string; source: string; reason: string }>
+  /** Adapter-owned files the migration renames to a `.migrated-<time>` backup. */
+  retire: string[]
+  /** pi's user settings turn the built-in MCP off (`-builtin:mcp`); the migration removes that. */
+  builtinDisabled: boolean
+  /** Unreadable sources; the migration refuses to run until they are fixed. */
+  blocked: string[]
+}
+
+export interface McpMigrationResult {
+  written: string[]
+  /** Backups made, old path → backup path. */
+  backups: Array<{ from: string; to: string }>
 }

@@ -28,11 +28,9 @@ export interface ContextFileEntry {
 export interface McpServerCost {
   /** Approximate tokens this server's schemas occupy in the window. */
   tokens: number
-  /** Schemas in the window, the gateway proxy included. */
+  /** The server's tools with a schema in the window. */
   count: number
-  /** Of those, the server's own tools registered directly (not the proxy). */
-  direct: number
-  /** Tools the server offers, per the adapter; null when unknown. */
+  /** Tools the server offers; null from a payload that did not say. */
   toolCount: number | null
 }
 
@@ -191,9 +189,9 @@ function parseContextFiles(raw: unknown): ContextBreakdown['contextFiles'] {
 
 /**
  * Per-server MCP cost, rebuilt defensively: the extension is a separate file
- * loaded into pi, so a session started by an older Phosphor build sends a payload
- * without this key, or one without `direct` / `toolCount`. Missing means "no
- * per-server detail" or "unknown total", never zero cost.
+ * loaded into pi, so a session started by an older Phosphor build (a remote
+ * Host's, say) sends a payload without this key, or one without `toolCount`.
+ * Missing means "no per-server detail" or "unknown total", never zero cost.
  */
 function parseByServer(raw: unknown): ContextBreakdown['mcpByServer'] {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
@@ -204,14 +202,12 @@ function parseByServer(raw: unknown): ContextBreakdown['mcpByServer'] {
     const record = value as Partial<McpServerCost>
     const tokens = num(record.tokens)
     const count = num(record.count)
-    if (tokens === 0 && count === 0) continue
-    out[name] = {
-      tokens,
-      count,
-      direct: Math.min(count, num(record.direct)),
-      toolCount:
-        typeof record.toolCount === 'number' && record.toolCount >= 0 ? record.toolCount : null,
-    }
+    const toolCount =
+      typeof record.toolCount === 'number' && record.toolCount >= 0 ? record.toolCount : null
+    // A connected server whose tools are all behind codemode costs nothing and
+    // is still worth listing: it says the server is up.
+    if (tokens === 0 && count === 0 && !toolCount) continue
+    out[name] = { tokens, count, toolCount }
   }
   return out
 }
@@ -286,7 +282,7 @@ export function breakdownSlices(
       tokens: fixed(parts.mcpTools),
       color: 'var(--px-danger)',
       count: breakdown.counts.mcpTools,
-      hint: 'MCP schemas in the window: one gateway proxy per server plus any tools loaded directly. See the chips below for each server.',
+      hint: 'MCP tool schemas in the window: direct tools, and any tool search has loaded. See the chips below for each server.',
     },
   ]
     .filter((slice) => slice.tokens > 0)

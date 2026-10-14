@@ -1,77 +1,218 @@
 # MCP (Model Context Protocol)
 
-pi has built-in MCP support, but Phosphor manages servers through the
-`pi-mcp-adapter` package (declared in pi's `settings.json` `packages`), which
-replaces the built-in support in sessions. MCP tools reach the chat as
-ordinary `tool_execution_*` events, so the transcript needs nothing special.
-Phosphor's job is **config management and status surfacing**: mount a server,
-sign in, see whether it is up, see what it costs.
+pi (1.2.0 and later) connects MCP servers itself, and Phosphor uses that
+built-in support. There is no MCP package to install. pi reads the config,
+connects the servers, signs in with OAuth, keeps the tokens and registers the
+tools. MCP calls reach the chat as ordinary `tool_execution_*` events.
+Phosphor's job is **config management and status surfacing**: write
+`mcp.json`, run pi's own `pi mcp` commands, show whether a server is up and
+what it costs.
 
-**Requires pi-mcp-adapter 3.x.** Adapter-owned config is `mcp-adapter.json`
-in the pi agent directory and project `.pi` directory. The old `mcp.json`
-files are reserved for pi's built-in MCP. Settings warns when those old files
-exist but never migrates them automatically: they may belong to built-in MCP.
-For an adapter-only installation, rename the old file to `mcp-adapter.json`
-(or merge into the destination if it exists), then restart affected sessions.
-The format and credential storage are unchanged. Shared `.mcp.json` files
-keep their names. Phosphor uses `/mcp-adapter`, not the conditional `/mcp` alias.
+## Config: two files
 
-Project-defined servers also require the adapter's project trust and approval.
-Headless Test skips unapproved project servers; it does not bypass approval.
-User-global connectors are not subject to that project approval gate.
+| Scope     | File                                                       |
+| --------- | ---------------------------------------------------------- |
+| `global`  | `~/.pi/agent/mcp.json` (honors `PI_CODING_AGENT_DIR`)      |
+| `project` | `<workspace>/.pi/mcp.json`, read only for a trusted folder |
+
+Both use the usual shape, `{"mcpServers": {name: {...}}}`, with exactly one of
+`url` (streamable HTTP) or `command` + `args` + `env` + `cwd` (stdio). Other
+keys pi reads: `headers`, `oauth` (client settings for servers without dynamic
+registration), `auth: {provider}` (send a pi `/login` token; global file
+only), `exposure`, `toolExposure`, `enabled`, `description`, `timeout`
+(seconds). The types live in `libs/shared/src/mcp.ts`.
+
+- **A project entry with the same name replaces the global one** as a whole;
+  fields are not merged.
+- **A project entry with no `command`, `url` or `type` is an override.** It
+  may set only `enabled`, `exposure` and `toolExposure`, and it needs a global
+  server of that name to override.
+- **Off is `"enabled": false`.** The entry stays and pi does not connect it.
+- **pi ignores the project file until the folder is trusted**: the nearest
+  folder entry in pi's `~/.pi/agent/trust.json`, else
+  `defaultProjectTrust: "always"` in pi's settings (`projectTrust` in
+  `apps/desktop/electron/pi/mcp-config.ts`). An RPC session cannot answer pi's
+  trust question, so Settings shows the state read-only: when the project file
+  exists and the folder is not trusted, it says so and tells you to run `pi`
+  once in a terminal there and choose Trust. Phosphor does not write trust.
+
+pi rejects some entries and never loads them: a name outside
+`[A-Za-z0-9_-]`, two names whose tool namespace (`mcp__<name>`, `-` read as
+`_`) collides, a legacy SSE `type`, a non-HTTP URL, `auth` in the project file,
+an override with extra keys or nothing to override. `serverProblem` and
+`resolveServers` in `mcp-config.ts` mirror those rules, so such an entry shows
+as a warning in Settings instead of a row that looks fine.
+
+## Exposure: how tools reach the model
+
+Each server (and each tool, through `toolExposure`, keyed by the server's own
+tool names or `*` patterns) has one of four exposures:
+
+| Exposure   | What the model gets                                                                            |
+| ---------- | ---------------------------------------------------------------------------------------------- |
+| `codemode` | pi's default. Tools are callable from pi's `codemode` script tool, found through `tool_search` |
+| `deferred` | Declared once `tool_search` loads them, then called directly                                   |
+| `direct`   | Declared on every request like a built-in tool; costs the full schemas each time               |
+| `hidden`   | Connected, but unreachable                                                                     |
+
+Phosphor leaves exposure at pi's default and writes it only when you pick one
+in the editor. Under codemode a server costs no schemas until a script uses
+it, and a script can return just the fields it needs. Settings warns on any
+server with a direct tool, and so does the composer's connector list. The
+Optimization advisor's MCP tip counts only enabled servers that expose tools
+directly (`apps/desktop/electron/optimization/advisor.ts`).
 
 ## Settings → Connectors
 
-**One tab, one list.** A connector IS an MCP server, and connecting one writes
-the `pi-global` scope of the same chain a custom server lives in, so they share
-a list. Sections, in order:
+**Migration first.** While pi-mcp-adapter's config is still around, the tab
+shows only the [migration card](#moving-from-pi-mcp-adapter). Everything below
+assumes it is gone.
 
-1. **Connected** — one card per resolved server. The header carries name,
-   scope badge, status chip, summary and transport on the left, with **Test**
-   and **Sign in** (URL servers) or **Reload** (any enabled server, with a
-   session open) pinned right so they never wrap. The footer holds the tool disclosure, shadow notes, the enable
-   and keep-connected checkboxes, Edit and Remove. The disclosure lists each
-   cached tool by name and description (capped at 600 characters when read),
-   filterable past eight tools. A warning shows when `directTools` is set,
-   since that opts the server out of the `mcp` gateway and costs its full
-   schema on every request.
-   The warning covers every adapter form: a tool list, or `true` for all of
-   a server's tools (`"search"` loads them through tool search instead, so it
-   costs nothing up front). The editor writes the same forms (`all`, `search`
-   or comma-separated names; `directToolsText` / `parseDirectToolsText` in
-   `libs/shared/src/mcp.ts`).
-2. **Add a connector** — the curated catalog, minus anything already
-   configured.
-3. **Advanced** (collapsed) — adapter install state and the chain file list
-   with the raw JSON editor. Repair tools, not daily controls.
+**One tab, one list.** A connector IS an MCP server, so catalog entries and
+custom servers share a list. Sections, in order:
+
+1. **Connected**: one card per server, as pi resolves the two files. The
+   header carries name, a scope badge (`global`, `project`,
+   `project · replaces global`, `global · project override`), the state from
+   the last check, the catalog summary and the URL or command, with **Sign in**
+   pinned right for an OAuth server that is not up. The footer holds the tool
+   disclosure (names from the last check, filterable past eight tools), the
+   exposure, the enabled checkbox, Edit and Remove. **Check again** and **Add
+   custom server…** sit above the list.
+2. **Add a connector**: the curated catalog, minus anything already
+   configured (matched on the URL without its query, not on the name).
+3. **Advanced** (collapsed): both files with their path, server count or
+   `malformed`, and the raw JSON editor. Repair tools, not daily controls.
+
+The **editor** sets name, URL or command, exposure and scope (global, or this
+project when a workspace is open). Keys it does not show (`headers`, `oauth`,
+`env`, …) are kept as they were. The **enabled** checkbox writes the file that
+decides it: the project file for a server it defines or overrides, the global
+file otherwise. Turning a server back on removes the key, except in an
+override, where an absent key would mean "inherit".
 
 **Shortcut in both composers.** The `Rules 2/2 · MCP 7/8` chip
-(`features/chat/composer/ContextSourcesMenu.tsx`) lists the resolved servers
-with the same enabled checkbox, writing `disabled` through `mcp:setDisabled` to
-the server's own file, and flags any server whose `directTools` skips the
-gateway. Inside a lane it reads the lane's own folder, so a worktree lane's
-project scope is the worktree's `.mcp.json`, the one its adapter loads. A
-disabled server is not loaded, so the `mcp` tool's description and search
-cover only what is left.
+(`features/chat/composer/ContextSourcesMenu.tsx`) lists the same servers with
+the same enabled checkbox (`mcp:setEnabled`), flags a server with direct tools,
+and shows `N tools` for a server the current lane has connected (from its
+[context breakdown](#in-a-session)). Inside a lane it reads the lane's own
+folder, so a worktree lane's project file is the worktree's `.pi/mcp.json`.
 
-**Running lanes pick changes up before their next turn.** The adapter reads
-its config only when it starts, so main reloads a lane's extensions right
-before a prompt whose lane config changed since the lane last loaded it
+## Status
+
+**"Is it up?" is `pi mcp list --json`.** Opening the tab runs it once (only
+when there are servers and no migration is pending), and **Check again** runs
+it again; so does a finished sign-in. It needs no session and spends no
+tokens: pi connects every enabled server once, prints a JSON report and exits
+(`apps/desktop/electron/pi/mcp-cli.ts`, `parseMcpList`). The report is
+untrusted subprocess output: a malformed entry is dropped, and an unreadable
+answer is a failure with pi's own last line, never an empty list. Each row
+reads `Up · N tools`, `Needs sign-in`, `Down`, `Disconnected`, `Connecting`
+or `Disabled` (`features/connectors/mcpStatus.ts`), with the server's error
+underneath. pi's own validation errors join the warnings at the top.
+
+pi runs in the workspace folder, or in home with no workspace, so the answer
+covers the same files a session there would read.
+
+## Sign-in
+
+**Phosphor never holds a connector token.** pi does OAuth (PKCE, dynamic
+client registration or a preregistered client, the loopback callback) and
+stores the tokens in its agent directory. Phosphor writes `mcp.json` and runs
+pi's commands.
+
+- **Sign in** runs `pi mcp login <server> --timeout 300` with stdin ignored, so
+  pi knows it is not on a terminal and waits for the browser instead of asking
+  for a pasted URL. pi prints the authorization URL and opens the browser
+  itself. Phosphor shows that URL with **Open again** (for a closed tab) and
+  **Cancel**, which kills the process and with it pi's loopback listener. Exit
+  0 is signed in; anything else is a failure with pi's last stderr line.
+- **Nothing answers a dialog for pi.** There is no paste-the-callback fallback,
+  and no Phosphor code answers an extension-UI prompt on pi's behalf.
+- **Remove** of an OAuth server (a URL without an Authorization header or
+  `auth`) runs `pi mcp logout <server>` first, while the entry still says where
+  the tokens are, then deletes the entry.
+- **Running sessions pick up new credentials on their next turn.** Signing in
+  never needs a session, and an open one does not need a restart.
+- Progress arrives on the `mcp:authState` broadcast into
+  `stores/connectors.ts`; `FlowCard.tsx` renders it. Quitting the app kills a
+  sign-in still running.
+
+## The catalog
+
+Eight curated OAuth connectors: Linear, Notion, Braintrust, Datadog, Supabase,
+Questrade, Fellow, Slack. Each endpoint is checked against the vendor's docs
+_and_ the server's own OAuth metadata, because a wrong URL fails as "broken
+auth" (`apps/desktop/src/features/connectors/catalog.ts`).
+
+**Add starts the sign-in.** Add writes `{url}` to the global file (plus
+`oauth` where the entry needs it) and immediately runs `pi mcp login`, so the
+row appears in Connected with its flow card open and the browser already
+launched.
+
+**Two connectors default to read-only, on purpose.** With no `oauth.scope`
+the MCP SDK requests every scope the server advertises, and for a brokerage
+that includes placing orders. Questrade pins its read scopes
+(`QUESTRADE_READ_SCOPES`; the write scopes are named so a test can assert they
+never leak). Supabase's knob is a query parameter, so its `read_only=true`
+endpoint is the default; that constrains the SQL user, not the OAuth grant,
+and without `?project_ref=<ref>` the server reaches every project in the
+account.
+
+**Slack is the one connector that cannot be one click**, and its row says why.
+Slack supports neither SSE nor dynamic client registration, so MCP clients
+must be backed by a registered Slack app. You register an app and paste its
+**client ID**; Add stays disabled until you do. Add then writes
+`oauth: {clientId, clientSecret?, callbackUrl, scope}` with the fixed callback
+`http://localhost:19876/callback`, since the redirect URI must be registered
+up front and match byte for byte. Slack accepts a `localhost` redirect only
+from an app with **PKCE** enabled, which makes it a public client, so the
+secret is optional and an empty one is never written. Only internal or
+Marketplace-published apps may use MCP, and the app's user scopes must cover
+what Phosphor asks for: the row's "Set up the app" disclosure hands over an
+app manifest that sets scopes, redirect URL and `pkce_enabled` in one paste,
+and `oauth.scope` is written from the same list.
+
+## In a session
+
+pi connects a session's servers after it starts and registers each server's
+tools under the namespace `mcp__<server>`. pi registers one `/mcp` command
+(built into pi); MCP servers add no `/` commands of their own.
+
+**In the transcript**, MCP calls mostly appear as pi's own tools: `codemode`
+renders as **Ran a script** with the script's first line, and `tool_search` as
+**Searched tools for** with the query
+(`features/chat/tools/toolSummaries.ts`). The calls a script makes carry
+`parentToolCallId` and get no rows of their own. A `direct` or `deferred`
+tool is an ordinary tool row under its own name.
+
+**The context meter** gets per-server numbers from the bundled
+`context-breakdown.ts`. It attributes each tool to a server by pi's tool
+namespace (whose alias is the configured name), counts every tool pi has
+registered for the server, and measures the schemas in the window. Since pi
+registers tools as each server answers, with no event for it, the extension
+re-checks once a second for the first minute after a session starts and
+re-publishes only when the set of MCP tools changed. A codemode server reads
+`0/N` there: up, and costing nothing until a script calls it
+([chat.md](chat.md#what-the-context-meters-popover-shows)).
+
+**Running lanes pick config changes up before their next turn.** pi reads
+`mcp.json` when a lane starts, so main reloads a lane's extensions right
+before a prompt whose MCP config changed since the lane last loaded it
 (`libs/session-runtime/src/pi/lane-reload.ts`, inside pi
 `libs/pi-extensions/pi-ext/lane-reload.ts`). The process, transcript, model
-and thinking level stay; the reload took 30 to 450 ms on pi 0.87.1 with
-pi-mcp-adapter 5.2.0.
+and thinking level stay. On pi 1.2.0 a server turned off loses its tools and a
+newly enabled one is back, with its exposure, on the next request.
 
 - **When.** Only before a prompt that starts a turn: not mid-run (a steer or
   follow-up joins the running turn), not for host controls, not for routine
   lanes. Turns the agent starts itself (a sub-agent's completion waking the
   parent) wait for your next message.
-- **What counts as a change.** A fingerprint of the eight files the adapter
-  reads for that lane: Phosphor's chain above plus `<agentDir>/mcp.json` and
-  `<lane>/.pi/mcp.json` (`apps/desktop/electron/pi/lane-config.ts`). Files are
-  re-read only when their stat changes, and hashed as canonical JSON, so a
-  reformat or an unchanged save is not a change. Configs the adapter imports
-  from other clients or packages are not watched.
+- **What counts as a change.** A fingerprint of the lane's two files, global
+  and `<lane>/.pi/mcp.json` (`apps/desktop/electron/pi/lane-config.ts`). Files
+  are re-read only when their stat changes, and hashed as canonical JSON, so a
+  reformat or an unchanged save is not a change. A trust decision made later
+  reaches new lanes only.
 - **Refusals wait, they never force.** pi-subagents keeps background children
   across a reload but stops a running async workflow and detached foreground
   children, and a pending completion must reach the parent first. The
@@ -87,133 +228,29 @@ pi-mcp-adapter 5.2.0.
   `/phosphor-reload` to a pi without it, where it would reach the model as
   text.
 
-Eight curated OAuth connectors: Linear, Notion, Braintrust, Datadog, Supabase,
-Questrade, Fellow, Slack. Each endpoint is checked against the vendor's docs
-_and_ the server's own OAuth metadata, because a wrong URL fails as "broken
-auth" (`apps/desktop/src/features/connectors/catalog.ts`).
-
-**Add starts the sign-in.** Add writes the `pi-global` entry and immediately
-runs the headless OAuth flow, so the row appears in Connected with its flow
-card open and the browser already launched. The headless route is used even
-when a session is open: that session's adapter read `mcp-adapter.json` at startup and
-has never heard of the server just written.
-
-**Two connectors default to read-only, on purpose.** With no `oauth.scope`
-configured the MCP SDK requests every scope the server advertises, and for a
-brokerage that includes placing orders. Questrade pins its read scopes
-(`QUESTRADE_READ_SCOPES`; the write scopes are named so a test can assert they
-never leak). Supabase's knob is a query parameter, so its `read_only=true`
-endpoint is the default; that constrains the SQL user, not the OAuth grant,
-and without `?project_ref=<ref>` the server reaches every project in the
-account.
-
-**"Is it up?" is a button, not an inference.** The status chip comes from the
-adapter inside a live session, so with nothing open a row can only say
-`state unknown`. **Test** runs the adapter's own `/mcp-adapter reconnect <server>` in
-a throwaway `pi --mode rpc --no-session` (`apps/desktop/electron/pi/connector-check.ts`),
-which closes the connection, opens a fresh one, and reports the outcome.
-`parseReconnectNotice` (`libs/shared/src/connectors.ts`) turns that into a verdict:
-`Up · N tools`, `Needs sign-in`, `Down`, `Disabled`, `Not in config`. It fails
-closed: anything unrecognised or timed out is `Inconclusive`, never a
-wrong up-or-down. No model runs, so a test spends no tokens.
-
-**Test checks the server; Reload fixes the session.** Test's reconnect happens
-in its own process, so a session holding a stale or dead connection keeps it.
-**Reload** sends the same `/mcp-adapter reconnect <server>` to the active session,
-which drops that session's connection, opens a fresh one and re-reads the
-server's tools — for stdio servers too, which have no sign-in. pi acknowledges
-the command before the adapter finishes, so `reload` in `stores/connectors.ts`
-waits for the adapter's notice (routed from `stores/extensionUi.ts`) and shows
-it with the same verdict chip, `Inconclusive` after 45 s of silence. Reload
-uses the definition the session loaded at startup: an edited command, URL or
-header reaches new sessions, not this one.
-
-**What follows a fresh connection.** Every fresh connection — Test, Reload, a
-finished sign-in, a session's own lazy connect, even pi in a terminal —
-rewrites the adapter's `mcp-cache.json`, and none of those is a Phosphor
-config write that could invalidate what was read from it. So main watches the
-file (`apps/desktop/electron/pi/mcp-cache-watcher.ts`) and, when what it says changes
-(`cachedAt` alone does not count; lazy servers re-cache on every call), it:
-
-- pushes `mcp:cacheChanged`, and the Connectors tab re-reads its tool lists;
-- runs `invalidatePiCommands`, because the cached prompts are the
-  `mcp__<server>__*` `/` commands. The home composer's per-folder list is
-  dropped and every live session re-asks `get_commands`.
-
-The context meter follows too: `libs/pi-extensions/pi-ext/context-breakdown.ts` re-measures when
-the adapter's status snapshot changes, since a reload runs no turn and would
-otherwise leave direct-tool costs stale until the next message.
-
-Three rules hold this together:
-
-1. **Phosphor never holds a connector token.** The adapter does PKCE, dynamic
-   client registration, a loopback callback on `localhost:19876/callback` and
-   token custody in the OS credential store. Phosphor writes adapter configuration and
-   nothing else. Two copies of a refresh token means one is always stale.
-2. **Auth is actuated by the adapter's own command,** `/mcp-auth <server>`. pi
-   runs extension commands without an LLM call, so connecting spends **no
-   tokens**. Disconnect is `/mcp-adapter logout`, Reload `/mcp-adapter reconnect`. Two
-   routes to that command:
-   - **Headless** (`mcp:authorize`, the default): main spawns a throwaway
-     `pi --mode rpc --no-session` (`apps/desktop/electron/pi/connector-auth.ts`), drives the
-     flow, opens the browser, and kills the process when it settles. No
-     session file appears, nothing lands in the registry. This is what makes
-     Settings usable on a fresh launch.
-   - **In-session**: the adapter auto-authenticates mid-turn when a model calls
-     a tool whose server has no token, so the same prompt can arrive on a live
-     session's extension-UI channel. It routes to the same store and card.
-3. **Phosphor never auto-answers the adapter's authorization prompt.** The
-   adapter asks for the callback URL through `ctx.ui.input`; Phosphor claims
-   that request, opens the browser, shows a card, and then waits, possibly
-   forever.
-
-   This is a **permanent constraint**, and the reason is upstream: pi's RPC
-   has **no server→client cancel**. When the loopback callback wins the race,
-   the adapter abandons its prompt silently, and nothing distinguishes that
-   from a prompt still waiting. Answering empty or cancelling to "clean up"
-   loses the race the other way and throws `OAuth authentication cancelled`
-   on a sign-in that already succeeded. So a pending request stays pending,
-   and only an explicit user Cancel ever answers it. No timeout, no sweep, no
-   "the flow settled" heuristic. The interception is global, not scoped to
-   Settings, because of the in-session route above.
-
-Slack is the one connector that cannot be one click, and its row says why.
-Slack supports neither SSE nor Dynamic Client Registration, and its
-authorization server has no `registration_endpoint`, so MCP clients must be
-backed by a registered Slack app with a fixed app id. You register an app and
-paste its **client id**; Add stays disabled until you do. Slack also refuses a
-`http://localhost` redirect unless the app has **PKCE** enabled, and a PKCE app
-is a public client, so the secret is optional and an empty one is never
-written. The redirect URI pins the callback port (default `19876`,
-`MCP_OAUTH_CALLBACK_PORT` overrides). Only internal or Marketplace-published
-apps may use MCP, and the app's declared user scopes must cover what Phosphor
-asks for; the row's "Set up the app" disclosure hands over an app manifest
-that sets scopes, redirect URL and `pkce_enabled` in one paste, and the catalog
-writes `oauth.scope` from the same list.
-
 ## The Claude provider reaches MCP through pi, not around it
 
 A `pi-claude-cli` session has **two** possible sources of MCP servers, and
 only one of them is Phosphor's.
 
-1. **pi's chain** (table below), loaded by the adapter, which registers `mcp`
-   / `mcpScript` into pi's tool registry. pi-claude-cli snapshots the current
-   request's tools into a schema-only MCP server it hands the CLI as
-   `--mcp-config`, so the gateway arrives as `mcp__custom-tools__mcp`. The
-   schema server proxies `tools/call` back to pi; pi runs the real tool and
-   returns the result to the same persistent CLI process.
+1. **pi's two files**, loaded by pi's built-in MCP, which registers its tools
+   in pi's tool registry. pi-claude-cli snapshots the current request's tools
+   into a schema-only MCP server it hands the CLI as `--mcp-config`, so pi's
+   `codemode` and `tool_search` (and any direct MCP tool) arrive under the
+   `mcp__custom-tools__` prefix. The schema server proxies `tools/call` back to
+   pi; pi runs the real tool and returns the result to the same persistent CLI
+   process.
 2. **The Claude CLI's own chain**: `~/.claude/.mcp.json`, `~/.claude.json`,
    and claude.ai account connectors. Phosphor neither reads nor writes these.
 
 Servers from (2) are a problem, not a bonus: they never become pi tool events,
-so `worktree-paths.ts` cannot guard them, the footer chip and the context
-meter cannot see them, and the same project behaves differently on two
-machines. Every spawn enforces `PI_CLAUDE_CLI_CONTEXT=pi`, which implies strict
-MCP isolation and excludes chain (2). pi keeps its project and skill loading;
-the provider suppresses independent Claude discovery, replaces its system
-prompt and disables native tools. Explicit host guards and managed policy
-remain active. Tool calls and complete results are normal pi messages, not
-native Claude marker previews.
+so `worktree-paths.ts` cannot guard them, the context meter cannot see them,
+and the same project behaves differently on two machines. Every spawn enforces
+`PI_CLAUDE_CLI_CONTEXT=pi`, which implies strict MCP isolation and excludes
+chain (2). pi keeps its project and skill loading; the provider suppresses
+independent Claude discovery, replaces its system prompt and disables native
+tools. Explicit host guards and managed policy remain active. Tool calls and
+complete results are normal pi messages, not native Claude marker previews.
 
 **Requires an installed pi-claude-cli ≥ 0.10.0.** Phosphor verifies the package
 before starting or switching to Claude. pi supplies and executes all tools,
@@ -221,79 +258,88 @@ including the coding tools, over this bridge. The provider automatically
 reimports pi history instead of resuming an old-policy Claude transcript.
 Claude Code **2.1.263+** is required.
 
-The gateway is also what keeps a session small: `mcp` + `mcpScript` cost
-~3.9KB of schema no matter how many servers are configured, growing only by
-the server names in the `mcp` description. `directTools` opts a server out:
-its tools become flat top-level names, worth ~80KB of schema for a server like
-Linear.
+## Moving from pi-mcp-adapter
 
-## Per-server status
+pi-mcp-adapter turns pi's built-in MCP off (it adds `-builtin:mcp` to pi's
+settings) and reads files of its own. While any of these is true, Settings →
+Connectors shows **only** a migration card, because Phosphor manages the
+built-in alone:
 
-`libs/pi-extensions/pi-ext/mcp-status.ts` forwards the adapter's `pi-mcp-adapter/status/v1`
-snapshots to the renderer under status key `phosphor-mcp-status` (lowercase, a
-string literal matched on both sides with no type to catch a mismatch). That is
-the only structured source of per-server state: connected / needs-auth /
-failed / cached / disabled / not-connected, plus tool and resource counts. It
-needs a live session, since the adapter runs inside one; with none, a row reads
-"state unknown" rather than inventing one. Signing in does **not** need a
-session; only observing state does.
+- `~/.pi/agent/mcp-adapter.json` or `<workspace>/.pi/mcp-adapter.json` exists;
+- pi's global `settings.json` `extensions` holds `-builtin:mcp` or
+  `!builtin:mcp`;
+- the pi-mcp-adapter package is installed, in either scope.
 
-The session footer renders it as a chip (`MCP 2/3 · 48 tools`) that opens
-Settings → Connectors; the context meter's chips show, per server, how many of
-its tools are loaded in the window against how many it offers, and the schema
-cost ([chat.md](chat.md#what-the-context-meters-popover-shows)).
+**The card previews the whole change** (`mcp:migrationPlan`): each server and
+the file it goes to, with a note for anything translated or dropped; servers
+that cannot move, with the reason; the files renamed; whether the built-in is
+turned back on; the packages removed; and which servers need a new sign-in.
+An unreadable source blocks the button until it is fixed.
 
-## Config chain (adapter-documented, lowest → highest)
+**Move to pi's MCP** then runs two steps, config first, so a failed package
+removal still leaves a working setup once the package goes:
 
-| Scope        | File                                                               |
-| ------------ | ------------------------------------------------------------------ |
-| `xdg`        | `$XDG_CONFIG_HOME/mcp/mcp.json` (default `~/.config/mcp/mcp.json`) |
-| `agents`     | `~/.agents/mcp.json`                                               |
-| `agents-dir` | `~/.agents/mcp/mcp.json`                                           |
-| `pi-global`  | `~/.pi/agent/mcp-adapter.json` (honors `PI_CODING_AGENT_DIR`)      |
-| `project`    | `<workspace>/.mcp.json`                                            |
-| `pi-project` | `<workspace>/.pi/mcp-adapter.json`                                 |
+1. Main recomputes the plan from disk (`mcp:migrate`; never the renderer's
+   copy, so a file edited since the preview is not overwritten blind), then:
+   - replays the adapter's chain (`~/.config/mcp/mcp.json`,
+     `~/.agents/mcp.json`, `~/.agents/mcp/mcp.json`, `~/.pi/agent/mcp.json`,
+     `~/.pi/agent/mcp-adapter.json`; per project `.mcp.json`, `.pi/mcp.json`,
+     `.pi/mcp-adapter.json`) with its field-by-field merge, to get the config
+     each server actually ran with;
+   - writes the translated servers into pi's `mcp.json` for the same scope,
+     after copying an existing file to `.bak-<time>`. A server only pi's
+     `mcp.json` already defined is left alone;
+   - renames the adapter's own files to `.migrated-<time>`;
+   - removes `-builtin:mcp` / `!builtin:mcp` from pi's settings, after a
+     `.bak-<time>` copy.
+2. pi removes each installed pi-mcp-adapter package (`packages:run remove`),
+   with its output streamed into the card.
 
-Shape: `{"mcpServers": {name: {url | command+args+env, directTools?, disabled?}}}`,
-where `directTools` is a tool list, `true` (every tool) or `"search"`.
-Later files win per server name; Phosphor records shadowed scopes.
+Files the adapter shared with other MCP clients (`~/.config/mcp/mcp.json`,
+`~/.agents/mcp.json`, `.mcp.json`) are read for the merge and never written.
+
+**Translation** (`translateEntry` in `apps/desktop/electron/pi/mcp-migration.ts`)
+keeps what pi understands and says what it drops. Some examples: a bearer token
+becomes an `Authorization` header (`bearerTokenEnv` becomes
+`Bearer ${VAR}`); a `caFile` is dropped with a hint to use `NODE_EXTRA_CA_CERTS`;
+`directTools` becomes `direct` (all), per-tool `direct` rules (a list) or
+`deferred` (`"search"`); include and exclude filters become `toolExposure`
+rules; `disabled` becomes `enabled: false`; a loopback `oauth.redirectUri`
+becomes `oauth.callbackUrl`. A server behind an rmcp-mux `socket` is skipped.
+Adapter-only settings with no meaning in pi (`lifecycle`, `idleTimeout`,
+`toolPrefix`, …) are dropped silently.
+
+**Sign in again afterwards.** Credentials do not move: the adapter kept its
+tokens in the OS credential store and pi keeps its own, so every OAuth server
+signs in once more, and the card names them. The adapter's old tokens stay in
+the credential store. Open sessions switch over before their next message.
+
+The adapter's commands (`/mcp-auth`, `/mcp-adapter`, `/pi-mcp`, its MCP
+prompts) and its `mcp` / `mcpScript` tools go with the package.
 
 ## Rules
 
 - **Renderer sends scope enums, never paths.** Path resolution lives in
-  `apps/desktop/electron/pi/mcp-config.ts` only. New servers are written to `pi-global` /
-  `pi-project`; disable/remove target the server's own file.
+  `apps/desktop/electron/pi/mcp-config.ts` only.
 - Malformed files are surfaced, never overwritten by structured writes. The raw
-  JSON editor covers repair and validates on save.
-- Structured mutations preserve unknown keys.
-- Exactly one of `url` / `command` per server; names refuse path separators.
-
-## Status honesty
-
-There is no structured per-server liveness source **other than the status
-extension above**, and that requires a live session. Without one the tab shows:
-
-1. **Installed** — from `packages:list` (per scope). One-click install runs
-   pi's own package manager, streamed, with a "restart sessions to apply" note.
-   Full package management: [extensions.md](extensions.md).
-2. **Session line** — the adapter's `setStatus` footer text for the active
-   session, ANSI-cleaned, labelled as adapter-reported.
-3. **Cached tools** — `~/.pi/agent/mcp-cache.json`, parsed tolerantly,
-   labelled "cached".
+  JSON editor covers repair and refuses to save invalid JSON.
+- Structured mutations preserve unknown keys, top-level and per server.
+- Exactly one of `url` / `command` per server.
 
 ## Code map
 
-- Types: `libs/shared/src/mcp.ts`. Main: `apps/desktop/electron/pi/mcp-config.ts` (injectable dirs
-  for hermetic tests).
-- IPC: `mcp:readConfigs / upsertServer / removeServer / setDisabled /
-readCache / readFile / writeFile`, plus `mcp:authorize /
-mcp:submitAuthCallback / mcp:cancelAuth / mcp:checkServer` and the
-  `mcp:authState` broadcast (`apps/desktop/electron/ipc/mcp-handlers.ts`). The in-session
-  route adds no IPC; it drives pi over `piCommand` and `app:openExternal`.
-- Connectors: `libs/shared/src/connectors.ts` (prompt/verdict parsers, shared by main
-  and renderer), `apps/desktop/src/features/connectors/` (`catalog.ts`, `mcpStatus.ts`,
-  `FlowCard.tsx`, `ServerEditor.tsx`), `apps/desktop/src/stores/connectors.ts`,
-  `apps/desktop/electron/pi/connector-auth.ts`, `apps/desktop/electron/pi/connector-check.ts`,
-  `libs/pi-extensions/pi-ext/mcp-status.ts`.
-- UI: `apps/desktop/src/features/settings/tabs/ConnectorsTab.tsx`. Mock cases in
+- Types: `libs/shared/src/mcp.ts`.
+- Main: `apps/desktop/electron/pi/mcp-config.ts` (the two files, resolution,
+  trust; injectable dirs for hermetic tests), `mcp-migration.ts` (the adapter
+  migration), `mcp-cli.ts` (`pi mcp list / login / logout`).
+- IPC: `mcp:readConfigs / upsertServer / removeServer / setEnabled`,
+  `mcp:readFile / writeFile`, `mcp:list`, `mcp:authorize / cancelAuth / logout`,
+  `mcp:migrationPlan / migrate` and the `mcp:authState` broadcast
+  (`apps/desktop/electron/ipc/mcp-handlers.ts`).
+- Renderer: `apps/desktop/src/features/settings/tabs/ConnectorsTab.tsx`,
+  `apps/desktop/src/features/connectors/` (`catalog.ts`, `mcpStatus.ts`,
+  `FlowCard.tsx`, `MigrationCard.tsx`, `ServerEditor.tsx`, `useMcpServers.ts`),
+  `apps/desktop/src/stores/connectors.ts`. Mock cases in
   `apps/desktop/src/dev/mockPhosphor.ts`.
+- In pi: `libs/pi-extensions/pi-ext/context-breakdown.ts` (per-server counts),
+  `lane-reload.ts` (applying changes between turns).

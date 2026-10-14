@@ -1,69 +1,34 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import contextBreakdownExtension, {
-  classifyToolServer,
   contextEntriesOf,
   entryChars,
-  isNamespaceProxy,
+  mcpServerOf,
   measureMessages,
   type SessionEntryLike,
 } from './context-breakdown'
 
-/**
- * The adapter renames MCP tools four different ways depending on its
- * `toolPrefix` setting, and the default is not the one this code used to
- * assume. Every mode below was read out of `pi-mcp-adapter/types.ts`
- * (`getServerPrefix` / `formatToolName`) and `namespace-tools.ts`.
- */
-describe('classifyToolServer', () => {
-  const servers = ['linear', 'braintrust', 'search-mcp']
-
-  it('attributes the default prefix mode ("server": <server>_<tool>)', () => {
-    expect(classifyToolServer('linear_create_issue', servers)).toBe('linear')
-    expect(classifyToolServer('braintrust_list_experiments', servers)).toBe('braintrust')
-  })
-
-  it('attributes the "mcp" prefix mode (mcp__<server>_<tool>)', () => {
-    expect(classifyToolServer('mcp__linear_create_issue', servers)).toBe('linear')
-  })
-
-  it('attributes a namespace-proxy tool, which is the whole server', () => {
-    expect(classifyToolServer('mcp__linear', servers)).toBe('linear')
-    expect(classifyToolServer('mcp__search_mcp', servers)).toBe('search-mcp')
-  })
-
-  it('attributes the "short" mode, which strips a trailing -mcp', () => {
-    expect(classifyToolServer('search_web_search', servers)).toBe('search-mcp')
-  })
-
-  it('leaves pi built-ins alone', () => {
-    for (const name of ['read', 'write', 'edit', 'bash', 'mcp', 'web_search']) {
-      expect(classifyToolServer(name, servers), name).toBeNull()
-    }
-  })
-
-  it('does not let a shorter server name claim a longer one', () => {
-    expect(classifyToolServer('linear-readonly_list', ['linear', 'linear-readonly'])).toBe(
-      'linear-readonly',
-    )
-  })
-
-  it('still recognises a namespaced tool from a server it has not been told about', () => {
-    expect(classifyToolServer('mcp__fellow_get_action_items', [])).toBe('fellow')
-    expect(classifyToolServer('mcp__fellow', [])).toBe('fellow')
-  })
-
-  it('reports an unattributable name as built-in rather than guessing', () => {
-    // toolPrefix "none" does not rename at all; nothing in the name says MCP.
-    expect(classifyToolServer('create_issue', servers)).toBeNull()
-  })
+/** pi's MCP tool as `getAllTools()` reports it (measured on pi 1.2.0). */
+const mcpTool = (server: string, tool: string) => ({
+  name: `mcp__${server.replace(/-/g, '_')}__${tool}`,
+  description: `${tool} on ${server}`,
+  namespace: { name: `mcp__${server.replace(/-/g, '_')}`, aliases: [server] },
 })
 
-describe('isNamespaceProxy', () => {
-  it('tells the gateway proxy from a directly registered tool', () => {
-    expect(isNamespaceProxy('mcp__search_mcp', 'search-mcp')).toBe(true)
-    expect(isNamespaceProxy('mcp__linear', 'linear')).toBe(true)
-    expect(isNamespaceProxy('mcp__linear_create_issue', 'linear')).toBe(false)
-    expect(isNamespaceProxy('linear_create_issue', 'linear')).toBe(false)
+describe('mcpServerOf', () => {
+  it('names the server from the namespace alias, which keeps its dashes', () => {
+    expect(mcpServerOf(mcpTool('augment-knowledge', 'search'))).toBe('augment-knowledge')
+  })
+
+  it('falls back to the namespace, then to the tool name', () => {
+    expect(mcpServerOf({ name: 'x', namespace: { name: 'mcp__linear' } })).toBe('linear')
+    expect(mcpServerOf({ name: 'mcp__linear__list_issues' })).toBe('linear')
+  })
+
+  it('leaves every other tool alone, codemode and tool search included', () => {
+    for (const name of ['read', 'bash', 'codemode', 'tool_search', 'mcp', 'read_mcp_resource']) {
+      expect(mcpServerOf({ name }), name).toBeNull()
+    }
+    expect(mcpServerOf({ name: 'x', namespace: { name: 'other' } })).toBeNull()
   })
 })
 
@@ -171,9 +136,12 @@ describe('context breakdown extension', () => {
   afterEach(() => vi.unstubAllEnvs())
 
   /** A pi stand-in that records handlers and lets a test fire them. */
-  function fakePi(tools: Array<{ name: string; description?: string }>, systemPrompt = '') {
+  function fakePi(
+    tools: Array<{ name: string; description?: string; namespace?: unknown }>,
+    systemPrompt = '',
+    active = tools.map((tool) => tool.name),
+  ) {
     const lifecycle = new Map<string, (event: unknown, ctx: unknown) => unknown>()
-    const bus = new Map<string, (payload: unknown) => void>()
     const pushed: string[] = []
     let command: ((args: string, ctx: unknown) => Promise<void>) | undefined
     const ctx = {
@@ -185,37 +153,57 @@ describe('context breakdown extension', () => {
     contextBreakdownExtension({
       on: (event, handler) => void lifecycle.set(event, handler),
       getAllTools: () => tools,
-      getActiveTools: () => tools.map((tool) => tool.name),
-      events: { on: (event, handler) => void bus.set(event, handler) },
+      getActiveTools: () => active,
       registerCommand: (name, spec) => {
         if (name === 'phosphor-context-files')
           command = spec.handler as (args: string, ctx: unknown) => Promise<void>
       },
     })
     return {
+      tools,
       pushed,
       start: () => lifecycle.get('session_start')?.({}, ctx),
+      stop: () => lifecycle.get('session_shutdown')?.({}, ctx),
       toggle: (args: string) => command!(args, ctx),
-      status: (servers: Array<{ name: string; toolCount?: number }>) =>
-        bus.get('pi-mcp-adapter/status/v1')?.({ servers }),
     }
   }
 
-  it('re-measures when a reconnect changes the servers, which runs no turn', () => {
-    const pi = fakePi([{ name: 'linear_list_issues', description: 'List issues' }])
+  it('bills only the MCP schemas in the window, and counts every tool a server offers', () => {
+    const pi = fakePi(
+      [mcpTool('linear', 'list'), mcpTool('linear', 'save'), mcpTool('slack', 'post')],
+      '',
+      ['mcp__linear__list'],
+    )
     pi.start()
-    expect(pi.pushed).toHaveLength(1)
-    pi.status([{ name: 'linear', toolCount: 81 }])
-    expect(pi.pushed).toHaveLength(2)
-    expect(JSON.parse(pi.pushed[1]!).mcpByServer.linear).toMatchObject({ toolCount: 81, count: 1 })
+    const { mcpByServer, counts } = JSON.parse(pi.pushed[0]!)
+    expect(mcpByServer.linear).toMatchObject({ count: 1, toolCount: 2 })
+    expect(mcpByServer.linear.tokens).toBeGreaterThan(0)
+    expect(mcpByServer.slack).toEqual({ tokens: 0, count: 0, toolCount: 1 })
+    expect(counts.mcpTools).toBe(1)
+    pi.stop()
   })
 
-  it('does not re-measure on a snapshot that changes nothing', () => {
-    const pi = fakePi([])
-    pi.start()
-    pi.status([{ name: 'linear', toolCount: 81 }])
-    pi.status([{ name: 'linear', toolCount: 81 }])
-    expect(pi.pushed).toHaveLength(2)
+  it('re-measures when a server finishes connecting after the start, and only then', () => {
+    vi.useFakeTimers()
+    try {
+      const pi = fakePi([])
+      pi.start()
+      expect(pi.pushed).toHaveLength(1)
+      vi.advanceTimersByTime(3000)
+      expect(pi.pushed).toHaveLength(1)
+      pi.tools.push(mcpTool('linear', 'list'))
+      vi.advanceTimersByTime(1000)
+      expect(pi.pushed).toHaveLength(2)
+      expect(JSON.parse(pi.pushed[1]!).mcpByServer.linear).toMatchObject({ toolCount: 1 })
+      // The watch is bounded: a server that connects much later waits for a turn.
+      vi.advanceTimersByTime(60_000)
+      pi.tools.push(mcpTool('slack', 'post'))
+      vi.advanceTimersByTime(5000)
+      expect(pi.pushed).toHaveLength(2)
+      pi.stop()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reports the context files and bills only the ones the lane sends', async () => {
@@ -246,8 +234,7 @@ describe('context breakdown extension', () => {
   })
 
   it('waits for a context before publishing anything', () => {
-    const pi = fakePi([])
-    pi.status([{ name: 'linear', toolCount: 81 }])
+    const pi = fakePi([mcpTool('linear', 'list')])
     expect(pi.pushed).toHaveLength(0)
   })
 })

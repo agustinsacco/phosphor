@@ -31,11 +31,7 @@ try {
       const result = await invoke(channel, ...args)
       if (channel === 'packages:list') {
         return result.map((entry) =>
-          entry.spec.includes('pi-claude-cli')
-            ? { ...entry, version: '0.8.0' }
-            : entry.spec.includes('pi-mcp-adapter')
-              ? { ...entry, installed: true }
-              : entry,
+          entry.spec.includes('pi-claude-cli') ? { ...entry, version: '0.8.0' } : entry,
         )
       }
       if (channel === 'mcp:readConfigs') {
@@ -45,15 +41,17 @@ try {
             {
               name: 'linear',
               config: { url: 'https://mcp.linear.app/mcp' },
-              scope: 'pi-global',
-              shadows: [],
+              defined: { url: 'https://mcp.linear.app/mcp' },
+              scope: 'global',
             },
           ],
           files: result.files.map((file) => ({
             ...file,
-            serverNames: file.scope === 'pi-global' ? ['linear'] : [],
-            exists: file.scope === 'pi-global',
+            serverNames: file.scope === 'global' ? ['linear'] : [],
+            exists: file.scope === 'global',
           })),
+          errors: [],
+          legacy: false,
         }
       }
       if (channel === 'claude:accountSessions') return {}
@@ -114,6 +112,8 @@ try {
   await capture('routing')
   await modal.getByRole('button', { name: 'MCP Connectors', exact: true }).click()
   await expect(modal.getByText('Add a connector', { exact: true })).toBeVisible()
+  // The row's state comes from the mock `pi mcp list`, which answers after a delay.
+  await expect(modal.getByText(/^Up · \d+ tools?$/)).toBeVisible()
   await modal.locator('.overflow-y-auto').evaluate((pane) => {
     pane.scrollTop = 0
   })

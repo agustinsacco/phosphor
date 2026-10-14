@@ -114,7 +114,7 @@ or change session ownership, pi arguments or on-disk formats.
 **See the tree in [the README](../README.md#repo-layout).** It used to be
 duplicated here; the copy drifted (it named a `types/ipc.ts` that never existed,
 listed 6 of the feature folders, and 2 pi extensions), so this section is a
-pointer. The tree names the feature folders, adapters and seven bundled
+pointer. The tree names the feature folders, adapters and six bundled
 extensions. `bundledExtensions()` in `libs/session-runtime/src/bundled-extensions.ts`
 supplies those extensions to `libs/session-runtime/src/pi/session-launch.ts`;
 stub sessions omit them.

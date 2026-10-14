@@ -251,8 +251,8 @@ import {
             Coding works out of the box.<br />Install the rest.
           </h2>
         </div><p class="section-intro">
-          pi runs the agent loop. Packages add tools on top: web search, MCP services, subagents,
-          computer use. Phosphor installs, updates, and configures them from Settings.
+          pi runs the agent loop and connects MCP services. Packages add tools on top: web search,
+          subagents, computer use. Phosphor installs, updates, and configures them from Settings.
         </p>
       </div>
       <div class="package-grid">
@@ -296,8 +296,8 @@ import {
             Your tools,<br />in the same session.
           </h2>
         </div><p class="section-intro">
-          Install the MCP adapter and connect the services you want the agent to use. No more
-          pasting tickets and logs into the chat.
+          Connect the services you want the agent to use through pi’s built-in MCP. No more pasting
+          tickets and logs into the chat.
         </p>
       </div>
       <div class="connector-grid">
@@ -317,7 +317,7 @@ import {
       <Capture
         image={shot('guide-connectors')}
         alt="MCP Connectors settings with a connected-server list and the catalog of available services, using example configuration."
-        caption="Add, sign in, test, or reconnect from Settings"
+        caption="Add, sign in, and check connections from Settings"
         provenance="Settings demo · example data"
       />
       <div class="source-line">
@@ -327,9 +327,9 @@ import {
         >
       </div>
       <p class="fineprint">
-        Setting up and testing a connector doesn’t call a model. Using its tools in a task does, and
-        may count against the service’s quota. The adapter stores OAuth tokens, not Phosphor. Slack
-        needs your own registered Slack app.
+        Setting up and checking a connector doesn’t call a model. Using its tools in a task does,
+        and may count against the service’s quota. pi stores OAuth tokens, not Phosphor. Slack needs
+        your own registered Slack app.
       </p>
     </div>
   </section>

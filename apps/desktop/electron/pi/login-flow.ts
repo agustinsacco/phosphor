@@ -62,12 +62,11 @@ import { log } from '../debug-log'
  * Where a sign-in pi runs: an empty folder of Phosphor's own.
  *
  * Not the home folder, which is what this used to be. pi treats its cwd as a
- * project, and a `.mcp.json` in home is a *project* MCP config to
- * pi-mcp-adapter, which then opens "Allow project MCP server …?" at startup.
- * The driver typed `/login⏎` into that dialog (Enter picks "Don't allow"), so
- * `/login` never ran and the flow sat on "Starting pi’s sign-in…" until the
- * step timeout. The dialog comes back whenever that file changes, so it is
- * not a one-off. Signing in has nothing to do with any project.
+ * project, and project config in home (MCP servers, once) can open a startup
+ * dialog. The driver typed `/login⏎` into that dialog (Enter picks "Don't
+ * allow"), so `/login` never ran and the flow sat on "Starting pi’s sign-in…"
+ * until the step timeout. The dialog comes back whenever that file changes,
+ * so it is not a one-off. Signing in has nothing to do with any project.
  */
 export function signInCwd(): string {
   const dir = join(app.getPath('userData'), 'pi-sign-in')

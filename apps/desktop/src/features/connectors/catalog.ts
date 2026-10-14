@@ -1,6 +1,6 @@
 /**
- * The connector catalog: services Phosphor knows how to point the MCP adapter at
- * without the user typing a URL.
+ * The connector catalog: services Phosphor knows how to point pi's MCP support
+ * at without the user typing a URL.
  *
  * Every entry here was checked against the vendor's own documentation. The
  * reason this is a curated list rather than free text is that the wrong URL
@@ -8,16 +8,15 @@
  * endpoint that still resolves, and a legacy transport's failure surfaces as
  * "could not connect", not "you used the deprecated path".
  *
- * Auth is the adapter's job (OAuth 2.1 + PKCE + dynamic client registration,
- * tokens in the OS credential store). Phosphor only writes the config that lets
- * it work.
+ * Auth is pi's job (OAuth 2.1 + PKCE + dynamic client registration, tokens in
+ * its agent dir). Phosphor only writes the config that lets it work.
  */
 import type { McpServerConfig } from '@shared/mcp'
 
 /**
  * How a connector authorizes.
  *
- * - `dcr` — the adapter registers itself dynamically. One click, no secrets.
+ * - `dcr` — pi registers itself dynamically. One click, no secrets.
  * - `preregistered` — the provider does NOT support dynamic registration, so
  *   the user creates an app up front and supplies its client id, and the
  *   redirect URI has to match byte for byte. Slack is the only one so far,
@@ -86,10 +85,11 @@ export interface ConnectorEntry {
 }
 
 /**
- * The adapter's OAuth callback, from its own defaults
- * (`mcp-oauth-provider.ts`: port 19876, path `/callback`). Only relevant for
- * `preregistered` connectors, where the provider requires the redirect URI to
- * be registered up front and match byte for byte.
+ * The OAuth callback a `preregistered` connector is written with
+ * (`oauth.callbackUrl`), where the provider requires the redirect URI to be
+ * registered up front and match byte for byte. Without it pi listens on a free
+ * port, which no registered app could name. Port 19876 is pi-mcp-adapter's old
+ * default, kept so Slack apps registered for it keep working.
  */
 export const OAUTH_REDIRECT_URI = 'http://localhost:19876/callback'
 
@@ -232,7 +232,8 @@ export const CONNECTORS: ConnectorEntry[] = [
         { id: 'eu', label: 'EU', url: 'https://api-eu.braintrust.dev/mcp' },
       ],
     },
-    caveat: 'A Braintrust API key works instead of OAuth — see the MCP tab for bearer tokens.',
+    caveat:
+      'A Braintrust API key works instead of OAuth: add an Authorization header in mcp.json (Advanced → Config files).',
   },
   {
     id: 'datadog',
@@ -346,35 +347,24 @@ export function connectorUrl(entry: ConnectorEntry, choice: ConnectorChoice = {}
 }
 
 /**
- * The mcp.json entry for a connector.
- *
- * `auth: "oauth"` is explicit rather than relying on the adapter's
- * auto-detection: auto-detect turns OAuth *off* the moment custom headers
- * exist, and a user adding a header later would silently lose authorization.
+ * The mcp.json entry for a connector. No `auth` key: pi signs in with OAuth
+ * whenever a server without an Authorization header asks for it.
  */
 export function buildConnectorConfig(
   entry: ConnectorEntry,
   choice: ConnectorChoice = {},
 ): McpServerConfig {
-  // `lazy-keep-alive`, not the adapter's `lazy` default: lazy drops the
-  // connection after every call, so a signed-in connector sits in `cached`
-  // and the row reads as though the token were gone. Keeping it alive costs
-  // one idle socket per server and is what people mean by "connected".
-  const config: McpServerConfig = {
-    url: connectorUrl(entry, choice),
-    auth: 'oauth',
-    lifecycle: 'lazy-keep-alive',
-  }
+  const config: McpServerConfig = { url: connectorUrl(entry, choice) }
   const oauth: Record<string, string> = {}
   if (entry.authKind === 'preregistered') {
     const clientId = choice.clientId?.trim()
     if (!clientId) throw new Error(`${entry.name} needs a client ID`)
     oauth.clientId = clientId
     // A PKCE app is a public client and its token exchange carries no secret;
-    // writing an empty string would make the adapter pick client_secret_post.
+    // an empty string written here would still be sent as one.
     const clientSecret = choice.clientSecret?.trim()
     if (clientSecret) oauth.clientSecret = clientSecret
-    oauth.redirectUri = OAUTH_REDIRECT_URI
+    oauth.callbackUrl = OAUTH_REDIRECT_URI
   }
   if (entry.scope) oauth.scope = entry.scope
   if (Object.keys(oauth).length > 0) config.oauth = oauth

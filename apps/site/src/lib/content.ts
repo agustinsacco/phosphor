@@ -73,13 +73,6 @@ export const packages = [
     url: 'https://github.com/agustinsacco/pi-claude-cli',
   },
   {
-    id: 'mcp',
-    name: 'MCP adapter',
-    spec: 'npm:pi-mcp-adapter',
-    benefit: 'Connect Linear, Notion, Slack, and other MCP servers.',
-    url: 'https://github.com/nicobailon/pi-mcp-adapter',
-  },
-  {
     id: 'web',
     name: 'Web access',
     spec: 'npm:pi-web-access',
@@ -190,6 +183,6 @@ export const guides = [
   {
     href: '/guides/connectors/',
     title: 'MCP connectors',
-    blurb: 'Connect services, sign in, test them, and add custom servers.',
+    blurb: 'Connect services, sign in, check them, and add custom servers.',
   },
 ]

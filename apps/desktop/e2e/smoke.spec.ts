@@ -39,8 +39,8 @@ const agentDir = scratchDirSync('phosphor-e2e-agent-')
  * with a fixture package.
  *
  * The shared `agentDir` above cannot be used for those. Several surfaces run a
- * REAL `npm install` into `<agentDir>/npm` — the MCP tab installs its adapter
- * package, and pi installs whatever `settings.json` declares — and npm owns
+ * REAL `npm install` into `<agentDir>/npm` — Settings installs packages,
+ * and pi installs whatever `settings.json` declares — and npm owns
  * `node_modules` wholesale: it prunes anything absent from its own manifest,
  * which is exactly what a hand-written fixture directory is. The result was a
  * test that passed alone and failed in the suite, because the pruning install
@@ -863,17 +863,17 @@ test('the / menu offers pi commands on the home screen and in a session', async 
     await field.pressSequentially('/')
     const menu = page.getByRole('listbox', { name: 'Slash commands' })
     await expect(menu).toBeVisible()
-    // Every command pi resolves is reachable: the stub answers 14 (13 rows
-    // once `/pi-mcp` folds into `/mcp`), and this last one sat past the cap
-    // of 12 the list used to have.
+    // Every command pi resolves is reachable: the stub answers more than 12
+    // (one fewer row once `/ws` folds into `/web-status`), and this last one
+    // sat past the cap of 12 the list used to have.
     await expect(page.getByText('Draft release notes from the git log')).toBeVisible({
       timeout: 30_000,
     })
     // Browsing is grouped; the alias is gone from the rows but not from the tooltip.
     await expect(menu.getByText('Extensions', { exact: true })).toBeVisible()
     await expect(menu.getByText('Prompts', { exact: true })).toBeVisible()
-    await expect(menu.getByText('/pi-mcp', { exact: true })).toHaveCount(0)
-    await expect(menu.locator('[data-tooltip*="Also: /pi-mcp"]')).toBeVisible()
+    await expect(menu.getByText('/ws', { exact: true })).toHaveCount(0)
+    await expect(menu.locator('[data-tooltip*="Also: /ws"]')).toBeVisible()
     // The origin column answers "where is this from?" for a package command.
     await expect(menu.getByText('pi-web-access', { exact: true }).first()).toBeVisible()
 
@@ -899,8 +899,8 @@ test('the / menu offers pi commands on the home screen and in a session', async 
     await expect(page.getByTestId('command-menu-empty')).toContainText('No command matches /zzz')
     await chat.fill('')
     // A word that appears in no name finds the commands whose description says it.
-    await chat.pressSequentially('/status')
-    await expect(page.getByText('Show MCP server status')).toBeVisible()
+    await chat.pressSequentially('/reconnect')
+    await expect(page.getByText(/Manage MCP servers/)).toBeVisible()
     await chat.fill('')
     await chat.pressSequentially('/stub')
     await expect(row).toBeVisible()
@@ -3160,17 +3160,15 @@ test('new chat without isolation runs in the open workspace', async () => {
   }
 })
 
-test('Connectors: resolved rows, disable toggle, add custom server', async () => {
+test('Connectors: resolved rows, enabled toggle, add custom server', async () => {
   // Seed a global server in an agent dir of this test's own. Shared would leak:
   // this `mcp.json` is never cleaned up, and every later test would inherit a
   // global MCP server it did not ask for.
   const soloAgentDir = privateAgentDir()
   await writeFile(
-    join(soloAgentDir, 'mcp-adapter.json'),
-    JSON.stringify({ mcpServers: { linear: { url: 'https://mcp.linear.app/sse' } } }),
+    join(soloAgentDir, 'mcp.json'),
+    JSON.stringify({ mcpServers: { linear: { url: 'https://mcp.linear.app/mcp' } } }),
   )
-  const legacyText = JSON.stringify({ mcpServers: { legacyOnly: { command: 'legacy' } } })
-  await writeFile(join(soloAgentDir, 'mcp.json'), legacyText)
   // Dedicated prefs dir: project-scope writes target the ACTIVE workspace, so
   // a `lastSessionPath` left by an earlier test could restore a different
   // workspace and send the write there.
@@ -3187,29 +3185,29 @@ test('Connectors: resolved rows, disable toggle, add custom server', async () =>
       timeout: 10_000,
     })
 
-    // The seeded global server resolves into the list. It is in the
-    // "Connected" section, which renders BEFORE the catalog — so the
-    // first checkbox in the dialog is its own enabled toggle, not a
-    // read-only box belonging to some unconfigured catalog entry. Scoped to
-    // the dialog: the home composer behind it has checkboxes of its own.
-    await expect(page.getByText('linear', { exact: true })).toBeVisible()
-    await expect(page.getByText('https://mcp.linear.app/sse').first()).toBeVisible()
-    await expect(page.getByRole('alert').filter({ hasText: 'does not migrate' })).toBeVisible()
-    await expect(page.getByText('legacyOnly', { exact: true })).toHaveCount(0)
-    expect(await readFile(join(soloAgentDir, 'mcp.json'), 'utf8')).toBe(legacyText)
+    // The seeded global server resolves into the list, and `pi mcp list`
+    // reports its state. It is in the "Connected" section, which renders
+    // BEFORE the catalog — so the first checkbox in the dialog is its own
+    // enabled toggle. Scoped to the dialog: the home composer behind it has
+    // checkboxes of its own.
+    const linear = page.getByTestId('connector-linear')
+    await expect(linear.getByText('https://mcp.linear.app/mcp')).toBeVisible()
+    await expect(linear.getByText('Needs sign-in')).toBeVisible({ timeout: 20_000 })
+    await expect(linear.getByText('exposure: codemode')).toBeVisible()
 
-    // Disable writes `"disabled": true` into the owning file. Plain click:
-    // the checkbox is controlled and only re-renders after the IPC round
-    // trip, which uncheck()'s immediate post-click assertion would race.
+    // Turning it off writes pi's `"enabled": false`. Plain click: the checkbox
+    // is controlled and only re-renders after the IPC round trip, which
+    // uncheck()'s immediate post-click assertion would race.
     await page.getByRole('dialog').getByRole('checkbox').first().click()
     await expect
       .poll(async () => {
-        const raw = await readFile(join(soloAgentDir, 'mcp-adapter.json'), 'utf8')
-        return (JSON.parse(raw).mcpServers.linear as { disabled?: boolean }).disabled === true
+        const raw = await readFile(join(soloAgentDir, 'mcp.json'), 'utf8')
+        return (JSON.parse(raw).mcpServers.linear as { enabled?: boolean }).enabled
       })
-      .toBe(true)
+      .toBe(false)
+    await expect(linear.getByText('Disabled')).toBeVisible()
 
-    // Add a project-scoped stdio server → workspace/.pi/mcp-adapter.json is written.
+    // Add a project-scoped stdio server → workspace/.pi/mcp.json is written.
     await page.getByRole('button', { name: 'Add custom server…' }).click()
     await page.getByPlaceholder('server name (e.g. linear)').fill('local-tools')
     await page.getByRole('radio', { name: 'Local command' }).check()
@@ -3220,20 +3218,20 @@ test('Connectors: resolved rows, disable toggle, add custom server', async () =>
     await expect
       .poll(async () => {
         try {
-          const raw = await readFile(join(workspace, '.pi', 'mcp-adapter.json'), 'utf8')
-          return (JSON.parse(raw).mcpServers['local-tools'] as { command?: string }).command
+          const raw = await readFile(join(workspace, '.pi', 'mcp.json'), 'utf8')
+          return JSON.parse(raw).mcpServers['local-tools'] as Record<string, unknown>
         } catch {
           return null
         }
       })
-      .toBe('npx')
+      .toEqual({ command: 'npx', args: ['local-tools-mcp'] })
   } finally {
     await shutdown(harness)
     await rm(soloAgentDir, { recursive: true, force: true })
   }
 })
 
-test('Connectors: adding a catalog connector writes a verified OAuth endpoint', async () => {
+test('Connectors: adding a catalog connector writes pi config and starts sign-in', async () => {
   // Own agent dir: this writes a global mcp.json, which nothing cleans up.
   const soloAgentDir = privateAgentDir()
   const harness = await launch({
@@ -3250,61 +3248,45 @@ test('Connectors: adding a catalog connector writes a verified OAuth endpoint', 
     })
 
     // Datadog is the interesting row: its endpoint is per site, so the choice
-    // has to reach the written config rather than defaulting silently.
+    // has to reach the written config rather than defaulting silently. pi
+    // signs in to an HTTP server with OAuth on its own, so the URL is all.
     const datadog = page.getByTestId('connector-datadog')
     await datadog.getByRole('combobox').selectOption('eu1')
     await datadog.getByRole('button', { name: 'Add', exact: true }).click()
 
+    const readServer = async (name: string): Promise<unknown> => {
+      try {
+        const raw = await readFile(join(soloAgentDir, 'mcp.json'), 'utf8')
+        return JSON.parse(raw).mcpServers[name] ?? null
+      } catch {
+        return null
+      }
+    }
     await expect
-      .poll(async () => {
-        try {
-          const raw = await readFile(join(soloAgentDir, 'mcp-adapter.json'), 'utf8')
-          return JSON.parse(raw).mcpServers.datadog as Record<string, unknown>
-        } catch {
-          return null
-        }
-      })
-      .toEqual({
-        url: 'https://mcp.datadoghq.eu/v1/mcp',
-        auth: 'oauth',
-        // Not the adapter's `lazy` default: lazy drops the connection after
-        // each call, so a signed-in connector reports `cached` and the row
-        // used to offer "Sign in" as though the token were gone.
-        lifecycle: 'lazy-keep-alive',
-      })
+      .poll(() => readServer('datadog'))
+      .toEqual({ url: 'https://mcp.datadoghq.eu/v1/mcp' })
 
-    // Slack is the other interesting row: a client id alone must produce a
-    // public-client config. Slack only accepts the loopback redirect URL from
-    // a PKCE app, and a PKCE app's token exchange carries no secret — an
-    // empty one written here would make the adapter send client_secret_post.
+    // Slack is the other interesting row: it has no dynamic registration, so
+    // a client id alone must produce a public-client config on the loopback
+    // callback Slack's app was registered with.
     const slack = page.getByTestId('connector-slack')
     await slack.getByPlaceholder('client ID').fill('4242.1337')
     await slack.getByRole('button', { name: 'Add', exact: true }).click()
 
     await expect
-      .poll(async () => {
-        try {
-          const raw = await readFile(join(soloAgentDir, 'mcp-adapter.json'), 'utf8')
-          return JSON.parse(raw).mcpServers.slack as Record<string, unknown>
-        } catch {
-          return null
-        }
-      })
+      .poll(() => readServer('slack'))
       .toEqual({
         url: 'https://mcp.slack.com/mcp',
-        auth: 'oauth',
-        lifecycle: 'lazy-keep-alive',
         oauth: {
           clientId: '4242.1337',
-          redirectUri: 'http://localhost:19876/callback',
+          callbackUrl: 'http://localhost:19876/callback',
           scope: expect.stringContaining('search:read.public'),
         },
       })
 
-    // Add is not a config edit, it is "connect this" — so it starts the
-    // headless OAuth flow itself. Writing mcp.json and then waiting for a
-    // separate Sign in click read as "Add did nothing", most sharply here,
-    // where the user has just pasted a client id and expects a browser.
+    // Add is not a config edit, it is "connect this" — so it starts
+    // `pi mcp login` itself. Writing mcp.json and then waiting for a separate
+    // Sign in click read as "Add did nothing".
     await expect(slack.getByText(/Approve access in your browser/)).toBeVisible({
       timeout: 30_000,
     })
@@ -3317,13 +3299,11 @@ test('Connectors: adding a catalog connector writes a verified OAuth endpoint', 
 
 test('Connectors: signing in works with no session open', async () => {
   // Seeded rather than added through the UI: this test is about the headless
-  // authorization path, and the previous test already covers writing config.
+  // sign-in path, and the previous test already covers writing config.
   const soloAgentDir = privateAgentDir()
   await writeFile(
-    join(soloAgentDir, 'mcp-adapter.json'),
-    JSON.stringify({
-      mcpServers: { linear: { url: 'https://mcp.linear.app/mcp', auth: 'oauth' } },
-    }),
+    join(soloAgentDir, 'mcp.json'),
+    JSON.stringify({ mcpServers: { linear: { url: 'https://mcp.linear.app/mcp' } } }),
   )
   const harness = await launch({
     agentDir: soloAgentDir,
@@ -3338,11 +3318,11 @@ test('Connectors: signing in works with no session open', async () => {
     await page.getByRole('button', { name: 'MCP Connectors', exact: true }).click()
 
     const linear = page.getByTestId('connector-linear')
-    await expect(linear.getByRole('button', { name: 'Sign in' })).toBeEnabled({ timeout: 10_000 })
+    await expect(linear.getByText('Needs sign-in')).toBeVisible({ timeout: 20_000 })
     await linear.getByRole('button', { name: 'Sign in' }).click()
 
-    // Main spawned its own throwaway pi, sent /mcp-auth, and surfaced the
-    // adapter's authorization URL — with no session in the sidebar.
+    // Main ran `pi mcp login linear` and surfaced the URL pi printed — with
+    // no session in the sidebar.
     await expect(linear.getByText(/Approve access in your browser/)).toBeVisible({
       timeout: 20_000,
     })
@@ -3351,10 +3331,77 @@ test('Connectors: signing in works with no session open', async () => {
     await linear.getByRole('button', { name: 'Cancel' }).click()
     await expect(linear.getByText(/Approve access in your browser/)).toHaveCount(0)
 
-    // Same headless path answers "is it up?": main reconnects the server
-    // through its own throwaway pi and reports the adapter's verdict.
-    await linear.getByRole('button', { name: 'Test', exact: true }).click()
-    await expect(linear.getByText('Up · 7 tools')).toBeVisible({ timeout: 20_000 })
+    // Again, and this time the browser approves: pi exits 0 and the row asks
+    // pi again, which now connects.
+    await linear.getByRole('button', { name: 'Sign in' }).click()
+    await expect(linear.getByText(/Approve access in your browser/)).toBeVisible({
+      timeout: 20_000,
+    })
+    await writeFile(join(soloAgentDir, 'stub-mcp-approve-linear'), 'ok')
+    await expect(linear.getByText('Signed in.')).toBeVisible({ timeout: 20_000 })
+    await expect(linear.getByText('Up · 3 tools')).toBeVisible({ timeout: 20_000 })
+    await expect(linear.getByRole('button', { name: 'Sign in' })).toHaveCount(0)
+  } finally {
+    await shutdown(harness)
+    await rm(soloAgentDir, { recursive: true, force: true })
+  }
+})
+
+test('Connectors: moves pi-mcp-adapter config to pi’s built-in MCP', async () => {
+  // The adapter's own file, its package, and the setting it writes to turn
+  // pi's MCP off: what an existing install looks like.
+  const soloAgentDir = privateAgentDir()
+  await writeFile(
+    join(soloAgentDir, 'mcp-adapter.json'),
+    JSON.stringify({
+      mcpServers: {
+        linear: { url: 'https://mcp.linear.app/mcp', auth: 'oauth', lifecycle: 'lazy-keep-alive' },
+        tools: { command: 'npx', args: ['tools-mcp'], directTools: true },
+      },
+    }),
+  )
+  await writeFile(
+    join(soloAgentDir, 'settings.json'),
+    JSON.stringify({ packages: ['npm:pi-mcp-adapter'], extensions: ['-builtin:mcp'] }),
+  )
+  const harness = await launch({
+    agentDir: soloAgentDir,
+    userDataDir: await scratchDir('phosphor-e2e-migrate-'),
+  })
+  const { page } = harness
+  try {
+    await openWorkspace(page)
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await page.getByRole('button', { name: 'MCP Connectors', exact: true }).click()
+
+    // Nothing is touched until the user has read the plan and asked.
+    await expect(page.getByText('Move your connectors to pi’s built-in MCP')).toBeVisible({
+      timeout: 10_000,
+    })
+    await expect(page.getByText('pi’s built-in MCP is turned back on.')).toBeVisible()
+    await expect(page.getByText(/Sign in again afterwards to linear/)).toBeVisible()
+    await expect(page.getByTestId('connector-linear')).toHaveCount(0)
+    expect(existsSync(join(soloAgentDir, 'mcp.json'))).toBe(false)
+
+    await page.getByRole('button', { name: 'Move to pi’s MCP' }).click()
+
+    // Config first, then the package: the card goes once both are done.
+    await expect(page.getByText('Move your connectors to pi’s built-in MCP')).toHaveCount(0, {
+      timeout: 30_000,
+    })
+    const config = JSON.parse(await readFile(join(soloAgentDir, 'mcp.json'), 'utf8'))
+    expect(config.mcpServers).toEqual({
+      linear: { url: 'https://mcp.linear.app/mcp' },
+      tools: { command: 'npx', args: ['tools-mcp'], exposure: 'direct' },
+    })
+    expect(existsSync(join(soloAgentDir, 'mcp-adapter.json'))).toBe(false)
+    const settings = JSON.parse(await readFile(join(soloAgentDir, 'settings.json'), 'utf8'))
+    expect(settings.packages).toEqual([])
+    expect(settings.extensions ?? []).not.toContain('-builtin:mcp')
+
+    await expect(page.getByTestId('connector-linear').getByText('Needs sign-in')).toBeVisible({
+      timeout: 20_000,
+    })
   } finally {
     await shutdown(harness)
     await rm(soloAgentDir, { recursive: true, force: true })

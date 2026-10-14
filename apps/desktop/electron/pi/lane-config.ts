@@ -1,20 +1,14 @@
 import { createHash } from 'node:crypto'
 import { readFile, stat } from 'node:fs/promises'
-import { join } from 'node:path'
 import { mcpConfigPaths, mcpDirs, type McpDirs } from './mcp-config'
 
 /**
- * Every MCP config file pi-mcp-adapter 5.x reads for a lane in `cwd`:
- * Phosphor's managed chain plus the two Pi `mcp.json` files the adapter also
- * imports. Files the adapter discovers elsewhere (other clients' configs,
- * packages) are not watched; a change there reaches new lanes only.
+ * Every MCP config file pi reads for a lane in `cwd`: the global and the
+ * project `mcp.json`. Servers an extension registers itself are not config,
+ * and a trust decision made later reaches new lanes only.
  */
 export function laneConfigPaths(cwd: string, dirs: McpDirs = mcpDirs()): string[] {
-  return [
-    ...mcpConfigPaths(cwd, dirs).map(({ path }) => path),
-    join(dirs.piAgent, 'mcp.json'),
-    join(cwd, '.pi', 'mcp.json'),
-  ]
+  return mcpConfigPaths(cwd, dirs).map(({ path }) => path)
 }
 
 /** JSON with object keys sorted, so a reformatted or re-saved file hashes the same. */
@@ -62,7 +56,7 @@ export function createLaneConfigFingerprint(dirs?: () => McpDirs) {
     try {
       value = canonical(JSON.parse(text))
     } catch {
-      // The adapter will fail on it too; any edit to it is still a change.
+      // pi will fail on it too; any edit to it is still a change.
       value = text
     }
     const result = digest(value)

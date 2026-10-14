@@ -151,6 +151,22 @@ describe('summarizeTool', () => {
     )
   })
 
+  it("summarizes pi's codemode by the script's first statement", () => {
+    const code =
+      '// look up the issue\nconst issue = await mcp__linear.get_issue({ id: "A-1" })\nreturn issue'
+    const done = summarizeTool(tool({ toolName: 'codemode', args: { code } }))
+    expect(done.label).toBe('Ran a script')
+    expect(done.object).toBe('const issue = await mcp__linear.get_issue({ id: "A-1" })')
+    expect(summarizeTool(tool({ toolName: 'codemode', status: 'running' })).label).toBe(
+      'Running a script',
+    )
+  })
+
+  it("summarizes pi's tool_search by its query", () => {
+    const t = tool({ toolName: 'tool_search', args: { query: 'linear issues' } })
+    expect(summarizeTool(t)).toMatchObject({ label: 'Searched tools for', object: 'linear issues' })
+  })
+
   it('treats error status as not-running', () => {
     expect(summarizeTool(tool({ toolName: 'read', status: 'error' })).label).toBe('Read')
   })

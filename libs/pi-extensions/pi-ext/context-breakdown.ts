@@ -37,13 +37,14 @@ interface PiExtensionApi extends BudgetApi {
   on(event: string, handler: (event: unknown, ctx: unknown) => unknown): void
   getActiveTools?(): unknown
   getAllTools?(): unknown
-  events?: { on(event: string, handler: (payload: unknown) => void): void }
 }
 
 interface ToolLike {
   name?: string
   description?: string
   parameters?: unknown
+  /** pi's tool group; an MCP server's tools carry `mcp__<server>`, aliased by the server's name. */
+  namespace?: { name?: string; aliases?: unknown }
 }
 
 interface ExtensionContext {
@@ -62,12 +63,10 @@ export interface SessionEntryLike extends LedgerEntry {
 export interface McpServerCost {
   /** Approximate tokens this server's schemas occupy in the window. */
   tokens: number
-  /** Schemas in the window, gateway proxy included. */
+  /** The server's tools with a schema in the window (`direct`, or loaded by tool search). */
   count: number
-  /** Of those, the server's own tools (registered directly, not the proxy). */
-  direct: number
-  /** Tools the server offers, per the adapter; null when it has not said. */
-  toolCount: number | null
+  /** Tools the server offers: every one pi registered for it. */
+  toolCount: number
 }
 
 export interface ContextBreakdown {
@@ -94,56 +93,34 @@ export interface ContextBreakdown {
 }
 
 const STATUS_KEY = 'phosphor-context-breakdown'
-/** The MCP adapter's status event, its only announcement of server names. */
-const MCP_STATUS_EVENT = 'pi-mcp-adapter/status/v1'
-
-/** The adapter's own prefix sanitizer (`types.ts: sanitizeServerPrefix`). */
-function sanitizeServerPrefix(serverName: string): string {
-  return Array.from(serverName, (char) =>
-    /^[A-Za-z0-9_-]$/.test(char) ? char : `_${char.codePointAt(0)!.toString(16)}_`,
-  ).join('')
-}
-
-/** The gateway's one-per-server proxy tool (`namespace-tools.ts`). */
-export function isNamespaceProxy(toolName: string, server: string): boolean {
-  return toolName === `mcp__${server.replace(/-/g, '_')}`
-}
 
 /**
- * Which MCP server a tool name belongs to, or null for one of pi's own tools.
+ * The MCP server a tool belongs to, or null for any other tool.
  *
- * The adapter renames every MCP tool, and *how* depends on its `toolPrefix`
- * setting: `server` (the default) gives `<server>_<tool>`, `mcp` gives
- * `mcp__<server>_<tool>`, `short` strips a trailing `-mcp`, `none` does not
- * rename at all. Proxy-only servers instead get one namespace tool named
- * `mcp__<server>`. Matching only `mcp__` — which this file used to do — missed
- * the default, so a connector's schemas were billed to pi's built-in tools.
- *
- * `none` is genuinely unattributable from the name alone, and is reported as
- * built-in rather than guessed at.
+ * pi groups a server's tools under the namespace `mcp__<server>` and aliases
+ * it with the server's configured name, which keeps a `-` the namespace turns
+ * into `_`. The name prefix is the fallback for a tool without a namespace.
  */
-export function classifyToolServer(toolName: string, serverNames: string[]): string | null {
-  // Longest server name first: `linear` must not claim `linear-readonly_*`.
-  const candidates = [...serverNames].sort((a, b) => b.length - a.length)
-  for (const server of candidates) {
-    const sanitized = sanitizeServerPrefix(server)
-    const namespaced = `mcp__${server.replace(/-/g, '_')}`
-    const short = sanitizeServerPrefix(server.replace(/-?mcp$/i, '')) || 'mcp'
-    if (
-      toolName === namespaced ||
-      toolName.startsWith(`${namespaced}_`) ||
-      toolName.startsWith(`mcp__${sanitized}_`) ||
-      toolName.startsWith(`${sanitized}_`) ||
-      toolName.startsWith(`${short}_`)
-    ) {
-      return server
-    }
+export function mcpServerOf(tool: ToolLike): string | null {
+  const namespace = tool.namespace
+  if (typeof namespace?.name === 'string' && namespace.name.startsWith('mcp__')) {
+    const alias = Array.isArray(namespace.aliases) ? namespace.aliases[0] : undefined
+    return typeof alias === 'string' && alias ? alias : namespace.name.slice('mcp__'.length)
   }
-  // A server Phosphor has not been told about yet still reads as MCP when the
-  // adapter namespaced it.
-  const unknown = /^mcp__([A-Za-z0-9_]+?)(?:_|$)/.exec(toolName)
-  return unknown?.[1] ?? null
+  const name = typeof tool.name === 'string' ? tool.name : ''
+  return /^mcp__(.+?)__./.exec(name)?.[1] ?? null
 }
+
+/** Which MCP tools pi has registered: changes as servers connect. */
+function mcpSignature(tools: ToolLike[]): string {
+  return tools
+    .filter((tool) => mcpServerOf(tool) !== null)
+    .map((tool) => tool.name)
+    .join(',')
+}
+
+/** How long after a session starts its servers may still be connecting. */
+const CONNECT_WATCH_MS = 60_000
 
 /**
  * ~4 characters per token. Crude, but the only option available in-process,
@@ -195,43 +172,11 @@ export default function contextBreakdownExtension(pi: PiExtensionApi): void {
     publish(latestContext)
   })
   const swarmPolicy = swarm(pi, (ctx) => publish(ctx as ExtensionContext))
-  // Server names and tool totals come from the MCP adapter's status snapshots
-  // on pi's shared event bus. Absent (no adapter, or an older one),
-  // classification falls back to the `mcp__` namespace form and the chips
-  // cannot say how many tools a server offers.
-  const mcpServers = new Map<string, { toolCount: number | null }>()
-  // The bus handler gets no context, so the last lifecycle one is kept — the
-  // same arrangement as mcp-status.ts. Session replacement fires a fresh
-  // `session_start`, which replaces it.
+  // The last lifecycle context, for a publish no event triggers: an MCP server
+  // that finishes connecting after `session_start` (see `watchConnections`).
+  // Session replacement fires a fresh `session_start`, which replaces it.
   let latestContext: ExtensionContext | undefined
-  pi.events?.on(MCP_STATUS_EVENT, (payload) => {
-    if (!payload || typeof payload !== 'object') return
-    const servers = (payload as { servers?: unknown }).servers
-    if (!Array.isArray(servers)) return
-    const before = JSON.stringify([...mcpServers])
-    mcpServers.clear()
-    for (const entry of servers) {
-      const record = entry as { name?: unknown; toolCount?: unknown } | null
-      if (typeof record?.name !== 'string' || record.name.length === 0) continue
-      const toolCount = record.toolCount
-      mcpServers.set(record.name, {
-        toolCount: typeof toolCount === 'number' && toolCount >= 0 ? toolCount : null,
-      })
-    }
-    // A `/mcp reconnect` runs no turn, so none of the lifecycle events below
-    // fire after it — yet it can change the servers' tools, and with them the
-    // direct-tool schemas this measures. The adapter publishes its snapshot
-    // after re-syncing that tool surface, so re-measure here, but only when
-    // the snapshot says something changed: it is also sent on every
-    // connection-state flip, and each publish walks the whole branch.
-    if (!latestContext || JSON.stringify([...mcpServers]) === before) return
-    try {
-      publish(latestContext)
-    } catch {
-      // A context from a replaced session; the next lifecycle event brings a
-      // fresh one.
-    }
-  })
+  let publishedMcp = ''
 
   function publish(ctx: ExtensionContext): void {
     const setStatus = ctx.ui?.setStatus
@@ -246,8 +191,8 @@ export default function contextBreakdownExtension(pi: PiExtensionApi): void {
     // getAllTools and the active list is used purely as a filter — measuring
     // the name list instead reports a handful of tokens for a tool set that
     // really costs thousands.
-    const rawAll = pi.getAllTools?.() ?? []
-    const allTools: ToolLike[] = Array.isArray(rawAll) ? (rawAll as ToolLike[]) : []
+    const allTools = registeredTools()
+    publishedMcp = mcpSignature(allTools)
 
     const rawActive = pi.getActiveTools?.() ?? []
     const activeNames = new Set<string>(
@@ -261,27 +206,23 @@ export default function contextBreakdownExtension(pi: PiExtensionApi): void {
         ? allTools.filter((tool) => typeof tool.name === 'string' && activeNames.has(tool.name))
         : allTools
 
-    const serverNames = [...mcpServers.keys()]
     let toolTokens = 0
     let mcpToolTokens = 0
     let mcpCount = 0
     const mcpByServer: Record<string, McpServerCost> = {}
+    for (const tool of allTools) {
+      const server = mcpServerOf(tool)
+      if (server) (mcpByServer[server] ??= { tokens: 0, count: 0, toolCount: 0 }).toolCount++
+    }
     for (const tool of tools) {
       const size = sizeOfTool(tool)
-      const name = typeof tool.name === 'string' ? tool.name : ''
-      const server = name ? classifyToolServer(name, serverNames) : null
+      const server = mcpServerOf(tool)
       if (server) {
         mcpToolTokens += size
         mcpCount++
-        const bucket = (mcpByServer[server] ??= {
-          tokens: 0,
-          count: 0,
-          direct: 0,
-          toolCount: mcpServers.get(server)?.toolCount ?? null,
-        })
+        const bucket = (mcpByServer[server] ??= { tokens: 0, count: 0, toolCount: 0 })
         bucket.tokens += size
         bucket.count++
-        if (!isNamespaceProxy(name, server)) bucket.direct++
       } else {
         toolTokens += size
       }
@@ -330,7 +271,36 @@ export default function contextBreakdownExtension(pi: PiExtensionApi): void {
     latestContext = ctx as ExtensionContext
     publish(latestContext)
   }
-  pi.on('session_start', remember)
+  function registeredTools(): ToolLike[] {
+    const raw = pi.getAllTools?.() ?? []
+    return Array.isArray(raw) ? (raw as ToolLike[]) : []
+  }
+
+  // pi connects MCP servers after `session_start` and registers their tools
+  // as each one answers, with no event for it. So for a while after a start,
+  // look for new MCP tools once a second and re-measure only when they
+  // changed: the publish itself walks the whole branch.
+  let watch: ReturnType<typeof setInterval> | undefined
+  function watchConnections(): void {
+    clearInterval(watch)
+    const until = Date.now() + CONNECT_WATCH_MS
+    watch = setInterval(() => {
+      if (Date.now() > until) clearInterval(watch)
+      if (!latestContext || mcpSignature(registeredTools()) === publishedMcp) return
+      try {
+        publish(latestContext)
+      } catch {
+        // A context from a replaced session; the next lifecycle event brings a fresh one.
+      }
+    }, 1000)
+    watch.unref?.()
+  }
+
+  pi.on('session_start', (event, ctx) => {
+    remember(event, ctx)
+    watchConnections()
+  })
+  pi.on('session_shutdown', () => clearInterval(watch))
   pi.on('model_select', remember)
   pi.on('agent_settled', remember)
   pi.on('turn_end', remember)

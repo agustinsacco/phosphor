@@ -57,8 +57,8 @@ packages:run(action, spec, scope, ws?) → { jobId }
 
 `usePackageJob` owns one job at a time (`start()`, `output`, `exitCode`,
 `running`, an on-exit refresh). `start()` takes any call returning `{ jobId }`,
-so one hook powers the Extensions tab, the MCP adapter card, the Headroom
-install, onboarding and the Claude provider test.
+so one hook powers the Extensions tab, the MCP migration card's package
+removal, the Headroom install, onboarding and the Claude provider test.
 
 `packages:installPi` runs `npm install -g @earendil-works/pi-coding-agent`
 through `piProcessEnv()` (login-shell PATH, so fnm/nvm work from a GUI launch)
@@ -71,9 +71,10 @@ scope (name, version, spec, resource counts, `filtered` badge, remove), then
 add-by-spec with a scope selector and "Update all". A link to
 [pi.dev/packages](https://pi.dev/packages) for the ecosystem.
 
-**Curated catalogue** (`apps/desktop/src/features/settings/catalogue.ts`): five specs we
-have read the source of: the Claude Code provider, the MCP adapter, web access,
-subagents, computer use. An entry may declare `requiresBinary: 'claude'`,
+**Curated catalogue** (`apps/desktop/src/features/settings/catalogue.ts`): four specs we
+have read the source of: the Claude Code provider, web access, subagents,
+computer use. MCP needs no package: pi's built-in support covers it
+([mcp.md](mcp.md)). An entry may declare `requiresBinary: 'claude'`,
 which greys the card and says why when the binary is missing.
 
 **Per-extension tabs.** Curated extensions get real config UIs, registered in
@@ -89,9 +90,8 @@ an installed package; a stale sub-tab falls back to the Extensions list.
 | Computer use | `@injaneity/pi-computer-use` | what the tools do and the OS accessibility permissions macOS will not grant silently                                           |
 
 **MCP Connectors renders in the same slot but is NOT in `EXTENSION_TABS`**: it
-shows unconditionally, because its Advanced disclosure is where
-`pi-mcp-adapter` gets installed. Gating it on the adapter would hide the only
-surface that can produce the adapter. See [mcp.md](mcp.md).
+shows unconditionally, because the MCP support it configures is built into pi
+and belongs to no package. See [mcp.md](mcp.md).
 
 The Subagents tab explains optional configuration without creating a second
 runner or profile registry. It appears only for an installed package in the
@@ -252,7 +252,7 @@ patchWebSearchConfig` (`pi-config-handlers.ts`).
 
 ## Bundled extensions (Phosphor's own)
 
-Separate from packages the user installs, Phosphor ships **seven** TypeScript
+Separate from packages the user installs, Phosphor ships **six** TypeScript
 extensions in `libs/pi-extensions/pi-ext/`, loaded into **every** session via
 `pi --mode rpc -e <path>` (`bundledExtensions()` in
 `libs/session-runtime/src/bundled-extensions.ts`, called by `apps/desktop/electron/pi/session-runtime.ts`). They are the only Phosphor code with a
@@ -272,7 +272,6 @@ Optional Python helpers remain in the source tree, not the shipped resource filt
 | `context-breakdown.ts` | measures context composition — the parts are only visible in-process                         |
 | `worktree-paths.ts`    | refuses a file read that has escaped a worktree into the main checkout                       |
 | `tool-name-guard.ts`   | rewrites a malformed tool call before pi persists it and bricks the thread                   |
-| `mcp-status.ts`        | forwards the MCP adapter's per-server status off pi's shared event bus                       |
 | `headroom.ts`          | compresses large tool results through a local Headroom proxy at the moment they are produced |
 | `lane-reload.ts`       | reloads the lane between turns so MCP config changes apply ([mcp.md](mcp.md))                |
 
@@ -538,16 +537,14 @@ holds every compacted-away message (measured: 292k for a 151k context). That
 list is the only cut on every provider: from pi-claude-cli 0.9.0 the Claude
 Code provider replays it whole, so an old `[Claude Code · compact {…}]` marker
 is text in its message, not a cut point. It attributes MCP schema cost **per
-server** using the adapter's server names and `toolCount` from pi's shared
-event bus (`pi-mcp-adapter/status/v1`), and reports per server how many
-schemas are in the window and how many of those are the server's own tools
-rather than the gateway proxy. Its `contextFiles` field lists the
-CLAUDE.md / AGENTS.md files pi found, their approximate cost and which kinds
-the lane leaves out; the system-prompt estimate excludes the left-out ones.
-
-`mcp-status.ts` exists for the same reason in the other direction: the adapter
-publishes each server's state on that bus, but pi's RPC has no channel for it.
-It forwards the snapshot verbatim.
+server** by pi's tool namespace (`mcp__<server>`, aliased by the configured
+name), and reports per server how many of its tools have a schema in the
+window and how many pi registered. pi registers a server's tools as it
+connects, after `session_start` and with no event, so for the first minute the
+extension checks once a second and re-publishes when the MCP tool set changed.
+Its `contextFiles` field lists the CLAUDE.md / AGENTS.md files pi found, their
+approximate cost and which kinds the lane leaves out; the system-prompt
+estimate excludes the left-out ones.
 
 ### Remote artifact storage
 
@@ -570,15 +567,14 @@ disagree.
 | Key                          | Emitter                                          | Consumer                                                                                                                   |
 | ---------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
 | `phosphor-swarm`             | `libs/pi-extensions/pi-ext/swarm.ts`             | Composer pill (four looks), outline and lane-title badge; versioned native authorization state, never activity             |
-| `phosphor-context-breakdown` | `libs/pi-extensions/pi-ext/context-breakdown.ts` | `chat/composer/contextBreakdown.ts` → ContextMeter, context-file checkboxes                                                |
-| `phosphor-mcp-status`        | `libs/pi-extensions/pi-ext/mcp-status.ts`        | `connectors/mcpStatus.ts` → Connectors, footer                                                                             |
+| `phosphor-context-breakdown` | `libs/pi-extensions/pi-ext/context-breakdown.ts` | `chat/composer/contextBreakdown.ts` → ContextMeter, context-file checkboxes, the composer's per-lane MCP tool counts       |
 | `phosphor-reload`            | `libs/pi-extensions/pi-ext/lane-reload.ts`       | `libs/session-runtime/src/pi/lane-reload.ts` (main), JSON `{ token, outcome }`; hidden from the status strip               |
 | `phosphor-headroom`          | `libs/pi-extensions/pi-ext/headroom.ts`          | `chat/composer/headroomStatus.ts` → ContextMeter (Optimization section)                                                    |
 | `claude-rate-limit`          | `@saccolabs/pi-claude-cli` ≥ 0.4.5               | `chat/composer/rateLimit.ts` → ContextMeter, RateLimitBanner; `libs/shared/src/claude-limits.ts` → account routing in main |
 | `claude-subagents`           | `@saccolabs/pi-claude-cli` ≥ 0.4.13              | `chat/subagentStatus.ts` → the status strip's agent chip, for sessions recorded before 0.9.0 (see below)                   |
 
 The two `claude-*` keys cross a repo boundary; their shape is documented on the
-emitting side in that repo's `docs/ARCHITECTURE.md`. Rules for all five: the
+emitting side in that repo's `docs/ARCHITECTURE.md`. Rules for all of them: the
 payload is JSON in a string, every parser returns `null` rather than throwing,
 and a missing key means "render nothing", never an empty section. A structured
 key must also be listed in `STRUCTURED_STATUS_KEYS`

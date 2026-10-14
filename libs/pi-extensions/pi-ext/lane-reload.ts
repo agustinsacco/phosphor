@@ -5,8 +5,8 @@
  *
  * pi's reload keeps the process, the transcript, the model and the thinking
  * level, and starts every extension again from its module (verified on pi
- * 0.87.1 with pi-mcp-adapter 5.2.0: a disabled server's tools are gone and a
- * re-enabled one is back on the next request). Phosphor main sends this right
+ * 1.2.0's built-in MCP: a disabled server's tools are gone and a newly
+ * enabled one is back, with its exposure, on the next request). Phosphor main sends this right
  * before a prompt, only when the lane's MCP config changed since it loaded it
  * (`libs/session-runtime/src/pi/lane-reload.ts`).
  *
