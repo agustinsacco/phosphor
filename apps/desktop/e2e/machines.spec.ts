@@ -60,7 +60,7 @@ test('signed-in directory walks guided enrollment, stable detail, rename and con
     const dialog = page.getByRole('dialog', { name: 'Add a machine', exact: true })
     await expect(dialog).toContainText('Before you start')
     await dialog.getByRole('button', { name: 'Continue to Install' }).click()
-    await expect(dialog).toContainText('Install the Host from source')
+    await expect(dialog).toContainText('Install the Host')
     await expect(dialog).toContainText('phosphor login')
     await dialog.getByRole('button', { name: 'I have a code' }).click()
     await dialog.getByRole('textbox', { name: 'Code', exact: true }).fill('BCDFGHJX')

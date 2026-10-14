@@ -8,11 +8,8 @@ import {
 
 export const LOCAL_MACHINE = 'this-computer'
 export const HOST_GUIDE = 'https://github.com/agustinsacco/Phosphor/blob/main/docs/host.md'
-export const HOST_INSTALL = `git clone --depth 1 https://github.com/agustinsacco/phosphor.git ~/src/phosphor
-cd ~/src/phosphor && npm ci --ignore-scripts
-npm run build:host -- --out ~/.local/share/phosphor-host
-mkdir -p ~/.local/bin
-printf '#!/bin/sh\\nexec %s %s "$@"\\n' "$(readlink -f "$(command -v node)")" ~/.local/share/phosphor-host/phosphor.mjs > ~/.local/bin/phosphor && chmod 755 ~/.local/bin/phosphor`
+export const HOST_INSTALL =
+  'curl -fsSL https://github.com/agustinsacco/Phosphor/releases/download/host-latest/install.sh | sh'
 export const HOST_SETUP = 'phosphor setup --repository ~/src/project'
 export const HOST_LOGIN = 'phosphor login'
 export const HOST_RUN = 'phosphor run'

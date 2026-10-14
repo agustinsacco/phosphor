@@ -48,9 +48,9 @@ export function HostSetup({ collapsed = false }: { collapsed?: boolean }): React
   return (
     <ol className="space-y-4 text-base">
       <li>
-        <p className="mb-2 font-medium">1. Install the Host from source</p>
+        <p className="mb-2 font-medium">1. Install the Host</p>
         <p className="text-text-secondary mb-2">
-          An installer comes later. Node 22.19 or newer and git are required.
+          A signed installer for macOS and Linux. It brings its own Node; it needs curl and tar.
         </p>
         {collapsed ? (
           <details>
