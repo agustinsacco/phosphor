@@ -7,6 +7,7 @@ import clsx from 'clsx'
 import { useLayoutStore, sessionPanes, type RightPane as RightPaneId } from '@/stores/layout'
 import { PaneShell } from '@/components/PaneShell'
 import { FilesPane } from './FilesPane'
+import { RemoteFilesPane } from './RemoteFilesPane'
 import { FilesChangedPane } from './FilesChangedPane'
 import { TerminalPane } from '@/features/terminal/TerminalPane'
 import { ArtifactsPane } from '@/features/artifacts/ArtifactsPane'
@@ -39,7 +40,16 @@ export const RightPane = memo(function RightPane({
           </>
         }
       >
-        <p className="p-4">{REMOTE_UNAVAILABLE}</p>
+        {rightPane === 'files' || rightPane === 'changes' ? (
+          <RemoteFilesPane
+            key={sessionId}
+            workspacePath={workspacePath}
+            sessionId={sessionId}
+            changes={rightPane === 'changes'}
+          />
+        ) : (
+          <p className="p-4">{REMOTE_UNAVAILABLE}</p>
+        )}
       </PaneShell>
     )
 

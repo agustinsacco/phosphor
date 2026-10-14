@@ -1,6 +1,6 @@
 # Files and editor
 
-The Files pane is a lazy workspace explorer beside Monaco editor tabs. Gitignore
+Local Files is a lazy workspace explorer beside Monaco editor tabs. Gitignore
 and hidden-file filters, git status dots and filesystem watching are always on.
 A 250 ms debounced watcher patches changed directory listings; agent tool results
 refresh every loaded listing immediately, and a two-second directory-mtime poll
@@ -17,6 +17,17 @@ Content search keeps its results visible while stepping through matches; returni
 to the explorer reveals the active file. The finder also works from the editor,
 accepts `file.ts:line:column`, reports index-loading failures, and restores the
 previous keyboard focus on dismissal.
+
+## Remote lanes
+
+With `workspaces.read`, remote Files lists the lane's tracked and untracked
+non-ignored paths and opens text read-only. Changes lists git status and shows
+an inline read-only Monaco diff against HEAD. Binary and oversized files use
+placeholders. The pane refreshes on lane summaries, turn end, snapshots and its
+Refresh button, never a local filesystem watcher. Create, rename, delete, save,
+search, preview, quick look and open-in-app are not offered remotely. Without
+the capability, the pane shows “Not available on remote lanes yet.”
+See [remote-access.md](remote-access.md#remote-read-panes) for routing and bounds.
 
 ## File management
 

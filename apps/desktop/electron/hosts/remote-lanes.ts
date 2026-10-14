@@ -12,6 +12,8 @@ import type { RemoteLaneCreate } from '@shared/ipc'
 import { createLaneProjection } from '@phosphor/session-runtime/lanes/projection'
 import type { createHostConnection, LaneFrame } from './connection'
 import { laneOperation, receiptResponse, REMOTE_UNAVAILABLE } from './lane-ops'
+import type { HostCapability } from '@shared/remote-host'
+import type { ReadLane } from './read-features'
 
 type Connection = ReturnType<typeof createHostConnection>
 export interface RemoteWindow {
@@ -264,8 +266,56 @@ export function createRemoteLanes(ports: {
     if (!response.success) throw new Error(response.error)
     return result
   }
+  async function readCall(h: Handle, capability: HostCapability, method: string, params: unknown) {
+    const c = connection(h.hostId)
+    if (!c.snapshot().capabilities.includes(capability)) throw new Error(REMOTE_UNAVAILABLE)
+    let result
+    try {
+      result = await c.call(method, params)
+    } catch {
+      throw new Error(REMOTE_UNAVAILABLE)
+    }
+    if (
+      !handles.has(h.info.sessionId) ||
+      ports.connection(h.hostId) !== c ||
+      c.snapshot().state !== 'ready' ||
+      !c.snapshot().capabilities.includes(capability)
+    )
+      throw new Error(REMOTE_UNAVAILABLE)
+    if (!result.ok)
+      throw new Error(result.error.code === 'too-large' ? 'too-large' : REMOTE_UNAVAILABLE)
+    return result.data
+  }
   return {
     open,
+    readLane(windowId: number, key?: string): ReadLane | null {
+      const target = focused.get(windowId)
+      if (!target) {
+        if (key?.startsWith('host:')) throw new Error(REMOTE_UNAVAILABLE)
+        return null
+      }
+      const h = [...handles.values()].find(
+        (h) => h.window.id === windowId && h.hostId === target.hostId && h.laneId === target.laneId,
+      )
+      if (
+        !h ||
+        (key !== undefined &&
+          key !== h.info.workspacePath &&
+          !key.startsWith(`${h.info.workspacePath}/`))
+      )
+        throw new Error(REMOTE_UNAVAILABLE)
+      return {
+        laneId: h.laneId,
+        workspacePath: h.info.workspacePath,
+        async call(capability, method, params) {
+          const data = await readCall(h, capability, method, params)
+          const current = focused.get(windowId)
+          if (current?.hostId !== h.hostId || current.laneId !== h.laneId)
+            throw new Error(REMOTE_UNAVAILABLE)
+          return data
+        },
+      }
+    },
     async create(window: RemoteWindow, hostId: string, input: RemoteLaneCreate) {
       const result = await mutate(hostId, undefined, {
         ...input,

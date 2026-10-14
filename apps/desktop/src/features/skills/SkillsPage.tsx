@@ -5,6 +5,8 @@ import type { ResolvedSkill, SkillImportPreview, SkillScope } from '@shared/skil
 import { parseSkillFrontmatter, setSkillDraftFlag } from '@shared/skills'
 import { SKILL_CATALOG, type SkillCatalogLibrary } from '@shared/skillsCatalog'
 import { useSkillsStore } from '@/stores/skills'
+import { useSessionsStore } from '@/stores/sessions'
+import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { PageShell } from '@/components/PageShell'
 import { PaneTitle } from '@/components/PaneShell'
 import { ModalOverlay } from '@/components/Modal'
@@ -27,6 +29,12 @@ export const SkillsPage = memo(function SkillsPage({
 }: {
   workspacePath: string
 }): React.JSX.Element {
+  const remote = workspacePath.startsWith('host:')
+  const remoteSessionId = useSessionsStore((s) => (remote ? s.activeSessionId : null))
+  const available = useRemoteLanesStore((s) => {
+    const host = s.hosts[workspacePath.slice(5).split('/')[0] ?? '']
+    return host?.state === 'ready' && host.capabilities.includes('skills.read')
+  })
   const result = useSkillsStore((s) => s.byWorkspace[workspacePath])
   const loading = useSkillsStore((s) => s.loading[workspacePath] ?? false)
   const error = useSkillsStore((s) => s.error[workspacePath])
@@ -38,7 +46,7 @@ export const SkillsPage = memo(function SkillsPage({
 
   useEffect(() => {
     void useSkillsStore.getState().refresh(workspacePath)
-  }, [workspacePath])
+  }, [workspacePath, remoteSessionId])
 
   const skills = useMemo(() => result?.skills ?? [], [result])
   const selected = skills.find((skill) => skill.dir === selectedDir)
@@ -53,21 +61,29 @@ export const SkillsPage = memo(function SkillsPage({
       title={<PaneTitle label="Skills" meta={result ? `${skills.length}` : undefined} />}
       actions={
         <div className="flex items-center gap-1.5">
-          <Button size="sm" onClick={() => void pickImport()}>
-            Upload
-          </Button>
-          <Button size="sm" variant="primary" onClick={() => setCreating(true)}>
-            New skill
-          </Button>
+          {remote ? (
+            <span>Read-only</span>
+          ) : (
+            <>
+              <Button size="sm" onClick={() => void pickImport()}>
+                Upload
+              </Button>
+              <Button size="sm" variant="primary" onClick={() => setCreating(true)}>
+                New skill
+              </Button>
+            </>
+          )}
         </div>
       }
     >
       {/* Centered column: a page spans the whole main region, and list rows
           stretched across an ultrawide window stop reading as rows. */}
       <div className="mx-auto flex h-full min-h-0 w-full max-w-4xl flex-col">
-        {selected ? (
+        {remote && !available ? (
+          <p className="p-4">{REMOTE_UNAVAILABLE}</p>
+        ) : selected ? (
           <SkillDetail
-            key={selected.dir}
+            key={`${remoteSessionId ?? ''}:${selected.dir}`}
             skill={selected}
             workspacePath={workspacePath}
             onBack={() => useSkillsStore.getState().select(null)}
@@ -75,14 +91,16 @@ export const SkillsPage = memo(function SkillsPage({
         ) : (
           <>
             <div className="flex items-center gap-2 px-3 pb-2">
-              <Segmented
-                value={tab}
-                options={[
-                  { id: 'discover', label: 'Discover' },
-                  { id: 'yours', label: `Yours${result ? ` · ${skills.length}` : ''}` },
-                ]}
-                onChange={(next) => useSkillsStore.getState().setTab(next)}
-              />
+              {!remote && (
+                <Segmented
+                  value={tab}
+                  options={[
+                    { id: 'discover', label: 'Discover' },
+                    { id: 'yours', label: `Yours${result ? ` · ${skills.length}` : ''}` },
+                  ]}
+                  onChange={(next) => useSkillsStore.getState().setTab(next)}
+                />
+              )}
               <TextInput
                 size="sm"
                 value={search}
@@ -92,9 +110,9 @@ export const SkillsPage = memo(function SkillsPage({
               />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
-              {tab === 'yours' ? (
+              {remote || tab === 'yours' ? (
                 <>
-                  <BundledSkillNotice workspacePath={workspacePath} />
+                  {!remote && <BundledSkillNotice workspacePath={workspacePath} />}
                   <YoursList
                     skills={skills}
                     search={search}
@@ -110,7 +128,7 @@ export const SkillsPage = memo(function SkillsPage({
           </>
         )}
       </div>
-      {creating && (
+      {!remote && creating && (
         <NewSkillModal
           workspacePath={workspacePath}
           onClose={() => setCreating(false)}
@@ -120,7 +138,7 @@ export const SkillsPage = memo(function SkillsPage({
           }}
         />
       )}
-      {importPreview && (
+      {!remote && importPreview && (
         <ImportSheet
           preview={importPreview}
           workspacePath={workspacePath}

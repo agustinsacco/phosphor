@@ -11,7 +11,8 @@ import { createHostConnection } from '../hosts/connection'
 import { createHostManager } from '../hosts/manager'
 import { openHostSocket } from '../hosts/socket'
 import { controlClient, onMachinesChanged } from './control-handlers'
-import { handle } from './handle'
+import { handle, setRemoteReadRouter } from './handle'
+import { READ_CHANNELS, readFeature } from '../hosts/read-features'
 import { createRemoteLanes, type RemoteLanes } from '../hosts/remote-lanes'
 import { createHostAttention } from '../hosts/attention'
 
@@ -61,6 +62,13 @@ export function registerHostsHandlers(): void {
     present: manager.present,
     label: manager.label,
     changed: manager.changed,
+  })
+  setRemoteReadRouter((windowId, channel, args) => {
+    if (!READ_CHANNELS.has(channel)) return null
+    const key = typeof args[0] === 'string' ? args[0] : undefined
+    if (key !== undefined && !key.startsWith('host:')) return null
+    const lane = remoteLanes().readLane(windowId, key)
+    return lane ? { result: readFeature(channel, args, lane) } : null
   })
   const attention = createHostAttention({
     label: manager.label,

@@ -8,6 +8,17 @@ type Handler<C extends IpcInvokeChannel> = (
   ...args: IpcInvokeMap[C]['args']
 ) => Promise<IpcInvokeMap[C]['result']> | IpcInvokeMap[C]['result']
 
+let remoteRead:
+  | ((
+      windowId: number,
+      channel: IpcInvokeChannel,
+      args: unknown[],
+    ) => { result: Promise<unknown> } | null)
+  | undefined
+export function setRemoteReadRouter(router: NonNullable<typeof remoteRead>): void {
+  remoteRead = router
+}
+
 const routed = new Set<IpcInvokeChannel>([
   'pi:command',
   'pi:extensionUiResponse',
@@ -33,6 +44,8 @@ export function rejectRemoteArguments(channel: IpcInvokeChannel, args: unknown[]
 /** Register one typed IPC invoke handler. */
 export function handle<C extends IpcInvokeChannel>(channel: C, handler: Handler<C>): void {
   ipcMain.handle(channel, (event, ...args: IpcInvokeMap[C]['args']) => {
+    const remote = remoteRead?.(event.sender.id, channel, args)
+    if (remote) return remote.result
     rejectRemoteArguments(channel, args)
     return handler(event, ...args)
   })
