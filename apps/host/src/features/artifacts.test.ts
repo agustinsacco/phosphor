@@ -194,6 +194,30 @@ describe('Host artifacts', () => {
     expect(result).toMatchObject({ ok: true, data: [{ laneId: second.laneId }] })
     expect(JSON.stringify(result)).not.toContain(laneId)
   })
+  it('skips a later lane removed while indexing an earlier lane, without failing the list', async () => {
+    let second = { ...lane, laneId: '33333333-3333-4333-8333-333333333333' }
+    feature = createArtifactsFeature({
+      store: {
+        getLane: (id) => (id === laneId ? lane : id === second.laneId ? second : null),
+        listLanes: () => [lane, second],
+        listRepositories: () => [],
+      },
+      env: { XDG_STATE_HOME: dir },
+      home: dir,
+      log: vi.fn(),
+    })
+    const original = indexer.indexSessionFile
+    let scans = 0
+    vi.spyOn(indexer, 'indexSessionFile').mockImplementation(async (...args) => {
+      const saved = await original(...args)
+      if (++scans === 1) second = { ...second, removedAt: 'removed' }
+      return saved
+    })
+    const result = await feature.call('artifacts.list', {})
+    expect(result).toMatchObject({ ok: true, data: [{ laneId }] })
+    expect(JSON.stringify(result)).not.toContain(second.laneId)
+    expect(scans).toBe(1)
+  })
   it('rechecks removal after the final blob await', async () => {
     const original = await vi.importActual<typeof fs>('node:fs/promises')
     vi.mocked(fs.open).mockImplementation(async (...args) => {
