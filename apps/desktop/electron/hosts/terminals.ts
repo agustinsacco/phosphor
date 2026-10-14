@@ -1,3 +1,4 @@
+import { parseProviderLoginOp } from '@shared/host-protocol-providers'
 import { randomUUID } from 'node:crypto'
 import {
   parseTerminalCreated,
@@ -12,6 +13,7 @@ import { REMOTE_UNAVAILABLE } from './lane-ops'
 
 type Connection = ReturnType<typeof createHostConnection>
 export interface TerminalLane {
+  machine?: boolean
   hostId: string
   laneId: string
   connection: Connection
@@ -30,6 +32,8 @@ type Entry = {
   cursor?: { epoch: string; seq: number }
   synchronized: boolean
   resetVersion: number
+  killing?: boolean
+  killBusy?: boolean
   ended: boolean
   busy: boolean
   pending: { data: string; resolve: () => void; reject: (error: Error) => void }[]
@@ -40,12 +44,14 @@ type Entry = {
 
 /** Main owns identities and input sequencing. Input never enters the receipt replay queue. */
 export function createRemoteTerminals(ports: {
+  connection?: (hostId: string) => Connection | undefined
   lane: (windowId: number, sessionId: string, workspace: string) => TerminalLane
   clientId: () => string | null
   inputDropped?: () => void
   emit: (windowId: number, channel: string, value: string | number) => void
 }) {
   const entries = new Map<string, Entry>()
+  const admissions = new Set<{ windowId: number; cancelled: boolean }>()
   function dropPending(e: Entry) {
     if (!e.pending.length) return
     e.dropVersion++
@@ -68,13 +74,14 @@ export function createRemoteTerminals(ports: {
     const view = lane.connection.snapshot()
     return (
       view.capabilities.includes('sessions.control') &&
-      view.lanes.find((l) => l.laneId === lane.laneId)?.control.controller?.clientId ===
-        ports.clientId()
+      (lane.machine ||
+        view.lanes.find((l) => l.laneId === lane.laneId)?.control.controller?.clientId ===
+          ports.clientId())
     )
   }
   function owned(windowId: number, id: string) {
     const e = entries.get(id)
-    if (!e || e.windowId !== windowId || !valid(e)) throw new Error(REMOTE_UNAVAILABLE)
+    if (!e || e.killing || e.windowId !== windowId || !valid(e)) throw new Error(REMOTE_UNAVAILABLE)
     return e
   }
   function writable(e: Entry) {
@@ -94,10 +101,73 @@ export function createRemoteTerminals(ports: {
     const c = e.lane.connection
     const generation = c.incarnation().generation
     const fence = c.snapshot().lanes.find((l) => l.laneId === e.lane.laneId)?.control.fence
-    const result = await c.send(parsed, e.lane.laneId, fence)
+    const result = await c.send(
+      parsed,
+      e.lane.machine ? undefined : e.lane.laneId,
+      e.lane.machine ? undefined : fence,
+    )
     writable(e)
     if (generation !== c.incarnation().generation || result.status !== 'done')
       throw new Error('Terminal operation not confirmed.')
+  }
+  function dispose(e: Entry) {
+    dropPending(e)
+    e.watch?.close()
+    e.watch = undefined
+    entries.delete(e.id)
+  }
+  async function flushKill(e: Entry) {
+    const c = e.lane.connection
+    if (!e.lane.current() || c.incarnation().runtimeEpoch !== e.epoch || e.ended) {
+      dispose(e)
+      return
+    }
+    if (e.killBusy || !valid(e) || !control(e.lane)) return
+    e.killBusy = true
+    try {
+      const fence = c.snapshot().lanes.find((l) => l.laneId === e.lane.laneId)?.control.fence
+      const result = await c.send(
+        { type: 'terminal.kill', terminalId: e.terminalId },
+        e.lane.machine ? undefined : e.lane.laneId,
+        e.lane.machine ? undefined : fence,
+      )
+      if (result.status === 'done') dispose(e)
+      else if (!e.watch && valid(e))
+        e.watch = c.watchTerminal(e.terminalId, (frame) => {
+          if (
+            (frame.type === 'subscribe-failed' && frame.code === 'unknown-lane') ||
+            frame.type === 'terminal.exit' ||
+            (frame.type === 'terminal.reset' && frame.status !== 'running')
+          )
+            dispose(e)
+          else if (frame.type === 'subscribe-failed') {
+            e.watch?.close()
+            e.watch = undefined
+          }
+        })
+    } catch {
+      // The bounded entry retains cleanup intent until the connection returns.
+    } finally {
+      e.killBusy = false
+    }
+  }
+  async function kill(windowId: number, id: string) {
+    const e = entries.get(id)
+    if (!e) return
+    if (e.windowId !== windowId) throw new Error(REMOTE_UNAVAILABLE)
+    if (!e.lane.machine && !control(e.lane))
+      throw new Error('Read-only. Take control to send messages.')
+    if (
+      e.lane.connection.snapshot().state === 'ready' &&
+      (!valid(e) || !control(e.lane)) &&
+      !e.ended
+    )
+      throw new Error(REMOTE_UNAVAILABLE)
+    e.killing = true
+    dropPending(e)
+    e.watch?.close()
+    e.watch = undefined
+    await flushKill(e)
   }
   async function create(
     windowId: number,
@@ -117,15 +187,23 @@ export function createRemoteTerminals(ports: {
       throw new Error(REMOTE_UNAVAILABLE)
     const op = parseTerminalOp({ type: 'terminal.create', cols, rows })
     if (!op) throw new Error('Invalid terminal request.')
-    if (entries.size >= TERMINAL_LIMITS.perHost * 32) throw new Error('Terminal limit reached.')
+    if (entries.size + admissions.size >= TERMINAL_LIMITS.perHost * 32)
+      throw new Error('Terminal limit reached.')
+    const admission = { windowId, cancelled: false }
+    admissions.add(admission)
     const controlling = control(lane)
-    const result = controlling
-      ? await c.send(
-          op,
-          lane.laneId,
-          c.snapshot().lanes.find((l) => l.laneId === lane.laneId)?.control.fence,
-        )
-      : await c.call('terminal.list', { laneId: lane.laneId })
+    let result
+    try {
+      result = controlling
+        ? await c.send(
+            op,
+            lane.laneId,
+            c.snapshot().lanes.find((l) => l.laneId === lane.laneId)?.control.fence,
+          )
+        : await c.call('terminal.list', { laneId: lane.laneId })
+    } finally {
+      admissions.delete(admission)
+    }
     if (
       !lane.current() ||
       c.snapshot().state !== 'ready' ||
@@ -170,6 +248,74 @@ export function createRemoteTerminals(ports: {
       pendingBytes: 0,
       dropVersion: 0,
     })
+    return { ptyId: id }
+  }
+
+  function machine(hostId: string): TerminalLane {
+    const c = ports.connection?.(hostId)
+    if (!c || c.snapshot().state !== 'ready') throw new Error(REMOTE_UNAVAILABLE)
+    return {
+      hostId,
+      laneId: '',
+      connection: c,
+      machine: true,
+      current: () => ports.connection?.(hostId) === c,
+    }
+  }
+  async function signIn(windowId: number, hostId: string, provider: string) {
+    const lane = machine(hostId)
+    const c = lane.connection
+    const incarnation = c.incarnation()
+    const op = parseProviderLoginOp({ type: 'provider.login', provider })
+    if (
+      !op ||
+      !control(lane) ||
+      !c.snapshot().capabilities.includes('terminal') ||
+      entries.size + admissions.size >= TERMINAL_LIMITS.perHost * 32
+    )
+      throw new Error(REMOTE_UNAVAILABLE)
+    const admission = { windowId, cancelled: false }
+    admissions.add(admission)
+    let result
+    try {
+      result = await c.send(op)
+    } finally {
+      admissions.delete(admission)
+    }
+    const created = result.status === 'done' ? parseTerminalCreated(result.data) : null
+    if (!created) throw new Error('Sign-in not confirmed. Refresh before trying again.')
+    const unavailable =
+      !lane.current() ||
+      c.snapshot().state !== 'ready' ||
+      !control(lane) ||
+      !c.snapshot().capabilities.includes('terminal') ||
+      c.incarnation().runtimeEpoch !== incarnation.runtimeEpoch ||
+      admission.cancelled
+    const id = `remote-pty-${randomUUID()}`
+    entries.set(id, {
+      id,
+      windowId,
+      sessionId: '',
+      workspace: '',
+      lane,
+      terminalId: created.terminalId,
+      epoch: incarnation.runtimeEpoch,
+      generation: incarnation.generation,
+      inputSeq: 0,
+      synchronized: false,
+      resetVersion: 0,
+      ended: false,
+      busy: false,
+      pending: [],
+      pendingBytes: 0,
+      dropVersion: 0,
+    })
+    if (unavailable) {
+      const e = entries.get(id)!
+      e.killing = true
+      await flushKill(e)
+      throw new Error(REMOTE_UNAVAILABLE)
+    }
     return { ptyId: id }
   }
   function attach(windowId: number, id: string): Promise<{ scrollback: string }> {
@@ -228,7 +374,7 @@ export function createRemoteTerminals(ports: {
         }
         e.cursor = { epoch: frame.epoch, seq: frame.seq }
         if (frame.type === 'terminal.output') ports.emit(windowId, `pty:data:${id}`, frame.data)
-        else {
+        else if (!e.ended) {
           e.ended = true
           ports.emit(windowId, `pty:exit:${id}`, frame.exitCode)
         }
@@ -318,6 +464,10 @@ export function createRemoteTerminals(ports: {
   }
   function reconcile() {
     for (const [id, e] of entries) {
+      if (e.killing) {
+        void flushKill(e)
+        continue
+      }
       if (
         !valid(e) ||
         !control(e.lane) ||
@@ -336,13 +486,19 @@ export function createRemoteTerminals(ports: {
     }
   }
   return {
+    signIn,
     reconcile,
     clear(windowId?: number) {
-      for (const [id, e] of entries)
+      for (const a of admissions)
+        if (windowId === undefined || a.windowId === windowId) a.cancelled = true
+      for (const e of entries.values())
         if (windowId === undefined || e.windowId === windowId) {
-          dropPending(e)
-          e.watch?.close()
-          entries.delete(id)
+          if (e.lane.machine && !e.ended) {
+            e.killing = true
+            e.watch?.close()
+            e.watch = undefined
+            void flushKill(e)
+          } else dispose(e)
         }
     },
     route(
@@ -364,16 +520,10 @@ export function createRemoteTerminals(ports: {
           if (typeof a !== 'string') throw new Error('Invalid terminal request.')
           return write(windowId, id, a)
         }
+        if (channel === 'pty:kill') return kill(windowId, id)
         const e = owned(windowId, id)
         if (channel === 'pty:resize')
           return mutate(e, { type: 'terminal.resize', terminalId: e.terminalId, cols: a, rows: b })
-        if (channel === 'pty:kill') {
-          await mutate(e, { type: 'terminal.kill', terminalId: e.terminalId })
-          dropPending(e)
-          e.watch?.close()
-          entries.delete(id)
-          return
-        }
         throw new Error(REMOTE_UNAVAILABLE)
       })()
       return { result }

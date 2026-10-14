@@ -190,6 +190,7 @@ export interface IpcInvokeMap {
   'hosts:models': { args: [hostId: string]; result: MachineModel[] }
   'hosts:providers': { args: [hostId: string]; result: MachineProvider[] }
   'hosts:skills': { args: [hostId: string]; result: SkillsListResult }
+  'hosts:providerLogin': { args: [hostId: string, provider: string]; result: { ptyId: string } }
   'hosts:snapshot': { args: []; result: HostsSnapshot }
   'hosts:setFocusedLane': {
     args: [target: { hostId: string; laneId: string } | null]

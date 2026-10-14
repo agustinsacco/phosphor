@@ -9,6 +9,7 @@ export const IPC_SCOPE: Record<IpcInvokeChannel, 'app' | 'machine'> = {
   'hosts:models': 'machine',
   'hosts:providers': 'machine',
   'hosts:skills': 'machine',
+  'hosts:providerLogin': 'app',
   'hosts:snapshot': 'app',
   'hosts:setFocusedLane': 'app',
   'hosts:openLane': 'app',

@@ -657,7 +657,7 @@ renderer network access is added.
 ## Sidebar machine selection
 
 The sidebar machine menu is available whenever remote access is signed in,
-even before a Host is enrolled. This Mac is the default on every window mount;
+even before a Host is enrolled. This Mac is the default when a window opens and survives hiding the sidebar;
 selection is not persisted. Add machine opens the existing Machines add flow.
 All machines lists local repository groups first, followed by labelled Hosts.
 
@@ -681,3 +681,15 @@ is window-local renderer state, never persisted. Submitting with a Host targeted
 opens the existing remote-lane dialog and keeps the composer draft; it does not
 send a first prompt or start a local session, including when that Host is down or
 unavailable. Closing the dialog keeps the target.
+
+## Provider sign-in
+
+Machines Readiness opens a private Host login terminal for a provider that is
+not signed in. The Host runs the CLI's fixed provider login path, not a program
+chosen by Desktop. The machine-scoped command uses owner-only receipts and needs
+`terminal` plus `sessions.control`, rechecked before execution. Only the creating
+client can watch or operate this terminal, including after reconnect. Input is
+sequenced and never replayed after uncertainty. Login content and credentials
+are not logged, persisted by Phosphor or sent to control. PTYs are limited to
+one per provider and two per Host; they end on exit, grant/capability loss,
+shutdown, or ten disconnected minutes. See [provider login](host.md#providers-login).

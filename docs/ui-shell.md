@@ -453,6 +453,13 @@ judges silent Hosts down after 90 s, using the server clock correction. No
 account means no control request. List loading, offline and account errors are
 explicit and offer retry.
 
+Readiness also lists the connected Host's unsigned-in providers. With `terminal`
+and `sessions.control`, Sign in opens a private terminal modal on that Host.
+For pi, type `/login PROVIDER`, follow its steps, then `/quit`; Claude prints
+its own login steps. Closing the modal stops the login. Exiting refreshes
+`machine.providers`. Viewers and Hosts without those capabilities keep the
+`phosphor providers login PROVIDER` hint. Credentials stay on the Host.
+
 Details share Status, Readiness and About sections. Host details include the
 last heartbeat, enrollment date, version, copyable fingerprint and machine id.
 On this machine lists lanes and capability-gated skills, routines and artifact

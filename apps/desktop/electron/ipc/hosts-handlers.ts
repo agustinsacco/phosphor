@@ -97,6 +97,7 @@ export function registerHostsHandlers(): void {
     })
   }
   const terminals = createRemoteTerminals({
+    connection: manager.connection,
     inputDropped: () => log('hosts', 'terminal_input_dropped'),
     lane: (windowId, sessionId, workspace) =>
       remoteLanes().terminalLane(windowId, sessionId, workspace),
@@ -231,5 +232,8 @@ export function registerHostsHandlers(): void {
     window(event)
     remoteLanes().setFocused(event.sender.id, target)
   })
+  handle('hosts:providerLogin', (event, hostId, provider) =>
+    terminals.signIn(event.sender.id, hostId, provider),
+  )
   handle('hosts:snapshot', () => manager.snapshot())
 }

@@ -1,3 +1,4 @@
+import { createProviderLogins } from '../providers/login'
 import { loadHostPty } from '../terminals/native'
 import { createTerminals, type HostTerminals } from '../terminals/service'
 import { terminalState } from '../terminals/state'
@@ -271,6 +272,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           log: (event, fields) => log.write('host', event, fields),
         }
         commands = createLaneCommands({
+          providerLogins: terminals ? createProviderLogins(context, terminals) : undefined,
           terminals,
           writes: createWrites(featureContext),
           store,

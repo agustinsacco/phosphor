@@ -1,4 +1,5 @@
 import { OnThisMachine } from './OnThisMachine'
+import { ProviderSignIn } from './ProviderSignIn'
 import { useEffect, useRef, useState } from 'react'
 import { machineStatus, type MachineView } from '@shared/control-api'
 import type { ClaudeStatus, PiHealth, SubscriptionProviderStatus } from '@shared/models'
@@ -534,6 +535,7 @@ export function MachinesPage(): React.JSX.Element {
                         </p>
                       )}
                     <Checks checks={readinessChecks(machine.readiness)} />
+                    <ProviderSignIn key={machine.id} hostId={machine.id} />
                   </>
                 )}
               </Section>

@@ -51,6 +51,7 @@ export function createLaneAdapter(
       sockets?.delete(connectionId)
       if (sockets?.size === 0) {
         clients.delete(client.id)
+        service.terminals?.presence(client.id, false)
         service.controllerPresence(client.id)
       }
     }
@@ -102,6 +103,8 @@ export function createLaneAdapter(
     }
     function renew(next: readonly HostCapability[]) {
       caps = next
+      if (!caps.includes('terminal') || !caps.includes('sessions.control'))
+        service.terminals?.presence(client.id, true, true)
       if (!caps.includes('terminal')) {
         for (const unsubscribe of terminalSubscriptions.values()) unsubscribe()
         terminalSubscriptions.clear()
@@ -130,7 +133,10 @@ export function createLaneAdapter(
     clients.set(client.id, sockets)
     sockets.add(connectionId)
     renew(caps)
-    if (sockets.size === 1) service.controllerPresence(client.id)
+    if (sockets.size === 1) {
+      service.terminals?.presence(client.id, true)
+      service.controllerPresence(client.id)
+    }
     socket.onClose(close)
     return {
       close,
@@ -158,9 +164,13 @@ export function createLaneAdapter(
         } else if (frame.type === 'subscribe' && frame.topic === 'terminal') {
           if (!caps.includes('terminal'))
             return send({ type: 'subscribe-failed', id: frame.id, code: 'forbidden' })
-          const unsubscribe = service.terminals?.subscribe(frame, (f) => {
-            if (caps.includes('terminal')) send(f)
-          })
+          const unsubscribe = service.terminals?.subscribe(
+            frame,
+            (f) => {
+              if (caps.includes('terminal')) send(f)
+            },
+            caps.includes('sessions.control') ? client.id : undefined,
+          )
           if (unsubscribe) {
             if (closed) unsubscribe()
             else terminalSubscriptions.set(frame.id, unsubscribe)

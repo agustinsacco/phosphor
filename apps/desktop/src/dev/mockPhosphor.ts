@@ -1492,6 +1492,8 @@ export function installMockPhosphor(): void {
           return []
         case 'hosts:skills':
           return { skills: [], probe: 'rpc', userRoot: `host:${args[0]}/machine` }
+        case 'hosts:providerLogin':
+          throw new Error('Provider sign-in needs a connected Host.')
         case 'hosts:snapshot':
           return localStorage.getItem('mock:remoteLanes') === '1'
             ? localStorage.getItem('mock:remoteMixed') === '1'

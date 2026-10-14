@@ -93,3 +93,11 @@ shells, and input, resize and kill are disabled. The pane shows the read-only
 hint. Without the `terminal` capability it shows "Not available on remote lanes
 yet." Local tabs keep the behavior above.
 See [Host terminals](host.md#host-terminals) for the wire limits and native build.
+
+Provider sign-in terminals are the machine-scoped exception: they have no lane
+or fence. Only their creating client can watch, type, resize or kill them, with
+`terminal` and `sessions.control`. They share terminal sequencing and limits,
+but no input, output or terminal metadata is persisted. Exit and Host shutdown
+kill them; disconnect allows ten minutes for the same client to reattach.
+Grant or capability loss kills them immediately. Machines Readiness opens them
+in a modal and refreshes provider readiness when they exit.
