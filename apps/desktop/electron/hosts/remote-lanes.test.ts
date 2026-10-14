@@ -199,6 +199,109 @@ it('opens one window-owned opaque handle, hydrates in memory, and streams pi unc
   t.host.stop()
 })
 
+it('keeps hydration frozen, then reads fresh Host thinking and name state', async () => {
+  const t = await setup()
+  const opening = t.lanes.open(t.window, t.hostId, t.laneId)
+  await drain()
+  const info = await opening
+  const call = vi.spyOn(t.c, 'call')
+  const frozen = await t.lanes.command(1, info.sessionId, { type: 'get_state' })
+  const change = t.lanes.command(1, info.sessionId, {
+    type: 'set_thinking_level',
+    level: 'high',
+  })
+  await drain()
+  expect(await change).toMatchObject({ success: true })
+  expect(await t.lanes.command(1, info.sessionId, { type: 'get_state' })).toEqual(frozen)
+  expect(call).not.toHaveBeenCalled()
+  await t.lanes.command(1, info.sessionId, { type: 'get_messages' })
+  expect(await t.lanes.command(1, info.sessionId, { type: 'get_state' })).toEqual(frozen)
+  expect(call).not.toHaveBeenCalled()
+  await drain()
+  const fresh = t.lanes.command(1, info.sessionId, { type: 'get_state' })
+  await drain()
+  expect(await fresh).toMatchObject({
+    success: true,
+    data: { sessionId: info.sessionId, thinkingLevel: 'high' },
+  })
+  expect(call).toHaveBeenCalledWith('lane.state', { laneId: t.laneId })
+  const rename = t.lanes.command(1, info.sessionId, {
+    type: 'set_session_name',
+    name: 'New title',
+  })
+  await drain()
+  expect(await rename).toMatchObject({ success: true })
+  const named = t.lanes.command(1, info.sessionId, { type: 'get_state' })
+  await drain()
+  expect(await named).toMatchObject({ success: true, data: { sessionName: 'New title' } })
+  t.c.close()
+  t.host.stop()
+})
+
+it('returns Host model state without its path or session identity', async () => {
+  const t = await setup()
+  const opening = t.lanes.open(t.window, t.hostId, t.laneId)
+  await drain()
+  const info = await opening
+  await t.lanes.command(1, info.sessionId, { type: 'get_messages' })
+  await drain()
+  const change = t.lanes.command(1, info.sessionId, {
+    type: 'set_model',
+    provider: 'test-provider',
+    modelId: 'new-model',
+  })
+  await drain()
+  expect(await change).toMatchObject({ success: true })
+  // The fake Host omits model metadata from state; supply the Host query response.
+  vi.spyOn(t.c, 'call').mockResolvedValue({
+    type: 'result',
+    id: randomUUID(),
+    ok: true,
+    data: {
+      sessionId: t.laneId,
+      sessionFile: '/host/private/session.jsonl',
+      model: { provider: 'test-provider', id: 'new-model', name: 'New model' },
+      thinkingLevel: 'high',
+    },
+  })
+  const state = await t.lanes.command(1, info.sessionId, { type: 'get_state' })
+  expect(state).toMatchObject({
+    success: true,
+    data: {
+      sessionId: info.sessionId,
+      model: { provider: 'test-provider', id: 'new-model', name: 'New model' },
+      thinkingLevel: 'high',
+    },
+  })
+  expect(state.success && state.data).not.toHaveProperty('sessionFile')
+  t.c.close()
+  t.host.stop()
+})
+
+it('falls back to projected state when the Host state is stopped or unavailable', async () => {
+  const t = await setup()
+  const opening = t.lanes.open(t.window, t.hostId, t.laneId)
+  await drain()
+  const info = await opening
+  const frozen = await t.lanes.command(1, info.sessionId, { type: 'get_state' })
+  await t.lanes.command(1, info.sessionId, { type: 'get_messages' })
+  await drain()
+  const call = vi.spyOn(t.c, 'call')
+  call.mockResolvedValueOnce({ type: 'result', id: randomUUID(), ok: true, data: null })
+  expect(await t.lanes.command(1, info.sessionId, { type: 'get_state' })).toEqual(frozen)
+  call.mockResolvedValueOnce({
+    type: 'result',
+    id: randomUUID(),
+    ok: false,
+    error: { code: 'internal', message: 'Query failed.' },
+  })
+  expect(await t.lanes.command(1, info.sessionId, { type: 'get_state' })).toEqual(frozen)
+  call.mockRejectedValueOnce(new Error('Transport unavailable.'))
+  expect(await t.lanes.command(1, info.sessionId, { type: 'get_state' })).toEqual(frozen)
+  t.c.close()
+  t.host.stop()
+})
+
 it('routes prompts and queries, names rejecting controllers, and publishes takeover before the next prompt', async () => {
   const t = await setup()
   const opening = t.lanes.open(t.window, t.hostId, t.laneId)

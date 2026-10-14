@@ -297,6 +297,17 @@ export function createRemoteLanes(ports: {
       try {
         const c = connection(h.hostId, typeof op !== 'string')
         if (command.type === 'get_state') {
+          if (!h.hydration) {
+            try {
+              const result = await c.call('lane.state', { laneId: h.laneId })
+              if (result.ok && record(result.data)) {
+                const { sessionFile: _file, ...state } = result.data
+                return { ...base, success: true, data: { ...state, sessionId: id } }
+              }
+            } catch {
+              // A stopped or unavailable Host keeps the last projected state usable.
+            }
+          }
           const state = (h.hydration?.view ?? h.projection.view()).state
           const summary = h.hydration?.summary ?? h.summary
           if (!state) return { ...base, success: false, error: 'Lane is stopped.' }
