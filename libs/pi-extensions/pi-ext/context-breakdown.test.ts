@@ -141,7 +141,7 @@ describe('measureMessages', () => {
       user('u', 'y'.repeat(40)),
       toolResult('t', 'z'.repeat(40)),
     ]
-    expect(measureMessages(entries)).toEqual({ tokens: 30, count: 2 })
+    expect(measureMessages(entries)).toMatchObject({ tokens: 30, thinking: 0, count: 2 })
   })
 
   it("counts through an old provider's compaction marker", () => {

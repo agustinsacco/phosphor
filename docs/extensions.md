@@ -262,7 +262,7 @@ The private `@phosphor/pi-extensions` source package keeps these standalone
 files and adjacent tests together. Development resolves the resource root at
 `libs/pi-extensions`; packaged apps still read `resources/pi-ext`, outside the
 asar. The builder copies the same non-test TypeScript inventory, including
-`context-budget.ts`, `context-files.ts` and `swarm.ts` imported by `context-breakdown.ts`,
+`context-budget.ts`, `context-files.ts`, `message-ledger.ts` and `swarm.ts` imported by `context-breakdown.ts`,
 `artifact-store.ts` and `subagent-snapshot.ts` imported by `artifacts.ts`, and the optional gate.
 Optional Python helpers remain in the source tree, not the shipped resource filter.
 

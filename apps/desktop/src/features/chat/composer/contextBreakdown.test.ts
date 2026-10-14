@@ -51,7 +51,13 @@ describe('parseContextBreakdown', () => {
 
   it('parses the live payload', () => {
     const parsed = parseContextBreakdown(LIVE)
-    expect(parsed?.parts).toEqual({ messages: 0, systemPrompt: 728, tools: 638, mcpTools: 0 })
+    expect(parsed?.parts).toEqual({
+      messages: 0,
+      thinking: 0,
+      systemPrompt: 728,
+      tools: 638,
+      mcpTools: 0,
+    })
     expect(parsed?.counts.tools).toBe(4)
     expect(parsed?.approximate).toBe(true)
   })
@@ -68,7 +74,13 @@ describe('parseContextBreakdown', () => {
     const parsed = parseContextBreakdown(
       '{"parts":{"messages":-5,"systemPrompt":"x","tools":10,"mcpTools":null}}',
     )
-    expect(parsed?.parts).toEqual({ messages: 0, systemPrompt: 0, tools: 10, mcpTools: 0 })
+    expect(parsed?.parts).toEqual({
+      messages: 0,
+      thinking: 0,
+      systemPrompt: 0,
+      tools: 10,
+      mcpTools: 0,
+    })
   })
 
   it('treats a payload with no per-server detail as no detail, not zero cost', () => {
@@ -206,6 +218,26 @@ describe('breakdownSlices', () => {
     expect(byKey.messages).toBeUndefined()
     expect(byKey.systemPrompt).toBe(50)
     expect(byKey.tools).toBe(50)
+  })
+
+  /**
+   * Hidden reasoning was the 77.6k "Unmeasured" on Opus session 01a12645:
+   * the model holds its full thinking, the transcript only a summary.
+   */
+  it('shows measured thinking as its own row, trimmed after the messages', () => {
+    const withThinking = parseContextBreakdown(
+      JSON.stringify({
+        parts: { messages: 300, thinking: 400, systemPrompt: 100, tools: 100, mcpTools: 0 },
+        counts: { tools: 4, mcpTools: 0, messages: 12 },
+      }),
+    )!
+    const at = (total: number) =>
+      Object.fromEntries(breakdownSlices(withThinking, total, 10_000).map((s) => [s.key, s.tokens]))
+    expect(at(1000)).toMatchObject({ messages: 300, thinking: 400, unmeasured: 100 })
+    // An overshoot comes off the estimated messages before the measured thinking.
+    expect(at(700)).toMatchObject({ messages: 100, thinking: 400 })
+    expect(at(500)).toMatchObject({ thinking: 300 })
+    expect(at(500).messages).toBeUndefined()
   })
 
   it('always ends with free space as the honest remainder', () => {

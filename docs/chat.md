@@ -798,19 +798,36 @@ long runs from showing more messages in context than in the entire session.
 
 **Context composition** answers "full of _what_": messages, system prompt,
 tool schemas, MCP tool schemas. pi's single `contextUsage.tokens` cannot say
-that. Only the **total is authoritative**: component sizes are character-based
-estimates (no tokenizer is reachable from an extension), labelled approximate,
+that. Only the **total is authoritative**: component sizes are estimates (no
+tokenizer is reachable from an extension, and Messages/Thinking are measured
+from usage only where the request history allows), labelled approximate,
 and free space is the honest remainder. When over budget, the bar normalizes
 against used context so segments still add up to 100%; legend percentages
 remain fractions of the budget/window and are explicitly labelled as such.
 
 **Messages means what the model holds now.** The extension walks pi's own
 `buildContextEntries()` (the last compaction's summary plus the kept tail),
-never the whole branch, and estimates each entry the way pi's `estimateTokens`
-does: user and tool-result text, images at pi's stand-in, assistant text,
-thinking and tool-call arguments, compaction and branch summaries. That list
-is the only cut, Claude Code included: the provider replays it whole, so an
-old `[Claude Code · compact {…}]` marker counts as text in its message.
+never the whole branch. That list is the only cut, Claude Code included: the
+provider replays it whole, so an old `[Claude Code · compact {…}]` marker
+counts as text in its message.
+
+**Messages and Thinking are measured from pi's usage where they can be**
+(`pi-ext/message-ledger.ts`). Two consecutive requests differ by exactly what
+was added between them, so `input(k+1) - input(k)` is reply k plus the tool
+results and messages after it, in real tokens. When that difference holds all
+of `output(k)`, the reply was kept whole: its visible text and tool calls go to
+Messages, the rest of its output to **Thinking**, and the remainder of the
+difference is the exact size of the entries in between. Thinking is its own row
+because a Claude model streams only a summary of its reasoning while the full
+reasoning stays in the window; counting the summary missed 73k tokens on one
+Opus session. The chain holds only since the provider last rebuilt the
+request (a compaction, a model switch, or input falling by more than 20%,
+which is pi-claude-cli replaying history without thinking). Before that point,
+and for any pair whose figures do not add up, entries are estimated pi's way
+(user and tool-result text, images at pi's stand-in, assistant text, thinking
+summary and tool-call arguments), divided by the session's own median
+chars-per-token from the measured pairs (about 2.4 on code-heavy work, against
+pi's 4). A session with no usage yet uses 4.
 `Messages · N` in the legend is that in-context count; `Messages (all)` in the
 Session column is pi's count over the whole file. They differ on purpose.
 
@@ -822,8 +839,8 @@ exceed pi's total (a stale poll). Scaling all four by one factor is the bug
 this replaces: 4.6k of system prompt read as 1.5k and the same seven proxy
 schemas read "34" on one session and "77" on another. The extension can only
 measure pi's own state. Whatever the provider wraps around it is its own
-**Unmeasured** slice, with the drift between the character estimate and the
-tokenizer: on Claude Code, the CLI's framing of pi's tools and history. Before
+**Unmeasured** slice, with what remains of the estimate's error (the fixed
+parts and history from before the last rebuild): on Claude Code, the CLI's framing of pi's tools and history. Before
 provider 0.9.0 that slice was most of the request, because the CLI also sent
 its own system prompt and tool schemas and kept its tool results and
 compaction summary in its own transcript. Never fold provider-side context into

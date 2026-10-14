@@ -17,9 +17,9 @@
  * extensions), so the UI presents them as approximate and always shows
  * pi's authoritative total alongside.
  *
- * The message estimate mirrors pi's own `estimateTokens` (compaction.ts):
- * the same roles, the same block types, the same 4 chars per token and the
- * same 4,800-character stand-in for an image. And it walks the entries pi
+ * Messages are the exception: `message-ledger.ts` measures them from pi's
+ * own per-request usage where it can, which also finds the reasoning a reply
+ * holds beyond its visible summary (`thinking`). It walks the entries pi
  * actually sends, `buildContextEntries()`, never the whole branch: after a
  * compaction the branch still holds every summarized message, and measuring
  * it read 292k for a session whose context was 151k. The renderer then had
@@ -29,6 +29,9 @@
 import contextBudget, { type BudgetApi } from './context-budget'
 import swarm from './swarm'
 import contextFiles, { contextFilesIn, type ContextFileInfo } from './context-files'
+import { measureMessages, type LedgerEntry } from './message-ledger'
+
+export { entryChars, measureMessages } from './message-ledger'
 
 interface PiExtensionApi extends BudgetApi {
   on(event: string, handler: (event: unknown, ctx: unknown) => unknown): void
@@ -51,18 +54,9 @@ interface ExtensionContext {
 }
 
 /** The subset of pi's `SessionEntry` union this file reads. */
-export interface SessionEntryLike {
+export interface SessionEntryLike extends LedgerEntry {
   id?: string
-  type?: string
-  message?: {
-    role?: string
-    content?: unknown
-    command?: string
-    output?: string
-  }
-  summary?: string
   firstKeptEntryId?: string
-  content?: unknown
 }
 
 export interface McpServerCost {
@@ -83,6 +77,8 @@ export interface ContextBreakdown {
   /** Approximate component sizes, in tokens. */
   parts: {
     messages: number
+    /** Reasoning held in the window, measured from usage (message-ledger.ts). */
+    thinking: number
     systemPrompt: number
     tools: number
     mcpTools: number
@@ -100,8 +96,6 @@ export interface ContextBreakdown {
 const STATUS_KEY = 'phosphor-context-breakdown'
 /** The MCP adapter's status event, its only announcement of server names. */
 const MCP_STATUS_EVENT = 'pi-mcp-adapter/status/v1'
-/** pi's `ESTIMATED_IMAGE_CHARS` (compaction.ts). */
-const ESTIMATED_IMAGE_CHARS = 4800
 
 /** The adapter's own prefix sanitizer (`types.ts: sanitizeServerPrefix`). */
 function sanitizeServerPrefix(serverName: string): string {
@@ -191,90 +185,6 @@ export function contextEntriesOf(branch: SessionEntryLike[]): SessionEntryLike[]
   }
   kept.push(...branch.slice(compactionIdx + 1))
   return kept
-}
-
-/** pi's `estimateTextAndImageContentChars`. */
-function textAndImageChars(content: unknown): number {
-  if (typeof content === 'string') return content.length
-  if (!Array.isArray(content)) return 0
-  let chars = 0
-  for (const block of content) {
-    if (!block || typeof block !== 'object') continue
-    const b = block as { type?: string; text?: string }
-    if (b.type === 'text' && typeof b.text === 'string') chars += b.text.length
-    else if (b.type === 'image') chars += ESTIMATED_IMAGE_CHARS
-  }
-  return chars
-}
-
-/** pi's `estimateTokens` for an assistant message, over a slice of its blocks. */
-function assistantBlocksChars(blocks: unknown[]): number {
-  let chars = 0
-  for (const block of blocks) {
-    if (!block || typeof block !== 'object') continue
-    const b = block as {
-      type?: string
-      text?: string
-      thinking?: string
-      name?: string
-      arguments?: unknown
-    }
-    if (b.type === 'text' && typeof b.text === 'string') chars += b.text.length
-    else if (b.type === 'thinking' && typeof b.thinking === 'string') chars += b.thinking.length
-    else if (b.type === 'toolCall') {
-      chars += (b.name ?? '').length
-      try {
-        chars += JSON.stringify(b.arguments ?? {}).length
-      } catch {
-        /* unserializable arguments still cost something; name counted */
-      }
-    }
-  }
-  return chars
-}
-
-/** Characters pi would count for one context entry (`estimateTokens` per role). */
-export function entryChars(entry: SessionEntryLike): number {
-  switch (entry.type) {
-    case 'compaction':
-    case 'branch_summary':
-      return entry.summary?.length ?? 0
-    case 'custom_message':
-      return textAndImageChars(entry.content)
-    case 'message': {
-      const message = entry.message
-      if (!message) return 0
-      switch (message.role) {
-        case 'assistant':
-          return assistantBlocksChars(Array.isArray(message.content) ? message.content : [])
-        case 'bashExecution':
-          return (message.command ?? '').length + (message.output ?? '').length
-        default:
-          return textAndImageChars(message.content)
-      }
-    }
-    default:
-      return 0
-  }
-}
-
-/**
- * Tokens and count of the messages the model currently holds.
- *
- * `entries` is pi's own context list, so a pi compaction is already applied,
- * and it is the only cut. The Claude Code provider replays this same list from
- * 0.9.0 and never compacts inside the CLI, so a `[Claude Code · compact …]`
- * marker an older provider left in the record is ordinary text now, counted
- * with the rest of its message.
- */
-export function measureMessages(entries: SessionEntryLike[]): { tokens: number; count: number } {
-  let chars = 0
-  let count = 0
-  for (const entry of entries) {
-    if (entry.type === 'message') count++
-    chars += entryChars(entry)
-  }
-  return { tokens: Math.ceil(chars / 4), count }
 }
 
 export default function contextBreakdownExtension(pi: PiExtensionApi): void {
@@ -395,6 +305,7 @@ export default function contextBreakdownExtension(pi: PiExtensionApi): void {
       contextWindow: typeof usage?.contextWindow === 'number' ? usage.contextWindow : null,
       parts: {
         messages: messages.tokens,
+        thinking: messages.thinking,
         systemPrompt: Math.max(0, estimateTokens(systemPrompt) - omitted) + swarmPolicy.tokens(),
         tools: toolTokens,
         mcpTools: mcpToolTokens,
