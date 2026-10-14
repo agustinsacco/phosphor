@@ -62,6 +62,7 @@ jobs:
             }
 
       - name: Check the version
+        id: version
         env:
           VERSION: ${{ inputs.version }}
           GH_TOKEN: ${{ github.token }}
@@ -70,16 +71,26 @@ jobs:
           if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$ ]]; then
             echo "::error::Version must be X.Y.Z"; exit 1
           fi
-          if gh release view "host-v$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "::error::host-v$VERSION already exists"; exit 1
+          # Every host-v tag, paginated: Desktop releases never hide a Host version.
+          tags=$(gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/host-v" \
+            --jq '.[].ref | ltrimstr("refs/tags/host-v")')
+          newest=$(printf '%s\n' "$tags" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -t. -k1,1n -k2,2n -k3,3n | tail -1 || true)
+          resume=false
+          if printf '%s\n' "$tags" | grep -qxF "$VERSION"; then
+            # A failed run resumes only from the commit that created the tag; the
+            # rebuilt bytes are then identical and are compared before any upload.
+            tagged=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/host-v$VERSION" --jq '.object.sha')
+            if [[ "$tagged" != "$GITHUB_SHA" ]]; then
+              echo "::error::host-v$VERSION already exists on another commit"; exit 1
+            fi
+            resume=true
           fi
-          # The newest published Host version must be lower than this one.
-          newest=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 200 --json tagName \
-            --jq '.[].tagName | select(test("^host-v[0-9]+\\.[0-9]+\\.[0-9]+$")) | ltrimstr("host-v")' \
-            | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
-          if [[ -n "$newest" ]] && [[ "$(printf '%s\n%s\n' "$newest" "$VERSION" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)" != "$VERSION" || "$newest" == "$VERSION" ]]; then
+          highest=$(printf '%s\n%s\n' "$newest" "$VERSION" | grep . | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)
+          if [[ "$highest" != "$VERSION" || ( "$newest" == "$VERSION" && "$resume" != true ) ]]; then
             echo "::error::$VERSION is not higher than host-v$newest"; exit 1
           fi
+          echo "resume=$resume" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
         with:
@@ -119,15 +130,35 @@ jobs:
       - name: Publish host-v${{ inputs.version }} and host-latest
         env:
           VERSION: ${{ inputs.version }}
+          RESUME: ${{ steps.version.outputs.resume }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           cd dist
-          gh release create "host-v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --latest=false --title "Phosphor Host $VERSION" \
-            --notes "Signed Phosphor Host $VERSION. Install: curl -fsSL https://github.com/$GITHUB_REPOSITORY/releases/download/host-latest/install.sh | sh" \
-            phosphor-host-"$VERSION"-*.tar.gz \
-            "phosphor-host-$VERSION.manifest.json" "phosphor-host-$VERSION.manifest.json.sig" install.sh
+          assets=(phosphor-host-"$VERSION"-*.tar.gz "phosphor-host-$VERSION.manifest.json" \
+            "phosphor-host-$VERSION.manifest.json.sig" install.sh)
+          [[ ${#assets[@]} -eq 6 ]]
+          if [[ "$RESUME" != true ]]; then
+            gh release create "host-v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+              --latest=false --title "Phosphor Host $VERSION" \
+              --notes "Signed Phosphor Host $VERSION. Install: curl -fsSL https://github.com/$GITHUB_REPOSITORY/releases/download/host-latest/install.sh | sh"
+          fi
+          # Upload what is missing; an asset already published must be byte-identical.
+          published=$(gh release view "host-v$VERSION" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')
+          mkdir -p "$RUNNER_TEMP/published"
+          missing=()
+          for asset in "${assets[@]}"; do
+            if printf '%s\n' "$published" | grep -qxF "$asset"; then
+              gh release download "host-v$VERSION" --repo "$GITHUB_REPOSITORY" --pattern "$asset" \
+                --dir "$RUNNER_TEMP/published" --clobber
+              cmp -s "$asset" "$RUNNER_TEMP/published/$asset" || { echo "::error::$asset differs from the published one"; exit 1; }
+            else
+              missing+=("$asset")
+            fi
+          done
+          for asset in "${missing[@]}"; do
+            gh release upload "host-v$VERSION" --repo "$GITHUB_REPOSITORY" "$asset"
+          done
           cp "phosphor-host-$VERSION.manifest.json" phosphor-host.manifest.json
           cp "phosphor-host-$VERSION.manifest.json.sig" phosphor-host.manifest.json.sig
           if ! gh release view host-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then

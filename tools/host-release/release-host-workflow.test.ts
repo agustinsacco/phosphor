@@ -41,11 +41,23 @@ it('never marks a Host release latest, so Desktop keeps releases/latest', () => 
 
 it('refuses a version that is not X.Y.Z, already exists or is not higher than the newest', () => {
   const check = step('Check the version')
-  expect(check).toContain('already exists')
+  expect(check).toContain('already exists on another commit')
   expect(check).toContain('is not higher than')
+  // Every Host tag, paginated, so newer Desktop releases cannot hide one.
+  expect(check).toContain('gh api --paginate')
+  expect(check).toContain('git/matching-refs/tags/host-v')
+  expect(check).not.toContain('--limit')
   expect(check).toContain('${{ inputs.version }}')
   // Inputs reach shell only through env, never interpolated into a script.
   for (const s of steps)
     for (const line of s.split('\n').filter((l) => l.includes('${{ inputs.')))
       expect(line, line).toMatch(/^\s+[A-Z_]+: \$\{\{ inputs\.version \}\}$|^Publish host-v/)
+})
+
+it('resumes a failed publication from the same commit without replacing published bytes', () => {
+  const publish = step('Publish host-v')
+  expect(publish).toContain('if [[ "$RESUME" != true ]]; then')
+  expect(publish).toContain('cmp -s "$asset"')
+  expect(publish).not.toMatch(/upload "host-v[^\n]*--clobber/)
+  expect(publish).toContain('[[ ${#assets[@]} -eq 6 ]]')
 })
