@@ -28,6 +28,7 @@ import { SubagentStateDot, SubagentWorkRow, WORK_SECTION_CLASS } from './Subagen
 import {
   activityText,
   elapsed,
+  modelLabel,
   newestWork,
   stateWord,
   supervisorHandoff,
@@ -241,6 +242,11 @@ export function SubagentPanel({ sessionId }: { sessionId: string }): React.JSX.E
               {stateWord(entry?.state ?? selected?.state ?? 'status unavailable')}
             </span>,
             entry?.title !== undefined && entry.title !== entry.label && entry.label,
+            entry?.model && (
+              <span key="model" className="font-mono" data-tooltip={entry.model}>
+                {modelLabel(entry.model)}
+              </span>
+            ),
             // Running time, or a measured duration; never time since a start
             // for work with no reported end.
             entry?.startedAt !== undefined &&

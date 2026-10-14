@@ -244,7 +244,7 @@ it('retains removed or omitted work across remounts without a stale pulse', () =
   send(lines)
   render()
   send()
-  expect(headline()).toBe('No agents working · 2 status unavailable · parent idle')
+  expect(headline()).toBe('2 agents · status unavailable · parent idle')
   expect(details().hidden).toBe(true)
   expect(strip()?.textContent).toContain('no current report, not finished')
   expect(strip()?.textContent).toContain('Last report')

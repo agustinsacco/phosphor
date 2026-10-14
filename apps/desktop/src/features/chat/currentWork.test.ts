@@ -326,3 +326,111 @@ it('marks a coordinating workflow as its own group and a detached solo launch as
   expect(detached).toMatchObject({ runId: RUN_A, single: true, state: 'status unavailable' })
   expect(detached?.childId).toBeUndefined()
 })
+
+it('shows the model each agent was asked to run on, per step for a parallel launch', () => {
+  const model = 'openai-codex/gpt-6.1-sol:medium'
+  const state = {
+    ...emptyChatSession(),
+    tools: { a: launch('a', RUN_A, { agent: 'worker', task: 'Map', model }) },
+  }
+  // Unreported (the snapshot is withdrawn) and live, the same launch names it.
+  expect(currentWork(state, null).entries[0]?.model).toBe(model)
+  expect(currentWork(state, snapshotOf([singleRun(RUN_A)])).entries[0]?.model).toBe(model)
+  // The model pi-subagents reports the step running on wins over the request.
+  const resolved = singleRun(RUN_A)
+  Object.assign(resolved.children[0]!, { model: 'pi-claude-cli/claude-haiku-4-5', thinking: 'low' })
+  expect(currentWork(state, snapshotOf([resolved])).entries[0]?.model).toBe(
+    'pi-claude-cli/claude-haiku-4-5:low',
+  )
+  expect(
+    currentWork(state, null, { snapshot: snapshotOf([resolved]), receivedAt: 1 }).entries[0]?.model,
+  ).toBe('pi-claude-cli/claude-haiku-4-5:low')
+  const parallel = {
+    id: RUN_B,
+    kind: 'subagent',
+    label: 'scout, reviewer',
+    state: 'running',
+    children: [
+      { id: 'step:0', kind: 'step', label: 'scout', state: 'running' },
+      { id: 'step:1', kind: 'step', label: 'reviewer', state: 'queued' },
+    ],
+  }
+  state.tools.a = launch('a', RUN_B, {
+    model: 'anthropic/claude-haiku-4-5',
+    tasks: [
+      { agent: 'scout', task: 'Map', model: 'openai-codex/gpt-6-astra' },
+      { agent: 'reviewer', task: 'Review' },
+    ],
+  })
+  expect(currentWork(state, snapshotOf([parallel])).entries.map((e) => e.model)).toEqual([
+    'openai-codex/gpt-6-astra',
+    'anthropic/claude-haiku-4-5',
+  ])
+  // A foreground child's resolved model wins over the request.
+  const fg = chat()
+  fg.tools.fg.args = { agent: 'reviewer', task: 'Review', model: 'asked/for' }
+  fg.tools.fg.output!.details = {
+    progress: [{ index: 0, agent: 'reviewer', status: 'running', model: 'ran/on' }],
+  }
+  expect(currentWork(fg, null).entries[0]?.model).toBe('ran/on')
+})
+
+it('shows an unreported run blocked on an unanswered supervisor request as waiting', () => {
+  const state = {
+    ...emptyChatSession(),
+    tools: { a: launch('a', RUN_A, { agent: 'worker', task: 'Map' }) } as Record<string, ToolState>,
+  }
+  state.items.push({
+    id: 'r',
+    kind: 'custom',
+    customType: 'subagent_supervisor_request',
+    text: 'Subagent needs a supervisor decision.',
+    images: [],
+    inContext: true,
+    timestamp: 20,
+    details: { requestId: 'req-1', runId: RUN_A, expectsReply: true },
+  })
+  // Replayed from disk, or from before this parent run: never restores liveness.
+  expect(currentWork(state, null).entries[0]?.state).toBe('status unavailable')
+  state.agentStartedAt = 30
+  expect(currentWork(state, null).entries[0]?.state).toBe('status unavailable')
+  state.agentStartedAt = 10
+  expect(currentWork(state, null).entries[0]).toMatchObject({
+    state: 'waiting for reply',
+    active: 1,
+    attention: true,
+  })
+  // A live snapshot is authoritative over the transcript's request.
+  expect(currentWork(state, snapshotOf([singleRun(RUN_A)])).entries[0]?.state).toBe('running')
+  // Answered by request id: back to no report, never to "finished".
+  state.tools.b = {
+    toolCallId: 'b',
+    toolName: 'subagent_supervisor',
+    argsText: '',
+    args: { action: 'reply', replyTo: 'req-1', message: 'Approved' },
+    status: 'done',
+    output: null,
+  }
+  expect(currentWork(state, null).entries[0]).toMatchObject({
+    state: 'status unavailable',
+    active: 0,
+  })
+})
+
+it('says why status is missing when an automatic compaction ran in this parent turn', () => {
+  const state = {
+    ...emptyChatSession(),
+    isStreaming: true,
+    tools: { a: launch('a', RUN_A, { agent: 'worker', task: 'Map' }) },
+  }
+  state.items.push({ id: 'u', kind: 'user', text: 'go', images: [] } as never)
+  expect(currentWork(state, null).statusPaused).toBe(false)
+  state.items.push({ id: 'c', kind: 'divider', variant: 'compaction', reason: 'threshold' })
+  expect(currentWork(state, null).statusPaused).toBe(true)
+  // A manual compaction, a later user turn or a live snapshot clears it.
+  expect(currentWork(state, snapshotOf([singleRun(RUN_A)])).statusPaused).toBe(false)
+  state.items.push({ id: 'u2', kind: 'user', text: 'next', images: [] } as never)
+  expect(currentWork(state, null).statusPaused).toBe(false)
+  state.items.push({ id: 'm', kind: 'divider', variant: 'compaction', reason: 'manual' })
+  expect(currentWork(state, null).statusPaused).toBe(false)
+})

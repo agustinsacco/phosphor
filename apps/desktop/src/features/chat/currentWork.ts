@@ -6,6 +6,7 @@ import {
   isFleetActive,
   parseFleetWidget,
   SUBAGENT_ASYNC_WIDGET_KEY,
+  SUBAGENT_SUPERVISOR_REQUEST_TYPE,
   subagentCall,
   subagentRun,
   type FleetNode,
@@ -18,6 +19,12 @@ export interface WorkEntry {
   id: string
   /** The agent profile, e.g. `worker`. Several entries can share it. */
   label: string
+  /**
+   * The model the child runs on when pi-subagents reports it (foreground
+   * details, or a background step's snapshot), else the one the parent asked
+   * for. Unset: the agent's default, unknown here.
+   */
+  model?: string
   /** Display title from the delegated prompt; identity stays on the IDs below. */
   title?: string
   task?: string
@@ -62,6 +69,7 @@ function nodeEntry(node: FleetNode, runId: string, childId?: string): WorkEntry 
   return {
     id: `${runId}:${node.id}`,
     label: node.label,
+    model: node.model,
     startedAt: node.startedAt,
     endedAt: node.endedAt,
     lastActivityAt: node.lastActivityAt,
@@ -125,11 +133,65 @@ function backgroundEntries(nodes: FleetNode[], root?: FleetNode): WorkEntry[] {
   })
 }
 
+/** The state shown for a child blocked on an unanswered `contact_supervisor`. */
+export const WAITING_FOR_REPLY = 'waiting for reply'
+
+/**
+ * Runs with a supervisor request the parent has not answered. The request is
+ * the child's own report that it is alive and blocked, so it stands in for the
+ * live snapshot when that is missing. A reply is matched by request id only.
+ * Only a request received during the parent run observed now counts: a replayed
+ * one must not restore liveness after a restart.
+ */
+function unansweredRequests(chat: ChatSessionState | undefined): Set<string> {
+  const since = chat?.agentStartedAt
+  if (since == null) return new Set()
+  const answered = new Set<string>()
+  for (const tool of Object.values(chat?.tools ?? {})) {
+    if (tool.toolName !== 'subagent_supervisor') continue
+    const args = tool.args ?? tryParseArgs(tool.argsText)
+    if (args?.action === 'reply' && typeof args.replyTo === 'string') answered.add(args.replyTo)
+  }
+  const waiting = new Set<string>()
+  for (const item of chat?.items ?? []) {
+    if (item.kind !== 'custom' || item.customType !== SUBAGENT_SUPERVISOR_REQUEST_TYPE) continue
+    if (item.timestamp === undefined || item.timestamp < since) continue
+    const d = item.details as
+      { runId?: unknown; requestId?: unknown; id?: unknown; expectsReply?: unknown } | undefined
+    const id = typeof d?.requestId === 'string' ? d.requestId : d?.id
+    if (typeof d?.runId !== 'string' || typeof id !== 'string' || d.expectsReply === false) continue
+    if (!answered.has(id)) waiting.add(d.runId)
+  }
+  return waiting
+}
+
+/**
+ * pi-subagents withdraws its snapshot when an automatic compaction starts and
+ * republishes it only when a parent turn starts or settles. pi compacts inside a
+ * running turn, so for the rest of that turn no background status arrives.
+ */
+function statusPausedByCompaction(chat: ChatSessionState | undefined): boolean {
+  if (!chat?.isStreaming) return false
+  for (let i = chat.items.length - 1; i >= 0; i--) {
+    const item = chat.items[i]!
+    if (item.kind === 'user') return false
+    if (item.kind === 'divider' && item.variant === 'compaction' && item.reason !== 'manual')
+      return true
+  }
+  return false
+}
+
 export function currentWork(
   chat: ChatSessionState | undefined,
   fleet: FleetSnapshot | null,
   remembered?: { snapshot: FleetSnapshot; receivedAt: number },
-): { entries: WorkEntry[]; incomplete: boolean; lastSeen?: number } {
+): {
+  entries: WorkEntry[]
+  incomplete: boolean
+  lastSeen?: number
+  /** No live snapshot because an automatic compaction ran in this parent turn. */
+  statusPaused: boolean
+} {
   const liveIds = new Set(fleet?.runs.map((run) => run.id))
   const missing = remembered?.snapshot.runs.filter((run) => !liveIds.has(run.id)) ?? []
   const runs = [...(fleet?.runs ?? []), ...missing]
@@ -167,6 +229,7 @@ export function currentWork(
         {
           id: root.id,
           label: step?.label ?? root.label,
+          model: step?.model ?? root.model,
           startedAt: step?.startedAt ?? root.startedAt,
           endedAt: step?.endedAt ?? root.endedAt,
           toolCount: step?.toolCount ?? root.toolCount,
@@ -208,16 +271,20 @@ export function currentWork(
       for (const entry of entries) {
         if (entry.runId !== run.runId) continue
         const step = /^step:(\d+)$/.exec(entry.childId ?? '')
-        const task =
-          !entry.childId || entry.single
-            ? (call.task ?? (call.tasks?.length === 1 ? call.tasks[0]!.task : undefined))
-            : step && !call.workflow && !call.script
-              ? call.tasks?.[Number(step[1])]?.task
-              : undefined
-        if (!entry.childId || entry.single || task) {
+        const own = !entry.childId || entry.single
+        const indexed =
+          step && !call.workflow && !call.script ? call.tasks?.[Number(step[1])] : undefined
+        const task = own
+          ? (call.task ?? (call.tasks?.length === 1 ? call.tasks[0]!.task : undefined))
+          : indexed?.task
+        if (own || task) {
           entry.task = task
           entry.requestedAt = requested.get(tool.toolCallId) ?? tool.startedAt
         }
+        // A step's own model wins over the call's; a workflow root names none.
+        entry.model ??= own
+          ? (call.model ?? (call.tasks?.length === 1 ? call.tasks[0]!.model : undefined))
+          : (indexed?.model ?? (indexed ? call.model : undefined))
       }
     }
     if (run?.runId && represented.has(run.runId)) continue
@@ -234,6 +301,8 @@ export function currentWork(
     const activeChildren = run?.children.filter(
       (child) => child.status === 'running' || child.status === 'pending',
     )
+    const unique = (values: (string | undefined)[]): string | undefined =>
+      [...new Set(values.filter((v): v is string => !!v))].join(', ') || undefined
     entries.push({
       id: tool.toolCallId,
       toolCallId: tool.toolCallId,
@@ -242,6 +311,10 @@ export function currentWork(
         call.agent ??
         ([...new Set(call.tasks?.flatMap((t) => (t.agent ? [t.agent] : [])))].join(', ') ||
           'Workflow'),
+      model:
+        unique(run?.children.map((child) => child.model) ?? []) ??
+        call.model ??
+        unique(call.tasks?.map((t) => t.model) ?? []),
       task:
         call.task ?? call.workflow ?? (call.tasks?.length === 1 ? call.tasks[0]!.task : undefined),
       ...(!call.task && !call.workflow && (call.tasks?.length ?? 0) > 1
@@ -274,6 +347,18 @@ export function currentWork(
       ...(detached && run?.runId && isSoloLaunch(call) ? { single: true } : {}),
     })
   }
+  // A live snapshot is authoritative; this only replaces "no report".
+  const waiting = unansweredRequests(chat)
+  for (const entry of entries) {
+    // A workflow's children share its run ID; the request names the run, not a child.
+    const run = !entry.childId || entry.single
+    if (entry.state !== 'status unavailable' || !run || !waiting.has(entry.runId ?? '')) continue
+    entry.state = WAITING_FOR_REPLY
+    entry.active = 1
+    entry.attention = true
+    // The only way a child asks is this tool, and it holds the child until answered.
+    entry.currentTool = 'contact_supervisor'
+  }
   // Compared across the whole lane, so a title does not change when its
   // agent finishes or a sibling starts.
   const titles = distinctTitles(entries.map((entry) => entry.task))
@@ -284,6 +369,7 @@ export function currentWork(
     entries,
     incomplete: !!(fleet ?? remembered?.snapshot)?.incomplete,
     lastSeen: missing.length ? remembered?.receivedAt : undefined,
+    statusPaused: !fleet && statusPausedByCompaction(chat),
   }
 }
 
