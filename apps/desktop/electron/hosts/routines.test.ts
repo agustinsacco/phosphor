@@ -413,3 +413,47 @@ it('refuses a non-ready machine before sending and rechecks readiness after awai
   })
   await expect(s.invoke('routines:list', [s.machine])).rejects.toThrow('unavailable')
 })
+it('refuses history rows for another routine and a renderer offset the parser rejects', async () => {
+  const s = setup()
+  await s.invoke('routines:list', [s.machine])
+  s.history([
+    {
+      id: s.runId,
+      routineId: randomUUID(),
+      status: 'queued',
+      scheduledAt: 3,
+      startedAt: null,
+      endedAt: null,
+    },
+  ])
+  await expect(s.invoke('routines:history', [s.key, 0])).rejects.toThrow('unavailable')
+  s.call.mockClear()
+  await expect(s.invoke('routines:history', [s.key, 'not a number'])).rejects.toThrow('unavailable')
+  expect(s.call).not.toHaveBeenCalled()
+})
+it('refuses a listed routine whose repository the machine does not announce', async () => {
+  const s = setup()
+  s.data([{ ...s.row, repositoryId: 'fedcba9876543210' }])
+  await expect(s.invoke('routines:list', [s.machine])).rejects.toThrow('unavailable')
+})
+it('a manual run returns the run named by its receipt, not a newer one in history', async () => {
+  const s = setup()
+  await s.invoke('routines:list', [s.machine])
+  const other = randomUUID()
+  s.history([
+    { id: other, routineId: s.id, status: 'running', scheduledAt: 9, startedAt: 9, endedAt: null },
+    {
+      id: s.runId,
+      routineId: s.id,
+      status: 'queued',
+      scheduledAt: 3,
+      startedAt: null,
+      endedAt: null,
+    },
+  ])
+  s.receipt({ requestId: randomUUID(), status: 'done', data: { runId: s.runId } })
+  const run = (await s.invoke('routines:run', [s.key, randomUUID()])) as RoutineRun
+  expect(run.id).toBe(`${s.machine}/${s.runId}`)
+  expect(run.status).toBe('queued')
+  expect(run.trigger).toBe('manual')
+})
