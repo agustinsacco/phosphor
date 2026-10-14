@@ -424,3 +424,86 @@ it('creates absent info and exclude without recursive mkdir', async () => {
   expect(readFileSync(join(root, '.git', 'info', 'exclude'), 'utf8')).toBe('/.phosphor/\n')
   await folder.undo()
 })
+
+it.each(['before-check', 'at-spawn'])(
+  'preserves a foreign outside worktree through a leaf symlink %s',
+  async (when) => {
+    await run(['branch', 'foreign'])
+    const outside = join(temp, 'outside')
+    const path = join(root, '.phosphor', 'worktrees', 'foreign')
+    const realGit = exec.git
+    const logs: unknown[] = []
+    let swapped = false
+    const spy = vi.spyOn(exec, 'git').mockImplementation(async (cwd, args, options) => {
+      const trigger =
+        when === 'before-check'
+          ? args[0] === 'rev-parse' && args[1] === '--git-common-dir'
+          : args[0] === 'worktree' && args[1] === 'add'
+      if (trigger && !swapped) {
+        swapped = true
+        await realGit(root, ['worktree', 'add', outside, 'foreign'])
+        symlinkSync(outside, path)
+      }
+      return realGit(cwd, args, options)
+    })
+    await expect(
+      prepareLaneFolder({
+        root,
+        worktree: { branch: 'foreign' },
+        log: (_scope, message, data) => logs.push({ message, data }),
+      }),
+    ).rejects.toThrow(
+      when === 'before-check'
+        ? 'A worktree folder for that branch already exists.'
+        : 'The worktree could not be created.',
+    )
+    expect(existsSync(outside)).toBe(true)
+    expect(await run(['worktree', 'list', '--porcelain'])).toContain(`worktree ${outside}`)
+    expect(await run(['rev-parse', 'foreign'])).toBe(await run(['rev-parse', 'main']))
+    expect(spy.mock.calls.some(([, args]) => args[0] === 'worktree' && args[1] === 'remove')).toBe(
+      false,
+    )
+    if (when === 'before-check')
+      expect(spy.mock.calls.some(([, args]) => args[0] === 'worktree' && args[1] === 'add')).toBe(
+        false,
+      )
+    else expect(logs).toEqual([{ message: 'lane.worktree_undo_failed', data: {} }])
+  },
+)
+it.each(['symlink', 'file'])(
+  'undo refuses a replaced %s leaf before inspecting registrations',
+  async (kind) => {
+    const logs: unknown[] = []
+    const folder = await prepareLaneFolder({
+      root,
+      worktree: { branch: 'replace' },
+      log: (_scope, message, data) => logs.push({ message, data }),
+    })
+    const kept = folder.cwd + '-kept'
+    renameSync(folder.cwd, kept)
+    if (kind === 'symlink') symlinkSync(kept, folder.cwd)
+    else writeFileSync(folder.cwd, 'private')
+    const spy = vi.spyOn(exec, 'git')
+    await folder.undo()
+    expect(spy).not.toHaveBeenCalled()
+    expect(logs).toEqual([{ message: 'lane.worktree_undo_failed', data: {} }])
+    expect(existsSync(kept)).toBe(true)
+    expect(await run(['rev-parse', 'replace'])).toBe(await run(['rev-parse', 'main']))
+  },
+)
+it('undo canonicalizes only the parent, never the worktree leaf', async () => {
+  const folder = await prepare('canonical-parent')
+  const spy = vi.spyOn(realpathSync, 'native')
+  await folder.undo()
+  expect(spy).toHaveBeenCalledWith(join(root, '.phosphor', 'worktrees'))
+  expect(spy).not.toHaveBeenCalledWith(folder.cwd)
+  expect(existsSync(folder.cwd)).toBe(false)
+})
+it('refuses an append beyond the exclude cap without modifying exact-cap content', async () => {
+  const exclude = join(root, '.git', 'info', 'exclude')
+  const content = Buffer.alloc(1024 * 1024, '#')
+  writeFileSync(exclude, content)
+  await expect(prepare('append-cap')).rejects.toThrow('The worktree could not be created.')
+  expect(readFileSync(exclude)).toEqual(content)
+  expect(existsSync(join(root, '.phosphor', 'worktrees', 'append-cap'))).toBe(false)
+})

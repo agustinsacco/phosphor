@@ -981,7 +981,10 @@ library asks for. `accept` is its only caller.
 
 The lane command service creates lanes in an active configured repository or a new
 worktree under `<repo>/.phosphor/worktrees/`. The creator controls the lane at
-fence 1. The API does not wire this service yet.
+fence 1. Creation still returns `done` if its initial control publication fails;
+it tries the summary and the next lane operation republishes control first.
+An unexpected projection error after attachment returns `unknown`, not `failed`.
+The API does not wire this service yet.
 
 Worktrees use a valid git branch, never the default branch or one checked out
 elsewhere. The branch with `/` replaced by `-` names the folder: 1 to 100 ASCII

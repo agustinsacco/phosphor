@@ -9,7 +9,7 @@ import {
   readSync,
   realpathSync,
 } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { isLaneBranchName } from '@phosphor/shared/host-protocol'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
@@ -51,12 +51,13 @@ export async function prepareLaneFolder(input: {
   const undo = async () => {
     if (!created) return
     try {
-      let registeredPath = path
       try {
-        registeredPath = realpathSync.native(path)
-      } catch {
-        // A failed add may have registered a folder that is already gone.
+        const leaf = lstatSync(path)
+        if (leaf.isSymbolicLink() || !leaf.isDirectory()) throw new Error('folder')
+      } catch (error) {
+        if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
       }
+      const registeredPath = join(realpathSync.native(dirname(path)), slug)
       const registered = (await run(['worktree', 'list', '--porcelain']))
         .split('\n\n')
         .find((entry) =>
@@ -110,13 +111,16 @@ export async function prepareLaneFolder(input: {
       for (const folder of [join(root, '.phosphor'), join(root, '.phosphor', 'worktrees')])
         directory(folder)
     }
-    checkFolders()
-    try {
-      lstatSync(path)
-      refuse('A worktree folder for that branch already exists.')
-    } catch (error) {
-      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
+    const checkLeafAbsent = () => {
+      try {
+        lstatSync(path)
+        refuse('A worktree folder for that branch already exists.')
+      } catch (error) {
+        if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
+      }
     }
+    checkFolders()
+    checkLeafAbsent()
     const exists = async (ref: string) => {
       try {
         await run(['show-ref', '--verify', '--quiet', ref])
@@ -148,6 +152,7 @@ export async function prepareLaneFolder(input: {
       created = true
     }
     checkFolders()
+    checkLeafAbsent()
     created = true
     await run(['worktree', 'add', path, branch])
     const cwd = realpathSync.native(path)
@@ -203,7 +208,9 @@ function excludeWorktrees(path: string): void {
   )
   try {
     regular(fd)
-    appendFileSync(fd, `${ignored && !ignored.endsWith('\n') ? '\n' : ''}/.phosphor/\n`)
+    const entry = `${ignored && !ignored.endsWith('\n') ? '\n' : ''}/.phosphor/\n`
+    if (fstatSync(fd).size + Buffer.byteLength(entry) > cap) throw new Error('exclude')
+    appendFileSync(fd, entry)
   } finally {
     closeSync(fd)
   }

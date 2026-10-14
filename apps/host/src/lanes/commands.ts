@@ -255,40 +255,39 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       let held: { laneId: string; queue: LaneQueue } | undefined
       const work = (async () => {
         try {
-          const created = await createLane(ports, {
-            root: repository.path,
-            op,
-            controller: { clientId: client.id, label: client.label },
-            onStored: (laneId) => {
-              const laneQueue = queueFor(laneId)
-              laneQueue.holds++
-              held = { laneId, queue: laneQueue }
-            },
-          })
-          if (!held) throw new Error('missing lane queue')
-          if (!publish(created.laneId, { kind: 'control', control: created.control }, held.queue))
+          let created: StoredLane
+          try {
+            created = await createLane(ports, {
+              root: repository.path,
+              op,
+              controller: { clientId: client.id, label: client.label },
+              onStored: (laneId) => {
+                const laneQueue = queueFor(laneId)
+                laneQueue.holds++
+                held = { laneId, queue: laneQueue }
+              },
+            })
+          } catch (error) {
+            if (error instanceof LaneCapacityReached) return { capacity: true }
+            const code =
+              typeof error === 'object' && error !== null && 'code' in error
+                ? error.code
+                : undefined
+            if (typeof code === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(code))
+              log('lane.command_error', { requestId, op: op.type, code })
             return {
               error: {
                 code: 'internal' as const,
-                message: "the lane's control change could not be published",
+                message:
+                  error instanceof LaneFolderError ? error.message : 'the lane could not start',
               },
             }
+          }
+          if (!held) throw new Error('missing lane queue')
+          publish(created.laneId, { kind: 'control', control: created.control }, held.queue)
           const summary = ports.summaryFor(created.laneId)
           if (summary) publish(created.laneId, { kind: 'summary', summary }, held.queue)
           return { lane: created }
-        } catch (error) {
-          if (error instanceof LaneCapacityReached) return { capacity: true }
-          const code =
-            typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
-          if (typeof code === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(code))
-            log('lane.command_error', { requestId, op: op.type, code })
-          return {
-            error: {
-              code: 'internal' as const,
-              message:
-                error instanceof LaneFolderError ? error.message : 'the lane could not start',
-            },
-          }
         } finally {
           if (held) {
             held.queue.holds--
