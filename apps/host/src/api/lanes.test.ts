@@ -112,7 +112,11 @@ function fixture(limits: Parameters<typeof createLaneAdapter>[1] = {}) {
       const grant = encodeGrant({ ...claims, client, caps }, (bytes) =>
         sign(null, bytes, control.privateKey),
       )
-      send({ type: 'auth', grant, ...(initial ? { challenge: 'a'.repeat(64) } : {}) })
+      send({
+        type: 'auth',
+        grant,
+        ...(initial ? { challenge: 'a'.repeat(64), trace: '0123456789abcdef' } : {}),
+      })
     }
     return { ...pair, connection, frames, codes, send, auth }
   }
@@ -654,4 +658,33 @@ describe('lane adapter', () => {
         createLaneAdapter(h.service, { limits: { pendingCommandsPerConnection: value } }),
       ).toThrow()
   })
+})
+
+it('logs safe connection trace, command admission and receipt delivery without wire ids or content', async () => {
+  vi.useFakeTimers()
+  const events: unknown[] = []
+  const h = fixture({ log: (event, fields) => events.push({ event, ...fields }) })
+  try {
+    const c = h.connect()
+    c.auth()
+    await flush()
+    const requestId = randomUUID()
+    c.send({ type: 'command', requestId, op: { type: 'prompt', message: '/private/content' } })
+    await flush()
+    h.done(requestId)
+    expect(events).toEqual([
+      { event: 'api.command', trace: '0123456789abcdef', op: 'prompt' },
+      { event: 'api.receipt', trace: '0123456789abcdef', status: 'done' },
+    ])
+    expect(JSON.stringify(events)).not.toContain(requestId)
+    expect(JSON.stringify(events)).not.toContain('/private/content')
+    for (const event of events) {
+      if (!event || typeof event !== 'object') throw new Error('Missing log')
+      for (const value of Object.values(event))
+        expect(String(value)).toMatch(/^[A-Za-z0-9._-]{1,64}$/)
+    }
+  } finally {
+    h.stop()
+    vi.useRealTimers()
+  }
 })

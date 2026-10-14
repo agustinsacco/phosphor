@@ -58,6 +58,7 @@ export function createLaneAdapter(
       close()
       socket.close(4429, '4429')
     }
+    const traceFields: Record<string, string> = connection.trace ? { trace: connection.trace } : {}
     function send(frame: HostFrame) {
       if (closed || !socket.isOpen()) return
       try {
@@ -69,6 +70,8 @@ export function createLaneAdapter(
         )
           return stop()
         socket.send(text)
+        if (frame.type === 'receipt')
+          options.log?.('api.receipt', { ...traceFields, status: frame.receipt.status })
       } catch {
         stop()
       }
@@ -199,6 +202,7 @@ export function createLaneAdapter(
                 code: 'too-many-requests',
               },
             })
+          options.log?.('api.command', { ...traceFields, op: frame.op.type })
           pending.add(frame.requestId)
           interest(frame.requestId, 'command')
           const sender = {

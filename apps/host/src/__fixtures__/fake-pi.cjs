@@ -335,7 +335,7 @@ function handle(cmd) {
       return respond(cmd, {
         commands:
           breakdown && process.env.FAKE_PI_HIDE !== 'budget'
-            ? [{ name: 'phosphor-context-budget', source: 'extension', sourceInfo: {} }]
+            ? [{ name: 'phosphor-context-budget', source: 'extension' }]
             : [],
       })
     case 'set_model':

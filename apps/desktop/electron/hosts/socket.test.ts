@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { createServer } from 'node:http'
 import type { Duplex } from 'node:stream'
 import { expect, it, vi } from 'vitest'
-import { openHostSocket } from './socket'
+import { e2eHostEndpoint, hostSocketUrl, openHostSocket } from './socket'
 
 // A loopback-only RFC 6455 handshake and close echo. No Host or credentials.
 async function server() {
@@ -80,5 +80,44 @@ it('swallows close exceptions and logs no reason or exception text', async () =>
     }
   } finally {
     await s.stop()
+  }
+})
+
+it('admits only an explicit dev loopback origin and downgrades only that stream', () => {
+  const endpoint = 'https://127.0.0.1:47615'
+  expect(e2eHostEndpoint({ PHOSPHOR_E2E_HOST_ENDPOINT: endpoint }, false)).toBe(endpoint)
+  expect(e2eHostEndpoint({ PHOSPHOR_E2E_HOST_ENDPOINT: endpoint }, true)).toBeUndefined()
+  expect(e2eHostEndpoint({}, false)).toBeUndefined()
+  for (const port of [1024, 65535]) {
+    const value = `https://127.0.0.1:${port}`
+    expect(e2eHostEndpoint({ PHOSPHOR_E2E_HOST_ENDPOINT: value }, false)).toBe(value)
+  }
+  for (const value of [
+    'https://localhost:47615',
+    'https://127.0.0.2:47615',
+    'https://[::1]:47615',
+    'https://127.0.0.1:1023',
+    'https://127.0.0.1:65536',
+    'https://127.0.0.1:04761',
+    endpoint + '/',
+    endpoint + '/private',
+    endpoint + '?key=value',
+    endpoint + '#secret',
+    'https://user@127.0.0.1:47615',
+    'http://127.0.0.1:47615',
+  ])
+    expect(e2eHostEndpoint({ PHOSPHOR_E2E_HOST_ENDPOINT: value }, false)).toBeUndefined()
+  expect(hostSocketUrl('wss://127.0.0.1:47615/v1/stream', endpoint)).toBe(
+    'ws://127.0.0.1:47615/v1/stream',
+  )
+  for (const url of [
+    'wss://127.0.0.1:47616/v1/stream',
+    'wss://localhost:47615/v1/stream',
+    'wss://127.0.0.2:47615/v1/stream',
+    'wss://bee.tail.ts.net/v1/stream',
+    'wss://127.0.0.1:47615/other',
+  ]) {
+    expect(hostSocketUrl(url, endpoint)).toBe(url)
+    expect(hostSocketUrl(url)).toBe(url)
   }
 })

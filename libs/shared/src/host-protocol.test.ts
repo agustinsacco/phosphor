@@ -691,3 +691,15 @@ describe('host-protocol parser totality', () => {
     }
   })
 })
+
+it('auth trace is optional, exactly sixteen lowercase hex characters and rejects unknown keys', () => {
+  const auth = { type: 'auth', grant: 'token' }
+  expect(client(auth).ok).toBe(true)
+  expect(client({ ...auth, trace: '0123456789abcdef' })).toEqual({
+    ok: true,
+    frame: { ...auth, trace: '0123456789abcdef' },
+  })
+  for (const trace of ['', 'a'.repeat(15), 'a'.repeat(17), 'A'.repeat(16), '../private', 42, null])
+    expect(client({ ...auth, trace }).ok).toBe(false)
+  expect(client({ ...auth, trace: 'a'.repeat(16), content: 'private' }).ok).toBe(false)
+})

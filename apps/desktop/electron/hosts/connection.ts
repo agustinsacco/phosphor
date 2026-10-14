@@ -27,12 +27,15 @@ export type NotSent = {
 }
 export type CommandResult = Receipt | NotSent
 export type LaneFrame = Extract<HostFrame, { type: 'snapshot' | 'event' | 'subscribe-failed' }>
-export function hostEndpoint(value: unknown): value is string {
-  return isEndpoint(value) && new URL(value).hostname.endsWith('.ts.net')
+export function hostEndpoint(value: unknown, testEndpoint?: string): value is string {
+  return (
+    isEndpoint(value) && (new URL(value).hostname.endsWith('.ts.net') || value === testEndpoint)
+  )
 }
 export function createHostConnection(ports: {
   hostId: string
   endpoint: string | null
+  testEndpoint?: string
   socket: (url: string) => Promise<FrameSocket>
   grant: () => Promise<GrantIssueResponse>
   clearGrant: () => void
@@ -56,6 +59,7 @@ export function createHostConnection(ports: {
     stopped = false,
     attempt = 0,
     generation = 0
+  let trace = ''
   let challenge = '',
     key = '',
     started = 0,
@@ -249,7 +253,8 @@ export function createHostConnection(ports: {
           .grant()
           .then((g) => {
             if (!stopped && epoch === generation) {
-              if (!write({ type: 'auth', grant: g.grant })) socket?.close(1000, 'Transport failed')
+              if (!write({ type: 'auth', grant: g.grant, trace }))
+                socket?.close(1000, 'Transport failed')
               renewalTimeout = later(
                 () => socket?.close(4401, 'Renewal timeout'),
                 HOST_LIMITS.authTimeoutMs,
@@ -467,14 +472,15 @@ export function createHostConnection(ports: {
   }
   async function connect() {
     if (stopped) return
-    if (!hostEndpoint(ports.endpoint)) {
+    if (!hostEndpoint(ports.endpoint, ports.testEndpoint)) {
       update({ state: 'no-address' })
       finish()
       return
     }
     const epoch = ++generation
     started = now()
-    log('hosts', 'connect', { hostId: ports.hostId, trace: randomBytes(8).toString('hex') })
+    trace = randomBytes(8).toString('hex')
+    log('hosts', 'connect', { hostId: ports.hostId, trace })
     try {
       const grant = await ports.grant()
       if (stopped || generation !== epoch) return
@@ -495,7 +501,7 @@ export function createHostConnection(ports: {
         if (socket === opened) failed(code)
       })
       later(() => opened.close(4401, 'Auth timeout'), HOST_LIMITS.authTimeoutMs)
-      if (!write({ type: 'auth', grant: grant.grant, challenge }))
+      if (!write({ type: 'auth', grant: grant.grant, challenge, trace }))
         opened.close(1000, 'Transport failed')
     } catch (error) {
       if (!stopped && generation === epoch)
