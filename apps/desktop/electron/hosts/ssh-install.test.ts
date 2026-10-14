@@ -45,7 +45,14 @@ process.stdin.on('end', () => {
  }
  if (command.includes('login')) {
    if (process.env.LOGIN_STDERR) process.stderr.write(process.env.LOGIN_STDERR)
-   setTimeout(() => process.stdout.write(process.env.LOGIN_OUTPUT), 5)
+   setTimeout(() => {
+     if (process.env.LOGIN_PREFIX) process.stdout.write(process.env.LOGIN_PREFIX)
+     const sentinel = /phosphor-enroll-[0-9a-f]{32}/.exec(command)?.[0]
+     if (sentinel && process.env.NO_SENTINEL !== 'yes') {
+       process.stdout.write(sentinel.slice(0, 20))
+       setTimeout(() => process.stdout.write(sentinel.slice(20) + '\\n' + process.env.LOGIN_OUTPUT), 2)
+     } else process.stdout.write(process.env.LOGIN_OUTPUT)
+   }, 5)
    if (process.env.WAIT_LOGIN === 'yes') {
      setInterval(() => { if (fs.existsSync(process.env.APPROVAL)) process.exit(0) }, 10)
      return
@@ -129,7 +136,9 @@ it('uses exact hardened argv, installer stdin, ordered steps and home-relative s
   const commands = [
     'sh -s --',
     '~/.local/bin/phosphor setup --repository "$HOME/src/project"',
-    '~/.local/bin/phosphor login',
+    expect.stringMatching(
+      /^printf '%s\\n' phosphor-enroll-[0-9a-f]{32}; ~\/\.local\/bin\/phosphor login$/,
+    ),
     '~/.local/bin/phosphor service install',
   ]
   expect(await recorded()).toEqual(
@@ -173,7 +182,7 @@ it('uses exact hardened argv, installer stdin, ordered steps and home-relative s
   expect(verifyEnrollment).toHaveBeenCalledWith('BCDFGHJK', fingerprint)
   expect(events.at(-1)).toEqual({ kind: 'done', step: 'service' })
   expect(JSON.stringify(log.mock.calls)).not.toMatch(
-    /alice|machine|BCDF|abcd|signed|remote-private/,
+    /alice|machine|BCDF|abcd|signed|remote-private|phosphor-enroll/,
   )
 })
 it('uses plain noninteractive setup without a repository and fixed guidance for exit 64', async () => {
@@ -410,4 +419,61 @@ it('verifies and delivers only genuine login stdout, ignoring an earlier stderr 
     { kind: 'enrollment', step: 'login', code: 'BCDFGHJK', fingerprint },
   ])
   expect(events.at(-1)).toEqual({ kind: 'done', step: 'service' })
+})
+
+it('ignores a forged stdout enrollment before the split login sentinel', async () => {
+  const forged = output
+    .replace('BCDF-GHJK', 'LMNP-QRST')
+    .replace(fingerprint, '1111-2222-3333-4444')
+  make({ LOGIN_PREFIX: 'z'.repeat(100000) + '\n' + forged }).start('alias', '', 1, send)
+  await complete()
+  expect(verifyEnrollment.mock.calls).toEqual([['BCDFGHJK', fingerprint]])
+  expect(events.filter((event) => event.kind === 'enrollment')).toEqual([
+    { kind: 'enrollment', step: 'login', code: 'BCDFGHJK', fingerprint },
+  ])
+  expect(events.at(-1)).toEqual({ kind: 'done', step: 'service' })
+})
+
+it('ignores a guessed sentinel line before the forged enrollment', async () => {
+  const forged = output
+    .replace('BCDF-GHJK', 'LMNP-QRST')
+    .replace(fingerprint, '1111-2222-3333-4444')
+  make({ LOGIN_PREFIX: `phosphor-enroll-${'0'.repeat(32)}\n` + forged }).start('alias', '', 1, send)
+  await complete()
+  expect(verifyEnrollment.mock.calls).toEqual([['BCDFGHJK', fingerprint]])
+})
+
+it('fails closed with a fixed reason when login stdout has no sentinel', async () => {
+  make({ NO_SENTINEL: 'yes' }).start('alias', '', 1, send)
+  await complete()
+  expect(verifyEnrollment).not.toHaveBeenCalled()
+  expect(events.some((event) => event.kind === 'enrollment')).toBe(false)
+  expect(events.at(-1)).toMatchObject({
+    kind: 'failed',
+    step: 'login',
+    message: 'Host login failed. Try again.',
+  })
+  expect(log).toHaveBeenLastCalledWith('login', 0, 'missing-sentinel')
+  expect(await recorded()).toHaveLength(3)
+})
+
+it('uses a fresh unpredictable shell-inert login sentinel for each job', async () => {
+  const api = make()
+  api.start('first', '', 1, send)
+  await complete()
+  const secondTerminal = new Promise<void>((resolve) => {
+    api.start('second', '', 1, (event) => {
+      if (['done', 'failed', 'cancelled'].includes(event.kind)) resolve()
+    })
+  })
+  await secondTerminal
+  const commands = (await recorded()).map((args) => args.at(-1) ?? '')
+  const sentinels = commands
+    .filter((command) => command.includes('login'))
+    .map((command) => /phosphor-enroll-[0-9a-f]{32}/.exec(command)?.[0])
+  expect(sentinels).toHaveLength(2)
+  expect(sentinels[0]).toMatch(/^phosphor-enroll-[0-9a-f]{32}$/)
+  expect(sentinels[1]).toMatch(/^phosphor-enroll-[0-9a-f]{32}$/)
+  expect(sentinels[0]).not.toBe(sentinels[1])
+  expect(JSON.stringify(log.mock.calls)).not.toContain('phosphor-enroll-')
 })

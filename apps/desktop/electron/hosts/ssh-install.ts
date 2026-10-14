@@ -1,5 +1,5 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { StringDecoder } from 'node:string_decoder'
 import { normalizeUserCode, CONTROL_LIMITS } from '@shared/control-api'
 import {
@@ -53,6 +53,7 @@ export function parseSshEnrollment(output: string): { code: string; fingerprint:
 }
 interface Job {
   id: string
+  sentinel: string
   target: string
   repository: string
   owner: number
@@ -102,6 +103,7 @@ export function createSshInstaller(ports: Ports) {
     const step = job.step
     job.send({ kind: 'progress', step })
     let command = commands[step]
+    if (step === 'login') command = `printf '%s\\n' ${job.sentinel}; ${command}`
     if (step === 'setup' && job.repository) command += ` --repository "$HOME/${job.repository}"`
     return new Promise((resolve) => {
       const child = spawn('ssh', sshArgs(job.target, command), {
@@ -112,6 +114,8 @@ export function createSshInstaller(ports: Ports) {
       job.child = child
       let output = ''
       let loginOutput = ''
+      let sentinelLine = ''
+      let sentinelSeen = step !== 'login'
       let enrollmentSent = false
       const stopped = new Promise<boolean>((resolve) => {
         job.stopVerification = () => resolve(false)
@@ -130,6 +134,26 @@ export function createSshInstaller(ports: Ports) {
       const receive = (text: string, stdout: boolean) => {
         output = (output + text).slice(-32768)
         if (step === 'login' && stdout && !enrollmentSent) {
+          if (!sentinelSeen) {
+            let newline = text.indexOf('\n')
+            while (newline !== -1) {
+              sentinelLine = (sentinelLine + text.slice(0, newline)).slice(
+                0,
+                job.sentinel.length + 1,
+              )
+              text = text.slice(newline + 1)
+              if (sentinelLine === job.sentinel) {
+                sentinelSeen = true
+                break
+              }
+              sentinelLine = ''
+              newline = text.indexOf('\n')
+            }
+            if (!sentinelSeen) {
+              sentinelLine = (sentinelLine + text).slice(0, job.sentinel.length + 1)
+              return
+            }
+          }
           loginOutput = (loginOutput + text).slice(-32768)
           const enrollment = parseSshEnrollment(loginOutput)
           if (enrollment) {
@@ -165,12 +189,14 @@ export function createSshInstaller(ports: Ports) {
           ? 'cancelled'
           : timedOut
             ? 'timeout'
-            : code === 0 && matches
-              ? 'ok'
-              : 'failed'
+            : !sentinelSeen
+              ? 'missing-sentinel'
+              : code === 0 && matches
+                ? 'ok'
+                : 'failed'
         ports.log(step, code, reason)
         if (job.cancelled) job.send({ kind: 'cancelled', step })
-        else if (code !== 0 || timedOut || !matches) {
+        else if (code !== 0 || timedOut || !matches || !sentinelSeen) {
           const message = timedOut
             ? 'This step timed out. Try again.'
             : !matches
@@ -187,7 +213,7 @@ export function createSshInstaller(ports: Ports) {
             output: output ? output.split(/\r?\n/).slice(-20) : [],
           })
         }
-        resolve(code === 0 && matches && !job.cancelled && !timedOut)
+        resolve(code === 0 && matches && sentinelSeen && !job.cancelled && !timedOut)
       }
       child.on('error', () => finish(null))
       child.on('close', finish)
@@ -229,6 +255,7 @@ export function createSshInstaller(ports: Ports) {
         throw new Error('An SSH install is already running.')
       const job: Job = {
         id: randomUUID(),
+        sentinel: `phosphor-enroll-${randomBytes(16).toString('hex')}`,
         target,
         repository,
         owner,

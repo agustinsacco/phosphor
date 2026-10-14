@@ -470,7 +470,9 @@ installer's latest-release default, then runs non-interactive setup, login and
 user service installation as separate SSH processes. Login stays running while
 you approve the code in the same dialog as manual enrollment. Desktop looks up
 the code from login stdout only and refuses a fingerprint mismatch. Banners and
-stderr cannot supply the enrollment. Both fingerprints appear inline.
+stderr cannot supply the enrollment. Desktop discards login stdout through a fresh
+per-job sentinel and fails the step if that sentinel is missing. Both fingerprints
+appear inline.
 The Host saves its own identity after approval. The dialog waits for service
 installation to finish before offering Close or View machine. Cancel remains
 available while waiting, and SSH failures stay visible. SSH is never the lane
