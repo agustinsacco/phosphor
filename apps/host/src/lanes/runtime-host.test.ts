@@ -1,0 +1,423 @@
+import { randomUUID } from 'node:crypto'
+import { join } from 'node:path'
+import { renameSync } from 'node:fs'
+import { setTimeout as sleep } from 'node:timers/promises'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { parseHostFrame, type HostFrame, type Receipt } from '@phosphor/shared/host-protocol'
+import { createLoopbackPair } from '@phosphor/shared/host-protocol-testing'
+import type { SessionPush } from '@phosphor/shared/models'
+import type { RpcCommand, RpcSessionState } from '@phosphor/shared/rpc'
+import { fakeMachine, EXTENSIONS_ROOT, type FakeMachine } from '../__fixtures__/machine'
+import { createHostRuntime, type HostRuntime, type Delivery } from '../session/runtime'
+import { buildPiEnvironment } from '../machine/environment'
+import { createHostLog } from '../machine/log'
+import { isGone } from '../session/lifecycle'
+import { createLaneCommands } from './commands'
+import { createLaneCalls } from './calls'
+import { createRuntimeLanes } from './runtime-host'
+import { createLiveLanes } from './live'
+import { openStore, type HostStore } from './store'
+import { createUnattachedSnapshots } from './transcript'
+import { createSubscriptions } from './subscriptions'
+
+const state: RpcSessionState = {
+  sessionId: 'pi-id',
+  thinkingLevel: 'off',
+  isStreaming: false,
+  isCompacting: false,
+  steeringMode: 'all',
+  followUpMode: 'all',
+  autoCompactionEnabled: true,
+  messageCount: 0,
+  pendingMessageCount: 0,
+}
+let machine: FakeMachine
+let store: HostStore
+let real: HostRuntime | undefined
+let live: ReturnType<typeof createLiveLanes>
+let repositoryId: string
+beforeEach(async () => {
+  machine = fakeMachine({ rpc: true })
+  vi.stubEnv('PATH', process.env.PATH)
+  vi.stubEnv('PI_CODING_AGENT_DIR', machine.agentDir)
+  vi.stubEnv('PI_CODING_AGENT_SESSION_DIR', undefined)
+  store = await openStore(join(machine.dir, 'state'), process.getuid?.())
+  const repository = store.syncRepositories([machine.repository])[0]
+  if (!repository) throw new Error('fixture')
+  repositoryId = repository.id
+})
+afterEach(async () => {
+  const drained = real?.drain('test finished')
+  void real?.drain('test forced')
+  await drained
+  real = undefined
+  live?.close()
+  store.close()
+  vi.unstubAllEnvs()
+  vi.restoreAllMocks()
+  machine.cleanup()
+})
+function setup(pushes: SessionPush[] = []) {
+  let deliver: Delivery = () => {}
+  const command = vi.fn(
+    async (_id: string, cmd: RpcCommand): ReturnType<HostRuntime['command']> => ({
+      type: 'response',
+      command: cmd.type,
+      success: true,
+      data: cmd.type === 'get_messages' ? { messages: [] } : state,
+    }),
+  )
+  const runtime = {
+    start: vi.fn(async (_request: unknown, sink?: Delivery) => {
+      deliver = sink ?? (() => {})
+      for (const push of pushes) deliver(push)
+      return { sessionId: randomUUID(), workspacePath: machine.repository }
+    }),
+    stop: vi.fn(async (_sessionId: string) => {}),
+    command,
+    extensionUiResponse: vi.fn(),
+  }
+  live = createLiveLanes({ epoch: '0123456789abcdef', store, runtime, now: Date.now, log: vi.fn() })
+  const log = vi.fn()
+  const binding = createRuntimeLanes({ runtime, store, live, log })
+  const saved = () => store.ensureLane({ repositoryId, cwd: machine.repository, sessionFile: null })
+  return { runtime, binding, saved, log, push: (push: SessionPush) => deliver(push) }
+}
+describe('runtime lane binding', () => {
+  it('buffers startup UI, excludes stderr, refreshes successful state mutations and retains unexpected exits', async () => {
+    const status: SessionPush = {
+      kind: 'extension-ui',
+      request: {
+        type: 'extension_ui_request',
+        id: 'status',
+        method: 'setStatus',
+        statusKey: 'test',
+        statusText: 'early',
+      },
+    }
+    const s = setup([
+      ...Array.from({ length: 257 }, (): SessionPush => ({
+        kind: 'stderr',
+        text: 'stderr-secret-sentinel',
+      })),
+      status,
+    ])
+    const session = await s.binding.sessions.start({ repository: machine.repository })
+    const lane = s.saved()
+    await s.binding.sessions.attach(lane.laneId, session.sessionId)
+    const snapshot = live.streams.snapshot(lane.laneId)
+    expect(JSON.stringify(snapshot)).toContain('early')
+    expect(JSON.stringify(snapshot)).not.toContain('stderr-secret-sentinel')
+    for (const command of [
+      { type: 'set_model', provider: 'fake', modelId: 'other' },
+      { type: 'set_thinking_level', level: 'high' },
+      { type: 'set_session_name', name: 'new' },
+    ] satisfies RpcCommand[]) {
+      const refresh = s.runtime.command.mock.calls.filter((c) => c[1].type === 'get_state').length
+      await s.binding.command(session.sessionId, command)
+      await Promise.resolve()
+      expect(s.runtime.command.mock.calls.filter((c) => c[1].type === 'get_state').length).toBe(
+        refresh + 1,
+      )
+    }
+    s.runtime.command.mockClear()
+    await s.binding.command(session.sessionId, { type: 'get_state' })
+    expect(s.runtime.command).toHaveBeenCalledTimes(1)
+    s.push({ kind: 'exit', code: 3, signal: null, expected: false })
+    expect(live.sessionFor(lane.laneId)).toBeNull()
+    expect(live.summaryFor(lane.laneId)?.activity).toBe('failed')
+    expect(live.streams.snapshot(lane.laneId)).not.toBeNull()
+  })
+  it.each([256, 257, 'bytes-limit', 'bytes-over'] as const)(
+    'bounds startup count/bytes at %s and logs only lane identity on overflow',
+    async (size) => {
+      const push: SessionPush = {
+        kind: 'extension-ui',
+        request: {
+          type: 'extension_ui_request',
+          id: 'status',
+          method: 'setStatus',
+          statusKey: 'test',
+          statusText: 'early',
+        },
+      }
+      if (typeof size === 'string' && push.request.method === 'setStatus') {
+        const overhead = Buffer.byteLength(JSON.stringify(push)) - 5
+        push.request.statusText = 'x'.repeat(
+          1024 * 1024 - overhead + (size === 'bytes-over' ? 1 : 0),
+        )
+      }
+      const s = setup(typeof size === 'string' ? [push] : Array.from({ length: size }, () => push))
+      const session = await s.binding.sessions.start({ repository: machine.repository })
+      const lane = s.saved()
+      await s.binding.sessions.attach(lane.laneId, session.sessionId)
+      if (size === 256 || size === 'bytes-limit') {
+        expect(s.log).not.toHaveBeenCalled()
+        if (size === 256)
+          expect(JSON.stringify(live.streams.snapshot(lane.laneId))).toContain('early')
+      } else {
+        expect(s.log).toHaveBeenCalledExactlyOnceWith('host', 'lane.startup_overflow', {
+          laneId: lane.laneId,
+        })
+        expect(JSON.stringify(live.streams.snapshot(lane.laneId))).not.toContain('early')
+      }
+    },
+  )
+  it('stops failed starts, discards their buffer and refuses a resume without a recorded file', async () => {
+    const s = setup()
+    s.runtime.command.mockResolvedValue({
+      type: 'response',
+      command: 'get_state',
+      success: false,
+      error: 'private',
+    })
+    await expect(s.binding.sessions.start({ repository: machine.repository })).rejects.toThrow(
+      'could not start',
+    )
+    expect(s.runtime.stop).toHaveBeenCalledTimes(1)
+    const stopped = s.runtime.stop.mock.calls[0]?.[0]
+    if (!stopped) throw new Error('missing stopped session')
+    await expect(s.binding.sessions.attach(s.saved().laneId, stopped)).rejects.toThrow(
+      'unknown lane start',
+    )
+    await expect(s.binding.resumeLane(s.saved())).rejects.toThrow('could not start')
+    expect(s.runtime.start).toHaveBeenCalledTimes(1)
+  })
+  it('does not refresh a failed mutation and stop receives the runtime id and detaches', async () => {
+    const s = setup()
+    const session = await s.binding.sessions.start({ repository: machine.repository })
+    const lane = s.saved()
+    await s.binding.sessions.attach(lane.laneId, session.sessionId)
+    s.runtime.command.mockClear().mockResolvedValue({
+      type: 'response',
+      command: 'set_model',
+      success: false,
+      error: 'private',
+    })
+    await s.binding.command(session.sessionId, {
+      type: 'set_model',
+      provider: 'fake',
+      modelId: 'other',
+    })
+    expect(s.runtime.command).toHaveBeenCalledTimes(1)
+    await s.binding.stopLane(lane.laneId)
+    expect(s.runtime.stop).toHaveBeenCalledWith(session.sessionId)
+    expect(live.sessionFor(lane.laneId)).toBeNull()
+  })
+  it('creates, streams, stops, reads, resumes and drains a real fake-pi process', async () => {
+    const env = buildPiEnvironment({
+      hostEnv: machine.hostEnv,
+      nodePath: process.execPath,
+      platform: process.platform,
+    }).env
+    const log = createHostLog(join(machine.dir, 'logs'), [])
+    real = createHostRuntime(
+      {
+        pi: { binaryPath: process.execPath, prefixArgs: [machine.cli] },
+        env,
+        roots: [machine.repository],
+        resourceRoot: EXTENSIONS_ROOT,
+        contextBudget: '',
+        log,
+      },
+      { dialogs: 'forward' },
+    )
+    real.life.to('validating')
+    real.life.to('ready')
+    let reader: ReturnType<typeof createUnattachedSnapshots> = () => null
+    live = createLiveLanes({
+      epoch: '0123456789abcdef',
+      store,
+      runtime: real,
+      now: Date.now,
+      log: vi.fn(),
+      unattached: (id) => reader(id),
+    })
+    reader = createUnattachedSnapshots({
+      store,
+      summary: live.summaryFor,
+      cursor: live.streams.cursor,
+      sessionsRoot: join(machine.agentDir, 'sessions'),
+      log: vi.fn(),
+    })
+    const binding = createRuntimeLanes({ runtime: real, store, live, log: log.write })
+    const receipts: Receipt[] = []
+    const commands = createLaneCommands({
+      store,
+      ...binding,
+      runtime: binding,
+      sessionFor: live.sessionFor,
+      openDialogs: live.openDialogs,
+      summaryFor: live.summaryFor,
+      publish: live.publish,
+      deliver: (_id, receipt) => receipts.push(receipt),
+      now: Date.now,
+      log: log.write,
+    })
+    const client = { id: randomUUID(), label: 'Client', caps: ['sessions.control'] as const }
+    await commands.submit(client, {
+      type: 'command',
+      requestId: randomUUID(),
+      op: { type: 'lane.create', repositoryId, worktree: null },
+    })
+    const receipt = receipts.at(-1)
+    if (receipt?.status !== 'done' || !receipt.laneId) throw new Error('missing created lane')
+    const laneId = receipt.laneId
+    const pair = createLoopbackPair()
+    const frames: HostFrame[] = []
+    pair.client.onMessage((text) => {
+      const frame = parseHostFrame(text)
+      if (!frame.ok) throw new Error('invalid frame')
+      frames.push(frame.value)
+    })
+    const subscriptions = createSubscriptions(pair.server, live.streams, live.lanesTopic)
+    subscriptions.handle({ type: 'subscribe', id: 'watch', topic: 'lane', laneId })
+    await commands.submit(client, {
+      type: 'command',
+      requestId: randomUUID(),
+      laneId,
+      fence: 1,
+      op: { type: 'prompt', message: 'hello' },
+    })
+    for (
+      let i = 0;
+      i < 300 &&
+      !frames.some(
+        (f) =>
+          f.type === 'event' &&
+          f.event.kind === 'pi' &&
+          f.event.push.kind === 'event' &&
+          f.event.push.event.type === 'agent_end',
+      );
+      i++
+    )
+      await sleep(10)
+    expect(
+      frames.some(
+        (f) =>
+          f.type === 'event' &&
+          f.event.kind === 'pi' &&
+          f.event.push.kind === 'event' &&
+          f.event.push.event.type === 'agent_end',
+      ),
+    ).toBe(true)
+    const pids = real.list().map((s) => s.pid)
+    await commands.submit(client, {
+      type: 'command',
+      requestId: randomUUID(),
+      laneId,
+      fence: 1,
+      op: { type: 'lane.stop' },
+    })
+    const calls = createLaneCalls({
+      store,
+      live,
+      runtime: real,
+      unattached: reader,
+      now: Date.now,
+      log: log.write,
+    })
+    expect(await calls.call('lane.messages', { laneId })).toMatchObject({
+      ok: true,
+      data: { messages: [{ role: 'user' }, { role: 'assistant' }] },
+    })
+    const recorded = store.getLane(laneId)?.sessionFile
+    if (!recorded) throw new Error('missing recorded file')
+    renameSync(recorded, `${recorded}.saved`)
+    await commands.submit(client, {
+      type: 'command',
+      requestId: randomUUID(),
+      laneId,
+      fence: 1,
+      op: { type: 'lane.resume' },
+    })
+    expect(receipts.at(-1)).toMatchObject({
+      status: 'failed',
+      error: { code: 'internal', message: 'the lane could not start' },
+    })
+    expect(real.list()).toEqual([])
+    renameSync(`${recorded}.saved`, recorded)
+    await commands.submit(client, {
+      type: 'command',
+      requestId: randomUUID(),
+      laneId,
+      fence: 1,
+      op: { type: 'lane.resume' },
+    })
+    expect(receipts.at(-1)).toMatchObject({ status: 'done', fence: 1 })
+    expect(await calls.call('lane.messages', { laneId })).toMatchObject({
+      ok: true,
+      data: { messages: [{ role: 'user' }, { role: 'assistant' }] },
+    })
+    pids.push(...real.list().map((s) => s.pid))
+    const endedBefore = frames.filter(
+      (f) =>
+        f.type === 'event' &&
+        f.event.kind === 'pi' &&
+        f.event.push.kind === 'event' &&
+        f.event.push.event.type === 'agent_end',
+    ).length
+    const sessionId = live.sessionFor(laneId)
+    if (!sessionId) throw new Error('missing resumed session')
+    await binding.command(sessionId, { type: 'prompt', message: 'stream' })
+    for (let i = 0; i < 300 && live.summaryFor(laneId)?.activity !== 'working'; i++) await sleep(10)
+    expect(live.summaryFor(laneId)?.activity).toBe('working')
+    await binding.stopLane(laneId)
+    await Promise.resolve()
+    expect(
+      frames.filter(
+        (f) =>
+          f.type === 'event' &&
+          f.event.kind === 'pi' &&
+          f.event.push.kind === 'event' &&
+          f.event.push.event.type === 'agent_end',
+      ),
+    ).toHaveLength(endedBefore + 1)
+    expect(await calls.call('lane.messages', { laneId })).toMatchObject({
+      ok: true,
+      data: {
+        messages: [
+          { role: 'user' },
+          { role: 'assistant' },
+          { role: 'user' },
+          { role: 'assistant' },
+        ],
+      },
+    })
+    const lane = store.getLane(laneId)
+    if (!lane) throw new Error('missing lane')
+    await binding.resumeLane(lane)
+    pids.push(...real.list().map((s) => s.pid))
+    expect((await real.drain('integration finished')).state).toBe('stopped')
+    await commands.close()
+    subscriptions.close()
+    pair.client.close(1000, 'test finished')
+    expect(real.list()).toEqual([])
+    for (const pid of pids) if (pid !== undefined) expect(isGone(pid)).toBe(true)
+  })
+})
+
+it('attachment waits for the first full refresh', async () => {
+  const s = setup()
+  const session = await s.binding.sessions.start({ repository: machine.repository })
+  const lane = s.saved()
+  let release: (() => void) | undefined
+  const messages = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const command = s.runtime.command.getMockImplementation()
+  if (!command) throw new Error('missing command')
+  s.runtime.command.mockImplementation(async (...args) => {
+    if (args[1].type === 'get_messages') await messages
+    return command(...args)
+  })
+  let attached = false
+  const attachment = s.binding.sessions.attach(lane.laneId, session.sessionId).then(() => {
+    attached = true
+  })
+  for (let i = 0; i < 8; i++) await Promise.resolve()
+  expect(attached).toBe(false)
+  release?.()
+  await attachment
+  expect(attached).toBe(true)
+})

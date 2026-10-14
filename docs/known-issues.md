@@ -187,3 +187,9 @@ means picking one path identity for a session file and using it on both sides.
 | H8  | Per-component cost rows are still missing from the usage popover                                               | `apps/desktop/src/features/chat/composer/` — `ContextMeter`               |
 
 H1 would hold better as an ESLint rule than as another conversion pass.
+
+## Host lanes
+
+| #   | Issue                                                                                                                                                                | Where                                                                 |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| HL1 | A Host lane keeps its original stored session file when an extension moves pi to another file. After stopping, its snapshot and resume still use the old transcript. | `apps/host/src/lanes/runtime-host.ts`, `apps/host/src/lanes/store.ts` |

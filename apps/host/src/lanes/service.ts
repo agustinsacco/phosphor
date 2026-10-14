@@ -1,0 +1,20 @@
+import type { CallErrorCode } from '@phosphor/shared/host-protocol'
+import type { HostCapability } from '@phosphor/shared/remote-host'
+import type { LaneCommandClient, LaneCommandFrame } from './commands'
+import type { LaneStreams, LanesTopic } from './stream'
+
+export interface LaneService {
+  epoch: string
+  capabilities: readonly HostCapability[] // ['sessions.read', 'sessions.control']
+  commands: {
+    submit(client: LaneCommandClient, frame: LaneCommandFrame): Promise<void>
+    status(clientId: string, requestId: string, connectionId?: string): void
+  }
+  calls: { call(method: string, params: unknown): Promise<CallOutcome> }
+  streams: LaneStreams
+  lanesTopic: LanesTopic
+  /** Publishes the current control of every active lane this client controls. */
+  controllerPresence(clientId: string): void
+}
+export type CallOutcome =
+  { ok: true; data: unknown } | { ok: false; error: { code: CallErrorCode; message: string } }

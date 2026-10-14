@@ -10,9 +10,13 @@ import {
 import { helloProofMessage, parseHostFrame, type HostFrame } from '../host-protocol'
 import { createFakeHost } from './fake-host'
 import { createLoopbackPair } from './loopback'
-import { defineHostConformance, type HostConformanceFactory } from './conformance'
+import {
+  defineHostConformance,
+  type ConformanceOptions,
+  type HostConformanceHarness,
+} from './conformance'
 
-const factory: HostConformanceFactory = (limits) => {
+const factory = (limits: Partial<ConformanceOptions>): HostConformanceHarness => {
   const control = generateKeyPairSync('ed25519'),
     host = generateKeyPairSync('ed25519'),
     wrong = generateKeyPairSync('ed25519')
@@ -34,6 +38,7 @@ const factory: HostConformanceFactory = (limits) => {
     exp: Math.floor(Date.now() / 1000) + 300,
     jti: randomBytes(8).toString('hex'),
   }
+  const repositoryId = randomBytes(8).toString('hex')
   const { commandDelayMs, ...hostLimits } = limits
   const driver = createFakeHost({
     expectations: {
@@ -47,11 +52,13 @@ const factory: HostConformanceFactory = (limits) => {
     sign: (bytes) => sign(null, bytes, host.privateKey),
     verify: (bytes, signature, kid) =>
       kid === claims.kid && verify(null, bytes, control.publicKey, signature),
+    repositories: [{ id: repositoryId, name: 'Test repository', path: '/test/repository' }],
     limits: hostLimits,
     commandDelayMs,
   })
   return {
     claims,
+    repositoryId,
     publicKey: raw,
     driver,
     requestId: randomUUID,
@@ -89,7 +96,25 @@ const factory: HostConformanceFactory = (limits) => {
   }
 }
 
-defineHostConformance('fake Host protocol v1', factory)
+defineHostConformance('fake Host protocol v1', async (limits) => {
+  const h = factory(limits)
+  return {
+    ...h,
+    repositoryId: undefined,
+    driver: {
+      ...h.driver,
+      async stop() {
+        await Promise.resolve()
+        expect(vi.isFakeTimers()).toBe(true)
+        h.driver.stop()
+      },
+      async restart() {
+        await Promise.resolve()
+        h.driver.restart()
+      },
+    },
+  }
+})
 
 it('rejects lowered limits that are not positive safe integers or exceed the contract', () => {
   for (const value of [0, -1, 0.5, NaN, Infinity, 65])
@@ -113,7 +138,7 @@ it('bounds stored UI keys while allowing replacement and clearing at capacity', 
       JSON.stringify({
         type: 'command',
         requestId: h.requestId(),
-        op: { type: 'lane.create', repositoryId: '0123456789abcdef', worktree: null },
+        op: { type: 'lane.create', repositoryId: h.repositoryId, worktree: null },
       }),
     )
     await vi.advanceTimersByTimeAsync(0)

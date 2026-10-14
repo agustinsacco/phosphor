@@ -141,3 +141,28 @@ it('ignores synchronous stop errors and still undoes the folder', async () => {
   await expect(createLane(ports(), input)).rejects.toBe(original)
   expect(undo).toHaveBeenCalledTimes(1)
 })
+
+it('closed creation does not store, attach or mark removed, but stops and undoes', async () => {
+  await expect(createLane({ ...ports(), closed: () => true }, input)).rejects.toThrow('closed')
+  expect(order).toEqual(['folder', 'start', 'stop', 'undo'])
+  expect(store.ensureLane).not.toHaveBeenCalled()
+  expect(store.markRemoved).not.toHaveBeenCalled()
+  expect(sessions.attach).not.toHaveBeenCalled()
+})
+it('close after storing skips attach and store rollback, but stops and undoes', async () => {
+  let closed = false
+  await expect(
+    createLane(
+      { ...ports(), closed: () => closed },
+      {
+        ...input,
+        onStored: () => {
+          closed = true
+        },
+      },
+    ),
+  ).rejects.toThrow('closed')
+  expect(order).toEqual(['folder', 'start', 'ensure', 'stop', 'undo'])
+  expect(store.markRemoved).not.toHaveBeenCalled()
+  expect(sessions.attach).not.toHaveBeenCalled()
+})

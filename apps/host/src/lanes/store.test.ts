@@ -108,6 +108,54 @@ describe('Host store ordering and durability', () => {
         ).rejects.toThrow()
     }
   })
+  it('accepts only positive safe integer receipt TTLs no longer than the contract', async () => {
+    for (const receiptTtlMs of [1, HOST_LIMITS.receiptTtlMs]) {
+      const handle = await openStore(join(root, `ttl-${receiptTtlMs}`), uid, { receiptTtlMs })
+      handles.push(handle)
+    }
+    for (const receiptTtlMs of [0, -1, 0.5, NaN, Infinity, HOST_LIMITS.receiptTtlMs + 1])
+      await expect(
+        openStore(join(root, `ttl-${receiptTtlMs}`), uid, { receiptTtlMs }),
+      ).rejects.toThrow()
+  })
+  it('uses the lowered TTL on reads, admission and pruning without aging started receipts', async () => {
+    const handle = await openStore(join(root, 'short-ttl'), uid, {
+      now: () => now,
+      receiptTtlMs: 20,
+    })
+    handles.push(handle)
+    const read = randomUUID(),
+      pruned = randomUUID(),
+      started = randomUUID()
+    for (const requestId of [read, pruned, started])
+      handle.beginRequest(requestId, one.clientId, hash, null)
+    now += 100
+    for (const requestId of [read, pruned])
+      handle.finishRequest(requestId, { requestId, status: 'done' })
+    now += 20
+    handle.pruneReceipts(now)
+    expect(handle.getReceipt(read, one.clientId)).toEqual({ requestId: read, status: 'done' })
+    expect(handle.getReceipt(pruned, one.clientId)).toEqual({ requestId: pruned, status: 'done' })
+    expect(handle.beginRequest(read, one.clientId, hash, null)).toMatchObject({ kind: 'existing' })
+    now++
+    expect(handle.getReceipt(read, one.clientId)).toBeNull()
+    expect(handle.beginRequest(read, one.clientId, hash, null)).toEqual({ kind: 'new' })
+    handle.pruneReceipts(now)
+    expect(handle.getReceipt(pruned, one.clientId)).toBeNull()
+    expect(handle.beginRequest(started, one.clientId, hash, null)).toEqual({
+      kind: 'existing',
+      receipt: { requestId: started, status: 'pending' },
+    })
+    const { DatabaseSync } = await loadSqlite()
+    const db = new DatabaseSync(join(root, 'short-ttl', 'state.sqlite'))
+    try {
+      expect(
+        db.prepare('SELECT request_id FROM receipts WHERE request_id=?').get(pruned),
+      ).toBeUndefined()
+    } finally {
+      db.close()
+    }
+  })
   it('uses stable lane UUIDs across reopen, removal and reappearance', async () => {
     const original = lane()
     expect(original.laneId).toMatch(/^[0-9a-f-]{14}4[0-9a-f-]{21}$/)

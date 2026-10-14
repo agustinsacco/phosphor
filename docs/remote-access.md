@@ -10,8 +10,8 @@ Enrollment is not an execution grant.
 The contract, schema, Host enrollment commands and Desktop approval clients exist.
 `apps/control` is the combined site and API server, but it is not deployed yet.
 It serves enrollment, the machine directory and Host routes, proven end to end
-against a local Supabase stack (`npm run test:control-stack`). There is no
-exposed Host execution API.
+against a local Supabase stack (`npm run test:control-stack`). Control never
+proxies lane contents or execution. The grant-authenticated Host API is separate.
 
 ## Contract and clients
 
@@ -117,9 +117,11 @@ fall through to this machine's filesystem or subprocesses.
 `libs/shared/src/host-protocol.ts` defines protocol v1, its allowlist, parsers
 and limits. The Host serves hello and grant authentication on `/v1/hello`
 and `/v1/stream`, on loopback port 47615 (configurable as `api.port`). It
-announces no capabilities and serves no lanes yet. The contract kit runs auth
-scenarios against the real connection and lane scenarios against an in-memory
-fake Host. Tailscale Serve can expose the loopback listener, never Funnel.
+announces session capabilities only when supplied a lane service. Without it,
+the API remains authentication-only. The network adapter multiplexes authenticated
+subscriptions, commands, receipt status and calls over each socket. Adapter tests
+use a fake lane service and loopback sockets; the contract kit runs auth scenarios
+against the real connection and lane scenarios against an in-memory fake Host. Tailscale Serve can expose the loopback listener, never Funnel.
 [Host API](host.md#api) owns its admission, limits and close codes. [Trust boundary](#trust-boundary) and
 [Host machine identity](host.md#machine-identity) apply to this protocol too.
 
@@ -146,7 +148,13 @@ repeat the action with a new id. A pi command unanswered after 30 seconds become
 unknown; a later completion cannot replace it or send another terminal receipt.
 
 `HOST_LIMITS` caps inbound frames at 8 MiB, outbound frames at 16 MiB,
-subscriptions at 64 per socket and pending commands at 32 per socket. Replay,
+subscriptions at 64 per socket, pending commands and in-flight calls at 32 per
+socket, and receipt interest at 64 ids. Excess commands are rejected without
+submission; excess calls close 4429. The oldest status interest is dropped first.
+Execution receipts fan out only to interested sockets of the originating client;
+attempt replies are socket-local and conflicts leave the original interest intact.
+Losing read capability on renewal ends subscriptions and suppresses outstanding
+call answers. A later regain permits new subscriptions. Replay,
 queues, UI keys and receipt retention are bounded too. Oversize subscriptions
 end with `too-large`, not a closed socket; oversize call results answer
 `too-large`. Replay stops when an oversized event becomes a reset snapshot or the
@@ -289,8 +297,9 @@ The locks are process-local. The Host's entry point is the `phosphor` CLI
 acceptance sessions on it. It composes the session runtime with its own
 adapters. Its control commands make outbound requests. `run` also opens a
 loopback API after learning its owner and epoch from a heartbeat. The API
-authenticates grants but does not expose the lane services yet. There is no
-network lane execution, snapshot/replay or controller lease implementation. A Host supplies its own machine adapters and authorization: it
+authenticates grants. Its adapter routes lane frames only when composition supplies
+a lane service with the same process epoch. A Host supplies its own machine
+adapters and authorization: it
 builds pi's environment from its own config and never accepts spawn
 environment or executable inputs from a caller. No local daemon or login is
 required.

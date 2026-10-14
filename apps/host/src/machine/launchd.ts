@@ -47,6 +47,7 @@ export function launchAgentPlist(
 <key>EnvironmentVariables</key><dict><key>PATH</key><string>${xml(path)}</string></dict>
 <key>RunAtLoad</key><true/>
 <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+<key>ExitTimeOut</key><integer>30</integer>
 <key>ThrottleInterval</key><integer>10</integer>
 <key>ProcessType</key><string>${xml('Background')}</string>
 <key>StandardOutPath</key><string>${xml('/dev/null')}</string>

@@ -580,10 +580,28 @@ at `exp + 60 seconds`, matching the signature clock skew. Heartbeat revocations
 close matching sockets; a changed owner or epoch or removal closes all sockets.
 Missing heartbeat fields do not erase authority or revocations.
 
-There are no announced capabilities and no lanes served yet. Subscriptions and
-commands are forbidden; calls are unsupported. Client protocol pings receive
-pongs. WebSocket control pings keep the transport alive but do not reset the
-60-second text-frame idle deadline. There are at most 64 sockets and four per
+With a lane service wired, hello announces `sessions.read` and `sessions.control`.
+Ready capabilities are the intersection of Host and grant capabilities.
+`sessions.read` admits subscriptions and the six read-only lane calls;
+`sessions.control` admits commands. Receipt status is client-scoped and needs
+neither capability. Without a lane service, no capabilities are announced:
+subscriptions and commands are forbidden and calls are unsupported. Losing read
+permission on renewal ends subscriptions; regaining it permits new subscriptions.
+A call answered after read permission is lost or the socket closes is not sent.
+
+Each socket holds at most 32 unanswered commands and 32 in-flight calls.
+Another command answers `rejected too-many-requests` without executing; another
+call closes 4429. Receipt interest is capped at 64 ids, dropping the oldest status
+interest first. Execution terminals reach every interested socket of that client
+once. Attempt replies, including conflicts, go only to the requesting socket;
+a conflict does not settle interest in the original execution. A repeated finished
+command still answers with its recorded receipt. Controller presence changes only
+at the client's first ready socket and last close, without changing its fence.
+Oversize call results answer `too-large`, not a socket close.
+
+Client protocol pings receive pongs. WebSocket control pings keep the transport
+alive but do not reset the 60-second text-frame idle deadline. There are at most
+64 sockets and four per
 client. Up to 16 excess sockets get a close frame, then further upgrades get
 HTTP 429. Closing sockets count until closed or terminated after two seconds.
 At most 80 TCP sockets are accepted, including sockets that have not upgraded.
@@ -591,15 +609,15 @@ HTTP headers and requests time out after ten seconds, checked each second.
 Drain closes upgraded sockets and destroys remaining TCP sockets before releasing
 the run lock.
 
-| Close code | Meaning                                                                        |
-| ---------- | ------------------------------------------------------------------------------ |
-| 1001       | Host stopping                                                                  |
-| 4400       | Malformed or oversize frame; binary frame after auth                           |
-| 1009       | Transport rejects an oversize frame; the Host may log 1006 for that close      |
-| 4401       | Auth missing, invalid, expired or not yet valid; idle client                   |
-| 4403       | Wrong authority, revoked grant or renewal identity change                      |
-| 4409       | Unsupported protocol version                                                   |
-| 4429       | Too many connections or queued bytes; HTTP 429 during an upgrade is equivalent |
+| Close code | Meaning                                                                               |
+| ---------- | ------------------------------------------------------------------------------------- |
+| 1001       | Host stopping                                                                         |
+| 4400       | Malformed or oversize frame; binary frame after auth                                  |
+| 1009       | Transport rejects an oversize frame; the Host may log 1006 for that close             |
+| 4401       | Auth missing, invalid, expired or not yet valid; idle client                          |
+| 4403       | Wrong authority, revoked grant or renewal identity change                             |
+| 4409       | Unsupported protocol version                                                          |
+| 4429       | Too many calls, connections or queued bytes; HTTP 429 during an upgrade is equivalent |
 
 API logs contain event names, connection and client ids, close codes, durations
 and ports. They never contain grants, signatures, challenges, proofs, keys or
@@ -706,8 +724,8 @@ On macOS, the same commands manage the per-user LaunchAgent
 `~/Library/LaunchAgents/com.saccolabs.phosphor-host.plist`. Install requires an
 enrolled identity, writes the plist atomically at 0644, unloads any old job,
 bootstraps it in `gui/<uid>` and starts it. It starts at login and restarts after
-a crash, with a 10-second throttle. No root or linger is needed. The plist pins
-node, bundle and config paths and captures only PATH, with node's directory first.
+a crash, with a 10-second throttle. It allows 30 seconds for shutdown. No root or
+linger is needed. The plist pins node, bundle and config paths and captures only PATH, with node's directory first.
 Strings are XML-escaped; relative paths and control characters are refused.
 
 The LaunchAgent runs `run --supervisor launchd`. Only this supervisor value is
@@ -954,7 +972,9 @@ sessions run, a signal drains them first ([Lifecycle](#lifecycle)).
 
 `session/runtime.ts` composes the session runtime for this machine:
 `createHostRuntime` takes what doctor validated and binds every port the
-library asks for. `accept` is its only caller.
+library asks for. `accept` and `run` share doctor's machine inspection. If `run`
+cannot build a usable machine, heartbeat and authentication keep running without
+a lane service. It logs only `lanes.unavailable` with a fixed reason token.
 
 - **One service, one lock domain.** Starts, resumes and deletions go through
   the library's service and deletion, which share one registry and one
@@ -964,7 +984,7 @@ library asks for. `accept` is its only caller.
   no answer. The request still reaches delivery. With `dialogs: 'forward'`,
   the runtime leaves requests open for controller answers through
   `extensionUiResponse` and logs only the method. `accept` keeps the default;
-  serving lanes over the [API](#api) arrives with component 21b.
+  `run` opts into forwarding for its lane service.
 - **pi as pinned.** pi starts from `pi.node` and `pi.executable`, never a stub,
   with exactly the environment built above plus `PI_CLAUDE_CLI_CONTEXT=pi`:
   nothing the Host inherited reaches it. It loads the seven extensions from
@@ -976,6 +996,32 @@ library asks for. `accept` is its only caller.
   routines and no recents.
 - **The same git.** Creating the runtime sets the Host's own PATH to pi's, so
   the git the Host asks about a repository is the git pi runs.
+
+### Lane runtime
+
+`run` composes live lanes, commands and read-only calls over one runtime and one
+store. It mints one epoch for the streams and API. The API adapter owns receipt
+delivery and controller presence; composition supplies deferred ports for them.
+
+`lanes/runtime-host.ts` buffers startup pushes until creation knows the lane id,
+at most 256 pushes and 1 MiB per start. Overflow discards the whole buffer and
+logs only the lane id. Attachment replays the buffer and waits for the first full
+refresh, which resets viewers. Failed creation discards the buffer. Stopping a
+lane stops its runtime session and detaches it. An unexpected exit keeps the
+failed projection. Successful model, thinking and name changes refresh state.
+
+Resume uses the stored cwd and session file, never a fresh transcript. A missing
+or null recorded file fails to start. The stored file is not followed if an
+extension moves pi to another file ([known issue](known-issues.md#host-lanes)).
+
+`lanes/calls.ts` allows only repositories, state, messages, stats, models and
+commands. Params must be an object; lane queries require a UUID lane id and
+ignore other keys. Removed or unknown lanes fail. Stopped state is null; stopped
+messages use the same reader as snapshots, including an empty result for a file
+not written yet. Other stopped queries fail `lane-stopped`. Reader failures are
+`internal` or `too-large`; live RPC failure, invalid shape or a 30-second deadline
+is `internal` with fixed text. No pi error or stack leaves this query boundary.
+Capabilities, concurrent-call bounds and frame sizing belong to the API adapter.
 
 ### Creating lanes
 
@@ -1147,6 +1193,14 @@ under way and the last check then share one more second, so a drain returns
 within 16 s. It counts the sessions, the turns saved and the turns that did not
 end in time, and it ends `failed` on a cleanup error, at the deadline, or with a
 group left; otherwise `stopped`.
+
+`run` starts API shutdown first, closing sockets with 1001 before waiting for
+pi. Heartbeat and runtime drain concurrently. Then commands close, live lanes
+close, the store closes and the run lock releases. Command close refuses new
+work, discards queued work and waits up to 2 seconds for any tail left after
+runtime drain. Late callbacks skip publication and store writes. A second signal
+forces runtime drain immediately. Start-up signals still abort reconciliation
+and release the run lock without publishing a heartbeat.
 
 accept drains when it finishes. A signal drains the sessions of a running accept
 first, then exits 128 + its number, or 70 if the drain failed; a second signal

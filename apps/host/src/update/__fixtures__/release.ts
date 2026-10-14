@@ -81,6 +81,8 @@ export function fixture() {
   symlinkSync(join(lib, 'current/bin/phosphor'), join(home, '.local/bin/phosphor'))
   const context: UpdateContext = {
     home,
+    nodeVersion: process.versions.node,
+    defaultResourceRoot: '/unused',
     env: { PHOSPHOR_HOST_RELEASE_URL: pathToFileURL(assets).href },
     uid: process.getuid?.(),
     hostname: 'test-host',

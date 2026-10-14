@@ -35,6 +35,7 @@ type Command = Extract<ClientFrame, { type: 'command' }>
 interface Lane {
   summary: LaneSummary
   thinkingLevel: ThinkingLevel
+  sessionId: string
   seq: number
   events: { cursor: StreamCursor; event: LaneEvent; bytes: number }[]
   replayBytes: number
@@ -60,7 +61,7 @@ interface Stored {
   clientId: string
   hash: string
   receipt: Receipt
-  at: number
+  finishedAt?: number
 }
 export interface FakeHostOptions {
   expectations: Omit<GrantExpectations, 'revokedSessions' | 'revokedClients'>
@@ -113,7 +114,7 @@ export function createFakeHost(options: FakeHostOptions) {
   }
   function prune() {
     for (const [id, r] of receipts)
-      if (Date.now() - r.at >= limits.receiptTtlMs && r.receipt.status !== 'pending') forget(id)
+      if (r.finishedAt !== undefined && Date.now() - r.finishedAt > limits.receiptTtlMs) forget(id)
     const finished = [...receipts].filter(([, r]) => r.receipt.status !== 'pending')
     for (const [id] of finished.slice(0, Math.max(0, finished.length - limits.receiptsKept)))
       forget(id)
@@ -204,7 +205,7 @@ export function createFakeHost(options: FakeHostOptions) {
         lane.summary.activity === 'stopped' || lane.summary.activity === 'failed'
           ? null
           : {
-              sessionId: lane.summary.laneId,
+              sessionId: lane.sessionId,
               thinkingLevel: lane.thinkingLevel,
               isStreaming: lane.summary.activity === 'working',
               isCompacting: false,
@@ -302,6 +303,7 @@ export function createFakeHost(options: FakeHostOptions) {
     publish(lane, { kind: 'pi', push: { kind: 'event', event } })
   }
   function turn(lane: Lane) {
+    const messageCount = lane.messages.length
     lane.summary = { ...lane.summary, activity: 'working' }
     summary(lane)
     push(lane, { type: 'agent_start' })
@@ -326,9 +328,13 @@ export function createFakeHost(options: FakeHostOptions) {
     lane.pending.length = 0
     lane.summary = { ...lane.summary, activity: 'idle' }
     notify(lane, 'finished')
+    return { messages: lane.messages.length - messageCount, turns: 1 }
   }
   function deliver(requestId: string, stored: Stored) {
-    if (stored.receipt.status !== 'pending') prune()
+    if (stored.receipt.status !== 'pending') {
+      stored.finishedAt ??= Date.now()
+      prune()
+    }
     for (const c of connections)
       if (
         c.grant?.client.id === stored.clientId &&
@@ -383,7 +389,6 @@ export function createFakeHost(options: FakeHostOptions) {
       clientId: grant.client.id,
       hash,
       receipt: { requestId: f.requestId, status: 'pending' },
-      at: Date.now(),
     }
     receipts.set(f.requestId, stored)
     c.wanted.add(f.requestId)
@@ -432,6 +437,7 @@ export function createFakeHost(options: FakeHostOptions) {
           },
         },
         thinkingLevel: f.op.thinkingLevel === undefined ? 'off' : thinkingLevel(f.op.thinkingLevel),
+        sessionId: options.id(),
         seq: 0,
         events: [],
         replayBytes: 0,
@@ -850,7 +856,7 @@ export function createFakeHost(options: FakeHostOptions) {
       })
     },
     emitTurn(id: string) {
-      turn(lane(id))
+      return turn(lane(id))
     },
     emitUi(id: string, request: ExtensionUIRequest) {
       const l = lane(id)
@@ -926,8 +932,10 @@ export function createFakeHost(options: FakeHostOptions) {
       for (const timer of timers) clearTimeout(timer)
       timers.clear()
       for (const r of receipts.values())
-        if (r.receipt.status === 'pending')
+        if (r.receipt.status === 'pending') {
           r.receipt = { requestId: r.receipt.requestId, status: 'unknown' }
+          r.finishedAt = Date.now()
+        }
       for (const l of lanes.values()) {
         l.seq = 0
         l.events.length = 0

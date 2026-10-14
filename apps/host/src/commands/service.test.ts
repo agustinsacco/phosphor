@@ -31,6 +31,8 @@ function fixture() {
   const context: ServiceContext = {
     ...machine.context,
     home: machine.root,
+    nodeVersion: process.versions.node,
+    defaultResourceRoot: '/unused',
     env: {
       XDG_CONFIG_HOME: join(machine.root, 'xdg'),
       PATH: '/custom/bin:/bin',

@@ -86,6 +86,9 @@ const messages = existsSync(sessionFile)
       .map((line) => JSON.parse(line))
       .flatMap((entry) => (entry.type === 'message' ? [entry.message] : []))
   : []
+let lastEntryId = existsSync(sessionFile)
+  ? (JSON.parse(readFileSync(sessionFile, 'utf8').trim().split('\n').at(-1)).id ?? null)
+  : null
 const extensions = args.flatMap((arg, at) => (arg === '-e' ? [args[at + 1]] : []))
 const breakdown = extensions.some((path) => path.endsWith('/context-breakdown.ts'))
 
@@ -147,10 +150,12 @@ function save(user, reply) {
     appendFileSync(sessionFile, header() + '\n')
   }
   for (const message of [{ role: 'user', content: user }, reply]) {
+    const entryId = randomUUID()
     appendFileSync(
       sessionFile,
-      JSON.stringify({ type: 'message', id: randomUUID(), message }) + '\n',
+      JSON.stringify({ type: 'message', id: entryId, parentId: lastEntryId, message }) + '\n',
     )
+    lastEntryId = entryId
     messages.push(message)
   }
 }
@@ -225,22 +230,25 @@ function prompt(message) {
 }
 
 /** What get_state reports. */
+let selectedModel
+let selectedThinking
+let selectedName
 function state() {
   return {
-    model: {
+    model: selectedModel ?? {
       // Like pi, it takes --provider only together with --model.
       provider: process.env.PI_FAKE_PROVIDER ?? (flag('--model') && flag('--provider')) ?? 'fake',
       id: process.env.PI_FAKE_MODEL ?? flag('--model') ?? 'fake-model',
       contextWindow: 200000,
     },
-    thinkingLevel: flag('--thinking') ?? 'off',
+    thinkingLevel: selectedThinking ?? flag('--thinking') ?? 'off',
     isStreaming: streaming !== null,
     isCompacting: false,
     steeringMode: 'all',
     followUpMode: 'one-at-a-time',
     sessionFile,
     sessionId: id,
-    sessionName: flag('-n'),
+    sessionName: selectedName ?? flag('-n'),
     autoCompactionEnabled: true,
     messageCount: messages.length,
     pendingMessageCount: 0,
@@ -329,6 +337,31 @@ function handle(cmd) {
           breakdown && process.env.FAKE_PI_HIDE !== 'budget'
             ? [{ name: 'phosphor-context-budget', source: 'extension', sourceInfo: {} }]
             : [],
+      })
+    case 'set_model':
+      selectedModel = { provider: cmd.provider, id: cmd.modelId, contextWindow: 200000 }
+      return respond(cmd, selectedModel)
+    case 'set_thinking_level':
+      selectedThinking = cmd.level
+      return respond(cmd)
+    case 'set_session_name':
+      selectedName = cmd.name
+      return respond(cmd)
+    case 'compact':
+      return respond(cmd, { summary: 'compacted', firstKeptEntryId: '', tokensBefore: 0 })
+    case 'get_available_models':
+      return respond(cmd, { models: [state().model] })
+    case 'get_session_stats':
+      return respond(cmd, {
+        sessionId: id,
+        sessionFile,
+        userMessages: messages.filter((m) => m.role === 'user').length,
+        assistantMessages: messages.filter((m) => m.role === 'assistant').length,
+        toolCalls: 0,
+        toolResults: 0,
+        totalMessages: messages.length,
+        tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        cost: 0,
       })
     case 'get_messages':
       return respond(cmd, { messages })
