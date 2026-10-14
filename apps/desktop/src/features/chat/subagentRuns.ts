@@ -69,6 +69,8 @@ export type SubagentCall =
       kind: 'launch'
       agent?: string
       task?: string
+      /** The model the parent asked for, e.g. `openai-codex/gpt-6.1-sol:medium`. Unset: the agent's default. */
+      model?: string
       /** Detached: the tool returns at once and the run reports back later. */
       async: boolean
       /** Legacy inline script or script path, preserved for old transcripts. */
@@ -76,7 +78,7 @@ export type SubagentCall =
       /** A named workflow resource. */
       workflow?: string
       /** `tasks` (parallel) or `chain` entries, by the native step index. */
-      tasks?: { agent?: string; task?: string }[]
+      tasks?: { agent?: string; task?: string; model?: string }[]
     }
   | { kind: 'manage'; action: string; target?: string; topic?: string }
 
@@ -95,11 +97,16 @@ export function subagentCall(args: Rec | undefined): SubagentCall {
   // line up with its entries, so it binds no prompt by index at all.
   const tasks = entries.some((entry) => 'parallel' in (rec(entry) ?? {}))
     ? []
-    : entries.map((entry) => ({ agent: str(rec(entry)?.agent), task: str(rec(entry)?.task) }))
+    : entries.map((entry) => ({
+        agent: str(rec(entry)?.agent),
+        task: str(rec(entry)?.task),
+        model: str(rec(entry)?.model),
+      }))
   return {
     kind: 'launch',
     agent: str(args?.agent),
     task: str(args?.task),
+    model: str(args?.model),
     async: args?.async === true,
     script: str(args?.workflowScript) ?? str(args?.workflowScriptPath),
     workflow: args?.workflow === true ? 'inline workflow' : str(args?.workflow),

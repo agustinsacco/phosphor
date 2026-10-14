@@ -160,6 +160,16 @@ const STATE_WORDS: Record<string, string> = {
 }
 export const stateWord = (state: string): string => STATE_WORDS[state] ?? state
 
+/**
+ * `openai-codex/gpt-6.1-sol:medium` reads `gpt-6.1-sol:medium`: the provider is
+ * noise in a row, the thinking suffix is not. A list keeps its commas.
+ */
+export const modelLabel = (model: string): string =>
+  model
+    .split(', ')
+    .map((m) => m.slice(m.lastIndexOf('/') + 1))
+    .join(', ')
+
 export interface SupervisorHandoff {
   kind?: 'tool-result' | 'notification'
   input?: string

@@ -1,7 +1,7 @@
 import { TooltipButton } from '@/components/Tooltip'
 import clsx from 'clsx'
 import type { WorkEntry } from './currentWork'
-import { activityParts, elapsed, stateWord, workTime } from './subagentPresentation'
+import { activityParts, elapsed, modelLabel, stateWord, workTime } from './subagentPresentation'
 import { shortId } from './subagentRuns'
 
 /** Section labels above groups of rows, in the app's eyebrow style. */
@@ -56,6 +56,7 @@ export function SubagentWorkRow({
         : stateWord(entry.state)
   const context = [
     title !== entry.label && entry.label,
+    entry.model && modelLabel(entry.model),
     !grouped && entry.group && entry.childId && `in ${entry.group.label}`,
   ]
     .filter(Boolean)
@@ -76,10 +77,10 @@ export function SubagentWorkRow({
       onClick={onClick}
       aria-label={label}
       aria-pressed={selected}
-      aria-description={`${title}. ${when}. ${entry.runId ?? entry.id}`}
+      aria-description={`${title}. ${when}.${entry.model ? ` ${entry.model}.` : ''} ${entry.runId ?? entry.id}`}
       tooltip={{
         label: title.length > 120 ? `${title.slice(0, 119)}…` : title,
-        description: `${when} · ${entry.runId ?? entry.id}`,
+        description: `${when} · ${entry.model ? `${entry.model} · ` : ''}${entry.runId ?? entry.id}`,
       }}
       className="text-text hover:bg-bg aria-pressed:bg-accent-soft flex w-full min-w-0 items-start gap-2 rounded-md px-2 py-1.5 text-left focus-visible:outline-2 focus-visible:outline-accent"
     >

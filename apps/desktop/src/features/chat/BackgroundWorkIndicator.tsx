@@ -19,7 +19,7 @@ const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n =
 function CurrentWorkSummary({ sessionId }: { sessionId: string }): React.JSX.Element {
   const [expanded, setExpanded] = useState(false)
   const detailsId = useId()
-  const { entries, incomplete, lastSeen } = useCurrentWork(sessionId)
+  const { entries, incomplete, lastSeen, statusPaused } = useCurrentWork(sessionId)
   const parentRunning = useChatStore(
     (s) => !!(s.sessions[sessionId]?.isStreaming || s.sessions[sessionId]?.isCompacting),
   )
@@ -45,10 +45,16 @@ function CurrentWorkSummary({ sessionId }: { sessionId: string }): React.JSX.Ele
   }
   if (!entries.length && !incomplete) return <></>
 
+  // "No agents working" is a claim; with unreported agents it is not one we can make.
   const headline = [
-    active > 0 ? `${plural(active, 'agent')} working` : 'No agents working',
+    active > 0
+      ? `${plural(active, 'agent')} working`
+      : unknown.length > 0
+        ? plural(unknown.length, 'agent')
+        : 'No agents working',
     attention > 0 && `${attention} ${attention === 1 ? 'needs' : 'need'} parent attention`,
-    unknown.length > 0 && `${unknown.length} status unavailable`,
+    unknown.length > 0 &&
+      (active > 0 ? `${unknown.length} status unavailable` : 'status unavailable'),
     incomplete && 'snapshot incomplete',
   ]
     .filter(Boolean)
@@ -137,6 +143,8 @@ function CurrentWorkSummary({ sessionId }: { sessionId: string }): React.JSX.Ele
           {(unknown.length > 0 || incomplete) && (
             <p className="text-text-secondary px-2 py-1 text-sm">
               {unknown.length > 0 && 'Status unavailable means no current report, not finished. '}
+              {statusPaused &&
+                'pi-subagents stops reporting background work after an automatic compaction, until this parent turn ends. '}
               {incomplete && 'Some work was left out of the snapshot. '}
               {lastSeen && `Last report ${new Date(lastSeen).toLocaleTimeString()}.`}
             </p>

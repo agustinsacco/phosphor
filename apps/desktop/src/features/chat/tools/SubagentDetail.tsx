@@ -11,6 +11,7 @@ import {
   type SubagentAgentInfo,
   type SubagentChild,
 } from '../subagentRuns'
+import { modelLabel as modelName } from '../subagentPresentation'
 import { Markdown } from '@/components/markdown/Markdown'
 import { ChevronIcon } from '@/components/icons'
 import { formatCost, formatDuration, formatTokens } from '@/lib/format'
@@ -73,6 +74,11 @@ export function SubagentDetail({ tool }: { tool: ToolState }): React.JSX.Element
           {run.runId && (
             <span className="text-text-tertiary font-mono text-sm" data-tooltip={run.runId}>
               {shortId(run.runId)}
+            </span>
+          )}
+          {call.model && (
+            <span className="text-text-tertiary font-mono text-sm" data-tooltip={call.model}>
+              · {modelName(call.model)}
             </span>
           )}
           {run.timeoutMs !== undefined && (
@@ -214,9 +220,6 @@ function statusTone(status: SubagentChild['status']): string {
       return 'text-text-tertiary'
   }
 }
-
-/** `openai-codex/gpt-6-astra` → `gpt-6-astra`. */
-const modelName = (model: string): string => model.slice(model.lastIndexOf('/') + 1)
 
 function ChildCard({
   child,

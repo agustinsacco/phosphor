@@ -4946,7 +4946,7 @@ test('recorded workflow completions and attention stay visible, attributable and
     await page.getByText('Toggle artifacts pane', { exact: true }).click()
     await expect(background).toBeInViewport()
     for (const [message, expected] of [
-      ['/stub-hide-workflow-status', '2 status unavailable'],
+      ['/stub-hide-workflow-status', '2 agents · status unavailable'],
       ['/stub-restore-workflow-status', '2 agents working'],
     ]) {
       const response = await page.evaluate(async (message) => {

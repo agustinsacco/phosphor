@@ -374,10 +374,15 @@ scout · grep`) and which is **never printed as widget lines**
   finishes. A call naming several tasks is titled by their count. Titles are
   display only: identity always comes from native run IDs, and a row's
   accessible name starts with its title. Line two is the agent (when the title
-  is a prompt), `in <run>` outside its group, its current tool and how long it
+  is a prompt), its model, `in <run>` outside its group, its current tool and how long it
   has been open, else `working`, or `quiet 40s` after 15 seconds without a
   report, then the reported tool count and `#<run>`. A long tool name truncates;
-  its duration and the counts do not, and the run ID gives way first. Each
+  its duration and the counts do not, and the run ID gives way first. The model
+  is the one a foreground child reports running on, else the one the launch
+  asked for (a step's own `model`, then the call's), with the provider dropped
+  (`gpt-6.1-sol:medium`); the tooltip, the panel header and the background launch
+  note keep the full ID. A launch that names none uses the agent's default,
+  which neither the snapshot nor the completion reports, so no model is shown. Each
   step's prompt binds by its native index
   for parallel and plain chains; a chain with nested parallel groups binds none,
   and a workflow prompt is never a child's task. Both lines are fixed height, so
@@ -396,6 +401,16 @@ scout · grep`) and which is **never printed as widget lines**
   the composer to a child.
   Missing, malformed or later-omitted snapshots retain bounded, memory-only
   evidence (up to 40 roots) as **status unavailable**, not live work or completion.
+  With nothing working, the headline then counts agents, not "No agents working".
+  One transcript fact stands in for a missing report: an unanswered
+  `subagent_supervisor_request` for that exact run ID, received during the
+  current parent run (no `subagent_supervisor` reply naming its request ID), shows **waiting for reply** on `contact_supervisor`,
+  counted as working and needing parent attention, as pi-subagents itself
+  reports a blocked child. A live snapshot always wins over it. pi-subagents
+  withdraws its snapshot when an automatic compaction starts and republishes it
+  only when a parent turn starts or settles, so after a mid-turn compaction no
+  background status arrives for the rest of that turn
+  ([known-issues.md](known-issues.md) M7); the summary says so while it applies.
   The last report time and incomplete snapshots are qualified. Exact
   native terminal notices can settle missing status; names and artifact paths
   cannot. Closing the session clears this cache, and restarting never restores
