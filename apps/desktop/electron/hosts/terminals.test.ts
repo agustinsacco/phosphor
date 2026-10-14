@@ -585,3 +585,42 @@ it('accepts the 64 KiB boundary and refuses concurrent input without retaining i
   expect(input.map((f) => f.seq)).toEqual(Array.from({ length: 16 }, (_, i) => i + 1))
   t.connection.close()
 })
+it('an unaccepted input refuses further input until a fresh reset', async () => {
+  const t = await setup(),
+    id = await t.create()
+  await t.attach(id)
+  t.noAck()
+  t.pauseReset()
+  const writing = t.route('pty:write', id, 'lost')
+  await drain()
+  await vi.advanceTimersByTimeAsync(5000)
+  await writing
+  const before = t.frames.length
+  await expect(t.route('pty:write', id, 'next')).rejects.toThrow('Read-only')
+  expect(t.frames.slice(before).filter((f) => f.type === 'terminal.input')).toEqual([])
+  t.connection.close()
+})
+it('a Host restart never rebinds a terminal, even before reconcile runs', async () => {
+  const t = await setup(),
+    id = await t.create()
+  await t.attach(id)
+  t.emit.mockClear()
+  await t.reconnect(true)
+  await drain()
+  const before = t.frames.length
+  await expect(t.route('pty:write', id, 'after restart')).rejects.toThrow('Not available')
+  expect(t.frames.slice(before).filter((f) => f.type === 'terminal.input')).toEqual([])
+  expect(t.emit.mock.calls.filter((c) => String(c[1]).startsWith('pty:data:'))).toEqual([])
+  t.connection.close()
+})
+it('another window cannot receive an existing terminal identity from create', async () => {
+  const t = await setup(),
+    id = await t.create()
+  await t.attach(id)
+  const routed = t.bridge.route(2, 'pty:create', [`host:${t.lane.laneId}/repo`, 80, 24, 'session'])
+  if (!routed) throw new Error('Not routed')
+  const pending = routed.result
+  await drain()
+  await expect(pending).rejects.toThrow('Not available')
+  t.connection.close()
+})
