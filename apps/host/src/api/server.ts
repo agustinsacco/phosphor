@@ -14,6 +14,8 @@ import type { HostHello } from '@phosphor/shared/remote-host'
 import type { Authority } from './authority'
 import { createKeyset } from './keyset'
 import { createConnection, hostProof, type ApiLog, type ConnectionPorts } from './connection'
+import type { LaneService } from '../lanes/service'
+import { createLaneAdapter } from './lanes'
 
 export const API_LIMITS = {
   connections: 64,
@@ -51,6 +53,8 @@ export function startApi(options: {
   origin: string
   hostId: string
   hostVersion: string
+  runtimeEpoch?: string
+  lanes?: LaneService
   key: KeyObject
   port?: number
   fetch?: typeof fetch
@@ -89,12 +93,20 @@ export function startApi(options: {
   }
   const port = options.port ?? HOST_API_PORT
   if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('Invalid API port')
+  const runtimeEpoch =
+    options.runtimeEpoch ?? options.lanes?.epoch ?? randomBytes(8).toString('hex')
+  if (
+    !/^[0-9a-f]{16}$/.test(runtimeEpoch) ||
+    (options.lanes && options.lanes.epoch !== runtimeEpoch)
+  )
+    throw new Error('Invalid runtime epoch')
+  const adapter = options.lanes ? createLaneAdapter(options.lanes, { log: options.log }) : undefined
   const hello: HostHello = {
     hostId: options.hostId,
     hostVersion: options.hostVersion,
     protocolVersion: HOST_PROTOCOL_VERSION,
-    runtimeEpoch: randomBytes(8).toString('hex'),
-    capabilities: [],
+    runtimeEpoch,
+    capabilities: [...(options.lanes?.capabilities ?? [])],
   }
   const keyset = createKeyset(options.origin, options.fetch)
   const raw = new Set<Socket>()
@@ -232,6 +244,7 @@ export function startApi(options: {
       ws.on('ping', (data) => controlFrame(data))
       const connection = createConnection({
         ...options.ports,
+        handler: adapter?.handler,
         socket,
         ping: () => controlFrame(),
         limits: options.connectionLimits,
@@ -276,6 +289,8 @@ export function startApi(options: {
   const unsubscribe = options.authority.onChange(listen)
   listen()
   return {
+    deliver: adapter?.deliver ?? (() => {}),
+    isConnected: adapter?.isConnected ?? (() => false),
     async stop() {
       stopped = true
       unsubscribe()

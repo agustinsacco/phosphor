@@ -54,6 +54,7 @@ describe('launchd', () => {
     expect(text).toContain('<string>--supervisor</string><string>launchd</string>')
     expect(text).toContain('<key>SuccessfulExit</key><false/>')
     expect(text).toContain('<key>ThrottleInterval</key><integer>10</integer>')
+    expect(text).toContain('<key>ExitTimeOut</key><integer>30</integer>')
     expect(text).toContain('<key>RunAtLoad</key><true/>')
     expect(text).toContain('<key>ProcessType</key><string>Background</string>')
     expect(text).toContain('<key>StandardOutPath</key><string>/dev/null</string>')

@@ -1,6 +1,6 @@
 import { createAuthority } from '../api/authority'
 import { startApi } from '../api/server'
-import { randomInt } from 'node:crypto'
+import { randomBytes, randomInt } from 'node:crypto'
 import { parseHeartbeatResponse } from '@phosphor/shared/control-api'
 import { healthWriter } from '../update/health'
 import { piSessionsRoot } from '@phosphor/session-runtime/pi/pi-paths'
@@ -34,6 +34,18 @@ import { HOST_VERSION } from '../version'
 import { hostStateDirectory, StateFailure } from '../lanes/state-dir'
 import { openStore, type HostStore } from '../lanes/store'
 import { reconcile } from '../lanes/reconcile'
+import { inspectHost } from './doctor'
+import { createHostLog, hostLogDirectory } from '../machine/log'
+import { createHostRuntime, type HostRuntime } from '../session/runtime'
+import { createLiveLanes } from '../lanes/live'
+import { createRuntimeLanes } from '../lanes/runtime-host'
+import { createUnattachedSnapshots } from '../lanes/transcript'
+import { createLaneCommands } from '../lanes/commands'
+import { createLaneCalls } from '../lanes/calls'
+import type { LaneService } from '../lanes/service'
+import type { Receipt } from '@phosphor/shared/host-protocol'
+import { seedArtifactSkill } from '@phosphor/session-runtime/bundled-skills'
+import { join } from 'node:path'
 
 /**
  * Shutdown exits as soon as the attached drain ends. A drain that ended before
@@ -46,6 +58,8 @@ export const RELEASE_WAIT_MS = 3000
 export interface RunContext extends ControlContext {
   env: NodeJS.ProcessEnv
   home: string
+  nodeVersion: string
+  defaultResourceRoot: string
   supervisor?: 'launchd'
   afterRunLock?: () => void
   stderrIdentity?: LaunchdRunPorts['stderrIdentity']
@@ -58,6 +72,16 @@ export interface RunContext extends ControlContext {
 }
 async function runHostCommand(context: RunContext): Promise<number> {
   let api: ReturnType<typeof startApi> | undefined
+  let runtime: HostRuntime | undefined
+  let runtimeDrain: ReturnType<HostRuntime['drain']> | undefined
+  let live: ReturnType<typeof createLiveLanes> | undefined
+  let commands: ReturnType<typeof createLaneCommands> | undefined
+  let lanes: LaneService | undefined
+  // The store opens before the API; defer receipt delivery and presence until it starts.
+  const sink: {
+    deliver(clientId: string, receipt: Receipt, connectionId?: string): void
+    isConnected(clientId: string): boolean
+  } = { deliver: () => {}, isConnected: () => false }
   let launchApi: (() => void) | undefined
   const authority = createAuthority(context.now ?? Date.now)
   let store: HostStore | undefined
@@ -76,7 +100,11 @@ async function runHostCommand(context: RunContext): Promise<number> {
   const closeAndRelease = async () => {
     try {
       try {
-        await api?.stop()
+        const stoppingApi = api?.stop()
+        runtimeDrain ??= runtime?.drain('run finished')
+        await Promise.all([stoppingApi, runtimeDrain])
+        await commands?.close()
+        live?.close()
         store?.close()
       } finally {
         await release?.()
@@ -105,16 +133,24 @@ async function runHostCommand(context: RunContext): Promise<number> {
         if (drains++ > 0 && (SHUTDOWN_SIGNALS as readonly string[]).includes(reason))
           later = reason as ShutdownSignal
         initAbort.abort()
+        const stoppingApi = api?.stop()
+        if (runtime) {
+          if (!runtimeDrain) runtimeDrain = runtime.drain(reason)
+          else void runtime.drain(reason)
+        }
         let result: { state: 'stopped' | 'failed' }
         if (loop) result = await loop.drain()
         else {
           await initialization?.catch(() => {})
           result = { state: 'stopped' }
         }
+        await Promise.all([stoppingApi, runtimeDrain])
+        if (runtimeDrain && (await runtimeDrain).state === 'failed') result = { state: 'failed' }
         await Promise.race([unlocked, setTimeout(RELEASE_WAIT_MS, undefined, { ref: false })])
         return result
       },
-      exitCode: () => (later ? 128 + constants.signals[later] : (loop?.exitCode() ?? startupExit)),
+      exitCode: (_reason, clean) =>
+        !clean ? 70 : later ? 128 + constants.signals[later] : (loop?.exitCode() ?? startupExit),
       log: { write: () => {}, hide: () => 'The Host could not finish.' },
     })
     initialization = (async () => {
@@ -127,6 +163,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
       try {
         initAbort.signal.throwIfAborted()
         store = await openStore(stateDirectory, context.uid, {
+          isConnected: (id) => sink.isConnected(id),
           logCorruptReceipt: (count) => context.log?.('host', 'receipts.corrupt', { count }),
           logCorruptLane: (count) => context.log?.('host', 'lanes.corrupt', { count }),
         })
@@ -148,8 +185,77 @@ async function runHostCommand(context: RunContext): Promise<number> {
         throw new StateFailure(stateDirectory, 70, 'Could not reconcile lanes.')
       }
       initAbort.signal.throwIfAborted()
+      const epoch = randomBytes(8).toString('hex')
+      const inspection = await inspectHost(context)
+      initAbort.signal.throwIfAborted()
+      if (inspection.machine) {
+        const machine = inspection.machine
+        const log = createHostLog(hostLogDirectory(context.env, context.home), inspection.secrets)
+        runtime = createHostRuntime({ ...machine, log }, { dialogs: 'forward' })
+        runtime.life.to('validating')
+        seedArtifactSkill(
+          machine.resourceRoot,
+          context.env.PI_CODING_AGENT_DIR ?? join(context.home, '.pi', 'agent'),
+        )
+        runtime.life.to('ready')
+        let unattached: ReturnType<typeof createUnattachedSnapshots> = () => null
+        live = createLiveLanes({
+          epoch,
+          store,
+          runtime,
+          now: context.now ?? Date.now,
+          log: (event, fields) => log.write('host', event, fields),
+          unattached: (id) => unattached(id),
+        })
+        unattached = createUnattachedSnapshots({
+          store,
+          summary: live.summaryFor,
+          cursor: live.streams.cursor,
+          sessionsRoot: piSessionsRoot(context.env, context.home),
+          log: (event, fields) => log.write('host', event, fields),
+        })
+        const binding = createRuntimeLanes({ runtime, store, live, log: log.write })
+        commands = createLaneCommands({
+          store,
+          ...binding,
+          runtime: binding,
+          sessionFor: live.sessionFor,
+          openDialogs: live.openDialogs,
+          summaryFor: live.summaryFor,
+          publish: live.publish,
+          deliver: (...args) => sink.deliver(...args),
+          now: context.now ?? Date.now,
+          log: log.write,
+        })
+        const calls = createLaneCalls({
+          store,
+          live,
+          runtime,
+          unattached,
+          now: context.now ?? Date.now,
+          log: log.write,
+        })
+        const activeLive = live
+        const activeStore = store
+        lanes = {
+          epoch,
+          capabilities: ['sessions.read', 'sessions.control'],
+          commands,
+          calls,
+          streams: live.streams,
+          lanesTopic: live.lanesTopic,
+          controllerPresence(clientId) {
+            for (const lane of activeStore.listLanes())
+              if (lane.control.controller?.clientId === clientId)
+                activeLive.publish(lane.laneId, { kind: 'control', control: lane.control })
+          },
+        }
+      } else context.log?.('host', 'lanes.unavailable', { reason: 'machine-unusable' })
+      initAbort.signal.throwIfAborted()
       launchApi = () => {
-        api = startApi({
+        const options = {
+          runtimeEpoch: epoch,
+          lanes,
           authority,
           origin: prepared.url,
           hostId: identity.hostId,
@@ -157,8 +263,12 @@ async function runHostCommand(context: RunContext): Promise<number> {
           key,
           port: config.config.api?.port,
           fetch: context.fetch,
-          log: (event, fields) => context.log?.('host', event, fields),
-        })
+          log: (event: string, fields: Record<string, unknown>) =>
+            context.log?.('host', event, fields),
+        }
+        api = startApi(options)
+        sink.deliver = api.deliver
+        sink.isConnected = api.isConnected
       }
       let endpoint: string | null = null
       let routeState = ''

@@ -18,10 +18,12 @@ import { LaneFolderError } from './worktree'
 import { canonicalJson, JsonTooLarge } from './validation'
 
 export const LANE_QUEUE_LIMIT = 32
+export const COMMAND_CLOSE_GRACE_MS = 2000
 export type LaneCommandFrame = Extract<ClientFrame, { type: 'command' }>
 export interface LaneCommandClient {
   id: string
   label: string
+  connectionId?: string
   caps: readonly HostCapability[]
 }
 export interface LaneCommandPorts {
@@ -38,7 +40,7 @@ export interface LaneCommandPorts {
   summaryFor(laneId: string): LaneSummary | null
   publish(laneId: string, event: LaneEvent): void
   /** The adapter fans out to interested connections of this client only. */
-  deliver(clientId: string, receipt: Receipt): void
+  deliver(clientId: string, receipt: Receipt, connectionId?: string): void
   now(): number
   log: RuntimeLog
   refusal?: (command: RpcCommand) => string | null
@@ -69,6 +71,14 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
   if (!Number.isInteger(limit) || limit < 1 || limit > LANE_QUEUE_LIMIT)
     throw new Error('invalid lane queue limit')
   const queues = new Map<string, LaneQueue>()
+  let closing = false
+  let closed = false
+  let closePromise: Promise<void> | undefined
+  const work = new Set<Promise<unknown>>()
+  function track(promise: Promise<unknown>) {
+    work.add(promise)
+    void promise.finally(() => work.delete(promise)).catch(() => {})
+  }
   const refusal = ports.refusal ?? commandRefusal
   // Delivery and logging must not strand the next recorded request.
   function log(message: string, data: unknown): void {
@@ -78,9 +88,9 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       // Logging is not in the command ordering path.
     }
   }
-  function deliver(clientId: string, receipt: Receipt): void {
+  function deliver(clientId: string, receipt: Receipt, connectionId?: string): void {
     try {
-      ports.deliver(clientId, receipt)
+      ports.deliver(clientId, receipt, connectionId)
     } catch {
       // A reconnect can ask the store for the request's status.
     }
@@ -93,6 +103,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     }
   }
   function terminal(job: Job, receipt: Terminal, recorded: boolean, reason?: string): void {
+    if (closed) return
     let result: Terminal = { requestId: job.frame.requestId, status: 'unknown' }
     try {
       result = durableReceipt(receipt)
@@ -110,7 +121,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       }
     }
     // Count pruning can immediately evict a same-millisecond finish. Never reread here.
-    deliver(job.client.id, result)
+    deliver(job.client.id, result, recorded ? undefined : job.client.connectionId)
     receipt = result
     log('lane.command', {
       laneId: job.frame.laneId,
@@ -138,6 +149,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     terminal(job, { requestId: job.frame.requestId, status: 'rejected', code }, recorded)
   }
   function cleanup(key: string, queue: LaneQueue): void {
+    if (closed) return
     if (
       !queue.draining &&
       !queue.jobs.length &&
@@ -156,6 +168,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     return queue
   }
   function publish(laneId: string, event: LaneEvent, queue: LaneQueue): boolean {
+    if (closed) return false
     try {
       ports.publish(laneId, event)
       if (event.kind === 'control') queue.controlUnpublished = false
@@ -183,6 +196,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     queue: LaneQueue,
     promise: Promise<T>,
   ): Promise<Answer<T>> {
+    track(promise)
     queue.outstanding++
     return new Promise((resolve) => {
       let reply: ((answer: Answer<T>) => void) | undefined = resolve
@@ -257,16 +271,19 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
         try {
           let created: StoredLane
           try {
-            created = await createLane(ports, {
-              root: repository.path,
-              op,
-              controller: { clientId: client.id, label: client.label },
-              onStored: (laneId) => {
-                const laneQueue = queueFor(laneId)
-                laneQueue.holds++
-                held = { laneId, queue: laneQueue }
+            created = await createLane(
+              { ...ports, closed: () => closed },
+              {
+                root: repository.path,
+                op,
+                controller: { clientId: client.id, label: client.label },
+                onStored: (laneId) => {
+                  const laneQueue = queueFor(laneId)
+                  laneQueue.holds++
+                  held = { laneId, queue: laneQueue }
+                },
               },
-            })
+            )
           } catch (error) {
             if (error instanceof LaneCapacityReached) return { capacity: true }
             const code =
@@ -283,6 +300,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
               },
             }
           }
+          if (closed) return {}
           if (!held) throw new Error('missing lane queue')
           publish(created.laneId, { kind: 'control', control: created.control }, held.queue)
           const summary = ports.summaryFor(created.laneId)
@@ -331,6 +349,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
         { requestId, status: 'rejected', code: 'not-controller', control: lane.control },
         true,
       )
+    let admittedFence: number | undefined
     if (!UNFENCED_OPS.includes(op.type)) {
       if (frame.fence === undefined) return rejected(job, 'bad-request', true)
       const admission = store.admit(
@@ -345,6 +364,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
           true,
         )
       }
+      admittedFence = admission.control.fence
       if (
         admission.control.fence !== lane.control.fence &&
         !publish(laneId, { kind: 'control', control: admission.control }, queue)
@@ -360,7 +380,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
           terminal(
             job,
             response.success
-              ? { requestId, status: 'done', data: response.data }
+              ? { requestId, status: 'done', data: response.data, fence: admittedFence }
               : {
                   requestId,
                   status: 'failed',
@@ -381,7 +401,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
           if (!result.answered)
             return terminal(job, { requestId, status: 'unknown' }, true, result.reason)
           publish(laneId, { kind: 'dialog-resolved', dialogId: op.response.id }, queue)
-          terminal(job, { requestId, status: 'done' }, true)
+          terminal(job, { requestId, status: 'done', fence: admittedFence }, true)
         })
         return { completion, detached: true }
       }
@@ -420,7 +440,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
             job,
             result.value
               ? { requestId, status: 'failed', error: result.value }
-              : { requestId, status: 'done' },
+              : { requestId, status: 'done', fence: admittedFence },
             true,
           )
         })
@@ -429,7 +449,15 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       default:
         return rejected(job, 'unsupported', true)
     }
-    terminal(job, { requestId, status: 'done' }, true)
+    terminal(
+      job,
+      {
+        requestId,
+        status: 'done',
+        ...(admittedFence === undefined ? {} : { fence: admittedFence }),
+      },
+      true,
+    )
   }
   async function lifecycle(
     laneId: string,
@@ -455,7 +483,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
   }
   async function drain(key: string, queue: LaneQueue): Promise<void> {
     queue.draining = true
-    while (queue.jobs.length && !queue.holds) {
+    while (!closing && queue.jobs.length && !queue.holds) {
       const job = queue.jobs[0]
       if (!job) break
       let execution: Execution | void = undefined
@@ -474,6 +502,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
           })
           .finally(job.resolve)
           .catch(() => {})
+        track(completion)
         if (!execution.detached) await completion
       }
     }
@@ -482,6 +511,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
   }
   return {
     submit(client: LaneCommandClient, frame: LaneCommandFrame): Promise<void> {
+      if (closing) return Promise.resolve()
       const jobBase = { client, frame, started: ports.now() }
       const immediate = { ...jobBase, resolve: () => {} }
       if (!client.caps.includes('sessions.control')) {
@@ -504,7 +534,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
         frame.laneId ?? null,
       )
       if (begin.kind === 'existing') {
-        deliver(client.id, begin.receipt)
+        deliver(client.id, begin.receipt, client.connectionId)
         return Promise.resolve()
       }
       if (begin.kind !== 'new') {
@@ -516,8 +546,37 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       if (!queue.draining && !queue.holds) void drain(key, queue).catch(() => {})
       return completion
     },
-    status(clientId: string, requestId: string): void {
-      deliver(clientId, store.getReceipt(requestId, clientId) ?? { requestId, status: 'unknown' })
+    status(clientId: string, requestId: string, connectionId?: string): void {
+      if (closing) return
+      deliver(
+        clientId,
+        store.getReceipt(requestId, clientId) ?? { requestId, status: 'unknown' },
+        connectionId,
+      )
+    },
+    close(): Promise<void> {
+      if (closePromise) return closePromise
+      closing = true
+      for (const queue of queues.values()) {
+        for (const job of queue.jobs.splice(0)) job.resolve()
+      }
+      closePromise = (async () => {
+        let timer: ReturnType<typeof setTimeout> | undefined
+        try {
+          await Promise.race([
+            Promise.allSettled([...work]),
+            new Promise<void>((resolve) => {
+              timer = setTimeout(resolve, COMMAND_CLOSE_GRACE_MS)
+              timer.unref()
+            }),
+          ])
+        } finally {
+          closed = true
+          clearTimeout(timer)
+          queues.clear()
+        }
+      })()
+      return closePromise
     },
   }
 }

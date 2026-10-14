@@ -204,6 +204,29 @@ describe('connection boundary', () => {
       expect(c.codes).toEqual([4401])
     }
   })
+  it('supplies only authenticated parsed frames and effective caps to the handler hooks', async () => {
+    const hooks = { handle: vi.fn(), renew: vi.fn(), close: vi.fn() }
+    const handler = vi.fn(() => hooks)
+    const hello = { ...h.hello, capabilities: ['sessions.read' as const] }
+    const c = await auth({}, { hello, handler })
+    expect(h.ready).toHaveBeenCalledWith(expect.objectContaining({ caps: ['sessions.read'] }))
+    expect(handler).toHaveBeenCalledOnce()
+    c.socket.send(JSON.stringify({ type: 'unsubscribe', id: 'topic' }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(hooks.handle).toHaveBeenCalledWith({ type: 'unsubscribe', id: 'topic' }, [
+      'sessions.read',
+    ])
+    c.socket.send(JSON.stringify({ type: 'auth', grant: h.mintGrant({ caps: [] }) }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(hooks.renew).toHaveBeenCalledWith([])
+    c.connection.close(1001)
+    expect(hooks.close).toHaveBeenCalledOnce()
+    const pending = h.connect({ handler })
+    pending.socket.send(JSON.stringify({ type: 'unsubscribe', id: 'topic' }))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(pending.codes).toEqual([4401])
+    expect(handler).toHaveBeenCalledOnce()
+  })
   it('serves no lane operations and records nothing', async () => {
     const c = await auth()
     expect(c.frames[0]).toMatchObject({

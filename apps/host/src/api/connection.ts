@@ -15,6 +15,7 @@ import {
   type FrameSocket,
   type HostFrame,
   type HostCloseCode,
+  type ClientFrame,
 } from '@phosphor/shared/host-protocol'
 import type { HostHello, HostCapability } from '@phosphor/shared/remote-host'
 import type { Authority } from './authority'
@@ -27,6 +28,12 @@ export interface ReadyConnection {
   caps: readonly HostCapability[]
   socket: FrameSocket
 }
+export type AuthenticatedFrame = Exclude<ClientFrame, { type: 'auth' | 'ping' }>
+export interface AuthenticatedHandler {
+  handle(frame: AuthenticatedFrame, caps: readonly HostCapability[]): void
+  renew(caps: readonly HostCapability[]): void
+  close(): void
+}
 export interface ConnectionPorts {
   socket: FrameSocket
   authority: Authority
@@ -36,6 +43,7 @@ export interface ConnectionPorts {
   key: KeyObject
   admit(clientId: string): boolean
   ping?: () => void
+  handler?(connection: ReadyConnection): AuthenticatedHandler
   onReady?(connection: ReadyConnection): void
   onClose?(connectionId: string): void
   log?: ApiLog
@@ -78,6 +86,8 @@ export function createConnection(ports: ConnectionPorts) {
   const connectionId = randomBytes(8).toString('hex')
   const started = now()
   let grant: GrantPayload | undefined
+  let handler: AuthenticatedHandler | undefined
+  let caps: readonly HostCapability[] = []
   let ended = false
   let checking = false
   let expiry: ReturnType<typeof setTimeout> | undefined
@@ -112,6 +122,7 @@ export function createConnection(ports: ConnectionPorts) {
     clearInterval(heartbeat)
     clearTimeout(idle)
     unsubscribe()
+    handler?.close()
     ports.onClose?.(connectionId)
     ports.log?.('api.closed', { connectionId, code, ms: Math.max(0, now() - started) })
   }
@@ -164,6 +175,7 @@ export function createConnection(ports: ConnectionPorts) {
     if (!grant && !ports.admit(payload.client.id)) return refuse(4429, 'connections')
     const initial = !grant
     grant = payload
+    caps = ports.hello.capabilities.filter((cap) => payload.caps.includes(cap))
     clearTimeout(deadline)
     clearTimeout(expiry)
     expiry = setTimeout(
@@ -180,13 +192,18 @@ export function createConnection(ports: ConnectionPorts) {
         connectionId,
         grantExpiresAt,
         client: payload.client,
-        capabilities: [],
+        capabilities: caps,
       })
       if (!ended) {
-        ports.onReady?.({ connectionId, client: payload.client, caps: [], socket })
+        const ready = { connectionId, client: payload.client, caps, socket }
+        handler = ports.handler?.(ready)
+        ports.onReady?.(ready)
         ports.log?.('api.connected', { connectionId, clientId: payload.client.id })
       }
-    } else send({ type: 'auth-renewed', grantExpiresAt })
+    } else {
+      handler?.renew(caps)
+      send({ type: 'auth-renewed', grantExpiresAt })
+    }
   }
   socket.onClose((code) => finish(code))
   socket.onMessage((text) => {
@@ -235,6 +252,7 @@ export function createConnection(ports: ConnectionPorts) {
           checking = false
         })
     } else if (frame.type === 'ping') send({ type: 'pong', at: frame.at })
+    else if (handler) handler.handle(frame, caps)
     else if (frame.type === 'subscribe')
       send({ type: 'subscribe-failed', id: frame.id, code: 'forbidden' })
     else if (frame.type === 'command')

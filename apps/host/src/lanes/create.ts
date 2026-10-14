@@ -15,7 +15,7 @@ export interface LaneSessions {
   stop(sessionId: string): Promise<void>
 }
 export async function createLane(
-  ports: { store: HostStore; sessions: LaneSessions; log: RuntimeLog },
+  ports: { store: HostStore; sessions: LaneSessions; log: RuntimeLog; closed?: () => boolean },
   input: {
     root: string
     op: Extract<LaneOp, { type: 'lane.create' }>
@@ -40,6 +40,7 @@ export async function createLane(
       ...(op.name === undefined ? {} : { name: op.name }),
     })
     sessionId = session.sessionId
+    if (ports.closed?.()) throw new Error('lane commands closed')
     const lane = ports.store.ensureLane(
       {
         repositoryId: op.repositoryId,
@@ -55,10 +56,11 @@ export async function createLane(
     )
     laneId = lane.laneId
     input.onStored?.(laneId)
+    if (ports.closed?.()) throw new Error('lane commands closed')
     await ports.sessions.attach(laneId, sessionId)
     return lane
   } catch (error) {
-    if (laneId !== undefined) {
+    if (laneId !== undefined && !ports.closed?.()) {
       try {
         ports.store.markRemoved(laneId)
       } catch {

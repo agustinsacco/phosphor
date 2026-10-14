@@ -62,6 +62,7 @@ export type StoreLimits = {
 }
 export interface StorePorts {
   now?: () => number
+  receiptTtlMs?: number
   isConnected?: (clientId: string) => boolean
   limits?: Partial<StoreLimits>
   logCorruptReceipt?: (count: number) => void
@@ -124,6 +125,7 @@ export async function openStore(
 /** SQLite is the ordering point. Every mutation obtains its write lock before reading. */
 export class HostStore {
   private readonly now: () => number
+  private readonly receiptTtlMs: number
   private readonly isConnected: (clientId: string) => boolean
   private readonly logCorruptLane: (count: number) => void
   private readonly logCorruptReceipt: (count: number) => void
@@ -132,6 +134,9 @@ export class HostStore {
     private readonly db: DatabaseSync,
     ports: StorePorts,
   ) {
+    this.receiptTtlMs = ports.receiptTtlMs ?? HOST_LIMITS.receiptTtlMs
+    integer(this.receiptTtlMs, 1)
+    check(this.receiptTtlMs <= HOST_LIMITS.receiptTtlMs)
     this.now = ports.now ?? Date.now
     this.isConnected = ports.isConnected ?? (() => false)
     this.logCorruptLane = ports.logCorruptLane ?? (() => {})
@@ -567,7 +572,7 @@ export class HostStore {
       .prepare(
         `SELECT * FROM receipts WHERE request_id=? AND client_id=? AND (finished_at IS NULL OR NOT (${RECEIPT_EXPIRED}))`,
       )
-      .get(requestId, clientId, this.clock() - HOST_LIMITS.receiptTtlMs)
+      .get(requestId, clientId, this.clock() - this.receiptTtlMs)
     return row ? this.decodeReceipt(row) : null
   }
   private serializeReceipt(receipt: Receipt): string {
@@ -658,9 +663,7 @@ export class HostStore {
       .run(this.limits.receiptsKept)
   }
   private prune(now: number): void {
-    this.db
-      .prepare(`DELETE FROM receipts WHERE ${RECEIPT_EXPIRED}`)
-      .run(now - HOST_LIMITS.receiptTtlMs)
+    this.db.prepare(`DELETE FROM receipts WHERE ${RECEIPT_EXPIRED}`).run(now - this.receiptTtlMs)
     this.pruneFinishedCount()
   }
   pruneReceipts(now: number): void {

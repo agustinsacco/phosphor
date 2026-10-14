@@ -63,6 +63,8 @@ const context = (): RunContext => ({
     PI_CODING_AGENT_SESSION_DIR: join(machine.root, 'sessions'),
   },
   home: machine.root,
+  nodeVersion: process.versions.node,
+  defaultResourceRoot: join(machine.root, 'resources'),
   heartbeat: { readiness: async () => readiness, random: () => 0 },
 })
 describe('phosphor run', () => {
@@ -606,6 +608,8 @@ it('supervisor logs and records removal without changing foreground runs', async
     ...context(),
     supervisor: 'launchd',
     home: machine.root,
+    nodeVersion: process.versions.node,
+    defaultResourceRoot: join(machine.root, 'resources'),
     log: (scope, message, data) => {
       entries.push({ scope, message, data })
     },
@@ -638,6 +642,8 @@ it('supervisor keeps a clean first signal at exit 0 without a permanent record',
   const f: RunContext = {
     ...context(),
     home: machine.root,
+    nodeVersion: process.versions.node,
+    defaultResourceRoot: join(machine.root, 'resources'),
     supervisor: 'launchd',
     attach: shutdown.attach,
     wait: (ms, signal) => setTimeout(ms, undefined, { signal }),

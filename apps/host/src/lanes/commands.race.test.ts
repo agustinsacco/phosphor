@@ -170,7 +170,8 @@ describe('lane commands R7 ordering', () => {
   })
 
   it('admits takeover while a prompt is in flight, then rejects the old controller', async () => {
-    const original = service.submit(one, frame())
+    const prompt = frame()
+    const original = service.submit(one, prompt)
     const take = frame({ type: 'control.take' })
     const takeover = service.submit(two, take)
     const stale = frame({ type: 'abort' }, 2)
@@ -182,6 +183,7 @@ describe('lane commands R7 ordering', () => {
     expect(command).toHaveBeenCalledTimes(2)
     finish(0)
     await original
+    expect(last(prompt.requestId)).toMatchObject({ status: 'done', fence: 2 })
     expect(last(take.requestId)).toMatchObject({ status: 'done', fence: 3 })
     expect(last(stale.requestId)).toMatchObject({ code: 'stale-fence' })
     expect(order).toEqual(['control', 'run', 'control', 'run'])
@@ -684,7 +686,7 @@ describe('lane command guards and operations', () => {
     const b = service.submit(one, huge)
     finish(1, { ...success, data: { text: 'x'.repeat(HOST_LIMITS.receiptDataBytes) } })
     await b
-    expect(last(huge.requestId)).toEqual({ requestId: huge.requestId, status: 'done' })
+    expect(last(huge.requestId)).toEqual({ requestId: huge.requestId, status: 'done', fence: 2 })
     expect(last(huge.requestId)).toEqual(store.getReceipt(huge.requestId, one.id))
     expect(JSON.stringify(logs)).not.toMatch(/private prompt|private error/)
     expect(logs[0]?.data).toMatchObject({
@@ -777,6 +779,25 @@ describe('lane command guards and operations', () => {
     expect(summaryEvent.summary).not.toHaveProperty('removedAt')
   })
 
+  it('persists unfenced markRead on a stopped lane without runtime or folder I/O', async () => {
+    sessions.clear()
+    const folder = vi.spyOn(folders, 'prepareLaneFolder')
+    store.bumpAttention(lane.laneId)
+    const request = frame({ type: 'lane.markRead', upTo: 1 })
+    await service.submit(one, request)
+    expect(last(request.requestId)).toEqual({ requestId: request.requestId, status: 'done' })
+    expect(store.getReceipt(request.requestId, one.id)).toEqual(last(request.requestId))
+    expect(store.getLane(lane.laneId)?.read).toBe(1)
+    expect(command).not.toHaveBeenCalled()
+    expect(ports.sessions.start).not.toHaveBeenCalled()
+    expect(ports.sessions.stop).not.toHaveBeenCalled()
+    expect(ports.resumeLane).not.toHaveBeenCalled()
+    expect(ports.stopLane).not.toHaveBeenCalled()
+    expect(folder).not.toHaveBeenCalled()
+    service.status(one.id, request.requestId)
+    expect(receipts(request.requestId)).toEqual([last(request.requestId), last(request.requestId)])
+  })
+
   it('marks read even when the projection has no summary', async () => {
     ports.summaryFor = () => null
     store.bumpAttention(lane.laneId)
@@ -819,7 +840,11 @@ describe('lane command guards and operations', () => {
       const running = service.submit(one, request)
       finish(0)
       await running
-      expect(last(request.requestId)).toEqual({ requestId: request.requestId, status: 'done' })
+      expect(last(request.requestId)).toEqual({
+        requestId: request.requestId,
+        status: 'done',
+        fence: 2,
+      })
       expect(logs).toContainEqual({
         message: 'lane.receipt_unrecorded',
         data: { laneId: lane.laneId, requestId: request.requestId },
@@ -1416,4 +1441,118 @@ describe('lane.create model admission and attachment cleanup', () => {
     expect(ports.sessions.stop).toHaveBeenCalledWith('new-session')
     expect(events).toEqual([])
   })
+})
+
+describe('lane commands connection routing and close', () => {
+  it('routes attempt replies to one connection and execution terminals client-wide', async () => {
+    const deliver = vi.fn()
+    service = createLaneCommands({ ...ports, deliver })
+    const client = { ...one, connectionId: 'connection-one' }
+    const request = frame()
+    const running = service.submit(client, request)
+    await service.submit(client, request)
+    expect(deliver).toHaveBeenLastCalledWith(
+      one.id,
+      expect.objectContaining({ status: 'pending' }),
+      client.connectionId,
+    )
+    await service.submit(client, { ...request, op: { type: 'abort' } })
+    expect(deliver).toHaveBeenLastCalledWith(
+      one.id,
+      expect.objectContaining({ code: 'conflict' }),
+      client.connectionId,
+    )
+    service.status(one.id, request.requestId, 'connection-two')
+    expect(deliver).toHaveBeenLastCalledWith(
+      one.id,
+      expect.objectContaining({ status: 'pending' }),
+      'connection-two',
+    )
+    finish(0)
+    await running
+    expect(deliver).toHaveBeenLastCalledWith(
+      one.id,
+      expect.objectContaining({ status: 'done', fence: 2 }),
+      undefined,
+    )
+    await service.submit(client, request)
+    expect(deliver).toHaveBeenLastCalledWith(
+      one.id,
+      expect.objectContaining({ status: 'done' }),
+      client.connectionId,
+    )
+  })
+  it('bounds close, refuses new work, and ignores a late RPC after store closure', async () => {
+    const request = frame()
+    const running = service.submit(one, request)
+    const close = service.close()
+    await service.submit(one, frame())
+    expect(command).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(2000)
+    await close
+    expect(service.close()).toBe(close)
+    const finishRequest = vi.spyOn(store, 'finishRequest')
+    const publish = vi.spyOn(ports, 'publish')
+    finish(0)
+    await running
+    expect(finishRequest).not.toHaveBeenCalled()
+    expect(publish).not.toHaveBeenCalled()
+    expect(last(request.requestId)).toBeUndefined()
+  })
+  it('a late creation cannot ensure or mark a lane after close', async () => {
+    const start = deferred<{ sessionId: string; sessionFile: string | null }>()
+    ports.sessions.start = () => start.promise
+    const repository = store.listRepositories()[0]
+    if (!repository) throw new Error('fixture')
+    const request: LaneCommandFrame = {
+      type: 'command',
+      requestId: randomUUID(),
+      op: { type: 'lane.create', repositoryId: repository.id, worktree: null },
+    }
+    const running = service.submit(one, request)
+    await vi.advanceTimersByTimeAsync(0)
+    const close = service.close()
+    await vi.advanceTimersByTimeAsync(2000)
+    await close
+    const ensure = vi.spyOn(store, 'ensureLane')
+    const removed = vi.spyOn(store, 'markRemoved')
+    start.release({ sessionId: 'late', sessionFile: null })
+    await running
+    expect(ensure).not.toHaveBeenCalled()
+    expect(removed).not.toHaveBeenCalled()
+    expect(ports.sessions.attach).not.toHaveBeenCalled()
+    expect(ports.sessions.stop).toHaveBeenCalledWith('late')
+  })
+})
+
+it('close waits for an outstanding operation even after its receipt deadline', async () => {
+  const running = service.submit(one, frame())
+  await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+  await running
+  let closed = false
+  const close = service.close().then(() => {
+    closed = true
+  })
+  await vi.advanceTimersByTimeAsync(1999)
+  expect(closed).toBe(false)
+  finish(0)
+  await close
+  expect(closed).toBe(true)
+})
+
+it('a late dialog answer cannot publish after close', async () => {
+  const answer = deferred<void>()
+  respond.mockImplementation(() => answer.promise)
+  const request = frame({
+    type: 'extension_ui_response',
+    response: { type: 'extension_ui_response', id: 'dialog', value: 'answer' },
+  })
+  const running = service.submit(one, request)
+  const close = service.close()
+  await vi.advanceTimersByTimeAsync(2000)
+  await close
+  const publish = vi.spyOn(ports, 'publish')
+  answer.release()
+  await running
+  expect(publish).not.toHaveBeenCalled()
 })

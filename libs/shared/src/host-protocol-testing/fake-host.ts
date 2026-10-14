@@ -35,6 +35,7 @@ type Command = Extract<ClientFrame, { type: 'command' }>
 interface Lane {
   summary: LaneSummary
   thinkingLevel: ThinkingLevel
+  sessionId: string
   seq: number
   events: { cursor: StreamCursor; event: LaneEvent; bytes: number }[]
   replayBytes: number
@@ -50,6 +51,7 @@ interface Connection {
   wanted: Set<string>
   delivered: Set<string>
   pending: number
+  calls: number
   stale: Set<string>
   recoveryTimer?: ReturnType<typeof setTimeout>
   authTimer: ReturnType<typeof setTimeout>
@@ -60,7 +62,7 @@ interface Stored {
   clientId: string
   hash: string
   receipt: Receipt
-  at: number
+  finishedAt?: number
 }
 export interface FakeHostOptions {
   expectations: Omit<GrantExpectations, 'revokedSessions' | 'revokedClients'>
@@ -113,7 +115,7 @@ export function createFakeHost(options: FakeHostOptions) {
   }
   function prune() {
     for (const [id, r] of receipts)
-      if (Date.now() - r.at >= limits.receiptTtlMs && r.receipt.status !== 'pending') forget(id)
+      if (r.finishedAt !== undefined && Date.now() - r.finishedAt > limits.receiptTtlMs) forget(id)
     const finished = [...receipts].filter(([, r]) => r.receipt.status !== 'pending')
     for (const [id] of finished.slice(0, Math.max(0, finished.length - limits.receiptsKept)))
       forget(id)
@@ -204,7 +206,7 @@ export function createFakeHost(options: FakeHostOptions) {
         lane.summary.activity === 'stopped' || lane.summary.activity === 'failed'
           ? null
           : {
-              sessionId: lane.summary.laneId,
+              sessionId: lane.sessionId,
               thinkingLevel: lane.thinkingLevel,
               isStreaming: lane.summary.activity === 'working',
               isCompacting: false,
@@ -302,6 +304,7 @@ export function createFakeHost(options: FakeHostOptions) {
     publish(lane, { kind: 'pi', push: { kind: 'event', event } })
   }
   function turn(lane: Lane) {
+    const messageCount = lane.messages.length
     lane.summary = { ...lane.summary, activity: 'working' }
     summary(lane)
     push(lane, { type: 'agent_start' })
@@ -326,9 +329,13 @@ export function createFakeHost(options: FakeHostOptions) {
     lane.pending.length = 0
     lane.summary = { ...lane.summary, activity: 'idle' }
     notify(lane, 'finished')
+    return { messages: lane.messages.length - messageCount, turns: 1 }
   }
   function deliver(requestId: string, stored: Stored) {
-    if (stored.receipt.status !== 'pending') prune()
+    if (stored.receipt.status !== 'pending') {
+      stored.finishedAt ??= Date.now()
+      prune()
+    }
     for (const c of connections)
       if (
         c.grant?.client.id === stored.clientId &&
@@ -364,8 +371,8 @@ export function createFakeHost(options: FakeHostOptions) {
         rejected(c, f.requestId, 'conflict')
         return
       }
-      if (!c.delivered.has(f.requestId)) c.wanted.add(f.requestId)
-      deliver(f.requestId, old)
+      send(c, { type: 'receipt', receipt: old.receipt })
+      if (old.receipt.status === 'pending') c.wanted.add(f.requestId)
       return
     }
     if (c.pending >= limits.pendingCommandsPerConnection) {
@@ -383,7 +390,6 @@ export function createFakeHost(options: FakeHostOptions) {
       clientId: grant.client.id,
       hash,
       receipt: { requestId: f.requestId, status: 'pending' },
-      at: Date.now(),
     }
     receipts.set(f.requestId, stored)
     c.wanted.add(f.requestId)
@@ -432,6 +438,7 @@ export function createFakeHost(options: FakeHostOptions) {
           },
         },
         thinkingLevel: f.op.thinkingLevel === undefined ? 'off' : thinkingLevel(f.op.thinkingLevel),
+        sessionId: options.id(),
         seq: 0,
         events: [],
         replayBytes: 0,
@@ -656,8 +663,8 @@ export function createFakeHost(options: FakeHostOptions) {
         if (!r || r.clientId !== c.grant.client.id)
           send(c, { type: 'receipt', receipt: { requestId: f.requestId, status: 'unknown' } })
         else {
-          if (!c.delivered.has(f.requestId)) c.wanted.add(f.requestId)
-          deliver(f.requestId, r)
+          send(c, { type: 'receipt', receipt: r.receipt })
+          if (r.receipt.status === 'pending') c.wanted.add(f.requestId)
         }
         break
       }
@@ -740,6 +747,10 @@ export function createFakeHost(options: FakeHostOptions) {
           send(c, { type: 'result', id: f.id, ok: true, data: repositories })
           break
         }
+        if (c.calls >= limits.pendingCommandsPerConnection) {
+          c.socket.close(4429, 'Too many calls')
+          break
+        }
         const laneId = paramsLane(f.params)
         const l = laneId ? lanes.get(laneId) : undefined
         if (!laneId) {
@@ -769,7 +780,14 @@ export function createFakeHost(options: FakeHostOptions) {
                       tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
                       cost: 0,
                     }
-        send(c, { type: 'result', id: f.id, ok: true, data })
+        c.calls++
+        const timer = setTimeout(() => {
+          timers.delete(timer)
+          c.calls--
+          if (c.socket.isOpen() && authorized(c, 'sessions.read'))
+            send(c, { type: 'result', id: f.id, ok: true, data })
+        }, 0)
+        timers.add(timer)
         break
       }
     }
@@ -797,6 +815,7 @@ export function createFakeHost(options: FakeHostOptions) {
         wanted: new Set(),
         delivered: new Set(),
         pending: 0,
+        calls: 0,
         stale: new Set(),
         authTimer: setTimeout(() => socket.close(4401, 'Auth timeout'), limits.authTimeoutMs),
       }
@@ -850,7 +869,7 @@ export function createFakeHost(options: FakeHostOptions) {
       })
     },
     emitTurn(id: string) {
-      turn(lane(id))
+      return turn(lane(id))
     },
     emitUi(id: string, request: ExtensionUIRequest) {
       const l = lane(id)
@@ -926,8 +945,10 @@ export function createFakeHost(options: FakeHostOptions) {
       for (const timer of timers) clearTimeout(timer)
       timers.clear()
       for (const r of receipts.values())
-        if (r.receipt.status === 'pending')
+        if (r.receipt.status === 'pending') {
           r.receipt = { requestId: r.receipt.requestId, status: 'unknown' }
+          r.finishedAt = Date.now()
+        }
       for (const l of lanes.values()) {
         l.seq = 0
         l.events.length = 0

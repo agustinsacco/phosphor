@@ -17,6 +17,8 @@ import { encodeGrant, type GrantPayload } from '@phosphor/shared/host-grant'
 import { HOST_LIMITS, helloProofMessage, parseHostFrame } from '@phosphor/shared/host-protocol'
 import { createAuthority } from './authority'
 import { API_LIMITS, startApi } from './server'
+import { createLaneStreams, createLanesTopic } from '../lanes/stream'
+import type { LaneService } from '../lanes/service'
 
 async function freePort() {
   const server = createServer()
@@ -95,9 +97,11 @@ function stopApi() {
 function start(
   limits?: Parameters<typeof startApi>[0]['limits'],
   connectionLimits?: Parameters<typeof startApi>[0]['connectionLimits'],
+  laneOptions: Pick<Parameters<typeof startApi>[0], 'runtimeEpoch' | 'lanes'> = {},
 ) {
   api = startApi({
     authority,
+    ...laneOptions,
     limits,
     connectionLimits,
     port,
@@ -787,4 +791,63 @@ it('does not count received control pings as text-frame activity', async () => {
   } finally {
     clearInterval(flood)
   }
+})
+
+function laneService(): LaneService {
+  const epoch = '0123456789abcdef'
+  return {
+    epoch,
+    capabilities: ['sessions.read', 'sessions.control'],
+    commands: { submit: vi.fn(async () => {}), status: vi.fn() },
+    calls: { call: vi.fn(async () => ({ ok: true as const, data: null })) },
+    streams: createLaneStreams({ epoch, snapshot: () => null }),
+    lanesTopic: createLanesTopic({ epoch, list: () => ({ lanes: [], repositories: [] }) }),
+    controllerPresence: vi.fn(),
+  }
+}
+it('shares the lane epoch, announces Host caps, intersects ready caps and routes lane frames', async () => {
+  const lanes = laneService()
+  claims = { ...claims, caps: ['sessions.read'] }
+  start(undefined, undefined, { lanes, runtimeEpoch: lanes.epoch })
+  await listen()
+  const response = await http(`/v1/hello?challenge=${challenge}`)
+  expect(await response.json()).toMatchObject({
+    hello: {
+      runtimeEpoch: lanes.epoch,
+      capabilities: ['sessions.read', 'sessions.control'],
+    },
+  })
+  const { ws, frame } = await auth()
+  expect(frame).toMatchObject({
+    type: 'ready',
+    capabilities: ['sessions.read'],
+    hello: { runtimeEpoch: lanes.epoch },
+  })
+  expect(api?.isConnected(claims.client.id)).toBe(true)
+  const answer = once(ws, 'message')
+  ws.send(JSON.stringify({ type: 'call', id: 'query', method: 'lane.state', params: {} }))
+  expect(parseHostFrame(String((await answer)[0]))).toMatchObject({
+    ok: true,
+    value: { type: 'result', id: 'query', ok: true, data: null },
+  })
+  const receipt = once(ws, 'message')
+  if (frame.type !== 'ready') throw new Error('Missing ready')
+  api?.deliver(claims.client.id, { requestId: randomUUID(), status: 'unknown' }, frame.connectionId)
+  expect(parseHostFrame(String((await receipt)[0]))).toMatchObject({
+    ok: true,
+    value: { type: 'receipt', receipt: { status: 'unknown' } },
+  })
+  await stopApi()
+  expect(api?.isConnected(claims.client.id)).toBe(false)
+  expect(lanes.controllerPresence).toHaveBeenCalledTimes(2)
+})
+it('refuses invalid or mismatched process epochs before opening the listener', () => {
+  expect(() => start(undefined, undefined, { runtimeEpoch: 'bad' })).toThrow(
+    'Invalid runtime epoch',
+  )
+  const lanes = laneService()
+  for (const runtimeEpoch of ['bad', 'ffffffffffffffff'])
+    expect(() => start(undefined, undefined, { lanes, runtimeEpoch })).toThrow(
+      'Invalid runtime epoch',
+    )
 })
