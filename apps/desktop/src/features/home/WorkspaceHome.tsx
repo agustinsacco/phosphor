@@ -271,6 +271,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           */}
           <div className="mb-2 flex flex-wrap items-center gap-1.5 px-0.5">
             <MachinePicker
+              placement="above"
               value={creatingOn ?? 'local'}
               capability="sessions.control"
               onChange={(id) => setCreatingOn(id === 'local' ? null : id)}

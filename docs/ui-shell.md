@@ -61,6 +61,19 @@ screen.
 
 ## Left sidebar (Claude Desktop style)
 
+Signed-in windows show a compact machine menu beneath the main navigation. Each
+window starts on **This Mac**, and selection stays in memory only. Its right edge
+summarizes activity on other machines; All machines has no “elsewhere” activity.
+The menu supports arrow keys, Enter, Escape with focus return, and outside-click
+dismissal. Add machine opens Machines with the existing add dialog.
+
+This Mac keeps the local workspace groups unchanged. Hosts use the same group
+header, lane row, indicator and subtitle primitives, grouped by configured
+repository. Search commits on Enter; the group menu collapses lanes; + preselects
+that repository in the remote creation dialog. Empty repositories show “No lanes
+yet”. All machines puts local groups first, then machine-labelled Host groups.
+Signed-out windows have no machine switcher or remote groups.
+
 - **Workspace switcher** at top: current workspace plus a dropdown of recents;
   "Open Folder…" via the native picker.
 - **A workspace is identified by its REAL path.** One folder reachable through

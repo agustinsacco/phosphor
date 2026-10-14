@@ -213,7 +213,9 @@ export function MachinesPage(): React.JSX.Element {
   const state = useMachinesStore()
   const computer = useThisComputer()
   const liveHere = useSessionsStore((s) => Object.keys(s.live).length)
-  const [adding, setAdding] = useState(false)
+  useEffect(() => () => useMachinesStore.setState({ adding: false }), [])
+  const adding = state.adding
+  const setAdding = (adding: boolean): void => useMachinesStore.setState({ adding })
   const [removing, setRemoving] = useState<MachineView | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)

@@ -160,13 +160,14 @@ it('switches to machine-wide skills and shows that machines models/providers wit
   )
   vi.stubGlobal('phosphor', { invoke })
   await act(async () => root.render(<SkillsPage workspacePath="/repo" />))
-  const select = container.querySelector('select[aria-label="Machine"]')
-  if (!(select instanceof HTMLSelectElement)) throw new Error('Missing machine switcher')
-  expect(select.value).toBe('local')
-  await act(async () => {
-    select.value = MOCK_HOST_ID
-    select.dispatchEvent(new Event('change', { bubbles: true }))
-  })
+  Element.prototype.scrollIntoView = vi.fn()
+  const picker = container.querySelector<HTMLButtonElement>('button[aria-label="Machine"]')
+  expect(picker?.textContent).toContain('This Mac')
+  await act(async () => picker?.click())
+  const hostOption = [...container.querySelectorAll<HTMLButtonElement>('[role=option]')].find((o) =>
+    o.textContent?.includes(MOCK_HOST_ID),
+  )
+  await act(async () => hostOption?.click())
   expect(container.textContent).toContain('Host model')
   expect(container.textContent).toContain('Host provider: Signed in')
   expect(invoke.mock.calls.map(([channel]) => channel)).toEqual([

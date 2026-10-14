@@ -53,7 +53,7 @@ export const useRemoteLanesStore = create<{
   setFilter: (filter: string) => void
 }>((set) => ({
   hosts: {},
-  filter: 'all',
+  filter: 'local',
   error: null,
   setFilter: (filter) => set({ filter }),
 }))
@@ -166,6 +166,6 @@ export function attachRemoteLanesListener(): () => void {
     offAttention()
     offOpen()
     window.removeEventListener('focus', onFocus)
-    useRemoteLanesStore.setState({ hosts: {}, filter: 'all', error: null })
+    useRemoteLanesStore.setState({ hosts: {}, filter: 'local', error: null })
   }
 }

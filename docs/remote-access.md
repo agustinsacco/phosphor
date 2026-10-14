@@ -630,3 +630,24 @@ path, credentials, query or fragment. Main admits that exact endpoint alongside
 the unchanged production `.ts.net` rule, and uses plaintext WebSocket only for
 that endpoint's `/v1/stream`. Other origins retain TLS. No Host test hook or
 renderer network access is added.
+
+## Sidebar machine selection
+
+The sidebar machine menu is available whenever remote access is signed in,
+even before a Host is enrolled. This Mac is the default on every window mount;
+selection is not persisted. Add machine opens the existing Machines add flow.
+All machines lists local repository groups first, followed by labelled Hosts.
+
+Connected Hosts show repository-grouped lanes with running, new and needs-you
+signals from their existing summaries (`working`, `attention > read`, and
+`needs-input` or `failed`). Local activity uses streaming chat state, unseen
+session markers/unread counts, pending extension dialogs and chat errors.
+The button summarizes only machines other than the selected one.
+
+Reconnecting uses an amber pulsing status dot. Down machines show a grey dot,
+the directory's last-seen age, and last-known groups with disabled lane and
+creation actions. Setting up uses blue and an explicit empty state. A connected
+Host with an empty repository shows “No lanes yet” and its capability-gated +.
+Remote actions retain the fixed reconnection/unavailable hints and main's
+capability, readiness and stale-connection checks. Creating a remote lane never
+falls back to local creation.

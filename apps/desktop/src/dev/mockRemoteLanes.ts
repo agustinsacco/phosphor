@@ -67,3 +67,58 @@ export function mockRemoteAction(channel: string): void {
   ]
   for (const listener of listeners) listener()
 }
+
+/** Opt-in screenshot directory. Ordinary harness and test defaults stay unchanged. */
+export function mixedRemoteHosts(): HostsSnapshot {
+  const base = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
+  base.capabilities.push('skills.read', 'routines', 'artifacts.read')
+  const ids = [
+    '11111111-1111-4111-8111-111111111111',
+    '22222222-2222-4222-8222-222222222222',
+    '33333333-3333-4333-8333-333333333333',
+    '44444444-4444-4444-8444-444444444444',
+    '55555555-5555-4555-8555-555555555555',
+  ]
+  return Object.fromEntries(
+    ids.map((id, index) => [
+      id,
+      {
+        ...structuredClone(base),
+        state: (['ready', 'down', 'no-address', 'reconnecting', 'ready'] as const)[index]!,
+        repositories:
+          index === 2
+            ? []
+            : [{ id: '0000000000000001', name: 'Phosphor', path: '/remote/phosphor' }],
+        lanes:
+          index === 2 || index === 4
+            ? []
+            : base.lanes.flatMap((lane) => [
+                {
+                  ...lane,
+                  title: 'Sidebar machine switcher',
+                  branch: 'feat/machine-switcher',
+                  worktree: true,
+                  activity: 'working' as const,
+                  updatedAt: new Date(Date.now() - 120000).toISOString(),
+                },
+                {
+                  ...lane,
+                  laneId: '00000000-0000-4000-8000-000000000097',
+                  title: 'Review connection handling',
+                  activity: 'needs-input' as const,
+                  branch: 'main',
+                  updatedAt: new Date(Date.now() - 3600000).toISOString(),
+                },
+                {
+                  ...lane,
+                  laneId: '00000000-0000-4000-8000-000000000096',
+                  title: 'Update the documentation',
+                  attention: 0,
+                  read: 0,
+                  updatedAt: new Date(Date.now() - 86400000).toISOString(),
+                },
+              ]),
+      },
+    ]),
+  )
+}

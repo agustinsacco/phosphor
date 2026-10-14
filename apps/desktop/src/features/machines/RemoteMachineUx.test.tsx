@@ -17,6 +17,7 @@ let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  Element.prototype.scrollIntoView = vi.fn()
   Object.defineProperty(window, 'phosphor', { configurable: true, value: { invoke } })
   useRemoteLanesStore.setState({ hosts: structuredClone(mockRemoteHosts) })
   useSessionsStore.setState({
@@ -57,16 +58,21 @@ it('picker lists This Mac and only announced machines, preserving unavailable se
   act(() =>
     root.render(<MachinePicker value="missing" capability="skills.read" onChange={() => {}} />),
   )
-  const select = container.querySelector('select')
-  expect(select?.value).toBe('missing')
-  expect([...container.querySelectorAll('option')].map((o) => o.value)).toEqual([
-    'local',
-    'missing',
+  expect(button('missing').textContent).toContain('unavailable')
+  act(() => button('missing').click())
+  expect([...container.querySelectorAll('[role=option]')].map((o) => o.textContent)).toEqual([
+    'This Mac',
+    'missing (unavailable)',
   ])
+  expect((container.querySelectorAll('[role=option]')[1] as HTMLButtonElement).disabled).toBe(true)
   act(() =>
     root.render(<MachinePicker value="local" capability="sessions.control" onChange={() => {}} />),
   )
-  expect(container.querySelector(`option[value="${MOCK_HOST_ID}"]`)).not.toBeNull()
+  expect(
+    [...container.querySelectorAll('[role=option]')].some((o) =>
+      o.textContent?.includes(MOCK_HOST_ID),
+    ),
+  ).toBe(true)
 })
 it('remote creation uses the selected configured repository and failure never starts local', async () => {
   invoke.mockRejectedValue(new Error('unavailable'))

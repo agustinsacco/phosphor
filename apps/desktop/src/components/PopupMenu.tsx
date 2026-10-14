@@ -21,6 +21,7 @@ export function PopupMenu({
   id,
   ariaLabel,
   ariaActiveDescendant,
+  tabIndex,
 }: {
   children: React.ReactNode
   onClose: () => void
@@ -37,6 +38,7 @@ export function PopupMenu({
   id?: string
   ariaLabel?: string
   ariaActiveDescendant?: string
+  tabIndex?: number
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   const [computedStyle, setComputedStyle] = useState<React.CSSProperties>({})
@@ -95,6 +97,7 @@ export function PopupMenu({
       // including its non-button rows (labels, separators).
       data-popup-menu
       role={role}
+      tabIndex={tabIndex}
       id={id}
       aria-label={ariaLabel}
       aria-activedescendant={ariaActiveDescendant}

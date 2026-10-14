@@ -1,3 +1,4 @@
+import { MachineSwitcher, MachineLabelLine } from './MachineSwitcher'
 import { RemoteLanes } from './RemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { TooltipButton } from '@/components/Tooltip'
@@ -17,7 +18,7 @@ import { showContextMenu } from '@/components/ContextMenu'
 import { isUnseen } from './unseen'
 import { SessionList, useSessionOrderActions } from './SessionList'
 import { orderedSessions } from './sessionOrder'
-import { sessionSubtitle, type SubtitleSegment } from './sessionSubtitle'
+import { sessionSubtitle } from './sessionSubtitle'
 import { PrBadge, openPullRequest } from './PrBadge'
 import { LaneMarker } from './LaneMarker'
 import { BulkDeleteModal } from './BulkDeleteModal'
@@ -40,14 +41,19 @@ import {
   ClockIcon,
   MachinesIcon,
   ChevronDownIcon,
-  ChevronIcon,
   MoreIcon,
   PinIcon,
   PlusIcon,
   SearchIcon,
   Spinner,
 } from '@/components/icons'
-import { PhosphorLoader } from '@/components/PhosphorLoader'
+import {
+  LaneRow,
+  WorkspaceGroupHeader,
+  WorkspaceGroupTitle,
+  SessionIndicator,
+  SubtitleSegments,
+} from './SidebarPrimitives'
 import { TreeViewModal } from './TreeViewModal'
 import { LaneSearchBar } from './LaneSearchBar'
 import { laneHaystack, laneMatches, laneQueryTerms, type LaneSearchFields } from './laneSearch'
@@ -873,340 +879,324 @@ export function Sidebar({
         }
       </nav>
 
-      <RemoteLanes />
-      <div
-        data-session-scroll
-        hidden={machineFilter !== 'all' && machineFilter !== 'local'}
-        className="flex-1 overflow-y-auto px-2 pb-2"
-      >
-        {!sidebarLoading && pinnedMetas.length > 0 && (
-          <>
-            <SectionLabel>Pinned</SectionLabel>
-            <SessionList
-              disabled={bulkDeleteRunning}
-              items={pinnedMetas.map((meta) => ({
-                id: meta.path,
-                path: meta.path,
-                content: <SessionRow {...rowProps(meta)} isPinned showWorkspace />,
-              }))}
-            />
-          </>
-        )}
+      <MachineSwitcher />
+      <div data-session-scroll className="flex-1 overflow-y-auto px-2 pb-2">
+        <div hidden={machineFilter !== 'all' && machineFilter !== 'local'}>
+          {machineFilter === 'all' && <MachineLabelLine id="local" />}
+          {!sidebarLoading && pinnedMetas.length > 0 && (
+            <>
+              <SectionLabel>Pinned</SectionLabel>
+              <SessionList
+                disabled={bulkDeleteRunning}
+                items={pinnedMetas.map((meta) => ({
+                  id: meta.path,
+                  path: meta.path,
+                  content: <SessionRow {...rowProps(meta)} isPinned showWorkspace />,
+                }))}
+              />
+            </>
+          )}
 
-        {/* Prefs decide both which workspaces exist and what order they sit
+          {/* Prefs decide both which workspaces exist and what order they sit
             in, so any header painted before they land can be wrong or about
             to jump. A skeleton is the honest answer for that window. */}
-        {sidebarLoading && <WorkspaceGroupSkeletons />}
+          {sidebarLoading && <WorkspaceGroupSkeletons />}
 
-        {!sidebarLoading &&
-          collapsed !== null &&
-          groups.map((group) => {
-            const isCollapsed = isGroupCollapsed(group)
-            const query = searchApplied[group.workspacePath] ?? ''
-            const terms = laneQueryTerms(query)
-            // Filter the metas rather than hide rows: selection, shift-ranges
-            // and the empty state then all read the same list the eye does.
-            const local = group.metas
-            const visible = terms.length
-              ? local.filter((meta) => laneMatches(laneHaystack(laneFields(meta)), terms))
-              : local
-            const selectingThis = selection?.repoPath === group.workspacePath
-            const shownTotal = local.length
-            const shownCount = visible.length
-            return (
-              <div key={group.workspacePath}>
-                <div
-                  onContextMenu={(event) => groupContextMenu(event, group)}
-                  className="group/header relative flex w-full items-center gap-1 pb-0.5 pl-2 pr-1 pt-2.5"
-                >
-                  <TooltipButton
-                    onClick={() => toggleGroup(group, isCollapsed)}
-                    data-testid="workspace-group"
-                    className="text-text-secondary hover:text-text flex min-w-0 flex-1 items-center gap-1 py-0.5 text-left text-sm font-semibold font-mono uppercase tracking-wider transition-colors"
-                    title={group.workspacePath}
-                  >
-                    <span className="min-w-0 truncate">{group.name}</span>
-                    <ChevronIcon
-                      size={8}
-                      strokeWidth={3}
-                      expanded={!isCollapsed}
-                      className={clsx(
-                        'shrink-0 transition-opacity',
-                        // Collapsed groups keep their caret as the "there's more
-                        // here" cue; expanded ones reveal it on hover only.
-                        !isCollapsed && 'opacity-0 group-hover/header:opacity-100',
-                      )}
+          {!sidebarLoading &&
+            collapsed !== null &&
+            groups.map((group) => {
+              const isCollapsed = isGroupCollapsed(group)
+              const query = searchApplied[group.workspacePath] ?? ''
+              const terms = laneQueryTerms(query)
+              // Filter the metas rather than hide rows: selection, shift-ranges
+              // and the empty state then all read the same list the eye does.
+              const local = group.metas
+              const visible = terms.length
+                ? local.filter((meta) => laneMatches(laneHaystack(laneFields(meta)), terms))
+                : local
+              const selectingThis = selection?.repoPath === group.workspacePath
+              const shownTotal = local.length
+              const shownCount = visible.length
+              return (
+                <div key={group.workspacePath}>
+                  <WorkspaceGroupHeader onContextMenu={(event) => groupContextMenu(event, group)}>
+                    <WorkspaceGroupTitle
+                      name={group.name}
+                      collapsed={isCollapsed}
+                      liveCount={group.liveCount}
+                      onClick={() => toggleGroup(group, isCollapsed)}
+                      data-testid="workspace-group"
+                      title={group.workspacePath}
                     />
-                    {group.liveCount > 0 && (
-                      <span
-                        className="bg-success h-1.5 w-1.5 shrink-0 rounded-full"
-                        data-tooltip={`${group.liveCount} live`}
-                      />
-                    )}
-                  </TooltipButton>
-                  <TooltipButton
-                    onClick={() => toggleSearch(group, isCollapsed)}
-                    data-testid="workspace-group-search"
-                    title="Search lanes"
-                    aria-label={`Search lanes in ${group.name}`}
-                    aria-expanded={isSearching(group)}
-                    className={clsx(
-                      'flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors active:scale-90',
-                      query
-                        ? 'bg-accent-soft text-accent'
-                        : 'text-text-tertiary hover:text-text hover:bg-sidebar-hover',
-                    )}
-                  >
-                    <SearchIcon size={12} />
-                  </TooltipButton>
-                  <TooltipButton
-                    ref={
-                      workspaceMenuFor === group.workspacePath ? workspaceMenuTriggerRef : undefined
-                    }
-                    onClick={() =>
-                      setWorkspaceMenuFor((current) =>
-                        current === group.workspacePath ? null : group.workspacePath,
-                      )
-                    }
-                    data-testid="workspace-group-menu"
-                    title="Workspace options"
-                    aria-label={`Workspace options for ${group.name}`}
-                    // Permanent, not hover-revealed: these three controls are the
-                    // workspace's fixed toolbar, and a control you cannot see is
-                    // a control you do not know exists.
-                    className="text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors"
-                  >
-                    <MoreIcon size={14} />
-                  </TooltipButton>
-                  {workspaceMenuFor === group.workspacePath && (
-                    <PopupMenu
-                      onClose={() => closeWorkspaceMenu()}
-                      triggerRef={workspaceMenuTriggerRef}
-                      className="absolute right-1 top-full z-40 mt-1 min-w-36 py-1"
+                    <TooltipButton
+                      onClick={() => toggleSearch(group, isCollapsed)}
+                      data-testid="workspace-group-search"
+                      title="Search lanes"
+                      aria-label={`Search lanes in ${group.name}`}
+                      aria-expanded={isSearching(group)}
+                      className={clsx(
+                        'flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors active:scale-90',
+                        query
+                          ? 'bg-accent-soft text-accent'
+                          : 'text-text-tertiary hover:text-text hover:bg-sidebar-hover',
+                      )}
                     >
-                      <MenuRow
-                        active={false}
-                        testId="workspace-group-select"
-                        disabled={!selectingThis && visible.length < 2}
-                        onClick={() => {
-                          if (selectingThis) clearSelection()
-                          else selectWholeGroup(group, visible)
-                          closeWorkspaceMenu()
-                        }}
+                      <SearchIcon size={12} />
+                    </TooltipButton>
+                    <TooltipButton
+                      ref={
+                        workspaceMenuFor === group.workspacePath
+                          ? workspaceMenuTriggerRef
+                          : undefined
+                      }
+                      onClick={() =>
+                        setWorkspaceMenuFor((current) =>
+                          current === group.workspacePath ? null : group.workspacePath,
+                        )
+                      }
+                      data-testid="workspace-group-menu"
+                      title="Workspace options"
+                      aria-label={`Workspace options for ${group.name}`}
+                      // Permanent, not hover-revealed: these three controls are the
+                      // workspace's fixed toolbar, and a control you cannot see is
+                      // a control you do not know exists.
+                      className="text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors"
+                    >
+                      <MoreIcon size={14} />
+                    </TooltipButton>
+                    {workspaceMenuFor === group.workspacePath && (
+                      <PopupMenu
+                        onClose={() => closeWorkspaceMenu()}
+                        triggerRef={workspaceMenuTriggerRef}
+                        className="absolute right-1 top-full z-40 mt-1 min-w-36 py-1"
                       >
-                        {selectingThis ? 'Clear selection' : 'Select all lanes'}
-                      </MenuRow>
-                      <MenuRow
-                        active={false}
-                        disabled={groups.indexOf(group) === 0}
-                        onClick={() => moveGroup(group, 'up')}
-                      >
-                        Move up
-                      </MenuRow>
-                      <MenuRow
-                        active={false}
-                        disabled={groups.indexOf(group) === groups.length - 1}
-                        onClick={() => moveGroup(group, 'down')}
-                      >
-                        Move down
-                      </MenuRow>
-                      {/* Only a sandbox is renamed or deleted from here: it is
+                        <MenuRow
+                          active={false}
+                          testId="workspace-group-select"
+                          disabled={!selectingThis && visible.length < 2}
+                          onClick={() => {
+                            if (selectingThis) clearSelection()
+                            else selectWholeGroup(group, visible)
+                            closeWorkspaceMenu()
+                          }}
+                        >
+                          {selectingThis ? 'Clear selection' : 'Select all lanes'}
+                        </MenuRow>
+                        <MenuRow
+                          active={false}
+                          disabled={groups.indexOf(group) === 0}
+                          onClick={() => moveGroup(group, 'up')}
+                        >
+                          Move up
+                        </MenuRow>
+                        <MenuRow
+                          active={false}
+                          disabled={groups.indexOf(group) === groups.length - 1}
+                          onClick={() => moveGroup(group, 'down')}
+                        >
+                          Move down
+                        </MenuRow>
+                        {/* Only a sandbox is renamed or deleted from here: it is
                           Phosphor's own scratch folder, so its name and its
                           removal are ours to offer. A project folder is the
                           user's, so it is only ever forgotten: it leaves the
                           sidebar and nothing on disk changes. This used to be
                           Settings-only, and people could not find it. */}
-                      {!sandboxPaths.has(group.workspacePath) && (
-                        <MenuRow
-                          active={false}
-                          testId="workspace-group-remove"
-                          onClick={() => {
-                            // Second click confirms, in place, like a sandbox
-                            // delete: it is undone by opening the folder again.
-                            if (confirmRemove !== group.workspacePath) {
-                              setConfirmRemove(group.workspacePath)
-                              return
-                            }
-                            closeWorkspaceMenu()
-                            void useWorkspacesStore
-                              .getState()
-                              .removeWorkspace([
-                                group.workspacePath,
-                                ...group.paths.filter((path) => path !== group.workspacePath),
-                              ])
-                          }}
-                        >
-                          <span
-                            className={confirmRemove === group.workspacePath ? 'text-danger' : ''}
-                          >
-                            {confirmRemove === group.workspacePath
-                              ? 'Remove? Files stay on disk'
-                              : 'Remove from sidebar'}
-                          </span>
-                        </MenuRow>
-                      )}
-                      {sandboxPaths.has(group.workspacePath) && (
-                        <>
+                        {!sandboxPaths.has(group.workspacePath) && (
                           <MenuRow
                             active={false}
-                            testId="workspace-group-rename-sandbox"
+                            testId="workspace-group-remove"
                             onClick={() => {
-                              closeWorkspaceMenu()
-                              void promptRenameSandbox(group.workspacePath)
-                            }}
-                          >
-                            Rename sandbox…
-                          </MenuRow>
-                          <MenuRow
-                            active={false}
-                            testId="workspace-group-delete-sandbox"
-                            onClick={() => {
-                              // Second click confirms, in place — a sandbox goes
-                              // to the Trash, so a modal would cost more than the
-                              // mistake it prevents.
-                              if (confirmSandboxDelete !== group.workspacePath) {
-                                setConfirmSandboxDelete(group.workspacePath)
+                              // Second click confirms, in place, like a sandbox
+                              // delete: it is undone by opening the folder again.
+                              if (confirmRemove !== group.workspacePath) {
+                                setConfirmRemove(group.workspacePath)
                                 return
                               }
                               closeWorkspaceMenu()
-                              void useWorkspacesStore.getState().deleteSandbox(group.workspacePath)
+                              void useWorkspacesStore
+                                .getState()
+                                .removeWorkspace([
+                                  group.workspacePath,
+                                  ...group.paths.filter((path) => path !== group.workspacePath),
+                                ])
                             }}
                           >
                             <span
-                              className={
-                                confirmSandboxDelete === group.workspacePath ? 'text-danger' : ''
-                              }
+                              className={confirmRemove === group.workspacePath ? 'text-danger' : ''}
                             >
-                              {confirmSandboxDelete === group.workspacePath
-                                ? 'Delete, with its chats?'
-                                : 'Delete sandbox…'}
+                              {confirmRemove === group.workspacePath
+                                ? 'Remove? Files stay on disk'
+                                : 'Remove from sidebar'}
                             </span>
                           </MenuRow>
-                        </>
-                      )}
-                    </PopupMenu>
+                        )}
+                        {sandboxPaths.has(group.workspacePath) && (
+                          <>
+                            <MenuRow
+                              active={false}
+                              testId="workspace-group-rename-sandbox"
+                              onClick={() => {
+                                closeWorkspaceMenu()
+                                void promptRenameSandbox(group.workspacePath)
+                              }}
+                            >
+                              Rename sandbox…
+                            </MenuRow>
+                            <MenuRow
+                              active={false}
+                              testId="workspace-group-delete-sandbox"
+                              onClick={() => {
+                                // Second click confirms, in place — a sandbox goes
+                                // to the Trash, so a modal would cost more than the
+                                // mistake it prevents.
+                                if (confirmSandboxDelete !== group.workspacePath) {
+                                  setConfirmSandboxDelete(group.workspacePath)
+                                  return
+                                }
+                                closeWorkspaceMenu()
+                                void useWorkspacesStore
+                                  .getState()
+                                  .deleteSandbox(group.workspacePath)
+                              }}
+                            >
+                              <span
+                                className={
+                                  confirmSandboxDelete === group.workspacePath ? 'text-danger' : ''
+                                }
+                              >
+                                {confirmSandboxDelete === group.workspacePath
+                                  ? 'Delete, with its chats?'
+                                  : 'Delete sandbox…'}
+                              </span>
+                            </MenuRow>
+                          </>
+                        )}
+                      </PopupMenu>
+                    )}
+                    <TooltipButton
+                      onClick={() => {
+                        useWorkspacesStore.getState().openWorkspace(group.workspacePath)
+                        useSessionsStore.getState().activate(null)
+                      }}
+                      data-testid="workspace-group-new-session"
+                      title="New session here"
+                      className="text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors active:scale-90"
+                    >
+                      <PlusIcon size={12} strokeWidth={2.5} />
+                    </TooltipButton>
+                  </WorkspaceGroupHeader>
+                  {isSearching(group) && (
+                    <LaneSearchBar
+                      value={searchDraft[group.workspacePath] ?? ''}
+                      applied={Boolean(query)}
+                      matchCount={shownCount}
+                      total={shownTotal}
+                      onChange={(value) =>
+                        setSearchDraft((s) => ({ ...s, [group.workspacePath]: value }))
+                      }
+                      onCommit={() =>
+                        setSearchApplied((s) => ({
+                          ...s,
+                          [group.workspacePath]: searchDraft[group.workspacePath] ?? '',
+                        }))
+                      }
+                      onClear={() => closeSearch(group.workspacePath)}
+                    />
                   )}
-                  <TooltipButton
-                    onClick={() => {
-                      useWorkspacesStore.getState().openWorkspace(group.workspacePath)
-                      useSessionsStore.getState().activate(null)
-                    }}
-                    data-testid="workspace-group-new-session"
-                    title="New session here"
-                    className="text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors active:scale-90"
-                  >
-                    <PlusIcon size={12} strokeWidth={2.5} />
-                  </TooltipButton>
-                </div>
-                {isSearching(group) && (
-                  <LaneSearchBar
-                    value={searchDraft[group.workspacePath] ?? ''}
-                    applied={Boolean(query)}
-                    matchCount={shownCount}
-                    total={shownTotal}
-                    onChange={(value) =>
-                      setSearchDraft((s) => ({ ...s, [group.workspacePath]: value }))
-                    }
-                    onCommit={() =>
-                      setSearchApplied((s) => ({
-                        ...s,
-                        [group.workspacePath]: searchDraft[group.workspacePath] ?? '',
-                      }))
-                    }
-                    onClear={() => closeSearch(group.workspacePath)}
-                  />
-                )}
-                {/* Placeholder rows carry no name, branch or PR yet, so a
+                  {/* Placeholder rows carry no name, branch or PR yet, so a
                     filter can only ever be wrong about them. While one is on,
                     they stand aside. */}
-                {!isCollapsed && (
-                  <SessionList
-                    disabled={Boolean(query) || selectingThis || bulkDeleteRunning}
-                    items={[
-                      ...(terms.length
-                        ? []
-                        : (pendingByWorkspace.get(group.workspacePath) ?? [])
-                      ).map((phosphorId) => ({
-                        id: live[phosphorId]?.diskPath ?? phosphorId,
-                        path: live[phosphorId]?.diskPath,
-                        content: (
-                          <PendingSessionRow
-                            phosphorId={phosphorId}
-                            active={phosphorId === activeSessionId}
-                            onDelete={(title) =>
-                              setDeleteTarget({
-                                title,
-                                sessionId: phosphorId,
-                                workspacePath: live[phosphorId]!.workspacePath,
-                              })
-                            }
-                            git={gitByCwd[live[phosphorId]?.workspacePath ?? '']}
-                          />
-                        ),
-                      })),
-                      ...visible.map((meta) => ({
-                        id: meta.path,
-                        path: meta.path,
-                        content: (
-                          <SessionRow
-                            {...rowProps(meta)}
-                            isPinned={false}
-                            selected={
-                              selection?.paths.includes(meta.path) === true && selectingThis
-                            }
-                            selecting={selectingThis}
-                            onToggleSelect={(shiftKey) =>
-                              toggleLaneSelection(group, visible, meta.path, shiftKey)
-                            }
-                          />
-                        ),
-                      })),
-                    ]}
-                  />
-                )}
-                {!isCollapsed && shownTotal > 0 && shownCount === 0 && (
-                  <div
-                    data-testid="lane-search-empty"
-                    className="text-text-tertiary px-2 py-2 text-sm"
-                  >
-                    No lanes match &ldquo;{query}&rdquo;
-                  </div>
-                )}
-                {/* Rows already scanned stay put while the rest of the group
+                  {!isCollapsed && (
+                    <SessionList
+                      disabled={Boolean(query) || selectingThis || bulkDeleteRunning}
+                      items={[
+                        ...(terms.length
+                          ? []
+                          : (pendingByWorkspace.get(group.workspacePath) ?? [])
+                        ).map((phosphorId) => ({
+                          id: live[phosphorId]?.diskPath ?? phosphorId,
+                          path: live[phosphorId]?.diskPath,
+                          content: (
+                            <PendingSessionRow
+                              phosphorId={phosphorId}
+                              active={phosphorId === activeSessionId}
+                              onDelete={(title) =>
+                                setDeleteTarget({
+                                  title,
+                                  sessionId: phosphorId,
+                                  workspacePath: live[phosphorId]!.workspacePath,
+                                })
+                              }
+                              git={gitByCwd[live[phosphorId]?.workspacePath ?? '']}
+                            />
+                          ),
+                        })),
+                        ...visible.map((meta) => ({
+                          id: meta.path,
+                          path: meta.path,
+                          content: (
+                            <SessionRow
+                              {...rowProps(meta)}
+                              isPinned={false}
+                              selected={
+                                selection?.paths.includes(meta.path) === true && selectingThis
+                              }
+                              selecting={selectingThis}
+                              onToggleSelect={(shiftKey) =>
+                                toggleLaneSelection(group, visible, meta.path, shiftKey)
+                              }
+                            />
+                          ),
+                        })),
+                      ]}
+                    />
+                  )}
+                  {!isCollapsed && shownTotal > 0 && shownCount === 0 && (
+                    <div
+                      data-testid="lane-search-empty"
+                      className="text-text-tertiary px-2 py-2 text-sm"
+                    >
+                      No lanes match &ldquo;{query}&rdquo;
+                    </div>
+                  )}
+                  {/* Rows already scanned stay put while the rest of the group
                   catches up — a partial answer must not read as the whole
                   answer, but it must not hide what we have either. */}
-                {!isCollapsed && local.length > 0 && group.unscannedPaths.length > 0 && (
-                  <div className="text-text-tertiary flex items-center gap-1.5 px-2 py-1.5 text-xs">
-                    <Spinner />
-                    <span>
-                      loading {group.unscannedPaths.length} more folder
-                      {group.unscannedPaths.length === 1 ? '' : 's'}…
-                    </span>
-                  </div>
-                )}
-                {!isCollapsed &&
-                  group.metas.length === 0 &&
-                  !pendingByWorkspace.has(group.workspacePath) &&
-                  (group.attempted && group.errored ? (
-                    <div className="text-text-tertiary flex items-center gap-2 px-2 py-2 text-sm">
-                      <span>Couldn&apos;t load sessions</span>
-                      <TooltipButton
-                        onClick={() => retryGroup(group)}
-                        className="text-text-secondary hover:text-text rounded px-1 underline-offset-2 hover:underline"
-                      >
-                        Retry
-                      </TooltipButton>
+                  {!isCollapsed && local.length > 0 && group.unscannedPaths.length > 0 && (
+                    <div className="text-text-tertiary flex items-center gap-1.5 px-2 py-1.5 text-xs">
+                      <Spinner />
+                      <span>
+                        loading {group.unscannedPaths.length} more folder
+                        {group.unscannedPaths.length === 1 ? '' : 's'}…
+                      </span>
                     </div>
-                  ) : group.attempted ? (
-                    <div className="text-text-tertiary px-2 py-2 text-sm">
-                      Sessions you start will show up here
-                    </div>
-                  ) : (
-                    <SessionRowSkeletons />
-                  ))}
-              </div>
-            )
-          })}
+                  )}
+                  {!isCollapsed &&
+                    group.metas.length === 0 &&
+                    !pendingByWorkspace.has(group.workspacePath) &&
+                    (group.attempted && group.errored ? (
+                      <div className="text-text-tertiary flex items-center gap-2 px-2 py-2 text-sm">
+                        <span>Couldn&apos;t load sessions</span>
+                        <TooltipButton
+                          onClick={() => retryGroup(group)}
+                          className="text-text-secondary hover:text-text rounded px-1 underline-offset-2 hover:underline"
+                        >
+                          Retry
+                        </TooltipButton>
+                      </div>
+                    ) : group.attempted ? (
+                      <div className="text-text-tertiary px-2 py-2 text-sm">
+                        Sessions you start will show up here
+                      </div>
+                    ) : (
+                      <SessionRowSkeletons />
+                    ))}
+                </div>
+              )
+            })}
+        </div>
+        <RemoteLanes />
       </div>
 
       <div className="border-border border-t px-3 py-2">
@@ -1381,13 +1371,6 @@ function WorkspaceSwitcher(): React.JSX.Element {
  * → process-up window, which is otherwise a second or more of a row that
  * looks exactly like every idle row beside it.
  */
-type LaneActivity = 'opening' | 'starting' | 'working'
-const ACTIVITY_LABEL: Record<LaneActivity, string> = {
-  opening: 'Opening',
-  starting: 'Starting',
-  working: 'Working',
-}
-
 // One line, always. A narrow sidebar used to wrap every long title onto a
 // second line, so the list re-flowed as the user dragged the divider and a
 // lane stopped being a fixed-height row. The full title stays in the tooltip.
@@ -1784,7 +1767,7 @@ function SessionRow({
 
   return (
     <>
-      <TooltipButton
+      <LaneRow
         onClick={open}
         onContextMenu={contextMenu}
         onDoubleClick={beginRename}
@@ -1805,7 +1788,7 @@ function SessionRow({
         className={rowClassName}
       >
         {body}
-      </TooltipButton>
+      </LaneRow>
       {markerPicker}
     </>
   )
@@ -2038,87 +2021,6 @@ function PendingSessionRow({
  * because a live session swaps from the second to the first mid-turn and the
  * swap has to be invisible. They had drifted into two different subtitles.
  */
-function SubtitleSegments({
-  segments,
-  activity,
-}: {
-  segments: SubtitleSegment[]
-  activity?: LaneActivity
-}): React.JSX.Element {
-  const leadingActivity = activity && !segments.some((segment) => segment.key === 'time')
-  return (
-    <>
-      {leadingActivity && (
-        <span className="lane-activity-label shrink-0">{ACTIVITY_LABEL[activity]}</span>
-      )}
-      {segments.map((segment, i) => (
-        <span
-          key={segment.key}
-          data-segment={segment.key}
-          className={clsx(
-            'flex items-center',
-            // The branch is the only segment allowed to give up space.
-            // Both classes set flex-shrink, so they must be exclusive:
-            // emitting `shrink-0 shrink` let source order decide and
-            // `shrink-0` won, which is what pushed long branch names past
-            // the sidebar edge and produced a horizontal scrollbar.
-            segment.truncate ? 'min-w-0 shrink' : 'shrink-0',
-          )}
-        >
-          {(i > 0 || leadingActivity) && <span className="pr-1">·</span>}
-          {segment.key === 'time' && activity ? (
-            <span className="lane-activity-label" data-tooltip={`Last activity: ${segment.text}`}>
-              {ACTIVITY_LABEL[activity]}
-            </span>
-          ) : segment.key === 'worktree' ? (
-            <span
-              className="bg-chip text-text-secondary rounded px-1 font-medium"
-              data-tooltip="Runs in a git worktree"
-            >
-              wt
-            </span>
-          ) : segment.key === 'branch' ? (
-            <span className="truncate" data-tooltip={segment.text}>
-              ⎇ {segment.text}
-            </span>
-          ) : (
-            <span className={clsx(segment.key === 'dirty' && 'text-warning')}>{segment.text}</span>
-          )}
-        </span>
-      ))}
-    </>
-  )
-}
-
-/**
- * The dot at the head of a session row, in its four states.
- *
- * `data-testid` and `data-state` are asserted by e2e/smoke.spec.ts — the row
- * types must keep emitting the same values.
- */
-function SessionIndicator({
-  state,
-}: {
-  state: 'streaming' | 'unseen' | 'live' | 'disk'
-}): React.JSX.Element {
-  return (
-    <span
-      data-testid="session-indicator"
-      data-state={state}
-      className="flex size-5 shrink-0 items-center justify-center"
-    >
-      {state === 'streaming' ? (
-        <PhosphorLoader size={20} decorative />
-      ) : state === 'unseen' ? (
-        <span className="bg-success h-2 w-2 rounded-full" data-tooltip="New activity" />
-      ) : state === 'live' ? (
-        <span className="border-success h-2 w-2 rounded-full border" data-tooltip="Live session" />
-      ) : (
-        <span className="border-border-strong h-2 w-2 rounded-full border" />
-      )}
-    </span>
-  )
-}
 
 function SectionLabel({ children }: { children: React.ReactNode }): React.JSX.Element {
   return (

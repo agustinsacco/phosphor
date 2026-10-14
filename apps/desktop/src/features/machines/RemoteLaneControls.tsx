@@ -15,7 +15,7 @@ export function MachineChip({ sessionId }: { sessionId: string }): React.JSX.Ele
   const hosts = useRemoteLanesStore((s) => s.hosts)
   useMachinesStore((s) => s.machines)
   return (
-    <span className="text-text-secondary px-2 text-sm">
+    <span className="text-text-secondary bg-chip inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-sm">
       {target?.kind === 'remote'
         ? `${machineLabel(target.hostId)} · ${connectionLabel(hosts[target.hostId]?.state)}`
         : 'This Mac'}

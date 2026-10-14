@@ -61,41 +61,45 @@ export function OnThisMachine({ hostId }: { hostId: string }): React.JSX.Element
   if (!host) return null
   const ready = host.state === 'ready'
   return (
-    <section className="space-y-3" aria-label="On this machine">
+    <section className="border-border space-y-3 rounded-lg border p-4" aria-label="On this machine">
       <h2 className="text-lg font-semibold">On this machine</h2>
-      {!ready && <p>{REMOTE_NOT_READY}</p>}
+      {!ready && <p className="text-text-tertiary text-sm">{REMOTE_NOT_READY}</p>}
       {host.capabilities.includes('sessions.read') && (
-        <div>
-          <p>
+        <div className="space-y-2">
+          <p className="text-text-secondary text-sm">
             {host.lanes.length} lanes{ready ? '' : ' · last known'}
           </p>
-          {host.lanes.map((lane) => (
-            <Button
-              key={lane.laneId}
-              size="xs"
-              disabled={!ready}
-              onClick={() => void openRemoteLane(hostId, lane.laneId)}
-            >
-              {lane.title || 'Untitled lane'}
-            </Button>
-          ))}
+          <div className="flex flex-wrap gap-2">
+            {host.lanes.map((lane) => (
+              <Button
+                key={lane.laneId}
+                size="xs"
+                disabled={!ready}
+                onClick={() => void openRemoteLane(hostId, lane.laneId)}
+              >
+                {lane.title || 'Untitled lane'}
+              </Button>
+            ))}
+          </div>
         </div>
       )}
-      {host.capabilities.includes('skills.read') && (
-        <Button disabled={!ready} onClick={() => openMachinePage('skills', hostId)}>
-          Skills · {counts.skills ?? 'Unavailable'}
-        </Button>
-      )}
-      {host.capabilities.includes('routines') && (
-        <Button disabled={!ready} onClick={() => openMachinePage('routines', hostId)}>
-          Routines · {counts.routines ?? 'Unavailable'}
-        </Button>
-      )}
-      {host.capabilities.includes('artifacts.read') && (
-        <Button disabled={!ready} onClick={() => openMachinePage('artifacts', hostId)}>
-          Artifacts · {counts.artifacts ?? 'Unavailable'}
-        </Button>
-      )}
+      <div className="flex flex-wrap gap-2">
+        {host.capabilities.includes('skills.read') && (
+          <Button disabled={!ready} onClick={() => openMachinePage('skills', hostId)}>
+            Skills · {counts.skills ?? 'Unavailable'}
+          </Button>
+        )}
+        {host.capabilities.includes('routines') && (
+          <Button disabled={!ready} onClick={() => openMachinePage('routines', hostId)}>
+            Routines · {counts.routines ?? 'Unavailable'}
+          </Button>
+        )}
+        {host.capabilities.includes('artifacts.read') && (
+          <Button disabled={!ready} onClick={() => openMachinePage('artifacts', hostId)}>
+            Artifacts · {counts.artifacts ?? 'Unavailable'}
+          </Button>
+        )}
+      </div>
     </section>
   )
 }

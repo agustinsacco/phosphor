@@ -7,6 +7,7 @@ import { RemoteLaneControls } from '@/features/machines/RemoteLaneControls'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
+import { useMachinesStore } from '@/stores/machines'
 import { useFilesStore } from '@/stores/files'
 
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
@@ -16,6 +17,7 @@ const invoke = vi.fn().mockResolvedValue(undefined)
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   Object.defineProperty(window, 'phosphor', { configurable: true, value: { invoke } })
+  useMachinesStore.setState({ remoteEnabled: true })
   useRemoteLanesStore.setState({ hosts: structuredClone(mockRemoteHosts), filter: 'all' })
   useSessionsStore.setState({
     live: {
@@ -40,13 +42,13 @@ afterEach(() => {
 it('stays dormant without sessions.read and shows unread machine-tagged lanes when enabled', () => {
   act(() => root.render(<RemoteLanes />))
   expect(container.textContent).toContain('Remote demo lane')
-  expect(container.querySelector('[aria-label="Unread"]')).not.toBeNull()
+  expect(container.querySelector('[data-state="unseen"]')).not.toBeNull()
   act(() =>
     useRemoteLanesStore.setState({
       hosts: { [MOCK_HOST_ID]: { ...mockRemoteHosts[MOCK_HOST_ID]!, capabilities: [] } },
     }),
   )
-  expect(container.textContent).toBe('')
+  expect(container.querySelector('[data-testid=remote-session-row]')).toBeNull()
 })
 
 it('keeps offline lanes visible and disabled', () => {
@@ -54,8 +56,10 @@ it('keeps offline lanes visible and disabled', () => {
   hosts[MOCK_HOST_ID]!.state = 'reconnecting'
   useRemoteLanesStore.setState({ hosts })
   act(() => root.render(<RemoteLanes />))
-  expect(container.textContent).toContain('is offline')
-  expect(container.querySelector<HTMLButtonElement>('[aria-current], button')?.disabled).toBe(true)
+  expect(container.textContent).toContain('last known')
+  expect(
+    container.querySelector<HTMLButtonElement>('[data-testid=remote-session-row]')?.disabled,
+  ).toBe(true)
 })
 
 it('requires explicit takeover and sends the Host identity', async () => {

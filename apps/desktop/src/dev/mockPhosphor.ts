@@ -2,6 +2,7 @@ import {
   mockRemoteAction,
   onMockRemoteChanged,
   mockRemoteHosts,
+  mixedRemoteHosts,
   mockRemoteInfo,
 } from './mockRemoteLanes'
 import type { MachineView } from '@shared/control-api'
@@ -341,6 +342,10 @@ function harnessMachines(): MachineView[] {
         } satisfies MachineView,
       ]
     : []
+  if (localStorage.getItem('mock:remoteMixed') === '1')
+    machines.push(
+      harnessMachine('55555555-5555-4555-8555-555555555555', 'sandbox', new Date().toISOString()),
+    )
   if (harnessAdded) machines.push(harnessAdded)
   return machines
     .filter((machine) => !harnessRemoved.has(machine.id))
@@ -1483,7 +1488,9 @@ export function installMockPhosphor(): void {
           return { skills: [], probe: 'rpc', userRoot: `host:${args[0]}/machine` }
         case 'hosts:snapshot':
           return localStorage.getItem('mock:remoteLanes') === '1'
-            ? structuredClone(mockRemoteHosts)
+            ? localStorage.getItem('mock:remoteMixed') === '1'
+              ? mixedRemoteHosts()
+              : structuredClone(mockRemoteHosts)
             : {}
         case 'hosts:openLane':
         case 'hosts:createLane':
