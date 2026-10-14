@@ -14,6 +14,12 @@ const state = vi.hoisted(() => {
     },
   }
   return {
+    remote: {
+      command: vi.fn(),
+      respond: vi.fn(),
+      dispose: vi.fn(),
+      list: vi.fn().mockReturnValue([]),
+    },
     handlers: new Map<string, (...args: unknown[]) => unknown>(),
     session,
     create: vi.fn().mockReturnValue(session),
@@ -28,6 +34,7 @@ const state = vi.hoisted(() => {
 vi.mock('electron', () => ({
   app: { isPackaged: false, getAppPath: () => '/app', getPath: () => '/user-data' },
 }))
+vi.mock('./hosts-handlers', () => ({ remoteLanes: () => state.remote }))
 vi.mock('./handle', () => ({
   handle: (name: string, cb: (...args: unknown[]) => unknown) => state.handlers.set(name, cb),
 }))
@@ -288,4 +295,21 @@ describe('session context policy integration', () => {
       PI_CLAUDE_CLI_EPHEMERAL: '1',
     })
   })
+})
+
+it('routes all remote handles away from the local pi registry, including expired handles', async () => {
+  const sender = { id: 7 }
+  const id = 'remote-0123456789abcdef'
+  const command = { type: 'abort' }
+  const response = { type: 'extension_ui_response', id: 'dialog', confirmed: true }
+  state.remote.command.mockResolvedValue({ success: false, error: 'Lane unavailable.' })
+  await state.handlers.get('pi:command')?.({ sender }, id, command)
+  await state.handlers.get('pi:extensionUiResponse')?.({ sender }, id, response)
+  await state.handlers.get('pi:disposeSession')?.({ sender }, id)
+  expect(state.remote.command).toHaveBeenCalledWith(7, id, command)
+  expect(state.remote.respond).toHaveBeenCalledWith(7, id, response)
+  expect(state.remote.dispose).toHaveBeenCalledWith(7, id)
+  expect(state.session.client.request).not.toHaveBeenCalled()
+  expect(state.dispose).not.toHaveBeenCalled()
+  expect(state.create).not.toHaveBeenCalled()
 })

@@ -4,6 +4,7 @@ import {
   HOST_LIMITS,
   helloProofMessage,
   parseHostFrame,
+  parseClientFrame,
   utf8Length,
   type ClientFrame,
   type FrameSocket,
@@ -35,6 +36,7 @@ export function createHostConnection(ports: {
   grant: () => Promise<GrantIssueResponse>
   clearGrant: () => void
   changed: () => void
+  onAttention?: (event: Extract<HostFrame, { type: 'attention' }>['event']) => void
   disabled?: () => void
   log?: TraceLog
   now?: () => number
@@ -58,6 +60,7 @@ export function createHostConnection(ports: {
     lastPong = 0
   const timers = new Set<ReturnType<typeof setTimeout>>()
   let renewalTimeout: ReturnType<typeof setTimeout> | undefined
+  const expiries = new Map<string, ReturnType<typeof setTimeout>>()
   const replay: string[] = []
   const pending = new Map<
     string,
@@ -95,6 +98,7 @@ export function createHostConnection(ports: {
   function write(frame: ClientFrame): boolean {
     const text = JSON.stringify(frame)
     if (
+      !parseClientFrame(text).ok ||
       !socket?.isOpen() ||
       utf8Length(text) > HOST_LIMITS.inboundFrameBytes ||
       socket.bufferedBytes() + utf8Length(text) > HOST_LIMITS.sendQueueBytes
@@ -156,6 +160,8 @@ export function createHostConnection(ports: {
     socket = null
     for (const [requestId, p] of pending) p.resolve({ requestId, status: 'unknown' })
     pending.clear()
+    for (const timer of expiries.values()) clearTimeout(timer)
+    expiries.clear()
     for (const [id, c] of calls)
       c.resolve({
         type: 'result',
@@ -335,7 +341,10 @@ export function createHostConnection(ports: {
     } else if ((f.type === 'lanes-delta' || f.type === 'attention') && f.id === 'lanes') {
       if (!view.cursor || view.cursor.epoch !== f.cursor.epoch) return
       if (f.type === 'attention') {
-        if (!attention.some((a) => a.event.id === f.event.id)) attention.push(f)
+        if (!attention.some((a) => a.event.id === f.event.id)) {
+          attention.push(f)
+          ports.onAttention?.(f.event)
+        }
         attention.sort((a, b) => a.cursor.seq - b.cursor.seq)
         if (attention.length > 50) attention.shift()
         update({ cursor: { epoch: f.cursor.epoch, seq: Math.max(view.cursor.seq, f.cursor.seq) } })
@@ -369,11 +378,30 @@ export function createHostConnection(ports: {
           (f.reset || (!!w.cursor && w.cursor.epoch !== f.snapshot.cursor.epoch))
         if (f.type !== 'subscribe-failed')
           w.cursor = f.type === 'snapshot' ? f.snapshot.cursor : f.cursor
+        if (f.type === 'snapshot') {
+          update({ lanes: view.lanes.map((l) => (l.laneId === f.laneId ? f.snapshot.summary : l)) })
+        } else if (
+          f.type === 'event' &&
+          (f.event.kind === 'control' || f.event.kind === 'summary')
+        ) {
+          const event = f.event
+          update({
+            lanes: view.lanes.map((l) =>
+              l.laneId !== f.laneId
+                ? l
+                : event.kind === 'summary'
+                  ? event.summary
+                  : { ...l, control: event.control },
+            ),
+          })
+        }
         w.listener(f.type === 'snapshot' ? { ...f, reset } : f)
       } else if (f.type === 'subscribe-failed' && f.id === 'lanes') update({ lastError: f.code })
     } else if (f.type === 'receipt' && f.receipt.status !== 'pending') {
       pending.get(f.receipt.requestId)?.resolve(f.receipt)
       pending.delete(f.receipt.requestId)
+      clearTimeout(expiries.get(f.receipt.requestId))
+      expiries.delete(f.receipt.requestId)
       log('hosts', 'receipt', {
         hostId: ports.hostId,
         requestId: f.receipt.requestId,
@@ -473,6 +501,17 @@ export function createHostConnection(ports: {
           return
         }
         pending.set(requestId, { frame, at: now(), statusOnly: false, resolve })
+        expiries.set(
+          requestId,
+          setTimeout(() => {
+            expiries.delete(requestId)
+            const p = pending.get(requestId)
+            if (!p) return
+            p.statusOnly = true
+            write({ type: 'receipt-status', requestId })
+            p.resolve({ requestId, status: 'unknown' })
+          }, 60_000),
+        )
       })
     },
     call(method: string, params?: unknown): Promise<Extract<HostFrame, { type: 'result' }>> {

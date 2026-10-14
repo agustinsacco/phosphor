@@ -71,11 +71,46 @@ may try a fresh action once ready. `closed` means no automatic retry.
 250 ms debounced refetch signal. Controllers expose only a label, connection
 status and whether they are this Desktop, never a client or user id. Repositories,
 lane summaries, cursors, the last 50 attention events and open lane streams stay
-in memory. No transcript is
-written to the client's disk. This plumbing adds no UI or remote IPC routing.
-Remote surfaces remain absent until a Host announces their capabilities.
-`IPC_SCOPE` classifies every invoke channel as app-local or machine-scoped;
-it does not route them yet.
+in memory. No transcript is written to the client's disk. Remote lane access
+requires `sessions.read` in the Host's authenticated `ready` frame; mutations
+also require `sessions.control`.
+
+`hosts:openLane` returns one opaque `remote-<16 hex>` handle per lane per window,
+with at most 64 handles per window. Its workspace key is
+`host:<hostId>/<repositoryId>`, never a local path. Opening marks the lane read.
+`hosts:createLane`, `hosts:stopLane`, `hosts:resumeLane`, `hosts:takeControl` and
+`hosts:markRead` send bounded, validated Host commands. Taking control is always
+explicit. Handles are private to their window and disappear on window close,
+sign-out, account change or Host removal. Down Hosts retain memory-only views.
+
+Main routes remote `pi:command`, `pi:extensionUiResponse` and
+`pi:disposeSession` without consulting the local pi registry. The allowlist is
+`electron/hosts/lane-ops.ts`. Receipts become pi responses; controller rejections
+name the machine and controller. Unknown outcomes tell the user to check the lane
+before retrying. Unanswered commands expire after 60 seconds as unknown, never
+as a fresh retry. Local pi routing is unchanged.
+
+Remote snapshots and reset snapshots replace main's in-memory lane projection.
+Main sends `resync` on the handle's usual pi event channel. The renderer obtains
+state and messages through the existing hydrate path. Until the messages reply,
+main holds live pushes and serves the frozen snapshot. After that reply it sends
+the snapshot's pending events and UI, open dialogs, then held pushes, in order.
+The hold is bounded by the stream event and byte limits; overflow starts a new
+resync. Without a messages query it flushes after ten seconds. Live pi events
+otherwise pass through unchanged. Reconnect subscriptions carry the last cursor;
+a new epoch or reset starts hydration again. Dialog resolution resyncs viewers
+without the answered dialog.
+
+Attention publishes `hosts:attention` and a machine-titled OS notification for
+lanes not focused in any focused window. Notifications are deduplicated in
+bounded memory. Clicking focuses a window and sends `hosts:openLaneRequested`.
+`hosts:setFocusedLane` tracks each window's active remote lane, or null for a
+local lane. Read counters come from the Host and clear unread across clients.
+
+`IPC_SCOPE` classifies every invoke channel as app-local or machine-scoped.
+Unrouted machine channels reject opaque remote workspace keys and remote handles,
+including nested options, with “Not available on remote lanes yet.” They never
+fall through to this machine's filesystem or subprocesses.
 
 ## Host protocol
 

@@ -262,7 +262,7 @@ export function createLiveLanes(options: {
   }
   function push(laneId: string, push: SessionPush) {
     const live = attached.get(laneId)
-    if (!live || live.exited || push.kind === 'stderr') return
+    if (!live || live.exited || push.kind === 'stderr' || push.kind === 'resync') return
     if (push.kind === 'event') {
       if (push.event.type === 'agent_start') {
         live.run = true
