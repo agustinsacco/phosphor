@@ -1,7 +1,6 @@
 import { parseFileParams, parseFileResult } from '@shared/host-protocol-files'
 import {
   parseMachineParams,
-  parseMachineModels,
   parseMachineSkills,
   parseSkillReadResult,
   MACHINE_LIMITS,
@@ -23,8 +22,25 @@ export const READ_CHANNELS = new Set<IpcInvokeChannel>([
   'git:showFileAt',
   'skills:list',
   'skills:readFile',
-  'pi:catalogueModels',
 ])
+
+/**
+ * Only a call naming a `host:` workspace goes to a Host. A call with no workspace
+ * (a global catalogue, the app's own skills) stays local even while a remote lane
+ * is focused.
+ */
+export function routeRemoteRead(
+  channel: IpcInvokeChannel,
+  args: unknown[],
+  readLane: (key: string) => ReadLane | null,
+): { result: Promise<unknown> } | null {
+  const key = args[0]
+  if (!READ_CHANNELS.has(channel) || typeof key !== 'string' || !key.startsWith('host:'))
+    return null
+  const lane = readLane(key)
+  if (!lane) throw new Error(REMOTE_UNAVAILABLE)
+  return { result: readFeature(channel, args, lane) }
+}
 
 /** Opaque workspace keys are only labels. Paths sent to the Host are relative. */
 export async function readFeature(
@@ -68,10 +84,6 @@ export async function readFeature(
       params = { laneId: lane.laneId, name: key.slice(6), file: args[1] }
       break
     }
-    case 'pi:catalogueModels':
-      method = 'machine.models'
-      params = {}
-      break
     default:
       throw new Error(REMOTE_UNAVAILABLE)
   }
@@ -101,9 +113,6 @@ export async function readFeature(
         mtimeMs: 0,
       }
     }
-  } else if (method === 'machine.models') {
-    const models = parseMachineModels(data)
-    if (models) return { models, source: 'pi' }
   } else if (method === 'skills.list') {
     const skills = parseMachineSkills(data)
     // The read parser accepts only canonical skill names. Do not expose unusable keys.

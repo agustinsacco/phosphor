@@ -123,10 +123,12 @@ preview protocols, filesystem watchers or file management actions. They refresh
 on lane summaries, turn end, reconnect snapshots and manual refresh.
 
 Main routes only `fs:listFiles`, `fs:readFile`, `git:statusMap`, `git:showFileAt`,
-`skills:list`, `skills:readFile` and `pi:catalogueModels` to the read features.
+`skills:list` and `skills:readFile` to the read features, and only when the call
+names a `host:` workspace. A call with no workspace, such as the global model catalogue,
+stays local even while a remote lane is focused.
 The live chat picker keeps the lane's full pi model list through `lane.models`,
 requiring `sessions.read`. Stopped lanes do not fall back to a machine catalogue.
-The settings catalogue and Skills require `skills.read`. Remote Skills shows the installed list
+Skills requires `skills.read`. Remote Skills shows the installed list
 and SKILL.md read-only, with no upload, discovery installs or mutations.
 Unsupported panes retain the not-available state. All writes remain refused.
 

@@ -2,7 +2,7 @@ import { expect, it, vi } from 'vitest'
 import { randomUUID } from 'node:crypto'
 import { FILE_LIMITS } from '@shared/host-protocol-files'
 import { MACHINE_LIMITS } from '@shared/host-protocol-machine'
-import { readFeature, READ_CHANNELS, type ReadLane } from './read-features'
+import { readFeature, READ_CHANNELS, routeRemoteRead, type ReadLane } from './read-features'
 
 const root = `host:${randomUUID()}/0123456789abcdef`
 function lane(data: unknown): ReadLane {
@@ -42,14 +42,6 @@ it('maps each read to the fixed method, capability and Desktop shape without Hos
   expect(
     await readFeature('skills:readFile', [`${root}/skill:test-skill`, 'SKILL.md'], text),
   ).toEqual({ content: 'hi', binary: false, size: 2 })
-  const models = lane([
-    { id: 'm', name: 'Model', provider: 'p', reasoning: false, privatePath: '/private' },
-  ])
-  expect(await readFeature('pi:catalogueModels', [], models)).toEqual({
-    models: [{ id: 'm', name: 'Model', provider: 'p', reasoning: false }],
-    source: 'pi',
-  })
-  expect(models.call).toHaveBeenCalledWith('skills.read', 'machine.models', {})
 })
 it('maps binary and too-large file responses to existing placeholders; hides error text', async () => {
   expect(
@@ -126,13 +118,6 @@ it('parses untrusted results and enforces exact list and text bounds', async () 
       lane({ content: content + 'a', binary: false, size: content.length + 1 }),
     ),
   ).rejects.toThrow()
-  const model = { id: 'm', name: 'M', provider: 'p', reasoning: false }
-  expect(
-    await readFeature('pi:catalogueModels', [], lane(Array(MACHINE_LIMITS.models).fill(model))),
-  ).toMatchObject({ source: 'pi' })
-  await expect(
-    readFeature('pi:catalogueModels', [], lane(Array(MACHINE_LIMITS.models + 1).fill(model))),
-  ).rejects.toThrow()
   for (const [channel, args, data] of [
     [
       'git:statusMap',
@@ -169,4 +154,22 @@ it('bounds skill lists and UTF-8 text even when the Host underreports size', asy
       lane({ binary: false, size: 0, content: content + 'a' }),
     ),
   ).rejects.toThrow()
+})
+
+it('routes only host: workspace keys; global and local calls stay local', () => {
+  const readLane = vi.fn(() => lane({ files: [] }))
+  for (const [channel, args] of [
+    ['pi:catalogueModels', []],
+    ['skills:list', []],
+    ['skills:list', [undefined]],
+    ['fs:listFiles', ['/Users/me/repo']],
+    ['skills:readFile', ['/Users/me/.pi/skills/x', 'SKILL.md']],
+    ['fs:writeFile', [`${root}/a`, 'x']],
+  ] as const)
+    expect(routeRemoteRead(channel, [...args], readLane)).toBeNull()
+  expect(readLane).not.toHaveBeenCalled()
+  expect(routeRemoteRead('fs:listFiles', [root], readLane)).not.toBeNull()
+  expect(readLane).toHaveBeenCalledWith(root)
+  expect(() => routeRemoteRead('fs:listFiles', [root], () => null)).toThrow()
+  expect(READ_CHANNELS.has('pi:catalogueModels')).toBe(false)
 })
