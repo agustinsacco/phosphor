@@ -10,7 +10,16 @@ import { readTailscaleStatus, TAILSCALE_OPTIONS } from './tailscale-status'
 const cleanups: (() => Promise<void> | void)[] = []
 afterEach(async () => {
   vi.useRealTimers()
-  for (const cleanup of cleanups.splice(0).reverse()) await cleanup()
+  // Every cleanup runs even if an earlier one fails; the first failure is reported afterwards.
+  const failures: unknown[] = []
+  for (const cleanup of cleanups.splice(0).reverse()) {
+    try {
+      await cleanup()
+    } catch (error) {
+      failures.push(error)
+    }
+  }
+  if (failures.length > 0) throw failures[0]
 })
 
 /** Bound a wait that only a broken implementation can exceed, and fail with a clear message. */
@@ -58,16 +67,23 @@ it('kills a real SIGTERM-resistant executable with SIGKILL', async () => {
   const exited = new Promise<NodeJS.Signals | null>((resolve) =>
     child.once('exit', (_code, signal) => resolve(signal)),
   )
+  // A spawn failure emits 'error' and never 'exit'; surface it instead of waiting forever.
+  const spawnFailed = new Promise<never>((_, reject) => child.once('error', reject))
+  spawnFailed.catch(() => undefined)
   cleanups.push(async () => {
+    if (child.pid === undefined) return
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
-    await exited
+    await within(exited, 5_000, 'fixture exit during cleanup')
   })
   await within(
-    new Promise<void>((resolve) =>
-      child.stderr.on('data', (chunk: Buffer) => {
-        if (String(chunk).includes('ready')) resolve()
-      }),
-    ),
+    Promise.race([
+      spawnFailed,
+      new Promise<void>((resolve) =>
+        child.stderr.on('data', (chunk: Buffer) => {
+          if (String(chunk).includes('ready')) resolve()
+        }),
+      ),
+    ]),
     20_000,
     'fixture readiness',
   )
