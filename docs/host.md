@@ -23,10 +23,15 @@ every library import against the package's exports.
 ### Install from a release
 
 This repository builds signed bundles, manifests and an installer for Linux x64,
-Linux arm64 and macOS arm64. No workflow publishes them and no release has been
-published yet. The release layout uses independent `host-v*` releases. The operator
-pins a release public key before publishing; an installer with no keys refuses
-installation. Each bundle carries Node 24.14.1, so no system Node is needed.
+Linux arm64 and macOS arm64. The manual **Host Release** workflow
+(`.github/workflows/release-host.yml`, run from main with a version higher than
+every published one, after main's CI passed for that exact commit) builds all
+three, signs the manifest with the `HOST_RELEASE_SIGNING_KEY` secret, verifies the
+signature against the pinned keys, and publishes `host-v<version>`. It then
+replaces the unversioned manifest, its signature and the installer on the rolling
+`host-latest` release. Neither release is marked latest, so Desktop keeps
+`releases/latest`. The workflow refuses to build while `HOST_RELEASE_KEYS` is
+empty, and an installer with no keys refuses installation. Each bundle carries Node 24.14.1, so no system Node is needed.
 The installer needs curl, ssh-keygen, tar, awk, base64, od and sha256sum or shasum.
 
 ```sh
