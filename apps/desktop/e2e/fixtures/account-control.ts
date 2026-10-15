@@ -301,7 +301,12 @@ export async function accountControlFixture(
     await signIn.focus()
     await expect(signIn).toBeFocused()
     await signIn.press('Enter')
-    await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
+    // Keyboard activation, like Sign in above: the popover's entry animation can keep
+    // a pointer click waiting for stability on a slow runner.
+    const github = page.getByRole('button', { name: 'Sign in with GitHub', exact: true })
+    await github.focus()
+    await expect(github).toBeFocused()
+    await github.press('Enter')
     await expect(page.getByTestId('account-footer')).toContainText('Finish in your browser')
     await expect.poll(async () => (await opened()).length).toBe(count + 1)
     const authorize = (await opened())[count]

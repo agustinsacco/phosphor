@@ -63,12 +63,20 @@ export const useRoutinesStore = create<RoutinesState>((set, get) => ({
       const snapshot = await window.phosphor.invoke('routines:list')
       if (request !== sequence) return
       const machines = snapshot.machines ?? []
+      // An available machine keeps its last-known routines until its own read settles.
+      // Emptying them here made an open remote routine vanish and remount on every refresh.
+      const previous = get().remote
       set({
         snapshot,
         error: snapshot.error,
         machines,
         remote: Object.fromEntries(
-          machines.map((m) => [m.id, { routines: [], unavailable: !m.available }]),
+          machines.map((m) => [
+            m.id,
+            m.available
+              ? { routines: previous[m.id]?.routines ?? [], unavailable: false }
+              : { routines: [], unavailable: true },
+          ]),
         ),
       })
       // Local data is published first. Each machine settles independently.
