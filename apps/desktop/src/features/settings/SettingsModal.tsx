@@ -142,15 +142,11 @@ export function SettingsModal(): React.JSX.Element | null {
             aria-label="Settings sections"
             className="-mx-1 min-h-0 flex gap-0.5 overflow-x-auto px-1 md:mx-0 md:block md:flex-1 md:overflow-y-auto md:px-0"
           >
-            {TABS.filter((t) => t.id !== 'connectors').map((t) => (
+            {TABS.map((t) => (
               <Fragment key={t.id}>
                 {navButton(t.id, t.label)}
-                {t.id === 'extensions' && (
-                  <>
-                    {visibleExtensionTabs.map((et) => navButton(et.id, et.label, true))}
-                    {navButton('connectors', 'MCP Connectors', true)}
-                  </>
-                )}
+                {t.id === 'extensions' &&
+                  visibleExtensionTabs.map((et) => navButton(et.id, et.label, true))}
               </Fragment>
             ))}
           </nav>
@@ -226,6 +222,7 @@ function NavButton({
     <TooltipButton
       onClick={onClick}
       aria-current={selected ? 'page' : undefined}
+      data-nested={nested || undefined}
       className={clsx(
         'flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-left transition-colors md:mb-0.5',
         nested

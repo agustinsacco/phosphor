@@ -33,6 +33,11 @@ import type { McpServerConfig } from '@shared/mcp'
  *   2026-09-07). A one-click Slack row would need Phosphor to own a
  *   Marketplace-published Slack app, since only internal or directory-published
  *   apps may use MCP at all.
+ *
+ *   Google Workspace is the other one: Google has no dynamic registration, so
+ *   the user creates a Web application OAuth client in their own Cloud
+ *   project. Unlike Slack, that client is confidential, so its secret is
+ *   required (`secretRequired`).
  * - `oauth-or-key` — OAuth works, and an API key is a supported alternative.
  */
 export type ConnectorAuthKind = 'dcr' | 'preregistered' | 'oauth-or-key'
@@ -80,6 +85,11 @@ export interface ConnectorEntry {
   scope?: string
   /** Console steps the user must complete first (`preregistered` only). */
   setup?: ConnectorSetup
+  /**
+   * `preregistered` only: the provider's token exchange needs the client
+   * secret (a confidential client), so Add stays disabled without one.
+   */
+  secretRequired?: boolean
   /** The thing that will bite, shown in the row. */
   caveat?: string
 }
@@ -197,6 +207,117 @@ export const QUESTRADE_WRITE_SCOPES = [
   'brokerage.watchlists.write',
   'brokerage.custom-indexing-indexes.write',
 ]
+
+/**
+ * The Google Workspace MCP servers Phosphor offers, one server per product.
+ * Endpoints and scopes are from Google's "Configure the Google Workspace MCP
+ * servers" guide; each endpoint's `.well-known/oauth-protected-resource` was
+ * re-probed 2026-10-15 and names `accounts.google.com` as its authorization
+ * server, which serves RFC 8414 metadata with S256 PKCE.
+ *
+ * Scopes are pinned to Google's documented set rather than left to the
+ * default, because the default is far wider: Gmail's server advertises
+ * `https://mail.google.com/` (full mailbox, including permanent delete) and
+ * `gmail.send`, Drive's advertises full `drive`. Pinned scopes must also be
+ * on the consent screen's Data Access list, or Google refuses the grant.
+ */
+const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/'
+const GOOGLE_DRIVE_SCOPES = ['drive.readonly', 'drive.file']
+
+export const GOOGLE_WORKSPACE_PRODUCTS = [
+  {
+    id: 'gmail',
+    name: 'Gmail',
+    host: 'gmailmcp',
+    summary: 'Search and read threads, manage labels, create drafts.',
+    scopes: ['gmail.readonly', 'gmail.compose'],
+    api: 'gmail',
+  },
+  {
+    id: 'google-drive',
+    name: 'Google Drive',
+    host: 'drivemcp',
+    summary: 'Search, read, copy and create files.',
+    scopes: GOOGLE_DRIVE_SCOPES,
+    api: 'drive',
+  },
+  {
+    id: 'google-calendar',
+    name: 'Google Calendar',
+    host: 'calendarmcp',
+    summary: 'Calendars, events and free/busy.',
+    scopes: [
+      'calendar.calendarlist.readonly',
+      'calendar.events.freebusy',
+      'calendar.events.readonly',
+    ],
+    api: 'calendar-json',
+  },
+  {
+    id: 'google-docs',
+    name: 'Google Docs',
+    host: 'docsmcp',
+    summary: 'Read and update documents.',
+    scopes: [...GOOGLE_DRIVE_SCOPES, 'documents.readonly', 'documents'],
+    api: 'docs',
+  },
+  {
+    id: 'google-sheets',
+    name: 'Google Sheets',
+    host: 'sheetsmcp',
+    summary: 'Read values and update spreadsheets.',
+    scopes: [...GOOGLE_DRIVE_SCOPES, 'spreadsheets.readonly', 'spreadsheets'],
+    api: 'sheets',
+  },
+  {
+    id: 'google-slides',
+    name: 'Google Slides',
+    host: 'slidesmcp',
+    summary: 'Read and update presentations.',
+    scopes: [...GOOGLE_DRIVE_SCOPES, 'presentations.readonly', 'presentations'],
+    api: 'slides',
+  },
+].map((product) => ({
+  ...product,
+  scopes: product.scopes.map((scope) => GOOGLE_SCOPE + scope),
+}))
+
+/** Enables every product's API and its MCP service, for the setup snippet. */
+const GOOGLE_ENABLE_COMMAND = [
+  'gcloud services enable \\',
+  ...GOOGLE_WORKSPACE_PRODUCTS.flatMap((p) => [
+    `  ${p.api}.googleapis.com \\`,
+    `  ${p.host}.googleapis.com \\`,
+  ]),
+  '  --project=PROJECT_ID',
+].join('\n')
+
+function googleConnector(product: (typeof GOOGLE_WORKSPACE_PRODUCTS)[number]): ConnectorEntry {
+  return {
+    id: product.id,
+    name: product.name,
+    serverName: product.id,
+    summary: product.summary,
+    authKind: 'preregistered',
+    docsUrl: 'https://developers.google.com/workspace/guides/configure-mcp-servers',
+    url: `https://${product.host}.googleapis.com/mcp/v1`,
+    scope: product.scopes.join(' '),
+    secretRequired: true,
+    caveat:
+      'Google has no dynamic registration: you create an OAuth client in your own Google Cloud project, and the project must be in the Google Workspace Developer Preview Program. One client serves every Google product. pi does not ask Google for offline access, so expect to sign in again about once an hour.',
+    setup: {
+      steps: [
+        'Join the Google Workspace Developer Preview Program (developers.google.com/workspace/preview) with your Cloud project.',
+        'Enable the APIs and their MCP services with the command below, or in the Cloud console.',
+        'Google Auth Platform → Branding: configure the consent screen. Choose Internal audience if you can; otherwise External, and add yourself as a test user.',
+        `Data Access → Add or Remove Scopes: add ${product.scopes.join(', ')}.`,
+        `Clients → Create Client: type Web application, authorized redirect URI ${OAUTH_REDIRECT_URI}, and tick "Use this client for an AI-powered agent".`,
+        'Paste the client ID and secret here and press Add — that writes the config and opens the browser to sign in.',
+      ],
+      snippet: { label: 'Enable the APIs', text: GOOGLE_ENABLE_COMMAND },
+    },
+  }
+}
 
 export const CONNECTORS: ConnectorEntry[] = [
   {
@@ -320,6 +441,7 @@ export const CONNECTORS: ConnectorEntry[] = [
       snippet: { label: 'Slack app manifest', text: SLACK_APP_MANIFEST },
     },
   },
+  ...GOOGLE_WORKSPACE_PRODUCTS.map(googleConnector),
 ]
 
 /** What the user picked in a catalog row before pressing Add. */
@@ -363,6 +485,8 @@ export function buildConnectorConfig(
     // A PKCE app is a public client and its token exchange carries no secret;
     // an empty string written here would still be sent as one.
     const clientSecret = choice.clientSecret?.trim()
+    if (entry.secretRequired && !clientSecret)
+      throw new Error(`${entry.name} needs a client secret`)
     if (clientSecret) oauth.clientSecret = clientSecret
     oauth.callbackUrl = OAUTH_REDIRECT_URI
   }
