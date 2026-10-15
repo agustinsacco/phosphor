@@ -45,17 +45,17 @@ export const RightPane = memo(function RightPane({
           </>
         }
       >
-        {host?.state !== 'ready' ? (
-          <p className="p-4">{host ? REMOTE_NOT_READY : REMOTE_UNAVAILABLE}</p>
-        ) : rightPane === 'terminal' && host.capabilities.includes('terminal') ? (
-          <TerminalPane sessionId={sessionId} workspacePath={workspacePath} />
-        ) : rightPane === 'files' || rightPane === 'changes' ? (
+        {rightPane === 'files' || rightPane === 'changes' ? (
           <RemoteFilesPane
             key={sessionId}
             workspacePath={workspacePath}
             sessionId={sessionId}
             changes={rightPane === 'changes'}
           />
+        ) : host?.state !== 'ready' ? (
+          <p className="p-4">{host ? REMOTE_NOT_READY : REMOTE_UNAVAILABLE}</p>
+        ) : rightPane === 'terminal' && host.capabilities.includes('terminal') ? (
+          <TerminalPane sessionId={sessionId} workspacePath={workspacePath} />
         ) : rightPane === 'artifacts' ? (
           <RemoteArtifactsPane sessionId={sessionId} workspacePath={workspacePath} />
         ) : (

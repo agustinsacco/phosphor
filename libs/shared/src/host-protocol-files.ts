@@ -10,7 +10,8 @@ export const FILE_METHODS = [
 ] as const
 export type FileMethod = (typeof FILE_METHODS)[number]
 export interface FileParams {
-  laneId: string
+  laneId?: string
+  repositoryId?: string
   path?: string
   staged?: boolean
   ref?: string
@@ -49,7 +50,16 @@ export function isFilePath(v: unknown): v is string {
   )
 }
 export function parseFileParams(method: string, v: unknown): FileParams | null {
-  if (!record(v) || !isUuid(v.laneId)) return null
+  if (!record(v)) return null
+  const repository = method === 'files.list' || method === 'files.read'
+  if (repository && v.repositoryId !== undefined) {
+    if (
+      v.laneId !== undefined ||
+      typeof v.repositoryId !== 'string' ||
+      !/^[a-f0-9]{16}$/.test(v.repositoryId)
+    )
+      return null
+  } else if (!isUuid(v.laneId) || v.repositoryId !== undefined) return null
   const keys =
     method === 'git.diff'
       ? ['laneId', 'path', 'staged']
@@ -58,6 +68,7 @@ export function parseFileParams(method: string, v: unknown): FileParams | null {
         : method === 'files.read'
           ? ['laneId', 'path']
           : ['laneId']
+  if (repository) keys.push('repositoryId')
   if (!FILE_METHODS.some((m) => m === method) || Object.keys(v).some((k) => !keys.includes(k)))
     return null
   if (
@@ -72,7 +83,8 @@ export function parseFileParams(method: string, v: unknown): FileParams | null {
   )
     return null
   return {
-    laneId: v.laneId,
+    ...(typeof v.laneId === 'string' ? { laneId: v.laneId } : {}),
+    ...(typeof v.repositoryId === 'string' ? { repositoryId: v.repositoryId } : {}),
     ...(typeof v.path === 'string' ? { path: v.path } : {}),
     ...(typeof v.staged === 'boolean' ? { staged: v.staged } : {}),
     ...(typeof v.ref === 'string' ? { ref: v.ref } : {}),

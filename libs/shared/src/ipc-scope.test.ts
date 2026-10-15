@@ -3,7 +3,7 @@ import { IPC_SCOPE } from './ipc-scope'
 
 it('lists the reviewed machine surface; everything else is app-local', () => {
   const machine = {
-    hosts: 'models providers skills',
+    hosts: 'models providers skills repositoryFiles repositoryFile',
     routines:
       'list save check history laneIndex promoteRun run cancel skipNext archive delete pauseAll background',
     pi: 'health createSession command extensionUiResponse disposeSession listLiveSessions generateTitle agentSettings agentSettingsScoped commands catalogueModels readConfigFile writeConfigFile webSearchConfig patchWebSearchConfig patchAgentSettings checkAgentSettings listResources subscriptionAuth codexUsage loginTerminal startLogin cancelLogin',

@@ -1,3 +1,4 @@
+import type { FileRead } from './host-protocol-files'
 import type { TailscaleStatus } from './tailscale-status'
 import type { MachineModel, MachineProvider } from './host-protocol-machine'
 import type { SshInstallEvent } from './ssh-install'
@@ -189,6 +190,11 @@ export interface IpcInvokeMap {
   // Read-only machine catalogues, independent of an open lane.
   'hosts:models': { args: [hostId: string]; result: MachineModel[] }
   'hosts:providers': { args: [hostId: string]; result: MachineProvider[] }
+  'hosts:repositoryFiles': { args: [hostId: string, repositoryId: string]; result: string[] }
+  'hosts:repositoryFile': {
+    args: [hostId: string, repositoryId: string, path: string]
+    result: FileRead
+  }
   'hosts:skills': { args: [hostId: string]; result: SkillsListResult }
   'hosts:providerLogin': { args: [hostId: string, provider: string]; result: { ptyId: string } }
   'hosts:uploadAttachments': {

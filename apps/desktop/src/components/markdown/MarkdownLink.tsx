@@ -1,3 +1,4 @@
+import { useSessionFileTarget } from '@/features/files/SessionFileTarget'
 import { classifyLink, type LinkTarget } from '@/lib/markdownLink'
 import { openFileInWorkspace } from '@/stores/layout'
 import { getActiveWorkspace } from '@/stores/workspaces'
@@ -20,6 +21,7 @@ export function MarkdownLink({
   children,
   ...rest
 }: React.AnchorHTMLAttributes<HTMLAnchorElement>): React.JSX.Element {
+  const sourceSessionId = useSessionFileTarget()
   const target = href ? classifyLink(href) : ({ kind: 'none' } as const)
 
   const activate = (event: { preventDefault: () => void }): void => {
@@ -29,7 +31,7 @@ export function MarkdownLink({
       return
     }
     if (target.kind === 'artifact') {
-      const sessionId = useSessionsStore.getState().activeSessionId
+      const sessionId = sourceSessionId ?? useSessionsStore.getState().activeSessionId
       if (sessionId && openArtifact(sessionId, target.id, target.version)) return
       useExtensionUiStore
         .getState()
@@ -37,10 +39,28 @@ export function MarkdownLink({
       return
     }
     if (target.kind !== 'file') return
-    const workspacePath = getActiveWorkspace()
+    const workspacePath = sourceSessionId
+      ? useSessionsStore.getState().live[sourceSessionId]?.workspacePath
+      : getActiveWorkspace()
     if (!workspacePath) return
-    void openFileInWorkspace(workspacePath, target.path, target.line).catch(() => {
-      useExtensionUiStore.getState().pushToast(`Could not open ${target.path}`, 'error')
+    void openFileInWorkspace(
+      workspacePath,
+      target.path,
+      target.line,
+      sourceSessionId ?? undefined,
+    ).catch(() => {
+      useExtensionUiStore
+        .getState()
+        .pushToast(
+          (
+            sourceSessionId
+              ? useSessionsStore.getState().live[sourceSessionId]?.target?.kind === 'remote'
+              : workspacePath.startsWith('host:')
+          )
+            ? 'File is unavailable.'
+            : `Could not open ${target.path}`,
+          'error',
+        )
     })
   }
 

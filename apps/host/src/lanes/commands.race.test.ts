@@ -1605,3 +1605,55 @@ it.each(['renewal', 'control', 'close'])(
     expect(last(request.requestId)).toMatchObject({ status: 'rejected', code: 'forbidden' })
   },
 )
+
+describe('repository management and lane delete admission', () => {
+  it('requires both capabilities and the current controller for delete', async () => {
+    const deletion = vi.fn(async () => ({ ok: true as const, data: { branchKept: false } }))
+    ports.deleteLane = deletion
+    service = createLaneCommands(ports)
+    const op: LaneOp = {
+      type: 'lane.delete',
+      laneId: lane.laneId,
+      removeWorktree: false,
+      removeBranch: false,
+    }
+    const missing = frame(op)
+    await service.submit(one, missing)
+    expect(last(missing.requestId)).toMatchObject({ status: 'rejected', code: 'forbidden' })
+    const unowned = frame(op)
+    await service.submit({ ...one, caps: ['sessions.control', 'workspaces.write'] }, unowned)
+    expect(last(unowned.requestId)).toMatchObject({ status: 'rejected', code: 'not-controller' })
+    store.takeControl(lane.laneId, { clientId: one.id, label: one.label })
+    const viewer = frame(op, 2)
+    await service.submit({ ...two, caps: ['sessions.control', 'workspaces.write'] }, viewer)
+    expect(last(viewer.requestId)).toMatchObject({ status: 'rejected', code: 'not-controller' })
+    expect(deletion).not.toHaveBeenCalled()
+    const controller = frame(op, 2)
+    await service.submit({ ...one, caps: ['sessions.control', 'workspaces.write'] }, controller)
+    expect(last(controller.requestId)).toMatchObject({ status: 'done' })
+    expect(deletion).toHaveBeenCalledTimes(1)
+  })
+  it('rechecks queued management operations after capability loss', async () => {
+    const deletion = vi.fn(async () => ({ ok: true as const, data: { branchKept: false } }))
+    ports.deleteLane = deletion
+    service = createLaneCommands(ports)
+    store.takeControl(lane.laneId, { clientId: one.id, label: one.label })
+    let caps: LaneCommandClient['caps'] = ['sessions.control', 'workspaces.write']
+    const client = { ...one, caps, currentCaps: () => caps }
+    const hold = deferred<void>()
+    ports.stopLane = vi.fn(() => hold.promise)
+    const held = frame({ type: 'lane.stop' }, 2)
+    const first = service.submit(client, held)
+    const request = frame(
+      { type: 'lane.delete', laneId: lane.laneId, removeWorktree: false, removeBranch: false },
+      2,
+    )
+    const second = service.submit(client, request)
+    caps = []
+    hold.release()
+    await first
+    await second
+    expect(last(request.requestId)).toMatchObject({ status: 'rejected', code: 'forbidden' })
+    expect(deletion).not.toHaveBeenCalled()
+  })
+})

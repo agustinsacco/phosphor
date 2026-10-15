@@ -1,3 +1,4 @@
+import { log } from '../debug-log'
 import { randomUUID } from 'node:crypto'
 import { machineStatus, type MachinesResponse } from '@shared/control-api'
 import type { ControlResult, HostsSnapshot } from '@shared/ipc'
@@ -42,7 +43,7 @@ export function createHostManager(ports: {
     list = null
     ports.clearGrants()
   }
-  function reconcile(reset = false) {
+  function reconcile(reset: ReadonlySet<string> = new Set()) {
     if (!list || !user || stopped || disabled) return
     const present = new Set(list.machines.map((m) => m.id))
     for (const id of Object.keys(cached))
@@ -56,8 +57,17 @@ export function createHostManager(ports: {
         !machine ||
         machineStatus(machine, Date.now(), offset) !== 'up' ||
         c.endpoint !== machine.endpoint ||
-        (reset && c.connection.snapshot().state !== 'ready')
+        reset.has(id)
       ) {
+        log('hosts', 'manager_replacement', {
+          reason: !machine
+            ? 'removed'
+            : machineStatus(machine, Date.now(), offset) !== 'up'
+              ? 'down'
+              : c.endpoint !== machine.endpoint
+                ? 'endpoint'
+                : 'identity',
+        })
         const view = c.connection.snapshot()
         c.connection.close()
         connections.delete(id)
@@ -106,7 +116,18 @@ export function createHostManager(ports: {
       if (epoch === generation && !stopped && !result.ok && result.error.code === 'forbidden')
         disable()
       if (epoch === generation && !stopped && result.ok) {
-        const changed = JSON.stringify(list?.machines) !== JSON.stringify(result.machines)
+        const changed = new Set(
+          result.machines
+            .filter((m) => {
+              const previous = list?.machines.find((p) => p.id === m.id)
+              return (
+                previous &&
+                (previous.keyFingerprint !== m.keyFingerprint ||
+                  previous.enrolledAt !== m.enrolledAt)
+              )
+            })
+            .map((m) => m.id),
+        )
         list = result
         offset = Date.parse(result.serverTime) - Date.now()
         reconcile(changed)

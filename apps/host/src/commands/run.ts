@@ -1,3 +1,5 @@
+import { createRepositories } from '../features/repositories'
+import { createLaneDeletion, transcriptTrash } from '../lanes/delete'
 import { createProviderLogins } from '../providers/login'
 import { realpathSync } from 'node:fs'
 import { createAttachments, type HostAttachments } from '../features/attachments'
@@ -45,6 +47,7 @@ import { inspectHost } from './doctor'
 import { createHostLog, hostLogDirectory } from '../machine/log'
 import { createHostRuntime, type HostRuntime } from '../session/runtime'
 import { createLiveLanes } from '../lanes/live'
+import { createLaneNamer } from '../lanes/naming'
 import { createRuntimeLanes } from '../lanes/runtime-host'
 import { createUnattachedSnapshots } from '../lanes/transcript'
 import { createLaneCommands } from '../lanes/commands'
@@ -87,6 +90,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
   let api: ReturnType<typeof startApi> | undefined
   let routines: HostRoutines | undefined
   let routinesStop: Promise<void> | undefined
+  let nameLane: ReturnType<typeof createLaneNamer> | undefined
   let runtime: HostRuntime | undefined
   let runtimeDrain: ReturnType<HostRuntime['drain']> | undefined
   let live: ReturnType<typeof createLiveLanes> | undefined
@@ -117,6 +121,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
   const closeAndRelease = async () => {
     try {
       try {
+        nameLane?.cancel()
         const stoppingApi = api?.stop()
         routinesStop ??= routines?.stop()
         runtimeDrain ??= runtime?.drain('run finished')
@@ -154,6 +159,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
         if (drains++ > 0 && (SHUTDOWN_SIGNALS as readonly string[]).includes(reason))
           later = reason as ShutdownSignal
         initAbort.abort()
+        nameLane?.cancel()
         const stoppingApi = api?.stop()
         routinesStop ??= routines?.stop()
         if (runtime) {
@@ -220,10 +226,13 @@ async function runHostCommand(context: RunContext): Promise<number> {
       if (inspection.machine) {
         const machine = inspection.machine
         const log = createHostLog(hostLogDirectory(context.env, context.home), inspection.secrets)
+        const trash = transcriptTrash(hostStateDirectory(context.env, context.home))
+        await trash.sweep().catch(() => {})
         runtime = createHostRuntime(
           { ...machine, log },
           {
             dialogs: 'forward',
+            trashTranscript: trash.move,
             routines: routineOwnership(async (id) => {
               if (!routines) throw new Error('routine service unavailable')
               await routines.cancelSession(id)
@@ -261,7 +270,14 @@ async function runHostCommand(context: RunContext): Promise<number> {
           changed: () => activeTopic.routinesChanged(),
           now: context.now,
         })
-        const binding = createRuntimeLanes({ runtime, store, live, log: log.write })
+        nameLane = config.config.autoNameLanes === false ? undefined : createLaneNamer(machine)
+        const binding = createRuntimeLanes({
+          runtime,
+          store,
+          live,
+          log: log.write,
+          nameLane,
+        })
         const native = loadHostPty()
         if (native)
           terminals = createTerminals({
@@ -282,7 +298,29 @@ async function runHostCommand(context: RunContext): Promise<number> {
           home: context.home,
           log: (event, fields) => log.write('host', event, fields),
         }
+        const activeRuntime = runtime
+        const repositories = createRepositories({
+          home: context.home,
+          configPath: config.path,
+          uid: context.uid,
+          store,
+          live: (id) =>
+            store
+              ?.listLanes()
+              .some((l) => l.repositoryId === id && live?.sessionFor(l.laneId) !== null) ?? false,
+          changed: (roots) => {
+            activeRuntime.replaceRoots(roots)
+            activeTopic.repositoriesChanged()
+          },
+        })
         commands = createLaneCommands({
+          repositories,
+          deleteLane: createLaneDeletion({
+            store,
+            stop: binding.deleteStop,
+            remove: runtime.remove,
+            forget: live.forget,
+          }),
           providerLogins: terminals ? createProviderLogins(context, terminals) : undefined,
           attachments,
           terminals,
@@ -300,6 +338,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
           log: log.write,
         })
         const features = [
+          repositories.feature,
           ...(terminals ? [terminals.feature] : []),
           routines.feature,
           createFilesFeature(featureContext),

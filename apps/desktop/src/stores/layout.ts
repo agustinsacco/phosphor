@@ -209,12 +209,30 @@ export async function openFileInWorkspace(
   workspacePath: string,
   path: string,
   target?: number | RevealTarget,
+  sessionId?: string,
 ): Promise<void> {
+  const sessions = useSessionsStore.getState()
+  const explicit = sessionId ? sessions.live[sessionId] : null
+  if (workspacePath.startsWith('host:') || explicit?.target?.kind === 'remote') {
+    if (!sessionId || explicit?.workspacePath !== workspacePath)
+      throw new Error('Not available on remote lanes yet.')
+    const { openRemoteFile } = await import('@/features/files/remoteFileSelection')
+    await openRemoteFile(sessionId, path, target)
+    useLayoutStore.getState().setRightPane('files', sessionId)
+    return
+  }
+  // Without a source session, a remote transcript must never fall back to local disk.
+  if (
+    !sessionId &&
+    sessions.activeSessionId &&
+    sessions.live[sessions.activeSessionId]?.target?.kind === 'remote'
+  )
+    throw new Error('Not available on remote lanes yet.')
   const { useFilesStore } = await import('./files')
   const absolute = path.startsWith('/') ? path : `${workspacePath}/${path}`
   // Read first, switch second: a markdown link can name a path that does not
   // exist, and swapping the pane before the read means a failed open still
   // hides whatever the user was looking at.
   await useFilesStore.getState().openFile(workspacePath, absolute, target)
-  useLayoutStore.getState().setRightPane('files')
+  useLayoutStore.getState().setRightPane('files', sessionId)
 }

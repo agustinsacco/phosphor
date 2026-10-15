@@ -744,3 +744,50 @@ with the fixed unavailable hint. Continue waits for the remote receipt and echo;
 it never inserts an optimistic duplicate. Error cards do not inspect This Mac's
 AWS profile. Lane and machine switches reset visible selections or show loading
 or refusal while the new target loads.
+
+## Machine repository browsing and remote file targets
+
+With a Host selected and no lane open, Files lists that machine's configured
+repositories and previews their files read-only. `hosts:repositoryFiles` and
+`hosts:repositoryFile` require ready `workspaces.read`, a configured repository
+id, and the same connection and generation before and after each read. They
+never fall back to This Mac. File wire reads name exactly one lane or repository;
+writes remain controller-only and lane-scoped.
+
+Remote file trees use the local explorer's row and icon toolbar components.
+Empty trees say "No files yet"; Changes has its own empty state. A failed git
+status does not hide files, including in non-git configured folders. Tree views
+refuse more than 50,000 derived nodes or more than 64 nested components rather
+than silently truncating the tree. Remote content and editor state stay in memory.
+File models and workspace keys include the lane identity, not just its repository.
+Switching targets resets previews and cancels stale reads. Machine browse state
+is reset on a machine switch.
+
+Tool path chips and markdown links carry their originating chat session through
+`SessionFileTarget`. An absolute Host path opens only when it is inside that
+lane's cwd; a relative path must pass the Host path grammar. Finder and chat
+links share the same remote open/reveal API, including line jumps. Host-namespaced
+reads never fall back to the Mac filesystem. A remote link without its originating
+session fails closed. Explicit local catalogue reads stay local, independent of
+which lane is focused.
+
+New lanes are named by the Host, not by Desktop's pi. The first accepted prompt
+is the immediate fallback title. Explicit rename and generated names use the
+lane's own runtime and publish to other clients. Host config can disable naming.
+Stop before a first saved prompt is refused; provider changes rebind the Host
+process before another turn. Release control uses `hosts:releaseControl` and
+the existing fenced `control.release` operation.
+
+Folder browse/add/remove and lane delete use typed main IPC and Host receipts.
+Folder selection is confined to the Host user's home; no client chooses an
+executable or environment. Add/remove can be disabled by Host config. At least
+one configured folder must remain. Lane deletion stops the Host process, trashes
+the transcript on the Host and optionally removes an unshared worktree and a
+proven-merged branch. These actions never delete This Mac's files. See
+[host.md](host.md#repository-management-and-lane-deletion) for the bounds and
+partial-failure policy.
+
+Directory heartbeat changes do not replace a connecting socket. Main logs fixed
+replacement reasons (removed, down, endpoint, identity); connection closure logs
+its numeric close code. No prompt, title, file content or folder path is logged
+by these operations.

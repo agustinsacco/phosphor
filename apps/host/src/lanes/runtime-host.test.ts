@@ -57,7 +57,10 @@ afterEach(async () => {
   vi.restoreAllMocks()
   machine.cleanup()
 })
-function setup(pushes: SessionPush[] = []) {
+function setup(
+  pushes: SessionPush[] = [],
+  nameLane?: Parameters<typeof createRuntimeLanes>[0]['nameLane'],
+) {
   let deliver: Delivery = () => {}
   const command = vi.fn(
     async (_id: string, cmd: RpcCommand): ReturnType<HostRuntime['command']> => ({
@@ -79,11 +82,86 @@ function setup(pushes: SessionPush[] = []) {
   }
   live = createLiveLanes({ epoch: '0123456789abcdef', store, runtime, now: Date.now, log: vi.fn() })
   const log = vi.fn()
-  const binding = createRuntimeLanes({ runtime, store, live, log })
+  const binding = createRuntimeLanes({ runtime, store, live, log, nameLane })
   const saved = () => store.ensureLane({ repositoryId, cwd: machine.repository, sessionFile: null })
   return { runtime, binding, saved, log, push: (push: SessionPush) => deliver(push) }
 }
 describe('runtime lane binding', () => {
+  it.each(['none', 'rename', 'native-rename', 'stop', 'removed'] as const)(
+    'names once through its own runtime and skips after %s',
+    async (change) => {
+      const nameLane = vi.fn<NonNullable<Parameters<typeof createRuntimeLanes>[0]['nameLane']>>()
+      const s = setup([], nameLane)
+      const session = await s.binding.sessions.start({ repository: machine.repository })
+      const lane = s.saved()
+      await s.binding.sessions.attach(lane.laneId, session.sessionId)
+      s.runtime.command.mockImplementation(async (_id, cmd) => ({
+        type: 'response',
+        command: cmd.type,
+        success: true,
+        data:
+          cmd.type === 'get_available_models'
+            ? { models: [] }
+            : {
+                ...state,
+                model: {
+                  provider: 'test',
+                  id: 'lane-model',
+                  name: 'Test',
+                  api: 'test',
+                  reasoning: false,
+                  input: ['text'],
+                  contextWindow: 200000,
+                  maxTokens: 4096,
+                  cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+                },
+              },
+      }))
+      await s.binding.command(session.sessionId, {
+        type: 'prompt',
+        message: '  Fix the first bug\nMore detail',
+      })
+      await vi.waitFor(() => expect(nameLane).toHaveBeenCalledTimes(1))
+      expect(live.summaryFor(lane.laneId)?.title).toBe('Fix the first bug')
+      expect(store.getLane(lane.laneId)?.title).toBe('Fix the first bug')
+      const job = nameLane.mock.calls[0]?.[0]
+      if (!job) throw new Error('missing job')
+      expect(job.model).toMatchObject({ provider: 'test', id: 'lane-model' })
+      await s.binding.command(session.sessionId, { type: 'prompt', message: 'second' })
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(nameLane).toHaveBeenCalledTimes(1)
+      if (change === 'rename')
+        await s.binding.command(session.sessionId, { type: 'set_session_name', name: 'Manual' })
+      if (change === 'stop') await s.binding.deleteStop(lane.laneId)
+      if (change === 'removed') store.markRemoved(lane.laneId)
+      if (change === 'native-rename')
+        s.runtime.command.mockImplementation(async (_id, cmd) => ({
+          type: 'response',
+          command: cmd.type,
+          success: true,
+          data: { ...state, sessionName: 'Native rename' },
+        }))
+      s.runtime.command.mockClear()
+      await job.apply('Generated title')
+      expect(
+        s.runtime.command.mock.calls.filter((c) => c[1].type === 'set_session_name'),
+      ).toHaveLength(change === 'none' ? 1 : 0)
+      if (change === 'none') expect(store.getLane(lane.laneId)?.title).toBe('Generated title')
+      if (change === 'rename') expect(store.getLane(lane.laneId)?.title).toBe('Manual')
+    },
+  )
+  it('keeps naming disabled when not configured', async () => {
+    const s = setup()
+    const session = await s.binding.sessions.start({ repository: machine.repository })
+    const lane = s.saved()
+    await s.binding.sessions.attach(lane.laneId, session.sessionId)
+    await s.binding.command(session.sessionId, { type: 'prompt', message: 'Fallback only' })
+    expect(live.summaryFor(lane.laneId)?.title).toBe('Fallback only')
+    expect(s.runtime.command.mock.calls.some((c) => c[1].type === 'get_available_models')).toBe(
+      false,
+    )
+  })
+
   it('buffers startup UI, excludes stderr, refreshes successful state mutations and retains unexpected exits', async () => {
     const status: SessionPush = {
       kind: 'extension-ui',
@@ -117,7 +195,7 @@ describe('runtime lane binding', () => {
       await s.binding.command(session.sessionId, command)
       await Promise.resolve()
       expect(s.runtime.command.mock.calls.filter((c) => c[1].type === 'get_state').length).toBe(
-        refresh + 1,
+        refresh + (command.type === 'set_model' ? 2 : 1),
       )
     }
     s.runtime.command.mockClear()
@@ -199,8 +277,14 @@ describe('runtime lane binding', () => {
       provider: 'fake',
       modelId: 'other',
     })
-    expect(s.runtime.command).toHaveBeenCalledTimes(1)
-    await s.binding.stopLane(lane.laneId)
+    expect(s.runtime.command).toHaveBeenCalledTimes(2)
+    s.runtime.command.mockResolvedValue({
+      type: 'response',
+      command: 'get_state',
+      success: true,
+      data: state,
+    })
+    await s.binding.deleteStop(lane.laneId)
     expect(s.runtime.stop).toHaveBeenCalledWith(session.sessionId)
     expect(live.sessionFor(lane.laneId)).toBeNull()
   })
@@ -420,4 +504,139 @@ it('attachment waits for the first full refresh', async () => {
   release?.()
   await attachment
   expect(attached).toBe(true)
+})
+
+describe('lane lifecycle parity', () => {
+  it('refuses Stop before the first prompt, then records pi file identity for resume', async () => {
+    const s = setup()
+    const session = await s.binding.sessions.start({ repository: machine.repository })
+    const lane = s.saved()
+    await s.binding.sessions.attach(lane.laneId, session.sessionId)
+    await expect(s.binding.stopLane(lane.laneId)).rejects.toThrow('Send a first message')
+    expect(s.runtime.stop).not.toHaveBeenCalled()
+    const file = join(machine.dir, 'session.jsonl')
+    s.runtime.command.mockImplementation(async (_id, cmd) => ({
+      type: 'response',
+      command: cmd.type,
+      success: true,
+      data: { ...state, sessionFile: file, messageCount: 1 },
+    }))
+    await s.binding.stopLane(lane.laneId)
+    expect(store.getLane(lane.laneId)?.sessionFile).toBe(file)
+    const saved = store.getLane(lane.laneId)
+    if (!saved) throw new Error('fixture')
+    await s.binding.resumeLane(saved)
+    expect(s.runtime.start).toHaveBeenLastCalledWith(
+      { repository: machine.repository, sessionPath: file },
+      expect.any(Function),
+    )
+  })
+  it.each([true, false])('rebinds only a cross-provider model switch (cross=%s)', async (cross) => {
+    const s = setup()
+    const session = await s.binding.sessions.start({ repository: machine.repository })
+    const lane = s.saved()
+    await s.binding.sessions.attach(lane.laneId, session.sessionId)
+    let provider = 'old'
+    const file = join(machine.dir, 'session.jsonl')
+    const model = () => ({
+      provider,
+      id: 'model',
+      name: 'Model',
+      api: 'test',
+      reasoning: false,
+      input: ['text'],
+      contextWindow: 200000,
+      maxTokens: 4096,
+      cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+    })
+    s.runtime.command.mockImplementation(async (_id, cmd) => {
+      if (cmd.type === 'set_model') provider = cmd.provider
+      return {
+        type: 'response',
+        command: cmd.type,
+        success: true,
+        data:
+          cmd.type === 'get_messages'
+            ? { messages: [] }
+            : {
+                ...state,
+                sessionName: '-example',
+                model: model(),
+                sessionFile: file,
+                messageCount: 1,
+              },
+      }
+    })
+    await s.binding.command(session.sessionId, {
+      type: 'set_model',
+      provider: cross ? 'new' : 'old',
+      modelId: 'model',
+    })
+    expect(s.runtime.stop).toHaveBeenCalledTimes(cross ? 1 : 0)
+    if (cross)
+      expect(s.runtime.start).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          repository: machine.repository,
+          sessionPath: file,
+          provider: 'new',
+          model: 'model',
+        }),
+        expect.any(Function),
+      )
+    if (cross) expect(s.runtime.start.mock.calls.at(-1)?.[0]).not.toHaveProperty('name')
+    expect(live.sessionFor(lane.laneId)).not.toBeNull()
+  })
+})
+it('refuses a concurrent prompt while model selection is awaiting pi', async () => {
+  const s = setup(),
+    session = await s.binding.sessions.start({ repository: machine.repository })
+  const lane = s.saved()
+  await s.binding.sessions.attach(lane.laneId, session.sessionId)
+  let release: () => void = () => {}
+  const pending = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  s.runtime.command.mockImplementation(async (_id, cmd) => {
+    await pending
+    return { type: 'response', command: cmd.type, success: true, data: state }
+  })
+  const changing = s.binding.command(session.sessionId, {
+    type: 'set_model',
+    provider: 'new',
+    modelId: 'model',
+  })
+  const sending = s.binding.command(session.sessionId, {
+    type: 'prompt',
+    message: 'must wait',
+  })
+  const promptCalls = s.runtime.command.mock.calls.filter((c) => c[1].type === 'prompt').length
+  release()
+  const result = await sending
+  expect(result).toMatchObject({ success: false, error: 'Wait for the model change to finish.' })
+  expect(promptCalls).toBe(0)
+  await changing
+})
+
+it('does not delete a lane when pi cannot verify its transcript identity', async () => {
+  const s = setup(),
+    session = await s.binding.sessions.start({ repository: machine.repository })
+  const lane = s.saved()
+  await s.binding.sessions.attach(lane.laneId, session.sessionId)
+  s.runtime.command.mockResolvedValue({
+    type: 'response',
+    command: 'get_state',
+    success: false,
+    error: 'unavailable',
+  })
+  await expect(s.binding.deleteStop(lane.laneId)).rejects.toThrow('identity could not be verified')
+  expect(s.runtime.stop).not.toHaveBeenCalled()
+})
+
+it('does not stop a deleting lane after authority expires while reading pi state', async () => {
+  const s = setup(),
+    session = await s.binding.sessions.start({ repository: machine.repository })
+  const lane = s.saved()
+  await s.binding.sessions.attach(lane.laneId, session.sessionId)
+  await expect(s.binding.deleteStop(lane.laneId, () => false)).rejects.toThrow('control changed')
+  expect(s.runtime.stop).not.toHaveBeenCalled()
 })

@@ -1,3 +1,4 @@
+import { useSessionsStore } from '@/stores/sessions'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ModalOverlay } from '@/components/Modal'
 import { errorText } from '@shared/errors'
@@ -76,7 +77,12 @@ function FinderDialog({ workspacePath }: { workspacePath: string }): React.JSX.E
   const pick = (file: string): void => {
     close()
     useWorkspaceSearchStore.getState().closeSearch(workspacePath)
-    runFileAction(openFileInWorkspace(workspacePath, file, parsed.target))
+    const { activeSessionId, live } = useSessionsStore.getState()
+    const sessionId =
+      activeSessionId && live[activeSessionId]?.workspacePath === workspacePath
+        ? activeSessionId
+        : undefined
+    runFileAction(openFileInWorkspace(workspacePath, file, parsed.target, sessionId))
   }
 
   const onKeyDown = (event: React.KeyboardEvent): void => {

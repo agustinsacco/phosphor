@@ -1,3 +1,4 @@
+import { FileTreeRow } from './FileTreeRow'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useRef } from 'react'
 import clsx from 'clsx'
@@ -269,7 +270,7 @@ function ExplorerRow({
 
   return (
     <>
-      <TooltipButton
+      <FileTreeRow
         ref={rowRef}
         aria-current={isActive ? 'true' : undefined}
         data-path={entry.path}
@@ -280,15 +281,12 @@ function ExplorerRow({
         onDragStart={(event) => controls.dragStart(event, entry)}
         onClick={onClick}
         onContextMenu={onContextMenu}
-        className={clsx(
-          'group flex w-full items-center gap-1.5 py-[3px] pr-2 text-left text-base transition-colors',
+        depth={depth}
+        active={
           isActive ||
-            controls.selected.some((e) => e.path === entry.path) ||
-            controls.dropDir === entry.path
-            ? 'bg-accent-soft text-text'
-            : 'text-text-secondary hover:bg-bg-secondary/60 hover:text-text',
-        )}
-        style={{ paddingLeft: 10 + depth * 14 }}
+          controls.selected.some((e) => e.path === entry.path) ||
+          controls.dropDir === entry.path
+        }
       >
         {entry.isDirectory ? (
           <>
@@ -311,7 +309,7 @@ function ExplorerRow({
             style={{ backgroundColor: dot?.color ?? 'var(--px-warning)' }}
           />
         )}
-      </TooltipButton>
+      </FileTreeRow>
       {entry.isDirectory && isExpanded && (
         <>
           {children === undefined && (
@@ -368,7 +366,7 @@ export function IconToggle({
   )
 }
 
-function FolderGlyph({ open }: { open: boolean }): React.JSX.Element {
+export function FolderGlyph({ open }: { open: boolean }): React.JSX.Element {
   return (
     <svg
       width="13"

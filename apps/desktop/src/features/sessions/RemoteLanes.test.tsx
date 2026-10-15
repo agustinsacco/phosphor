@@ -71,6 +71,8 @@ it('requires explicit takeover and sends the Host identity', async () => {
 })
 
 it('does not open a local file for a remote workspace key', async () => {
-  await useFilesStore.getState().openFile(mockRemoteInfo.workspacePath, '/etc/passwd')
+  await expect(
+    useFilesStore.getState().openFile(mockRemoteInfo.workspacePath, '/etc/passwd'),
+  ).rejects.toThrow('Not available on remote lanes yet.')
   expect(invoke).not.toHaveBeenCalled()
 })

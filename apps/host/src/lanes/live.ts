@@ -1,3 +1,4 @@
+import type { AgentMessage } from '@phosphor/shared/rpc'
 import {
   isLaneBranchName,
   parseHostFrame,
@@ -17,6 +18,7 @@ import { type HostStore } from './store'
 import { createLaneStreams, createLanesTopic, streamLimits, type StreamLimits } from './stream'
 
 type Attachment = {
+  firstPrompt?: string
   sessionId: string
   projection: LaneProjection
   binding: ReturnType<typeof createHostLaneProjection>
@@ -93,7 +95,11 @@ export function createLiveLanes(options: {
     const candidate: LaneSummary = {
       ...summary,
       activity: live?.projection.activity() ?? summary.activity,
-      title: title(state?.sessionName) ?? title(summary.title),
+      title:
+        title(state?.sessionName) ??
+        title(summary.title) ??
+        live?.firstPrompt ??
+        firstPromptTitle(live?.projection.view().messages),
       model: model(state?.model) ?? model(summary.model),
       branch: isLaneBranchName(summary.branch) ? summary.branch : null,
     }
@@ -293,6 +299,12 @@ export function createLiveLanes(options: {
     push,
     publish,
     summaryFor,
+    firstPrompt(laneId: string, message: string) {
+      const live = attached.get(laneId)
+      if (!live || live.firstPrompt) return
+      live.firstPrompt = promptTitle(message) ?? undefined
+      changed(laneId)
+    },
     sessionFor: (laneId: string) => {
       const live = attached.get(laneId)
       return live && !live.exited ? live.sessionId : null
@@ -312,4 +324,33 @@ export function createLiveLanes(options: {
       for (const laneId of attached.keys()) detach(laneId)
     },
   }
+}
+
+export function promptTitle(message: string): string | null {
+  const line = message
+    .split('\n')
+    .map((s) => s.trim())
+    .find(Boolean)
+    ?.replace(/\s+/g, ' ')
+  if (!line) return null
+  let prefix = ''
+  for (const character of line) {
+    if (prefix.length + character.length > 79) break
+    prefix += character
+  }
+  const result = line.length <= 80 ? line : prefix.trimEnd() + '…'
+  // The shared label contract also refuses control and invisible characters.
+  return normalizeLabel(result)
+}
+function firstPromptTitle(messages: readonly AgentMessage[] | undefined) {
+  const message = messages?.find((m) => m.role === 'user')
+  if (!message || message.role !== 'user') return null
+  return promptTitle(
+    typeof message.content === 'string'
+      ? message.content
+      : message.content
+          .filter((c) => c.type === 'text')
+          .map((c) => c.text)
+          .join('\n'),
+  )
 }

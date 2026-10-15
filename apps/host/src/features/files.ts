@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { constants } from 'node:fs'
-import { lstat, open, realpath, stat } from 'node:fs/promises'
+import { lstat, open, opendir, realpath, stat } from 'node:fs/promises'
 import { join, relative, isAbsolute, sep } from 'node:path'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import {
@@ -105,6 +105,31 @@ export async function listedPaths(root: string, path = '.'): Promise<string[]> {
   for (const file of files) await checkedPath(root, file, true)
   return files
 }
+/** Non-git configured folders still have a bounded file browser. */
+export async function filePaths(root: string): Promise<string[]> {
+  try {
+    await safeGit(root, ['rev-parse', '--is-inside-work-tree'])
+  } catch {
+    const pending = [''],
+      files: string[] = []
+    let visited = 0
+    while (pending.length) {
+      const path = pending.shift() ?? ''
+      if (++visited > FILE_LIMITS.entries) throw new FileFailure('too-large')
+      if (path) await checkedPath(root, path)
+      for await (const entry of await opendir(join(root, path))) {
+        if (entry.name.toLowerCase() === '.git') continue
+        const relative = path ? `${path}/${entry.name}` : entry.name
+        await checkedPath(root, relative)
+        if (entry.isDirectory()) pending.push(relative)
+        else if (entry.isFile()) files.push(relative)
+        if (pending.length + files.length > FILE_LIMITS.entries) throw new FileFailure('too-large')
+      }
+    }
+    return files.sort()
+  }
+  return listedPaths(root)
+}
 export function readResult(bytes: Buffer, size = bytes.length): FileRead {
   if (bytes.includes(0)) return { binary: true, size }
   if (size > FILE_LIMITS.textBytes) throw new FileFailure('too-large')
@@ -133,9 +158,36 @@ export function createFilesFeature(context: FeatureContext): HostFeature {
       if (!p || !['files.list', 'files.read'].includes(method))
         return failure(new FileFailure('bad-request'))
       try {
-        const root = await laneRoot(context, p.laneId)
+        const repository =
+          p.repositoryId === undefined
+            ? null
+            : context.store.listRepositories().find((r) => r.id === p.repositoryId)
+        if (p.repositoryId !== undefined && !repository) throw new FileFailure('bad-request')
+        const root = repository
+          ? await realpath(repository.path)
+          : p.laneId
+            ? await laneRoot(context, p.laneId)
+            : null
+        if (
+          !root ||
+          root.split(sep).some((s) => s.toLowerCase() === '.git') ||
+          !(await stat(root)).isDirectory()
+        )
+          throw new FileFailure('bad-request')
+        const recheck = () => {
+          if (
+            repository &&
+            !context.store
+              .listRepositories()
+              .some((r) => r.id === repository.id && r.path === repository.path)
+          )
+            throw new FileFailure('bad-request')
+          if (p.laneId && context.store.getLane(p.laneId)?.removedAt !== null)
+            throw new FileFailure('unknown-lane')
+        }
         if (method === 'files.list') {
-          const files = await listedPaths(root)
+          const files = await filePaths(root)
+          recheck()
           return { ok: true, data: { files } }
         }
         if (!p.path) throw new FileFailure('bad-request')
@@ -161,6 +213,7 @@ export function createFilesFeature(context: FeatureContext): HostFeature {
             if (!r.bytesRead) break
             count += r.bytesRead
           }
+          recheck()
           return {
             ok: true,
             data: {
@@ -182,7 +235,7 @@ export function createFilesFeature(context: FeatureContext): HostFeature {
           return { ok: true, data: { binary: false, size: 0, content: '', revision: null } }
         const result = failure(error)
         context.log('feature-query', {
-          laneId: p.laneId,
+          scope: p.laneId ? 'lane' : 'repository',
           method,
           reason: result.ok ? 'ok' : result.error.code,
         })

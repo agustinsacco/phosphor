@@ -1,3 +1,8 @@
+import {
+  parseRepositoryOp,
+  type RepositoryOp,
+  type DeleteLaneOp,
+} from '@phosphor/shared/host-protocol-repositories'
 import { parseProviderLoginOp } from '@phosphor/shared/host-protocol-providers'
 import type { ProviderLogins } from '../providers/login'
 import { parseAttachmentOp } from '@phosphor/shared/host-protocol-attachments'
@@ -41,6 +46,16 @@ export interface LaneCommandClient {
   caps: readonly HostCapability[]
 }
 export interface LaneCommandPorts {
+  repositories?: {
+    execute(
+      op: RepositoryOp,
+      allowed: () => boolean,
+    ): Promise<{ ok: true; data?: unknown } | { ok: false; code: RejectCode }>
+  }
+  deleteLane?: (
+    op: DeleteLaneOp,
+    allowed: () => boolean,
+  ) => Promise<{ ok: true; data: { branchKept: boolean } } | { ok: false; code: RejectCode }>
   providerLogins?: ProviderLogins
   attachments?: HostAttachments
   terminals?: HostTerminals
@@ -171,6 +186,8 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
   }
   /** Every capability an op needs, at admission and again when a queued op starts. */
   function capabilityFor(op: LaneCommandFrame['op']): readonly HostCapability[] {
+    if (op.type === 'lane.delete' || parseRepositoryOp(op))
+      return ['workspaces.write', 'sessions.control']
     if (parseAttachmentOp(op)) return ['workspaces.write', 'sessions.control']
     const routine = parseRoutineOp(op)
     if (routine)
@@ -279,6 +296,24 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
   function execute(job: Job, queue: LaneQueue): Execution | void {
     const { frame, client } = job
     const { requestId, laneId, op } = frame
+    const managementAllowed = () =>
+      capabilityFor(op).every((cap) => (client.currentCaps?.() ?? client.caps).includes(cap))
+    if ((op.type === 'lane.delete' || parseRepositoryOp(op)) && !managementAllowed())
+      return rejected(job, 'forbidden', true)
+    const repositoryOp = parseRepositoryOp(op)
+    if (repositoryOp) {
+      if (!ports.repositories || laneId !== undefined || frame.fence !== undefined)
+        return rejected(job, 'bad-request', true)
+      const repositories = ports.repositories
+      const completion = dispatch(job, queue, () =>
+        repositories.execute(repositoryOp, managementAllowed),
+      ).then((result) => {
+        if (!result.answered) return terminal(job, { requestId, status: 'unknown' }, true)
+        if (!result.value.ok) return rejected(job, result.value.code, true)
+        terminal(job, { requestId, status: 'done', data: result.value.data }, true)
+      })
+      return { completion, detached: false }
+    }
     if (parseAttachmentOp(op)) {
       const caps = client.currentCaps?.() ?? client.caps
       if (!caps.includes('workspaces.write') || !caps.includes('sessions.control'))
@@ -437,6 +472,11 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
         { requestId, status: 'rejected', code: 'not-controller', control: lane.control },
         true,
       )
+    if (
+      op.type === 'lane.delete' &&
+      (op.laneId !== laneId || lane.control.controller?.clientId !== client.id)
+    )
+      return rejected(job, 'not-controller', true)
     let admittedFence: number | undefined
     if (!UNFENCED_OPS.includes(op.type)) {
       if (frame.fence === undefined) return rejected(job, 'bad-request', true)
@@ -579,6 +619,20 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
         if (summary) publish(laneId, { kind: 'summary', summary }, queue)
         break
       }
+      case 'lane.delete': {
+        if (!ports.deleteLane) return rejected(job, 'unsupported', true)
+        const deleteLane = ports.deleteLane
+        const allowed = () =>
+          managementAllowed() &&
+          store.getLane(laneId)?.control.controller?.clientId === client.id &&
+          store.getLane(laneId)?.control.fence === admittedFence
+        const completion = dispatch(job, queue, () => deleteLane(op, allowed)).then((result) => {
+          if (!result.answered) return terminal(job, { requestId, status: 'unknown' }, true)
+          if (!result.value.ok) return rejected(job, result.value.code, true)
+          terminal(job, { requestId, status: 'done', data: result.value.data }, true)
+        })
+        return { completion, detached: false }
+      }
       case 'lane.resume':
       case 'lane.stop': {
         const resume = op.type === 'lane.resume'
@@ -629,7 +683,12 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
         log('lane.command_error', { laneId, requestId, op: opType, code })
       return {
         code: 'internal',
-        message: resume ? 'the lane could not start' : 'the lane could not stop',
+        message:
+          !resume && code === 'first-prompt-required'
+            ? 'Send a first message before stopping this lane.'
+            : resume
+              ? 'the lane could not start'
+              : 'the lane could not stop',
       } as const
     }
   }

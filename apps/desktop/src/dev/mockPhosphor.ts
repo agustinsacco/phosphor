@@ -1486,6 +1486,10 @@ export function installMockPhosphor(): void {
           ]
         case 'hosts:providers':
           return [{ id: 'anthropic', name: 'Anthropic', status: 'ready' }]
+        case 'hosts:repositoryFiles':
+          return ['README.md', 'src/index.ts']
+        case 'hosts:repositoryFile':
+          return { binary: false, size: 20, content: '# Remote repository\n', revision: null }
         case 'hosts:skills':
           return { skills: [], probe: 'rpc', userRoot: `host:${args[0]}/machine` }
         case 'hosts:providerLogin':

@@ -28,11 +28,21 @@ selected path. Viewers remain read-only. Saves use a SHA-256 revision, not an
 mtime: a conflict keeps the buffer until the user discards and refreshes.
 Uncertain saves keep edits and disable both Save and Cmd/Ctrl+S until Reload file
 reads the file again. Reload file discards the edited buffer.
-Changes lists git status and shows
-an inline read-only Monaco diff against HEAD. Binary and oversized files use
+Files uses a nested tree and the same row and icon controls as the local explorer.
+An empty tree says "No files yet". A failed git status does not hide the file
+list, and configured non-git folders can be browsed. Changes lists git status and
+shows an inline read-only Monaco diff against HEAD. Binary and oversized files use
 placeholders. The pane refreshes on focused lane summary changes, reconnects and its
 Refresh button, never a local filesystem watcher. Dirty buffers are not reloaded.
-Search, preview, quick look, external imports and open-in-app are not offered remotely. Without
+During a disconnect their editor stays mounted read-only with a reconnecting
+message. Reconnection keeps the edited text and original revision for conflict
+checking; it never substitutes a fresh read for unsaved edits.
+Chat links, tool path chips and the finder open through an explicit remote lane
+and can reveal a line. Host absolute paths must be inside that lane's cwd.
+Editor models and caches are lane-qualified. Switching lanes or machines cancels
+stale reads and clears previews. Machine-level Files browses configured Host
+repositories read-only without opening a lane. Search, rich preview, quick look,
+external imports and open-in-app are not offered remotely. Without
 the capability, the pane shows “Not available on remote lanes yet.”
 See [remote-access.md](remote-access.md#remote-read-panes) for routing and bounds.
 

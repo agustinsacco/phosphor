@@ -1,12 +1,21 @@
+import { useSessionFileTarget } from '@/features/files/SessionFileTarget'
+import { useSessionsStore } from '@/stores/sessions'
+import { useExtensionUiStore } from '@/stores/extensionUi'
 import { TooltipButton } from '@/components/Tooltip'
 import { openFileInWorkspace } from '@/stores/layout'
 import { getActiveWorkspace } from '@/stores/workspaces'
 
 /** Clickable path chip: opens the file in the Files pane (optionally at a line). */
 export function PathLink({ path, line }: { path: string; line?: number }): React.JSX.Element {
+  const sessionId = useSessionFileTarget()
   const open = (): void => {
-    const workspacePath = getActiveWorkspace()
-    if (workspacePath) void openFileInWorkspace(workspacePath, path, line)
+    const workspacePath = sessionId
+      ? useSessionsStore.getState().live[sessionId]?.workspacePath
+      : getActiveWorkspace()
+    if (workspacePath)
+      void openFileInWorkspace(workspacePath, path, line, sessionId ?? undefined).catch(() =>
+        useExtensionUiStore.getState().pushToast('File is unavailable.', 'error'),
+      )
   }
   return (
     <TooltipButton

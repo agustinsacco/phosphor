@@ -8,6 +8,8 @@ export const IPC_SCOPE: Record<IpcInvokeChannel, 'app' | 'machine'> = {
   'hosts:sshInstallCancel': 'app',
   'hosts:models': 'machine',
   'hosts:providers': 'machine',
+  'hosts:repositoryFiles': 'machine',
+  'hosts:repositoryFile': 'machine',
   'hosts:skills': 'machine',
   'hosts:providerLogin': 'app',
   'hosts:uploadAttachments': 'app',

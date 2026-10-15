@@ -88,13 +88,15 @@ const NO_ROUTINES = {
 export function createHostRuntime(
   machine: HostMachine,
   options: {
+    trashTranscript?: (path: string) => Promise<void>
     life?: Lifecycle
     timings?: Partial<DrainTimings>
     dialogs?: 'cancel' | 'forward'
     routines?: SessionServiceRuntime<Delivery>['routines']
   } = {},
 ) {
-  const { log, roots } = machine
+  const { log } = machine
+  const roots = [...machine.roots]
   const timings: DrainTimings = { ...DRAIN, ...options.timings }
   const life = options.life ?? createLifecycle(log.write)
   const path = machine.env.PATH
@@ -188,7 +190,7 @@ export function createHostRuntime(
     ownsRoutine: options.routines?.owns ?? NO_ROUTINES.owns,
     cancelRoutine: options.routines?.cancel ?? NO_ROUTINES.cancel,
     forgetAccount: () => {},
-    deleteTranscript: unlinkTranscript,
+    deleteTranscript: (path) => unlinkTranscript(path, options.trashTranscript),
     deleteDraft: async () => {},
     // As on Desktop, a deletion first cancels a start of the same file still
     // under way. A session already running is refused instead of stopped.
@@ -272,6 +274,9 @@ export function createHostRuntime(
   }
 
   return {
+    replaceRoots(next: readonly string[]) {
+      roots.splice(0, roots.length, ...next)
+    },
     life,
     drain,
     /** Internal runner only: still uses the shared service and path-lock domain. */
@@ -424,7 +429,10 @@ export function commandRefusal(command: RpcCommand): string | null {
  * session. A file whose folder is gone is gone too. Without a session root,
  * nothing is one of pi's files.
  */
-export async function unlinkTranscript(path: string): Promise<void> {
+export async function unlinkTranscript(
+  path: string,
+  remove: (path: string) => Promise<void> = unlink,
+): Promise<void> {
   const missing = (error: unknown) => (error as NodeJS.ErrnoException).code === 'ENOENT'
   let folder: string
   try {
@@ -449,7 +457,7 @@ export async function unlinkTranscript(path: string): Promise<void> {
   if (!/.\.jsonl$/.test(basename(file)) || !info.isFile()) {
     throw new Error(`refusing to delete ${path}: not a pi session file`)
   }
-  await unlink(file).catch((error: unknown) => {
+  await remove(file).catch((error: unknown) => {
     if (!missing(error)) throw error
   })
 }

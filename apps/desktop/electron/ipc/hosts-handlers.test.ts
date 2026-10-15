@@ -86,3 +86,12 @@ it('attachment IPC resolves only the owning opaque lane and fails closed without
   ).toEqual(['/host/attachments/a.pdf'])
   expect(write).toHaveBeenCalledTimes(2)
 })
+
+it('does not deny explicit Mac catalogue reads because a remote lane is focused', () => {
+  mocks.readLane.mockReturnValue({ workspacePath: 'host:h/lane:l', call: vi.fn() })
+  registerHostsHandlers()
+  const router: unknown = mocks.router.mock.calls.at(-1)?.[0]
+  if (typeof router !== 'function') throw new Error('Missing router')
+  for (const channel of ['fs:readFile', 'fs:listFiles', 'fs:readDir'])
+    expect(router(7, channel, ['/Mac/catalogue'])).toBeFalsy()
+})

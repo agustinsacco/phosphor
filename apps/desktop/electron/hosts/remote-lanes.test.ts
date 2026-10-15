@@ -195,7 +195,7 @@ it('opens one window-owned opaque handle, hydrates in memory, and streams pi unc
   await drain()
   const info = await opening
   expect(info.sessionId).toMatch(/^remote-[0-9a-f]{16}$/)
-  expect(info.workspacePath).toBe(`host:${t.hostId}/0123456789abcdef`)
+  expect(info.workspacePath).toBe(`host:${t.hostId}/lane:${t.laneId}`)
   expect(info.target).toEqual({ kind: 'remote', hostId: t.hostId })
   expect(info.diskPath).toBeUndefined()
   expect(await t.lanes.open(t.window, t.hostId, t.laneId)).toEqual(info)
@@ -1105,6 +1105,45 @@ it.each(['connection', 'handle', 'focus'] as const)(
     expect(send).not.toHaveBeenCalled()
     t.lanes.clear()
     replacement.close()
+    t.c.close()
+    t.host.stop()
+  },
+)
+it.each(['incarnation', 'focus-cycle', 'removed-lane'] as const)(
+  'rejects a completed file read after %s changes',
+  async (change) => {
+    const t = await setup()
+    const opening = t.lanes.open(t.window, t.hostId, t.laneId)
+    await drain()
+    const info = await opening
+    t.lanes.setFocused(1, { hostId: t.hostId, laneId: t.laneId })
+    const lane = t.lanes.readLane(1, info.workspacePath)
+    if (!lane) throw new Error('fixture')
+    const snapshot = t.c.snapshot()
+    const view = vi
+      .spyOn(t.c, 'snapshot')
+      .mockReturnValue({ ...snapshot, capabilities: ['sessions.read', 'workspaces.read'] })
+    const initial = t.c.incarnation()
+    const incarnation = vi.spyOn(t.c, 'incarnation').mockReturnValue(initial)
+    vi.spyOn(t.c, 'call').mockImplementation(async () => {
+      if (change === 'incarnation')
+        incarnation.mockReturnValue({ ...initial, generation: initial.generation + 1 })
+      if (change === 'focus-cycle') {
+        t.lanes.setFocused(1, null)
+        t.lanes.setFocused(1, { hostId: t.hostId, laneId: t.laneId })
+      }
+      if (change === 'removed-lane')
+        view.mockReturnValue({
+          ...snapshot,
+          capabilities: ['sessions.read', 'workspaces.read'],
+          lanes: [],
+        })
+      return { type: 'result', id: randomUUID(), ok: true, data: { files: ['a'] } }
+    })
+    await expect(lane.call('workspaces.read', 'files.list', { laneId: t.laneId })).rejects.toThrow(
+      REMOTE_UNAVAILABLE,
+    )
+    t.lanes.clear()
     t.c.close()
     t.host.stop()
   },

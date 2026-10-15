@@ -242,6 +242,9 @@ export function createLanesTopic(options: {
   return {
     cursor,
     snapshot: () => ({ type: 'lanes' as const, cursor: cursor(), ...options.list() }),
+    repositoriesChanged() {
+      deliver(null)
+    },
     routinesChanged() {
       deliver({ type: 'routines-changed', cursor: next() })
     },

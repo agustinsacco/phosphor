@@ -1,14 +1,33 @@
+import { useRemoteFileSelection, releaseRemoteFileSelection } from './remoteFileSelection'
+import { RemoteFileTree } from './RemoteFileTree'
+import { IconToggle } from './FileExplorer'
+import {
+  FileIcon,
+  PlusIcon,
+  RefreshIcon,
+  CheckIcon,
+  ChangesIcon,
+  CloseIcon,
+  BranchIcon,
+} from '@/components/icons'
 import { useEffect, useState, useRef } from 'react'
 import { TooltipButton } from '@/components/Tooltip'
 import { MonacoDiff, MonacoEditor, releaseFileModel } from './MonacoEditor'
 import { languageForPath } from '@/lib/monaco'
-import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { useRemoteLanesStore, REMOTE_UNAVAILABLE, REMOTE_NOT_READY } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { canControlSession } from '@/stores/remoteLanes'
 import { promptText } from '@/stores/prompt'
 
 /** Remote content stays in memory. No local preview protocols or filesystem watcher. */
-export function RemoteFilesPane({
+export function RemoteFilesPane(props: {
+  workspacePath: string
+  sessionId: string
+  changes: boolean
+}): React.JSX.Element {
+  return <RemoteFilesView key={`${props.sessionId}:${props.workspacePath}`} {...props} />
+}
+function RemoteFilesView({
   workspacePath,
   sessionId,
   changes,
@@ -23,8 +42,11 @@ export function RemoteFilesPane({
   })
   const host = useRemoteLanesStore((s) => (hostId ? s.hosts[hostId] : undefined))
   const [refresh, setRefresh] = useState(0)
+  const [loading, setLoading] = useState(false)
   const [files, setFiles] = useState<string[]>([])
+  const [gitUnavailable, setGitUnavailable] = useState(false)
   const [status, setStatus] = useState<Record<string, string>>({})
+  const selection = useRemoteFileSelection((s) => s.bySession[sessionId])
   const [selected, setSelected] = useState<string | null>(null)
   const [content, setContent] = useState('')
   const [before, setBefore] = useState('')
@@ -39,6 +61,15 @@ export function RemoteFilesPane({
     host?.state === 'ready' &&
     host.capabilities.includes('workspaces.write') &&
     canControlSession(sessionId)
+  useEffect(() => {
+    if (selection) setSelected(selection.path)
+  }, [selection])
+  useEffect(() => {
+    useRemoteFileSelection.setState((s) => ({
+      blocked: { ...s.blocked, [sessionId]: dirty || busy },
+    }))
+  }, [sessionId, dirty, busy])
+  useEffect(() => () => releaseRemoteFileSelection(sessionId), [sessionId])
   const [error, setError] = useState<string | null>(null)
   const available = host?.state === 'ready' && host.capabilities.includes('workspaces.read')
   const laneId = useSessionsStore((s) => s.live[sessionId]?.laneId)
@@ -48,22 +79,28 @@ export function RemoteFilesPane({
   const runtimeEpoch = host?.cursor?.epoch
   useEffect(() => {
     let alive = true
+    setLoading(available)
     setFiles([])
     setStatus({})
     if (available)
       void Promise.all([
         window.phosphor.invoke('fs:listFiles', workspacePath),
-        window.phosphor.invoke('git:statusMap', workspacePath),
+        window.phosphor.invoke('git:statusMap', workspacePath).catch(() => null),
       ]).then(
         ([files, status]) => {
           if (alive) {
+            setLoading(false)
             setFiles(files)
-            setStatus(status)
+            setGitUnavailable(status === null)
+            setStatus(status ?? {})
             setError(null)
           }
         },
         () => {
-          if (alive) setError(REMOTE_UNAVAILABLE)
+          if (alive) {
+            setLoading(false)
+            setError(REMOTE_UNAVAILABLE)
+          }
         },
       )
     return () => {
@@ -112,9 +149,9 @@ export function RemoteFilesPane({
   }, [workspacePath, selected, changes, available, refresh, status])
   useEffect(() => {
     if (!selected) return
-    const path = `${workspacePath}/${selected}`
+    const path = `remote:${sessionId}/${selected}`
     return () => releaseFileModel(path)
-  }, [workspacePath, selected])
+  }, [sessionId, selected])
   async function save() {
     if (!selected || !writable || !editable || busy || uncertain || revision === undefined) return
     setBusy(true)
@@ -176,54 +213,85 @@ export function RemoteFilesPane({
       setBusy(false)
     }
   }
-  if (!available) return <p className="p-4">{REMOTE_UNAVAILABLE}</p>
+  if (!available && !(dirty && selected))
+    return (
+      <p className="p-4">
+        {host && host.state !== 'ready' ? REMOTE_NOT_READY : REMOTE_UNAVAILABLE}
+      </p>
+    )
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-auto p-3">
-      <div>
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="border-border flex shrink-0 flex-wrap items-center gap-1 border-b px-2 py-1">
+        <span className="text-text-tertiary mr-auto text-xs font-semibold font-mono uppercase tracking-wider">
+          {changes ? 'Changes' : 'Explorer'}
+        </span>
         {!writable && 'Read-only '}
-        <TooltipButton onClick={() => setRefresh((n) => n + 1)}>Refresh</TooltipButton>
+        <IconToggle title="Refresh" active={false} onClick={() => setRefresh((n) => n + 1)}>
+          <RefreshIcon />
+        </IconToggle>
         {writable && !changes && (
           <>
-            <TooltipButton disabled={busy || dirty} onClick={() => void action('file')}>
-              New file
-            </TooltipButton>
-            <TooltipButton disabled={busy || dirty} onClick={() => void action('directory')}>
-              New folder
-            </TooltipButton>
-            <TooltipButton
+            <IconToggle
+              title="New file"
+              active={false}
+              disabled={busy || dirty}
+              onClick={() => void action('file')}
+            >
+              <FileIcon />
+            </IconToggle>
+            <IconToggle
+              title="New folder"
+              active={false}
+              disabled={busy || dirty}
+              onClick={() => void action('directory')}
+            >
+              <PlusIcon />
+            </IconToggle>
+            <IconToggle
+              title="Rename"
+              active={false}
               disabled={busy || dirty || !selected}
               onClick={() => void action('rename')}
             >
-              Rename
-            </TooltipButton>
-            <TooltipButton
+              <ChangesIcon />
+            </IconToggle>
+            <IconToggle
+              title="Trash"
+              active={false}
               disabled={busy || dirty || !selected}
               onClick={() => void action('delete')}
             >
-              Trash
-            </TooltipButton>
-            <TooltipButton
+              <CloseIcon />
+            </IconToggle>
+            <IconToggle
+              title="Copy to folder"
+              active={false}
               disabled={busy || dirty || !selected}
               onClick={() => void action('copy')}
             >
-              Copy to folder
-            </TooltipButton>
-            <TooltipButton
+              <PlusIcon />
+            </IconToggle>
+            <IconToggle
+              title="Move to folder"
+              active={false}
               disabled={busy || dirty || !selected}
               onClick={() => void action('move')}
             >
-              Move to folder
-            </TooltipButton>
-            <TooltipButton
+              <BranchIcon />
+            </IconToggle>
+            <IconToggle
+              title="Save"
+              active={false}
               disabled={busy || uncertain || !dirty || !editable}
               onClick={() => void save()}
             >
-              Save
-            </TooltipButton>
+              <CheckIcon />
+            </IconToggle>
           </>
         )}
         {dirty && (
           <TooltipButton
+            className="text-accent rounded-sm px-2 py-1 text-sm hover:bg-bg-secondary"
             disabled={busy}
             onClick={() => {
               setDirty(false)
@@ -235,25 +303,37 @@ export function RemoteFilesPane({
           </TooltipButton>
         )}
       </div>
+      {!available && (
+        <p role="status" className="text-text-tertiary border-border border-b px-3 py-2 text-sm">
+          {host?.state === 'ready' ? REMOTE_UNAVAILABLE : 'Reconnecting… Unsaved edits are kept.'}
+        </p>
+      )}
+      {gitUnavailable && (
+        <p role="status" className="text-text-tertiary px-3 py-2 text-sm">
+          Git status is unavailable.
+        </p>
+      )}
       {(uncertain || error) && (
-        <p role="alert">
+        <p
+          role="alert"
+          className="text-danger bg-danger/5 border-border border-b px-3 py-2 text-sm"
+        >
           {uncertain
             ? 'Save not confirmed. Your edits are kept. Do not retry an uncertain save.'
             : error}
         </p>
       )}
-      <div className="flex min-h-0 flex-1 gap-3">
-        <div className="w-1/3 overflow-auto">
-          {(changes ? Object.keys(status) : files).map((path) => (
-            <TooltipButton
-              className="block text-left"
-              key={path}
-              disabled={dirty || busy}
-              onClick={() => setSelected(path)}
-            >
-              {status[path]} {path}
-            </TooltipButton>
-          ))}
+      <div className="flex min-h-0 flex-1">
+        <div className="border-border bg-bg-secondary/40 w-1/3 min-w-36 overflow-auto border-r">
+          <RemoteFileTree
+            files={changes ? Object.keys(status) : files}
+            status={status}
+            selected={selected}
+            disabled={dirty || busy}
+            onSelect={setSelected}
+            loading={loading}
+            changes={changes}
+          />
         </div>
         <div className="min-w-0 flex-1 overflow-auto">
           {changes && selected ? (
@@ -265,7 +345,8 @@ export function RemoteFilesPane({
             />
           ) : selected && editable ? (
             <MonacoEditor
-              path={`${workspacePath}/${selected}`}
+              path={`remote:${sessionId}/${selected}`}
+              reveal={selection?.path === selected ? selection.reveal : undefined}
               language={languageForPath(selected)}
               value={content}
               readOnly={!writable || busy}
@@ -276,7 +357,9 @@ export function RemoteFilesPane({
               onSave={() => void save()}
             />
           ) : (
-            <pre>{content}</pre>
+            <pre className="text-text-secondary p-4 text-sm">
+              {selected ? content : 'Select a file to preview'}
+            </pre>
           )}
         </div>
       </div>

@@ -3,11 +3,19 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import { RemoteFilesPane } from './RemoteFilesPane'
+import { RightPane } from './RightPane'
+import { useLayoutStore } from '@/stores/layout'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteInfo, mockRemoteHosts } from '@/dev/mockRemoteLanes'
 import type { SessionPush } from '@shared/models'
 
+vi.mock('./FilesPane', () => ({ FilesPane: () => null }))
+vi.mock('./FilesChangedPane', () => ({ FilesChangedPane: () => null }))
+vi.mock('@/features/terminal/TerminalPane', () => ({ TerminalPane: () => null }))
+vi.mock('@/features/artifacts/ArtifactsPane', () => ({ ArtifactsPane: () => null }))
+vi.mock('@/features/artifacts/RemoteArtifactsPane', () => ({ RemoteArtifactsPane: () => null }))
+vi.mock('@/features/chat/SubagentPanel', () => ({ SubagentPanel: () => null }))
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
 vi.mock('./MonacoEditor', () => ({
   releaseFileModel: vi.fn(),
@@ -233,7 +241,7 @@ it.each(['??', 'A ', 'AM', ' M'])(
 )
 
 it.each(['success', 'conflict', 'unknown'])(
-  'keeps revision-safe edits on %s saves',
+  'keeps revision-safe edits through disconnect/reconnect on %s saves',
   async (outcome) => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     const target = mockRemoteInfo.target
@@ -266,6 +274,9 @@ it.each(['success', 'conflict', 'unknown'])(
         },
       },
     })
+    useLayoutStore.setState({
+      bySession: { [sessionId]: { pane: 'files', expanded: false, side: 'right', size: 45 } },
+    })
     const revision = 'a'.repeat(64)
     const invoke = vi.fn(async (channel: string, ..._args: unknown[]) => {
       if (channel === 'fs:listFiles') return ['a.ts']
@@ -282,22 +293,39 @@ it.each(['success', 'conflict', 'unknown'])(
     const container = document.createElement('div')
     const root = createRoot(container)
     async function click(label: string) {
-      const button = [...container.querySelectorAll('button')].find((b) => b.textContent === label)
+      const button = [...container.querySelectorAll('button')].find(
+        (b) => b.textContent?.trim() === label.trim() || b.getAttribute('aria-label') === label,
+      )
       if (!button) throw new Error(`Missing button ${label}`)
       await act(async () => button.click())
     }
     try {
       await act(async () =>
         root.render(
-          <RemoteFilesPane
-            workspacePath={mockRemoteInfo.workspacePath}
-            sessionId={sessionId}
-            changes={false}
-          />,
+          <RightPane workspacePath={mockRemoteInfo.workspacePath} sessionId={sessionId} />,
         ),
       )
       await click(' a.ts')
       await click('Edit')
+      const editor = container.querySelector('textarea')
+      const host = useRemoteLanesStore.getState().hosts[target.hostId]
+      if (!host) throw new Error('Host missing')
+      const reads = invoke.mock.calls.filter(([c]) => c === 'fs:readFile').length
+      await act(async () =>
+        useRemoteLanesStore.setState({
+          hosts: { [target.hostId]: { ...host, state: 'reconnecting' } },
+        }),
+      )
+      expect(container.querySelector('textarea')).toBe(editor)
+      expect(editor?.value).toBe('edited')
+      expect(editor?.readOnly).toBe(true)
+      expect(container.textContent).toContain('Reconnecting')
+      await click('Editor save')
+      expect(invoke.mock.calls.filter(([c]) => c === 'fs:writeFile')).toHaveLength(0)
+      await act(async () => useRemoteLanesStore.setState({ hosts: { [target.hostId]: host } }))
+      expect(container.querySelector('textarea')).toBe(editor)
+      expect(editor?.value).toBe('edited')
+      expect(invoke.mock.calls.filter(([c]) => c === 'fs:readFile')).toHaveLength(reads)
       await click('Editor save')
       expect(invoke).toHaveBeenCalledWith(
         'fs:writeFile',
@@ -312,7 +340,9 @@ it.each(['success', 'conflict', 'unknown'])(
       if (outcome === 'conflict') expect(container.textContent).toContain('File changed on disk')
       if (outcome === 'unknown') {
         expect(container.textContent).toContain('Do not retry an uncertain save')
-        const save = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Save')
+        const save = [...container.querySelectorAll('button')].find(
+          (b) => b.getAttribute('aria-label') === 'Save',
+        )
         expect(save?.disabled).toBe(true)
         await click('Save')
         await click('Editor save')

@@ -1296,8 +1296,10 @@ suite in `npm test`.
 and behind), `git.diff` (working or staged unified diff), and `git.show` (a file
 at `HEAD` or a hex commit, including a session baseline).
 
-Queries require a stored, non-removed lane inside an active repository. Paths
-are relative to its cwd; traversal, symlink escapes and `.git` reads are refused.
+File reads accept exactly one of `laneId` or `repositoryId`. A repository id must
+match the current configured snapshot; paths are relative to that repository.
+Git queries remain lane-only. Lane queries require a stored, non-removed lane
+inside an active repository. Paths are relative to its cwd; traversal, symlink escapes and `.git` reads are refused.
 Lists stop with `too-large` above 20,000 entries. Text and diffs are capped at
 2 MiB. File reads classify binary by a NUL in the first 2 MiB; larger files
 without a NUL in that sample return `too-large`. Git blobs over 2 MiB return
@@ -1487,3 +1489,66 @@ context-budget fallback pauses while a routine owns its session. Shutdown stops
 scheduling and workers before closing the routines database. A routine never
 uses a terminal; a live shell is not an occupancy lock. See [routines.md](routines.md#host-routines)
 for bounds, deletion policy and the connection capability matrix.
+
+### Remote lane names and lifecycle
+
+An unnamed lane immediately uses its first accepted user message as its summary
+title: the first nonempty line, trimmed, at most 80 characters. The Host also
+names new lanes after the first accepted prompt. `autoNameLanes` is a boolean,
+default on. Naming is silent on failure and never logs prompts, titles or output.
+Only one naming subprocess runs at a time, with at most 64 pending jobs. It uses
+the lane's provider and the cheapest eligible model in the same family and region,
+falling back to the lane model. Print mode has no stdin, tools, context files,
+skills or templates; thinking is off. Fast boot loads only the Claude provider's
+extension when needed. Every run has a 30 second timeout, a 4 KiB output cap,
+and its own process group, killed on completion or failure. Host shutdown cancels
+the active naming group and discards queued naming work.
+
+A generated name is applied through the live lane's runtime, never by writing
+pi's file. A manual rename, closed lane or changed incarnation cancels application.
+There is one naming attempt per new lane. A controller's `set_session_name`
+updates the stored summary and publishes the refreshed live name to viewers.
+Stop before the first saved prompt is refused with a fixed message. Once pi
+reports its session file, the Host records that identity before stopping. A
+cross-provider model switch rebinds pi from its saved transcript, or recreates
+an empty lane with the selected model when no file exists yet. Persisted names
+are not parsed as creation names on resume; an unsaved name is restored via RPC. In-turn model
+switches are refused.
+
+### Repository management and lane deletion
+
+`allowRepositoryChanges` is a boolean, default on. Turning it off refuses
+`machine.folders.list`, `host.repositories.add` and `host.repositories.remove`.
+These owner-authenticated operations require `workspaces.write`; mutations also
+require `sessions.control` and use durable receipts. Folder paths are relative
+to the Host user's real home. Absolute paths, dot directories and symlink escapes
+are refused. Folder listing returns directories only, at most 500, sorted within
+the returned subset, with `truncated` when more exist. Enumeration also stops
+after 20,000 directory entries, including hidden entries.
+
+Add accepts existing git or non-git directories, refuses duplicates and more than
+64 configured folders. It reads the validated config, preserves other fields,
+writes a 0600 exclusive temporary file, syncs it, then atomically renames it over
+the canonical config. The added directory's canonical path, device and inode
+are revalidated under home immediately before commit and publication, without an
+asynchronous gap. Roots configured by hand may remain outside home; this check
+applies only to newly added folders. Only then do the repository snapshot and runtime admission
+roots change. This is process-local serialization, not a cross-process config
+lock. Remove changes config only and refuses live repositories. The final folder
+cannot be removed (`last-repository`). No repository files are deleted.
+
+`lane.delete` requires the current controller, matching fence, `sessions.control`
+and `workspaces.write`, checked again while work waits and before destructive
+steps. It stops pi and its process group, then moves the transcript through the
+runtime's shared path-lock domain into `<state>/trash/`. A startup sweep removes
+matching trash files older than 30 days. Missing transcripts are allowed. A
+shared worktree is never removed. Worktree removal uses git without force, so
+dirty worktrees remain. A branch is kept unless its work is proven merged,
+including squash merges by `git cherry` against a synthetic branch-tree commit.
+Deletion atomically compares the ref with the proven tip using `git update-ref -d`
+and keeps the branch if another writer advanced it. Current and checked-out branches are always kept. Kept branches
+are not deletion failures. The receipt returns only `{branchKept: boolean}`;
+Desktop rejects missing or malformed confirmation as an unknown outcome. Checkout
+checks are process-local preconditions, not a cross-process worktree lock. Removal is
+published to every connected client. Resources already removed before a later
+failure are not recreated; a retry can finish the remaining work.

@@ -5,6 +5,7 @@ import type { FrameSocket, LaneSummary } from '@shared/host-protocol'
 import { createClientIds, type RemoteClients } from './client-id'
 import { createGrants } from './grants'
 import { controlFailure } from '../control/client'
+import type { HostConnectionSnapshot } from './connection'
 import { createHostConnection } from './connection'
 import { createHostManager } from './manager'
 
@@ -35,6 +36,7 @@ function machine(): MachineView {
 function setup(
   count = 1,
   options: {
+    state?: HostConnectionSnapshot['state']
     user?: string
     clientId?: string
     lanes?: LaneSummary[]
@@ -76,7 +78,11 @@ function setup(
     })
     return {
       ...c,
-      snapshot: () => ({ ...c.snapshot(), state: 'ready' as const, lanes: options.lanes ?? [] }),
+      snapshot: () => ({
+        ...c.snapshot(),
+        state: options.state ?? ('ready' as const),
+        lanes: options.lanes ?? [],
+      }),
       close: () => {
         close()
         c.close()
@@ -424,5 +430,19 @@ it('changes the snapshot token when replacing a connection and preserves it on d
   await drain()
   expect(t.connection).toHaveBeenCalledTimes(2)
   expect(t.manager.snapshot()[m.id]!.connectionToken).not.toBe(first)
+  t.manager.stop()
+})
+
+it('keeps an in-progress connection through heartbeat-only directory updates', async () => {
+  const t = setup(1, { state: 'connecting' })
+  await drain()
+  const m = t.list()[0]
+  if (!m) throw new Error('fixture')
+  const token = t.manager.snapshot()[m.id]?.connectionToken
+  t.setList([{ ...m, lastSeenAt: new Date(Date.now() + 1000).toISOString(), readiness: null }])
+  await drain()
+  expect(t.connection).toHaveBeenCalledTimes(1)
+  expect(t.manager.snapshot()[m.id]?.connectionToken).toBe(token)
+  expect(t.close).not.toHaveBeenCalled()
   t.manager.stop()
 })

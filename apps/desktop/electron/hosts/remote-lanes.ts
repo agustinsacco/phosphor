@@ -213,7 +213,7 @@ export function createRemoteLanes(ports: {
         sessionId: `remote-${randomBytes(8).toString('hex')}`,
         target: { kind: 'remote', hostId },
         laneId,
-        workspacePath: `host:${hostId}/${summary.repositoryId}`,
+        workspacePath: `host:${hostId}/lane:${laneId}`,
       }
       const handle: Handle = {
         info,
@@ -267,7 +267,15 @@ export function createRemoteLanes(ports: {
       op,
     }
     if (!parseClientFrame(JSON.stringify(frame)).ok) throw new Error('Invalid remote lane request.')
+    const generation = c.incarnation().generation
     const result = await c.send(op, laneId, summary?.control.fence)
+    if (
+      ports.connection(hostId) !== c ||
+      c.incarnation().generation !== generation ||
+      c.snapshot().state !== 'ready' ||
+      !c.snapshot().capabilities.includes('sessions.control')
+    )
+      throw new Error(REMOTE_UNAVAILABLE)
     const response = receiptResponse(op.type, result, ports.label(hostId))
     if (!response.success) throw new Error(response.error)
     return result
@@ -275,6 +283,7 @@ export function createRemoteLanes(ports: {
   async function readCall(h: Handle, capability: HostCapability, method: string, params: unknown) {
     const c = connection(h.hostId)
     if (!c.snapshot().capabilities.includes(capability)) throw new Error(REMOTE_UNAVAILABLE)
+    const generation = c.incarnation().generation
     let result
     try {
       result = await c.call(method, params)
@@ -283,6 +292,8 @@ export function createRemoteLanes(ports: {
     }
     if (
       handles.get(h.info.sessionId) !== h ||
+      c.incarnation().generation !== generation ||
+      !c.snapshot().lanes.some((l) => l.laneId === h.laneId) ||
       ports.connection(h.hostId) !== c ||
       c.snapshot().state !== 'ready' ||
       !c.snapshot().capabilities.includes(capability)
@@ -361,9 +372,10 @@ export function createRemoteLanes(ports: {
           return receipt.data
         },
         async call(capability, method, params) {
+          const focus = focused.get(windowId)
           const data = await readCall(h, capability, method, params)
           const current = focused.get(windowId)
-          if (current?.hostId !== h.hostId || current.laneId !== h.laneId)
+          if (current !== focus || current?.hostId !== h.hostId || current.laneId !== h.laneId)
             throw new Error(REMOTE_UNAVAILABLE)
           return data
         },
@@ -382,7 +394,7 @@ export function createRemoteLanes(ports: {
     async action(
       hostId: string,
       laneId: string,
-      type: 'lane.stop' | 'lane.resume' | 'control.take' | 'lane.markRead',
+      type: 'lane.stop' | 'lane.resume' | 'control.take' | 'control.release' | 'lane.markRead',
     ) {
       const c = connection(hostId, true)
       const summary = c.snapshot().lanes.find((l) => l.laneId === laneId)
