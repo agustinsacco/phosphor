@@ -16,7 +16,7 @@ import { Button, TextInput } from '@/components/form'
 import { CloseIcon } from '@/components/icons'
 import { ModelMenu } from '@/features/chat/composer/ModelMenu'
 import { useRoutineModels } from './useRoutineModels'
-import { keepEditorDraft, type EditorDraft } from '@/stores/routines'
+import { keepEditorDraft, newRoutineDraftKey, type EditorDraft } from '@/stores/routines'
 
 const SELECT = 'border-border bg-surface text-text w-full rounded-md border px-2.5 py-1.5'
 const EYEBROW = 'text-text-tertiary font-mono text-xs uppercase tracking-wide'
@@ -145,7 +145,7 @@ export function RoutineEditor({
   restored?: EditorDraft
   /** What Reset returns to: a blank routine, or the saved one being edited. */
   pristine: RoutineInput
-  /** `editorDrafts` key: the routine id, or NEW_ROUTINE. */
+  /** `editorDrafts` key: the routine id, or a per-machine new-routine key. */
   draftKey: string
   existing?: Routine
   machines?: RoutineMachine[]
@@ -155,6 +155,7 @@ export function RoutineEditor({
   const pristineMachineId = existing?.machine?.id ?? 'local'
   const pristineRepositoryId = existing?.machine?.repositoryId ?? ''
   const [machineId, setMachineId] = useState(restored?.machineId ?? pristineMachineId)
+  const effectiveDraftKey = existing || !machineId ? draftKey : newRoutineDraftKey(machineId)
   const machine = machines.find((m) => m.id === machineId)
   const remote = machineId !== 'local'
   const [repositoryId, setRepositoryId] = useState(restored?.repositoryId ?? pristineRepositoryId)
@@ -185,19 +186,22 @@ export function RoutineEditor({
   // Mirrored on every change rather than on close, so that unmounting with
   // the page (a sidebar click) keeps the work too.
   useEffect(() => {
+    // Resetting a different machine's editor must not clear an untouched draft here.
+    if (!dirty && effectiveDraftKey !== draftKey) return
     keepEditorDraft(
-      draftKey,
+      effectiveDraftKey,
       dirty
         ? { input: draft, revision: existing?.revision ?? null, machineId, repositoryId }
         : null,
     )
-  }, [draft, dirty, draftKey, existing?.revision, machineId, repositoryId])
+  }, [draft, dirty, draftKey, effectiveDraftKey, existing?.revision, machineId, repositoryId])
 
   const update = (patch: Partial<RoutineInput>): void => {
     setDraft((r) => ({ ...r, ...patch, trusted: false }))
     setCheck(null)
   }
   const reset = (): void => {
+    keepEditorDraft(effectiveDraftKey, null)
     setMachineId(pristineMachineId)
     setRepositoryId(pristineRepositoryId)
     setDraft(pristine)
@@ -225,7 +229,7 @@ export function RoutineEditor({
         existing?.revision,
         remote ? machineId : undefined,
       )
-      keepEditorDraft(draftKey, null)
+      keepEditorDraft(effectiveDraftKey, null)
       onSaved()
     } catch (cause) {
       setError(String(cause))

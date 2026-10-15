@@ -315,3 +315,54 @@ test('Host Skills exposes its SKILL.md and catalogue without mutation controls',
     await h.close()
   }
 })
+
+test('Sidebar Host selection opens Routines without This Mac activity', async ({
+  browserName: _browserName,
+}, info) => {
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
+  const h = await remoteHostFixture()
+  try {
+    await h.signIn()
+    await expect
+      .poll(() =>
+        h.page.evaluate(async () =>
+          (await window.phosphor.invoke('routines:list')).machines?.some(
+            (machine) => machine.available,
+          ),
+        ),
+      )
+      .toBe(true)
+    await h.page.evaluate(async () => {
+      const snapshot = await window.phosphor.invoke('routines:list')
+      const local = snapshot.routines.find((routine) => routine.name === 'LOCAL_ONLY routine')
+      const host = snapshot.machines?.find((machine) => machine.label === 'bee1')
+      if (!local || !host) throw new Error('Missing fixture routines')
+      const remote = await window.phosphor.invoke('routines:list', host.id)
+      for (const routine of remote.routines)
+        await window.phosphor.invoke('routines:delete', routine.id)
+      await window.phosphor.invoke(
+        'routines:save',
+        { ...local, trusted: true },
+        local.id,
+        local.revision,
+      )
+      await window.phosphor.invoke('routines:run', local.id, crypto.randomUUID())
+    })
+    await expect
+      .poll(() =>
+        h.page.evaluate(async () => (await window.phosphor.invoke('routines:list')).runs.length),
+      )
+      .toBeGreaterThan(0)
+    await selectMachine(h, 'bee1')
+    await h.page.getByRole('button', { name: 'Routines', exact: true }).first().click()
+    const page = h.page.getByTestId('global-page')
+    await expect(page).toContainText('Save a task. Give it a schedule.')
+    await expect(page).not.toContainText('LOCAL_ONLY')
+    await expect(page).not.toContainText('Activity')
+    await expect(page).toContainText('Desktop can be closed.')
+    await expect(page.locator('input[type=checkbox]')).toHaveCount(0)
+    await captures(h, info, 'host-empty-routines')
+  } finally {
+    await h.close()
+  }
+})

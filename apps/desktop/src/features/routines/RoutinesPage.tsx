@@ -22,6 +22,7 @@ import {
   editorDraft,
   keepEditorDraft,
   NEW_ROUTINE,
+  newRoutineDraftKey,
   useRoutinesStore,
   type EditorDraft,
 } from '@/stores/routines'
@@ -43,12 +44,6 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
   const localSnapshot = useRoutinesStore((s) => s.snapshot)
   const machines = useRoutinesStore((s) => s.machines)
   const remote = useRoutinesStore((s) => s.remote)
-  const snapshot = localSnapshot
-    ? {
-        ...localSnapshot,
-        routines: [...localSnapshot.routines, ...Object.values(remote).flatMap((r) => r.routines)],
-      }
-    : null
   const filter = useRemoteLanesStore((s) => s.filter)
   const override = useMachinePagesStore((s) => s.routinesMachine)
   const selectedMachine = pageMachine(filter, override)
@@ -56,6 +51,17 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
     selectedMachine === 'local' || selectedMachine === 'all' || selectedMachine.startsWith('host:')
       ? selectedMachine
       : `host:${selectedMachine}`
+  const snapshot = localSnapshot
+    ? {
+        ...localSnapshot,
+        routines: [
+          ...localSnapshot.routines,
+          ...Object.values(remote).flatMap((r) => r.routines),
+        ].filter((r) => machine === 'all' || (r.machine?.id ?? 'local') === machine),
+        // The aggregate activity feed is local. Host history is loaded in its detail view.
+        runs: machine === 'local' || machine === 'all' ? localSnapshot.runs : [],
+      }
+    : null
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const hostId = machine.startsWith('host:') ? machine.slice(5) : null
   const unavailable =
@@ -63,9 +69,20 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
     (hosts[hostId]?.state !== 'ready' || !hosts[hostId]?.capabilities.includes('routines'))
   const setMachine = (routinesMachine: string): void =>
     useMachinePagesStore.setState({ routinesMachine })
-  const loadError = useRoutinesStore((s) => s.error)
+  const localError = useRoutinesStore((s) => s.error)
+  const loadError =
+    machine === 'local'
+      ? localError
+      : machine === 'all' && localError
+        ? `This Mac: ${localError}`
+        : null
   const draft = useRoutinesStore((s) => s.draft)
-  const unsaved = useRoutinesStore((s) => !!s.editorDrafts[NEW_ROUTINE])
+  const draftMachine = machine === 'all' ? 'local' : machine
+  const newDraftKey = newRoutineDraftKey(draftMachine)
+  const unsaved = useRoutinesStore((s) => {
+    const saved = s.editorDrafts[newDraftKey]
+    return !!saved && (saved.machineId || 'local') === draftMachine
+  })
   const [selected, setSelected] = useState<string | null>(null)
   const selectedHostRows = selected?.startsWith('host:')
     ? remote[selected.split('/')[0] ?? '']
@@ -117,7 +134,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
    */
   const create = (input?: RoutineInput): void => {
     const blank = newRoutine(workspacePath)
-    const savedDraft = input ? undefined : editorDraft(NEW_ROUTINE, null)
+    const savedDraft = input || !unsaved ? undefined : editorDraft(newDraftKey, null)
     const restored =
       savedDraft ??
       (machine.startsWith('host:')
@@ -130,7 +147,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
         : undefined)
     setEditor({
       restored,
-      key: NEW_ROUTINE,
+      key: newDraftKey,
       input: restored?.input ?? input ?? blank,
       pristine: blank,
     })
@@ -193,7 +210,6 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
     .filter(
       (r) =>
         !unavailable &&
-        (machine === 'all' || (r.machine?.id ?? 'local') === machine) &&
         r.archived === archived &&
         `${r.name} ${r.workspacePath}`.toLowerCase().includes(search.toLowerCase()),
     )
@@ -484,7 +500,9 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                 <ActivityAccordion
                   heading={
                     <>
-                      <h2 className="text-lg font-semibold">Activity</h2>
+                      <h2 className="text-lg font-semibold">
+                        {machine === 'all' ? 'This Mac activity' : 'Activity'}
+                      </h2>
                       <p className="text-text-tertiary text-sm">
                         Recent lanes from every routine. Open a routine for its full history.
                       </p>
@@ -501,21 +519,31 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
               </div>
             )}
             <footer className="border-border text-text-tertiary mt-8 border-t pt-3 text-sm">
-              <p>
-                Routines run on this computer while Phosphor is open and awake. Sleep, shutdown and
-                lost connectivity delay them; there is no cloud runner.
-              </p>
-              <TooltipLabel className="text-text-secondary mt-2 flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  disabled={busy || !snapshot || !!snapshot.error}
-                  checked={snapshot?.background ?? false}
-                  onChange={(e) =>
-                    void act(() => window.phosphor.invoke('routines:background', e.target.checked))
-                  }
-                />
-                Keep Phosphor running after closing its windows · tray/menu-bar controls
-              </TooltipLabel>
+              {machine.startsWith('host:') ? (
+                <p>
+                  Routines run on the Host while it is running and awake. Desktop can be closed.
+                </p>
+              ) : (
+                <>
+                  <p>
+                    Routines run on this computer while Phosphor is open and awake. Sleep, shutdown
+                    and lost connectivity delay them; there is no cloud runner.
+                  </p>
+                  <TooltipLabel className="text-text-secondary mt-2 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      disabled={busy || !snapshot || !!snapshot.error}
+                      checked={snapshot?.background ?? false}
+                      onChange={(e) =>
+                        void act(() =>
+                          window.phosphor.invoke('routines:background', e.target.checked),
+                        )
+                      }
+                    />
+                    Keep Phosphor running after closing its windows · tray/menu-bar controls
+                  </TooltipLabel>
+                </>
+              )}
             </footer>
           </>
         )}

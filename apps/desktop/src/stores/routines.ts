@@ -16,6 +16,10 @@ const NO_LANES: RoutineLaneIndex = Object.freeze({})
 /** The `editorDrafts` key for a routine that has not been saved yet. */
 export const NEW_ROUTINE = 'new'
 
+export function newRoutineDraftKey(machine: string): string {
+  return machine.startsWith('host:') ? `${NEW_ROUTINE}/${machine}` : NEW_ROUTINE
+}
+
 /** Unsaved editor work, plus the revision it was started from. */
 export interface EditorDraft {
   input: RoutineInput
@@ -33,7 +37,7 @@ interface RoutinesState {
   error: string | null
   draft: RoutineInput | null
   /**
-   * What the editor held when it closed, keyed by routine id or NEW_ROUTINE.
+   * What the editor held when it closed, keyed by routine id or a per-machine new-routine key.
    * Closing the editor, by Escape or Cancel or leaving the page, must not
    * discard a half-written routine. Memory only: it does not survive a
    * restart, and instructions never touch disk until they are saved.
