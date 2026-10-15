@@ -13,6 +13,7 @@ it('requires ready artifact capability and discards replies after capability los
   const hostId = mockRemoteInfo.target?.kind === 'remote' ? mockRemoteInfo.target.hostId : ''
   const sessionId = mockRemoteInfo.sessionId
   useSessionsStore.setState({
+    activeSessionId: sessionId,
     live: {
       [sessionId]: {
         phosphorId: sessionId,

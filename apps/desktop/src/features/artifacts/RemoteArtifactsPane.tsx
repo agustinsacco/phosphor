@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
-import { useArtifactsStore } from '@/stores/artifacts'
+import { refreshRemoteArtifacts } from './remoteArtifactRefresh'
 import { ArtifactsPane } from './ArtifactsPane'
 
 export function RemoteArtifactsPane({
@@ -28,12 +28,11 @@ export function RemoteArtifactsPane({
     setLoaded(null)
     setFailed(false)
     if (available)
-      void window.phosphor
-        .invoke('artifacts:forSession', sessionId)
-        .then((items) => {
+      void refreshRemoteArtifacts(sessionId)
+        .then((applied) => {
           if (alive) {
-            useArtifactsStore.getState().hydrate(sessionId, items)
-            setLoaded(requestKey)
+            if (applied) setLoaded(requestKey)
+            else setFailed(true)
           }
         })
         .catch(() => {

@@ -188,7 +188,11 @@ Main uses the lane handle, never a session file path, to fetch metadata and each
 current-branch version. A call caps total content at 8 MiB and each version at
 2 MiB, with at most 1,000 version reads per call. Invalid replies, changed
 connections, revoked capability or a changed
-focused lane fail closed. The renderer discards stale replies.
+focused lane fail closed. The renderer serializes and coalesces metadata reads per lane, discarding replies
+after navigation, detach or connection changes. It refreshes on open, reconnect,
+new stream epochs and artifact-tool completion; empty replies replace cached
+artifacts. The top-bar entry remains visible for a ready Host with
+`artifacts.read` even when the lane has no artifacts yet.
 
 The global Artifacts library includes local artifacts and artifacts from ready
 Hosts announcing `artifacts.read`, tagged with the machine label. Remote library

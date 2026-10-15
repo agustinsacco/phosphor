@@ -299,7 +299,17 @@ function artifact() {
     details: { ...args, version },
   }
   out({ type: 'tool_execution_end', toolCallId: callId, toolName: name, isError: false, result })
-  persist({ role: 'toolResult', toolCallId: callId, toolName: name, ...result, isError: false })
+  const message = {
+    role: 'toolResult',
+    toolCallId: callId,
+    toolName: name,
+    ...result,
+    isError: false,
+  }
+  out({ type: 'message_start', message })
+  out({ type: 'message_end', message })
+  persist(message)
+  out({ type: 'message_start', message: text('') })
 }
 function linkTool() {
   const toolCallId = randomUUID()
@@ -315,7 +325,11 @@ function linkTool() {
   out({ type: 'tool_execution_start', toolCallId, toolName: 'read', args })
   const result = { content: [{ type: 'text', text: `${laneMarker()} guide line two` }] }
   out({ type: 'tool_execution_end', toolCallId, toolName: 'read', isError: false, result })
-  persist({ role: 'toolResult', toolCallId, toolName: 'read', ...result, isError: false })
+  const message = { role: 'toolResult', toolCallId, toolName: 'read', ...result, isError: false }
+  out({ type: 'message_start', message })
+  out({ type: 'message_end', message })
+  persist(message)
+  out({ type: 'message_start', message: text('') })
 }
 function prompt(message) {
   persist({ role: 'user', content: message })

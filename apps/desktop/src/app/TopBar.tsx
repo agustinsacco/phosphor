@@ -1,4 +1,4 @@
-import { useActiveMachine } from '@/stores/remoteLanes'
+import { useRemoteLanesStore, useActiveMachine } from '@/stores/remoteLanes'
 import { MachineChip } from '@/features/machines/RemoteLaneControls'
 import { TooltipButton } from '@/components/Tooltip'
 import clsx from 'clsx'
@@ -242,7 +242,12 @@ function ArtifactsButton({
 }): React.JSX.Element | null {
   const count = useArtifactsStore((s) => Object.keys(s.bySession[sessionId] ?? {}).length)
   const unseen = useArtifactsStore((s) => s.unseen[sessionId] ?? 0)
-  if (count === 0) return null
+  const target = useSessionsStore((s) => s.live[sessionId]?.target)
+  const readable = useRemoteLanesStore((s) => {
+    const host = target?.kind === 'remote' ? s.hosts[target.hostId] : undefined
+    return host?.state === 'ready' && host.capabilities.includes('artifacts.read')
+  })
+  if (target?.kind === 'remote' ? !readable : count === 0) return null
 
   return (
     <div className="relative">
@@ -253,7 +258,7 @@ function ArtifactsButton({
       >
         <ArtifactsIcon />
       </IconButton>
-      <CountBadge count={count} tone="accent" title={`${count} artifacts`} />
+      {count > 0 && <CountBadge count={count} tone="accent" title={`${count} artifacts`} />}
       {unseen > 0 && !active && (
         <span className="bg-accent absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full" />
       )}
