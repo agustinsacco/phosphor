@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { refreshRemoteArtifacts } from './remoteArtifactRefresh'
+import { MachineChip } from '@/features/machines/RemoteLaneControls'
 import { ArtifactsPane } from './ArtifactsPane'
 
 export function RemoteArtifactsPane({
@@ -45,7 +46,14 @@ export function RemoteArtifactsPane({
   }, [available, sessionId, summary, epoch, connection, requestKey])
   if (!available || loaded !== requestKey)
     return (
-      <PaneShell title={<PaneTitle label="Artifacts" />}>
+      <PaneShell
+        title={
+          <>
+            <PaneTitle label="Artifacts" />
+            <MachineChip sessionId={sessionId} />
+          </>
+        }
+      >
         <p className="p-4">{!available || failed ? REMOTE_UNAVAILABLE : 'Loading artifacts…'}</p>
       </PaneShell>
     )

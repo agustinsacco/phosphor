@@ -67,3 +67,48 @@ it('requires ready artifact capability and discards replies after capability los
     vi.unstubAllGlobals()
   }
 })
+
+it.each(['missing capability', 'failed refresh'] as const)(
+  'a refusal (%s) keeps the machine chip in its header',
+  async (cause) => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    const hostId = mockRemoteInfo.target?.kind === 'remote' ? mockRemoteInfo.target.hostId : ''
+    const sessionId = mockRemoteInfo.sessionId
+    useSessionsStore.setState({
+      activeSessionId: sessionId,
+      live: { [sessionId]: { ...mockRemoteInfo, phosphorId: sessionId } },
+    })
+    const invoke = vi.fn(async () => {
+      throw new Error('offline')
+    })
+    vi.stubGlobal('phosphor', { invoke })
+    useRemoteLanesStore.setState({
+      hosts: {
+        [hostId]: {
+          connectionToken: 'test-connection-1',
+          state: 'ready',
+          capabilities: cause === 'failed refresh' ? ['artifacts.read'] : [],
+          lanes: [],
+          repositories: [],
+        },
+      },
+    })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    try {
+      await act(async () =>
+        root.render(
+          <RemoteArtifactsPane
+            sessionId={sessionId}
+            workspacePath={mockRemoteInfo.workspacePath}
+          />,
+        ),
+      )
+      expect(container.textContent).toContain('Not available on remote lanes yet.')
+      expect(container.textContent).toContain('Connected')
+      expect(invoke).toHaveBeenCalledTimes(cause === 'failed refresh' ? 1 : 0)
+    } finally {
+      act(() => root.unmount())
+    }
+  },
+)
