@@ -1,10 +1,11 @@
-import { rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { validateHostHello } from '@phosphor/shared/remote-host'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { EXTENSIONS_ROOT, fakeMachine, SECRET, type FakeMachine } from '../__fixtures__/machine'
 import { HOST_VERSION } from '../version'
 import {
+  inspectHost,
   nextStep,
   renderDoctor,
   runDoctor,
@@ -42,6 +43,30 @@ const statuses = (report: DoctorReport) =>
   report.checks.map((check) => `${check.status} ${check.id}`)
 
 describe('doctor', () => {
+  it('uses only public enrollment metadata and config basenames for machine context', async () => {
+    const identity = join(dirname(machine.configPath), 'identity')
+    mkdirSync(identity, { mode: 0o700 })
+    writeFileSync(join(identity, 'host.json'), JSON.stringify({ label: 'Enrolled bee' }), {
+      mode: 0o600,
+    })
+    // No signing key exists. Reading metadata must not require one.
+    const inspected = await inspectHost(context())
+    expect(inspected.machine?.machineContext).toEqual({
+      kind: 'host',
+      label: 'Enrolled bee',
+      os: 'Linux',
+      repositories: ['repo'],
+    })
+    writeFileSync(join(identity, 'host.json'), 'invalid', { mode: 0o600 })
+    expect(
+      (await inspectHost(context({ hostname: 'fallback' }))).machine?.machineContext?.label,
+    ).toBe('fallback')
+    rmSync(join(identity, 'host.json'))
+    expect(
+      (await inspectHost(context({ hostname: 'fallback' }))).machine?.machineContext?.label,
+    ).toBe('fallback')
+  })
+
   it.each(['ours', 'absent', 'other', 'funnel', 'unknown', 'missing', 'stopped'] as const)(
     'reports Tailscale serve %s and keeps missing Tailscale non-fatal',
     async (state) => {

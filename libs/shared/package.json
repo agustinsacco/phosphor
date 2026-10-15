@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./machine-prompt": {
+      "types": "./src/machine-prompt.ts",
+      "default": "./src/machine-prompt.ts"
+    },
     "./lane-receipt": {
       "types": "./src/lane-receipt.ts",
       "default": "./src/lane-receipt.ts"

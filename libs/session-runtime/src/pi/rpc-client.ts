@@ -147,12 +147,14 @@ export class PiRpcClient extends EventEmitter<PiRpcClientEvents> {
     })
     this.child = child
 
-    // The exact argv, because reconstructing it once meant shimming the
+    // The argv, with appended prompts redacted. Reconstructing it once meant shimming the
     // binary on PATH to capture what was really passed. Env is deliberately
     // omitted — it carries API keys.
     this.runtime.log('pi', 'spawn', {
       bin: o.binaryPath ?? 'pi',
-      args,
+      args: args.map((arg, index) =>
+        args[index - 1] === '--append-system-prompt' ? '[redacted]' : arg,
+      ),
       cwd: o.cwd,
       pid: child.pid,
     })

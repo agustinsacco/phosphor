@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { machinePromptBlock } from './machine-prompt'
 import { prepareSessionPolicy, type SessionPolicyRuntime } from './session-policy'
 
 const launch = {
@@ -10,11 +11,13 @@ const launch = {
 }
 function ports() {
   return {
+    machineContext: () => ({ kind: 'desktop', signedIn: false }) as const,
     git: vi
       .fn()
       .mockResolvedValue({ isRepo: true, isWorktree: true, mainRepoPath: '/repo', branch: 'lane' }),
     preferences: () => ({
       agentDirectives: {
+        machineAwareness: true,
         worktreeGuard: false,
         laneCharter: false,
         subagentPolicy: false,
@@ -22,6 +25,7 @@ function ports() {
       },
       agentDirectivesByProject: {
         '/repo': {
+          machineAwareness: true,
           worktreeGuard: true,
           laneCharter: true,
           subagentPolicy: true,
@@ -45,6 +49,38 @@ function ports() {
 }
 
 describe('portable session policy', () => {
+  it('gives Claude, native, resumed and unattended lanes the same current machine block', async () => {
+    const runtime = ports()
+    const machine = {
+      kind: 'host',
+      label: 'bee1',
+      os: 'Linux',
+      repositories: ['Phosphor'],
+    } as const
+    const owner = { ...runtime, machineContext: () => machine }
+    const prompts = []
+    for (const provider of ['pi-claude-cli', 'openai-codex']) {
+      for (const unattended of [false, true]) {
+        const prepared = await prepareSessionPolicy(
+          { workspacePath: '/repo', provider, sessionPath: '/existing' },
+          { unattended },
+          launch,
+          owner,
+        )
+        expect(prepared.spawnOptions.appendSystemPrompt).toContain(machinePromptBlock(machine))
+        prompts.push(prepared.spawnOptions.appendSystemPrompt)
+      }
+    }
+    expect(new Set(prompts).size).toBe(1)
+    const resumed = await prepareSessionPolicy(
+      { workspacePath: '/repo', provider: 'openai-codex', sessionPath: '/existing' },
+      {},
+      launch,
+      { ...owner, machineContext: () => ({ ...machine, label: 'current' }) },
+    )
+    expect(resumed.spawnOptions.appendSystemPrompt).toContain('running on current')
+  })
+
   it.each(['pi-claude-cli', 'openai-codex'])(
     'preserves spawn inputs and project rules for %s',
     async (provider) => {

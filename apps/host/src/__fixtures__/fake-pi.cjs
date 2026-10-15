@@ -47,6 +47,8 @@ const { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } = r
 const { dirname, join } = require('node:path')
 
 const args = process.argv.slice(2)
+if (process.env.FAKE_PI_ARGV_FILE)
+  writeFileSync(process.env.FAKE_PI_ARGV_FILE, JSON.stringify(args))
 if (args.includes('--version')) {
   console.log('1.2.0')
   process.exit(0)

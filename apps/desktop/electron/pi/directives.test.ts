@@ -7,6 +7,7 @@ const GIT: GitInfo = { isRepo: true, isWorktree: true, mainRepoPath: '/home/u/sr
 const CHARTER = { branch: 'phosphor/read-composer', base: 'main' }
 
 const ALL_OFF: AgentDirectivePrefs = {
+  machineAwareness: true,
   worktreeGuard: false,
   laneCharter: false,
   subagentPolicy: false,
@@ -56,6 +57,7 @@ describe('composeDirectives', () => {
 
   it('keeps the documented order: workspace, lane, sub-agents, custom', () => {
     const out = compose({
+      machineAwareness: true,
       worktreeGuard: true,
       laneCharter: true,
       subagentPolicy: true,

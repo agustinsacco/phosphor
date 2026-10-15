@@ -700,6 +700,8 @@ export const MAX_DRAFT_BLOB_BYTES = 50 * 1024 * 1024
  * generation, and a mixed fleet needs a lean profile and a fuller one.
  */
 export interface AgentDirectivePrefs {
+  /** Machine-local context, fixed at spawn and shared by all providers. */
+  machineAwareness: boolean
   /**
    * The worktree working-directory block. On by default and worth keeping:
    * it is the reason a whole class of confident wrong-branch answers stopped
@@ -729,6 +731,7 @@ export interface AgentDirectivePrefs {
 }
 
 export const DEFAULT_AGENT_DIRECTIVES: AgentDirectivePrefs = {
+  machineAwareness: true,
   worktreeGuard: true,
   laneCharter: true,
   subagentPolicy: true,

@@ -44,9 +44,11 @@ export function sessionFixture() {
     resolveWorkspace: vi.fn((path) => path),
     launch: vi.fn(async () => ({ stub: false, env: {}, extensions: [] })),
     policy: {
+      machineContext: () => ({ kind: 'desktop', signedIn: false }),
       git: vi.fn(async () => ({ isRepo: false })),
       preferences: () => ({
         agentDirectives: {
+          machineAwareness: true,
           worktreeGuard: false,
           laneCharter: false,
           subagentPolicy: false,
