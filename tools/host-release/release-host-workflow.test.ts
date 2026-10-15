@@ -64,6 +64,8 @@ it('builds node-pty on each target runner and stages it into that target only', 
     expect(native).toContain(`{ target: ${target}, runner: ${runner} }`)
   expect(native).not.toContain('secrets.')
   expect(native).toContain('build-native.mjs')
+  // build-native resolves node-pty from apps/desktop, which has its own lockfile.
+  expect(native).toContain('npm ci --prefix apps/desktop --ignore-scripts')
   expect(workflow).toContain('    needs: native\n')
   expect(step('Build the three bundles')).toContain(
     '--native "native-artifacts/host-native-$target"',
