@@ -215,11 +215,17 @@ export async function accountControlFixture(
       if (!running) return
       const child = app.process()
       // Capture descendants before close: a crashing parent can orphan its helpers.
-      const rows = execFileSync('ps', ['-axo', 'pid=,ppid='], { timeout: 1000 })
-        .toString()
-        .trim()
-        .split('\n')
-        .map((row) => row.trim().split(/\s+/).map(Number))
+      // Best effort: a failed listing still leaves the Electron pid for the kill fallback.
+      let rows: number[][] = []
+      try {
+        rows = execFileSync('ps', ['-axo', 'pid=,ppid='], { timeout: 1000 })
+          .toString()
+          .trim()
+          .split('\n')
+          .map((row) => row.trim().split(/\s+/).map(Number))
+      } catch {
+        rows = []
+      }
       const tree = (parent: number): number[] =>
         rows.flatMap(([pid, ppid]) => (ppid === parent ? [...tree(pid), pid] : []))
       const pids = child.pid ? [...tree(child.pid), child.pid] : []
