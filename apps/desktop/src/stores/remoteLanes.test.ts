@@ -8,6 +8,7 @@ import { useSessionsStore } from './sessions'
 import { useArtifactsStore } from './artifacts'
 import { useChatStore } from './chat'
 import { useLayoutStore } from './layout'
+import { useWorkspacesStore } from './workspaces'
 import { useExtensionUiStore } from './extensionUi'
 import { useLaneRevealStore } from '@/features/sessions/laneReveal'
 import {
@@ -31,7 +32,8 @@ beforeEach(() => {
     .mockImplementation(async (channel) =>
       channel === 'artifacts:forSession' ? [] : mockRemoteInfo,
     )
-  useSessionsStore.setState({ live: {}, activeSessionId: null, navSeq: 0 })
+  useSessionsStore.setState({ live: {}, activeSessionId: null, navSeq: 0, gitByCwd: {} })
+  useWorkspacesStore.setState({ recents: [] })
   useChatStore.setState({ sessions: {} })
   useLayoutStore.setState({ page: 'skills' })
   useExtensionUiStore.setState({ toasts: [] })
@@ -497,3 +499,24 @@ it('local notice callbacks expose the navigation result for receipt actions', as
   const notice = useExtensionUiStore.getState().toasts[0]
   expect(await notice?.onOpen?.()).toBe(true)
 })
+
+it.each([true, false])(
+  'reveals the sidebar representative for a worktree with known main repo: %s',
+  async (knownMain) => {
+    const workspacePath = '/linked/worktree'
+    useWorkspacesStore.setState({
+      recents: [
+        { path: workspacePath, name: 'Worktree', lastOpenedAt: 0 },
+        ...(knownMain ? [{ path: '/repo', name: 'Repo', lastOpenedAt: 0 }] : []),
+      ],
+    })
+    useSessionsStore.setState({
+      live: { worktree: { phosphorId: 'worktree', workspacePath } },
+      gitByCwd: {
+        [workspacePath]: { isRepo: true, branch: 'task', isWorktree: true, mainRepoPath: '/repo' },
+      },
+    })
+    expect(await navigateToLane({ sessionId: 'worktree' })).toBe(true)
+    expect(useLaneRevealStore.getState().groupKey).toBe(knownMain ? '/repo' : workspacePath)
+  },
+)

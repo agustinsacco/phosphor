@@ -11,6 +11,9 @@ import { forgetRemoteSession, useSessionsStore } from './sessions'
 import { useMachinesStore } from './machines'
 import { useExtensionUiStore } from './extensionUi'
 import { useLayoutStore } from './layout'
+import { useWorkspacesStore } from './workspaces'
+import { isWorktreeFolder, projectPathFor } from '@/lib/path'
+import { representativeGroupPath } from '@/features/sessions/groupSessions'
 import {
   localLaneGroupKey,
   remoteLaneGroupKey,
@@ -110,6 +113,24 @@ export function alignLaneMachineFilter(machine: string): void {
   if (store.filter !== 'all' && store.filter !== machine) store.setFilter(machine)
 }
 
+function localRevealGroup(workspacePath: string): string {
+  const { gitByCwd, live } = useSessionsStore.getState()
+  const knownPaths = new Set(
+    useWorkspacesStore
+      .getState()
+      .recents.filter((workspace) => !isWorktreeFolder(workspace.path))
+      .map((workspace) => workspace.path),
+  )
+  knownPaths.add(workspacePath)
+  for (const entry of Object.values(live))
+    if (entry.target?.kind !== 'remote') knownPaths.add(entry.workspacePath)
+  const projectKey = projectPathFor(workspacePath, gitByCwd[workspacePath])
+  const groupPaths = [...knownPaths].filter(
+    (path) => projectPathFor(path, gitByCwd[path]) === projectKey,
+  )
+  return representativeGroupPath(projectKey, groupPaths)
+}
+
 type LaneDestination = { sessionId: string } | { hostId: string; laneId: string }
 
 /** All notice and row navigation commits only after its destination is available. */
@@ -171,10 +192,7 @@ export async function navigateToLane(destination: LaneDestination): Promise<bool
     requestReveal(
       remote && lane
         ? remoteLaneGroupKey(remote.hostId, lane.repositoryId)
-        : localLaneGroupKey(
-            useSessionsStore.getState().gitByCwd[entry.workspacePath]?.mainRepoPath ??
-              entry.workspacePath,
-          ),
+        : localLaneGroupKey(localRevealGroup(entry.workspacePath)),
     )
     useRemoteLanesStore.setState({ error: null })
     if (remote) await refreshRemoteArtifacts(sessionId)
