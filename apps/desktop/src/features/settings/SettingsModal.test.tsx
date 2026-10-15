@@ -38,15 +38,16 @@ vi.mock('./tabs/SubagentsTab', () => ({ SubagentsTab: () => <p>Local machine con
 vi.mock('./tabs/AboutTab', () => ({ AboutTab: () => null }))
 let root: Root
 let container: HTMLDivElement
-const invoke = vi.fn(async (channel: string) =>
+const defaultInvoke = async (channel: string): Promise<unknown> =>
   channel === 'packages:list'
     ? []
     : channel === 'feedback:state'
       ? { mode: 'github', repo: 'agustinsacco/Phosphor', nudge: false }
-      : undefined,
-)
+      : undefined
+const invoke = vi.fn(defaultInvoke)
 beforeEach(() => {
   invoke.mockClear()
+  invoke.mockImplementation(defaultInvoke)
   useRemoteLanesStore.setState({ filter: 'local' })
   useSessionsStore.setState({ activeSessionId: null, live: {} })
   useMachinesStore.setState({ machines: [], view: { kind: 'list' } })
@@ -67,6 +68,24 @@ afterEach(() => {
   container.remove()
   vi.unstubAllGlobals()
 })
+it('lists MCP Connectors as its own section, after the packages nested under Extensions', async () => {
+  invoke.mockImplementation(async (channel: string) =>
+    channel === 'packages:list'
+      ? [{ spec: 'npm:pi-web-access', name: 'pi-web-access', scope: 'global', installed: true }]
+      : undefined,
+  )
+  await act(async () => root.render(<SettingsModal />))
+  const nav = [...document.querySelectorAll('nav[aria-label="Settings sections"] button')]
+  const rows = nav.map((b) => `${b.hasAttribute('data-nested') ? '↳ ' : ''}${b.textContent}`)
+  const at = rows.indexOf('Extensions')
+  expect(rows.slice(at, at + 4)).toEqual([
+    'Extensions',
+    '↳ Web access',
+    'MCP Connectors',
+    'Workspaces',
+  ])
+})
+
 it('keeps Send feedback in the Settings footer and opens the same form', async () => {
   await act(async () => root.render(<SettingsModal />))
   const footer = document.querySelector('[data-testid=settings-footer]')
