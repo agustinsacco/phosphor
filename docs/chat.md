@@ -685,6 +685,29 @@ No new manager, scheduler or hard spawn budget is introduced.
   renders with no `href`, so no click can navigate the window away. Other
   schemes do nothing.
 
+## Agent directives
+
+Phosphor appends its directive blocks in this order: worktree guard, machine
+awareness, lane charter, sub-agent policy, then custom text. pi's own system
+prompt and project rules remain separate inputs. The blocks are composed once
+for a process spawn; a resume that starts a new process uses current context and
+preferences. Reopening an already-live process does not replace its prompt.
+
+Settings > Agent > Directives has **Machine awareness**, default on, backed by
+its own `AgentDirectivePrefs.machineAwareness` field. Like other directives it can
+be set globally or per project on This Mac. When enabled, a signed-in local lane
+gets one sentence inside `<phosphor_machine>`:
+
+> You are running on the user's own computer, where Phosphor's window is.
+
+Signed-out local lanes get no machine block. Native and Claude sessions receive
+the same text. [Host machine awareness](host.md#machine-awareness) owns the Host
+identity, repository summary and service-safety instructions, including routine
+runs. These are prompt instructions, not network authorization.
+
+The spawn log records `--append-system-prompt` but replaces its value with
+`[redacted]`; the composed prompt is not dumped into argv logs.
+
 ## Context files
 
 Both composers carry a **Rules · MCP** readout in the status strip under the

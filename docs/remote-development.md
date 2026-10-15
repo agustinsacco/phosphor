@@ -13,6 +13,8 @@ All three sides timestamp each line in ISO 8601 UTC with milliseconds.
 - Host: `${XDG_STATE_HOME:-~/.local/state}/phosphor-host/logs/phosphor.log`.
   The owner-only file rotates at 5 MB. `login`, `status`, `logout`, `run` and
   service commands write there without changing terminal output.
+  [Spawn argv](pi-integration.md#process-model) records `--append-system-prompt` with
+  its value replaced by `[redacted]`, not the machine/directive text.
 - Server: JSON lines on stdout. Read them with
   `kubectl -n phosphor logs deploy/phosphor-site | grep -v '"route":"site"'`.
   Only `/healthz` (the Kubernetes probes) is left out of the log.

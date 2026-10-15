@@ -1010,6 +1010,32 @@ a lane service. It logs only `lanes.unavailable` with a fixed reason token.
 - **The same git.** Creating the runtime sets the Host's own PATH to pi's, so
   the git the Host asks about a repository is the git pi runs.
 
+### Machine awareness
+
+Host lanes, including routine runs, receive the shared
+[machine-awareness directive](chat.md#agent-directives) after the worktree guard.
+The label comes from a nonempty label in local non-secret enrollment metadata,
+`identity/host.json`, otherwise the hostname. Prompt construction never loads the
+signing key. The block identifies the label and OS, says the user
+works from another computer over private Tailscale and cannot see the Host's screen,
+and gives these instructions:
+
+- `phosphor status` and `phosphor doctor` are safe to run here.
+- Do not use SSH or other remote shells to start, drive or message Phosphor
+  agents on other machines.
+- Do not stop, restart, update, log out or reconfigure the Host service, or edit
+  its config folder: the lane would cut itself off.
+
+It also lists configured repository basenames, never their full paths. Labels,
+OS names and repository names are reduced to printable ASCII without angle
+brackets and with whitespace collapsed. Label/OS limits are 24/12 characters;
+a label emptied by cleaning becomes “this machine”. Empty cleaned repository
+names become “unnamed”. Each name is capped at 24 characters; at most 20 fit into a
+96-character comma-separated list, followed by “and N more” for omitted names.
+Repository add/remove updates the context for the next lane spawn or resumed
+process, not an already-running pi. Callers still cannot supply
+`appendSystemPrompt`; it remains a Host-owned request field.
+
 ### Lane runtime
 
 `run` composes live lanes, commands and read-only calls over one runtime and one
@@ -1263,7 +1289,8 @@ output stays the same. See [Tracing a machine](remote-development.md#tracing-a-m
 The folder is 0700 and every file 0600, an older folder,
 log or rotated log included. It records the runtime's inputs (pi's command, the
 names in pi's environment, PATH, the repositories), each spawn's argv, pi's
-stderr, unexpected exits, state changes and drain results. Every string is
+stderr, unexpected exits, state changes and drain results. Spawn argv keeps the
+`--append-system-prompt` flag but logs its value as `[redacted]`. Every string is
 redacted before it is written, and so is every line of a secret that spans
 lines, however short, since pi's stderr arrives one line at a time. A line that
 is all whitespace is the one left alone: it holds none of the secret, and hiding
