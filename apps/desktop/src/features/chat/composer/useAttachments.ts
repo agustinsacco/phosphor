@@ -1,6 +1,7 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   placeAnnotated,
+  isInlineableImage,
   toAttachment,
   type PendingAttachment,
   type PendingImage,
@@ -45,7 +46,7 @@ export interface AttachmentsApi {
 /** Bytes a pending attachment costs us to keep. Paths cost nothing. */
 export function attachmentBytes(attachment: PendingAttachment): number {
   // base64 is 4 chars per 3 bytes; the string itself is what we store.
-  if (attachment.kind !== 'image') return 0
+  if (attachment.kind !== 'image') return attachment.data?.length ?? 0
   // An annotated image also holds its unflattened layers.
   return attachment.data.length + (attachment.annotation ? sceneBytes(attachment.annotation) : 0)
 }
@@ -58,13 +59,24 @@ export function useAttachments({
   attachments,
   onChange,
   onReject,
+  remote = false,
 }: {
+  remote?: boolean
   attachments: PendingAttachment[]
   onChange: (next: PendingAttachment[]) => void
   /** Told why a file was refused, so the composer can say so out loud. */
   onReject?: (message: string) => void
 }): AttachmentsApi {
   const [dragging, setDragging] = useState(false)
+  const active = useRef(true)
+  const currentRemote = useRef(remote)
+  currentRemote.current = remote
+  useEffect(() => {
+    active.current = true
+    return () => {
+      active.current = false
+    }
+  }, [])
   // The handlers are created fresh every render but a drop can add several
   // files at once; a ref keeps the appends from racing each other.
   const latest = useRef(attachments)
@@ -74,23 +86,28 @@ export function useAttachments({
     (files: File[]) => {
       for (const file of files) {
         void (async () => {
-          if (file.size > MAX_IMAGE_BYTES) {
-            onReject?.(`${file.name} is too large to attach (limit 10 MB).`)
+          const limit = remote && !isInlineableImage(file.type) ? 20 * 1024 * 1024 : MAX_IMAGE_BYTES
+          if (file.size > limit) {
+            onReject?.(`${file.name} is too large to attach (limit ${limit / 1024 / 1024} MB).`)
             return
           }
-          const attachment = await toAttachment(file, (f) => window.phosphor.pathForFile(f))
-          if (!attachment) return
+          const attachment = await toAttachment(file, (f) => window.phosphor.pathForFile(f), remote)
+          if (!attachment || !active.current || currentRemote.current !== remote) return
           const next = [...latest.current, attachment]
-          if (totalAttachmentBytes(next) > MAX_ATTACHMENT_BYTES) {
+          if ((remote && next.length > 10) || totalAttachmentBytes(next) > MAX_ATTACHMENT_BYTES) {
             onReject?.(TOO_MANY_IMAGES)
             return
           }
-          latest.current = next
-          onChange(next)
+          try {
+            onChange(next)
+            latest.current = next
+          } catch {
+            onReject?.('Remote attachments are full. Send or remove files first.')
+          }
         })()
       }
     },
-    [onChange, onReject],
+    [onChange, onReject, remote],
   )
 
   const remove = useCallback(

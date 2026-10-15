@@ -83,6 +83,16 @@ The composer is one small field with several ways in.
   without sending. Undo removes it. Transcribed locally ([voice.md](voice.md)).
 - Images: paste or drag → thumbnails → sent as `images[]` with the prompt.
   Both composers accept attachment-only messages, including the first message.
+- Remote controllers can attach files when the ready Host announces
+  `workspaces.write` and `sessions.control`. Images travel inline as on local
+  lanes, but main refuses encoded image prompt frames above the Host inbound limit
+  minus a 1 KiB margin without sending or clearing the image draft; documents upload through main before the prompt, at most 20 MiB each
+  and ten attachments per message. The Host path appears only in the normal
+  `<attached-files>` block. Failure or uncertainty sends no prompt and never
+  retries chunks. Remote document bytes stay in memory, bounded to 64 MiB across
+  drafts, and disappear on restart, removal, lane close or abandoned upload;
+  attach the file again after an upload failure. Neither these bytes nor local
+  or Host document paths are persisted in remote drafts.
 - **Clicking a pending image opens the annotator** (`features/chat/imageEditor/`),
   not the lightbox. Box, circle, arrow, pen, highlighter, text and numbered
   markers, with colour, size, undo/redo and select-to-move/resize. ⌘V (or
@@ -968,7 +978,7 @@ optional branch and name, and optional provider and model ids.
 
 Terminal and Subagents panes show “Not available on
 remote lanes yet.” instead of local machine data. Local workspace controls,
-file mentions, attachments, transcript export and local account usage are not
+file mentions, transcript export and local account usage are not
 available inside a remote lane. Remote transcripts remain in memory. Drafts use
 Host-qualified lane keys. A reconnect reset replaces history through the normal
 hydration path.

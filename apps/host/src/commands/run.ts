@@ -1,4 +1,6 @@
 import { createProviderLogins } from '../providers/login'
+import { realpathSync } from 'node:fs'
+import { createAttachments, type HostAttachments } from '../features/attachments'
 import { loadHostPty } from '../terminals/native'
 import { createTerminals, type HostTerminals } from '../terminals/service'
 import { terminalState } from '../terminals/state'
@@ -98,6 +100,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
   } = { deliver: () => {}, isConnected: () => false }
   let launchApi: (() => void) | undefined
   const authority = createAuthority(context.now ?? Date.now)
+  let attachments: HostAttachments | undefined
   let store: HostStore | undefined
   let release: (() => Promise<void>) | undefined
   let detach: (() => void) | undefined
@@ -120,6 +123,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
         await Promise.all([stoppingApi, runtimeDrain, routinesStop])
         await commands?.close()
         terminals?.close()
+        attachments?.close()
         await routines?.close()
         live?.close()
         store?.close()
@@ -181,6 +185,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
       try {
         initAbort.signal.throwIfAborted()
         store = await openStore(stateDirectory, context.uid, {
+          onLaneRemoved: (laneId) => attachments?.remove(laneId),
           isConnected: (id) => sink.isConnected(id),
           logCorruptReceipt: (count) => context.log?.('host', 'receipts.corrupt', { count }),
           logCorruptLane: (count) => context.log?.('host', 'lanes.corrupt', { count }),
@@ -198,6 +203,12 @@ async function runHostCommand(context: RunContext): Promise<number> {
         )
         initAbort.signal.throwIfAborted()
         context.log?.('host', 'lanes.reconciled', counts)
+        attachments = createAttachments({
+          log: (event) => context.log?.('host', event, {}),
+          directory: realpathSync(stateDirectory),
+          laneExists: (laneId) => store?.getLane(laneId)?.removedAt === null,
+          now: context.now,
+        })
       } catch (error) {
         if (error instanceof StateFailure || error === initAbort.signal.reason) throw error
         throw new StateFailure(stateDirectory, 70, 'Could not reconcile lanes.')
@@ -273,6 +284,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
         }
         commands = createLaneCommands({
           providerLogins: terminals ? createProviderLogins(context, terminals) : undefined,
+          attachments,
           terminals,
           writes: createWrites(featureContext),
           store,

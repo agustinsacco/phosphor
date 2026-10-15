@@ -51,6 +51,7 @@ interface DraftsState {
   setText: (key: DraftKey, text: string) => void
   setAttachments: (key: DraftKey, attachments: PendingAttachment[]) => void
   patch: (key: DraftKey, patch: Partial<Draft>) => void
+  releaseRemoteFiles: (key: DraftKey) => void
   clear: (key: DraftKey) => void
   /** Move a draft when a session learns its file path (see `sessionDraftKey`). */
   rekey: (from: DraftKey, to: DraftKey) => void
@@ -79,7 +80,30 @@ export const useDraftsStore = create<DraftsState>((set, get) => ({
 
   setAttachments: (key, attachments) => get().patch(key, { attachments }),
 
+  releaseRemoteFiles: (key) => {
+    const draft = get().drafts[key]
+    if (draft?.attachments.some((a) => a.kind === 'file' && a.data !== undefined))
+      get().setAttachments(
+        key,
+        draft.attachments.filter((a) => a.kind !== 'file' || a.data === undefined),
+      )
+  },
+
   patch: (key, patch) => {
+    if (patch.attachments) {
+      let bytes = 0
+      for (const draft of Object.values({
+        ...get().drafts,
+        [key]: { attachments: patch.attachments },
+      })) {
+        for (const a of draft.attachments)
+          if (a.kind === 'file' && a.data !== undefined)
+            bytes +=
+              (a.data.length / 4) * 3 - (a.data.endsWith('==') ? 2 : a.data.endsWith('=') ? 1 : 0)
+      }
+      if (bytes > 64 * 1024 * 1024)
+        throw new Error('Remote attachments are full. Send or remove files first.')
+    }
     const next = { ...(get().drafts[key] ?? EMPTY), ...patch }
     set((s) => ({ drafts: { ...s.drafts, [key]: next } }))
     schedulePersist(key, next)
@@ -185,6 +209,7 @@ async function saveAttachment(
   attachment: PendingAttachment,
 ): Promise<{ record: DraftAttachment | null; attachment: PendingAttachment | null }> {
   if (attachment.kind === 'file') {
+    if (attachment.data !== undefined) return { record: null, attachment: null }
     return {
       record: { kind: 'file', name: attachment.name, size: attachment.size, path: attachment.path },
       attachment: null,

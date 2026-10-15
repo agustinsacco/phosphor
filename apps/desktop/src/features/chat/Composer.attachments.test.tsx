@@ -1,0 +1,192 @@
+// @vitest-environment jsdom
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { hostResourceKey } from '@shared/remote-host'
+import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
+import { installMockPhosphor } from '@/dev/mockPhosphor'
+import { useChatStore } from '@/stores/chat'
+import { useSessionsStore } from '@/stores/sessions'
+import { useDraftsStore } from '@/stores/drafts'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { Composer } from './Composer'
+
+let root: Root
+let container: HTMLDivElement
+const key = hostResourceKey(
+  { kind: 'remote', hostId: MOCK_HOST_ID },
+  'session',
+  mockRemoteInfo.laneId ?? '',
+)
+beforeEach(() => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  window.matchMedia = vi
+    .fn()
+    .mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })
+  Element.prototype.scrollIntoView = vi.fn()
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  )
+  installMockPhosphor()
+  useChatStore.setState({ sessions: {} })
+  useChatStore.getState().ensure(mockRemoteInfo.sessionId)
+  useSessionsStore.setState({
+    live: {
+      [mockRemoteInfo.sessionId]: {
+        phosphorId: mockRemoteInfo.sessionId,
+        workspacePath: mockRemoteInfo.workspacePath,
+        target: mockRemoteInfo.target,
+        laneId: mockRemoteInfo.laneId,
+      },
+    },
+  })
+  const hosts = structuredClone(mockRemoteHosts)
+  const host = hosts[MOCK_HOST_ID]
+  if (!host?.lanes[0]?.control.controller) throw new Error('fixture')
+  host.capabilities.push('workspaces.write')
+  host.lanes[0].control.controller.self = true
+  useRemoteLanesStore.setState({ hosts })
+  useDraftsStore.setState({
+    hydrated: false,
+    drafts: {
+      [key]: {
+        text: 'read this',
+        attachments: [
+          { kind: 'file', name: 'a.pdf', size: 3, path: '', mime: 'application/pdf', data: 'YWJj' },
+        ],
+      },
+    },
+  })
+  container = document.createElement('div')
+  document.body.append(container)
+  root = createRoot(container)
+})
+afterEach(() => {
+  act(() => root.unmount())
+  container.remove()
+  vi.restoreAllMocks()
+  useDraftsStore.getState().clear(key)
+})
+async function draw() {
+  await act(async () =>
+    root.render(
+      <Composer
+        sessionId={mockRemoteInfo.sessionId}
+        workspacePath={mockRemoteInfo.workspacePath}
+      />,
+    ),
+  )
+}
+async function send() {
+  await act(async () =>
+    container.querySelector<HTMLButtonElement>('[aria-label="Send message"]')?.click(),
+  )
+}
+it('uploads before prompting and uses the Host path, never the picked local path', async () => {
+  const invoke = vi
+    .spyOn(window.phosphor, 'invoke')
+    .mockImplementation(async (...args) =>
+      args[0] === 'hosts:uploadAttachments' ? ['/host/attachments/a.pdf'] : undefined,
+    )
+  const pi = vi
+    .spyOn(window.phosphor, 'piCommand')
+    .mockResolvedValue({ type: 'response', command: 'prompt', success: true })
+  await draw()
+  await send()
+  expect(invoke).toHaveBeenCalledWith('hosts:uploadAttachments', mockRemoteInfo.sessionId, [
+    { name: 'a.pdf', mime: 'application/pdf', data: 'YWJj' },
+  ])
+  expect(pi).toHaveBeenCalledWith(mockRemoteInfo.sessionId, {
+    type: 'prompt',
+    message: 'read this\n\n<attached-files>\n/host/attachments/a.pdf\n</attached-files>',
+  })
+  expect(useDraftsStore.getState().get(key).attachments).toEqual([])
+})
+it('never prompts on upload uncertainty, preserves text and releases document bytes', async () => {
+  vi.spyOn(window.phosphor, 'invoke').mockRejectedValue(
+    new Error('Upload not confirmed. Attach again.'),
+  )
+  const pi = vi.spyOn(window.phosphor, 'piCommand')
+  await draw()
+  await send()
+  expect(pi.mock.calls.filter(([, op]) => op.type === 'prompt')).toEqual([])
+  expect(useDraftsStore.getState().get(key)).toMatchObject({ text: 'read this', attachments: [] })
+  expect(useChatStore.getState().sessions[mockRemoteInfo.sessionId]?.items).toEqual([])
+})
+it('requires both ready capabilities and controller status for attachment UI and sending', async () => {
+  const pi = vi.spyOn(window.phosphor, 'piCommand')
+  const invoke = vi.spyOn(window.phosphor, 'invoke')
+  const hosts = structuredClone(mockRemoteHosts)
+  useRemoteLanesStore.setState({ hosts })
+  await draw()
+  expect(container.querySelector('[aria-label="Attach files"]')).toBeNull()
+  await send()
+  expect(invoke.mock.calls.some(([channel]) => channel === 'hosts:uploadAttachments')).toBe(false)
+  expect(pi.mock.calls.some(([, op]) => op.type === 'prompt')).toBe(false)
+})
+
+it('keeps the remote image draft intact when main refuses the encoded frame', async () => {
+  const image = { kind: 'image' as const, name: 'large.png', mimeType: 'image/png', data: 'YWJj' }
+  useDraftsStore.setState({ drafts: { [key]: { text: 'read this', attachments: [image] } } })
+  vi.spyOn(window.phosphor, 'piCommand').mockResolvedValue({
+    type: 'response',
+    command: 'prompt',
+    success: false,
+    error: 'Image too large for a remote lane.',
+  })
+  await draw()
+  await send()
+  expect(useDraftsStore.getState().get(key)).toMatchObject({
+    text: 'read this',
+    attachments: [image],
+  })
+  expect(useChatStore.getState().sessions[mockRemoteInfo.sessionId]?.items).toEqual([])
+})
+
+it.each([
+  { stage: 'upload', success: true },
+  { stage: 'upload', success: false },
+  { stage: 'receipt', success: true },
+  { stage: 'receipt', success: false },
+])(
+  'preserves concurrent edits during deferred $stage with success=$success',
+  async ({ stage, success }) => {
+    let resolve!: (value: boolean) => void
+    const pending = new Promise<boolean>((done) => {
+      resolve = done
+    })
+    vi.spyOn(window.phosphor, 'invoke').mockImplementation(async (...args) => {
+      if (args[0] !== 'hosts:uploadAttachments') return undefined
+      if (stage === 'upload' && !(await pending)) throw new Error('unknown')
+      return ['/host/a.pdf']
+    })
+    vi.spyOn(window.phosphor, 'piCommand').mockImplementation(async () => ({
+      type: 'response',
+      command: 'prompt',
+      success: stage === 'receipt' ? await pending : true,
+      error: 'refused',
+    }))
+    await draw()
+    await send()
+    const added = { kind: 'file' as const, name: 'new.pdf', size: 3, path: '', data: 'ZGVm' }
+    act(() => {
+      useDraftsStore.getState().setText(key, 'next task')
+      useDraftsStore
+        .getState()
+        .setAttachments(key, [...useDraftsStore.getState().get(key).attachments, added])
+    })
+    await act(async () => {
+      resolve(success)
+      await pending
+    })
+    expect(useDraftsStore.getState().get(key)).toMatchObject({
+      text: 'next task',
+      attachments: [added],
+    })
+  },
+)

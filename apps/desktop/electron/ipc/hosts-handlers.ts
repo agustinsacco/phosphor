@@ -1,4 +1,5 @@
 import { machineReads } from '../hosts/machine-reads'
+import { uploadAttachments } from '../hosts/attachments'
 import { routeRemoteWrite } from '../hosts/write-features'
 import type { SessionPush } from '@shared/models'
 import { app, BrowserWindow, Notification } from 'electron'
@@ -235,5 +236,10 @@ export function registerHostsHandlers(): void {
   handle('hosts:providerLogin', (event, hostId, provider) =>
     terminals.signIn(event.sender.id, hostId, provider),
   )
+  handle('hosts:uploadAttachments', (event, sessionId, files) => {
+    const lane = remoteLanes().readLane(event.sender.id, sessionId)
+    if (!lane) throw new Error(REMOTE_UNAVAILABLE)
+    return uploadAttachments(files, lane)
+  })
   handle('hosts:snapshot', () => manager.snapshot())
 }

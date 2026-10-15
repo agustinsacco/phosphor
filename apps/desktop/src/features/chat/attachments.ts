@@ -25,6 +25,8 @@ export function isInlineableImage(mimeType: string): boolean {
 }
 
 export interface PendingImage {
+  /** Memory-only identity for concurrent remote sends. */
+  draftAttachmentId?: string
   kind: 'image'
   data: string
   mimeType: string
@@ -44,11 +46,16 @@ export interface PendingImage {
 }
 
 export interface PendingFile {
+  /** Memory-only identity for concurrent remote sends. */
+  draftAttachmentId?: string
   kind: 'file'
   /** Absolute path — this is what the agent is told to open. */
   path: string
   name: string
   size: number
+  /** Remote picks keep bytes in memory, never a Host path in a draft. */
+  data?: string
+  mime?: string
 }
 
 export type PendingAttachment = PendingImage | PendingFile
@@ -71,6 +78,7 @@ export function formatFileSize(bytes: number): string {
 export async function toAttachment(
   file: File,
   pathForFile: (file: File) => string,
+  remote = false,
 ): Promise<PendingAttachment | null> {
   if (isInlineableImage(file.type)) {
     return {
@@ -80,6 +88,15 @@ export async function toAttachment(
       name: file.name,
     }
   }
+  if (remote)
+    return {
+      kind: 'file',
+      path: '',
+      name: file.name,
+      size: file.size,
+      data: bytesToBase64(await file.arrayBuffer()),
+      mime: file.type,
+    }
   const path = pathForFile(file)
   if (!path) return null
   return { kind: 'file', path, name: file.name, size: file.size }
@@ -147,4 +164,21 @@ export function placeAnnotated(
   return replace
     ? attachments.map((a, i) => (i === index ? image : a))
     : [...attachments.slice(0, index + 1), image, ...attachments.slice(index + 1)]
+}
+
+/** Upload every document before allowing the caller to send or clear its draft. */
+export async function remotePromptAttachments(
+  attachments: PendingAttachment[],
+  upload: (files: { name: string; mime: string; data: string }[]) => Promise<string[]>,
+): Promise<PendingAttachment[]> {
+  if (attachments.length > 10) throw new Error('At most 10 attachments per message.')
+  const files = attachments.filter((a) => a.kind === 'file')
+  if (files.some((a) => a.data === undefined)) throw new Error('Pick the attachment again.')
+  if (!files.length) return attachments
+  const paths = await upload(
+    files.map((a) => ({ name: a.name, mime: a.mime ?? '', data: a.data ?? '' })),
+  )
+  if (paths.length !== files.length) throw new Error('Attachment upload not confirmed.')
+  let index = 0
+  return attachments.map((a) => (a.kind === 'file' ? { ...a, path: paths[index++] ?? '' } : a))
 }

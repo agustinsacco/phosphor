@@ -1,3 +1,4 @@
+import { hostResourceKey } from '@shared/remote-host'
 import { create } from 'zustand'
 import type {
   GitInfo,
@@ -604,6 +605,13 @@ const settles = createSettleTracker()
  * raced test teardown, and would equally race app shutdown).
  */
 async function cleanupLocalSessionState(sessionId: string): Promise<void> {
+  const entry = useSessionsStore.getState().live[sessionId]
+  if (entry?.target?.kind === 'remote' && entry.laneId) {
+    const { useDraftsStore } = await import('./drafts')
+    useDraftsStore
+      .getState()
+      .releaseRemoteFiles(hostResourceKey(entry.target, 'session', entry.laneId))
+  }
   unsubscribers.get(sessionId)?.()
   unsubscribers.delete(sessionId)
   settles.forget(sessionId)

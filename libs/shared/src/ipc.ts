@@ -191,6 +191,10 @@ export interface IpcInvokeMap {
   'hosts:providers': { args: [hostId: string]; result: MachineProvider[] }
   'hosts:skills': { args: [hostId: string]; result: SkillsListResult }
   'hosts:providerLogin': { args: [hostId: string, provider: string]; result: { ptyId: string } }
+  'hosts:uploadAttachments': {
+    args: [sessionId: string, files: { name: string; mime: string; data: string }[]]
+    result: string[]
+  }
   'hosts:snapshot': { args: []; result: HostsSnapshot }
   'hosts:setFocusedLane': {
     args: [target: { hostId: string; laneId: string } | null]

@@ -282,7 +282,7 @@ export function createRemoteLanes(ports: {
       throw new Error(REMOTE_UNAVAILABLE)
     }
     if (
-      !handles.has(h.info.sessionId) ||
+      handles.get(h.info.sessionId) !== h ||
       ports.connection(h.hostId) !== c ||
       c.snapshot().state !== 'ready' ||
       !c.snapshot().capabilities.includes(capability)
@@ -336,7 +336,7 @@ export function createRemoteLanes(ports: {
           if (
             !summary ||
             ports.connection(h.hostId) !== h.connection ||
-            !handles.has(h.info.sessionId) ||
+            handles.get(h.info.sessionId) !== h ||
             current?.hostId !== h.hostId ||
             current.laneId !== h.laneId ||
             !c.snapshot().capabilities.includes('workspaces.write')
@@ -345,9 +345,10 @@ export function createRemoteLanes(ports: {
           const receipt = await c.send(op, h.laneId, summary.control.fence)
           const after = focused.get(windowId)
           if (
-            !handles.has(h.info.sessionId) ||
+            handles.get(h.info.sessionId) !== h ||
             ports.connection(h.hostId) !== c ||
             c.snapshot().state !== 'ready' ||
+            !c.snapshot().lanes.some((lane) => lane.laneId === h.laneId) ||
             !c.snapshot().capabilities.includes('workspaces.write') ||
             !c.snapshot().capabilities.includes('sessions.control') ||
             after?.hostId !== h.hostId ||
@@ -456,6 +457,22 @@ export function createRemoteLanes(ports: {
             ? { ...base, success: true, data }
             : { ...base, success: false, error: result.error.message }
         }
+        if (
+          (op.type === 'prompt' || op.type === 'steer' || op.type === 'follow_up') &&
+          op.images?.length &&
+          utf8Length(
+            JSON.stringify({
+              type: 'command',
+              requestId: randomUUID(),
+              laneId: h.laneId,
+              fence: h.summary.control.fence,
+              trace: randomBytes(8).toString('hex'),
+              op,
+            }),
+          ) >
+            HOST_LIMITS.inboundFrameBytes - 1024
+        )
+          return { ...base, success: false, error: 'Image too large for a remote lane.' }
         const result = await c.send(op, h.laneId, h.summary.control.fence)
         return { ...receiptResponse(command.type, result, ports.label(h.hostId)), id: command.id }
       } catch {

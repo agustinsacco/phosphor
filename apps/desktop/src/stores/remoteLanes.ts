@@ -104,7 +104,12 @@ export function attachRemoteLanesListener(): () => void {
         if (active) {
           useRemoteLanesStore.setState({ hosts })
           for (const entry of Object.values(useSessionsStore.getState().live)) {
-            if (entry.target?.kind === 'remote' && !hosts[entry.target.hostId])
+            if (
+              entry.target?.kind === 'remote' &&
+              (!hosts[entry.target.hostId] ||
+                (hosts[entry.target.hostId]?.state === 'ready' &&
+                  !hosts[entry.target.hostId]?.lanes.some((lane) => lane.laneId === entry.laneId)))
+            )
               void forgetRemoteSession(entry.phosphorId)
           }
           const { activeSessionId, live } = useSessionsStore.getState()

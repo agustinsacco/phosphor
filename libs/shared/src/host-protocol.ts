@@ -1,4 +1,5 @@
 import { parseProviderLoginOp, type ProviderLoginOp } from './host-protocol-providers'
+import { parseAttachmentOp, type AttachmentOp } from './host-protocol-attachments'
 import {
   parseTerminalOp,
   parseTerminalInput,
@@ -236,6 +237,7 @@ export type LaneOp =
   | TerminalOp
   | RoutineOp
   | FileWriteOp
+  | AttachmentOp
   | LanePiOp
   | { readonly type: 'extension_ui_response'; readonly response: ExtensionUIResponse }
   | {
@@ -571,6 +573,8 @@ function response(v: unknown): ExtensionUIResponse | null {
   return v.cancelled === true ? { type: v.type, id: v.id, cancelled: true } : null
 }
 function op(v: unknown): LaneOp | null {
+  const attachment = parseAttachmentOp(v)
+  if (attachment) return attachment
   const write = parseFileWriteOp(v)
   if (write) return write
   if (!record(v)) return null

@@ -137,3 +137,58 @@ it('reports remote focus and clears it for local navigation', async () => {
   await Promise.resolve()
   expect(useRemoteLanesStore.getState().hosts).toEqual({})
 })
+
+it.each(['close', 'lane-removal', 'machine-removal'] as const)(
+  'releases remote draft document bytes on %s',
+  async (reason) => {
+    const { useDraftsStore } = await import('./drafts')
+    const { hostResourceKey } = await import('@shared/remote-host')
+    const key = hostResourceKey(
+      { kind: 'remote', hostId: MOCK_HOST_ID },
+      'session',
+      mockRemoteInfo.laneId ?? '',
+    )
+    useDraftsStore.setState({ drafts: {} })
+    useDraftsStore.getState().patch(key, {
+      text: 'keep text',
+      attachments: [{ kind: 'file', path: '', name: 'a.pdf', size: 3, data: 'YWJj' }],
+    })
+    useSessionsStore.setState({
+      live: {
+        [mockRemoteInfo.sessionId]: {
+          phosphorId: mockRemoteInfo.sessionId,
+          workspacePath: mockRemoteInfo.workspacePath,
+          target: mockRemoteInfo.target,
+          laneId: mockRemoteInfo.laneId,
+        },
+      },
+    })
+    if (reason === 'close')
+      await useSessionsStore.getState().disposeSession(mockRemoteInfo.sessionId)
+    else {
+      const hosts = structuredClone(mockRemoteHosts)
+      if (reason === 'machine-removal') delete hosts[MOCK_HOST_ID]
+      else if (hosts[MOCK_HOST_ID]) hosts[MOCK_HOST_ID].lanes = []
+      const noop = () => () => undefined
+      vi.stubGlobal('window', {
+        phosphor: {
+          ...window.phosphor,
+          onHostsChanged: noop,
+          onHostAttention: noop,
+          onHostOpenLane: noop,
+        },
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })
+      vi.stubGlobal('document', { hasFocus: () => false })
+      invoke.mockImplementation(async (channel: string) =>
+        channel === 'hosts:snapshot' ? hosts : undefined,
+      )
+      const detach = attachRemoteLanesListener()
+      await vi.waitFor(() => expect(useDraftsStore.getState().get(key).attachments).toEqual([]))
+      detach()
+    }
+    expect(useDraftsStore.getState().get(key)).toMatchObject({ text: 'keep text', attachments: [] })
+    useDraftsStore.getState().clear(key)
+  },
+)
