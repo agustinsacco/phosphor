@@ -1,3 +1,4 @@
+import { refreshRemoteArtifacts } from '@/features/artifacts/remoteArtifactRefresh'
 import { hostResourceKey } from '@shared/remote-host'
 import { create } from 'zustand'
 import type {
@@ -657,6 +658,7 @@ function attachSessionPushHandler(phosphorId: string): void {
     const chatStore = useChatStore.getState()
     switch (push.kind) {
       case 'resync':
+        void refreshRemoteArtifacts(phosphorId)
         void rehydrateTranscript(phosphorId).then(() => bootstrapSession(phosphorId))
         break
       case 'event': {
@@ -686,6 +688,8 @@ function attachSessionPushHandler(phosphorId: string): void {
               ),
           )
         }
+        if (push.event.type === 'tool_execution_end' && isArtifactWriteTool(push.event.toolName))
+          void refreshRemoteArtifacts(phosphorId)
         if (push.event.type === 'tool_execution_end') {
           // Bash can move/delete/create arbitrary paths, so its result cannot
           // name a safe minimal invalidation set. Re-read the root and loaded

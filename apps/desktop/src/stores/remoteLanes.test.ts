@@ -4,6 +4,7 @@ import type { RpcCommand } from '@shared/rpc'
 import { parseHostFrame } from '@shared/host-protocol'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 import { useSessionsStore } from './sessions'
+import { useArtifactsStore } from './artifacts'
 import { useChatStore } from './chat'
 import {
   attachRemoteLanesListener,
@@ -19,10 +20,17 @@ const invoke = vi.fn()
 beforeEach(() => {
   text = 'First history'
   push = undefined
-  invoke.mockReset().mockResolvedValue(mockRemoteInfo)
+  invoke
+    .mockReset()
+    .mockImplementation(async (channel) =>
+      channel === 'artifacts:forSession' ? [] : mockRemoteInfo,
+    )
   useSessionsStore.setState({ live: {}, activeSessionId: null, navSeq: 0 })
   useChatStore.setState({ sessions: {} })
-  useRemoteLanesStore.setState({ hosts: structuredClone(mockRemoteHosts), filter: 'all' })
+  const hosts = structuredClone(mockRemoteHosts)
+  hosts[MOCK_HOST_ID]!.capabilities.push('artifacts.read')
+  useRemoteLanesStore.setState({ hosts, filter: 'all' })
+  useArtifactsStore.setState({ bySession: {} })
   vi.stubGlobal('window', {
     phosphor: {
       invoke,
@@ -54,6 +62,7 @@ it('adopts a remote handle through existing hydration without persisting Host pa
   expect(invoke.mock.calls.map(([channel]) => channel)).toEqual([
     'hosts:openLane',
     'hosts:markRead',
+    'artifacts:forSession',
   ])
   expect(useChatStore.getState().sessions[mockRemoteInfo.sessionId]?.items).toMatchObject([
     { kind: 'user', text },
@@ -190,5 +199,75 @@ it.each(['close', 'lane-removal', 'machine-removal'] as const)(
     }
     expect(useDraftsStore.getState().get(key)).toMatchObject({ text: 'keep text', attachments: [] })
     useDraftsStore.getState().clear(key)
+  },
+)
+
+it('hydrates on open and replaces artifacts after an artifact tool ends, including empty replies', async () => {
+  const snapshot = {
+    id: 'card',
+    title: 'Host card',
+    type: 'html',
+    versions: [{ version: 1, title: 'Host card', content: '<h1>Host</h1>', createdAt: 1 }],
+  }
+  invoke.mockImplementation(async (channel) =>
+    channel === 'artifacts:forSession' ? [snapshot] : mockRemoteInfo,
+  )
+  await openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')
+  expect(useArtifactsStore.getState().bySession[mockRemoteInfo.sessionId]?.card?.title).toBe(
+    'Host card',
+  )
+  invoke.mockImplementation(async () => [])
+  push?.({
+    kind: 'event',
+    event: {
+      type: 'tool_execution_end',
+      toolCallId: 'call',
+      toolName: 'artifact_update',
+      result: { content: [] },
+      isError: false,
+    },
+  })
+  await vi.waitFor(() =>
+    expect(useArtifactsStore.getState().bySession[mockRemoteInfo.sessionId]).toEqual({}),
+  )
+})
+
+it.each(['reconnect', 'epoch'] as const)(
+  'refreshes authoritative artifacts after %s',
+  async (change) => {
+    await openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')
+    let changed: (() => void) | undefined
+    const noop = () => () => undefined
+    const hosts = structuredClone(useRemoteLanesStore.getState().hosts)
+    vi.stubGlobal('window', {
+      phosphor: {
+        ...window.phosphor,
+        onHostsChanged: (listener: () => void) => {
+          changed = listener
+          return () => {}
+        },
+        onHostAttention: noop,
+        onHostOpenLane: noop,
+      },
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })
+    vi.stubGlobal('document', { hasFocus: () => false })
+    invoke.mockImplementation(async (channel) =>
+      channel === 'hosts:snapshot' ? structuredClone(hosts) : [],
+    )
+    const detach = attachRemoteLanesListener()
+    try {
+      await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith('hosts:snapshot'))
+      invoke.mockClear()
+      if (change === 'reconnect') hosts[MOCK_HOST_ID]!.connectionToken = 'new-connection'
+      else hosts[MOCK_HOST_ID]!.cursor = { epoch: 'aaaaaaaaaaaaaaaa', seq: 0 }
+      changed?.()
+      await vi.waitFor(() =>
+        expect(invoke).toHaveBeenCalledWith('artifacts:forSession', mockRemoteInfo.sessionId),
+      )
+    } finally {
+      detach()
+    }
   },
 )

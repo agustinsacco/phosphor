@@ -6,7 +6,8 @@ import { TopBar } from './TopBar'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
 import { useArtifactsStore } from '@/stores/artifacts'
-import { mockRemoteInfo } from '@/dev/mockRemoteLanes'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { mockRemoteHosts, MOCK_HOST_ID, mockRemoteInfo } from '@/dev/mockRemoteLanes'
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
     configurable: true,
@@ -35,6 +36,8 @@ it.each([
       },
     },
   })
+  useRemoteLanesStore.setState({ hosts: structuredClone(mockRemoteHosts) })
+  useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!.capabilities.push('artifacts.read')
   useChatStore.setState({ sessions: {} })
   useArtifactsStore.setState({ bySession: {} })
   for (const [id, count] of [
@@ -73,10 +76,24 @@ it.each([
       for (const other of ['mac', 'bee1-a', 'bee1-b'].filter((x) => x !== id))
         expect(container.textContent).not.toContain(`Title ${other}`)
       const count = id === 'mac' ? 1 : id === 'bee1-b' ? 2 : 0
-      expect(container.querySelector('[data-tooltip="Artifacts pane"]') !== null).toBe(count > 0)
+      expect(container.querySelector('[data-tooltip="Artifacts pane"]') !== null).toBe(true)
       if (count)
         expect(container.querySelector(`[data-tooltip="${count} artifacts"]`)).not.toBeNull()
     }
+    await act(async () => {
+      useSessionsStore.setState({ activeSessionId: 'bee1-a' })
+      const hosts = structuredClone(mockRemoteHosts)
+      hosts[MOCK_HOST_ID]!.capabilities = ['sessions.read']
+      useRemoteLanesStore.setState({ hosts })
+    })
+    expect(container.querySelector('[data-tooltip="Artifacts pane"]')).toBeNull()
+    await act(async () => {
+      const hosts = structuredClone(mockRemoteHosts)
+      hosts[MOCK_HOST_ID]!.capabilities.push('artifacts.read')
+      hosts[MOCK_HOST_ID]!.state = 'reconnecting'
+      useRemoteLanesStore.setState({ hosts })
+    })
+    expect(container.querySelector('[data-tooltip="Artifacts pane"]')).toBeNull()
   } finally {
     act(() => root.unmount())
     container.remove()
