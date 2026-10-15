@@ -168,18 +168,24 @@ export async function accountControlFixture(
   cleanups.push(() => rm(scratch, { recursive: true, force: true }))
   const workspace = join(scratch, 'workspace')
   const userData = join(scratch, 'prefs')
-  const { app, page } = await guard(() => launch())
-  async function launch() {
-    await mkdir(workspace)
-    await mkdir(userData)
-    await writeFile(
-      join(userData, 'config.json'),
-      JSON.stringify({
-        lastWorkspacePath: workspace,
-        accountPreview: false,
-        machinesPreview: false,
-      }),
-    )
+  let { app, page, stop } = await guard(() => launch())
+  const closeDesktop = () => stop()
+  const relaunchDesktop = async () => {
+    await closeDesktop()
+    ;({ app, page, stop } = await guard(() => launch(false)))
+  }
+  async function launch(fresh = true) {
+    await mkdir(workspace, { recursive: true })
+    await mkdir(userData, { recursive: true })
+    if (fresh)
+      await writeFile(
+        join(userData, 'config.json'),
+        JSON.stringify({
+          lastWorkspacePath: workspace,
+          accountPreview: false,
+          machinesPreview: false,
+        }),
+      )
     const env = { ...process.env }
     delete env.ELECTRON_RENDERER_URL
     delete env.NODE_ENV_ELECTRON_VITE
@@ -189,6 +195,9 @@ export async function accountControlFixture(
       env: {
         ...env,
         NODE_ENV: 'production',
+        HOME: scratch,
+        XDG_STATE_HOME: join(scratch, 'state'),
+        PHOSPHOR_E2E_WORKSPACE: workspace,
         PHOSPHOR_PI_STUB: resolve(import.meta.dirname, 'pi-stub.cjs'),
         PHOSPHOR_TEST_USER_DATA: userData,
         PI_CODING_AGENT_DIR: join(scratch, 'agent'),
@@ -200,24 +209,31 @@ export async function accountControlFixture(
       },
     })
     configureTestTeardown(app)
-    cleanups.push(() => app.close())
+    let running = true
+    const stop = async () => {
+      if (!running) return
+      running = false
+      await app.close()
+    }
+    cleanups.push(stop)
     await app.evaluate(({ shell }) => {
       const openedUrls: string[] = []
       Object.assign(globalThis, { openedUrls })
-      shell.openExternal = async (url) => {
+      shell.openExternal = async (url: string) => {
         openedUrls.push(url)
       }
     })
     const page = await app.firstWindow()
     await expect(page.getByTestId('app-shell')).toBeVisible()
-    return { app, page }
+    return { app, page, stop }
   }
   const opened = (): Promise<string[]> =>
-    app.evaluate(() =>
-      'openedUrls' in globalThis && Array.isArray(globalThis.openedUrls)
-        ? globalThis.openedUrls.filter((value): value is string => typeof value === 'string')
-        : [],
-    )
+    app.evaluate(() => {
+      const urls: unknown = Reflect.get(globalThis, 'openedUrls')
+      return Array.isArray(urls)
+        ? urls.filter((value: unknown): value is string => typeof value === 'string')
+        : []
+    })
   const startSignIn = async (): Promise<string> => {
     const count = (await opened()).length
     await page.getByRole('button', { name: 'Sign in', exact: true }).click()
@@ -240,7 +256,15 @@ export async function accountControlFixture(
   }
   let closed = false
   return {
-    page,
+    get app() {
+      return app
+    },
+    get page() {
+      return page
+    },
+    closeDesktop,
+    relaunchDesktop,
+    workspace,
     calls,
     secrets,
     state,

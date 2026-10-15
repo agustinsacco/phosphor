@@ -2,50 +2,114 @@ import { expect } from '@playwright/test'
 import { spawn, execFileSync } from 'node:child_process'
 import { once } from 'node:events'
 import { generateKeyPairSync, randomBytes, randomUUID, sign } from 'node:crypto'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, rm, writeFile, readFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
+import { createServer as createProxy, connect, type Socket } from 'node:net'
 import { join, resolve } from 'node:path'
 import { WebSocket } from 'ws'
 import { encodeGrant } from '../../../../libs/shared/src/host-grant'
+import type { RoutineInput } from '../../../../libs/shared/src/routines-types'
 import { HOST_CAPABILITIES } from '../../../../libs/shared/src/remote-host'
 import {
   parseHostFrame,
   type ClientFrame,
   type HostFrame,
+  type LaneOp,
 } from '../../../../libs/shared/src/host-protocol'
 import { MACHINE } from '../../src/features/machines/__fixtures__/control'
 import { accountControlFixture } from './account-control'
 import { scratchDir } from './scratch'
 
+let hostBuilt = false
+
 /** Real dev Host CLI, disposable owner identity, SQLite store and pi process. */
-export async function remoteHostFixture() {
+export async function remoteHostFixture(options: { allowRepositoryChanges?: boolean } = {}) {
   const project = resolve(import.meta.dirname, '../../../..')
-  execFileSync(process.execPath, [join(project, 'apps/host/scripts/build.mjs')], {
-    cwd: project,
-    stdio: 'pipe',
-  })
+  if (!hostBuilt)
+    execFileSync(process.execPath, [join(project, 'apps/host/scripts/build.mjs')], {
+      cwd: project,
+      stdio: 'pipe',
+    })
+  hostBuilt = true
   const root = await scratchDir('phosphor-remote-')
   let h: Awaited<ReturnType<typeof accountControlFixture>> | undefined
   let child: ReturnType<typeof spawn> | undefined
   let peer: WebSocket | undefined
+  const sockets = new Set<Socket>()
+  let interrupted = false
+  let hostPort = 0
+  const proxy = createProxy((socket) => {
+    if (interrupted) {
+      socket.destroy()
+      return
+    }
+    const upstream = connect(hostPort, '127.0.0.1')
+    for (const stream of [socket, upstream]) {
+      sockets.add(stream)
+      stream.on('error', () => {
+        socket.destroy()
+        upstream.destroy()
+      })
+      stream.on('close', () => {
+        sockets.delete(stream)
+        socket.destroy()
+        upstream.destroy()
+      })
+    }
+    // A reverse proxy's upstream authority is the real loopback listener.
+    let header = Buffer.alloc(0)
+    const first = (chunk: Buffer) => {
+      header = Buffer.concat([header, chunk])
+      const end = header.indexOf('\r\n\r\n')
+      if (end === -1) {
+        if (header.length > 16384) socket.destroy()
+        return
+      }
+      socket.off('data', first)
+      upstream.write(
+        header
+          .subarray(0, end)
+          .toString()
+          .replace(/Host: [^\r]+/i, `Host: 127.0.0.1:${hostPort}`) + '\r\n\r\n',
+      )
+      upstream.write(header.subarray(end + 4))
+      socket.pipe(upstream)
+    }
+    socket.on('data', first)
+    upstream.pipe(socket)
+  })
+  const severConnection = () => {
+    interrupted = true
+    for (const socket of sockets) socket.destroy()
+    const bound = setTimeout(() => {
+      interrupted = false
+    }, 4000)
+    return () => {
+      clearTimeout(bound)
+      interrupted = false
+    }
+  }
+  const stopHost = async () => {
+    if (child && child.exitCode === null && child.signalCode === null) {
+      const exited = once(child, 'exit')
+      child.kill('SIGTERM')
+      const kill = setTimeout(() => child?.kill('SIGKILL'), 5000)
+      try {
+        await exited
+      } finally {
+        clearTimeout(kill)
+      }
+    }
+  }
   // Independent steps: a failed Electron close never skips the Host kill or the directory.
   const close = async () => {
     const errors: unknown[] = []
     const step = (run: () => Promise<unknown>) => run().catch((e) => errors.push(e))
     await step(async () => peer?.terminate())
-    await step(async () => {
-      if (child && child.exitCode === null && child.signalCode === null) {
-        const exited = once(child, 'exit')
-        child.kill('SIGTERM')
-        const kill = setTimeout(() => child?.kill('SIGKILL'), 5000)
-        try {
-          await exited
-        } finally {
-          clearTimeout(kill)
-        }
-      }
-    })
+    await step(stopHost)
     await step(async () => h?.close())
+    for (const socket of sockets) socket.destroy()
+    if (proxy.listening) await step(() => new Promise<void>((done) => proxy.close(() => done())))
     await step(() => rm(root, { recursive: true, force: true }))
     if (errors.length > 0) throw errors[0]
   }
@@ -60,8 +124,12 @@ export async function remoteHostFixture() {
     await once(reserve, 'listening')
     const address = reserve.address()
     if (!address || typeof address === 'string') throw new Error('Missing port')
-    const port = address.port
+    hostPort = address.port
     await new Promise<void>((done) => reserve.close(() => done()))
+    await new Promise<void>((done) => proxy.listen(0, '127.0.0.1', done))
+    const proxyAddress = proxy.address()
+    if (!proxyAddress || typeof proxyAddress === 'string') throw new Error('Missing proxy port')
+    const port = proxyAddress.port
     const endpoint = `https://127.0.0.1:${port}`
     const publicKey = hostKey.publicKey.export({ format: 'jwk' }).x
     const mint = (clientId: string, label: string) => {
@@ -93,7 +161,7 @@ export async function remoteHostFixture() {
     }
     h = await accountControlFixture([machine], {
       userId: owner,
-      env: { PHOSPHOR_E2E_HOST_ENDPOINT: endpoint },
+      env: { PHOSPHOR_E2E_HOST_ENDPOINT: endpoint, PHOSPHOR_E2E_SESSION_NAME: 'LOCAL_ONLY lane' },
       route(req, res, body) {
         const path = new URL(req.url ?? '/', 'http://127.0.0.1').pathname
         const json = (value: unknown) => {
@@ -145,14 +213,49 @@ export async function remoteHostFixture() {
       { mode: 0o700 },
     )
     execFileSync('git', ['init', '-q', repo])
-    await writeFile(join(repo, 'remote.txt'), 'REMOTE_FILE_FROM_REAL_HOST\n')
+    const nonGit = join(root, 'notes')
+    const addable = join(root, 'addable')
+    await mkdir(nonGit)
+    await mkdir(addable)
+    await mkdir(join(repo, 'nested'))
+    await writeFile(join(nonGit, 'remote.txt'), 'HOST_B_ONLY non-git\n')
+    await writeFile(join(addable, 'addable.txt'), 'HOST_ADDABLE_ONLY\n')
+    await writeFile(join(repo, 'remote.txt'), 'REMOTE_FILE_FROM_REAL_HOST HOST_A_ONLY\n')
+    await writeFile(join(repo, 'nested', 'guide.md'), 'HOST_A_ONLY guide\nsecond line\n')
+    await writeFile(join(repo, 'deleted.txt'), 'HOST_A_ONLY deleted\n')
+    await writeFile(join(repo, 'staged.txt'), 'HOST_A_ONLY before staging\n')
+    await writeFile(join(repo, 'artifact.html'), '<h1>HOST_A_ONLY artifact input</h1>')
+    const git = (...args: string[]) => execFileSync('git', ['-C', repo, ...args])
+    git('add', '.')
+    git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qm', 'seed')
+    await writeFile(join(repo, 'staged.txt'), 'HOST_A_ONLY staged change\n')
+    git('add', 'staged.txt')
+    await writeFile(join(repo, 'remote.txt'), 'REMOTE_FILE_FROM_REAL_HOST HOST_A_ONLY modified\n')
+    await rm(join(repo, 'deleted.txt'))
+    await writeFile(join(repo, 'untracked.txt'), 'HOST_A_ONLY untracked\n')
+    await writeFile(join(repo, 'binary.bin'), Buffer.from([0, 1, 2, 0]))
+    await writeFile(join(repo, 'oversize.txt'), 'x'.repeat(3 * 1024 * 1024))
+    await writeFile(join(h.workspace, 'remote.txt'), 'LOCAL_ONLY decoy\n')
+    await mkdir(join(h.workspace, '.pi', 'skills', 'local-only'), { recursive: true })
+    await writeFile(
+      join(h.workspace, '.pi', 'skills', 'local-only', 'SKILL.md'),
+      '---\nname: LOCAL_ONLY\ndescription: Local fixture\n---\nLOCAL_ONLY skill\n',
+    )
+    await mkdir(join(agent, 'skills', 'host-only'), { recursive: true })
+    await writeFile(
+      join(agent, 'skills', 'host-only', 'SKILL.md'),
+      '---\nname: HOST_A_ONLY\ndescription: Host fixture\n---\nHOST_A_ONLY skill\n',
+    )
     await writeFile(
       join(agent, 'settings.json'),
       JSON.stringify({ defaultProvider: 'fake', defaultModel: 'fake-model' }),
     )
     await writeFile(
       join(agent, 'auth.json'),
-      JSON.stringify({ fake: { type: 'api_key', key: 'fake-test-key' } }),
+      JSON.stringify({
+        fake: { type: 'api_key', key: 'fake-test-key' },
+        anthropic: { type: 'api_key', key: 'fake-test-key' },
+      }),
     )
     await writeFile(
       join(conf, 'identity', 'host.json'),
@@ -180,59 +283,74 @@ export async function remoteHostFixture() {
           node: process.execPath,
           executable: join(project, 'apps/host/src/__fixtures__/fake-pi.cjs'),
         },
-        repositories: [repo],
+        repositories: [repo, nonGit],
+        // The parity config introduces this policy; baseline rejects it if explicitly requested.
+        ...(options.allowRepositoryChanges !== undefined && {
+          allowRepositoryChanges: options.allowRepositoryChanges,
+        }),
         control: { url: h.url },
-        api: { port },
+        api: { port: hostPort },
       }),
       { mode: 0o600 },
     )
-    child = spawn(
-      process.execPath,
-      [join(project, 'apps/host/dist/phosphor.mjs'), 'run', '--config', config],
-      {
-        env: {
-          HOME: root,
-          PATH: `${join(root, 'bin')}:${process.env.PATH ?? ''}`,
-          XDG_STATE_HOME: join(root, 'state'),
-          PI_CODING_AGENT_DIR: agent,
+    const startHost = async () => {
+      if (child && child.exitCode === null && child.signalCode === null)
+        throw new Error('Host already running')
+      child = spawn(
+        process.execPath,
+        [join(project, 'apps/host/dist/phosphor.mjs'), 'run', '--config', config],
+        {
+          env: {
+            HOME: root,
+            PATH: `${join(root, 'bin')}:${process.env.PATH ?? ''}`,
+            XDG_STATE_HOME: join(root, 'state'),
+            PI_CODING_AGENT_DIR: agent,
+          },
+          stdio: ['ignore', 'pipe', 'pipe'],
         },
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    )
-    let output = ''
-    child.stdout?.on('data', (chunk: Buffer) => {
-      output = (output + chunk.toString()).slice(-8192)
-    })
-    child.stderr?.on('data', (chunk: Buffer) => {
-      output = (output + chunk.toString()).slice(-8192)
-    })
-    await expect
-      .poll(async () => {
-        if (child?.exitCode !== null) throw new Error(`Host exited: ${output}`)
-        return fetch(`http://127.0.0.1:${port}/v1/hello?challenge=${'a'.repeat(64)}`, {
-          headers: { 'x-phosphor-trace': '0123456789abcdef' },
-        })
-          .then((r) => r.status)
-          .catch(() => 0)
+      )
+      let output = ''
+      child.stdout?.on('data', (chunk: Buffer) => {
+        output = (output + chunk.toString()).slice(-8192)
       })
-      .toBe(200)
-    peer = new WebSocket(`ws://127.0.0.1:${port}/v1/stream`)
+      child.stderr?.on('data', (chunk: Buffer) => {
+        output = (output + chunk.toString()).slice(-8192)
+      })
+      await expect
+        .poll(async () => {
+          if (child?.exitCode !== null) throw new Error(`Host exited: ${output}`)
+          return fetch(`http://127.0.0.1:${port}/v1/hello?challenge=${'a'.repeat(64)}`, {
+            headers: { 'x-phosphor-trace': '0123456789abcdef' },
+          })
+            .then((r) => r.status)
+            .catch(() => 0)
+        })
+        .toBe(200)
+    }
     const frames: HostFrame[] = []
-    peer.on('message', (data) => {
-      const parsed = parseHostFrame(data.toString())
-      if (!parsed.ok) throw new Error('Invalid Host frame')
-      if (frames.length >= 4096) throw new Error('Too many Host frames')
-      frames.push(parsed.value)
-    })
-    await once(peer, 'open')
-    const send = (frame: ClientFrame) => peer?.send(JSON.stringify(frame))
-    send({
-      type: 'auth',
-      grant: mint(randomUUID(), 'Second client'),
-      challenge: 'b'.repeat(64),
-      trace: 'fedcba9876543210',
-    })
-    await expect.poll(() => frames.some((f) => f.type === 'ready')).toBe(true)
+    const connectPeer = async () => {
+      peer = new WebSocket(`ws://127.0.0.1:${port}/v1/stream`)
+      peer.on('message', (data) => {
+        const parsed = parseHostFrame(data.toString())
+        if (!parsed.ok) throw new Error('Invalid Host frame')
+        if (frames.length >= 4096) throw new Error('Too many Host frames')
+        frames.push(parsed.value)
+      })
+      await once(peer, 'open')
+      send({
+        type: 'auth',
+        grant: mint(randomUUID(), 'Second client'),
+        challenge: 'b'.repeat(64),
+        trace: 'fedcba9876543210',
+      })
+      await expect.poll(() => frames.some((f) => f.type === 'ready')).toBe(true)
+    }
+    const send = (frame: ClientFrame) => {
+      if (!peer || peer.readyState !== WebSocket.OPEN) throw new Error('Peer not connected')
+      peer.send(JSON.stringify(frame))
+    }
+    await startHost()
+    await connectPeer()
     const requestId = randomUUID()
     send({
       type: 'command',
@@ -261,15 +379,149 @@ export async function remoteHostFixture() {
     if (receipt?.type !== 'receipt' || receipt.receipt.status !== 'done' || !receipt.receipt.laneId)
       throw new Error('Missing created lane')
     const laneId = receipt.receipt.laneId
-    async function repositoryId() {
+    async function repositoryId(index = 0) {
       send({ type: 'subscribe', id: 'directory', topic: 'lanes' })
       await expect.poll(() => frames.some((f) => f.type === 'lanes')).toBe(true)
       const directory = frames.find((f) => f.type === 'lanes')
-      if (directory?.type !== 'lanes' || !directory.repositories[0])
-        throw new Error('Missing repository')
-      return directory.repositories[0].id
+      if (directory?.type !== 'lanes') throw new Error('Missing directory')
+      const repository = directory.repositories.find(
+        (repo) => repo.name === (index === 0 ? 'repository' : 'notes'),
+      )
+      if (!repository) throw new Error('Missing repository')
+      return repository.id
     }
-    return { ...h, root, laneId, send, frames, close }
+    const fences = new Map<string, number>()
+    const command = async (op: LaneOp, lane?: string) => {
+      const requestId = randomUUID()
+      const fence = lane ? fences.get(lane) : undefined
+      send({
+        type: 'command',
+        requestId,
+        ...(lane && { laneId: lane }),
+        ...(fence !== undefined && { fence }),
+        op,
+      })
+      await expect
+        .poll(() =>
+          frames.some(
+            (f) =>
+              f.type === 'receipt' &&
+              f.receipt.requestId === requestId &&
+              ['done', 'rejected', 'failed', 'unknown'].includes(f.receipt.status),
+          ),
+        )
+        .toBe(true)
+      const frame = frames.findLast(
+        (f) => f.type === 'receipt' && f.receipt.requestId === requestId,
+      )
+      if (frame?.type !== 'receipt' || frame.receipt.status !== 'done')
+        throw new Error(`Second client command failed: ${JSON.stringify(frame)}`)
+      if (lane && frame.receipt.fence !== undefined) fences.set(lane, frame.receipt.fence)
+      return frame.receipt
+    }
+    const createLane = async (index = 1, branch?: string) => {
+      const receipt = await command({
+        type: 'lane.create',
+        repositoryId: await repositoryId(index),
+        name: index ? 'HOST_B_ONLY lane' : `HOST_A_ONLY ${branch ?? 'lane'}`,
+        worktree: branch ? { branch } : null,
+      })
+      if (!receipt.laneId) throw new Error('Missing lane')
+      return receipt.laneId
+    }
+    const laneSummary = (lane: string) => {
+      for (const frame of frames.toReversed()) {
+        if (frame.type === 'lanes-delta' && frame.remove.includes(lane)) return undefined
+        const lanes =
+          frame.type === 'lanes' ? frame.lanes : frame.type === 'lanes-delta' ? frame.upsert : []
+        const summary = lanes.find((entry) => entry.laneId === lane)
+        if (summary) return summary
+      }
+      return undefined
+    }
+    const routine: Omit<RoutineInput, 'workspacePath'> = {
+      name: 'HOST_A_ONLY routine',
+      instructions: 'PHX-routine',
+      isolated: false,
+      intent: 'report',
+      provider: 'fake',
+      model: 'fake-model',
+      timezone: 'UTC',
+      schedule: { kind: 'manual' },
+      period: 'none',
+      catchUpHours: 0,
+      maxRuntimeMinutes: 1,
+      enabled: false,
+      trusted: false,
+    }
+    await command({
+      type: 'routine.save',
+      expectedRevision: null,
+      routine: { ...routine, repositoryId: await repositoryId() },
+    })
+    await h.page.evaluate((input) => window.phosphor.invoke('routines:save', input), {
+      ...routine,
+      workspacePath: h.workspace,
+      name: 'LOCAL_ONLY routine',
+      provider: 'stub',
+      model: 'stub-model',
+    })
+    const restartHost = async () => {
+      peer?.terminate()
+      await stopHost()
+      frames.length = 0
+      await startHost()
+      await connectPeer()
+      await repositoryId()
+    }
+    const desktop = h
+    return {
+      ...desktop,
+      get app() {
+        return desktop.app
+      },
+      get page() {
+        return desktop.page
+      },
+      root,
+      repo,
+      nonGit,
+      addable,
+      laneId,
+      send,
+      frames,
+      laneSummary,
+      close,
+      startHost,
+      stopHost,
+      restartHost,
+      command,
+      severConnection,
+      createLane,
+      createWorktreePair: async () => {
+        const pair = [await createLane(0, 'fixture-a'), await createLane(0, 'fixture-b')]
+        for (const [index, lane] of pair.entries()) {
+          await expect.poll(() => laneSummary(lane)?.cwd).toBeTruthy()
+          const cwd = laneSummary(lane)?.cwd
+          if (!cwd) throw new Error('Missing worktree directory')
+          await writeFile(
+            join(cwd, 'remote.txt'),
+            index === 0 ? 'HOST_A_ONLY WORKTREE_A' : 'HOST_B_ONLY WORKTREE_B',
+          )
+        }
+        return pair
+      },
+      takeover: (lane = laneId) => command({ type: 'control.take' }, lane),
+      release: (lane = laneId) => command({ type: 'control.release' }, lane),
+      conflictWrite: (path: string, value: string) => writeFile(join(repo, path), value),
+      backgroundTurn: async (message: string, lane = laneId) => {
+        const before = laneSummary(lane)?.attention ?? 0
+        await command({ type: 'control.take' }, lane)
+        await command({ type: 'prompt', message }, lane)
+        await expect.poll(() => laneSummary(lane)?.attention ?? 0).toBeGreaterThan(before)
+      },
+      localSentinel: () => readFile(join(desktop.workspace, 'remote.txt'), 'utf8'),
+    }
   } catch (error) {
     await close()
     throw error
