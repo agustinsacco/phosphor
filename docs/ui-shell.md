@@ -24,12 +24,13 @@
 **Shortcut scope:** New, Find, Files and Changes work from the composer.
 Go to file also works from the editor and ordinary text fields; Ctrl+P remains
 shell history in terminals. Shortcuts also work on remote lanes: Go to file lists
-and opens only the lane's Host files, including line/column jumps. Search in
-files works from any focus, the editor included; on a remote lane it opens Files
+and opens only the lane's Host files, including line/column jumps. On Host home
+(no lane open), Go to file reports “Not available on remote lanes yet.”; it
+never indexes This Mac's home workspace. Search in files works from any focus, the editor included; on a remote lane it opens Files
 and reports “Not available on remote lanes yet.” without starting a local search.
-F6 moves between the composer and pane controls; in a fullscreen pane it
-focuses Exit fullscreen. Dialogs block app navigation (not zoom). IME/AltGr and
-editor-owned letter chords are never read as app commands. Bindings belong to
+F6 moves between the composer and pane controls, including remote lane panes
+and the Host-home repository selector; in a fullscreen pane it focuses Exit
+fullscreen. Dialogs block app navigation (not zoom). IME/AltGr and editor-owned letter chords are never read as app commands. Bindings belong to
 the app document, not to artifact iframe contents.
 
 ### Top bar
@@ -41,9 +42,10 @@ files, changes, artifacts, subagents) and the session kebab. The terminal switch
 tab count and a running-process dot; the artifacts switch appears once the
 session has an artifact, with a count and an unseen dot.
 
-Everything right of the sidebar toggle is **session-only**. On the home screen
-the bar keeps its height and renders nothing else, because that screen puts the
-same folder and branch controls above its composer, where choosing them is the
+Everything right of the sidebar toggle is **session-only**, except the Files
+button on Host home. On This Mac's home screen the bar keeps its height and
+renders nothing else, because that screen puts the same folder and branch
+controls above its composer, where choosing them is the
 point. Two folder chips on one screen is two answers to one question.
 
 It is the **only** element allowed in the strip the OS draws window controls
@@ -405,7 +407,9 @@ The visual recipe lives in [style-guide.md](style-guide.md#action-hints).
   output, settings and keybindings, theme, open a folder, switch workspace,
   open a session. On a remote lane, local folder/recents/disk-session commands,
   rewind and global Artifacts/Skills page commands are omitted; lane navigation
-  lists that Host's lanes instead. Target switches refresh the command set.
+  lists that Host's lanes instead. The same filtering applies on Host home,
+  using the sidebar's selected machine rather than This Mac's home workspace.
+  Target switches refresh the command set.
   Distinct from the chat `/` command menu.
 - **Host home Files**: with no lane open and a Host selected in the sidebar,
   the top-bar Files button opens read-only configured-repository browsing.

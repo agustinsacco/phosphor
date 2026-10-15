@@ -90,9 +90,10 @@ export function useGlobalShortcuts(enabled = true): void {
       const fullscreen = pane && sessionId && sessionPanes(layout, sessionId).expanded
       const target = fullscreen
         ? (pane.querySelector<HTMLElement>('[aria-label="Exit fullscreen"]') ??
-          pane.querySelector<HTMLButtonElement>('button:not(:disabled)'))
+          pane.querySelector<HTMLElement>('button:not(:disabled), select:not(:disabled)'))
         : isComposerInput(event.target)
-          ? (pane?.querySelector<HTMLButtonElement>('button:not(:disabled)') ?? field)
+          ? (pane?.querySelector<HTMLElement>('button:not(:disabled), select:not(:disabled)') ??
+            field)
           : field
       if (target) {
         layout.setPage(null)

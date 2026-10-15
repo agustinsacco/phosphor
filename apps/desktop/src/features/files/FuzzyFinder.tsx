@@ -1,3 +1,5 @@
+import { REMOTE_UNAVAILABLE, useNavigationHostId } from '@/stores/remoteLanes'
+import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useSessionsStore } from '@/stores/sessions'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ModalOverlay } from '@/components/Modal'
@@ -28,8 +30,19 @@ export function FuzzyFinder({
   workspacePath: string
 }): React.JSX.Element | null {
   const open = useFinderStore((s) => s.open)
+  const activeSessionId = useSessionsStore((s) => s.activeSessionId)
+  const hostId = useNavigationHostId()
+  const hostHome = hostId !== undefined && activeSessionId === null
+  useEffect(() => {
+    if (open && hostHome) {
+      useFinderStore.getState().setOpen(false)
+      useExtensionUiStore.getState().pushToast(REMOTE_UNAVAILABLE)
+    }
+  }, [open, hostHome])
   // A new opening starts with fresh state before focus or typing can occur.
-  return open ? <FinderDialog key={workspacePath} workspacePath={workspacePath} /> : null
+  return open && !hostHome ? (
+    <FinderDialog key={workspacePath} workspacePath={workspacePath} />
+  ) : null
 }
 
 function FinderDialog({ workspacePath }: { workspacePath: string }): React.JSX.Element {

@@ -18,7 +18,10 @@ vi.hoisted(() => {
     value: () => ({ matches: false, addEventListener: () => {} }),
   })
 })
-vi.mock('./useGlobalShortcuts', () => ({ useGlobalShortcuts: vi.fn() }))
+vi.mock('./useGlobalShortcuts', async (original) => {
+  const actual = await original<{ useGlobalShortcuts: typeof useGlobalShortcuts }>()
+  return { useGlobalShortcuts: vi.fn(actual.useGlobalShortcuts) }
+})
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
 vi.mock('@/features/files/MonacoEditor', () => ({ releaseFileModel: vi.fn() }))
 vi.mock('@/stores/remoteLanes', async (original) => ({
@@ -47,7 +50,14 @@ vi.mock('@/features/palette/CommandPalette', () => ({
 }))
 vi.mock('@/features/files/RightPane', () => ({ RightPane: () => null }))
 vi.mock('@/features/files/MachineFilesPane', () => ({
-  MachineFilesPane: ({ hostId }: { hostId: string }) => <div>Host repositories {hostId}</div>,
+  MachineFilesPane: ({ hostId }: { hostId: string }) => (
+    <div>
+      Host repositories {hostId}
+      <select aria-label="Repository">
+        <option>Host repo</option>
+      </select>
+    </div>
+  ),
 }))
 vi.mock('@/features/sessions/Sidebar', () => ({ Sidebar: () => null }))
 vi.mock('@/features/sessions/BulkDeleteModal', () => ({ BulkDeleteProgressPopover: () => null }))
@@ -55,7 +65,9 @@ vi.mock('@/features/skills/SkillsPage', () => ({ SkillsPage: () => null }))
 vi.mock('@/features/routines/RoutinesPage', () => ({ RoutinesPage: () => null }))
 vi.mock('@/features/artifacts/ArtifactsPage', () => ({ ArtifactsPage: () => null }))
 vi.mock('@/features/machines/MachinesPage', () => ({ MachinesPage: () => null }))
-vi.mock('@/features/home/WorkspaceHome', () => ({ WorkspaceHome: () => null }))
+vi.mock('@/features/home/WorkspaceHome', () => ({
+  WorkspaceHome: () => <textarea data-composer-input />,
+}))
 vi.mock('@/features/home/StartingChat', () => ({ StartingChat: () => null }))
 vi.mock('@/features/settings/SettingsModal', () => ({ SettingsModal: () => null }))
 vi.mock('@/features/feedback/FeedbackModal', () => ({ FeedbackModal: () => null }))
@@ -97,6 +109,7 @@ it.each([true, false])(
     useLayoutStore.setState({ sidebarVisible: false })
     const container = document.createElement('div'),
       root = createRoot(container)
+    document.body.append(container)
     try {
       await act(async () => root.render(<App />))
       expect(container.textContent).toContain('Finder mounted')
@@ -105,11 +118,21 @@ it.each([true, false])(
       if (!laneActive) {
         await act(async () => container.querySelector('button')?.click())
         expect(container.textContent).toContain('Host repositories bee1-home')
+        expect(container.querySelector('[data-testid="right-pane"]')?.textContent).toContain(
+          'Host repositories bee1-home',
+        )
+        const composer = container.querySelector('textarea')!
+        composer.focus()
+        act(() =>
+          composer.dispatchEvent(new KeyboardEvent('keydown', { code: 'F6', bubbles: true })),
+        )
+        expect(document.activeElement).toBe(container.querySelector('select'))
         await act(async () => useRemoteLanesStore.setState({ filter: 'local' }))
         expect(container.textContent).not.toContain('Host repositories')
       }
     } finally {
       act(() => root.unmount())
+      container.remove()
       vi.restoreAllMocks()
       vi.unstubAllGlobals()
     }
