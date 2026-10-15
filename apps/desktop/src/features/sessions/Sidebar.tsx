@@ -1,3 +1,4 @@
+import { openRemoteComposer } from '@/features/home/remoteComposer'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import { MachineSwitcher, MachineLabelLine } from './MachineSwitcher'
 import { RemoteLanes } from './RemoteLanes'
@@ -852,7 +853,11 @@ export function Sidebar({
         <NavRow
           label="New"
           badge
-          onClick={() => useSessionsStore.getState().activate(null)}
+          onClick={() => {
+            const filter = useRemoteLanesStore.getState().filter
+            if (filter !== 'local' && filter !== 'all') openRemoteComposer(filter)
+            else useSessionsStore.getState().activate(null)
+          }}
           icon={<PlusIcon strokeWidth={2.5} />}
         />
         <NavRow

@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { mkdir, symlink, writeFile } from 'node:fs/promises'
 import * as fs from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
@@ -1123,4 +1124,54 @@ it('does not stop a deleting lane after authority expires while reading pi state
   await s.binding.sessions.attach(lane.laneId, session.sessionId)
   await expect(s.binding.deleteStop(lane.laneId, () => false)).rejects.toThrow('control changed')
   expect(s.runtime.stop).not.toHaveBeenCalled()
+})
+
+it('fresh branch conflicts produce a fixed rejection before a row or process exists', async () => {
+  execFileSync(
+    'git',
+    [
+      '-c',
+      'user.name=Test',
+      '-c',
+      'user.email=test@example.invalid',
+      'commit',
+      '--allow-empty',
+      '-m',
+      'base',
+    ],
+    { cwd: machine.repository },
+  )
+  execFileSync('git', ['branch', 'occupied'], { cwd: machine.repository })
+  const s = setup()
+  const receipts: Receipt[] = []
+  const commands = createLaneCommands({
+    store,
+    ...s.binding,
+    runtime: s.binding,
+    sessionFor: live.sessionFor,
+    openDialogs: live.openDialogs,
+    summaryFor: live.summaryFor,
+    publish: live.publish,
+    deliver: (_id, receipt) => receipts.push(receipt),
+    now: Date.now,
+    log: s.log,
+  })
+  await commands.submit(
+    { id: randomUUID(), label: 'Client', caps: ['sessions.control'] },
+    {
+      type: 'command',
+      requestId: randomUUID(),
+      op: { type: 'lane.create', repositoryId, worktree: { branch: 'occupied', fresh: true } },
+    },
+  )
+  expect(receipts.at(-1)).toMatchObject({ status: 'rejected', code: 'branch-exists' })
+  expect(s.runtime.start).not.toHaveBeenCalled()
+  expect(store.listLanes()).toHaveLength(0)
+  expect(s.log).toHaveBeenCalledWith(
+    'host',
+    'lane.command',
+    expect.objectContaining({ code: 'branch-exists' }),
+  )
+  expect(JSON.stringify(s.log.mock.calls)).not.toContain('occupied')
+  commands.close()
 })

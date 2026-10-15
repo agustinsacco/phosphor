@@ -1,4 +1,4 @@
-import { rememberRemoteModel } from '@/stores/remoteModelPicks'
+import { rememberRemoteModel, rememberRemoteThinking } from '@/stores/remoteModelPicks'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useState } from 'react'
 import type { Model, ThinkingLevel } from '@shared/rpc'
@@ -141,7 +141,11 @@ function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
   const setThinking = async (level: ThinkingLevel): Promise<void> => {
     setOpen(null)
     const ok = await piCallOk(sessionId, { type: 'set_thinking_level', level })
-    if (ok) useChatStore.getState().patchMeta(sessionId, { thinkingLevel: level })
+    if (ok) {
+      useChatStore.getState().patchMeta(sessionId, { thinkingLevel: level })
+      const target = useSessionsStore.getState().live[sessionId]?.target
+      if (target?.kind === 'remote') rememberRemoteThinking(target.hostId, level)
+    }
   }
 
   return (

@@ -507,3 +507,208 @@ it('refuses an append beyond the exclude cap without modifying exact-cap content
   expect(readFileSync(exclude)).toEqual(content)
   expect(existsSync(join(root, '.phosphor', 'worktrees', 'append-cap'))).toBe(false)
 })
+
+it('fresh refuses a laneless old branch without a folder, and a suffixed branch starts from main', async () => {
+  await run(['checkout', '-b', 'phosphor/fix-bug'])
+  await run(['commit', '--allow-empty', '-m', 'old unrelated work'])
+  const old = await run(['rev-parse', 'HEAD'])
+  await run(['checkout', 'main'])
+  await expect(
+    prepareLaneFolder({ root, worktree: { branch: 'phosphor/fix-bug', fresh: true } }),
+  ).rejects.toMatchObject({ code: 'branch-exists' })
+  expect(existsSync(join(root, '.phosphor', 'worktrees', 'phosphor-fix-bug'))).toBe(false)
+  expect(existsSync(join(root, '.phosphor'))).toBe(false)
+  const next = await prepareLaneFolder({
+    root,
+    worktree: { branch: 'phosphor/fix-bug-2', fresh: true },
+  })
+  expect(await run(['rev-parse', 'phosphor/fix-bug-2'])).toBe(await run(['rev-parse', 'main']))
+  expect(await run(['rev-parse', 'phosphor/fix-bug'])).toBe(old)
+  await next.undo()
+  expect(existsSync(next.cwd)).toBe(false)
+  expect(await run(['for-each-ref', 'refs/heads/phosphor/fix-bug-2'])).toBe('')
+})
+
+it('two concurrent fresh creates never reuse the same branch', async () => {
+  const realGit = exec.git
+  let waiting = 0
+  let release!: () => void
+  const barrier = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  vi.spyOn(exec, 'git').mockImplementation(async (cwd, args, options) => {
+    if (args[0] === 'update-ref' && args[1] === 'refs/heads/concurrent') {
+      if (++waiting === 2) release()
+      await barrier
+    }
+    return realGit(cwd, args, options)
+  })
+
+  const results = await Promise.allSettled(
+    [1, 2].map(() => prepareLaneFolder({ root, worktree: { branch: 'concurrent', fresh: true } })),
+  )
+  expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+  expect(results.find((r) => r.status === 'rejected')).toMatchObject({
+    reason: { code: 'branch-exists' },
+  })
+  for (const result of results) if (result.status === 'fulfilled') await result.value.undo()
+})
+
+it('fresh refuses an unregistered leaf before reserving any ref and leaves it untouched', async () => {
+  const path = join(root, '.phosphor', 'worktrees', 'occupied-leaf')
+  mkdirSync(path, { recursive: true })
+  writeFileSync(join(path, 'kept'), 'keep this folder')
+  const exclude = readFileSync(join(root, '.git', 'info', 'exclude'))
+  const spy = vi.spyOn(exec, 'git')
+  await expect(
+    prepareLaneFolder({ root, worktree: { branch: 'occupied-leaf', fresh: true } }),
+  ).rejects.toEqual(new LaneFolderError('A worktree folder for that branch already exists.'))
+  expect(spy.mock.calls.some(([, args]) => args[0] === 'update-ref')).toBe(false)
+  expect(await run(['for-each-ref', 'refs/heads/occupied-leaf'])).toBe('')
+  expect(readFileSync(join(path, 'kept'), 'utf8')).toBe('keep this folder')
+  expect(readFileSync(join(root, '.git', 'info', 'exclude'))).toEqual(exclude)
+})
+
+it('fresh loses a branch-only reservation race without directories or exclude changes', async () => {
+  const realGit = exec.git
+  const base = await run(['rev-parse', 'main'])
+  const excludePath = join(root, '.git', 'info', 'exclude')
+  const exclude = readFileSync(excludePath)
+  vi.spyOn(exec, 'git').mockImplementation(async (cwd, args, options) => {
+    if (args[0] === 'update-ref' && args[1] === 'refs/heads/branch-only-race')
+      await realGit(root, ['branch', 'branch-only-race', base])
+    return realGit(cwd, args, options)
+  })
+  await expect(
+    prepareLaneFolder({ root, worktree: { branch: 'branch-only-race', fresh: true } }),
+  ).rejects.toMatchObject({ code: 'branch-exists' })
+  expect(existsSync(join(root, '.phosphor'))).toBe(false)
+  expect(readFileSync(excludePath)).toEqual(exclude)
+  expect(await run(['rev-parse', 'branch-only-race'])).toBe(base)
+})
+
+it.each(['parent', 'exclude', 'leaf', 'moved'] as const)(
+  'fresh rolls back its owned ref independently of a later %s failure',
+  async (failure) => {
+    const realGit = exec.git
+    const base = await run(['rev-parse', 'main'])
+    await run(['commit', '--allow-empty', '-m', 'next'])
+    const next = await run(['rev-parse', 'main'])
+    await run(['reset', '--hard', base])
+    const path = join(root, '.phosphor', 'worktrees', 'reserved')
+    const logs: unknown[] = []
+    if (failure === 'exclude')
+      vi.mocked(fs.openSync).mockImplementation(() => {
+        throw new Error('exclude')
+      })
+    const spy = vi.spyOn(exec, 'git').mockImplementation(async (cwd, args, options) => {
+      if (args[0] === 'update-ref' && args[1] === 'refs/heads/reserved') {
+        const result = await realGit(cwd, args, options)
+        if (failure === 'parent') writeFileSync(join(root, '.phosphor'), 'keep parent file')
+        return result
+      }
+      if (args[0] === 'worktree' && args[1] === 'add') {
+        mkdirSync(path)
+        writeFileSync(join(path, 'kept'), 'keep unregistered leaf')
+        if (failure === 'moved') await realGit(root, ['update-ref', 'refs/heads/reserved', next])
+        throw new Error('add failed')
+      }
+      return realGit(cwd, args, options)
+    })
+    await expect(
+      prepareLaneFolder({
+        root,
+        worktree: { branch: 'reserved', fresh: true },
+        log: (_scope, message, data) => logs.push({ message, data }),
+      }),
+    ).rejects.toThrow('The worktree could not be created.')
+    expect(spy).toHaveBeenCalledWith(
+      root,
+      ['update-ref', '-d', 'refs/heads/reserved', base],
+      expect.anything(),
+    )
+    if (failure === 'moved') expect(await run(['rev-parse', 'reserved'])).toBe(next)
+    else expect(await run(['for-each-ref', 'refs/heads/reserved'])).toBe('')
+    if (failure === 'parent')
+      expect(readFileSync(join(root, '.phosphor'), 'utf8')).toBe('keep parent file')
+    if (failure === 'leaf' || failure === 'moved')
+      expect(readFileSync(join(path, 'kept'), 'utf8')).toBe('keep unregistered leaf')
+    expect(spy.mock.calls.some(([, args]) => args[0] === 'worktree' && args[1] === 'remove')).toBe(
+      false,
+    )
+    expect(JSON.stringify(logs)).not.toContain('reserved')
+  },
+)
+
+async function commitTrackedFile(): Promise<void> {
+  writeFileSync(join(root, 'a.txt'), 'tracked content\n')
+  await run(['add', 'a.txt'])
+  await run(['commit', '-m', 'tracked base'])
+}
+
+it('fresh post-add failure removes a tracked worktree and registration before deleting its ref', async () => {
+  await commitTrackedFile()
+  const path = join(root, '.phosphor', 'worktrees', 'tracked-failure')
+  const original = realpathSync.native
+  vi.spyOn(realpathSync, 'native').mockImplementation((value) =>
+    original(value) === path ? temp : original(value),
+  )
+  const spy = vi.spyOn(exec, 'git')
+  await expect(
+    prepareLaneFolder({ root, worktree: { branch: 'tracked-failure', fresh: true } }),
+  ).rejects.toThrow('The worktree could not be created.')
+  expect(existsSync(path)).toBe(false)
+  expect(await run(['worktree', 'list', '--porcelain'])).not.toContain(path)
+  expect(await run(['for-each-ref', 'refs/heads/tracked-failure'])).toBe('')
+  const cleanup = spy.mock.calls
+    .map(([, args]) => args)
+    .filter(
+      (args) =>
+        (args[0] === 'worktree' && args[1] === 'remove') ||
+        (args[0] === 'update-ref' && args[1] === '-d'),
+    )
+  expect(cleanup).toEqual([
+    ['worktree', 'remove', path],
+    ['update-ref', '-d', 'refs/heads/tracked-failure', await run(['rev-parse', 'main'])],
+  ])
+})
+
+it('fresh remove failure surfaces the original error after guarded ref cleanup, without force', async () => {
+  await commitTrackedFile()
+  const logs: unknown[] = []
+  const folder = await prepareLaneFolder({
+    root,
+    worktree: { branch: 'remove-failure', fresh: true },
+    log: (_scope, message, data) => logs.push({ message, data }),
+  })
+  const realGit = exec.git
+  const failure = new Error('private worktree removal details')
+  const spy = vi
+    .spyOn(exec, 'git')
+    .mockImplementation((cwd, args, options) =>
+      args[0] === 'worktree' && args[1] === 'remove'
+        ? Promise.reject(failure)
+        : realGit(cwd, args, options),
+    )
+  await expect(folder.undo()).rejects.toBe(failure)
+  expect(await run(['for-each-ref', 'refs/heads/remove-failure'])).toBe('')
+  expect(existsSync(folder.cwd)).toBe(true)
+  expect(await run(['worktree', 'list', '--porcelain'])).toContain(folder.cwd)
+  expect(spy.mock.calls.some(([, args]) => args.includes('--force'))).toBe(false)
+  expect(logs).toEqual([{ message: 'lane.worktree_undo_failed', data: {} }])
+})
+
+it('fresh tracked-worktree cleanup preserves a ref moved by another creator', async () => {
+  await commitTrackedFile()
+  const folder = await prepareLaneFolder({
+    root,
+    worktree: { branch: 'tracked-moved', fresh: true },
+  })
+  await run(['commit', '--allow-empty', '-m', 'next'])
+  const next = await run(['rev-parse', 'main'])
+  await run(['update-ref', 'refs/heads/tracked-moved', next])
+  await folder.undo()
+  expect(existsSync(folder.cwd)).toBe(false)
+  expect(await run(['worktree', 'list', '--porcelain'])).not.toContain(folder.cwd)
+  expect(await run(['rev-parse', 'tracked-moved'])).toBe(next)
+})

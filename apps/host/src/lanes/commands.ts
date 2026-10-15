@@ -409,6 +409,8 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
             )
           } catch (error) {
             if (error instanceof LaneCapacityReached) return { capacity: true }
+            if (error instanceof LaneFolderError && error.code === 'branch-exists')
+              return { branchExists: true }
             const code =
               typeof error === 'object' && error !== null && 'code' in error
                 ? error.code
@@ -440,6 +442,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
         if (!result.answered)
           return terminal(job, { requestId, status: 'unknown' }, true, result.reason)
         if (result.value.capacity) return rejected(job, 'too-many-requests', true)
+        if (result.value.branchExists) return rejected(job, 'branch-exists', true)
         if (result.value.error)
           return terminal(job, { requestId, status: 'failed', error: result.value.error }, true)
         const created = result.value.lane

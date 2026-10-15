@@ -48,6 +48,9 @@ function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/** Only a definitive fresh-branch rejection authorizes a new create request. */
+class FreshBranchExists extends Error {}
+
 export function isRemoteHandle(id: string): boolean {
   return /^remote-[0-9a-f]{16}$/.test(id)
 }
@@ -279,6 +282,13 @@ export function createRemoteLanes(ports: {
       !c.snapshot().capabilities.includes('sessions.control')
     )
       throw new Error(REMOTE_UNAVAILABLE)
+    if (
+      op.type === 'lane.create' &&
+      op.worktree?.fresh &&
+      result.status === 'rejected' &&
+      result.code === 'branch-exists'
+    )
+      throw new FreshBranchExists('branch-exists')
     const response = receiptResponse(op.type, result, ports.label(hostId))
     if (!response.success) throw new Error(response.error)
     return result
@@ -385,11 +395,15 @@ export function createRemoteLanes(ports: {
       }
     },
     async create(window: RemoteWindow, hostId: string, input: RemoteLaneCreate) {
+      // Do not carry Host error details or causes across IPC.
       const result = await mutate(hostId, undefined, {
         ...input,
         type: 'lane.create',
         worktree: input.worktree ?? null,
-      })
+      }).catch((error: unknown) =>
+        error instanceof FreshBranchExists ? 'branch-exists' : 'Lane creation not confirmed.',
+      )
+      if (typeof result === 'string') throw new Error(result)
       if (result.status !== 'done' || !result.laneId)
         throw new Error('Lane creation not confirmed.')
       return open(window, hostId, result.laneId)

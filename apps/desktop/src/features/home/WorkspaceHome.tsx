@@ -1,3 +1,5 @@
+import { remoteBranchName } from './remoteBranchName'
+import { rememberRemoteRepository, useRemoteComposer } from './remoteComposer'
 import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
 import { HostHome } from './HostHome'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
@@ -43,9 +45,20 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   const [composerMachine, setComposerMachine] = useComposerMachine()
   const remoteHost = useRemoteLanesStore((s) => s.hosts[composerMachine])
   const selection = useRemoteModel(composerMachine === 'local' ? '' : composerMachine)
+  const target = useRemoteComposer((s) => s.target)
   const [repository, setRepository] = useState<{ hostId: string; id: string } | null>(null)
   const repositoryId =
-    repository?.hostId === composerMachine ? repository.id : (remoteHost?.repositories[0]?.id ?? '')
+    repository?.hostId === composerMachine
+      ? repository.id
+      : target?.hostId === composerMachine
+        ? target.repositoryId
+        : (remoteHost?.repositories[0]?.id ?? '')
+  useEffect(() => {
+    if (!target) return
+    setComposerMachine(target.hostId)
+    setRepository({ hostId: target.hostId, id: target.repositoryId })
+    textareaRef.current?.focus()
+  }, [target])
   const [addingFolder, setAddingFolder] = useState(false)
   useEffect(() => setAddingFolder(false), [composerMachine])
   const [stats, setStats] = useState<WorkspaceSessionStats | null>(null)
@@ -168,6 +181,14 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           composerMachine,
           {
             repositoryId,
+            ...(isolate
+              ? {
+                  worktree: {
+                    branch: remoteBranchName(message),
+                    fresh: true,
+                  },
+                }
+              : {}),
             provider: selection.model.provider,
             model: selection.model.id,
             thinkingLevel: selection.thinking,
@@ -179,8 +200,14 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               useDraftsStore.getState().clear(draftKey)
           },
         )
-      } catch {
-        const error = 'The Host could not confirm this. Check the lane before retrying.'
+      } catch (failure) {
+        const code = ipcErrorText(failure)
+        const error =
+          code === 'branch-name-exhausted'
+            ? `Couldn't find a free branch name on ${machineLabel(composerMachine)}.`
+            : code === 'branch-prefix-too-long'
+              ? 'Branch prefix is too long for a Host worktree. Shorten it in Settings.'
+              : 'The Host could not confirm this. Check the lane before retrying.'
         setWarning(error)
         useExtensionUiStore.getState().pushToast(error, 'warning')
       } finally {
@@ -315,12 +342,18 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
                 ]}
                 onChange={(id) => {
                   if (id === '__add__') setAddingFolder(true)
-                  else setRepository({ hostId: composerMachine, id })
+                  else {
+                    rememberRemoteRepository(composerMachine, id)
+                    setRepository({ hostId: composerMachine, id })
+                  }
                 }}
               >
                 {remoteHost?.repositories.find((repo) => repo.id === repositoryId)?.name ??
                   'Choose repository'}
               </ChoiceMenu>
+            )}
+            {composerMachine !== 'local' && (
+              <IsolateToggle checked={isolate} disabled={remoteBusy} />
             )}
             {composerMachine === 'local' && (
               <>
@@ -341,7 +374,10 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               key={composerMachine}
               hostId={composerMachine}
               onClose={() => setAddingFolder(false)}
-              onAdded={(id) => setRepository({ hostId: composerMachine, id })}
+              onAdded={(id) => {
+                rememberRemoteRepository(composerMachine, id)
+                setRepository({ hostId: composerMachine, id })
+              }}
             />
           )}
           <ComposerInput
@@ -380,7 +416,14 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             actions={
               <SubmitIconButton
                 busy={starting || remoteBusy}
-                disabled={!text.trim() && images.length === 0}
+                disabled={
+                  (!text.trim() && images.length === 0) ||
+                  (composerMachine !== 'local' &&
+                    (!repositoryId ||
+                      !selection.model ||
+                      remoteHost?.state !== 'ready' ||
+                      !remoteHost.capabilities.includes('sessions.control')))
+                }
                 onClick={() => void start()}
                 label="Start session"
               />
@@ -421,7 +464,7 @@ function IsolateToggle({
 }: {
   checked: boolean
   disabled: boolean
-  workspacePath: string
+  workspacePath?: string
 }): React.JSX.Element {
   const trunk = useStartPoint(workspacePath)
   return (
@@ -429,7 +472,9 @@ function IsolateToggle({
       {...tooltipProps(
         checked
           ? {
-              label: `New worktree off ${trunk ?? 'main'}`,
+              label: workspacePath
+                ? `New worktree off ${trunk ?? 'main'}`
+                : 'New worktree off the default branch',
               description: 'Not the folder shown beside it',
             }
           : { label: 'Run in the open folder', description: 'On its current branch' },
@@ -465,10 +510,11 @@ function IsolateToggle({
  * Read from `git:startPoint`, the same call `startChat` makes, so the label
  * and the behaviour cannot disagree.
  */
-function useStartPoint(workspacePath: string): string | null {
+function useStartPoint(workspacePath?: string): string | null {
   const [trunk, setTrunk] = useState<string | null>(null)
   useEffect(() => {
     let cancelled = false
+    if (!workspacePath) return
     void window.phosphor
       .invoke('git:startPoint', workspacePath)
       .then((point) => {
