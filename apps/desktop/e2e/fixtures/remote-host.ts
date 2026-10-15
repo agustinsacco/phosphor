@@ -1,4 +1,4 @@
-import { expect } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import { spawn, execFileSync } from 'node:child_process'
 import { once } from 'node:events'
 import { generateKeyPairSync, randomBytes, randomUUID, sign } from 'node:crypto'
@@ -8,6 +8,7 @@ import { createServer as createProxy, connect, type Socket } from 'node:net'
 import { join, resolve } from 'node:path'
 import { Receiver, WebSocket } from 'ws'
 import { watch } from 'node:fs'
+import { Transform } from 'node:stream'
 import { encodeGrant } from '../../../../libs/shared/src/host-grant'
 import type { RoutineInput } from '../../../../libs/shared/src/routines-types'
 import { HOST_CAPABILITIES } from '../../../../libs/shared/src/remote-host'
@@ -48,6 +49,8 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
   const observedCommands: Extract<ClientFrame, { type: 'command' }>[] = []
   const transportCleanup = new Set<() => void>()
   let holdReplies = false
+  let dropClientBytes = false
+  let hostOutput = ''
   let interrupted = false
   let hostPort = 0
   const proxy = createProxy((socket) => {
@@ -103,8 +106,14 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
         socket.on('close', () => receiver.destroy())
         receiver.write(Buffer.from(body))
       }
-      upstream.write(body)
-      socket.pipe(upstream)
+      if (!dropClientBytes) upstream.write(body)
+      const traffic = new Transform({
+        transform(chunk, _encoding, done) {
+          done(null, dropClientBytes ? undefined : chunk)
+        },
+      })
+      socket.on('close', () => traffic.destroy())
+      socket.pipe(traffic).pipe(upstream)
     }
     socket.on('data', first)
     upstream.pipe(socket)
@@ -113,9 +122,12 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
   const severConnection = () => {
     interrupted = true
     for (const socket of sockets) socket.destroy()
-    const bound = setTimeout(() => {
-      interrupted = false
-    }, 4000)
+    const bound = setTimeout(
+      () => {
+        interrupted = false
+      },
+      process.env.CI ? 30_000 : 10_000,
+    )
     return () => {
       clearTimeout(bound)
       interrupted = false
@@ -135,9 +147,21 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
   }
   // Independent steps: a failed Electron close never skips the Host kill or the directory.
   const close = async () => {
-    for (const cleanup of transportCleanup) cleanup()
     const errors: unknown[] = []
     const step = (run: () => Promise<unknown>) => run().catch((e) => errors.push(e))
+    await step(async () => {
+      if (!h) return
+      const info = test.info()
+      await info.attach('host.log', { body: hostOutput, contentType: 'text/plain' })
+      const desktopLog = await readFile(join(h.userData, 'logs', 'phosphor.log'), 'utf8').catch(
+        () => '',
+      )
+      await info.attach('desktop-before-host-stop.log', {
+        body: desktopLog.slice(-131072),
+        contentType: 'text/plain',
+      })
+    })
+    for (const cleanup of transportCleanup) cleanup()
     await step(async () => peer?.terminate())
     await step(stopHost)
     await step(async () => h?.close())
@@ -344,11 +368,16 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
         },
       )
       let output = ''
+      child.on('exit', (code, signal) => {
+        hostOutput += `\nHost exit code=${code} signal=${signal}\n`
+      })
       child.stdout?.on('data', (chunk: Buffer) => {
         output = (output + chunk.toString()).slice(-8192)
+        hostOutput = (hostOutput + chunk.toString()).slice(-131072)
       })
       child.stderr?.on('data', (chunk: Buffer) => {
         output = (output + chunk.toString()).slice(-8192)
+        hostOutput = (hostOutput + chunk.toString()).slice(-131072)
       })
       await expect
         .poll(async () => {
@@ -513,6 +542,7 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
       await repositoryId()
     }
     const desktop = h
+    desktop.page.setDefaultTimeout(process.env.CI ? 30_000 : 10_000)
     return {
       ...desktop,
       get app() {
@@ -535,6 +565,18 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
       restartHost,
       command,
       severConnection,
+      dropClientTraffic: () => {
+        dropClientBytes = true
+        const restore = () => {
+          dropClientBytes = false
+          clearTimeout(bound)
+          transportCleanup.delete(restore)
+        }
+        const bound = setTimeout(restore, process.env.CI ? 30_000 : 10_000)
+        transportCleanup.add(restore)
+        return restore
+      },
+      writeRequests: () => observedCommands.filter((frame) => frame.op.type === 'files.write'),
       // Pause real Host replies before submission, then cut only once its disk write lands.
       loseWriteReceipt: (path: string, content: string) => {
         holdReplies = true

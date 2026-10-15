@@ -99,10 +99,40 @@ test('Remote artifacts and Skills are useful read-only pages', async ({
     await expect(
       preview.getByRole('heading', { name: 'HOST_A_ONLY version 2', exact: true }),
     ).toBeVisible()
-    await h.page.getByRole('combobox', { name: 'Version', exact: true }).selectOption('1')
-    await expect(
-      preview.getByRole('heading', { name: 'HOST_A_ONLY version 1', exact: true }),
-    ).toBeVisible()
+    try {
+      await h.page.getByRole('combobox', { name: 'Version', exact: true }).selectOption('1')
+      await expect(h.page.getByRole('combobox', { name: 'Version', exact: true })).toHaveValue('1')
+      await expect(
+        preview.getByRole('heading', { name: 'HOST_A_ONLY version 1', exact: true }),
+      ).toBeVisible()
+      await chat.fill('PHX-pinprobe')
+      await chat.press('Enter')
+      await expect(h.page.locator('main').getByText('PHX-pinprobe', { exact: true })).toHaveCount(2)
+      await expect(h.page.locator('button[aria-label="Stop"]')).toBeHidden()
+      await expect(h.page.getByRole('combobox', { name: 'Version', exact: true })).toHaveValue('1')
+      await expect(
+        preview.getByRole('heading', { name: 'HOST_A_ONLY version 1', exact: true }),
+      ).toBeVisible()
+    } catch (error) {
+      await info.attach('artifact-before-teardown.json', {
+        body: JSON.stringify({
+          banner: await h.page
+            .getByRole('banner')
+            .innerText({ timeout: 1000 })
+            .catch(() => 'unavailable'),
+          version: await h.page
+            .getByRole('combobox', { name: 'Version', exact: true })
+            .inputValue({ timeout: 1000 })
+            .catch(() => 'unavailable'),
+          preview: await preview
+            .locator('body')
+            .innerText({ timeout: 1000 })
+            .catch(() => 'unavailable'),
+        }),
+        contentType: 'application/json',
+      })
+      throw error
+    }
     await captures(h, info, 'remote-artifacts-pane')
     await h.page.getByRole('button', { name: 'Artifacts', exact: true }).first().click()
     await expect(h.page.getByTestId('global-page')).toContainText('HOST_A_ONLY card')

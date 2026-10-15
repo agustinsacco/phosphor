@@ -21,19 +21,22 @@ export function RemoteArtifactsPane({
   const summary = JSON.stringify(host?.lanes.find((l) => l.laneId === laneId))
   const available = host?.state === 'ready' && host.capabilities.includes('artifacts.read')
   const [failed, setFailed] = useState(false)
+  // The session whose Host list has loaded at least once while available. Later refreshes
+  // (turn ends, reconnects, epoch changes) replace the list in place and keep the viewer
+  // mounted, so a pinned version survives them. Only a lane switch or losing the Host
+  // returns to the loading shell, which keeps another lane's artifacts from showing.
   const [loaded, setLoaded] = useState<string | null>(null)
   const epoch = host?.cursor?.epoch
   const connection = host?.connectionToken
-  const requestKey = JSON.stringify([sessionId, summary, epoch, connection])
   useEffect(() => {
     let alive = true
-    setLoaded(null)
     setFailed(false)
-    if (available)
+    if (!available) setLoaded(null)
+    else
       void refreshRemoteArtifacts(sessionId)
         .then((applied) => {
           if (alive) {
-            if (applied) setLoaded(requestKey)
+            if (applied) setLoaded(sessionId)
             else setFailed(true)
           }
         })
@@ -43,8 +46,8 @@ export function RemoteArtifactsPane({
     return () => {
       alive = false
     }
-  }, [available, sessionId, summary, epoch, connection, requestKey])
-  if (!available || loaded !== requestKey)
+  }, [available, sessionId, summary, epoch, connection])
+  if (!available || failed || loaded !== sessionId)
     return (
       <PaneShell
         title={

@@ -7,7 +7,18 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { mockRemoteInfo } from '@/dev/mockRemoteLanes'
-vi.mock('./ArtifactsPane', () => ({ ArtifactsPane: () => <p>Artifact viewer</p> }))
+const viewer = vi.hoisted(() => ({ mounts: 0 }))
+vi.mock('./ArtifactsPane', async () => {
+  const { useEffect } = await import('react')
+  return {
+    ArtifactsPane: () => {
+      useEffect(() => {
+        viewer.mounts++
+      }, [])
+      return <p>Artifact viewer</p>
+    },
+  }
+})
 it('requires ready artifact capability and discards replies after capability loss', async () => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
   const hostId = mockRemoteInfo.target?.kind === 'remote' ? mockRemoteInfo.target.hostId : ''
@@ -112,3 +123,72 @@ it.each(['missing capability', 'failed refresh'] as const)(
     }
   },
 )
+
+it('keeps the viewer mounted across later refreshes and reloads only on a lane switch', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const hostId = mockRemoteInfo.target?.kind === 'remote' ? mockRemoteInfo.target.hostId : ''
+  const sessionId = mockRemoteInfo.sessionId
+  const other = `${sessionId}-other`
+  const live = { ...mockRemoteInfo, phosphorId: sessionId }
+  useSessionsStore.setState({
+    activeSessionId: sessionId,
+    live: { [sessionId]: live, [other]: { ...live, phosphorId: other, laneId: 'lane-other' } },
+  })
+  const pending: Array<(value: []) => void> = []
+  const invoke = vi.fn(() => new Promise<[]>((r) => pending.push(r)))
+  vi.stubGlobal('phosphor', { invoke })
+  const lane = { laneId: mockRemoteInfo.laneId, title: 'one' }
+  const view = {
+    connectionToken: 'test-connection-1',
+    state: 'ready' as const,
+    capabilities: ['artifacts.read'],
+    lanes: [lane],
+    repositories: [],
+  }
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  viewer.mounts = 0
+  const render = (id: string) =>
+    root.render(<RemoteArtifactsPane sessionId={id} workspacePath={mockRemoteInfo.workspacePath} />)
+  try {
+    await act(async () => {
+      useRemoteLanesStore.setState({ hosts: { [hostId]: view as never } })
+      render(sessionId)
+    })
+    expect(container.textContent).toContain('Loading artifacts')
+    await act(async () => pending.shift()?.([]))
+    expect(container.textContent).toContain('Artifact viewer')
+    expect(viewer.mounts).toBe(1)
+    // A turn end changes the lane summary; a reconnect changes the connection token.
+    await act(async () =>
+      useRemoteLanesStore.setState({
+        hosts: { [hostId]: { ...view, lanes: [{ ...lane, title: 'two' }] } as never },
+      }),
+    )
+    await act(async () =>
+      useRemoteLanesStore.setState({
+        hosts: {
+          [hostId]: {
+            ...view,
+            connectionToken: 'test-connection-2',
+            lanes: [{ ...lane, title: 'two' }],
+          } as never,
+        },
+      }),
+    )
+    // Refreshes coalesce per lane: one read in flight, one more queued.
+    expect(invoke).toHaveBeenCalledTimes(2)
+    expect(container.textContent).toContain('Artifact viewer')
+    for (let i = 0; i < 5 && pending.length; i++) await act(async () => pending.shift()?.([]))
+    expect(invoke).toHaveBeenCalledTimes(3)
+    expect(container.textContent).toContain('Artifact viewer')
+    expect(viewer.mounts).toBe(1)
+    await act(async () => render(other))
+    expect(container.textContent).toContain('Loading artifacts')
+    expect(container.textContent).not.toContain('Artifact viewer')
+  } finally {
+    act(() => root.unmount())
+    useRemoteLanesStore.setState({ hosts: {} })
+    vi.unstubAllGlobals()
+  }
+})

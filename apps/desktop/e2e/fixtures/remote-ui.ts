@@ -4,7 +4,6 @@ import type { remoteHostFixture } from './remote-host'
 export type RemoteFixture = Awaited<ReturnType<typeof remoteHostFixture>>
 
 export async function openRemote(h: RemoteFixture, title = 'Remote test lane') {
-  h.page.setDefaultTimeout(4000)
   const switcher = h.page.getByRole('button', { name: 'Machine filter', exact: true })
   await switcher.click()
   await h.page.getByRole('option').filter({ hasText: 'bee1' }).click()
@@ -28,14 +27,11 @@ export async function sendTurn(h: RemoteFixture, value: string, reply = value) {
 }
 
 export async function files(h: RemoteFixture) {
-  await expect(async () => {
-    if (!(await h.page.getByText('Explorer', { exact: true }).isVisible()))
-      await h.page.getByRole('button', { name: /^Files pane/ }).click()
-    await expect(h.page.getByText('Explorer', { exact: true })).toBeVisible({ timeout: 500 })
-  }).toPass({ timeout: 4000, intervals: [100] })
+  await pane(h, 'Files')
+  await expect(h.page.getByText('Explorer', { exact: true })).toBeVisible()
 }
 
-export async function file(h: RemoteFixture, name: string) {
+export function fileRow(h: RemoteFixture, name: string) {
   const parts = name.split('/')
   const basename = parts.at(-1) ?? name
   let row = h.page
@@ -50,7 +46,13 @@ export async function file(h: RemoteFixture, name: string) {
         .filter({ hasText: parts.at(-2) }),
     })
   }
+  return row
+}
+
+export async function file(h: RemoteFixture, name: string) {
+  const row = fileRow(h, name)
   await row.click()
+  await expect(row).toHaveClass(/bg-accent-soft/)
 }
 
 export async function pathPrompt(h: RemoteFixture, action: string, path: string) {
@@ -64,18 +66,17 @@ export async function pathPrompt(h: RemoteFixture, action: string, path: string)
 
 export async function edit(h: RemoteFixture, content: string) {
   const input = h.page.locator('.monaco-editor [role="textbox"]').first()
+  await expect(input).toBeEditable()
   await input.focus()
+  await expect(input).toBeFocused()
   await input.press('ControlOrMeta+A')
   // One text-input event avoids cursor moves between React's controlled-value updates.
   await h.page.keyboard.insertText(content)
   await expect(h.page.locator('.monaco-editor .view-lines').first()).toContainText(content)
-  await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled({
-    timeout: 3000,
-  })
+  await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toBeEnabled()
 }
 
 export async function selectMachine(h: RemoteFixture, name: string) {
-  h.page.setDefaultTimeout(4000)
   await h.page.getByRole('button', { name: 'Machine filter', exact: true }).first().click()
   await h.page.getByRole('option').filter({ hasText: name }).click()
 }

@@ -1,8 +1,8 @@
 import { desktopElectronLaunchOptions } from '../../../../tools/scripts/desktop-electron-launch.mjs'
-import { expect, _electron as electron } from '@playwright/test'
+import { expect, test, _electron as electron } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, rm, writeFile, readFile } from 'node:fs/promises'
 import {
   createServer,
   type IncomingHttpHeaders,
@@ -14,6 +14,10 @@ import { MACHINE, LOOKUP } from '../../src/features/machines/__fixtures__/contro
 import type { MachineView } from '../../../../libs/shared/src/control-api'
 import { scratchDir } from './scratch'
 import { configureTestTeardown } from './shutdown'
+
+// Native quit awaits pi dispose() in libs/session-runtime/src/pi/rpc-client.ts (3 s)
+// and QUIT_WAIT_MS in apps/desktop/electron/account/account.ts (10 s), plus IPC/exit margin.
+const DESKTOP_CLOSE_TIMEOUT_MS = 3_000 + 10_000 + 2_000
 
 /** Disposable loopback-only Auth and directory. No keychain or hosted service. */
 export async function accountControlFixture(
@@ -214,6 +218,13 @@ export async function accountControlFixture(
     const stop = async () => {
       if (!running) return
       const child = app.process()
+      const desktopLog = await readFile(join(userData, 'logs', 'phosphor.log'), 'utf8').catch(
+        () => '',
+      )
+      await test
+        .info()
+        .attach('desktop.log', { body: desktopLog.slice(-131072), contentType: 'text/plain' })
+        .catch((error) => console.warn('Could not attach Desktop log:', error))
       // Capture descendants before close: a crashing parent can orphan its helpers.
       // Best effort: a failed listing still leaves the Electron pid for the kill fallback.
       let rows: number[][] = []
@@ -230,11 +241,15 @@ export async function accountControlFixture(
         rows.flatMap(([pid, ppid]) => (ppid === parent ? [...tree(pid), pid] : []))
       const pids = child.pid ? [...tree(child.pid), child.pid] : []
       let timer: ReturnType<typeof setTimeout> | undefined
+      const closeStarted = performance.now()
       try {
         await Promise.race([
           app.close(),
           new Promise<never>((_, reject) => {
-            timer = setTimeout(() => reject(new Error('Electron close timed out')), 3000)
+            timer = setTimeout(
+              () => reject(new Error('Electron close timed out')),
+              DESKTOP_CLOSE_TIMEOUT_MS,
+            )
           }),
         ])
         await expect.poll(() => child.exitCode !== null || child.signalCode !== null).toBe(true)
@@ -254,6 +269,11 @@ export async function accountControlFixture(
         throw error
       } finally {
         clearTimeout(timer)
+        const duration = Math.round(performance.now() - closeStarted)
+        test.info().annotations.push({
+          type: duration > 3_000 ? 'slow-desktop-close' : 'desktop-close',
+          description: `${duration} ms`,
+        })
       }
     }
     cleanups.push(stop)
@@ -277,7 +297,10 @@ export async function accountControlFixture(
     })
   const startSignIn = async (): Promise<string> => {
     const count = (await opened()).length
-    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+    const signIn = page.getByRole('button', { name: 'Sign in', exact: true })
+    await signIn.focus()
+    await expect(signIn).toBeFocused()
+    await signIn.press('Enter')
     await page.getByRole('button', { name: 'Sign in with GitHub', exact: true }).click()
     await expect(page.getByTestId('account-footer')).toContainText('Finish in your browser')
     await expect.poll(async () => (await opened()).length).toBe(count + 1)
