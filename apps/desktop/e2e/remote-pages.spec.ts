@@ -207,8 +207,11 @@ test('Remote routine creation uses Host models and reports history', async () =>
     await saved.getByRole('checkbox').check()
     await saved.getByRole('button', { name: 'Enable on bee1', exact: true }).click()
     await h.page.getByRole('button', { name: 'Run now', exact: true }).click()
-    await expect(h.page.getByRole('button', { name: 'Cancel run', exact: true })).toBeVisible()
-    await h.page.getByRole('button', { name: 'Cancel run', exact: true }).click()
+    const cancel = h.page.getByRole('button', { name: 'Cancel run', exact: true })
+    await expect(cancel).toBeVisible()
+    await cancel.focus()
+    await expect(cancel).toBeFocused()
+    await cancel.press('Enter')
     await expect(h.page.locator('main li').filter({ hasText: 'Cancelled' })).toHaveCount(1)
   } finally {
     await h.close()

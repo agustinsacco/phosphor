@@ -381,7 +381,9 @@ function prompt(message, images = []) {
   if (/stream|count|slow/i.test(message) || process.env.FAKE_PI_STALL) {
     if (process.env.FAKE_PI_STALL) writeFileSync(process.env.FAKE_PI_STALL, String(process.pid))
     const releaseFile = /^slow-until (.+)$/.exec(message)?.[1]
-    const deadline = Date.now() + 10000
+    // Safety bound only: callers release or cancel the turn. It must outlast a slow
+    // runner's UI action, or the turn ends before the test can act on it.
+    const deadline = Date.now() + 60000
     let count = 0
     streaming = { user: message, reply: '' }
     streaming.timer = setInterval(() => {
