@@ -129,8 +129,7 @@ test('Switcher drives pages; page override resets and never revives Mac data', a
   }
 })
 
-// parity fix: remote model per lane after cross-provider switch
-test.fixme('Remote Files, Changes, controls, model and error surfaces refresh A→B→A', async () => {
+test('Remote Files, Changes, controls, model and error surfaces refresh A→B→A', async () => {
   test.setTimeout(25_000)
   const h = await remoteHostFixture()
   try {
