@@ -5,7 +5,7 @@ import { TooltipButton } from '@/components/Tooltip'
 import { memo } from 'react'
 import clsx from 'clsx'
 import { useLayoutStore, sessionPanes, type RightPane as RightPaneId } from '@/stores/layout'
-import { PaneShell } from '@/components/PaneShell'
+import { PaneShell, PaneTitle } from '@/components/PaneShell'
 import { FilesPane } from './FilesPane'
 import { RemoteFilesPane } from './RemoteFilesPane'
 import { FilesChangedPane } from './FilesChangedPane'
@@ -35,35 +35,6 @@ export const RightPane = memo(function RightPane({
   const side = useLayoutStore((s) => sessionPanes(s, sessionId).side)
   const expanded = useLayoutStore((s) => sessionPanes(s, sessionId).expanded)
   if (!rightPane) return null
-  if (remote)
-    return (
-      <PaneShell
-        title={
-          <>
-            <span>{rightPane}</span>
-            <MachineChip sessionId={sessionId} />
-          </>
-        }
-      >
-        {host?.state !== 'ready' ? (
-          <p className="p-4">{host ? REMOTE_NOT_READY : REMOTE_UNAVAILABLE}</p>
-        ) : rightPane === 'terminal' && host.capabilities.includes('terminal') ? (
-          <TerminalPane sessionId={sessionId} workspacePath={workspacePath} />
-        ) : rightPane === 'files' || rightPane === 'changes' ? (
-          <RemoteFilesPane
-            key={sessionId}
-            workspacePath={workspacePath}
-            sessionId={sessionId}
-            changes={rightPane === 'changes'}
-          />
-        ) : rightPane === 'artifacts' ? (
-          <RemoteArtifactsPane sessionId={sessionId} workspacePath={workspacePath} />
-        ) : (
-          <p className="p-4">{REMOTE_UNAVAILABLE}</p>
-        )}
-      </PaneShell>
-    )
-
   return (
     // Gutter + rounded card so the pane reads as a panel resting on the app
     // background rather than a flush column welded to the window edge. The
@@ -78,25 +49,91 @@ export const RightPane = memo(function RightPane({
         data-testid="right-pane"
         className="border-border bg-surface flex h-full flex-col overflow-hidden rounded-md border"
       >
-        {rightPane === 'files' && (
+        {remote && (
+          // Same card and headers as This Mac. Terminal and Artifacts bring their own
+          // header; Files/Changes and the fixed refusals add the machine chip.
+          <RemotePaneBody
+            pane={rightPane}
+            sessionId={sessionId}
+            workspacePath={workspacePath}
+            ready={host?.state === 'ready'}
+            known={!!host}
+            terminal={!!host?.capabilities.includes('terminal')}
+          />
+        )}
+        {!remote && rightPane === 'files' && (
           <PaneShell title={<PaneSwitcher active="files" />}>
             <FilesPane workspacePath={workspacePath} />
           </PaneShell>
         )}
-        {rightPane === 'changes' && (
+        {!remote && rightPane === 'changes' && (
           <PaneShell title={<PaneSwitcher active="changes" />}>
             <FilesChangedPane workspacePath={workspacePath} />
           </PaneShell>
         )}
-        {rightPane === 'terminal' && (
+        {!remote && rightPane === 'terminal' && (
           <TerminalPane sessionId={sessionId} workspacePath={workspacePath} />
         )}
-        {rightPane === 'artifacts' && <ArtifactsPane workspacePath={workspacePath} />}
-        {rightPane === 'subagents' && <SubagentPanel sessionId={sessionId} />}
+        {!remote && rightPane === 'artifacts' && (
+          <ArtifactsPane sessionId={sessionId} workspacePath={workspacePath} />
+        )}
+        {!remote && rightPane === 'subagents' && <SubagentPanel sessionId={sessionId} />}
       </div>
     </div>
   )
 })
+
+function RemotePaneBody({
+  pane,
+  sessionId,
+  workspacePath,
+  ready,
+  known,
+  terminal,
+}: {
+  pane: NonNullable<RightPaneId>
+  sessionId: string
+  workspacePath: string
+  ready: boolean
+  known: boolean
+  terminal: boolean
+}): React.JSX.Element {
+  if (pane === 'files' || pane === 'changes')
+    return (
+      <PaneShell
+        title={
+          <>
+            <PaneSwitcher active={pane} />
+            <MachineChip sessionId={sessionId} />
+          </>
+        }
+      >
+        <RemoteFilesPane
+          key={sessionId}
+          workspacePath={workspacePath}
+          sessionId={sessionId}
+          changes={pane === 'changes'}
+        />
+      </PaneShell>
+    )
+  if (ready && pane === 'artifacts')
+    return <RemoteArtifactsPane sessionId={sessionId} workspacePath={workspacePath} />
+  if (ready && pane === 'terminal' && terminal)
+    return <TerminalPane sessionId={sessionId} workspacePath={workspacePath} />
+  const label = { terminal: 'Terminal', artifacts: 'Artifacts', subagents: 'Subagents' }[pane]
+  return (
+    <PaneShell
+      title={
+        <>
+          <PaneTitle label={label} />
+          <MachineChip sessionId={sessionId} />
+        </>
+      }
+    >
+      <p className="p-4">{known && !ready ? REMOTE_NOT_READY : REMOTE_UNAVAILABLE}</p>
+    </PaneShell>
+  )
+}
 
 /**
  * Files ⇄ Changes are two views of the same "working tree" surface, so they

@@ -1,12 +1,12 @@
 import { TooltipButton } from '@/components/Tooltip'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { DateTime } from 'luxon'
 import clsx from 'clsx'
 import { RUN_LABELS, activeRun, type Routine, type RoutineRun } from '@shared/routines'
 import { Button } from '@/components/form'
 import { showMenuBelow } from '@/components/ContextMenu'
 import { MoreIcon } from '@/components/icons'
-import { useModelCatalogueStore } from '@/stores/modelCatalogue'
+import { useRoutineModels } from './useRoutineModels'
 import { ActivityAccordion } from './ActivityAccordion'
 
 const EYEBROW = 'text-text-tertiary font-mono text-xs uppercase tracking-wide'
@@ -89,10 +89,7 @@ interface RoutineDetailProps {
  */
 export function RoutineDetail(props: RoutineDetailProps): React.JSX.Element {
   const { routine, history, running, busy } = props
-  const models = useModelCatalogueStore((s) => s.models)
-  useEffect(() => {
-    void useModelCatalogueStore.getState().hydrate()
-  }, [])
+  const { models } = useRoutineModels(routine.machine?.id)
   const model = models.find((m) => m.id === routine.model && m.provider === routine.provider)
   const [instructions, setInstructions] = useState(false)
   const long = routine.instructions.split('\n').length > 4 || routine.instructions.length > 320
@@ -280,6 +277,11 @@ export function RoutineDetail(props: RoutineDetailProps): React.JSX.Element {
                   Started {time(run.startedAt, routine.timezone)} · Ended{' '}
                   {time(run.endedAt, routine.timezone)}
                 </p>
+                {!run.sessionId && (
+                  <p className="text-text-tertiary text-sm">
+                    Output not available from this machine yet
+                  </p>
+                )}
                 {activeRun(run) && (
                   <Button disabled={busy} onClick={() => props.onCancel(run)}>
                     Cancel run

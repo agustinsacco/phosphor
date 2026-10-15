@@ -124,3 +124,33 @@ describe('ContinueButton', () => {
     expect(piCommand).toHaveBeenCalledTimes(2)
   })
 })
+
+it('remote continue waits for the receipt and Host echo, with no optimistic duplicate', async () => {
+  const { useSessionsStore } = await import('@/stores/sessions')
+  const { useRemoteLanesStore } = await import('@/stores/remoteLanes')
+  const { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } = await import('@/dev/mockRemoteLanes')
+  const hosts = structuredClone(mockRemoteHosts)
+  hosts[MOCK_HOST_ID]!.lanes[0]!.control.controller = { self: true, label: 'You', connected: true }
+  useRemoteLanesStore.setState({ hosts })
+  useSessionsStore.setState({ live: { s1: { ...mockRemoteInfo, phosphorId: 's1' } } })
+  let finish: ((value: { success: boolean }) => void) | undefined
+  piCommand.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+  )
+  const button = render()
+  await act(async () => {
+    button.click()
+    button.click()
+  })
+  expect(piCommand).toHaveBeenCalledOnce()
+  expect(button.disabled).toBe(true)
+  expect(useChatStore.getState().sessions.s1?.items).toEqual([])
+  await act(async () => finish?.({ success: true }))
+  expect(useChatStore.getState().sessions.s1?.items).toEqual([])
+  act(() => useRemoteLanesStore.setState({ hosts: {} }))
+  expect(button.disabled).toBe(true)
+  useSessionsStore.setState({ live: {} })
+})

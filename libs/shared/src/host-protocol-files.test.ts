@@ -44,6 +44,22 @@ describe('host protocol files', () => {
       expect(parseFileParams(String(method), params)).toBeNull()
     for (const v of [null, [], 1, 'x']) expect(parseFileParams('files.list', v)).toBeNull()
   })
+  it('admits exactly one file scope, and never repository-scopes git', () => {
+    const repositoryId = '1234567890abcdef'
+    for (const method of ['files.list', 'files.read']) {
+      const path = method === 'files.read' ? { path: 'README.md' } : {}
+      expect(parseFileParams(method, { repositoryId, ...path })).toEqual({ repositoryId, ...path })
+      for (const scope of [
+        {},
+        { repositoryId, laneId },
+        { repositoryId: 'bad' },
+        { repositoryId, extra: true },
+      ])
+        expect(parseFileParams(method, { ...scope, ...path })).toBeNull()
+    }
+    for (const method of ['git.status', 'git.diff', 'git.show'])
+      expect(parseFileParams(method, { repositoryId })).toBeNull()
+  })
   it('validates result shapes and byte or entry caps', () => {
     expect(parseFileResult('files.read', { binary: true, size: 3 })).toEqual({
       binary: true,

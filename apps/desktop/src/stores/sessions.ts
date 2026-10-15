@@ -1,3 +1,6 @@
+import { refreshRemoteArtifacts } from '@/features/artifacts/remoteArtifactRefresh'
+import { clearRemoteFileDraft } from '@/features/files/remoteFileDrafts'
+import { releaseRemoteFileSelection } from '@/features/files/remoteFileSelectionStore'
 import { hostResourceKey } from '@shared/remote-host'
 import { create } from 'zustand'
 import type {
@@ -513,6 +516,7 @@ export async function bootstrapSession(phosphorId: string): Promise<void> {
  * command", which the picker already handles by deriving the levels locally.
  */
 export async function refreshThinkingLevels(phosphorId: string): Promise<void> {
+  if (useSessionsStore.getState().live[phosphorId]?.target?.kind === 'remote') return
   try {
     const response = await window.phosphor.piCommand(phosphorId, {
       type: 'get_available_thinking_levels',
@@ -538,7 +542,11 @@ async function autoNameSession(
   workspacePath: string,
   firstPrompt: string,
 ): Promise<void> {
-  if (!sessionIsOpen(phosphorId)) return
+  if (
+    !sessionIsOpen(phosphorId) ||
+    useSessionsStore.getState().live[phosphorId]?.target?.kind === 'remote'
+  )
+    return
   const existing = (useSessionsStore.getState().disk[workspacePath] ?? [])
     .map((m) => sessionTitle({ explicitName: m.name, firstUserText: m.firstUserText }))
     .filter((t): t is string => Boolean(t))
@@ -643,8 +651,11 @@ async function cleanupLocalSessionState(sessionId: string): Promise<void> {
 }
 
 export async function forgetRemoteSession(sessionId: string): Promise<void> {
-  if (useSessionsStore.getState().live[sessionId]?.target?.kind === 'remote')
+  if (useSessionsStore.getState().live[sessionId]?.target?.kind === 'remote') {
+    clearRemoteFileDraft(sessionId)
+    releaseRemoteFileSelection(sessionId)
     await cleanupLocalSessionState(sessionId)
+  }
 }
 
 function attachSessionPushHandler(phosphorId: string): void {
@@ -652,6 +663,7 @@ function attachSessionPushHandler(phosphorId: string): void {
     const chatStore = useChatStore.getState()
     switch (push.kind) {
       case 'resync':
+        void refreshRemoteArtifacts(phosphorId)
         void rehydrateTranscript(phosphorId).then(() => bootstrapSession(phosphorId))
         break
       case 'event': {
@@ -681,6 +693,8 @@ function attachSessionPushHandler(phosphorId: string): void {
               ),
           )
         }
+        if (push.event.type === 'tool_execution_end' && isArtifactWriteTool(push.event.toolName))
+          void refreshRemoteArtifacts(phosphorId)
         if (push.event.type === 'tool_execution_end') {
           // Bash can move/delete/create arbitrary paths, so its result cannot
           // name a safe minimal invalidation set. Re-read the root and loaded

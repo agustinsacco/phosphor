@@ -156,6 +156,10 @@ export const MonacoEditor = memo(function MonacoEditor({
     if (editor && currentPathRef.current === path) applyReveal(editor, path, reveal)
   }, [reveal?.seq, path])
 
+  useEffect(() => {
+    editorRef.current?.updateOptions({ readOnly })
+  }, [readOnly])
+
   // Theme switching.
   useEffect(() => {
     monacoRef.current?.editor.setTheme(monacoThemeFor(resolvedTheme))

@@ -23,10 +23,14 @@
 
 **Shortcut scope:** New, Find, Files and Changes work from the composer.
 Go to file also works from the editor and ordinary text fields; Ctrl+P remains
-shell history in terminals. Search in files works from any focus, the editor included.
-F6 moves between the composer and pane controls; in a fullscreen pane it
-focuses Exit fullscreen. Dialogs block app navigation (not zoom). IME/AltGr and
-editor-owned letter chords are never read as app commands. Bindings belong to
+shell history in terminals. Shortcuts also work on remote lanes: Go to file lists
+and opens only the lane's Host files, including line/column jumps. On Host home
+(no lane open), Go to file reports “Not available on remote lanes yet.”; it
+never indexes This Mac's home workspace. Search in files works from any focus, the editor included; on a remote lane it opens Files
+and reports “Not available on remote lanes yet.” without starting a local search.
+F6 moves between the composer and pane controls, including remote lane panes
+and the Host-home repository selector; in a fullscreen pane it focuses Exit
+fullscreen. Dialogs block app navigation (not zoom). IME/AltGr and editor-owned letter chords are never read as app commands. Bindings belong to
 the app document, not to artifact iframe contents.
 
 ### Top bar
@@ -38,9 +42,10 @@ files, changes, artifacts, subagents) and the session kebab. The terminal switch
 tab count and a running-process dot; the artifacts switch appears once the
 session has an artifact, with a count and an unseen dot.
 
-Everything right of the sidebar toggle is **session-only**. On the home screen
-the bar keeps its height and renders nothing else, because that screen puts the
-same folder and branch controls above its composer, where choosing them is the
+Everything right of the sidebar toggle is **session-only**, except the Files
+button on Host home. On This Mac's home screen the bar keeps its height and
+renders nothing else, because that screen puts the same folder and branch
+controls above its composer, where choosing them is the
 point. Two folder chips on one screen is two answers to one question.
 
 It is the **only** element allowed in the strip the OS draws window controls
@@ -400,7 +405,17 @@ The visual recipe lives in [style-guide.md](style-guide.md#action-hints).
 - **Command palette** (Cmd/Ctrl+K): new session, go to file, toggle sidebar
   and each pane, open the Artifacts/Skills pages, rewind, expand/collapse tool
   output, settings and keybindings, theme, open a folder, switch workspace,
-  open a session. Distinct from the chat `/` command menu.
+  open a session. On a remote lane, local folder/recents/disk-session commands,
+  rewind and global Artifacts/Skills page commands are omitted; lane navigation
+  lists that Host's lanes instead. The same filtering applies on Host home,
+  using the sidebar's selected machine rather than This Mac's home workspace.
+  Target switches refresh the command set.
+  Distinct from the chat `/` command menu.
+- **Host home Files**: with no lane open and a Host selected in the sidebar,
+  the top-bar Files button opens read-only configured-repository browsing.
+  Disconnected machines or missing `workspaces.read` disable it with a fixed
+  reason. Changing the switcher or opening a lane closes this home pane;
+  This Mac's home does not offer it.
 - **Empty states**: no workspace → onboarding card with folder picker; no
   sessions → "Describe a task…" hero; pi missing/outdated → setup screen with
   the install command.
@@ -478,3 +493,12 @@ editable label, then success with the run/service next step and View machine.
 Codes accept either case and an optional separator, format as four letters per
 group, and submit with Enter. Invalid, expired, rate-limited and network errors
 stay on the current step. Approval is enrollment, not a remote execution grant.
+
+### Remote workspace context
+
+An active Host lane's sidebar header shows its repository and machine names.
+Its menu offers Host folder registration, not This Mac's recent folders. Remote
+workspace group menus can remove the configuration entry with confirmation;
+files are kept. The folder browser uses the Host home as its root and never
+opens a local folder picker. Skills, Artifacts and Routines default to the sidebar
+machine, with a window-local page override reset by the next sidebar change.

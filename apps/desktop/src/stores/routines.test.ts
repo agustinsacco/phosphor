@@ -153,3 +153,43 @@ it('does not restart slow machine reads for unchanged directory notifications', 
   await Promise.resolve()
   expect(useRoutinesStore.getState().remote[machine.id]?.routines[0]?.id).toBe('slow')
 })
+
+it('keeps an available machine’s routines through a refresh until its read settles', async () => {
+  const machine = {
+    id: 'host:bee1',
+    label: 'bee1',
+    available: true,
+    control: true,
+    repositories: [],
+  }
+  let available = true
+  const reads: Array<(value: RoutinesSnapshot) => void> = []
+  vi.stubGlobal('window', {
+    phosphor: {
+      invoke: async (_channel: string, target?: string) => {
+        if (target) return new Promise<RoutinesSnapshot>((resolve) => reads.push(resolve))
+        const machines = [{ ...machine, available }]
+        return { routines: [local], runs: [], background: false, error: null, machines }
+      },
+    },
+  })
+  const settle = async (id: string) => {
+    reads.shift()?.({ routines: [{ ...local, id }], runs: [], background: false, error: null })
+    for (let i = 0; i < 3; i++) await Promise.resolve()
+  }
+  await useRoutinesStore.getState().refresh()
+  await settle('host:bee1/task')
+  await useRoutinesStore.getState().refresh()
+  expect(useRoutinesStore.getState().remote[machine.id]).toEqual({
+    routines: [expect.objectContaining({ id: 'host:bee1/task' })],
+    unavailable: false,
+  })
+  await settle('host:bee1/next')
+  expect(useRoutinesStore.getState().remote[machine.id]?.routines[0]?.id).toBe('host:bee1/next')
+  available = false
+  await useRoutinesStore.getState().refresh()
+  expect(useRoutinesStore.getState().remote[machine.id]).toEqual({
+    routines: [],
+    unavailable: true,
+  })
+})

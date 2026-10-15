@@ -1,3 +1,8 @@
+import {
+  bindRemoteHostView,
+  refreshRemoteArtifacts,
+  invalidateRemoteArtifactReads,
+} from '@/features/artifacts/remoteArtifactRefresh'
 import { create } from 'zustand'
 import type { HostConnectionView, HostsSnapshot } from '@shared/ipc'
 import type { LiveSessionInfo } from '@shared/models'
@@ -22,6 +27,17 @@ export function useActiveMachine(): HostTarget {
   return useSessionsStore((s) =>
     s.activeSessionId ? (s.live[s.activeSessionId]?.target ?? LOCAL) : LOCAL,
   )
+}
+
+/** Navigation follows the active lane, or the sidebar machine on home. */
+export function useNavigationHostId(): string | undefined {
+  const activeSessionId = useSessionsStore((s) => s.activeSessionId)
+  const target = useSessionsStore((s) =>
+    s.activeSessionId ? s.live[s.activeSessionId]?.target : undefined,
+  )
+  const filter = useRemoteLanesStore((s) => s.filter)
+  if (activeSessionId) return target?.kind === 'remote' ? target.hostId : undefined
+  return filter !== 'local' && filter !== 'all' ? filter : undefined
 }
 
 export function machineLabel(hostId: string): string {
@@ -58,6 +74,8 @@ export const useRemoteLanesStore = create<{
   setFilter: (filter) => set({ filter }),
 }))
 
+bindRemoteHostView((hostId) => useRemoteLanesStore.getState().hosts[hostId])
+
 // Window-local selection survives sidebar remounts, but not account or directory removal.
 useMachinesStore.subscribe((state, previous) => {
   const { filter, setFilter } = useRemoteLanesStore.getState()
@@ -74,8 +92,10 @@ export async function adoptRemoteLane(info: LiveSessionInfo, nav: number): Promi
   await useSessionsStore
     .getState()
     .adoptSession(info.sessionId, info.workspacePath, undefined, info)
-  if (useSessionsStore.getState().navSeq === nav)
+  if (useSessionsStore.getState().navSeq === nav) {
     useSessionsStore.getState().activate(info.sessionId)
+    await refreshRemoteArtifacts(info.sessionId)
+  }
 }
 
 export async function openRemoteLane(hostId: string, laneId: string): Promise<void> {
@@ -102,7 +122,21 @@ export function attachRemoteLanesListener(): () => void {
         dirty = false
         const hosts = await window.phosphor.invoke('hosts:snapshot')
         if (active) {
+          const previousHosts = useRemoteLanesStore.getState().hosts
           useRemoteLanesStore.setState({ hosts })
+          const currentId = useSessionsStore.getState().activeSessionId
+          const current = currentId ? useSessionsStore.getState().live[currentId] : undefined
+          if (currentId && current?.target?.kind === 'remote') {
+            const host = hosts[current.target.hostId]
+            const previous = previousHosts[current.target.hostId]
+            if (
+              host?.state === 'ready' &&
+              (previous?.state !== 'ready' ||
+                host.connectionToken !== previous.connectionToken ||
+                host.cursor?.epoch !== previous.cursor?.epoch)
+            )
+              void refreshRemoteArtifacts(currentId)
+          }
           for (const entry of Object.values(useSessionsStore.getState().live)) {
             if (
               entry.target?.kind === 'remote' &&
@@ -141,7 +175,11 @@ export function attachRemoteLanesListener(): () => void {
     void window.phosphor.invoke('hosts:setFocusedLane', target).catch(() => undefined)
   }
   const offFocus = useSessionsStore.subscribe((state, previous) => {
-    if (state.activeSessionId !== previous.activeSessionId) reportFocus()
+    if (state.activeSessionId !== previous.activeSessionId) {
+      invalidateRemoteArtifactReads()
+      reportFocus()
+      if (state.activeSessionId) void refreshRemoteArtifacts(state.activeSessionId)
+    }
   })
   reportFocus()
   const offChanged = window.phosphor.onHostsChanged(() => void refresh())
@@ -177,6 +215,7 @@ export function attachRemoteLanesListener(): () => void {
   void refresh()
   return () => {
     active = false
+    invalidateRemoteArtifactReads()
     offFocus()
     offChanged()
     offAttention()

@@ -240,7 +240,8 @@ const out = (obj) => {
  */
 const NAME_FLAG = process.argv.indexOf('-n')
 const SESSION_NAME =
-  NAME_FLAG !== -1 && process.argv[NAME_FLAG + 1] ? process.argv[NAME_FLAG + 1] : null
+  process.env.PHOSPHOR_E2E_SESSION_NAME ??
+  (NAME_FLAG !== -1 && process.argv[NAME_FLAG + 1] ? process.argv[NAME_FLAG + 1] : null)
 
 // A real session file on disk in the workspace, so the app's existence
 // check for the persisted resume target succeeds.
@@ -367,7 +368,7 @@ let compacting = false
 
 const MODEL = {
   id: 'stub-model',
-  name: 'Stub Model',
+  name: process.env.PHOSPHOR_E2E_SESSION_NAME ? 'LOCAL_ONLY Model' : 'Stub Model',
   api: 'stub',
   provider: MODEL_PROVIDER,
   reasoning: false,
@@ -800,6 +801,22 @@ function handle(cmd) {
       // Scenario switch, keyed off the prompt text: the default turn is what
       // most tests assert on, so extra scenarios must not change it.
       const message = typeof cmd.message === 'string' ? cmd.message : ''
+      if (message === 'LOCAL_ONLY fail-turn') {
+        const failed = {
+          role: 'assistant',
+          content: [],
+          stopReason: 'error',
+          errorMessage: 'LOCAL_ONLY provider error',
+        }
+        out({ type: 'agent_start' })
+        persist({ role: 'user', content: message })
+        out({ type: 'message_start', message: failed })
+        persist(failed)
+        out({ type: 'message_end', message: failed })
+        out({ type: 'agent_end', messages: [failed] })
+        out({ type: 'agent_settled', aborted: false })
+        break
+      }
       if (message === 'contextsources') {
         out({
           type: 'extension_ui_request',
@@ -1231,7 +1248,9 @@ function runTurn() {
           type: 'toolCall',
           id: 'call_art',
           name: 'artifact_create',
-          arguments: { title: 'E2E Card' },
+          arguments: {
+            title: process.env.PHOSPHOR_E2E_SESSION_NAME ? 'LOCAL_ONLY Card' : 'E2E Card',
+          },
         },
         {
           type: 'toolCall',
@@ -1272,7 +1291,7 @@ function runTurn() {
       type: 'tool_execution_start',
       toolCallId: 'call_art',
       toolName: 'artifact_create',
-      args: { title: 'E2E Card' },
+      args: { title: process.env.PHOSPHOR_E2E_SESSION_NAME ? 'LOCAL_ONLY Card' : 'E2E Card' },
     }),
   )
   push(() =>
@@ -1285,9 +1304,11 @@ function runTurn() {
         content: [{ type: 'text', text: 'Created artifact' }],
         details: {
           id: 'e2e-card',
-          title: 'E2E Card',
+          title: process.env.PHOSPHOR_E2E_SESSION_NAME ? 'LOCAL_ONLY Card' : 'E2E Card',
           type: 'html',
-          content: '<h1>E2E artifact</h1>',
+          content: process.env.PHOSPHOR_E2E_SESSION_NAME
+            ? '<h1>LOCAL_ONLY artifact</h1>'
+            : '<h1>E2E artifact</h1>',
           version: 1,
         },
       },

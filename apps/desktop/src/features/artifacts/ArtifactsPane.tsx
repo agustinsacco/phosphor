@@ -1,8 +1,8 @@
+import { REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { useArtifactsStore, type Artifact } from '@/stores/artifacts'
-import { useSessionsStore } from '@/stores/sessions'
 import { openFileInWorkspace } from '@/stores/layout'
 import { PaneShell, PaneTitle } from '@/components/PaneShell'
 import { PageShell } from '@/components/PageShell'
@@ -49,23 +49,18 @@ function findableView(mode: ViewMode, type: Artifact['type']): boolean {
 /** Right-pane Artifacts region: gallery + versioned viewer. */
 export const ArtifactsPane = memo(function ArtifactsPane({
   workspacePath,
+  sessionId,
 }: {
   workspacePath: string
+  sessionId: string
 }): React.JSX.Element {
-  const activeSessionId = useSessionsStore((s) => s.activeSessionId)
-  const artifacts = useArtifactsStore((s) =>
-    activeSessionId ? s.bySession[activeSessionId] : undefined,
-  )
-  const selectedId = useArtifactsStore((s) =>
-    activeSessionId ? s.selected[activeSessionId] : undefined,
-  )
-  const requestedVersion = useArtifactsStore((s) =>
-    activeSessionId ? s.selectedVersion[activeSessionId] : undefined,
-  )
+  const artifacts = useArtifactsStore((s) => s.bySession[sessionId])
+  const selectedId = useArtifactsStore((s) => s.selected[sessionId])
+  const requestedVersion = useArtifactsStore((s) => s.selectedVersion[sessionId])
 
   useEffect(() => {
-    if (activeSessionId) useArtifactsStore.getState().clearUnseen(activeSessionId)
-  })
+    useArtifactsStore.getState().clearUnseen(sessionId)
+  }, [sessionId, artifacts])
 
   const list = useMemo(
     () => Object.values(artifacts ?? {}).sort((a, b) => b.updatedAt - a.updatedAt),
@@ -73,7 +68,7 @@ export const ArtifactsPane = memo(function ArtifactsPane({
   )
   const selected = (selectedId && artifacts?.[selectedId]) || list[0]
 
-  if (!activeSessionId || !selected) {
+  if (!selected) {
     return (
       <PaneShell title={<PaneTitle label="Artifacts" />}>
         <div className="flex h-full items-center justify-center px-6">
@@ -90,11 +85,11 @@ export const ArtifactsPane = memo(function ArtifactsPane({
 
   return (
     <ArtifactWorkspace
-      key={selected.id}
+      key={`${sessionId}:${selected.id}`}
       artifact={selected}
       list={list}
       workspacePath={workspacePath}
-      onSelect={(id) => useArtifactsStore.getState().select(activeSessionId, id)}
+      onSelect={(id) => useArtifactsStore.getState().select(sessionId, id)}
       requestedVersion={selected.id === selectedId ? requestedVersion : undefined}
     />
   )
@@ -117,6 +112,7 @@ export function ArtifactWorkspace({
   onSelect,
   requestedVersion,
   page,
+  remote = workspacePath.startsWith('host:'),
 }: {
   artifact: Artifact
   list: Artifact[]
@@ -130,6 +126,7 @@ export function ArtifactWorkspace({
    * "write into workspace", since there is no live workspace to open it in.
    */
   page?: { leading: React.ReactNode }
+  remote?: boolean
 }): React.JSX.Element {
   const Shell = page ? PageArtifactShell : PaneShell
   const latest = artifact.versions[artifact.versions.length - 1]!
@@ -189,6 +186,7 @@ export function ArtifactWorkspace({
   }
 
   const openInFiles = async (): Promise<void> => {
+    if (remote) return
     const target = `${workspacePath}/${suggestedFileName(artifact)}`
     await window.phosphor.invoke('fs:writeFile', target, shown.content)
     await openFileInWorkspace(workspacePath, target)
@@ -283,11 +281,20 @@ export function ArtifactWorkspace({
             </select>
           )}
           <CopyButton text={shown.content} className="shrink-0" />
-          <ActionIcon title="Save source to file…" onClick={() => void save()}>
+          <ActionIcon
+            title={remote ? 'Save source to This Mac…' : 'Save source to file…'}
+            onClick={() => void save()}
+          >
             <DownloadIcon />
           </ActionIcon>
           <ActionIcon
-            title={exporting ? 'Exporting PDF…' : 'Export preview to PDF (Downloads)'}
+            title={
+              exporting
+                ? 'Exporting PDF…'
+                : remote
+                  ? 'Export preview to PDF (This Mac Downloads)'
+                  : 'Export preview to PDF (Downloads)'
+            }
             disabled={exporting}
             onClick={() => void exportPdf()}
           >
@@ -295,7 +302,8 @@ export function ArtifactWorkspace({
           </ActionIcon>
           {!page && (
             <ActionIcon
-              title="Write into workspace and open in Files"
+              disabled={remote}
+              title={remote ? REMOTE_UNAVAILABLE : 'Write into workspace and open in Files'}
               onClick={() => void openInFiles()}
             >
               <FileIcon size={12} />

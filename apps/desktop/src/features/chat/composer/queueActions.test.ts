@@ -122,3 +122,19 @@ describe('unqueueMessage', () => {
     expect(useChatStore.getState().sessions.s1?.error).toMatch(/keep me/)
   })
 })
+
+it('remote queue removal refuses before clear_queue and before local pi health diagnosis', async () => {
+  const { useSessionsStore } = await import('@/stores/sessions')
+  const { mockRemoteInfo } = await import('@/dev/mockRemoteLanes')
+  const invoke = vi.fn(),
+    piCommand = vi.fn()
+  vi.stubGlobal('window', { phosphor: { invoke, piCommand } })
+  useSessionsStore.setState({ live: { remote: { ...mockRemoteInfo, phosphorId: 'remote' } } })
+  useChatStore.getState().ensure('remote')
+  await unqueueMessage('remote', 'steer', 0, 'draft')
+  expect(piCommand).not.toHaveBeenCalled()
+  expect(invoke).not.toHaveBeenCalled()
+  expect(useChatStore.getState().sessions.remote?.error).toBe('Not available on remote lanes yet.')
+  useSessionsStore.setState({ live: {} })
+  vi.unstubAllGlobals()
+})

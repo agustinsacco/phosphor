@@ -1,3 +1,4 @@
+import { useRemoteLanesStore } from './remoteLanes'
 import { create } from 'zustand'
 import type { GlobalPage } from './layout'
 import { useLayoutStore } from './layout'
@@ -14,4 +15,18 @@ export function openMachinePage(page: GlobalPage, hostId: string): void {
   if (page === 'routines') useMachinePagesStore.setState({ routinesMachine: `host:${hostId}` })
   if (page === 'artifacts') useMachinePagesStore.setState({ artifactsMachine: hostId })
   useLayoutStore.getState().setPage(page)
+}
+
+// A sidebar change clears page overrides even while a page is unmounted.
+useRemoteLanesStore.subscribe((state, previous) => {
+  if (state.filter !== previous.filter)
+    useMachinePagesStore.setState({
+      skillsMachine: null,
+      routinesMachine: '',
+      artifactsMachine: '',
+    })
+})
+
+export function pageMachine(filter: string, override: string | null, all = false): string {
+  return override || (filter === 'all' ? (all ? 'all' : 'local') : filter)
 }

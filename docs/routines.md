@@ -200,6 +200,15 @@ pending run workspaces are protected from automatic maintenance reclamation.
 
 ## Host routines
 
+The global page follows the sidebar machine. All machines defaults to This Mac.
+Its machine picker overrides the default until the next sidebar selection change.
+This selection is window-local and never persisted. A selected unavailable Host
+shows its refusal and never displays local routines under the remote label.
+Remote editors and detail labels use the Host model catalogue. Changing the
+execution machine clears the old model choice. Remote history shows output as
+unavailable until the Host supplies a lane identity, not a local Continue action.
+A machine switch closes a detail or editor belonging to the previous machine.
+
 The Host daemon owns its own scheduler and SQLite database at
 `<state>/routines/state.sqlite`. It runs schedules with every client closed.
 Desktop's local scheduler, notifications, background setting and database do not

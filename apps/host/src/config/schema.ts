@@ -24,6 +24,8 @@ export interface HostConfigV1 {
   /** Directories sessions may run in: 1 to 64, never `/`. */
   repositories: string[]
   /** Desktop's grammar. '' or absent is the 200k default. */
+  allowRepositoryChanges?: boolean
+  autoNameLanes?: boolean
   contextBudget?: string
   environment?: {
     /** Extra variable names pi receives. */
@@ -59,6 +61,8 @@ const KEYS = {
     'resourceRoot',
     'repositories',
     'contextBudget',
+    'autoNameLanes',
+    'allowRepositoryChanges',
     'environment',
     'accounts',
     'control',
@@ -143,6 +147,13 @@ export function validateHostConfig(value: unknown): ConfigValidation {
     else path(repository, pointer('repositories', index))
   })
 
+  if (value.autoNameLanes !== undefined && typeof value.autoNameLanes !== 'boolean')
+    fail('/autoNameLanes', 'must be a boolean')
+  if (
+    value.allowRepositoryChanges !== undefined &&
+    typeof value.allowRepositoryChanges !== 'boolean'
+  )
+    fail('/allowRepositoryChanges', 'must be a boolean')
   const budget = value.contextBudget
   if (budget !== undefined) {
     if (

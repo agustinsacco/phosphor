@@ -45,10 +45,15 @@ import type {
 import { useSessionClaudeAccount } from './useSessionAccount'
 import { useSessionsStore } from '@/stores/sessions'
 import { useContextBudgetStore } from '@/stores/contextBudgetPref'
+import { useMachinesStore } from '@/stores/machines'
 import { sessionContextBudget } from '@shared/context-budget'
 
 export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.Element | null {
-  const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
+  const target = useSessionsStore((s) => s.live[sessionId]?.target)
+  const remote = target?.kind === 'remote'
+  const machine = useMachinesStore((s) =>
+    target?.kind === 'remote' ? s.machines.find((m) => m.id === target.hostId)?.label : undefined,
+  )
   const stats = useChatStore((s) => s.sessions[sessionId]?.stats)
   const model = useChatStore((s) => s.sessions[sessionId]?.meta?.model)
   const catalogueWindow = useChatStore(
@@ -60,7 +65,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   const autoCompactionEnabled = useChatStore(
     (s) => s.sessions[sessionId]?.meta?.autoCompactionEnabled ?? true,
   )
-  const budgetPref = useContextBudgetStore((s) => s.contextBudget)
+  const budgetPref = useContextBudgetStore((s) => (remote ? '' : s.contextBudget))
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   // Pushed by the bundled context-breakdown extension, so it is present for
@@ -94,16 +99,19 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
   // the end-of-run stats poll (including restoring capacity after opt-out).
   const effectiveWindow =
     parseContextBreakdown(breakdownStatus)?.contextWindow ?? usage?.contextWindow
-  const budget = sessionContextBudget({
-    raw: budgetPref,
-    contextWindow: effectiveWindow,
-    autoCompactionEnabled,
-  })
+  // The Host reports its effective window. This Mac's policy cannot cap it.
+  const budget = remote
+    ? (effectiveWindow ?? null)
+    : sessionContextBudget({
+        raw: budgetPref,
+        contextWindow: effectiveWindow,
+        autoCompactionEnabled,
+      })
   const window = budget ?? effectiveWindow ?? 0
   const rawPercent =
     window > 0 && usage?.tokens != null ? (usage.tokens / window) * 100 : usage?.percent
   const percent = rawPercent == null ? null : Math.round(rawPercent)
-  const of = budget !== null ? ' budget' : ''
+  const of = remote ? ` budget on ${machine ?? 'remote machine'}` : budget !== null ? ' budget' : ''
   const ringPercent = Math.min(100, percent ?? 0)
   const warn = percent !== null && percent >= 75
   const critical = percent !== null && percent >= 90
@@ -232,7 +240,7 @@ export function ContextMeter({ sessionId }: { sessionId: string }): React.JSX.El
               </div>
               <div>
                 <SectionLabel>Session</SectionLabel>
-                {stats.cost === 0 && hasNoPricing(model) ? (
+                {!remote && stats.cost === 0 && hasNoPricing(model) ? (
                   <div className="text-text-tertiary flex items-center justify-between gap-3">
                     <span>Cost</span>
                     <TooltipButton

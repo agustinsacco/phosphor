@@ -15,7 +15,7 @@ import { ModalOverlay } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
 import { CloseIcon } from '@/components/icons'
 import { ModelMenu } from '@/features/chat/composer/ModelMenu'
-import { catalogueEmptyText, useModelCatalogueStore } from '@/stores/modelCatalogue'
+import { useRoutineModels } from './useRoutineModels'
 import { keepEditorDraft, type EditorDraft } from '@/stores/routines'
 
 const SELECT = 'border-border bg-surface text-text w-full rounded-md border px-2.5 py-1.5'
@@ -53,26 +53,21 @@ const same = (a: RoutineInput, b: RoutineInput): boolean => JSON.stringify(a) ==
 function ModelField({
   provider,
   model,
+  machineId,
   open,
   onOpenChange,
   onPick,
 }: {
   provider: string
   model: string
+  machineId: string
   open: boolean
   onOpenChange: (open: boolean) => void
   onPick: (provider: string, model: string) => void
 }): React.JSX.Element {
-  const status = useModelCatalogueStore((s) => s.status)
-  const models = useModelCatalogueStore((s) => s.models)
-  const providers = useModelCatalogueStore((s) => s.providers)
-  const source = useModelCatalogueStore((s) => s.source)
-  useEffect(() => {
-    void useModelCatalogueStore.getState().hydrate()
-  }, [])
+  const { models, loading, emptyText, refresh } = useRoutineModels(machineId)
   const current = models.find((m) => m.id === model && m.provider === provider)
-  const loading = status === 'idle' || status === 'loading'
-  const missing = !!model && !current && !loading && source === 'pi'
+  const missing = !!model && !current && !loading
   const id = useId()
   return (
     <>
@@ -87,7 +82,7 @@ function ModelField({
         aria-labelledby={`${id}-label ${id}`}
         onClick={() => {
           onOpenChange(!open)
-          if (source === 'config') void useModelCatalogueStore.getState().refresh()
+          refresh()
         }}
         className={clsx(
           SELECT,
@@ -120,7 +115,7 @@ function ModelField({
           }}
           onClose={() => onOpenChange(false)}
           loading={loading}
-          emptyText={catalogueEmptyText(status, providers)}
+          emptyText={emptyText}
           className="w-[30rem] max-w-[92vw]"
         />
       )}
@@ -356,7 +351,8 @@ export function RoutineEditor({
                   onChange={(e) => {
                     setMachineId(e.target.value)
                     setRepositoryId('')
-                    update({ trusted: false, enabled: false })
+                    update({ trusted: false, enabled: false, provider: '', model: '' })
+                    setPicking(false)
                   }}
                 >
                   <option value="">Choose an available machine</option>
@@ -422,6 +418,8 @@ export function RoutineEditor({
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="flex flex-col gap-1">
                   <ModelField
+                    key={machineId}
+                    machineId={machineId}
                     provider={draft.provider}
                     model={draft.model}
                     open={picking}

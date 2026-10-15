@@ -87,6 +87,45 @@ describe('files feature', () => {
       data: { binary: true, size: 3, revision: expect.any(String) },
     })
   })
+  it('reads only configured repositories, with the lane confinement and size guards', async () => {
+    const feature = createFilesFeature(f.context)
+    const repositoryId = f.lane.repositoryId
+    expect(await feature.call('files.list', { repositoryId })).toEqual({
+      ok: true,
+      data: { files: ['tracked'] },
+    })
+    expect(await feature.call('files.read', { repositoryId, path: 'tracked' })).toMatchObject({
+      ok: true,
+      data: { content: 'old\n' },
+    })
+    expect(await feature.call('files.list', { repositoryId: '0000000000000000' })).toEqual(
+      code('bad-request'),
+    )
+    await writeFile(join(f.base, 'secret'), 'outside')
+    await symlink(join(f.base, 'secret'), join(f.root, 'escape'))
+    expect(await feature.call('files.read', { repositoryId, path: 'escape' })).toEqual(
+      code('bad-request'),
+    )
+    expect(await feature.call('files.read', { repositoryId, path: '.git/config' })).toEqual(
+      code('bad-request'),
+    )
+    await writeFile(join(f.root, 'large'), 'x'.repeat(FILE_LIMITS.textBytes + 1))
+    expect(await feature.call('files.read', { repositoryId, path: 'large' })).toEqual(
+      code('too-large'),
+    )
+  })
+  it('refuses a repository removed during the read', async () => {
+    const repositories = f.context.store.listRepositories()
+    vi.mocked(f.context.store.listRepositories)
+      .mockReturnValueOnce(repositories)
+      .mockReturnValue([])
+    expect(
+      await createFilesFeature(f.context).call('files.read', {
+        repositoryId: f.lane.repositoryId,
+        path: 'tracked',
+      }),
+    ).toEqual(code('bad-request'))
+  })
   it('enforces text cap at and above the boundary, including large binary', async () => {
     const feature = createFilesFeature(f.context)
     await writeFile(join(f.root, 'large'), 'x'.repeat(FILE_LIMITS.textBytes))
@@ -202,7 +241,10 @@ describe('files feature', () => {
       code('bad-request'),
     )
     await rm(join(f.root, '.git'), { recursive: true })
-    expect(await feature.call('files.list', { laneId: f.laneId })).toEqual(code('internal'))
+    expect(await feature.call('files.list', { laneId: f.laneId })).toEqual({
+      ok: true,
+      data: { files: ['tracked'] },
+    })
     expect(JSON.stringify(vi.mocked(f.context.log).mock.calls)).not.toContain(f.root)
   })
 })

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, onTestFinished, vi } from 'vitest'
 import { ProviderSignIn } from './ProviderSignIn'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 vi.mock('@/features/terminal/TerminalView', () => ({
@@ -83,4 +83,23 @@ it('kills a confirmed login when navigation happened during admission', async ()
   await act(async () => complete({ ptyId: 'remote-pty-late' }))
   expect(invoke).toHaveBeenCalledWith('pty:kill', 'remote-pty-late')
   expect(document.body.textContent).not.toContain('Login terminal')
+})
+it('shows a retryable error instead of an empty list when the provider read fails', async () => {
+  let fail = true
+  const base = invoke.getMockImplementation()
+  onTestFinished(() => {
+    if (base) invoke.mockImplementation(base)
+  })
+  invoke.mockImplementation(async (channel: string): Promise<unknown> => {
+    if (channel !== 'hosts:providers') return undefined
+    if (fail) throw new Error('busy')
+    return [{ id: 'openai-codex', name: 'ChatGPT', status: 'ready' }]
+  })
+  await render()
+  expect(container.textContent).toContain("Could not load this machine's providers.")
+  fail = false
+  const retry = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Retry')
+  await act(async () => retry?.click())
+  expect(container.textContent).not.toContain('Could not load')
+  expect(container.textContent).toContain('ChatGPT: Signed in')
 })

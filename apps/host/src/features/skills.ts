@@ -121,7 +121,11 @@ export function createSkillsFeature(
   context: FeatureContext,
   ports: MachinePorts = {},
 ): HostFeature {
-  let running = false
+  // One probe at a time, in arrival order. Concurrent reads (a page's models and providers)
+  // wait instead of failing; the queue is bounded so no unbounded set of pi children builds up.
+  let tail: Promise<unknown> = Promise.resolve()
+  let waiting = 0
+  const MAX_WAITING = 8
   const methods = ['machine.models', 'machine.providers', 'skills.list', 'skills.read']
   return {
     capability: 'skills.read',
@@ -130,32 +134,41 @@ export function createSkillsFeature(
       if (!methods.includes(method)) return featureError(new FeatureFailure('unsupported'))
       const parsed = parseMachineParams(method, params)
       if (!parsed) return featureError(new FeatureFailure('bad-request'))
-      // One probe per feature at a time; no unbounded queue of pi children.
-      if (running) return featureError(new FeatureFailure('internal'))
-      running = true
+      if (waiting >= MAX_WAITING) return featureError(new FeatureFailure('internal'))
+      waiting++
+      const turn = tail.then(() => run(method, parsed))
+      tail = turn.catch(() => undefined)
       try {
-        if (method.startsWith('machine.')) return await machineCall(method, context, ports)
-        const skills = await resolveSkills(context, ports, parsed.laneId)
-        if (method === 'skills.list')
-          return { ok: true, data: { skills: skills.map((s) => s.skill) } }
-        const entry = skills.find((s) => s.skill.name === parsed.name)
-        if (!entry) throw new FeatureFailure('bad-request')
-        try {
-          return { ok: true, data: await readSkill(entry, parsed.file) }
-        } catch (error) {
-          throw error instanceof FeatureFailure ? error : new FeatureFailure('bad-request')
-        }
-      } catch (error) {
-        const result = featureError(error)
-        context.log('feature.failed', {
-          method,
-          ...(parsed.laneId ? { laneId: parsed.laneId } : {}),
-          reason: result.ok ? 'internal' : result.error.code,
-        })
-        return result
+        return await turn
       } finally {
-        running = false
+        waiting--
       }
     },
+  }
+  async function run(
+    method: string,
+    parsed: NonNullable<ReturnType<typeof parseMachineParams>>,
+  ): Promise<Awaited<ReturnType<HostFeature['call']>>> {
+    try {
+      if (method.startsWith('machine.')) return await machineCall(method, context, ports)
+      const skills = await resolveSkills(context, ports, parsed.laneId)
+      if (method === 'skills.list')
+        return { ok: true, data: { skills: skills.map((s) => s.skill) } }
+      const entry = skills.find((s) => s.skill.name === parsed.name)
+      if (!entry) throw new FeatureFailure('bad-request')
+      try {
+        return { ok: true, data: await readSkill(entry, parsed.file) }
+      } catch (error) {
+        throw error instanceof FeatureFailure ? error : new FeatureFailure('bad-request')
+      }
+    } catch (error) {
+      const result = featureError(error)
+      context.log('feature.failed', {
+        method,
+        ...(parsed.laneId ? { laneId: parsed.laneId } : {}),
+        reason: result.ok ? 'internal' : result.error.code,
+      })
+      return result
+    }
   }
 }

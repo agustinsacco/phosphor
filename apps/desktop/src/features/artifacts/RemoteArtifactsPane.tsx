@@ -1,7 +1,9 @@
+import { PaneShell, PaneTitle } from '@/components/PaneShell'
 import { useEffect, useState } from 'react'
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
-import { useArtifactsStore } from '@/stores/artifacts'
+import { refreshRemoteArtifacts } from './remoteArtifactRefresh'
+import { MachineChip } from '@/features/machines/RemoteLaneControls'
 import { ArtifactsPane } from './ArtifactsPane'
 
 export function RemoteArtifactsPane({
@@ -19,19 +21,23 @@ export function RemoteArtifactsPane({
   const summary = JSON.stringify(host?.lanes.find((l) => l.laneId === laneId))
   const available = host?.state === 'ready' && host.capabilities.includes('artifacts.read')
   const [failed, setFailed] = useState(false)
-  const [loaded, setLoaded] = useState(false)
+  // The session whose Host list has loaded at least once while available. Later refreshes
+  // (turn ends, reconnects, epoch changes) replace the list in place and keep the viewer
+  // mounted, so a pinned version survives them. Only a lane switch or losing the Host
+  // returns to the loading shell, which keeps another lane's artifacts from showing.
+  const [loaded, setLoaded] = useState<string | null>(null)
   const epoch = host?.cursor?.epoch
+  const connection = host?.connectionToken
   useEffect(() => {
     let alive = true
-    setLoaded(false)
     setFailed(false)
-    if (available)
-      void window.phosphor
-        .invoke('artifacts:forSession', sessionId)
-        .then((items) => {
+    if (!available) setLoaded(null)
+    else
+      void refreshRemoteArtifacts(sessionId)
+        .then((applied) => {
           if (alive) {
-            useArtifactsStore.getState().hydrate(sessionId, items)
-            setLoaded(true)
+            if (applied) setLoaded(sessionId)
+            else setFailed(true)
           }
         })
         .catch(() => {
@@ -40,8 +46,19 @@ export function RemoteArtifactsPane({
     return () => {
       alive = false
     }
-  }, [available, sessionId, summary, epoch])
-  if (!available || !loaded)
-    return <p className="p-4">{!available || failed ? REMOTE_UNAVAILABLE : 'Loading artifacts…'}</p>
-  return <ArtifactsPane workspacePath={workspacePath} />
+  }, [available, sessionId, summary, epoch, connection])
+  if (!available || failed || loaded !== sessionId)
+    return (
+      <PaneShell
+        title={
+          <>
+            <PaneTitle label="Artifacts" />
+            <MachineChip sessionId={sessionId} />
+          </>
+        }
+      >
+        <p className="p-4">{!available || failed ? REMOTE_UNAVAILABLE : 'Loading artifacts…'}</p>
+      </PaneShell>
+    )
+  return <ArtifactsPane sessionId={sessionId} workspacePath={workspacePath} />
 }

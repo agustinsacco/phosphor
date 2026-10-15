@@ -1,10 +1,15 @@
 // @vitest-environment jsdom
+vi.mock('@/features/machines/RemoteModelPicker', () => ({
+  useRemoteModel: () => ({ model: { id: 'test-model', provider: 'test' }, thinking: 'off' }),
+  RemoteModelPicker: () => null,
+}))
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { MachinePicker } from './MachinePicker'
 import { OnThisMachine } from './OnThisMachine'
-import { MachineChip } from './RemoteLaneControls'
+import { MachineChip, RemoteLaneControls, STOP_NEEDS_PROMPT } from './RemoteLaneControls'
+import { useChatStore } from '@/stores/chat'
 import { NewRemoteLane } from '@/features/sessions/RemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinePagesStore } from '@/stores/machinePages'
@@ -82,6 +87,9 @@ it('remote creation uses the selected configured repository and failure never st
   await act(async () => button('Create lane').click())
   expect(invoke).toHaveBeenCalledExactlyOnceWith('hosts:createLane', MOCK_HOST_ID, {
     repositoryId: '0000000000000001',
+    provider: 'test',
+    model: 'test-model',
+    thinkingLevel: 'off',
   })
   expect(document.body.textContent).toContain('could not confirm creation')
   expect(useSessionsStore.getState().activeSessionId).toBe(mockRemoteInfo.sessionId)
@@ -339,5 +347,29 @@ it('machine and repository menu actions never submit the remote creation form', 
   await act(async () => form.requestSubmit())
   expect(invoke).toHaveBeenCalledExactlyOnceWith('hosts:createLane', MOCK_HOST_ID, {
     repositoryId: '0000000000000001',
+    provider: 'test',
+    model: 'test-model',
+    thinkingLevel: 'off',
   })
+})
+it('disables Stop until the lane has a first message, with the reason', () => {
+  const id = mockRemoteInfo.sessionId
+  const items = (list: unknown[]) =>
+    act(() =>
+      useChatStore.setState({
+        sessions: { [id]: { items: list } },
+      } as unknown as Partial<ReturnType<typeof useChatStore.getState>>),
+    )
+  const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID])
+  const lane = host?.lanes[0]
+  if (!host || !lane) throw new Error('Missing host')
+  lane.control.controller = { self: true, label: 'This Desktop', connected: true }
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
+  items([])
+  act(() => root.render(<RemoteLaneControls sessionId={id} />))
+  const stop = () => button('Stop')
+  expect(stop().disabled).toBe(true)
+  expect(stop().getAttribute('title') ?? container.innerHTML).toContain(STOP_NEEDS_PROMPT)
+  items([{ id: 'u', kind: 'user', text: 'hi' }])
+  expect(stop().disabled).toBe(false)
 })

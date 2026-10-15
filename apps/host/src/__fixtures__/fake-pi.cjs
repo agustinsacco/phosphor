@@ -2,8 +2,7 @@
 /**
  * The Host's fake pi: `--version`, `auth check` (ready for each provider in
  * the agent folder's auth.json, as pi 0.87.1 answers), and enough of
- * `--mode rpc` for the composition tests and accept. Like pi, it saves a turn to its session file
- * when the turn ends, in the folder pi would use for its cwd, and a resumed
+ * `--mode rpc` for the composition tests and accept. Like pi, it appends messages to its native session file, in the folder pi would use for its cwd, and a resumed
  * session starts with the messages of its file.
  *
  * Loaded with context-breakdown.ts (`-e`), it publishes that extension's
@@ -67,6 +66,67 @@ if (args[0] === 'auth') {
   console.log(JSON.stringify({ status: ready ? 'ready' : 'not_ready', provider, ...reason }))
   process.exit(ready ? 0 : 1)
 }
+// Print mode must consume EOF, matching real pi rather than masking open-stdin bugs.
+if (args.includes('-p') || args.includes('--print')) {
+  console.error('FAKE_PI_PRINT_WAITING_FOR_EOF')
+  process.stdin.resume()
+  process.stdin.on('end', () => {
+    const release = /name-until:([^\s]+)/.exec(args.join(' '))?.[1]
+    const finish = () => {
+      if (release) writeFileSync(`${release}.finished`, '')
+      console.log('HOST_A_ONLY title')
+      process.exit(0)
+    }
+    if (!release) return finish()
+    const deadline = Date.now() + 10000
+    const timer = setInterval(() => {
+      if (existsSync(release)) {
+        clearInterval(timer)
+        finish()
+      } else if (Date.now() > deadline) process.exit(1)
+    }, 10)
+  })
+  return
+}
+if (args.includes('--no-session') && !args.includes('--mode')) {
+  console.log('HOST_A_ONLY provider login: /login <provider>, then /quit')
+  process.stdin.setEncoding('utf8')
+  process.stdin.on('data', (chunk) => {
+    const provider = /\/login ([a-z0-9-]+)/.exec(chunk)?.[1]
+    if (provider) {
+      let auth = {}
+      try {
+        auth = JSON.parse(readFileSync(join(agentDir, 'auth.json'), 'utf8'))
+      } catch {}
+      mkdirSync(agentDir, { recursive: true })
+      writeFileSync(
+        join(agentDir, 'auth.json'),
+        JSON.stringify({ ...auth, [provider]: { type: 'api_key', key: 'fixture-only' } }),
+      )
+      console.log('HOST_A_ONLY signed in')
+    }
+    if (chunk.includes('/quit')) process.exit(0)
+  })
+  return
+}
+const models = [
+  {
+    provider: 'fake',
+    id: 'fake-model',
+    name: 'HOST_A_ONLY Fast',
+    reasoning: false,
+    contextWindow: 200000,
+    maxTokens: 8192,
+  },
+  {
+    provider: 'anthropic',
+    id: 'host-reasoner',
+    name: 'HOST_B_ONLY Reasoner',
+    reasoning: true,
+    contextWindow: 100000,
+    maxTokens: 4096,
+  },
+]
 const sessions = process.env.PI_CODING_AGENT_SESSION_DIR ?? join(agentDir, 'sessions')
 const folder = join(
   sessions,
@@ -143,13 +203,26 @@ const header = () =>
     cwd: process.cwd(),
   })
 
-/** What pi does when a turn ends: append it, writing the header first for a new file. */
-function save(user, reply) {
+/** Native JSONL entries form one parent-linked chain, including tools and names. */
+function persist(message) {
   if (!existsSync(sessionFile)) {
     mkdirSync(dirname(sessionFile), { recursive: true })
     appendFileSync(sessionFile, header() + '\n')
+    if (flag('-n')) {
+      const entryId = randomUUID()
+      appendFileSync(
+        sessionFile,
+        JSON.stringify({
+          type: 'session_info',
+          id: entryId,
+          parentId: lastEntryId,
+          name: flag('-n'),
+        }) + '\n',
+      )
+      lastEntryId = entryId
+    }
   }
-  for (const message of [{ role: 'user', content: user }, reply]) {
+  {
     const entryId = randomUUID()
     appendFileSync(
       sessionFile,
@@ -158,6 +231,10 @@ function save(user, reply) {
     lastEntryId = entryId
     messages.push(message)
   }
+}
+
+function save(reply) {
+  persist(reply)
 }
 
 /** pi's clone: a new file with this one's entries, which pi then writes instead. */
@@ -189,29 +266,143 @@ const dialogs = new Map()
 let lostState = null
 
 let streaming = null
+const queued = []
+function publishQueue() {
+  out({
+    type: 'queue_update',
+    steering: queued.filter((item) => item.mode === 'steer').map((item) => item.message),
+    followUp: queued.filter((item) => item.mode !== 'steer').map((item) => item.message),
+  })
+}
+let artifactVersion = messages.reduce(
+  (version, message) =>
+    message.role === 'toolResult' && message.details?.id === 'host-card'
+      ? Math.max(version, message.details.version ?? 0)
+      : version,
+  0,
+)
 function delta(value) {
   out({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: value } })
 }
-function finish(user, reply, stopReason, errorMessage) {
+function finish(_user, reply, stopReason, errorMessage) {
   const message = { ...text(reply), stopReason, ...(errorMessage && { errorMessage }) }
   out({ type: 'message_end', message })
-  save(user, message)
+  save(message)
   out({ type: 'agent_end', messages: [message] })
-  out({ type: 'agent_settled', aborted: false })
+  out({ type: 'agent_settled', aborted: stopReason === 'aborted' })
+  const next = queued.shift()
+  publishQueue()
+  if (next) setTimeout(() => prompt(next.message), 10)
 }
-function prompt(message) {
+function laneMarker() {
+  try {
+    if (readFileSync(join(process.cwd(), 'remote.txt'), 'utf8').includes('HOST_B_ONLY'))
+      return 'HOST_B_ONLY'
+  } catch {}
+  return 'HOST_A_ONLY'
+}
+function artifact() {
+  const version = ++artifactVersion
+  const name = version === 1 ? 'artifact_create' : 'artifact_update'
+  const callId = randomUUID()
+  const args = {
+    id: 'host-card',
+    title: `${laneMarker()} card`,
+    type: 'html',
+    content: `<h1>${laneMarker()} version ${version}</h1>`,
+  }
+  const call = {
+    role: 'assistant',
+    content: [{ type: 'toolCall', id: callId, name, arguments: args }],
+    stopReason: 'toolUse',
+  }
+  out({ type: 'message_end', message: call })
+  persist(call)
+  out({ type: 'tool_execution_start', toolCallId: callId, toolName: name, args })
+  const result = {
+    content: [{ type: 'text', text: `${laneMarker()} artifact saved` }],
+    details: { ...args, version },
+  }
+  out({ type: 'tool_execution_end', toolCallId: callId, toolName: name, isError: false, result })
+  const message = {
+    role: 'toolResult',
+    toolCallId: callId,
+    toolName: name,
+    ...result,
+    isError: false,
+  }
+  out({ type: 'message_start', message })
+  out({ type: 'message_end', message })
+  persist(message)
+  out({ type: 'message_start', message: text('') })
+}
+function linkTool() {
+  const toolCallId = randomUUID()
+  const path = join(process.cwd(), 'nested', 'guide.md')
+  const args = { path, offset: 2 }
+  const call = {
+    role: 'assistant',
+    content: [{ type: 'toolCall', id: toolCallId, name: 'read', arguments: args }],
+    stopReason: 'toolUse',
+  }
+  out({ type: 'message_end', message: call })
+  persist(call)
+  out({ type: 'tool_execution_start', toolCallId, toolName: 'read', args })
+  const result = { content: [{ type: 'text', text: `${laneMarker()} guide line two` }] }
+  out({ type: 'tool_execution_end', toolCallId, toolName: 'read', isError: false, result })
+  const message = { role: 'toolResult', toolCallId, toolName: 'read', ...result, isError: false }
+  out({ type: 'message_start', message })
+  out({ type: 'message_end', message })
+  persist(message)
+  out({ type: 'message_start', message: text('') })
+}
+function attachmentReply(message, images) {
+  const paths = /<attached-files>\n([\s\S]*?)\n<\/attached-files>/.exec(message)?.[1]
+  const documents = (paths ? paths.split('\n') : []).map((path) =>
+    readFileSync(path, 'utf8').trim(),
+  )
+  const decoded = images.filter((image) => {
+    const bytes = Buffer.from(image.data, 'base64')
+    return (
+      image.mimeType === 'image/png' &&
+      bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))
+    )
+  })
+  return `Attachments: ${documents.join('; ')} | ${decoded.length} image/png`
+}
+function prompt(message, images = []) {
+  persist({ role: 'user', content: message })
   out({ type: 'agent_start' })
   out({ type: 'message_start', message: { role: 'user', content: message } })
   out({ type: 'message_end', message: { role: 'user', content: message } })
   out({ type: 'message_start', message: text('') })
-  if (/stream|count/i.test(message) || process.env.FAKE_PI_STALL) {
+  if (/artifact/i.test(message)) artifact()
+  if (/links/i.test(message)) linkTool()
+  if (/stream|count|slow/i.test(message) || process.env.FAKE_PI_STALL) {
     if (process.env.FAKE_PI_STALL) writeFileSync(process.env.FAKE_PI_STALL, String(process.pid))
+    const releaseFile = /^slow-until (.+)$/.exec(message)?.[1]
+    // Safety bound only: callers release or cancel the turn. It must outlast a slow
+    // runner's UI action, or the turn ends before the test can act on it.
+    const deadline = Date.now() + 60000
     let count = 0
     streaming = { user: message, reply: '' }
     streaming.timer = setInterval(() => {
       const piece = `${++count} `
       streaming.reply += piece
       delta(piece)
+      const released = releaseFile && existsSync(releaseFile)
+      const expired = releaseFile && Date.now() >= deadline
+      if (released || expired || (!releaseFile && /slow/i.test(message) && count === 12)) {
+        const completed = streaming
+        clearInterval(completed.timer)
+        streaming = null
+        finish(
+          completed.user,
+          completed.reply,
+          expired ? 'error' : 'stop',
+          expired ? 'Fixture slow turn was not released within 10 seconds' : undefined,
+        )
+      }
     }, 20)
     return
   }
@@ -219,10 +410,18 @@ function prompt(message) {
     /recall/i.test(message) && !process.env.FAKE_PI_FORGET
       ? messages.flatMap((m) => JSON.stringify(m.content).match(/PHX-[A-Za-z0-9]+/g) ?? [])
       : /PHX-[A-Za-z0-9]+/.exec(message)
-  const reply = (process.env.FAKE_PI_TURN !== 'wrong' && tokens?.at(-1)) || 'ok'
+  const reply = /PHX-hostinputs/.test(message)
+    ? attachmentReply(message, images)
+    : /links/i.test(message)
+      ? `[${laneMarker()} guide](nested/guide.md#L2) [absolute](${join(process.cwd(), 'remote.txt')}) [outside](/etc/passwd)`
+      : (process.env.FAKE_PI_TURN !== 'wrong' && tokens?.at(-1)) || 'ok'
   delta(reply)
-  if (process.env.FAKE_PI_TURN === 'fail') {
-    const error = `401: invalid x-api-key ${process.env.ANTHROPIC_API_KEY}`
+  if (process.env.FAKE_PI_TURN === 'fail' || /fail-turn|auth-error/.test(message)) {
+    const error = /auth-error/.test(message)
+      ? '401 unauthorized: login expired'
+      : /fail-turn/.test(message)
+        ? `${laneMarker()} provider error`
+        : `401: invalid x-api-key ${process.env.ANTHROPIC_API_KEY}`
     return setTimeout(() => finish(message, '', 'error', error), 10)
   }
   if (process.env.FAKE_PI_TURN === 'exit') return setTimeout(() => process.exit(3), 50)
@@ -232,14 +431,21 @@ function prompt(message) {
 /** What get_state reports. */
 let selectedModel
 let selectedThinking
-let selectedName
+let selectedName = existsSync(sessionFile)
+  ? readFileSync(sessionFile, 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line))
+      .findLast((entry) => entry.type === 'session_info')?.name
+  : undefined
 function state() {
   return {
     model: selectedModel ?? {
+      ...models.find((model) => model.provider === (flag('--provider') ?? 'fake')),
       // Like pi, it takes --provider only together with --model.
       provider: process.env.PI_FAKE_PROVIDER ?? (flag('--model') && flag('--provider')) ?? 'fake',
       id: process.env.PI_FAKE_MODEL ?? flag('--model') ?? 'fake-model',
-      contextWindow: 200000,
+      contextWindow: flag('--provider') === 'anthropic' ? 100000 : 200000,
     },
     thinkingLevel: selectedThinking ?? flag('--thinking') ?? 'off',
     isStreaming: streaming !== null,
@@ -251,7 +457,7 @@ function state() {
     sessionName: selectedName ?? flag('-n'),
     autoCompactionEnabled: true,
     messageCount: messages.length,
-    pendingMessageCount: 0,
+    pendingMessageCount: queued.length,
   }
 }
 
@@ -313,10 +519,32 @@ function handle(cmd) {
         }
       }
       respond(cmd)
+      if (cmd.message === '/host-only') {
+        out({
+          type: 'extension_ui_request',
+          id: randomUUID(),
+          method: 'notify',
+          message: 'HOST_A_ONLY command handled',
+          notifyType: 'info',
+        })
+        return
+      }
+      if (cmd.message.startsWith('/phosphor-context-budget ')) return
+      if (streaming) {
+        queued.push({ message: cmd.message, mode: cmd.streamingBehavior ?? 'followUp' })
+        publishQueue()
+        return
+      }
       // The context-budget extension's command: no model turn.
-      if (!cmd.message.startsWith('/phosphor-context-budget ')) prompt(cmd.message)
+      if (!cmd.message.startsWith('/phosphor-context-budget '))
+        prompt(cmd.message, cmd.images ?? [])
       return
     }
+    case 'steer':
+    case 'follow_up':
+      queued.push({ message: cmd.message, mode: cmd.type === 'steer' ? 'steer' : 'followUp' })
+      publishQueue()
+      return respond(cmd)
     case 'abort': {
       respond(cmd)
       if (!streaming) return
@@ -333,24 +561,69 @@ function handle(cmd) {
     }
     case 'get_commands':
       return respond(cmd, {
-        commands:
-          breakdown && process.env.FAKE_PI_HIDE !== 'budget'
-            ? [{ name: 'phosphor-context-budget', source: 'extension' }]
-            : [],
+        commands: [
+          ...(breakdown && process.env.FAKE_PI_HIDE !== 'budget'
+            ? [
+                { name: 'phosphor-context-budget', source: 'extension' },
+                { name: 'host-only', description: 'HOST_A_ONLY command', source: 'extension' },
+              ]
+            : []),
+          ...(existsSync(join(agentDir, 'skills', 'host-only', 'SKILL.md'))
+            ? [
+                {
+                  name: 'skill:host-only',
+                  description: 'HOST_A_ONLY fixture',
+                  source: 'skill',
+                  sourceInfo: {
+                    path: join(agentDir, 'skills', 'host-only', 'SKILL.md'),
+                    scope: 'user',
+                  },
+                },
+              ]
+            : []),
+        ],
       })
     case 'set_model':
-      selectedModel = { provider: cmd.provider, id: cmd.modelId, contextWindow: 200000 }
+      selectedModel = models.find(
+        (model) => model.provider === cmd.provider && model.id === cmd.modelId,
+      ) ?? { provider: cmd.provider, id: cmd.modelId, contextWindow: 200000 }
       return respond(cmd, selectedModel)
     case 'set_thinking_level':
       selectedThinking = cmd.level
       return respond(cmd)
     case 'set_session_name':
       selectedName = cmd.name
+      if (!existsSync(sessionFile)) {
+        mkdirSync(dirname(sessionFile), { recursive: true })
+        appendFileSync(sessionFile, header() + '\n')
+      }
+      const entryId = randomUUID()
+      appendFileSync(
+        sessionFile,
+        JSON.stringify({
+          type: 'session_info',
+          id: entryId,
+          parentId: lastEntryId,
+          name: cmd.name,
+        }) + '\n',
+      )
+      lastEntryId = entryId
       return respond(cmd)
     case 'compact':
-      return respond(cmd, { summary: 'compacted', firstKeptEntryId: '', tokensBefore: 0 })
+      out({ type: 'compaction_start', reason: 'manual' })
+      respond(cmd, { summary: 'HOST_A_ONLY compacted', firstKeptEntryId: '', tokensBefore: 0 })
+      return out({
+        type: 'compaction_end',
+        reason: 'manual',
+        aborted: false,
+        result: { summary: 'HOST_A_ONLY compacted', firstKeptEntryId: '', tokensBefore: 0 },
+      })
+    case 'get_available_thinking_levels':
+      return respond(cmd, {
+        levels: state().model.reasoning ? ['off', 'low', 'medium', 'high'] : ['off'],
+      })
     case 'get_available_models':
-      return respond(cmd, { models: [state().model] })
+      return respond(cmd, { models })
     case 'get_session_stats':
       return respond(cmd, {
         sessionId: id,

@@ -1,3 +1,6 @@
+import { useRef, useState } from 'react'
+import { useSessionsStore } from '@/stores/sessions'
+import { canControlSession, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { TooltipButton } from '@/components/Tooltip'
 import { iconButtonClass } from '@/components/ComposerButtons'
 import { ipcErrorText } from '@shared/errors'
@@ -22,19 +25,39 @@ function busy(session: ChatSession | undefined): boolean {
  * Send behind a hairline so the two never read as one slot.
  */
 export function ContinueButton({ sessionId }: { sessionId: string }): React.JSX.Element {
-  const disabled = useChatStore((s) => busy(s.sessions[sessionId]))
+  const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
+  useRemoteLanesStore((s) => s.hosts)
+  const sending = useRef(false)
+  const [pending, setPending] = useState(false)
+  const chatBusy = useChatStore((s) => busy(s.sessions[sessionId]))
 
+  const disabled = chatBusy || pending || (remote && !canControlSession(sessionId))
   const send = async (): Promise<void> => {
     const chat = useChatStore.getState()
     // Read again at click time: the optimistic bubble locks out a second click
     // synchronously, before React renders or pi acknowledges the first prompt.
-    if (busy(chat.sessions[sessionId])) return
+    if (
+      busy(chat.sessions[sessionId]) ||
+      sending.current ||
+      (remote && !canControlSession(sessionId))
+    )
+      return
+    sending.current = true
+    setPending(true)
     chat.setError(sessionId, null)
-    chat.addUserMessage(sessionId, 'continue')
+    if (!remote) chat.addUserMessage(sessionId, 'continue')
     try {
       await piCallOk(sessionId, { type: 'prompt', message: 'continue' })
     } catch (error) {
-      chat.setError(sessionId, ipcErrorText(error))
+      chat.setError(
+        sessionId,
+        remote
+          ? 'The Host could not confirm this. Check the lane before retrying.'
+          : ipcErrorText(error),
+      )
+    } finally {
+      sending.current = false
+      setPending(false)
     }
   }
 

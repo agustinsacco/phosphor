@@ -1,3 +1,5 @@
+import { useMachinePagesStore } from '@/stores/machinePages'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -59,6 +61,21 @@ const defaultInvoke = async (channel: string, machine?: unknown): Promise<unknow
 }
 const invoke = vi.fn(defaultInvoke)
 beforeEach(() => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  Element.prototype.scrollIntoView = vi.fn()
+  useRemoteLanesStore.setState({ filter: 'local' })
+  useMachinePagesStore.setState({ routinesMachine: 'all' })
+  useRemoteLanesStore.setState({
+    hosts: {
+      [host.slice(5)]: {
+        state: 'ready',
+        connectionToken: 'test',
+        capabilities: ['routines'],
+        repositories: [],
+        lanes: [],
+      },
+    },
+  })
   invoke.mockReset().mockImplementation(defaultInvoke)
   vi.stubGlobal('phosphor', {
     invoke,
@@ -104,11 +121,8 @@ it('tags local and remote rows, filters by machine and refreshes on routines-cha
   expect(rows[0]?.textContent).not.toContain('Open for run history')
   expect(rows[1]?.textContent).toContain('Open for run history')
   expect(rows[1]?.textContent).not.toContain('Not run yet')
-  const filter = container.querySelector<HTMLSelectElement>('[aria-label="Machine filter"]')
-  await act(async () => {
-    if (filter) filter.value = host
-    filter?.dispatchEvent(new Event('change', { bubbles: true }))
-  })
+  await click('All machines')
+  await click('bee1')
   expect(container.querySelectorAll('[data-testid=routine-row]')).toHaveLength(1)
   expect(container.textContent).toContain('Remote task')
   expect(container.textContent).not.toContain('Local task')
@@ -323,4 +337,72 @@ it('keeps an existing routine machine locked while absent and sends nothing', as
     document.querySelector<HTMLSelectElement>('[aria-label="Routine repository"]')?.value,
   ).toBe(machine.repositories[0]!.id)
   expect(saveButton().disabled).toBe(false)
+})
+
+it.each([
+  ['local', host.slice(5), 'local'],
+  [host.slice(5), 'local', host.slice(5)],
+])('page follows switcher and drops stale detail on %j', async (...sequence) => {
+  useMachinePagesStore.setState({ routinesMachine: '' })
+  for (const id of sequence) {
+    await act(async () => {
+      useRemoteLanesStore.getState().setFilter(id)
+      root.render(<RoutinesPage workspacePath="/local" />)
+    })
+    const remoteTarget = id !== 'local'
+    expect(container.textContent).toContain(remoteTarget ? 'Remote task' : 'Local task')
+    expect(container.textContent).not.toContain(remoteTarget ? 'Local task' : 'Remote task')
+    expect(
+      [...container.querySelectorAll('button')].some((button) => button.textContent === 'Edit'),
+    ).toBe(false)
+    const row = [...container.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes(remoteTarget ? 'Remote task' : 'Local task'),
+    )!
+    await act(async () => row.click())
+    expect(
+      [...container.querySelectorAll('button')].some((button) => button.textContent === 'Edit'),
+    ).toBe(true)
+  }
+  await act(async () => useRemoteLanesStore.setState({ hosts: {} }))
+  if (sequence.at(-1) !== 'local') {
+    expect(container.textContent).toContain('Not available on remote lanes yet.')
+    expect(container.textContent).not.toContain('Local task')
+    expect(container.textContent).not.toContain('Remote task')
+  }
+})
+
+it('remote history does not offer a local lane action without a remote lane identity', async () => {
+  invoke.mockImplementation(async (channel, machineArg) =>
+    channel === 'routines:history'
+      ? [
+          {
+            id: `${host}/run`,
+            routineId: remote.id,
+            trigger: 'manual',
+            scheduledAt: Date.now(),
+            createdAt: Date.now(),
+            startedAt: Date.now(),
+            endedAt: Date.now(),
+            status: 'finished',
+            reason: 'Done',
+            definition: remote,
+            sessionId: null,
+            sessionPath: null,
+            workspacePath: null,
+            branch: null,
+            baseCommit: null,
+            accountId: null,
+            summary: 'Remote result',
+          },
+        ]
+      : defaultInvoke(channel, machineArg),
+  )
+  await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
+  await click('Remote taskHost repobee1PausedOpen for run history')
+  expect(container.textContent).toContain('Output not available from this machine yet')
+  expect(
+    [...container.querySelectorAll('button')].some(
+      (b) => b.textContent === 'Continue lane' || b.textContent === 'Open running lane',
+    ),
+  ).toBe(false)
 })

@@ -190,3 +190,79 @@ it.each([
     })
   },
 )
+
+it.each(['!pwd', '!!pwd'])(
+  'refuses remote shell input %s before clearing the draft',
+  async (text) => {
+    useDraftsStore.setState({ drafts: { [key]: { text, attachments: [] } } })
+    const pi = vi.spyOn(window.phosphor, 'piCommand')
+    await draw()
+    await send()
+    expect(pi.mock.calls.some(([, op]) => op.type === 'bash' || op.type === 'prompt')).toBe(false)
+    expect(useDraftsStore.getState().get(key).text).toBe(text)
+    expect(useChatStore.getState().sessions[mockRemoteInfo.sessionId]?.error).toBe(
+      'Not available on remote lanes yet.',
+    )
+    expect(container.textContent).not.toContain('runs in your shell')
+  },
+)
+
+it.each([
+  ['mac', 'bee-a', 'mac'],
+  ['bee-a', 'bee-b', 'bee-a'],
+])('slash commands and input drafts follow session switches %j', async (...sequence) => {
+  const original = useSessionsStore.getState().live[mockRemoteInfo.sessionId]!
+  useSessionsStore.setState({
+    live: {
+      mac: { phosphorId: 'mac', workspacePath: '/mac' },
+      'bee-a': { ...original, phosphorId: 'bee-a' },
+      'bee-b': {
+        ...original,
+        phosphorId: 'bee-b',
+        laneId: 'another-lane',
+        workspacePath: `host:${MOCK_HOST_ID}/another-repo`,
+      },
+    },
+  })
+  for (const id of ['mac', 'bee-a', 'bee-b']) {
+    useChatStore.getState().ensure(id)
+    useChatStore
+      .getState()
+      .setCommands(id, [
+        { name: `only-${id}`, description: `Command for ${id}`, source: 'extension' },
+      ])
+  }
+  vi.spyOn(window.phosphor, 'piCommand').mockImplementation(async (id, op) => ({
+    type: 'response',
+    command: op.type,
+    success: true,
+    data:
+      op.type === 'get_commands'
+        ? {
+            commands: [
+              { name: `only-${id}`, description: `Command for ${id}`, source: 'extension' },
+            ],
+          }
+        : undefined,
+  }))
+  for (const id of sequence) {
+    const entry = useSessionsStore.getState().live[id]!
+    const draftKey =
+      entry.target?.kind === 'remote'
+        ? hostResourceKey(entry.target, 'session', entry.laneId!)
+        : `session:${id}`
+    useDraftsStore.getState().setText(draftKey, '')
+    await act(async () =>
+      root.render(<Composer key={id} sessionId={id} workspacePath={entry.workspacePath} />),
+    )
+    const field = container.querySelector('textarea')!
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!
+    await act(async () => {
+      setter.call(field, '/')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(container.textContent).toContain(`/only-${id}`)
+    for (const other of ['mac', 'bee-a', 'bee-b'].filter((x) => x !== id))
+      expect(container.textContent).not.toContain(`/only-${other}`)
+  }
+})

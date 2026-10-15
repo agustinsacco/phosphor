@@ -1,4 +1,9 @@
-import { useRemoteLanesStore, canControlSession, REMOTE_NOT_READY } from '@/stores/remoteLanes'
+import {
+  useRemoteLanesStore,
+  canControlSession,
+  REMOTE_NOT_READY,
+  REMOTE_UNAVAILABLE,
+} from '@/stores/remoteLanes'
 import { hostResourceKey } from '@shared/remote-host'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -168,6 +173,11 @@ export function Composer({
       if ((!message && images.length === 0) || uploading.current) return
 
       const chat = useChatStore.getState()
+
+      if (remote && message.startsWith('!')) {
+        chat.setError(sessionId, REMOTE_UNAVAILABLE)
+        return
+      }
 
       // `!command` / `!!command` → RPC bash execution.
       if (message.startsWith('!') && !isStreaming) {
@@ -424,7 +434,7 @@ export function Composer({
         className="relative mx-auto min-w-0 max-w-3xl"
       >
         <ComposerInput
-          workspacePath={remote ? undefined : workspacePath}
+          workspacePath={workspacePath}
           remoteAttachments={remoteAttachments}
           value={text}
           textareaRef={textareaRef}
@@ -512,7 +522,7 @@ export function Composer({
             the line over to explain itself; an empty field lends its right
             end to the cheat sheet that used to crowd the placeholder. */}
         <div className="text-text-tertiary @container flex min-h-6 flex-wrap items-center gap-x-3 gap-y-0.5 px-2 pt-1.5 text-sm">
-          {text.startsWith('!') ? (
+          {!remote && text.startsWith('!') ? (
             <span className="text-text-secondary">
               <span className="font-mono">!cmd</span> runs in your shell and enters context on the
               next prompt · <span className="font-mono">!!cmd</span> keeps the output out of context

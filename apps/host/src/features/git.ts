@@ -20,7 +20,7 @@ export function createGitFeature(context: FeatureContext): HostFeature {
     methods: ['git.status', 'git.diff', 'git.show'],
     async call(method, params) {
       const p = parseFileParams(method, params)
-      if (!p || !['git.status', 'git.diff', 'git.show'].includes(method))
+      if (!p || !p.laneId || !['git.status', 'git.diff', 'git.show'].includes(method))
         return failure(new FileFailure('bad-request'))
       try {
         const root = await laneRoot(context, p.laneId)

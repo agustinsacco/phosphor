@@ -1,4 +1,4 @@
-import { useMachinePagesStore } from '@/stores/machinePages'
+import { useMachinePagesStore, pageMachine } from '@/stores/machinePages'
 import { MachinePicker } from '@/features/machines/MachinePicker'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useMemo, useState } from 'react'
@@ -41,7 +41,9 @@ import {
  * session's can also be removed.
  */
 export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
-  const machine = useMachinePagesStore((s) => s.artifactsMachine)
+  const filter = useRemoteLanesStore((s) => s.filter)
+  const override = useMachinePagesStore((s) => s.artifactsMachine)
+  const machine = pageMachine(filter, override, true)
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const bySession = useArtifactsStore((s) => s.bySession)
   const live = useSessionsStore((s) => s.live)
@@ -50,7 +52,9 @@ export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
   const liveIds = useSessionsStore((s) => Object.keys(s.live).join('\n'))
   const disk = useSessionsStore((s) => s.disk)
   const [stored, setStored] = useState<ArtifactListing[] | null>(null)
-  const [viewing, setViewing] = useState<string | null>(null)
+  const [view, setView] = useState<{ machine: string; key: string } | null>(null)
+  const viewing = view?.machine === machine ? view.key : null
+  const setViewing = (key: string | null): void => setView(key ? { machine, key } : null)
   const [removals, setRemovals] = useState(0)
 
   useEffect(() => {
@@ -121,15 +125,22 @@ export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
         <div className="flex gap-2">
           <MachinePicker
             includeAll
-            value={machine}
+            value={machine === 'all' ? '' : machine}
             capability="artifacts.read"
-            onChange={(artifactsMachine) => useMachinePagesStore.setState({ artifactsMachine })}
+            onChange={(artifactsMachine) =>
+              useMachinePagesStore.setState({ artifactsMachine: artifactsMachine || 'all' })
+            }
           />
         </div>
       }
     >
       <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col">
-        {rows.length === 0 ? (
+        {machine !== 'all' &&
+        machine !== 'local' &&
+        (hosts[machine]?.state !== 'ready' ||
+          !hosts[machine]?.capabilities.includes('artifacts.read')) ? (
+          <p role="alert">{REMOTE_UNAVAILABLE}</p>
+        ) : rows.length === 0 ? (
           <div className="flex h-full items-center justify-center px-6">
             <div className="max-w-md text-center">
               <div className="text-text-tertiary text-lg">
@@ -324,6 +335,7 @@ function StoredArtifactView({
 
   return (
     <ArtifactWorkspace
+      remote={artifactKey.startsWith('host:')}
       artifact={loaded.artifact}
       list={[loaded.artifact]}
       workspacePath={loaded.listing.cwd}

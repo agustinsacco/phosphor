@@ -1,7 +1,9 @@
+import { useMachineCataloguesStore } from '@/stores/machineCatalogues'
+import { useRemoteLanesStore as remoteSelection } from '@/stores/remoteLanes'
 // @vitest-environment jsdom
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { afterEach, expect, it, vi } from 'vitest'
+import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 import { SKILL_CATALOG } from '@shared/skillsCatalog'
 import { useSkillsStore } from '@/stores/skills'
 import { SkillsPage } from './SkillsPage'
@@ -9,7 +11,9 @@ import { SkillsPage } from './SkillsPage'
 vi.mock('@/components/markdown/Markdown', () => ({ Markdown: () => null }))
 const container = document.createElement('div')
 const root = createRoot(container)
+beforeEach(() => useMachineCataloguesStore.setState({ catalogues: {} }))
 afterEach(() => {
+  remoteSelection.setState({ filter: 'local' })
   act(() => root.render(null))
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
@@ -77,8 +81,14 @@ it('keeps every offering pinned and external plugins outside the installer allow
 it('keeps remote skills read-only, gates capability and never offers local installation', async () => {
   const { useRemoteLanesStore } = await import('@/stores/remoteLanes')
   const hostId = '00000000-0000-4000-8000-000000000001'
-  const workspacePath = `host:${hostId}/0123456789abcdef`
-  const invoke = vi.fn().mockResolvedValue({ content: 'skill text', binary: false, size: 10 })
+  const workspacePath = `host:${hostId}/machine`
+  const invoke = vi
+    .fn()
+    .mockImplementation(async (channel) =>
+      channel === 'hosts:skills'
+        ? useSkillsStore.getState().byWorkspace[workspacePath]
+        : { content: 'skill text', binary: false, size: 10 },
+    )
   vi.stubGlobal('phosphor', { invoke })
   vi.spyOn(useSkillsStore.getState(), 'refresh').mockResolvedValue(undefined)
   useSkillsStore.setState({
@@ -107,7 +117,7 @@ it('keeps remote skills read-only, gates capability and never offers local insta
       },
     },
   })
-  useRemoteLanesStore.setState({ hosts: {} })
+  useRemoteLanesStore.setState({ hosts: {}, filter: hostId })
   await act(async () => root.render(<SkillsPage workspacePath={workspacePath} />))
   expect(container.textContent).toContain('Not available on remote lanes yet.')
   const host = {
@@ -248,6 +258,34 @@ it('reloads after a coalesced ready-to-ready reconnect and ignores the old failu
   })
   expect(container.textContent).toContain('Reconnected model')
   expect(invoke).toHaveBeenCalledTimes(4)
-  expect(useMachineCataloguesStore.getState().error).toBeNull()
+  expect(Object.values(useMachineCataloguesStore.getState().catalogues).some((c) => c.error)).toBe(
+    false,
+  )
   useMachinePagesStore.setState({ skillsMachine: null })
+})
+
+it.each([
+  ['local', 'bee1', 'local'],
+  ['bee1', 'local', 'bee1'],
+])('Skills uses only the selected machine across %j', async (...sequence) => {
+  const { useMachinePagesStore } = await import('@/stores/machinePages')
+  useMachinePagesStore.setState({ skillsMachine: null })
+  vi.stubGlobal('phosphor', {
+    invoke: vi.fn().mockResolvedValue({ skills: [], probe: 'rpc', userRoot: 'opaque' }),
+  })
+  vi.spyOn(useSkillsStore.getState(), 'refresh').mockResolvedValue(undefined)
+  for (const id of sequence) {
+    await act(async () => {
+      remoteSelection.getState().setFilter(id)
+      root.render(<SkillsPage workspacePath="/repo" />)
+    })
+    if (id === 'local') {
+      expect(container.textContent).toContain('This Mac')
+      expect(container.textContent).not.toContain('Not available on remote lanes yet.')
+    } else {
+      expect(container.querySelector('[aria-label=Machine]')?.textContent).toContain('bee1')
+      expect(container.textContent).toContain('Not available on remote lanes yet.')
+      expect(container.textContent).not.toContain('New skill')
+    }
+  }
 })

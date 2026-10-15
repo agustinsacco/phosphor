@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { realpathSync, statSync } from 'node:fs'
-import { basename } from 'node:path'
+import { basename, relative, isAbsolute } from 'node:path'
 import type { DatabaseSync, SQLOutputValue } from 'node:sqlite'
 import {
   HOST_LIMITS,
@@ -24,6 +24,22 @@ import {
   uuid,
 } from './validation'
 export { opHash } from './validation'
+
+export type RepositoryIdentity = {
+  home: string
+  expected: { path: string; dev: number; ino: number }
+}
+
+/** Only newly added folders are home-confined; owner-configured roots remain unrestricted. */
+export function validateRepositoryIdentity(identity: RepositoryIdentity): void {
+  const { expected } = identity
+  const home = realpathSync.native(identity.home)
+  const full = realpathSync.native(expected.path)
+  const rel = relative(home, full)
+  const info = statSync(full)
+  check(full === expected.path && !isAbsolute(rel) && rel !== '..' && !rel.startsWith('../'))
+  check(info.isDirectory() && info.dev === expected.dev && info.ino === expected.ino)
+}
 
 export const REMOVED_LANE_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const RECEIPT_EXPIRED = 'finished_at < ?'
@@ -287,7 +303,9 @@ export class HostStore {
   syncRepositories(
     paths: readonly string[],
     logUnavailable: (count: number) => void = () => {},
+    identity?: RepositoryIdentity,
   ): RepositorySummary[] {
+    if (identity) validateRepositoryIdentity(identity)
     check(paths.length <= this.limits.repositoriesPerHost)
     const repositories = new Map<string, RepositorySummary>()
     let unavailable = 0
@@ -413,6 +431,11 @@ export class HostStore {
         )
       return this.requireLane(id)
     })
+  }
+  bindSessionFile(id: string, file: string): void {
+    absolutePath(file)
+    this.requireLane(id)
+    this.db.prepare('UPDATE lanes SET session_file=? WHERE lane_id=?').run(file, id)
   }
   updateLane(id: string, patch: LanePatch): StoredLane {
     this.validatePatch(patch)

@@ -5,7 +5,7 @@ export const MOCK_HOST_ID = '00000000-0000-4000-8000-000000000099'
 const LANE = '00000000-0000-4000-8000-000000000098'
 export const mockRemoteInfo: LiveSessionInfo = {
   sessionId: 'remote-0000000000000099',
-  workspacePath: `host:${MOCK_HOST_ID}/0000000000000001`,
+  workspacePath: `host:${MOCK_HOST_ID}/lane:${LANE}`,
   target: { kind: 'remote', hostId: MOCK_HOST_ID },
   laneId: LANE,
 }
@@ -60,6 +60,9 @@ export function mockRemoteAction(channel: string): void {
             },
           }
         : {}),
+      ...(channel === 'hosts:releaseControl'
+        ? { control: { fence: lane.control.fence + 1, controller: null } }
+        : {}),
       ...(channel === 'hosts:markRead' ? { read: lane.attention } : {}),
       ...(channel === 'hosts:stopLane' ? { activity: 'stopped' as const } : {}),
       ...(channel === 'hosts:resumeLane' ? { activity: 'idle' as const } : {}),
@@ -71,7 +74,15 @@ export function mockRemoteAction(channel: string): void {
 /** Opt-in screenshot directory. Ordinary harness and test defaults stay unchanged. */
 export function mixedRemoteHosts(): HostsSnapshot {
   const base = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
-  base.capabilities.push('skills.read', 'routines', 'artifacts.read')
+  base.capabilities.push(
+    'skills.read',
+    'routines',
+    'artifacts.read',
+    'workspaces.read',
+    'workspaces.write',
+  )
+  for (const lane of base.lanes)
+    lane.control.controller = { self: true, label: 'This Desktop', connected: true }
   const ids = [
     '11111111-1111-4111-8111-111111111111',
     '22222222-2222-4222-8222-222222222222',
@@ -96,6 +107,7 @@ export function mixedRemoteHosts(): HostsSnapshot {
                 {
                   ...lane,
                   title: 'Sidebar machine switcher',
+                  cwd: '/remote/phosphor/worktree',
                   branch: 'feat/machine-switcher',
                   worktree: true,
                   activity: 'working' as const,

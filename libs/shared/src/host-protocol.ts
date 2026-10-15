@@ -1,3 +1,9 @@
+import {
+  parseRepositoryOp,
+  parseDeleteLaneOp,
+  type RepositoryOp,
+  type DeleteLaneOp,
+} from './host-protocol-repositories'
 import { parseProviderLoginOp, type ProviderLoginOp } from './host-protocol-providers'
 import { parseAttachmentOp, type AttachmentOp } from './host-protocol-attachments'
 import {
@@ -233,6 +239,8 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 export type LanePiOp = DistributiveOmit<Extract<RpcCommand, { type: LanePiOpType }>, 'id'>
 
 export type LaneOp =
+  | RepositoryOp
+  | DeleteLaneOp
   | ProviderLoginOp
   | TerminalOp
   | RoutineOp
@@ -259,7 +267,13 @@ export type LaneOp =
 export type LaneOpType = LaneOp['type']
 
 /** Ops admitted without a matching fence. Every other lane op needs one. */
-export const UNFENCED_OPS: readonly LaneOpType[] = ['lane.create', 'lane.markRead', 'control.take']
+export const UNFENCED_OPS: readonly LaneOpType[] = [
+  'lane.create',
+  'lane.markRead',
+  'control.take',
+  'host.repositories.add',
+  'host.repositories.remove',
+]
 
 export type RejectCode =
   | 'bad-request'
@@ -272,6 +286,7 @@ export type RejectCode =
   /** The request id was already used for another op or by another client. */
   | 'conflict'
   | 'busy'
+  | 'last-repository'
   | 'too-many-requests'
 
 export type FailureCode = 'pi-error' | 'timeout' | 'internal'
@@ -578,6 +593,9 @@ function op(v: unknown): LaneOp | null {
   const write = parseFileWriteOp(v)
   if (write) return write
   if (!record(v)) return null
+  if (v.type === 'lane.delete') return parseDeleteLaneOp(v)
+  if (typeof v.type === 'string' && v.type.startsWith('host.repositories.'))
+    return parseRepositoryOp(v)
   if (v.type === 'provider.login') return parseProviderLoginOp(v)
   if (typeof v.type === 'string' && v.type.startsWith('terminal.')) return parseTerminalOp(v)
   if (typeof v.type === 'string' && v.type.startsWith('routine.')) return parseRoutineOp(v)
@@ -665,6 +683,9 @@ const laneOps = [
   'terminal.create',
   'terminal.resize',
   'terminal.kill',
+  'host.repositories.add',
+  'host.repositories.remove',
+  'lane.delete',
   'lane.create',
   'lane.resume',
   'lane.stop',
@@ -728,7 +749,9 @@ export function parseClientFrame(s: string): ClientFrameParse {
       const operation = op(v.op)
       if (
         !operation ||
-        ((operation.type.startsWith('routine.') || operation.type === 'provider.login') &&
+        ((operation.type.startsWith('routine.') ||
+          operation.type === 'provider.login' ||
+          operation.type.startsWith('host.repositories.')) &&
           (v.laneId !== undefined || v.fence !== undefined)) ||
         (v.laneId !== undefined && !isUuid(v.laneId)) ||
         (v.fence !== undefined && !integer(v.fence, 1)) ||
@@ -941,6 +964,7 @@ const rejects: readonly RejectCode[] = [
   'stale-fence',
   'conflict',
   'busy',
+  'last-repository',
   'too-many-requests',
 ]
 const errors: readonly CallErrorCode[] = [

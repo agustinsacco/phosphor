@@ -1,3 +1,5 @@
+import { rememberRemoteModel } from '@/stores/remoteModelPicks'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useState } from 'react'
 import type { Model, ThinkingLevel } from '@shared/rpc'
 import { supportedThinkingLevels } from '@shared/thinking'
@@ -20,8 +22,19 @@ import { ModelChip, ModelChipSkeleton, ThinkingChip } from './ModelChip'
  *     just computed client-side to match rather than a hardcoded list that was
  *     wrong for most models.
  */
-export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Element | null {
-  const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
+export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Element {
+  // Menu and in-flight selection feedback belong to the lane, too.
+  return <SessionModelPicker key={sessionId} sessionId={sessionId} />
+}
+
+function SessionModelPicker({ sessionId }: { sessionId: string }): React.JSX.Element | null {
+  const session = useSessionsStore((s) => s.live[sessionId])
+  const remote = session?.target?.kind === 'remote'
+  const summaryModel = useRemoteLanesStore((s) =>
+    session?.target?.kind === 'remote'
+      ? s.hosts[session.target.hostId]?.lanes.find((lane) => lane.laneId === session.laneId)?.model
+      : undefined,
+  )
   const meta = useChatStore((s) => s.sessions[sessionId]?.meta)
   const models = useChatStore((s) => s.sessions[sessionId]?.models) ?? []
   const modelsLoaded = useChatStore((s) => s.sessions[sessionId]?.modelsLoaded ?? false)
@@ -30,8 +43,22 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
   /** Model name the chip is switching to, or null when settled. */
   const [switchingTo, setSwitchingTo] = useState<string | null>(null)
 
-  if (!meta) return null
-  const currentModel = meta.model
+  if (!meta) {
+    return summaryModel ? (
+      <ModelChip
+        testId="model-chip"
+        name={summaryModel.id}
+        active={false}
+        onClick={() => {}}
+        disabled
+      />
+    ) : null
+  }
+  const currentModel =
+    !summaryModel ||
+    (meta.model?.provider === summaryModel.provider && meta.model?.id === summaryModel.id)
+      ? meta.model
+      : undefined
 
   /**
    * Levels to render. Prefer pi's answer; derive locally when missing.
@@ -53,6 +80,8 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
         modelId: model.id,
       })
       if (!selected) return
+      const target = useSessionsStore.getState().live[sessionId]?.target
+      if (target?.kind === 'remote') rememberRemoteModel(target.hostId, selected)
       const chat = useChatStore.getState()
       // A provider quota failure is recorded on the session-wide error surface.
       // Once pi confirms a different model, that error is no longer actionable;
@@ -136,7 +165,9 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
         name={
           switchingTo
             ? `Switching to ${switchingTo}…`
-            : (currentModel?.name ?? (modelsLoaded ? 'No model' : <ModelChipSkeleton />))
+            : (currentModel?.name ??
+              summaryModel?.id ??
+              (modelsLoaded ? 'No model' : <ModelChipSkeleton />))
         }
       />
 

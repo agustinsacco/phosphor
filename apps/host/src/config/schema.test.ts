@@ -26,6 +26,23 @@ describe('Host config v1', () => {
     expect(validateHostConfig(minimal)).toEqual({ ok: true, config: minimal })
   })
 
+  it('accepts only a boolean autoNameLanes setting, absent means enabled', () => {
+    for (const allowRepositoryChanges of [true, false])
+      expect(validateHostConfig({ ...minimal, allowRepositoryChanges }).ok).toBe(true)
+    for (const allowRepositoryChanges of [null, 0, 'false', {}])
+      expect(errorsOf({ ...minimal, allowRepositoryChanges })).toContainEqual({
+        pointer: '/allowRepositoryChanges',
+        message: 'must be a boolean',
+      })
+    for (const autoNameLanes of [true, false])
+      expect(validateHostConfig({ ...minimal, autoNameLanes }).ok).toBe(true)
+    for (const autoNameLanes of [null, 0, 'false', {}])
+      expect(errorsOf({ ...minimal, autoNameLanes })).toContainEqual({
+        pointer: '/autoNameLanes',
+        message: 'must be a boolean',
+      })
+    expect(validateHostConfig(minimal).ok).toBe(true)
+  })
   it('reports every problem at once, each at its JSON pointer', () => {
     const errors = errorsOf({
       version: 2,

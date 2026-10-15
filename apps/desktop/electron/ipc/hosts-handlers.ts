@@ -1,3 +1,5 @@
+import { repositoryManagement } from '../hosts/repository-management'
+import { repositoryReads } from '../hosts/repository-reads'
 import { machineReads } from '../hosts/machine-reads'
 import { uploadAttachments } from '../hosts/attachments'
 import { routeRemoteWrite } from '../hosts/write-features'
@@ -78,6 +80,22 @@ export function registerHostsHandlers(): void {
         log,
       }),
   })
+  const management = repositoryManagement(manager.connection)
+  handle('hosts:listFolders', (_event, hostId, path) => management.folders(hostId, path))
+  handle('hosts:addRepository', (_event, hostId, path) => management.add(hostId, path))
+  handle('hosts:removeRepository', (_event, hostId, repositoryId) =>
+    management.remove(hostId, repositoryId),
+  )
+  handle('hosts:deleteLane', (_event, hostId, laneId, options) =>
+    management.deleteLane(hostId, laneId, options),
+  )
+  const repositories = repositoryReads(manager.connection)
+  handle('hosts:repositoryFiles', (_event, hostId, repositoryId) =>
+    repositories.list(hostId, repositoryId),
+  )
+  handle('hosts:repositoryFile', (_event, hostId, repositoryId, path) =>
+    repositories.read(hostId, repositoryId, path),
+  )
   const catalogues = machineReads(manager.connection)
   handle('hosts:models', (_event, hostId) => catalogues.models(hostId))
   handle('hosts:providers', (_event, hostId) => catalogues.providers(hostId))
@@ -225,6 +243,9 @@ export function registerHostsHandlers(): void {
   )
   handle('hosts:takeControl', (_event, hostId, laneId) =>
     remoteLanes().action(hostId, laneId, 'control.take'),
+  )
+  handle('hosts:releaseControl', (_event, hostId, laneId) =>
+    remoteLanes().action(hostId, laneId, 'control.release'),
   )
   handle('hosts:markRead', (_event, hostId, laneId) =>
     remoteLanes().action(hostId, laneId, 'lane.markRead'),

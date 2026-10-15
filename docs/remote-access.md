@@ -148,6 +148,8 @@ Files lists tracked and untracked non-ignored paths. Controllers with
 rename, copy, move and trash entries inside the lane. Saves compare the SHA-256
 revision read by the editor; conflicts preserve edits and require a refresh.
 Uncertain saves preserve edits and are never retried automatically.
+Unsaved drafts stay in renderer memory per lane, survive lane switches, and clear
+on discard, successful save or lane forget.
 Changes shows git status and an inline read-only diff against HEAD. Binary files
 and oversized text use placeholders. Remote text uses in-memory Monaco models, never local preview protocols or
 filesystem watchers. They refresh
@@ -188,7 +190,11 @@ Main uses the lane handle, never a session file path, to fetch metadata and each
 current-branch version. A call caps total content at 8 MiB and each version at
 2 MiB, with at most 1,000 version reads per call. Invalid replies, changed
 connections, revoked capability or a changed
-focused lane fail closed. The renderer discards stale replies.
+focused lane fail closed. The renderer serializes and coalesces metadata reads per lane, discarding replies
+after navigation, detach or connection changes. It refreshes on open, reconnect,
+new stream epochs and artifact-tool completion; empty replies replace cached
+artifacts. The top-bar entry remains visible for a ready Host with
+`artifacts.read` even when the lane has no artifacts yet.
 
 The global Artifacts library includes local artifacts and artifacts from ready
 Hosts announcing `artifacts.read`, tagged with the machine label. Remote library
@@ -683,10 +689,39 @@ falls back to local creation.
 
 The home composer follows the sidebar machine selection (All machines uses This
 Mac). A picker override lasts until the next sidebar selection change. This target
-is window-local renderer state, never persisted. Submitting with a Host targeted
-opens the existing remote-lane dialog and keeps the composer draft; it does not
-send a first prompt or start a local session, including when that Host is down or
-unavailable. Closing the dialog keeps the target.
+is window-local renderer state, never persisted. Host-targeted folder, model and
+thinking chips use that machine's repositories and signed-in provider catalogue.
+There is no branch chip when the snapshot supplies no branch information. The
+model prefers the last usable choice on that Host, then a usable Desktop default,
+then the first model of the first ready provider. The effective choice is visible.
+Submitting creates and opens the lane, takes control if needed, and sends the
+first prompt through the remote receipt path. Only a confirmed prompt clears the
+draft. A failure keeps it and never falls back to This Mac.
+
+Remote row menus share the local context menu and inline rename. Open, takeover/release,
+Stop/Resume, rename, mark read, pin, marker, debug identity and spend are available
+with readiness, capability and controller gates. Titles prefer the live name,
+then the Host summary, then the first prompt. The Host owns automatic naming.
+The sidebar header shows repository and machine labels, not opaque resource ids.
+Remote auth remedies open that machine's Readiness page, never a local terminal. A connected Host
+with no usable signed-in model refuses creation and offers Sign in on that
+machine. This is separate from a disconnected-machine refusal.
+Retry appears only for the last confirmed failed turn while idle and controlled.
+
+Skills, Routines and Artifacts follow the sidebar machine. A page picker overrides
+that selection until the next sidebar change. All machines defaults Skills and
+Routines to This Mac, while Artifacts shows every machine. A down or incapable
+selected Host shows its refusal, not local data. Page targets stay in this window
+and are never persisted. In-lane panes still belong to their lane.
+
+Remote lane Delete uses the local confirmation surfaces: transcript-only for a
+shared worktree or the main checkout, resource checkboxes for an exclusive
+worktree. It requires control and workspace-write capability. The Host trash
+retains transcripts for 30 days. Failed deletions stay in the confirm; success
+closes the lane view. Folder menus offer Add folder on the Host through a
+home-relative folder browser. Remove from the Host confirms that files are kept;
+a repository with a live lane cannot be removed. These changes require a ready
+Host with workspace-write capability and may be refused by Host configuration.
 
 ## Provider sign-in
 
@@ -699,3 +734,80 @@ sequenced and never replayed after uncertainty. Login content and credentials
 are not logged, persisted by Phosphor or sent to control. PTYs are limited to
 one per provider and two per Host; they end on exit, grant/capability loss,
 shutdown, or ten disconnected minutes. See [provider login](host.md#providers-login).
+
+## Remote lane surface isolation
+
+The lane artifact pane reads only its explicit session id. An empty Host reply
+clears that lane's cached artifacts; switching back restores the Mac lane's own
+artifacts, not a global selection. Workspace writes from a remote artifact are
+disabled until revision-aware create is supported. Save and PDF export explicitly
+target This Mac. The top-bar artifact count belongs to the active lane.
+
+Remote slash commands come from the lane, and file mentions search its Host file
+list. Thinking levels derive from the lane model. Local rules/MCP and Swarm menus
+are hidden. Shell shortcuts, queued-message removal, rewind and fork are refused
+with the fixed unavailable hint. Continue waits for the remote receipt and echo;
+it never inserts an optimistic duplicate. Error cards do not inspect This Mac's
+AWS profile. Lane and machine switches reset visible selections or show loading
+or refusal while the new target loads.
+
+## Machine repository browsing and remote file targets
+
+With a Host selected and no lane open, Files lists that machine's configured
+repositories and previews their files read-only. `hosts:repositoryFiles` and
+`hosts:repositoryFile` require ready `workspaces.read`, a configured repository
+id, and the same connection and generation before and after each read. They
+never fall back to This Mac. File wire reads name exactly one lane or repository;
+writes remain controller-only and lane-scoped.
+
+Remote file trees use the local explorer's row and icon toolbar components.
+Empty trees say "No files yet"; Changes has its own empty state. A failed git
+status does not hide files, including in non-git configured folders. Tree views
+refuse more than 50,000 derived nodes or more than 64 nested components rather
+than silently truncating the tree. Remote content and editor state stay in memory.
+File models and workspace keys include the lane identity, not just its repository.
+Switching targets resets previews and cancels stale reads. Machine browse state
+is reset on a machine switch.
+
+Tool path chips and markdown links carry their originating chat session through
+`SessionFileTarget`. An absolute Host path opens only when it is inside that
+lane's cwd; a relative path must pass the Host path grammar. Finder and chat
+links share the same remote open/reveal API, including line jumps. Host-namespaced
+reads never fall back to the Mac filesystem. A remote link without its originating
+session fails closed. Explicit local catalogue reads stay local, independent of
+which lane is focused.
+
+New lanes are named by the Host, not by Desktop's pi. The first accepted prompt
+is the immediate fallback title. Explicit rename and generated names use the
+lane's own runtime and publish to other clients. Host config can disable naming.
+Stop before a first saved prompt is refused; provider changes rebind the Host
+process before another turn. An allocated but unwritten session path is not a
+resume file: the Host recreates that process with the selected model and restores
+its name and records the replacement pi's own session path before attachment
+completes. Saved lanes resume their transcript. The Host checks transcript safety
+before a provider change and checks pi's fresh file identity again after the
+queued change returns, so a first prompt written in between is resumed, not
+orphaned. Unreadable or non-regular transcripts refuse the operation without
+replacing the live process. Cross-provider selections must fit Host startup
+limits (64-character provider and 128-character model ids); oversized selections
+are refused before pi changes. The selected model remains in the lane summary
+after stop or failure when its ids fit
+the Host store's limits ([known limitation](known-issues.md#host-lanes)). A model
+persistence failure does not fail a confirmed live selection. Desktop retains full model metadata per open
+lane in memory; without it, a stopped lane's chip shows its last reported model id,
+never another lane's model name. Release control uses `hosts:releaseControl` and
+the existing fenced `control.release` operation.
+
+Folder browse/add/remove and lane delete use typed main IPC and Host receipts.
+Folder selection is confined to the Host user's home; no client chooses an
+executable or environment. Add/remove can be disabled by Host config. At least
+one configured folder must remain. Lane deletion stops the Host process, trashes
+the transcript on the Host and optionally removes an unshared worktree and a
+proven-merged branch. These actions never delete This Mac's files. See
+[host.md](host.md#repository-management-and-lane-deletion) for the bounds and
+partial-failure policy.
+
+Directory heartbeat changes do not replace a connecting socket. Main logs fixed
+replacement reasons (removed, down, endpoint, identity); connection closure logs
+its numeric close code. No prompt, title, file content or folder path is logged
+by these operations.

@@ -28,6 +28,8 @@ import { KeybindingsTab } from './tabs/KeybindingsTab'
 import { AboutTab } from './tabs/AboutTab'
 import { FeedbackButton } from '@/features/feedback/FeedbackButton'
 
+import { isMachineSettingsTab, SettingsMachineScope, useSettingsHost } from './SettingsMachineScope'
+
 const isExtensionTab = (id: SettingsTab): boolean => EXTENSION_TABS.some((t) => t.id === id)
 
 /**
@@ -39,6 +41,7 @@ export function SettingsModal(): React.JSX.Element | null {
   const tab = useSettingsUiStore((s) => s.tab)
   const reveal = useSettingsUiStore((s) => s.reveal)
   const workspace = useActiveWorkspace()
+  const hostId = useSettingsHost()
   const [extensionTabs, setExtensionTabs] = useState<typeof EXTENSION_TABS>([])
   const dialogRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -47,7 +50,7 @@ export function SettingsModal(): React.JSX.Element | null {
   // Refresh on every open: installing from the Extensions tab should make
   // the extension's own tab appear without reopening the app.
   useEffect(() => {
-    if (!open) return
+    if (!open || hostId) return
     let cancelled = false
     void window.phosphor
       .invoke('packages:list', workspace ?? undefined)
@@ -60,10 +63,13 @@ export function SettingsModal(): React.JSX.Element | null {
     return () => {
       cancelled = true
     }
-  }, [open, tab, workspace])
+  }, [open, tab, workspace, hostId])
+  // Remote package discovery is unsupported. Show scoped explanations without
+  // using a cached list of packages installed on This Mac.
+  const visibleExtensionTabs = hostId ? EXTENSION_TABS : extensionTabs
   const available = useMemo(
-    () => new Set([...TABS, ...extensionTabs].map((t) => t.id)),
-    [extensionTabs],
+    () => new Set([...TABS, ...visibleExtensionTabs].map((t) => t.id)),
+    [visibleExtensionTabs],
   )
   const search = useSettingsSearch(available)
   const { query, listing, counts } = search
@@ -71,7 +77,7 @@ export function SettingsModal(): React.JSX.Element | null {
   // Stale sub-tab (e.g. the package was removed out-of-band) falls back to
   // the Extensions list, so the panel never renders an orphaned sub-tab.
   const effectiveTab: SettingsTab =
-    isExtensionTab(tab) && !extensionTabs.some((t) => t.id === tab) ? 'extensions' : tab
+    isExtensionTab(tab) && !visibleExtensionTabs.some((t) => t.id === tab) ? 'extensions' : tab
 
   // ⌘F anywhere in settings goes to its search field. Covers focus on
   // nothing in particular; `onKeyDown` below covers the fields, which the
@@ -141,7 +147,7 @@ export function SettingsModal(): React.JSX.Element | null {
                 {navButton(t.id, t.label)}
                 {t.id === 'extensions' && (
                   <>
-                    {extensionTabs.map((et) => navButton(et.id, et.label, true))}
+                    {visibleExtensionTabs.map((et) => navButton(et.id, et.label, true))}
                     {navButton('connectors', 'MCP Connectors', true)}
                   </>
                 )}
@@ -161,22 +167,27 @@ export function SettingsModal(): React.JSX.Element | null {
             <SettingsSearchResults search={search} />
           ) : (
             <>
-              {effectiveTab === 'appearance' && <AppearanceTab />}
-              {effectiveTab === 'writing' && <WritingTab />}
-              {effectiveTab === 'agent' && <AgentTab />}
-              {effectiveTab === 'accounts' && <AccountsTab />}
-              {effectiveTab === 'extensions' && <ExtensionsTab />}
-              {effectiveTab === 'claude-provider' && <ClaudeProviderTab />}
-              {effectiveTab === 'web-access' && <WebAccessTab />}
-              {effectiveTab === 'connectors' && <ConnectorsTab />}
-              {effectiveTab === 'computer-use' && <ComputerUseTab />}
-              {effectiveTab === 'subagents' && <SubagentsTab />}
-              {effectiveTab === 'workspaces' && <WorkspacesTab />}
-              {effectiveTab === 'optimization' && <OptimizationTab />}
-              {effectiveTab === 'voice' && <VoiceTab />}
-              {effectiveTab === 'advanced' && <AdvancedTab />}
-              {effectiveTab === 'keybindings' && <KeybindingsTab />}
-              {effectiveTab === 'about' && <AboutTab />}
+              {isMachineSettingsTab(effectiveTab) && <SettingsMachineScope hostId={hostId} />}
+              {(!hostId || !isMachineSettingsTab(effectiveTab)) && (
+                <>
+                  {effectiveTab === 'appearance' && <AppearanceTab />}
+                  {effectiveTab === 'writing' && <WritingTab />}
+                  {effectiveTab === 'agent' && <AgentTab />}
+                  {effectiveTab === 'accounts' && <AccountsTab />}
+                  {effectiveTab === 'extensions' && <ExtensionsTab />}
+                  {effectiveTab === 'claude-provider' && <ClaudeProviderTab />}
+                  {effectiveTab === 'web-access' && <WebAccessTab />}
+                  {effectiveTab === 'connectors' && <ConnectorsTab />}
+                  {effectiveTab === 'computer-use' && <ComputerUseTab />}
+                  {effectiveTab === 'subagents' && <SubagentsTab />}
+                  {effectiveTab === 'workspaces' && <WorkspacesTab />}
+                  {effectiveTab === 'optimization' && <OptimizationTab />}
+                  {effectiveTab === 'voice' && <VoiceTab />}
+                  {effectiveTab === 'advanced' && <AdvancedTab />}
+                  {effectiveTab === 'keybindings' && <KeybindingsTab />}
+                  {effectiveTab === 'about' && <AboutTab />}
+                </>
+              )}
             </>
           )}
         </div>

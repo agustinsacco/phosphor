@@ -12,6 +12,9 @@ import type { HostCapability } from '../remote-host'
 import type { GrantPayload } from '../host-grant'
 import type { ExtensionUIRequest } from '../rpc'
 
+/** Captured before any test installs fake timers. */
+const realSetTimeout = globalThis.setTimeout
+
 export interface ConformanceConnection {
   socket: FrameSocket
   pause(): void
@@ -163,6 +166,12 @@ export function defineHostConformance(
       const requestId = h.requestId()
       c.send({ type: 'command', requestId, laneId, fence, op })
       await flush(5)
+      // Some Host commands touch the real filesystem (Stop checks pi's session file), which
+      // fake timers do not advance. Yield real event-loop turns without moving fake time.
+      for (let i = 0; i < 100 && !receipts(c, requestId).length; i++) {
+        await new Promise((resolve) => realSetTimeout(resolve, 1))
+        await flush()
+      }
       const r = receipts(c, requestId).at(-1)
       if (!r) throw new Error('Missing receipt')
       return r

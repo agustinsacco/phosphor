@@ -45,6 +45,7 @@ export function ComposerInput({
   children,
   ...field
 }: ComposerInputProps): React.JSX.Element {
+  const canAttach = (!!workspacePath && !workspacePath.startsWith('host:')) || remoteAttachments
   const attachments = useAttachments({
     remote: remoteAttachments,
     attachments: images,
@@ -146,9 +147,9 @@ export function ComposerInput({
       )}
       <div
         data-swarm-enabled={enabled}
-        onDragOver={workspacePath || remoteAttachments ? attachments.handleDragOver : undefined}
+        onDragOver={canAttach ? attachments.handleDragOver : undefined}
         onDragLeave={attachments.handleDragLeave}
-        onDrop={workspacePath || remoteAttachments ? attachments.handleDrop : undefined}
+        onDrop={canAttach ? attachments.handleDrop : undefined}
         className={clsx(
           'bg-surface relative rounded-xl border shadow-sm transition-colors',
           attachments.dragging
@@ -170,7 +171,7 @@ export function ComposerInput({
           {...field}
           onChange={change}
           onKeyDown={keyDown}
-          onPasteFiles={workspacePath || remoteAttachments ? attachments.addFiles : () => undefined}
+          onPasteFiles={canAttach ? attachments.addFiles : () => undefined}
           autocomplete={
             field.autocomplete !== false &&
             !slash.visible &&
@@ -181,11 +182,10 @@ export function ComposerInput({
         {children}
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2.5 pb-2">
           <div className="flex shrink-0 items-center gap-0.5">
-            {(workspacePath || remoteAttachments) && (
-              <AttachButton onFiles={attachments.addFiles} />
-            )}
+            {canAttach && <AttachButton onFiles={attachments.addFiles} />}
             <DictateButton textareaRef={field.textareaRef} onChange={change} />
             {workspacePath &&
+              !workspacePath.startsWith('host:') &&
               ('sessionId' in swarm ? (
                 <SwarmSwitch sessionId={swarm.sessionId} />
               ) : (

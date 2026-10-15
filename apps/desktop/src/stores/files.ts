@@ -284,7 +284,7 @@ export const useFilesStore = create<FilesState>((set, get) => ({
   },
 
   openFile: async (workspacePath, path, target) => {
-    if (workspacePath.startsWith('host:')) return
+    if (workspacePath.startsWith('host:')) throw new Error('Not available on remote lanes yet.')
     const reveal: Partial<OpenFile> = {}
     if (target !== undefined) {
       reveal.pendingReveal = {

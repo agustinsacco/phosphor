@@ -3,9 +3,13 @@ import { describe, it, expect, vi, afterEach, beforeAll, beforeEach } from 'vite
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import type { Model } from '@shared/rpc'
+import type { HostsSnapshot } from '@shared/ipc'
 import { ModelPicker } from './ModelPicker'
 import { useChatStore } from '@/stores/chat'
 import { useModelPicksStore } from '@/stores/modelPicks'
+import { useSessionsStore } from '@/stores/sessions'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 
 // jsdom has no layout engine, so MenuRow's scroll-into-view call is a no-op here.
 beforeAll(() => {
@@ -41,6 +45,8 @@ beforeEach(() => {
     piCommand,
   }
   useModelPicksStore.setState({ starred: [], recent: [], groupMode: 'family', hydrated: true })
+  useSessionsStore.setState({ live: {} })
+  useRemoteLanesStore.setState({ hosts: {} })
   useChatStore.setState({ sessions: {} })
   useChatStore.getState().ensure(SESSION)
   useChatStore.getState().setModels(SESSION, [CODEX, CLAUDE])
@@ -94,6 +100,70 @@ function pick(target: Model): void {
 }
 
 describe('ModelPicker', () => {
+  it.each(['stopped', 'failed'] as const)(
+    'keeps the %s lane model isolated across A -> B -> A',
+    (activity) => {
+      const hosts: HostsSnapshot = structuredClone(mockRemoteHosts)
+      const lane = {
+        ...hosts[MOCK_HOST_ID]!.lanes[0]!,
+        activity,
+        model: { provider: CLAUDE.provider, id: CLAUDE.id },
+      }
+      hosts[MOCK_HOST_ID]!.lanes = [lane]
+      const remoteId = mockRemoteInfo.sessionId
+      useRemoteLanesStore.setState({ hosts })
+      useSessionsStore.setState({
+        live: {
+          [remoteId]: {
+            phosphorId: remoteId,
+            workspacePath: mockRemoteInfo.workspacePath,
+            target: { kind: 'remote', hostId: MOCK_HOST_ID },
+            laneId: lane.laneId,
+          },
+        },
+      })
+      render()
+      expect(chip().textContent).toContain(CODEX.name)
+      act(() => root!.render(<ModelPicker sessionId={remoteId} />))
+      expect(chip().textContent).toContain(CLAUDE.id)
+      expect(chip().textContent).not.toContain(CODEX.name)
+      // A summary can arrive before refreshed pi metadata. Never render the
+      // stale model's name under the newly selected model's identity.
+      act(() => {
+        useChatStore.getState().ensure(remoteId)
+        useChatStore.getState().setMeta(remoteId, useChatStore.getState().sessions[SESSION]!.meta!)
+      })
+      expect(chip().textContent).toContain(CLAUDE.id)
+      expect(chip().textContent).not.toContain(CODEX.name)
+      act(() => root!.render(<ModelPicker sessionId={SESSION} />))
+      expect(chip().textContent).toContain(CODEX.name)
+      act(() => root!.render(<ModelPicker sessionId={remoteId} />))
+      expect(chip().textContent).toContain(CLAUDE.id)
+    },
+  )
+
+  it('does not carry an in-flight model name into another lane', async () => {
+    const other = 'other-lane'
+    useChatStore.getState().ensure(other)
+    useChatStore.getState().setMeta(other, useChatStore.getState().sessions[SESSION]!.meta!)
+    let finish: (value: unknown) => void = () => {}
+    piCommand.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    )
+    render()
+    pick(CLAUDE)
+    expect(chip().textContent).toContain(`Switching to ${CLAUDE.name}`)
+    act(() => root!.render(<ModelPicker sessionId={other} />))
+    expect(chip().textContent).toContain(CODEX.name)
+    expect(chip().textContent).not.toContain(CLAUDE.name)
+    await act(async () => {
+      finish({ success: false, error: 'unavailable' })
+    })
+  })
+
   it('reports why main refused a switch, without the IPC wrapper', async () => {
     const reason =
       'Claude sessions need @saccolabs/pi-claude-cli 0.10.0 or newer (found 0.9.1). ' +
@@ -113,4 +183,33 @@ describe('ModelPicker', () => {
     await vi.waitFor(() => expect(chip().disabled).toBe(false))
     expect(chip().textContent).toContain(CODEX.name)
   })
+})
+
+it.each([
+  [SESSION, 'bee1-a', SESSION],
+  ['bee1-a', 'bee1-b', 'bee1-a'],
+])('model/thinking menu stays session-scoped on %j switches', (...sequence) => {
+  const base = useChatStore.getState().sessions[SESSION]!.meta!
+  for (const [id, chosen] of [
+    ['bee1-a', CLAUDE],
+    ['bee1-b', { ...CODEX, id: 'other-model', name: 'Other repo model', reasoning: false }],
+  ] as const) {
+    useChatStore.getState().ensure(id)
+    useChatStore.getState().setMeta(id, { ...base, model: chosen, thinkingLevel: 'off' })
+    useChatStore.getState().setModels(id, [chosen])
+  }
+  render()
+  for (const id of sequence) {
+    act(() => root!.render(<ModelPicker key={id} sessionId={id} />))
+    const name =
+      id === SESSION ? 'GPT-5' : id === 'bee1-a' ? 'Claude Haiku 4.5' : 'Other repo model'
+    expect(chip().textContent).toContain(name)
+    act(() => chip().click())
+    const rows = [...document.querySelectorAll('[data-testid=model-row]')]
+      .map((row) => row.textContent)
+      .join(' ')
+    expect(rows).toContain(name)
+    if (id === 'bee1-b') expect(rows).not.toContain('Claude Haiku')
+    act(() => chip().click())
+  }
 })

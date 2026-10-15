@@ -248,13 +248,19 @@ function RunRow({
               Cancel run
             </Button>
           )}
-          <Button
-            size="sm"
-            disabled={busy || (!run.sessionId && !run.sessionPath)}
-            onClick={onContinue}
-          >
-            {activeRun(run) ? 'Open running lane' : 'Continue lane'}
-          </Button>
+          {run.id.startsWith('host:') && !run.sessionId ? (
+            <span className="text-text-tertiary max-w-48 text-sm">
+              Output not available from this machine yet
+            </span>
+          ) : (
+            <Button
+              size="sm"
+              disabled={busy || (!run.sessionId && !run.sessionPath)}
+              onClick={onContinue}
+            >
+              {activeRun(run) ? 'Open running lane' : 'Continue lane'}
+            </Button>
+          )}
           <TooltipButton
             aria-expanded={open}
             aria-label={open ? 'Hide run details' : 'Show run details'}

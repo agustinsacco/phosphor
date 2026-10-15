@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./host-protocol-repositories": {
+      "types": "./src/host-protocol-repositories.ts",
+      "default": "./src/host-protocol-repositories.ts"
+    },
     "./host-protocol-providers": {
       "types": "./src/host-protocol-providers.ts",
       "default": "./src/host-protocol-providers.ts"

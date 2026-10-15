@@ -1,3 +1,9 @@
+import { useSessionsStore } from '@/stores/sessions'
+import { canControlSession, REMOTE_UNAVAILABLE, useRemoteLanesStore } from '@/stores/remoteLanes'
+import { piCallOk } from '@/lib/rpc'
+import { machineLabel } from '@/stores/remoteLanes'
+import { useMachinesStore } from '@/stores/machines'
+import { Button } from '@/components/form'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useState } from 'react'
 import clsx from 'clsx'
@@ -67,7 +73,7 @@ export const MessageItemView = memo(function MessageItemView({
     case 'text':
       return <AssistantText item={row.item} block={row.block} isLastInItem={row.isLastInItem} />
     case 'outcome':
-      return <AssistantOutcome item={row.item} />
+      return <AssistantOutcome sessionId={sessionId} item={row.item} />
     case 'item':
       switch (row.item.kind) {
         case 'user':
@@ -183,9 +189,11 @@ function UserMessage({
   item: UserItem
   sessionId: string
 }): React.JSX.Element {
+  const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
   const [busy, setBusy] = useState(false)
 
   const rewind = async (): Promise<void> => {
+    if (remote) return
     setBusy(true)
     try {
       // `item.id` is a client-side counter (see `newItemId`), not pi's entry
@@ -232,16 +240,23 @@ function UserMessage({
         {(item.text || item.images?.length) && !item.optimistic && (
           <TooltipButton
             onClick={() => void rewind()}
-            disabled={busy}
-            title="Rewind to here"
+            disabled={busy || remote}
+            title={remote ? REMOTE_UNAVAILABLE : 'Rewind to here'}
             className="text-text-tertiary hover:text-text flex items-center transition-colors disabled:opacity-50"
           >
             <RewindIcon size={12} />
           </TooltipButton>
         )}
         <TooltipButton
-          onClick={() => useChatUiStore.getState().openForkPicker(sessionId)}
-          title={`Rewind to an earlier message… (${formatShortcut('Esc Esc')})`}
+          disabled={remote}
+          onClick={() => {
+            if (!remote) useChatUiStore.getState().openForkPicker(sessionId)
+          }}
+          title={
+            remote
+              ? REMOTE_UNAVAILABLE
+              : `Rewind to an earlier message… (${formatShortcut('Esc Esc')})`
+          }
           className="text-text-tertiary hover:text-text flex items-center transition-colors"
         >
           <BranchIcon size={12} />
@@ -325,8 +340,15 @@ function AssistantText({
 }
 
 /** How an assistant turn ended, when it did not end cleanly. */
-function AssistantOutcome({ item }: { item: AssistantItem }): React.JSX.Element | null {
-  if (item.stopReason === 'error') return <ErrorBlock message={item.errorMessage} />
+function AssistantOutcome({
+  item,
+  sessionId,
+}: {
+  item: AssistantItem
+  sessionId: string
+}): React.JSX.Element | null {
+  if (item.stopReason === 'error')
+    return <ErrorBlock sessionId={sessionId} message={item.errorMessage} />
   if (item.stopReason === 'aborted') {
     return (
       <div className="text-text-tertiary my-1 flex items-center gap-2.5 text-sm">
@@ -346,17 +368,53 @@ function AssistantOutcome({ item }: { item: AssistantItem }): React.JSX.Element 
  * for configuration failures that no command can fix (Bedrock's account-level
  * data retention mode) a docs link plus a pointer at the model menu.
  */
-export function ErrorBlock({ message }: { message?: string }): React.JSX.Element {
-  const workspacePath = useActiveWorkspace()
+export function ErrorBlock({
+  message,
+  sessionId: suppliedSessionId,
+}: {
+  message?: string
+  sessionId?: string
+}): React.JSX.Element {
+  const fallbackWorkspace = useActiveWorkspace()
+  const sessionId = useSessionsStore((s) => suppliedSessionId ?? s.activeSessionId)
+  const entry = useSessionsStore((s) => (sessionId ? s.live[sessionId] : undefined))
+  const workspacePath = entry?.workspacePath ?? fallbackWorkspace
+  const hostId = entry?.target?.kind === 'remote' ? entry.target.hostId : undefined
+  const remoteIdle = useRemoteLanesStore((s) =>
+    hostId
+      ? s.hosts[hostId]?.lanes.find((lane) => lane.laneId === entry?.laneId)?.activity === 'idle'
+      : false,
+  )
+  const chat = useChatStore((s) => (sessionId ? s.sessions[sessionId] : undefined))
+  const [retrying, setRetrying] = useState(false)
+  const last = chat?.items.at(-1)
+  const retryUser =
+    last?.kind === 'assistant' &&
+    last.stopReason === 'error' &&
+    last.errorMessage === message &&
+    !chat?.isStreaming
+      ? chat?.items.findLast((item) => item.kind === 'user')
+      : undefined
   const [awsProfile, setAwsProfile] = useState<string | undefined>(undefined)
 
   useEffect(() => {
-    void window.phosphor.invoke('app:userInfo').then((info) => setAwsProfile(info.awsProfile))
-  }, [])
+    let current = true
+    setAwsProfile(undefined)
+    if (!hostId)
+      void window.phosphor.invoke('app:userInfo').then((info) => {
+        if (current) setAwsProfile(info.awsProfile)
+      })
+    return () => {
+      current = false
+    }
+  }, [hostId, sessionId])
 
   // Match remedies against the raw text: some patterns ('data retention mode')
   // appear in fields the human sentence does not carry.
-  const remedy = matchErrorRemedy(message, { awsProfile })
+  const remedy = matchErrorRemedy(message, {
+    awsProfile: hostId ? undefined : awsProfile,
+    machine: hostId ? machineLabel(hostId) : undefined,
+  })
   const parsed = parseErrorMessage(message)
 
   return (
@@ -370,7 +428,37 @@ export function ErrorBlock({ message }: { message?: string }): React.JSX.Element
       {remedy && (
         <>
           <div className="text-text-secondary mt-1.5 text-base leading-relaxed">{remedy.hint}</div>
-          {remedy.command !== undefined && (
+          {remedy.remoteSignIn &&
+            hostId &&
+            sessionId &&
+            remoteIdle &&
+            retryUser?.kind === 'user' &&
+            canControlSession(sessionId) && (
+              <Button
+                size="sm"
+                disabled={retrying}
+                onClick={() => {
+                  if (retrying) return
+                  setRetrying(true)
+                  void piCallOk(sessionId, {
+                    type: 'prompt',
+                    message: retryUser.text,
+                    images: retryUser.images,
+                  }).finally(() => setRetrying(false))
+                }}
+              >
+                Retry failed turn
+              </Button>
+            )}
+          {remedy.remoteSignIn && hostId && (
+            <Button
+              size="sm"
+              onClick={() => useMachinesStore.getState().show({ kind: 'machine', id: hostId })}
+            >
+              {remedy.label}
+            </Button>
+          )}
+          {remedy.command !== undefined && !hostId && (
             <RunCommandRow
               command={remedy.command}
               label={remedy.label}
