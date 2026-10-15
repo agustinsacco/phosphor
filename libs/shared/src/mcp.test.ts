@@ -1,25 +1,43 @@
 import { describe, expect, it } from 'vitest'
-import { directToolsSummary, directToolsText, parseDirectToolsText } from './mcp'
+import { exposesDirectTools, exposureSummary, isMcpOverride, mcpNamespace } from './mcp'
 
-describe('directTools', () => {
-  it('summarises what skips the gateway, `true` included', () => {
-    expect(directToolsSummary(true)).toBe('all tools')
-    expect(directToolsSummary(['a', 'b', 'c', 'd', 'e', 'f'])).toBe('a, b, c, d +2')
-    for (const value of [undefined, false, 'search', []])
-      expect(directToolsSummary(value)).toBeNull()
+describe('exposureSummary', () => {
+  it('says nothing at pi’s default', () => {
+    expect(exposureSummary({ url: 'https://x.test' })).toBeNull()
+    expect(exposureSummary({ url: 'https://x.test', exposure: 'codemode' })).toBeNull()
   })
 
-  it('round-trips every adapter form through the editor text', () => {
-    for (const value of [true, 'search', ['get_issue', 'save_issue']] as const) {
-      expect(parseDirectToolsText(directToolsText(value))).toEqual(value)
-    }
-    expect(parseDirectToolsText('  ')).toBeUndefined()
+  it('names the exposure and counts per-tool rules', () => {
+    expect(exposureSummary({ command: 'x', exposure: 'direct' })).toBe('direct')
+    expect(exposureSummary({ command: 'x', toolExposure: { a: 'direct' } })).toBe(
+      'codemode +1 tool rule',
+    )
+    expect(
+      exposureSummary({
+        command: 'x',
+        exposure: 'hidden',
+        toolExposure: { a: 'direct', b: 'codemode' },
+      }),
+    ).toBe('hidden +2 tool rules')
+  })
+})
+
+describe('exposesDirectTools', () => {
+  it('is true when any tool is declared on every request', () => {
+    expect(exposesDirectTools({ command: 'x' })).toBe(false)
+    expect(exposesDirectTools({ command: 'x', exposure: 'direct' })).toBe(true)
+    expect(exposesDirectTools({ command: 'x', toolExposure: { a: 'direct' } })).toBe(true)
+    expect(exposesDirectTools({ command: 'x', exposure: 'deferred' })).toBe(false)
+  })
+})
+
+describe('names', () => {
+  it('namespaces tools as pi does', () => {
+    expect(mcpNamespace('augment-knowledge')).toBe('mcp__augment_knowledge')
   })
 
-  it('keeps a lone tool named like a mode a list across an edit', () => {
-    for (const value of [['search'], ['all'], ['Search']]) {
-      expect(parseDirectToolsText(directToolsText(value))).toEqual(value)
-    }
-    expect(directToolsText(['search'])).toBe('search,')
+  it('treats an entry without command, url or type as an override', () => {
+    expect(isMcpOverride({ enabled: false })).toBe(true)
+    expect(isMcpOverride({ command: 'x' })).toBe(false)
   })
 })

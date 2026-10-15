@@ -73,7 +73,7 @@ describe('accept', { timeout: 30_000 }, () => {
       verdict: 'pass',
       machine: `test-host · linux-${process.arch}`,
       host: { version: '0.0.0-dev.source', node: '22.22.3' },
-      pi: { version: '0.87.1', cli: machine.cli },
+      pi: { version: '1.2.0', cli: machine.cli },
       environment: { valuesPrinted: false },
       drain: { state: 'stopped', remaining: [] },
     })

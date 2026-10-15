@@ -15,7 +15,10 @@ import type { AdvisorFinding, SessionMeta } from '@shared/models'
 export interface AdvisorInput {
   headroom: { enabled: boolean; installed: boolean; proxyRunning: boolean }
   sessions: SessionMeta[]
-  /** Enabled MCP servers resolved for this workspace. */
+  /**
+   * Enabled MCP servers for this workspace that expose tools directly. A
+   * codemode or deferred server sends no schemas until a tool is used.
+   */
   mcpServerCount: number
 }
 
@@ -102,17 +105,18 @@ export function adviseOptimization(input: AdvisorInput): AdvisorFinding[] {
     })
   }
 
-  // MCP schema weight: every connected server's tool schemas ride on every
-  // request of a Claude session (measured ~13k tokens/request at 30 tools).
+  // MCP schema weight: a direct tool's schema rides on every request
+  // (measured ~13k tokens/request at 30 tools).
   if (input.mcpServerCount >= MCP_WEIGHT_THRESHOLD) {
     findings.push({
       id: 'mcp-weight',
       severity: 'tip',
-      title: `${input.mcpServerCount} MCP servers are connected`,
+      title: `${input.mcpServerCount} MCP servers expose tools directly`,
       detail:
-        'Each server adds its tool schemas to every request. Disconnect the ones this ' +
-        'project does not use, and prefer field-projected mcpScript calls over raw list ' +
-        'tools — a 5-field projection measured 14× smaller, then compressed a further 44%.',
+        'A direct tool adds its schema to every request. Put the ones this project does ' +
+        'not call on every turn back on codemode, where scripts can return only the ' +
+        'fields they need: a 5-field projection measured 14× smaller, then compressed ' +
+        'a further 44%.',
       settingsTab: 'connectors',
     })
   }

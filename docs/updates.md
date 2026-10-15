@@ -116,9 +116,8 @@ Nothing persistent lives inside the bundle, so a swap resets no state:
 - `~/Library/Logs/Phosphor/` — the debug log.
 - `~/.pi/`, `~/.claude/` — pi's sessions and settings, the Claude provider's
   transcripts.
-- `<workspace>/.pi/`, `<workspace>/.mcp.json`, `<workspace>/.phosphor/`.
-- MCP OAuth tokens. The adapter owns those in the OS credential store, and the
-  keychain ACL binds to `pi`, not `Phosphor.app`.
+- `<workspace>/.pi/` (its `mcp.json` included), `<workspace>/.phosphor/`.
+- MCP OAuth tokens. pi keeps those in its own agent directory, under `~/.pi/`.
 
 The only bundle-internal thing read at runtime is `process.resourcesPath/pi-ext`,
 the shipped extension sources, which the new version _should_ replace.

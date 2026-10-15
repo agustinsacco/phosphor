@@ -176,6 +176,62 @@ describe('chat reducer — tool calls', () => {
     expect(state.tools['call_1']!.isError).toBe(true)
   })
 
+  it("keeps pi's measured duration, live and from a reloaded result", () => {
+    const live = run([
+      ...toolFlow,
+      { type: 'tool_execution_start', toolCallId: 'call_1', toolName: 'bash', args: {} },
+      {
+        type: 'tool_execution_end',
+        toolCallId: 'call_1',
+        toolName: 'bash',
+        result: { content: [] },
+        isError: false,
+        durationMs: 1234,
+      },
+    ])
+    expect(live.tools['call_1']!.durationMs).toBe(1234)
+
+    const reloaded = hydrateFromMessages([
+      {
+        role: 'assistant',
+        content: [{ type: 'toolCall', id: 'call_2', name: 'bash', arguments: {} }],
+      },
+      {
+        role: 'toolResult',
+        toolCallId: 'call_2',
+        toolName: 'bash',
+        content: [],
+        isError: false,
+        durationMs: 56,
+      },
+    ])
+    expect(reloaded.tools['call_2']!.durationMs).toBe(56)
+  })
+
+  it('ignores calls another tool made, which no message holds', () => {
+    const state = run([
+      ...toolFlow,
+      { type: 'tool_execution_start', toolCallId: 'call_1', toolName: 'codemode', args: {} },
+      {
+        type: 'tool_execution_start',
+        toolCallId: 'nested',
+        toolName: 'read',
+        args: {},
+        parentToolCallId: 'call_1',
+      },
+      {
+        type: 'tool_execution_end',
+        toolCallId: 'nested',
+        toolName: 'read',
+        result: { content: [] },
+        isError: true,
+        parentToolCallId: 'call_1',
+      },
+    ])
+    expect(state.tools['nested']).toBeUndefined()
+    expect(state.tools['call_1']!.status).toBe('running')
+  })
+
   it('reconciles placeholder tool ids when toolcall_start lacks the id', () => {
     const state = run([
       assistantStart,
@@ -223,7 +279,7 @@ describe('chat reducer — queues, compaction, retry', () => {
     expect(state.agentStartedAt).toEqual(expect.any(Number))
     expect(state.queues.steering).toEqual(['queued steer'])
 
-    state = reduceChatEvent(state, { type: 'agent_settled' })
+    state = reduceChatEvent(state, { type: 'agent_settled', aborted: false })
     expect(state.isStreaming).toBe(false)
     expect(state.agentStartedAt).toBeNull()
     expect(state.queues).toEqual({ steering: [], followUp: [] })
@@ -331,7 +387,7 @@ describe('chat reducer — agentStartedAt (working indicator)', () => {
     expect(state.agentStartedAt).toEqual(expect.any(Number))
     expect(state.isStreaming).toBe(true)
 
-    state = reduceChatEvent(state, { type: 'agent_settled' })
+    state = reduceChatEvent(state, { type: 'agent_settled', aborted: false })
     expect(state.agentStartedAt).toBeNull()
   })
 

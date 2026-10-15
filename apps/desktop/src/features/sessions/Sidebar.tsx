@@ -677,9 +677,9 @@ export function Sidebar({
   const prByRepo = usePullRequestsStore((s) => s.byRepo)
   const anySearchApplied = Object.values(searchApplied).some(Boolean)
   /**
-   * Names of live sessions, which can lead their file on disk by a whole turn
-   * (pi writes a session file only when a turn ENDS). Without them, a lane
-   * renamed mid-turn is not findable under the name the sidebar is showing.
+   * Names of live sessions, which lead the disk scan by the watcher's
+   * debounce. Without them, a lane renamed a moment ago is not findable under
+   * the name the sidebar is showing.
    *
    * Subscribed as a joined STRING so streaming re-renders nothing: the chat
    * store replaces `sessions` on every token, but this value only changes when
@@ -1462,10 +1462,9 @@ function SessionRow({
   // moment the auto-namer landed.
   const marker = laneMarker(explicitMarker, git?.branch, meta.cwd, markerMode)
   const naming = useNameTransition(livePhosphorId)
-  // A live session's own name beats the scanned one. pi writes its session
-  // file only when a turn ENDS (measured), so a name set mid-turn does not
-  // reach `meta.name` until the reply lands — sometimes minutes later. The
-  // top bar reads the live store and would rename while this row did not.
+  // A live session's own name beats the scanned one: `meta.name` follows a
+  // rename only once the folder watcher's debounce has passed. The top bar
+  // reads the live store and would rename while this row did not.
   const liveName = useChatStore((s) =>
     livePhosphorId ? s.sessions[livePhosphorId]?.meta?.sessionName : undefined,
   )
@@ -1843,9 +1842,10 @@ function RenameInput({
  * whole of its first turn: exactly the minutes when its name is still a
  * placeholder and the user most wants to fix it.
  *
- * **Not short-lived.** pi writes a session's file only when a turn ENDS
- * (measured), so this row stands in for the entire first turn — minutes, for
- * real work — and is then replaced by a `SessionRow`. That swap has to be
+ * **Replaced mid-turn.** pi writes a session's file when the first message
+ * is sent, so this row stands in until the folder watcher reports it, usually
+ * while the first reply is still streaming, and is then replaced by a
+ * `SessionRow`. That swap has to be
  * invisible, which is why the subtitle below is the same `time · wt · branch`
  * shape the disk-backed row uses rather than the "naming…" / "starting…" text
  * it used to show. Two different subtitles on one row within a few seconds

@@ -16,7 +16,7 @@ it('lists the reviewed machine surface; everything else is app-local', () => {
       'list run installPi detect checkUpdates claudeStatus claudeCliLatest updateClaudeCli testClaudeProvider',
     claude:
       'startLogin submitCode cancelLogin logout accounts removeAccount reorderAccounts setRouting refreshAccountUsage bindSession assignSession accountSessions sessionAccount usageSnapshot',
-    mcp: 'readConfigs upsertServer removeServer setDisabled readCache authorize submitAuthCallback cancelAuth checkServer readFile writeFile',
+    mcp: 'readConfigs upsertServer removeServer setEnabled list authorize cancelAuth logout migrationPlan migrate readFile writeFile',
     sessions:
       'list stats watch unwatch delete readTree appendLabel jump forkAt claudeSessionId forkClaudeLedger',
     gh: 'prForBranch prsForRepo available',

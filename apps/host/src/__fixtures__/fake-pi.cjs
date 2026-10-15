@@ -49,7 +49,7 @@ const { dirname, join } = require('node:path')
 
 const args = process.argv.slice(2)
 if (args.includes('--version')) {
-  console.log('0.87.1')
+  console.log('1.2.0')
   process.exit(0)
 }
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
@@ -197,7 +197,7 @@ function finish(user, reply, stopReason, errorMessage) {
   out({ type: 'message_end', message })
   save(user, message)
   out({ type: 'agent_end', messages: [message] })
-  out({ type: 'agent_settled' })
+  out({ type: 'agent_settled', aborted: false })
 }
 function prompt(message) {
   out({ type: 'agent_start' })

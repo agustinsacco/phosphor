@@ -1,11 +1,19 @@
 # 02 — pi Integration Reference
 
-`MIN_PI_VERSION` is **0.87.1**: the context budget relies on pi's native
-between-tool-cycle compaction, verified with a real RPC process and a local fake
-provider. The protocol mirror in `libs/shared/src/rpc.ts` was last re-verified
-against **0.87.1**, with pi-claude-cli 0.10.0: every command and its fields
-match `rpc-types.d.ts`, every event and content type it names is one pi emits,
-and the live smoke below passed. Usage and tool-call identity fields remain
+`MIN_PI_VERSION` is **1.2.0**. The context budget relies on pi's native
+between-tool-cycle compaction (0.87.1+), verified with a real RPC process and a
+local fake provider. Phosphor reads three 1.x fields: a prompt's
+`data.disposition` (`handled` means an extension command consumed it and no run
+starts, so the composer drops its optimistic bubble and booting strip),
+`agent_settled.aborted` (a lane that was stopped gets no "finished" notice) and
+`durationMs` on `tool_execution_end` and tool results (a bash row's time, also
+after a reload). Tool events with `parentToolCallId` are calls another tool made,
+such as a codemode script's; the chat reducer and routine outcomes ignore them,
+since no assistant message holds them. The protocol mirror in
+`libs/shared/src/rpc.ts` was last re-verified against **1.2.0**, with
+pi-claude-cli 0.10.0: every command and its fields match `rpc-types.d.ts`,
+every event and content type it names is one pi emits, and the live smoke below
+passed. Usage and tool-call identity fields remain
 optional for historical records. The 0.84.0 streaming-shape change is in that
 file's header. See [One context budget](cli-providers.md#one-context-budget) for
 the session-local window cap.
@@ -26,7 +34,7 @@ Then run `node tools/scripts/pi-live-smoke.mjs`, which drives a real `pi --mode 
 
 - Spawn `pi --mode rpc` with `cwd` = the workspace folder. **One subprocess per live session.** Idle/old sessions are read from disk (see §Sessions on disk), not kept as processes.
 - Useful flags, all of them assembled in `libs/session-runtime/src/pi/rpc-client.ts`: `--session <path|id>`, `--session-id <id>`, `--fork <path|id>`, `--no-session`, `--no-context-files`, `-n <name>`, `--model <pattern>` (supports `provider/id` and `:<thinking>` suffix), `--provider`, `--thinking <level>`, `-e <extension.ts>`, `--append-system-prompt <text|file>`.
-- `-e` is repeatable and every session gets **six** of them — Launch preparation in `libs/session-runtime/src/pi/session-launch.ts` resolves `bundledExtensions()`, and `libs/session-runtime/src/pi/session-policy.ts` passes `artifacts.ts`, `context-breakdown.ts`, `worktree-paths.ts`, `tool-name-guard.ts`, `mcp-status.ts`, `headroom.ts` from `libs/pi-extensions/pi-ext/`. They ship unpacked next to the app resources (`extraResources` in `apps/desktop/electron-builder.yml`) because the pi subprocess reads them off disk, not out of the asar. What each one is for: [extensions.md](extensions.md#bundled-extensions-phosphors-own).
+- `-e` is repeatable and every session gets **six** of them — Launch preparation in `libs/session-runtime/src/pi/session-launch.ts` resolves `bundledExtensions()`, and `libs/session-runtime/src/pi/session-policy.ts` passes `artifacts.ts`, `context-breakdown.ts`, `worktree-paths.ts`, `tool-name-guard.ts`, `headroom.ts`, `lane-reload.ts` from `libs/pi-extensions/pi-ext/`. They ship unpacked next to the app resources (`extraResources` in `apps/desktop/electron-builder.yml`) because the pi subprocess reads them off disk, not out of the asar. What each one is for: [extensions.md](extensions.md#bundled-extensions-phosphors-own).
 - **Framing is strict JSONL, LF only.** Do NOT use Node `readline` (it also splits on U+2028/U+2029, which are legal inside JSON strings). Buffer on `\n`, strip a trailing `\r`. `JsonlDecoder` scans only new chunks and joins an incomplete record's fragments once at its delimiter or stream end, so framing work is linear in input size. Commands go to stdin one JSON object per line; responses and events stream from stdout. The explicit `node tools/scripts/perf/stream-buffers.mjs` benchmark measures framing and PTY-tail costs without running a model.
 - Commands accept optional `id` for correlation; responses echo it. Events never carry `id`.
 - pi requires Node ≥ 22.19 (it runs as its own process, so Electron's Node version is irrelevant).
@@ -80,7 +88,7 @@ branch from `get_entries` instead.
 
 The full `PiEvent` union in `libs/shared/src/rpc.ts`:
 
-`agent_start` / `agent_end` (all messages of the run, `willRetry?`) / **`agent_settled`** · `turn_start` / `turn_end` (assistant message + toolResults) · `message_start` / `message_update` / `message_end` · `tool_execution_start` (toolCallId, toolName, args) / `tool_execution_update` (**partialResult is accumulated — replace, don't append**) / `tool_execution_end` (result, isError) · `queue_update` (steering[], followUp[]) · `compaction_start`/`compaction_end` (reason manual|threshold|overflow; `willRetry` on overflow success) · `auto_retry_start` (attempt, maxAttempts, delayMs, errorMessage) / `auto_retry_end` · **`bash_execution_update`** · **`summarization_retry_scheduled` / `summarization_retry_attempt_start` / `summarization_retry_finished`** · `extension_error`.
+`agent_start` / `agent_end` (all messages of the run, `willRetry?`) / **`agent_settled`** (`aborted`) · `turn_start` / `turn_end` (assistant message + toolResults) · `message_start` / `message_update` / `message_end` · `tool_execution_start` (toolCallId, toolName, args) / `tool_execution_update` (**partialResult is accumulated — replace, don't append**) / `tool_execution_end` (result, isError, `durationMs?`); all three carry `parentToolCallId?` on a nested call · `queue_update` (steering[], followUp[]) · `compaction_start`/`compaction_end` (reason manual|threshold|overflow; `willRetry` on overflow success) · `auto_retry_start` (attempt, maxAttempts, delayMs, errorMessage) / `auto_retry_end` · **`bash_execution_update`** · **`summarization_retry_scheduled` / `summarization_retry_attempt_start` / `summarization_retry_finished`** · `extension_error`.
 
 The five late additions (bolded above), and why they matter:
 
@@ -94,7 +102,7 @@ Unknown event types hit the reducer's `default` branch and are dropped, not thro
 
 ## Extension-UI sub-protocol (must be fully implemented)
 
-Extensions (including the user's installed packages `pi-web-access`, `pi-mcp-adapter`) call `ctx.ui.*`; in RPC mode these arrive as `extension_ui_request` on stdout:
+Extensions (including the user's installed packages such as `pi-web-access`) call `ctx.ui.*`; in RPC mode these arrive as `extension_ui_request` on stdout:
 
 - **Dialogs — client MUST reply** via stdin `{type:"extension_ui_response", id, …}`:
   - `select` (title, options[]) → reply `{value}` or `{cancelled:true}`
@@ -128,7 +136,7 @@ Map to native Phosphor UI (`apps/desktop/src/features/extension-ui/`): modal she
 
 pi's `ToolName` union (`dist/core/tools/index.d.ts`) has an **eighth**: `powershell`, the Windows shell tool, sharing `bash`'s input and details types exactly. `ToolCard.tsx` does not case on it, so it falls to the generic renderer — correct but plainer than the `bash` card it is a synonym for. Worth knowing before assuming a Windows transcript looks like a macOS one.
 
-Unknown/extension tools (MCP tools via pi-mcp-adapter, subagent tools, etc.) MUST render well generically: name, pretty-JSON args (collapsed), streaming output, error state. The exception proves the rule: Phosphor's own `artifact_create` / `artifact_update` / `artifact_edit` get cased cards in `ToolCard.tsx` because Phosphor ships the extension that emits them and therefore knows the shape.
+Unknown/extension tools (`direct` MCP tools, subagent tools, etc.) MUST render well generically: name, pretty-JSON args (collapsed), streaming output, error state. The exception proves the rule: Phosphor's own `artifact_create` / `artifact_update` / `artifact_edit` get cased cards in `ToolCard.tsx` because Phosphor ships the extension that emits them and therefore knows the shape.
 
 ## Main-process activity facts
 
@@ -167,9 +175,10 @@ migration, and rewrites only the disposable header cwd to isolate project resour
 - `~/.pi/agent/models.json` — custom providers/models (the reference user runs a local OpenAI-compatible endpoint; **never assume Anthropic-only**).
 - `~/.pi/agent/auth.json` — API keys/OAuth (never display secrets). Env vars like `ANTHROPIC_API_KEY` also work.
 - `~/.pi/agent/skills/`, `prompts/`, `extensions/`, `themes/`, `AGENTS.md`; project `.pi/` equivalents.
-- Two package configs that are **not** under `~/.pi/agent/` and must not be assumed to be: `web-search.json` for pi-web-access — `$PI_CODING_AGENT_DIR/web-search.json`, else `$XDG_CONFIG_HOME/pi/web-search.json`, else `~/.pi/web-search.json` (`apps/desktop/electron/pi/pi-paths.ts`, verified against pi-web-access 0.24.0) — and `mcp.json` for pi-mcp-adapter, which has a resolution chain of its own ([mcp.md](mcp.md)).
+- `~/.pi/agent/mcp.json` and, for a trusted project, `<ws>/.pi/mcp.json`: pi's built-in MCP servers ([mcp.md](mcp.md)).
+- A package config that is **not** under `~/.pi/agent/` and must not be assumed to be: `web-search.json` for pi-web-access — `$PI_CODING_AGENT_DIR/web-search.json`, else `$XDG_CONFIG_HOME/pi/web-search.json`, else `~/.pi/web-search.json` (`apps/desktop/electron/pi/pi-paths.ts`, verified against pi-web-access 0.24.0).
 - Every one of these is a **foreign** file: pi and its packages own the format. Phosphor edits them only on explicit user action, never as a side effect ([settings.md](settings.md)).
 
 ## pi philosophy (mirror it)
 
-pi core deliberately excludes MCP, subagents, plan mode, todos, permissions, background bash — these arrive via extensions/packages. Phosphor therefore: renders unknown tools generically and well, executes `get_commands` results as slash commands, implements the extension-UI protocol faithfully, and never hardcodes an assumption that only built-in tools exist.
+pi core deliberately excludes subagents, plan mode, todos, permissions, background bash — these arrive via extensions/packages. MCP is the exception: pi has it built in. Phosphor therefore: renders unknown tools generically and well, executes `get_commands` results as slash commands, implements the extension-UI protocol faithfully, and never hardcodes an assumption that only built-in tools exist.

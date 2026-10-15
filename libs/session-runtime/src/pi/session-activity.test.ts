@@ -45,7 +45,7 @@ describe('SessionActivity', () => {
     activity.event({ type: 'agent_start' })
     activity.event({ type: 'agent_end', messages: [] })
     expect(activity.busy).toBe(true)
-    activity.event({ type: 'agent_settled' })
+    activity.event({ type: 'agent_settled', aborted: false })
     expect(activity.busy).toBe(false)
   })
 
@@ -65,7 +65,7 @@ describe('SessionActivity', () => {
     const activity = new SessionActivity()
     idle(activity)
     activity.requested('bash', 'bash')
-    activity.event({ type: 'agent_settled' })
+    activity.event({ type: 'agent_settled', aborted: false })
     idle(activity)
     expect(activity.busy).toBe(true)
     activity.responded(response('bash', 'bash'))
@@ -76,7 +76,7 @@ describe('SessionActivity', () => {
     const activity = new SessionActivity()
     idle(activity)
     activity.event({ type: 'queue_update', steering: [], followUp: ['next'] })
-    activity.event({ type: 'agent_settled' })
+    activity.event({ type: 'agent_settled', aborted: false })
     expect(activity.busy).toBe(true)
     activity.event({ type: 'queue_update', steering: [], followUp: [] })
     activity.event({ type: 'compaction_start', reason: 'manual' })
@@ -117,7 +117,7 @@ describe('SessionActivity', () => {
     const activity = new SessionActivity()
     idle(activity)
     activity.event({ type: 'tool_execution_start', toolCallId: 'tool', toolName: 'bash', args: {} })
-    activity.event({ type: 'agent_settled' })
+    activity.event({ type: 'agent_settled', aborted: false })
     expect(activity.busy).toBe(true)
     activity.event({
       type: 'tool_execution_end',

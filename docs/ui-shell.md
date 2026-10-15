@@ -409,7 +409,7 @@ The visual recipe lives in [style-guide.md](style-guide.md#action-hints).
 
 Home keeps the first-prompt composer fixed below a separately scrolling,
 responsive lane grid. Each tile belongs to a session in the selected project,
-including its worktrees and live sessions whose first turn is not saved yet.
+including its worktrees and live sessions the disk scan has not found yet.
 Live names override scanned names. Status, PR, branch and actions reuse the
 lane board's existing classification and merge/update flows; idle is not a
 claim of success or review approval.

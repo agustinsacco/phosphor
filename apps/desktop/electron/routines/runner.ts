@@ -95,7 +95,9 @@ export async function executeRoutine(
     if (signal.aborted) abort()
     abandon = () => signal.removeEventListener('abort', abort)
     session.client.on('event', (event) => {
-      if (event.type === 'tool_execution_end' && event.isError) toolErrors = true
+      // A nested call's failure (a codemode script's) is the script's to handle.
+      if (event.type === 'tool_execution_end' && event.isError && !event.parentToolCallId)
+        toolErrors = true
       if (event.type === 'message_end' && event.message.role === 'assistant')
         lastAssistant = event.message
       if (event.type === 'agent_end' && !event.willRetry)

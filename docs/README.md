@@ -56,8 +56,8 @@ The Host checks a machine and runs local acceptance sessions; its loopback API a
 
 | File                                         | Covers                                                               |
 | -------------------------------------------- | -------------------------------------------------------------------- |
-| [extensions.md](extensions.md)               | pi packages, the seven bundled extensions, the status channel        |
-| [mcp.md](mcp.md)                             | MCP servers and connectors via the pi-mcp-adapter chain              |
+| [extensions.md](extensions.md)               | pi packages, the six bundled extensions, the status channel          |
+| [mcp.md](mcp.md)                             | MCP servers and connectors through pi's built-in MCP                 |
 | [cli-providers.md](cli-providers.md)         | Running sessions on the Claude Code CLI                              |
 | [provider-symmetry.md](provider-symmetry.md) | What native and Claude sessions share, how they differ, how to check |
 | [updates.md](updates.md)                     | Update detection, the three install paths, the macOS swap            |

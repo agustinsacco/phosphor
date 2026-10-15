@@ -3,25 +3,24 @@ import { VERIFIED_PI_LINE, isPiNewerThanVerified } from './piDrift'
 
 describe('isPiNewerThanVerified', () => {
   it('stays quiet on the verified line, including its patches', () => {
-    expect(isPiNewerThanVerified('0.87.0')).toBe(false)
-    expect(isPiNewerThanVerified('0.87.1')).toBe(false)
-    expect(isPiNewerThanVerified('0.87.12')).toBe(false)
+    expect(isPiNewerThanVerified('1.2.0')).toBe(false)
+    expect(isPiNewerThanVerified('1.2.12')).toBe(false)
   })
 
   it('stays quiet on older pi', () => {
-    expect(isPiNewerThanVerified('0.86.4')).toBe(false)
-    expect(isPiNewerThanVerified('0.9.0')).toBe(false)
+    expect(isPiNewerThanVerified('1.1.0')).toBe(false)
+    expect(isPiNewerThanVerified('0.99.2')).toBe(false)
   })
 
   it('warns on a newer minor', () => {
-    expect(isPiNewerThanVerified('0.88.0')).toBe(true)
-    expect(isPiNewerThanVerified('0.100.0')).toBe(true)
+    expect(isPiNewerThanVerified('1.3.0')).toBe(true)
+    expect(isPiNewerThanVerified('1.10.0')).toBe(true)
   })
 
   // The bug the extracted helper exists to prevent: a major bump used to
   // read as minor 0 and compared as older than the verified line.
   it('warns on a newer major, even when its minor is 0', () => {
-    expect(isPiNewerThanVerified('1.0.0')).toBe(true)
+    expect(isPiNewerThanVerified('2.0.0')).toBe(true)
     expect(isPiNewerThanVerified('1.0.0', '0.85')).toBe(true)
   })
 
@@ -34,6 +33,6 @@ describe('isPiNewerThanVerified', () => {
   })
 
   it('exports the line the banner prints', () => {
-    expect(VERIFIED_PI_LINE).toBe('0.87')
+    expect(VERIFIED_PI_LINE).toBe('1.2')
   })
 })

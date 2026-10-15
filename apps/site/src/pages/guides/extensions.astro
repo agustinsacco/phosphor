@@ -24,11 +24,10 @@ const sections: [string, string][] = [
       investigation.
     </p>
     <p>
-      Phosphor ships seven extensions of its own: artifacts, the context breakdown, MCP status
-      reporting, opt-in Headroom integration, malformed tool-name repair, a wrong-worktree path
-      guard, and a reload between turns that brings MCP changes into running lanes. <strong
-        >MCP status reporting is not the MCP adapter.</strong
-      > The adapter is a separate install.
+      Phosphor ships six extensions of its own: artifacts, the context breakdown, opt-in Headroom
+      integration, malformed tool-name repair, a wrong-worktree path guard, and a reload between
+      turns that brings MCP changes into running lanes. MCP itself is built into pi, so connecting
+      services needs no package: see <a href="/guides/connectors/">MCP connectors</a>.
     </p>
     <p>
       A package can contain extensions, skills, prompt templates, and themes. A skill describes a
@@ -84,14 +83,6 @@ const sections: [string, string][] = [
             CLI. Add every Claude account you have, and a lane can move to another one when its plan
             runs low. The <a href="/guides/accounts/">subscriptions and accounts guide</a> covers
             sign-in, routing, and the end-to-end provider test.
-          </p>
-        )}
-        {id === 'mcp' && (
-          <p>
-            pi has MCP support of its own. Phosphor’s MCP Connectors tab works through this adapter
-            instead, which replaces the built-in support in sessions. Installing it doesn’t connect
-            anything yet. Next,{' '}
-            <a href="/guides/connectors/">add a connector, sign in, and test it</a>.
           </p>
         )}
         {id === 'web' && (

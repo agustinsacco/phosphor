@@ -2,13 +2,13 @@ import type { RpcSlashCommand } from '@shared/rpc'
 
 /**
  * A real `get_commands` answer, captured 2026-09-16 from pi 0.84 with
- * pi-web-access, pi-mcp-adapter, pi-computer-use and pi-claude-cli installed
- * and a Notion MCP server connected; home directory rewritten to `/home/dev`.
+ * pi-web-access, pi-computer-use and pi-claude-cli installed; home directory
+ * rewritten to `/home/dev`. The MCP commands are pi 1.2.0's built-in `/mcp`,
+ * captured 2026-10-14, in place of pi-mcp-adapter's.
  *
- * Eighteen entries: eleven extension commands (including the `/mcp` +
- * `/pi-mcp` alias pair, two Notion prompt commands and pi's inline `/llama`),
- * then seven skills from four different roots. This is the payload the menu
- * capped at 12 — the shape every test here should be run against.
+ * Thirteen entries: seven extension commands (including pi's built-in `/mcp`
+ * and inline `/llama`), then six skills from three different roots — the
+ * shape every test here should be run against.
  */
 const pkg = (name: string, file: string): RpcSlashCommand['sourceInfo'] => ({
   path: `/home/dev/.pi/agent/npm/node_modules/${name}/${file}`,
@@ -44,34 +44,15 @@ export const REAL_PI_COMMANDS: RpcSlashCommand[] = [
     sourceInfo: pkg('pi-web-access', 'index.ts'),
   },
   {
-    name: 'mcp__notion__make-this-a-notion-page',
-    description: 'MCP: Turn the current work into a durable Notion page.',
-    source: 'extension',
-    sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
-  },
-  {
-    name: 'mcp__notion__make-this-a-notion-database',
-    description: 'MCP: Turn the current work into a trackable Notion database.',
-    source: 'extension',
-    sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
-  },
-  {
     name: 'mcp',
-    description: 'Show MCP server status',
+    description: 'Manage MCP servers: sign in, reconnect, enable or disable, and change exposure',
     source: 'extension',
-    sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
-  },
-  {
-    name: 'pi-mcp',
-    description: 'Show MCP server status',
-    source: 'extension',
-    sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
-  },
-  {
-    name: 'mcp-auth',
-    description: 'Authenticate with an MCP server (OAuth)',
-    source: 'extension',
-    sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
+    sourceInfo: {
+      path: 'builtin:mcp',
+      source: 'builtin',
+      scope: 'temporary',
+      origin: 'top-level',
+    },
   },
   {
     name: 'computer-use',
@@ -163,11 +144,5 @@ export const REAL_PI_COMMANDS: RpcSlashCommand[] = [
       origin: 'top-level',
       baseDir: '/home/dev/.pi/agent',
     },
-  },
-  {
-    name: 'skill:mcp-scripting',
-    description: 'Write mcpScript JavaScript for discovering, inspecting, and calling MCP tools.',
-    source: 'skill',
-    sourceInfo: pkg('pi-mcp-adapter', 'skills/mcp-scripting/SKILL.md'),
   },
 ]

@@ -37,7 +37,7 @@ function setup(overrides: Record<string, unknown> = {}, paused?: () => boolean) 
   const id = Math.random().toString()
   let budget = ''
   watchContextBudget(id, client, () => budget, paused)
-  const settled = () => events.emit('event', { type: 'agent_settled' })
+  const settled = () => events.emit('event', { type: 'agent_settled', aborted: false })
   const send = (type: RpcCommand['type'], action: () => Promise<void> = async () => {}) =>
     withBudgetCompaction(id, type, action)
   return {

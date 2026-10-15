@@ -39,7 +39,7 @@ export function piConfigFile(name: 'settings' | 'models' | 'web-search'): Config
   }
 }
 
-/** One `mcp.json` in the adapter's resolution chain. */
+/** One of the two `mcp.json` files pi's built-in MCP reads. */
 export function mcpConfigFile(scope: McpScope, workspacePath?: string): ConfigFileSource {
   return {
     // The workspace is part of the file's identity for project scopes, and the

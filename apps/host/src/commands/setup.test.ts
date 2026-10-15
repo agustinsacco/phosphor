@@ -50,7 +50,7 @@ beforeEach(async () => {
     probeTimeoutMs: 15_000,
     tailscale: { which: async () => null, probe: vi.fn() },
   }
-  await executable('pi', 'echo 0.87.1')
+  await executable('pi', 'echo 1.2.0')
 })
 afterEach(async () => {
   vi.resetAllMocks()
@@ -71,7 +71,7 @@ async function nodePi(nodeFolder = bin) {
   await symlink(script, join(bin, 'pi'))
   return executable(
     'node',
-    'if [ "$1" = --version ]; then echo v22.22.3; else echo 0.87.1; fi',
+    'if [ "$1" = --version ]; then echo v22.22.3; else echo 1.2.0; fi',
     nodeFolder,
   )
 }
@@ -130,14 +130,14 @@ describe('setup detection', () => {
     const report = await runSetup(context)
     expect(report.exitCode).toBe(0)
     expect((await saved()).pi).toEqual({ executable: join(bin, 'pi') })
-    expect(renderSetup(report)).toContain(`pi  ${bin}/pi (pi 0.87.1)`)
+    expect(renderSetup(report)).toContain(`pi  ${bin}/pi (pi 1.2.0)`)
     expect(renderSetup(report)).toContain('claude  not found')
     expect(renderSetup(report)).toContain('git not found')
     expect(renderSetup(report)).toContain(
       'not a git repository: sessions may start in any folder inside it',
     )
     expect(renderSetup(report).endsWith('next: phosphor doctor\n')).toBe(true)
-    expect(report).toMatchObject({ next: 'phosphor doctor', pi: { version: '0.87.1' } })
+    expect(report).toMatchObject({ next: 'phosphor doctor', pi: { version: '1.2.0' } })
   })
   it('pins a Node-script symlink as found, with node beside it', async () => {
     const node = await nodePi()
@@ -440,7 +440,7 @@ describe('setup existing config and permissions', () => {
 
   it('does not overwrite a config published by another setup during detection', async () => {
     await mkdir(dirname(context.configPath), { mode: 0o700 })
-    await executable('pi', `printf '{}\\n' > '${context.configPath}'; echo 0.87.1`)
+    await executable('pi', `printf '{}\\n' > '${context.configPath}'; echo 1.2.0`)
     const report = await runSetup(context)
     expect(report.exitCode).toBe(75)
     expect(renderSetup(report)).toContain(

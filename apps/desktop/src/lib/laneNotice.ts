@@ -17,17 +17,14 @@ export interface LaneOutcome {
 export const EXCERPT_MAX = 140
 
 /**
- * The outcome of the run that just settled, or null when it should stay quiet.
- *
- * An aborted run is quiet: the only way to abort is the stop control, and that
- * means the user was already looking at the lane.
+ * The outcome of the run that just settled. An aborted run gets no notice at
+ * all; pi says so on `agent_settled`, so the caller never asks.
  */
-export function laneOutcome(items: readonly ChatItem[]): LaneOutcome | null {
+export function laneOutcome(items: readonly ChatItem[]): LaneOutcome {
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i]!
     if (item.kind === 'user') return { kind: 'done' }
     if (item.kind !== 'assistant') continue
-    if (item.stopReason === 'aborted') return null
     if (item.stopReason === 'error' || item.errorMessage) {
       return { kind: 'error', excerpt: excerptOf(item.errorMessage ?? '') }
     }

@@ -49,7 +49,8 @@ export function BashDetail({ tool }: { tool: ToolState }): React.JSX.Element {
     truncation?: { truncated?: boolean } | null
   }>(tool)
   const running = tool.status === 'starting' || tool.status === 'running'
-  const durationMs = tool.startedAt && tool.endedAt ? tool.endedAt - tool.startedAt : null
+  const durationMs =
+    tool.durationMs ?? (tool.startedAt && tool.endedAt ? tool.endedAt - tool.startedAt : null)
 
   return (
     <div>

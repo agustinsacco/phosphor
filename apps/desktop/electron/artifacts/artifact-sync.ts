@@ -12,8 +12,9 @@ const BACKFILL_DELAY_MS = 20_000
 
 /**
  * Keep the store current with every live session, whoever started it (the
- * renderer, a routine): pi writes its file when a turn ends, so that is when
- * there is something new to index, plus once more when the process exits.
+ * renderer, a routine): a turn's tool results are on disk once it ends, so
+ * that is when there is something new to index, plus once more when the
+ * process exits.
  * Then, once per launch, catch up with every session file on disk.
  *
  * A deleted session's artifacts stay, marked as such, until removed from the

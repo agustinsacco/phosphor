@@ -18,7 +18,7 @@ import type { PhosphorApi } from '@shared/ipc'
 import { mockRoutineCall, onMockRoutinesChanged } from './mockRoutines'
 import { bytesToBase64 } from '../lib/base64'
 import type { ConnectorAuthPush, ConnectorAuthState, SessionPush } from '@shared/models'
-import type { ConnectorCheckResult } from '@shared/connectors'
+import type { McpListResult } from '@shared/mcp'
 import type { ArtifactListing, ArtifactSnapshot } from '@shared/artifacts'
 import { normalizeContextFilePrefs, type ContextFilePrefs } from '@shared/context-files'
 import { DEFAULT_APP_PREFS, MIN_PI_VERSION } from '@shared/models'
@@ -926,13 +926,12 @@ const MOCK_CONTEXT_BREAKDOWN = JSON.stringify({
   contextWindow: 262144,
   parts: { messages: 41000, systemPrompt: 4200, tools: 5200, mcpTools: 2600 },
   counts: { tools: 6, mcpTools: 4, messages: 9 },
-  // One gateway proxy tool per server, which is what a real install reports
-  // unless a server opts into `directTools` — see docs/mcp.md.
+  // Codemode servers carry no schemas; one with direct tools does — see docs/mcp.md.
   mcpByServer: {
-    braintrust: { tokens: 700, count: 1, direct: 0, toolCount: 34 },
-    fellow: { tokens: 640, count: 1, direct: 0, toolCount: 12 },
-    linear: { tokens: 640, count: 1, direct: 0, toolCount: 61 },
-    notion: { tokens: 620, count: 1, direct: 0, toolCount: 19 },
+    braintrust: { tokens: 0, count: 0, toolCount: 34 },
+    fellow: { tokens: 0, count: 0, toolCount: 12 },
+    linear: { tokens: 2600, count: 4, toolCount: 61 },
+    notion: { tokens: 0, count: 0, toolCount: 19 },
   },
   contextFiles: {
     off: [],
@@ -1204,7 +1203,7 @@ export function installMockPhosphor(): void {
             defaultProvider: 'anthropic',
             defaultModel: 'claude-opus-5',
             defaultThinkingLevel: 'medium',
-            packages: ['npm:pi-web-access', 'npm:pi-mcp-adapter'],
+            packages: ['npm:pi-web-access', 'npm:pi-subagents'],
           })
         case 'skills:list':
           return Promise.resolve({
@@ -1301,17 +1300,6 @@ export function installMockPhosphor(): void {
               resources: { extensions: ['index.ts'], skills: [], prompts: [], themes: [] },
             },
             {
-              spec: 'npm:pi-mcp-adapter',
-              scope: 'global',
-              kind: 'npm',
-              filtered: false,
-              name: 'pi-mcp-adapter',
-              version: '1.1.0',
-              description: 'MCP adapter extension for the pi coding agent',
-              installed: false,
-              resources: { extensions: [], skills: [], prompts: [], themes: [] },
-            },
-            {
               spec: 'npm:pi-subagents',
               scope: 'global',
               kind: 'npm',
@@ -1345,7 +1333,7 @@ export function installMockPhosphor(): void {
           // One package behind, one current — exercises both row states.
           return Promise.resolve({
             'npm:pi-web-access': '0.9.2',
-            'npm:pi-mcp-adapter': '1.4.0',
+            'npm:pi-subagents': '0.75.0',
           })
         case 'packages:detect':
           return Promise.resolve({ claude: true })
@@ -1605,64 +1593,82 @@ export function installMockPhosphor(): void {
               {
                 name: 'linear',
                 config: {
-                  url: 'https://mcp.linear.app/sse',
-                  directTools: ['get_issue', 'save_issue'],
+                  url: 'https://mcp.linear.app/mcp',
+                  toolExposure: { get_issue: 'direct', save_issue: 'direct' },
                 },
-                scope: 'pi-global',
-                shadows: [],
+                defined: {
+                  url: 'https://mcp.linear.app/mcp',
+                  toolExposure: { get_issue: 'direct', save_issue: 'direct' },
+                },
+                scope: 'global',
+              },
+              {
+                name: 'notion',
+                config: { url: 'https://mcp.notion.com/mcp' },
+                defined: { url: 'https://mcp.notion.com/mcp' },
+                scope: 'global',
               },
               {
                 name: 'snowflake',
-                config: { command: 'npx', args: ['snowflake-mcp'], disabled: true },
-                scope: 'pi-project',
-                shadows: ['pi-global'],
+                config: { command: 'npx', args: ['snowflake-mcp'], enabled: false },
+                defined: { command: 'npx', args: ['snowflake-mcp'], enabled: false },
+                scope: 'project',
               },
             ],
             files: [
               {
-                scope: 'xdg',
-                path: '/Users/dev/.config/mcp/mcp.json',
-                exists: false,
-                malformed: false,
-                serverNames: [],
-              },
-              {
-                scope: 'agents',
-                path: '/Users/dev/.agents/mcp.json',
-                exists: false,
-                malformed: false,
-                serverNames: [],
-              },
-              {
-                scope: 'agents-dir',
-                path: '/Users/dev/.agents/mcp/mcp.json',
-                exists: false,
-                malformed: false,
-                serverNames: [],
-              },
-              {
-                scope: 'pi-global',
-                path: '/Users/dev/.pi/agent/mcp-adapter.json',
+                scope: 'global',
+                path: '/Users/dev/.pi/agent/mcp.json',
                 exists: true,
                 malformed: false,
-                serverNames: ['linear', 'snowflake'],
+                serverNames: ['linear', 'notion'],
               },
               {
                 scope: 'project',
-                path: '/Users/dev/projects/phosphor/.mcp.json',
-                exists: false,
-                malformed: false,
-                serverNames: [],
-              },
-              {
-                scope: 'pi-project',
-                path: '/Users/dev/projects/phosphor/.pi/mcp-adapter.json',
+                path: '/Users/dev/projects/phosphor/.pi/mcp.json',
                 exists: true,
                 malformed: false,
                 serverNames: ['snowflake'],
               },
             ],
+            errors: [],
+            projectTrust: {
+              path: '/Users/dev/projects/phosphor',
+              trusted: true,
+              source: 'trust-store',
+            },
+            legacy: false,
           })
+        case 'mcp:list': {
+          const result: McpListResult = {
+            ok: true,
+            servers: [
+              {
+                name: 'linear',
+                scope: 'global',
+                source: '/Users/dev/.pi/agent/mcp.json',
+                enabled: true,
+                exposure: 'codemode',
+                transport: 'https://mcp.linear.app/mcp',
+                state: 'connected',
+                tools: ['get_issue', 'save_issue', 'list_issues'],
+              },
+              {
+                name: 'notion',
+                scope: 'global',
+                source: '/Users/dev/.pi/agent/mcp.json',
+                enabled: true,
+                exposure: 'codemode',
+                transport: 'https://mcp.notion.com/mcp',
+                state: 'needs-auth',
+                tools: [],
+              },
+            ],
+            errors: [],
+          }
+          // Slow enough that the harness shows the pending state.
+          return new Promise<McpListResult>((resolve) => setTimeout(() => resolve(result), 900))
+        }
         case 'mcp:authorize': {
           const serverName = String(args[0])
           const emit = (state: ConnectorAuthState): void => {
@@ -1681,49 +1687,38 @@ export function installMockPhosphor(): void {
           return undefined
         }
 
-        case 'mcp:submitAuthCallback':
-          return true
-
         case 'mcp:cancelAuth':
           return undefined
 
-        case 'mcp:checkServer': {
-          const serverName = String(args[0])
-          const result: ConnectorCheckResult =
-            serverName === 'notion'
-              ? { serverName, outcome: 'failed', detail: 'fetch failed (ENOTFOUND)' }
-              : { serverName, outcome: 'connected', toolCount: 42, resourceCount: 0 }
-          // Slow enough that the harness shows the pending state.
-          return new Promise<ConnectorCheckResult>((resolve) =>
-            setTimeout(() => resolve(result), 900),
-          )
-        }
+        case 'mcp:logout':
+          return Promise.resolve({ ok: true, message: 'Signed out.' })
 
-        case 'mcp:readCache':
-          return Promise.resolve([
-            {
-              name: 'linear',
-              tools: [
-                { name: 'get_issue', description: 'Retrieve an issue by its ID or identifier.' },
-                { name: 'save_issue', description: 'Create or update an issue.' },
-                { name: 'list_issues', description: 'List issues matching a filter.' },
-              ],
-            },
-          ])
+        case 'mcp:migrationPlan':
+          return Promise.resolve({
+            servers: [],
+            skipped: [],
+            retire: [],
+            builtinDisabled: false,
+            blocked: [],
+          })
+
+        case 'mcp:migrate':
+          return Promise.resolve({ written: [], backups: [] })
+
         case 'mcp:upsertServer':
         case 'mcp:removeServer':
-        case 'mcp:setDisabled':
+        case 'mcp:setEnabled':
         case 'mcp:writeFile':
           return Promise.resolve(undefined)
         case 'mcp:readFile':
           return Promise.resolve({
-            path: '/Users/dev/.pi/agent/mcp-adapter.json',
+            path: '/Users/dev/.pi/agent/mcp.json',
             content: '{\n  "mcpServers": {}\n}\n',
           })
         // Shaped like a real pi answer: skills are `skill:<name>`, every entry
-        // carries `sourceInfo`, an MCP prompt uses the adapter's `mcp__` scheme
-        // and `/mcp` has its `/pi-mcp` alias — so the menu's grouping, origin
-        // labels and dedupe are all exercised in the browser harness.
+        // carries `sourceInfo`, and pi's own `/mcp` and `/llama` are built in —
+        // so the menu's grouping and origin labels are exercised in the
+        // browser harness.
         case 'pi:commands': {
           const pkg = (name: string, file: string) => ({
             path: `/Users/dev/.pi/agent/npm/node_modules/${name}/${file}`,
@@ -1741,28 +1736,16 @@ export function installMockPhosphor(): void {
                 sourceInfo: pkg('pi-web-access', 'index.ts'),
               },
               {
-                name: 'mcp__notion__make-this-a-notion-page',
-                description: 'MCP: Turn the current work into a durable Notion page.',
-                source: 'extension' as const,
-                sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
-              },
-              {
                 name: 'mcp',
-                description: 'Show MCP server status',
+                description:
+                  'Manage MCP servers: sign in, reconnect, enable or disable, and change exposure',
                 source: 'extension' as const,
-                sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
-              },
-              {
-                name: 'pi-mcp',
-                description: 'Show MCP server status',
-                source: 'extension' as const,
-                sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
-              },
-              {
-                name: 'mcp-auth',
-                description: 'Authenticate with an MCP server (OAuth)',
-                source: 'extension' as const,
-                sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
+                sourceInfo: {
+                  path: 'builtin:mcp',
+                  source: 'builtin',
+                  scope: 'temporary' as const,
+                  origin: 'top-level' as const,
+                },
               },
               {
                 name: 'llama',
@@ -1796,13 +1779,6 @@ export function installMockPhosphor(): void {
                   scope: 'project' as const,
                   origin: 'top-level' as const,
                 },
-              },
-              {
-                name: 'skill:mcp-scripting',
-                description:
-                  'Write mcpScript JavaScript for discovering, inspecting, and calling MCP tools.',
-                source: 'skill' as const,
-                sourceInfo: pkg('pi-mcp-adapter', 'skills/mcp-scripting/SKILL.md'),
               },
             ],
           })
@@ -2476,7 +2452,7 @@ export function installMockPhosphor(): void {
               defaultProvider: 'anthropic',
               defaultModel: 'claude-opus-5',
               defaultThinkingLevel: 'medium',
-              packages: ['npm:pi-web-access', 'npm:pi-mcp-adapter'],
+              packages: ['npm:pi-web-access', 'npm:pi-subagents'],
             },
             project: args[0] ? { defaultThinkingLevel: 'high' } : null,
           })
@@ -2506,7 +2482,6 @@ export function installMockPhosphor(): void {
     onRoutinesChanged: onMockRoutinesChanged,
 
     onPiCommandsChanged: () => () => {},
-    onMcpCacheChanged: () => () => {},
 
     onFsChanged: () => () => {},
     onPackagesJobOutput: (jobId: string, listener: (data: string) => void) => {

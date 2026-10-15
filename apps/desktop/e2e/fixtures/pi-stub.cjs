@@ -33,6 +33,77 @@
     )
     process.exit(0)
   }
+  // `pi mcp list --json | login <server> | logout <server>`, as pi 1.2's
+  // built-in MCP answers them. Signed-in state is a marker file per server; a
+  // login waits for the test to "approve" it by writing `stub-mcp-approve-<s>`
+  // so the awaiting-browser state can be asserted before it resolves.
+  if (sub === 'mcp') {
+    const path = require('node:path')
+    const fs = require('node:fs')
+    const os = require('node:os')
+    const agentDir = process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), '.pi', 'agent')
+    const marker = (name) => path.join(agentDir, `stub-mcp-auth-${name}`)
+    const action = argv[1]
+    const server = argv[2]
+    if (action === 'list') {
+      const servers = []
+      const files = [
+        ['global', path.join(agentDir, 'mcp.json')],
+        ['project', path.join(process.cwd(), '.pi', 'mcp.json')],
+      ]
+      for (const [scope, file] of files) {
+        let doc
+        try {
+          doc = JSON.parse(fs.readFileSync(file, 'utf8'))
+        } catch {
+          continue
+        }
+        for (const [name, config] of Object.entries(doc.mcpServers ?? {})) {
+          const at = servers.findIndex((s) => s.name === name)
+          if (at !== -1) servers.splice(at, 1)
+          const enabled = config.enabled !== false
+          const state = !enabled
+            ? 'disabled'
+            : config.url && !fs.existsSync(marker(name))
+              ? 'needs-auth'
+              : 'connected'
+          servers.push({
+            name,
+            scope,
+            source: file,
+            enabled,
+            exposure: config.exposure ?? 'codemode',
+            transport: config.url ?? [config.command, ...(config.args ?? [])].join(' '),
+            state,
+            tools: state === 'connected' ? ['search', 'get_issue', 'save_issue'] : [],
+          })
+        }
+      }
+      process.stdout.write(JSON.stringify({ servers, errors: [] }, null, 2) + '\n')
+      process.exit(servers.every((s) => ['connected', 'disabled'].includes(s.state)) ? 0 : 1)
+    }
+    if (action === 'login' && server) {
+      process.stdout.write(
+        `Opening the browser to sign in to ${server}:\nhttps://stub.test/oauth/authorize?server=${server}\n`,
+      )
+      const approve = path.join(agentDir, `stub-mcp-approve-${server}`)
+      const poll = setInterval(() => {
+        if (!fs.existsSync(approve)) return
+        clearInterval(poll)
+        fs.writeFileSync(marker(server), 'ok')
+        process.stdout.write(`Signed in to ${server}.\n`)
+        process.exit(0)
+      }, 100)
+      return
+    }
+    if (action === 'logout' && server) {
+      fs.rmSync(marker(server), { force: true })
+      process.stdout.write(`Signed out of ${server}.\n`)
+      process.exit(0)
+    }
+    process.stderr.write(`stub: unsupported pi mcp ${argv.slice(1).join(' ')}\n`)
+    process.exit(2)
+  }
   if (sub === 'install' || sub === 'remove' || sub === 'update' || argv.includes('-p')) {
     const path = require('node:path')
     const fs = require('node:fs')
@@ -357,6 +428,19 @@ const DIFF = ' 1 export function hello() {\n-2   return "old"\n+2   return "new"
 const PATCH = `--- a/hello.ts\n+++ b/hello.ts\n@@ -1,3 +1,3 @@\n export function hello() {\n-  return "old"\n+  return "new"\n }`
 
 /**
+ * pi's `data.disposition` for an accepted prompt (pi >= 0.99). The stub's
+ * `/...` scenarios stand in for extension commands, which pi reports as
+ * `handled`: no run starts on their account. A skill (`/skill:`) expands into
+ * a prompt and starts one, like plain text.
+ */
+function promptDisposition(cmd) {
+  if (cmd.streamingBehavior && agentStreaming) return 'queued'
+  const message = typeof cmd.message === 'string' ? cmd.message : ''
+  if (message.startsWith('/') && !message.startsWith('/skill:')) return 'handled'
+  return 'started'
+}
+
+/**
  * A forked branch pi has not written yet (header first), or null.
  *
  * pi's `createBranchedSession` writes the new file at once only when the
@@ -447,8 +531,8 @@ function handle(cmd) {
     case 'get_commands': {
       publishSwarm()
       // Shaped like a real pi answer — enough rows that the menu's old cap of
-      // 12 would have hidden the last one, `/mcp` with its `/pi-mcp` alias,
-      // an MCP prompt command, pi's own inline extension, and prompt templates.
+      // 12 would have hidden the last one, an alias pair, pi's built-in `/mcp`
+      // and inline extension, and prompt templates.
       // Deliberately NO `source: 'skill'` entries: the skills e2e relies on
       // this answer having none so it exercises the scan fallback. Skills in
       // the menu are covered by the unit suite against a real payload.
@@ -526,29 +610,31 @@ function handle(cmd) {
               source: 'extension',
               sourceInfo: pkg('pi-web-access', 'index.ts'),
             },
-            {
-              name: 'mcp__notion__make-this-a-notion-page',
-              description: 'MCP: Turn the current work into a durable Notion page.',
-              source: 'extension',
-              sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
-            },
+            // pi's built-in MCP registers one command; its source is `builtin`.
             {
               name: 'mcp',
-              description: 'Show MCP server status',
+              description:
+                'Manage MCP servers: sign in, reconnect, enable or disable, and change exposure',
               source: 'extension',
-              sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
+              sourceInfo: {
+                path: 'builtin:mcp',
+                source: 'builtin',
+                scope: 'temporary',
+                origin: 'top-level',
+              },
+            },
+            // One handler under two names, which the menu folds into one row.
+            {
+              name: 'web-status',
+              description: 'Show web access status',
+              source: 'extension',
+              sourceInfo: pkg('pi-web-access', 'index.ts'),
             },
             {
-              name: 'pi-mcp',
-              description: 'Show MCP server status',
+              name: 'ws',
+              description: 'Show web access status',
               source: 'extension',
-              sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
-            },
-            {
-              name: 'mcp-auth',
-              description: 'Authenticate with an MCP server (OAuth)',
-              source: 'extension',
-              sourceInfo: pkg('pi-mcp-adapter', 'index.ts'),
+              sourceInfo: pkg('pi-web-access', 'index.ts'),
             },
             {
               name: 'computer-use',
@@ -684,7 +770,13 @@ function handle(cmd) {
         swarmRequested = cmd.message.endsWith(' on')
         if (!agentStreaming) swarmEnabled = swarmRequested
         publishSwarm()
-        out({ id: cmd.id, type: 'response', command: 'prompt', success: true })
+        out({
+          id: cmd.id,
+          type: 'response',
+          command: 'prompt',
+          success: true,
+          data: { disposition: 'handled' },
+        })
         break
       }
       if (compacting) {
@@ -697,7 +789,13 @@ function handle(cmd) {
         })
         break
       }
-      out({ id: cmd.id, type: 'response', command: 'prompt', success: true })
+      out({
+        id: cmd.id,
+        type: 'response',
+        command: 'prompt',
+        success: true,
+        data: { disposition: promptDisposition(cmd) },
+      })
       contextTokens = CONTEXT_TOKENS
       // Scenario switch, keyed off the prompt text: the default turn is what
       // most tests assert on, so extra scenarios must not change it.
@@ -928,7 +1026,7 @@ function handle(cmd) {
           aborted: false,
           willRetry: false,
         })
-        out({ type: 'agent_settled' })
+        out({ type: 'agent_settled', aborted: false })
         break
       }
       if (message === 'queue-hold' || message.endsWith('\nroutine-e2e-hold')) {
@@ -938,36 +1036,6 @@ function handle(cmd) {
       }
       // Record the actual requested mode without starting overlapping fake turns.
       if (queueHold && cmd.streamingBehavior) break
-      // The MCP adapter's OAuth flow: an extension command, so it runs no
-      // model at all. The stub reproduces the two wire facts Phosphor depends on
-      // — the authorization prompt arrives as an `input` request the client
-      // must NOT answer, and the outcome arrives later as a `notify`.
-      if (message.startsWith('/mcp-auth ')) {
-        const server = message.slice('/mcp-auth '.length).trim()
-        out({
-          type: 'extension_ui_request',
-          id: `mcp-auth-${server}`,
-          method: 'input',
-          title:
-            `Complete ${server} OAuth\n\n` +
-            `https://stub.test/oauth/authorize?server=${server}\n\n` +
-            'Approve access, then paste the full localhost callback URL below.',
-        })
-        break
-      }
-      // The connection test: `/mcp-adapter reconnect <server>` is an extension
-      // command too, and its verdict arrives as a `notify` — the string Phosphor
-      // parses into an up/down badge.
-      if (message.startsWith('/mcp-adapter reconnect ')) {
-        const server = message.slice('/mcp-adapter reconnect '.length).trim()
-        out({
-          type: 'extension_ui_request',
-          id: `mcp-reconnect-${server}`,
-          method: 'notify',
-          message: `MCP: Reconnected to ${server} (7 tools, 0 resources)`,
-        })
-        break
-      }
       // An extension `notify` whose text is one unbreakable path, the shape of
       // an ENOENT error — the widest thing a notice card is ever asked to hold.
       if (message.includes('longnotify')) {
@@ -1026,7 +1094,7 @@ function handle(cmd) {
       if (queueHold) {
         queueHold = false
         out({ type: 'agent_end', messages: [] })
-        out({ type: 'agent_settled' })
+        out({ type: 'agent_settled', aborted: true })
       }
       break
 
@@ -1090,8 +1158,8 @@ function runTurn() {
 
   push(() => out({ type: 'agent_start' }))
   push(() => out({ type: 'turn_start' }))
-  // Extension status line styled with ANSI SGR (as pi-mcp-adapter does):
-  // the app must render clean text, never raw escape bytes.
+  // Extension status line styled with ANSI SGR, as extensions do: the app
+  // must render clean text, never raw escape bytes.
   push(() =>
     out({
       type: 'extension_ui_request',
@@ -1265,7 +1333,7 @@ function runTurn() {
     out({ type: 'message_end', message })
   })
   push(() => out({ type: 'agent_end', messages: [] }))
-  push(() => out({ type: 'agent_settled' }))
+  push(() => out({ type: 'agent_settled', aborted: false }))
 
   // Sequential so a step may await (used to hold a tool "running").
   void (async () => {
@@ -1313,7 +1381,7 @@ function runTextTurn(
         },
       }),
     () => out({ type: 'agent_end', messages: [] }),
-    () => out({ type: 'agent_settled' }),
+    () => out({ type: 'agent_settled', aborted: false }),
   ])
 }
 
@@ -1403,7 +1471,7 @@ function runArtifactLinkTurn() {
         },
       }),
     () => out({ type: 'agent_end', messages: [] }),
-    () => out({ type: 'agent_settled' }),
+    () => out({ type: 'agent_settled', aborted: false }),
   ])
 }
 
@@ -1465,7 +1533,7 @@ function runLongArtifactTurn() {
         },
       }),
     () => out({ type: 'agent_end', messages: [] }),
-    () => out({ type: 'agent_settled' }),
+    () => out({ type: 'agent_settled', aborted: false }),
   ])
 }
 
@@ -1557,7 +1625,7 @@ function runLongStreamTurn() {
     }),
   )
   steps.push(() => out({ type: 'agent_end', messages: [] }))
-  steps.push(() => out({ type: 'agent_settled' }))
+  steps.push(() => out({ type: 'agent_settled', aborted: false }))
 
   play(steps)
 }
@@ -1622,7 +1690,7 @@ function runThinkingTurn() {
         },
       }),
     () => out({ type: 'agent_end', messages: [] }),
-    () => out({ type: 'agent_settled' }),
+    () => out({ type: 'agent_settled', aborted: false }),
   ])
 }
 
@@ -1748,7 +1816,7 @@ function runManyTurnsTurn(tailGroup = false) {
     }),
   )
   steps.push(() => out({ type: 'agent_end', messages: [] }))
-  steps.push(() => out({ type: 'agent_settled' }))
+  steps.push(() => out({ type: 'agent_settled', aborted: false }))
   play(steps, 3)
 }
 
@@ -1848,7 +1916,7 @@ function runSubagentTurn() {
     }),
   )
   steps.push(() => out({ type: 'agent_end', messages: [] }))
-  steps.push(() => out({ type: 'agent_settled' }))
+  steps.push(() => out({ type: 'agent_settled', aborted: false }))
 
   play(steps)
 }
@@ -2126,7 +2194,7 @@ function runNativeSubagentTurn() {
       }),
     ...say('Reviewer found one nit; scout is mapping the auth flow in the background.'),
     () => out({ type: 'agent_end', messages: [] }),
-    () => out({ type: 'agent_settled' }),
+    () => out({ type: 'agent_settled', aborted: false }),
     () => completion,
     // The run reports back: the widget goes, the muted completion lands, and
     // the model is woken to read it.
@@ -2159,7 +2227,7 @@ function runNativeSubagentTurn() {
       ),
     ...say('Scout reports: the auth flow enters at login.ts.'),
     () => out({ type: 'agent_end', messages: [] }),
-    () => out({ type: 'agent_settled' }),
+    () => out({ type: 'agent_settled', aborted: false }),
   ])
 }
 
@@ -2337,7 +2405,7 @@ function runParallelAgentsTurn() {
       }),
     ...say('All four reported. Refresh now lives in session.ts and the auth tests pass.'),
     () => out({ type: 'agent_end', messages: [] }),
-    () => out({ type: 'agent_settled' }),
+    () => out({ type: 'agent_settled', aborted: false }),
   ])
 }
 
@@ -2403,6 +2471,6 @@ function runManyItemsTurn() {
     }),
   )
   steps.push(() => out({ type: 'agent_end', messages: [] }))
-  steps.push(() => out({ type: 'agent_settled' }))
+  steps.push(() => out({ type: 'agent_settled', aborted: false }))
   play(steps, 4)
 }

@@ -249,15 +249,13 @@ async function applyGeneratedName({
   const watching = useSessionsStore.getState().activeSessionId === sessionId
 
   if (await piCallOk(sessionId, { type: 'set_session_name', name: title })) {
-    // `patchMeta` is what the user actually sees. pi does not write a session
-    // file until a turn ENDS (measured), so this rename reaches disk only when
-    // the first reply lands — minutes later for real work. Every surface that
-    // shows a live session's title therefore prefers the chat store's name
-    // over the scanned one (see `SessionRow` in Sidebar.tsx).
+    // `patchMeta` is what the user actually sees. pi appends the rename to
+    // the session file at once, but the folder watcher reports it only after
+    // its debounce, so every surface that shows a live session's title
+    // prefers the chat store's name over the scanned one (see `SessionRow` in
+    // Sidebar.tsx).
     useChatStore.getState().patchMeta(sessionId, { sessionName: title })
-    // Still worth asking: if the turn happened to settle already, the file is
-    // on disk now and this is the scan that picks the name up. If it has not,
-    // the folder watcher does it when pi writes.
+    // The scan that picks the name up without waiting for the watcher.
     void useSessionsStore.getState().refreshDisk(cwd)
     if (!watching) notifyLane(sessionId, { title, message: 'Named your new lane.' })
   }

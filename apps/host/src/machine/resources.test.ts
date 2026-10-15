@@ -21,10 +21,10 @@ function copy(): string {
 }
 
 describe('bundled extensions', () => {
-  it('finds the seven extensions and the helpers they import', async () => {
+  it('finds the six extensions and the helpers they import', async () => {
     const check = await checkExtensions(EXTENSIONS_ROOT)
     expect(check).toMatchObject({ id: 'extensions', status: 'pass' })
-    expect(check.summary).toMatch(/^7 extensions and [1-9]\d* helpers in /)
+    expect(check.summary).toMatch(/^6 extensions and [1-9]\d* helpers in /)
   })
 
   it('names a missing extension or helper', async () => {

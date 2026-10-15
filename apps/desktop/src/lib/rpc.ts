@@ -46,6 +46,23 @@ export async function piCallOk<T extends RpcCommand['type']>(
 }
 
 /**
+ * `piCallOk` that also returns the response data: null on failure (already
+ * reported), else `{ data }`. For a caller that must tell a failed command from
+ * a successful one whose data is absent, which `piCall` folds together.
+ */
+export async function piCallAccepted<T extends RpcCommand['type']>(
+  sessionId: string,
+  command: Extract<RpcCommand, { type: T }>,
+): Promise<{ data: RpcResponseDataMap[T] | undefined } | null> {
+  const response = await window.phosphor.piCommand<T>(sessionId, command)
+  if (!response.success) {
+    useChatStore.getState().setError(sessionId, response.error ?? `${command.type} failed`)
+    return null
+  }
+  return { data: response.data }
+}
+
+/**
  * Re-read the transcript from pi and replace the rendered items.
  *
  * Anything that moves the session's branch point — rewind, the fork picker,

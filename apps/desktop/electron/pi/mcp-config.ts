@@ -1,23 +1,24 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { dirname, join } from 'node:path'
-import type {
-  McpCacheEntry,
-  McpCachedTool,
-  McpConfigsResult,
-  McpFileState,
-  McpResolvedServer,
-  McpScope,
-  McpServerConfig,
-  McpWriteScope,
+import { dirname, join, resolve } from 'node:path'
+import {
+  MCP_SERVER_NAME,
+  isMcpOverride,
+  mcpNamespace,
+  type McpConfigsResult,
+  type McpFileState,
+  type McpProjectTrust,
+  type McpResolvedServer,
+  type McpScope,
+  type McpServerConfig,
 } from '@shared/mcp'
 import { piAgentDir } from './pi-paths'
 import { readJsonFile } from '@phosphor/session-runtime/pi/json-config'
 
 /**
- * Configuration management for pi-mcp-adapter 3.x (see shared/mcp.ts
- * for the precedence). The renderer only ever names a scope — paths are
- * resolved here, in the main process.
+ * Configuration management for pi's built-in MCP support (see shared/mcp.ts
+ * for the two files and how pi resolves them). The renderer only ever names a
+ * scope — paths are resolved here, in the main process.
  */
 
 export interface McpDirs {
@@ -26,7 +27,7 @@ export interface McpDirs {
   piAgent: string
 }
 
-/** Where the adapter's global config files live for this user. */
+/** Where this user's MCP-related files live. Home and XDG matter only to the migration. */
 export function mcpDirs(): McpDirs {
   return {
     home: homedir(),
@@ -35,21 +36,22 @@ export function mcpDirs(): McpDirs {
   }
 }
 
-/** Chain paths, lowest → highest precedence. Dirs injectable for tests. */
+/** pi's two files, global first. Dirs injectable for tests. */
 export function mcpConfigPaths(
   workspacePath: string | undefined,
   dirs: McpDirs = mcpDirs(),
 ): Array<{ scope: McpScope; path: string }> {
   const paths: Array<{ scope: McpScope; path: string }> = [
-    { scope: 'xdg', path: join(dirs.xdgConfig, 'mcp', 'mcp.json') },
-    { scope: 'agents', path: join(dirs.home, '.agents', 'mcp.json') },
-    { scope: 'agents-dir', path: join(dirs.home, '.agents', 'mcp', 'mcp.json') },
-    { scope: 'pi-global', path: join(dirs.piAgent, 'mcp-adapter.json') },
+    { scope: 'global', path: join(dirs.piAgent, 'mcp.json') },
   ]
-  if (workspacePath) {
-    paths.push({ scope: 'project', path: join(workspacePath, '.mcp.json') })
-    paths.push({ scope: 'pi-project', path: join(workspacePath, '.pi', 'mcp-adapter.json') })
-  }
+  if (workspacePath) paths.push({ scope: 'project', path: join(workspacePath, '.pi', 'mcp.json') })
+  return paths
+}
+
+/** The files pi-mcp-adapter owns. Their presence is what calls for the migration. */
+export function adapterConfigPaths(workspacePath: string | undefined, dirs: McpDirs): string[] {
+  const paths = [join(dirs.piAgent, 'mcp-adapter.json')]
+  if (workspacePath) paths.push(join(workspacePath, '.pi', 'mcp-adapter.json'))
   return paths
 }
 
@@ -60,34 +62,27 @@ interface ParsedFile {
   raw: Record<string, unknown>
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 async function readMcpFileAt(scope: McpScope, path: string): Promise<ParsedFile> {
-  const base: Omit<McpFileState, 'serverNames'> = {
-    scope,
-    path,
-    exists: false,
-    malformed: false,
-  }
+  const base = { scope, path, exists: false, malformed: false }
   const read = await readJsonFile(path)
-  if (read.malformed) {
-    return {
-      state: {
-        ...base,
-        exists: true,
-        malformed: true,
-        error: read.error,
-        serverNames: [],
-      },
-      servers: {},
-      raw: {},
-    }
+  const malformed = (error: string): ParsedFile => ({
+    state: { ...base, exists: true, malformed: true, error, serverNames: [] },
+    servers: {},
+    raw: {},
+  })
+  if (read.malformed) return malformed(read.error ?? 'parse error')
+  if (!read.exists) return { state: { ...base, serverNames: [] }, servers: {}, raw: {} }
+  if (
+    !isRecord(read.value) ||
+    (read.value.mcpServers !== undefined && !isRecord(read.value.mcpServers))
+  ) {
+    return malformed('expected an object with an "mcpServers" object')
   }
-  if (!read.exists) {
-    return { state: { ...base, serverNames: [] }, servers: {}, raw: {} }
-  }
-  const servers =
-    read.value.mcpServers && typeof read.value.mcpServers === 'object'
-      ? (read.value.mcpServers as Record<string, McpServerConfig>)
-      : {}
+  const servers = (read.value.mcpServers ?? {}) as Record<string, McpServerConfig>
   return {
     state: { ...base, exists: true, serverNames: Object.keys(servers) },
     servers,
@@ -95,73 +90,173 @@ async function readMcpFileAt(scope: McpScope, path: string): Promise<ParsedFile>
   }
 }
 
-/** Read the whole chain and resolve precedence (last wins, shadows noted). */
+/**
+ * The reason pi rejects an entry, or null. A subset of pi's own validation —
+ * the cases a person can produce from Settings or a hand edit — so a server
+ * that will never load says so instead of sitting in the list looking fine.
+ */
+export function serverProblem(name: string, config: unknown, scope: McpScope): string | null {
+  if (!MCP_SERVER_NAME.test(name))
+    return `invalid server name "${name}" (use letters, digits, "_" and "-")`
+  if (!isRecord(config)) return `server "${name}" must be an object`
+  if (config.type === 'sse') {
+    return `server "${name}": legacy SSE transport is not supported; use the streamable HTTP URL`
+  }
+  if (typeof config.url === 'string') {
+    if (!URL.canParse(config.url) || !/^https?:$/.test(new URL(config.url).protocol)) {
+      return `server "${name}": url must be an http or https URL`
+    }
+    if (config.auth !== undefined && !isRecord(config.auth)) {
+      return `server "${name}": auth.provider must be a provider name`
+    }
+    if (scope === 'project' && config.auth !== undefined) {
+      return `server "${name}": auth is only allowed in the global mcp.json`
+    }
+    return null
+  }
+  if (typeof config.command === 'string') return null
+  return `server "${name}" needs either "command" (stdio) or "url" (streamable HTTP)`
+}
+
+const OVERRIDE_KEYS = new Set(['enabled', 'exposure', 'toolExposure'])
+
+/** pi's resolution of the global and project files. */
+export function resolveServers(
+  globalServers: Record<string, McpServerConfig>,
+  projectServers: Record<string, McpServerConfig>,
+  paths: { global: string; project?: string },
+): { servers: McpResolvedServer[]; errors: string[] } {
+  const errors: string[] = []
+  const byName = new Map<string, McpResolvedServer>()
+  const add = (scope: McpScope, path: string, name: string, config: McpServerConfig): void => {
+    const problem = serverProblem(name, config, scope)
+    if (problem) {
+      errors.push(`${path}: ${problem}`)
+      return
+    }
+    const clash = [...byName.keys()].find(
+      (other) => other !== name && mcpNamespace(other) === mcpNamespace(name),
+    )
+    if (clash) {
+      errors.push(`${path}: server "${name}" conflicts with "${clash}"`)
+      return
+    }
+    byName.set(name, {
+      name,
+      config,
+      defined: config,
+      scope,
+      ...(scope === 'project' && byName.has(name) ? { replacesGlobal: true } : {}),
+    })
+  }
+
+  for (const [name, config] of Object.entries(globalServers))
+    add('global', paths.global, name, config)
+  for (const [name, config] of Object.entries(projectServers)) {
+    const path = paths.project ?? ''
+    if (isRecord(config) && isMcpOverride(config)) {
+      const base = byName.get(name)
+      const extra = Object.keys(config).filter((key) => !OVERRIDE_KEYS.has(key))
+      if (!base || base.scope !== 'global') {
+        errors.push(
+          `${path}: server "${name}" needs "command" or "url", or a global server to override`,
+        )
+      } else if (extra.length > 0) {
+        errors.push(
+          `${path}: server "${name}": an override can only set enabled, exposure, toolExposure`,
+        )
+      } else {
+        byName.set(name, { ...base, config: { ...base.config, ...config }, overridden: true })
+      }
+      continue
+    }
+    add('project', path, name, config)
+  }
+  return { servers: [...byName.values()].sort((a, b) => a.name.localeCompare(b.name)), errors }
+}
+
+/**
+ * Whether pi reads the project's `.pi/mcp.json`. A Phosphor session cannot
+ * answer pi's trust question (RPC has no UI for it), so the stored decision is
+ * the whole answer: the nearest folder entry in `trust.json`, else the
+ * `defaultProjectTrust` setting.
+ */
+export async function projectTrust(
+  workspacePath: string,
+  dirs: McpDirs = mcpDirs(),
+): Promise<McpProjectTrust> {
+  let path: string
+  try {
+    path = await realpath(resolve(workspacePath))
+  } catch {
+    path = resolve(workspacePath)
+  }
+  const store = await readJsonFile(join(dirs.piAgent, 'trust.json'))
+  if (!store.malformed && isRecord(store.value)) {
+    for (let dir = path; ; dir = dirname(dir)) {
+      const decision = store.value[dir]
+      if (decision === true || decision === false) {
+        return { path, trusted: decision, source: 'trust-store' }
+      }
+      if (dirname(dir) === dir) break
+    }
+  }
+  const settings = await readJsonFile(join(dirs.piAgent, 'settings.json'))
+  const always = isRecord(settings.value) && settings.value.defaultProjectTrust === 'always'
+  return { path, trusted: always, source: 'default' }
+}
+
+/** pi's user settings turn its built-in MCP off — what pi-mcp-adapter writes. */
+export function disablesBuiltinMcp(settings: unknown): boolean {
+  if (!isRecord(settings) || !Array.isArray(settings.extensions)) return false
+  return settings.extensions.some((entry) => entry === '-builtin:mcp' || entry === '!builtin:mcp')
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await access(path)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Read both files and resolve them the way pi will. */
 export async function readMcpConfigs(
   workspacePath: string | undefined,
-  dirs?: McpDirs,
+  dirs: McpDirs = mcpDirs(),
 ): Promise<McpConfigsResult> {
   const chain = mcpConfigPaths(workspacePath, dirs)
   const parsed = await Promise.all(chain.map(({ scope, path }) => readMcpFileAt(scope, path)))
+  const [global, project] = parsed
+  const trust = workspacePath ? await projectTrust(workspacePath, dirs) : null
 
-  const warnings: string[] = []
-  for (const { scope, path } of chain) {
-    if (scope !== 'pi-global' && scope !== 'pi-project') continue
-    const legacyPath = join(dirname(path), 'mcp.json')
-    const legacy = await readJsonFile(legacyPath)
-    if (!legacy.exists) continue
-    warnings.push(
-      `Phosphor targets pi-mcp-adapter 3.x, which reads ${path}, not ${legacyPath}. ` +
-        'If the old file belongs to the adapter, move its contents to the new file ' +
-        '(merge if it already exists), then restart affected sessions. ' +
-        'Leave configurations for pi built-in MCP in place. Phosphor does not migrate them automatically.',
-    )
-  }
-
-  const byName = new Map<string, McpResolvedServer>()
+  const { servers, errors } = resolveServers(
+    global!.servers,
+    // An untrusted project file is not read by pi, so it resolves to nothing.
+    trust?.trusted ? (project?.servers ?? {}) : {},
+    { global: global!.state.path, ...(project ? { project: project.state.path } : {}) },
+  )
   for (const file of parsed) {
-    for (const [name, config] of Object.entries(file.servers)) {
-      const existing = byName.get(name)
-      byName.set(name, {
-        name,
-        config,
-        scope: file.state.scope,
-        shadows: existing ? [...existing.shadows, existing.scope] : [],
-      })
-    }
+    if (file.state.malformed)
+      errors.unshift(`${file.state.path}: ${file.state.error ?? 'parse error'}`)
   }
 
+  const settings = await readJsonFile(join(dirs.piAgent, 'settings.json'))
+  const legacyFiles = await Promise.all(adapterConfigPaths(workspacePath, dirs).map(pathExists))
   return {
-    servers: [...byName.values()].sort((a, b) => a.name.localeCompare(b.name)),
+    servers,
     files: parsed.map((p) => p.state),
-    warnings,
+    errors,
+    projectTrust: trust,
+    legacy: legacyFiles.some(Boolean) || disablesBuiltinMcp(settings.value),
   }
 }
 
-function resolveWriteScope(
-  scope: McpScope,
-  workspacePath: string | undefined,
-  dirs?: McpDirs,
-): { path: string } {
+function pathFor(scope: McpScope, workspacePath: string | undefined, dirs?: McpDirs): string {
   const entry = mcpConfigPaths(workspacePath, dirs).find((p) => p.scope === scope)
-  if (!entry) {
-    throw new Error(
-      scope === 'project' || scope === 'pi-project'
-        ? 'A workspace is required for project-scoped MCP config.'
-        : `Unknown MCP scope: ${scope}`,
-    )
-  }
-  return { path: entry.path }
-}
-
-function validateServer(name: string, config: McpServerConfig): void {
-  if (!name || /[/\\]/.test(name)) {
-    throw new Error(`Invalid MCP server name "${name}".`)
-  }
-  const hasUrl = typeof config.url === 'string' && config.url.length > 0
-  const hasCommand = typeof config.command === 'string' && config.command.length > 0
-  if (hasUrl === hasCommand) {
-    throw new Error('An MCP server needs exactly one of `url` or `command`.')
-  }
+  if (!entry) throw new Error('A workspace is required for project-scoped MCP config.')
+  return entry.path
 }
 
 async function mutateFile(
@@ -170,11 +265,11 @@ async function mutateFile(
   dirs: McpDirs | undefined,
   mutate: (servers: Record<string, McpServerConfig>) => void,
 ): Promise<void> {
-  const { path } = resolveWriteScope(scope, workspacePath, dirs)
+  const path = pathFor(scope, workspacePath, dirs)
   const file = await readMcpFileAt(scope, path)
   if (file.state.malformed) {
     throw new Error(
-      `${path} is not valid JSON (${file.state.error ?? 'parse error'}). ` +
+      `${path} is not valid (${file.state.error ?? 'parse error'}). ` +
         'Phosphor will not overwrite it — fix it via the raw editor first.',
     )
   }
@@ -188,13 +283,17 @@ async function mutateFile(
 }
 
 export async function upsertMcpServer(
-  scope: McpWriteScope,
+  scope: McpScope,
   workspacePath: string | undefined,
   name: string,
   config: McpServerConfig,
   dirs?: McpDirs,
 ): Promise<void> {
-  validateServer(name, config)
+  const problem = serverProblem(name, config, scope)
+  if (problem) throw new Error(problem)
+  if (typeof config.url === 'string' && typeof config.command === 'string') {
+    throw new Error('An MCP server needs exactly one of `url` or `command`.')
+  }
   await mutateFile(scope, workspacePath, dirs, (servers) => {
     servers[name] = config
   })
@@ -211,19 +310,24 @@ export async function removeMcpServer(
   })
 }
 
-/** Toggle `disabled` in the server's own source file (unambiguous semantics). */
-export async function setMcpServerDisabled(
+/**
+ * Turn a server on or off in the file that decides it: the project file for a
+ * server it defines or overrides, the global file otherwise. `true` is pi's
+ * default and removes the key, except in an override, where an absent key
+ * would mean "inherit" rather than "on".
+ */
+export async function setMcpServerEnabled(
   scope: McpScope,
   workspacePath: string | undefined,
   name: string,
-  disabled: boolean,
+  enabled: boolean,
   dirs?: McpDirs,
 ): Promise<void> {
   await mutateFile(scope, workspacePath, dirs, (servers) => {
     const existing = servers[name]
     if (!existing) throw new Error(`No MCP server "${name}" in this file.`)
-    if (disabled) existing.disabled = true
-    else delete existing.disabled
+    if (!enabled || isMcpOverride(existing)) existing.enabled = enabled
+    else delete existing.enabled
   })
 }
 
@@ -233,7 +337,7 @@ export async function readMcpFile(
   workspacePath: string | undefined,
   dirs?: McpDirs,
 ): Promise<{ path: string; content: string }> {
-  const { path } = resolveWriteScope(scope, workspacePath, dirs)
+  const path = pathFor(scope, workspacePath, dirs)
   try {
     return { path, content: await readFile(path, 'utf8') }
   } catch {
@@ -248,55 +352,7 @@ export async function writeMcpFile(
   dirs?: McpDirs,
 ): Promise<void> {
   JSON.parse(content) // must be valid JSON — refuse to write broken config
-  const { path } = resolveWriteScope(scope, workspacePath, dirs)
+  const path = pathFor(scope, workspacePath, dirs)
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, content, 'utf8')
-}
-
-/**
- * Tolerant read of the adapter's metadata cache (display-only tool lists).
- * The cache shape is the adapter's own; we scrape name → tool names (and
- * descriptions, when present) and drop anything that doesn't look right.
- * Descriptions are capped: some servers ship a page of prompt per tool, and
- * the settings list only ever shows the opening of one.
- */
-export async function readMcpCache(dirs?: McpDirs): Promise<McpCacheEntry[]> {
-  const path = join((dirs ?? mcpDirs()).piAgent, 'mcp-cache.json')
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(await readFile(path, 'utf8'))
-  } catch {
-    return []
-  }
-  if (!parsed || typeof parsed !== 'object') return []
-  const entries: McpCacheEntry[] = []
-  const scrape = (name: string, value: unknown): void => {
-    if (!value || typeof value !== 'object') return
-    const tools = (value as { tools?: unknown }).tools
-    if (Array.isArray(tools)) {
-      entries.push({ name, tools: tools.map(scrapeTool).filter((t) => t !== null) })
-    }
-  }
-  const root = parsed as Record<string, unknown>
-  const servers = (root.servers ?? root) as Record<string, unknown>
-  if (servers && typeof servers === 'object') {
-    for (const [name, value] of Object.entries(servers)) scrape(name, value)
-  }
-  return entries
-}
-
-const TOOL_DESCRIPTION_MAX = 600
-
-function scrapeTool(tool: unknown): McpCachedTool | null {
-  if (typeof tool === 'string') return { name: tool }
-  if (!tool || typeof tool !== 'object') return null
-  const { name, description } = tool as { name?: unknown; description?: unknown }
-  if (typeof name !== 'string') return null
-  const text = typeof description === 'string' ? description.trim() : ''
-  if (!text) return { name }
-  return {
-    name,
-    description:
-      text.length > TOOL_DESCRIPTION_MAX ? `${text.slice(0, TOOL_DESCRIPTION_MAX)}…` : text,
-  }
 }

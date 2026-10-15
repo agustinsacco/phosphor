@@ -119,6 +119,12 @@ export interface ToolState {
   isError?: boolean
   startedAt?: number
   endedAt?: number
+  /**
+   * pi's measured execution time (pi >= 1.1), also on reloaded results. Wall
+   * time from `startedAt` to `endedAt` includes event delivery and is absent
+   * after a reload.
+   */
+  durationMs?: number
 }
 
 interface RetryState {

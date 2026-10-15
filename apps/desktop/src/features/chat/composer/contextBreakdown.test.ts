@@ -95,12 +95,14 @@ describe('parseContextBreakdown', () => {
     const parsed = parseContextBreakdown(
       '{"parts":{"messages":1},"mcpByServer":{"linear":{"tokens":77,"count":1}}}',
     )
-    expect(parsed?.mcpByServer.linear).toEqual({
-      tokens: 77,
-      count: 1,
-      direct: 0,
-      toolCount: null,
-    })
+    expect(parsed?.mcpByServer.linear).toEqual({ tokens: 77, count: 1, toolCount: null })
+  })
+
+  it('keeps a connected server whose tools are all behind codemode', () => {
+    const parsed = parseContextBreakdown(
+      '{"parts":{"messages":1},"mcpByServer":{"linear":{"tokens":0,"count":0,"toolCount":40}}}',
+    )
+    expect(parsed?.mcpByServer.linear).toEqual({ tokens: 0, count: 0, toolCount: 40 })
   })
 })
 
@@ -110,8 +112,8 @@ describe('mcpServerRows', () => {
       parts: { messages: 100, systemPrompt: 100, tools: 100, mcpTools: 200 },
       counts: { tools: 4, mcpTools: 30, messages: 2 },
       mcpByServer: {
-        linear: { tokens: 50, count: 8, direct: 7, toolCount: 61 },
-        datadog: { tokens: 150, count: 22, direct: 22, toolCount: 22 },
+        linear: { tokens: 50, count: 8, toolCount: 61 },
+        datadog: { tokens: 150, count: 22, toolCount: 22 },
         empty: { tokens: 0, count: 0 },
       },
     }),
@@ -121,8 +123,8 @@ describe('mcpServerRows', () => {
     // Measured 500, pi says 1000. The extra 500 belongs to the provider, not
     // to these servers, so the rows report what they measured.
     expect(mcpServerRows(breakdown, 1000)).toEqual([
-      { name: 'datadog', tokens: 150, count: 22, direct: 22, toolCount: 22 },
-      { name: 'linear', tokens: 50, count: 8, direct: 7, toolCount: 61 },
+      { name: 'datadog', tokens: 150, count: 22, toolCount: 22 },
+      { name: 'linear', tokens: 50, count: 8, toolCount: 61 },
     ])
   })
 

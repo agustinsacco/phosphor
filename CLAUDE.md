@@ -121,11 +121,14 @@ you want to watch.
   `apps/desktop/electron/pi/print-mode.ts` (`stdio[0] = 'ignore'`). The e2e stub cannot
   catch a regression — it prints and exits without reading stdin — so the guard
   is `apps/desktop/electron/pi/print-mode.test.ts`.
-- **pi writes a session's file only when a turn ENDS**, not incrementally. A
-  name set mid-turn does not reach the disk scan until the reply lands, so
-  every surface showing a LIVE session's title prefers the chat store's
-  `meta.sessionName` over the scanned `meta.name`, and a session keeps its
-  placeholder sidebar row (`PendingSessionRow`) for the whole first turn.
+- **pi creates a session's file when the first user message is sent**, then
+  appends each entry as it lands (pi 1.2.0: a mid-turn `set_session_name` is on
+  disk before the reply). A session disposed before its first prompt has no
+  file. The disk scan still lags behind the watcher's `awaitWriteFinish` and
+  debounce, so every surface showing a LIVE session's title prefers the chat
+  store's `meta.sessionName` over the scanned `meta.name`, and a new session
+  shows a placeholder sidebar row (`PendingSessionRow`) until the scan finds
+  its file.
 - **`apps/desktop/electron/store.ts` constructs its electron-store lazily on purpose** —
   a module-scope `new Store()` would resolve `userData` before main.ts can
   redirect it for E2E, leaking test state into real prefs.
@@ -184,7 +187,7 @@ you want to watch.
   native in-loop compaction remains enabled for routines. See
   [cli-providers.md](docs/cli-providers.md#one-context-budget).
 
-- **Phosphor ships seven extensions that run inside pi's process** (`libs/pi-extensions/pi-ext/`,
+- **Phosphor ships six extensions that run inside pi's process** (`libs/pi-extensions/pi-ext/`,
   loaded with `-e` into every session; listed in `bundledExtensions()` in
   `libs/session-runtime/src/bundled-extensions.ts`). They are the only Phosphor code with a
   say inside a turn. The context extension caps the session window for native
@@ -207,8 +210,8 @@ you want to watch.
     request (`Member must satisfy regular expression pattern: [a-zA-Z0-9_-]+`),
     bricking the thread permanently. The guard turns it into plain text.
 - **UI status surfaces are fed by extensions, not by RPC queries.** The context meter's
-  composition section comes from `libs/pi-extensions/pi-ext/context-breakdown.ts` (bundled, `-e`
-  into every session), per-server MCP state from `libs/pi-extensions/pi-ext/mcp-status.ts`, and
+  composition section and its per-server MCP tool counts come from
+  `libs/pi-extensions/pi-ext/context-breakdown.ts` (bundled, `-e` into every session), and
   headroom/compression state from `libs/pi-extensions/pi-ext/headroom.ts`; its plan-limits
   section and the legacy sub-agent chip come from the Claude provider package.
   The per-lane Swarm switch uses `phosphor-swarm` from the bundled context helper
@@ -243,12 +246,16 @@ you want to watch.
   instance and the user is left with no app. The startup sweep that deletes
   leftovers is `rm -rf` next to `/Applications`; its name match is a full-string
   regex on purpose. See [docs/updates.md](docs/updates.md).
-- **Connecting an MCP server never puts a token in Phosphor.** The adapter owns
-  OAuth and the OS credential store; Phosphor writes `mcp.json` and drives the
-  adapter's own `/mcp-auth` command (an extension command, so no model runs).
-  And it must **never auto-answer** the adapter's "paste the callback URL"
-  prompt: pi's RPC has no dialog cancel, so an empty answer wins the race
-  against the loopback callback and kills a flow that already succeeded. See
+- **Connecting an MCP server never puts a token in Phosphor.** MCP is built
+  into pi (≥ 1.2.0): pi owns OAuth and keeps the credentials. Phosphor writes
+  `~/.pi/agent/mcp.json` or `<ws>/.pi/mcp.json` and runs pi's own commands:
+  `pi mcp list --json` for status, `pi mcp login <server>` (stdin ignored, so pi
+  opens the browser itself and waits for the loopback callback) and
+  `pi mcp logout`, all in `apps/desktop/electron/pi/mcp-cli.ts`. Phosphor
+  **never answers a dialog** on pi's behalf and has no paste-the-callback path.
+  pi ignores a project's `mcp.json` until the folder is trusted, and Phosphor
+  does not write trust. While pi-mcp-adapter or its config is present, the
+  Connectors tab shows only the migration card. See
   [docs/mcp.md](docs/mcp.md#settings--connectors).
 
 ## Conventions

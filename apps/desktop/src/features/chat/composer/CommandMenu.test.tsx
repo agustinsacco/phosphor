@@ -26,9 +26,23 @@ function render(element: React.JSX.Element): HTMLDivElement {
   return container
 }
 
-const ENTRIES = buildCommandEntries(REAL_PI_COMMANDS, [
-  { name: 'compact', description: 'Compact conversation context now', run: () => {} },
-])
+/** A prompt template, so every section has a row. */
+const PLAN = {
+  name: 'plan',
+  description: 'Draft an implementation plan',
+  source: 'prompt' as const,
+  sourceInfo: {
+    path: '/home/dev/.pi/agent/prompts/plan.md',
+    source: 'local',
+    scope: 'user' as const,
+    origin: 'top-level' as const,
+  },
+}
+
+const ENTRIES = buildCommandEntries(
+  [...REAL_PI_COMMANDS, PLAN],
+  [{ name: 'compact', description: 'Compact conversation context now', run: () => {} }],
+)
 
 const noop = (): void => {}
 

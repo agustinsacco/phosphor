@@ -18,6 +18,7 @@ import {
   type RewoundSessions,
 } from '@/features/sessions/rewound'
 import { piCallOk, rehydrateTranscript } from '@/lib/rpc'
+import { createSettleTracker } from '@/lib/runSettle'
 import { requestSwarm } from '@/lib/swarm'
 import { sessionTitle } from '@/lib/sessionTitle'
 import { clearBurnSamples, recordBurnSample } from '@/lib/burnRate'
@@ -591,6 +592,9 @@ function markSuspended(diskPath: string): void {
   }))
 }
 
+/** Runs that finished on their own, for the off-screen lane notice. */
+const settles = createSettleTracker()
+
 /**
  * Drop everything the renderer holds for a session whose process is gone.
  *
@@ -602,6 +606,7 @@ function markSuspended(diskPath: string): void {
 async function cleanupLocalSessionState(sessionId: string): Promise<void> {
   unsubscribers.get(sessionId)?.()
   unsubscribers.delete(sessionId)
+  settles.forget(sessionId)
   useChatStore.getState().remove(sessionId)
   const [{ useTerminalStore }, { useArtifactsStore }, { useExtensionUiStore }, { useLayoutStore }] =
     await Promise.all([
@@ -642,15 +647,10 @@ function attachSessionPushHandler(phosphorId: string): void {
         void rehydrateTranscript(phosphorId).then(() => bootstrapSession(phosphorId))
         break
       case 'event': {
-        const wasStreaming = chatStore.sessions[phosphorId]?.isStreaming ?? false
         chatStore.applyEvent(phosphorId, push.event)
-        // The run settled — `isStreaming` is the reducer's own verdict on
-        // "fully done", which already accounts for retries and queued
-        // follow-ups. A lane finishing off-screen says so, and clicking the
-        // notice goes there.
+        // A lane finishing off-screen says so, and clicking the notice goes there.
         if (
-          wasStreaming &&
-          !useChatStore.getState().sessions[phosphorId]?.isStreaming &&
+          settles.finished(phosphorId, push.event) &&
           useSessionsStore.getState().live[phosphorId]?.target?.kind !== 'remote'
         ) {
           void import('@/features/sessions/laneNotices').then(({ noticeLaneSettled }) =>

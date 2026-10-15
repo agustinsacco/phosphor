@@ -5,8 +5,8 @@ import { commandScore } from '@/lib/fuzzy'
  * What the `/` menu lists, derived from pi's `get_commands` answer.
  *
  * pi's list is honest but raw: it carries every alias an extension registers,
- * badges an MCP prompt as an `extension` because the adapter is one, and puts
- * the "where is this from?" answer in a `sourceInfo` object nobody rendered.
+ * and puts the "where is this from?" answer in a `sourceInfo` object nobody
+ * rendered.
  * This module is the one place that reading happens, so the chat composer and
  * the home composer show the same list for the same answer. Pure functions —
  * `commandCatalogue.test.ts` runs them against a real pi payload.
@@ -55,31 +55,11 @@ export const BADGE_LABELS: Record<CommandBadge, string> = {
  * `/phosphor-context-files` is a host control the composer's checkboxes send,
  * and `/phosphor-reload` one main sends before a turn when a lane's MCP config
  * changed.
- *
- * `/mcp-auth`: Phosphor drives this command itself from Settings ▸ MCP
- * Connectors, and docs/mcp.md is explicit about why a hand-run flow is the
- * dangerous one — pi's RPC has no dialog cancel, so the adapter's "paste the
- * callback URL" prompt has to be answered exactly once, by the code that knows
- * whether the loopback callback already won.
  */
 const DEMOTED: Record<string, string> = {
-  'mcp-auth': 'Phosphor runs this for you from Settings ▸ MCP Connectors.',
   'phosphor-context-files': 'Phosphor runs this for you from the CLAUDE.md / AGENTS.md checkboxes.',
   'phosphor-reload': 'Phosphor runs this for you before your next message when connectors change.',
   'phosphor-swarm': 'Use the Swarm switch in the composer to change lane authorization.',
-}
-
-/**
- * The MCP server an `mcp__<server>__<prompt>` command belongs to, or null.
- *
- * pi-mcp-adapter exposes every prompt a connected server advertises as a
- * command under this name scheme. Server names are single-underscore-safe:
- * the separator is a double underscore.
- */
-export function mcpPromptServer(name: string): string | null {
-  const parts = name.split('__')
-  if (parts.length < 3 || parts[0] !== 'mcp') return null
-  return parts[1] || null
 }
 
 /**
@@ -104,8 +84,6 @@ function rootHint(path: string): string | null {
 
 /** The short origin the row shows. Falls back to pi's own `source` word. */
 export function originLabel(command: RpcSlashCommand): string {
-  const server = mcpPromptServer(command.name)
-  if (server) return `${server} · MCP prompt`
   const info = command.sourceInfo
   if (!info) return command.source
   if (info.origin === 'package') return info.source.replace(/^npm:/, '')
@@ -115,19 +93,13 @@ export function originLabel(command: RpcSlashCommand): string {
   return hint ? `${scope} · ${hint}` : scope
 }
 
-/** The badge a command renders under — pi's `source`, corrected for MCP prompts. */
-export function badgeFor(command: RpcSlashCommand): CommandBadge {
-  if (mcpPromptServer(command.name)) return 'prompt'
-  return command.source
-}
-
 /**
  * Collapse names pi registered for one and the same command.
  *
- * pi-mcp-adapter registers `/mcp` and `/pi-mcp` against a single handler with
- * a single description. The signal is two commands from the same file with
- * the same non-empty description — nothing here names the alias, because the
- * alias is upstream's and may move. The first registration stays as the row;
+ * An extension may register one handler under several names with a single
+ * description. The signal is two commands from the same file with the same
+ * non-empty description — nothing here names the alias, because the alias is
+ * upstream's and may move. The first registration stays as the row;
  * the rest are kept as aliases so they remain searchable and visible in the
  * tooltip.
  */
@@ -174,7 +146,7 @@ export function buildCommandEntries(
     return {
       name: command.name,
       ...(description ? { description } : {}),
-      badge: badgeFor(command),
+      badge: command.source,
       origin: originLabel(command),
       ...(command.sourceInfo ? { sourceInfo: command.sourceInfo } : {}),
       aliases,
@@ -223,7 +195,8 @@ export function entryTooltip(entry: CommandEntry): string {
   const lines: string[] = []
   if (entry.description) lines.push(entry.description)
   lines.push(`From: ${entry.origin}`)
-  if (entry.sourceInfo?.path && !entry.sourceInfo.path.startsWith('<')) {
+  // pi names a built-in's file `builtin:<name>` (`<inline:…>` before 1.0).
+  if (entry.sourceInfo?.path && !/^(<|builtin:)/.test(entry.sourceInfo.path)) {
     lines.push(entry.sourceInfo.path)
   }
   if (entry.aliases.length > 0) lines.push(`Also: ${entry.aliases.map((a) => `/${a}`).join(', ')}`)

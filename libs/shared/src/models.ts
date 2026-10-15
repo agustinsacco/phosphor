@@ -857,7 +857,7 @@ export const DEFAULT_APP_PREFS: AppPrefs = {
 }
 
 /** Minimum pi version Phosphor is verified against. */
-export const MIN_PI_VERSION = '0.87.1'
+export const MIN_PI_VERSION = '1.2.0'
 
 /**
  * The first `@saccolabs/pi-claude-cli` release a Claude session starts on.
@@ -1170,16 +1170,15 @@ export type LoginProviderId =
 
 /** Where a sign-in has got to. Drives the whole Accounts UI. */
 /**
- * Progress of a headless MCP connector authorization
- * (`electron/pi/connector-auth.ts`).
+ * Progress of an MCP connector sign-in (`pi mcp login`, run by
+ * `electron/pi/mcp-cli.ts`).
  *
- * Deliberately not `LoginFlowState`: this flow is owned by the MCP adapter
- * inside a throwaway pi process, and its only interactive step is a browser
- * round-trip whose fallback is pasting the callback URL back.
+ * Deliberately not `LoginFlowState`: its only interactive step is a browser
+ * round-trip that pi itself opens and waits on.
  */
 export type ConnectorAuthState =
   | { phase: 'starting' }
-  /** The adapter produced an authorization URL; main already opened it. */
+  /** pi printed the authorization URL and opened the browser itself. */
   | { phase: 'awaiting-browser'; authorizationUrl: string }
   | { phase: 'connected' }
   | { phase: 'failed'; message: string }

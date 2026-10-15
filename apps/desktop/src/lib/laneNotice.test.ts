@@ -23,10 +23,6 @@ describe('laneOutcome', () => {
     })
   })
 
-  it('stays quiet for an aborted run', () => {
-    expect(laneOutcome([user, assistant('partial', { stopReason: 'aborted' })])).toBeNull()
-  })
-
   it('reports an error with its message', () => {
     expect(
       laneOutcome([user, assistant('', { stopReason: 'error', errorMessage: 'rate limited' })]),

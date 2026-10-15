@@ -44,10 +44,6 @@
       "types": "./src/command-approval.ts",
       "default": "./src/command-approval.ts"
     },
-    "./connectors": {
-      "types": "./src/connectors.ts",
-      "default": "./src/connectors.ts"
-    },
     "./context-budget": {
       "types": "./src/context-budget.ts",
       "default": "./src/context-budget.ts"

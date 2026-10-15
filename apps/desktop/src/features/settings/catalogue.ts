@@ -26,13 +26,6 @@ export const PACKAGE_CATALOGUE: CatalogueEntry[] = [
     requiresBinary: 'claude',
   },
   {
-    spec: 'npm:pi-mcp-adapter',
-    name: 'MCP adapter',
-    description:
-      'Connect Model Context Protocol servers; their tools appear in chat as ordinary tool calls. Configured in the MCP tab.',
-    docsUrl: 'https://www.npmjs.com/package/pi-mcp-adapter',
-  },
-  {
     spec: 'npm:pi-web-access',
     name: 'Web access',
     description: 'Web search, URL fetching, PDF extraction and YouTube understanding for sessions.',

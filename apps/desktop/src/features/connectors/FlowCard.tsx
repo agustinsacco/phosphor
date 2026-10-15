@@ -1,7 +1,6 @@
 import { TooltipButton } from '@/components/Tooltip'
-import { useState } from 'react'
 import clsx from 'clsx'
-import { Button, TextInput } from '@/components/form'
+import { Button } from '@/components/form'
 import { useConnectorsStore, type ConnectFlow } from '@/stores/connectors'
 
 /** What the authorization round-trip looks like while it is happening. */
@@ -12,16 +11,15 @@ export function FlowCard({
   serverName: string
   flow: ConnectFlow
 }): React.JSX.Element {
-  const [pasted, setPasted] = useState('')
   const store = useConnectorsStore.getState()
 
   if (flow.phase === 'starting') {
-    return <Note>Starting authorization…</Note>
+    return <Note>Starting sign-in…</Note>
   }
   if (flow.phase === 'connected') {
     return (
       <Note tone="success">
-        Authorized. <Dismiss onClick={() => store.dismiss(serverName)} />
+        Signed in. <Dismiss onClick={() => store.dismiss(serverName)} />
       </Note>
     )
   }
@@ -40,18 +38,16 @@ export function FlowCard({
         {flow.authorizationUrl}
       </div>
       <div className="mt-2 flex items-center gap-2">
-        <TextInput
-          value={pasted}
-          onChange={(e) => setPasted(e.target.value)}
-          placeholder="…or paste the localhost callback URL"
-          className="min-w-0 flex-1 font-mono"
-        />
+        {/* pi opened the page already; this is for a tab that got closed. */}
         <Button
           size="sm"
-          disabled={!pasted.trim()}
-          onClick={() => store.submitCallbackUrl(serverName, pasted)}
+          onClick={() =>
+            void window.phosphor.invoke('app:openExternal', flow.authorizationUrl).catch(() => {
+              // The URL is on screen, so a blocked launch is recoverable.
+            })
+          }
         >
-          Finish
+          Open again
         </Button>
         <Button size="sm" onClick={() => store.cancel(serverName)}>
           Cancel

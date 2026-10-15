@@ -13,7 +13,7 @@ set -eu
 
 REPO="${PHOSPHOR_REPO:-agustinsacco/Phosphor}"
 PREFIX="${PHOSPHOR_PREFIX:-$HOME/.local}"
-MIN_PI_VERSION="0.78.0"
+MIN_PI_VERSION="1.2.0"
 
 info()  { printf '\033[1;36m==>\033[0m %s\n' "$1"; }
 warn()  { printf '\033[1;33mwarning:\033[0m %s\n' "$1" >&2; }

@@ -111,9 +111,9 @@ describe('useSlashMenu', () => {
     const { menu } = mount(SESSION_ENTRIES)
     act(() => menu().sync('/'))
     expect(menu().visible).toBe(true)
-    // 3 native + 18 pi − 1 folded alias − 1 demoted = 19 rows; not 12.
-    expect(menu().matches).toHaveLength(19)
-    expect(menu().matches.filter((m) => m.badge === 'skill')).toHaveLength(7)
+    // 3 native + 13 pi = 16 rows; the menu used to cap at 12.
+    expect(menu().matches).toHaveLength(16)
+    expect(menu().matches.filter((m) => m.badge === 'skill')).toHaveLength(6)
   })
 
   it('wraps arrow navigation and consumes the keys', () => {

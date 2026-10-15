@@ -1,226 +1,51 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { RELOAD_TIMEOUT_MS, useConnectorsStore } from './connectors'
+import { useConnectorsStore } from './connectors'
 
-const invoke = vi.fn(async (..._args: unknown[]) => undefined)
-const piCommand = vi.fn(async () => ({ success: true, data: undefined }))
+const invoke = vi.fn(async (..._args: unknown[]): Promise<unknown> => undefined)
 
 beforeEach(() => {
-  invoke.mockClear()
-  piCommand.mockClear()
+  invoke.mockReset()
+  invoke.mockResolvedValue(undefined)
   useConnectorsStore.setState({ flows: {} })
-  // @ts-expect-error partial preload surface, only what the store touches
-  window.phosphor = { invoke, piCommand }
+  // @ts-expect-error partial preload surface
+  window.phosphor = { invoke }
 })
 
-const calls = (channel: string): unknown[][] =>
-  invoke.mock.calls.filter((call) => call[0] === channel).map((call) => call.slice(1))
-
-describe('connector flow — headless (no session)', () => {
-  it('authorizes through main, which spawns its own throwaway pi', async () => {
-    await useConnectorsStore.getState().connect('linear')
-    expect(calls('mcp:authorize')).toEqual([['linear']])
-    expect(piCommand).not.toHaveBeenCalled()
+describe('connector sign-in', () => {
+  it('starts pi mcp login in main and follows its pushes', async () => {
+    await useConnectorsStore.getState().connect('linear', '/ws')
+    expect(invoke).toHaveBeenCalledWith('mcp:authorize', 'linear', '/ws')
     expect(useConnectorsStore.getState().flows.linear).toEqual({ phase: 'starting' })
-  })
 
-  it('renders the phases main pushes, dropping nothing', () => {
-    const store = useConnectorsStore.getState()
-    store.headlessState('linear', {
-      phase: 'awaiting-browser',
-      authorizationUrl: 'https://provider.test/a',
-    })
+    const url = 'https://linear.app/oauth/authorize?state=1'
+    useConnectorsStore
+      .getState()
+      .received('linear', { phase: 'awaiting-browser', authorizationUrl: url })
     expect(useConnectorsStore.getState().flows.linear).toEqual({
       phase: 'awaiting-browser',
-      authorizationUrl: 'https://provider.test/a',
+      authorizationUrl: url,
     })
-    store.headlessState('linear', { phase: 'connected' })
+    // pi opened the browser; a second launch from here would be a duplicate tab.
+    expect(invoke).not.toHaveBeenCalledWith('app:openExternal', url)
+
+    useConnectorsStore.getState().received('linear', { phase: 'connected' })
     expect(useConnectorsStore.getState().flows.linear).toEqual({ phase: 'connected' })
   })
 
-  it('routes a pasted callback URL to main, not to a session', () => {
-    const store = useConnectorsStore.getState()
-    store.headlessState('linear', {
-      phase: 'awaiting-browser',
-      authorizationUrl: 'https://provider.test/a',
-    })
-    store.submitCallbackUrl('linear', '  http://localhost:19876/callback?code=1 ')
-    expect(calls('mcp:submitAuthCallback')).toEqual([
-      ['linear', 'http://localhost:19876/callback?code=1'],
-    ])
-    expect(calls('pi:extensionUiResponse')).toEqual([])
-  })
-
-  it('cancels the main-process run', () => {
-    const store = useConnectorsStore.getState()
-    store.headlessState('linear', {
-      phase: 'awaiting-browser',
-      authorizationUrl: 'https://provider.test/a',
-    })
-    store.cancel('linear')
-    expect(calls('mcp:cancelAuth')).toEqual([['linear']])
-    expect(useConnectorsStore.getState().flows.linear).toBeUndefined()
-  })
-})
-
-describe('connector flow — in a live session', () => {
-  it('signs in with the adapter command, which runs no model', async () => {
-    await useConnectorsStore.getState().connect('linear', 's1')
-    expect(piCommand).toHaveBeenCalledWith('s1', { type: 'prompt', message: '/mcp-auth linear' })
-    expect(calls('mcp:authorize')).toEqual([])
+  it('shows a failure to start as a failed flow', async () => {
+    invoke.mockRejectedValueOnce(new Error('no pi'))
+    await useConnectorsStore.getState().connect('linear')
     expect(useConnectorsStore.getState().flows.linear).toEqual({
-      phase: 'starting',
-      sessionId: 's1',
-    })
-  })
-
-  it('opens the browser and NEVER answers the adapter prompt on its own', () => {
-    useConnectorsStore.getState().promptReceived({
-      sessionId: 's1',
-      serverName: 'linear',
-      authorizationUrl: 'https://linear.app/oauth/authorize',
-      requestId: 'req-1',
-    })
-    expect(calls('app:openExternal')).toEqual([['https://linear.app/oauth/authorize']])
-    // The load-bearing rule: pi's RPC has no cancel, and an empty answer wins
-    // the race against the loopback callback and kills a successful flow.
-    expect(calls('pi:extensionUiResponse')).toEqual([])
-    expect(useConnectorsStore.getState().flows.linear).toMatchObject({
-      phase: 'awaiting-browser',
-      requestId: 'req-1',
-    })
-  })
-
-  it('settles on the adapter verdict, keeping its message on failure', () => {
-    useConnectorsStore.getState().settle('linear', 'success')
-    expect(useConnectorsStore.getState().flows.linear).toEqual({ phase: 'connected' })
-    useConnectorsStore.getState().settle('slack', 'failure', 'redirect_uri mismatch')
-    expect(useConnectorsStore.getState().flows.slack).toEqual({
       phase: 'failed',
-      message: 'redirect_uri mismatch',
+      message: 'no pi',
     })
   })
 
-  it('answers the session’s pending prompt when the user pastes a callback URL', () => {
-    const store = useConnectorsStore.getState()
-    store.promptReceived({
-      sessionId: 's1',
-      serverName: 'linear',
-      authorizationUrl: 'https://linear.app/oauth/authorize',
-      requestId: 'req-1',
-    })
-    store.submitCallbackUrl('linear', 'http://localhost:19876/cb?code=1')
-    expect(calls('pi:extensionUiResponse')).toEqual([
-      [
-        's1',
-        { type: 'extension_ui_response', id: 'req-1', value: 'http://localhost:19876/cb?code=1' },
-      ],
-    ])
-    expect(calls('mcp:submitAuthCallback')).toEqual([])
-  })
-
-  it('ignores a paste when no prompt is pending', () => {
-    useConnectorsStore.getState().submitCallbackUrl('linear', 'http://localhost:19876/cb')
-    expect(calls('pi:extensionUiResponse')).toEqual([])
-    expect(calls('mcp:submitAuthCallback')).toEqual([])
-  })
-
-  it('cancels explicitly — the only case where Phosphor answers', () => {
-    const store = useConnectorsStore.getState()
-    store.promptReceived({
-      sessionId: 's1',
-      serverName: 'linear',
-      authorizationUrl: 'https://linear.app/oauth/authorize',
-      requestId: 'req-1',
-    })
-    store.cancel('linear')
-    expect(calls('pi:extensionUiResponse')).toEqual([
-      ['s1', { type: 'extension_ui_response', id: 'req-1', cancelled: true }],
-    ])
-    expect(useConnectorsStore.getState().flows.linear).toBeUndefined()
-  })
-
-  it('disconnects through the adapter so it clears its own stored credentials', async () => {
-    await useConnectorsStore.getState().disconnect('slack', 's1')
-    expect(piCommand).toHaveBeenCalledWith('s1', {
-      type: 'prompt',
-      message: '/mcp-adapter logout slack',
-    })
-  })
-
-  it('disconnecting with no session removes config without pretending to log out', async () => {
-    await useConnectorsStore.getState().disconnect('slack')
-    expect(piCommand).not.toHaveBeenCalled()
-  })
-})
-
-describe('reloading a server in a live session', () => {
-  it('reconnects through the adapter and resolves on its verdict, not the ack', async () => {
-    const store = useConnectorsStore.getState()
-    let settled = false
-    const reload = store.reload('s1', 'linear').then((result) => {
-      settled = true
-      return result
-    })
-    expect(piCommand).toHaveBeenCalledWith('s1', {
-      type: 'prompt',
-      message: '/mcp-adapter reconnect linear',
-    })
-    // pi acknowledges the prompt before the adapter has reconnected anything.
-    await Promise.resolve()
-    await Promise.resolve()
-    expect(settled).toBe(false)
-
-    store.reloadNoticed('s1', { serverName: 'linear', outcome: 'connected', toolCount: 81 })
-    await expect(reload).resolves.toEqual({
-      serverName: 'linear',
-      outcome: 'connected',
-      toolCount: 81,
-    })
-  })
-
-  it('ignores a verdict from another session or about another server', async () => {
-    vi.useFakeTimers()
-    try {
-      const store = useConnectorsStore.getState()
-      const reload = store.reload('s1', 'linear')
-      store.reloadNoticed('s2', { serverName: 'linear', outcome: 'connected' })
-      store.reloadNoticed('s1', { serverName: 'notion', outcome: 'connected' })
-      store.reloadNoticed('s1', { serverName: 'linear', outcome: 'failed', detail: 'ECONNRESET' })
-      await expect(reload).resolves.toEqual({
-        serverName: 'linear',
-        outcome: 'failed',
-        detail: 'ECONNRESET',
-      })
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('shares one reconnect between clicks while it is in flight', () => {
-    const store = useConnectorsStore.getState()
-    const first = store.reload('s1', 'linear')
-    expect(store.reload('s1', 'linear')).toBe(first)
-    expect(piCommand).toHaveBeenCalledTimes(1)
-    store.reloadNoticed('s1', { serverName: 'linear', outcome: 'connected' })
-  })
-
-  it('is inconclusive, never up or down, when the adapter stays silent', async () => {
-    vi.useFakeTimers()
-    try {
-      const reload = useConnectorsStore.getState().reload('s1', 'linear')
-      await vi.advanceTimersByTimeAsync(RELOAD_TIMEOUT_MS)
-      await expect(reload).resolves.toMatchObject({ serverName: 'linear', outcome: 'unknown' })
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-
-  it('is inconclusive when pi refuses the command', async () => {
-    piCommand.mockResolvedValueOnce({ success: false, data: undefined })
-    await expect(useConnectorsStore.getState().reload('s1', 'linear')).resolves.toMatchObject({
-      serverName: 'linear',
-      outcome: 'unknown',
-    })
+  it('cancels in main and drops the card at once', () => {
+    useConnectorsStore.getState().received('linear', { phase: 'starting' })
+    useConnectorsStore.getState().cancel('linear')
+    expect(invoke).toHaveBeenCalledWith('mcp:cancelAuth', 'linear')
+    expect(useConnectorsStore.getState().flows).toEqual({})
   })
 })

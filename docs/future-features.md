@@ -98,7 +98,7 @@ transfer (31-32) and the engine (45) will back these per-primitive operations:
   version, not transfer a machine's node_modules or silently update dependencies.
 - MCP config (`electron/pi/mcp-config.ts`) spans user and project scopes and can
   contain secrets. Copy or sync must review individual entries and strip secrets
-  by default. OAuth remains adapter-owned; credentials will not sync blindly.
+  by default. OAuth remains pi's (`pi mcp login`); credentials will not sync blindly.
 - Provider logins stay on the target. `apps/host/src/commands/provider-login.ts`
   already owns host-side login; guided remote flows depend on component 44.
 
@@ -195,3 +195,29 @@ per-architecture packaging. Which key, given that Escape already aborts a turn.
 
 **Risks.** A 465 MB download needs a clearer size warning. Live text competes
 with the user's own typing for the caret.
+
+## MCP: project trust and leftover adapter tokens
+
+**Problem.** pi ignores a project's `.pi/mcp.json` until the folder is trusted,
+and Settings → Connectors can only say so and send the person to a terminal to
+run `pi` and choose Trust ([mcp.md](mcp.md#config-two-files)). Separately, the
+move from pi-mcp-adapter leaves the adapter's OAuth tokens in the OS credential
+store, where nothing reads them again.
+
+**Proposed design.** Let Connectors trust the folder itself by writing pi's
+`trust.json` entry for the canonical path, with the same wording pi's own
+question uses, and show the decision it replaces. After the migration, offer
+to delete the adapter's credential-store entries for the servers that moved.
+
+**Touches.** `apps/desktop/electron/pi/mcp-config.ts` (`projectTrust` reads the
+same store), `features/settings/tabs/ConnectorsTab.tsx`,
+`features/connectors/MigrationCard.tsx`, and a main-side credential-store
+helper.
+
+**Open questions.** Whether writing trust from a GUI needs pi's own command for
+it rather than a file edit, and how the adapter named its keychain entries
+across versions.
+
+**Risks.** Trust lets a repository's config start local commands, so it must
+stay an explicit, per-folder choice. Deleting the wrong keychain entry signs a
+person out of something else.

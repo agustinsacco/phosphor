@@ -256,8 +256,8 @@ describe('live lane binding', () => {
     s.push({ type: 'agent_start' })
     s.push({ type: 'agent_end', messages: [], willRetry: true })
     expect(s.store.getLane(s.laneId)?.attention).toBe(0)
-    s.push({ type: 'agent_settled' })
-    s.push({ type: 'agent_settled' })
+    s.push({ type: 'agent_settled', aborted: false })
+    s.push({ type: 'agent_settled', aborted: false })
     const ask = (id: string) =>
       s.live.push(s.laneId, {
         kind: 'extension-ui',
@@ -560,7 +560,7 @@ describe('live lane review guards', () => {
       })
       if (kind === 'finished') {
         s.push({ type: 'agent_start' })
-        s.push({ type: 'agent_settled' })
+        s.push({ type: 'agent_settled', aborted: false })
       } else
         s.live.push(s.laneId, {
           kind: 'extension-ui',
@@ -608,7 +608,11 @@ it('bounds dirty transition passes, logs only the lane id and reconciles every v
   const drop = s.live.lanesTopic.listen((frame) => {
     if (frame?.type !== 'lanes-delta') return
     summaries++
-    s.push({ type: frame.upsert[0]?.activity === 'working' ? 'agent_settled' : 'agent_start' })
+    s.push(
+      frame.upsert[0]?.activity === 'working'
+        ? { type: 'agent_settled', aborted: false }
+        : { type: 'agent_start' },
+    )
   })
   s.push({ type: 'agent_start' })
   drop()
@@ -654,7 +658,11 @@ it('keeps one pending reconciliation and a fresh bounded batch per macrotask unt
   const drop = s.live.lanesTopic.listen((frame) => {
     if (frame?.type !== 'lanes-delta') return
     summaries++
-    s.push({ type: frame.upsert[0]?.activity === 'working' ? 'agent_settled' : 'agent_start' })
+    s.push(
+      frame.upsert[0]?.activity === 'working'
+        ? { type: 'agent_settled', aborted: false }
+        : { type: 'agent_start' },
+    )
   })
   const scheduled = vi.spyOn(globalThis, 'setImmediate')
   const delta = vi.spyOn(s.live.lanesTopic, 'delta')
@@ -686,7 +694,11 @@ it.each(['detach', 'reattach'] as const)(
     await s.live.attach(s.laneId, 'old').ready
     const drop = s.live.lanesTopic.listen((frame) => {
       if (frame?.type === 'lanes-delta')
-        s.push({ type: frame.upsert[0]?.activity === 'working' ? 'agent_settled' : 'agent_start' })
+        s.push(
+          frame.upsert[0]?.activity === 'working'
+            ? { type: 'agent_settled', aborted: false }
+            : { type: 'agent_start' },
+        )
     })
     s.push({ type: 'agent_start' })
     drop()

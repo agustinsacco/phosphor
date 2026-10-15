@@ -27,7 +27,6 @@ import type {
   EnrollmentApproveResponse,
 } from './control-api'
 import type { ArtifactListing, ArtifactSnapshot } from './artifacts'
-import type { ConnectorCheckResult } from './connectors'
 import type { ContextFileKind } from './context-files'
 import type { EditCommand, WritingPrefs } from './writing'
 import type {
@@ -38,11 +37,12 @@ import type {
   RoutinesSnapshot,
 } from './routines'
 import type {
-  McpCacheEntry,
   McpConfigsResult,
+  McpListResult,
+  McpMigrationPlan,
+  McpMigrationResult,
   McpScope,
   McpServerConfig,
-  McpWriteScope,
 } from './mcp'
 import type { SkillImportPreview, SkillScope, SkillsListResult } from './skills'
 import type { WorkspaceSearchRequest, WorkspaceSearchResult } from './workspace-search'
@@ -781,13 +781,13 @@ export interface IpcInvokeMap {
   'packages:testClaudeProvider': { args: []; result: { jobId: string } }
 
   /**
-   * MCP config chain (pi-mcp-adapter). The renderer names scopes; paths are
-   * resolved in main only.
+   * pi's built-in MCP: its global and project mcp.json. The renderer names
+   * scopes; paths are resolved in main only.
    */
   'mcp:readConfigs': { args: [workspacePath?: string]; result: McpConfigsResult }
   'mcp:upsertServer': {
     args: [
-      scope: McpWriteScope,
+      scope: McpScope,
       workspacePath: string | undefined,
       name: string,
       config: McpServerConfig,
@@ -798,43 +798,33 @@ export interface IpcInvokeMap {
     args: [scope: McpScope, workspacePath: string | undefined, name: string]
     result: void
   }
-  'mcp:setDisabled': {
-    args: [scope: McpScope, workspacePath: string | undefined, name: string, disabled: boolean]
+  'mcp:setEnabled': {
+    args: [scope: McpScope, workspacePath: string | undefined, name: string, enabled: boolean]
     result: void
   }
-  'mcp:readCache': { args: []; result: McpCacheEntry[] }
-
   /**
-   * Authorize a connector with no session open.
-   *
-   * OAuth belongs to the MCP adapter and only runs inside pi, so main spawns a
-   * throwaway `pi --mode rpc --no-session`, sends the adapter's own
-   * `/mcp-auth <server>` (an extension command — no model call, no tokens),
-   * opens the browser, and kills the process when the flow settles. Progress
-   * arrives on `mcp:authState`; this resolves once the flow has *started*,
-   * because the middle of it is a human in a browser.
+   * `pi mcp list --json`: connect every enabled server once and report its
+   * state and tools. No session needed, no tokens spent.
+   */
+  'mcp:list': { args: [workspacePath?: string]; result: McpListResult }
+  /**
+   * Sign a connector in with no session open: main runs `pi mcp login`, which
+   * opens the browser itself and waits for the callback. Progress arrives on
+   * `mcp:authState`; this resolves once the flow has *started*, because the
+   * middle of it is a human in a browser.
    */
   'mcp:authorize': { args: [serverName: string, workspacePath?: string]; result: void }
-  /**
-   * Answer the adapter's prompt with a pasted callback URL, for a loopback
-   * callback that never arrived. False when nothing is waiting for one.
-   */
-  'mcp:submitAuthCallback': { args: [serverName: string, url: string]; result: boolean }
-  /** Abandon an authorization in progress. No-op if nothing is running. */
+  /** Abandon a sign-in in progress. No-op if nothing is running. */
   'mcp:cancelAuth': { args: [serverName: string]; result: void }
-  /**
-   * Test one connector, with or without a session open.
-   *
-   * Main spawns a throwaway `pi --mode rpc --no-session` and sends the
-   * adapter's `/mcp reconnect <server>` (an extension command — no model
-   * call, no tokens), which closes and re-opens the connection and reports
-   * the outcome. Always resolves: an unrecognised answer is `unknown`, never
-   * a wrong verdict.
-   */
-  'mcp:checkServer': {
+  /** `pi mcp logout`: delete the server's stored OAuth credentials. */
+  'mcp:logout': {
     args: [serverName: string, workspacePath?: string]
-    result: ConnectorCheckResult
+    result: { ok: boolean; message: string }
   }
+  /** What moving pi-mcp-adapter's config to pi's built-in MCP would do. Reads only. */
+  'mcp:migrationPlan': { args: [workspacePath?: string]; result: McpMigrationPlan }
+  /** Do it: write pi's mcp.json, rename the adapter's files, turn pi's MCP back on. */
+  'mcp:migrate': { args: [workspacePath?: string]; result: McpMigrationResult }
   'mcp:readFile': {
     args: [scope: McpScope, workspacePath: string | undefined]
     result: { path: string; content: string }
@@ -1160,14 +1150,8 @@ export interface PhosphorApi {
   onPtyStatus(listener: (statuses: Record<string, boolean>) => void): () => void
   /** Update lifecycle changes (checking / downloading / ready to install). */
   onUpdateEvent(listener: (state: UpdateState) => void): () => void
-  /** Progress of a background `pi:startLogin`; returns unsubscribe. */
+  /** Progress of a background `mcp:authorize`; returns unsubscribe. */
   onMcpAuthState(listener: (push: ConnectorAuthPush) => void): () => void
-  /**
-   * The adapter's `mcp-cache.json` now says something different — a server's
-   * tools or prompts changed on a fresh connection. Invalidation only; read
-   * `mcp:readCache` again.
-   */
-  onMcpCacheChanged(listener: () => void): () => void
   onPiLoginState(listener: (state: LoginFlowState) => void): () => void
   /** Progress of a background `claude:startLogin`; returns unsubscribe. */
   onClaudeLoginState(listener: (state: ClaudeLoginState) => void): () => void

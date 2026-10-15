@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import type { RpcSlashCommand } from '@shared/rpc'
 import {
-  badgeFor,
   buildCommandEntries,
   dedupeAliases,
   entryTooltip,
   filterCommandEntries,
-  mcpPromptServer,
   originLabel,
   type CommandBadge,
 } from './commandCatalogue'
@@ -19,20 +18,6 @@ const NATIVE = [
 
 const byName = (names: readonly { name: string }[]): string[] => names.map((e) => e.name)
 
-describe('mcpPromptServer', () => {
-  it('reads the server out of the adapter naming scheme', () => {
-    expect(mcpPromptServer('mcp__notion__make-this-a-notion-page')).toBe('notion')
-    expect(mcpPromptServer('mcp__my_server__do-it')).toBe('my_server')
-  })
-
-  it('is null for anything else, including the adapter status commands', () => {
-    expect(mcpPromptServer('mcp')).toBeNull()
-    expect(mcpPromptServer('mcp-auth')).toBeNull()
-    expect(mcpPromptServer('pi-mcp')).toBeNull()
-    expect(mcpPromptServer('mcp__')).toBeNull()
-  })
-})
-
 describe('originLabel', () => {
   const find = (name: string) => REAL_PI_COMMANDS.find((c) => c.name === name)!
 
@@ -41,11 +26,8 @@ describe('originLabel', () => {
     expect(originLabel(find('computer-use'))).toBe('@injaneity/pi-computer-use')
   })
 
-  it('names the server for an MCP prompt, not the adapter that relays it', () => {
-    expect(originLabel(find('mcp__notion__make-this-a-notion-page'))).toBe('notion · MCP prompt')
-  })
-
-  it("says built into pi for pi's inline extensions", () => {
+  it("says built into pi for pi's built-in and inline extensions", () => {
+    expect(originLabel(find('mcp'))).toBe('built into pi')
     expect(originLabel(find('llama'))).toBe('built into pi')
   })
 
@@ -56,7 +38,18 @@ describe('originLabel', () => {
   })
 
   it('names the package for a skill bundled in one', () => {
-    expect(originLabel(find('skill:mcp-scripting'))).toBe('pi-mcp-adapter')
+    expect(
+      originLabel({
+        name: 'skill:pi-subagents',
+        source: 'skill',
+        sourceInfo: {
+          path: '/home/dev/.pi/agent/npm/node_modules/pi-subagents/skills/pi-subagents/SKILL.md',
+          source: 'npm:pi-subagents',
+          scope: 'user',
+          origin: 'package',
+        },
+      }),
+    ).toBe('pi-subagents')
   })
 
   it('falls back to scope alone for an unknown root, and to source with no info', () => {
@@ -91,22 +84,13 @@ describe('originLabel', () => {
   })
 })
 
-describe('badgeFor', () => {
-  it("corrects the adapter's MCP prompts to prompt, and leaves everything else as pi said", () => {
-    const find = (name: string) => REAL_PI_COMMANDS.find((c) => c.name === name)!
-    expect(badgeFor(find('mcp__notion__make-this-a-notion-page'))).toBe('prompt')
-    expect(badgeFor(find('mcp'))).toBe('extension')
-    expect(badgeFor(find('skill:debug'))).toBe('skill')
-  })
-})
-
 describe('dedupeAliases', () => {
   it('folds two names from one file with one description into one row', () => {
-    const rows = dedupeAliases(REAL_PI_COMMANDS)
-    expect(rows).toHaveLength(REAL_PI_COMMANDS.length - 1)
-    const mcp = rows.find((r) => r.command.name === 'mcp')!
-    expect(mcp.aliases).toEqual(['pi-mcp'])
-    expect(rows.some((r) => r.command.name === 'pi-mcp')).toBe(false)
+    const rows = dedupeAliases([...REAL_PI_COMMANDS, ...ALIASED])
+    expect(rows).toHaveLength(REAL_PI_COMMANDS.length + 1)
+    const status = rows.find((r) => r.command.name === 'status')!
+    expect(status.aliases).toEqual(['st'])
+    expect(rows.some((r) => r.command.name === 'st')).toBe(false)
   })
 
   it('keeps the first registration as the row', () => {
@@ -118,9 +102,10 @@ describe('dedupeAliases', () => {
     expect(rows[0]!.aliases).toEqual(['a'])
   })
 
-  it('does not fold same-file commands whose descriptions differ (the two Notion prompts)', () => {
+  it('does not fold same-file commands whose descriptions differ', () => {
     const rows = dedupeAliases(REAL_PI_COMMANDS)
-    expect(rows.filter((r) => r.command.name.startsWith('mcp__notion__'))).toHaveLength(2)
+    expect(rows).toHaveLength(REAL_PI_COMMANDS.length)
+    expect(rows.filter((r) => r.command.sourceInfo?.source === 'npm:pi-web-access')).toHaveLength(4)
   })
 
   it('never folds on a missing description or a missing path', () => {
@@ -137,18 +122,18 @@ describe('dedupeAliases', () => {
 describe('buildCommandEntries', () => {
   it('puts native commands first, then every pi command once', () => {
     const entries = buildCommandEntries(REAL_PI_COMMANDS, NATIVE)
-    expect(entries).toHaveLength(3 + REAL_PI_COMMANDS.length - 1)
+    expect(entries).toHaveLength(3 + REAL_PI_COMMANDS.length)
     expect(byName(entries.slice(0, 3))).toEqual(['compact', 'export', 'name'])
     expect(entries[0]!.origin).toBe('Phosphor')
     expect(entries[0]!.badge).toBe('phosphor')
   })
 
-  it('demotes /mcp-auth and says where Phosphor drives it from', () => {
-    const entries = buildCommandEntries(REAL_PI_COMMANDS, [])
-    const auth = entries.find((e) => e.name === 'mcp-auth')!
-    expect(auth.demoted).toBe(true)
-    expect(auth.description).toContain('Authenticate with an MCP server (OAuth)')
-    expect(auth.description).toContain('Settings ▸ MCP Connectors')
+  it('demotes a host control and says what drives it', () => {
+    const entries = buildCommandEntries([...REAL_PI_COMMANDS, RELOAD], [])
+    const reload = entries.find((e) => e.name === 'phosphor-reload')!
+    expect(reload.demoted).toBe(true)
+    expect(reload.description).toContain('Host control')
+    expect(reload.description).toContain('before your next message')
   })
 
   it('carries sourceInfo through for the tooltip', () => {
@@ -160,14 +145,14 @@ describe('buildCommandEntries', () => {
 })
 
 describe('filterCommandEntries', () => {
-  const entries = buildCommandEntries(REAL_PI_COMMANDS, NATIVE)
+  const entries = buildCommandEntries([...REAL_PI_COMMANDS, ...ALIASED, RELOAD], NATIVE)
 
   it('lists EVERY entry when nothing is typed — no cap', () => {
     const rows = filterCommandEntries('', entries)
-    // 3 native + 17 pi rows (18 minus the folded alias) minus the demoted one.
-    expect(rows).toHaveLength(19)
+    // 3 native + 13 real + 1 aliased row; the demoted one is left out.
+    expect(rows).toHaveLength(17)
     const skills = rows.filter((r) => r.badge === 'skill')
-    expect(skills).toHaveLength(7)
+    expect(skills).toHaveLength(6)
   })
 
   it('browses in badge order with pi order kept inside a group', () => {
@@ -176,8 +161,7 @@ describe('filterCommandEntries', () => {
     const firstIndex = (badge: CommandBadge) => badges.indexOf(badge)
     const lastIndex = (badge: CommandBadge) => badges.lastIndexOf(badge)
     expect(lastIndex('phosphor')).toBeLessThan(firstIndex('extension'))
-    expect(lastIndex('extension')).toBeLessThan(firstIndex('prompt'))
-    expect(lastIndex('prompt')).toBeLessThan(firstIndex('skill'))
+    expect(lastIndex('extension')).toBeLessThan(firstIndex('skill'))
     expect(byName(rows.filter((r) => r.badge === 'extension'))).toEqual([
       'websearch',
       'curator',
@@ -186,22 +170,21 @@ describe('filterCommandEntries', () => {
       'mcp',
       'computer-use',
       'llama',
+      'status',
     ])
   })
 
   it('leaves the demoted command out of the browse list but finds it when typed', () => {
-    expect(byName(filterCommandEntries('', entries))).not.toContain('mcp-auth')
-    // First by prefix; the Notion prompts follow as subsequence matches.
-    expect(byName(filterCommandEntries('mcp-a', entries))[0]).toBe('mcp-auth')
-    expect(byName(filterCommandEntries('mcp-auth', entries))).toEqual(['mcp-auth'])
+    expect(byName(filterCommandEntries('', entries))).not.toContain('phosphor-reload')
+    expect(byName(filterCommandEntries('phosphor-reload', entries))).toEqual(['phosphor-reload'])
   })
 
-  it('ranks an exact name first, then prefixes, then the alias match', () => {
+  it('ranks an exact name first, then a skill that merely contains it', () => {
     const rows = byName(filterCommandEntries('mcp', entries))
     expect(rows[0]).toBe('mcp')
-    expect(rows.indexOf('mcp-auth')).toBeLessThan(rows.indexOf('skill:mcp-scripting'))
-    // `/pi-mcp` folded into `/mcp`, so a flat list has one MCP status row.
-    expect(rows.filter((n) => n === 'mcp' || n === 'pi-mcp')).toEqual(['mcp'])
+    expect(rows).toContain('skill:snowflake-mcp')
+    // `/st` folded into `/status`, so a flat list has one row for both.
+    expect(byName(filterCommandEntries('st', entries)).filter((n) => n === 'st')).toEqual([])
   })
 
   it('finds a skill by its bare name, ahead of anything that merely contains the letters', () => {
@@ -211,11 +194,11 @@ describe('filterCommandEntries', () => {
   })
 
   it('still finds a command by its alias', () => {
-    expect(byName(filterCommandEntries('pi-mcp', entries))).toContain('mcp')
+    expect(byName(filterCommandEntries('st', entries))).toContain('status')
   })
 
   it('finds a command by a word that appears only in its description', () => {
-    const rows = byName(filterCommandEntries('status', entries))
+    const rows = byName(filterCommandEntries('reconnect', entries))
     expect(rows).toContain('mcp')
     expect(rows).not.toContain('websearch')
   })
@@ -231,25 +214,52 @@ describe('filterCommandEntries', () => {
 
 describe('entryTooltip', () => {
   it('carries the whole description, the origin, the path and the aliases', () => {
-    const entries = buildCommandEntries(REAL_PI_COMMANDS, [])
-    const mcp = entries.find((e) => e.name === 'mcp')!
-    expect(entryTooltip(mcp)).toBe(
+    const entries = buildCommandEntries([...REAL_PI_COMMANDS, ...ALIASED], [])
+    const status = entries.find((e) => e.name === 'status')!
+    expect(entryTooltip(status)).toBe(
       [
-        'Show MCP server status',
-        'From: pi-mcp-adapter',
-        '/home/dev/.pi/agent/npm/node_modules/pi-mcp-adapter/index.ts',
-        'Also: /pi-mcp',
+        'Show the status',
+        'From: user · .pi/agent/extensions',
+        '/home/dev/.pi/agent/extensions/status.ts',
+        'Also: /st',
       ].join('\n'),
     )
   })
 
-  it('omits the pseudo-path of an inline extension', () => {
+  it('omits the pseudo-path of a built-in or inline extension', () => {
     const entries = buildCommandEntries(REAL_PI_COMMANDS, [])
     const llama = entries.find((e) => e.name === 'llama')!
     expect(entryTooltip(llama)).toBe('Manage llama.cpp router models\nFrom: built into pi')
+    const mcp = entries.find((e) => e.name === 'mcp')!
+    expect(entryTooltip(mcp)).toBe(
+      'Manage MCP servers: sign in, reconnect, enable or disable, and change exposure\nFrom: built into pi',
+    )
   })
 })
 
 function info(path: string) {
   return { path, source: 'local', scope: 'user' as const, origin: 'top-level' as const }
+}
+
+/** One handler registered under two names, as an extension may do. */
+const ALIASED: RpcSlashCommand[] = [
+  {
+    name: 'status',
+    description: 'Show the status',
+    source: 'extension',
+    sourceInfo: info('/home/dev/.pi/agent/extensions/status.ts'),
+  },
+  {
+    name: 'st',
+    description: 'Show the status',
+    source: 'extension',
+    sourceInfo: info('/home/dev/.pi/agent/extensions/status.ts'),
+  },
+]
+
+const RELOAD: RpcSlashCommand = {
+  name: 'phosphor-reload',
+  description: 'Host control: reload extensions between turns to pick up changed configuration',
+  source: 'extension',
+  sourceInfo: info('/app/pi-ext/lane-reload.ts'),
 }

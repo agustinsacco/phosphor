@@ -6,7 +6,7 @@
  * `e2e/fixtures/pi-stub.cjs`, which answers a fixed script and therefore
  * cannot notice that pi's real protocol moved. This spawns a REAL
  * `pi --mode rpc` the way `libs/session-runtime/src/pi/rpc-client.ts` spawns one — same argv
- * shape, all seven bundled `libs/pi-extensions/pi-ext/` extensions, the Claude provider on pi's
+ * shape, all six bundled `libs/pi-extensions/pi-ext/` extensions, the Claude provider on pi's
  * context (`PI_CLAUDE_CLI_CONTEXT=pi`) — and drives the commands, events and
  * response fields Phosphor actually reads.
  *
@@ -34,7 +34,6 @@ const EXTENSIONS = [
   'context-breakdown.ts',
   'worktree-paths.ts',
   'tool-name-guard.ts',
-  'mcp-status.ts',
   'headroom.ts',
   'lane-reload.ts',
 ]

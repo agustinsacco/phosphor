@@ -33,7 +33,7 @@ describe('lane projection', () => {
     event({ type: 'agent_start' })
     event({ type: 'agent_end', messages: [], willRetry: true })
     expect(p.activity()).toBe('working')
-    event({ type: 'agent_settled' })
+    event({ type: 'agent_settled', aborted: false })
     expect(p.activity()).toBe('idle')
     event({ type: 'compaction_start', reason: 'manual' })
     expect(p.activity()).toBe('working')

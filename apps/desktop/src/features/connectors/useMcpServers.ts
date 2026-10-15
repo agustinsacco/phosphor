@@ -13,11 +13,11 @@ export interface McpServersState {
 }
 
 /**
- * The MCP servers configured for a workspace and their `disabled` flag.
+ * The MCP servers configured for a workspace and their `enabled` flag.
  *
  * The same flag as Settings → Connectors' "enabled" checkbox, written to the
- * server's own config file, so it sticks. pi-mcp-adapter reads its config when
- * a lane starts: a running lane keeps the servers it started with.
+ * file that decides it, so it sticks. pi reads its MCP config when a lane
+ * starts; a running lane picks a change up before its next turn.
  */
 export function useMcpServers(workspacePath: string): McpServersState {
   const [servers, setServers] = useState<McpResolvedServer[] | null>(null)
@@ -28,7 +28,7 @@ export function useMcpServers(workspacePath: string): McpServersState {
       const configs = await window.phosphor.invoke('mcp:readConfigs', workspacePath)
       setServers(configs.servers)
     } catch {
-      // No adapter config, or an unreadable one: Settings is where that is fixed.
+      // An unreadable config: Settings is where that is fixed.
       setServers([])
     }
   }, [workspacePath])
@@ -42,13 +42,20 @@ export function useMcpServers(workspacePath: string): McpServersState {
   const setEnabled = async (server: McpResolvedServer, on: boolean): Promise<void> => {
     setError(null)
     try {
-      await window.phosphor.invoke('mcp:setDisabled', server.scope, workspacePath, server.name, !on)
+      await window.phosphor.invoke(
+        'mcp:setEnabled',
+        // An override decides enabled for this project, so it is changed there.
+        server.overridden ? 'project' : server.scope,
+        workspacePath,
+        server.name,
+        on,
+      )
     } catch (err) {
       setError(ipcErrorText(err))
     }
     await refresh()
   }
 
-  const enabled = servers?.filter((server) => server.config.disabled !== true).length ?? 0
+  const enabled = servers?.filter((server) => server.config.enabled !== false).length ?? 0
   return { servers, enabled, error, refresh, setEnabled }
 }

@@ -297,11 +297,11 @@ generated name and its branch rename, in the background, and says so with a
 lane notice instead of stealing the screen back twice. Clicking the notice goes
 there.
 
-**A lane that finishes off screen says so.** When a lane's run settles
-(`isStreaming` goes false in the push handler) and that lane is not the one on
-screen, `noticeLaneSettled` puts up a notice with the first line of the final
-reply, or the error if the run stopped on one. An aborted run says nothing:
-only the stop control produces one. The lane on screen never gets a notice,
+**A lane that finishes off screen says so.** When pi reports a lane's run
+settled (`agent_settled` after an `agent_start`, in the push handler) and that
+lane is not the one on screen, `noticeLaneSettled` puts up a notice with the
+first line of the final reply, or the error if the run stopped on one. A run
+pi reports `aborted` says nothing: only the stop control produces one. The lane on screen never gets a notice,
 even with the window in the background — its transcript already shows it.
 
 **The wait is animated, not flashed.** `OpeningLane` fades in after a 90ms
