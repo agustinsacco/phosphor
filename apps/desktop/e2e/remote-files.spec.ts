@@ -2,7 +2,7 @@ import { selectLane } from './fixtures/remote-ui'
 import { test, expect } from '@playwright/test'
 import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { remoteHostFixture } from './fixtures/remote-host'
+import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
 import {
   openRemote,
   takeControl,
@@ -14,7 +14,7 @@ import {
 } from './fixtures/remote-ui'
 
 test('Remote file mutations preserve conflicts and isolation', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -66,7 +66,7 @@ test('Remote file mutations preserve conflicts and isolation', async () => {
 test('Files is styled in empty, populated and non-git folders', async ({
   browserName: _browserName,
 }, info) => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -102,7 +102,7 @@ test('Files is styled in empty, populated and non-git folders', async ({
 })
 
 test('Chat paths open the correct lane buffer', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -126,7 +126,7 @@ test('Chat paths open the correct lane buffer', async () => {
 })
 
 test('Two worktrees keep the same relative file isolated A→B→A', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.createWorktreePair()
@@ -152,7 +152,7 @@ test('Two worktrees keep the same relative file isolated A→B→A', async () =>
 })
 
 test('An uncertain remote save keeps edited content and never silently retries', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -181,7 +181,7 @@ test('An uncertain remote save keeps edited content and never silently retries',
 })
 
 test('A save cut off after Host admission is reconciled once on reconnect', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -221,7 +221,7 @@ test('A save cut off after Host admission is reconciled once on reconnect', asyn
 
 // remote shortcuts: enabled by the parity shortcuts fix
 test('Finder opens the correct Host file and line', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -258,7 +258,7 @@ test('Finder opens the correct Host file and line', async () => {
 
 // parity fix: remote dirty buffers per lane
 test('Dirty worktree editor survives A→B→A without leaking into the other lane', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.createWorktreePair()
@@ -286,7 +286,7 @@ test('Dirty worktree editor survives A→B→A without leaking into the other la
 test('An empty Host folder has the styled Files empty state', async ({
   browserName: _browserName,
 }, info) => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.createEmptyLane()

@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test'
-import { remoteHostFixture } from './fixtures/remote-host'
+import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
 import { openRemote, takeControl, files, file, captures } from './fixtures/remote-ui'
 
 test('Background attention and sign-out preserve machine boundaries', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -78,7 +78,7 @@ test('Background attention and sign-out preserve machine boundaries', async () =
 test('Provider login and error remedies target bee1, Settings is This Mac', async ({
   browserName: _browserName,
 }, info) => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   const errors: string[] = []
   try {

@@ -1,6 +1,6 @@
 import { selectLane } from './fixtures/remote-ui'
 import { test, expect } from '@playwright/test'
-import { remoteHostFixture } from './fixtures/remote-host'
+import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
 import {
   openRemote,
   takeControl,
@@ -13,7 +13,7 @@ import {
 
 // parity fix: remote artifacts + tool rows
 test('Every lane surface refreshes A→B→A', async ({ browserName: _browserName }, info) => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -67,7 +67,7 @@ test('Every lane surface refreshes A→B→A', async ({ browserName: _browserNam
 })
 
 test('Switcher drives pages; page override resets and never revives Mac data', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -130,7 +130,7 @@ test('Switcher drives pages; page override resets and never revives Mac data', a
 })
 
 test('Remote Files, Changes, controls, model and error surfaces refresh A→B→A', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.createLane(1)

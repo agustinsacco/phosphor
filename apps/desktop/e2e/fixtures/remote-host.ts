@@ -25,6 +25,12 @@ import { scratchDir } from './scratch'
 let hostBuilt = false
 
 /** Real dev Host CLI, disposable owner identity, SQLite store and pi process. */
+/**
+ * Per-test budget for remote specs. Locally it is a hard 25 s so slow tests are caught;
+ * hosted CI runners are several times slower, so there the suite's own timeout applies.
+ */
+export const REMOTE_TEST_TIMEOUT = process.env.CI ? 120_000 : 25_000
+
 export async function remoteHostFixture(options: { allowRepositoryChanges?: boolean } = {}) {
   const project = resolve(import.meta.dirname, '../../../..')
   if (!hostBuilt)

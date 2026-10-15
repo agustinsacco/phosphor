@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { remoteHostFixture } from './fixtures/remote-host'
+import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
 import {
   selectMachine,
   remoteRow,
@@ -12,7 +12,7 @@ import {
 test('Create on bee1 with a usable default and name the first turn', async ({
   browserName: _browserName,
 }, info) => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -53,7 +53,7 @@ test('Create on bee1 with a usable default and name the first turn', async ({
 })
 
 test('Home composer sends only after controlled remote creation', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -100,7 +100,7 @@ test('Home composer sends only after controlled remote creation', async () => {
 test('Remote row menu is complete, gated and durable', async ({
   browserName: _browserName,
 }, info) => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -183,7 +183,7 @@ test('Remote row menu is complete, gated and durable', async ({
 })
 
 test('A manual Host name wins while first-prompt auto-naming is pending', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()

@@ -89,9 +89,10 @@ export function remoteRow(h: RemoteFixture, title = 'Remote test lane') {
 export async function captures(h: RemoteFixture, info: TestInfo, name: string) {
   const { mkdir, copyFile } = await import('node:fs/promises')
   const { join } = await import('node:path')
-  const destination =
-    '/Users/agustinsacco/.pi/agent/scratch/job-65d1809af38a412ba2233a68c314a6a1/parity/shots/e2e'
-  await mkdir(destination, { recursive: true })
+  // Captures always attach to the test report. PHOSPHOR_E2E_SHOTS optionally copies them
+  // to one folder for side-by-side review.
+  const destination = process.env.PHOSPHOR_E2E_SHOTS
+  if (destination) await mkdir(destination, { recursive: true })
   for (const theme of ['light', 'dark'] as const) {
     await h.page.evaluate(async (theme) => {
       await window.phosphor.invoke('app:setTheme', theme)
@@ -101,7 +102,7 @@ export async function captures(h: RemoteFixture, info: TestInfo, name: string) {
     const filename = `${name}-${theme}.png`
     const path = info.outputPath(filename)
     await h.page.screenshot({ path, animations: 'disabled' })
-    await copyFile(path, join(destination, filename))
+    if (destination) await copyFile(path, join(destination, filename))
     await info.attach(filename, { path, contentType: 'image/png' })
   }
 }

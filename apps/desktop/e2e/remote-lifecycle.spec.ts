@@ -2,11 +2,11 @@ import { test, expect } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { writeFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { remoteHostFixture } from './fixtures/remote-host'
+import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
 import { openRemote, takeControl, sendTurn, files, file, edit } from './fixtures/remote-ui'
 
 test('Control takeover guards remote mutations and explicit take restores send and save', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -60,7 +60,7 @@ test('Control takeover guards remote mutations and explicit take restores send a
 })
 
 test('Reconnect, Host restart and Desktop restart retain the original lane', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -122,7 +122,7 @@ test('Reconnect, Host restart and Desktop restart retain the original lane', asy
 })
 
 test('Dirty file editor survives connection interruption', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -161,7 +161,7 @@ test('Dirty file editor survives connection interruption', async () => {
 })
 
 test('Delete confirms resources and broadcasts removal', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -204,7 +204,7 @@ test('Delete confirms resources and broadcasts removal', async () => {
 })
 
 test('Stop before first prompt preserves a recoverable remote lane', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.createLane(0, undefined, '')
@@ -229,7 +229,7 @@ test('Stop before first prompt preserves a recoverable remote lane', async () =>
 })
 
 test('Isolated lane delete defaults remove the worktree but preserve an unmerged branch truthfully', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     const lane = await h.createLane(0, 'unmerged-delete')

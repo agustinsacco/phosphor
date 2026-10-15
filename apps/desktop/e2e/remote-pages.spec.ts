@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { remoteHostFixture } from './fixtures/remote-host'
+import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
 import { selectMachine, openRemote, takeControl, captures, pane } from './fixtures/remote-ui'
 
 test('Browse, add and remove folders on bee1', async ({ browserName: _browserName }, info) => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -50,7 +50,7 @@ test('Browse, add and remove folders on bee1', async ({ browserName: _browserNam
 test('Remote artifacts and Skills are useful read-only pages', async ({
   browserName: _browserName,
 }, info) => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -119,7 +119,7 @@ test('Remote artifacts and Skills are useful read-only pages', async ({
 })
 
 test('Remote routine creation uses Host models and reports history', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -186,7 +186,7 @@ test('Remote routine creation uses Host models and reports history', async () =>
 })
 
 test('Folder policy disabled refuses browsing without changing configuration', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture({ allowRepositoryChanges: false })
   try {
     await h.signIn()
@@ -210,7 +210,7 @@ test('Folder policy disabled refuses browsing without changing configuration', a
 test('Host home opens read-only machine Files without a lane', async ({
   browserName: _browserName,
 }, info) => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -231,7 +231,7 @@ test('Host home opens read-only machine Files without a lane', async ({
 })
 
 test('The last Host folder cannot be removed', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.backgroundTurn('PHX-persist-before-stop')
@@ -263,7 +263,7 @@ test('The last Host folder cannot be removed', async () => {
 })
 
 test('Host Skills exposes its SKILL.md and catalogue without mutation controls', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()

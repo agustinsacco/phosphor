@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test'
-import { remoteHostFixture } from './fixtures/remote-host'
+import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
 import { openRemote, takeControl, sendTurn } from './fixtures/remote-ui'
 
 test('Send, steer, follow up and abort have one remote echo; model, thinking and compact work', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -56,7 +56,7 @@ test('Send, steer, follow up and abort have one remote echo; model, thinking and
 })
 
 test('Continue has exactly one remote echo', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
@@ -88,7 +88,7 @@ test('Continue has exactly one remote echo', async () => {
 })
 
 test('Remote slash, mentions and attachments use Host inputs', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
     await h.signIn()
