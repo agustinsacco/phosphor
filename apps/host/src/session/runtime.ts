@@ -1,3 +1,5 @@
+import { hostname, type as osType } from 'node:os'
+import type { MachineContext } from '@phosphor/shared/machine-prompt'
 import { realpathSync } from 'node:fs'
 import { lstat, realpath, unlink } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
@@ -54,6 +56,7 @@ export interface HostMachine {
   resourceRoot: string
   /** In Desktop's grammar; '' is the 200k default. */
   contextBudget: string
+  machineContext?: Extract<MachineContext, { kind: 'host' }>
   log: HostLog
 }
 
@@ -132,6 +135,13 @@ export function createHostRuntime(
       }),
     policy: {
       git: gitInfo,
+      machineContext: () =>
+        machine.machineContext ?? {
+          kind: 'host',
+          label: hostname(),
+          os: osType(),
+          repositories: [],
+        },
       preferences: () => ({
         agentDirectives: DEFAULT_AGENT_DIRECTIVES,
         agentDirectivesByProject: {},

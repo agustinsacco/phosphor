@@ -1,5 +1,6 @@
 import type { AppPrefs, CreateSessionOptions, GitInfo, PiPackageEntry } from '@shared/models'
 import { CONTEXT_FILES_ENV, contextFilesEnvValue } from '@shared/context-files'
+import type { MachineContext } from './machine-prompt'
 import { composeDirectives } from './directives'
 import { assertClaudeContextProvider, usesClaudeCliProvider } from './provider-detect'
 import type { PiSpawnOptions } from './rpc-client'
@@ -13,6 +14,7 @@ export interface SessionExecution {
 
 /** Machine-local inputs. These are trusted dependencies, never remote spawn options. */
 export interface SessionPolicyRuntime {
+  machineContext: () => MachineContext | Promise<MachineContext>
   git: (cwd: string) => Promise<GitInfo>
   preferences: () => Pick<AppPrefs, 'agentDirectives' | 'agentDirectivesByProject'> &
     Partial<Pick<AppPrefs, 'contextFiles'>>
@@ -43,6 +45,7 @@ export async function prepareSessionPolicy(
     cwd: options.workspacePath,
     git,
     prefs: directivePrefs,
+    machine: await runtime.machineContext(),
     ...(git.isWorktree && git.branch && execution.intent !== 'report'
       ? { charter: { branch: git.branch } }
       : {}),

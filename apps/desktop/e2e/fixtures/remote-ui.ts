@@ -87,7 +87,7 @@ export function remoteRow(h: RemoteFixture, title = 'Remote test lane') {
     .getByRole('button', { name: new RegExp(title) })
 }
 
-export async function captures(h: RemoteFixture, info: TestInfo, name: string) {
+export async function captures(h: Pick<RemoteFixture, 'page'>, info: TestInfo, name: string) {
   const { mkdir, copyFile } = await import('node:fs/promises')
   const { join } = await import('node:path')
   // Captures always attach to the test report. PHOSPHOR_E2E_SHOTS optionally copies them

@@ -19,6 +19,7 @@ const state = vi.hoisted(() => {
     },
   }
   return {
+    signedIn: false,
     remote: {
       command: vi.fn(),
       respond: vi.fn(),
@@ -38,6 +39,9 @@ const state = vi.hoisted(() => {
 })
 vi.mock('electron', () => ({
   app: { isPackaged: false, getAppPath: () => '/app', getPath: () => '/user-data' },
+}))
+vi.mock('../account', () => ({
+  accountSnapshot: () => ({ account: { status: state.signedIn ? 'signed-in' : 'signed-out' } }),
 }))
 vi.mock('./hosts-handlers', () => ({ remoteLanes: () => state.remote }))
 vi.mock('./handle', () => ({
@@ -99,6 +103,7 @@ const pkg = (version: string) => [{ name: '@saccolabs/pi-claude-cli', version, i
 
 beforeEach(() => {
   vi.clearAllMocks()
+  state.signedIn = false
   state.handlers.clear()
   state.list.mockReturnValue([])
   state.session.client.alive = true
@@ -115,6 +120,18 @@ beforeEach(() => {
 })
 
 describe('session context policy integration', () => {
+  it.each([false, true])(
+    'gives local lanes machine context only when signed in: %s',
+    async (signedIn) => {
+      state.signedIn = signedIn
+      await state.handlers.get('pi:createSession')!(event, { workspacePath: '/repo' })
+      const options = state.create.mock.calls[0]![1]
+      if (signedIn)
+        expect(options.appendSystemPrompt).toContain("You are running on the user's own computer")
+      else expect(options.appendSystemPrompt).not.toContain('<phosphor_machine>')
+    },
+  )
+
   it('serializes concurrent resumes and reuses the first writer', async () => {
     state.create.mockImplementation(() => {
       state.list.mockReturnValue([

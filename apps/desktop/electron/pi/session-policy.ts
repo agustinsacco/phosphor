@@ -1,4 +1,5 @@
 import type { SessionPolicyRuntime } from '@phosphor/session-runtime/pi/session-policy'
+import { accountSnapshot } from '../account'
 import { getPrefs } from '../store'
 import { gitInfoBatch } from '@phosphor/session-runtime/git/git-info'
 import { accountForSpawn, claudeAccountEnv } from '../claude/accounts'
@@ -10,6 +11,10 @@ import { ensureCompactionReset } from './compaction-reset'
 export const desktopSessionPolicy: SessionPolicyRuntime = {
   git: async (cwd) => (await gitInfoBatch([cwd]))[cwd] ?? { isRepo: false },
   preferences: getPrefs,
+  machineContext: () => ({
+    kind: 'desktop',
+    signedIn: accountSnapshot().account.status === 'signed-in',
+  }),
   defaultProvider: async (cwd) => (await readAgentSettings(cwd)).defaultProvider,
   packages: listPackages,
   account: async (options) => {
