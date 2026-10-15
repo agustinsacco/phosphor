@@ -1,3 +1,5 @@
+import { clearRemoteFileDraft } from '@/features/files/remoteFileDrafts'
+import { releaseRemoteFileSelection } from '@/features/files/remoteFileSelection'
 import { hostResourceKey } from '@shared/remote-host'
 import { create } from 'zustand'
 import type {
@@ -648,8 +650,11 @@ async function cleanupLocalSessionState(sessionId: string): Promise<void> {
 }
 
 export async function forgetRemoteSession(sessionId: string): Promise<void> {
-  if (useSessionsStore.getState().live[sessionId]?.target?.kind === 'remote')
+  if (useSessionsStore.getState().live[sessionId]?.target?.kind === 'remote') {
+    clearRemoteFileDraft(sessionId)
+    releaseRemoteFileSelection(sessionId)
     await cleanupLocalSessionState(sessionId)
+  }
 }
 
 function attachSessionPushHandler(phosphorId: string): void {
