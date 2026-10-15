@@ -343,7 +343,8 @@ async function runHostCommand(context: RunContext): Promise<number> {
           routines.feature,
           createFilesFeature(featureContext),
           createGitFeature(featureContext),
-          createSkillsFeature(featureContext),
+          // Machine reads inspect the config this Host actually runs with, not the default path.
+          createSkillsFeature(featureContext, { configPath: config.path }),
           createArtifactsFeature({ ...featureContext, store }),
         ]
         const calls = createLaneCalls({

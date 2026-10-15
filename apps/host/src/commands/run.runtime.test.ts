@@ -8,6 +8,7 @@ import { runHost } from './run'
 import type * as Runtime from '../session/runtime'
 import type * as Store from '../lanes/store'
 import type { LaneService } from '../lanes/service'
+import type * as Skills from '../features/skills'
 
 const sink = vi.hoisted(() => ({ deliver: vi.fn(), isConnected: vi.fn(() => true) }))
 const hooks = vi.hoisted(
@@ -18,6 +19,7 @@ const hooks = vi.hoisted(
     epoch: string
     connected?: (id: string) => boolean
     dialogs?: 'cancel' | 'forward'
+    skillsConfigPath?: string
   } => ({ machine: null, order: [], lanes: undefined, epoch: '' }),
 )
 vi.mock('./doctor', () => ({
@@ -54,6 +56,16 @@ vi.mock('../session/runtime', async (original) => {
     },
   }
 })
+vi.mock('../features/skills', async (original) => {
+  const module = await original<typeof Skills>()
+  return {
+    ...module,
+    createSkillsFeature: (...args: Parameters<typeof module.createSkillsFeature>) => {
+      hooks.skillsConfigPath = args[1]?.configPath
+      return module.createSkillsFeature(...args)
+    },
+  }
+})
 vi.mock('../lanes/store', async (original) => {
   const module = await original<typeof Store>()
   return {
@@ -76,6 +88,7 @@ afterEach(() => {
   hooks.machine = null
   hooks.order = []
   hooks.lanes = undefined
+  hooks.skillsConfigPath = undefined
   vi.unstubAllEnvs()
 })
 describe('run lane composition', () => {
@@ -159,6 +172,8 @@ describe('run lane composition', () => {
             '0123456789abcdef',
           )
           expect(hooks.dialogs).toBe('forward')
+          // A custom --config must reach the machine reads, not the default path.
+          expect(hooks.skillsConfigPath).toBe(control.context.configPath)
           expect(hooks.lanes?.epoch).toBe(hooks.epoch)
           expect(hooks.lanes?.capabilities).toEqual([
             'sessions.read',
