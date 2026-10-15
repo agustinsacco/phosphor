@@ -973,8 +973,9 @@ recognition rather than becoming answer excerpts.
 
 Open lane opens the destination. View changes appears when files are reported and
 opens its Changes pane. Retry appears for errors and opens/focuses that lane's
-composer; it does not resend a prompt. Dismiss closes the notice. A lane's existing
-card updates rather than stacking a new card for each lifecycle change.
+composer; it does not resend a prompt. Dismiss closes the notice. For a This Mac
+lane, or a Host lane already opened in this window, the existing card updates rather
+than stacking a new one. A Host lane never opened here can stack one card per event.
 
 This Mac lanes notify in-app only. Host attention can include facts from the
 [read-only receipt call](remote-protocol.md#lane-receipt-call); an older Host's
@@ -984,12 +985,13 @@ rules are in [receipt enrichment](remote-desktop.md#attention-receipt-enrichment
 
 ### Notice navigation
 
-In-app cards, Host attention toasts, OS clicks and This Mac rows under a Host
-filter use `navigateToLane`. It aligns this window's machine filter while keeping
-All machines, closes any global page, and opens or adopts the lane. Later user
+In-app cards, Host attention toasts, OS clicks and pending This Mac rows use
+`navigateToLane`. It aligns this window's machine filter while keeping All
+machines, closes any global page, and opens or adopts the lane. Later user
 navigation cancels the pending operation. An offline Host or removed lane leaves
-the current view in place with one visible error notice. An OS click affects one
-window, not every window.
+the current view in place with one error toast. An OS click affects one window,
+not every window. A saved This Mac row clicked under a Host filter switches the
+filter to This Mac and opens its session directly, without `navigateToLane`.
 
 Success reveals the destination's sidebar group: expand, never toggle closed,
 and clear that group's search. This Mac groups use the sidebar's own project and

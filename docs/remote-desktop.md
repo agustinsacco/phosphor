@@ -71,9 +71,8 @@ Attention publishes `hosts:attention` and a machine-titled OS notification for
 lanes not focused in any focused window. Notifications are deduplicated in
 bounded memory. Clicking focuses a window and sends `hosts:openLaneRequested`.
 
-An OS notification click targets one window only. In-app cards, attention toasts,
-notification clicks and local rows under a Host filter share
-[notice navigation](chat.md#notice-navigation).
+An OS notification click targets one window only. In-app cards, attention toasts
+and notification clicks share [notice navigation](chat.md#notice-navigation).
 
 `hosts:setFocusedLane` tracks each window's active remote lane, or null for a
 local lane. Read counters come from the Host and clear unread across clients.
