@@ -136,3 +136,9 @@ export function canViewStoredArtifact(key: string, hosts: HostsSnapshot): boolea
   const host = hosts[key.slice(5).split('/')[0] ?? '']
   return host?.state === 'ready' && host.capabilities.includes('artifacts.read')
 }
+
+export function artifactOnMachine(key: string, machine: string, hosts: HostsSnapshot): boolean {
+  if (!machine) return true
+  if (machine === 'local') return !key.startsWith('host:')
+  return key.startsWith(`host:${machine}/`) && canViewStoredArtifact(key, hosts)
+}

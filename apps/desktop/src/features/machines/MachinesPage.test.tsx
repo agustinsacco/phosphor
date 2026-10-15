@@ -113,7 +113,10 @@ it('shows empty guidance, list loading and offline errors explicitly', async () 
 it('walks all four enrollment steps, formats code, submits Enter, and shows done', async () => {
   await render()
   await click('Add a machine')
-  expect(document.querySelector('[role=dialog]')?.textContent).toContain('On the machine')
+  await click('Continue to Install')
+  expect(document.querySelector('[role=dialog]')?.textContent).toContain(
+    'Prepare the other machine',
+  )
   await click('I have a code')
   await input('Code', 'bcdfghjk')
   expect(document.querySelector('input')?.value).toBe('BCDF-GHJK')
@@ -135,6 +138,7 @@ it.each(['not-found', 'too-many-requests', 'offline', 'signed-out'])(
   async (code) => {
     await render()
     await click('Add a machine')
+    await click('Continue to Install')
     await click('I have a code')
     await input('Code', 'BCDFGHJK')
     invoke.mockResolvedValueOnce({ ok: false, error: { code } })
@@ -202,6 +206,7 @@ it('refreshes the list when an approval lands after the dialog closed', async ()
   let finish: ((value: unknown) => void) | undefined
   await render()
   await click('Add a machine')
+  await click('Continue to Install')
   await click('I have a code')
   await input('Code', 'BCDFGHJK')
   await click('Look up code')

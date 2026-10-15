@@ -3,6 +3,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { SshInstallEvent } from '@shared/ssh-install'
+import { SshInstallPanel } from './SshInstallPanel'
 import { AddMachineDialog } from './AddMachineDialog'
 import { useMachinesStore } from '@/stores/machines'
 import { LOOKUP, MACHINE } from './__fixtures__/control'
@@ -12,6 +13,9 @@ let container: HTMLDivElement
 let push: (event: SshInstallEvent) => void
 let lookupFingerprint: string
 const invoke = vi.fn(async (channel: string): Promise<unknown> => {
+  if (channel === 'account:get') return { account: { status: 'signed-in' } }
+  if (channel === 'hosts:tailscaleStatus')
+    return { code: 'not-installed', discovery: false, peers: [] }
   if (channel === 'hosts:sshInstall') return { jobId: 'job' }
   if (channel === 'control:lookupEnrollment')
     return { ok: true, ...LOOKUP, keyFingerprint: lookupFingerprint }
@@ -27,6 +31,7 @@ beforeEach(() => {
   push = () => undefined
   vi.stubGlobal('phosphor', {
     invoke,
+    onAccountChanged: () => () => undefined,
     onSshInstall: (_job: string, listener: typeof push) => {
       push = listener
       return () => undefined
@@ -61,6 +66,7 @@ async function input(label: string, value: string) {
 }
 async function start() {
   await act(async () => root.render(<AddMachineDialog onClose={() => undefined} />))
+  await click('Continue to Install')
   await click('Install over SSH')
   await input('SSH target', 'alice@bee')
   await input('Repository on that machine', 'src/project')
@@ -163,4 +169,34 @@ it('cancels the SSH job when closing after approval but before service completio
   await click('Approve machine')
   act(() => root.render(null))
   expect(invoke).toHaveBeenCalledWith('hosts:sshInstallCancel', 'job')
+})
+
+it('updates a preserved idle target but never a running job target', async () => {
+  const render = async (target: string) =>
+    act(async () =>
+      root.render(
+        <SshInstallPanel initialTarget={target} onState={() => {}} onEnrollment={() => {}} />,
+      ),
+    )
+  await render('first')
+  await render('second')
+  expect(document.querySelector('input')?.value).toBe('second')
+  await click('Install Host')
+  await render('third')
+  expect(document.querySelector('input')?.value).toBe('second')
+  expect(invoke).toHaveBeenCalledWith('hosts:sshInstall', 'second', '')
+})
+
+it('reports a rejected start as idle so discovery can select another target', async () => {
+  const state = vi.fn()
+  invoke.mockRejectedValueOnce(new Error('unavailable'))
+  await act(async () =>
+    root.render(<SshInstallPanel initialTarget="first" onState={state} onEnrollment={() => {}} />),
+  )
+  await click('Install Host')
+  expect(state).toHaveBeenLastCalledWith(expect.objectContaining({ kind: 'failed' }))
+  await act(async () =>
+    root.render(<SshInstallPanel initialTarget="second" onState={state} onEnrollment={() => {}} />),
+  )
+  expect(document.querySelector('input')?.value).toBe('second')
 })

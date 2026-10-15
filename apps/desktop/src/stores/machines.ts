@@ -17,6 +17,7 @@ interface MachinesState {
   remoteEnabled: boolean
   enableRemote: (enabled: boolean) => void
   refresh: () => Promise<void>
+  adding: boolean
   view: MachinesView
   show: (view: MachinesView) => void
 }
@@ -148,6 +149,7 @@ export const useMachinesStore = create<MachinesState>((set, get) => ({
     })
     return inFlight
   },
+  adding: false,
   view: { kind: 'list' },
   show: (view) => {
     set({ view })

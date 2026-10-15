@@ -124,6 +124,7 @@ export function createConnection(ports: ConnectionPorts) {
     clearInterval(heartbeat)
     clearTimeout(idle)
     unsubscribe()
+    if (code === 4401 || code === 4403) handler?.renew([])
     handler?.close()
     ports.onClose?.(connectionId)
     ports.log?.('api.closed', {

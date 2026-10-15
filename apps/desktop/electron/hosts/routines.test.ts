@@ -31,6 +31,7 @@ function setup() {
     archived: false,
   }
   const view: HostConnectionSnapshot = {
+    connectionToken: 'test-connection-1',
     state: 'ready',
     capabilities: ['routines', 'sessions.control'],
     repositories: [{ id: repositoryId, name: 'Repo label', path: '/private/host/repo' }],

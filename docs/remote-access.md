@@ -67,9 +67,11 @@ Local `not-sent` results (`too-large`, `too-many-pending`, `not-connected` or
 `closed`) never write or queue a command. `not-connected` is transient; callers
 may try a fresh action once ready. `closed` means no automatic retry.
 
-`hosts:snapshot` exposes `no-address`, `connecting`, `ready`, `reconnecting`,
+`hosts:snapshot` exposes `down`, `no-address`, `connecting`, `ready`, `reconnecting`,
 `wrong-machine`, `unsupported` and `signed-out` states. `hosts:changed` is a
-250 ms debounced refetch signal. Controllers expose only a label, connection
+250 ms debounced refetch signal. Each snapshot includes an opaque main-owned
+`connectionToken` that changes on reconnect or connection replacement, even when
+intermediate states are coalesced. Machine reads use it to reject stale replies. Controllers expose only a label, connection
 status and whether they are this Desktop, never a client or user id. Repositories,
 lane summaries, cursors, the last 50 attention events and open lane streams stay
 in memory. No transcript is written to the client's disk. Remote lane access
@@ -113,6 +115,31 @@ Unrouted machine channels reject opaque remote workspace keys and remote handles
 including nested options, with “Not available on remote lanes yet.” They never
 fall through to this machine's filesystem or subprocesses.
 
+## Machine context and lane creation
+
+The home new-lane flow and sidebar remote-create dialog offer This Mac plus
+machines announcing `sessions.control`. Remote creation selects one of that
+machine's configured repositories, not a local folder. An unavailable selection
+stays selected and disabled. Failure never starts a local session instead.
+
+Remote header and pane chips report Connected, Reconnecting or Down from the
+connection snapshot. Directory-down Hosts retain greyed, disabled lanes labelled
+"last known". The composer and panes show "Machine not connected. Wait for
+reconnection." while disconnected, then recover from snapshots without reload.
+
+Machines detail keeps Readiness and adds On this machine: lanes, skills, routines
+and artifacts, only for announced capabilities. Counts that fail to load say
+Unavailable, not zero. Links open the machine-filtered page. This Mac keeps its
+existing detail sections and uses its own lanes, Skills, Routines and Artifacts pages.
+
+Skills defaults to the active lane's machine and has a switcher for This Mac plus
+machines announcing `skills.read`. Remote skills remain read-only. Machine-wide
+skills and model/provider catalogues do not require an open lane. Main validates
+results, gates on `skills.read` before and after the call, and rejects replies
+from replaced connections or incarnations. Page stores ignore late replies after
+selection or connection changes. Remote machines show models and providers on
+Skills; This Mac shows them in Settings.
+
 ## Remote read panes
 
 Remote Files and Changes require `workspaces.read` in the Host's ready frame.
@@ -142,7 +169,8 @@ The six `fs:` mutation channels route to fenced Host commands, not local I/O.
 
 Workspace reads resolve through the window's focused open lane. The opaque
 workspace key must match that lane, so two worktrees in one repository are not
-chosen by repository id alone. Without a focused lane, remote reads fail closed.
+chosen by repository id alone. Without a focused lane, workspace reads fail closed. Machine-wide skills use
+`host:<hostId>/machine` keys and the same read-only projection, without a lane.
 File and skill keys contain no Host filesystem root. Main validates params and
 parses every feature result with the shared bounded parsers, and rechecks the
 connection and capability after each reply. Errors expose only fixed text.
@@ -515,6 +543,29 @@ Local test success does not imply deployment.
 
 ## Install a Host over SSH
 
+The Add a machine dialog guides Before you start → Install → Online → Providers.
+It checks the signed-in Phosphor account and reads Tailscale status on this computer.
+A failed check offers fixed recovery guidance and manual installation remains available.
+The Online step follows the enrolled directory entry, distinguishes first connection
+from offline, and keeps recovery commands in the collapsed Stuck? disclosure. Once online,
+it advances to Providers after a short pause. Back preserves a running SSH installation,
+including its target, repository, progress and fingerprint approval. Providers
+reads the Host's provider readiness and opens the machine page's Readiness section
+for Sign in. The manual fallback is `phosphor providers login PROVIDER` over SSH.
+Provider credentials stay on the Host.
+
+Optional Tailscale peer suggestions are off by default and persisted in Desktop
+preferences. Main runs only `tailscale status --json`, without a shell, with a five
+second deadline, forced termination and 1 MiB output limit. A failed status read
+clears suggestions without reverting a successfully saved discovery preference. Only fixed status codes and, when opted in,
+peer DNS names, OS and online flags reach the renderer. No addresses, keys, tags,
+user identities or command output are logged or exposed. Suggestions show online
+peers excluding enrolled endpoint hostnames, not machine labels. Picking a suggestion
+only fills the SSH target. It does not connect, enroll, trust or scan a peer.
+Install remains an explicit action with the existing fingerprint approval checks.
+While an SSH installation is running or awaiting approval, suggestions cannot replace
+its target; return to Install to resume it. Idle installations can use another suggestion.
+
 Machines > Add a machine > Install over SSH uses the system `ssh` in Desktop
 main, only for installation and repair. Enter `user@host` or an SSH config alias.
 Desktop uses your agent, keys and known_hosts. It never requests a password or
@@ -602,3 +653,43 @@ path, credentials, query or fragment. Main admits that exact endpoint alongside
 the unchanged production `.ts.net` rule, and uses plaintext WebSocket only for
 that endpoint's `/v1/stream`. Other origins retain TLS. No Host test hook or
 renderer network access is added.
+
+## Sidebar machine selection
+
+The sidebar machine menu is available whenever remote access is signed in,
+even before a Host is enrolled. This Mac is the default when a window opens and survives hiding the sidebar;
+selection is not persisted. Add machine opens the existing Machines add flow.
+All machines lists local repository groups first, followed by labelled Hosts.
+
+Connected Hosts show repository-grouped lanes with running, new and needs-you
+signals from their existing summaries (`working`, `attention > read`, and
+`needs-input` or `failed`). Local activity uses streaming chat state, unseen
+session markers/unread counts, pending extension dialogs and chat errors.
+The button summarizes only machines other than the selected one.
+
+Reconnecting uses an amber pulsing status dot. Down machines show a grey dot,
+the directory's last-seen age, and last-known groups with disabled lane and
+creation actions. Setting up uses blue and an explicit empty state. A connected
+Host with an empty repository shows “No lanes yet” and its capability-gated +.
+Remote actions retain the fixed reconnection/unavailable hints and main's
+capability, readiness and stale-connection checks. Creating a remote lane never
+falls back to local creation.
+
+The home composer follows the sidebar machine selection (All machines uses This
+Mac). A picker override lasts until the next sidebar selection change. This target
+is window-local renderer state, never persisted. Submitting with a Host targeted
+opens the existing remote-lane dialog and keeps the composer draft; it does not
+send a first prompt or start a local session, including when that Host is down or
+unavailable. Closing the dialog keeps the target.
+
+## Provider sign-in
+
+Machines Readiness opens a private Host login terminal for a provider that is
+not signed in. The Host runs the CLI's fixed provider login path, not a program
+chosen by Desktop. The machine-scoped command uses owner-only receipts and needs
+`terminal` plus `sessions.control`, rechecked before execution. Only the creating
+client can watch or operate this terminal, including after reconnect. Input is
+sequenced and never replayed after uncertainty. Login content and credentials
+are not logged, persisted by Phosphor or sent to control. PTYs are limited to
+one per provider and two per Host; they end on exit, grant/capability loss,
+shutdown, or ten disconnected minutes. See [provider login](host.md#providers-login).

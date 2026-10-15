@@ -1,3 +1,4 @@
+import type { SkillsListResult } from '@shared/skills'
 import { parseFileParams, parseFileResult } from '@shared/host-protocol-files'
 import {
   machineRecord,
@@ -12,7 +13,7 @@ import type { IpcInvokeChannel } from '@shared/ipc'
 import { REMOTE_UNAVAILABLE } from './lane-ops'
 
 export interface ReadLane {
-  laneId: string
+  laneId?: string
   workspacePath: string
   call: (capability: HostCapability, method: string, params: unknown) => Promise<unknown>
 }
@@ -44,6 +45,16 @@ export function routeRemoteRead(
 }
 
 /** Opaque workspace keys are only labels. Paths sent to the Host are relative. */
+export function readFeature(
+  channel: 'skills:list',
+  args: unknown[],
+  lane: ReadLane,
+): Promise<SkillsListResult>
+export function readFeature(
+  channel: IpcInvokeChannel,
+  args: unknown[],
+  lane: ReadLane,
+): Promise<unknown>
 export async function readFeature(
   channel: IpcInvokeChannel,
   args: unknown[],

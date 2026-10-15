@@ -1,5 +1,5 @@
 import { useSessionsStore } from '@/stores/sessions'
-import { REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { REMOTE_UNAVAILABLE, REMOTE_NOT_READY, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { MachineChip } from '@/features/machines/RemoteLaneControls'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo } from 'react'
@@ -26,7 +26,11 @@ export const RightPane = memo(function RightPane({
 }): React.JSX.Element | null {
   // Read via `sessionId` rather than the active-session hook: this component
   // is already told which session it renders, and the two must not disagree.
-  const remote = useSessionsStore((s) => s.live[sessionId]?.target?.kind === 'remote')
+  const target = useSessionsStore((s) => s.live[sessionId]?.target)
+  const remote = target?.kind === 'remote'
+  const host = useRemoteLanesStore((s) =>
+    target?.kind === 'remote' ? s.hosts[target.hostId] : undefined,
+  )
   const rightPane = useLayoutStore((s) => sessionPanes(s, sessionId).pane)
   const side = useLayoutStore((s) => sessionPanes(s, sessionId).side)
   const expanded = useLayoutStore((s) => sessionPanes(s, sessionId).expanded)
@@ -41,7 +45,11 @@ export const RightPane = memo(function RightPane({
           </>
         }
       >
-        {rightPane === 'files' || rightPane === 'changes' ? (
+        {host?.state !== 'ready' ? (
+          <p className="p-4">{host ? REMOTE_NOT_READY : REMOTE_UNAVAILABLE}</p>
+        ) : rightPane === 'terminal' && host.capabilities.includes('terminal') ? (
+          <TerminalPane sessionId={sessionId} workspacePath={workspacePath} />
+        ) : rightPane === 'files' || rightPane === 'changes' ? (
           <RemoteFilesPane
             key={sessionId}
             workspacePath={workspacePath}

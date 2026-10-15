@@ -8,6 +8,18 @@ one glance, not four tools.
 Related: [worktrees.md](worktrees.md) for the branch lifecycle,
 [extensions.md](extensions.md) for the artifact tools a lane can call.
 
+## Remote lanes
+
+The sidebar lists authenticated Host lanes alongside local groups, with a machine
+filter. A disconnected machine keeps its memory-only rows greyed, disabled and
+labelled last known. The remote-create dialog and home flow choose a machine and
+then its configured repository. This Mac retains the local folder and branch
+flow. Selecting an unavailable Host never creates a local session.
+
+The lane header reports the connection state. The composer and panes disable
+while disconnected and recover when the Host snapshot is ready. See
+[remote-access.md](remote-access.md#machine-context-and-lane-creation).
+
 ## The row
 
 ```

@@ -6,6 +6,16 @@ import { forgetRemoteSession, useSessionsStore } from './sessions'
 import { useMachinesStore } from './machines'
 
 const LOCAL: HostTarget = Object.freeze({ kind: 'local' })
+export const REMOTE_NOT_READY = 'Machine not connected. Wait for reconnection.'
+
+export function connectionLabel(state: HostConnectionView['state'] | undefined): string {
+  return state === 'ready'
+    ? 'Connected'
+    : state === 'connecting' || state === 'reconnecting'
+      ? 'Reconnecting'
+      : 'Down'
+}
+
 export const REMOTE_UNAVAILABLE = 'Not available on remote lanes yet.'
 
 export function useActiveMachine(): HostTarget {
@@ -43,10 +53,21 @@ export const useRemoteLanesStore = create<{
   setFilter: (filter: string) => void
 }>((set) => ({
   hosts: {},
-  filter: 'all',
+  filter: 'local',
   error: null,
   setFilter: (filter) => set({ filter }),
 }))
+
+// Window-local selection survives sidebar remounts, but not account or directory removal.
+useMachinesStore.subscribe((state, previous) => {
+  const { filter, setFilter } = useRemoteLanesStore.getState()
+  if (
+    !state.remoteEnabled ||
+    (previous.machines.some((machine) => machine.id === filter) &&
+      !state.machines.some((machine) => machine.id === filter))
+  )
+    setFilter('local')
+})
 
 export async function adoptRemoteLane(info: LiveSessionInfo, nav: number): Promise<void> {
   if (info.target?.kind !== 'remote' || !info.laneId) throw new Error('Invalid remote lane.')
@@ -156,6 +177,6 @@ export function attachRemoteLanesListener(): () => void {
     offAttention()
     offOpen()
     window.removeEventListener('focus', onFocus)
-    useRemoteLanesStore.setState({ hosts: {}, filter: 'all', error: null })
+    useRemoteLanesStore.setState({ hosts: {}, filter: 'local', error: null })
   }
 }

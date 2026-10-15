@@ -186,7 +186,13 @@ it('merges an open remote lane into its opaque library row without losing the ma
 
 it('hides remote library rows and open viewers when ready artifact capability is absent', () => {
   const key = 'host:bee/lane:opaque/artifact:guide'
-  const view = { state: 'ready' as const, capabilities: [], lanes: [], repositories: [] }
+  const view = {
+    connectionToken: 'test-connection-1',
+    state: 'ready' as const,
+    capabilities: [],
+    lanes: [],
+    repositories: [],
+  }
   expect(canViewStoredArtifact('local/guide', {})).toBe(true)
   expect(canViewStoredArtifact(key, {})).toBe(false)
   expect(canViewStoredArtifact(key, { bee: view })).toBe(false)

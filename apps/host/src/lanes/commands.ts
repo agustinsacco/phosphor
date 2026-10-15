@@ -1,3 +1,5 @@
+import { parseProviderLoginOp } from '@phosphor/shared/host-protocol-providers'
+import type { ProviderLogins } from '../providers/login'
 import { parseTerminalOp } from '@phosphor/shared/host-protocol-terminals'
 import { TerminalForbidden, type HostTerminals } from '../terminals/service'
 import { parseFileWriteOp, type FileWriteOp } from '@phosphor/shared/host-protocol-writes'
@@ -37,6 +39,7 @@ export interface LaneCommandClient {
   caps: readonly HostCapability[]
 }
 export interface LaneCommandPorts {
+  providerLogins?: ProviderLogins
   terminals?: HostTerminals
   store: HostStore
   writes?: {
@@ -168,7 +171,7 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
     const routine = parseRoutineOp(op)
     if (routine)
       return routineRequiresControl(routine) ? ['routines', 'sessions.control'] : ['routines']
-    if (parseTerminalOp(op)) return ['terminal', 'sessions.control']
+    if (parseProviderLoginOp(op) || parseTerminalOp(op)) return ['terminal', 'sessions.control']
     const write = op.type.startsWith('files.') ? ports.writes?.capabilityFor(op.type) : null
     return write ? [write, 'sessions.control'] : ['sessions.control']
   }
@@ -306,6 +309,24 @@ export function createLaneCommands(ports: LaneCommandPorts, options: { queueLimi
       const completion = dispatch(job, queue, () =>
         ports.routines?.execute(routine, requestId, caps),
       ).then((result) => {
+        if (!result.answered) return terminal(job, { requestId, status: 'unknown' }, true)
+        terminal(job, { requestId, status: 'done', data: result.value }, true)
+      })
+      return { completion, detached: false }
+    }
+    if (op.type === 'provider.login' || (terminalOp && laneId === undefined)) {
+      if (!terminalAllowed()) return rejected(job, 'forbidden', true)
+      if (frame.fence !== undefined || laneId !== undefined)
+        return rejected(job, 'bad-request', true)
+      const completion = dispatch(job, queue, async () => {
+        if (!terminalAllowed()) throw new TerminalForbidden('forbidden')
+        if (op.type === 'provider.login') {
+          if (!ports.providerLogins) throw new Error('unavailable')
+          return ports.providerLogins.execute(op, client.id, terminalAllowed)
+        }
+        if (!ports.terminals || !terminalOp) throw new Error('unavailable')
+        return ports.terminals.machineOp(client.id, terminalOp)
+      }).then((result) => {
         if (!result.answered) return terminal(job, { requestId, status: 'unknown' }, true)
         terminal(job, { requestId, status: 'done', data: result.value }, true)
       })

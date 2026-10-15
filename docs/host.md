@@ -899,6 +899,27 @@ cannot tell the new login from the earlier one (it never reads a credential), so
 it says that the earlier one is still there if the login did not finish. An
 unknown provider exits 64 and starts nothing.
 
+Desktop also starts this same login path from Machines Readiness. Its
+`provider.login {provider}` command has a machine-scoped, owner-only receipt,
+no lane or fence, and requires `terminal` plus `sessions.control`. Both are
+checked at admission, when queued work starts, and after inspection before
+spawn. The Host validates the id against its own provider list (or `claude`);
+no client executable, argv, environment or path is accepted.
+
+The login runs in a Host-owned PTY using the terminal topic, sequencing and
+byte limits. Only its creating client identity can subscribe, type, resize or
+kill it. Another client receives the same refusal as for an unknown terminal.
+The same client can reconnect. There is at most one login per provider and two
+per Host, also subject to the overall terminal limit. Exit, grant or capability
+loss, and Host shutdown kill it; disconnect kills it after ten minutes without
+reattachment. Closing the Desktop modal kills it while connected. Login input,
+output and scrollback stay in memory only and are never logged or persisted.
+An exit before the first subscription keeps a content-free completion tombstone
+for at most ten minutes, removed once its owner receives the exit. Tombstones
+exclude all output bytes, do not count toward the one-per-provider or two-login
+limit, and do count toward the overall 32-terminal Host limit.
+The credential stays in pi's or Claude's own store. Control receives none of it.
+
 ## accept
 
 `phosphor accept --repository DIR` runs real sessions on this machine and
@@ -1082,7 +1103,7 @@ The unattached snapshot reader reads a stopped lane's context from pi's session
 file, with `state: null`. A null or missing file means an empty transcript: pi
 persists messages only when a turn ends. The same snapshot size and image omission
 rule applies. Reads are synchronous, capped at 64 MiB, and cached for four lanes;
-invalid or inaccessible files return `unknown-lane`. This port is not served yet.
+invalid or inaccessible files return `unknown-lane`. The running Host serves this reader for stopped lanes.
 The reader trusts the owner's pi sessions folder; a process that can write it
 can race the containment check.
 

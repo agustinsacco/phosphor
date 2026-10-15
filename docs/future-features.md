@@ -10,82 +10,19 @@ Component numbers refer to the remote-access implementation plan. Components
 below name work, not claims that it is complete. The decisions labelled
 **Decided** are the user's decisions of 2026-10-12.
 
-## Live connections to every machine
+## PWA attention and Web Push
 
-**Problem.** Selecting one machine must not hide work finishing on another.
-A machine selector alone cannot keep a fleet's lane state honest.
+In-app attention, machine-titled Desktop notifications and Host read watermarks
+are built. Components 39-41 add the browser/PWA consumer. A closed PWA uses Web
+Push from each Host, with a minimal payload encrypted end to end to the device.
+The device registers with that Host over Tailscale. Control stores nothing new.
+iOS requires Home Screen installation and iOS 16.4 or newer.
 
-**Decided.** Desktop will stay connected to every machine that is up, not only
-the selected one. Each will supply a light summary feed of lane status, unread
-counts and attention. Open lanes will receive full streams. Each surface will
-have two kinds of WebSocket stream: Supabase Realtime for machine-directory
-changes, and each Host's own WSS over Tailscale for lanes and machine state.
-The control plane will not carry lane data.
+**Open questions.** Define event retention, subscription expiry, device-key
+registration and rotation, and which devices receive notifications.
 
-**Design and dependencies.** Components 07, 08 and 21 will provide Host-owned
-projections and subscriptions: a snapshot at sequence N, replay after N, and an
-explicit reset when a gap is older than the bounded replay buffer. Buffers,
-per-viewer queues and summary subscriptions must be bounded; a slow viewer must
-not stall pi. Component 10 will permit many viewers and one renewable controller,
-with explicit takeover, not a second session writer. Routine ownership will
-remain stronger than an interactive lease. Grants (18) will bound
-remote authority; routing and store isolation (28-30) will keep machines separate.
-
-**Touches.** Today `apps/desktop/electron/control/client.ts` handles HTTP directory
-requests; `electron/control/live.ts` supplies directory change signals and
-fallback polling. Neither is a Host connection manager. `stores/machines.ts`
-projects only the enrolled directory, and `stores/sessions.ts` and `stores/chat.ts` use local session
-keys. The shared `hostResourceKey` helper will support isolation, but the stores
-and `libs/session-runtime/src/pi/session-events.ts` still need Host projections,
-network delivery and attach/detach separate from stop/dispose.
-
-**Open questions.** Set caps for connected machines, open full streams and replay
-bytes. Decide how stale summaries are labelled during grant renewal or sleep,
-and which summary fields need lazy detail requests.
-
-**Risks.** Fan-out can multiply memory and traffic. Reset must replace stale state
-without replaying prompts. Revocation and lease expiry must end authority without
-killing work already running on the Host.
-
-## Cross-machine attention and notifications
-
-**Problem.** Work can finish, fail or ask for input on a machine the person is
-not viewing. Reading a lane on one surface should clear its badge everywhere.
-
-**Decided (component 49, new).** Every machine, including the Mac, will emit:
-
-```text
-{id, machineId, machineName, laneId, lane, project,
- kind: finished | needs-input | failed | routine-finished | routine-paused,
- at, seq}
-```
-
-The notification title will name the machine, such as "bee1 · phosphor".
-Clicking will switch to that machine and lane. Event ids will deduplicate.
-The Host will keep read state and broadcast "read up to seq N", so reading on
-one surface clears all. The non-push portion is M2; Web Push is M4 with the PWA.
-
-**Design and dependencies.** Components 07, 08 and 21 will carry attention and
-read watermarks on the machine feed; 29-30 will route navigation by machine and
-lane. Components 39-41 will add the browser/PWA consumer. A closed PWA will use
-Web Push sent by each Host, with a minimal payload end-to-end encrypted to the
-device. The device will register its subscription with that Host over Tailscale.
-The control plane will store nothing new. iOS requires installation on the Home
-Screen and iOS 16.4 or newer; push is not a promise of background WebSockets.
-
-**Touches.** Today `apps/desktop/electron/routines/index.ts` raises OS notifications
-only for routine outcomes. `stores/sessions.ts` keeps background-lane unread
-counts in the renderer; `stores/machines.ts` only projects directory status. Machine-owned events and durable read watermarks will replace neither with
-a cloud lane store. Desktop's notification adapter will need click navigation.
-
-**Open questions.** Define durable event retention and expiry of unreachable
-push subscriptions, and whether OS notifications go to
-every surface or only a chosen one. Define device encryption-key registration
-and rotation, distinct from a Host's identity key.
-
-**Risks.** Push providers still see delivery metadata. Names can reveal projects
-on lock screens; payloads should disclose as little as possible. Duplicate,
-out-of-order or expired events must not resurrect a read badge. Hosts need
+**Risks.** Push providers see delivery metadata. Names can reveal projects on lock
+screens. Duplicate or expired events must not resurrect read badges. Hosts need
 bounded retry queues and explicit subscription revocation.
 
 ## Share this computer
@@ -225,31 +162,6 @@ canaries rather than a universal lifetime promise.
 rewrites can corrupt continuity. Primitive differences can change behavior even
 when every transferred byte verifies. A sleeping source cannot complete a
 handoff, so transfer must finish before sleep.
-
-## Install from Desktop
-
-**Problem.** Today a person installs the Host by hand and uses `phosphor login`;
-Desktop cannot prepare a remote machine or verify that it can run lanes.
-
-**Proposed design and dependencies.** Verified Host bundles (23), an approved SSH
-bootstrap plan (26), and guided onboarding (36) will make installation explicit.
-Opt-in Tailscale discovery (22) will suggest candidates, never auto-trust them or
-scan ports. Service installers (24-25), lifecycle/retained-data rules (27), and
-the authenticated Host API (21) are prerequisites to a usable connection.
-
-**Touches.** `features/machines/AddMachineDialog.tsx` guides manual setup and approves a code,
-not an installation. Host config, `doctor`, identity and acceptance commands will
-supply preflight and post-install evidence. Desktop main will own SSH and verified
-transfer; provider credentials will stay on the Host. User approval must name
-what is installed, where, and which service/Serve configuration changes.
-
-**Open questions.** Define supported SSH prerequisites, bundle update policy and
-manual fallbacks when provider login or Tailscale HTTPS is unavailable. Broader
-guided provider login is component 44, not implicit credential forwarding.
-
-**Risks.** Changed SSH keys, cancelled approval, wrong architecture, partial
-transfer and existing Serve routes must fail safely. Discovery is not identity
-proof. Removing a directory entry is neither uninstall nor evidence of success.
 
 ## Voice input beyond English dictation
 

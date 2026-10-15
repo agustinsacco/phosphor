@@ -1,3 +1,5 @@
+import { OnThisMachine } from './OnThisMachine'
+import { ProviderSignIn } from './ProviderSignIn'
 import { useEffect, useRef, useState } from 'react'
 import { machineStatus, type MachineView } from '@shared/control-api'
 import type { ClaudeStatus, PiHealth, SubscriptionProviderStatus } from '@shared/models'
@@ -212,7 +214,9 @@ export function MachinesPage(): React.JSX.Element {
   const state = useMachinesStore()
   const computer = useThisComputer()
   const liveHere = useSessionsStore((s) => Object.keys(s.live).length)
-  const [adding, setAdding] = useState(false)
+  useEffect(() => () => useMachinesStore.setState({ adding: false }), [])
+  const adding = state.adding
+  const setAdding = (adding: boolean): void => useMachinesStore.setState({ adding })
   const [removing, setRemoving] = useState<MachineView | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -531,6 +535,7 @@ export function MachinesPage(): React.JSX.Element {
                         </p>
                       )}
                     <Checks checks={readinessChecks(machine.readiness)} />
+                    <ProviderSignIn key={machine.id} hostId={machine.id} />
                   </>
                 )}
               </Section>
@@ -556,6 +561,7 @@ export function MachinesPage(): React.JSX.Element {
                 <p className="text-text-secondary mb-2 mt-4 text-base">Machine id</p>
                 <CopyCommand command={machine.id} />
               </Section>
+              <OnThisMachine hostId={machine.id} />
               <Section title="Remove machine">
                 <p className="text-text-secondary mb-3 text-base">
                   Remove this machine from your account. Its files and installation stay on the
