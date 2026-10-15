@@ -1,3 +1,5 @@
+import { useMachineHomeFiles } from './useMachineHomeFiles'
+import { MachineFilesPane } from '@/features/files/MachineFilesPane'
 import { attachRemoteLanesListener, useActiveMachine } from '@/stores/remoteLanes'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -43,6 +45,7 @@ import { worktreeAwareName } from '@/lib/path'
 import { attachMachinesListener } from '@/stores/machines'
 
 export function App(): React.JSX.Element {
+  const machineFiles = useMachineHomeFiles()
   const [health, setHealth] = useState<PiHealth | null>(null)
   const remote = useActiveMachine().kind === 'remote'
   const currentWorkspace = useActiveWorkspace()
@@ -187,7 +190,7 @@ export function App(): React.JSX.Element {
   }, [health?.ok, initialDataReady, restoring, currentWorkspace, sidebarVisible, sidebarReady])
 
   const loading = !startupComplete || startupError !== null
-  useGlobalShortcuts(!loading && !remote)
+  useGlobalShortcuts(!loading)
   const loadingScreen = (
     <LoadingScreen
       message={
@@ -249,7 +252,7 @@ export function App(): React.JSX.Element {
         style={loading ? { visibility: 'hidden' } : undefined}
         data-testid="app-shell"
       >
-        <TopBar workspacePath={currentWorkspace} />
+        <TopBar workspacePath={currentWorkspace} machineFiles={machineFiles} />
         <div className="flex min-h-0 flex-1">
           {sidebarVisible && (
             <Sidebar
@@ -305,15 +308,24 @@ export function App(): React.JSX.Element {
               </div>
             )}
           </main>
+          {machineFiles.open && machineFiles.hostId && (
+            <aside
+              data-testid="right-pane"
+              aria-label="Machine Files pane"
+              className="border-border w-[40%] min-w-80 border-l"
+            >
+              <MachineFilesPane hostId={machineFiles.hostId} />
+            </aside>
+          )}
         </div>
-        {!remote && <FuzzyFinder workspacePath={currentWorkspace} />}
+        <FuzzyFinder workspacePath={currentWorkspace} />
         <ContextMenuHost />
         <TextFieldMenu />
         <ExtensionDialogHost />
         <PromptHost />
         <ToastHost />
         <BulkDeleteProgressPopover />
-        {!remote && <CommandPalette workspacePath={currentWorkspace} />}
+        <CommandPalette key={currentWorkspace} workspacePath={currentWorkspace} />
         <SettingsModal />
         <FeedbackModal />
       </div>

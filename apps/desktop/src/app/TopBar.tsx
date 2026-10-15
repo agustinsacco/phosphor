@@ -1,4 +1,9 @@
-import { useRemoteLanesStore, useActiveMachine } from '@/stores/remoteLanes'
+import {
+  REMOTE_NOT_READY,
+  REMOTE_UNAVAILABLE,
+  useRemoteLanesStore,
+  useActiveMachine,
+} from '@/stores/remoteLanes'
 import { MachineChip } from '@/features/machines/RemoteLaneControls'
 import { TooltipButton } from '@/components/Tooltip'
 import clsx from 'clsx'
@@ -40,7 +45,13 @@ import { useCurrentWork } from '@/features/chat/currentWork'
  * It also gives the workspace and branch controls a fixed home instead of
  * moving between the home composer and the chat header.
  */
-export function TopBar({ workspacePath }: { workspacePath: string }): React.JSX.Element {
+export function TopBar({
+  workspacePath,
+  machineFiles,
+}: {
+  workspacePath: string
+  machineFiles?: { hostId: string | null; open: boolean; toggle: () => void }
+}): React.JSX.Element {
   const remote = useActiveMachine().kind === 'remote'
   const activeSessionId = useSessionsStore((s) => s.activeSessionId)
   const sidebarVisible = useLayoutStore((s) => s.sidebarVisible)
@@ -72,9 +83,50 @@ export function TopBar({ workspacePath }: { workspacePath: string }): React.JSX.
           <ActiveSessionControls sessionId={activeSessionId} />
         </>
       ) : (
-        <div className="min-w-0 flex-1" />
+        <>
+          <div className="min-w-0 flex-1" />
+          {machineFiles?.hostId && (
+            <MachineFilesButton
+              hostId={machineFiles.hostId}
+              open={machineFiles.open}
+              toggle={machineFiles.toggle}
+            />
+          )}
+        </>
       )}
     </header>
+  )
+}
+
+function MachineFilesButton({
+  hostId,
+  open,
+  toggle,
+}: {
+  hostId: string
+  open: boolean
+  toggle: () => void
+}): React.JSX.Element {
+  const host = useRemoteLanesStore((s) => s.hosts[hostId])
+  const reason =
+    host?.state !== 'ready'
+      ? REMOTE_NOT_READY
+      : !host.capabilities.includes('workspaces.read')
+        ? REMOTE_UNAVAILABLE
+        : null
+  return (
+    <TooltipButton
+      title={reason ?? 'Files pane'}
+      aria-label="Files pane"
+      disabled={reason !== null}
+      onClick={toggle}
+      className={clsx(
+        'titlebar-no-drag flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
+        open ? 'bg-accent-soft text-accent' : 'text-text-tertiary',
+      )}
+    >
+      <FileIcon />
+    </TooltipButton>
   )
 }
 

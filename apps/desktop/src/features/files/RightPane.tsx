@@ -37,31 +37,33 @@ export const RightPane = memo(function RightPane({
   if (!rightPane) return null
   if (remote)
     return (
-      <PaneShell
-        title={
-          <>
-            <span>{rightPane}</span>
-            <MachineChip sessionId={sessionId} />
-          </>
-        }
-      >
-        {rightPane === 'files' || rightPane === 'changes' ? (
-          <RemoteFilesPane
-            key={sessionId}
-            workspacePath={workspacePath}
-            sessionId={sessionId}
-            changes={rightPane === 'changes'}
-          />
-        ) : host?.state !== 'ready' ? (
-          <p className="p-4">{host ? REMOTE_NOT_READY : REMOTE_UNAVAILABLE}</p>
-        ) : rightPane === 'terminal' && host.capabilities.includes('terminal') ? (
-          <TerminalPane sessionId={sessionId} workspacePath={workspacePath} />
-        ) : rightPane === 'artifacts' ? (
-          <RemoteArtifactsPane sessionId={sessionId} workspacePath={workspacePath} />
-        ) : (
-          <p className="p-4">{REMOTE_UNAVAILABLE}</p>
-        )}
-      </PaneShell>
+      <div data-testid="right-pane" className="h-full">
+        <PaneShell
+          title={
+            <>
+              <span>{rightPane}</span>
+              <MachineChip sessionId={sessionId} />
+            </>
+          }
+        >
+          {rightPane === 'files' || rightPane === 'changes' ? (
+            <RemoteFilesPane
+              key={sessionId}
+              workspacePath={workspacePath}
+              sessionId={sessionId}
+              changes={rightPane === 'changes'}
+            />
+          ) : host?.state !== 'ready' ? (
+            <p className="p-4">{host ? REMOTE_NOT_READY : REMOTE_UNAVAILABLE}</p>
+          ) : rightPane === 'terminal' && host.capabilities.includes('terminal') ? (
+            <TerminalPane sessionId={sessionId} workspacePath={workspacePath} />
+          ) : rightPane === 'artifacts' ? (
+            <RemoteArtifactsPane sessionId={sessionId} workspacePath={workspacePath} />
+          ) : (
+            <p className="p-4">{REMOTE_UNAVAILABLE}</p>
+          )}
+        </PaneShell>
+      </div>
     )
 
   return (

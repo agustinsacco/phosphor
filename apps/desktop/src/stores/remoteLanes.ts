@@ -29,6 +29,17 @@ export function useActiveMachine(): HostTarget {
   )
 }
 
+/** Navigation follows the active lane, or the sidebar machine on home. */
+export function useNavigationHostId(): string | undefined {
+  const activeSessionId = useSessionsStore((s) => s.activeSessionId)
+  const target = useSessionsStore((s) =>
+    s.activeSessionId ? s.live[s.activeSessionId]?.target : undefined,
+  )
+  const filter = useRemoteLanesStore((s) => s.filter)
+  if (activeSessionId) return target?.kind === 'remote' ? target.hostId : undefined
+  return filter !== 'local' && filter !== 'all' ? filter : undefined
+}
+
 export function machineLabel(hostId: string): string {
   return (
     useMachinesStore.getState().machines.find((machine) => machine.id === hostId)?.label ?? hostId

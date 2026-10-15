@@ -1,3 +1,5 @@
+import { REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
+import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useEffect } from 'react'
 import { clampUiScale } from '@shared/models'
 import { sessionPanes, useLayoutStore } from '@/stores/layout'
@@ -88,9 +90,10 @@ export function useGlobalShortcuts(enabled = true): void {
       const fullscreen = pane && sessionId && sessionPanes(layout, sessionId).expanded
       const target = fullscreen
         ? (pane.querySelector<HTMLElement>('[aria-label="Exit fullscreen"]') ??
-          pane.querySelector<HTMLButtonElement>('button:not(:disabled)'))
+          pane.querySelector<HTMLElement>('button:not(:disabled), select:not(:disabled)'))
         : isComposerInput(event.target)
-          ? (pane?.querySelector<HTMLButtonElement>('button:not(:disabled)') ?? field)
+          ? (pane?.querySelector<HTMLElement>('button:not(:disabled), select:not(:disabled)') ??
+            field)
           : field
       if (target) {
         layout.setPage(null)
@@ -160,7 +163,15 @@ export function useGlobalShortcuts(enabled = true): void {
         if (workspacePath && canToggleRightPane()) {
           useLayoutStore.getState().setPage(null)
           useLayoutStore.getState().setRightPane('files')
-          useWorkspaceSearchStore.getState().openSearch(workspacePath, selectionSeed())
+          const { activeSessionId, live } = useSessionsStore.getState()
+          if (
+            workspacePath.startsWith('host:') ||
+            (activeSessionId && live[activeSessionId]?.target?.kind === 'remote')
+          ) {
+            useExtensionUiStore.getState().pushToast(REMOTE_UNAVAILABLE)
+          } else {
+            useWorkspaceSearchStore.getState().openSearch(workspacePath, selectionSeed())
+          }
         }
         return
       }
