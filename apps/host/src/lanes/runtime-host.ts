@@ -254,6 +254,16 @@ export function createRuntimeLanes(options: {
               error: 'The lane transcript could not be verified. Check the lane before retrying.',
             }
           }
+          // A Stop or delete can run while the transcript check awaits; it removes
+          // the binding and stops pi. Proceeding would resurrect a stopped lane.
+          const current = options.store.getLane(laneId)
+          if (
+            !current ||
+            current.removedAt !== null ||
+            bindings.get(args[0]) !== binding ||
+            live.sessionFor(laneId) !== args[0]
+          )
+            throw new Error('Lane unavailable.')
           persistModel(laneId, selected.model)
           await stop(args[0])
           const resumed = await start({

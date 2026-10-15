@@ -682,6 +682,62 @@ describe('lane lifecycle parity', () => {
     },
   )
 
+  it('does not resurrect a lane stopped while the post-switch transcript check waits', async () => {
+    const s = setup()
+    const original = await s.binding.sessions.start({ repository: machine.repository })
+    const lane = s.saved()
+    const file = join(machine.dir, 'stopped-during-switch.jsonl')
+    await writeFile(file, '{}\n')
+    let provider = 'old'
+    s.runtime.command.mockImplementation(async (_id, cmd) => {
+      if (cmd.type === 'set_model') provider = cmd.provider
+      return {
+        type: 'response',
+        command: cmd.type,
+        success: true,
+        data:
+          cmd.type === 'get_messages'
+            ? { messages: [] }
+            : { ...state, model: laneModel(provider), sessionFile: file, messageCount: 1 },
+      }
+    })
+    await s.binding.sessions.attach(lane.laneId, original.sessionId)
+    const real = (await vi.importActual<typeof fs>('node:fs/promises')).lstat
+    let checks = 0
+    let release: () => void = () => {}
+    let paused: () => void = () => {}
+    const reached = new Promise<void>((resolve) => {
+      paused = resolve
+    })
+    vi.mocked(fs.lstat).mockImplementation((async (path: Parameters<typeof real>[0]) => {
+      // 1: pre-check, 2: post-set_model decision (paused), then Stop's own check.
+      if (++checks === 2) {
+        paused()
+        await new Promise<void>((resolve) => {
+          release = resolve
+        })
+      }
+      return real(path)
+    }) as typeof fs.lstat)
+    try {
+      const switching = s.binding.command(original.sessionId, {
+        type: 'set_model',
+        provider: 'new',
+        modelId: 'model',
+      })
+      await reached
+      await s.binding.stopLane(lane.laneId)
+      const startsBefore = s.runtime.start.mock.calls.length
+      release()
+      await expect(switching).rejects.toThrow('Lane unavailable.')
+      expect(s.runtime.start.mock.calls.length).toBe(startsBefore)
+      expect(s.runtime.stop).toHaveBeenCalledTimes(1)
+      expect(live.sessionFor(lane.laneId)).toBeNull()
+    } finally {
+      vi.mocked(fs.lstat).mockRestore()
+    }
+  })
+
   it('records the recreated pi file before a prompt and resumes it after a Host restart', async () => {
     const s = setup()
     const original = await s.binding.sessions.start({ repository: machine.repository })
