@@ -1,4 +1,5 @@
 import {
+  bindRemoteHostView,
   refreshRemoteArtifacts,
   invalidateRemoteArtifactReads,
 } from '@/features/artifacts/remoteArtifactRefresh'
@@ -61,6 +62,8 @@ export const useRemoteLanesStore = create<{
   error: null,
   setFilter: (filter) => set({ filter }),
 }))
+
+bindRemoteHostView((hostId) => useRemoteLanesStore.getState().hosts[hostId])
 
 // Window-local selection survives sidebar remounts, but not account or directory removal.
 useMachinesStore.subscribe((state, previous) => {

@@ -1,9 +1,16 @@
 import { useSessionsStore } from '@/stores/sessions'
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import type { HostConnectionView } from '@shared/ipc'
 import { useArtifactsStore } from '@/stores/artifacts'
 
 // One read at a time per handle. A notification during a read queues one more
 // read: the first reply may predate the tool result that triggered it.
+// remoteLanes registers its host view here. Importing that store from this module
+// would put remoteLanes (and machines) on sessions' import cycle.
+let hostView: (hostId: string) => HostConnectionView | undefined = () => undefined
+export function bindRemoteHostView(read: typeof hostView): void {
+  hostView = read
+}
+
 const pending = new Map<string, { dirty: boolean; promise: Promise<boolean> }>()
 let generation = 0
 export function invalidateRemoteArtifactReads(): void {
@@ -15,11 +22,10 @@ function readKey(sessionId: string): string | undefined {
   const state = useSessionsStore.getState()
   const entry = state.live[sessionId]
   if (entry?.target?.kind !== 'remote') return
-  const host = useRemoteLanesStore.getState().hosts[entry.target.hostId]
+  const host = hostView(entry.target.hostId)
   if (host?.state !== 'ready' || !host.capabilities.includes('artifacts.read')) return
   return JSON.stringify([
     generation,
-    state.navSeq,
     state.activeSessionId,
     entry.target.hostId,
     entry.laneId,

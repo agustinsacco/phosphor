@@ -71,3 +71,19 @@ it('serializes and coalesces refreshes, replacing rather than merging versions',
   expect(invoke).toHaveBeenCalledTimes(2)
   expect(useArtifactsStore.getState().bySession[id]).toEqual({})
 })
+
+it('keeps a reply for the still-active lane when another navigation starts and fails', async () => {
+  let resolve!: (snapshots: ArtifactSnapshot[]) => void
+  invoke.mockImplementation(
+    () =>
+      new Promise<ArtifactSnapshot[]>((r) => {
+        resolve = r
+      }),
+  )
+  const request = refreshRemoteArtifacts(id)
+  // Opening another lane bumps navSeq before activation; that open then fails.
+  useSessionsStore.setState({ navSeq: 2 })
+  resolve([snapshot])
+  expect(await request).toBe(true)
+  expect(Object.keys(useArtifactsStore.getState().bySession[id] ?? {})).toEqual(['card'])
+})
