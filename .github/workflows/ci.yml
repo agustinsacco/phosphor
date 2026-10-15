@@ -132,72 +132,10 @@ jobs:
           path: apps/site/test-results/
           retention-days: 3
 
-  windows:
-    # The only Windows runner in CI. Its job is to catch what no other runner
-    # can: that `electron-builder --win` still produces the NSIS installer and
-    # its update manifest, and that the PACKAGED app boots on Windows and runs
-    # an npm-installed pi — which reaches pi through node.exe + cli.js, not the
-    # `.cmd` shim Node refuses to spawn (apps/desktop/electron/pi/win-launch.ts). The full
-    # unit and e2e suites stay on ubuntu/macOS; this runs in parallel with
-    # them and finishes inside the e2e shards' wall time.
-    name: Windows · package · packaged-app smoke
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      # electron-builder downloads Electron and NSIS on every run otherwise.
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~\AppData\Local\electron\Cache
-            ~\AppData\Local\electron-builder\Cache
-          key: electron-builder-win-${{ hashFiles('package-lock.json') }}
-
-      - name: Install dependencies
-        run: npm ci
-
-      # The Windows-facing suites, on Windows. `win-launch.test.ts` runs
-      # everywhere; here it also proves node:path's win32 branch agrees with
-      # the host.
-      - name: Unit tests (Windows launcher, PATH handling)
-        run: npx vitest run apps/desktop/electron/pi/win-launch.test.ts apps/desktop/electron/pi/shell-env.test.ts
-
-      - name: Build (main · preload · renderer)
-        run: npm run build
-
-      # Same invocation as release-continuous.yml minus `--publish`: the
-      # native rebuild (node-pty against Electron's ABI), the NSIS pass and
-      # latest.yml all run for real.
-      - name: Package (electron-builder --win)
-        shell: bash
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
-        run: |
-          set -euo pipefail
-          npm run package --prefix apps/desktop -- --win --publish never
-          ls apps/desktop/release
-          [ -f apps/desktop/release/Phosphor-0.1.0-x64.exe ] || { echo "::error::installer missing"; exit 1; }
-          [ -f apps/desktop/release/latest.yml ] || { echo "::error::latest.yml missing"; exit 1; }
-
-      # pi from npm, exactly as a user installs it, then the packaged app.
-      - name: Install pi
-        run: npm install -g @earendil-works/pi-coding-agent
-
-      - name: Boot the packaged app and run pi
-        run: pwsh tools/scripts/smoke-packaged-win.ps1
-
-      # The smoke test uses the local installer; uploading it is only for debugging.
-      - uses: actions/upload-artifact@v4
-        if: failure() || contains(github.event.pull_request.labels.*.name, 'keep-ci-artifacts')
-        with:
-          name: windows-installer
-          path: apps/desktop/release/Phosphor-*-x64.exe
-          retention-days: 3
+  # Windows packaging and the packaged-app smoke are paused to save CI time; the
+  # Windows release build is paused with them (release-continuous.yml). They come
+  # back in a later release: restore this job from git history (it built the NSIS
+  # installer, checked latest.yml and booted the packaged app with an npm pi).
 
   e2e:
     name: E2E smoke (${{ matrix.os }} ${{ matrix.shardIndex }}/${{ matrix.shardTotal }})
@@ -206,23 +144,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Sharded 3-way: the ubuntu (xvfb) run is CI's longest single step,
-          # and the suite's 33 tests have no cross-test ordering or shared
-          # state, so splitting them across jobs is safe.
-          - os: ubuntu-latest
-            shardIndex: 1
-            shardTotal: 3
-          - os: ubuntu-latest
-            shardIndex: 2
-            shardTotal: 3
-          - os: ubuntu-latest
-            shardIndex: 3
-            shardTotal: 3
-          # macOS runner-minutes bill at a much higher multiplier, and this
-          # job isn't the critical path — left unsharded.
-          - os: macos-latest
-            shardIndex: 1
-            shardTotal: 1
+          # Sharded per test (fullyParallel, workers 1): the suite has no
+          # cross-test ordering or shared state. The repo is public, so extra
+          # runners cost wall time only for their ~1.5 min setup; six ubuntu
+          # shards and two macOS shards bring the slowest job from ~14 to ~7 min.
+          - { os: ubuntu-latest, shardIndex: 1, shardTotal: 6 }
+          - { os: ubuntu-latest, shardIndex: 2, shardTotal: 6 }
+          - { os: ubuntu-latest, shardIndex: 3, shardTotal: 6 }
+          - { os: ubuntu-latest, shardIndex: 4, shardTotal: 6 }
+          - { os: ubuntu-latest, shardIndex: 5, shardTotal: 6 }
+          - { os: ubuntu-latest, shardIndex: 6, shardTotal: 6 }
+          - { os: macos-latest, shardIndex: 1, shardTotal: 2 }
+          - { os: macos-latest, shardIndex: 2, shardTotal: 2 }
     steps:
       - uses: actions/checkout@v4
 
@@ -230,6 +163,14 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      # npm ci's electron postinstall downloads the Electron zip on every run.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/Library/Caches/electron
+          key: electron-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install dependencies
         run: npm ci
@@ -247,7 +188,7 @@ jobs:
       # for a day. This is the only macOS runner in CI; the suite takes well
       # under a second.
       - name: Unit tests (macOS-only suites)
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && matrix.shardIndex == 1
         run: npx vitest run apps/desktop/scripts/__tests__/adhoc-sign-mac.test.ts
 
       # The Electron window needs a display server on Linux runners.
@@ -267,3 +208,18 @@ jobs:
             apps/desktop/playwright-report/
             apps/desktop/test-results/
           retention-days: 7
+
+  # The one required status check. Branch rules name this job instead of every
+  # matrix leg, so shard counts and platforms can change without editing them.
+  result:
+    name: CI result
+    if: always()
+    needs: [checks, control-schema, site, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every required job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          for r in $RESULTS; do [ "$r" = success ] || { echo "::error::a required job ended $r"; exit 1; }; done

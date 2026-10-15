@@ -69,8 +69,8 @@ session/pi/browser homes or DB data are cache outputs.
 ## Shadow CI selection
 
 The checks job fetches full history and logs actual HEAD, base and OSS Nx projects.
-No report controls skipping: all eight CI results, OS shards, packaged smoke,
-schema and site gates remain mandatory, and workflow edits select only `tooling`.
+No report controls skipping: the checks, schema and site jobs and every OS
+shard remain mandatory behind the single required `CI result` job, and workflow edits select only `tooling`.
 So any future skipping must run everything when `tooling` is affected. Equal
 base/head is a shadow no-op only.
 
@@ -119,7 +119,8 @@ env overrides; cache remains disabled and graph/install boundaries stay intact.
   the exact SHA (the newest attempt wins); it bypasses only affected selection,
   never CI or `Skip-Release: true`. Every checkout is pinned to that SHA.
   This is the only release workflow; tag pushes do not build another release.
-  One release builds macOS, Linux and Windows into a draft. All platform jobs,
+  One release builds macOS and Linux into a draft (Windows is paused; see
+  [future-features.md](future-features.md#windows-builds)). All platform jobs,
   binary/manifest presence checks and checksum generation must pass before it
   becomes latest. A failed or cancelled build leaves the previous release live;
   rerun the workflow to resume the same SHA's draft. Existing published tags
@@ -136,8 +137,7 @@ Full CI still runs on every PR update and main push. `Continuous Release`
 listens only to main CI completions and retains its push/success/repository
 checks. These policies do not introduce affected-only checks or build caching.
 
-- Windows packaging and packaged-app smoke always run, but the installer and
-  site browser evidence upload only on job failure or when the PR event carries
+- Site browser evidence uploads only on job failure or when the PR event carries
   the `keep-ci-artifacts` label. Add the label **before the next push**; rerunning
   an older event does not refresh its labels. These artifacts expire after
   three days. Desktop E2E failure reports retain seven days.

@@ -163,6 +163,17 @@ rewrites can corrupt continuity. Primitive differences can change behavior even
 when every transferred byte verifies. A sleeping source cannot complete a
 handoff, so transfer must finish before sleep.
 
+## Windows builds
+
+Paused on 2026-10-15 to cut CI time: the CI Windows packaging and packaged-app
+smoke job and the Windows leg of `release-continuous.yml` are removed, and the
+release no longer requires `Phosphor-<version>-x64.exe` or `latest.yml`. The
+Windows code paths (NSIS config, `win-launch.ts`, signing block) stay in the
+tree. To resume, restore the CI job and the release matrix entry from git
+history, put the exe, `latest.yml` and checksum pattern back in `finalize`, and
+re-add the README install note. Windows installs stay on the last Windows
+release until then.
+
 ## Voice input beyond English dictation
 
 **Problem.** [Voice input](voice.md) dictates English only, starts from a mouse

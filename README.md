@@ -7,7 +7,7 @@
 # Phosphor
 
 **One mission. Many agents. Your IDE.** Phosphor is the open-source multi-agent
-IDE built on the [pi coding agent](https://pi.dev), for macOS, Linux and Windows.
+IDE built on the [pi coding agent](https://pi.dev), for macOS and Linux (Windows builds are paused and will return).
 Run independent tasks in isolated lanes, delegate focused pieces inside a lane,
 and stay close to every decision, diff and result. Pi stays the small, extensible
 harness underneath: tools, model providers and skills install as pi packages.
@@ -49,7 +49,7 @@ a live run. [Case study and capture provenance](https://phosphor.saccolabs.com/g
 # 1. pi is the agent. Phosphor needs it on your PATH (Node ≥ 22.19)
 npm install -g @earendil-works/pi-coding-agent
 
-# 2. Install Phosphor (macOS / Linux; Windows: run the .exe from the latest release)
+# 2. Install Phosphor (macOS / Linux)
 curl -fsSL https://github.com/agustinsacco/Phosphor/releases/latest/download/install.sh | sh
 ```
 
@@ -250,16 +250,9 @@ verifies the download against the release's `checksums.txt`. Binaries are also
 on the [Releases page](https://github.com/agustinsacco/Phosphor/releases): DMG
 and ZIP for macOS, AppImage and `.deb` for Linux.
 
-Windows: download `Phosphor-<version>-x64.exe` from the
-[latest release](https://github.com/agustinsacco/Phosphor/releases/latest) and
-run it. It installs per user (no administrator prompt) and picks its own
-install folder unless you change it. The installer is not code-signed, so
-SmartScreen shows "Windows protected your PC". Choose **More info → Run
-anyway**. Install pi with `npm install -g @earendil-works/pi-coding-agent` in
-any terminal; Phosphor finds it on the user PATH that npm sets up. A Node
-version manager that only configures PATH per terminal (fnm, nvm-windows
-without a system-wide link) is not visible to a desktop app, and the setup
-screen says so.
+Windows builds are paused to keep CI fast and will return in a later release.
+Existing Windows installs keep running the last Windows release; they find no
+newer Windows update until builds resume.
 
 Phosphor needs `pi` on your PATH:
 
