@@ -507,3 +507,47 @@ it('refuses an append beyond the exclude cap without modifying exact-cap content
   expect(readFileSync(exclude)).toEqual(content)
   expect(existsSync(join(root, '.phosphor', 'worktrees', 'append-cap'))).toBe(false)
 })
+
+it('fresh refuses a laneless old branch without a folder, and a suffixed branch starts from main', async () => {
+  await run(['checkout', '-b', 'phosphor/fix-bug'])
+  await run(['commit', '--allow-empty', '-m', 'old unrelated work'])
+  const old = await run(['rev-parse', 'HEAD'])
+  await run(['checkout', 'main'])
+  await expect(
+    prepareLaneFolder({ root, worktree: { branch: 'phosphor/fix-bug', fresh: true } }),
+  ).rejects.toMatchObject({ code: 'branch-exists' })
+  expect(existsSync(join(root, '.phosphor', 'worktrees', 'phosphor-fix-bug'))).toBe(false)
+  expect(existsSync(join(root, '.phosphor'))).toBe(false)
+  const next = await prepareLaneFolder({
+    root,
+    worktree: { branch: 'phosphor/fix-bug-2', fresh: true },
+  })
+  expect(await run(['rev-parse', 'phosphor/fix-bug-2'])).toBe(await run(['rev-parse', 'main']))
+  expect(await run(['rev-parse', 'phosphor/fix-bug'])).toBe(old)
+  await next.undo()
+})
+
+it('two concurrent fresh creates never reuse the same branch', async () => {
+  const realGit = exec.git
+  let waiting = 0
+  let release!: () => void
+  const barrier = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  vi.spyOn(exec, 'git').mockImplementation(async (cwd, args, options) => {
+    if (args[0] === 'update-ref' && args[1] === 'refs/heads/concurrent') {
+      if (++waiting === 2) release()
+      await barrier
+    }
+    return realGit(cwd, args, options)
+  })
+
+  const results = await Promise.allSettled(
+    [1, 2].map(() => prepareLaneFolder({ root, worktree: { branch: 'concurrent', fresh: true } })),
+  )
+  expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+  expect(results.find((r) => r.status === 'rejected')).toMatchObject({
+    reason: { code: 'branch-exists' },
+  })
+  for (const result of results) if (result.status === 'fulfilled') await result.value.undo()
+})

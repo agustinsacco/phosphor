@@ -167,7 +167,7 @@ export type HostsSnapshot = Record<string, HostConnectionView>
 /** A new lane on a Host (11). The Host picks the folder; never a path from here. */
 export interface RemoteLaneCreate {
   repositoryId: string
-  worktree?: { branch: string }
+  worktree?: { branch: string; fresh?: true }
   name?: string
   provider?: string
   model?: string

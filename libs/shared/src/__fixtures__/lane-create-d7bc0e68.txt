@@ -1,0 +1,23 @@
+    case 'lane.create': {
+      if (
+        !hex(v.repositoryId) ||
+        (v.worktree !== null && (!record(v.worktree) || !isLaneBranchName(v.worktree.branch))) ||
+        (v.name !== undefined && !label(v.name)) ||
+        (v.provider !== undefined && !text(v.provider, 200)) ||
+        (v.model !== undefined && !text(v.model, 200)) ||
+        (v.thinkingLevel !== undefined && !member(v.thinkingLevel, thinking))
+      )
+        return null
+      return {
+        type: v.type,
+        repositoryId: v.repositoryId,
+        worktree:
+          record(v.worktree) && isLaneBranchName(v.worktree.branch)
+            ? { branch: v.worktree.branch }
+            : null,
+        ...(v.name !== undefined ? { name: v.name } : {}),
+        ...(v.provider !== undefined ? { provider: v.provider } : {}),
+        ...(v.model !== undefined ? { model: v.model } : {}),
+        ...(v.thinkingLevel !== undefined ? { thinkingLevel: v.thinkingLevel } : {}),
+      }
+    }

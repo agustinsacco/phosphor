@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { test, expect } from '@playwright/test'
 import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
 import {
@@ -15,6 +16,11 @@ test('Create on bee1 with a usable default and name the first turn', async ({
   test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
+    execFileSync('git', ['branch', 'phosphor/phx-created'], { cwd: h.repo })
+    const base = execFileSync('git', ['rev-parse', 'main'], {
+      cwd: h.repo,
+      encoding: 'utf8',
+    }).trim()
     await h.signIn()
     await selectMachine(h, 'bee1')
     await h.page.getByRole('button', { name: 'New lane in repository', exact: true }).click()
@@ -34,9 +40,15 @@ test('Create on bee1 with a usable default and name the first turn', async ({
         const hosts = await h.page.evaluate(() => window.phosphor.invoke('hosts:snapshot'))
         return Object.values(hosts)
           .flatMap((host) => host.lanes)
-          .some((lane) => lane.branch === 'phosphor/phx-created' && lane.worktree)
+          .some((lane) => lane.branch === 'phosphor/phx-created-2' && lane.worktree)
       })
       .toBe(true)
+    expect(
+      execFileSync('git', ['rev-parse', 'phosphor/phx-created-2'], {
+        cwd: h.repo,
+        encoding: 'utf8',
+      }).trim(),
+    ).toBe(base)
     await expect(remoteRow(h, 'HOST_A_ONLY title')).toBeVisible()
     await expect(h.page.locator('aside')).not.toContainText('Untitled lane')
     await remoteRow(h, 'HOST_A_ONLY title').click({ button: 'right' })
@@ -50,10 +62,16 @@ test('Create on bee1 with a usable default and name the first turn', async ({
     await sendTurn(h, 'PHX-afterrename')
     await expect(remoteRow(h, 'HOST_A_ONLY manual')).toBeVisible()
     await captures(h, info, 'remote-header')
-    await h.page.getByRole('button', { name: 'New lane in repository', exact: true }).click()
+    await h.page.getByTestId('thinking-chip').click()
+    const low = h.page.getByRole('button', { name: 'Low', exact: true })
+    await low.focus()
+    await low.press('Enter')
+    await expect(h.page.getByTestId('thinking-chip')).toContainText('Low')
+    await h.page.getByRole('button', { name: 'New', exact: true }).click()
     await expect(h.page.getByRole('button', { name: 'Model', exact: true })).toContainText(
       'HOST_B_ONLY Reasoner',
     )
+    await expect(h.page.getByRole('button', { name: 'Thinking', exact: true })).toContainText('low')
     expect(await h.localSentinel()).toBe('LOCAL_ONLY decoy\n')
   } finally {
     await h.close()

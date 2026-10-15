@@ -141,7 +141,7 @@ it.each([true, false])(
         provider: 'p',
         model: 'm',
         thinkingLevel: 'off',
-        ...(isolate ? { worktree: { branch: 'phosphor/keep-my-draft' } } : {}),
+        ...(isolate ? { worktree: { branch: 'phosphor/keep-my-draft', fresh: true } } : {}),
       },
       'Keep my draft',
       [],

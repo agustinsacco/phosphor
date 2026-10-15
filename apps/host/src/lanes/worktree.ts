@@ -14,7 +14,14 @@ import { isLaneBranchName } from '@phosphor/shared/host-protocol'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 
-export class LaneFolderError extends Error {}
+export class LaneFolderError extends Error {
+  constructor(
+    message: string,
+    readonly code?: 'branch-exists',
+  ) {
+    super(message)
+  }
+}
 export interface LaneFolder {
   cwd: string
   branch: string | null
@@ -22,7 +29,7 @@ export interface LaneFolder {
 }
 export async function prepareLaneFolder(input: {
   root: string
-  worktree: { readonly branch: string } | null
+  worktree: { readonly branch: string; readonly fresh?: true } | null
   log?: RuntimeLog
 }): Promise<LaneFolder> {
   const { root, worktree, log } = input
@@ -106,7 +113,10 @@ export async function prepareLaneFolder(input: {
           ? 'master'
           : await run(['rev-parse', '--abbrev-ref', 'HEAD'])
     }
-    if (branch === defaultBranch) refuse('The default branch stays in the main tree.')
+    if (branch === defaultBranch) {
+      if (worktree.fresh) throw new LaneFolderError('That branch already exists.', 'branch-exists')
+      refuse('The default branch stays in the main tree.')
+    }
     const checkFolders = () => {
       for (const folder of [join(root, '.phosphor'), join(root, '.phosphor', 'worktrees')])
         directory(folder)
@@ -119,8 +129,10 @@ export async function prepareLaneFolder(input: {
         if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
       }
     }
-    checkFolders()
-    checkLeafAbsent()
+    if (!worktree.fresh) {
+      checkFolders()
+      checkLeafAbsent()
+    }
     const exists = async (ref: string) => {
       try {
         await run(['show-ref', '--verify', '--quiet', ref])
@@ -130,7 +142,11 @@ export async function prepareLaneFolder(input: {
       }
     }
     const existing = await exists(`refs/heads/${branch}`)
+    if (existing && worktree.fresh)
+      throw new LaneFolderError('That branch already exists.', 'branch-exists')
+    if (worktree.fresh) checkFolders()
     if (
+      !worktree.fresh &&
       (await run(['worktree', 'list', '--porcelain']))
         .split('\n')
         .includes(`branch refs/heads/${branch}`)
@@ -147,7 +163,13 @@ export async function prepareLaneFolder(input: {
           ? defaultBranch
           : 'HEAD'
       baseCommit = await run(['rev-parse', '--verify', `${base}^{commit}`])
-      await run(['update-ref', `refs/heads/${branch}`, baseCommit, '0'.repeat(baseCommit.length)])
+      try {
+        await run(['update-ref', `refs/heads/${branch}`, baseCommit, '0'.repeat(baseCommit.length)])
+      } catch (error) {
+        if (worktree.fresh && (await exists(`refs/heads/${branch}`)))
+          throw new LaneFolderError('That branch already exists.', 'branch-exists')
+        throw error
+      }
       madeBranch = true
       created = true
     }

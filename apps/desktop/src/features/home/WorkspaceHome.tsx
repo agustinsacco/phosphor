@@ -1,3 +1,4 @@
+import { remoteBranchName } from './remoteBranchName'
 import { rememberRemoteRepository, useRemoteComposer } from './remoteComposer'
 import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
 import { HostHome } from './HostHome'
@@ -13,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { WorkspaceSessionStats } from '@shared/models'
 import { useWorktreesStore } from '@/stores/worktrees'
-import { newChatBranchName, prefetchTrunk, startChat } from '@/features/sessions/startChat'
+import { prefetchTrunk, startChat } from '@/features/sessions/startChat'
 import { notifyLane } from '@/features/sessions/laneNotices'
 import { useStartingChatStore } from '@/stores/startingChat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
@@ -183,12 +184,8 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             ...(isolate
               ? {
                   worktree: {
-                    branch: newChatBranchName(message, {
-                      takenBranches: (remoteHost?.lanes ?? [])
-                        .filter((lane) => lane.repositoryId === repositoryId && lane.branch)
-                        .map((lane) => lane.branch ?? ''),
-                      takenFolders: [],
-                    }).branch,
+                    branch: remoteBranchName(message),
+                    fresh: true,
                   },
                 }
               : {}),
@@ -203,8 +200,14 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               useDraftsStore.getState().clear(draftKey)
           },
         )
-      } catch {
-        const error = 'The Host could not confirm this. Check the lane before retrying.'
+      } catch (failure) {
+        const code = ipcErrorText(failure)
+        const error =
+          code === 'branch-name-exhausted'
+            ? `Couldn't find a free branch name on ${machineLabel(composerMachine)}.`
+            : code === 'branch-prefix-too-long'
+              ? 'Branch prefix is too long for a Host worktree. Shorten it in Settings.'
+              : 'The Host could not confirm this. Check the lane before retrying.'
         setWarning(error)
         useExtensionUiStore.getState().pushToast(error, 'warning')
       } finally {
