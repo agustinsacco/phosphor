@@ -1,10 +1,16 @@
-import { writeFile } from 'node:fs/promises'
+import { mkdir, symlink, writeFile } from 'node:fs/promises'
+import * as fs from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { renameSync } from 'node:fs'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { parseHostFrame, type HostFrame, type Receipt } from '@phosphor/shared/host-protocol'
+import {
+  parseClientFrame,
+  parseHostFrame,
+  type HostFrame,
+  type Receipt,
+} from '@phosphor/shared/host-protocol'
 import { createLoopbackPair } from '@phosphor/shared/host-protocol-testing'
 import type { SessionPush } from '@phosphor/shared/models'
 import type { RpcCommand, RpcSessionState } from '@phosphor/shared/rpc'
@@ -20,6 +26,8 @@ import { createLiveLanes } from './live'
 import { openStore, type HostStore } from './store'
 import { createUnattachedSnapshots } from './transcript'
 import { createSubscriptions } from './subscriptions'
+
+vi.mock('node:fs/promises', { spy: true })
 
 const state: RpcSessionState = {
   sessionId: 'pi-id',
@@ -507,7 +515,194 @@ it('attachment waits for the first full refresh', async () => {
   expect(attached).toBe(true)
 })
 
+function laneModel(provider: string, id = 'model') {
+  return {
+    provider,
+    id,
+    name: id,
+    api: 'test',
+    reasoning: false,
+    input: ['text'],
+    contextWindow: 200000,
+    maxTokens: 4096,
+    cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+  }
+}
+
 describe('lane lifecycle parity', () => {
+  it('records the recreated pi file before a prompt and resumes it after a Host restart', async () => {
+    const s = setup()
+    const original = await s.binding.sessions.start({ repository: machine.repository })
+    const lane = s.saved()
+    const oldFile = join(machine.dir, 'old-unwritten.jsonl')
+    const newFile = join(machine.dir, 'replacement.jsonl')
+    const filesAtAttachment: (string | null | undefined)[] = []
+    let provider = 'old'
+    s.runtime.command.mockImplementation(async (id, cmd) => {
+      if (cmd.type === 'set_model') provider = cmd.provider
+      if (cmd.type === 'prompt') await writeFile(newFile, '{}\n')
+      if (id !== original.sessionId && cmd.type === 'get_messages')
+        filesAtAttachment.push(store.getLane(lane.laneId)?.sessionFile)
+      return {
+        type: 'response',
+        command: cmd.type,
+        success: true,
+        data:
+          cmd.type === 'get_messages'
+            ? { messages: [] }
+            : {
+                ...state,
+                model: laneModel(provider),
+                sessionFile: id === original.sessionId ? oldFile : newFile,
+              },
+      }
+    })
+    await s.binding.sessions.attach(lane.laneId, original.sessionId)
+    await s.binding.command(original.sessionId, {
+      type: 'set_model',
+      provider: 'new',
+      modelId: 'model',
+    })
+    expect(store.getLane(lane.laneId)?.sessionFile).toBe(newFile)
+    expect(filesAtAttachment).toEqual([newFile])
+    const replacement = live.sessionFor(lane.laneId)
+    if (!replacement) throw new Error('missing replacement')
+    await s.binding.command(replacement, { type: 'prompt', message: 'first prompt' })
+    // Shutdown does not perform stopLane's get_state learning. Reopen the store
+    // and compose a fresh binding just as a subsequent Host process does.
+    await s.binding.sessions.stop(replacement)
+    live.close()
+    store.close()
+    store = await openStore(join(machine.dir, 'state'), process.getuid?.())
+    live = createLiveLanes({
+      epoch: '0123456789abcdef',
+      store,
+      runtime: s.runtime,
+      now: Date.now,
+      log: vi.fn(),
+    })
+    const restarted = createRuntimeLanes({ runtime: s.runtime, store, live, log: vi.fn() })
+    const recorded = store.getLane(lane.laneId)
+    if (!recorded) throw new Error('missing stored lane')
+    await restarted.resumeLane(recorded)
+    expect(s.runtime.start).toHaveBeenLastCalledWith(
+      { repository: machine.repository, sessionPath: newFile },
+      expect.any(Function),
+    )
+    expect(filesAtAttachment).toEqual([newFile, newFile])
+  })
+
+  it.each(['EIO', 'EACCES', 'symlink', 'directory'] as const)(
+    'refuses an unverifiable %s transcript without changing or restarting pi',
+    async (failure) => {
+      const s = setup()
+      const original = await s.binding.sessions.start({ repository: machine.repository })
+      const lane = s.saved()
+      const file = join(machine.dir, 'session.jsonl')
+      if (failure === 'directory') await mkdir(file)
+      else if (failure === 'symlink') {
+        const target = join(machine.dir, 'target.jsonl')
+        await writeFile(target, '{}\n')
+        await symlink(target, file)
+      } else await writeFile(file, '{}\n')
+      s.runtime.command.mockImplementation(async (_id, cmd) => ({
+        type: 'response',
+        command: cmd.type,
+        success: true,
+        data:
+          cmd.type === 'get_messages'
+            ? { messages: [] }
+            : {
+                ...state,
+                model: laneModel('old'),
+                sessionFile: file,
+              },
+      }))
+      await s.binding.sessions.attach(lane.laneId, original.sessionId)
+      s.runtime.command.mockClear()
+      if (failure === 'EIO' || failure === 'EACCES')
+        vi.spyOn(fs, 'lstat').mockRejectedValueOnce(
+          Object.assign(new Error('private path'), { code: failure }),
+        )
+      expect(
+        await s.binding.command(original.sessionId, {
+          type: 'set_model',
+          provider: 'new',
+          modelId: 'model',
+        }),
+      ).toMatchObject({
+        success: false,
+        error: 'The lane transcript could not be verified. Model was not changed.',
+      })
+      expect(s.runtime.command.mock.calls.some(([, cmd]) => cmd.type === 'set_model')).toBe(false)
+      expect(s.runtime.stop).not.toHaveBeenCalled()
+      expect(s.runtime.start).toHaveBeenCalledTimes(1)
+      expect(live.sessionFor(lane.laneId)).toBe(original.sessionId)
+      expect(live.summaryFor(lane.laneId)?.model?.provider).toBe('old')
+    },
+  )
+
+  it.each([129, 200])(
+    'confirms a %i-character model id even when the store cannot persist it',
+    async (length) => {
+      const s = setup()
+      const original = await s.binding.sessions.start({ repository: machine.repository })
+      const lane = s.saved()
+      store.updateLane(lane.laneId, { provider: 'old', model: 'previous' })
+      let id = 'previous'
+      s.runtime.command.mockImplementation(async (_id, cmd) => {
+        if (cmd.type === 'set_model') id = cmd.modelId
+        return {
+          type: 'response',
+          command: cmd.type,
+          success: true,
+          data:
+            cmd.type === 'get_messages'
+              ? { messages: [] }
+              : {
+                  ...state,
+                  model: laneModel('old', id),
+                },
+        }
+      })
+      await s.binding.sessions.attach(lane.laneId, original.sessionId)
+      const selected = 'm'.repeat(length)
+      const op = { type: 'set_model', provider: 'old', modelId: selected } as const
+      expect(
+        parseClientFrame(
+          JSON.stringify({
+            type: 'command',
+            requestId: randomUUID(),
+            laneId: lane.laneId,
+            fence: 1,
+            op,
+          }),
+        ).ok,
+      ).toBe(true)
+      expect(await s.binding.command(original.sessionId, op)).toMatchObject({ success: true })
+      expect(live.summaryFor(lane.laneId)?.model).toMatchObject({ provider: 'old', id: selected })
+      expect(store.getLane(lane.laneId)?.model).toEqual({ provider: 'old', id: 'previous' })
+      expect(s.log).toHaveBeenCalledExactlyOnceWith('host', 'lane.model_persistence_failed')
+      expect(s.runtime.stop).not.toHaveBeenCalled()
+      live.detach(lane.laneId)
+      expect(live.summaryFor(lane.laneId)?.model?.id).toBe('previous')
+    },
+  )
+
+  it('refuses a 201-character model id at protocol admission', () => {
+    expect(
+      parseClientFrame(
+        JSON.stringify({
+          type: 'command',
+          requestId: randomUUID(),
+          laneId: randomUUID(),
+          fence: 1,
+          op: { type: 'set_model', provider: 'old', modelId: 'm'.repeat(201) },
+        }),
+      ).ok,
+    ).toBe(false)
+  })
+
   it('refuses Stop before the first prompt, then records pi file identity for resume', async () => {
     const s = setup()
     const session = await s.binding.sessions.start({ repository: machine.repository })

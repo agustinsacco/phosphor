@@ -10,6 +10,7 @@ import type { HostStore, StoredLane } from './store'
 
 const STARTUP_PUSHES = 256
 const STARTUP_BYTES = 1024 * 1024
+const MODEL_TRANSCRIPT_REFUSAL = 'The lane transcript could not be verified. Model was not changed.'
 type Binding = {
   switching?: boolean
   namingEligible?: boolean
@@ -105,6 +106,30 @@ export function createRuntimeLanes(options: {
     if (state?.sessionFile) options.store.bindSessionFile(laneId, state.sessionFile)
     return state
   }
+  function persistModel(laneId: string, model: { provider: string; id: string }) {
+    try {
+      options.store.updateLane(laneId, { provider: model.provider, model: model.id })
+    } catch {
+      // pi has already switched. A summary write must not turn its success into
+      // an uncertain command outcome, even if logging is also unavailable.
+      try {
+        options.log('host', 'lane.model_persistence_failed')
+      } catch {
+        // Logging cannot fail a confirmed model selection.
+      }
+    }
+  }
+  async function hasSavedSession(file: string | undefined): Promise<boolean> {
+    if (!file) return false
+    try {
+      const info = await lstat(file)
+      if (info.isFile()) return true
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code === 'ENOENT' || code === 'ENOTDIR') return false
+    }
+    throw new Error(MODEL_TRANSCRIPT_REFUSAL)
+  }
   const sessions: LaneSessions = { start, attach, stop }
   return {
     sessions,
@@ -175,6 +200,25 @@ export function createRuntimeLanes(options: {
             success: false as const,
             error: 'Wait for the current turn before changing providers.',
           }
+        let persisted = false
+        if (
+          args[1].type === 'set_model' &&
+          beforeModel?.model &&
+          beforeModel.model.provider !== args[1].provider
+        ) {
+          try {
+            // Check before asking pi to switch: an unreadable or non-regular
+            // transcript must leave the original process and model untouched.
+            persisted = await hasSavedSession(beforeModel.sessionFile)
+          } catch {
+            return {
+              type: 'response' as const,
+              command: args[1].type,
+              success: false as const,
+              error: MODEL_TRANSCRIPT_REFUSAL,
+            }
+          }
+        }
         const response = await runtime.command(...args)
         if (
           response.success &&
@@ -190,18 +234,7 @@ export function createRuntimeLanes(options: {
           if (!lane || lane.removedAt !== null) throw new Error('Lane unavailable.')
           if (bindings.get(args[0]) !== binding || live.sessionFor(laneId) !== args[0])
             throw new Error('Lane unavailable.')
-          // pi allocates a session path before the first prompt writes it. Only
-          // pass a saved file to resume admission; otherwise recreate the lane.
-          const persisted =
-            !!selected.sessionFile &&
-            (await lstat(selected.sessionFile).then(
-              (info) => info.isFile(),
-              () => false,
-            ))
-          options.store.updateLane(laneId, {
-            provider: selected.model.provider,
-            model: selected.model.id,
-          })
+          persistModel(laneId, selected.model)
           await stop(args[0])
           const resumed = await start({
             repository: lane.cwd,
@@ -211,6 +244,9 @@ export function createRuntimeLanes(options: {
             thinkingLevel: selected.thinkingLevel,
           })
           try {
+            // start learned this identity from the replacement pi's get_state;
+            // the old unprompted process's allocated path is no longer valid.
+            if (resumed.sessionFile) options.store.bindSessionFile(laneId, resumed.sessionFile)
             if (!persisted && selected.sessionName) {
               const named = await runtime.command(resumed.sessionId, {
                 type: 'set_session_name',
@@ -290,11 +326,7 @@ export function createRuntimeLanes(options: {
           if (currentId) {
             if (args[1].type === 'set_model' && binding?.laneId) {
               const selected = await learnFile(binding.laneId, currentId)
-              if (selected?.model)
-                options.store.updateLane(binding.laneId, {
-                  provider: selected.model.provider,
-                  model: selected.model.id,
-                })
+              if (selected?.model) persistModel(binding.laneId, selected.model)
             }
             await bindings.get(currentId)?.attachment?.stateChanged()
           }

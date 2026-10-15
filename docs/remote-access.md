@@ -783,8 +783,12 @@ lane's own runtime and publish to other clients. Host config can disable naming.
 Stop before a first saved prompt is refused; provider changes rebind the Host
 process before another turn. An allocated but unwritten session path is not a
 resume file: the Host recreates that process with the selected model and restores
-its name. Saved lanes resume their transcript. The selected model remains in the
-lane summary after stop or failure. Desktop retains full model metadata per open
+its name and records the replacement pi's own session path before attachment
+completes. Saved lanes resume their transcript; unreadable or non-regular
+transcripts refuse a provider change without replacing the live process. The
+selected model remains in the lane summary after stop or failure when its ids fit
+the Host store's limits ([known limitation](known-issues.md#host-lanes)). A model
+persistence failure does not fail a confirmed live selection. Desktop retains full model metadata per open
 lane in memory; without it, a stopped lane's chip shows its last reported model id,
 never another lane's model name. Release control uses `hosts:releaseControl` and
 the existing fenced `control.release` operation.
