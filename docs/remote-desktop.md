@@ -42,7 +42,8 @@ also require `sessions.control`.
 
 `hosts:openLane` returns one opaque `remote-<16 hex>` handle per lane per window,
 with at most 64 handles per window. Its workspace key is
-`host:<hostId>/<repositoryId>`, never a local path. Opening marks the lane read.
+`host:<hostId>/lane:<laneId>`, never a local path. Lane-qualified keys keep
+different worktrees in the same repository distinct. Opening marks the lane read.
 `hosts:createLane`, `hosts:stopLane`, `hosts:resumeLane`, `hosts:takeControl` and
 `hosts:markRead` send bounded, validated Host commands. Taking control is always
 explicit. Handles are private to their window and disappear on window close,

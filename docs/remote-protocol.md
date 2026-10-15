@@ -53,16 +53,27 @@ socket, and receipt interest at 64 ids. Excess commands are rejected without
 submission; excess calls close 4429. The oldest status interest is dropped first.
 Execution receipts fan out only to interested sockets of the originating client;
 attempt replies are socket-local and conflicts leave the original interest intact.
-Losing read capability on renewal ends subscriptions and suppresses outstanding
-call answers. A later regain permits new subscriptions. Replay,
+Lane-summary and lane-stream subscriptions require `sessions.read`; terminal
+subscriptions independently require `terminal`. Losing either capability on
+renewal ends only its corresponding subscriptions. Regaining it permits new
+subscriptions. Each call requires its operation's capability before execution and
+before delivery; an outstanding result is suppressed if that required capability
+is lost or the socket closes. Replay,
 queues, UI keys and receipt retention are bounded too. Oversize subscriptions
 end with `too-large`, not a closed socket; oversize call results answer
 `too-large`. Replay stops when an oversized event becomes a reset snapshot or the
 subscription fails; older events never follow the reset. A slow subscription
-resumes with one reset snapshot. Close codes
-are 1001 for shutdown, 4400 for malformed client frames, 4401 for missing or
-expired auth, 4403 for forbidden access, 4409 for incompatible protocol and
-4429 for excess requests or connections.
+resumes with one reset snapshot.
+
+| Close code | Meaning                                                                               |
+| ---------- | ------------------------------------------------------------------------------------- |
+| 1001       | Host stopping                                                                         |
+| 4400       | Malformed or oversize frame; binary frame after auth                                  |
+| 1009       | Transport rejects an oversize frame; the Host may log 1006 for that close             |
+| 4401       | Auth missing, invalid, expired or not yet valid; idle client                          |
+| 4403       | Wrong authority, revoked grant or renewal identity change                             |
+| 4409       | Unsupported protocol version                                                          |
+| 4429       | Too many calls, connections or queued bytes; HTTP 429 during an upgrade is equivalent |
 
 `@phosphor/shared/host-protocol-testing` exports the asynchronous bounded
 loopback transport, fake Host and reusable conformance suite. Production
