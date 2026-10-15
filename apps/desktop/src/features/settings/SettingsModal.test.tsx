@@ -4,6 +4,12 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { SettingsModal } from './SettingsModal'
 import { useSettingsUiStore } from './settingsUiStore'
+import { useLayoutStore } from '@/stores/layout'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useSessionsStore } from '@/stores/sessions'
+import { useMachinesStore } from '@/stores/machines'
+import { mockRemoteInfo } from '@/dev/mockRemoteLanes'
+import { isMachineSettingsTab } from './SettingsMachineScope'
 import { useFeedbackStore } from '@/features/feedback/feedbackStore'
 vi.hoisted(() => {
   Object.defineProperty(window, 'matchMedia', {
@@ -16,17 +22,19 @@ vi.hoisted(() => {
   })
 })
 vi.mock('./tabs/AppearanceTab', () => ({ AppearanceTab: () => <p>Appearance</p> }))
-vi.mock('./tabs/AgentTab', () => ({ AgentTab: () => null }))
-vi.mock('./tabs/AccountsTab', () => ({ AccountsTab: () => null }))
-vi.mock('./tabs/ExtensionsTab', () => ({ ExtensionsTab: () => null }))
-vi.mock('./tabs/ClaudeProviderTab', () => ({ ClaudeProviderTab: () => null }))
-vi.mock('./tabs/WebAccessTab', () => ({ WebAccessTab: () => null }))
-vi.mock('./tabs/WorkspacesTab', () => ({ WorkspacesTab: () => null }))
-vi.mock('./tabs/OptimizationTab', () => ({ OptimizationTab: () => null }))
-vi.mock('./tabs/AdvancedTab', () => ({ AdvancedTab: () => null }))
-vi.mock('./tabs/ConnectorsTab', () => ({ ConnectorsTab: () => null }))
-vi.mock('./tabs/ComputerUseTab', () => ({ ComputerUseTab: () => null }))
-vi.mock('./tabs/SubagentsTab', () => ({ SubagentsTab: () => null }))
+vi.mock('./tabs/AgentTab', () => ({ AgentTab: () => <p>Local agent controls</p> }))
+vi.mock('./tabs/AccountsTab', () => ({ AccountsTab: () => <p>Local account controls</p> }))
+vi.mock('./tabs/ExtensionsTab', () => ({ ExtensionsTab: () => <p>Local machine controls</p> }))
+vi.mock('./tabs/ClaudeProviderTab', () => ({
+  ClaudeProviderTab: () => <p>Local machine controls</p>,
+}))
+vi.mock('./tabs/WebAccessTab', () => ({ WebAccessTab: () => <p>Local machine controls</p> }))
+vi.mock('./tabs/WorkspacesTab', () => ({ WorkspacesTab: () => <p>Local machine controls</p> }))
+vi.mock('./tabs/OptimizationTab', () => ({ OptimizationTab: () => <p>Local machine controls</p> }))
+vi.mock('./tabs/AdvancedTab', () => ({ AdvancedTab: () => <p>Local machine controls</p> }))
+vi.mock('./tabs/ConnectorsTab', () => ({ ConnectorsTab: () => <p>Local machine controls</p> }))
+vi.mock('./tabs/ComputerUseTab', () => ({ ComputerUseTab: () => <p>Local machine controls</p> }))
+vi.mock('./tabs/SubagentsTab', () => ({ SubagentsTab: () => <p>Local machine controls</p> }))
 vi.mock('./tabs/AboutTab', () => ({ AboutTab: () => null }))
 let root: Root
 let container: HTMLDivElement
@@ -39,6 +47,10 @@ const invoke = vi.fn(async (channel: string) =>
 )
 beforeEach(() => {
   invoke.mockClear()
+  useRemoteLanesStore.setState({ filter: 'local' })
+  useSessionsStore.setState({ activeSessionId: null, live: {} })
+  useMachinesStore.setState({ machines: [], view: { kind: 'list' } })
+  useLayoutStore.setState({ page: null })
   Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
     configurable: true,
     value: () => undefined,
@@ -80,4 +92,112 @@ it('preserves the one-time nudge and dismisses it without opening feedback', asy
   expect(invoke).toHaveBeenCalledWith('feedback:dismiss')
   expect(footer?.textContent).toContain('Send feedback')
   expect(useFeedbackStore.getState().open).toBe(false)
+})
+
+it('labels local machine settings without labelling appearance as machine policy', async () => {
+  await act(async () => root.render(<SettingsModal />))
+  expect(document.body.textContent).not.toContain('These settings configure This Mac')
+  await act(async () => useSettingsUiStore.getState().setTab('accounts'))
+  expect(document.body.textContent).toContain('This Mac')
+  expect(document.body.textContent).toContain('Local account controls')
+})
+
+it.each([
+  'accounts',
+  'agent',
+  'extensions',
+  'connectors',
+  'optimization',
+  'advanced',
+  'voice',
+  'workspaces',
+  'claude-provider',
+  'web-access',
+  'computer-use',
+  'subagents',
+] as const)(
+  'does not mount local %s controls or discover packages for a selected Host',
+  async (tab) => {
+    useRemoteLanesStore.setState({ filter: 'test-host' })
+    useSettingsUiStore.setState({ tab })
+    await act(async () => root.render(<SettingsModal />))
+    expect(document.body.textContent).toContain('Remote settings are not available here.')
+    expect(document.body.textContent).not.toContain('Local account controls')
+    expect(document.body.textContent).not.toContain('Local agent controls')
+    expect(document.body.textContent).not.toContain('Local machine controls')
+    expect(invoke.mock.calls.filter(([channel]) => channel !== 'feedback:state')).toEqual([])
+    const button = [...document.querySelectorAll('button')].find((b) =>
+      b.textContent?.includes('readiness'),
+    )
+    act(() => button?.click())
+    expect(useSettingsUiStore.getState().open).toBe(false)
+    expect(useMachinesStore.getState().view).toEqual({ kind: 'machine', id: 'test-host' })
+  },
+)
+
+it('blocks machine settings for an active remote lane even with This Mac selected', async () => {
+  const { sessionId, workspacePath, target, laneId } = mockRemoteInfo
+  useSessionsStore.setState({
+    activeSessionId: sessionId,
+    live: { [sessionId]: { phosphorId: sessionId, workspacePath, target, laneId } },
+  })
+  useSettingsUiStore.setState({ tab: 'accounts' })
+  await act(async () => root.render(<SettingsModal />))
+  expect(document.body.textContent).toContain('To sign in on')
+  expect(document.body.textContent).not.toContain('Local account controls')
+  expect(invoke).not.toHaveBeenCalledWith('packages:list', workspacePath)
+})
+
+it.each([
+  'accounts',
+  'claude-provider',
+  'agent',
+  'connectors',
+  'extensions',
+  'optimization',
+  'advanced',
+  'web-access',
+  'subagents',
+  'computer-use',
+] as const)('marks %s as This Mac policy', (tab) => expect(isMachineSettingsTab(tab)).toBe(true))
+
+it('blocks machine effects for a selected Machines detail without an active remote lane', async () => {
+  useLayoutStore.setState({ page: 'machines' })
+  useMachinesStore.setState({ view: { kind: 'machine', id: 'selected-host' } })
+  useSettingsUiStore.setState({ tab: 'agent' })
+  await act(async () => root.render(<SettingsModal />))
+  expect(document.body.textContent).toContain('Remote settings are not available here.')
+  expect(document.body.textContent).not.toContain('Local agent controls')
+  expect(invoke.mock.calls.filter(([channel]) => channel !== 'feedback:state')).toEqual([])
+})
+
+it('refreshes scope from This Mac to a Host and back while Settings is open', async () => {
+  useSettingsUiStore.setState({ tab: 'accounts' })
+  await act(async () => root.render(<SettingsModal />))
+  expect(document.body.textContent).toContain('Local account controls')
+  invoke.mockClear()
+  await act(async () => useRemoteLanesStore.setState({ filter: 'test-host' }))
+  expect(document.body.textContent).not.toContain('Local account controls')
+  expect(document.body.textContent).toContain('Remote settings are not available here.')
+  expect(invoke).not.toHaveBeenCalled()
+  await act(async () => useRemoteLanesStore.setState({ filter: 'local' }))
+  expect(document.body.textContent).toContain('Local account controls')
+  expect(document.body.textContent).not.toContain('Remote settings are not available here.')
+})
+
+it('refreshes scope on a Mac lane to Host lane to Mac lane switch', async () => {
+  const { sessionId, workspacePath, target, laneId } = mockRemoteInfo
+  useSessionsStore.setState({
+    activeSessionId: 'mac-lane',
+    live: { [sessionId]: { phosphorId: sessionId, workspacePath, target, laneId } },
+  })
+  useSettingsUiStore.setState({ tab: 'accounts' })
+  await act(async () => root.render(<SettingsModal />))
+  expect(document.body.textContent).toContain('Local account controls')
+  await act(async () => useSessionsStore.setState({ activeSessionId: sessionId }))
+  expect(document.body.textContent).toContain('To sign in on')
+  expect(document.body.textContent).not.toContain('Local account controls')
+  await act(async () => useSessionsStore.setState({ activeSessionId: 'mac-lane' }))
+  expect(document.body.textContent).toContain('Local account controls')
+  expect(document.body.textContent).not.toContain('To sign in on')
 })

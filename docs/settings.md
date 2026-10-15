@@ -38,6 +38,24 @@ Below the `md` breakpoint the sidebar becomes a top bar: the search field, then
 the tabs as one horizontally scrolling strip. Send feedback stays reachable below
 the strip. On wider layouts it is pinned to the bottom of the left column.
 
+## Machine scope
+
+Machine settings carry a **This Mac** banner: Accounts, Agent (including Context
+budget and Directives), Extensions and their provider tabs, Connectors,
+Workspaces, Optimization, Voice and Advanced (including Maintenance).
+
+With a remote lane, a Host filter, or a machine detail active, these panels
+show a fixed unavailable explanation instead of mounting local controls. They
+neither load nor change This Mac's machine settings, and do not attempt
+unsupported Host configuration calls. Accounts points to **Machines →
+\<machine\> → Readiness** with a button that opens that machine. Remote package
+tabs show this explanation without consulting This Mac's installed packages.
+Appearance, Writing, Keybindings and About remain client-wide.
+
+A remote lane's context meter uses the Host-reported effective window, preferring
+the live context extension value over the stats poll. It labels the budget with
+the machine name. This Mac's Context budget preference never caps that meter.
+
 ## Search
 
 The field at the top of the sidebar takes focus on open; Cmd/Ctrl+F returns to
@@ -128,14 +146,14 @@ project scope, an empty field's placeholder names what it inherits.
 - Compaction (enabled, reserveTokens, keepRecentTokens) and retry (enabled,
   maxRetries, baseDelayMs). Compaction applies to every provider, including
   Claude Code; switching models does not override the user's choice.
-- **Context budget**: a shared target for interactive sessions on every
+- **Context budget**: a This Mac target for interactive sessions on every
   provider, Claude Code included (default 200k; 400k; model maximum; or
   custom, 100k–1M). Bare numbers are thousands: `500` means 500k, previewed
   beside the field. This unscoped Phosphor pref stays editable even when pi's
   settings file is broken. pi uses the capped window between tool cycles, including live
   sessions. Smaller windows retain pi's native limit. See
   [One context budget](cli-providers.md#one-context-budget).
-- **Directives**: what Phosphor appends to every lane's system prompt, global
+- **Directives**: what Phosphor appends to This Mac's lane system prompts, global
   or per project, shown composed before it is sent. A prompt you cannot read is
   one you cannot debug.
 - If the target file is not valid JSON, editing is **disabled** rather than

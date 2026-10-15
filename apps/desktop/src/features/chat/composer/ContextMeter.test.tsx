@@ -7,6 +7,7 @@ import { useChatStore } from '@/stores/chat'
 import { useSessionsStore } from '@/stores/sessions'
 import { useExtensionUiStore } from '@/stores/extensionUi'
 import { useContextBudgetStore } from '@/stores/contextBudgetPref'
+import { mockRemoteInfo } from '@/dev/mockRemoteLanes'
 import type { SessionStats } from '@shared/rpc'
 
 beforeAll(() => {
@@ -125,6 +126,7 @@ function click(text: string): void {
 
 beforeEach(() => {
   invoke.mockClear()
+  useSessionsStore.setState({ live: {} })
   sessionAccount = null
   usageResult = null
   ;(globalThis as unknown as { window: { phosphor: unknown } }).window.phosphor = { invoke }
@@ -477,4 +479,80 @@ describe('ContextMeter', () => {
     expect(invoke).not.toHaveBeenCalledWith('claude:sessionAccount', SESSION, undefined)
     expect(document.body.textContent).not.toContain('Plan usage')
   })
+})
+
+describe('remote context budget', () => {
+  beforeEach(() => {
+    const { workspacePath, target, laneId } = mockRemoteInfo
+    useSessionsStore.setState({
+      live: { [SESSION]: { phosphorId: SESSION, workspacePath, target, laneId } },
+    })
+  })
+
+  it('uses the Host effective window regardless of This Mac preferences and never fetches local plan usage', async () => {
+    useContextBudgetStore.setState({ contextBudget: '100k' })
+    seed({ tokens: 150_000, contextWindow: 600_000, percent: 25 })
+    render()
+    expect(document.body.textContent).toContain('25% of 600k')
+    act(() => useContextBudgetStore.setState({ contextBudget: '200k' }))
+    expect(document.body.textContent).toContain('25% of 600k')
+    click('25%')
+    await act(async () => {})
+    expect(document.body.textContent).toContain('budget on remote machine')
+    expect(invoke).not.toHaveBeenCalled()
+  })
+
+  it('prefers the live Host extension window over a stale stats poll', () => {
+    seed({ tokens: 150_000, contextWindow: 600_000, percent: 25 })
+    useExtensionUiStore.setState({
+      statuses: {
+        [SESSION]: {
+          'phosphor-context-breakdown': JSON.stringify({
+            totalTokens: 150_000,
+            contextWindow: 300_000,
+            approximate: true,
+            parts: { messages: 140_000, systemPrompt: 5000, tools: 5000, mcpTools: 0 },
+            counts: { messages: 6, tools: 8, mcpTools: 0 },
+            mcpByServer: {},
+          }),
+        },
+      },
+    })
+    render()
+    expect(document.body.textContent).toContain('50% of 300k')
+  })
+
+  it('does not invent a local budget when the Host window is unavailable', () => {
+    useContextBudgetStore.setState({ contextBudget: '100k' })
+    seed({ tokens: null, contextWindow: 0, percent: null })
+    render()
+    expect(document.body.textContent).not.toContain('100k')
+    expect(document.body.textContent).toContain('—')
+  })
+})
+
+it('refreshes the open meter from a Mac lane to a Host lane and back without stale budgets', () => {
+  useContextBudgetStore.setState({ contextBudget: '100k' })
+  seed({ tokens: 50_000, contextWindow: 1_000_000, percent: 5 }, 'openai')
+  const mac = useChatStore.getState().sessions[SESSION]
+  seed({ tokens: 150_000, contextWindow: 600_000, percent: 25 }, 'openai')
+  const host = useChatStore.getState().sessions[SESSION]
+  const HOST = 'bee1'
+  const { workspacePath, target, laneId } = mockRemoteInfo
+  useSessionsStore.setState({
+    live: { [HOST]: { phosphorId: HOST, workspacePath, target, laneId } },
+  })
+  useChatStore.setState({ sessions: { [SESSION]: mac!, [HOST]: host! } })
+  render()
+  click('50%')
+  expect(document.body.textContent).toContain('50.0k / 100k budget')
+  act(() => root!.render(<ContextMeter sessionId={HOST} />))
+  expect(document.body.textContent).toContain('25% of 600k')
+  expect(document.body.textContent).toContain('150k / 600k budget on remote machine')
+  expect(document.body.textContent).not.toContain('100k')
+  act(() => root!.render(<ContextMeter sessionId={SESSION} />))
+  expect(document.body.textContent).toContain('50% of 100k')
+  expect(document.body.textContent).toContain('50.0k / 100k budget')
+  expect(document.body.textContent).not.toContain('remote machine')
+  expect(document.body.textContent).not.toContain('600k')
 })
