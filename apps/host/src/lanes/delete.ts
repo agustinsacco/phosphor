@@ -171,7 +171,7 @@ export function createLaneDeletion(options: {
   }
 }
 
-/** Kept branches are not lane deletion failures. Git's checkout checks remain in force. */
+/** Kept branches are not lane deletion failures. Checkout is re-checked around the deletion. */
 export async function deleteMergedBranch(
   root: string,
   branch: string,
@@ -195,14 +195,8 @@ export async function deleteMergedBranch(
     const tip = await run(['rev-parse', '--verify', `refs/heads/${branch}`])
     if (!allowed() || !(await branchMerged(root, branch))) return false
     if (tip !== (await run(['rev-parse', '--verify', `refs/heads/${branch}`]))) return false
-    if (!allowed()) return false
-    try {
-      // Prefer Git's own checkout protection for true-ancestry merges.
-      await run(['branch', '-d', branch])
-      return true
-    } catch {
-      // Squash merges need the proof above and a compare-and-delete fallback.
-    }
+    // Every merged branch (ancestry or squash) is removed by one compare-and-delete at the
+    // proven tip. `git branch -d` would delete whatever tip is current, not the proven one.
     const before = await run(['worktree', 'list', '--porcelain'])
     if (before.split('\n').includes(`branch ${ref}`) || !allowed()) return false
     // Never dereference a symbolic ref or lose a concurrently advanced tip.

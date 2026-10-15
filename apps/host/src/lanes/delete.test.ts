@@ -146,6 +146,25 @@ it('rechecks authority before a normally merged branch deletion', async () => {
   expect(await run(['rev-parse', '--verify', 'feature'])).toMatch(/^[a-f0-9]{40}$/)
 })
 
+it('compares the proven tip on the ancestry-merged path too', async () => {
+  await run(['branch', 'feature'])
+  await writeFile(join(root, 'a'), 'later')
+  await run(['commit', '-am', 'later'])
+  const advanced = await run(['rev-parse', 'main'])
+  const actual = (await vi.importActual<typeof gitExec>('@phosphor/session-runtime/git/git-exec'))
+    .git
+  vi.mocked(gitExec.git).mockImplementation(async (cwd, args, options) => {
+    if (
+      (args[0] === 'update-ref' && args.includes('-d')) ||
+      (args[0] === 'branch' && (args[1] === '-d' || args[1] === '-D'))
+    )
+      await actual(root, ['update-ref', 'refs/heads/feature', advanced], { isolateEnv: true })
+    return actual(cwd, args, options)
+  })
+  expect(await deleteMergedBranch(root, 'feature')).toBe(false)
+  expect(await run(['rev-parse', 'feature'])).toBe(advanced)
+})
+
 it('keeps a concurrently advanced branch by comparing the proven object id atomically', async () => {
   await run(['checkout', '-b', 'feature'])
   await writeFile(join(root, 'a'), 'feature')

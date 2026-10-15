@@ -1545,10 +1545,10 @@ matching trash files older than 30 days. Missing transcripts are allowed. A
 shared worktree is never removed. Worktree removal uses git without force, so
 dirty worktrees remain. A branch is kept unless its work is proven merged,
 including squash merges by `git cherry` against a synthetic branch-tree commit.
-Symbolic branch refs are kept. Deletion first tries `git branch -d`, retaining
-Git's checkout protection for true-ancestry merges. The squash-proven fallback
-rechecks worktrees immediately before `git update-ref --no-deref -d`, comparing
-with the proven tip atomically so an advanced tip is kept. It checks worktrees
+Symbolic branch refs are kept. Every merged branch, by ancestry or squash, is
+deleted the same way: worktrees are rechecked immediately before
+`git update-ref --no-deref -d`, which compares with the proven tip atomically
+so an advanced tip is kept. It checks worktrees
 again immediately afterwards: a racing checkout causes a create-only restore of
 the proven tip and reports the branch kept. Current and checked-out branches are
 kept; these checks and restoration are not a cross-process worktree lock.
