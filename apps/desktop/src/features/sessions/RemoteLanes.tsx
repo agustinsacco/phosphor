@@ -1,26 +1,22 @@
-import { rememberRemoteModel } from '@/stores/remoteModelPicks'
+import { hostGroupKey, useLaneReveal } from './laneReveal'
+import { openRemoteComposer } from '@/features/home/remoteComposer'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
-import { RemoteModelPicker, useRemoteModel } from '@/features/machines/RemoteModelPicker'
 import { RemoteLaneRow } from './RemoteLaneRow'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
-import { ChoiceMenu } from '@/components/ChoiceMenu'
 import { SearchIcon, MoreIcon, PlusIcon } from '@/components/icons'
 import { WorkspaceGroupHeader, WorkspaceGroupTitle } from './SidebarPrimitives'
 import { MachineLabelLine } from './MachineSwitcher'
 import { LaneSearchBar } from './LaneSearchBar'
 import { laneMatches, laneQueryTerms } from './laneSearch'
-import { MachinePicker } from '@/features/machines/MachinePicker'
 import { TooltipButton } from '@/components/Tooltip'
-import { useEffect, useRef, useState } from 'react'
-import { isLaneBranchName } from '@shared/host-protocol'
+import { useRef, useState } from 'react'
 import { ModalOverlay, ModalPanel } from '@/components/Modal'
-import { Button, TextInput } from '@/components/form'
+import { Button } from '@/components/form'
 import { useMachinesStore } from '@/stores/machines'
 import { useSessionsStore } from '@/stores/sessions'
 import {
   REMOTE_NOT_READY,
   REMOTE_UNAVAILABLE,
-  adoptRemoteLane,
   canReadHost,
   machineLabel,
   useRemoteLanesStore,
@@ -35,7 +31,6 @@ export function RemoteLanes(): React.JSX.Element | null {
   const enabled = useMachinesStore((s) => s.remoteEnabled)
   const machines = useMachinesStore((s) => s.machines)
   const error = useRemoteLanesStore((s) => s.error)
-  const [creating, setCreating] = useState<{ hostId: string; repositoryId?: string } | null>(null)
   if (!enabled || filter === 'local') return null
   const ids =
     filter === 'all'
@@ -55,7 +50,7 @@ export function RemoteLanes(): React.JSX.Element | null {
                   hostId={id}
                   repositoryId={repo.id}
                   name={repo.name}
-                  onCreate={() => setCreating({ hostId: id, repositoryId: repo.id })}
+                  onCreate={() => openRemoteComposer(id, repo.id)}
                 />
               ))
             ) : (
@@ -73,15 +68,6 @@ export function RemoteLanes(): React.JSX.Element | null {
         <p className="text-danger px-2 py-2 text-sm" role="alert">
           {error}
         </p>
-      )}
-      {creating && (
-        <NewRemoteLane
-          key={creating.hostId}
-          hostId={creating.hostId}
-          initialRepositoryId={creating.repositoryId}
-          onMachine={(hostId) => setCreating(hostId ? { hostId } : null)}
-          onClose={() => setCreating(null)}
-        />
       )}
     </>
   )
@@ -124,6 +110,10 @@ function RemoteRepositoryGroup({
     setDraft('')
     setQuery('')
   }
+  useLaneReveal(hostGroupKey(hostId, repositoryId), () => {
+    setCollapsed(false)
+    clear()
+  })
   const controlClass =
     'text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors'
   return (
@@ -298,162 +288,5 @@ function RemoteRepositoryGroup({
         </div>
       )}
     </div>
-  )
-}
-
-export function NewRemoteLane({
-  hostId,
-  initialRepositoryId,
-  onMachine,
-  onClose,
-}: {
-  hostId: string
-  initialRepositoryId?: string
-  onMachine: (hostId: string | null) => void
-  onClose: () => void
-}): React.JSX.Element {
-  const mounted = useRef(true)
-  const navigation = useRef<number | null>(null)
-  useEffect(() => {
-    mounted.current = true
-    return () => {
-      mounted.current = false
-      const sessions = useSessionsStore.getState()
-      if (navigation.current !== null && sessions.navSeq === navigation.current) sessions.claimNav()
-    }
-  }, [])
-  const host = useRemoteLanesStore((s) => s.hosts[hostId])
-  const [repositoryId, setRepositoryId] = useState(
-    initialRepositoryId ?? host?.repositories[0]?.id ?? '',
-  )
-  const [branch, setBranch] = useState('')
-  const [name, setName] = useState('')
-  const selection = useRemoteModel(hostId)
-  const model = selection.model
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  async function create(): Promise<void> {
-    if (busy || host?.state !== 'ready' || !host.capabilities.includes('sessions.control')) return
-    if (
-      !host.repositories.some((repo) => repo.id === repositoryId) ||
-      (branch && !isLaneBranchName(branch)) ||
-      !model
-    ) {
-      setError('Choose a repository, a valid branch, and a usable model.')
-      return
-    }
-    setBusy(true)
-    const nav = useSessionsStore.getState().claimNav()
-    navigation.current = nav
-    try {
-      const info = await window.phosphor.invoke('hosts:createLane', hostId, {
-        repositoryId,
-        ...(branch ? { worktree: { branch } } : {}),
-        ...(name ? { name } : {}),
-        ...(model
-          ? { model: model.id, provider: model.provider, thinkingLevel: selection.thinking }
-          : {}),
-      })
-      if (model) rememberRemoteModel(hostId, model)
-      if (!mounted.current) return
-      await adoptRemoteLane(info, nav)
-      if (mounted.current) onClose()
-    } catch {
-      setError('The Host could not confirm creation. Check the lane list before retrying.')
-    } finally {
-      setBusy(false)
-    }
-  }
-  return (
-    <ModalOverlay onClose={onClose}>
-      <ModalPanel
-        width={420}
-        title={`New lane on ${machineLabel(hostId)}`}
-        subtitle="Start in a configured repository on this machine."
-      >
-        <form
-          className="space-y-3 p-4"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void create()
-          }}
-        >
-          <div className="space-y-1">
-            <label className="text-text-secondary block text-sm">Machine</label>
-            <MachinePicker
-              bordered
-              value={hostId}
-              capability="sessions.control"
-              onChange={(id) => {
-                if (id === 'local') {
-                  onMachine(null)
-                  useSessionsStore.getState().activate(null)
-                  onClose()
-                } else onMachine(id)
-              }}
-            />
-          </div>
-          {host?.state !== 'ready' && <p>Machine not connected. Wait for reconnection.</p>}
-          <div className="space-y-1">
-            <label className="text-text-secondary block text-sm">Repository</label>
-            <ChoiceMenu
-              bordered
-              label="Repository"
-              value={repositoryId}
-              choices={(host?.repositories ?? []).map((repo) => ({
-                value: repo.id,
-                label: repo.name,
-              }))}
-              onChange={setRepositoryId}
-            >
-              {host?.repositories.find((repo) => repo.id === repositoryId)?.name ??
-                'Choose repository'}
-            </ChoiceMenu>
-          </div>
-          <label className="text-text-secondary block space-y-1 text-sm">
-            <span>New branch</span>
-            <TextInput
-              aria-label="New branch (optional)"
-              placeholder="New branch (optional)"
-              className="w-full"
-              maxLength={200}
-              value={branch}
-              onChange={(event) => setBranch(event.target.value)}
-            />
-          </label>
-          <label className="text-text-secondary block space-y-1 text-sm">
-            <span>Name</span>
-            <TextInput
-              aria-label="Lane name (optional)"
-              placeholder="Name (optional)"
-              className="w-full"
-              maxLength={80}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </label>
-          <RemoteModelPicker selection={selection} />
-          {error && <p role="alert">{error}</p>}
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              type="submit"
-              disabled={
-                busy ||
-                !repositoryId ||
-                !model ||
-                host?.state !== 'ready' ||
-                !host.capabilities.includes('sessions.control')
-              }
-            >
-              Create lane
-            </Button>
-          </div>
-        </form>
-      </ModalPanel>
-    </ModalOverlay>
   )
 }

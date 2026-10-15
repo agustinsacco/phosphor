@@ -387,12 +387,9 @@ async function createBranchWorktree(
   await refreshed
   const repo = repoWorktrees(useWorktreesStore.getState(), repoPath)
 
-  const { folder, branch } = branchNameFor({
-    title,
-    prefix: useWorktreesStore.getState().branchPrefix,
+  const { folder, branch } = newChatBranchName(title, {
     takenBranches: repo.branches.map((b) => b.name),
     takenFolders: repo.worktrees.filter((w) => !w.isMain).map((w) => workspaceName(w.path)),
-    maxSlug: lanePrefs().branchSlugMaxLength,
   })
 
   try {
@@ -409,4 +406,17 @@ async function createBranchWorktree(
       error: `Couldn't create the branch ${branch} — this session is running in ${workspaceName(repoPath)} instead. ${errorText(error)}`,
     }
   }
+}
+
+/** The same prompt slug and preferences for This Mac and Host worktrees. */
+export function newChatBranchName(
+  title: string,
+  taken: { takenBranches: string[]; takenFolders: string[] },
+) {
+  return branchNameFor({
+    title,
+    prefix: useWorktreesStore.getState().branchPrefix,
+    maxSlug: lanePrefs().branchSlugMaxLength,
+    ...taken,
+  })
 }

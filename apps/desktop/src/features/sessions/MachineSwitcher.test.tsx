@@ -8,7 +8,8 @@ import { useChatStore } from '@/stores/chat'
 import type * as ChatStoreModule from '@/stores/chat'
 import { useComposerMachine } from '@/features/home/useComposerMachine'
 import { Sidebar } from './Sidebar'
-import { NewRemoteLane } from './RemoteLanes'
+import { useRemoteComposer, rememberRemoteRepository } from '@/features/home/remoteComposer'
+import { requestReveal, hostGroupKey } from './laneReveal'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { MachineSwitcher, MachineLabelLine, otherMachineActivity } from './MachineSwitcher'
@@ -74,8 +75,15 @@ it('initializes once per renderer, preserves sidebar selection and composer targ
   expect(useRemoteLanesStore.getInitialState().filter).toBe('local')
   localStorage.setItem('machineFilter', MOCK_HOST_ID)
   function ComposerTarget(): React.JSX.Element {
-    const [machine] = useComposerMachine()
-    return <output>{machine}</output>
+    const [machine, setMachine] = useComposerMachine()
+    return (
+      <>
+        <output>{machine}</output>
+        <button aria-label="Override local" onClick={() => setMachine('local')}>
+          Local override
+        </button>
+      </>
+    )
   }
   const sidebar = (
     <>
@@ -98,6 +106,20 @@ it('initializes once per renderer, preserves sidebar selection and composer targ
   expect(container.querySelector('output')?.textContent).toBe(MOCK_HOST_ID)
   expect(localStorage.getItem('machineFilter')).toBe(MOCK_HOST_ID)
   expect(localStorage.length).toBe(1)
+  act(() => rememberRemoteRepository(MOCK_HOST_ID, '0000000000000001'))
+  click('Override local')
+  expect(container.querySelector('output')?.textContent).toBe('local')
+  useRemoteComposer.setState({ target: null })
+  act(() => [...container.querySelectorAll('button')].find((b) => b.textContent === 'New')!.click())
+  expect(useRemoteComposer.getState().target).toEqual({
+    hostId: MOCK_HOST_ID,
+    repositoryId: '0000000000000001',
+  })
+  act(() => useRemoteLanesStore.getState().setFilter('local'))
+  act(() => [...container.querySelectorAll('button')].find((b) => b.textContent === 'New')!.click())
+  expect(useRemoteComposer.getState().target).toBeNull()
+  expect(useSessionsStore.getState().activeSessionId).toBeNull()
+
   await act(async () => root.render(null))
   act(() => useMachinesStore.getState().enableRemote(false))
   expect(useRemoteLanesStore.getState().filter).toBe('local')
@@ -207,21 +229,14 @@ it('repository plus preselects that repository without sending a local creation'
   useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
   act(() => root.render(<RemoteLanes />))
   click('New lane in Second repository')
-  expect(document.querySelector('button[aria-label=Repository]')?.textContent).toContain(
-    'Second repository',
-  )
-  await act(async () =>
-    document
-      .querySelector('form')
-      ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })),
-  )
-  expect(invoke).toHaveBeenCalledExactlyOnceWith('hosts:createLane', MOCK_HOST_ID, {
+  expect(useRemoteComposer.getState().target).toEqual({
+    hostId: MOCK_HOST_ID,
     repositoryId: 'second',
-    provider: 'test',
-    model: 'test-model',
-    thinkingLevel: 'off',
   })
+  expect(useSessionsStore.getState().activeSessionId).toBeNull()
+  expect(invoke.mock.calls.some(([channel]) => channel === 'hosts:createLane')).toBe(false)
 })
+
 it('labels each elsewhere signal and gives the cluster a readable breakdown, without a default caption', () => {
   const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
   const lane = host.lanes[0]!
@@ -243,37 +258,17 @@ it('labels each elsewhere signal and gives the cluster a readable breakdown, wit
   expect(container.querySelector('[role=listbox]')?.textContent).not.toContain('default')
 })
 
-it('Escape closes only Repository in the real NewRemoteLane overlay, preserving the draft and focus', () => {
-  const closed = vi.fn()
+it('notice reveal expands the Host repository and clears its search', () => {
+  useRemoteLanesStore.setState({ filter: MOCK_HOST_ID })
+  act(() => root.render(<RemoteLanes />))
   act(() =>
-    root.render(<NewRemoteLane hostId={MOCK_HOST_ID} onMachine={vi.fn()} onClose={closed} />),
+    [...container.querySelectorAll('button')]
+      .find((b) => b.textContent?.includes('Demo repository'))!
+      .click(),
   )
-  const branch = document.querySelector<HTMLInputElement>('[aria-label="New branch (optional)"]')!
-  const name = document.querySelector<HTMLInputElement>('[aria-label="Lane name (optional)"]')!
-  for (const input of [branch, name]) {
-    act(() => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-        input,
-        'keep-draft',
-      )
-      input.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-  }
-  click('Repository')
-  const trigger = document.querySelector<HTMLButtonElement>('[aria-label="Repository"]')!
-  act(() =>
-    document.activeElement!.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
-    ),
-  )
-  expect(document.querySelector('[role=listbox]')).toBeNull()
-  expect(closed).not.toHaveBeenCalled()
-  expect(document.querySelector('[data-modal-overlay]')).not.toBeNull()
-  expect(branch.value).toBe('keep-draft')
-  expect(name.value).toBe('keep-draft')
-  expect(document.activeElement).toBe(trigger)
-  act(() => trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })))
-  expect(closed).toHaveBeenCalledOnce()
+  expect(container.querySelector('[data-testid=remote-session-row]')).toBeNull()
+  act(() => requestReveal(hostGroupKey(MOCK_HOST_ID, '0000000000000001')))
+  expect(container.querySelector('[data-testid=remote-session-row]')).not.toBeNull()
 })
 it('content-only chat updates do not rerender the switcher row, while count changes do', () => {
   useChatStore.getState().ensure('local-chat')

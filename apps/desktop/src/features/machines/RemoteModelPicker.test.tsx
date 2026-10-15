@@ -1,9 +1,27 @@
 // @vitest-environment jsdom
+vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
+vi.mock('@/features/chat/composer/ComposerInput', () => ({
+  ComposerInput: ({
+    onSubmit,
+    modelPicker,
+  }: {
+    onSubmit: () => void
+    modelPicker: React.ReactNode
+  }) => (
+    <div>
+      {modelPicker}
+      <button aria-label="Start session" onClick={onSubmit}>
+        Send
+      </button>
+    </div>
+  ),
+}))
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
 import { useRemoteModel, RemoteModelPicker } from './RemoteModelPicker'
-import { NewRemoteLane } from '@/features/sessions/RemoteLanes'
+import { WorkspaceHome } from '@/features/home/WorkspaceHome'
+import { useDraftsStore, homeDraftKey } from '@/stores/drafts'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinesStore } from '@/stores/machines'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
@@ -25,19 +43,16 @@ it.each(['ready', 'down'] as const)(
     hosts[MOCK_HOST_ID]!.state = state
     hosts[MOCK_HOST_ID]!.capabilities.push('skills.read')
     useRemoteLanesStore.setState({ hosts })
+    useRemoteLanesStore.setState({ filter: MOCK_HOST_ID })
+    useDraftsStore.getState().setText(homeDraftKey('/ws'), 'First message')
     const container = document.createElement('div')
     document.body.append(container)
     const root = createRoot(container)
     try {
-      await act(async () =>
-        root.render(
-          <NewRemoteLane hostId={MOCK_HOST_ID} onMachine={() => {}} onClose={() => {}} />,
-        ),
-      )
+      await act(async () => root.render(<WorkspaceHome workspacePath="/ws" />))
       const create = [...document.querySelectorAll('button')].find(
-        (b) => b.textContent === 'Create lane',
+        (b) => b.getAttribute('aria-label') === 'Start session',
       )!
-      expect(create.disabled).toBe(true)
       await act(async () => create.click())
       expect(invoke.mock.calls.some(([channel]) => channel === 'hosts:createLane')).toBe(false)
       if (state === 'ready') {
@@ -106,6 +121,81 @@ it.each([
       expect(container.textContent).not.toContain(`Model for ${id === 'a' ? 'b' : 'a'}`)
       expect(container.querySelector('[aria-label=Thinking]') !== null).toBe(id === 'a')
     }
+  } finally {
+    act(() => root.unmount())
+    container.remove()
+    vi.unstubAllGlobals()
+  }
+})
+it('uses the Mac thinking default, remembers per Host across remounts, and clamps without writing Mac settings', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const { useRemoteModelPicks } = await import('@/stores/remoteModelPicks')
+  const { useMachineCataloguesStore, machineCatalogueKey } =
+    await import('@/stores/machineCatalogues')
+  useRemoteModelPicks.setState({ last: {}, thinking: {} })
+  const base = {
+    ...mockRemoteHosts[MOCK_HOST_ID]!,
+    capabilities: ['skills.read', 'sessions.control'] as const,
+  }
+  useRemoteLanesStore.setState({
+    hosts: {
+      a: { ...base, capabilities: [...base.capabilities] },
+      b: { ...base, capabilities: [...base.capabilities] },
+    },
+  })
+  useMachineCataloguesStore.setState({
+    catalogues: Object.fromEntries(
+      ['a', 'b'].map((id) => [
+        machineCatalogueKey(id),
+        {
+          models: [{ id: 'm', name: 'Reasoner', provider: 'p', reasoning: id === 'a' }],
+          providers: [{ id: 'p', name: 'P', status: 'ready' }],
+          status: 'ready',
+          error: null,
+        },
+      ]),
+    ),
+  })
+  Element.prototype.scrollIntoView = vi.fn()
+  const invoke = vi.fn(async (_channel: string) => ({
+    defaultThinkingLevel: 'high',
+    defaultProvider: 'p',
+    defaultModel: 'desktop',
+  }))
+  vi.stubGlobal('phosphor', { invoke })
+  function Harness({ id }: { id: string }) {
+    const selection = useRemoteModel(id)
+    return (
+      <div>
+        <output>{selection.thinking}</output>
+        <RemoteModelPicker selection={selection} />
+      </div>
+    )
+  }
+  const catalogue = useMachineCataloguesStore.getState().catalogues[machineCatalogueKey('a')]!
+  catalogue.models.unshift({ id: 'desktop', name: 'Desktop', provider: 'p', reasoning: false })
+  useRemoteModelPicks.setState({ last: { a: { id: 'm', provider: 'p' } } })
+  const container = document.createElement('div')
+  document.body.append(container)
+  const root = createRoot(container)
+  try {
+    await act(async () => root.render(<Harness id="a" />))
+    expect(container.querySelector('[aria-label=Model]')?.textContent).toBe('Reasoner')
+    expect(container.querySelector('[aria-label=Thinking]')?.textContent).toBe('high')
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label=Thinking]')!.click())
+    act(() =>
+      [...container.querySelectorAll<HTMLButtonElement>('[role=option]')]
+        .find((b) => b.textContent === 'low')!
+        .click(),
+    )
+    await act(async () => root.render(<Harness id="b" />))
+    expect(container.querySelector('output')?.textContent).toBe('off')
+    expect(container.querySelector('[aria-label=Thinking]')).toBeNull()
+    await act(async () => root.render(null))
+    await act(async () => root.render(<Harness id="a" />))
+    expect(container.querySelector('[aria-label=Thinking]')?.textContent).toBe('low')
+    expect(useRemoteModelPicks.getState().thinking).toEqual({ a: 'low' })
+    expect(invoke.mock.calls.every((args) => args[0] !== 'pi:patchAgentSettings')).toBe(true)
   } finally {
     act(() => root.unmount())
     container.remove()

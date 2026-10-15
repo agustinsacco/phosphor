@@ -1,3 +1,4 @@
+import { rememberRemoteRepository, useRemoteComposer } from './remoteComposer'
 import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
 import { HostHome } from './HostHome'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
@@ -12,7 +13,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import type { WorkspaceSessionStats } from '@shared/models'
 import { useWorktreesStore } from '@/stores/worktrees'
-import { prefetchTrunk, startChat } from '@/features/sessions/startChat'
+import { newChatBranchName, prefetchTrunk, startChat } from '@/features/sessions/startChat'
 import { notifyLane } from '@/features/sessions/laneNotices'
 import { useStartingChatStore } from '@/stores/startingChat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
@@ -43,9 +44,20 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   const [composerMachine, setComposerMachine] = useComposerMachine()
   const remoteHost = useRemoteLanesStore((s) => s.hosts[composerMachine])
   const selection = useRemoteModel(composerMachine === 'local' ? '' : composerMachine)
+  const target = useRemoteComposer((s) => s.target)
   const [repository, setRepository] = useState<{ hostId: string; id: string } | null>(null)
   const repositoryId =
-    repository?.hostId === composerMachine ? repository.id : (remoteHost?.repositories[0]?.id ?? '')
+    repository?.hostId === composerMachine
+      ? repository.id
+      : target?.hostId === composerMachine
+        ? target.repositoryId
+        : (remoteHost?.repositories[0]?.id ?? '')
+  useEffect(() => {
+    if (!target) return
+    setComposerMachine(target.hostId)
+    setRepository({ hostId: target.hostId, id: target.repositoryId })
+    textareaRef.current?.focus()
+  }, [target])
   const [addingFolder, setAddingFolder] = useState(false)
   useEffect(() => setAddingFolder(false), [composerMachine])
   const [stats, setStats] = useState<WorkspaceSessionStats | null>(null)
@@ -168,6 +180,18 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           composerMachine,
           {
             repositoryId,
+            ...(isolate
+              ? {
+                  worktree: {
+                    branch: newChatBranchName(message, {
+                      takenBranches: (remoteHost?.lanes ?? [])
+                        .filter((lane) => lane.repositoryId === repositoryId && lane.branch)
+                        .map((lane) => lane.branch ?? ''),
+                      takenFolders: [],
+                    }).branch,
+                  },
+                }
+              : {}),
             provider: selection.model.provider,
             model: selection.model.id,
             thinkingLevel: selection.thinking,
@@ -315,12 +339,18 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
                 ]}
                 onChange={(id) => {
                   if (id === '__add__') setAddingFolder(true)
-                  else setRepository({ hostId: composerMachine, id })
+                  else {
+                    rememberRemoteRepository(composerMachine, id)
+                    setRepository({ hostId: composerMachine, id })
+                  }
                 }}
               >
                 {remoteHost?.repositories.find((repo) => repo.id === repositoryId)?.name ??
                   'Choose repository'}
               </ChoiceMenu>
+            )}
+            {composerMachine !== 'local' && (
+              <IsolateToggle checked={isolate} disabled={remoteBusy} />
             )}
             {composerMachine === 'local' && (
               <>
@@ -341,7 +371,10 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               key={composerMachine}
               hostId={composerMachine}
               onClose={() => setAddingFolder(false)}
-              onAdded={(id) => setRepository({ hostId: composerMachine, id })}
+              onAdded={(id) => {
+                rememberRemoteRepository(composerMachine, id)
+                setRepository({ hostId: composerMachine, id })
+              }}
             />
           )}
           <ComposerInput
@@ -380,7 +413,14 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             actions={
               <SubmitIconButton
                 busy={starting || remoteBusy}
-                disabled={!text.trim() && images.length === 0}
+                disabled={
+                  (!text.trim() && images.length === 0) ||
+                  (composerMachine !== 'local' &&
+                    (!repositoryId ||
+                      !selection.model ||
+                      remoteHost?.state !== 'ready' ||
+                      !remoteHost.capabilities.includes('sessions.control')))
+                }
                 onClick={() => void start()}
                 label="Start session"
               />
@@ -421,7 +461,7 @@ function IsolateToggle({
 }: {
   checked: boolean
   disabled: boolean
-  workspacePath: string
+  workspacePath?: string
 }): React.JSX.Element {
   const trunk = useStartPoint(workspacePath)
   return (
@@ -429,7 +469,9 @@ function IsolateToggle({
       {...tooltipProps(
         checked
           ? {
-              label: `New worktree off ${trunk ?? 'main'}`,
+              label: workspacePath
+                ? `New worktree off ${trunk ?? 'main'}`
+                : 'New worktree off the default branch',
               description: 'Not the folder shown beside it',
             }
           : { label: 'Run in the open folder', description: 'On its current branch' },
@@ -465,10 +507,11 @@ function IsolateToggle({
  * Read from `git:startPoint`, the same call `startChat` makes, so the label
  * and the behaviour cannot disagree.
  */
-function useStartPoint(workspacePath: string): string | null {
+function useStartPoint(workspacePath?: string): string | null {
   const [trunk, setTrunk] = useState<string | null>(null)
   useEffect(() => {
     let cancelled = false
+    if (!workspacePath) return
     void window.phosphor
       .invoke('git:startPoint', workspacePath)
       .then((point) => {
