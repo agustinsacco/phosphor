@@ -140,8 +140,9 @@ pi's commands.
 
 ## The catalog
 
-Eight curated OAuth connectors: Linear, Notion, Braintrust, Datadog, Supabase,
-Questrade, Fellow, Slack. Each endpoint is checked against the vendor's docs
+Fourteen curated OAuth connectors: Linear, Notion, Braintrust, Datadog,
+Supabase, Questrade, Fellow, Slack, and Google Workspace's Gmail, Drive,
+Calendar, Docs, Sheets and Slides. Each endpoint is checked against the vendor's docs
 _and_ the server's own OAuth metadata, because a wrong URL fails as "broken
 auth" (`apps/desktop/src/features/connectors/catalog.ts`).
 
@@ -159,7 +160,9 @@ endpoint is the default; that constrains the SQL user, not the OAuth grant,
 and without `?project_ref=<ref>` the server reaches every project in the
 account.
 
-**Slack is the one connector that cannot be one click**, and its row says why.
+**Slack and Google cannot be one click**, and their rows say why.
+
+Slack:
 Slack supports neither SSE nor dynamic client registration, so MCP clients
 must be backed by a registered Slack app. You register an app and paste its
 **client ID**; Add stays disabled until you do. Add then writes
@@ -172,6 +175,20 @@ Marketplace-published apps may use MCP, and the app's user scopes must cover
 what Phosphor asks for: the row's "Set up the app" disclosure hands over an
 app manifest that sets scopes, redirect URL and `pkce_enabled` in one paste,
 and `oauth.scope` is written from the same list.
+
+Google Workspace has no dynamic registration either, and each product is its
+own server (`<product>mcp.googleapis.com/mcp/v1`), so each is its own row
+and its own sign-in. You create a **Web application** OAuth client in your own
+Cloud project (enrolled in the Workspace Developer Preview, with "Use this
+client for an AI-powered agent" ticked) and paste its client ID **and secret**:
+it is a confidential client, so Add stays disabled without both
+(`secretRequired`). One client serves every product. The redirect URI is the
+same fixed callback as Slack. Scopes are pinned to Google's documented set
+(`GOOGLE_WORKSPACE_PRODUCTS`), because the advertised default includes full
+mailbox access (`https://mail.google.com/`), `gmail.send` and full `drive`.
+Google issues a refresh token only when the authorization request carries
+`access_type=offline`, which pi does not send, so a Google sign-in lasts about
+an hour; the row says so.
 
 ## In a session
 

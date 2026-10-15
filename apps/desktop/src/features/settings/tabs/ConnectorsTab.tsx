@@ -583,6 +583,13 @@ function CatalogRow({
   const [clientSecret, setClientSecret] = useState('')
   const url = connectorUrl(entry, { variant, readOnly })
   const needsClientId = entry.authKind === 'preregistered'
+  const missingCredential = needsClientId
+    ? !clientId.trim()
+      ? 'Paste a client ID first'
+      : entry.secretRequired && !clientSecret.trim()
+        ? 'Paste the client secret too'
+        : undefined
+    : undefined
 
   const hasOptions = Boolean(entry.variants || entry.readOnlyUrl || needsClientId || entry.setup)
 
@@ -606,18 +613,19 @@ function CatalogRow({
           variant="primary"
           size="sm"
           className="shrink-0 whitespace-nowrap"
-          // Slack cannot be one click: it supports no dynamic registration and
-          // requires its client id up front. Showing that as a disabled button
-          // beats letting `buildConnectorConfig` throw into the error banner.
-          disabled={needsClientId && !clientId.trim()}
+          // Slack and Google cannot be one click: they support no dynamic
+          // registration and need a registered client up front. Showing that as
+          // a disabled button beats letting `buildConnectorConfig` throw into
+          // the error banner.
+          disabled={Boolean(missingCredential)}
           tooltip={
-            needsClientId && !clientId.trim()
-              ? { label: 'Add connector', description: 'Paste a client ID first' }
+            missingCredential
+              ? { label: 'Add connector', description: missingCredential }
               : undefined
           }
           aria-description={
-            needsClientId && !clientId.trim()
-              ? `${entry.name} has no dynamic registration. Paste the client ID of an app you registered.`
+            missingCredential
+              ? `${entry.name} has no dynamic registration. Paste the client ${entry.secretRequired ? 'ID and secret' : 'ID'} of an app you registered.`
               : undefined
           }
           onClick={() => onAdd({ variant, readOnly, clientId, clientSecret })}
@@ -668,7 +676,7 @@ function CatalogRow({
                   size="sm"
                   value={clientSecret}
                   onChange={(e) => setClientSecret(e.target.value)}
-                  placeholder="client secret (optional)"
+                  placeholder={entry.secretRequired ? 'client secret' : 'client secret (optional)'}
                   className="min-w-48 flex-1 font-mono"
                 />
               </div>

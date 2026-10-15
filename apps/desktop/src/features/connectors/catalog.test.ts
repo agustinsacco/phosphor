@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   CONNECTORS,
+  GOOGLE_WORKSPACE_PRODUCTS,
   OAUTH_REDIRECT_URI,
   QUESTRADE_READ_SCOPES,
   QUESTRADE_WRITE_SCOPES,
@@ -146,6 +147,45 @@ describe('connector catalog', () => {
     const supabase = CONNECTORS.find((c) => c.id === 'supabase')!
     expect(connectorUrl(supabase)).toBe('https://mcp.supabase.com/mcp?read_only=true')
     expect(connectorUrl(supabase, { variant: 'read-write' })).toBe('https://mcp.supabase.com/mcp')
+  })
+
+  it('writes a Google connector as a confidential client with its pinned scopes', () => {
+    const gmail = CONNECTORS.find((c) => c.id === 'gmail')!
+    expect(buildConnectorConfig(gmail, { clientId: 'id', clientSecret: 'shh' })).toEqual({
+      url: 'https://gmailmcp.googleapis.com/mcp/v1',
+      oauth: {
+        clientId: 'id',
+        clientSecret: 'shh',
+        callbackUrl: OAUTH_REDIRECT_URI,
+        scope:
+          'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.compose',
+      },
+    })
+    // Google's token exchange for a Web application client needs the secret.
+    expect(() => buildConnectorConfig(gmail, { clientId: 'id', clientSecret: ' ' })).toThrow(
+      /client secret/,
+    )
+  })
+
+  it('never asks Google for full-mailbox, send or full-Drive access', () => {
+    // With no `oauth.scope` the SDK requests every advertised scope, and
+    // Gmail's server advertises `https://mail.google.com/` and `gmail.send`.
+    const broad = [
+      'https://mail.google.com/',
+      'https://www.googleapis.com/auth/gmail.send',
+      'https://www.googleapis.com/auth/gmail.modify',
+      'https://www.googleapis.com/auth/drive',
+      'https://www.googleapis.com/auth/calendar',
+    ]
+    expect(GOOGLE_WORKSPACE_PRODUCTS.length).toBeGreaterThan(0)
+    for (const product of GOOGLE_WORKSPACE_PRODUCTS) {
+      const entry = CONNECTORS.find((c) => c.id === product.id)!
+      expect(entry.authKind, product.id).toBe('preregistered')
+      expect(entry.secretRequired, product.id).toBe(true)
+      const requested = (entry.scope ?? '').split(' ')
+      expect(requested, product.id).toEqual(product.scopes)
+      for (const scope of broad) expect(requested, product.id).not.toContain(scope)
+    }
   })
 
   it('never asks Questrade for a scope that can move money', () => {
