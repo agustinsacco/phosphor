@@ -685,6 +685,29 @@ No new manager, scheduler or hard spawn budget is introduced.
   renders with no `href`, so no click can navigate the window away. Other
   schemes do nothing.
 
+## Agent directives
+
+Phosphor appends its directive blocks in this order: worktree guard, machine
+awareness, lane charter, sub-agent policy, then custom text. pi's own system
+prompt and project rules remain separate inputs. The blocks are composed once
+for a process spawn; a resume that starts a new process uses current context and
+preferences. Reopening an already-live process does not replace its prompt.
+
+Settings > Agent > Directives has **Machine awareness**, default on, backed by
+its own `AgentDirectivePrefs.machineAwareness` field. Like other directives it can
+be set globally or per project on This Mac. When enabled, a signed-in local lane
+gets one sentence inside `<phosphor_machine>`:
+
+> You are running on the user's own computer, where Phosphor's window is.
+
+Signed-out local lanes get no machine block. Native and Claude sessions receive
+the same text. [Host machine awareness](host.md#machine-awareness) owns the Host
+identity, repository summary and service-safety instructions, including routine
+runs. These are prompt instructions, not network authorization.
+
+The spawn log records `--append-system-prompt` but replaces its value with
+`[redacted]`; the composed prompt is not dumped into argv logs.
+
 ## Context files
 
 Both composers carry a **Rules · MCP** readout in the status strip under the
@@ -960,27 +983,73 @@ Both keys arrive through pi's extension-UI status channel into
 `composer/rateLimit.ts` each return `null` for a missing or malformed payload,
 so a bad push degrades to "section absent" rather than a broken meter.
 
+## Lane notices
+
+A background lane's completion appears as a Receipt card with a machine-coloured
+edge and chip, title, repository/branch, and an answer excerpt or “Stopped: …”.
+Known facts show duration, files and lines ±, test pass/fail and artifacts; missing
+facts stay absent. File counts cover the run's completed successful `edit`/`write`
+tools, not git status or a count of every filesystem change. Test facts come from
+recognized standalone test commands, not arbitrary prose or compound shell commands.
+Legacy Claude tool markers use the shared `libs/shared/src/external-tool-marker.ts`
+recognition rather than becoming answer excerpts.
+
+Open lane opens the destination. View changes appears when files are reported and
+opens its Changes pane. Retry appears for errors and opens/focuses that lane's
+composer; it does not resend a prompt. Dismiss closes the notice. For a This Mac
+lane, or a Host lane already opened in this window, the existing card updates rather
+than stacking a new one. A Host lane never opened here can stack one card per event.
+
+This Mac lanes notify in-app only. Host attention can include facts from the
+[read-only receipt call](remote-protocol.md#lane-receipt-call); an older Host's
+refusal keeps the plain card without invented facts. Host OS notification bodies
+show facts or fixed status, never the answer excerpt. Main's freshness and timeout
+rules are in [receipt enrichment](remote-desktop.md#attention-receipt-enrichment).
+
+### Notice navigation
+
+In-app cards, Host attention toasts, OS clicks and pending This Mac rows use
+`navigateToLane`. It aligns this window's machine filter while keeping All
+machines, closes any global page, and opens or adopts the lane. Later user
+navigation cancels the pending operation. An offline Host or removed lane leaves
+the current view in place with one error toast. An OS click affects one window,
+not every window. A saved This Mac row clicked under a Host filter switches the
+filter to This Mac and opens its session directly, without `navigateToLane`.
+
+Success reveals the destination's sidebar group: expand, never toggle closed,
+and clear that group's search. This Mac groups use the sidebar's own project and
+representative-folder grouping rule, so worktree rows reveal the correct group.
+
 ## Remote lanes
 
-Hosts that announce `sessions.read` show their lanes in the sidebar. The machine
-filter lists All machines, This Mac, and each capable Host. Every remote row is
-tagged with its machine. Offline Hosts keep their last-known rows in memory,
-greyed and labelled offline. A dot means the Host's attention counter exceeds
-its read counter. Opening a lane or reading it in a focused window marks it read
-on the Host. Clicking a Host notification opens that lane.
-
-Remote lanes use the same transcript renderer as local lanes. The header shows
-the machine. The control strip names the controller. Viewers see a read-only
-composer and an explicit Take control action; there is no automatic takeover.
+Remote lanes use the same transcript renderer as local lanes. The header names
+the machine; the control strip names the controller. Viewers have a read-only
+composer and an explicit Take control action. There is no automatic takeover.
 Controllers can prompt, steer, queue, abort, compact, change model and thinking,
-answer dialogs, stop and resume. New lane on a machine asks for its repository,
-optional branch and name, and optional provider and model ids.
+answer dialogs, stop and resume. The machine's capabilities and current control
+are checked in main and again by the Host.
 
-Terminal and Subagents panes show “Not available on
-remote lanes yet.” instead of local machine data. Local workspace controls,
-file mentions, transcript export and local account usage are not
-available inside a remote lane. Remote transcripts remain in memory. Drafts use
-Host-qualified lane keys. A reconnect reset replaces history through the normal
-hydration path.
+Remote creation uses the target machine's configured repositories and model
+catalogue. An unavailable Host never starts a local session instead.
 
-Remote Artifacts requires `artifacts.read`; see [remote artifacts](remote-access.md#remote-artifacts).
+Create from the Host home composer; [remote creation](remote-desktop.md#machine-context-and-lane-creation)
+owns repository, thinking and branch choices.
+
+Slash commands come from the lane; file mentions search its Host file list.
+Thinking levels derive from its model. Continue waits for the receipt and echo
+rather than inserting an optimistic duplicate. The Files, Changes, Terminal and
+Artifacts panes route to the Host when their capabilities are announced. Remote
+Subagents do not inspect local sessions. Missing capabilities show the fixed
+unavailable hint, not local machine data. The full [gap list](future-features.md#remote-surface-gaps)
+owns unsupported actions.
+
+Remote transcripts remain in memory. Drafts use Host-qualified lane keys; local
+attachment paths and uploaded Host document paths are not persisted in remote
+drafts. A reconnect reset replaces history through the normal hydration path.
+The composer disables during disconnection and recovers from the Host snapshot.
+Opening or focusing the lane marks it read on the Host; counters clear across
+clients. [Desktop routing](remote-desktop.md) owns connection and receipt details.
+
+[Lane notices](#lane-notices) share one machine-aware navigation path.
+
+Remote Artifacts requires `artifacts.read`; see [remote artifacts](remote-desktop.md#remote-artifacts).

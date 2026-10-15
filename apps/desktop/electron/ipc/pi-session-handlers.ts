@@ -19,6 +19,7 @@ import {
 } from '../pi/session-naming'
 import { catalogueModels } from './pi-config-handlers'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
+import { resolvePackagePaths } from '@phosphor/session-runtime/pi/package-resources'
 import { claudeAccountEnv, primaryAccount } from '../claude/accounts'
 import {
   claudeOneShotEnv,
@@ -92,7 +93,9 @@ async function planTitleRun(
     const pkg = (await listPackages(workspacePath).catch(() => [])).find(
       (entry) => entry.name === '@saccolabs/pi-claude-cli' && entry.installed,
     )
-    fast = pkg?.resources.extensions.length ? pkg.resources.extensions : null
+    // Package resources are display names, not executable extension paths.
+    const extensions = pkg?.installPath ? resolvePackagePaths(pkg.installPath).extensions : []
+    fast = extensions.length ? extensions : null
   }
   return titleAttempts(model, fast, fallback)
 }

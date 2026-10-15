@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
 vi.mock('@/features/files/MonacoEditor', () => ({ releaseFileModel: vi.fn() }))
 
-import { startChat } from './startChat'
+import { startChat, newChatBranchName } from './startChat'
 import { useSessionsStore } from '@/stores/sessions'
 import { useWorktreesStore } from '@/stores/worktrees'
 import { useWorkspacesStore } from '@/stores/workspaces'
@@ -67,3 +67,29 @@ it.each([false, true])(
     expect(useWorkspacesStore.getState().homePath).toBe(moved ? '/elsewhere' : '/repo')
   },
 )
+
+it('shares prompt slug, branch prefix and collision rules with Host creation', async () => {
+  useWorktreesStore.setState({ branchPrefix: 'custom/' })
+  const name = newChatBranchName('Fix the café composer', { takenBranches: [], takenFolders: [] })
+  expect(name.branch).toBe('custom/fix-the-cafe-composer')
+  const add = vi.spyOn(useWorktreesStore.getState(), 'addWorktree').mockResolvedValue({
+    path: tree,
+    realPath: tree,
+    branch: name.branch,
+    isMain: false,
+    head: 'head',
+    locked: false,
+    prunable: false,
+    dirtyCount: 0,
+  })
+  await startChat({ workspacePath: '/repo', prompt: 'Fix the café composer' })
+  expect(add).toHaveBeenCalledWith(
+    '/repo',
+    name.folder,
+    expect.objectContaining({ branch: name.branch }),
+  )
+  expect(
+    newChatBranchName('Fix the café composer', { takenBranches: [name.branch], takenFolders: [] })
+      .branch,
+  ).toBe('custom/fix-the-cafe-composer-2')
+})

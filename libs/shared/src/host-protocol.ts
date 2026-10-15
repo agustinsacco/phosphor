@@ -1,3 +1,4 @@
+export type { LaneReceipt } from './lane-receipt'
 import {
   parseRepositoryOp,
   parseDeleteLaneOp,
@@ -252,7 +253,11 @@ export type LaneOp =
       readonly type: 'lane.create'
       readonly repositoryId: string
       /** null: run in the repository itself. A branch: a new worktree lane on it. */
-      readonly worktree: { readonly branch: string } | null
+      readonly worktree: {
+        readonly branch: string
+        /** New-only ref creation; older Hosts ignore this additive field. */
+        readonly fresh?: true
+      } | null
       readonly name?: string
       readonly provider?: string
       readonly model?: string
@@ -286,6 +291,7 @@ export type RejectCode =
   /** The request id was already used for another op or by another client. */
   | 'conflict'
   | 'busy'
+  | 'branch-exists'
   | 'last-repository'
   | 'too-many-requests'
 
@@ -325,6 +331,7 @@ export const HOST_CALL_METHODS = [
   'host.repositories',
   'lane.state',
   'lane.messages',
+  'lane.receipt',
   'lane.stats',
   'lane.models',
   'lane.commands',
@@ -651,7 +658,10 @@ function op(v: unknown): LaneOp | null {
     case 'lane.create': {
       if (
         !hex(v.repositoryId) ||
-        (v.worktree !== null && (!record(v.worktree) || !isLaneBranchName(v.worktree.branch))) ||
+        (v.worktree !== null &&
+          (!record(v.worktree) ||
+            !isLaneBranchName(v.worktree.branch) ||
+            (v.worktree.fresh !== undefined && v.worktree.fresh !== true))) ||
         (v.name !== undefined && !label(v.name)) ||
         (v.provider !== undefined && !text(v.provider, 200)) ||
         (v.model !== undefined && !text(v.model, 200)) ||
@@ -663,7 +673,10 @@ function op(v: unknown): LaneOp | null {
         repositoryId: v.repositoryId,
         worktree:
           record(v.worktree) && isLaneBranchName(v.worktree.branch)
-            ? { branch: v.worktree.branch }
+            ? {
+                branch: v.worktree.branch,
+                ...(v.worktree.fresh === true ? { fresh: true as const } : {}),
+              }
             : null,
         ...(v.name !== undefined ? { name: v.name } : {}),
         ...(v.provider !== undefined ? { provider: v.provider } : {}),
@@ -965,6 +978,7 @@ const rejects: readonly RejectCode[] = [
   'conflict',
   'busy',
   'last-repository',
+  'branch-exists',
   'too-many-requests',
 ]
 const errors: readonly CallErrorCode[] = [

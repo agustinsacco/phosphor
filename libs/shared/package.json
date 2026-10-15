@@ -4,6 +4,22 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./machine-prompt": {
+      "types": "./src/machine-prompt.ts",
+      "default": "./src/machine-prompt.ts"
+    },
+    "./lane-receipt": {
+      "types": "./src/lane-receipt.ts",
+      "default": "./src/lane-receipt.ts"
+    },
+    "./lane-excerpt": {
+      "types": "./src/lane-excerpt.ts",
+      "default": "./src/lane-excerpt.ts"
+    },
+    "./external-tool-marker": {
+      "types": "./src/external-tool-marker.ts",
+      "default": "./src/external-tool-marker.ts"
+    },
     "./host-protocol-repositories": {
       "types": "./src/host-protocol-repositories.ts",
       "default": "./src/host-protocol-repositories.ts"

@@ -166,3 +166,18 @@ it('close after storing skips attach and store rollback, but stops and undoes', 
   expect(store.markRemoved).not.toHaveBeenCalled()
   expect(sessions.attach).not.toHaveBeenCalled()
 })
+
+it('a fresh branch refusal never creates a row or starts pi', async () => {
+  vi.mocked(prepareLaneFolder).mockRejectedValue(
+    Object.assign(new Error('That branch already exists.'), { code: 'branch-exists' }),
+  )
+  await expect(
+    createLane(ports(), {
+      ...input,
+      op: { ...input.op, worktree: { branch: 'feature', fresh: true } },
+    }),
+  ).rejects.toMatchObject({ code: 'branch-exists' })
+  expect(sessions.start).not.toHaveBeenCalled()
+  expect(store.ensureLane).not.toHaveBeenCalled()
+  expect(undo).not.toHaveBeenCalled()
+})

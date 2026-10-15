@@ -18,11 +18,14 @@ is flagged rather than silently replaced.
 
 The editor only closes on purpose: ✕ or Escape, never a click on the backdrop
 (Escape inside the model menu closes just the menu). Whatever it holds when it
-closes is kept in memory, per routine, and comes back the next time it opens —
-**New routine** reads **Resume draft** while one is waiting. **Reset** returns to
-a blank routine, or to the saved one when editing. Drafts do not survive a
-restart and never touch disk before Save. An edit draft started from an older
-revision is dropped, since saving it would be refused as stale. Starters,
+closes is kept in memory and comes back the next time that draft slot opens.
+Saved-routine edits use the routine's slot; new-routine drafts have one slot per
+machine; All machines uses the This Mac slot. **New routine** reads **Resume draft**
+when that slot holds work. The slot stays fixed for the whole edit, even if the draft's target machine
+changes or becomes unavailable. Return to the original slot to resume it.
+**Reset** returns to a blank routine, or to the saved one when editing. Drafts do
+not survive a restart and never touch disk before Save. An edit draft started
+from an older revision is dropped, since saving it would be refused as stale. Starters,
 Duplicate, Import and Make routine… open fresh and replace a waiting new draft.
 
 The page includes starter instructions for weekly analysis, dependency audits,
@@ -200,29 +203,38 @@ pending run workspaces are protected from automatic maintenance reclamation.
 
 ## Host routines
 
-The global page follows the sidebar machine. All machines defaults to This Mac.
-Its machine picker overrides the default until the next sidebar selection change.
-This selection is window-local and never persisted. A selected unavailable Host
-shows its refusal and never displays local routines under the remote label.
+The global page follows the sidebar machine; sidebar All machines defaults the
+page to This Mac. Its picker can select All machines or override the target until
+the next sidebar change. This selection is window-local and never persisted.
+
+The list and header count follow the page selection; the count includes only
+non-archived routines in that selection. A Host page shows no This Mac activity,
+load errors, footer or background controls. Host run history opens from each routine,
+not a mixed Activity feed. All machines explicitly labels local Activity and
+load errors as **This Mac**. An unavailable Host shows its refusal, never local data
+under a remote label. Changing the selection clears an action error shown for the
+previous machine.
 Remote editors and detail labels use the Host model catalogue. Changing the
 execution machine clears the old model choice. Remote history shows output as
 unavailable until the Host supplies a lane identity, not a local Continue action.
 A machine switch closes a detail or editor belonging to the previous machine.
 
 The Host daemon owns its own scheduler and SQLite database at
-`<state>/routines/state.sqlite`. It runs schedules with every client closed.
+`<state>/routines/state.sqlite`. The Host footer states that routines run while
+the Host is running and awake; Desktop can be closed. The scheduler belongs to
+the Host daemon, not a Desktop window or connection.
 Desktop's local scheduler, notifications, background setting and database do not
 change. The Routines page lists this computer and every connected machine that
-announces `routines`, with a machine tag and filter. Local rows load first;
-each unavailable machine has its own status and never hides local routines.
+announces `routines`, with a machine tag and filter. In All machines, local rows
+load first; an unavailable machine has its own status and never hides local rows.
 Definitions and history are fetched independently and refreshed on Host
 `routines-changed` invalidations or connection changes.
 
 Choose a machine in New routine. After creation that machine is fixed. On a
 Host, the workspace picker lists only that machine's configured repository
-labels, not folders or Host paths. Drafts keep the machine and repository selection
-with their inputs. A repository no longer offered is cleared and requires a fresh
-choice before saving. A missing machine never falls back to this computer; an
+labels, not folders or Host paths. Drafts keep machine and repository choices
+with their inputs, under the fixed [draft-slot rules](#setup-and-navigation). A
+repository no longer offered is cleared and requires a fresh choice before saving. A missing machine never falls back to this computer; an
 existing routine stays locked to its machine and cannot save while it is absent.
 Remote list rows say **Open for run history**, not whether a run has occurred.
 Save paused creates a paused, untrusted

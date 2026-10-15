@@ -10,7 +10,6 @@ import { MachinePicker } from './MachinePicker'
 import { OnThisMachine } from './OnThisMachine'
 import { MachineChip, RemoteLaneControls, STOP_NEEDS_PROMPT } from './RemoteLaneControls'
 import { useChatStore } from '@/stores/chat'
-import { NewRemoteLane } from '@/features/sessions/RemoteLanes'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinePagesStore } from '@/stores/machinePages'
 import { useSessionsStore } from '@/stores/sessions'
@@ -79,49 +78,6 @@ it('picker lists This Mac and only announced machines, preserving unavailable se
     ),
   ).toBe(true)
 })
-it('remote creation uses the selected configured repository and failure never starts local', async () => {
-  invoke.mockRejectedValue(new Error('unavailable'))
-  await act(async () =>
-    root.render(<NewRemoteLane hostId={MOCK_HOST_ID} onMachine={() => {}} onClose={() => {}} />),
-  )
-  await act(async () => button('Create lane').click())
-  expect(invoke).toHaveBeenCalledExactlyOnceWith('hosts:createLane', MOCK_HOST_ID, {
-    repositoryId: '0000000000000001',
-    provider: 'test',
-    model: 'test-model',
-    thinkingLevel: 'off',
-  })
-  expect(document.body.textContent).toContain('could not confirm creation')
-  expect(useSessionsStore.getState().activeSessionId).toBe(mockRemoteInfo.sessionId)
-})
-it('creation disables on capability loss and down state without falling back', async () => {
-  act(() =>
-    root.render(<NewRemoteLane hostId={MOCK_HOST_ID} onMachine={() => {}} onClose={() => {}} />),
-  )
-  const host = mockRemoteHosts[MOCK_HOST_ID]
-  if (!host) throw new Error('Missing host')
-  for (const state of ['ready', 'down'] as const) {
-    act(() =>
-      useRemoteLanesStore.setState({
-        hosts: {
-          [MOCK_HOST_ID]: {
-            ...host,
-            state,
-            capabilities: state === 'ready' ? [] : host.capabilities,
-          },
-        },
-      }),
-    )
-    expect(button('Create lane').disabled).toBe(true)
-    await act(async () =>
-      document.body
-        .querySelector('form')
-        ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })),
-    )
-    await act(async () => button('Create lane').click())
-  }
-  expect(invoke).not.toHaveBeenCalled()
-})
 it('chip follows connected, reconnecting and down snapshots and recovers', () => {
   act(() => root.render(<MachineChip sessionId={mockRemoteInfo.sessionId} />))
   const host = mockRemoteHosts[MOCK_HOST_ID]
@@ -170,28 +126,6 @@ it('On this machine gates reads and links, counts only that machine and opens fi
   expect(button('Remote demo lane').disabled).toBe(true)
 })
 
-it('ignores creation replies after switching the machine dialog', async () => {
-  const remote = await import('@/stores/remoteLanes')
-  const adopt = vi.spyOn(remote, 'adoptRemoteLane').mockResolvedValue(undefined)
-  let finish: ((value: unknown) => void) | undefined
-  invoke.mockImplementation(
-    () =>
-      new Promise((resolve) => {
-        finish = resolve
-      }),
-  )
-  await act(async () =>
-    root.render(<NewRemoteLane hostId={MOCK_HOST_ID} onMachine={() => {}} onClose={() => {}} />),
-  )
-  await act(async () => button('Create lane').click())
-  await act(async () => root.render(null))
-  useSessionsStore.setState({ live: {}, activeSessionId: null })
-  await act(async () => finish?.(mockRemoteInfo))
-  expect(adopt).not.toHaveBeenCalled()
-  expect(useSessionsStore.getState().live).toEqual({})
-  expect(useSessionsStore.getState().activeSessionId).toBeNull()
-})
-
 it('ignores counts from a detail selection that has gone away', async () => {
   let finish: ((value: unknown) => void) | undefined
   invoke.mockImplementation(
@@ -213,28 +147,6 @@ it('ignores counts from a detail selection that has gone away', async () => {
   await act(async () => root.render(<OnThisMachine hostId="other" />))
   await act(async () => first?.({ skills: [{ name: 'old' }] }))
   expect(button('Skills').textContent).toContain('Unavailable')
-})
-
-it('cancels navigation and does not close a replacement dialog if adoption was already in progress', async () => {
-  const remote = await import('@/stores/remoteLanes')
-  let complete: (() => void) | undefined
-  vi.spyOn(remote, 'adoptRemoteLane').mockImplementation(
-    () =>
-      new Promise((resolve) => {
-        complete = resolve
-      }),
-  )
-  const close = vi.fn()
-  invoke.mockResolvedValue(mockRemoteInfo)
-  await act(async () =>
-    root.render(<NewRemoteLane hostId={MOCK_HOST_ID} onMachine={() => {}} onClose={close} />),
-  )
-  await act(async () => button('Create lane').click())
-  const navigation = useSessionsStore.getState().navSeq
-  await act(async () => root.render(null))
-  expect(useSessionsStore.getState().navSeq).toBeGreaterThan(navigation)
-  await act(async () => complete?.())
-  expect(close).not.toHaveBeenCalled()
 })
 
 it('keeps On this machine counts and pending reads across unchanged snapshots', async () => {
@@ -312,45 +224,6 @@ it('rejects pending counts immediately on reconnect before effect cleanup', asyn
   })
   expect(button('Skills').textContent).toContain('Unavailable')
   expect(invoke).toHaveBeenCalledTimes(1)
-})
-it('choosing This Mac in the remote dialog explicitly updates the composer target', () => {
-  const onMachine = vi.fn()
-  const onClose = vi.fn()
-  act(() =>
-    root.render(<NewRemoteLane hostId={MOCK_HOST_ID} onMachine={onMachine} onClose={onClose} />),
-  )
-  act(() => document.querySelector<HTMLButtonElement>('[aria-label=Machine]')!.click())
-  act(() => button('This Mac').click())
-  expect(onMachine).toHaveBeenCalledWith(null)
-  expect(onClose).toHaveBeenCalledExactlyOnceWith()
-  expect(invoke.mock.calls.some(([channel]) => channel === 'hosts:createLane')).toBe(false)
-})
-
-it('machine and repository menu actions never submit the remote creation form', async () => {
-  invoke.mockRejectedValue(new Error('unavailable'))
-  act(() =>
-    root.render(<NewRemoteLane hostId={MOCK_HOST_ID} onMachine={() => {}} onClose={() => {}} />),
-  )
-  for (const label of ['Machine', 'Repository']) {
-    act(() => document.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!.click())
-    const selected = document.querySelector<HTMLButtonElement>('[role=option][aria-selected=true]')!
-    act(() => selected.click())
-  }
-  expect(invoke).not.toHaveBeenCalled()
-  const form = document.querySelector<HTMLFormElement>('form')!
-  expect(
-    [...form.querySelectorAll('button')]
-      .filter((button) => button.type === 'submit')
-      .map((button) => button.textContent),
-  ).toEqual(['Create lane'])
-  // requestSubmit models the browser's implicit Enter submission, which jsdom does not synthesize.
-  await act(async () => form.requestSubmit())
-  expect(invoke).toHaveBeenCalledExactlyOnceWith('hosts:createLane', MOCK_HOST_ID, {
-    repositoryId: '0000000000000001',
-    provider: 'test',
-    model: 'test-model',
-    thinkingLevel: 'off',
-  })
 })
 it('disables Stop until the lane has a first message, with the reason', () => {
   const id = mockRemoteInfo.sessionId

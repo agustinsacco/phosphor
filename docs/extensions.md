@@ -554,7 +554,7 @@ A Host indexes its admitted lanes on demand into its state directory. Remote
 artifact previews use the same local sandboxed viewer after bounded content
 fetches. The global library tags remote rows with their machine. Removed Host
 lanes do not appear in that library; local deleted-session artifacts remain.
-See [remote artifacts](remote-access.md#remote-artifacts) for the wire limits.
+See [remote artifacts](remote-desktop.md#remote-artifacts) for the wire limits.
 
 ### The status channel is a wire contract
 

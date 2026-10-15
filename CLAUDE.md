@@ -89,7 +89,7 @@ you want to watch.
    `apps/host/src/session/runtime.ts`: the same service and deletion over one
    lock domain. It listens on 127.0.0.1 only, at `api.port`, for grant-authenticated clients ([host.md](docs/host.md#api)). `login`, `status` and `logout` make
    outbound Ed25519-signed control requests. `apps/control` serves the site and
-   the control API (enrollment, machines, Host routes); it is not deployed yet.
+   the control API (enrollment, machines, clients, grants and Host routes).
    The control plane holds identity and machine metadata, never lane contents,
    paths or private keys ([remote-access.md](docs/remote-access.md)). The Host builds
    pi's environment from its own config and never takes environment, executable
@@ -332,7 +332,8 @@ letting it land in `~/Phosphor/release/`.
 
 `~/Library/Logs/Phosphor/phosphor.log` (Linux: `~/.config/Phosphor/logs/`) is written by
 `apps/desktop/electron/debug-log.ts` — always on, no flag, rotating at 5MB. It records pi's
-spawn argv, pi's stderr, unexpected exits, and main-process crashes, plus the
+spawn argv (the `--append-system-prompt` value shows as `[redacted]`), pi's stderr,
+unexpected exits, and main-process crashes, plus the
 inherited `PATH` (a GUI app gets launchd's, not your login shell's, so `pi` and
 `claude` can resolve to different binaries than in a terminal). An e2e run
 (`PHOSPHOR_TEST_USER_DATA`) writes its log under `<userData>/logs/` instead, so

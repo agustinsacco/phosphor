@@ -145,7 +145,7 @@ export function RoutineEditor({
   restored?: EditorDraft
   /** What Reset returns to: a blank routine, or the saved one being edited. */
   pristine: RoutineInput
-  /** `editorDrafts` key: the routine id, or NEW_ROUTINE. */
+  /** Fixed for this editor: the routine id, or the machine slot selected when it opened. */
   draftKey: string
   existing?: Routine
   machines?: RoutineMachine[]
@@ -198,6 +198,7 @@ export function RoutineEditor({
     setCheck(null)
   }
   const reset = (): void => {
+    keepEditorDraft(draftKey, null)
     setMachineId(pristineMachineId)
     setRepositoryId(pristineRepositoryId)
     setDraft(pristine)

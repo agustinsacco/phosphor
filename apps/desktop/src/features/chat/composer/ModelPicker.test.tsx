@@ -213,3 +213,37 @@ it.each([
     act(() => chip().click())
   }
 })
+
+it.each(['remote-ok', 'remote-failed', 'local-ok'] as const)(
+  'remembers live thinking only after a successful remote RPC: %s',
+  async (mode) => {
+    const { useRemoteModelPicks } = await import('@/stores/remoteModelPicks')
+    useRemoteModelPicks.setState({ thinking: {} })
+    if (mode.startsWith('remote'))
+      useSessionsStore.setState({
+        live: { [SESSION]: { ...mockRemoteInfo, phosphorId: SESSION } },
+      })
+    if (mode === 'local-ok')
+      useSessionsStore.setState({
+        live: { [SESSION]: { ...mockRemoteInfo, phosphorId: SESSION, target: { kind: 'local' } } },
+      })
+    let finish!: (value: { success: boolean; error?: string }) => void
+    piCommand.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    )
+    render()
+    act(() => document.querySelector<HTMLButtonElement>('[data-testid=thinking-chip]')!.click())
+    const low = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+      (button) => button.textContent === 'Low',
+    )!
+    await act(async () => low.click())
+    expect(useRemoteModelPicks.getState().thinking).toEqual({})
+    await act(async () => finish({ success: mode !== 'remote-failed', error: 'Refused' }))
+    expect(useRemoteModelPicks.getState().thinking).toEqual(
+      mode === 'remote-ok' ? { [MOCK_HOST_ID]: 'low' } : {},
+    )
+  },
+)

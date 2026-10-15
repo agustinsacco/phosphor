@@ -30,7 +30,7 @@ import { routeRemoteRead } from '../hosts/read-features'
 import { createRemoteLanes, type RemoteLanes } from '../hosts/remote-lanes'
 import { createRemoteTerminals } from '../hosts/terminals'
 import { createRemoteRoutines } from '../hosts/routines'
-import { createHostAttention } from '../hosts/attention'
+import { createHostAttention, readHostReceipt } from '../hosts/attention'
 
 let routines: ReturnType<typeof createRemoteRoutines> | undefined
 export const remoteRoutineMachines = () => routines?.machines() ?? []
@@ -173,6 +173,7 @@ export function registerHostsHandlers(): void {
     )
   })
   const attention = createHostAttention({
+    receipt: (hostId, laneId) => readHostReceipt(manager.connection, hostId, laneId),
     label: manager.label,
     focused: (hostId, laneId) =>
       BrowserWindow.getAllWindows().some(

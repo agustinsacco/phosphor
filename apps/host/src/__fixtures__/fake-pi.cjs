@@ -47,11 +47,18 @@ const { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } = r
 const { dirname, join } = require('node:path')
 
 const args = process.argv.slice(2)
+if (process.env.FAKE_PI_ARGV_FILE)
+  writeFileSync(process.env.FAKE_PI_ARGV_FILE, JSON.stringify(args))
 if (args.includes('--version')) {
   console.log('1.2.0')
   process.exit(0)
 }
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
+// pi 1.x rejects a provider without a model before starting a session.
+if (flag('--mode') === 'rpc' && args.includes('--provider') && !args.includes('--model')) {
+  console.error('--provider requires --model')
+  process.exit(1)
+}
 
 // pi's layout, as libs/session-runtime/src/pi/pi-paths.ts mangles it: keep the two in step.
 const agentDir = process.env.PI_CODING_AGENT_DIR ?? join(process.env.HOME ?? '/', '.pi', 'agent')
@@ -356,6 +363,41 @@ function linkTool() {
   persist(message)
   out({ type: 'message_start', message: text('') })
 }
+function receiptTools() {
+  const path = join(process.cwd(), 'remote.txt')
+  writeFileSync(path, 'HOST_A_ONLY receipt edit\n')
+  for (const [name, args, result] of [
+    [
+      'edit',
+      { path, oldText: 'HOST_A_ONLY', newText: 'HOST_A_ONLY receipt edit' },
+      {
+        content: [{ type: 'text', text: 'Edited file' }],
+        details: { diff: '-1 HOST_A_ONLY\n+1 HOST_A_ONLY receipt edit' },
+      },
+    ],
+    [
+      'bash',
+      { command: 'npm test' },
+      { content: [{ type: 'text', text: '1 test passed' }], details: { exitCode: 0 } },
+    ],
+  ]) {
+    const toolCallId = randomUUID()
+    const call = {
+      role: 'assistant',
+      content: [{ type: 'toolCall', id: toolCallId, name, arguments: args }],
+      stopReason: 'toolUse',
+    }
+    out({ type: 'message_end', message: call })
+    persist(call)
+    out({ type: 'tool_execution_start', toolCallId, toolName: name, args })
+    out({ type: 'tool_execution_end', toolCallId, toolName: name, isError: false, result })
+    const message = { role: 'toolResult', toolCallId, toolName: name, ...result, isError: false }
+    out({ type: 'message_start', message })
+    out({ type: 'message_end', message })
+    persist(message)
+    out({ type: 'message_start', message: text('') })
+  }
+}
 function attachmentReply(message, images) {
   const paths = /<attached-files>\n([\s\S]*?)\n<\/attached-files>/.exec(message)?.[1]
   const documents = (paths ? paths.split('\n') : []).map((path) =>
@@ -378,6 +420,7 @@ function prompt(message, images = []) {
   out({ type: 'message_start', message: text('') })
   if (/artifact/i.test(message)) artifact()
   if (/links/i.test(message)) linkTool()
+  if (/receipt-test/.test(message)) receiptTools()
   if (/stream|count|slow/i.test(message) || process.env.FAKE_PI_STALL) {
     if (process.env.FAKE_PI_STALL) writeFileSync(process.env.FAKE_PI_STALL, String(process.pid))
     const releaseFile = /^slow-until (.+)$/.exec(message)?.[1]

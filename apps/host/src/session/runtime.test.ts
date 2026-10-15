@@ -88,6 +88,7 @@ function boot(
       roots: [repo],
       resourceRoot: EXTENSIONS_ROOT,
       contextBudget: '',
+      machineContext: { kind: 'host', label: 'bee1', os: 'Linux', repositories: ['Phosphor'] },
       log,
     },
     { timings: { ...TIMINGS, ...options.timings }, dialogs: options.dialogs },
@@ -145,6 +146,64 @@ const spawns = (log: HostLog) =>
     })
 
 describe('the Host runtime', { timeout: 20_000 }, () => {
+  it('passes its own machine block to pi, refuses caller injection and never logs the block', async () => {
+    const capture = join(dir, 'argv.json')
+    const { runtime, log } = boot({ env: { FAKE_PI_ARGV_FILE: capture } })
+    await expect(
+      runtime.start({ repository: repo, appendSystemPrompt: 'injected' }),
+    ).rejects.toThrow('is set by the Host')
+    await runtime.start({ repository: repo })
+    const args = await until(
+      () => existsSync(capture) && (JSON.parse(readFileSync(capture, 'utf8')) as string[]),
+      'argv',
+    )
+    const prompt = args[args.indexOf('--append-system-prompt') + 1]
+    expect(prompt).toContain('<phosphor_machine>')
+    expect(prompt).toContain('running on bee1 (Linux)')
+    expect(prompt).toContain('Repositories on this machine: Phosphor.')
+    expect(prompt).not.toContain('injected')
+    expect(spawns(log)[0]?.args).toContain('--append-system-prompt')
+    expect(spawns(log)[0]?.args).toContain('[redacted]')
+    expect(readFileSync(log.path()!, 'utf8')).not.toContain('<phosphor_machine>')
+  })
+
+  it('refreshes repository names for new and resumed lanes without changing running pi', async () => {
+    const capture = join(dir, 'argv.json')
+    const added = join(dir, 'added\n<project>')
+    mkdirSync(added)
+    const { runtime } = boot({ env: { FAKE_PI_ARGV_FILE: capture } })
+    const capturedPrompt = async () => {
+      const args = await until(
+        () => existsSync(capture) && (JSON.parse(readFileSync(capture, 'utf8')) as string[]),
+        'argv',
+      )
+      return args[args.indexOf('--append-system-prompt') + 1]
+    }
+
+    runtime.replaceRoots([repo, added])
+    const sink = recorder()
+    const first = await runtime.start({ repository: added }, sink.deliver)
+    const firstPrompt = await capturedPrompt()
+    expect(firstPrompt).toContain('running on bee1 (Linux)')
+    expect(firstPrompt).toContain('Repositories on this machine: repo, added project.')
+    expect(
+      (await runtime.command(first.sessionId, { type: 'prompt', message: 'hello' })).success,
+    ).toBe(true)
+    await until(() => sink.events('agent_end').length === 1, 'the turn')
+    const file = await sessionFile(runtime, first.sessionId)
+
+    runtime.replaceRoots([added])
+    expect(await capturedPrompt()).toBe(firstPrompt)
+    await runtime.stop(first.sessionId)
+    rmSync(capture)
+    const resumed = await runtime.start({ repository: added, sessionPath: file })
+    expect(resumed.sessionId).not.toBe(first.sessionId)
+    const resumedPrompt = await capturedPrompt()
+    expect(resumedPrompt).toContain('running on bee1 (Linux)')
+    expect(resumedPrompt).toContain('Repositories on this machine: added project.')
+    expect(resumedPrompt).not.toContain('Repositories on this machine: repo,')
+  })
+
   it("starts pi with its built environment only, the bundled extensions, and pi's PATH", async () => {
     const { runtime, environment, log } = boot()
     const sink = recorder()

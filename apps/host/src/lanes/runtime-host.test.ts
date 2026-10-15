@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { mkdir, symlink, writeFile } from 'node:fs/promises'
 import * as fs from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
@@ -151,7 +152,20 @@ describe('runtime lane binding', () => {
           data: { ...state, sessionName: 'Native rename' },
         }))
       s.runtime.command.mockClear()
-      await job.apply('Generated title')
+      const applied = await job.apply('Generated title')
+      job.outcome?.(applied ?? 'applied')
+      job.outcome?.('print-failed')
+      expect(s.log.mock.calls.filter((c) => c[1] === 'lane.naming')).toEqual([
+        [
+          'host',
+          'lane.naming',
+          {
+            laneId: lane.laneId,
+            outcome: change === 'none' ? 'applied' : 'stale',
+            ms: expect.any(Number),
+          },
+        ],
+      ])
       expect(
         s.runtime.command.mock.calls.filter((c) => c[1].type === 'set_session_name'),
       ).toHaveLength(change === 'none' ? 1 : 0)
@@ -159,6 +173,38 @@ describe('runtime lane binding', () => {
       if (change === 'rename') expect(store.getLane(lane.laneId)?.title).toBe('Manual')
     },
   )
+  it.each(['skipped-not-eligible', 'skipped-no-model'] as const)(
+    'logs one private-data-free naming diagnostic for %s',
+    async (expected) => {
+      const nameLane = vi.fn<NonNullable<Parameters<typeof createRuntimeLanes>[0]['nameLane']>>()
+      const s = setup([], nameLane)
+      if (expected === 'skipped-not-eligible')
+        s.runtime.command.mockImplementation(async (_id, cmd) => ({
+          type: 'response',
+          command: cmd.type,
+          success: true,
+          data: cmd.type === 'get_messages' ? { messages: [] } : { ...state, messageCount: 2 },
+        }))
+      const session = await s.binding.sessions.start({ repository: machine.repository })
+      const lane = s.saved()
+      await s.binding.sessions.attach(lane.laneId, session.sessionId)
+      await s.binding.command(session.sessionId, { type: 'prompt', message: 'private prompt' })
+      await vi.waitFor(() =>
+        expect(s.log).toHaveBeenCalledWith('host', 'lane.naming', {
+          laneId: lane.laneId,
+          outcome: expected,
+          ms: expect.any(Number),
+        }),
+      )
+      await s.binding.command(session.sessionId, {
+        type: 'prompt',
+        message: 'another private prompt',
+      })
+      expect(s.log.mock.calls.filter((c) => c[1] === 'lane.naming')).toHaveLength(1)
+      expect(nameLane).not.toHaveBeenCalled()
+    },
+  )
+
   it('keeps naming disabled when not configured', async () => {
     const s = setup()
     const session = await s.binding.sessions.start({ repository: machine.repository })
@@ -1078,4 +1124,54 @@ it('does not stop a deleting lane after authority expires while reading pi state
   await s.binding.sessions.attach(lane.laneId, session.sessionId)
   await expect(s.binding.deleteStop(lane.laneId, () => false)).rejects.toThrow('control changed')
   expect(s.runtime.stop).not.toHaveBeenCalled()
+})
+
+it('fresh branch conflicts produce a fixed rejection before a row or process exists', async () => {
+  execFileSync(
+    'git',
+    [
+      '-c',
+      'user.name=Test',
+      '-c',
+      'user.email=test@example.invalid',
+      'commit',
+      '--allow-empty',
+      '-m',
+      'base',
+    ],
+    { cwd: machine.repository },
+  )
+  execFileSync('git', ['branch', 'occupied'], { cwd: machine.repository })
+  const s = setup()
+  const receipts: Receipt[] = []
+  const commands = createLaneCommands({
+    store,
+    ...s.binding,
+    runtime: s.binding,
+    sessionFor: live.sessionFor,
+    openDialogs: live.openDialogs,
+    summaryFor: live.summaryFor,
+    publish: live.publish,
+    deliver: (_id, receipt) => receipts.push(receipt),
+    now: Date.now,
+    log: s.log,
+  })
+  await commands.submit(
+    { id: randomUUID(), label: 'Client', caps: ['sessions.control'] },
+    {
+      type: 'command',
+      requestId: randomUUID(),
+      op: { type: 'lane.create', repositoryId, worktree: { branch: 'occupied', fresh: true } },
+    },
+  )
+  expect(receipts.at(-1)).toMatchObject({ status: 'rejected', code: 'branch-exists' })
+  expect(s.runtime.start).not.toHaveBeenCalled()
+  expect(store.listLanes()).toHaveLength(0)
+  expect(s.log).toHaveBeenCalledWith(
+    'host',
+    'lane.command',
+    expect.objectContaining({ code: 'branch-exists' }),
+  )
+  expect(JSON.stringify(s.log.mock.calls)).not.toContain('occupied')
+  commands.close()
 })

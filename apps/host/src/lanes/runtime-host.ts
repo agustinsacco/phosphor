@@ -1,5 +1,5 @@
 import { lstat } from 'node:fs/promises'
-import { titleCandidates, type createLaneNamer } from './naming'
+import { titleCandidates, type createLaneNamer, type NamingOutcome } from './naming'
 import type { SessionPush } from '@phosphor/shared/models'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 import type { HostRuntime } from '../session/runtime'
@@ -14,6 +14,7 @@ const MODEL_TRANSCRIPT_REFUSAL = 'The lane transcript could not be verified. Mod
 type Binding = {
   switching?: boolean
   namingEligible?: boolean
+  namingConsidered?: boolean
   renameRevision?: number
   laneId?: string
   pushes: SessionPush[]
@@ -297,7 +298,23 @@ export function createRuntimeLanes(options: {
           if (lane && lane.removedAt === null && !lane.title && fallback)
             options.store.updateLane(laneId, { title: fallback })
           live.firstPrompt(laneId, args[1].message)
-          if (binding.namingEligible && options.nameLane) {
+          if (options.nameLane && !binding.namingConsidered) {
+            binding.namingConsidered = true
+            const started = Date.now()
+            let reported = false
+            const outcome = (outcome: NamingOutcome) => {
+              if (reported) return
+              reported = true
+              try {
+                options.log('host', 'lane.naming', { laneId, outcome, ms: Date.now() - started })
+              } catch {
+                /* Diagnostics cannot fail a prompt. */
+              }
+            }
+            if (!binding.namingEligible) {
+              outcome('skipped-not-eligible')
+              return response
+            }
             binding.namingEligible = false
             const nameLane = options.nameLane
             const message = args[1].message
@@ -313,34 +330,40 @@ export function createRuntimeLanes(options: {
               const modelsResponse = await runtime.command(args[0], {
                 type: 'get_available_models',
               })
-              if (state?.model && !state.sessionName && current())
-                nameLane({
-                  cwd: options.store.getLane(laneId)?.cwd ?? '',
-                  message,
-                  model: state.model,
-                  models:
-                    modelsResponse.type === 'response' &&
-                    modelsResponse.command === 'get_available_models' &&
-                    modelsResponse.success
-                      ? titleCandidates(modelsResponse.data)
-                      : [],
-                  current,
-                  async apply(title) {
-                    if (!current()) return
-                    const latestResponse = await runtime.command(args[0], { type: 'get_state' })
-                    const latest = latestResponse.success ? piState(latestResponse.data) : null
-                    if (!latest || latest.sessionName || !current()) return
-                    const named = await runtime.command(args[0], {
-                      type: 'set_session_name',
-                      name: title,
-                    })
-                    if (named.success) {
-                      options.store.updateLane(laneId, { title })
-                      binding.attachment?.stateChanged()
-                    }
-                  },
-                })
-            })().catch(() => {})
+              if (!current()) return outcome('stale')
+              if (!state?.model) return outcome('skipped-no-model')
+              if (state.sessionName) return outcome('skipped-not-eligible')
+              nameLane({
+                outcome,
+                cwd: options.store.getLane(laneId)?.cwd ?? '',
+                message,
+                model: state.model,
+                models:
+                  modelsResponse.type === 'response' &&
+                  modelsResponse.command === 'get_available_models' &&
+                  modelsResponse.success
+                    ? titleCandidates(modelsResponse.data)
+                    : [],
+                current,
+                async apply(title) {
+                  if (!current()) return 'stale'
+                  const latestResponse = await runtime.command(args[0], { type: 'get_state' })
+                  const latest = latestResponse.success ? piState(latestResponse.data) : null
+                  if (!current() || latest?.sessionName) return 'stale'
+                  if (!latest) return 'set-failed'
+                  const named = await runtime.command(args[0], {
+                    type: 'set_session_name',
+                    name: title,
+                  })
+                  if (named.success) {
+                    options.store.updateLane(laneId, { title })
+                    binding.attachment?.stateChanged()
+                    return 'applied'
+                  }
+                  return 'set-failed'
+                },
+              })
+            })().catch(() => outcome('set-failed'))
           }
         }
         if (response.success && args[1].type === 'set_session_name' && binding?.laneId) {

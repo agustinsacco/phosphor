@@ -258,7 +258,7 @@ sign-in start, browser opening, callback, finish, failure class, cancellation,
 refresh and sign-out use `[account]`. The log records the user id and GitHub
 login, never an email, token, callback code or exception message. `[control]`
 records control API calls; `[machines]` records Realtime and fetch observations.
-See [Tracing a machine](remote-access.md#tracing-a-machine) for correlation and
+See [Tracing a machine](remote-development.md#tracing-a-machine) for correlation and
 liveness rules. An E2E profile writes only to its own log folder.
 
 ## Extensions

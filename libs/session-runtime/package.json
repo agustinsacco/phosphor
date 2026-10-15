@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./pi/machine-prompt": {
+      "types": "./src/pi/machine-prompt.ts",
+      "default": "./src/pi/machine-prompt.ts"
+    },
     "./bundled-skills": {
       "types": "./src/bundled-skills.ts",
       "default": "./src/bundled-skills.ts"

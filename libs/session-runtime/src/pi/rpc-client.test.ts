@@ -26,6 +26,30 @@ afterEach(async () => {
 })
 
 describe('headless PiRpcClient', () => {
+  it('redacts appended prompt values in spawn logs without hiding the flag', async () => {
+    const log = vi.fn()
+    const instance = new PiRpcClient(
+      {
+        cwd: import.meta.dirname,
+        binaryPath: process.execPath,
+        prefixArgs: [join(import.meta.dirname, '__fixtures__', 'fake-pi.cjs')],
+        appendSystemPrompt: '<phosphor_machine>private display names</phosphor_machine>',
+      },
+      { log, isClosing: () => false },
+    )
+    clients.push(instance)
+    instance.spawn()
+    await instance.request({ type: 'get_state' })
+    expect(log).toHaveBeenCalledWith(
+      'pi',
+      'spawn',
+      expect.objectContaining({
+        args: expect.arrayContaining(['--append-system-prompt', '[redacted]']),
+      }),
+    )
+    expect(JSON.stringify(log.mock.calls)).not.toContain('private display names')
+  })
+
   it('runs RPC and streams events without Electron or a global logger', async () => {
     const log = vi.fn()
     const instance = client({ log, isClosing: () => false })

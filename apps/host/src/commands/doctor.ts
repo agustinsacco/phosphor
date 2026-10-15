@@ -1,3 +1,5 @@
+import { basename } from 'node:path'
+import { identityDirectory, readIdentityFile } from '../control/identity'
 import { randomUUID } from 'node:crypto'
 import { lstat, stat } from 'node:fs/promises'
 import { contextBudgetTokens } from '@phosphor/shared/context-budget'
@@ -217,6 +219,23 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
     },
     environment.secrets,
   )
+  // Read public enrollment metadata only. Never load the signing key for a prompt.
+  let machineLabel = context.hostname
+  try {
+    const metadata: unknown = JSON.parse(
+      await readIdentityFile(identityDirectory(context.configPath), context.uid, 'host.json'),
+    )
+    if (
+      metadata &&
+      typeof metadata === 'object' &&
+      'label' in metadata &&
+      typeof metadata.label === 'string' &&
+      metadata.label.trim()
+    )
+      machineLabel = metadata.label
+  } catch {
+    // Enrollment is optional and must not affect doctor or lane admission.
+  }
   const machine =
     native.available && pi.launch
       ? {
@@ -225,6 +244,19 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
           roots: repositories.roots,
           resourceRoot: config.resourceRoot ?? context.defaultResourceRoot,
           contextBudget: config.contextBudget ?? '',
+          machineContext: {
+            kind: 'host' as const,
+            label: machineLabel,
+            os:
+              context.platform === 'darwin'
+                ? 'macOS'
+                : context.platform === 'win32'
+                  ? 'Windows'
+                  : context.platform === 'linux'
+                    ? 'Linux'
+                    : context.platform,
+            repositories: config.repositories.map((repository) => basename(repository)),
+          },
         }
       : null
   return {

@@ -59,3 +59,49 @@ it.each(['down', 'capability', 'viewer', 'receipt', 'transport'])(
     if (failure === 'viewer') expect(pi).not.toHaveBeenCalled()
   },
 )
+
+it('retries only definitive fresh collisions with the next bounded candidate', async () => {
+  invoke.mockImplementation(async (channel, _host, input) => {
+    if (channel === 'hosts:createLane' && input.worktree.branch === 'phosphor/fix-bug')
+      throw new Error("Error invoking remote method 'hosts:createLane': Error: branch-exists")
+    return channel === 'hosts:snapshot' ? mockRemoteHosts : mockRemoteInfo
+  })
+  await startRemoteChat(
+    MOCK_HOST_ID,
+    { ...input, worktree: { branch: 'phosphor/fix-bug', fresh: true } },
+    'Fix bug',
+    [],
+    accepted,
+  )
+  expect(
+    invoke.mock.calls
+      .filter(([channel]) => channel === 'hosts:createLane')
+      .map((args) => args[2].worktree),
+  ).toEqual([
+    { branch: 'phosphor/fix-bug', fresh: true },
+    { branch: 'phosphor/fix-bug-2', fresh: true },
+  ])
+  expect(adopt).toHaveBeenCalledOnce()
+})
+
+it.each(['branch-exists', 'unknown-outcome'])(
+  'bounds retries and retains the draft after %s',
+  async (code) => {
+    invoke.mockRejectedValue(new Error(code))
+    await expect(
+      startRemoteChat(
+        MOCK_HOST_ID,
+        { ...input, worktree: { branch: 'phosphor/fix-bug', fresh: true } },
+        'Fix bug',
+        [],
+        accepted,
+      ),
+    ).rejects.toThrow(code === 'branch-exists' ? 'branch-name-exhausted' : code)
+    const attempts = invoke.mock.calls.filter(([channel]) => channel === 'hosts:createLane')
+    expect(attempts).toHaveLength(code === 'branch-exists' ? 5 : 1)
+    if (code === 'branch-exists')
+      expect(attempts.at(-1)?.[2].worktree.branch).toBe('phosphor/fix-bug-5')
+    expect(accepted).not.toHaveBeenCalled()
+    expect(adopt).not.toHaveBeenCalled()
+  },
+)

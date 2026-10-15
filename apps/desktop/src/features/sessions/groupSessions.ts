@@ -3,6 +3,11 @@ import { compareSessionsByCreation } from '@shared/session-order'
 import { projectPathFor, workspaceName } from '@/lib/path'
 import { latestRewoundVersion, presentSessionFiles, type RewoundSessions } from './rewound'
 
+/** Group actions and navigation use the main repo only when it is listed. */
+export function representativeGroupPath(projectKey: string, paths: readonly string[]): string {
+  return paths.includes(projectKey) ? projectKey : (paths[0] ?? projectKey)
+}
+
 export interface GroupedSessions {
   /**
    * Representative folder for this group: the main repo when it's known,
@@ -139,7 +144,7 @@ export function groupSessionsByProject(
         // The main repo path is the natural target for group-level actions
         // (new session, watchers) when we know about it; otherwise fall back
         // to whichever worktree folder we do know.
-        const workspacePath = entry.paths.includes(projectKey) ? projectKey : entry.paths[0]!
+        const workspacePath = representativeGroupPath(projectKey, entry.paths)
         return {
           workspacePath,
           paths: entry.paths,

@@ -26,3 +26,31 @@ describe('createSettleTracker', () => {
     expect(tracker.finished('b', { type: 'agent_settled', aborted: false })).toBe(true)
   })
 })
+
+it('retains earliest run start through agent_end, settles once and forgets timing', () => {
+  let now = 10
+  const tracker = createSettleTracker(() => now)
+  tracker.settle('lane', { type: 'agent_start' })
+  now = 20
+  tracker.settle('lane', { type: 'agent_start' })
+  tracker.settle('lane', { type: 'agent_end', messages: [] })
+  expect(tracker.settle('lane', { type: 'agent_settled', aborted: false })).toEqual({
+    finished: true,
+    startedAt: 10,
+  })
+  expect(tracker.settle('lane', { type: 'agent_settled', aborted: false })).toEqual({
+    finished: false,
+    startedAt: null,
+  })
+  tracker.settle('lane', { type: 'agent_start' })
+  tracker.forget('lane')
+  expect(tracker.settle('lane', { type: 'agent_settled', aborted: false })).toEqual({
+    finished: false,
+    startedAt: null,
+  })
+  tracker.settle('lane', { type: 'agent_start' })
+  expect(tracker.settle('lane', { type: 'agent_settled', aborted: true })).toEqual({
+    finished: false,
+    startedAt: 20,
+  })
+})

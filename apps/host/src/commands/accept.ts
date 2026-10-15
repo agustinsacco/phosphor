@@ -1,3 +1,4 @@
+import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 import { existsSync, readFileSync } from 'node:fs'
@@ -139,6 +140,15 @@ export async function runAccept(context: AcceptContext): Promise<AcceptOutcome> 
     return { exitCode: EXIT.usage, problem: `--provider ${CLAUDE_PROVIDER} is the claude lane` }
   }
   const lanes: AcceptLane[] = context.lane === 'all' ? ['native', 'claude'] : [context.lane]
+  if (lanes.includes('claude') && claudeLane.available && !context.claudeModel) {
+    const settings = await readAgentSettings(context.repository)
+    if (settings.defaultProvider !== CLAUDE_PROVIDER)
+      return {
+        exitCode: EXIT.usage,
+        problem:
+          "the claude lane cannot start: pi's default is not Claude, so name the lane's model with --claude-model",
+      }
+  }
   for (const lane of lanes) {
     const parsed = await parseSessionRequest(laneRequest(lane, context), machine.roots)
     if (!parsed.ok) {
@@ -231,8 +241,10 @@ function laneRequest(lane: AcceptLane, context: AcceptContext): HostSessionReque
   if (lane === 'claude') {
     return {
       repository: context.repository,
-      provider: CLAUDE_PROVIDER,
-      ...(context.claudeModel !== undefined && { model: context.claudeModel }),
+      ...(context.claudeModel !== undefined && {
+        provider: CLAUDE_PROVIDER,
+        model: context.claudeModel,
+      }),
     }
   }
   return {

@@ -1,3 +1,4 @@
+import type { LaneReceipt } from './lane-receipt'
 import type { FileRead } from './host-protocol-files'
 import type { TailscaleStatus } from './tailscale-status'
 import type { MachineModel, MachineProvider } from './host-protocol-machine'
@@ -167,7 +168,7 @@ export type HostsSnapshot = Record<string, HostConnectionView>
 /** A new lane on a Host (11). The Host picks the folder; never a path from here. */
 export interface RemoteLaneCreate {
   repositoryId: string
-  worktree?: { branch: string }
+  worktree?: { branch: string; fresh?: true }
   name?: string
   provider?: string
   model?: string
@@ -175,6 +176,7 @@ export interface RemoteLaneCreate {
 }
 /** An attention event from any Host, for in-app and OS notifications (49). */
 export interface HostAttention {
+  receipt?: LaneReceipt
   hostId: string
   laneId: string
   kind: 'finished' | 'needs-input' | 'failed' | 'routine'

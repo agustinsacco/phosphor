@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 
+const persisted = vi.hoisted(() => ({ data: {} as Record<string, unknown> }))
+
 // An in-memory electron-store: the real one needs a running Electron app.
 vi.mock('electron-store', () => ({
   default: class {
     private data: Record<string, unknown>
     constructor(options: { defaults: Record<string, unknown> }) {
       this.data = structuredClone(options.defaults)
+      if ('agentDirectives' in options.defaults) persisted.data = this.data
     }
     get(key: string): unknown {
       return this.data[key]
@@ -52,4 +55,14 @@ it('keeps remote client account ids in a separate main-only store', async () => 
   expect(getRemoteClients()[user]?.clientId).toBe(clientId)
   expect(getPrefs()).not.toHaveProperty('remoteClients')
   expect(JSON.stringify(getPrefs())).not.toContain(user)
+})
+
+it('defaults legacy global and project machine awareness on', () => {
+  getPrefs()
+  const legacy = { worktreeGuard: false, laneCharter: false, subagentPolicy: false, custom: '' }
+  persisted.data.agentDirectives = legacy
+  persisted.data.agentDirectivesByProject = { '/legacy-project': legacy }
+  const prefs = getPrefs()
+  expect(prefs.agentDirectives.machineAwareness).toBe(true)
+  expect(prefs.agentDirectivesByProject['/legacy-project']?.machineAwareness).toBe(true)
 })

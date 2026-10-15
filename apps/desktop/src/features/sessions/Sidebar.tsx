@@ -1,7 +1,14 @@
+import { openRemoteComposer } from '@/features/home/remoteComposer'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import { MachineSwitcher, MachineLabelLine } from './MachineSwitcher'
 import { RemoteLanes } from './RemoteLanes'
-import { useRemoteLanesStore, machineLabel } from '@/stores/remoteLanes'
+import {
+  useRemoteLanesStore,
+  machineLabel,
+  navigateToLane,
+  alignLaneMachineFilter,
+} from '@/stores/remoteLanes'
+import { LaneRevealEffect, localLaneGroupKey } from './laneReveal'
 import { TooltipButton } from '@/components/Tooltip'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
@@ -846,7 +853,11 @@ export function Sidebar({
         <NavRow
           label="New"
           badge
-          onClick={() => useSessionsStore.getState().activate(null)}
+          onClick={() => {
+            const filter = useRemoteLanesStore.getState().filter
+            if (filter !== 'local' && filter !== 'all') openRemoteComposer(filter)
+            else useSessionsStore.getState().activate(null)
+          }}
           icon={<PlusIcon strokeWidth={2.5} />}
         />
         <NavRow
@@ -920,6 +931,12 @@ export function Sidebar({
               const shownCount = visible.length
               return (
                 <div key={group.workspacePath}>
+                  <LaneRevealEffect
+                    groupKey={localLaneGroupKey(group.workspacePath)}
+                    collapsed={isCollapsed}
+                    expand={() => toggleGroup(group, true)}
+                    clearSearch={() => closeSearch(group.workspacePath)}
+                  />
                   <WorkspaceGroupHeader onContextMenu={(event) => groupContextMenu(event, group)}>
                     <WorkspaceGroupTitle
                       name={group.name}
@@ -1562,6 +1579,7 @@ function SessionRow({
   const rowWorkspaceName = projectName(meta.cwd || workspacePath, git)
 
   const open = (): void => {
+    alignLaneMachineFilter('local')
     void useSessionsStore.getState().openDiskSession(workspacePath, meta)
   }
 
@@ -1962,7 +1980,7 @@ function PendingSessionRow({
 
   const contextMenu = (event: React.MouseEvent): void => {
     showContextMenu(event, [
-      { label: 'Open', onClick: () => useSessionsStore.getState().activate(phosphorId) },
+      { label: 'Open', onClick: () => void navigateToLane({ sessionId: phosphorId }) },
       ...orderActions,
       { label: 'Rename…', onClick: beginRename },
       { label: 'Export HTML…', onClick: () => void exportSessionHtml(phosphorId, title) },
@@ -2046,7 +2064,7 @@ function PendingSessionRow({
 
   return (
     <TooltipButton
-      onClick={() => useSessionsStore.getState().activate(phosphorId)}
+      onClick={() => void navigateToLane({ sessionId: phosphorId })}
       disabled={deleting}
       aria-busy={deleting}
       onContextMenu={contextMenu}

@@ -126,6 +126,7 @@ export const SETTINGS_INDEX: SettingEntry[] = [
     ['Directives', 'system prompt instructions'],
     [
       ['Worktree guard', 'branch checkout'],
+      ['Machine awareness', 'host local remote tailscale machine prompt'],
       ['Lane charter', 'pull request pr'],
       ['Sub-agent policy', 'subagent delegation'],
     ],

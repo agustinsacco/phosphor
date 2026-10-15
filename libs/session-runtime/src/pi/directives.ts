@@ -1,4 +1,5 @@
 import type { AgentDirectivePrefs, GitInfo } from '@shared/models'
+import { machinePromptBlock, type MachineContext } from './machine-prompt'
 import { worktreePromptBlock } from './workspace-prompt'
 import { subagentPolicyBlock } from '@shared/agent-directives'
 export { subagentPolicyBlock } from '@shared/agent-directives'
@@ -10,8 +11,8 @@ export { subagentPolicyBlock } from '@shared/agent-directives'
  *
  *   1. The agent's own system prompt. Not ours, fixed at spawn, reloaded on
  *      compaction.
- *   2. **This.** The worktree warning, the lane charter, and the user's own
- *      text, concatenated in a fixed order and passed as
+ *   2. **This.** The worktree warning, machine context, lane charter, sub-agent
+ *      policy and the user's own text, concatenated in a fixed order and passed as
  *      `--append-system-prompt`.
  *   3. Project rules files, loaded by pi into its assembled system prompt.
  *      The Claude context policy disables the CLI's independent copy. Like
@@ -75,6 +76,7 @@ export interface ComposeDirectivesOptions {
   cwd: string
   git: GitInfo
   prefs: AgentDirectivePrefs
+  machine?: MachineContext
   charter?: LaneCharter
 }
 
@@ -82,8 +84,9 @@ export interface ComposeDirectivesOptions {
  * Compose layer 2, in a fixed order.
  *
  * Order is part of the contract: the worktree warning first because it is a
- * correctness guard, the charter next because it defines the work, the
- * sub-agent policy after it because it constrains how the work is done, and
+ * correctness guard, machine context next to locate the lane, then the charter
+ * because it defines the work, the sub-agent policy after it because it
+ * constrains how the work is done, and
  * the user's text last so it can qualify any of them without being buried.
  */
 export function composeDirectives({
@@ -91,9 +94,11 @@ export function composeDirectives({
   git,
   prefs,
   charter,
+  machine,
 }: ComposeDirectivesOptions): string | undefined {
   const blocks: (string | undefined)[] = [
     prefs.worktreeGuard ? worktreePromptBlock(cwd, git) : undefined,
+    prefs.machineAwareness !== false ? machinePromptBlock(machine) : undefined,
     prefs.laneCharter && charter ? laneCharterBlock(charter) : undefined,
     prefs.subagentPolicy ? subagentPolicyBlock() : undefined,
     prefs.custom.trim() ? prefs.custom.trim() : undefined,

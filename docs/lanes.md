@@ -12,13 +12,16 @@ Related: [worktrees.md](worktrees.md) for the branch lifecycle,
 
 The sidebar lists authenticated Host lanes alongside local groups, with a machine
 filter. A disconnected machine keeps its memory-only rows greyed, disabled and
-labelled last known. The remote-create dialog and home flow choose a machine and
-then its configured repository. This Mac retains the local folder and branch
-flow. Selecting an unavailable Host never creates a local session.
+labelled last known. Remote creation uses a machine and its configured repository.
+
+Host + and New open the home composer, not a separate modal.
+[Remote creation](remote-desktop.md#machine-context-and-lane-creation) owns the flow.
+
+This Mac retains the local folder and branch flow. Selecting an unavailable Host never creates a local session.
 
 The lane header reports the connection state. The composer and panes disable
 while disconnected and recover when the Host snapshot is ready. See
-[remote-access.md](remote-access.md#machine-context-and-lane-creation).
+[Remote Desktop](remote-desktop.md#machine-context-and-lane-creation).
 
 ## The row
 
@@ -205,7 +208,7 @@ the keyboard route.
 
 ## Naming
 
-A lane is named once, after its first turn ends, by a one-shot `pi -p` call
+A local lane is named once, after its first turn ends, by a one-shot `pi -p` call
 (`apps/desktop/electron/pi/session-naming.ts`). The title flows to the branch as well as the
 session, so the sidebar group, the branch chip and the title agree.
 
@@ -227,7 +230,9 @@ it falls back to `claude-haiku-4-5`.
 The run boots fast with `--no-extensions`, so no installed package (MCP
 adapter, sub-agents, web access) starts for a title. Providers can register
 through extensions, so a fast boot loads the provider's own extension
-(pi-claude-cli's, from its package). If a fast boot fails, the same model runs
+(pi-claude-cli's, resolved from the installed package with `resolvePackagePaths`).
+An empty extension resolution skips the fast attempt rather than passing package
+display names as executable paths. If a fast boot fails, the same model runs
 on a full boot, then the fallback model; a provider or model that needed the
 retry is remembered until the app quits. Measured on the Claude CLI: 2.4s from
 spawn to title, against 6.0s before. The run is spawned as its own process

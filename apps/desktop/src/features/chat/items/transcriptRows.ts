@@ -1,3 +1,4 @@
+import { EXTERNAL_TOOL_MARKER, isExternalToolMarker } from '@shared/external-tool-marker'
 import type { AssistantBlock, AssistantItem, ChatItem, ToolState } from '../reducer'
 import type { DividerItem } from '../chatItems'
 import { launchedAgentCount, SUBAGENT_TOOL } from '../subagentRuns'
@@ -75,7 +76,6 @@ export interface ExternalToolResult {
 }
 
 /** `[Claude Code · WebSearch {"query":"…"}]` → name + argument preview. */
-const EXTERNAL_TOOL_MARKER = /^\[Claude Code · ([^\s\]]+)(?:\s+([\s\S]*))?\]$/
 
 /**
  * The id tag the provider puts in front of the arguments when result
@@ -146,6 +146,7 @@ export function compactDivider(id: string, args: string | undefined): DividerIte
 export function parseExternalToolMarker(
   text: string,
 ): { name: string; toolUseId?: string; args?: string } | null {
+  if (!isExternalToolMarker(text)) return null
   const match = EXTERNAL_TOOL_MARKER.exec(text.trim())
   if (!match) return null
   const rest = match[2]?.trim()

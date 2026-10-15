@@ -1,3 +1,5 @@
+import { remoteBranchName } from './remoteBranchName'
+import { ipcErrorText } from '@shared/errors'
 import { rememberRemoteModel } from '@/stores/remoteModelPicks'
 import type { RemoteLaneCreate } from '@shared/ipc'
 import type { PendingAttachment } from '@/features/chat/attachments'
@@ -10,7 +12,7 @@ import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore, canControlSession, adoptRemoteLane } from '@/stores/remoteLanes'
 import { piCallOk } from '@/lib/rpc'
 
-/** A failed or uncertain receipt leaves the caller's draft untouched. Never retry automatically. */
+/** Only a definitive fresh-branch refusal may retry. Uncertain receipts keep the draft. */
 export async function startRemoteChat(
   hostId: string,
   input: RemoteLaneCreate,
@@ -21,7 +23,22 @@ export async function startRemoteChat(
   const host = useRemoteLanesStore.getState().hosts[hostId]
   if (host?.state !== 'ready' || !host.capabilities.includes('sessions.control')) throw new Error()
   const nav = useSessionsStore.getState().claimNav()
-  const info = await window.phosphor.invoke('hosts:createLane', hostId, input)
+  const create = async () => {
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      try {
+        return await window.phosphor.invoke('hosts:createLane', hostId, {
+          ...input,
+          ...(input.worktree?.fresh
+            ? { worktree: { branch: remoteBranchName(text, attempt), fresh: true } }
+            : {}),
+        })
+      } catch (error) {
+        if (!input.worktree?.fresh || ipcErrorText(error) !== 'branch-exists') throw error
+      }
+    }
+    throw new Error('branch-name-exhausted')
+  }
+  const info = await create()
   if (input.model && input.provider)
     rememberRemoteModel(hostId, { id: input.model, provider: input.provider })
   await adoptRemoteLane(info, nav)

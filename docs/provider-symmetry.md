@@ -42,6 +42,11 @@ changes.
 
 Paths under `tests/` are pi-claude-cli's; the rest are Phosphor's.
 
+Both providers receive identical [machine-awareness text](chat.md#agent-directives)
+from the shared directive stack. Host identity, repository summaries and service
+warnings do not depend on the selected provider; [Host machine awareness](host.md#machine-awareness)
+owns their content.
+
 ### Per-lane Swarm authorization
 
 Both providers receive the same short request-local `phosphor_swarm` section from

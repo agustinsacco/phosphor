@@ -14,7 +14,14 @@ import { isLaneBranchName } from '@phosphor/shared/host-protocol'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
 
-export class LaneFolderError extends Error {}
+export class LaneFolderError extends Error {
+  constructor(
+    message: string,
+    readonly code?: 'branch-exists',
+  ) {
+    super(message)
+  }
+}
 export interface LaneFolder {
   cwd: string
   branch: string | null
@@ -22,7 +29,7 @@ export interface LaneFolder {
 }
 export async function prepareLaneFolder(input: {
   root: string
-  worktree: { readonly branch: string } | null
+  worktree: { readonly branch: string; readonly fresh?: true } | null
   log?: RuntimeLog
 }): Promise<LaneFolder> {
   const { root, worktree, log } = input
@@ -45,11 +52,47 @@ export async function prepareLaneFolder(input: {
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(slug) || slug.includes('..'))
     refuse('That branch name is not valid.')
   let created = false
+  let worktreeCreated = false
   let madeBranch = false
   let baseCommit = ''
   const path = join(root, '.phosphor', 'worktrees', slug)
+  const logUndoFailure = (error: unknown) => {
+    const code =
+      typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
+    try {
+      log?.(
+        'host',
+        'lane.worktree_undo_failed',
+        typeof code === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(code) ? { code } : {},
+      )
+    } catch {
+      /* Logging cannot replace the original error. */
+    }
+  }
   const undo = async () => {
     if (!created) return
+    if (worktree.fresh) {
+      try {
+        // Removing the checked-out ref first makes tracked files look staged.
+        if (worktreeCreated) {
+          await run(['worktree', 'remove', path])
+          worktreeCreated = false
+        }
+      } catch (error) {
+        logUndoFailure(undefined)
+        throw error
+      } finally {
+        if (madeBranch) {
+          try {
+            await run(['update-ref', '-d', `refs/heads/${branch}`, baseCommit])
+            madeBranch = false
+          } catch {
+            logUndoFailure(undefined)
+          }
+        }
+      }
+      return
+    }
     try {
       try {
         const leaf = lstatSync(path)
@@ -79,17 +122,7 @@ export async function prepareLaneFolder(input: {
       created = false
       if (madeBranch) await run(['update-ref', '-d', `refs/heads/${branch}`, baseCommit])
     } catch (error) {
-      const code =
-        typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
-      try {
-        log?.(
-          'host',
-          'lane.worktree_undo_failed',
-          typeof code === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(code) ? { code } : {},
-        )
-      } catch {
-        /* Logging cannot replace the original error. */
-      }
+      logUndoFailure(error)
     }
   }
   try {
@@ -106,7 +139,10 @@ export async function prepareLaneFolder(input: {
           ? 'master'
           : await run(['rev-parse', '--abbrev-ref', 'HEAD'])
     }
-    if (branch === defaultBranch) refuse('The default branch stays in the main tree.')
+    if (branch === defaultBranch) {
+      if (worktree.fresh) throw new LaneFolderError('That branch already exists.', 'branch-exists')
+      refuse('The default branch stays in the main tree.')
+    }
     const checkFolders = () => {
       for (const folder of [join(root, '.phosphor'), join(root, '.phosphor', 'worktrees')])
         directory(folder)
@@ -119,8 +155,10 @@ export async function prepareLaneFolder(input: {
         if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error
       }
     }
-    checkFolders()
-    checkLeafAbsent()
+    if (!worktree.fresh) {
+      checkFolders()
+      checkLeafAbsent()
+    }
     const exists = async (ref: string) => {
       try {
         await run(['show-ref', '--verify', '--quiet', ref])
@@ -130,15 +168,21 @@ export async function prepareLaneFolder(input: {
       }
     }
     const existing = await exists(`refs/heads/${branch}`)
+    if (existing && worktree.fresh)
+      throw new LaneFolderError('That branch already exists.', 'branch-exists')
+    if (worktree.fresh) checkLeafAbsent()
     if (
+      !worktree.fresh &&
       (await run(['worktree', 'list', '--porcelain']))
         .split('\n')
         .includes(`branch refs/heads/${branch}`)
     )
       refuse('That branch is checked out in another worktree.')
     const common = resolve(root, await run(['rev-parse', '--git-common-dir']))
-    directory(join(common, 'info'))
-    excludeWorktrees(join(common, 'info', 'exclude'))
+    if (!worktree.fresh) {
+      directory(join(common, 'info'))
+      excludeWorktrees(join(common, 'info', 'exclude'))
+    }
     if (!existing) {
       const remote = await exists(`refs/remotes/origin/${defaultBranch}`)
       const base = remote
@@ -147,14 +191,25 @@ export async function prepareLaneFolder(input: {
           ? defaultBranch
           : 'HEAD'
       baseCommit = await run(['rev-parse', '--verify', `${base}^{commit}`])
-      await run(['update-ref', `refs/heads/${branch}`, baseCommit, '0'.repeat(baseCommit.length)])
+      try {
+        await run(['update-ref', `refs/heads/${branch}`, baseCommit, '0'.repeat(baseCommit.length)])
+      } catch (error) {
+        if (worktree.fresh && (await exists(`refs/heads/${branch}`)))
+          throw new LaneFolderError('That branch already exists.', 'branch-exists')
+        throw error
+      }
       madeBranch = true
       created = true
     }
     checkFolders()
+    if (worktree.fresh) {
+      directory(join(common, 'info'))
+      excludeWorktrees(join(common, 'info', 'exclude'))
+    }
     checkLeafAbsent()
     created = true
     await run(['worktree', 'add', path, branch])
+    worktreeCreated = true
     const cwd = realpathSync.native(path)
     if (cwd !== join(realpathSync.native(root), '.phosphor', 'worktrees', slug))
       throw new Error('folder')

@@ -494,7 +494,7 @@ it('deduplicates attention and calls the notification port once with machine con
   t.attention.receive(t.hostId, frame.event)
   expect(t.notify).toHaveBeenCalledTimes(1)
   const notification = t.notify.mock.calls[0]
-  expect(notification?.[0]).toBe('bee1')
+  expect(notification?.[0]).toBe('bee1 · Untitled lane')
   const click: unknown = notification?.[2]
   if (typeof click !== 'function') throw new Error('Missing click')
   click()
@@ -518,7 +518,7 @@ it('fails closed on missing capabilities, missing lanes, and invalid creation fi
       repositoryId: '0123456789abcdef',
       worktree: { branch: '../escape' },
     }),
-  ).rejects.toThrow('Invalid remote lane request')
+  ).rejects.toThrow('Lane creation not confirmed.')
   expect(t.frames).toHaveLength(before)
   t.c.close()
   await expect(t.lanes.open(t.window, t.hostId, t.laneId)).rejects.toThrow(REMOTE_UNAVAILABLE)
@@ -1160,6 +1160,45 @@ it.each(['incarnation', 'focus-cycle', 'removed-lane'] as const)(
       REMOTE_UNAVAILABLE,
     )
     t.lanes.clear()
+    t.c.close()
+    t.host.stop()
+  },
+)
+
+it.each(['branch-exists', 'forbidden'] as const)(
+  'creation passes only the fixed fresh refusal code: %s',
+  async (code) => {
+    const t = await setup()
+    vi.spyOn(t.c, 'send').mockResolvedValue({ requestId: randomUUID(), status: 'rejected', code })
+    await expect(
+      t.lanes.create(t.window, t.hostId, {
+        repositoryId: '0123456789abcdef',
+        worktree: { branch: 'fresh', fresh: true },
+      }),
+    ).rejects.toThrow(code === 'branch-exists' ? 'branch-exists' : 'Lane creation not confirmed.')
+    t.c.close()
+    t.host.stop()
+  },
+)
+
+it.each(['failed', 'transport'] as const)(
+  'never authorizes a retry from a %s error message',
+  async (mode) => {
+    const t = await setup()
+    const send = vi.spyOn(t.c, 'send')
+    if (mode === 'failed')
+      send.mockResolvedValue({
+        requestId: randomUUID(),
+        status: 'failed',
+        error: { code: 'internal', message: 'branch-exists' },
+      })
+    else send.mockRejectedValue(new Error('branch-exists'))
+    await expect(
+      t.lanes.create(t.window, t.hostId, {
+        repositoryId: '0123456789abcdef',
+        worktree: { branch: 'fresh', fresh: true },
+      }),
+    ).rejects.toThrow('Lane creation not confirmed.')
     t.c.close()
     t.host.stop()
   },

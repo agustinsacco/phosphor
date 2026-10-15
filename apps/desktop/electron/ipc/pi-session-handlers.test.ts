@@ -1,4 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { mkdtempSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { isAbsolute, join } from 'node:path'
+import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
+import { primaryAccount } from '../claude/accounts'
 import type * as HealthModule from '../pi/health'
 import type * as FsPromises from 'node:fs/promises'
 
@@ -14,6 +19,7 @@ const state = vi.hoisted(() => {
     },
   }
   return {
+    signedIn: false,
     remote: {
       command: vi.fn(),
       respond: vi.fn(),
@@ -33,6 +39,9 @@ const state = vi.hoisted(() => {
 })
 vi.mock('electron', () => ({
   app: { isPackaged: false, getAppPath: () => '/app', getPath: () => '/user-data' },
+}))
+vi.mock('../account', () => ({
+  accountSnapshot: () => ({ account: { status: state.signedIn ? 'signed-in' : 'signed-out' } }),
 }))
 vi.mock('./hosts-handlers', () => ({ remoteLanes: () => state.remote }))
 vi.mock('./handle', () => ({
@@ -59,6 +68,7 @@ vi.mock('../pi/shell-env', () => ({ piProcessEnv: vi.fn().mockResolvedValue({ PA
 vi.mock('@phosphor/session-runtime/pi/packages', () => ({ listPackages: state.listPackages }))
 vi.mock('../pi/compaction-reset', () => ({ ensureCompactionReset: state.ensureCompactionReset }))
 vi.mock('../pi/print-mode', () => ({ runPrintMode: state.runPrintMode }))
+vi.mock('./pi-config-handlers', () => ({ catalogueModels: vi.fn().mockResolvedValue([]) }))
 vi.mock('@phosphor/session-runtime/pi/agent-settings', () => ({
   readAgentSettings: vi.fn().mockResolvedValue({ defaultProvider: 'openai-codex' }),
 }))
@@ -93,6 +103,7 @@ const pkg = (version: string) => [{ name: '@saccolabs/pi-claude-cli', version, i
 
 beforeEach(() => {
   vi.clearAllMocks()
+  state.signedIn = false
   state.handlers.clear()
   state.list.mockReturnValue([])
   state.session.client.alive = true
@@ -109,6 +120,18 @@ beforeEach(() => {
 })
 
 describe('session context policy integration', () => {
+  it.each([false, true])(
+    'gives local lanes machine context only when signed in: %s',
+    async (signedIn) => {
+      state.signedIn = signedIn
+      await state.handlers.get('pi:createSession')!(event, { workspacePath: '/repo' })
+      const options = state.create.mock.calls[0]![1]
+      if (signedIn)
+        expect(options.appendSystemPrompt).toContain("You are running on the user's own computer")
+      else expect(options.appendSystemPrompt).not.toContain('<phosphor_machine>')
+    },
+  )
+
   it('serializes concurrent resumes and reuses the first writer', async () => {
     state.create.mockImplementation(() => {
       state.list.mockReturnValue([
@@ -283,6 +306,69 @@ describe('session context policy integration', () => {
     await state.handlers.get('pi:command')!(event, 'live-1', command)
     expect(state.session.client.request).toHaveBeenCalledWith(command)
     expect(state.listPackages).not.toHaveBeenCalled()
+  })
+
+  it('loads absolute existing provider files on the fast naming attempt, not display names', async () => {
+    const installPath = mkdtempSync(join(tmpdir(), 'phosphor-title-provider-'))
+    const extension = join(installPath, 'nested', 'index.ts')
+    try {
+      mkdirSync(join(installPath, 'nested'))
+      writeFileSync(extension, 'export default () => {}')
+      writeFileSync(
+        join(installPath, 'package.json'),
+        JSON.stringify({ pi: { extensions: ['nested/index.ts'] } }),
+      )
+      state.listPackages.mockResolvedValueOnce([
+        {
+          ...pkg('0.10.0')[0],
+          installPath,
+          resources: { extensions: ['index.ts'], skills: [], prompts: [], themes: [] },
+        },
+      ])
+      vi.mocked(readAgentSettings).mockResolvedValueOnce({ defaultProvider: 'pi-claude-cli' })
+      vi.mocked(primaryAccount).mockResolvedValueOnce(null)
+      state.runPrintMode.mockResolvedValueOnce({ stdout: 'Fix Login Bug\n' })
+
+      await state.handlers.get('pi:generateTitle')!(event, '/repo', 'fix login', [])
+
+      expect(state.runPrintMode).toHaveBeenCalledTimes(1)
+      const args: string[] = state.runPrintMode.mock.calls[0]![1]
+      expect(args).toContain('--no-extensions')
+      const extensions = args.flatMap((arg, index) => (arg === '-e' ? [args[index + 1]] : []))
+      expect(extensions).toEqual([extension])
+      for (const path of extensions) {
+        expect(typeof path).toBe('string')
+        if (typeof path !== 'string') throw new Error('Missing extension path')
+        expect(isAbsolute(path)).toBe(true)
+        expect(statSync(path).isFile()).toBe(true)
+      }
+    } finally {
+      rmSync(installPath, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps full boot when provider extension resolution yields nothing', async () => {
+    const installPath = mkdtempSync(join(tmpdir(), 'phosphor-title-empty-'))
+    try {
+      state.listPackages.mockResolvedValueOnce([
+        {
+          ...pkg('0.10.0')[0],
+          installPath,
+          resources: { extensions: ['index.ts'], skills: [], prompts: [], themes: [] },
+        },
+      ])
+      vi.mocked(readAgentSettings).mockResolvedValueOnce({ defaultProvider: 'pi-claude-cli' })
+      vi.mocked(primaryAccount).mockResolvedValueOnce(null)
+      state.runPrintMode.mockResolvedValueOnce({ stdout: 'Fix Login Bug\n' })
+
+      await state.handlers.get('pi:generateTitle')!(event, '/repo', 'fix login', [])
+
+      expect(state.runPrintMode).toHaveBeenCalledTimes(1)
+      expect(state.runPrintMode.mock.calls[0]![1]).not.toContain('--no-extensions')
+      expect(state.runPrintMode.mock.calls[0]![1]).not.toContain('-e')
+    } finally {
+      rmSync(installPath, { recursive: true, force: true })
+    }
   })
 
   it('names a session under pi ownership, in a run that exits once it answers', async () => {

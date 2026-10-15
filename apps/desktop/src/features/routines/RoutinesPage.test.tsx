@@ -4,7 +4,7 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { newRoutine, type Routine, type RoutinesSnapshot } from '@shared/routines'
+import { newRoutine, type Routine, type RoutinesSnapshot, type RoutineRun } from '@shared/routines'
 import { RoutinesPage } from './RoutinesPage'
 import { useRoutinesStore } from '@/stores/routines'
 
@@ -304,20 +304,35 @@ it('clears a restored repository no longer offered and requires a fresh choice',
   expect(saveButton().disabled).toBe(false)
 })
 
-it('clears a missing machine on a new draft without falling back to local', async () => {
+it('resumes the Host slot after its target machine disappears and reappears', async () => {
   await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
+  await act(async () => useMachinePagesStore.setState({ routinesMachine: host }))
   await click('New routine')
   await choose('Routine machine', host)
   await choose('Routine repository', machine.repositories[0]!.id)
   await closeEditor()
-  await act(async () => useRoutinesStore.setState({ machines: [] }))
+  await act(async () => {
+    useMachinePagesStore.setState({ routinesMachine: host })
+    useRoutinesStore.setState({ machines: [] })
+  })
   await click('Resume draft')
   expect(document.querySelector<HTMLSelectElement>('[aria-label="Routine machine"]')?.value).toBe(
     '',
   )
   expect(saveButton().disabled).toBe(true)
   expect(document.querySelector('[aria-label="Workspace"]')).toBeNull()
-  expect(useRoutinesStore.getState().editorDrafts.new?.machineId).toBe('')
+  expect(useRoutinesStore.getState().editorDrafts[`new/${host}`]?.machineId).toBe('')
+  await closeEditor()
+  await act(async () => useRoutinesStore.setState({ machines: [machine] }))
+  expect(container.textContent).toContain('Resume draft')
+  expect(
+    Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'New routine'),
+  ).toBe(false)
+  await click('Resume draft')
+  expect(document.querySelector<HTMLSelectElement>('[aria-label="Routine machine"]')?.value).toBe(
+    '',
+  )
+  expect(saveButton().disabled).toBe(true)
 })
 
 it('keeps an existing routine machine locked while absent and sends nothing', async () => {
@@ -405,4 +420,192 @@ it('remote history does not offer a local lane action without a remote lane iden
       (b) => b.textContent === 'Continue lane' || b.textContent === 'Open running lane',
     ),
   ).toBe(false)
+})
+
+const localRun: RoutineRun = {
+  id: 'local-run',
+  routineId: local.id,
+  trigger: 'manual',
+  scheduledAt: 1,
+  createdAt: 1,
+  startedAt: 1,
+  endedAt: null,
+  status: 'running',
+  reason: '',
+  definition: local,
+  sessionId: null,
+  sessionPath: null,
+  workspacePath: '/local',
+  branch: null,
+  baseCommit: null,
+  accountId: null,
+  summary: 'Local run summary',
+}
+
+async function renderHostWithLocalActivity(empty = false) {
+  invoke.mockImplementation(async (channel, target) => {
+    if (channel === 'routines:list')
+      return target
+        ? { ...snapshot, routines: empty ? [] : [remote] }
+        : {
+            ...snapshot,
+            routines: [local, { ...local, id: 'archived', archived: true }],
+            runs: [localRun],
+          }
+    return defaultInvoke(channel, target)
+  })
+  await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
+  // Match the sidebar switch while a stale page override exists.
+  await act(async () => useRemoteLanesStore.getState().setFilter(host.slice(5)))
+  expect(useMachinePagesStore.getState().routinesMachine).toBe('')
+}
+
+it('hides This Mac activity and routines on an empty Host selected in the sidebar', async () => {
+  await renderHostWithLocalActivity(true)
+  expect(container.textContent).not.toContain('Local task')
+  expect(container.textContent).not.toContain('Local run summary')
+  expect(container.textContent).not.toContain('Activity')
+  expect(container.textContent).toContain('Save a task. Give it a schedule.')
+  expect(container.querySelectorAll('[data-testid=routine-row]')).toHaveLength(0)
+})
+
+it('counts only non-archived routines on the selected machine', async () => {
+  await renderHostWithLocalActivity()
+  expect(
+    container.querySelector('[data-testid=global-page]')?.textContent ?? container.textContent,
+  ).toMatch(/^Routines1/)
+})
+
+it('shows Host execution guidance without This Mac background controls', async () => {
+  await renderHostWithLocalActivity()
+  expect(container.querySelector('footer')?.textContent).toContain('Desktop can be closed.')
+  expect(container.querySelector('footer')?.textContent).not.toContain('this computer')
+  expect(container.querySelector('footer input')).toBeNull()
+})
+
+it('labels aggregate activity as This Mac and retains local background controls', async () => {
+  await renderHostWithLocalActivity()
+  await act(async () => useMachinePagesStore.setState({ routinesMachine: 'all' }))
+  expect(container.textContent).toContain('This Mac activity')
+  expect(container.querySelector('footer input')).not.toBeNull()
+})
+
+it('clears local detail and its running state after a sidebar switch to a Host', async () => {
+  await renderHostWithLocalActivity()
+  await act(async () => useRemoteLanesStore.getState().setFilter('local'))
+  const row = container.querySelector<HTMLButtonElement>('[data-testid=routine-row]')
+  await act(async () => row?.click())
+  expect(container.textContent).toContain('Local task')
+  await act(async () => useRemoteLanesStore.getState().setFilter(host.slice(5)))
+  expect(container.textContent).not.toContain('Local task')
+  expect(container.textContent).not.toContain('Cancel run')
+  expect(container.textContent).toContain('Remote task')
+})
+
+it('shows local load failures only on This Mac and labels them under All machines', async () => {
+  await renderHostWithLocalActivity()
+  await act(async () => useRoutinesStore.setState({ error: 'Local failure' }))
+  expect(container.textContent).not.toContain('Local failure')
+  await act(async () => useMachinePagesStore.setState({ routinesMachine: 'local' }))
+  expect(container.textContent).toContain('Local failure')
+  await act(async () => useMachinePagesStore.setState({ routinesMachine: 'all' }))
+  expect(container.textContent).toContain('This Mac: Local failure')
+})
+
+it('drops an action error from This Mac when the selection moves to a Host', async () => {
+  await renderHostWithLocalActivity()
+  await act(async () => useRemoteLanesStore.getState().setFilter('local'))
+  const fallback = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel, target) => {
+    if (channel === 'routines:pauseAll') throw new Error('Local pause failed')
+    return fallback(channel, target)
+  })
+  await click('Pause all')
+  expect(container.textContent).toContain('Local pause failed')
+  await act(async () => useRemoteLanesStore.getState().setFilter(host.slice(5)))
+  expect(container.textContent).not.toContain('Local pause failed')
+})
+
+it('keeps new routine drafts separate per machine and resumes only the selected machine', async () => {
+  await renderHostWithLocalActivity(true)
+  await act(async () =>
+    useRoutinesStore.setState({
+      editorDrafts: {
+        new: {
+          input: { ...local, name: 'Local unsaved' },
+          revision: null,
+          machineId: 'local',
+          repositoryId: '',
+        },
+      },
+    }),
+  )
+  expect(container.textContent).not.toContain('Resume draft')
+  await click('New routine')
+  expect(document.querySelector<HTMLSelectElement>('[aria-label="Routine machine"]')?.value).toBe(
+    host,
+  )
+  expect(
+    document.querySelector<HTMLInputElement>('[role=dialog] input[maxlength="100"]')?.value,
+  ).not.toBe('Local unsaved')
+  await choose('Routine repository', machine.repositories[0]!.id)
+  await closeEditor()
+  expect(useRoutinesStore.getState().editorDrafts.new?.input.name).toBe('Local unsaved')
+  expect(useRoutinesStore.getState().editorDrafts[`new/${host}`]?.machineId).toBe(host)
+  await click('Resume draft')
+  await click('Reset')
+  await closeEditor()
+  expect(useRoutinesStore.getState().editorDrafts.new?.input.name).toBe('Local unsaved')
+  await act(async () => useRemoteLanesStore.getState().setFilter('local'))
+  await click('Resume draft')
+  expect(document.querySelector<HTMLSelectElement>('[aria-label="Routine machine"]')?.value).toBe(
+    'local',
+  )
+  expect(
+    document.querySelector<HTMLInputElement>('[role=dialog] input[maxlength="100"]')?.value,
+  ).toBe('Local unsaved')
+  expect(useRoutinesStore.getState().editorDrafts.new?.input.name).toBe('Local unsaved')
+})
+
+it('keeps the opening slot when a resumed Mac draft targets a Host with its own draft', async () => {
+  await renderHostWithLocalActivity(true)
+  await act(async () => {
+    useRoutinesStore.setState({
+      editorDrafts: {
+        new: {
+          input: { ...local, name: 'Mac original text' },
+          revision: null,
+          machineId: 'local',
+          repositoryId: '',
+        },
+        [`new/${host}`]: {
+          input: { ...remote, name: 'Host original text' },
+          revision: null,
+          machineId: host,
+          repositoryId: machine.repositories[0]!.id,
+        },
+      },
+    })
+    useRemoteLanesStore.getState().setFilter('local')
+  })
+  await click('Resume draft')
+  await choose('Routine machine', host)
+  await choose('Routine repository', machine.repositories[0]!.id)
+  await closeEditor()
+  expect(useRoutinesStore.getState().editorDrafts.new?.machineId).toBe(host)
+  expect(useRoutinesStore.getState().editorDrafts.new?.input.name).toBe('Mac original text')
+  await act(async () => useRemoteLanesStore.getState().setFilter(host.slice(5)))
+  await click('Resume draft')
+  expect(
+    document.querySelector<HTMLInputElement>('[role=dialog] input[maxlength="100"]')?.value,
+  ).toBe('Host original text')
+  await closeEditor()
+  await act(async () => useRemoteLanesStore.getState().setFilter('local'))
+  await click('Resume draft')
+  expect(
+    document.querySelector<HTMLInputElement>('[role=dialog] input[maxlength="100"]')?.value,
+  ).toBe('Mac original text')
+  expect(document.querySelector<HTMLSelectElement>('[aria-label="Routine machine"]')?.value).toBe(
+    host,
+  )
 })

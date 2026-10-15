@@ -10,11 +10,17 @@ import { usePullRequestsStore } from '@/stores/pullRequests'
 import { useMachinePagesStore } from '@/stores/machinePages'
 import { useMachineCataloguesStore } from '@/stores/machineCatalogues'
 import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
+import { useWorktreesStore } from '@/stores/worktrees'
 import { useDraftsStore, homeDraftKey } from '@/stores/drafts'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
+import type * as StartChatModule from '@/features/sessions/startChat'
 import type { WorkspaceSessionStats, SessionMeta } from '@shared/models'
 
-vi.mock('@/features/sessions/startChat', () => ({ startChat: vi.fn(), prefetchTrunk: vi.fn() }))
+vi.mock('@/features/sessions/startChat', async (original) => ({
+  ...(await original<typeof StartChatModule>()),
+  startChat: vi.fn(),
+  prefetchTrunk: vi.fn(),
+}))
 vi.mock('./HomeModelPicker', () => ({ HomeModelPicker: () => null }))
 vi.mock('@/features/workspaces/WorkspaceChip', () => ({ WorkspaceChip: () => null }))
 vi.mock('@/features/worktrees/BranchControl', () => ({ BranchControl: () => null }))
@@ -39,7 +45,8 @@ const key = homeDraftKey('/ws')
 const other = 'other-host'
 let root: Root
 let el: HTMLDivElement
-let invoke: ReturnType<typeof vi.fn>
+type Invoke = (channel: string, ...args: unknown[]) => Promise<unknown>
+let invoke: ReturnType<typeof vi.fn<Invoke>>
 let receipt: ReturnType<typeof vi.fn>
 const stats = {
   sessionCount: 1,
@@ -96,7 +103,7 @@ beforeEach(() => {
     },
   )
   receipt = vi.fn().mockResolvedValue({ success: true })
-  invoke = vi.fn().mockImplementation(async (channel, hostId) => {
+  invoke = vi.fn<Invoke>().mockImplementation(async (channel, hostId) => {
     if (channel === 'hosts:skills') return { skills: [], probe: 'rpc', userRoot: 'opaque' }
     if (channel === 'hosts:models')
       return [
@@ -148,23 +155,29 @@ async function send(): Promise<void> {
 }
 const model = () => el.querySelector('[data-testid=home-composer]')?.textContent
 
-it('keeps Home catalogue while Skills overlays, overrides its machine and closes', async () => {
-  await render()
-  expect(model()).toContain('Home model')
-  await render(true)
-  expect(model()).toContain('Home model')
-  await act(async () => useMachinePagesStore.setState({ skillsMachine: other }))
-  expect(el.textContent).toContain('Other model')
-  expect(model()).toContain('Home model')
-  await render(false)
-  expect(model()).toContain('Home model')
-  await send()
-  expect(invoke).toHaveBeenCalledWith(
-    'hosts:createLane',
-    MOCK_HOST_ID,
-    expect.objectContaining({ model: 'model', provider: 'p' }),
-  )
-})
+it.each([true, false])(
+  'keeps Home catalogue while Skills overlays and submits worktree preference %s',
+  async (preferWorktree) => {
+    useWorktreesStore.setState({ preferWorktree, branchPrefix: 'phosphor/' })
+    await render()
+    expect(model()).toContain('Home model')
+    await render(true)
+    expect(model()).toContain('Home model')
+    await act(async () => useMachinePagesStore.setState({ skillsMachine: other }))
+    expect(el.textContent).toContain('Other model')
+    expect(model()).toContain('Home model')
+    await render(false)
+    expect(model()).toContain('Home model')
+    await send()
+    expect(invoke).toHaveBeenCalledWith('hosts:createLane', MOCK_HOST_ID, {
+      repositoryId: '0000000000000001',
+      model: 'model',
+      provider: 'p',
+      thinkingLevel: 'off',
+      ...(preferWorktree ? { worktree: { branch: 'phosphor/first-prompt', fresh: true } } : {}),
+    })
+  },
+)
 
 it.each(['none', 'text', 'attachment'] as const)(
   'clears accepted content after persistence debounce, preserving newer edits=%s',
@@ -287,3 +300,30 @@ it('releases a failed submission claim without clearing its draft', async () => 
   expect(invoke.mock.calls.filter(([c]) => c === 'hosts:createLane')).toHaveLength(2)
   expect(useDraftsStore.getState().drafts[key]).toBeUndefined()
 })
+
+it.each(['exhausted', 'prefix'] as const)(
+  'keeps the draft and explains a %s fresh branch failure',
+  async (mode) => {
+    useWorktreesStore.setState({
+      preferWorktree: true,
+      branchPrefix: mode === 'prefix' ? 'p'.repeat(99) : 'phosphor/',
+    })
+    const original = invoke.getMockImplementation()
+    invoke.mockImplementation(async (channel, ...args) => {
+      if (channel === 'hosts:createLane') throw new Error('branch-exists')
+      return original?.(channel, ...args)
+    })
+    await render()
+    await send()
+    expect(useDraftsStore.getState().drafts[key]?.text).toBe('First prompt')
+    expect(invoke.mock.calls.filter(([channel]) => channel === 'hosts:createLane')).toHaveLength(
+      mode === 'prefix' ? 0 : 5,
+    )
+    expect(el.textContent).toContain(
+      mode === 'prefix'
+        ? 'Branch prefix is too long for a Host worktree.'
+        : `Couldn't find a free branch name on ${MOCK_HOST_ID}.`,
+    )
+    expect(receipt).not.toHaveBeenCalled()
+  },
+)

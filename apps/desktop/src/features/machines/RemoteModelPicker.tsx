@@ -2,9 +2,13 @@ import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { useMachinesStore } from '@/stores/machines'
 import { Button } from '@/components/form'
 import { useEffect, useState } from 'react'
-import { useRemoteModelPicks, rememberRemoteModel } from '@/stores/remoteModelPicks'
+import {
+  useRemoteModelPicks,
+  rememberRemoteModel,
+  rememberRemoteThinking,
+} from '@/stores/remoteModelPicks'
 import type { ThinkingLevel } from '@shared/rpc'
-import { supportedThinkingLevels, clampThinkingLevel } from '@shared/thinking'
+import { ALL_THINKING_LEVELS, supportedThinkingLevels, clampThinkingLevel } from '@shared/thinking'
 import {
   useMachineCataloguesStore,
   machineCatalogueKey,
@@ -27,18 +31,18 @@ export function useRemoteModel(hostId: string) {
   )
   const last = useRemoteModelPicks((s) => s.last[hostId])
   const [desktop, setDesktop] = useState<ModelChoice>()
-  const [level, setLevel] = useState<{ hostId: string; thinking: ThinkingLevel }>({
-    hostId,
-    thinking: 'off',
-  })
-  const thinking = level.hostId === hostId ? level.thinking : 'off'
-  const setThinking = (thinking: ThinkingLevel): void => setLevel({ hostId, thinking })
+  const rememberedThinking = useRemoteModelPicks((s) => s.thinking[hostId])
+  const [defaultThinking, setDefaultThinking] = useState<ThinkingLevel>('off')
+  const thinking = rememberedThinking ?? defaultThinking
+  const setThinking = (level: ThinkingLevel): void => rememberRemoteThinking(hostId, level)
   useEffect(() => {
     if (!hostId) return
     void useMachineCataloguesStore.getState().load(hostId)
     void window.phosphor
       .invoke('pi:agentSettings')
       .then((s) => {
+        const level = ALL_THINKING_LEVELS.find((level) => level === s.defaultThinkingLevel)
+        if (level) setDefaultThinking(level)
         if (typeof s.defaultProvider === 'string' && typeof s.defaultModel === 'string')
           setDesktop({ provider: s.defaultProvider, id: s.defaultModel })
       })

@@ -6,6 +6,8 @@ import type { AgentDirectivePrefs } from '@shared/models'
 import { Row, SectionTitle, Toggle } from '@/components/form'
 import { useActiveWorkspace } from '@/stores/workspaces'
 import { useExtensionUiStore } from '@/stores/extensionUi'
+import { machinePromptBlock } from '@shared/machine-prompt'
+import { useAccount } from '../useAccount'
 import { errorText } from '@shared/errors'
 
 /**
@@ -26,6 +28,8 @@ import { errorText } from '@shared/errors'
  */
 export function DirectivesSection(): React.JSX.Element {
   const workspace = useActiveWorkspace()
+  const { view } = useAccount()
+  const signedIn = view?.account.status === 'signed-in'
   const [scope, setScope] = useState<'global' | 'project'>('global')
   const [global, setGlobal] = useState<AgentDirectivePrefs>(DEFAULT_AGENT_DIRECTIVES)
   const [byProject, setByProject] = useState<Record<string, AgentDirectivePrefs>>({})
@@ -79,6 +83,10 @@ export function DirectivesSection(): React.JSX.Element {
         ].join('\n'),
       )
     }
+    if (editing.machineAwareness !== false) {
+      const machine = machinePromptBlock({ kind: 'desktop', signedIn })
+      if (machine) blocks.push(machine)
+    }
     if (editing.laneCharter) {
       blocks.push(
         [
@@ -99,7 +107,7 @@ export function DirectivesSection(): React.JSX.Element {
     }
     if (editing.custom.trim()) blocks.push(editing.custom.trim())
     return blocks.join('\n\n')
-  }, [editing])
+  }, [editing, signedIn])
 
   return (
     <div className="flex flex-col gap-3">
@@ -138,6 +146,16 @@ export function DirectivesSection(): React.JSX.Element {
         description="Tells a worktree lane that the main checkout is a different branch. Stops a class of confident wrong-branch answers."
       >
         <Toggle on={editing.worktreeGuard} onChange={(on) => patch({ worktreeGuard: on })} />
+      </Row>
+
+      <Row
+        title="Machine awareness"
+        description="Tells signed-in local lanes where Phosphor's window is. Host lanes identify their machine and warn against disrupting their own service. Fixed when a lane starts."
+      >
+        <Toggle
+          on={editing.machineAwareness !== false}
+          onChange={(on) => patch({ machineAwareness: on })}
+        />
       </Row>
 
       <Row

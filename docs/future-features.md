@@ -5,16 +5,27 @@ exception to the present-tense rule, not a shipped contract or a delivery promis
 An item moves into the living doc of its surface in the same diff that builds it
 and is deleted here. [Remote access](remote-access.md) owns what exists now.
 
-Component numbers refer to the remote-access implementation plan. Components
-45 (machine engine), 48 (sharing) and 49 (attention) extend that plan. Dependencies
-below name work, not claims that it is complete. The decisions labelled
-**Decided** are the user's decisions of 2026-10-12.
+## Remote surface gaps
+
+These operations are not implemented remotely. Their controls are hidden or
+refuse with the fixed unavailable hint; they never run against This Mac instead.
+
+| Surface         | Missing capability                                                                                                              |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Chat and lanes  | Fork, clone, rewind/tree editing, shell shortcuts, queued-message removal, local rules/MCP and Swarm controls, lane HTML export |
+| Files           | Content search, rich previews/quick look, external imports and open-in-app                                                      |
+| Skills          | Install, upload, export, discovery and mutation                                                                                 |
+| Settings        | Remote extension/package management, MCP configuration and machine preference editing                                           |
+| Artifacts       | Revision-aware writes from an artifact into a remote workspace                                                                  |
+| Routine history | Open/Continue output lanes and full execution diagnostics in Desktop                                                            |
+| Clients         | Browser/PWA lane client, mobile delivery and Web Push                                                                           |
+| Portability     | Cross-machine lane migration, primitive copy/sync and sharing Desktop's local runtime                                           |
 
 ## PWA attention and Web Push
 
 In-app attention, machine-titled Desktop notifications and Host read watermarks
-are built. Components 39-41 add the browser/PWA consumer. A closed PWA uses Web
-Push from each Host, with a minimal payload encrypted end to end to the device.
+are built. A browser/PWA consumer needs Web Push from each Host when closed, with
+a minimal payload encrypted end to end to the device.
 The device registers with that Host over Tailscale. Control stores nothing new.
 iOS requires Home Screen installation and iOS 16.4 or newer.
 
@@ -30,28 +41,28 @@ bounded retry queues and explicit subscription revocation.
 **Problem.** A person should be able to continue a Mac's lanes from another
 surface without installing a second runtime that competes with Desktop.
 
-**Decided (component 48).** Sharing will be an option on every Phosphor install
+**Decided.** Sharing will be an option on every Phosphor install
 with a UI. A headless Host will always be shared. Sharing will not turn local
 use into a sign-in requirement.
 
 **Design and dependencies.** `libs/session-runtime` already shares session
 admission, ownership and deletion. It does not yet supply the whole machine.
-Component 45 must extract the machine engine: package jobs and provider logins
+Sharing needs a common machine engine: package jobs and provider logins
 (`electron/pi/` and `electron/claude/`), artifact library/protocol adapters,
 `electron/routines/`, skills, `electron/pty/`, and `electron/fs/`. These paths
 are under `apps/desktop/`. Electron dialogs, notification delivery, preview
 schemes and secure storage will remain platform adapters, not Host dependencies.
 
-Component 21's authenticated HTTP/WSS API must be a library mounted by both
+The authenticated HTTP/WSS API needs to be a library mounted by both
 `apps/host` and Desktop main over that engine. Desktop will enroll the Mac with
 its own identity and expose the same listener on its Tailscale address, using
-private HTTPS/WSS transport, not a public relay. Enrollment/grants (17-18) and
-controller leases (10) are prerequisites, not permission to tunnel raw IPC.
+private HTTPS/WSS transport, not a public relay. Enrollment, grants and
+controller fences are prerequisites, not permission to tunnel raw IPC.
 The Mac's identity private key will live in the OS keychain, not the control
 plane or Desktop's account refresh-token vault.
 
 **Lifetime and revocation.** Sharing will serve only while Desktop runs and the
-Mac is awake. Component 25's macOS user service is the always-on path, not a way
+Mac is awake. The Host's macOS user service is the always-on path, not a way
 to work while asleep. Turning sharing off must stop accepting remote access and
 close streams; reenrollment and identity revocation need explicit UI semantics.
 It must not delete lanes or interrupt local work just to remove remote access.
@@ -66,21 +77,21 @@ so Desktop and `phosphor run` cannot both write the same session file.
 Electron's node-pty ABI cannot be copied into a Node Host. Sleep, Desktop quit,
 locked keychains and two runtimes can each break sharing unless diagnosed.
 
-## Per-machine primitives: explicit copy now, sync later
+## Cross-machine primitive copy and sync
 
 **Problem.** The model, skill or connector configured on the laptop may not
 exist on the machine actually running pi. A shared-looking settings page can
 silently configure the wrong machine.
 
 **Decided.** Skills, artifacts, routines, extensions, provider logins and MCP
-config will belong to the execution machine. Selecting a machine will show its
-own primitives (33, 34, 38). Moving a copy will be explicit: "Copy to bee1",
+config belong to the execution machine. Machine-qualified skills, artifacts,
+routines and provider sign-in already exist. Moving a copy will be explicit: "Copy to bee1",
 with confirmation showing what will be written where and any conflicts.
 Primitive sync is a later feature, not automatic fleet sync or orchestration.
 Provider credentials will never move.
 
-**Design, dependencies and touches.** Machine-qualified views (28-30), file
-transfer (31-32) and the engine (45) will back these per-primitive operations:
+**Design, dependencies and touches.** Machine-qualified views, bounded file
+transfer and a common machine engine must back these operations:
 
 - Skills are files. `electron/pi/skills.ts` already resolves through pi and
   limits mutations to writable roots, with import previews and bundle bounds.
@@ -89,8 +100,8 @@ transfer (31-32) and the engine (45) will back these per-primitive operations:
   and `libs/pi-extensions/pi-ext/artifact-store.ts`). Copy must preserve referenced
   versions and integrity, not send temporary preview URLs or overwrite identity.
 - Routines are SQLite rows, schedules and run history (`libs/session-runtime/src/routines/repository.ts`).
-  The Host already owns a daemon scheduler; cross-machine copying and Desktop
-  remote routine routing remain future work.
+  The Host owns a daemon scheduler and Desktop routes its routine operations.
+  Cross-machine definition copying remains future work.
   Copy should separate a definition from execution history, remap workspace/model
   choices and keep imported schedules inactive until explicitly enabled.
 - Extensions are pi packages with specs and versions. `electron/pi/packages.ts`
@@ -100,7 +111,8 @@ transfer (31-32) and the engine (45) will back these per-primitive operations:
   contain secrets. Copy or sync must review individual entries and strip secrets
   by default. OAuth remains pi's (`pi mcp login`); credentials will not sync blindly.
 - Provider logins stay on the target. `apps/host/src/commands/provider-login.ts`
-  already owns host-side login; guided remote flows depend on component 44.
+  owns Host-side login, including the private terminal in Machines Readiness.
+  Credentials never participate in copy or sync.
 
 **Open questions.** Later sync needs per-primitive identities, revisions and
 three-way comparison, deletion semantics and conflict UI. File merge may suit
@@ -118,11 +130,9 @@ the Mac needs to sleep, without maintaining two active copies of the work.
 
 **Decided.** Lane migration will be built: a lane started on one machine can move to another and continue there. The design below is an exploration, not settled.
 
-**Proposed design and dependencies.** Build on retained Host state (06), receipts
-(09), control/ownership (10), lane creation (11), file transfer (31-32), artifact
-history (34) and the machine engine (45). This is a new component to scope, not
-an existing execution capability. Migration must happen between turns: pi only
-persists a session at turn end. Abort is not proof that all in-flight work was
+**Proposed design and dependencies.** Build on retained Host state, receipts,
+controller fences, lane creation, bounded file transfer, artifact history and a
+common machine engine. This is not an existing execution capability. Migration must happen between turns, after the current turn has settled. Abort is not proof that all in-flight work was
 saved, so the UI should prefer finishing the turn before freezing it.
 
 Transfer pi's session JSONL and arrange its target cwd-mangled directory using

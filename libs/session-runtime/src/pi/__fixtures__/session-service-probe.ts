@@ -37,9 +37,11 @@ const spawn = createSessionStartup({
     env: { FAKE_PI_SESSION_FILE: sessionPath },
   }),
   policy: {
+    machineContext: () => ({ kind: 'desktop', signedIn: false }),
     git: async () => ({ isRepo: false }),
     preferences: () => ({
       agentDirectives: {
+        machineAwareness: true,
         worktreeGuard: false,
         laneCharter: false,
         subagentPolicy: false,

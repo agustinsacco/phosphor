@@ -36,7 +36,7 @@ function fields(snapshot: LaneSnapshot) {
   const { summary: _summary, cursor: _cursor, ...projection } = snapshot
   return projection
 }
-async function setup(sendQueueBytes = 32 * 1024 * 1024) {
+async function setup(sendQueueBytes = 32 * 1024 * 1024, now = () => Date.UTC(2026, 9, 13)) {
   const dir = mkdtempSync(join(tmpdir(), 'host-live-'))
   const stateDir = join(dir, 'state')
   const store = await openStore(stateDir, process.getuid?.(), { now: () => Date.UTC(2026, 9, 13) })
@@ -54,7 +54,7 @@ async function setup(sendQueueBytes = 32 * 1024 * 1024) {
     epoch,
     store,
     runtime: { command },
-    now: () => Date.UTC(2026, 9, 13),
+    now,
     log,
     limits: { replayEvents: 3 },
     unattached(id) {
@@ -117,6 +117,74 @@ afterEach(() => {
   vi.useRealTimers()
 })
 describe('live lane binding', () => {
+  it("classifies only this run's provider error as failed without changing the legacy attention wire shape", async () => {
+    const s = await setup()
+    await s.live.attach(s.laneId, 'pi').ready
+    s.subscriptions.handle({ type: 'subscribe', topic: 'lanes', id: 'directory' })
+    await tick()
+    for (const message of [
+      { role: 'assistant' as const, content: [], stopReason: 'error' as const },
+      {
+        role: 'assistant' as const,
+        content: [],
+        stopReason: 'stop' as const,
+        errorMessage: 'private provider failure',
+      },
+    ]) {
+      s.push({ type: 'agent_start' })
+      s.push({ type: 'message_end', message })
+      s.push({ type: 'agent_end', messages: [] })
+      s.push({ type: 'agent_settled', aborted: false })
+    }
+    await tick()
+    let events = s.frames.filter((frame) => frame.type === 'attention')
+    expect(events).toHaveLength(2)
+    expect(events.map((frame) => frame.event.kind)).toEqual(['failed', 'failed'])
+    expect(Object.keys(events[0]?.event ?? {}).sort()).toEqual(
+      ['id', 'laneId', 'attention', 'kind', 'at', 'title'].sort(),
+    )
+    expect(JSON.stringify(events)).not.toContain('private provider failure')
+    // A clean run with no assistant result cannot inherit the earlier run's error.
+    s.push({ type: 'agent_start' })
+    s.push({ type: 'agent_end', messages: [] })
+    s.push({ type: 'agent_settled', aborted: false })
+    for (const stopReason of ['stop', 'aborted'] as const) {
+      s.push({ type: 'agent_start' })
+      s.push({ type: 'message_end', message: { role: 'assistant', content: [], stopReason } })
+      s.push({ type: 'agent_end', messages: [] })
+      s.push({ type: 'agent_settled', aborted: stopReason === 'aborted' })
+    }
+    await tick()
+    events = s.frames.filter((frame) => frame.type === 'attention')
+    expect(events.map((frame) => frame.event.kind)).toEqual([
+      'failed',
+      'failed',
+      'finished',
+      'finished',
+      'finished',
+    ])
+  })
+  it('keeps only latest settled timing, preserves earliest start and forgets on detach', async () => {
+    let now = 100
+    const s = await setup(undefined, () => now)
+    await s.live.attach(s.laneId, 'pi').ready
+    expect(s.live.receiptTiming(s.laneId)).toBeUndefined()
+    s.push({ type: 'agent_start' })
+    now = 200
+    s.push({ type: 'agent_start' })
+    s.push({ type: 'agent_end', messages: [] })
+    now = 300
+    s.push({ type: 'agent_settled', aborted: false })
+    expect(s.live.receiptTiming(s.laneId)).toEqual({ start: 100, end: 300 })
+    now = 400
+    s.push({ type: 'agent_start' })
+    expect(s.live.receiptTiming(s.laneId)).toEqual({ start: 100, end: 300 })
+    now = 500
+    s.push({ type: 'agent_settled', aborted: false })
+    expect(s.live.receiptTiming(s.laneId)).toEqual({ start: 400, end: 500 })
+    s.live.detach(s.laneId)
+    expect(s.live.receiptTiming(s.laneId)).toBeUndefined()
+  })
   it('applies and publishes in one synchronous step; late and reset viewers equal the early projection', async () => {
     vi.useFakeTimers()
     const s = await setup(10000)

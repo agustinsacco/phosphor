@@ -1,3 +1,4 @@
+import { hostLaneReceipt } from './receipt'
 import { isUuid } from '@phosphor/shared/control-api'
 import { HOST_LIMITS } from '@phosphor/shared/host-protocol'
 import type { RpcCommand, RpcResponse } from '@phosphor/shared/rpc'
@@ -16,6 +17,7 @@ const record = (value: unknown): value is Record<string, unknown> =>
 const queries = new Map<string, RpcCommand>([
   ['lane.state', { type: 'get_state' }],
   ['lane.messages', { type: 'get_messages' }],
+  ['lane.receipt', { type: 'get_messages' }],
   ['lane.stats', { type: 'get_session_stats' }],
   ['lane.models', { type: 'get_available_models' }],
   ['lane.commands', { type: 'get_commands' }],
@@ -27,7 +29,8 @@ const failure = (code: Extract<CallOutcome, { ok: false }>['error']['code']): Ca
 function shape(method: string, data: unknown): boolean {
   if (method === 'lane.state') return piState(data) !== null
   if (!record(data)) return false
-  if (method === 'lane.messages') return piMessages(data.messages) !== null
+  if (method === 'lane.messages' || method === 'lane.receipt')
+    return piMessages(data.messages) !== null
   if (method === 'lane.models') return Array.isArray(data.models)
   if (method === 'lane.commands') return Array.isArray(data.commands)
   const tokens = data.tokens
@@ -49,7 +52,8 @@ function shape(method: string, data: unknown): boolean {
 
 export function createLaneCalls(options: {
   store: Pick<HostStore, 'listRepositories' | 'getLane'>
-  live: Pick<ReturnType<typeof createLiveLanes>, 'sessionFor'>
+  live: Pick<ReturnType<typeof createLiveLanes>, 'sessionFor'> &
+    Partial<Pick<ReturnType<typeof createLiveLanes>, 'receiptTiming'>>
   runtime: { command(...args: Parameters<HostRuntime['command']>): Promise<RpcResponse> }
   unattached(laneId: string): SnapshotResult | null
   now(): number
@@ -77,14 +81,31 @@ export function createLaneCalls(options: {
       if (typeof laneId !== 'string' || !isUuid(laneId)) return failure('bad-request')
       const lane = options.store.getLane(laneId)
       if (!lane || lane.removedAt !== null) return failure('unknown-lane')
+      const receipt = (messages: Parameters<typeof hostLaneReceipt>[0]): CallOutcome => ({
+        ok: true,
+        data: hostLaneReceipt(
+          messages,
+          {
+            title: lane.title ?? 'Untitled lane',
+            branch: lane.branch,
+            repository:
+              options.store.listRepositories().find((repo) => repo.id === lane.repositoryId)
+                ?.name ?? null,
+          },
+          options.live.receiptTiming?.(laneId),
+          lane.cwd,
+        ),
+      })
       const sessionId = options.live.sessionFor(laneId)
       let timer: ReturnType<typeof setTimeout> | undefined
       try {
         if (sessionId === null) {
           if (method === 'lane.state') return { ok: true, data: null }
-          if (method !== 'lane.messages') return failure('lane-stopped')
+          if (method !== 'lane.messages' && method !== 'lane.receipt')
+            return failure('lane-stopped')
           const snapshot = options.unattached(laneId)
           if (snapshot === null) return failure('internal')
+          if (snapshot.ok && method === 'lane.receipt') return receipt(snapshot.snapshot.messages)
           return snapshot.ok
             ? { ok: true, data: { messages: snapshot.snapshot.messages } }
             : failure('too-large')
@@ -97,6 +118,11 @@ export function createLaneCalls(options: {
           }),
         ])
         if (!response?.success || !shape(method, response.data)) return failure('internal')
+        if (method === 'lane.receipt' && record(response.data)) {
+          const messages = piMessages(response.data.messages)
+          if (!messages) return failure('internal')
+          return receipt(messages)
+        }
         return { ok: true, data: response.data }
       } catch {
         return failure('internal')
