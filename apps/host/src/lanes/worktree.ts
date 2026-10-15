@@ -52,6 +52,7 @@ export async function prepareLaneFolder(input: {
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/.test(slug) || slug.includes('..'))
     refuse('That branch name is not valid.')
   let created = false
+  let worktreeCreated = false
   let madeBranch = false
   let baseCommit = ''
   const path = join(root, '.phosphor', 'worktrees', slug)
@@ -70,15 +71,27 @@ export async function prepareLaneFolder(input: {
   }
   const undo = async () => {
     if (!created) return
-    // A folder can be missing, replaced or unregistered after reservation.
-    // Roll back our fresh ref independently, without deleting someone else's move.
-    if (worktree.fresh && madeBranch) {
+    if (worktree.fresh) {
       try {
-        await run(['update-ref', '-d', `refs/heads/${branch}`, baseCommit])
-        madeBranch = false
+        // Removing the checked-out ref first makes tracked files look staged.
+        if (worktreeCreated) {
+          await run(['worktree', 'remove', path])
+          worktreeCreated = false
+        }
       } catch (error) {
-        logUndoFailure(error)
+        logUndoFailure(undefined)
+        throw error
+      } finally {
+        if (madeBranch) {
+          try {
+            await run(['update-ref', '-d', `refs/heads/${branch}`, baseCommit])
+            madeBranch = false
+          } catch {
+            logUndoFailure(undefined)
+          }
+        }
       }
+      return
     }
     try {
       try {
@@ -107,8 +120,7 @@ export async function prepareLaneFolder(input: {
         }
       }
       created = false
-      if (madeBranch && !worktree.fresh)
-        await run(['update-ref', '-d', `refs/heads/${branch}`, baseCommit])
+      if (madeBranch) await run(['update-ref', '-d', `refs/heads/${branch}`, baseCommit])
     } catch (error) {
       logUndoFailure(error)
     }
@@ -197,6 +209,7 @@ export async function prepareLaneFolder(input: {
     checkLeafAbsent()
     created = true
     await run(['worktree', 'add', path, branch])
+    worktreeCreated = true
     const cwd = realpathSync.native(path)
     if (cwd !== join(realpathSync.native(root), '.phosphor', 'worktrees', slug))
       throw new Error('folder')
