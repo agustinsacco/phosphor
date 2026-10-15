@@ -16,7 +16,25 @@
  * reading stdin, so it is happy either way. `print-mode.test.ts`
  * uses a fixture that blocks on stdin the way real pi does.
  */
-import { spawn } from 'node:child_process'
+import { spawn, type ChildProcess } from 'node:child_process'
+
+/** POSIX only: the child leads its own process group, so the group can die. */
+const OWN_GROUP = process.platform !== 'win32'
+
+/**
+ * Kill the run and everything it started. pi alone is not enough: a provider
+ * or extension can spawn its own children (the Claude CLI, MCP servers), and
+ * killing only pi leaves them orphaned. Also called after a clean exit, so
+ * nothing a title run started can outlive it. ESRCH (already gone) is fine.
+ */
+function killTree(child: ChildProcess): void {
+  try {
+    if (OWN_GROUP && child.pid) process.kill(-child.pid, 'SIGKILL')
+    else child.kill('SIGKILL')
+  } catch {
+    // Already exited.
+  }
+}
 
 /** Stop waiting on a print-mode run. Generous: it is off any critical path. */
 const DEFAULT_TIMEOUT_MS = 30_000
@@ -57,6 +75,7 @@ export async function runPrintMode(
         // stdin ignored, not piped — see the module comment. This single
         // element is the fix.
         stdio: ['ignore', 'pipe', 'pipe'],
+        detached: OWN_GROUP,
       })
     } catch (error) {
       resolve({ stdout: '', error: `spawn failed: ${String(error)}` })
@@ -70,6 +89,7 @@ export async function runPrintMode(
       if (settled) return
       settled = true
       clearTimeout(timer)
+      killTree(child)
       resolve(result)
     }
 
@@ -80,7 +100,6 @@ export async function runPrintMode(
     // complete title because the process was slow to die. The kill still
     // happens; only the verdict changes.
     const timer = setTimeout(() => {
-      child.kill('SIGKILL')
       finish({ stdout, error: `timed out after ${timeoutMs}ms` })
     }, timeoutMs)
 

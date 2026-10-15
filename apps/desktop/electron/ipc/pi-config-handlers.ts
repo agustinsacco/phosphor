@@ -14,6 +14,7 @@ import { readAgentSettings } from '@phosphor/session-runtime/pi/agent-settings'
 import {
   listModelsViaRpc,
   resolveCatalogueModels,
+  type CatalogueModel,
   type CatalogueResult,
 } from '../pi/model-catalogue'
 import { cachedPiHealth } from '../pi/health'
@@ -74,6 +75,11 @@ const catalogueCache = createTtlCache(
   },
   (result) => (result.source === 'pi' ? CATALOGUE_TTL_MS : CATALOGUE_FALLBACK_TTL_MS),
 )
+
+/** The cached catalogue's models, loading it if needed (session naming). */
+export async function catalogueModels(): Promise<CatalogueModel[]> {
+  return (await catalogueCache.get()).models
+}
 
 /** Drop the cached catalogue — call after anything that changes pi's config. */
 export function invalidateCatalogueModels(): void {
