@@ -229,7 +229,6 @@ it('resumes a new remote draft with its machine and repository and resets both w
   await choose('Routine machine', host)
   await choose('Routine repository', machine.repositories[0]!.id)
   await closeEditor()
-  await act(async () => useMachinePagesStore.setState({ routinesMachine: host }))
   await click('Resume draft')
   expect(document.querySelector<HTMLSelectElement>('[aria-label="Routine machine"]')?.value).toBe(
     host,
@@ -305,8 +304,9 @@ it('clears a restored repository no longer offered and requires a fresh choice',
   expect(saveButton().disabled).toBe(false)
 })
 
-it('clears a missing machine on a new draft without falling back to local', async () => {
+it('resumes the Host slot after its target machine disappears and reappears', async () => {
   await act(async () => root.render(<RoutinesPage workspacePath="/local" />))
+  await act(async () => useMachinePagesStore.setState({ routinesMachine: host }))
   await click('New routine')
   await choose('Routine machine', host)
   await choose('Routine repository', machine.repositories[0]!.id)
@@ -322,6 +322,17 @@ it('clears a missing machine on a new draft without falling back to local', asyn
   expect(saveButton().disabled).toBe(true)
   expect(document.querySelector('[aria-label="Workspace"]')).toBeNull()
   expect(useRoutinesStore.getState().editorDrafts[`new/${host}`]?.machineId).toBe('')
+  await closeEditor()
+  await act(async () => useRoutinesStore.setState({ machines: [machine] }))
+  expect(container.textContent).toContain('Resume draft')
+  expect(
+    Array.from(container.querySelectorAll('button')).some((b) => b.textContent === 'New routine'),
+  ).toBe(false)
+  await click('Resume draft')
+  expect(document.querySelector<HTMLSelectElement>('[aria-label="Routine machine"]')?.value).toBe(
+    '',
+  )
+  expect(saveButton().disabled).toBe(true)
 })
 
 it('keeps an existing routine machine locked while absent and sends nothing', async () => {
@@ -540,4 +551,47 @@ it('keeps new routine drafts separate per machine and resumes only the selected 
     document.querySelector<HTMLInputElement>('[role=dialog] input[maxlength="100"]')?.value,
   ).toBe('Local unsaved')
   expect(useRoutinesStore.getState().editorDrafts.new?.input.name).toBe('Local unsaved')
+})
+
+it('keeps the opening slot when a resumed Mac draft targets a Host with its own draft', async () => {
+  await renderHostWithLocalActivity(true)
+  await act(async () => {
+    useRoutinesStore.setState({
+      editorDrafts: {
+        new: {
+          input: { ...local, name: 'Mac original text' },
+          revision: null,
+          machineId: 'local',
+          repositoryId: '',
+        },
+        [`new/${host}`]: {
+          input: { ...remote, name: 'Host original text' },
+          revision: null,
+          machineId: host,
+          repositoryId: machine.repositories[0]!.id,
+        },
+      },
+    })
+    useRemoteLanesStore.getState().setFilter('local')
+  })
+  await click('Resume draft')
+  await choose('Routine machine', host)
+  await choose('Routine repository', machine.repositories[0]!.id)
+  await closeEditor()
+  expect(useRoutinesStore.getState().editorDrafts.new?.machineId).toBe(host)
+  expect(useRoutinesStore.getState().editorDrafts.new?.input.name).toBe('Mac original text')
+  await act(async () => useRemoteLanesStore.getState().setFilter(host.slice(5)))
+  await click('Resume draft')
+  expect(
+    document.querySelector<HTMLInputElement>('[role=dialog] input[maxlength="100"]')?.value,
+  ).toBe('Host original text')
+  await closeEditor()
+  await act(async () => useRemoteLanesStore.getState().setFilter('local'))
+  await click('Resume draft')
+  expect(
+    document.querySelector<HTMLInputElement>('[role=dialog] input[maxlength="100"]')?.value,
+  ).toBe('Mac original text')
+  expect(document.querySelector<HTMLSelectElement>('[aria-label="Routine machine"]')?.value).toBe(
+    host,
+  )
 })

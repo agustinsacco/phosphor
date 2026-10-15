@@ -13,7 +13,7 @@ import { useLayoutStore } from './layout'
 /** Shared frozen default: a selector must never return a fresh object. */
 const NO_LANES: RoutineLaneIndex = Object.freeze({})
 
-/** The `editorDrafts` key for a routine that has not been saved yet. */
+/** Local new-routine draft slot. Drafts are memory-only; `new` stays the local key. */
 export const NEW_ROUTINE = 'new'
 
 export function newRoutineDraftKey(machine: string): string {

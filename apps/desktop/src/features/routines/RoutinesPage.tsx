@@ -79,10 +79,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
   const draft = useRoutinesStore((s) => s.draft)
   const draftMachine = machine === 'all' ? 'local' : machine
   const newDraftKey = newRoutineDraftKey(draftMachine)
-  const unsaved = useRoutinesStore((s) => {
-    const saved = s.editorDrafts[newDraftKey]
-    return !!saved && (saved.machineId || 'local') === draftMachine
-  })
+  const unsaved = useRoutinesStore((s) => !!s.editorDrafts[newDraftKey])
   const [selected, setSelected] = useState<string | null>(null)
   const selectedHostRows = selected?.startsWith('host:')
     ? remote[selected.split('/')[0] ?? '']
