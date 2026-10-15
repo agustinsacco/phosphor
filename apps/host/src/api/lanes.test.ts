@@ -161,6 +161,70 @@ describe('lane adapter', () => {
     await flush()
     return c
   }
+  it('allows receipt reads for viewers, refuses missing read permission and drops revoked pending data', async () => {
+    h.service.calls.capabilityFor = () => 'sessions.read'
+    const c = await ready(h.claims.client, ['sessions.read'])
+    c.send({
+      type: 'call',
+      id: 'allowed',
+      method: 'lane.receipt',
+      params: { laneId: randomUUID() },
+    })
+    await flush()
+    expect(c.frames).toContainEqual({ type: 'result', id: 'allowed', ok: true, data: null })
+    c.auth(['sessions.control'], false)
+    await flush()
+    c.send({ type: 'call', id: 'denied', method: 'lane.receipt' })
+    await flush()
+    expect(c.frames).toContainEqual({
+      type: 'result',
+      id: 'denied',
+      ok: false,
+      error: { code: 'forbidden', message: 'forbidden' },
+    })
+    c.auth(['sessions.read'], false)
+    await flush()
+    let resolve: (value: CallOutcome) => void = () => {}
+    h.service.calls.call = vi.fn(
+      () =>
+        new Promise<CallOutcome>((r) => {
+          resolve = r
+        }),
+    )
+    c.send({ type: 'call', id: 'pending', method: 'lane.receipt' })
+    await flush()
+    c.auth(['sessions.control'], false)
+    await flush()
+    resolve({ ok: true, data: 'private receipt' })
+    await flush()
+    expect(c.frames.some((f) => f.type === 'result' && f.id === 'pending')).toBe(false)
+  })
+  it('old Host unknown-method refusal keeps the socket and lane alive', async () => {
+    h.service.calls.capabilityFor = () => null
+    h.service.calls.call = vi.fn(async (): Promise<CallOutcome> => ({
+      ok: false,
+      error: { code: 'unsupported', message: 'the lane query could not complete' },
+    }))
+    const c = await ready(h.claims.client, ['sessions.read'])
+    c.send({
+      type: 'call',
+      id: 'receipt',
+      method: 'lane.receipt',
+      params: { laneId: randomUUID() },
+    })
+    await flush()
+    expect(c.frames).toContainEqual({
+      type: 'result',
+      id: 'receipt',
+      ok: false,
+      error: { code: 'unsupported', message: 'the lane query could not complete' },
+    })
+    expect(c.codes).toEqual([])
+    expect(h.service.commands.submit).not.toHaveBeenCalled()
+    c.send({ type: 'ping', at: 7 })
+    await flush()
+    expect(c.frames).toContainEqual({ type: 'pong', at: 7 })
+  })
   it('admits machine routine reductions without lane control and gates starts twice', async () => {
     h.service.capabilities = ['sessions.read', 'sessions.control', 'routines']
     h.service.commands.capabilityFor = (op) => {

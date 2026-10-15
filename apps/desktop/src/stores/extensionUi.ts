@@ -1,3 +1,4 @@
+import type { ToastReceipt } from '@/features/sessions/laneReceipt'
 import { create } from 'zustand'
 import type { ExtensionUIRequest } from '@shared/rpc'
 import {
@@ -15,6 +16,7 @@ export interface PendingDialog {
 }
 
 export interface Toast {
+  receipt?: ToastReceipt
   id: number
   message: string
   kind: 'info' | 'success' | 'warning' | 'error'
@@ -40,7 +42,7 @@ export interface Toast {
 
 export type ToastOptions = Pick<
   Toast,
-  'message' | 'title' | 'sessionId' | 'marker' | 'onOpen' | 'openLabel'
+  'message' | 'title' | 'sessionId' | 'marker' | 'onOpen' | 'openLabel' | 'receipt'
 > & {
   kind?: Toast['kind']
   /** Visible time before auto-dismiss. Defaults by kind; see `toastDuration`. */
@@ -240,6 +242,7 @@ export const useExtensionUiStore = create<ExtensionUiState>((set, get) => ({
     const kind = options.kind ?? 'info'
     const durationMs = options.durationMs ?? toastDuration({ ...options, kind })
     const fields = {
+      receipt: options.receipt,
       message: options.message,
       kind,
       title: options.title,

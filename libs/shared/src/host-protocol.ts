@@ -1,3 +1,4 @@
+export type { LaneReceipt } from './lane-receipt'
 import {
   parseRepositoryOp,
   parseDeleteLaneOp,
@@ -330,6 +331,7 @@ export const HOST_CALL_METHODS = [
   'host.repositories',
   'lane.state',
   'lane.messages',
+  'lane.receipt',
   'lane.stats',
   'lane.models',
   'lane.commands',

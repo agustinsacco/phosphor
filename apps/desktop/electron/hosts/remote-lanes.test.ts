@@ -494,7 +494,7 @@ it('deduplicates attention and calls the notification port once with machine con
   t.attention.receive(t.hostId, frame.event)
   expect(t.notify).toHaveBeenCalledTimes(1)
   const notification = t.notify.mock.calls[0]
-  expect(notification?.[0]).toBe('bee1')
+  expect(notification?.[0]).toBe('bee1 · Untitled lane')
   const click: unknown = notification?.[2]
   if (typeof click !== 'function') throw new Error('Missing click')
   click()

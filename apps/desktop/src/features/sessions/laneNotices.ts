@@ -1,3 +1,5 @@
+import type { ChatSessionState } from '@/features/chat/chatItems'
+import { laneReceipt } from './laneReceipt'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore, type Toast } from '@/stores/extensionUi'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
@@ -19,7 +21,7 @@ import { sessionTitle } from '@/lib/sessionTitle'
  */
 export function notifyLane(
   sessionId: string,
-  notice: { message: string; kind?: Toast['kind']; title?: string },
+  notice: { message: string; kind?: Toast['kind']; title?: string; receipt?: Toast['receipt'] },
 ): void {
   const sessions = useSessionsStore.getState()
   const live = sessions.live[sessionId]
@@ -46,6 +48,9 @@ export function notifyLane(
   )
   useExtensionUiStore.getState().notify({
     sessionId,
+    receipt: notice.receipt?.facts
+      ? { ...notice.receipt, facts: { ...notice.receipt.facts, title } }
+      : notice.receipt,
     title,
     message: notice.message,
     kind: notice.kind ?? 'info',
@@ -69,16 +74,44 @@ export function laneOnScreen(sessionId: string): boolean {
  * Nothing for the lane on screen: the transcript already shows it. The
  * caller skips an aborted run, which only the stop control produces.
  */
-export function noticeLaneSettled(sessionId: string): void {
+export function noticeLaneSettled(
+  sessionId: string,
+  startedAt?: number | null,
+  settledAt = Date.now(),
+  settledChat?: Pick<ChatSessionState, 'items' | 'tools'>,
+): void {
   if (laneOnScreen(sessionId)) return
-  const items = useChatStore.getState().sessions[sessionId]?.items ?? []
+  const items = settledChat?.items ?? useChatStore.getState().sessions[sessionId]?.items ?? []
+  const live = useSessionsStore.getState().live[sessionId]
+  const chat = useChatStore.getState().sessions[sessionId]
+  const facts = laneReceipt({
+    workspacePath: live?.workspacePath,
+    items,
+    tools: settledChat?.tools ?? chat?.tools ?? {},
+    title: chat?.meta?.sessionName ?? 'Untitled lane',
+    repository:
+      (live
+        ? (useSessionsStore.getState().gitByCwd[live.workspacePath]?.mainRepoPath ??
+          live.workspacePath)
+        : undefined
+      )
+        ?.split('/')
+        .pop() ?? null,
+    branch: live
+      ? (useSessionsStore.getState().gitByCwd[live.workspacePath]?.branch ?? null)
+      : null,
+    startedAt,
+    settledAt,
+  })
+  const receipt = { facts, machine: 'This Mac', at: new Date(settledAt).toISOString() }
   const outcome = laneOutcome(items)
   if (outcome.kind === 'error') {
     notifyLane(sessionId, {
+      receipt,
       kind: 'error',
       message: outcome.excerpt ? `Stopped: ${outcome.excerpt}` : 'Stopped with an error.',
     })
     return
   }
-  notifyLane(sessionId, { kind: 'success', message: outcome.excerpt ?? 'Finished.' })
+  notifyLane(sessionId, { receipt, kind: 'success', message: outcome.excerpt ?? 'Finished.' })
 }

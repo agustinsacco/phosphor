@@ -1,3 +1,4 @@
+import { LaneReceiptCard } from './LaneReceiptCard'
 import { RemoteLaneControls } from '@/features/machines/RemoteLaneControls'
 import { canControlSession, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { TooltipButton } from '@/components/Tooltip'
@@ -343,7 +344,9 @@ function ToastCard({ toast }: { toast: Toast }): React.JSX.Element {
             open && 'hover:border-[var(--px-border-strong)]',
           )}
         >
-          {open ? (
+          {toast.receipt ? (
+            <LaneReceiptCard toast={toast} open={open} />
+          ) : open ? (
             <TooltipButton
               type="button"
               onClick={open}

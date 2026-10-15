@@ -667,14 +667,17 @@ function attachSessionPushHandler(phosphorId: string): void {
         void rehydrateTranscript(phosphorId).then(() => bootstrapSession(phosphorId))
         break
       case 'event': {
+        const receiptRun = settles.settle(phosphorId, push.event)
+        const receiptSettledAt = Date.now()
         chatStore.applyEvent(phosphorId, push.event)
         // A lane finishing off-screen says so, and clicking the notice goes there.
         if (
-          settles.finished(phosphorId, push.event) &&
+          receiptRun.finished &&
           useSessionsStore.getState().live[phosphorId]?.target?.kind !== 'remote'
         ) {
+          const receiptChat = useChatStore.getState().sessions[phosphorId]
           void import('@/features/sessions/laneNotices').then(({ noticeLaneSettled }) =>
-            noticeLaneSettled(phosphorId),
+            noticeLaneSettled(phosphorId, receiptRun.startedAt, receiptSettledAt, receiptChat),
           )
         }
         if (

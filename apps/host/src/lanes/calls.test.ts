@@ -74,6 +74,42 @@ afterEach(() => {
   vi.useRealTimers()
 })
 describe('lane calls', () => {
+  it('reads receipts through the bounded transcript path and rejects missing or removed lanes', async () => {
+    const c = calls()
+    expect(c.capabilityFor('lane.receipt')).toBe('sessions.read')
+    expect(await c.call('lane.receipt', { laneId: 'bad' })).toMatchObject({
+      error: { code: 'bad-request' },
+    })
+    reply = {
+      type: 'response',
+      command: 'get_messages',
+      success: true,
+      data: {
+        messages: [
+          { role: 'user', content: 'task', timestamp: 1 },
+          {
+            role: 'assistant',
+            content: [{ type: 'text', text: 'Done' }],
+            stopReason: 'stop',
+            timestamp: 10,
+          },
+        ],
+      },
+    }
+    expect(await c.call('lane.receipt', { laneId: lane.laneId })).toMatchObject({
+      ok: true,
+      data: { durationMs: 9, excerpt: 'Done', repository: 'repo' },
+    })
+    expect(command).toHaveBeenLastCalledWith('runtime-id', { type: 'get_messages' })
+    command.mockImplementation(() => new Promise(() => {}))
+    const pending = c.call('lane.receipt', { laneId: lane.laneId })
+    await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs)
+    expect(await pending).toMatchObject({ error: { code: 'internal' } })
+    store.markRemoved(lane.laneId)
+    expect(await c.call('lane.receipt', { laneId: lane.laneId })).toMatchObject({
+      error: { code: 'unknown-lane' },
+    })
+  })
   it('dispatches exact registered names with their capabilities, preserving lane methods', async () => {
     const call = vi.fn(async () => ({ ok: true as const, data: 'feature' }))
     const c = calls([
