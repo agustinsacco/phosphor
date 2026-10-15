@@ -3,7 +3,8 @@
 `apps/control` is a plain Node 22 server. It serves the built Astro site and the
 shared JSON contract in `libs/shared/src/control-api.ts`. It stores identity
 and machine metadata only. It does not handle prompts, transcripts, files,
-repository names or provider credentials. It does not enable remote execution.
+repository names or provider credentials. It brokers grants; lane execution and
+content travel directly between Desktop and Host.
 Hosts enroll through a code approved by a signed-in user, then report readiness
 and machine state through signed heartbeats.
 
@@ -118,7 +119,7 @@ removal and refused removed-Host beats have their own events; a refused beat's
 host id and a failed poll's enrollment id are claimed, not verified. The bounded
 10,000-Host observation history evicts the least recently beaten Host and resets
 on process restart. Nothing logs headers, bodies, tokens, codes, keys, peer/client IPs,
-edge secrets or peer error messages. [Tracing a machine](remote-access.md#tracing-a-machine)
+edge secrets or peer error messages. [Tracing a machine](remote-development.md#tracing-a-machine)
 lists the events and their correlation rules.
 
 The reusable sliding-window limiter has a 10,000-key cap. At capacity it sweeps
@@ -213,7 +214,7 @@ SITE_DIR=apps/site/dist node apps/control/dist/server.mjs
 ```
 
 For local Supabase, use only the isolated `phosphor-control-test` stack described
-in [remote-access.md](remote-access.md#local-validation). A protected environment
+in [local validation](remote-development.md#local-validation). A protected environment
 must supply its publishable and secret keys and
 `SUPABASE_URL=http://127.0.0.1:54351`. Do not print or commit `supabase status -o env`
 values. The routes need the control enrollment migration on that stack.
@@ -263,3 +264,63 @@ LAN and tailnet peers as well as the tunnel connector.
 After rollout the workflow requires a Service address, then checks the public
 site title, `/healthz` and `/api/v1/health` with `configured: true`. It retries
 for at most two minutes and fails if any check stays unavailable.
+
+## Control-directory schema
+
+`supabase/migrations/` holds versioned PostgreSQL migrations for six tables:
+
+- `remote_access_accounts`: server-managed suspension state, GitHub login and
+  update time. New accounts are enabled by default.
+- `remote_hosts`: owner, label, hostname, public key, fingerprint, platform,
+  architecture, version, heartbeat sequence and state, readiness, lane counts,
+  optional bare HTTPS endpoint and revocation epoch.
+- `remote_clients`: owner, client kind, display label and revocation metadata.
+- `remote_grant_sessions`: recently issued Auth session ids and times for bounded
+  heartbeat revocation checks. It has no client grants or policies.
+- `remote_enrollments`: hashed user codes, public keys and machine metadata.
+  Pending codes expire after ten minutes. Approval links the owner and Host
+  atomically and leaves at least two minutes to collect the approved result.
+- `remote_audit_events`: owner, Host, event kind and time for enrollment,
+  rename, owner revocation and self-revocation. No labels or IPs are recorded.
+
+All tables have row-level security. Authenticated users can read their own
+account state. Enabled owners can read their host, client and audit rows,
+including revoked entries. Anonymous roles have no table access. Enrollment
+rows have no client grants or RLS policies. Clients cannot write any table.
+
+Only the server writes. The `service_role` can execute the public `control_*`
+functions for account refresh, enrollment create/poll/lookup/approve, machine
+list/rename/revoke and Host key/self/self-revoke/heartbeat, client registration and
+revocation, grant issuance and revocation lookup. These functions use an empty
+search path. They are security invokers except the revocation lookup described in
+[Grants and revocation](#grants-and-revocation). Both client roles and `public`
+lose execute privileges, including on the timestamp and MachineView helpers
+in the non-exposed `control_private` schema. The server separately authenticates
+requests and checks account suspension. RLS is not its authorization boundary.
+
+Approval locks the enrollment and account, enforces twenty active Hosts per
+owner and relies on a partial unique index to prevent active public-key reuse.
+Keys use canonical base64url so each key has one spelling. Labels reject control
+and bidi characters. Endpoint ports, when present, are between 1 and 65535.
+Creation serializes pending admission, caps it at three per key and ten thousand
+in total, and removes at most a thousand old enrollments and old audit events
+per call. Audit cleanup targets events older than 180 days. Heartbeats atomically
+require an increasing sequence and ten seconds between beats, except stopping beats.
+Revocation increments the epoch. Machine lists exclude revoked Hosts. Timestamp
+and MachineView JSON helpers keep responses consistent with the shared contract.
+
+`remote_hosts` is in the `supabase_realtime` publication. Realtime is a change
+signal for refetching, not an execution or mutation API. Directory visibility
+is not an execution grant. Endpoint storage validation is not network authorization.
+
+There are no prompts, filesystem paths, transcripts, artifacts, private keys or
+provider credentials in these tables. Public keys identify Hosts only. Lane
+counts do not contain lane data. Account deletion cascades through its directory
+records only, not remote files. Applying a migration does not install an agent,
+enable signup, or expose any execution service.
+
+Hosted migration work requires explicit target verification and reconciliation
+with the migration ledger. Never replay an existing schema under a second
+migration version or target another product's database. Local test success does
+not prove deployment. Only the disposable `phosphor-control-test` stack belongs
+to automated local validation.

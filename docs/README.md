@@ -20,37 +20,40 @@ Start with [overview.md](overview.md) for what Phosphor is, or
 
 ## The system
 
-| File                                   | Covers                                                                  |
-| -------------------------------------- | ----------------------------------------------------------------------- |
-| [overview.md](overview.md)             | Product definition, non-negotiables, engineering quality bar            |
-| [architecture.md](architecture.md)     | Process model, the IPC prefixes, cross-cutting requirements             |
-| [desktop-build.md](desktop-build.md)   | Desktop paths, native install ownership and packaging                   |
-| [installations.md](installations.md)   | Dependency domains, scoped source closure and bundling                  |
-| [nx-cache.md](nx-cache.md)             | Local check cache inputs, exclusions and task resource bounds           |
-| [pi-integration.md](pi-integration.md) | pi's RPC protocol and session format                                    |
-| [host.md](host.md)                     | Host CLI, machine identity, environment, checks and acceptance sessions |
-| [remote-access.md](remote-access.md)   | Remote foundations, trust boundary and local validation                 |
-| [control-plane.md](control-plane.md)   | Site and account API server, authentication ports and configuration     |
+| File                                           | Covers                                                                  |
+| ---------------------------------------------- | ----------------------------------------------------------------------- |
+| [overview.md](overview.md)                     | Product definition, non-negotiables, engineering quality bar            |
+| [architecture.md](architecture.md)             | Process model, the IPC prefixes, cross-cutting requirements             |
+| [desktop-build.md](desktop-build.md)           | Desktop paths, native install ownership and packaging                   |
+| [installations.md](installations.md)           | Dependency domains, scoped source closure and bundling                  |
+| [nx-cache.md](nx-cache.md)                     | Local check cache inputs, exclusions and task resource bounds           |
+| [pi-integration.md](pi-integration.md)         | pi's RPC protocol and session format                                    |
+| [host.md](host.md)                             | Host CLI, machine identity, environment, checks and acceptance sessions |
+| [remote-access.md](remote-access.md)           | Remote entry point, end-to-end flow and trust boundaries                |
+| [control-plane.md](control-plane.md)           | Site and account API server, authentication ports and configuration     |
+| [remote-desktop.md](remote-desktop.md)         | Desktop Host connections, machine context, routing and isolation        |
+| [remote-protocol.md](remote-protocol.md)       | Host frames, receipts, streams, fences and grant verification           |
+| [remote-development.md](remote-development.md) | Remote diagnostics, disposable validation and transport probes          |
 
-The remote foundations do not enable remote execution. Host enrollment commands,
-Desktop approval clients, the control server's enrollment, machine and Host
-routes and their database functions exist. The server is not deployed yet.
-The Host checks a machine and runs local acceptance sessions; its loopback API authenticates grants and serves lanes when pi is usable ([host.md](host.md#api)). Desktop does not route remote lane actions yet.
+Start with **[Remote access](remote-access.md)** for the three parts, setup,
+a lane's end-to-end flow and trust boundaries. Local Desktop works without
+sign-in; remote lanes connect directly to an enrolled Host over private Tailscale,
+not through control.
 
 ## The surfaces
 
-| File                         | Covers                                                              |
-| ---------------------------- | ------------------------------------------------------------------- |
-| [ui-shell.md](ui-shell.md)   | Window chrome, top bar, sidebar, the pane system, theming           |
-| [chat.md](chat.md)           | Transcript rendering, composer, tool cards, find, context meter     |
-| [files.md](files.md)         | File management, transfers, clipboard, search in files, the editor  |
-| [terminal.md](terminal.md)   | PTY panes, clipboard, scrollback, per-session ownership             |
-| [routines.md](routines.md)   | Local scheduled lanes, run history, catch-up, and unattended access |
-| [lanes.md](lanes.md)         | The lane row, PR status, naming, search, delete, reclaim            |
-| [worktrees.md](worktrees.md) | Git worktree lifecycle and the branch control                       |
-| [settings.md](settings.md)   | The settings modal and which config file each tab writes            |
-| [feedback.md](feedback.md)   | In-app rating and feedback, filed as a labelled GitHub issue        |
-| [voice.md](voice.md)         | Dictation with a local speech model: download, processes, privacy   |
+| File                         | Covers                                                                |
+| ---------------------------- | --------------------------------------------------------------------- |
+| [ui-shell.md](ui-shell.md)   | Window chrome, top bar, sidebar, the pane system, theming             |
+| [chat.md](chat.md)           | Transcript rendering, composer, tool cards, find, context meter       |
+| [files.md](files.md)         | File management, transfers, clipboard, search in files, the editor    |
+| [terminal.md](terminal.md)   | PTY panes, clipboard, scrollback, per-session ownership               |
+| [routines.md](routines.md)   | Local and Host schedules, run history, catch-up and unattended access |
+| [lanes.md](lanes.md)         | The lane row, PR status, naming, search, delete, reclaim              |
+| [worktrees.md](worktrees.md) | Git worktree lifecycle and the branch control                         |
+| [settings.md](settings.md)   | The settings modal and which config file each tab writes              |
+| [feedback.md](feedback.md)   | In-app rating and feedback, filed as a labelled GitHub issue          |
+| [voice.md](voice.md)         | Dictation with a local speech model: download, processes, privacy     |
 
 ## What Phosphor talks to
 

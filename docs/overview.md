@@ -13,11 +13,12 @@ with a file explorer, a code/diff viewer, a full terminal and an artifacts pane.
 [Local routines](routines.md) can start fresh sessions on a schedule while the
 computer is awake, including analysis/report tasks. There is no cloud sync.
 
-Optional Phosphor sign-in unlocks the first-class Machines directory. Host enrollment commands, approval UI and the control
-server's routes exist, but the server is not deployed yet. The plain-Node [Host](host.md) checks a machine and runs local
-acceptance sessions; its API listens on loopback for authenticated clients and serves no lanes yet. [Remote access](remote-access.md)
-does not enable remote execution. Directions that are decided or being explored,
-not built, live in [future-features.md](future-features.md).
+Optional Phosphor sign-in enables Machines and remote lanes on an enrolled
+[Host](host.md). Desktop connects directly over private Tailscale; the control
+plane holds identity and machine metadata, never lane contents or provider
+credentials. The Host owns pi, repositories, terminals and scheduled routines.
+[Remote access](remote-access.md) explains setup and the trust boundary.
+Unbuilt directions live in [future-features.md](future-features.md).
 
 **Many sessions at once is the normal case.** A project usually has several
 chats in flight, each on its own branch, and the product's job is to make that

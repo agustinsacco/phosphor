@@ -77,8 +77,11 @@ dismissal. Add machine opens Machines with the existing add dialog.
 This Mac keeps the local workspace groups unchanged. Hosts use the same group
 header, lane row, indicator and subtitle primitives, grouped by configured
 repository. Search commits on Enter; the group menu collapses lanes; + preselects
-that repository in the remote creation dialog. Empty repositories show “No lanes
-yet”. All machines puts local groups first, then machine-labelled Host groups.
+that repository for remote creation.
+
+<!-- pending: L -->
+
+Empty repositories show “No lanes yet”. All machines puts local groups first, then machine-labelled Host groups.
 Signed-out windows have no machine switcher or remote groups.
 
 - **Workspace switcher** at top: current workspace plus a dropdown of recents;
@@ -453,14 +456,14 @@ label. Rows show a status dot, hostname, human platform name and architecture,
 status text, problem-only readiness chips (or Ready), and non-zero lane counts.
 The whole row opens a stable detail view; live updates do not reset selection.
 Signed out, only this computer is listed, with an optional GitHub sign-in panel.
-Signed in with no Hosts, a three-step source-install, setup and login guide links
-to the Host guide. There are no sample machines. Remote lanes, machine filters
-and per-lane connection chips use authenticated Host snapshots. The home
-machine picker follows the sidebar selection (All machines uses This Mac), with
-a user override until the next sidebar change. Remote choices open the configured
-repository dialog. Host-targeted submit opens that same dialog without sending or
-clearing the composer draft, never starting locally if the Host is unavailable.
-Provider and Model are under its collapsed Advanced disclosure.
+Signed in with no Hosts, Add a machine opens guided setup. There are no sample
+machines. Remote lanes, machine filters and per-lane connection chips use
+authenticated Host snapshots. The home machine picker follows the sidebar
+selection (All machines uses This Mac), with a user override until the next
+sidebar change. Remote creation uses that machine's configured repositories and
+provider catalogue, never a local fallback.
+
+<!-- pending: L -->
 
 Main owns directory traffic. Realtime is only a debounced change signal, with
 60 s polling while disconnected. A 5 s local timer updates relative times and
@@ -487,12 +490,14 @@ Escape cancels, and failure restores the saved label with an inline error.
 Remove confirms that the Host stops at its next heartbeat and must run
 `phosphor login` again. Its files and installation stay on that machine.
 
-Add a machine is disabled while signed out. Its guided dialog has four steps:
-commands to run on the other machine, code entry, fingerprint comparison and
-editable label, then success with the run/service next step and View machine.
+Add a machine is disabled while signed out. The guide checks this computer's
+account and Tailscale readiness, then offers SSH installation or manual setup.
+It follows the enrolled machine online and leads to provider sign-in. The
+[SSH flow](remote-desktop.md#install-a-host-over-ssh) owns installation details.
+Manual code approval compares the fingerprint and asks for an editable label.
 Codes accept either case and an optional separator, format as four letters per
 group, and submit with Enter. Invalid, expired, rate-limited and network errors
-stay on the current step. Approval is enrollment, not a remote execution grant.
+stay on the current step. Approval is enrollment, not an execution grant.
 
 ### Remote workspace context
 

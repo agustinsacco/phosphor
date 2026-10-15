@@ -41,10 +41,10 @@ Chat links, tool path chips and the finder open through an explicit remote lane
 and can reveal a line. Host absolute paths must be inside that lane's cwd.
 Editor models and caches are lane-qualified. Switching lanes or machines cancels
 stale reads and clears previews. Machine-level Files browses configured Host
-repositories read-only without opening a lane. Search, rich preview, quick look,
-external imports and open-in-app are not offered remotely. Without
-the capability, the pane shows “Not available on remote lanes yet.”
-See [remote-access.md](remote-access.md#remote-read-panes) for routing and bounds.
+repositories read-only without opening a lane.
+[Remote surface gaps](future-features.md#remote-surface-gaps) lists unavailable
+operations. Without the capability, the pane shows “Not available on remote lanes yet.”
+See [Remote Desktop](remote-desktop.md#remote-read-panes) for routing and bounds.
 
 ## File management
 
