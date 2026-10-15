@@ -1,4 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest'
+import type { HostAttention } from '@shared/ipc'
 import type { SessionPush } from '@shared/models'
 import type { RpcCommand } from '@shared/rpc'
 import { parseHostFrame } from '@shared/host-protocol'
@@ -6,10 +7,15 @@ import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteL
 import { useSessionsStore } from './sessions'
 import { useArtifactsStore } from './artifacts'
 import { useChatStore } from './chat'
+import { useLayoutStore } from './layout'
+import { useExtensionUiStore } from './extensionUi'
+import { useLaneRevealStore } from '@/features/sessions/laneReveal'
 import {
   attachRemoteLanesListener,
   canControlSession,
   openRemoteLane,
+  navigateToLane,
+  alignLaneMachineFilter,
   useRemoteLanesStore,
 } from './remoteLanes'
 
@@ -27,6 +33,9 @@ beforeEach(() => {
     )
   useSessionsStore.setState({ live: {}, activeSessionId: null, navSeq: 0 })
   useChatStore.setState({ sessions: {} })
+  useLayoutStore.setState({ page: 'skills' })
+  useExtensionUiStore.setState({ toasts: [] })
+  useLaneRevealStore.setState({ seq: 0, groupKey: null })
   const hosts = structuredClone(mockRemoteHosts)
   hosts[MOCK_HOST_ID]!.capabilities.push('artifacts.read')
   useRemoteLanesStore.setState({ hosts, filter: 'all' })
@@ -56,7 +65,7 @@ beforeEach(() => {
 })
 
 it('adopts a remote handle through existing hydration without persisting Host paths', async () => {
-  await openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')
+  expect(await openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')).toBe(true)
   expect(useSessionsStore.getState().activeSessionId).toBe(mockRemoteInfo.sessionId)
   expect(useSessionsStore.getState().live[mockRemoteInfo.sessionId]?.diskPath).toBeUndefined()
   expect(invoke.mock.calls.map(([channel]) => channel)).toEqual([
@@ -271,3 +280,220 @@ it.each(['reconnect', 'epoch'] as const)(
     }
   },
 )
+
+it.each(['local', 'all'])(
+  'navigates from %s to the Host, closes the page and reveals its group',
+  async (filter) => {
+    useRemoteLanesStore.setState({ filter })
+    await openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')
+    expect(useRemoteLanesStore.getState().filter).toBe(filter === 'all' ? 'all' : MOCK_HOST_ID)
+    expect(useLayoutStore.getState().page).toBeNull()
+    expect(useLaneRevealStore.getState().groupKey).toBe(
+      `host:${MOCK_HOST_ID}:${mockRemoteHosts[MOCK_HOST_ID]?.lanes[0]?.repositoryId}`,
+    )
+  },
+)
+
+it('Mac row and notice navigation restores This Mac and closes a global page', async () => {
+  useSessionsStore.setState({ live: { mac: { phosphorId: 'mac', workspacePath: '/mac' } } })
+  useRemoteLanesStore.setState({ filter: MOCK_HOST_ID })
+  expect(await navigateToLane({ sessionId: 'mac' })).toBe(true)
+  expect(useRemoteLanesStore.getState().filter).toBe('local')
+  expect(useSessionsStore.getState().activeSessionId).toBe('mac')
+  expect(useLayoutStore.getState().page).toBeNull()
+  expect(useLaneRevealStore.getState().groupKey).toBe('/mac')
+})
+
+it.each(['offline', 'removed'])(
+  'keeps the current destination and reports one notice when %s',
+  async (problem) => {
+    const hosts = structuredClone(mockRemoteHosts)
+    const host = hosts[MOCK_HOST_ID]
+    if (!host) throw new Error('fixture')
+    if (problem === 'offline') host.state = 'reconnecting'
+    else host.lanes = []
+    useRemoteLanesStore.setState({ hosts, filter: 'local' })
+    useSessionsStore.setState({ activeSessionId: 'mac' })
+    expect(await openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')).toBe(false)
+    expect(useRemoteLanesStore.getState().filter).toBe('local')
+    expect(useSessionsStore.getState().activeSessionId).toBe('mac')
+    expect(useLayoutStore.getState().page).toBe('skills')
+    expect(useLaneRevealStore.getState().seq).toBe(0)
+    expect(invoke).not.toHaveBeenCalledWith('hosts:openLane', MOCK_HOST_ID, mockRemoteInfo.laneId)
+    expect(useExtensionUiStore.getState().toasts.map((toast) => toast.message)).toEqual([
+      problem === 'offline'
+        ? `${MOCK_HOST_ID} is offline`
+        : `This lane was removed on ${MOCK_HOST_ID}`,
+    ])
+  },
+)
+
+it.each(['session', 'page', 'filter'])(
+  'a newer %s navigation wins a slow open',
+  async (navigation) => {
+    let finish: ((info: typeof mockRemoteInfo) => void) | undefined
+    invoke.mockImplementation((channel) =>
+      channel === 'hosts:openLane'
+        ? new Promise((resolve) => {
+            finish = resolve
+          })
+        : Promise.resolve([]),
+    )
+    useRemoteLanesStore.setState({ filter: 'local' })
+    const opening = openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')
+    if (navigation === 'session') useSessionsStore.getState().activate(null)
+    if (navigation !== 'filter') useLayoutStore.getState().setPage('routines')
+    else useRemoteLanesStore.getState().setFilter('all')
+    finish?.(mockRemoteInfo)
+    expect(await opening).toBe(false)
+    expect(useSessionsStore.getState().activeSessionId).toBeNull()
+    expect(useRemoteLanesStore.getState().filter).toBe(navigation === 'filter' ? 'all' : 'local')
+    expect(useLayoutStore.getState().page).toBe(navigation === 'filter' ? 'skills' : 'routines')
+    expect(useLaneRevealStore.getState().seq).toBe(0)
+  },
+)
+
+it('adopted lanes receive one settled card, not a second Host attention card', async () => {
+  await openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')
+  let attention: ((event: HostAttention) => void) | undefined
+  const noop = () => () => undefined
+  vi.stubGlobal('window', {
+    phosphor: {
+      ...window.phosphor,
+      onHostsChanged: noop,
+      onHostOpenLane: noop,
+      onHostAttention: (listener: typeof attention) => {
+        attention = listener
+        return () => {}
+      },
+    },
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  })
+  vi.stubGlobal('document', { hasFocus: () => false })
+  invoke.mockImplementation(async (channel) =>
+    channel === 'hosts:snapshot' ? mockRemoteHosts : [],
+  )
+  const detach = attachRemoteLanesListener()
+  const { noticeLaneSettled } = await import('@/features/sessions/laneNotices')
+  useLayoutStore.getState().setPage('skills')
+  const notify = vi.spyOn(useExtensionUiStore.getState(), 'notify')
+  noticeLaneSettled(mockRemoteInfo.sessionId)
+  attention?.({
+    hostId: MOCK_HOST_ID,
+    laneId: mockRemoteInfo.laneId ?? '',
+    kind: 'finished',
+    title: 'Remote',
+    at: '2026-01-01T00:00:00Z',
+  })
+  await vi.waitFor(() => expect(notify).toHaveBeenCalledTimes(2))
+  expect(useExtensionUiStore.getState().toasts).toHaveLength(1)
+  invoke.mockImplementation(async (channel) =>
+    channel === 'hosts:snapshot'
+      ? mockRemoteHosts
+      : channel === 'artifacts:forSession'
+        ? []
+        : mockRemoteInfo,
+  )
+  expect(await useExtensionUiStore.getState().toasts[0]?.onOpen?.()).toBe(true)
+  notify.mockRestore()
+  detach()
+})
+
+it.each(['offline', 'removed'])(
+  'does not commit when a lane becomes %s during open',
+  async (problem) => {
+    useRemoteLanesStore.setState({ filter: 'local' })
+    useSessionsStore.setState({ activeSessionId: 'mac' })
+    invoke.mockImplementation(async (channel) => {
+      if (channel !== 'hosts:openLane') return []
+      const hosts = structuredClone(mockRemoteHosts)
+      const host = hosts[MOCK_HOST_ID]
+      if (!host) throw new Error('fixture')
+      if (problem === 'offline') host.state = 'reconnecting'
+      else host.lanes = []
+      useRemoteLanesStore.setState({ hosts })
+      return mockRemoteInfo
+    })
+    expect(await openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')).toBe(false)
+    expect(useSessionsStore.getState().activeSessionId).toBe('mac')
+    expect(useRemoteLanesStore.getState().filter).toBe('local')
+    expect(useLayoutStore.getState().page).toBe('skills')
+    expect(useLaneRevealStore.getState().seq).toBe(0)
+    expect(useExtensionUiStore.getState().toasts).toHaveLength(1)
+  },
+)
+
+it('classifies an open rejection from a fresh snapshot without showing Host error payloads', async () => {
+  invoke.mockImplementation(async (channel) => {
+    if (channel === 'hosts:openLane') throw new Error('private Host error payload')
+    const hosts = structuredClone(mockRemoteHosts)
+    const host = hosts[MOCK_HOST_ID]
+    if (host) host.lanes = []
+    return hosts
+  })
+  expect(await openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')).toBe(false)
+  expect(useExtensionUiStore.getState().toasts.map((toast) => toast.message)).toEqual([
+    `This lane was removed on ${MOCK_HOST_ID}`,
+  ])
+})
+
+it('OS open requests use the same window-local navigation', async () => {
+  let open: ((target: { hostId: string; laneId: string }) => void) | undefined
+  const noop = () => () => undefined
+  vi.stubGlobal('window', {
+    phosphor: {
+      ...window.phosphor,
+      onHostsChanged: noop,
+      onHostAttention: noop,
+      onHostOpenLane: (listener: typeof open) => {
+        open = listener
+        return () => {}
+      },
+    },
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+  })
+  vi.stubGlobal('document', { hasFocus: () => false })
+  invoke.mockImplementation(async (channel) =>
+    channel === 'hosts:snapshot'
+      ? mockRemoteHosts
+      : channel === 'artifacts:forSession'
+        ? []
+        : mockRemoteInfo,
+  )
+  useRemoteLanesStore.setState({ filter: 'local' })
+  const detach = attachRemoteLanesListener()
+  open?.({ hostId: MOCK_HOST_ID, laneId: mockRemoteInfo.laneId ?? '' })
+  await vi.waitFor(() =>
+    expect(useSessionsStore.getState().activeSessionId).toBe(mockRemoteInfo.sessionId),
+  )
+  expect(useRemoteLanesStore.getState().filter).toBe(MOCK_HOST_ID)
+  expect(useLayoutStore.getState().page).toBeNull()
+  detach()
+})
+
+it.each(['local', 'all', MOCK_HOST_ID])(
+  'aligns a Mac row filter from %s without changing matching/all filters',
+  (filter) => {
+    useRemoteLanesStore.setState({ filter })
+    alignLaneMachineFilter('local')
+    expect(useRemoteLanesStore.getState().filter).toBe(filter === 'all' ? 'all' : 'local')
+  },
+)
+
+it('returns false after an unclassified bridge failure and emits one fixed notice', async () => {
+  invoke.mockRejectedValue(new Error('private payload'))
+  expect(await openRemoteLane(MOCK_HOST_ID, mockRemoteInfo.laneId ?? '')).toBe(false)
+  expect(useExtensionUiStore.getState().toasts.map((toast) => toast.message)).toEqual([
+    'Could not open the remote lane.',
+  ])
+})
+
+it('local notice callbacks expose the navigation result for receipt actions', async () => {
+  const { notifyLane } = await import('@/features/sessions/laneNotices')
+  useSessionsStore.setState({ live: { mac: { phosphorId: 'mac', workspacePath: '/mac' } } })
+  notifyLane('mac', { message: 'Finished' })
+  const notice = useExtensionUiStore.getState().toasts[0]
+  expect(await notice?.onOpen?.()).toBe(true)
+})

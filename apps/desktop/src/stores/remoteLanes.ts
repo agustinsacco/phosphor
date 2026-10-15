@@ -9,6 +9,13 @@ import type { LiveSessionInfo } from '@shared/models'
 import type { HostTarget } from '@shared/remote-host'
 import { forgetRemoteSession, useSessionsStore } from './sessions'
 import { useMachinesStore } from './machines'
+import { useExtensionUiStore } from './extensionUi'
+import { useLayoutStore } from './layout'
+import {
+  localLaneGroupKey,
+  remoteLaneGroupKey,
+  requestReveal,
+} from '@/features/sessions/laneReveal'
 
 const LOCAL: HostTarget = Object.freeze({ kind: 'local' })
 export const REMOTE_NOT_READY = 'Machine not connected. Wait for reconnection.'
@@ -98,14 +105,106 @@ export async function adoptRemoteLane(info: LiveSessionInfo, nav: number): Promi
   }
 }
 
-export async function openRemoteLane(hostId: string, laneId: string): Promise<void> {
-  const nav = useSessionsStore.getState().claimNav()
-  try {
-    await adoptRemoteLane(await window.phosphor.invoke('hosts:openLane', hostId, laneId), nav)
-    useRemoteLanesStore.setState({ error: null })
-  } catch {
-    useRemoteLanesStore.setState({ error: 'Could not open the remote lane.' })
+export function alignLaneMachineFilter(machine: string): void {
+  const store = useRemoteLanesStore.getState()
+  if (store.filter !== 'all' && store.filter !== machine) store.setFilter(machine)
+}
+
+type LaneDestination = { sessionId: string } | { hostId: string; laneId: string }
+
+/** All notice and row navigation commits only after its destination is available. */
+export async function navigateToLane(destination: LaneDestination): Promise<boolean> {
+  const sessions = useSessionsStore.getState()
+  const live = 'sessionId' in destination ? sessions.live[destination.sessionId] : undefined
+  const remote =
+    'hostId' in destination
+      ? destination
+      : live?.target?.kind === 'remote' && live.laneId
+        ? { hostId: live.target.hostId, laneId: live.laneId }
+        : undefined
+  const nav = sessions.claimNav()
+  let superseded = false
+  const offPage = useLayoutStore.subscribe((state, previous) => {
+    if (state.page !== previous.page) superseded = true
+  })
+  const offFilter = useRemoteLanesStore.subscribe((state, previous) => {
+    if (state.filter !== previous.filter) superseded = true
+  })
+  const stopWatching = (): void => {
+    offPage()
+    offFilter()
   }
+  const current = (): boolean => !superseded && useSessionsStore.getState().navSeq === nav
+  const unavailable = (hosts = useRemoteLanesStore.getState().hosts): string | undefined => {
+    if (!remote) return
+    const host = hosts[remote.hostId]
+    const label = machineLabel(remote.hostId)
+    if (host?.state !== 'ready') return `${label} is offline`
+    if (!host.lanes.some((lane) => lane.laneId === remote.laneId))
+      return `This lane was removed on ${label}`
+    return undefined
+  }
+  try {
+    const problem = unavailable()
+    if (problem) throw new Error(problem)
+    let sessionId = 'sessionId' in destination ? destination.sessionId : undefined
+    if (remote) {
+      const info = await window.phosphor.invoke('hosts:openLane', remote.hostId, remote.laneId)
+      await useSessionsStore
+        .getState()
+        .adoptSession(info.sessionId, info.workspacePath, undefined, info)
+      sessionId = info.sessionId
+    }
+    if (!current()) return false
+    const problemAfterOpen = unavailable()
+    if (problemAfterOpen) throw new Error(problemAfterOpen)
+    const entry = sessionId ? useSessionsStore.getState().live[sessionId] : undefined
+    if (!sessionId || !entry) throw new Error('This lane was removed on This Mac')
+    stopWatching()
+    alignLaneMachineFilter(remote?.hostId ?? 'local')
+    useSessionsStore.getState().activate(sessionId)
+    const lane = remote
+      ? useRemoteLanesStore
+          .getState()
+          .hosts[remote.hostId]?.lanes.find((lane) => lane.laneId === remote.laneId)
+      : undefined
+    requestReveal(
+      remote && lane
+        ? remoteLaneGroupKey(remote.hostId, lane.repositoryId)
+        : localLaneGroupKey(
+            useSessionsStore.getState().gitByCwd[entry.workspacePath]?.mainRepoPath ??
+              entry.workspacePath,
+          ),
+    )
+    useRemoteLanesStore.setState({ error: null })
+    if (remote) await refreshRemoteArtifacts(sessionId)
+    return (
+      useSessionsStore.getState().activeSessionId === sessionId &&
+      useLayoutStore.getState().page === null
+    )
+  } catch {
+    if (!current()) return false
+    let problem = unavailable()
+    if (remote && !problem) {
+      try {
+        problem = unavailable(await window.phosphor.invoke('hosts:snapshot'))
+      } catch {
+        // No error payloads from the Host are shown to the user.
+      }
+    }
+    if (!current()) return false
+    const message =
+      problem ?? (remote ? 'Could not open the remote lane.' : 'This lane was removed on This Mac')
+    useRemoteLanesStore.setState({ error: message })
+    useExtensionUiStore.getState().pushToast(message, 'error')
+    return false
+  } finally {
+    stopWatching()
+  }
+}
+
+export async function openRemoteLane(hostId: string, laneId: string): Promise<boolean> {
+  return navigateToLane({ hostId, laneId })
 }
 
 /** Main owns the bounded cache. Refetch serially, and reject replies after detach. */
@@ -186,22 +285,29 @@ export function attachRemoteLanesListener(): () => void {
   const offAttention = window.phosphor.onHostAttention((event) => {
     void refresh()
     const { activeSessionId, live } = useSessionsStore.getState()
-    const entry = activeSessionId ? live[activeSessionId] : undefined
+    const adopted = Object.values(live).find(
+      (entry) =>
+        entry.target?.kind === 'remote' &&
+        entry.target.hostId === event.hostId &&
+        entry.laneId === event.laneId,
+    )
     if (
-      entry?.target?.kind === 'remote' &&
-      entry.target.hostId === event.hostId &&
-      entry.laneId === event.laneId &&
+      adopted?.phosphorId === activeSessionId &&
+      useLayoutStore.getState().page === null &&
       document.hasFocus()
     )
       return
     void import('./extensionUi').then(({ useExtensionUiStore }) => {
       if (!active) return
       useExtensionUiStore.getState().notify({
+        // Remote sessions skip the local settled path. Sharing their key also
+        // replaces any existing lane notice instead of adding a second card.
+        sessionId: adopted?.phosphorId,
         title: `${machineLabel(event.hostId)} · ${event.title}`,
         message: event.kind,
         kind: event.kind === 'failed' ? 'error' : 'info',
         openLabel: 'Open lane',
-        onOpen: () => void openRemoteLane(event.hostId, event.laneId),
+        onOpen: () => openRemoteLane(event.hostId, event.laneId),
       })
     })
   })
