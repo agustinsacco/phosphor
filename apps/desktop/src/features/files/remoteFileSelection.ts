@@ -1,13 +1,10 @@
-import { create } from 'zustand'
 import { isFilePath } from '@shared/host-protocol-files'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import type { PendingReveal, RevealTarget } from '@/stores/files'
 let sequence = 0
-export const useRemoteFileSelection = create<{
-  bySession: Record<string, { path: string; reveal?: PendingReveal }>
-  blocked: Record<string, boolean>
-}>(() => ({ bySession: {}, blocked: {} }))
+import { useRemoteFileSelection } from './remoteFileSelectionStore'
+export { useRemoteFileSelection, releaseRemoteFileSelection } from './remoteFileSelectionStore'
 export function remoteRelativePath(root: string, workspace: string, path: string): string {
   if (path.startsWith('host:') && !path.startsWith(`${workspace}/`))
     throw new Error(REMOTE_UNAVAILABLE)
@@ -61,13 +58,4 @@ export async function openRemoteFile(
       },
     },
   }))
-}
-export function releaseRemoteFileSelection(sessionId: string): void {
-  useRemoteFileSelection.setState((s) => {
-    const bySession = { ...s.bySession },
-      blocked = { ...s.blocked }
-    delete bySession[sessionId]
-    delete blocked[sessionId]
-    return { bySession, blocked }
-  })
 }

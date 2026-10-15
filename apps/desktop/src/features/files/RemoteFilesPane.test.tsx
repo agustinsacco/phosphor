@@ -5,7 +5,9 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { RemoteFilesPane } from './RemoteFilesPane'
 import { RightPane } from './RightPane'
 import { useLayoutStore } from '@/stores/layout'
-import { useSessionsStore } from '@/stores/sessions'
+import { useSessionsStore, forgetRemoteSession } from '@/stores/sessions'
+import { useRemoteFileDrafts } from './remoteFileDrafts'
+import { useRemoteFileSelection, openRemoteFile } from './remoteFileSelection'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { mockRemoteInfo, mockRemoteHosts } from '@/dev/mockRemoteLanes'
 import type { SessionPush } from '@shared/models'
@@ -43,6 +45,8 @@ vi.mock('./MonacoEditor', () => ({
   ),
 }))
 afterEach(() => {
+  useRemoteFileDrafts.setState({ bySession: {} })
+  useRemoteFileSelection.setState({ bySession: {}, blocked: {} })
   vi.unstubAllGlobals()
   useRemoteLanesStore.setState({ hosts: {} })
 })
@@ -357,6 +361,216 @@ it.each(['success', 'conflict', 'unknown'])(
       expect(invoke.mock.calls.filter(([channel]) => channel === 'fs:writeFile')).toHaveLength(
         outcome === 'unknown' ? 2 : 1,
       )
+    } finally {
+      act(() => root.unmount())
+    }
+  },
+)
+
+it.each([
+  'save',
+  'discard',
+  'forget',
+  'conflict',
+  'unknown',
+  'pending-success',
+  'pending-success-unmounted',
+  'pending-conflict',
+  'pending-unknown',
+  'pending-forget',
+])(
+  'restores only the dirty lane and its original revision across A → B → A (%s)',
+  async (outcome) => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    const target = mockRemoteInfo.target
+    if (target?.kind !== 'remote') throw new Error('Missing remote fixture')
+    const a = mockRemoteInfo.sessionId
+    const b = `${a}-other`
+    const fixture = mockRemoteHosts[target.hostId]!
+    const lane = fixture.lanes.find((l) => l.laneId === mockRemoteInfo.laneId)!
+    useSessionsStore.setState({
+      live: {
+        [a]: { phosphorId: a, ...mockRemoteInfo },
+        [b]: { ...mockRemoteInfo, phosphorId: b, sessionId: b, laneId: 'other-lane' },
+      },
+    })
+    useRemoteLanesStore.setState({
+      hosts: {
+        [target.hostId]: {
+          ...fixture,
+          state: 'ready',
+          capabilities: [
+            'sessions.read',
+            'sessions.control',
+            'workspaces.read',
+            'workspaces.write',
+          ],
+          lanes: [lane, { ...lane, laneId: 'other-lane' }].map((l) => ({
+            ...l,
+            control: {
+              ...l.control,
+              controller: { self: true, label: 'Desktop', connected: true },
+            },
+          })),
+        },
+      },
+    })
+    const originalRevision = 'a'.repeat(64)
+    let hostContent = 'original'
+    let hostRevision = originalRevision
+    let settlePending: (() => void) | undefined
+    const invoke = vi.fn(async (channel: string, ...args: unknown[]) => {
+      if (channel === 'fs:listFiles') return ['remote.txt', 'other.txt']
+      if (channel === 'git:statusMap') return {}
+      if (channel === 'fs:readFile')
+        return { content: hostContent, binary: false, revision: hostRevision }
+      if (channel === 'fs:writeFile') {
+        if (outcome.startsWith('pending-'))
+          return new Promise<{ revision: string; mtimeMs: number }>((resolve, reject) => {
+            settlePending = () => {
+              if (outcome.startsWith('pending-success')) {
+                hostContent = String(args[1])
+                resolve({ revision: 'c'.repeat(64), mtimeMs: 1 })
+              } else
+                reject(new Error(outcome === 'pending-unknown' ? 'unknown' : 'changed-on-disk'))
+            }
+          })
+        if (outcome === 'unknown') throw new Error('unknown')
+        if (args[2] !== hostRevision) throw new Error('changed-on-disk')
+        hostContent = String(args[1])
+        return { revision: 'c'.repeat(64), mtimeMs: 1 }
+      }
+      throw new Error(`Unexpected channel ${channel}`)
+    })
+    vi.stubGlobal('phosphor', { invoke })
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    const render = async (id: string) => {
+      await act(async () =>
+        root.render(
+          <RemoteFilesPane
+            workspacePath={mockRemoteInfo.workspacePath}
+            sessionId={id}
+            changes={false}
+          />,
+        ),
+      )
+    }
+    const button = (label: string) => {
+      const result = [...container.querySelectorAll('button')].find(
+        (b) => b.textContent?.trim() === label || b.getAttribute('aria-label') === label,
+      )
+      if (!result) throw new Error(`Missing button ${label}`)
+      return result
+    }
+    const click = async (label: string) => {
+      await act(async () => button(label).click())
+    }
+    try {
+      await render(a)
+      await click('remote.txt')
+      await click('Edit')
+      expect(useRemoteFileDrafts.getState().bySession[a]).toMatchObject({
+        selected: 'remote.txt',
+        content: 'edited',
+        before: '',
+        revision: originalRevision,
+        dirty: true,
+      })
+      await render(b)
+      expect(container.querySelector('textarea')).toBeNull()
+      await click('remote.txt')
+      expect(container.querySelector('textarea')?.value).toBe('original')
+      expect(button('Save').disabled).toBe(true)
+      expect(useRemoteFileDrafts.getState().bySession[b]).toBeUndefined()
+      // A dirty lane remains protected from a path-link open while unmounted.
+      await expect(openRemoteFile(a, 'other.txt')).rejects.toThrow()
+      if (outcome === 'conflict') {
+        hostContent = 'changed on Host'
+        hostRevision = 'b'.repeat(64)
+      }
+      const reads = invoke.mock.calls.filter(([c]) => c === 'fs:readFile').length
+      await render(a)
+      expect(container.querySelector('textarea')?.value).toBe('edited')
+      expect(button('Save').disabled).toBe(false)
+      expect(button('other.txt').disabled).toBe(true)
+      expect(invoke.mock.calls.filter(([c]) => c === 'fs:readFile')).toHaveLength(reads)
+      if (outcome.startsWith('pending-')) {
+        await click('Save')
+        await render(b)
+        if (outcome === 'pending-success-unmounted') {
+          await act(async () => settlePending?.())
+          expect(useRemoteFileDrafts.getState().bySession[a]).toBeUndefined()
+          // A chat file link reaches the saved lane's Files again.
+          await expect(openRemoteFile(a, 'other.txt')).resolves.toBeUndefined()
+          return
+        }
+        if (outcome === 'pending-forget') {
+          await act(async () => forgetRemoteSession(a))
+          await act(async () => settlePending?.())
+          expect(useRemoteFileDrafts.getState().bySession[a]).toBeUndefined()
+          return
+        }
+        await render(a)
+        expect(container.querySelector('textarea')?.value).toBe('edited')
+        expect(container.querySelector('textarea')?.readOnly).toBe(true)
+        expect(button('Save').disabled).toBe(true)
+        await click('Editor save')
+        expect(invoke.mock.calls.filter(([c]) => c === 'fs:writeFile')).toHaveLength(1)
+        await act(async () => settlePending?.())
+        expect(container.querySelector('textarea')?.readOnly).toBe(false)
+        expect(container.querySelector('textarea')?.value).toBe('edited')
+        expect(button('Save').disabled).toBe(outcome !== 'pending-conflict')
+        if (outcome === 'pending-success') {
+          expect(useRemoteFileDrafts.getState().bySession[a]).toBeUndefined()
+          expect(container.textContent).not.toContain('Discard edits')
+        } else {
+          expect(useRemoteFileDrafts.getState().bySession[a]?.content).toBe('edited')
+          expect(container.textContent).toContain(
+            outcome === 'pending-conflict' ? 'File changed on disk' : 'Do not retry',
+          )
+        }
+        return
+      }
+      if (outcome === 'forget') {
+        await render(b)
+        await act(async () => forgetRemoteSession(a))
+        expect(useRemoteFileDrafts.getState().bySession[a]).toBeUndefined()
+        expect(useRemoteFileSelection.getState().blocked[a]).toBeUndefined()
+        expect(useSessionsStore.getState().live[a]).toBeUndefined()
+        return
+      }
+      if (outcome === 'discard') await click('Discard edits')
+      else {
+        await click('Save')
+        expect(invoke).toHaveBeenCalledWith(
+          'fs:writeFile',
+          `${mockRemoteInfo.workspacePath}/remote.txt`,
+          'edited',
+          originalRevision,
+        )
+      }
+      if (outcome === 'conflict' || outcome === 'unknown') {
+        expect(useRemoteFileDrafts.getState().bySession[a]?.content).toBe('edited')
+        expect(container.textContent).toContain(
+          outcome === 'conflict' ? 'File changed on disk' : 'Do not retry',
+        )
+        await render(b)
+        await render(a)
+        expect(container.querySelector('textarea')?.value).toBe('edited')
+        expect(button('Save').disabled).toBe(outcome === 'unknown')
+        expect(container.textContent).toContain(
+          outcome === 'conflict' ? 'File changed on disk' : 'Do not retry',
+        )
+        await click(outcome === 'unknown' ? 'Reload file' : 'Discard edits')
+      }
+      expect(useRemoteFileDrafts.getState().bySession[a]).toBeUndefined()
+      await render(b)
+      await render(a)
+      expect(container.querySelector('textarea')).toBeNull()
+      await click('remote.txt')
+      expect(container.querySelector('textarea')?.value).toBe(hostContent)
+      expect(button('Save').disabled).toBe(true)
     } finally {
       act(() => root.unmount())
     }

@@ -1,3 +1,9 @@
+import {
+  useRemoteFileDrafts,
+  keepRemoteFileDraft,
+  clearRemoteFileDraft,
+  type RemoteSaveResult,
+} from './remoteFileDrafts'
 import { useRemoteFileSelection, releaseRemoteFileSelection } from './remoteFileSelection'
 import { RemoteFileTree } from './RemoteFileTree'
 import { IconToggle } from './FileExplorer'
@@ -47,14 +53,15 @@ function RemoteFilesView({
   const [gitUnavailable, setGitUnavailable] = useState(false)
   const [status, setStatus] = useState<Record<string, string>>({})
   const selection = useRemoteFileSelection((s) => s.bySession[sessionId])
-  const [selected, setSelected] = useState<string | null>(null)
-  const [content, setContent] = useState('')
-  const [before, setBefore] = useState('')
-  const [revision, setRevision] = useState<string | null | undefined>()
-  const [editable, setEditable] = useState(false)
-  const [dirty, setDirty] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [uncertain, setUncertain] = useState(false)
+  const [draft] = useState(() => useRemoteFileDrafts.getState().bySession[sessionId])
+  const [selected, setSelected] = useState<string | null>(draft?.selected ?? null)
+  const [content, setContent] = useState(draft?.content ?? '')
+  const [before, setBefore] = useState(draft?.before ?? '')
+  const [revision, setRevision] = useState<string | null | undefined>(draft?.revision)
+  const [editable, setEditable] = useState(!!draft)
+  const [dirty, setDirty] = useState(!!draft)
+  const [busy, setBusy] = useState(!!draft?.pending)
+  const [uncertain, setUncertain] = useState(draft?.uncertain ?? false)
   const dirtyRef = useRef(false)
   dirtyRef.current = dirty
   const writable =
@@ -62,15 +69,21 @@ function RemoteFilesView({
     host.capabilities.includes('workspaces.write') &&
     canControlSession(sessionId)
   useEffect(() => {
-    if (selection) setSelected(selection.path)
+    if (selection && !dirtyRef.current) setSelected(selection.path)
   }, [selection])
   useEffect(() => {
     useRemoteFileSelection.setState((s) => ({
       blocked: { ...s.blocked, [sessionId]: dirty || busy },
     }))
   }, [sessionId, dirty, busy])
-  useEffect(() => () => releaseRemoteFileSelection(sessionId), [sessionId])
-  const [error, setError] = useState<string | null>(null)
+  useEffect(
+    () => () => {
+      if (!useRemoteFileDrafts.getState().bySession[sessionId])
+        releaseRemoteFileSelection(sessionId)
+    },
+    [sessionId],
+  )
+  const [error, setError] = useState<string | null>(draft?.error ?? null)
   const available = host?.state === 'ready' && host.capabilities.includes('workspaces.read')
   const laneId = useSessionsStore((s) => s.live[sessionId]?.laneId)
   // Host objects are replaced by unrelated lanes and control/stream updates.
@@ -93,7 +106,7 @@ function RemoteFilesView({
             setFiles(files)
             setGitUnavailable(status === null)
             setStatus(status ?? {})
-            setError(null)
+            if (!dirtyRef.current) setError(null)
           }
         },
         () => {
@@ -152,29 +165,72 @@ function RemoteFilesView({
     const path = `remote:${sessionId}/${selected}`
     return () => releaseFileModel(path)
   }, [sessionId, selected])
-  async function save() {
-    if (!selected || !writable || !editable || busy || uncertain || revision === undefined) return
-    setBusy(true)
-    try {
-      const result = await window.phosphor.invoke(
-        'fs:writeFile',
-        `${workspacePath}/${selected}`,
-        content,
-        revision,
-      )
+  function applySaveResult(result: RemoteSaveResult) {
+    if (!result) return
+    if ('revision' in result) {
       setRevision(result.revision)
       setDirty(false)
       setError(null)
-    } catch (error) {
-      if (!(error instanceof Error && error.message.includes('changed-on-disk'))) setUncertain(true)
-      setError(
-        error instanceof Error && error.message.includes('changed-on-disk')
-          ? 'File changed on disk. Discard your edits and refresh before saving.'
-          : 'Save not confirmed. Your edits are kept. Do not retry an uncertain save.',
-      )
-    } finally {
-      setBusy(false)
+    } else {
+      setUncertain(result.uncertain)
+      setError(result.error)
     }
+    setBusy(false)
+  }
+  // A remounted lane observes the original save, never sends a replacement request.
+  useEffect(() => {
+    let alive = true
+    if (draft?.pending)
+      void draft.pending.result.then((result) => {
+        if (alive) applySaveResult(result)
+      })
+    return () => {
+      alive = false
+    }
+  }, [draft])
+  async function save() {
+    if (!selected || !writable || !editable || busy || uncertain || revision === undefined) return
+    setBusy(true)
+    const token = Symbol('remote-save')
+    const result = window.phosphor
+      .invoke('fs:writeFile', `${workspacePath}/${selected}`, content, revision)
+      .then(
+        (saved): RemoteSaveResult => {
+          if (useRemoteFileDrafts.getState().bySession[sessionId]?.pending?.token !== token)
+            return null
+          clearRemoteFileDraft(sessionId)
+          // The pane may be unmounted (another lane or pane is showing), so nothing would
+          // reset its navigation block; a saved file no longer needs protecting.
+          useRemoteFileSelection.setState((s) => ({
+            blocked: { ...s.blocked, [sessionId]: false },
+          }))
+          return { revision: saved.revision }
+        },
+        (error): RemoteSaveResult => {
+          const current = useRemoteFileDrafts.getState().bySession[sessionId]
+          if (current?.pending?.token !== token) return null
+          const conflict = error instanceof Error && error.message.includes('changed-on-disk')
+          const failure = {
+            error: conflict
+              ? 'File changed on disk. Discard your edits and refresh before saving.'
+              : 'Save not confirmed. Your edits are kept. Do not retry an uncertain save.',
+            uncertain: !conflict,
+          }
+          keepRemoteFileDraft(sessionId, { ...current, ...failure, pending: undefined })
+          return failure
+        },
+      )
+    keepRemoteFileDraft(sessionId, {
+      selected,
+      content,
+      before,
+      revision,
+      dirty: true,
+      uncertain,
+      error,
+      pending: { token, result },
+    })
+    applySaveResult(await result)
   }
   async function action(kind: 'file' | 'directory' | 'rename' | 'delete' | 'copy' | 'move') {
     if (!writable || busy || dirty) return
@@ -294,6 +350,7 @@ function RemoteFilesView({
             className="text-accent rounded-sm px-2 py-1 text-sm hover:bg-bg-secondary"
             disabled={busy}
             onClick={() => {
+              clearRemoteFileDraft(sessionId)
               setDirty(false)
               dirtyRef.current = false
               setRefresh((n) => n + 1)
@@ -351,6 +408,16 @@ function RemoteFilesView({
               value={content}
               readOnly={!writable || busy}
               onChange={(value) => {
+                if (revision === undefined) return
+                keepRemoteFileDraft(sessionId, {
+                  selected,
+                  content: value,
+                  before,
+                  revision,
+                  dirty: true,
+                  uncertain,
+                  error,
+                })
                 setContent(value)
                 setDirty(true)
               }}

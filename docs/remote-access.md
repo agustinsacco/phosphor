@@ -148,6 +148,8 @@ Files lists tracked and untracked non-ignored paths. Controllers with
 rename, copy, move and trash entries inside the lane. Saves compare the SHA-256
 revision read by the editor; conflicts preserve edits and require a refresh.
 Uncertain saves preserve edits and are never retried automatically.
+Unsaved drafts stay in renderer memory per lane, survive lane switches, and clear
+on discard, successful save or lane forget.
 Changes shows git status and an inline read-only diff against HEAD. Binary files
 and oversized text use placeholders. Remote text uses in-memory Monaco models, never local preview protocols or
 filesystem watchers. They refresh
