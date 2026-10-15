@@ -327,17 +327,26 @@ function prompt(message) {
   if (/links/i.test(message)) linkTool()
   if (/stream|count|slow/i.test(message) || process.env.FAKE_PI_STALL) {
     if (process.env.FAKE_PI_STALL) writeFileSync(process.env.FAKE_PI_STALL, String(process.pid))
+    const releaseFile = /^slow-until (.+)$/.exec(message)?.[1]
+    const deadline = Date.now() + 10000
     let count = 0
     streaming = { user: message, reply: '' }
     streaming.timer = setInterval(() => {
       const piece = `${++count} `
       streaming.reply += piece
       delta(piece)
-      if (/slow/i.test(message) && count === 12) {
+      const released = releaseFile && existsSync(releaseFile)
+      const expired = releaseFile && Date.now() >= deadline
+      if (released || expired || (!releaseFile && /slow/i.test(message) && count === 12)) {
         const completed = streaming
         clearInterval(completed.timer)
         streaming = null
-        finish(completed.user, completed.reply, 'stop')
+        finish(
+          completed.user,
+          completed.reply,
+          expired ? 'error' : 'stop',
+          expired ? 'Fixture slow turn was not released within 10 seconds' : undefined,
+        )
       }
     }, 20)
     return

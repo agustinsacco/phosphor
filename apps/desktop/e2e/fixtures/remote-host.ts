@@ -497,6 +497,11 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
       restartHost,
       command,
       severConnection,
+      slowTurn: {
+        prompt: `slow-until ${join(root, 'release-slow-turn')}`,
+        release: () => writeFile(join(root, 'release-slow-turn'), ''),
+      },
+      readHostFile: (path: string) => readFile(join(repo, path), 'utf8'),
       createLane,
       createWorktreePair: async () => {
         const pair = [await createLane(0, 'fixture-a'), await createLane(0, 'fixture-b')]

@@ -138,6 +138,32 @@ describe('Host fake pi acceptance scripts', () => {
     })
   })
 
+  it('keeps a controlled slow turn streaming beyond the ordinary slow limit until released', async () => {
+    const h = await fixture()
+    const release = join(h.root, 'release')
+    await h.request('prompt', { message: `slow-until ${release}` })
+    await expect.poll(h.output).toContain('"delta":"13 "')
+    expect(await h.request('get_state')).toMatchObject({ data: { isStreaming: true } })
+    expect(
+      h.records().filter((frame) => 'type' in frame && frame.type === 'agent_end'),
+    ).toHaveLength(0)
+    await writeFile(release, '')
+    await h.settled(1)
+    expect(await h.request('get_state')).toMatchObject({ data: { isStreaming: false } })
+    expect(await h.request('get_messages')).toMatchObject({
+      data: {
+        messages: [
+          { role: 'user', content: `slow-until ${release}` },
+          {
+            role: 'assistant',
+            stopReason: 'stop',
+            content: [{ text: expect.stringMatching(/^1 2 3 /) }],
+          },
+        ],
+      },
+    })
+  })
+
   it('offers two models, handles Host commands without a turn, and compacts', async () => {
     const h = await fixture(['--mode', 'rpc', '-e', '/fixture/context-breakdown.ts'])
     expect(await h.request('get_available_models')).toMatchObject({

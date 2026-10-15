@@ -37,7 +37,12 @@ test('Control takeover guards remote mutations and explicit take restores send a
     await file(h, 'remote.txt')
     await edit(h, 'HOST_A_ONLY regained save')
     await h.page.getByRole('button', { name: 'Save', exact: true }).click()
-    await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+    await expect.poll(() => h.readHostFile('remote.txt')).toBe('HOST_A_ONLY regained save')
+    await file(h, 'nested/guide.md')
+    await file(h, 'remote.txt')
+    await expect(h.page.locator('.monaco-editor .view-lines')).toContainText(
+      'HOST_A_ONLY regained save',
+    )
     await h.page.getByRole('button', { name: 'Stop', exact: true }).click()
     await h.page.getByRole('button', { name: 'Resume', exact: true }).click()
     await expect(h.page.getByTestId('model-chip')).toContainText('HOST_A_ONLY')
@@ -60,9 +65,10 @@ test('Reconnect, Host restart and Desktop restart retain the original lane', asy
     await files(h)
     await file(h, 'remote.txt')
     const chat = h.page.getByRole('textbox', { name: 'Chat message', exact: true })
-    await chat.fill('slow reconnect response')
+    await chat.fill(h.slowTurn.prompt)
     await chat.press('Enter')
-    await expect(h.page.locator('main p').filter({ hasText: /^1 2 / })).toBeVisible()
+    const streamed = h.page.locator('main p').filter({ hasText: /^1 2 / })
+    await expect(streamed).toBeVisible()
     await chat.fill('draft retained during reconnect')
     const restore = h.severConnection()
     try {
@@ -72,7 +78,19 @@ test('Reconnect, Host restart and Desktop restart retain the original lane', asy
     }
     await expect(chat).toHaveValue('draft retained during reconnect')
     await expect(h.page.getByText('Controlled by you', { exact: true })).toBeVisible()
-    await expect(h.page.getByText('slow reconnect response', { exact: true })).toHaveCount(1)
+    const recovered = (await streamed.innerText()).trim()
+    await expect
+      .poll(async () => (await streamed.innerText()).trim().length, { timeout: 2000 })
+      .toBeGreaterThan(recovered.length)
+    await expect(h.page.locator('button[aria-label="Stop"]')).toBeVisible()
+    await h.slowTurn.release()
+    await expect(h.page.locator('button[aria-label="Stop"]')).toBeHidden()
+    await expect(h.page.locator('main').getByText(h.slowTurn.prompt, { exact: true })).toHaveCount(
+      1,
+    )
+    await expect(streamed).toHaveCount(1)
+    const completed = (await streamed.innerText()).trim().split(/\s+/).map(Number)
+    expect(completed).toEqual(Array.from({ length: completed.length }, (_, index) => index + 1))
     await h.restartHost()
     await h.page.getByRole('button', { name: 'Resume', exact: true }).click()
     await expect(h.page.getByText('Controlled by you', { exact: true })).toBeVisible()

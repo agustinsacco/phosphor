@@ -1,5 +1,6 @@
 import { desktopElectronLaunchOptions } from '../../../../tools/scripts/desktop-electron-launch.mjs'
 import { expect, _electron as electron } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import {
@@ -212,8 +213,42 @@ export async function accountControlFixture(
     let running = true
     const stop = async () => {
       if (!running) return
-      running = false
-      await app.close()
+      const child = app.process()
+      // Capture descendants before close: a crashing parent can orphan its helpers.
+      const rows = execFileSync('ps', ['-axo', 'pid=,ppid='], { timeout: 1000 })
+        .toString()
+        .trim()
+        .split('\n')
+        .map((row) => row.trim().split(/\s+/).map(Number))
+      const tree = (parent: number): number[] =>
+        rows.flatMap(([pid, ppid]) => (ppid === parent ? [...tree(pid), pid] : []))
+      const pids = child.pid ? [...tree(child.pid), child.pid] : []
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        await Promise.race([
+          app.close(),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('Electron close timed out')), 3000)
+          }),
+        ])
+        await expect.poll(() => child.exitCode !== null || child.signalCode !== null).toBe(true)
+        running = false
+      } catch (error) {
+        for (const pid of pids) {
+          try {
+            process.kill(pid, 'SIGKILL')
+          } catch (killError) {
+            if ((killError as NodeJS.ErrnoException).code !== 'ESRCH') throw killError
+          }
+        }
+        await expect
+          .poll(() => child.exitCode !== null || child.signalCode !== null, { timeout: 2000 })
+          .toBe(true)
+        running = false
+        throw error
+      } finally {
+        clearTimeout(timer)
+      }
     }
     cleanups.push(stop)
     await app.evaluate(({ shell }) => {
