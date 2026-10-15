@@ -530,6 +530,158 @@ function laneModel(provider: string, id = 'model') {
 }
 
 describe('lane lifecycle parity', () => {
+  it('resumes a first prompt transcript written while set_model waits behind that prompt', async () => {
+    const s = setup()
+    const original = await s.binding.sessions.start({ repository: machine.repository })
+    const lane = s.saved()
+    const file = join(machine.dir, 'first-prompt.jsonl')
+    let provider = 'old'
+    let written = false
+    let finishPrompt: () => void = () => {}
+    const promptGate = new Promise<void>((resolve) => {
+      finishPrompt = resolve
+    })
+    s.runtime.command.mockImplementation(async (_id, cmd) => {
+      if (cmd.type === 'prompt') {
+        await promptGate
+        await writeFile(file, 'first prompt transcript\n')
+        written = true
+      }
+      if (cmd.type === 'set_model') {
+        // The read-only pre-check bypasses the runtime's command gate. The
+        // admitted prompt writes its first file before queued set_model runs.
+        expect(written).toBe(false)
+        finishPrompt()
+        await prompt
+        provider = cmd.provider
+      }
+      return {
+        type: 'response',
+        command: cmd.type,
+        success: true,
+        data:
+          cmd.type === 'get_messages'
+            ? { messages: [] }
+            : {
+                ...state,
+                model: laneModel(provider),
+                sessionFile: file,
+                messageCount: written ? 1 : 0,
+              },
+      }
+    })
+    await s.binding.sessions.attach(lane.laneId, original.sessionId)
+    const prompt = s.binding.command(original.sessionId, {
+      type: 'prompt',
+      message: 'first prompt',
+    })
+    expect(s.runtime.command.mock.calls.some(([, cmd]) => cmd.type === 'prompt')).toBe(true)
+    expect(
+      await s.binding.command(original.sessionId, {
+        type: 'set_model',
+        provider: 'new',
+        modelId: 'model',
+      }),
+    ).toMatchObject({ success: true })
+    expect(s.runtime.start).toHaveBeenLastCalledWith(
+      expect.objectContaining({ repository: machine.repository, sessionPath: file }),
+      expect.any(Function),
+    )
+    expect(await fs.readFile(file, 'utf8')).toBe('first prompt transcript\n')
+    expect(store.getLane(lane.laneId)?.sessionFile).toBe(file)
+    expect(live.sessionFor(lane.laneId)).not.toBeNull()
+  })
+
+  it.each(['EIO', 'EACCES', 'symlink', 'directory'] as const)(
+    'keeps pi running when its post-switch transcript check encounters %s',
+    async (failure) => {
+      const s = setup()
+      const original = await s.binding.sessions.start({ repository: machine.repository })
+      const lane = s.saved()
+      const file = join(machine.dir, 'post-switch.jsonl')
+      let provider = 'old'
+      s.runtime.command.mockImplementation(async (_id, cmd) => {
+        if (cmd.type === 'set_model') {
+          provider = cmd.provider
+          if (failure === 'directory') await mkdir(file)
+          else if (failure === 'symlink') {
+            const target = join(machine.dir, 'post-switch-target.jsonl')
+            await writeFile(target, '{}\n')
+            await symlink(target, file)
+          } else {
+            await writeFile(file, '{}\n')
+            vi.mocked(fs.lstat).mockRejectedValueOnce(
+              Object.assign(new Error('private path'), { code: failure }),
+            )
+          }
+        }
+        return {
+          type: 'response',
+          command: cmd.type,
+          success: true,
+          data:
+            cmd.type === 'get_messages'
+              ? { messages: [] }
+              : {
+                  ...state,
+                  model: laneModel(provider),
+                  sessionFile: file,
+                },
+        }
+      })
+      await s.binding.sessions.attach(lane.laneId, original.sessionId)
+      expect(
+        await s.binding.command(original.sessionId, {
+          type: 'set_model',
+          provider: 'new',
+          modelId: 'model',
+        }),
+      ).toMatchObject({
+        success: false,
+        error: 'The lane transcript could not be verified. Check the lane before retrying.',
+      })
+      expect(
+        s.runtime.command.mock.calls.filter(([, cmd]) => cmd.type === 'set_model'),
+      ).toHaveLength(1)
+      expect(s.runtime.stop).not.toHaveBeenCalled()
+      expect(s.runtime.start).toHaveBeenCalledTimes(1)
+      expect(live.sessionFor(lane.laneId)).toBe(original.sessionId)
+      expect(live.summaryFor(lane.laneId)?.model?.provider).toBe('new')
+    },
+  )
+
+  it.each([
+    { provider: 'p'.repeat(65), modelId: 'model' },
+    { provider: 'new', modelId: 'm'.repeat(129) },
+  ])(
+    'refuses a cross-provider model that cannot pass Host startup limits (%j)',
+    async (selection) => {
+      const s = setup()
+      const original = await s.binding.sessions.start({ repository: machine.repository })
+      const lane = s.saved()
+      s.runtime.command.mockImplementation(async (_id, cmd) => ({
+        type: 'response',
+        command: cmd.type,
+        success: true,
+        data:
+          cmd.type === 'get_messages' ? { messages: [] } : { ...state, model: laneModel('old') },
+      }))
+      await s.binding.sessions.attach(lane.laneId, original.sessionId)
+      s.runtime.command.mockClear()
+      expect(
+        await s.binding.command(original.sessionId, { type: 'set_model', ...selection }),
+      ).toMatchObject({
+        success: false,
+        error: "This model can't be used on a Host lane.",
+      })
+      expect(s.runtime.command.mock.calls.some(([, cmd]) => cmd.type === 'set_model')).toBe(false)
+      expect(s.runtime.stop).not.toHaveBeenCalled()
+      expect(s.runtime.start).toHaveBeenCalledTimes(1)
+      expect(live.sessionFor(lane.laneId)).toBe(original.sessionId)
+      expect(live.summaryFor(lane.laneId)?.model).toMatchObject({ provider: 'old', id: 'model' })
+    },
+  )
+
   it('records the recreated pi file before a prompt and resumes it after a Host restart', async () => {
     const s = setup()
     const original = await s.binding.sessions.start({ repository: machine.repository })

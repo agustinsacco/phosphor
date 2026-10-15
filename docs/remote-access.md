@@ -784,9 +784,14 @@ Stop before a first saved prompt is refused; provider changes rebind the Host
 process before another turn. An allocated but unwritten session path is not a
 resume file: the Host recreates that process with the selected model and restores
 its name and records the replacement pi's own session path before attachment
-completes. Saved lanes resume their transcript; unreadable or non-regular
-transcripts refuse a provider change without replacing the live process. The
-selected model remains in the lane summary after stop or failure when its ids fit
+completes. Saved lanes resume their transcript. The Host checks transcript safety
+before a provider change and checks pi's fresh file identity again after the
+queued change returns, so a first prompt written in between is resumed, not
+orphaned. Unreadable or non-regular transcripts refuse the operation without
+replacing the live process. Cross-provider selections must fit Host startup
+limits (64-character provider and 128-character model ids); oversized selections
+are refused before pi changes. The selected model remains in the lane summary
+after stop or failure when its ids fit
 the Host store's limits ([known limitation](known-issues.md#host-lanes)). A model
 persistence failure does not fail a confirmed live selection. Desktop retains full model metadata per open
 lane in memory; without it, a stopped lane's chip shows its last reported model id,

@@ -200,16 +200,22 @@ export function createRuntimeLanes(options: {
             success: false as const,
             error: 'Wait for the current turn before changing providers.',
           }
-        let persisted = false
         if (
           args[1].type === 'set_model' &&
           beforeModel?.model &&
           beforeModel.model.provider !== args[1].provider
         ) {
+          if (args[1].provider.length > 64 || args[1].modelId.length > 128)
+            return {
+              type: 'response' as const,
+              command: args[1].type,
+              success: false as const,
+              error: "This model can't be used on a Host lane.",
+            }
           try {
             // Check before asking pi to switch: an unreadable or non-regular
             // transcript must leave the original process and model untouched.
-            persisted = await hasSavedSession(beforeModel.sessionFile)
+            await hasSavedSession(beforeModel.sessionFile)
           } catch {
             return {
               type: 'response' as const,
@@ -234,6 +240,20 @@ export function createRuntimeLanes(options: {
           if (!lane || lane.removedAt !== null) throw new Error('Lane unavailable.')
           if (bindings.get(args[0]) !== binding || live.sessionFor(laneId) !== args[0])
             throw new Error('Lane unavailable.')
+          let persisted: boolean
+          try {
+            // set_model can wait behind an admitted first prompt. Decide from
+            // pi's fresh file identity and presence, not the early pre-check.
+            persisted = await hasSavedSession(selected.sessionFile)
+          } catch {
+            await binding.attachment?.stateChanged()
+            return {
+              type: 'response' as const,
+              command: args[1].type,
+              success: false as const,
+              error: 'The lane transcript could not be verified. Check the lane before retrying.',
+            }
+          }
           persistModel(laneId, selected.model)
           await stop(args[0])
           const resumed = await start({
