@@ -374,6 +374,7 @@ it.each([
   'conflict',
   'unknown',
   'pending-success',
+  'pending-success-unmounted',
   'pending-conflict',
   'pending-unknown',
   'pending-forget',
@@ -427,7 +428,7 @@ it.each([
         if (outcome.startsWith('pending-'))
           return new Promise<{ revision: string; mtimeMs: number }>((resolve, reject) => {
             settlePending = () => {
-              if (outcome === 'pending-success') {
+              if (outcome.startsWith('pending-success')) {
                 hostContent = String(args[1])
                 resolve({ revision: 'c'.repeat(64), mtimeMs: 1 })
               } else
@@ -497,6 +498,13 @@ it.each([
       if (outcome.startsWith('pending-')) {
         await click('Save')
         await render(b)
+        if (outcome === 'pending-success-unmounted') {
+          await act(async () => settlePending?.())
+          expect(useRemoteFileDrafts.getState().bySession[a]).toBeUndefined()
+          // A chat file link reaches the saved lane's Files again.
+          await expect(openRemoteFile(a, 'other.txt')).resolves.toBeUndefined()
+          return
+        }
         if (outcome === 'pending-forget') {
           await act(async () => forgetRemoteSession(a))
           await act(async () => settlePending?.())

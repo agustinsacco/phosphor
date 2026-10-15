@@ -199,6 +199,11 @@ function RemoteFilesView({
           if (useRemoteFileDrafts.getState().bySession[sessionId]?.pending?.token !== token)
             return null
           clearRemoteFileDraft(sessionId)
+          // The pane may be unmounted (another lane or pane is showing), so nothing would
+          // reset its navigation block; a saved file no longer needs protecting.
+          useRemoteFileSelection.setState((s) => ({
+            blocked: { ...s.blocked, [sessionId]: false },
+          }))
           return { revision: saved.revision }
         },
         (error): RemoteSaveResult => {
