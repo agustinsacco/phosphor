@@ -86,10 +86,10 @@ it('times out in 2s, shares one read per lane, drops late data and account chang
   await vi.advanceTimersByTimeAsync(1999)
   expect(t.publish).not.toHaveBeenCalled()
   await vi.advanceTimersByTimeAsync(1)
-  expect(t.publish).toHaveBeenCalledTimes(2)
+  expect(t.publish).toHaveBeenCalledTimes(1)
   resolve(facts)
   await vi.advanceTimersByTimeAsync(0)
-  expect(t.publish).toHaveBeenCalledTimes(2)
+  expect(t.publish).toHaveBeenCalledTimes(1)
   const t2 = setup(async () => facts)
   t2.attention.receive('host', event)
   t2.attention.clear()
@@ -172,4 +172,111 @@ it('ties receipts to the event within 30 seconds and refuses an unknown settle t
       offset !== null && Math.abs(offset) <= 30_000,
     )
   }
+})
+
+function deferredReceipt() {
+  let resolve: (value: unknown) => void = () => {}
+  const promise = new Promise<unknown>((done) => {
+    resolve = done
+  })
+  return { promise, resolve: (value: unknown) => resolve(value) }
+}
+
+it.each(['receipt', 'fallback', 'timeout'] as const)(
+  'does not let a deferred completion overtake newer needs-input on %s',
+  async (settlement) => {
+    vi.useFakeTimers()
+    const deferred = deferredReceipt()
+    const t = setup(() => deferred.promise)
+    t.attention.receive('host', event)
+    t.attention.receive('host', { ...event, id: 'input', kind: 'needs-input' })
+    expect(t.publish).toHaveBeenCalledTimes(1)
+    expect(t.publish.mock.calls[0]?.[0].kind).toBe('needs-input')
+    if (settlement !== 'timeout') deferred.resolve(settlement === 'receipt' ? facts : undefined)
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(t.publish).toHaveBeenCalledTimes(1)
+    expect(t.notify).toHaveBeenCalledTimes(1)
+    expect(t.notify.mock.calls[0]?.[1]).toBe('needs-input')
+  },
+)
+
+it('publishes only the newer of two deferred completions on one lane', async () => {
+  vi.useFakeTimers()
+  const deferred = deferredReceipt()
+  const receipt = vi.fn(() => deferred.promise)
+  const t = setup(receipt)
+  t.attention.receive('host', event)
+  t.attention.receive('host', { ...event, id: 'two', title: 'Newer' })
+  expect(receipt).toHaveBeenCalledTimes(1)
+  deferred.resolve(facts)
+  await vi.advanceTimersByTimeAsync(0)
+  expect(t.publish).toHaveBeenCalledTimes(1)
+  expect(t.publish.mock.calls[0]?.[0].title).toBe('Newer')
+  expect(t.notify).toHaveBeenCalledTimes(1)
+  expect(t.notify.mock.calls[0]?.[0]).toBe('bee1 · Newer')
+})
+
+it.each([
+  { host: 'host', lane: 'other' },
+  { host: 'other', lane: 'lane' },
+])('keeps deferred publications independent for $host/$lane', async ({ host, lane }) => {
+  vi.useFakeTimers()
+  const deferred = deferredReceipt()
+  const t = setup(() => deferred.promise)
+  t.attention.receive('host', event)
+  t.attention.receive(host, { ...event, id: 'two', laneId: lane })
+  deferred.resolve(facts)
+  await vi.advanceTimersByTimeAsync(0)
+  expect(t.publish.mock.calls.map(([published]) => [published.hostId, published.laneId])).toEqual([
+    ['host', 'lane'],
+    [host, lane],
+  ])
+  expect(t.notify).toHaveBeenCalledTimes(2)
+})
+
+it('drops a deferred card across an account change even when the lane appears again', async () => {
+  vi.useFakeTimers()
+  const deferred = deferredReceipt()
+  const t = setup(() => deferred.promise)
+  t.attention.receive('host', event)
+  t.attention.clear()
+  t.attention.receive('host', { ...event, id: 'input', kind: 'needs-input' })
+  deferred.resolve(facts)
+  await vi.advanceTimersByTimeAsync(2000)
+  expect(t.publish).toHaveBeenCalledTimes(1)
+  expect(t.publish.mock.calls[0]?.[0].kind).toBe('needs-input')
+  expect(t.notify).toHaveBeenCalledTimes(1)
+})
+
+it('bounds arrival counters to 256 lanes and does not revive an evicted publication', async () => {
+  vi.useFakeTimers()
+  const deferred = deferredReceipt()
+  const t = setup(() => deferred.promise)
+  for (let i = 0; i <= 256; i++)
+    t.attention.receive('host', { ...event, id: `event-${i}`, laneId: `lane-${i}` })
+  deferred.resolve(facts)
+  await vi.advanceTimersByTimeAsync(0)
+  expect(t.publish).toHaveBeenCalledTimes(256)
+  expect(t.publish.mock.calls.some(([published]) => published.laneId === 'lane-0')).toBe(false)
+  expect(t.notify).toHaveBeenCalledTimes(256)
+})
+
+it('does not reuse an evicted lane counter while its old publication is pending', async () => {
+  vi.useFakeTimers()
+  const deferred = deferredReceipt()
+  const t = setup(() => deferred.promise)
+  t.attention.receive('host', event)
+  for (let i = 0; i < 256; i++)
+    t.attention.receive('host', {
+      ...event,
+      id: `input-${i}`,
+      laneId: `lane-${i}`,
+      kind: 'needs-input',
+    })
+  t.attention.receive('host', { ...event, id: 'input', kind: 'needs-input' })
+  deferred.resolve(facts)
+  await vi.advanceTimersByTimeAsync(0)
+  expect(t.publish).toHaveBeenCalledTimes(257)
+  expect(t.publish.mock.calls.every(([published]) => published.kind === 'needs-input')).toBe(true)
+  expect(t.notify).toHaveBeenCalledTimes(257)
 })

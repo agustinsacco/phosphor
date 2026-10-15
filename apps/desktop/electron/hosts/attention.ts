@@ -12,17 +12,29 @@ export function createHostAttention(ports: {
 }) {
   const seen = new Set<string>()
   const pending = new Map<string, Promise<unknown>>()
+  const laneArrivals = new Map<string, number>()
+  // Unique counters prevent an evicted lane's old publication from becoming current again.
+  let arrivalCounter = 0
   let generation = 0
   return {
     clear: () => {
       generation++
       seen.clear()
       pending.clear()
+      laneArrivals.clear()
     },
     receive(hostId: string, event: AttentionEvent) {
       const key = `${hostId}/${event.id}`
       if (seen.has(key)) return
       seen.add(key)
+      const laneKey = `${hostId}/${event.laneId}`
+      const arrival = ++arrivalCounter
+      laneArrivals.delete(laneKey)
+      laneArrivals.set(laneKey, arrival)
+      if (laneArrivals.size > 256) {
+        const oldest = laneArrivals.keys().next().value
+        if (oldest) laneArrivals.delete(oldest)
+      }
       if (seen.size > 1600) {
         const oldest = seen.values().next().value
         if (oldest) seen.delete(oldest)
@@ -65,7 +77,6 @@ export function createHostAttention(ports: {
           )
       }
       if (!enrich || !ports.receipt || ports.focused(hostId, event.laneId)) return publish()
-      const laneKey = `${hostId}/${event.laneId}`
       let request = pending.get(laneKey)
       if (!request) {
         if (pending.size >= 1600) return publish()
@@ -82,7 +93,9 @@ export function createHostAttention(ports: {
           timer = setTimeout(() => resolve(undefined), 2000)
         }),
       ])
-        .then(publish)
+        .then((value) => {
+          if (laneArrivals.get(laneKey) === arrival) publish(value)
+        })
         .finally(() => clearTimeout(timer))
     },
   }
