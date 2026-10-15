@@ -1,8 +1,10 @@
+import { randomUUID } from 'node:crypto'
 import { machineStatus, type MachinesResponse } from '@shared/control-api'
 import type { ControlResult, HostsSnapshot } from '@shared/ipc'
 import { hostEndpoint, type createHostConnection, type HostConnectionSnapshot } from './connection'
 
 export function createHostManager(ports: {
+  testEndpoint?: string
   user: () => string | null
   clientId: () => string | null
   resetReplacementBudget: () => void
@@ -60,14 +62,19 @@ export function createHostManager(ports: {
         c.connection.close()
         connections.delete(id)
         ports.clearGrants(id)
-        if (machine) cached[id] = { ...view, state: 'reconnecting' }
+        if (machine)
+          cached[id] = {
+            ...view,
+            state: machineStatus(machine, Date.now(), offset) === 'up' ? 'reconnecting' : 'down',
+          }
       }
     }
     for (const m of list.machines) {
-      if (!hostEndpoint(m.endpoint)) {
+      if (!hostEndpoint(m.endpoint, ports.testEndpoint)) {
         cached[m.id] = {
           ...cached[m.id],
           state: 'no-address',
+          connectionToken: cached[m.id]?.connectionToken ?? randomUUID(),
           capabilities: cached[m.id]?.capabilities ?? [],
           repositories: cached[m.id]?.repositories ?? [],
           lanes: cached[m.id]?.lanes ?? [],

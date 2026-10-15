@@ -6,7 +6,19 @@ import { checkPiHealth } from '../pi/health'
 import { piStubPath } from '../pi/stub'
 import { runPrintMode } from '../pi/print-mode'
 import { piProcessEnv } from '../pi/shell-env'
-import { dedupeTitle, sanitizeTitle, titleArgs, titlePrompt } from '../pi/session-naming'
+import {
+  CLAUDE_TITLE_FALLBACK,
+  dedupeTitle,
+  pickTitleModel,
+  sanitizeTitle,
+  titleArgs,
+  titleAttempts,
+  titlePrompt,
+  type TitleAttempt,
+  type TitleModel,
+} from '../pi/session-naming'
+import { catalogueModels } from './pi-config-handlers'
+import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { claudeAccountEnv, primaryAccount } from '../claude/accounts'
 import {
   claudeOneShotEnv,
@@ -20,6 +32,70 @@ import type { ExtensionUIResponse, RpcCommand } from '@shared/rpc'
 import { log } from '../debug-log'
 
 let cachedHealth: PiHealth | null = null
+
+/** Providers whose title run failed under `-ne`: always boot them fully. */
+const fullBootProviders = new Set<string>()
+/** Picked title models that failed on this account: use the fallback. */
+const unusableTitleModels = new Set<string>()
+
+const modelKey = (model: TitleModel): string => `${model.provider}/${model.id}`
+
+const sameModel = (a: TitleModel | null, b: TitleModel | null): boolean =>
+  (a ? modelKey(a) : null) === (b ? modelKey(b) : null)
+
+/**
+ * Learn from the attempts that failed before `used` succeeded, so a setup
+ * that cannot take the fast path pays for the failed run once per app launch,
+ * not on every chat. Only learned from an eventual success: when everything
+ * fails (offline, signed out) there is no telling what was at fault.
+ */
+function rememberTitleFailures(
+  failed: TitleAttempt[],
+  used: TitleAttempt,
+  defaultProvider: string | undefined,
+): void {
+  for (const attempt of failed) {
+    if (attempt.extensions && !used.extensions && sameModel(attempt.model, used.model)) {
+      fullBootProviders.add(attempt.model?.provider ?? defaultProvider ?? '')
+    }
+    if (attempt.model && !sameModel(attempt.model, used.model)) {
+      unusableTitleModels.add(modelKey(attempt.model))
+    }
+  }
+}
+
+/** How long a title waits for a cold model catalogue before using the default. */
+const CATALOGUE_WAIT_MS = 4_000
+
+/**
+ * Which model to title on, and whether a fast `-ne` boot is possible.
+ *
+ * The catalogue is preloaded at boot, so this is usually a cache hit. The
+ * provider's own extension is loaded on a fast boot for the one extension
+ * provider Phosphor knows (pi-claude-cli); any other provider gets a bare
+ * `-ne`, and `titleAttempts` retries with a full boot if it was not built in.
+ */
+async function planTitleRun(
+  workspacePath: string,
+  settings: { defaultProvider?: string; defaultModel?: string },
+  fallback: TitleModel | null,
+): Promise<TitleAttempt[]> {
+  const catalogue = await Promise.race([
+    catalogueModels().catch(() => []),
+    new Promise<[]>((resolve) => setTimeout(() => resolve([]), CATALOGUE_WAIT_MS)),
+  ])
+  const picked = pickTitleModel(catalogue, settings.defaultProvider, settings.defaultModel)
+  const model = picked && !unusableTitleModels.has(modelKey(picked)) ? picked : fallback
+  const provider = model?.provider ?? settings.defaultProvider ?? ''
+  let fast: string[] | null = fullBootProviders.has(provider) ? null : []
+  if (fast && provider === 'pi-claude-cli') {
+    const pkg = (await listPackages(workspacePath).catch(() => [])).find(
+      (entry) => entry.name === '@saccolabs/pi-claude-cli' && entry.installed,
+    )
+    fast = pkg?.resources.extensions.length ? pkg.resources.extensions : null
+  }
+  return titleAttempts(model, fast, fallback)
+}
 
 /** pi subprocess lifecycle: health, session create/dispose, RPC passthrough. */
 export function registerPiSessionHandlers(): void {
@@ -105,9 +181,14 @@ export function registerPiSessionHandlers(): void {
       // context. Spawned through runPrintMode because `pi -p` blocks until
       // stdin hits EOF — see electron/pi/print-mode.ts, and never
       // reintroduce execFile here.
-      const claudeCli = stub
-        ? false
-        : usesClaudeCliProvider({}, (await readAgentSettings(workspacePath)).defaultProvider)
+      const settings: { defaultProvider?: string; defaultModel?: string } = stub
+        ? {}
+        : await readAgentSettings(workspacePath)
+      const claudeCli = stub ? false : usesClaudeCliProvider({}, settings.defaultProvider)
+      const fallback = claudeCli ? CLAUDE_TITLE_FALLBACK : null
+      const plan = stub
+        ? titleAttempts(null, null, null)
+        : await planTitleRun(workspacePath, settings, fallback)
       // A naming run bills a plan too, so it goes to the account the user
       // pinned (or the first one) rather than to whatever the CLI's default
       // keychain entry happens to hold. Only asked for on the Claude path:
@@ -116,27 +197,37 @@ export function registerPiSessionHandlers(): void {
       if (claudeCli) {
         Object.assign(env, claudeAccountEnv(await primaryAccount().catch(() => null)))
       }
+      const prompt = titlePrompt(message, existingNames, {
+        min: lanePrefs.nameMinWords,
+        max: lanePrefs.nameMaxWords,
+      })
       const started = Date.now()
-      const { stdout, error } = await runPrintMode(
-        binaryPath,
-        [
-          ...prefixArgs,
-          ...titleArgs({ claudeCli }),
-          titlePrompt(message, existingNames, {
-            min: lanePrefs.nameMinWords,
-            max: lanePrefs.nameMaxWords,
-          }),
-        ],
-        { cwd: workspacePath, env },
-      )
-      const title = stdout ? sanitizeTitle(stdout, lanePrefs.nameMaxLength) : null
+      let title: string | null = null
+      const errors: string[] = []
+      for (const attempt of plan) {
+        const { stdout, error } = await runPrintMode(
+          binaryPath,
+          [...prefixArgs, ...titleArgs(attempt), prompt],
+          { cwd: workspacePath, env },
+        )
+        title = stdout ? sanitizeTitle(stdout, lanePrefs.nameMaxLength) : null
+        if (title) break
+        errors.push(error ?? 'empty reply')
+        // A timeout is not a boot or model problem; another run would only
+        // spend another 30s.
+        if (error?.startsWith('timed out')) break
+      }
+      const used = title ? plan[errors.length] : undefined
+      if (used) rememberTitleFailures(plan.slice(0, errors.length), used, settings.defaultProvider)
       // Logged either way: this failing produced no symptom at all for weeks
       // beyond "sessions are never named", which named no cause. One line per
       // new chat is a price worth paying for that never happening again.
       log('naming', title ? 'generated a session name' : 'no session name', {
         ms: Date.now() - started,
         title,
-        ...(error ? { error } : {}),
+        model: used?.model ? modelKey(used.model) : 'default',
+        fastBoot: Boolean(used?.extensions),
+        ...(errors.length ? { errors } : {}),
       })
       return title ? dedupeTitle(title, existingNames) : null
     },

@@ -10,7 +10,7 @@ import {
   type ClientFrame,
 } from '@shared/host-protocol'
 import type { GrantPayload } from '@shared/host-grant'
-import { createHostConnection, type LaneFrame } from './connection'
+import { createHostConnection, hostEndpoint, type LaneFrame } from './connection'
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => {
@@ -681,4 +681,68 @@ it('replays each pending command once, in order, after a sever during replay', a
   t.host.stop()
   await drain()
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it('keeps production endpoint validation and admits only the injected test origin', () => {
+  const endpoint = 'https://127.0.0.1:47615'
+  expect(hostEndpoint('https://bee.tail.ts.net:47615')).toBe(true)
+  expect(hostEndpoint(endpoint)).toBe(false)
+  expect(hostEndpoint(endpoint, endpoint)).toBe(true)
+  for (const value of [
+    'https://localhost:47615',
+    'https://127.0.0.2:47615',
+    'https://127.0.0.1:47616',
+    endpoint + '/private',
+    'https://user@127.0.0.1:47615',
+    'http://bee.tail.ts.net:47615',
+    'https://bee.example.com:47615',
+  ])
+    expect(hostEndpoint(value, endpoint)).toBe(false)
+})
+
+it('sends the same per-connection trace in auth and renewal that it logs on connect', async () => {
+  const t = await setup()
+  const trace = t.initialAuth?.trace
+  expect(trace).toMatch(/^[0-9a-f]{16}$/)
+  expect(t.logs).toContainEqual(['hosts', 'connect', expect.objectContaining({ trace })])
+  // setup() cleared the initial auth, so these are renewal frames only.
+  expect(t.frames.filter((frame) => frame.type === 'auth')).toHaveLength(0)
+  await vi.advanceTimersByTimeAsync(240_000)
+  const renewals = t.frames.filter((frame) => frame.type === 'auth')
+  expect(renewals.length).toBeGreaterThan(0)
+  for (const renewal of renewals) expect(renewal).toMatchObject({ trace })
+  t.connection.close()
+})
+
+it('starts a fresh trace when it reconnects', async () => {
+  const t = await setup()
+  const trace = t.initialAuth?.trace
+  t.pairs[0]?.server.send('not json')
+  await drain()
+  expect(t.connection.snapshot().state).toBe('reconnecting')
+  await vi.advanceTimersByTimeAsync(1000)
+  await drain()
+  const next = t.frames.filter((frame) => frame.type === 'auth' && frame.challenge)
+  expect(next).toHaveLength(1)
+  expect(next[0]).toMatchObject({ trace: expect.stringMatching(/^[0-9a-f]{16}$/) })
+  expect(next[0]).not.toMatchObject({ trace })
+  t.connection.close()
+  t.host.stop()
+})
+
+it('changes the snapshot token on reconnect to the same runtime, not periodic snapshots', async () => {
+  const t = await setup()
+  const first = t.connection.snapshot()
+  expect(first.connectionToken).toBeTruthy()
+  expect(t.connection.snapshot().connectionToken).toBe(first.connectionToken)
+  t.pairs[0]?.client.close(1001, 'Sever')
+  await drain()
+  await vi.advanceTimersByTimeAsync(1000)
+  await drain()
+  const next = t.connection.snapshot()
+  expect(next.state).toBe('ready')
+  expect(next.cursor?.epoch).toBe(first.cursor?.epoch)
+  expect(next.connectionToken).not.toBe(first.connectionToken)
+  expect(t.connection.snapshot().connectionToken).toBe(next.connectionToken)
+  t.connection.close()
 })

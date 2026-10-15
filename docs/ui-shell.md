@@ -61,6 +61,21 @@ screen.
 
 ## Left sidebar (Claude Desktop style)
 
+Signed-in windows show a compact machine menu beneath the main navigation. Each
+window starts on **This Mac**, and selection stays in memory only, including
+while the sidebar is hidden. Signing out or removing the selected machine resets
+the selection to This Mac. Its right edge
+summarizes activity on other machines; All machines has no “elsewhere” activity.
+The menu supports arrow keys, Enter, Escape with focus return, and outside-click
+dismissal. Add machine opens Machines with the existing add dialog.
+
+This Mac keeps the local workspace groups unchanged. Hosts use the same group
+header, lane row, indicator and subtitle primitives, grouped by configured
+repository. Search commits on Enter; the group menu collapses lanes; + preselects
+that repository in the remote creation dialog. Empty repositories show “No lanes
+yet”. All machines puts local groups first, then machine-labelled Host groups.
+Signed-out windows have no machine switcher or remote groups.
+
 - **Workspace switcher** at top: current workspace plus a dropdown of recents;
   "Open Folder…" via the native picker.
 - **A workspace is identified by its REAL path.** One folder reachable through
@@ -334,6 +349,10 @@ The visual recipe lives in [style-guide.md](style-guide.md#action-hints).
   tagged ("Session deleted", or "Folder missing" when its workspace is gone)
   and its artifact opens read-only on the page; a deleted session's can be
   removed there.
+- **Skills machine context** follows the active lane by default. Its header switcher
+  offers This Mac and Hosts announcing `skills.read`. Remote skills are read-only;
+  unavailable machines never fall back to local skills. Remote machines show their
+  models and providers on the Skills page; This Mac shows them in Settings.
 - **Skills discovery** is a capability workbench: outcome filters, task fit,
   evidence and limitations precede an expandable review/install section.
   Vercel React guidance and NVIDIA cuOpt routing install at reviewed commit
@@ -420,8 +439,13 @@ status text, problem-only readiness chips (or Ready), and non-zero lane counts.
 The whole row opens a stable detail view; live updates do not reset selection.
 Signed out, only this computer is listed, with an optional GitHub sign-in panel.
 Signed in with no Hosts, a three-step source-install, setup and login guide links
-to the Host guide. There are no sample machines, remote lanes, machine filter,
-per-lane machine chip or Run on picker. All lanes still run on this computer.
+to the Host guide. There are no sample machines. Remote lanes, machine filters
+and per-lane connection chips use authenticated Host snapshots. The home
+machine picker follows the sidebar selection (All machines uses This Mac), with
+a user override until the next sidebar change. Remote choices open the configured
+repository dialog. Host-targeted submit opens that same dialog without sending or
+clearing the composer draft, never starting locally if the Host is unavailable.
+Provider and Model are under its collapsed Advanced disclosure.
 
 Main owns directory traffic. Realtime is only a debounced change signal, with
 60 s polling while disconnected. A 5 s local timer updates relative times and
@@ -429,8 +453,17 @@ judges silent Hosts down after 90 s, using the server clock correction. No
 account means no control request. List loading, offline and account errors are
 explicit and offer retry.
 
+Readiness also lists the connected Host's unsigned-in providers. With `terminal`
+and `sessions.control`, Sign in opens a private terminal modal on that Host.
+For pi, type `/login PROVIDER`, follow its steps, then `/quit`; Claude prints
+its own login steps. Closing the modal stops the login. Exiting refreshes
+`machine.providers`. Viewers and Hosts without those capabilities keep the
+`phosphor providers login PROVIDER` hint. Credentials stay on the Host.
+
 Details share Status, Readiness and About sections. Host details include the
 last heartbeat, enrollment date, version, copyable fingerprint and machine id.
+On this machine lists lanes and capability-gated skills, routines and artifact
+counts, with links to machine-filtered pages. Down lanes stay labelled last known.
 Problems give plain-language fixes and copyable commands to run on that Host.
 A never-connected Host offers `phosphor run` and, on Linux,
 `phosphor service install`. A Host offline for over a day suggests

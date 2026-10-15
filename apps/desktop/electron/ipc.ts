@@ -1,3 +1,4 @@
+import { registerTailscaleHandlers } from './ipc/tailscale-handlers'
 import { registerSshInstallHandlers } from './ipc/ssh-install-handlers'
 import { registerHostsHandlers } from './ipc/hosts-handlers'
 import { registerPiSessionHandlers } from './ipc/pi-session-handlers'
@@ -55,6 +56,7 @@ export function registerIpcHandlers(): void {
   registerControlHandlers()
   registerHostsHandlers()
   registerSshInstallHandlers()
+  registerTailscaleHandlers()
   registerVoiceHandlers()
   registerWritingHandlers()
 }

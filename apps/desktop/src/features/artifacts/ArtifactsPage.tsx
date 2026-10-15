@@ -1,3 +1,5 @@
+import { useMachinePagesStore } from '@/stores/machinePages'
+import { MachinePicker } from '@/features/machines/MachinePicker'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useEffect, useMemo, useState } from 'react'
 import type { ArtifactListing } from '@shared/artifacts'
@@ -20,6 +22,7 @@ import { relativeTimeShort } from '@/lib/time'
 import { artifactGlyph } from './artifactKinds'
 import { ArtifactWorkspace } from './ArtifactsPane'
 import {
+  artifactOnMachine,
   mergeGlobalArtifacts,
   canViewStoredArtifact,
   type GlobalArtifactRow,
@@ -38,6 +41,7 @@ import {
  * session's can also be removed.
  */
 export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
+  const machine = useMachinePagesStore((s) => s.artifactsMachine)
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const bySession = useArtifactsStore((s) => s.bySession)
   const live = useSessionsStore((s) => s.live)
@@ -84,8 +88,8 @@ export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
             workspacePath: l.workspacePath,
             artifacts: bySession[l.phosphorId] ?? {},
           })),
-      ),
-    [stored, live, bySession, hosts],
+      ).filter((row) => artifactOnMachine(row.sessionFile ?? row.key, machine, hosts)),
+    [stored, live, bySession, hosts, machine],
   )
 
   if (viewing) {
@@ -113,6 +117,16 @@ export const ArtifactsPage = memo(function ArtifactsPage(): React.JSX.Element {
   return (
     <PageShell
       title={<PaneTitle label="Artifacts" meta={rows.length ? `${rows.length}` : undefined} />}
+      actions={
+        <div className="flex gap-2">
+          <MachinePicker
+            includeAll
+            value={machine}
+            capability="artifacts.read"
+            onChange={(artifactsMachine) => useMachinePagesStore.setState({ artifactsMachine })}
+          />
+        </div>
+      }
     >
       <div className="mx-auto flex h-full min-h-0 w-full max-w-3xl flex-col">
         {rows.length === 0 ? (

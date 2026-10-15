@@ -1,13 +1,24 @@
+import { useMachinesStore } from '@/stores/machines'
 import { useState } from 'react'
 import { useSessionsStore } from '@/stores/sessions'
-import { useRemoteLanesStore, canControlSession, machineLabel } from '@/stores/remoteLanes'
+import {
+  useRemoteLanesStore,
+  canControlSession,
+  machineLabel,
+  connectionLabel,
+  REMOTE_NOT_READY,
+} from '@/stores/remoteLanes'
 import { Button } from '@/components/form'
 
 export function MachineChip({ sessionId }: { sessionId: string }): React.JSX.Element {
   const target = useSessionsStore((s) => s.live[sessionId]?.target)
+  const hosts = useRemoteLanesStore((s) => s.hosts)
+  useMachinesStore((s) => s.machines)
   return (
-    <span className="text-text-secondary px-2 text-sm">
-      {target?.kind === 'remote' ? machineLabel(target.hostId) : 'This Mac'}
+    <span className="text-text-secondary bg-chip inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-sm">
+      {target?.kind === 'remote'
+        ? `${machineLabel(target.hostId)} · ${connectionLabel(hosts[target.hostId]?.state)}`
+        : 'This Mac'}
     </span>
   )
 }
@@ -42,7 +53,7 @@ export function RemoteLaneControls({ sessionId }: { sessionId: string }): React.
       <MachineChip sessionId={sessionId} />
       <span>
         {host?.state !== 'ready'
-          ? `${machineLabel(hostId)} is offline`
+          ? REMOTE_NOT_READY
           : controller
             ? `Controlled by ${controller.self ? 'you' : controller.label}${controller.connected ? '' : ' (disconnected)'}`
             : 'No controller'}

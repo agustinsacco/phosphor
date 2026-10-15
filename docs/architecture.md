@@ -15,7 +15,7 @@
 | Charts               | Two fences: `chart` JSON → Chart.js, `vega-lite` JSON → vega-embed                                  |
 | HTML preview         | `<iframe sandbox="allow-scripts">` over `phosphor-artifact://`, never `srcDoc`; Code/Preview toggle |
 | File watching        | chokidar (main process)                                                                             |
-| Packaging            | electron-builder → macOS (dmg+zip, arm64+x64), Linux (AppImage+deb), Windows (nsis)                 |
+| Packaging            | electron-builder → macOS (dmg+zip, arm64+x64), Linux (AppImage+deb); Windows (nsis) paused          |
 | Install              | GitHub Releases + `curl … install.sh \| sh` (`tools/scripts/install.sh`)                            |
 | IPC                  | Typed contextBridge preload; renderer never touches Node APIs                                       |
 | pi integration       | RPC subprocess, one `pi --mode rpc` per live session ([pi-integration.md](pi-integration.md))       |

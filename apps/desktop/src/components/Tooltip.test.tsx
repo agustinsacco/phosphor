@@ -216,7 +216,8 @@ describe('quiet tooltips', () => {
       await advance(700)
       expect(hint()).toBeNull()
       key('Escape')
-      expect(closeModal).toHaveBeenCalledOnce()
+      expect(closeMenu).toHaveBeenCalledOnce()
+      expect(closeModal).not.toHaveBeenCalled()
     } finally {
       window.removeEventListener('keydown', abort)
     }

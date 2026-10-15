@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runPrintMode } from './print-mode'
@@ -14,6 +14,8 @@ let dir: string
 let blockingScript: string
 let failingScript: string
 let answersThenHangsScript: string
+let leavesChildScript: string
+let childPidFile: string
 
 beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), 'phosphor-print-mode-'))
@@ -36,6 +38,22 @@ beforeAll(() => {
   writeFileSync(
     answersThenHangsScript,
     ["process.stdout.write('Friendly Greeting\\n')", 'setInterval(() => {}, 1000)'].join('\n'),
+  )
+  // A provider or extension that starts its own child (the Claude CLI, an
+  // MCP server) and exits without stopping it.
+  childPidFile = join(dir, 'child.pid')
+  leavesChildScript = join(dir, 'leaves-child.cjs')
+  writeFileSync(
+    leavesChildScript,
+    [
+      "const { spawn } = require('node:child_process')",
+      "const { writeFileSync } = require('node:fs')",
+      "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })",
+      'child.unref()',
+      `writeFileSync(${JSON.stringify(childPidFile)}, String(child.pid))`,
+      "process.stdout.write('Friendly Greeting\\n')",
+      'process.exit(0)',
+    ].join('\n'),
   )
   failingScript = join(dir, 'fails.cjs')
   writeFileSync(failingScript, ["process.stderr.write('nope\\n')", 'process.exit(3)'].join('\n'))
@@ -68,6 +86,25 @@ describe('runPrintMode', () => {
     expect(result.stdout.trim()).toBe('Friendly Greeting')
     expect(result.error).toContain('timed out')
   })
+
+  it.skipIf(process.platform === 'win32')(
+    'leaves nothing behind that the run started',
+    async () => {
+      const result = await run(leavesChildScript)
+      expect(result.stdout.trim()).toBe('Friendly Greeting')
+      const pid = Number(readFileSync(childPidFile, 'utf8'))
+      const alive = (): boolean => {
+        try {
+          process.kill(pid, 0)
+          return true
+        } catch {
+          return false
+        }
+      }
+      for (let i = 0; i < 20 && alive(); i++) await new Promise((r) => setTimeout(r, 50))
+      expect(alive()).toBe(false)
+    },
+  )
 
   it('reports a spawn failure rather than throwing', async () => {
     const result = await runPrintMode(join(dir, 'does-not-exist'), [], {

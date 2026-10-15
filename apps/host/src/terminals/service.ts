@@ -1,3 +1,5 @@
+import { PROVIDER_LOGIN_LIMITS } from '@phosphor/shared/host-protocol-providers'
+import type { runInTerminal, TerminalRun } from '../machine/terminal'
 import { randomUUID } from 'node:crypto'
 import { userInfo } from 'node:os'
 import { isAbsolute } from 'node:path'
@@ -20,6 +22,7 @@ import type { HostPty, HostPtyModule } from './native'
 export class TerminalForbidden extends Error {}
 
 type Entry = TerminalSummary & {
+  login?: { owner: string; disconnectedAt?: number; finish: (result: TerminalRun) => void }
   pty?: HostPty
   seq: number
   inputSeq: number
@@ -44,11 +47,13 @@ export function createTerminals(options: {
   const now = options.now ?? Date.now
   function persist() {
     options.save(
-      [...entries.values()].map(({ terminalId, laneId, status }) => ({
-        terminalId,
-        laneId,
-        status,
-      })),
+      [...entries.values()]
+        .filter((entry) => !entry.login)
+        .map(({ terminalId, laneId, status }) => ({
+          terminalId,
+          laneId,
+          status,
+        })),
     )
   }
   const restored = parseTerminalList(options.load())
@@ -78,6 +83,11 @@ export function createTerminals(options: {
     const pty = entry.pty
     entry.pty = undefined
     entry.status = 'exited'
+    entry.login?.finish({ code: null })
+    if (entry.login) {
+      entry.chunks = []
+      entry.outputBytes = 0
+    }
     if (pty)
       emit(entry, {
         type: 'terminal.exit',
@@ -96,7 +106,12 @@ export function createTerminals(options: {
   function reap() {
     let changed = false
     for (const [id, entry] of entries)
-      if (!alive(entry.laneId)) {
+      if (
+        entry.login
+          ? entry.login.disconnectedAt !== undefined &&
+            now() - entry.login.disconnectedAt >= PROVIDER_LOGIN_LIMITS.disconnectMs
+          : !alive(entry.laneId)
+      ) {
         kill(entry)
         entries.delete(id)
         entry.listeners.clear()
@@ -123,6 +138,7 @@ export function createTerminals(options: {
     }
   }
   function output(entry: Entry, data: string) {
+    if (entry.login && (closed || entry.status !== 'running')) return
     // Split on Unicode codepoints, not UTF-16 halves or UTF-8 continuation bytes.
     let text = ''
     let bytes = 0
@@ -245,9 +261,14 @@ export function createTerminals(options: {
     const frame = parseTerminalInput(raw)
     if (!frame) return false
     const entry = entries.get(frame.terminalId)
-    if (!entry || !alive(entry.laneId) || !entry.pty) return false
+    if (!entry || (!entry.login && !alive(entry.laneId)) || !entry.pty) return false
     const lane = options.context.store.getLane(entry.laneId)
-    if (lane?.control.controller?.clientId !== clientId || frame.seq !== entry.inputSeq + 1)
+    if (
+      (entry.login
+        ? entry.login.owner !== clientId
+        : lane?.control.controller?.clientId !== clientId) ||
+      frame.seq !== entry.inputSeq + 1
+    )
       return false
     const time = now()
     if (time - entry.window >= 1000) {
@@ -269,11 +290,13 @@ export function createTerminals(options: {
   function subscribe(
     frame: TerminalSubscribe,
     send: (frame: TerminalFrame) => void,
+    clientId?: string,
   ): (() => void) | null {
     if (closed) return null
     reap()
     const entry = entries.get(frame.terminalId)
-    if (!entry) return null
+    if (!entry || (entry.login && entry.login.owner !== clientId)) return null
+    if (entry.login && entry.status === 'running') entry.login.disconnectedAt = undefined
     const deliver = (f: TerminalFrame) => send({ ...f, ...('id' in f ? { id: frame.id } : {}) })
     entry.listeners.add(deliver)
     const after = frame.after
@@ -305,6 +328,18 @@ export function createTerminals(options: {
         inputSeq: entry.inputSeq,
         status: entry.status,
       })
+    if (entry.login && entry.status !== 'running') {
+      deliver({
+        type: 'terminal.exit',
+        id: frame.id,
+        terminalId: entry.terminalId,
+        epoch: options.epoch,
+        seq: ++entry.seq,
+        exitCode: 0,
+      })
+      entries.delete(entry.terminalId)
+      entry.listeners.clear()
+    }
     return () => entry.listeners.delete(deliver)
   }
   const feature: HostFeature = {
@@ -338,6 +373,75 @@ export function createTerminals(options: {
       entry.listeners.clear()
     }
   }
-  return { execute, input, subscribe, feature, close }
+  function presence(owner: string, connected: boolean, revoked = false) {
+    for (const [id, entry] of entries) {
+      if (entry.login?.owner !== owner) continue
+      if (revoked) {
+        kill(entry)
+        entry.listeners.clear()
+        entries.delete(id)
+      } else if (entry.status === 'running')
+        entry.login.disconnectedAt = connected ? undefined : now()
+    }
+  }
+  function machineOp(owner: string, op: TerminalOp) {
+    if (closed || op.type === 'terminal.create') throw new TerminalForbidden('forbidden')
+    const entry = entries.get(op.terminalId)
+    if (!entry?.login || entry.login.owner !== owner) throw new TerminalForbidden('forbidden')
+    if (op.type === 'terminal.resize') entry.pty?.resize(op.cols, op.rows)
+    else {
+      kill(entry)
+      entries.delete(entry.terminalId)
+      entry.listeners.clear()
+    }
+    return null
+  }
+  /** Only the Host's CLI login runner supplies these process options. Never wire input. */
+  function loginRunner(owner: string, started: (id: string) => void): typeof runInTerminal {
+    return (file, args, settings) =>
+      new Promise<TerminalRun>((resolve) => {
+        if (closed || entries.size >= L.perHost)
+          return resolve({ code: null, error: 'unavailable' })
+        const entry: Entry = {
+          terminalId: randomUUID(),
+          laneId: '',
+          status: 'running',
+          seq: 0,
+          inputSeq: 0,
+          window: 0,
+          bytes: 0,
+          chunks: [],
+          outputBytes: 0,
+          listeners: new Set(),
+          login: { owner, finish: resolve },
+        }
+        entries.set(entry.terminalId, entry)
+        try {
+          entry.pty = options.native.spawn(file, [...args], {
+            cwd: settings.cwd,
+            env: settings.env,
+            cols: 80,
+            rows: 24,
+            name: 'xterm-256color',
+          })
+          entry.pty.onData((data) => output(entry, data))
+          entry.pty.onExit(() => {
+            const watched = entry.listeners.size > 0
+            kill(entry)
+            // An exit can beat Desktop's first subscribe. Retain only a bounded,
+            // content-free tombstone so its reset reports completion, not a hung modal.
+            if (entry.login) entry.login.disconnectedAt = now()
+            if (watched) entries.delete(entry.terminalId)
+            entry.listeners.clear()
+          })
+          started(entry.terminalId)
+        } catch {
+          kill(entry)
+          entries.delete(entry.terminalId)
+          resolve({ code: null, error: 'unavailable' })
+        }
+      })
+  }
+  return { execute, input, subscribe, feature, close, loginRunner, machineOp, presence }
 }
 export type HostTerminals = ReturnType<typeof createTerminals>

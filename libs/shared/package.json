@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./host-protocol-providers": {
+      "types": "./src/host-protocol-providers.ts",
+      "default": "./src/host-protocol-providers.ts"
+    },
     "./host-protocol-terminals": {
       "types": "./src/host-protocol-terminals.ts",
       "default": "./src/host-protocol-terminals.ts"
@@ -183,6 +187,10 @@
     "./routines-types": {
       "types": "./src/routines-types.ts",
       "default": "./src/routines-types.ts"
+    },
+    "./tailscale-status": {
+      "types": "./src/tailscale-status.ts",
+      "default": "./src/tailscale-status.ts"
     },
     "./host-protocol-writes": {
       "types": "./src/host-protocol-writes.ts",

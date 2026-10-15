@@ -1,3 +1,4 @@
+import { useMachinePagesStore } from '@/stores/machinePages'
 import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
@@ -46,7 +47,9 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
         routines: [...localSnapshot.routines, ...Object.values(remote).flatMap((r) => r.routines)],
       }
     : null
-  const [machine, setMachine] = useState('')
+  const machine = useMachinePagesStore((s) => s.routinesMachine)
+  const setMachine = (routinesMachine: string): void =>
+    useMachinePagesStore.setState({ routinesMachine })
   const loadError = useRoutinesStore((s) => s.error)
   const draft = useRoutinesStore((s) => s.draft)
   const unsaved = useRoutinesStore((s) => !!s.editorDrafts[NEW_ROUTINE])

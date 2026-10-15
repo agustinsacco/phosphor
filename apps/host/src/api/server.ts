@@ -1,3 +1,4 @@
+import { CONTROL_TRACE_HEADERS, isControlTrace } from '@phosphor/shared/control-api'
 import type { Socket } from 'node:net'
 import type { Duplex } from 'node:stream'
 import { randomBytes, type KeyObject } from 'node:crypto'
@@ -165,6 +166,8 @@ export function startApi(options: {
         response.writeHead(429).end()
         return
       }
+      const trace = request.headers[CONTROL_TRACE_HEADERS.trace]
+      options.log?.('api.hello', isControlTrace(trace) ? { trace } : {})
       response
         .writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
         .end(JSON.stringify({ hello, proof: hostProof(hello, challenge, options.key) }))

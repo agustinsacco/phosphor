@@ -1,10 +1,28 @@
 import type { FrameSocket } from '@shared/host-protocol'
 import type { TraceLog } from '../control/observations'
 
+/** Only a dev Desktop may reach the disposable loopback Host. */
+export function e2eHostEndpoint(env: NodeJS.ProcessEnv, packaged: boolean): string | undefined {
+  if (packaged) return undefined
+  const value = env.PHOSPHOR_E2E_HOST_ENDPOINT
+  const match = /^https:\/\/127\.0\.0\.1:([1-9][0-9]{3,4})$/.exec(value ?? '')
+  return match && Number(match[1]) >= 1024 && Number(match[1]) <= 65535 ? value : undefined
+}
+
+export function hostSocketUrl(url: string, testEndpoint?: string): string {
+  return testEndpoint && url === `${testEndpoint.replace('https:', 'wss:')}/v1/stream`
+    ? url.replace('wss:', 'ws:')
+    : url
+}
+
 /** No socket or credentials ever cross preload. Opening has a bounded deadline. */
-export function openHostSocket(url: string, log: TraceLog = () => {}): Promise<FrameSocket> {
+export function openHostSocket(
+  url: string,
+  log: TraceLog = () => {},
+  testEndpoint?: string,
+): Promise<FrameSocket> {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(url)
+    const ws = new WebSocket(hostSocketUrl(url, testEndpoint))
     const close = (code = 1000, reason = '') => {
       let bounded = ''
       for (const char of reason) {

@@ -1,3 +1,4 @@
+import { parseProviderLoginOp, type ProviderLoginOp } from './host-protocol-providers'
 import {
   parseTerminalOp,
   parseTerminalInput,
@@ -231,6 +232,7 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 export type LanePiOp = DistributiveOmit<Extract<RpcCommand, { type: LanePiOpType }>, 'id'>
 
 export type LaneOp =
+  | ProviderLoginOp
   | TerminalOp
   | RoutineOp
   | FileWriteOp
@@ -340,7 +342,12 @@ export type ClientFrame =
   | TerminalInput
   | TerminalSubscribe
   /** First frame (with `challenge`), and later to renew (without). */
-  | { readonly type: 'auth'; readonly grant: string; readonly challenge?: string }
+  | {
+      readonly type: 'auth'
+      readonly grant: string
+      readonly challenge?: string
+      readonly trace?: string
+    }
   | {
       readonly type: 'subscribe'
       readonly id: string
@@ -567,6 +574,7 @@ function op(v: unknown): LaneOp | null {
   const write = parseFileWriteOp(v)
   if (write) return write
   if (!record(v)) return null
+  if (v.type === 'provider.login') return parseProviderLoginOp(v)
   if (typeof v.type === 'string' && v.type.startsWith('terminal.')) return parseTerminalOp(v)
   if (typeof v.type === 'string' && v.type.startsWith('routine.')) return parseRoutineOp(v)
   switch (v.type) {
@@ -649,6 +657,7 @@ const laneOps = [
   ...ROUTINE_OPS,
   ...LANE_PI_OPS,
   'extension_ui_response',
+  'provider.login',
   'terminal.create',
   'terminal.resize',
   'terminal.kill',
@@ -669,6 +678,8 @@ export function parseClientFrame(s: string): ClientFrameParse {
   switch (v.type) {
     case 'auth':
       if (
+        !Object.keys(v).every((key) => ['type', 'grant', 'challenge', 'trace'].includes(key)) ||
+        (v.trace !== undefined && !isControlTrace(v.trace)) ||
         !text(v.grant, GRANT_LIMITS.tokenChars) ||
         (v.challenge !== undefined &&
           (typeof v.challenge !== 'string' || !/^[0-9a-f]{64}$/.test(v.challenge)))
@@ -678,6 +689,7 @@ export function parseClientFrame(s: string): ClientFrameParse {
         type: v.type,
         grant: v.grant,
         ...(v.challenge !== undefined ? { challenge: v.challenge } : {}),
+        ...(v.trace !== undefined ? { trace: v.trace } : {}),
       })
     case 'terminal.input': {
       const input = parseTerminalInput(v)
@@ -712,7 +724,7 @@ export function parseClientFrame(s: string): ClientFrameParse {
       const operation = op(v.op)
       if (
         !operation ||
-        (operation.type.startsWith('routine.') &&
+        ((operation.type.startsWith('routine.') || operation.type === 'provider.login') &&
           (v.laneId !== undefined || v.fence !== undefined)) ||
         (v.laneId !== undefined && !isUuid(v.laneId)) ||
         (v.fence !== undefined && !integer(v.fence, 1)) ||

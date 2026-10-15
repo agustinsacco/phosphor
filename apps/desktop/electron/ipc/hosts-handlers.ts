@@ -1,3 +1,4 @@
+import { machineReads } from '../hosts/machine-reads'
 import { routeRemoteWrite } from '../hosts/write-features'
 import type { SessionPush } from '@shared/models'
 import { app, BrowserWindow, Notification } from 'electron'
@@ -10,7 +11,7 @@ import { createClientIds } from '../hosts/client-id'
 import { createGrants } from '../hosts/grants'
 import { createHostConnection } from '../hosts/connection'
 import { createHostManager } from '../hosts/manager'
-import { openHostSocket } from '../hosts/socket'
+import { e2eHostEndpoint, openHostSocket } from '../hosts/socket'
 import { controlClient, onMachinesChanged } from './control-handlers'
 import { handle, setRemoteReadRouter } from './handle'
 import {
@@ -37,6 +38,7 @@ export function remoteLanes(): RemoteLanes {
 }
 
 export function registerHostsHandlers(): void {
+  const testEndpoint = e2eHostEndpoint(process.env, app.isPackaged)
   const control = controlClient()
   const clients = createClientIds({
     user: accountUserId,
@@ -47,6 +49,7 @@ export function registerHostsHandlers(): void {
   })
   const grants = createGrants({ control, clients, present: (id) => manager.present(id) })
   const manager = createHostManager({
+    testEndpoint,
     user: accountUserId,
     clientId: clients.current,
     resetReplacementBudget: clients.resetReplacementBudget,
@@ -63,7 +66,8 @@ export function registerHostsHandlers(): void {
       createHostConnection({
         hostId,
         endpoint,
-        socket: (url) => openHostSocket(url, log),
+        testEndpoint,
+        socket: (url) => openHostSocket(url, log, testEndpoint),
         grant: () => grants.grantFor(hostId),
         clearGrant: () => grants.clear(hostId),
         changed: () => manager.changed(),
@@ -73,6 +77,10 @@ export function registerHostsHandlers(): void {
         log,
       }),
   })
+  const catalogues = machineReads(manager.connection)
+  handle('hosts:models', (_event, hostId) => catalogues.models(hostId))
+  handle('hosts:providers', (_event, hostId) => catalogues.providers(hostId))
+  handle('hosts:skills', (_event, hostId) => catalogues.skills(hostId))
   remote = createRemoteLanes({
     connection: manager.connection,
     present: manager.present,
@@ -89,6 +97,7 @@ export function registerHostsHandlers(): void {
     })
   }
   const terminals = createRemoteTerminals({
+    connection: manager.connection,
     inputDropped: () => log('hosts', 'terminal_input_dropped'),
     lane: (windowId, sessionId, workspace) =>
       remoteLanes().terminalLane(windowId, sessionId, workspace),
@@ -112,6 +121,8 @@ export function registerHostsHandlers(): void {
     const routine = routines?.route(channel, args)
     if (routine) return routine
     const key = args[0]
+    if (typeof key === 'string' && /^host:[^/]+\/machine(?:\/|$)/.test(key))
+      return routeRemoteRead(channel, args, () => catalogues.lane(key.slice(5).split('/')[0] ?? ''))
     if (
       channel === 'artifacts:forSession' &&
       typeof key === 'string' &&
@@ -221,5 +232,8 @@ export function registerHostsHandlers(): void {
     window(event)
     remoteLanes().setFocused(event.sender.id, target)
   })
+  handle('hosts:providerLogin', (event, hostId, provider) =>
+    terminals.signIn(event.sender.id, hostId, provider),
+  )
   handle('hosts:snapshot', () => manager.snapshot())
 }

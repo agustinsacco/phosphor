@@ -1,3 +1,4 @@
+import { useRemoteLanesStore, canControlSession, REMOTE_NOT_READY } from '@/stores/remoteLanes'
 import { hostResourceKey } from '@shared/remote-host'
 import { TooltipButton } from '@/components/Tooltip'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -55,6 +56,10 @@ export function Composer({
   const diskPath = useSessionsStore((s) => s.live[sessionId]?.diskPath)
   const entry = useSessionsStore((s) => s.live[sessionId])
   const remote = entry?.target?.kind === 'remote'
+  const host = useRemoteLanesStore((s) =>
+    entry?.target?.kind === 'remote' ? s.hosts[entry.target.hostId] : undefined,
+  )
+  const disconnected = remote && host?.state !== 'ready'
   const draftKey =
     entry?.target?.kind === 'remote' && entry.laneId
       ? hostResourceKey(entry.target, 'session', entry.laneId)
@@ -150,6 +155,7 @@ export function Composer({
 
   const send = useCallback(
     async (behavior?: 'steer' | 'followUp') => {
+      if (!canControlSession(sessionId)) return
       const message = text.trim()
       if (!message && images.length === 0) return
 
@@ -350,7 +356,11 @@ export function Composer({
     <div className="shrink-0 px-3 pb-4 pt-1 sm:px-5">
       <ComposerStrips sessionId={sessionId} />
 
-      <div className="relative mx-auto max-w-3xl">
+      {disconnected && <p className="mx-auto max-w-3xl text-sm">{REMOTE_NOT_READY}</p>}
+      <fieldset
+        disabled={remote && !canControlSession(sessionId)}
+        className="relative mx-auto min-w-0 max-w-3xl"
+      >
         <ComposerInput
           workspacePath={remote ? undefined : workspacePath}
           value={text}
@@ -465,7 +475,7 @@ export function Composer({
           )}
         </div>
         <BelowEditorWidgets sessionId={sessionId} />
-      </div>
+      </fieldset>
     </div>
   )
 }

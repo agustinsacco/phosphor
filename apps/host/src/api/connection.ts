@@ -24,6 +24,7 @@ import type { Keyset } from './keyset'
 export type ApiLog = (event: string, fields: Record<string, string | number>) => void
 export interface ReadyConnection {
   connectionId: string
+  trace?: string
   client: GrantClient
   caps: readonly HostCapability[]
   socket: FrameSocket
@@ -85,6 +86,7 @@ export function createConnection(ports: ConnectionPorts) {
       throw new Error('Invalid limit')
   const connectionId = randomBytes(8).toString('hex')
   const started = now()
+  let trace: string | undefined
   let grant: GrantPayload | undefined
   let handler: AuthenticatedHandler | undefined
   let caps: readonly HostCapability[] = []
@@ -122,9 +124,14 @@ export function createConnection(ports: ConnectionPorts) {
     clearInterval(heartbeat)
     clearTimeout(idle)
     unsubscribe()
+    if (code === 4401 || code === 4403) handler?.renew([])
     handler?.close()
     ports.onClose?.(connectionId)
-    ports.log?.('api.closed', { connectionId, code, ms: Math.max(0, now() - started) })
+    ports.log?.('api.closed', {
+      ...(trace ? { trace } : {}),
+      code,
+      ms: Math.max(0, now() - started),
+    })
   }
   function close(code: HostCloseCode) {
     finish(code)
@@ -195,10 +202,10 @@ export function createConnection(ports: ConnectionPorts) {
         capabilities: caps,
       })
       if (!ended) {
-        const ready = { connectionId, client: payload.client, caps, socket }
+        const ready = { connectionId, trace, client: payload.client, caps, socket }
         handler = ports.handler?.(ready)
         ports.onReady?.(ready)
-        ports.log?.('api.connected', { connectionId, clientId: payload.client.id })
+        ports.log?.('api.connected', trace ? { trace } : {})
       }
     } else {
       handler?.renew(caps)
@@ -241,6 +248,7 @@ export function createConnection(ports: ConnectionPorts) {
     }
     const frame = parsed.frame
     if (frame.type === 'auth') {
+      if (!grant) trace = frame.trace
       clearTimeout(deadline)
       if (checking) return close(4429)
       checking = true

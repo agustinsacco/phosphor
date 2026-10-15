@@ -11,6 +11,18 @@
 const MAX_MESSAGE_LENGTH = 1200
 const MAX_EXISTING_NAMES = 40
 
+/** A model to run the title on, always named with its provider. */
+export interface TitleModel {
+  provider: string
+  id: string
+}
+
+/** The model a Claude CLI title used before the catalogue picked one. */
+export const CLAUDE_TITLE_FALLBACK: TitleModel = {
+  provider: 'pi-claude-cli',
+  id: 'claude-haiku-4-5',
+}
+
 /**
  * Argv for the naming run, everything except the prompt itself.
  *
@@ -19,17 +31,22 @@ const MAX_EXISTING_NAMES = 40
  * Measured before the strip, the naming call carried ~35,000 tokens of
  * harness to produce a 15-token title.
  *
- * `--no-extensions` is conspicuously ABSENT: providers register through
- * extension discovery, so `-ne` makes pi-claude-cli an unknown provider and
- * the run errors out ("Unknown provider") — verified against real pi. Do not
- * add it back.
+ * `--thinking off` always: without it the run inherits the user's default
+ * level, and a title on Haiku at `high` took 6.0s against 2.8s off.
  *
- * When pi's default provider is the Claude CLI, the run is also pinned to
- * Haiku with an explicit `--provider` (never a bare fuzzy `--model` pattern,
- * which could resolve into another provider): a title does not need the
- * default model, which in practice is an Opus-tier one.
+ * `model` is passed with an explicit `--provider` (never a bare fuzzy
+ * `--model` pattern, which could resolve into another provider).
+ *
+ * `extensions` set means a fast boot: `-ne` skips every installed package
+ * (MCP adapter, sub-agents, web access…) and only the listed files load.
+ * Providers can register through extensions (pi-claude-cli does), so the
+ * caller must list the provider's own extension, and falls back to a full
+ * boot when a fast one fails ("Unknown provider").
  */
-export function titleArgs(options: { claudeCli: boolean }): string[] {
+export function titleArgs(
+  options: { model?: TitleModel | null; extensions?: string[] | null } = {},
+): string[] {
+  const { model, extensions } = options
   return [
     '-p',
     '--no-session',
@@ -37,8 +54,112 @@ export function titleArgs(options: { claudeCli: boolean }): string[] {
     '--no-context-files',
     '--no-skills',
     '--no-prompt-templates',
-    ...(options.claudeCli ? ['--provider', 'pi-claude-cli', '--model', 'claude-haiku-4-5'] : []),
+    '--thinking',
+    'off',
+    ...(model ? ['--provider', model.provider, '--model', model.id] : []),
+    ...(extensions ? ['--no-extensions', ...extensions.flatMap((path) => ['-e', path])] : []),
   ]
+}
+
+/** One way to run the title, in the order `titleAttempts` returns them. */
+export interface TitleAttempt {
+  model: TitleModel | null
+  extensions: string[] | null
+}
+
+/**
+ * Fastest first, then safer: the picked model on a fast boot, the same on a
+ * full boot (an extension-registered provider is unknown under `-ne`), then
+ * `fallback` (null = pi's default) in case the picked model is not usable on
+ * this account. Duplicates are dropped, so most plans are one or two runs.
+ */
+export function titleAttempts(
+  model: TitleModel | null,
+  fastExtensions: string[] | null,
+  fallback: TitleModel | null,
+): TitleAttempt[] {
+  const plan: TitleAttempt[] = [
+    ...(fastExtensions ? [{ model, extensions: fastExtensions }] : []),
+    { model, extensions: null },
+    { model: fallback, extensions: null },
+  ]
+  const seen = new Set<string>()
+  return plan.filter((attempt) => {
+    const key = JSON.stringify(attempt)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+/** The catalogue fields `pickTitleModel` reads. */
+export interface TitleCandidate {
+  id: string
+  provider: string
+  cost?: { input: number; output: number }
+}
+
+/** Not chat models, or not usable unattended (rate-limited free tiers). */
+const NOT_FOR_TITLES = /voxtral|whisper|embed|tts|audio|realtime|guard|moderation|image|:free/i
+
+/** Cross-region inference prefixes (Bedrock), kept identical to the default's. */
+const REGION_PREFIX = /^(us|eu|apac|global|jp|au|ca|us-gov)\./i
+
+function regionOf(id: string): string {
+  return REGION_PREFIX.exec(id)?.[1]?.toLowerCase() ?? ''
+}
+
+/**
+ * The model family: the first run of letters once any region prefix is gone.
+ * `anthropic.claude-…`, `anthropic/claude-…` → anthropic; `claude-opus-…` →
+ * claude; `gpt-5.5` → gpt; `kimi-k2` → kimi.
+ */
+function familyOf(id: string): string {
+  return /[a-z]+/i.exec(id.replace(REGION_PREFIX, ''))?.[0]?.toLowerCase() ?? ''
+}
+
+function price(model: TitleCandidate): number | null {
+  if (!model.cost) return null
+  const total = model.cost.input + model.cost.output
+  return Number.isFinite(total) && total > 0 ? total : null
+}
+
+/**
+ * The cheapest model to title a session with, or null for "use the default".
+ *
+ * Stays inside the default's provider (same credentials), family (a vendor
+ * the user already reaches, e.g. Anthropic on Bedrock) and region prefix.
+ * Picks only a model with a known price strictly below the default's; the
+ * catalogue's cheapest overall is not safe (on Bedrock it is a speech model,
+ * on OpenRouter a rate-limited free tier). Unknown prices pick nothing.
+ */
+export function pickTitleModel(
+  catalogue: TitleCandidate[],
+  defaultProvider: string | undefined,
+  defaultModel: string | undefined,
+): TitleModel | null {
+  if (!defaultProvider || !defaultModel) return null
+  const current = catalogue.find((m) => m.provider === defaultProvider && m.id === defaultModel)
+  const ceiling = current ? price(current) : null
+  if (ceiling === null) return null
+  const family = familyOf(defaultModel)
+  const region = regionOf(defaultModel)
+  let best: { model: TitleCandidate; price: number } | null = null
+  for (const model of catalogue) {
+    if (model.provider !== defaultProvider || NOT_FOR_TITLES.test(model.id)) continue
+    if (familyOf(model.id) !== family || regionOf(model.id) !== region) continue
+    const cost = price(model)
+    if (cost === null || cost >= ceiling) continue
+    // Ties go to the shorter id: the alias over the dated snapshot.
+    if (
+      !best ||
+      cost < best.price ||
+      (cost === best.price && model.id.length < best.model.id.length)
+    ) {
+      best = { model, price: cost }
+    }
+  }
+  return best ? { provider: defaultProvider, id: best.model.id } : null
 }
 
 /**

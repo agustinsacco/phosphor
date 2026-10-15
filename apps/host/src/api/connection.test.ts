@@ -403,3 +403,23 @@ it('bounds first-frame arrival separately from a bounded keyset refresh', async 
     vi.useRealTimers()
   }
 })
+
+it('logs the connection trace on open and close without identities or credentials', async () => {
+  const f = fixture()
+  const c = f.connect()
+  const token = f.mintGrant()
+  const trace = '0123456789abcdef'
+  c.socket.send(JSON.stringify({ type: 'auth', grant: token, challenge: 'a'.repeat(64), trace }))
+  for (let i = 0; i < 30; i++) await Promise.resolve()
+  c.connection.close(1001)
+  const events = f.logs.map((line) => JSON.parse(line))
+  expect(events).toEqual([
+    { event: 'api.connected', trace },
+    { event: 'api.closed', trace, code: 1001, ms: expect.any(Number) },
+  ])
+  for (const event of events)
+    for (const value of Object.values(event))
+      expect(String(value)).toMatch(/^[A-Za-z0-9._-]{1,64}$/)
+  for (const secret of [token, f.claims.client.id, f.claims.hostId, c.connection.connectionId])
+    expect(f.logs.join('\n')).not.toContain(secret)
+})

@@ -198,11 +198,10 @@ jobs:
           - os: ubuntu-latest
             name: Linux
             args: --linux
-          - os: windows-latest
-            name: Windows
-            # NSIS x64 installer + latest.yml. Unsigned unless WIN_CERT_PFX is
-            # configured; see the signing block below.
-            args: --win
+          # Windows (NSIS x64 installer + latest.yml, `args: --win`) is paused to
+          # save CI time and returns in a later release. Its signing block and
+          # installer check below are inert until the matrix entry comes back;
+          # re-add the exe, latest.yml and checksum entries in finalize too.
     steps:
       - uses: actions/checkout@v4
         with:
@@ -375,7 +374,7 @@ jobs:
           cd checksums
           gh release download "$TAG" \
             --pattern '*.AppImage' --pattern '*.deb' \
-            --pattern '*.dmg' --pattern '*.zip' --pattern '*.exe'
+            --pattern '*.dmg' --pattern '*.zip'
           sha256sum * > checksums.txt
           gh release upload "$TAG" checksums.txt --clobber
 
@@ -400,12 +399,11 @@ jobs:
             "Phosphor-${VERSION}-arm64.AppImage" \
             "Phosphor-${VERSION}-x64.dmg" \
             "Phosphor-${VERSION}-arm64.dmg" \
-            "Phosphor-${VERSION}-x64.exe" \
             "Phosphor-${VERSION}-amd64.deb" \
             "Phosphor-${VERSION}-arm64.deb" \
             "Phosphor-${VERSION}-mac.zip" \
             "Phosphor-${VERSION}-arm64-mac.zip" \
-            "latest.yml" "latest-mac.yml" "latest-linux.yml" "latest-linux-arm64.yml"; do
+            "latest-mac.yml" "latest-linux.yml" "latest-linux-arm64.yml"; do
             if ! grep -qx "$EXPECTED" <<<"$AVAILABLE"; then
               echo "::error::Required release asset ${EXPECTED} is missing."
               MISSING=1
@@ -464,7 +462,7 @@ jobs:
             "" \
             "This replaces an existing install in place." \
             "" \
-            "Windows: run \`Phosphor-${VERSION}-x64.exe\` below. The installer is not code-signed, so SmartScreen shows \"unknown publisher\" — choose **More info → Run anyway**. It installs per user and updates itself from then on." \
+            "Windows builds are paused for now and will return in a later release." \
             "" \
             "Already running Phosphor? It will offer to update itself." \
             "" \

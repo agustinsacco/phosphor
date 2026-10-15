@@ -6,12 +6,14 @@ import { Button, TextInput } from '@/components/form'
 
 export function SshInstallPanel({
   onEnrollment,
+  initialTarget = '',
   onState,
 }: {
+  initialTarget?: string
   onEnrollment: (code: string, fingerprint: string) => void
   onState: (event: SshInstallEvent | null) => void
 }): React.JSX.Element {
-  const [target, setTarget] = useState('')
+  const [target, setTarget] = useState(initialTarget)
   const [repository, setRepository] = useState('')
   const [state, setState] = useState<SshInstallEvent | null>(null)
   const [error, setError] = useState('')
@@ -25,6 +27,9 @@ export function SshInstallPanel({
   enrollment.current = onEnrollment
   const reportState = useRef(onState)
   reportState.current = onState
+  useEffect(() => {
+    if (!pending.current) setTarget(initialTarget)
+  }, [initialTarget])
   useEffect(() => {
     live.current = true
     return () => {
@@ -66,9 +71,10 @@ export function SshInstallPanel({
       pending.current = false
       if (live.current) {
         setBusy(false)
-        setError(
-          'Could not start SSH installation. Check the target or an existing install, then try again.',
-        )
+        const message =
+          'Could not start SSH installation. Check the target or an existing install, then try again.'
+        setError(message)
+        reportState.current({ kind: 'failed', step: 'install', message, output: [] })
       }
     }
   }

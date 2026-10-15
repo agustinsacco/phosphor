@@ -76,13 +76,10 @@ it('gives problem-only readiness and actionable fixes, including unknown reports
 it.each(['bcdfghjk', 'BCDF-GHJK', ' bcdf-ghjk '])('normalises and formats %s', (code) =>
   expect(formatCode(code)).toBe('BCDF-GHJK'),
 )
-it('pins the verified source installation, not a fictional package', () => {
-  expect(HOST_INSTALL)
-    .toBe(`git clone --depth 1 https://github.com/agustinsacco/phosphor.git ~/src/phosphor
-cd ~/src/phosphor && npm ci --ignore-scripts
-npm run build:host -- --out ~/.local/share/phosphor-host
-mkdir -p ~/.local/bin
-printf '#!/bin/sh\\nexec %s %s "$@"\\n' "$(readlink -f "$(command -v node)")" ~/.local/share/phosphor-host/phosphor.mjs > ~/.local/bin/phosphor && chmod 755 ~/.local/bin/phosphor`)
+it('installs the signed Host release, never a source build or Desktop installer', () => {
+  expect(HOST_INSTALL).toBe(
+    'curl -fsSL https://github.com/agustinsacco/Phosphor/releases/download/host-latest/install.sh | sh',
+  )
 })
 it('trusts readiness only while a machine is online, and names problems in a few words', () => {
   const online = { ...MACHINE, lastSeenAt: new Date(now).toISOString(), state: 'running' as const }

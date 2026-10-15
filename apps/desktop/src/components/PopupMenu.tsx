@@ -1,3 +1,4 @@
+import { useEscapeKey } from './Modal'
 import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useRef, useState } from 'react'
 
@@ -21,6 +22,7 @@ export function PopupMenu({
   id,
   ariaLabel,
   ariaActiveDescendant,
+  tabIndex,
 }: {
   children: React.ReactNode
   onClose: () => void
@@ -37,9 +39,12 @@ export function PopupMenu({
   id?: string
   ariaLabel?: string
   ariaActiveDescendant?: string
+  tabIndex?: number
 }): React.JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   const [computedStyle, setComputedStyle] = useState<React.CSSProperties>({})
+
+  useEscapeKey(onClose)
 
   // Do not float the trigger's hint over the menu it already opened.
   useEffect(() => {
@@ -72,17 +77,9 @@ export function PopupMenu({
       if (triggerRef?.current?.contains(target)) return
       onClose()
     }
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') {
-        event.stopPropagation()
-        onClose()
-      }
-    }
     window.addEventListener('mousedown', handler)
-    window.addEventListener('keydown', onKeyDown)
     return () => {
       window.removeEventListener('mousedown', handler)
-      window.removeEventListener('keydown', onKeyDown)
     }
   }, [onClose, triggerRef])
 
@@ -95,6 +92,7 @@ export function PopupMenu({
       // including its non-button rows (labels, separators).
       data-popup-menu
       role={role}
+      tabIndex={tabIndex}
       id={id}
       aria-label={ariaLabel}
       aria-activedescendant={ariaActiveDescendant}
@@ -106,6 +104,7 @@ export function PopupMenu({
 }
 
 export function MenuRow({
+  type,
   active,
   disabled,
   onClick,
@@ -118,6 +117,7 @@ export function MenuRow({
   ariaSelected,
   children,
 }: {
+  type?: 'button'
   active: boolean
   /** `option` inside a `PopupMenu role="listbox"`; the id is what its `aria-activedescendant` names. */
   id?: string
@@ -153,6 +153,7 @@ export function MenuRow({
   const row = (
     <TooltipButton
       ref={ref}
+      type={type}
       id={id}
       role={role}
       aria-selected={ariaSelected}

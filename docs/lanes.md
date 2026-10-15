@@ -8,6 +8,18 @@ one glance, not four tools.
 Related: [worktrees.md](worktrees.md) for the branch lifecycle,
 [extensions.md](extensions.md) for the artifact tools a lane can call.
 
+## Remote lanes
+
+The sidebar lists authenticated Host lanes alongside local groups, with a machine
+filter. A disconnected machine keeps its memory-only rows greyed, disabled and
+labelled last known. The remote-create dialog and home flow choose a machine and
+then its configured repository. This Mac retains the local folder and branch
+flow. Selecting an unavailable Host never creates a local session.
+
+The lane header reports the connection state. The composer and panes disable
+while disconnected and recover when the Host snapshot is ready. See
+[remote-access.md](remote-access.md#machine-context-and-lane-creation).
+
 ## The row
 
 ```
@@ -202,9 +214,25 @@ chats it creates and suppresses the session store's own pass.
 
 `titleArgs` strips everything a title does not need (tools, context files,
 skills, prompt templates) so the call is not carrying ~35,000 tokens of harness
-to produce a 15-token title. `--no-extensions` is deliberately **absent**:
-providers register through extension discovery, and without it `pi-claude-cli`
-is an unknown provider and the run fails.
+to produce a 15-token title, and always passes `--thinking off` (a title on
+Haiku at the inherited `high` took 6.0s, against 2.8s off).
+
+The model is the cheapest one in the default's provider, family and region
+prefix with a known price below the default's (`pickTitleModel`, from the
+cached model catalogue): Opus on the Claude CLI names with the cheapest Haiku,
+`kimi-k2` with `kimi-k2-turbo`. Unpriced catalogues (local models) and an
+already-cheapest default keep the default. On the Claude CLI with no catalogue
+it falls back to `claude-haiku-4-5`.
+
+The run boots fast with `--no-extensions`, so no installed package (MCP
+adapter, sub-agents, web access) starts for a title. Providers can register
+through extensions, so a fast boot loads the provider's own extension
+(pi-claude-cli's, from its package). If a fast boot fails, the same model runs
+on a full boot, then the fallback model; a provider or model that needed the
+retry is remembered until the app quits. Measured on the Claude CLI: 2.4s from
+spawn to title, against 6.0s before. The run is spawned as its own process
+group, and the whole group is killed when it finishes, so nothing it started
+(the Claude CLI, an MCP server) outlives it.
 
 Two constraints on the one-shot, both silent when broken:
 

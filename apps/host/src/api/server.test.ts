@@ -854,3 +854,23 @@ it('refuses invalid or mismatched process epochs before opening the listener', (
       'Invalid runtime epoch',
     )
 })
+
+it('hello logs only a valid trace header, never reflects malformed trace data', async () => {
+  start()
+  authority.accept({ accepted: true, nextInSec: 30, ownerId: claims.sub, epoch: 1 })
+  await vi.waitFor(async () =>
+    expect((await http(`/v1/hello?challenge=${challenge}`)).status).toBe(200),
+  )
+  logs.length = 0
+  for (const trace of ['0123456789abcdef', 'A'.repeat(16), 'a'.repeat(17), '/private/token'])
+    expect(
+      (await http(`/v1/hello?challenge=${challenge}`, { headers: { 'x-phosphor-trace': trace } }))
+        .status,
+    ).toBe(200)
+  expect(logs.filter((line) => line.includes('api.hello'))).toEqual([
+    JSON.stringify({ event: 'api.hello', trace: '0123456789abcdef' }),
+    JSON.stringify({ event: 'api.hello' }),
+    JSON.stringify({ event: 'api.hello' }),
+    JSON.stringify({ event: 'api.hello' }),
+  ])
+})

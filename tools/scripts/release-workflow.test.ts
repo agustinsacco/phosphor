@@ -310,14 +310,13 @@ it('requires every platform binary and update manifest, including on retries', (
     'arm64.AppImage',
     'x64.dmg',
     'arm64.dmg',
-    'x64.exe',
     'amd64.deb',
     'arm64.deb',
     'mac.zip',
     'arm64-mac.zip',
   ]
     .map((suffix) => `Phosphor-0.1.123-${suffix}`)
-    .concat(['latest.yml', 'latest-mac.yml', 'latest-linux.yml', 'latest-linux-arm64.yml'])
+    .concat(['latest-mac.yml', 'latest-linux.yml', 'latest-linux-arm64.yml'])
   for (const missing of [null, ...assets]) {
     const result = spawnSync('bash', ['-c', 'gh() { printf "%s\\n" "$ASSETS"; };\n' + shell], {
       encoding: 'utf8',

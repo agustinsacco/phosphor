@@ -51,6 +51,7 @@ export function createLaneAdapter(
       sockets?.delete(connectionId)
       if (sockets?.size === 0) {
         clients.delete(client.id)
+        service.terminals?.presence(client.id, false)
         service.controllerPresence(client.id)
       }
     }
@@ -58,6 +59,7 @@ export function createLaneAdapter(
       close()
       socket.close(4429, '4429')
     }
+    const traceFields: Record<string, string> = connection.trace ? { trace: connection.trace } : {}
     function send(frame: HostFrame) {
       if (closed || !socket.isOpen()) return
       try {
@@ -69,6 +71,8 @@ export function createLaneAdapter(
         )
           return stop()
         socket.send(text)
+        if (frame.type === 'receipt')
+          options.log?.('api.receipt', { ...traceFields, status: frame.receipt.status })
       } catch {
         stop()
       }
@@ -99,6 +103,8 @@ export function createLaneAdapter(
     }
     function renew(next: readonly HostCapability[]) {
       caps = next
+      if (!caps.includes('terminal') || !caps.includes('sessions.control'))
+        service.terminals?.presence(client.id, true, true)
       if (!caps.includes('terminal')) {
         for (const unsubscribe of terminalSubscriptions.values()) unsubscribe()
         terminalSubscriptions.clear()
@@ -127,7 +133,10 @@ export function createLaneAdapter(
     clients.set(client.id, sockets)
     sockets.add(connectionId)
     renew(caps)
-    if (sockets.size === 1) service.controllerPresence(client.id)
+    if (sockets.size === 1) {
+      service.terminals?.presence(client.id, true)
+      service.controllerPresence(client.id)
+    }
     socket.onClose(close)
     return {
       close,
@@ -155,9 +164,13 @@ export function createLaneAdapter(
         } else if (frame.type === 'subscribe' && frame.topic === 'terminal') {
           if (!caps.includes('terminal'))
             return send({ type: 'subscribe-failed', id: frame.id, code: 'forbidden' })
-          const unsubscribe = service.terminals?.subscribe(frame, (f) => {
-            if (caps.includes('terminal')) send(f)
-          })
+          const unsubscribe = service.terminals?.subscribe(
+            frame,
+            (f) => {
+              if (caps.includes('terminal')) send(f)
+            },
+            caps.includes('sessions.control') ? client.id : undefined,
+          )
           if (unsubscribe) {
             if (closed) unsubscribe()
             else terminalSubscriptions.set(frame.id, unsubscribe)
@@ -199,6 +212,7 @@ export function createLaneAdapter(
                 code: 'too-many-requests',
               },
             })
+          options.log?.('api.command', { ...traceFields, op: frame.op.type })
           pending.add(frame.requestId)
           interest(frame.requestId, 'command')
           const sender = {

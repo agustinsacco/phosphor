@@ -83,9 +83,9 @@ it('keeps optional CI evidence short-lived without removing smoke tests or failu
     ci.match(
       /if: failure\(\) \|\| contains\(github.event.pull_request.labels.\*.name, 'keep-ci-artifacts'\)/g,
     ),
-  ).toHaveLength(2)
-  expect(ci.match(/retention-days: 3/g)).toHaveLength(2)
-  expect(ci).toContain('run: pwsh tools/scripts/smoke-packaged-win.ps1')
+  ).toHaveLength(1)
+  expect(ci.match(/retention-days: 3/g)).toHaveLength(1)
+  expect(ci).toContain('name: CI result')
   expect(ci).toContain('name: playwright-report-${{ matrix.os }}-${{ matrix.shardIndex }}')
   expect(ci).toContain('retention-days: 7')
   expect(workflow('deploy-site')).toContain('DOCKER_BUILD_RECORD_RETENTION_DAYS: 3')
