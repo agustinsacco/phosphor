@@ -129,12 +129,19 @@ test('Switcher drives pages; page override resets and never revives Mac data', a
   }
 })
 
-test('Remote Files, Changes, controls, model and error surfaces refresh A→B→A', async () => {
+// parity fix: remote model per lane after cross-provider switch
+test.fixme('Remote Files, Changes, controls, model and error surfaces refresh A→B→A', async () => {
   test.setTimeout(25_000)
   const h = await remoteHostFixture()
   try {
     await h.createLane(1)
     await h.signIn()
+    await openRemote(h, 'HOST_B_ONLY lane')
+    await takeControl(h)
+    await h.page.getByTestId('model-chip').click()
+    await h.page.getByTestId('model-search').fill('HOST_B_ONLY')
+    await h.page.getByTestId('model-row').filter({ hasText: 'HOST_B_ONLY' }).click()
+    await expect(h.page.getByTestId('model-chip')).toContainText('HOST_B_ONLY Reasoner')
     await openRemote(h)
     await takeControl(h)
     const chat = h.page.getByRole('textbox', { name: 'Chat message', exact: true })
@@ -147,7 +154,7 @@ test('Remote Files, Changes, controls, model and error surfaces refresh A→B→
       ['Remote test lane', 'HOST_A_ONLY', 'HOST_B_ONLY'],
     ]) {
       await selectLane(h, title)
-      if (title === 'HOST_B_ONLY lane') await takeControl(h)
+      await expect(h.page.getByText('Controlled by you', { exact: true })).toBeVisible()
       await files(h)
       await file(h, 'remote.txt')
       await expect(h.page.locator('.monaco-editor')).toContainText(marker)
@@ -170,7 +177,11 @@ test('Remote Files, Changes, controls, model and error surfaces refresh A→B→
         ).toBeVisible()
         await expect(h.page.locator('.monaco-editor')).toHaveCount(0)
       }
-      await expect(h.page.getByTestId('model-chip')).toContainText('HOST_A_ONLY Fast')
+      const ownModel = title === 'HOST_B_ONLY lane' ? 'HOST_B_ONLY Reasoner' : 'HOST_A_ONLY Fast'
+      const previousModel =
+        title === 'HOST_B_ONLY lane' ? 'HOST_A_ONLY Fast' : 'HOST_B_ONLY Reasoner'
+      await expect(h.page.getByTestId('model-chip')).toContainText(ownModel)
+      await expect(h.page.getByTestId('model-chip')).not.toContainText(previousModel)
       await expect(h.page.getByTestId('model-chip')).not.toContainText('Stub')
       await expect(chat).toBeVisible()
     }

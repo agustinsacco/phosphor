@@ -6,12 +6,14 @@ import { mkdir, rm, writeFile, readFile, symlink } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { createServer as createProxy, connect, type Socket } from 'node:net'
 import { join, resolve } from 'node:path'
-import { WebSocket } from 'ws'
+import { Receiver, WebSocket } from 'ws'
+import { watch } from 'node:fs'
 import { encodeGrant } from '../../../../libs/shared/src/host-grant'
 import type { RoutineInput } from '../../../../libs/shared/src/routines-types'
 import { HOST_CAPABILITIES } from '../../../../libs/shared/src/remote-host'
 import {
   parseHostFrame,
+  parseClientFrame,
   type ClientFrame,
   type HostFrame,
   type LaneOp,
@@ -36,6 +38,10 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
   let child: ReturnType<typeof spawn> | undefined
   let peer: WebSocket | undefined
   const sockets = new Set<Socket>()
+  const upstreams = new Set<Socket>()
+  const observedCommands: Extract<ClientFrame, { type: 'command' }>[] = []
+  const transportCleanup = new Set<() => void>()
+  let holdReplies = false
   let interrupted = false
   let hostPort = 0
   const proxy = createProxy((socket) => {
@@ -44,6 +50,9 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
       return
     }
     const upstream = connect(hostPort, '127.0.0.1')
+    upstreams.add(upstream)
+    upstream.on('close', () => upstreams.delete(upstream))
+    if (holdReplies) upstream.pause()
     for (const stream of [socket, upstream]) {
       sockets.add(stream)
       stream.on('error', () => {
@@ -72,11 +81,28 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
           .toString()
           .replace(/Host: [^\r]+/i, `Host: 127.0.0.1:${hostPort}`) + '\r\n\r\n',
       )
-      upstream.write(header.subarray(end + 4))
+      const body = header.subarray(end + 4)
+      if (/upgrade: websocket/i.test(header.subarray(0, end).toString())) {
+        // Receiver unmasks in place; copies keep the forwarded wire bytes untouched.
+        const receiver = new Receiver({ isServer: true })
+        receiver.on('error', () => socket.destroy())
+        receiver.on('message', (data: Buffer) => {
+          const parsed = parseClientFrame(data.toString())
+          if (parsed.ok && parsed.frame.type === 'command') {
+            if (observedCommands.length >= 1024) throw new Error('Too many observed commands')
+            observedCommands.push(parsed.frame)
+          }
+        })
+        socket.on('data', (data: Buffer) => receiver.write(Buffer.from(data)))
+        socket.on('close', () => receiver.destroy())
+        receiver.write(Buffer.from(body))
+      }
+      upstream.write(body)
       socket.pipe(upstream)
     }
     socket.on('data', first)
     upstream.pipe(socket)
+    if (holdReplies) upstream.pause()
   })
   const severConnection = () => {
     interrupted = true
@@ -103,6 +129,7 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
   }
   // Independent steps: a failed Electron close never skips the Host kill or the directory.
   const close = async () => {
+    for (const cleanup of transportCleanup) cleanup()
     const errors: unknown[] = []
     const step = (run: () => Promise<unknown>) => run().catch((e) => errors.push(e))
     await step(async () => peer?.terminate())
@@ -502,6 +529,53 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
       restartHost,
       command,
       severConnection,
+      // Pause real Host replies before submission, then cut only once its disk write lands.
+      loseWriteReceipt: (path: string, content: string) => {
+        holdReplies = true
+        for (const upstream of upstreams) upstream.pause()
+        const firstCommand = observedCommands.length
+        let active = true
+        let restoreConnection: (() => void) | undefined
+        let resolveLanded: () => void
+        let rejectLanded: (error: Error) => void
+        const landed = new Promise<void>((resolve, reject) => {
+          resolveLanded = resolve
+          rejectLanded = reject
+        })
+        const watcher = watch(repo, async () => {
+          if (
+            (await readFile(join(repo, path), 'utf8').catch(() => '')) !== content ||
+            restoreConnection ||
+            !active
+          )
+            return
+          watcher.close()
+          restoreConnection = severConnection()
+          resolveLanded()
+        })
+        const bound = setTimeout(() => {
+          restore()
+          rejectLanded(new Error('Host write did not land within 8 seconds'))
+        }, 8000)
+        const restore = () => {
+          active = false
+          clearTimeout(bound)
+          watcher.close()
+          holdReplies = false
+          for (const upstream of upstreams) upstream.resume()
+          restoreConnection?.()
+          transportCleanup.delete(restore)
+        }
+        transportCleanup.add(restore)
+        return {
+          landed,
+          restore,
+          writes: () =>
+            observedCommands
+              .slice(firstCommand)
+              .filter((frame) => frame.op.type === 'files.write' && frame.op.path === path),
+        }
+      },
       slowName: {
         prompt: `PHX-delayedname name-until:${join(root, 'release-name')}`,
         release: () => writeFile(join(root, 'release-name'), ''),

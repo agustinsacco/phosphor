@@ -234,6 +234,8 @@ test('The last Host folder cannot be removed', async () => {
   test.setTimeout(25_000)
   const h = await remoteHostFixture()
   try {
+    await h.backgroundTurn('PHX-persist-before-stop')
+    await h.command({ type: 'lane.stop' }, h.laneId)
     await h.signIn()
     await selectMachine(h, 'bee1')
     await h.page.getByRole('button', { name: 'Workspace options for notes', exact: true }).click()
@@ -248,7 +250,9 @@ test('The last Host folder cannot be removed', async () => {
       .click()
     await h.page.getByRole('button', { name: 'Remove from bee1', exact: true }).click()
     await modal.getByRole('button', { name: 'Remove folder', exact: true }).click()
-    await expect(modal.getByRole('alert')).toContainText('The Host could not remove this folder.')
+    await expect(modal.getByRole('alert')).toHaveText(
+      'A machine needs at least one folder. Add another first.',
+    )
     expect(
       JSON.parse(await readFile(join(h.root, 'conf/config.json'), 'utf8')).repositories,
     ).toEqual([h.repo])

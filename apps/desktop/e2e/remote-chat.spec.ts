@@ -136,7 +136,11 @@ test('Remote slash, mentions and attachments use Host inputs', async () => {
     ).toBeVisible()
     await chat.fill('PHX-hostinputs')
     await h.page.getByRole('button', { name: 'Send message', exact: true }).click()
-    await expect(h.page.locator('main').getByText('PHX-hostinputs', { exact: true })).toHaveCount(1)
+    await expect(
+      h.page
+        .locator('main')
+        .getByText('Attachments: HOST_A_ONLY document | 1 image/png', { exact: true }),
+    ).toBeVisible()
     await expect(h.page.getByTestId('attachment-chips')).toHaveCount(0)
     expect(await h.localSentinel()).toBe('LOCAL_ONLY decoy\n')
   } finally {

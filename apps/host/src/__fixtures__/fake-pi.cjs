@@ -356,7 +356,21 @@ function linkTool() {
   persist(message)
   out({ type: 'message_start', message: text('') })
 }
-function prompt(message) {
+function attachmentReply(message, images) {
+  const paths = /<attached-files>\n([\s\S]*?)\n<\/attached-files>/.exec(message)?.[1]
+  const documents = (paths ? paths.split('\n') : []).map((path) =>
+    readFileSync(path, 'utf8').trim(),
+  )
+  const decoded = images.filter((image) => {
+    const bytes = Buffer.from(image.data, 'base64')
+    return (
+      image.mimeType === 'image/png' &&
+      bytes.subarray(0, 8).equals(Buffer.from('89504e470d0a1a0a', 'hex'))
+    )
+  })
+  return `Attachments: ${documents.join('; ')} | ${decoded.length} image/png`
+}
+function prompt(message, images = []) {
   persist({ role: 'user', content: message })
   out({ type: 'agent_start' })
   out({ type: 'message_start', message: { role: 'user', content: message } })
@@ -394,9 +408,11 @@ function prompt(message) {
     /recall/i.test(message) && !process.env.FAKE_PI_FORGET
       ? messages.flatMap((m) => JSON.stringify(m.content).match(/PHX-[A-Za-z0-9]+/g) ?? [])
       : /PHX-[A-Za-z0-9]+/.exec(message)
-  const reply = /links/i.test(message)
-    ? `[${laneMarker()} guide](nested/guide.md#L2) [absolute](${join(process.cwd(), 'remote.txt')}) [outside](/etc/passwd)`
-    : (process.env.FAKE_PI_TURN !== 'wrong' && tokens?.at(-1)) || 'ok'
+  const reply = /PHX-hostinputs/.test(message)
+    ? attachmentReply(message, images)
+    : /links/i.test(message)
+      ? `[${laneMarker()} guide](nested/guide.md#L2) [absolute](${join(process.cwd(), 'remote.txt')}) [outside](/etc/passwd)`
+      : (process.env.FAKE_PI_TURN !== 'wrong' && tokens?.at(-1)) || 'ok'
   delta(reply)
   if (process.env.FAKE_PI_TURN === 'fail' || /fail-turn|auth-error/.test(message)) {
     const error = /auth-error/.test(message)
@@ -518,7 +534,8 @@ function handle(cmd) {
         return
       }
       // The context-budget extension's command: no model turn.
-      if (!cmd.message.startsWith('/phosphor-context-budget ')) prompt(cmd.message)
+      if (!cmd.message.startsWith('/phosphor-context-budget '))
+        prompt(cmd.message, cmd.images ?? [])
       return
     }
     case 'steer':

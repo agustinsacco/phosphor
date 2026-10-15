@@ -173,6 +173,35 @@ describe('Host fake pi acceptance scripts', () => {
     })
   })
 
+  it.each([
+    [true, true, 'HOST_A_ONLY document | 1 image/png'],
+    [false, true, ' | 1 image/png'],
+    [true, false, 'HOST_A_ONLY document | 0 image/png'],
+  ])(
+    'derives attachment replies from received document=%s/image=%s',
+    async (document, image, expected) => {
+      const h = await fixture()
+      const path = join(h.root, 'document.txt')
+      await writeFile(path, 'HOST_A_ONLY document')
+      await h.request('prompt', {
+        message: `PHX-hostinputs${document ? `\n\n<attached-files>\n${path}\n</attached-files>` : ''}`,
+        ...(image
+          ? {
+              images: [
+                {
+                  type: 'image',
+                  mimeType: 'image/png',
+                  data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
+                },
+              ],
+            }
+          : {}),
+      })
+      await h.settled(1)
+      expect(JSON.stringify(await h.request('get_messages'))).toContain(`Attachments: ${expected}`)
+    },
+  )
+
   it('discovers the Host user skill without extension arguments', async () => {
     const h = await fixture(['--mode', 'rpc', '--no-session'])
     const path = join(h.root, 'skills', 'host-only', 'SKILL.md')

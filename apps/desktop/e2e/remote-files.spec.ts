@@ -1,6 +1,6 @@
 import { selectLane } from './fixtures/remote-ui'
 import { test, expect } from '@playwright/test'
-import { readFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { remoteHostFixture } from './fixtures/remote-host'
 import {
@@ -175,6 +175,45 @@ test('An uncertain remote save keeps edited content and never silently retries',
     await expect(h.page.locator('.monaco-editor')).toContainText('HOST_A_ONLY uncertain')
     await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
     expect(await h.localSentinel()).toBe('LOCAL_ONLY decoy\n')
+  } finally {
+    await h.close()
+  }
+})
+
+test('A save cut off after Host admission is reconciled once on reconnect', async () => {
+  test.setTimeout(25_000)
+  const h = await remoteHostFixture()
+  try {
+    await h.signIn()
+    await openRemote(h)
+    await takeControl(h)
+    await files(h)
+    await file(h, 'remote.txt')
+    await edit(h, 'HOST_A_ONLY admitted save')
+    const lost = h.loseWriteReceipt('remote.txt', 'HOST_A_ONLY admitted save')
+    try {
+      await h.page.getByRole('button', { name: 'Save', exact: true }).click()
+      await lost.landed
+      const identity = await stat(join(h.repo, 'remote.txt'), { bigint: true })
+      expect(await h.readHostFile('remote.txt')).toBe('HOST_A_ONLY admitted save')
+      await expect(h.page.getByRole('button', { name: 'Discard edits', exact: true })).toBeVisible()
+      await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+      lost.restore()
+      await expect(h.page.getByRole('button', { name: 'Discard edits', exact: true })).toHaveCount(
+        0,
+      )
+      await expect(h.page.getByRole('treeitem', { name: /^remote\.txt/ })).toBeEnabled()
+      await expect(h.page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
+      await expect(h.page.getByTestId('right-pane').getByRole('alert')).toHaveCount(0)
+      const settled = await stat(join(h.repo, 'remote.txt'), { bigint: true })
+      expect([settled.ino, settled.mtimeNs]).toEqual([identity.ino, identity.mtimeNs])
+      expect(await h.readHostFile('remote.txt')).toBe('HOST_A_ONLY admitted save')
+      expect(new Set(lost.writes().map((frame) => frame.requestId)).size).toBe(1)
+      console.log('admitted-save raw files.write frames:', lost.writes().length)
+      expect(await h.localSentinel()).toBe('LOCAL_ONLY decoy\n')
+    } finally {
+      lost.restore()
+    }
   } finally {
     await h.close()
   }
