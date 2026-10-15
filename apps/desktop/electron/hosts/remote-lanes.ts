@@ -41,6 +41,7 @@ type Handle = {
     timer: ReturnType<typeof setTimeout>
   }
   messageBytes: number
+  lastState?: Record<string, unknown>
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -140,6 +141,8 @@ export function createRemoteLanes(ports: {
     }
     if (frame.type === 'snapshot') {
       h.summary = frame.snapshot.summary
+      if (frame.snapshot.state)
+        h.lastState = frame.snapshot.state as unknown as Record<string, unknown>
       h.projection = projection(h)
       h.projection.settle(frame.snapshot.messages, frame.snapshot.state)
       for (const event of frame.snapshot.pending) h.projection.apply({ kind: 'event', event })
@@ -417,13 +420,16 @@ export function createRemoteLanes(ports: {
               const result = await c.call('lane.state', { laneId: h.laneId })
               if (result.ok && record(result.data)) {
                 const { sessionFile: _file, ...state } = result.data
+                h.lastState = state
                 return { ...base, success: true, data: { ...state, sessionId: id } }
               }
             } catch {
               // A stopped or unavailable Host keeps the last projected state usable.
             }
           }
-          const state = (h.hydration?.view ?? h.projection.view()).state
+          const state = h.hydration
+            ? (h.hydration.view.state ?? h.lastState)
+            : (h.lastState ?? h.projection.view().state)
           const summary = h.hydration?.summary ?? h.summary
           if (!state) return { ...base, success: false, error: 'Lane is stopped.' }
           const { sessionFile: _file, ...safe } = state
@@ -434,10 +440,14 @@ export function createRemoteLanes(ports: {
               ...safe,
               sessionId: id,
               sessionName: summary.title ?? undefined,
+              // Never relabel stale model metadata with a different model's ids.
               model:
-                safe.model && summary.model
-                  ? { ...safe.model, provider: summary.model.provider, id: summary.model.id }
-                  : safe.model,
+                record(safe.model) &&
+                (!summary.model ||
+                  (safe.model.provider === summary.model.provider &&
+                    safe.model.id === summary.model.id))
+                  ? safe.model
+                  : undefined,
               isStreaming: summary.activity === 'working',
               messageCount: (h.hydration?.view ?? h.projection.view()).messages.length,
             },

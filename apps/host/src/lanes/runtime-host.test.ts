@@ -196,7 +196,7 @@ describe('runtime lane binding', () => {
       await s.binding.command(session.sessionId, command)
       await Promise.resolve()
       expect(s.runtime.command.mock.calls.filter((c) => c[1].type === 'get_state').length).toBe(
-        refresh + (command.type === 'set_model' ? 2 : 1),
+        refresh + (command.type === 'set_model' ? 3 : 1),
       )
     }
     s.runtime.command.mockClear()
@@ -536,61 +536,92 @@ describe('lane lifecycle parity', () => {
       expect.any(Function),
     )
   })
-  it.each([true, false])('rebinds only a cross-provider model switch (cross=%s)', async (cross) => {
-    const s = setup()
-    const session = await s.binding.sessions.start({ repository: machine.repository })
-    const lane = s.saved()
-    await s.binding.sessions.attach(lane.laneId, session.sessionId)
-    let provider = 'old'
-    const file = join(machine.dir, 'session.jsonl')
-    const model = () => ({
-      provider,
-      id: 'model',
-      name: 'Model',
-      api: 'test',
-      reasoning: false,
-      input: ['text'],
-      contextWindow: 200000,
-      maxTokens: 4096,
-      cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
-    })
-    s.runtime.command.mockImplementation(async (_id, cmd) => {
-      if (cmd.type === 'set_model') provider = cmd.provider
-      return {
-        type: 'response',
-        command: cmd.type,
-        success: true,
-        data:
-          cmd.type === 'get_messages'
-            ? { messages: [] }
-            : {
-                ...state,
-                sessionName: '-example',
-                model: model(),
-                sessionFile: file,
-                messageCount: 1,
-              },
+  it.each([
+    { cross: true, persisted: true },
+    { cross: true, persisted: false },
+    { cross: false, persisted: true },
+    { cross: false, persisted: false },
+  ])(
+    'rebinds model switches without resuming an unwritten file (%j)',
+    async ({ cross, persisted }) => {
+      const s = setup()
+      const session = await s.binding.sessions.start({ repository: machine.repository })
+      const lane = s.saved()
+      await s.binding.sessions.attach(lane.laneId, session.sessionId)
+      let provider = 'old'
+      const file = join(machine.dir, 'session.jsonl')
+      if (persisted) await writeFile(file, '{}\n')
+      store.updateLane(lane.laneId, { title: '-example' })
+      const model = () => ({
+        provider,
+        id: 'model',
+        name: 'Model',
+        api: 'test',
+        reasoning: false,
+        input: ['text'],
+        contextWindow: 200000,
+        maxTokens: 4096,
+        cost: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+      })
+      s.runtime.command.mockImplementation(async (_id, cmd) => {
+        if (cmd.type === 'set_model') provider = cmd.provider
+        return {
+          type: 'response',
+          command: cmd.type,
+          success: true,
+          data:
+            cmd.type === 'get_messages'
+              ? { messages: [] }
+              : {
+                  ...state,
+                  sessionName: '-example',
+                  model: model(),
+                  sessionFile: file,
+                  messageCount: 1,
+                },
+        }
+      })
+      await s.binding.command(session.sessionId, {
+        type: 'set_model',
+        provider: cross ? 'new' : 'old',
+        modelId: 'model',
+      })
+      expect(s.runtime.stop).toHaveBeenCalledTimes(cross ? 1 : 0)
+      if (cross)
+        expect(s.runtime.start).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            repository: machine.repository,
+            ...(persisted ? { sessionPath: file } : {}),
+            provider: 'new',
+            model: 'model',
+          }),
+          expect.any(Function),
+        )
+      if (cross) {
+        expect(s.runtime.start.mock.calls.at(-1)?.[0]).not.toHaveProperty('name')
+        if (!persisted) {
+          expect(s.runtime.start.mock.calls.at(-1)?.[0]).not.toHaveProperty('sessionPath')
+          expect(s.runtime.command).toHaveBeenCalledWith(expect.any(String), {
+            type: 'set_session_name',
+            name: '-example',
+          })
+        }
       }
-    })
-    await s.binding.command(session.sessionId, {
-      type: 'set_model',
-      provider: cross ? 'new' : 'old',
-      modelId: 'model',
-    })
-    expect(s.runtime.stop).toHaveBeenCalledTimes(cross ? 1 : 0)
-    if (cross)
-      expect(s.runtime.start).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          repository: machine.repository,
-          sessionPath: file,
-          provider: 'new',
-          model: 'model',
-        }),
-        expect.any(Function),
-      )
-    if (cross) expect(s.runtime.start.mock.calls.at(-1)?.[0]).not.toHaveProperty('name')
-    expect(live.sessionFor(lane.laneId)).not.toBeNull()
-  })
+      expect(live.sessionFor(lane.laneId)).not.toBeNull()
+      expect(live.summaryFor(lane.laneId)).toMatchObject({
+        title: '-example',
+        model: { provider: cross ? 'new' : 'old', id: 'model' },
+      })
+      expect(store.getLane(lane.laneId)?.model).toEqual({
+        provider: cross ? 'new' : 'old',
+        id: 'model',
+      })
+      s.push({ kind: 'exit', code: 1, signal: null, expected: false })
+      expect(live.summaryFor(lane.laneId)?.model?.provider).toBe(cross ? 'new' : 'old')
+      live.detach(lane.laneId)
+      expect(live.summaryFor(lane.laneId)?.model?.provider).toBe(cross ? 'new' : 'old')
+    },
+  )
 })
 it('refuses a concurrent prompt while model selection is awaiting pi', async () => {
   const s = setup(),

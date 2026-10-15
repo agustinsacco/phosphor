@@ -781,7 +781,12 @@ New lanes are named by the Host, not by Desktop's pi. The first accepted prompt
 is the immediate fallback title. Explicit rename and generated names use the
 lane's own runtime and publish to other clients. Host config can disable naming.
 Stop before a first saved prompt is refused; provider changes rebind the Host
-process before another turn. Release control uses `hosts:releaseControl` and
+process before another turn. An allocated but unwritten session path is not a
+resume file: the Host recreates that process with the selected model and restores
+its name. Saved lanes resume their transcript. The selected model remains in the
+lane summary after stop or failure. Desktop retains full model metadata per open
+lane in memory; without it, a stopped lane's chip shows its last reported model id,
+never another lane's model name. Release control uses `hosts:releaseControl` and
 the existing fenced `control.release` operation.
 
 Folder browse/add/remove and lane delete use typed main IPC and Host receipts.

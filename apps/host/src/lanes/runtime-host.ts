@@ -190,16 +190,28 @@ export function createRuntimeLanes(options: {
           if (!lane || lane.removedAt !== null) throw new Error('Lane unavailable.')
           if (bindings.get(args[0]) !== binding || live.sessionFor(laneId) !== args[0])
             throw new Error('Lane unavailable.')
+          // pi allocates a session path before the first prompt writes it. Only
+          // pass a saved file to resume admission; otherwise recreate the lane.
+          const persisted =
+            !!selected.sessionFile &&
+            (await lstat(selected.sessionFile).then(
+              (info) => info.isFile(),
+              () => false,
+            ))
+          options.store.updateLane(laneId, {
+            provider: selected.model.provider,
+            model: selected.model.id,
+          })
           await stop(args[0])
           const resumed = await start({
             repository: lane.cwd,
-            ...(selected.sessionFile ? { sessionPath: selected.sessionFile } : {}),
+            ...(persisted ? { sessionPath: selected.sessionFile } : {}),
             provider: selected.model.provider,
             model: selected.model.id,
             thinkingLevel: selected.thinkingLevel,
           })
           try {
-            if (!selected.sessionFile && selected.sessionName) {
+            if (!persisted && selected.sessionName) {
               const named = await runtime.command(resumed.sessionId, {
                 type: 'set_session_name',
                 name: selected.sessionName,
@@ -273,8 +285,20 @@ export function createRuntimeLanes(options: {
         if (
           response.success &&
           ['set_model', 'set_thinking_level', 'set_session_name'].includes(args[1].type)
-        )
-          bindings.get(args[0])?.attachment?.stateChanged()
+        ) {
+          const currentId = binding?.laneId ? live.sessionFor(binding.laneId) : args[0]
+          if (currentId) {
+            if (args[1].type === 'set_model' && binding?.laneId) {
+              const selected = await learnFile(binding.laneId, currentId)
+              if (selected?.model)
+                options.store.updateLane(binding.laneId, {
+                  provider: selected.model.provider,
+                  model: selected.model.id,
+                })
+            }
+            await bindings.get(currentId)?.attachment?.stateChanged()
+          }
+        }
         return response
       } finally {
         if (modelChange && binding) binding.switching = false

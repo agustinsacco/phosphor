@@ -311,6 +311,22 @@ it('returns Host model state without its path or session identity', async () => 
     },
   })
   expect(state.success && state.data).not.toHaveProperty('sessionFile')
+  // A stopped/failed lane has no live lane.state. Keep this handle's last
+  // confirmed model, rather than reverting to its pre-switch snapshot model.
+  vi.mocked(t.c.call).mockResolvedValue({ type: 'result', id: randomUUID(), ok: true, data: null })
+  expect(await t.lanes.command(1, info.sessionId, { type: 'get_state' })).toMatchObject({
+    success: true,
+    data: { model: { provider: 'test-provider', id: 'new-model', name: 'New model' } },
+  })
+  const changing = t.lanes.command(1, info.sessionId, {
+    type: 'set_model',
+    provider: 'other-provider',
+    modelId: 'other-model',
+  })
+  await drain()
+  expect(await changing).toMatchObject({ success: true })
+  const missingMetadata = await t.lanes.command(1, info.sessionId, { type: 'get_state' })
+  expect(missingMetadata.success && missingMetadata.data).toHaveProperty('model', undefined)
   t.c.close()
   t.host.stop()
 })
