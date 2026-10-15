@@ -38,10 +38,21 @@ export interface MachinePorts {
   inspect?: () => Promise<HostInspection>
   configPath?: string
 }
+/** Inspection reads files that can stall; callers queue behind it, so it must settle. */
+export const INSPECTION_DEADLINE_MS = 20_000
 export function featureInspection(
   context: FeatureContext,
   ports: MachinePorts,
 ): Promise<HostInspection> {
+  let timer: NodeJS.Timeout | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new FeatureFailure('internal')), INSPECTION_DEADLINE_MS)
+  })
+  return Promise.race([startInspection(context, ports), deadline]).finally(() =>
+    clearTimeout(timer),
+  )
+}
+function startInspection(context: FeatureContext, ports: MachinePorts): Promise<HostInspection> {
   return ports.inspect
     ? ports.inspect()
     : inspectHost({

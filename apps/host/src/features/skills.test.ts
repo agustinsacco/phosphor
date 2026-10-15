@@ -4,11 +4,12 @@ import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises'
 import * as fsPromises from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { HostInspection } from '../commands/doctor'
 import type { StoredLane } from '../lanes/store'
 import type { FeatureContext, HostFeature } from './feature'
 import { createSkillsFeature } from './skills'
+import { INSPECTION_DEADLINE_MS } from './machine'
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof fsPromises>()
@@ -302,6 +303,31 @@ describe('createSkillsFeature', () => {
     expect(await feature.call('machine.models', {})).toEqual(error('internal'))
     payload = JSON.stringify({ id: 'feature', type: 'response', success: false, error: 'private' })
     expect(await feature.call('machine.models', {})).toEqual(error('internal'))
+  })
+  it('releases the queue when an inspection never settles', async () => {
+    vi.useFakeTimers()
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    let calls = 0
+    const stalled = createSkillsFeature(
+      {
+        home: root,
+        env: {},
+        log: () => {},
+        store: { getLane: () => null, listRepositories: () => [] },
+      },
+      {
+        inspect: () =>
+          calls++ === 0 ? new Promise<never>(() => {}) : Promise.reject(new Error('x')),
+      },
+    )
+    const first = stalled.call('machine.providers', {})
+    const second = stalled.call('machine.models', {})
+    await vi.advanceTimersByTimeAsync(INSPECTION_DEADLINE_MS)
+    expect(await first).toEqual(error('internal'))
+    expect(await second).toEqual(error('internal'))
+    expect(calls).toBe(2)
   })
   it('never runs two probes at once', async () => {
     let inFlight = 0
