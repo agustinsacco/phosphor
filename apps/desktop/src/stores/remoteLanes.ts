@@ -199,9 +199,16 @@ export function attachRemoteLanesListener(): () => void {
       useExtensionUiStore.getState().notify({
         title: `${machineLabel(event.hostId)} · ${event.title}`,
         message: event.kind,
+        receipt: {
+          facts: event.receipt,
+          machine: machineLabel(event.hostId),
+          machineId: event.hostId,
+          laneId: event.laneId,
+          at: event.at,
+        },
         kind: event.kind === 'failed' ? 'error' : 'info',
         openLabel: 'Open lane',
-        onOpen: () => void openRemoteLane(event.hostId, event.laneId),
+        onOpen: () => openRemoteLane(event.hostId, event.laneId),
       })
     })
   })

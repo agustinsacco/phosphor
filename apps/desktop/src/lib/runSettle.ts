@@ -9,18 +9,22 @@ import type { PiEvent } from '@shared/rpc'
  * reload) has nothing to report, and neither has an aborted run: only the stop
  * control aborts, so the user was already looking.
  */
-export function createSettleTracker(): {
-  /** True when `event` settles a run that ran to an end of its own. */
+export function createSettleTracker(now: () => number = Date.now): {
   finished: (sessionId: string, event: PiEvent) => boolean
+  settle: (sessionId: string, event: PiEvent) => { finished: boolean; startedAt: number | null }
   forget: (sessionId: string) => void
 } {
-  const running = new Set<string>()
+  const running = new Map<string, number>()
+  function settle(sessionId: string, event: PiEvent) {
+    if (event.type === 'agent_start' && !running.has(sessionId)) running.set(sessionId, now())
+    if (event.type !== 'agent_settled') return { finished: false, startedAt: null }
+    const startedAt = running.get(sessionId) ?? null
+    const finished = running.delete(sessionId) && !event.aborted
+    return { finished, startedAt }
+  }
   return {
-    finished(sessionId, event) {
-      if (event.type === 'agent_start') running.add(sessionId)
-      if (event.type !== 'agent_settled') return false
-      return running.delete(sessionId) && !event.aborted
-    },
+    settle,
+    finished: (sessionId, event) => settle(sessionId, event).finished,
     forget: (sessionId) => void running.delete(sessionId),
   }
 }

@@ -18,6 +18,9 @@ import { type HostStore } from './store'
 import { createLaneStreams, createLanesTopic, streamLimits, type StreamLimits } from './stream'
 
 type Attachment = {
+  receiptAssistantFailed?: boolean
+  receiptStartedAt?: number
+  receiptTiming?: { start: number; end: number }
   firstPrompt?: string
   sessionId: string
   projection: LaneProjection
@@ -188,7 +191,7 @@ export function createLiveLanes(options: {
           else if (summary.activity === 'failed') kind = 'failed'
         }
         if (summary.activity === 'idle' && live.run && live.ended) {
-          kind = 'finished'
+          kind = live.receiptAssistantFailed ? 'failed' : 'finished'
           live.run = live.ended = false
         }
         if (kind) summary = { ...summary, attention: options.store.bumpAttention(laneId) }
@@ -270,14 +273,24 @@ export function createLiveLanes(options: {
     const live = attached.get(laneId)
     if (!live || live.exited || push.kind === 'stderr' || push.kind === 'resync') return
     if (push.kind === 'event') {
+      if (push.event.type === 'message_end' && push.event.message.role === 'assistant') {
+        live.receiptAssistantFailed =
+          push.event.message.stopReason === 'error' || !!push.event.message.errorMessage
+      }
       if (push.event.type === 'agent_start') {
+        if (live.receiptStartedAt === undefined) live.receiptAssistantFailed = false
+        live.receiptStartedAt ??= options.now()
         live.run = true
         live.ended = false
       } else if (
         push.event.type === 'agent_settled' ||
         (push.event.type === 'agent_end' && !push.event.willRetry)
-      )
+      ) {
+        if (live.receiptStartedAt !== undefined)
+          live.receiptTiming = { start: live.receiptStartedAt, end: options.now() }
+        if (push.event.type === 'agent_settled') live.receiptStartedAt = undefined
         live.ended = true
+      }
     }
     live.binding.deliver(push)
     streams.publish(laneId, { kind: 'pi', push })
@@ -309,6 +322,7 @@ export function createLiveLanes(options: {
       const live = attached.get(laneId)
       return live && !live.exited ? live.sessionId : null
     },
+    receiptTiming: (laneId: string) => attached.get(laneId)?.receiptTiming,
     openDialogs: (laneId: string) =>
       attached
         .get(laneId)

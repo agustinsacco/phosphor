@@ -1067,7 +1067,8 @@ function handle(cmd) {
             'ExtensionUiHosts.tsx',
         })
       }
-      if (message.includes('mermaidviewer')) {
+      if (message === 'PHX-receipt') runReceiptTurn()
+      else if (message.includes('mermaidviewer')) {
         runTextTurn(
           '```mermaid\nflowchart LR\n' +
             Array.from({ length: 12 }, (_, i) => `N${i}[Stage ${i}] --> N${i + 1}`).join('\n') +
@@ -1167,6 +1168,58 @@ function persist(message) {
   } catch {
     /* best effort */
   }
+}
+
+async function runReceiptTurn() {
+  out({ type: 'agent_start' })
+  await new Promise((resolve) => setTimeout(resolve, 700))
+  fs.writeFileSync('hello.ts', 'export const hello = "receipt"\n')
+  for (const [name, args, result] of [
+    [
+      'edit',
+      { path: 'hello.ts' },
+      { content: [{ type: 'text', text: 'Edited hello.ts' }], details: { diff: '-1 old\n+1 new' } },
+    ],
+    [
+      'bash',
+      { command: 'npm test' },
+      { content: [{ type: 'text', text: '1 test passed' }], details: { exitCode: 0 } },
+    ],
+  ]) {
+    const toolCallId = `receipt_${name}`
+    const call = {
+      role: 'assistant',
+      content: [{ type: 'toolCall', id: toolCallId, name, arguments: args }],
+      stopReason: 'toolUse',
+      timestamp: Date.now(),
+    }
+    out({ type: 'message_start', message: call })
+    persist(call)
+    out({ type: 'message_end', message: call })
+    out({ type: 'tool_execution_start', toolCallId, toolName: name, args })
+    out({ type: 'tool_execution_end', toolCallId, toolName: name, isError: false, result })
+    const resultMessage = {
+      role: 'toolResult',
+      toolCallId,
+      toolName: name,
+      ...result,
+      isError: false,
+      timestamp: Date.now(),
+    }
+    persist(resultMessage)
+    out({ type: 'message_end', message: resultMessage })
+  }
+  const message = {
+    role: 'assistant',
+    content: [{ type: 'text', text: 'Receipt ready.' }],
+    stopReason: 'stop',
+    timestamp: Date.now(),
+  }
+  out({ type: 'message_start', message })
+  persist(message)
+  out({ type: 'message_end', message })
+  out({ type: 'agent_end', messages: [message] })
+  out({ type: 'agent_settled', aborted: false })
 }
 
 function runTurn() {
