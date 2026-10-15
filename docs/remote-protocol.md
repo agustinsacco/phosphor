@@ -80,6 +80,23 @@ loopback transport, fake Host and reusable conformance suite. Production
 sources cannot import it; a boundary test enforces this rule. Crypto is
 injected into the fake, and the tests verify real Ed25519 proofs.
 
+## Lane receipt call
+
+`lane.receipt {laneId}` is a read-only call under the existing `sessions.read`
+capability. It does not change hello, the capability list or protocol version.
+It returns a bounded `LaneReceipt` from `libs/shared/src/lane-receipt.ts`: title,
+repository/branch labels, `settledAt`, duration, file/line counts, tests, artifacts,
+excerpt and `done`/`error` outcome. It summarizes a settled run, not the prompt
+currently in flight, and works for live and stopped admitted lanes. No caller
+supplies a transcript path. Older Hosts can answer `unsupported`; the connection
+stays usable and Desktop keeps the plain notice.
+
+This is a run summary, not a durable command receipt or execution acknowledgement.
+[Lane notices](chat.md#lane-notices) own the meaning of each displayed fact;
+[Desktop enrichment](remote-desktop.md#attention-receipt-enrichment) owns freshness,
+outcome matching and timeout behavior. Legacy Claude marker recognition is shared
+with Desktop through `libs/shared/src/external-tool-marker.ts`.
+
 ## Host grants
 
 `libs/shared/src/host-grant.ts` defines

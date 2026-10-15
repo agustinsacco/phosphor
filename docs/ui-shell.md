@@ -79,7 +79,9 @@ header, lane row, indicator and subtitle primitives, grouped by configured
 repository. Search commits on Enter; the group menu collapses lanes; + preselects
 that repository for remote creation.
 
-<!-- pending: L -->
+Host + opens the home composer with that repository selected. Sidebar New under
+a Host filter uses its last-used available repository, otherwise the first.
+There is no New-lane modal; see [remote creation](remote-desktop.md#machine-context-and-lane-creation).
 
 Empty repositories show “No lanes yet”. All machines puts local groups first, then machine-labelled Host groups.
 Signed-out windows have no machine switcher or remote groups.
@@ -463,7 +465,9 @@ selection (All machines uses This Mac), with a user override until the next
 sidebar change. Remote creation uses that machine's configured repositories and
 provider catalogue, never a local fallback.
 
-<!-- pending: L -->
+The Host home composer uses that machine's folder, model and thinking choices.
+[Remote creation](remote-desktop.md#machine-context-and-lane-creation) owns isolation,
+branch collisions and window-local thinking memory.
 
 Main owns directory traffic. Realtime is only a debounced change signal, with
 60 s polling while disconnected. A 5 s local timer updates relative times and

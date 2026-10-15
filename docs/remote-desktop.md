@@ -71,7 +71,9 @@ Attention publishes `hosts:attention` and a machine-titled OS notification for
 lanes not focused in any focused window. Notifications are deduplicated in
 bounded memory. Clicking focuses a window and sends `hosts:openLaneRequested`.
 
-<!-- pending: K -->
+An OS notification click targets one window only. In-app cards, attention toasts,
+notification clicks and local rows under a Host filter share
+[notice navigation](chat.md#notice-navigation).
 
 `hosts:setFocusedLane` tracks each window's active remote lane, or null for a
 local lane. Read counters come from the Host and clear unread across clients.
@@ -81,15 +83,41 @@ Unrouted machine channels reject opaque remote workspace keys and remote handles
 including nested options, with “Not available on remote lanes yet.” They never
 fall through to this machine's filesystem or subprocesses.
 
+### Attention receipt enrichment
+
+Main requests [the lane receipt call](remote-protocol.md#lane-receipt-call) only
+for unfocused `finished`, `failed` and `routine-finished` attention. It waits at
+most two seconds for enrichment. Missing support, refusal, invalid data or timeout
+leaves the plain card. A receipt is used only when its outcome matches the event
+and `settledAt` is within 30 seconds of the attention time. A newer attention
+event for that lane supersedes a pending publication. Replies from replaced
+connections, removed lanes or connections without `sessions.read` are discarded.
+
+The Host reports provider-error completions as failed, not finished.
+[Lane notices](chat.md#lane-notices) own card contents and fact meanings. Host OS
+notification bodies carry facts only, or a fixed status when facts are unavailable;
+no answer excerpt is included. This Mac completion notices remain in-app only.
+
 ## Machine context and lane creation
 
 Remote creation uses machines announcing `sessions.control` and selects one of
 that machine's configured repositories, not a local folder.
 
-<!-- pending: L -->
+The repository + opens that Host's home composer with the repository selected.
+Sidebar New under a Host filter uses its last-used available repository, or the
+first configured one. There is no New-lane modal. Submitting creates and opens
+the lane, acquires control if needed, then sends the prompt. Only a confirmed
+prompt clears the draft; failure keeps it.
 
-An unavailable selection
-stays selected and disabled. Failure never starts a local session instead.
+Isolation follows This Mac's worktree preference and branch-naming rule. Generated
+Host branches trim only the slug to fit the 100-character flattened limit; an
+oversized prefix fails before sending. Desktop requests `worktree.fresh: true`,
+trying the base name once, then retrying only confirmed `branch-exists` refusals
+with `-2` through `-5`. Exhaustion shows “Couldn't find a free branch name on <machine>.” and keeps the
+draft. Unknown outcomes never trigger a branch retry. The Host's new-only guarantee
+and older-Host compatibility are in [Creating lanes](host.md#creating-lanes).
+
+An unavailable selection stays selected and disabled. Failure never starts a local session instead.
 
 Remote header and pane chips report Connected, Reconnecting or Down from the
 connection snapshot. Directory-down Hosts retain greyed, disabled lanes labelled
@@ -265,11 +293,15 @@ The home composer follows the sidebar machine selection (All machines uses This
 Mac). A picker override lasts until the next sidebar selection change. This target
 is window-local renderer state, never persisted. Host-targeted folder, model and
 thinking chips use that machine's repositories and signed-in provider catalogue.
-There is no branch chip when the snapshot supplies no branch information. The
-model prefers the last usable choice on that Host, then a usable Desktop default,
+The branch choice follows the isolation rule above. The model prefers the last usable choice on that Host, then a usable Desktop default,
 then the first model of the first ready provider. The effective choice is visible.
 
-<!-- pending: L -->
+Thinking is remembered per Host in this window, capped at 64 Hosts. Sign-out or
+remote disable clears it, and restart resets it; it never writes agent settings.
+Without a remembered choice it starts from This Mac's valid default thinking
+level, or `off` when unavailable, clamped to the selected model's supported levels.
+A successful thinking change in a live Host lane updates that Host's remembered
+choice.
 
 Remote row actions, title precedence, pins, markers and delete confirmations are
 owned by [Lanes](lanes.md#remote-lanes). Authentication remedies open that machine's
@@ -342,7 +374,8 @@ which lane is focused.
 
 The Host owns lane naming and lifecycle; see [Host lifecycle](host.md#remote-lane-names-and-lifecycle).
 
-<!-- pending: J -->
+Host-generated names change the lane title, not its branch.
+[Host naming](host.md#remote-lane-names-and-lifecycle) owns package resolution and diagnostics.
 
 Desktop retains full model metadata per open lane in memory. Without it, a
 stopped lane's chip shows its last reported model id, never another lane's model

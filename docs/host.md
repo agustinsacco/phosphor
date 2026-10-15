@@ -898,7 +898,7 @@ The credential stays in pi's or Claude's own store. Control receives none of it.
 
 ## accept
 
-<!-- pending: J -->
+Claude acceptance validates its model selection before starting a session.
 
 `phosphor accept --repository DIR` runs real sessions on this machine and
 reports what they proved. DIR must be inside a configured repository. Use an
@@ -912,9 +912,10 @@ provider named without a model, so `--provider` alone exits 64. Name a native
 model when pi's default is Claude. The lane must run on the provider named, or
 on pi's default when none is, which must be some provider other than
 `pi-claude-cli`. `claude` runs on `pi-claude-cli` and the model `--claude-model`
-names; without one it runs on pi's default, which must then be Claude, and the
-state step fails with a hint if it is not. Each lane must run on the model
-named: pi's model id, which may carry a `:level` thinking suffix or be written
+names. Without one, pi's default must be Claude; otherwise acceptance refuses
+with usage exit 64 and a `--claude-model` hint before starting any session.
+This preflight also applies to an available Claude lane in `--lane all`. Each lane
+must run on the model named: pi's model id, which may carry a `:level` thinking suffix or be written
 `provider/id`, with the provider named or, when none is, the one the lane runs
 on.
 `all`, the default, runs native and then Claude, if doctor finds the Claude lane
@@ -1029,11 +1030,13 @@ An extension move followed by daemon shutdown or a crash before either can leave
 the stored file stale ([HL1](known-issues.md#host-lanes)).
 
 `lanes/calls.ts` dispatches registered machine features plus repository listing
-and the five lane queries: state, messages, stats, models and commands. Params must
+and six lane queries: state, messages, stats, models, commands and the
+[receipt summary](remote-protocol.md#lane-receipt-call). Params must
 be an object; lane queries require a UUID lane id and
 ignore other keys. Removed or unknown lanes fail. Stopped state is null; stopped
-messages use the same reader as snapshots, including an empty result for a file
-not written yet. Other stopped queries fail `lane-stopped`. Reader failures are
+messages and receipt summaries use the same reader as snapshots, including an
+empty transcript for a file not written yet. Other stopped queries fail
+`lane-stopped`. Reader failures are
 `internal` or `too-large`; live RPC failure, invalid shape or a 30-second deadline
 is `internal` with fixed text. No pi error or stack leaves this query boundary.
 Capabilities, concurrent-call bounds and frame sizing belong to the API adapter.
@@ -1061,6 +1064,15 @@ For an existing branch, a clean worktree registered by another process at the sa
 path at the same instant can be removed, but never one with changes.
 A process that can write the repository folder can still race git between the
 containment check and the spawn; the Host trusts the owner's repository folders.
+
+`lane.create` with `worktree.fresh: true` requests new-only branch creation. The
+Host checks for an existing ref before repository writes, then atomically creates
+the ref with `git update-ref` against an absent value. An existing or racing ref
+returns `branch-exists`; it never reuses that branch. Older Hosts that ignore the
+additive `fresh` field can reuse an existing branch when no lane or checked-out
+worktree excludes it.
+Desktop's bounded name retries are owned by
+[remote creation](remote-desktop.md#machine-context-and-lane-creation).
 
 A provider id is at most 64 characters; a model id is at most 128. A model alone
 uses pi's provider selection. A provider alone does not change that selection.
@@ -1477,17 +1489,21 @@ for bounds, deletion policy and the connection capability matrix.
 
 ## Remote lane names and lifecycle
 
-<!-- pending: J -->
+The Host owns the generated title; it does not rename the branch.
 
 An unnamed lane immediately uses its first accepted user message as its summary
 title: the first nonempty line, trimmed, at most 80 characters. The Host also
 names new lanes after the first accepted prompt. `autoNameLanes` is a boolean,
-default on. Naming is silent on failure and never logs prompts, titles or output.
+default on. Naming failures stay out of chat. The Host logs `lane.naming` with
+`laneId`, a fixed outcome token and elapsed `ms`, never prompts, titles or output.
 Only one naming subprocess runs at a time, with at most 64 pending jobs. It uses
 the lane's provider and the cheapest eligible model in the same family and region,
 falling back to the lane model. Print mode has no stdin, tools, context files,
 skills or templates; thinking is off. Fast boot loads only the Claude provider's
-extension when needed. Every run has a 30 second timeout, a 4 KiB output cap,
+extension files when needed, resolved from the installed package with
+`resolvePackagePaths`. Empty resolution skips naming with
+`skipped-no-provider-package`. Print mode waits for stdout to close before
+accepting its result. Every run has a 30 second timeout, a 4 KiB output cap,
 and its own process group, killed on completion or failure. Host shutdown cancels
 the active naming group and discards queued naming work.
 

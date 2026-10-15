@@ -35,7 +35,7 @@ public tunnels and disabling TLS verification are not part of this transport.
 2. Run `phosphor setup --repository DIR`, then `phosphor doctor`. Use
    `phosphor providers` and `phosphor providers login PROVIDER` to sign in there.
    `phosphor accept --repository DIR` proves real sessions in a disposable repository.
-   <!-- pending: J -->
+   [Acceptance](host.md#accept) explains when the Claude lane needs `--claude-model`.
 3. Sign in to Phosphor with GitHub in Desktop. Open Machines > Add a machine.
    Use its guided [SSH installation](remote-desktop.md#install-a-host-over-ssh), or run
    `phosphor login` on the Host and approve the code after comparing fingerprints.
@@ -84,7 +84,9 @@ Select the Host and one of its configured repositories. Folder and model choices
 belong to that machine, never This Mac. An unavailable machine never causes a local
 session to start instead.
 
-<!-- pending: L -->
+New lane opens the Host home composer, not a dialog.
+[Remote creation](remote-desktop.md#machine-context-and-lane-creation) owns
+repository selection, thinking and branch isolation.
 
 ```mermaid
 sequenceDiagram
@@ -122,7 +124,8 @@ an action. Refresh or inspect the lane before deciding what to do next.
 | Routines             | Create paused definitions, explicitly enable schedules, run, cancel and inspect history on the Host                                    | [Routines](routines.md#host-routines)                                          |
 | Attention            | Unread counters and machine-titled OS notifications                                                                                    | [Desktop connections](remote-desktop.md#desktop-host-connections)              |
 
-<!-- pending: K -->
+[Lane notices](chat.md#lane-notices) show run receipts and open the destination
+without losing its machine context.
 
 Each feature is capability-gated. Connection loss disables actions; failed reads
 show Unavailable, not fabricated zero counts or local data. Unsupported remote

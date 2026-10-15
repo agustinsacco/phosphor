@@ -960,6 +960,41 @@ Both keys arrive through pi's extension-UI status channel into
 `composer/rateLimit.ts` each return `null` for a missing or malformed payload,
 so a bad push degrades to "section absent" rather than a broken meter.
 
+## Lane notices
+
+A background lane's completion appears as a Receipt card with a machine-coloured
+edge and chip, title, repository/branch, and an answer excerpt or “Stopped: …”.
+Known facts show duration, files and lines ±, test pass/fail and artifacts; missing
+facts stay absent. File counts cover the run's completed successful `edit`/`write`
+tools, not git status or a count of every filesystem change. Test facts come from
+recognized standalone test commands, not arbitrary prose or compound shell commands.
+Legacy Claude tool markers use the shared `libs/shared/src/external-tool-marker.ts`
+recognition rather than becoming answer excerpts.
+
+Open lane opens the destination. View changes appears when files are reported and
+opens its Changes pane. Retry appears for errors and opens/focuses that lane's
+composer; it does not resend a prompt. Dismiss closes the notice. A lane's existing
+card updates rather than stacking a new card for each lifecycle change.
+
+This Mac lanes notify in-app only. Host attention can include facts from the
+[read-only receipt call](remote-protocol.md#lane-receipt-call); an older Host's
+refusal keeps the plain card without invented facts. Host OS notification bodies
+show facts or fixed status, never the answer excerpt. Main's freshness and timeout
+rules are in [receipt enrichment](remote-desktop.md#attention-receipt-enrichment).
+
+### Notice navigation
+
+In-app cards, Host attention toasts, OS clicks and This Mac rows under a Host
+filter use `navigateToLane`. It aligns this window's machine filter while keeping
+All machines, closes any global page, and opens or adopts the lane. Later user
+navigation cancels the pending operation. An offline Host or removed lane leaves
+the current view in place with one visible error notice. An OS click affects one
+window, not every window.
+
+Success reveals the destination's sidebar group: expand, never toggle closed,
+and clear that group's search. This Mac groups use the sidebar's own project and
+representative-folder grouping rule, so worktree rows reveal the correct group.
+
 ## Remote lanes
 
 Remote lanes use the same transcript renderer as local lanes. The header names
@@ -972,7 +1007,8 @@ are checked in main and again by the Host.
 Remote creation uses the target machine's configured repositories and model
 catalogue. An unavailable Host never starts a local session instead.
 
-<!-- pending: L -->
+Create from the Host home composer; [remote creation](remote-desktop.md#machine-context-and-lane-creation)
+owns repository, thinking and branch choices.
 
 Slash commands come from the lane; file mentions search its Host file list.
 Thinking levels derive from its model. Continue waits for the receipt and echo
@@ -989,6 +1025,6 @@ The composer disables during disconnection and recovers from the Host snapshot.
 Opening or focusing the lane marks it read on the Host; counters clear across
 clients. [Desktop routing](remote-desktop.md) owns connection and receipt details.
 
-<!-- pending: K -->
+[Lane notices](#lane-notices) share one machine-aware navigation path.
 
 Remote Artifacts requires `artifacts.read`; see [remote artifacts](remote-desktop.md#remote-artifacts).
