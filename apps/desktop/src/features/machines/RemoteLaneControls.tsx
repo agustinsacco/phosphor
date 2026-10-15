@@ -36,7 +36,7 @@ export function RemoteLaneControls({ sessionId }: { sessionId: string }): React.
   const controller = lane?.control.controller
   const enabled = host?.state === 'ready' && host.capabilities.includes('sessions.control')
   async function act(
-    channel: 'hosts:takeControl' | 'hosts:stopLane' | 'hosts:resumeLane',
+    channel: 'hosts:takeControl' | 'hosts:stopLane' | 'hosts:resumeLane' | 'hosts:releaseControl',
   ): Promise<void> {
     setBusy(true)
     try {
@@ -61,6 +61,11 @@ export function RemoteLaneControls({ sessionId }: { sessionId: string }): React.
       {!canControlSession(sessionId) && (
         <Button size="xs" disabled={!enabled || busy} onClick={() => void act('hosts:takeControl')}>
           Take control
+        </Button>
+      )}
+      {canControlSession(sessionId) && (
+        <Button size="xs" disabled={busy} onClick={() => void act('hosts:releaseControl')}>
+          Release control
         </Button>
       )}
       {canControlSession(sessionId) && (

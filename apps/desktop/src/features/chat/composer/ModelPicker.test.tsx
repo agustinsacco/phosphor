@@ -114,3 +114,32 @@ describe('ModelPicker', () => {
     expect(chip().textContent).toContain(CODEX.name)
   })
 })
+
+it.each([
+  [SESSION, 'bee1-a', SESSION],
+  ['bee1-a', 'bee1-b', 'bee1-a'],
+])('model/thinking menu stays session-scoped on %j switches', (...sequence) => {
+  const base = useChatStore.getState().sessions[SESSION]!.meta!
+  for (const [id, chosen] of [
+    ['bee1-a', CLAUDE],
+    ['bee1-b', { ...CODEX, id: 'other-model', name: 'Other repo model', reasoning: false }],
+  ] as const) {
+    useChatStore.getState().ensure(id)
+    useChatStore.getState().setMeta(id, { ...base, model: chosen, thinkingLevel: 'off' })
+    useChatStore.getState().setModels(id, [chosen])
+  }
+  render()
+  for (const id of sequence) {
+    act(() => root!.render(<ModelPicker key={id} sessionId={id} />))
+    const name =
+      id === SESSION ? 'GPT-5' : id === 'bee1-a' ? 'Claude Haiku 4.5' : 'Other repo model'
+    expect(chip().textContent).toContain(name)
+    act(() => chip().click())
+    const rows = [...document.querySelectorAll('[data-testid=model-row]')]
+      .map((row) => row.textContent)
+      .join(' ')
+    expect(rows).toContain(name)
+    if (id === 'bee1-b') expect(rows).not.toContain('Claude Haiku')
+    act(() => chip().click())
+  }
+})

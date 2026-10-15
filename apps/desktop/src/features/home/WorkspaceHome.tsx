@@ -1,6 +1,12 @@
+import { useHomeSubmissionsStore } from '@/stores/homeSubmissions'
+import { HostHome } from './HostHome'
+import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import { useComposerMachine } from './useComposerMachine'
 import { MachinePicker } from '@/features/machines/MachinePicker'
-import { NewRemoteLane } from '@/features/sessions/RemoteLanes'
+import { RemoteModelPicker, useRemoteModel } from '@/features/machines/RemoteModelPicker'
+import { ChoiceMenu } from '@/components/ChoiceMenu'
+import { useRemoteLanesStore, machineLabel } from '@/stores/remoteLanes'
+import { startRemoteChat } from './startRemoteChat'
 import { TooltipSummary, TooltipLabel, tooltipProps } from '@/components/Tooltip'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
@@ -35,11 +41,15 @@ import { homeDraftKey, useDraftsStore } from '@/stores/drafts'
 /** Workspace workbench with the existing first-prompt composer kept in reach. */
 export function WorkspaceHome({ workspacePath }: { workspacePath: string }): React.JSX.Element {
   const [composerMachine, setComposerMachine] = useComposerMachine()
-  const [creatingOn, setCreatingOn] = useState<string | null>(null)
+  const remoteHost = useRemoteLanesStore((s) => s.hosts[composerMachine])
+  const selection = useRemoteModel(composerMachine === 'local' ? '' : composerMachine)
+  const [repository, setRepository] = useState<{ hostId: string; id: string } | null>(null)
+  const repositoryId =
+    repository?.hostId === composerMachine ? repository.id : (remoteHost?.repositories[0]?.id ?? '')
+  const [addingFolder, setAddingFolder] = useState(false)
+  useEffect(() => setAddingFolder(false), [composerMachine])
   const [stats, setStats] = useState<WorkspaceSessionStats | null>(null)
   const [username, setUsername] = useState('')
-  const laneBoard = useLaneBoard(workspacePath)
-  const headline = boardHeadline(laneBoard.board)
   /*
    * The first-prompt draft, per workspace, persisted.
    *
@@ -49,6 +59,9 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
    * so composing against two projects keeps two drafts.
    */
   const draftKey = homeDraftKey(workspacePath)
+  const remoteBusy = useHomeSubmissionsStore((s) => !!s.pending[draftKey])
+  const filter = useRemoteLanesStore((s) => s.filter)
+  const homeHostId = filter === 'local' || filter === 'all' ? null : filter
   const draft = useDraftsStore((s) => s.drafts[draftKey])
   const text = draft?.text ?? ''
   const images = draft?.attachments ?? EMPTY_ATTACHMENTS
@@ -95,6 +108,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
   const workspaceName = projectName(workspacePath, git)
 
   useEffect(() => {
+    if (homeHostId) return
     void window.phosphor.invoke('sessions:stats', workspacePath).then(setStats)
     void window.phosphor
       .invoke('app:userInfo')
@@ -111,7 +125,7 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
     // costs nothing.
     prefetchTrunk(workspacePath)
     textareaRef.current?.focus()
-  }, [workspacePath])
+  }, [workspacePath, homeHostId])
 
   /**
    * Take back a message whose session failed to start.
@@ -136,9 +150,42 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
 
   const start = async (): Promise<void> => {
     const message = text.trim()
-    if ((!message && images.length === 0) || starting) return
+    if (
+      (!message && images.length === 0) ||
+      starting ||
+      useHomeSubmissionsStore.getState().pending[draftKey]
+    )
+      return
     if (composerMachine !== 'local') {
-      setCreatingOn(composerMachine)
+      if (!repositoryId || !selection.model) {
+        setWarning(selection.hint)
+        return
+      }
+      if (!useHomeSubmissionsStore.getState().begin(draftKey)) return
+      const revision = useDraftsStore.getState().revisions[draftKey]
+      try {
+        await startRemoteChat(
+          composerMachine,
+          {
+            repositoryId,
+            provider: selection.model.provider,
+            model: selection.model.id,
+            thinkingLevel: selection.thinking,
+          },
+          message,
+          images,
+          () => {
+            if (useDraftsStore.getState().revisions[draftKey] === revision)
+              useDraftsStore.getState().clear(draftKey)
+          },
+        )
+      } catch {
+        const error = 'The Host could not confirm this. Check the lane before retrying.'
+        setWarning(error)
+        useExtensionUiStore.getState().pushToast(error, 'warning')
+      } finally {
+        useHomeSubmissionsStore.getState().finish(draftKey)
+      }
       return
     }
     setWarning(null)
@@ -212,51 +259,16 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           child of this scroll container, so it stays put. */}
       <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-4 sm:px-8">
         <div className="w-full max-w-6xl pt-8 pb-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-text-secondary mb-2 font-mono text-xs uppercase tracking-wider">
-                {workspaceName}
-              </p>
-              <h1 className="text-4xl font-semibold tracking-tight">
-                {laneBoard.board.lanes.length
-                  ? 'Your workbench'
-                  : `What's up next${username ? `, ${username}` : ''}?`}
-              </h1>
-              <p className="text-text-secondary mt-2 text-lg">
-                {headline ?? 'Give each task a lane. Keep the work in view.'}
-              </p>
-            </div>
-            <Button onClick={() => textareaRef.current?.focus()}>New lane</Button>
-          </div>
-
-          <LaneBoard key={laneBoard.projectRoot} data={laneBoard} />
-          <Ledger workspacePath={workspacePath} stats={stats} lanes={laneBoard.lanes} />
-
-          {stats && stats.sessionCount > 0 && (
-            <details className="border-border bg-bg-secondary/60 mt-6 rounded-xl border p-4">
-              <TooltipSummary className="text-text-tertiary cursor-pointer text-sm">
-                Project stats
-              </TooltipSummary>
-              <div className="mt-3 grid grid-cols-4 gap-2">
-                <StatTile label="Sessions" value={formatNumber(stats.sessionCount)} />
-                <StatTile label="Messages" value={formatNumber(stats.messages)} />
-                <StatTile label="Total tokens" value={formatTokens(stats.tokens)} />
-                <StatTile label="Active days" value={String(stats.activeDays)} />
-              </div>
-              <Heatmap activityByDay={stats.activityByDay} />
-              {stats.cost > 0 && (
-                <div className="text-text-tertiary mt-2 px-1 text-sm">
-                  You&apos;ve spent {formatCost(stats.cost)} thinking out loud in {workspaceName}.
-                </div>
-              )}
-            </details>
-          )}
-
-          {stats && stats.sessionCount === 0 && laneBoard.board.lanes.length === 0 && (
-            <p className="text-text-secondary mt-4 text-center text-lg">
-              Start your first session in <span className="font-medium">{workspaceName}</span> —
-              describe a task below.
-            </p>
+          {homeHostId ? (
+            <HostHome hostId={homeHostId} />
+          ) : (
+            <LocalHomeDashboard
+              workspacePath={workspacePath}
+              workspaceName={workspaceName}
+              stats={stats}
+              username={username}
+              onNew={() => textareaRef.current?.focus()}
+            />
           )}
         </div>
       </div>
@@ -282,28 +294,59 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               capability="sessions.control"
               onChange={(id) => {
                 setComposerMachine(id)
-                setCreatingOn(id === 'local' ? null : id)
               }}
             />
-            {creatingOn && (
-              <NewRemoteLane
-                key={creatingOn}
-                hostId={creatingOn}
-                onMachine={(id) => {
-                  setCreatingOn(id)
-                  setComposerMachine(id ?? 'local')
+            {composerMachine !== 'local' && (
+              <ChoiceMenu
+                label="Repository"
+                value={repositoryId}
+                choices={[
+                  ...(remoteHost?.repositories ?? []).map((repo) => ({
+                    value: repo.id,
+                    label: repo.name,
+                  })),
+                  {
+                    value: '__add__',
+                    label: `Add folder on ${machineLabel(composerMachine)}…`,
+                    disabled:
+                      remoteHost?.state !== 'ready' ||
+                      !remoteHost?.capabilities.includes('workspaces.write'),
+                  },
+                ]}
+                onChange={(id) => {
+                  if (id === '__add__') setAddingFolder(true)
+                  else setRepository({ hostId: composerMachine, id })
                 }}
-                onClose={() => setCreatingOn(null)}
-              />
+              >
+                {remoteHost?.repositories.find((repo) => repo.id === repositoryId)?.name ??
+                  'Choose repository'}
+              </ChoiceMenu>
             )}
-            <WorkspaceChip workspacePath={workspacePath} />
-            {isRepo && <BranchControl workspacePath={workspacePath} />}
-            {isRepo && (
-              <IsolateToggle checked={isolate} disabled={starting} workspacePath={workspacePath} />
+            {composerMachine === 'local' && (
+              <>
+                <WorkspaceChip workspacePath={workspacePath} />
+                {isRepo && <BranchControl workspacePath={workspacePath} />}
+                {isRepo && (
+                  <IsolateToggle
+                    checked={isolate}
+                    disabled={starting}
+                    workspacePath={workspacePath}
+                  />
+                )}
+              </>
             )}
           </div>
+          {addingFolder && composerMachine !== 'local' && (
+            <HostFolderBrowser
+              key={composerMachine}
+              hostId={composerMachine}
+              onClose={() => setAddingFolder(false)}
+              onAdded={(id) => setRepository({ hostId: composerMachine, id })}
+            />
+          )}
           <ComposerInput
-            workspacePath={workspacePath}
+            workspacePath={composerMachine === 'local' ? workspacePath : undefined}
+            remoteAttachments={composerMachine !== 'local'}
             value={text}
             textareaRef={textareaRef}
             onChange={setText}
@@ -313,7 +356,11 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
             attachments={images}
             onAttachmentsChange={setImages}
             onWarning={setWarning}
-            slash={slash}
+            slash={
+              composerMachine === 'local'
+                ? slash
+                : { ...slash, visible: false, sync: () => undefined, handleKeyDown: () => false }
+            }
             commandStatus={commandsStatus}
             commandError={commandsError}
             swarm={{
@@ -321,14 +368,18 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
               onChange: (enabled) => useDraftsStore.getState().patch(draftKey, { swarm: enabled }),
             }}
             modelPicker={
-              <HomeModelPicker
-                override={draft?.model}
-                onPick={(model) => useDraftsStore.getState().patch(draftKey, { model })}
-              />
+              composerMachine !== 'local' ? (
+                <RemoteModelPicker selection={selection} />
+              ) : (
+                <HomeModelPicker
+                  override={draft?.model}
+                  onPick={(model) => useDraftsStore.getState().patch(draftKey, { model })}
+                />
+              )
             }
             actions={
               <SubmitIconButton
-                busy={starting}
+                busy={starting || remoteBusy}
                 disabled={!text.trim() && images.length === 0}
                 onClick={() => void start()}
                 label="Start session"
@@ -338,8 +389,8 @@ export function WorkspaceHome({ workspacePath }: { workspacePath: string }): Rea
           {/* The status strip, as under the chat composer. No session yet, so
               only what new lanes will load. */}
           <div className="text-text-tertiary @container flex min-h-6 flex-wrap items-center gap-x-3 gap-y-0.5 px-2 pt-1.5 text-sm">
-            <ContextSourcesMenu workspacePath={workspacePath} />
-            {text === '' && (
+            {composerMachine === 'local' && <ContextSourcesMenu workspacePath={workspacePath} />}
+            {composerMachine === 'local' && text === '' && (
               <span className="@xl:inline ml-auto hidden min-w-0 flex-1 basis-0 truncate text-right">
                 <span className="font-mono">/</span> commands · <span className="font-mono">@</span>{' '}
                 files
@@ -490,3 +541,71 @@ function formatNumber(n: number): string {
 
 /** Stable empty list: a fresh `[]` per render would remount the chip row. */
 const EMPTY_ATTACHMENTS: PendingAttachment[] = []
+
+/** Mounted only for This Mac: remote home never subscribes to the local lane board. */
+function LocalHomeDashboard({
+  workspacePath,
+  workspaceName,
+  stats,
+  username,
+  onNew,
+}: {
+  workspacePath: string
+  workspaceName: string
+  stats: WorkspaceSessionStats | null
+  username: string
+  onNew: () => void
+}): React.JSX.Element {
+  const laneBoard = useLaneBoard(workspacePath)
+  const headline = boardHeadline(laneBoard.board)
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p className="text-text-secondary mb-2 font-mono text-xs uppercase tracking-wider">
+            {workspaceName}
+          </p>
+          <h1 className="text-4xl font-semibold tracking-tight">
+            {laneBoard.board.lanes.length
+              ? 'Your workbench'
+              : `What's up next${username ? `, ${username}` : ''}?`}
+          </h1>
+          <p className="text-text-secondary mt-2 text-lg">
+            {headline ?? 'Give each task a lane. Keep the work in view.'}
+          </p>
+        </div>
+        <Button onClick={onNew}>New lane</Button>
+      </div>
+
+      <LaneBoard key={laneBoard.projectRoot} data={laneBoard} />
+      <Ledger workspacePath={workspacePath} stats={stats} lanes={laneBoard.lanes} />
+
+      {stats && stats.sessionCount > 0 && (
+        <details className="border-border bg-bg-secondary/60 mt-6 rounded-xl border p-4">
+          <TooltipSummary className="text-text-tertiary cursor-pointer text-sm">
+            Project stats
+          </TooltipSummary>
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            <StatTile label="Sessions" value={formatNumber(stats.sessionCount)} />
+            <StatTile label="Messages" value={formatNumber(stats.messages)} />
+            <StatTile label="Total tokens" value={formatTokens(stats.tokens)} />
+            <StatTile label="Active days" value={String(stats.activeDays)} />
+          </div>
+          <Heatmap activityByDay={stats.activityByDay} />
+          {stats.cost > 0 && (
+            <div className="text-text-tertiary mt-2 px-1 text-sm">
+              You&apos;ve spent {formatCost(stats.cost)} thinking out loud in {workspaceName}.
+            </div>
+          )}
+        </details>
+      )}
+
+      {stats && stats.sessionCount === 0 && laneBoard.board.lanes.length === 0 && (
+        <p className="text-text-secondary mt-4 text-center text-lg">
+          Start your first session in <span className="font-medium">{workspaceName}</span> —
+          describe a task below.
+        </p>
+      )}
+    </>
+  )
+}

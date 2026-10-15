@@ -28,8 +28,14 @@ export function BulkDeleteModal({
   summary,
   onCancel,
   onConfirm,
+  remote = false,
+  busy = false,
+  error,
 }: {
   summary: PreflightSummary
+  remote?: boolean
+  busy?: boolean
+  error?: string | null
   onCancel: () => void
   onConfirm: (options: {
     removeWorktree: boolean
@@ -44,10 +50,14 @@ export function BulkDeleteModal({
   const count = summary.deletable.length
   const hasDirty = summary.deletable.some((lane) => lane.dirtyCount > 0)
   const blocked = summary.needsAcknowledgement && !acknowledged
-  const canDelete = count > 0 && !blocked
+  const canDelete = count > 0 && !blocked && !busy
 
   return (
-    <ModalOverlay onClose={onCancel}>
+    <ModalOverlay
+      onClose={() => {
+        if (!busy) onCancel()
+      }}
+    >
       <div className="bg-surface-raised border-border w-[min(38rem,94vw)] rounded-lg border shadow-2xl">
         <div className="border-border border-b px-5 py-4">
           <h2 className="text-base font-semibold">
@@ -71,9 +81,9 @@ export function BulkDeleteModal({
                   <Badge tone={prBadgeTone(lane)}>
                     {prChip(lane.pr).label} {lane.pr.state.toLowerCase()}
                   </Badge>
-                ) : (
+                ) : !remote ? (
                   <Badge tone="info">no PR</Badge>
-                )}
+                ) : null}
               </div>
             ))}
           </div>
@@ -81,7 +91,9 @@ export function BulkDeleteModal({
 
         <div className="space-y-1 px-5 pb-2">
           <Option checked disabled label="Move the session to Trash">
-            The pi transcript and its paired Claude Code transcript. Recoverable from the OS Trash.
+            {remote
+              ? 'The Host keeps the transcript in its trash for 30 days.'
+              : 'The pi transcript and its paired Claude Code transcript. Recoverable from the OS Trash.'}
           </Option>
           <Option
             checked={removeWorktree}
@@ -123,6 +135,11 @@ export function BulkDeleteModal({
           </div>
         )}
 
+        {error && (
+          <p role="alert" className="text-danger px-5 pb-3 text-sm">
+            {error}
+          </p>
+        )}
         <div className="border-border bg-bg-secondary flex items-center gap-2 rounded-b-lg border-t px-5 py-3">
           <span className="text-text-tertiary text-xs">
             {removeWorktree && summary.worktreeCount > 0
@@ -131,6 +148,7 @@ export function BulkDeleteModal({
           </span>
           <span className="flex-1" />
           <TooltipButton
+            disabled={busy}
             onClick={onCancel}
             className="border-border text-text-secondary hover:text-text rounded-md border px-3 py-1 text-sm"
           >

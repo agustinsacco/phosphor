@@ -15,8 +15,12 @@ export interface DeleteSessionTarget {
 export function DeleteSessionModal({
   target,
   onClose,
+  onRemove,
+  remote = false,
 }: {
   target: DeleteSessionTarget
+  onRemove?: () => Promise<void>
+  remote?: boolean
   onClose: () => void
 }): React.JSX.Element {
   const [busy, setBusy] = useState(false)
@@ -25,10 +29,15 @@ export function DeleteSessionModal({
     setBusy(true)
     setError(null)
     try {
-      await useSessionsStore.getState().deleteSession(target.workspacePath, target)
+      if (onRemove) await onRemove()
+      else await useSessionsStore.getState().deleteSession(target.workspacePath, target)
       onClose()
     } catch (cause) {
-      setError(errorText(cause))
+      setError(
+        remote
+          ? 'The Host could not delete this lane. Check the lane before retrying.'
+          : errorText(cause),
+      )
     } finally {
       setBusy(false)
     }
@@ -43,8 +52,9 @@ export function DeleteSessionModal({
         <h2 className="text-base font-semibold">Delete session?</h2>
         <p className="break-words font-medium">{target.title}</p>
         <p className="text-text-secondary text-sm">
-          Any running turn will be stopped. Saved transcripts go to Trash; unsaved conversation is
-          discarded. The worktree, branch and project files are kept.
+          {remote
+            ? 'Any running turn will be stopped. The Host keeps the transcript in its trash for 30 days. The worktree, branch and project files are kept.'
+            : 'Any running turn will be stopped. Saved transcripts go to Trash; unsaved conversation is discarded. The worktree, branch and project files are kept.'}
         </p>
         {error && (
           <p role="alert" className="text-danger text-sm">

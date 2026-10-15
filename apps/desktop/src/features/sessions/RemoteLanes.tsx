@@ -1,19 +1,16 @@
+import { rememberRemoteModel } from '@/stores/remoteModelPicks'
+import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
+import { RemoteModelPicker, useRemoteModel } from '@/features/machines/RemoteModelPicker'
+import { RemoteLaneRow } from './RemoteLaneRow'
 import { PopupMenu, MenuRow } from '@/components/PopupMenu'
 import { ChoiceMenu } from '@/components/ChoiceMenu'
 import { SearchIcon, MoreIcon, PlusIcon } from '@/components/icons'
-import {
-  LaneRow,
-  WorkspaceGroupHeader,
-  WorkspaceGroupTitle,
-  SessionIndicator,
-  SubtitleSegments,
-} from './SidebarPrimitives'
+import { WorkspaceGroupHeader, WorkspaceGroupTitle } from './SidebarPrimitives'
 import { MachineLabelLine } from './MachineSwitcher'
 import { LaneSearchBar } from './LaneSearchBar'
 import { laneMatches, laneQueryTerms } from './laneSearch'
-import { relativeTimeShort } from '@/lib/time'
 import { MachinePicker } from '@/features/machines/MachinePicker'
-import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
+import { TooltipButton } from '@/components/Tooltip'
 import { useEffect, useRef, useState } from 'react'
 import { isLaneBranchName } from '@shared/host-protocol'
 import { ModalOverlay, ModalPanel } from '@/components/Modal'
@@ -26,7 +23,6 @@ import {
   adoptRemoteLane,
   canReadHost,
   machineLabel,
-  openRemoteLane,
   useRemoteLanesStore,
 } from '@/stores/remoteLanes'
 
@@ -108,6 +104,10 @@ function RemoteRepositoryGroup({
   const [draft, setDraft] = useState('')
   const [query, setQuery] = useState('')
   const [menu, setMenu] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const [removeBusy, setRemoveBusy] = useState(false)
+  const [removeError, setRemoveError] = useState<string | null>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const readable = !!host && canReadHost(host)
   const ready = readable && host.state === 'ready'
@@ -125,6 +125,49 @@ function RemoteRepositoryGroup({
     'text-text-tertiary hover:text-text hover:bg-sidebar-hover flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition-colors'
   return (
     <div>
+      {adding && <HostFolderBrowser hostId={hostId} onClose={() => setAdding(false)} />}
+      {removing && (
+        <ModalOverlay
+          onClose={() => {
+            if (!removeBusy) setRemoving(false)
+          }}
+        >
+          <ModalPanel title={`Remove from ${machineLabel(hostId)}?`} width={420}>
+            <div className="space-y-4 p-4">
+              <p>{name}: files are kept. A repository with a live lane cannot be removed.</p>
+              {removeError && (
+                <p role="alert" className="text-danger">
+                  {removeError}
+                </p>
+              )}
+              <div className="flex justify-end gap-2">
+                <Button disabled={removeBusy} onClick={() => setRemoving(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={
+                    removeBusy || !ready || !host?.capabilities.includes('workspaces.write')
+                  }
+                  onClick={() => {
+                    setRemoveBusy(true)
+                    void window.phosphor
+                      .invoke('hosts:removeRepository', hostId, repositoryId)
+                      .then(() => setRemoving(false))
+                      .catch(() =>
+                        setRemoveError(
+                          'The Host could not remove this folder. Stop its lanes before retrying.',
+                        ),
+                      )
+                      .finally(() => setRemoveBusy(false))
+                  }}
+                >
+                  Remove folder
+                </Button>
+              </div>
+            </div>
+          </ModalPanel>
+        </ModalOverlay>
+      )}
       <WorkspaceGroupHeader>
         <WorkspaceGroupTitle
           name={name}
@@ -169,6 +212,26 @@ function RemoteRepositoryGroup({
           >
             <MenuRow
               active={false}
+              disabled={!ready || !host?.capabilities.includes('workspaces.write')}
+              onClick={() => {
+                setMenu(false)
+                setAdding(true)
+              }}
+            >
+              Add folder on {machineLabel(hostId)}…
+            </MenuRow>
+            <MenuRow
+              active={false}
+              disabled={!ready || !host?.capabilities.includes('workspaces.write')}
+              onClick={() => {
+                setMenu(false)
+                setRemoving(true)
+              }}
+            >
+              Remove from {machineLabel(hostId)}
+            </MenuRow>
+            <MenuRow
+              active={false}
               onClick={() => {
                 setCollapsed(!collapsed)
                 setMenu(false)
@@ -208,60 +271,17 @@ function RemoteRepositoryGroup({
       {!collapsed && (
         <div className={!ready ? 'opacity-50' : undefined}>
           {visible.map((lane) => (
-            <LaneRow
+            <RemoteLaneRow
               key={lane.laneId}
-              disabled={!ready}
-              tooltip={!ready ? REMOTE_NOT_READY : lane.title || 'Untitled lane'}
-              aria-current={
+              hostId={hostId}
+              lane={lane}
+              ready={ready}
+              active={
                 active?.target?.kind === 'remote' &&
                 active.target.hostId === hostId &&
                 active.laneId === lane.laneId
-                  ? 'page'
-                  : undefined
               }
-              data-testid="remote-session-row"
-              data-activity={ready && lane.activity === 'working' ? 'working' : undefined}
-              className={
-                active?.target?.kind === 'remote' &&
-                active.target.hostId === hostId &&
-                active.laneId === lane.laneId
-                  ? 'bg-sidebar-active'
-                  : 'hover:bg-sidebar-hover'
-              }
-              onClick={() => void openRemoteLane(hostId, lane.laneId)}
-            >
-              <SessionIndicator
-                state={
-                  ready && lane.activity === 'working'
-                    ? 'streaming'
-                    : lane.attention > lane.read
-                      ? 'unseen'
-                      : ready
-                        ? 'live'
-                        : 'disk'
-                }
-              />
-              <span className="min-w-0 flex-1">
-                <span className="text-text block truncate text-lg font-medium leading-5">
-                  {lane.title || 'Untitled lane'}
-                </span>
-                <span className="text-text-secondary flex items-center gap-1 text-base leading-4">
-                  <SubtitleSegments
-                    segments={[
-                      { key: 'time', text: relativeTimeShort(Date.parse(lane.updatedAt)) },
-                      ...(lane.worktree ? [{ key: 'worktree' as const, text: 'wt' }] : []),
-                      ...(lane.branch
-                        ? [{ key: 'branch' as const, text: lane.branch, truncate: true }]
-                        : []),
-                    ]}
-                    activity={ready && lane.activity === 'working' ? 'working' : undefined}
-                  />
-                  {(lane.activity === 'failed' || lane.activity === 'needs-input') && (
-                    <span className="text-warning shrink-0">needs you</span>
-                  )}
-                </span>
-              </span>
-            </LaneRow>
+            />
           ))}
           {!visible.length && (
             <p className="text-text-tertiary px-2 py-2 text-sm">
@@ -301,8 +321,8 @@ export function NewRemoteLane({
   )
   const [branch, setBranch] = useState('')
   const [name, setName] = useState('')
-  const [provider, setProvider] = useState('')
-  const [model, setModel] = useState('')
+  const selection = useRemoteModel(hostId)
+  const model = selection.model
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   async function create(): Promise<void> {
@@ -310,9 +330,9 @@ export function NewRemoteLane({
     if (
       !host.repositories.some((repo) => repo.id === repositoryId) ||
       (branch && !isLaneBranchName(branch)) ||
-      !!model !== !!provider
+      !model
     ) {
-      setError('Choose a repository, a valid branch, and both provider and model or neither.')
+      setError('Choose a repository, a valid branch, and a usable model.')
       return
     }
     setBusy(true)
@@ -323,8 +343,11 @@ export function NewRemoteLane({
         repositoryId,
         ...(branch ? { worktree: { branch } } : {}),
         ...(name ? { name } : {}),
-        ...(model ? { model, provider } : {}),
+        ...(model
+          ? { model: model.id, provider: model.provider, thinkingLevel: selection.thinking }
+          : {}),
       })
+      if (model) rememberRemoteModel(hostId, model)
       if (!mounted.current) return
       await adoptRemoteLane(info, nav)
       if (mounted.current) onClose()
@@ -397,36 +420,12 @@ export function NewRemoteLane({
               aria-label="Lane name (optional)"
               placeholder="Name (optional)"
               className="w-full"
-              maxLength={200}
+              maxLength={80}
               value={name}
               onChange={(event) => setName(event.target.value)}
             />
           </label>
-          <details className="text-text-secondary space-y-3 text-sm">
-            <TooltipSummary className="cursor-pointer">Advanced</TooltipSummary>
-            <label className="block space-y-1">
-              <span>Provider</span>
-              <TextInput
-                aria-label="Provider (optional)"
-                placeholder="Provider (optional)"
-                className="w-full"
-                maxLength={200}
-                value={provider}
-                onChange={(event) => setProvider(event.target.value)}
-              />
-            </label>
-            <label className="block space-y-1">
-              <span>Model</span>
-              <TextInput
-                aria-label="Model (optional)"
-                placeholder="Model (optional)"
-                className="w-full"
-                maxLength={200}
-                value={model}
-                onChange={(event) => setModel(event.target.value)}
-              />
-            </label>
-          </details>
+          <RemoteModelPicker selection={selection} />
           {error && <p role="alert">{error}</p>}
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" onClick={onClose}>
@@ -438,6 +437,7 @@ export function NewRemoteLane({
               disabled={
                 busy ||
                 !repositoryId ||
+                !model ||
                 host?.state !== 'ready' ||
                 !host.capabilities.includes('sessions.control')
               }

@@ -1,6 +1,10 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import { useRemoteLanesStore } from './remoteLanes'
-import { useMachineCataloguesStore } from './machineCatalogues'
+import {
+  useMachineCataloguesStore,
+  machineCatalogueKey,
+  EMPTY_MACHINE_CATALOGUE,
+} from './machineCatalogues'
 import { useSkillsStore } from './skills'
 import { mockRemoteHosts, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
 
@@ -13,6 +17,7 @@ beforeEach(() => {
   if (host) host.capabilities.push('skills.read')
   useRemoteLanesStore.setState({ hosts })
   useSkillsStore.setState({ byWorkspace: {} })
+  useMachineCataloguesStore.setState({ catalogues: {} })
   invoke
     .mockReset()
     .mockImplementation(async (method) =>
@@ -30,7 +35,7 @@ it('loads sequential machine reads and never invokes local catalogues', async ()
     'hosts:models',
     'hosts:providers',
   ])
-  expect(useMachineCataloguesStore.getState().models).toEqual(models)
+  expect(catalogue().models).toEqual(models)
 })
 it('does not issue a read for a down or capability-less machine', async () => {
   const hosts = structuredClone(mockRemoteHosts)
@@ -59,9 +64,9 @@ it('ignores a late reply when the Host restarts under a ready snapshot', async (
   resolve?.({ skills: [], probe: 'rpc', userRoot: 'opaque' })
   await pending
   expect(invoke).toHaveBeenCalledTimes(1)
-  expect(useMachineCataloguesStore.getState().models).toEqual([])
+  expect(catalogue().models).toEqual([])
 })
-it.each(['switch', 'reconnect'] as const)('ignores a late reply after %s', async (change) => {
+it.each(['reconnect'] as const)('ignores a late reply after %s', async () => {
   let resolve: ((value: unknown) => void) | undefined
   invoke.mockImplementationOnce(
     () =>
@@ -70,8 +75,7 @@ it.each(['switch', 'reconnect'] as const)('ignores a late reply after %s', async
       }),
   )
   const pending = useMachineCataloguesStore.getState().load(MOCK_HOST_ID)
-  if (change === 'switch') await useMachineCataloguesStore.getState().load(null)
-  else {
+  {
     useRemoteLanesStore.setState((s) => ({
       hosts: { ...s.hosts, [MOCK_HOST_ID]: { ...s.hosts[MOCK_HOST_ID]!, state: 'reconnecting' } },
     }))
@@ -82,12 +86,12 @@ it.each(['switch', 'reconnect'] as const)('ignores a late reply after %s', async
   resolve?.({ skills: [], probe: 'rpc', userRoot: 'opaque' })
   await pending
   expect(invoke).toHaveBeenCalledTimes(1)
-  expect(useMachineCataloguesStore.getState().models).toEqual([])
+  expect(catalogue().models).toEqual([])
   expect(useSkillsStore.getState().byWorkspace[`host:${MOCK_HOST_ID}/machine`]).toBeUndefined()
 })
 
 it.each(['hosts:models', 'hosts:providers'] as const)(
-  'ignores late %s after a machine switch',
+  'retains late %s when a consumer leaves',
   async (stage) => {
     let resolve: ((value: unknown) => void) | undefined
     invoke.mockImplementation(async (method) => {
@@ -95,16 +99,20 @@ it.each(['hosts:models', 'hosts:providers'] as const)(
         return new Promise((done) => {
           resolve = done
         })
-      return method === 'hosts:skills' ? { skills: [], probe: 'rpc', userRoot: 'opaque' } : models
+      return method === 'hosts:skills'
+        ? { skills: [], probe: 'rpc', userRoot: 'opaque' }
+        : method === 'hosts:models'
+          ? models
+          : [{ id: 'p', name: 'Provider', status: 'ready' }]
     })
     const pending = useMachineCataloguesStore.getState().load(MOCK_HOST_ID)
     await vi.waitFor(() => expect(resolve).toBeDefined())
     await useMachineCataloguesStore.getState().load(null)
     resolve?.(stage === 'hosts:models' ? models : [{ id: 'p', name: 'Provider', status: 'ready' }])
     await pending
-    expect(useMachineCataloguesStore.getState().models).toEqual([])
-    expect(useMachineCataloguesStore.getState().providers).toEqual([])
-    expect(invoke).toHaveBeenCalledTimes(stage === 'hosts:models' ? 2 : 3)
+    expect(catalogue().models).toEqual(models)
+    expect(catalogue().providers).toEqual([{ id: 'p', name: 'Provider', status: 'ready' }])
+    expect(invoke).toHaveBeenCalledTimes(3)
   },
 )
 
@@ -121,7 +129,7 @@ it('accepts a delayed catalogue across unchanged periodic snapshots', async () =
     useRemoteLanesStore.setState({ hosts: structuredClone(useRemoteLanesStore.getState().hosts) })
   finish({ skills: [], probe: 'rpc', userRoot: 'opaque' })
   await pending
-  expect(useMachineCataloguesStore.getState().models).toEqual(models)
+  expect(catalogue().models).toEqual(models)
   expect(useSkillsStore.getState().byWorkspace[`host:${MOCK_HOST_ID}/machine`]).toBeDefined()
 })
 
@@ -148,7 +156,14 @@ it.each(['reply', 'failure'] as const)(
     else fail(new Error('Connection closed.'))
     await pending
     expect(invoke).toHaveBeenCalledTimes(1)
-    expect(useMachineCataloguesStore.getState().error).toBeNull()
+    expect(catalogue().error).toBeNull()
     expect(useSkillsStore.getState().byWorkspace[`host:${MOCK_HOST_ID}/machine`]).toBeUndefined()
   },
 )
+
+function catalogue() {
+  return (
+    useMachineCataloguesStore.getState().catalogues[machineCatalogueKey(MOCK_HOST_ID)] ??
+    EMPTY_MACHINE_CATALOGUE
+  )
+}

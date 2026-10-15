@@ -513,6 +513,7 @@ export async function bootstrapSession(phosphorId: string): Promise<void> {
  * command", which the picker already handles by deriving the levels locally.
  */
 export async function refreshThinkingLevels(phosphorId: string): Promise<void> {
+  if (useSessionsStore.getState().live[phosphorId]?.target?.kind === 'remote') return
   try {
     const response = await window.phosphor.piCommand(phosphorId, {
       type: 'get_available_thinking_levels',
@@ -538,7 +539,11 @@ async function autoNameSession(
   workspacePath: string,
   firstPrompt: string,
 ): Promise<void> {
-  if (!sessionIsOpen(phosphorId)) return
+  if (
+    !sessionIsOpen(phosphorId) ||
+    useSessionsStore.getState().live[phosphorId]?.target?.kind === 'remote'
+  )
+    return
   const existing = (useSessionsStore.getState().disk[workspacePath] ?? [])
     .map((m) => sessionTitle({ explicitName: m.name, firstUserText: m.firstUserText }))
     .filter((t): t is string => Boolean(t))

@@ -1,4 +1,6 @@
-import { useMachinePagesStore } from '@/stores/machinePages'
+import { ChoiceMenu } from '@/components/ChoiceMenu'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useMachinePagesStore, pageMachine } from '@/stores/machinePages'
 import { TooltipButton, TooltipLabel } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
@@ -47,7 +49,18 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
         routines: [...localSnapshot.routines, ...Object.values(remote).flatMap((r) => r.routines)],
       }
     : null
-  const machine = useMachinePagesStore((s) => s.routinesMachine)
+  const filter = useRemoteLanesStore((s) => s.filter)
+  const override = useMachinePagesStore((s) => s.routinesMachine)
+  const selectedMachine = pageMachine(filter, override)
+  const machine =
+    selectedMachine === 'local' || selectedMachine === 'all' || selectedMachine.startsWith('host:')
+      ? selectedMachine
+      : `host:${selectedMachine}`
+  const hosts = useRemoteLanesStore((s) => s.hosts)
+  const hostId = machine.startsWith('host:') ? machine.slice(5) : null
+  const unavailable =
+    !!hostId &&
+    (hosts[hostId]?.state !== 'ready' || !hosts[hostId]?.capabilities.includes('routines'))
   const setMachine = (routinesMachine: string): void =>
     useMachinePagesStore.setState({ routinesMachine })
   const loadError = useRoutinesStore((s) => s.error)
@@ -68,6 +81,14 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
   const [importing, setImporting] = useState(false)
   const [continuing, setContinuing] = useState<RoutineRun | null>(null)
   const [json, setJson] = useState('')
+  const [viewMachine, setViewMachine] = useState(machine)
+  if (viewMachine !== machine) {
+    setViewMachine(machine)
+    setSelected(null)
+    setEditor(null)
+    setContinuing(null)
+    setHistory([])
+  }
 
   useEffect(() => {
     const refresh = (): void => {
@@ -96,11 +117,21 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
    */
   const create = (input?: RoutineInput): void => {
     const blank = newRoutine(workspacePath)
-    const restored = input ? undefined : (editorDraft(NEW_ROUTINE, null) ?? undefined)
+    const savedDraft = input ? undefined : editorDraft(NEW_ROUTINE, null)
+    const restored =
+      savedDraft ??
+      (machine.startsWith('host:')
+        ? {
+            input: { ...(input ?? blank), provider: '', model: '', workspacePath: '' },
+            revision: null,
+            machineId: machine,
+            repositoryId: '',
+          }
+        : undefined)
     setEditor({
       restored,
       key: NEW_ROUTINE,
-      input: input ?? restored?.input ?? blank,
+      input: restored?.input ?? input ?? blank,
       pristine: blank,
     })
   }
@@ -155,13 +186,14 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
       setBusy(false)
     }
   }
-  const routine = snapshot?.routines.find((r) => r.id === selected)
+  const routine = unavailable ? undefined : snapshot?.routines.find((r) => r.id === selected)
   const running = (id: string): boolean =>
     !!snapshot?.runs.some((run) => run.routineId === id && activeRun(run))
   const list = (snapshot?.routines ?? [])
     .filter(
       (r) =>
-        (!machine || (r.machine?.id ?? 'local') === machine) &&
+        !unavailable &&
+        (machine === 'all' || (r.machine?.id ?? 'local') === machine) &&
         r.archived === archived &&
         `${r.name} ${r.workspacePath}`.toLowerCase().includes(search.toLowerCase()),
     )
@@ -179,6 +211,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
    * sidebar rather than only from this page.
    */
   const openRun = async (run: RoutineRun): Promise<void> => {
+    if (run.id.startsWith('host:')) throw new Error('Output not available from this machine yet')
     const store = useSessionsStore.getState()
     if (run.sessionPath) await window.phosphor.invoke('routines:promoteRun', run.id)
     const live = (await window.phosphor.invoke('pi:listLiveSessions')).find(
@@ -292,19 +325,22 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
         ) : (
           <>
             <div className="mb-4 flex flex-wrap items-center gap-2">
-              <select
-                aria-label="Machine filter"
+              <ChoiceMenu
+                label="Machine filter"
                 value={machine}
-                onChange={(e) => setMachine(e.target.value)}
+                onChange={setMachine}
+                choices={[
+                  { value: 'all', label: 'All machines' },
+                  { value: 'local', label: 'This Mac' },
+                  ...machines.map((m) => ({ value: m.id, label: m.label })),
+                ]}
               >
-                <option value="">All machines</option>
-                <option value="local">This computer</option>
-                {machines.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
+                {machine === 'all'
+                  ? 'All machines'
+                  : machine === 'local'
+                    ? 'This Mac'
+                    : (machines.find((m) => m.id === machine)?.label ?? 'Machine')}
+              </ChoiceMenu>
               <TextInput
                 aria-label="Search routines"
                 className="min-w-0 flex-1"
@@ -332,14 +368,15 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
                   : 'Pause all'}
               </Button>
             </div>
+            {unavailable && <p role="alert">Not available on remote lanes yet.</p>}
             {machines
-              .filter((m) => (!machine || machine === m.id) && remote[m.id]?.unavailable)
+              .filter((m) => (machine === 'all' || machine === m.id) && remote[m.id]?.unavailable)
               .map((m) => (
                 <p role="status" key={m.id}>
                   {m.label}: routines unavailable. Refresh to reconnect.
                 </p>
               ))}
-            {!list.length && (
+            {!unavailable && !list.length && (
               <div className="border-border rounded-xl border p-6">
                 <h2 className="text-xl font-semibold">Save a task. Give it a schedule.</h2>
                 <p className="text-text-secondary mb-4 mt-2">
@@ -483,7 +520,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
           </>
         )}
       </div>
-      {editor && (
+      {editor && !unavailable && (
         <RoutineEditor
           key={editor.key}
           restored={editor.restored}

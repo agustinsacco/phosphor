@@ -1,3 +1,4 @@
+import { rememberRemoteModel } from '@/stores/remoteModelPicks'
 import { useState } from 'react'
 import type { Model, ThinkingLevel } from '@shared/rpc'
 import { supportedThinkingLevels } from '@shared/thinking'
@@ -53,6 +54,8 @@ export function ModelPicker({ sessionId }: { sessionId: string }): React.JSX.Ele
         modelId: model.id,
       })
       if (!selected) return
+      const target = useSessionsStore.getState().live[sessionId]?.target
+      if (target?.kind === 'remote') rememberRemoteModel(target.hostId, selected)
       const chat = useChatStore.getState()
       // A provider quota failure is recorded on the session-wide error surface.
       // Once pi confirms a different model, that error is no longer actionable;

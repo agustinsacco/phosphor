@@ -478,3 +478,12 @@ editable label, then success with the run/service next step and View machine.
 Codes accept either case and an optional separator, format as four letters per
 group, and submit with Enter. Invalid, expired, rate-limited and network errors
 stay on the current step. Approval is enrollment, not a remote execution grant.
+
+### Remote workspace context
+
+An active Host lane's sidebar header shows its repository and machine names.
+Its menu offers Host folder registration, not This Mac's recent folders. Remote
+workspace group menus can remove the configuration entry with confirmation;
+files are kept. The folder browser uses the Host home as its root and never
+opens a local folder picker. Skills, Artifacts and Routines default to the sidebar
+machine, with a window-local page override reset by the next sidebar change.

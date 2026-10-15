@@ -1,3 +1,4 @@
+import { useSessionsStore } from './sessions'
 import { create } from 'zustand'
 import type { AgentMessage, ToolResultMessage } from '@shared/rpc'
 import type { ArtifactSnapshot } from '@shared/artifacts'
@@ -214,11 +215,20 @@ export const useArtifactsStore = create<ArtifactsState>((set, get) => ({
   },
 
   hydrate: (sessionId, snapshots) => {
-    if (snapshots.length === 0) return
+    const remote = useSessionsStore.getState().live[sessionId]?.target?.kind === 'remote'
+    if (snapshots.length === 0) {
+      if (remote)
+        set((state) => ({
+          bySession: { ...state.bySession, [sessionId]: {} },
+          selected: drop(state.selected, sessionId),
+          selectedVersion: drop(state.selectedVersion, sessionId),
+        }))
+      return
+    }
     set((state) => ({
       bySession: {
         ...state.bySession,
-        [sessionId]: mergeSnapshots(state.bySession[sessionId] ?? {}, snapshots),
+        [sessionId]: mergeSnapshots(remote ? {} : (state.bySession[sessionId] ?? {}), snapshots),
       },
     }))
   },

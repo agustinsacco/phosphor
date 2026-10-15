@@ -1,4 +1,8 @@
 // @vitest-environment jsdom
+vi.mock('@/features/machines/RemoteModelPicker', () => ({
+  useRemoteModel: () => ({ model: { id: 'test-model', provider: 'test' }, thinking: 'off' }),
+  RemoteModelPicker: () => null,
+}))
 import { act, Profiler } from 'react'
 import { useChatStore } from '@/stores/chat'
 import type * as ChatStoreModule from '@/stores/chat'
@@ -213,6 +217,9 @@ it('repository plus preselects that repository without sending a local creation'
   )
   expect(invoke).toHaveBeenCalledExactlyOnceWith('hosts:createLane', MOCK_HOST_ID, {
     repositoryId: 'second',
+    provider: 'test',
+    model: 'test-model',
+    thinkingLevel: 'off',
   })
 })
 it('labels each elsewhere signal and gives the cluster a readable breakdown, without a default caption', () => {
@@ -322,4 +329,54 @@ it('local All-machines header ignores content-only chat updates', () => {
   rendered.mockClear()
   act(() => useChatStore.getState().addUserMessage('local-chat', 'Another content-only update'))
   expect(rendered).not.toHaveBeenCalled()
+})
+
+it.each([
+  ['mac', 'bee-a', 'mac'],
+  ['bee-a', 'bee-b', 'bee-a'],
+])('sidebar header follows lane repository, not opaque ids: %j', async (...sequence) => {
+  invoke.mockImplementation(async (channel) =>
+    channel === 'app:getPrefs' || channel === 'routines:laneIndex'
+      ? {}
+      : channel === 'git:listWorktrees'
+        ? []
+        : null,
+  )
+  const host = structuredClone(mockRemoteHosts[MOCK_HOST_ID]!)
+  host.repositories.push({
+    id: 'other-repository-id',
+    name: 'Other Host repo',
+    path: '/host/other',
+  })
+  host.lanes.push({ ...host.lanes[0]!, laneId: 'other-lane', repositoryId: 'other-repository-id' })
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host } })
+  useSessionsStore.setState({
+    live: {
+      mac: { phosphorId: 'mac', workspacePath: '/mac' },
+      'bee-a': {
+        phosphorId: 'bee-a',
+        workspacePath: `host:${MOCK_HOST_ID}/0000000000000001`,
+        target: { kind: 'remote', hostId: MOCK_HOST_ID },
+        laneId: host.lanes[0]!.laneId,
+      },
+      'bee-b': {
+        phosphorId: 'bee-b',
+        workspacePath: `host:${MOCK_HOST_ID}/other-repository-id`,
+        target: { kind: 'remote', hostId: MOCK_HOST_ID },
+        laneId: 'other-lane',
+      },
+    },
+  })
+  for (const id of sequence) {
+    await act(async () => {
+      useSessionsStore.setState({ activeSessionId: id })
+      root.render(<Sidebar workspacePath="" />)
+    })
+    const header = container.querySelector('[data-testid=workspace-switcher]')
+    expect(header?.textContent).toContain(
+      id === 'mac' ? 'mac' : id === 'bee-a' ? 'Demo repository' : 'Other Host repo',
+    )
+    expect(header?.textContent).not.toContain('0000000000000001')
+    expect(header?.textContent).not.toContain('other-repository-id')
+  }
 })

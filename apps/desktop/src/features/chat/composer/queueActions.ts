@@ -1,3 +1,5 @@
+import { useSessionsStore } from '@/stores/sessions'
+import { REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { isNewerVersion } from '@shared/version'
 import { useChatStore } from '@/stores/chat'
 import { piCallOk } from '@/lib/rpc'
@@ -39,6 +41,10 @@ export async function unqueueMessage(
   text: string,
 ): Promise<void> {
   const chat = useChatStore.getState()
+  if (useSessionsStore.getState().live[sessionId]?.target?.kind === 'remote') {
+    chat.setError(sessionId, REMOTE_UNAVAILABLE)
+    return
+  }
   const response = await window.phosphor.piCommand<'clear_queue'>(sessionId, {
     type: 'clear_queue',
   })

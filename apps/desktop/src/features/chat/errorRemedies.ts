@@ -16,6 +16,7 @@ export interface ErrorRemedy {
    * runnable-looking command for those would be worse than showing none.
    */
   command?: string
+  remoteSignIn?: boolean
   /** One-line explanation shown under the error. */
   hint: string
   /**
@@ -59,7 +60,7 @@ function awsLoginCommand(profile: string | undefined): { command: string; hint: 
  */
 export function matchErrorRemedy(
   message: string | undefined,
-  context: { awsProfile?: string } = {},
+  context: { awsProfile?: string; machine?: string } = {},
 ): ErrorRemedy | null {
   if (!message) return null
   const text = message.toLowerCase()
@@ -100,6 +101,20 @@ export function matchErrorRemedy(
       docsUrl: 'https://claude.ai/settings/usage',
       retryAfter: false,
       suggestModelSwitch: true,
+    }
+  }
+
+  if (
+    context.machine &&
+    /oauth|refresh token|unauthorized|401|login|expiredtoken|token.*expired|security token.*invalid/.test(
+      text,
+    )
+  ) {
+    return {
+      label: `Sign in on ${context.machine}`,
+      hint: 'Refresh the provider credentials on this machine, then retry the failed turn.',
+      retryAfter: true,
+      remoteSignIn: true,
     }
   }
 

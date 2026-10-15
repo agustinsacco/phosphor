@@ -683,10 +683,39 @@ falls back to local creation.
 
 The home composer follows the sidebar machine selection (All machines uses This
 Mac). A picker override lasts until the next sidebar selection change. This target
-is window-local renderer state, never persisted. Submitting with a Host targeted
-opens the existing remote-lane dialog and keeps the composer draft; it does not
-send a first prompt or start a local session, including when that Host is down or
-unavailable. Closing the dialog keeps the target.
+is window-local renderer state, never persisted. Host-targeted folder, model and
+thinking chips use that machine's repositories and signed-in provider catalogue.
+There is no branch chip when the snapshot supplies no branch information. The
+model prefers the last usable choice on that Host, then a usable Desktop default,
+then the first model of the first ready provider. The effective choice is visible.
+Submitting creates and opens the lane, takes control if needed, and sends the
+first prompt through the remote receipt path. Only a confirmed prompt clears the
+draft. A failure keeps it and never falls back to This Mac.
+
+Remote row menus share the local context menu and inline rename. Open, takeover/release,
+Stop/Resume, rename, mark read, pin, marker, debug identity and spend are available
+with readiness, capability and controller gates. Titles prefer the live name,
+then the Host summary, then the first prompt. The Host owns automatic naming.
+The sidebar header shows repository and machine labels, not opaque resource ids.
+Remote auth remedies open that machine's Readiness page, never a local terminal. A connected Host
+with no usable signed-in model refuses creation and offers Sign in on that
+machine. This is separate from a disconnected-machine refusal.
+Retry appears only for the last confirmed failed turn while idle and controlled.
+
+Skills, Routines and Artifacts follow the sidebar machine. A page picker overrides
+that selection until the next sidebar change. All machines defaults Skills and
+Routines to This Mac, while Artifacts shows every machine. A down or incapable
+selected Host shows its refusal, not local data. Page targets stay in this window
+and are never persisted. In-lane panes still belong to their lane.
+
+Remote lane Delete uses the local confirmation surfaces: transcript-only for a
+shared worktree or the main checkout, resource checkboxes for an exclusive
+worktree. It requires control and workspace-write capability. The Host trash
+retains transcripts for 30 days. Failed deletions stay in the confirm; success
+closes the lane view. Folder menus offer Add folder on the Host through a
+home-relative folder browser. Remove from the Host confirms that files are kept;
+a repository with a live lane cannot be removed. These changes require a ready
+Host with workspace-write capability and may be refused by Host configuration.
 
 ## Provider sign-in
 
@@ -699,3 +728,19 @@ sequenced and never replayed after uncertainty. Login content and credentials
 are not logged, persisted by Phosphor or sent to control. PTYs are limited to
 one per provider and two per Host; they end on exit, grant/capability loss,
 shutdown, or ten disconnected minutes. See [provider login](host.md#providers-login).
+
+## Remote lane surface isolation
+
+The lane artifact pane reads only its explicit session id. An empty Host reply
+clears that lane's cached artifacts; switching back restores the Mac lane's own
+artifacts, not a global selection. Workspace writes from a remote artifact are
+disabled until revision-aware create is supported. Save and PDF export explicitly
+target This Mac. The top-bar artifact count belongs to the active lane.
+
+Remote slash commands come from the lane, and file mentions search its Host file
+list. Thinking levels derive from the lane model. Local rules/MCP and Swarm menus
+are hidden. Shell shortcuts, queued-message removal, rewind and fork are refused
+with the fixed unavailable hint. Continue waits for the remote receipt and echo;
+it never inserts an optimistic duplicate. Error cards do not inspect This Mac's
+AWS profile. Lane and machine switches reset visible selections or show loading
+or refusal while the new target loads.

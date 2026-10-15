@@ -1,6 +1,7 @@
+import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
 import { MachineSwitcher, MachineLabelLine } from './MachineSwitcher'
 import { RemoteLanes } from './RemoteLanes'
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { useRemoteLanesStore, machineLabel } from '@/stores/remoteLanes'
 import { TooltipButton } from '@/components/Tooltip'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
@@ -1289,6 +1290,19 @@ export function Sidebar({
 
 function WorkspaceSwitcher(): React.JSX.Element {
   const currentPath = useActiveWorkspace()
+  const remote = useSessionsStore((s) => {
+    const entry = s.activeSessionId ? s.live[s.activeSessionId] : undefined
+    return entry?.target?.kind === 'remote' ? entry : undefined
+  })
+  const remoteHost = useRemoteLanesStore((s) =>
+    remote?.target?.kind === 'remote' ? s.hosts[remote.target.hostId] : undefined,
+  )
+  const [addingFolder, setAddingFolder] = useState(false)
+  const remoteRepo = remoteHost?.repositories.find((repo) =>
+    remoteHost.lanes.some(
+      (lane) => lane.laneId === remote?.laneId && lane.repositoryId === repo.id,
+    ),
+  )
   const recents = useWorkspacesStore((s) => s.recents)
   const git = useSessionsStore((s) => (currentPath ? s.gitByCwd[currentPath] : undefined))
   const [open, setOpen] = useState(false)
@@ -1296,7 +1310,12 @@ function WorkspaceSwitcher(): React.JSX.Element {
   // Project only, no branch: the top bar's folder and branch chips sit a row
   // above this and already answer "where am I". Showing `Phosphor (phosphor/hey-2)`
   // here as well put the branch on screen twice and the folder twice.
-  const name = currentPath ? projectName(currentPath, git) : 'Workspace'
+  const name =
+    remote?.target?.kind === 'remote'
+      ? `${remoteRepo?.name ?? 'Repository'} · ${machineLabel(remote.target.hostId)}`
+      : currentPath
+        ? projectName(currentPath, git)
+        : 'Workspace'
 
   return (
     // Draggable: on Windows/Linux this row sits flush against the top of the
@@ -1314,10 +1333,39 @@ function WorkspaceSwitcher(): React.JSX.Element {
           {name.slice(0, 1)}
         </span>
         <span className="min-w-0 flex-1 truncate text-left text-lg font-semibold">{name}</span>
-        <ChevronDownIcon className="text-text-tertiary shrink-0" />
+        {!remote && <ChevronDownIcon className="text-text-tertiary shrink-0" />}
       </TooltipButton>
 
-      {open && (
+      {addingFolder && remote?.target?.kind === 'remote' && (
+        <HostFolderBrowser
+          key={remote.target.hostId}
+          hostId={remote.target.hostId}
+          onClose={() => setAddingFolder(false)}
+        />
+      )}
+      {open && remote && (
+        <PopupMenu
+          onClose={() => setOpen(false)}
+          triggerRef={triggerRef}
+          className="absolute left-3 right-3 top-full z-40 mt-1 py-1.5"
+        >
+          <MenuRow
+            active={false}
+            disabled={
+              remoteHost?.state !== 'ready' ||
+              !remoteHost?.capabilities.includes('workspaces.write')
+            }
+            onClick={() => {
+              setOpen(false)
+              setAddingFolder(true)
+            }}
+          >
+            Add folder on{' '}
+            {remote.target?.kind === 'remote' ? machineLabel(remote.target.hostId) : 'machine'}…
+          </MenuRow>
+        </PopupMenu>
+      )}
+      {open && !remote && (
         <PopupMenu
           onClose={() => setOpen(false)}
           triggerRef={triggerRef}

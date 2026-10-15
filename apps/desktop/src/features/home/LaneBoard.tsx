@@ -9,7 +9,7 @@ import { useWorktreesStore, repoWorktrees } from '@/stores/worktrees'
 import { hasDelegatedWork, SUBAGENT_ASYNC_WIDGET_KEY } from '@/features/chat/subagentRuns'
 import { MergeWorktreeModal } from '@/features/worktrees/MergeWorktreeModal'
 import { Button } from '@/components/form'
-import { TooltipButton } from '@/components/Tooltip'
+import { LaneCard } from './LaneCard'
 import { LaneActivity } from './LaneActivity'
 import {
   LANE_STATE_LABEL,
@@ -159,35 +159,21 @@ export function LaneBoard({ data }: { data: LaneBoardData }): React.JSX.Element 
         {next.map((position) => {
           const lane = byPath.get(position.path)!
           return (
-            <article
+            <LaneCard
               key={position.key}
-              className="border-border bg-surface flex min-w-0 flex-col rounded-lg border p-4"
-              data-testid="lane-board-card"
-            >
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2 font-mono text-xs">
-                <span className={clsx('uppercase tracking-wider', STATE_ACCENT[lane.state])}>
-                  {lane.state === 'idle' ? 'Idle' : LANE_STATE_LABEL[lane.state]}
-                </span>
-                {lane.pr && <span className="text-text-secondary">PR #{lane.pr.number}</span>}
-              </div>
-              <h2>
-                <TooltipButton
-                  onClick={() => openLane(lane)}
-                  className="hover:text-accent line-clamp-2 text-left text-xl font-semibold"
-                  tooltip={lane.title}
-                >
-                  {lane.title}
-                </TooltipButton>
-              </h2>
-              <p className="text-text-secondary mt-1 text-base">{lane.detail}</p>
-              <LaneActivity lane={lane} />
-              <div className="mt-auto flex items-center justify-between gap-3 pt-4">
-                <span
-                  className="text-text-secondary min-w-0 truncate font-mono text-sm"
-                  data-tooltip={lane.branch}
-                >
-                  {lane.branch ?? 'Workspace session'}
-                </span>
+              title={lane.title}
+              onOpen={() => openLane(lane)}
+              status={
+                <>
+                  <span className={clsx('uppercase tracking-wider', STATE_ACCENT[lane.state])}>
+                    {lane.state === 'idle' ? 'Idle' : LANE_STATE_LABEL[lane.state]}
+                  </span>
+                  {lane.pr && <span className="text-text-secondary">PR #{lane.pr.number}</span>}
+                </>
+              }
+              detail={lane.detail}
+              branch={lane.branch}
+              action={
                 <Button
                   size="sm"
                   disabled={busy === lane.path}
@@ -196,8 +182,10 @@ export function LaneBoard({ data }: { data: LaneBoardData }): React.JSX.Element 
                 >
                   {busy === lane.path ? 'Updating…' : ACTION_LABEL[lane.action]}
                 </Button>
-              </div>
-            </article>
+              }
+            >
+              <LaneActivity lane={lane} />
+            </LaneCard>
           )
         })}
       </div>

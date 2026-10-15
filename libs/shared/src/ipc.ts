@@ -209,6 +209,25 @@ export interface IpcInvokeMap {
   'hosts:resumeLane': { args: [hostId: string, laneId: string]; result: void }
   'hosts:takeControl': { args: [hostId: string, laneId: string]; result: void }
   'hosts:markRead': { args: [hostId: string, laneId: string]; result: void }
+  'hosts:deleteLane': {
+    args: [
+      hostId: string,
+      laneId: string,
+      options: { removeWorktree: boolean; removeBranch: boolean },
+    ]
+    result: { branchKept: boolean }
+  }
+  'hosts:listFolders': {
+    args: [hostId: string, path?: string]
+    result: {
+      path: string
+      truncated: boolean
+      entries: { name: string; isRepository: boolean; configured: boolean }[]
+    }
+  }
+  'hosts:addRepository': { args: [hostId: string, path: string]; result: { repositoryId: string } }
+  'hosts:removeRepository': { args: [hostId: string, repositoryId: string]; result: void }
+  'hosts:releaseControl': { args: [hostId: string, laneId: string]; result: void }
   'routines:list': { args: [machine?: string]; result: RoutinesSnapshot }
   'routines:save': {
     args: [

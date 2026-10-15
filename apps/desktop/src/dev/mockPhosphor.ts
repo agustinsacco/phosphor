@@ -1476,8 +1476,16 @@ export function installMockPhosphor(): void {
         case 'hosts:sshInstallCancel':
           return undefined
         case 'hosts:models':
+          return [
+            {
+              id: 'claude-sonnet-4-5',
+              name: 'Claude Sonnet 4.5',
+              provider: 'anthropic',
+              reasoning: true,
+            },
+          ]
         case 'hosts:providers':
-          return []
+          return [{ id: 'anthropic', name: 'Anthropic', status: 'ready' }]
         case 'hosts:skills':
           return { skills: [], probe: 'rpc', userRoot: `host:${args[0]}/machine` }
         case 'hosts:providerLogin':
@@ -1493,7 +1501,12 @@ export function installMockPhosphor(): void {
         case 'hosts:openLane':
         case 'hosts:createLane':
           if (localStorage.getItem('mock:remoteLanes') === '1')
-            return Promise.resolve(mockRemoteInfo)
+            return Promise.resolve({
+              ...mockRemoteInfo,
+              target: { kind: 'remote', hostId: String(args[0]) },
+              laneId: typeof args[1] === 'string' ? args[1] : mockRemoteInfo.laneId,
+              workspacePath: `host:${String(args[0])}/0000000000000001`,
+            })
           return Promise.reject(new Error('Remote lanes are not available in the browser harness.'))
         case 'hosts:setFocusedLane':
         case 'hosts:stopLane':
@@ -1502,6 +1515,25 @@ export function installMockPhosphor(): void {
         case 'hosts:markRead':
           if (localStorage.getItem('mock:remoteLanes') === '1') mockRemoteAction(channel)
           return Promise.resolve(undefined as never)
+        // R1/R2 mock (B)
+        case 'hosts:releaseControl':
+          mockRemoteAction(channel)
+          return Promise.resolve(undefined)
+        case 'hosts:deleteLane':
+          return Promise.resolve({ branchKept: false })
+        case 'hosts:removeRepository':
+          return Promise.resolve(undefined)
+        case 'hosts:listFolders':
+          return Promise.resolve({
+            path: String(args[1] ?? ''),
+            truncated: false,
+            entries: [
+              { name: 'Projects', isRepository: false, configured: false },
+              { name: 'Phosphor', isRepository: true, configured: true },
+            ],
+          })
+        case 'hosts:addRepository':
+          return Promise.resolve({ repositoryId: '0000000000000002' })
         case 'control:machines':
           if (localStorage.getItem('mock:machinesState') === 'offline')
             return Promise.resolve({

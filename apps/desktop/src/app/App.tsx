@@ -272,7 +272,7 @@ export function App(): React.JSX.Element {
             ) : starting ? (
               <StartingChat starting={starting} />
             ) : (
-              <WorkspaceHome workspacePath={currentWorkspace} />
+              <WorkspaceHome key={currentWorkspace} workspacePath={currentWorkspace} />
             )}
             {/*
             A lane the user asked for that is not up yet, over whichever of
@@ -293,9 +293,7 @@ export function App(): React.JSX.Element {
           */}
             {page && (
               <div data-testid="global-page" className="bg-bg absolute inset-0 z-30">
-                {remote && page !== 'machines' && page !== 'artifacts' ? (
-                  <p className="p-6">Not available on remote lanes yet.</p>
-                ) : page === 'routines' ? (
+                {page === 'routines' ? (
                   <RoutinesPage workspacePath={currentWorkspace} />
                 ) : page === 'skills' ? (
                   <SkillsPage workspacePath={currentWorkspace} />

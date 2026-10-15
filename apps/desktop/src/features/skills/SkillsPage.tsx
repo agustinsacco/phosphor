@@ -1,8 +1,11 @@
 import { machineReadGeneration } from '@/stores/machineReadGeneration'
 import { MachinePicker } from '@/features/machines/MachinePicker'
-import { useMachinePagesStore } from '@/stores/machinePages'
-import { useMachineCataloguesStore } from '@/stores/machineCatalogues'
-import { useActiveMachine } from '@/stores/remoteLanes'
+import { useMachinePagesStore, pageMachine } from '@/stores/machinePages'
+import {
+  useMachineCataloguesStore,
+  machineCatalogueKey,
+  EMPTY_MACHINE_CATALOGUE,
+} from '@/stores/machineCatalogues'
 import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
 import { memo, useEffect, useMemo, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
@@ -10,7 +13,6 @@ import type { ResolvedSkill, SkillImportPreview, SkillScope } from '@shared/skil
 import { parseSkillFrontmatter, setSkillDraftFlag } from '@shared/skills'
 import { SKILL_CATALOG, type SkillCatalogLibrary } from '@shared/skillsCatalog'
 import { useSkillsStore } from '@/stores/skills'
-import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { PageShell } from '@/components/PageShell'
 import { PaneTitle } from '@/components/PaneShell'
@@ -34,33 +36,24 @@ export const SkillsPage = memo(function SkillsPage({
 }: {
   workspacePath: string
 }): React.JSX.Element {
-  const active = useActiveMachine()
+  const filter = useRemoteLanesStore((s) => s.filter)
   const choice = useMachinePagesStore((s) => s.skillsMachine)
-  const fallback =
-    active.kind === 'remote'
-      ? active.hostId
-      : workspacePath.startsWith('host:')
-        ? (workspacePath.slice(5).split('/')[0] ?? 'local')
-        : 'local'
-  const machine = choice ?? fallback
+  const machine = pageMachine(filter, choice)
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const generation = useRemoteLanesStore(() => machineReadGeneration(machine))
-  const catalogue = useMachineCataloguesStore()
+  const catalogue = useMachineCataloguesStore(
+    (s) => s.catalogues[machineCatalogueKey(machine, generation)] ?? EMPTY_MACHINE_CATALOGUE,
+  )
   const selectedWorkspace =
     machine === 'local'
       ? workspacePath.startsWith('host:')
         ? ''
         : workspacePath
-      : choice === null && workspacePath.startsWith(`host:${machine}/`)
-        ? workspacePath
-        : `host:${machine}/machine`
+      : `host:${machine}/machine`
   useEffect(() => {
     void useMachineCataloguesStore
       .getState()
       .load(machine === 'local' ? null : machine, selectedWorkspace)
-    return () => {
-      void useMachineCataloguesStore.getState().load(null)
-    }
   }, [machine, generation, selectedWorkspace])
   return (
     <SkillsInventory
@@ -83,7 +76,7 @@ export const SkillsPage = memo(function SkillsPage({
           <details className="px-3 py-2">
             <TooltipSummary>Models and providers on this machine</TooltipSummary>
             {catalogue.error && <p role="alert">{catalogue.error}</p>}
-            {(catalogue.hostId === machine ? catalogue.providers : []).map((p) => (
+            {catalogue.providers.map((p) => (
               <p key={p.id}>
                 {p.name}:{' '}
                 {p.status === 'ready'
@@ -93,7 +86,7 @@ export const SkillsPage = memo(function SkillsPage({
                     : 'Unknown'}
               </p>
             ))}
-            {(catalogue.hostId === machine ? catalogue.models : []).map((m) => (
+            {catalogue.models.map((m) => (
               <p key={`${m.provider}/${m.id}`}>
                 {m.name} · {m.provider}
               </p>
@@ -115,7 +108,6 @@ const SkillsInventory = memo(function SkillsInventory({
   catalogue: ReactNode
 }): React.JSX.Element {
   const remote = workspacePath.startsWith('host:')
-  const remoteSessionId = useSessionsStore((s) => (remote ? s.activeSessionId : null))
   const available = useRemoteLanesStore((s) => {
     const host = s.hosts[workspacePath.slice(5).split('/')[0] ?? '']
     return host?.state === 'ready' && host.capabilities.includes('skills.read')
@@ -131,7 +123,7 @@ const SkillsInventory = memo(function SkillsInventory({
 
   useEffect(() => {
     if (!remote) void useSkillsStore.getState().refresh(workspacePath)
-  }, [workspacePath, remoteSessionId])
+  }, [workspacePath, remote])
 
   const skills = useMemo(() => result?.skills ?? [], [result])
   const selected = skills.find((skill) => skill.dir === selectedDir)
@@ -170,7 +162,7 @@ const SkillsInventory = memo(function SkillsInventory({
           <p className="p-4">{REMOTE_UNAVAILABLE}</p>
         ) : selected ? (
           <SkillDetail
-            key={`${remoteSessionId ?? ''}:${selected.dir}`}
+            key={`${workspacePath}:${selected.dir}`}
             skill={selected}
             workspacePath={workspacePath}
             onBack={() => useSkillsStore.getState().select(null)}

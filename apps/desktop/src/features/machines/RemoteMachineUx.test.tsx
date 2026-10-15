@@ -1,4 +1,8 @@
 // @vitest-environment jsdom
+vi.mock('@/features/machines/RemoteModelPicker', () => ({
+  useRemoteModel: () => ({ model: { id: 'test-model', provider: 'test' }, thinking: 'off' }),
+  RemoteModelPicker: () => null,
+}))
 import React, { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
@@ -82,6 +86,9 @@ it('remote creation uses the selected configured repository and failure never st
   await act(async () => button('Create lane').click())
   expect(invoke).toHaveBeenCalledExactlyOnceWith('hosts:createLane', MOCK_HOST_ID, {
     repositoryId: '0000000000000001',
+    provider: 'test',
+    model: 'test-model',
+    thinkingLevel: 'off',
   })
   expect(document.body.textContent).toContain('could not confirm creation')
   expect(useSessionsStore.getState().activeSessionId).toBe(mockRemoteInfo.sessionId)
@@ -339,5 +346,8 @@ it('machine and repository menu actions never submit the remote creation form', 
   await act(async () => form.requestSubmit())
   expect(invoke).toHaveBeenCalledExactlyOnceWith('hosts:createLane', MOCK_HOST_ID, {
     repositoryId: '0000000000000001',
+    provider: 'test',
+    model: 'test-model',
+    thinkingLevel: 'off',
   })
 })

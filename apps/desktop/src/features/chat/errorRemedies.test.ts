@@ -77,3 +77,16 @@ describe('matchErrorRemedy', () => {
     expect(matchErrorRemedy('401 Unauthorized')).toBeNull()
   })
 })
+
+it.each([
+  'OAuth refresh token rejected',
+  'ExpiredTokenException',
+  'Token is expired, run aws sso login',
+  'The security token is invalid',
+])('remote auth remedy never suggests a local command: %s', (message) => {
+  const remedy = matchErrorRemedy(message, { machine: 'bee1', awsProfile: 'local-profile' })
+  expect(remedy?.label).toBe('Sign in on bee1')
+  expect(remedy?.remoteSignIn).toBe(true)
+  expect(remedy?.command).toBeUndefined()
+  expect(remedy?.hint).not.toContain('local-profile')
+})

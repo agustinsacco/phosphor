@@ -46,6 +46,8 @@ interface DraftsState {
   /** False until prefs have been read; composers must not clobber before it. */
   hydrated: boolean
   drafts: Record<DraftKey, Draft>
+  /** Semantic edits only; persistence adding blob ids is not an edit. */
+  revisions: Record<DraftKey, number>
   hydrate: () => Promise<void>
   get: (key: DraftKey) => Draft
   setText: (key: DraftKey, text: string) => void
@@ -60,6 +62,7 @@ interface DraftsState {
 export const useDraftsStore = create<DraftsState>((set, get) => ({
   hydrated: false,
   drafts: {},
+  revisions: {},
 
   hydrate: async () => {
     if (get().hydrated) return
@@ -105,7 +108,10 @@ export const useDraftsStore = create<DraftsState>((set, get) => ({
         throw new Error('Remote attachments are full. Send or remove files first.')
     }
     const next = { ...(get().drafts[key] ?? EMPTY), ...patch }
-    set((s) => ({ drafts: { ...s.drafts, [key]: next } }))
+    set((s) => ({
+      drafts: { ...s.drafts, [key]: next },
+      revisions: { ...s.revisions, [key]: (s.revisions[key] ?? 0) + 1 },
+    }))
     schedulePersist(key, next)
   },
 
@@ -114,7 +120,7 @@ export const useDraftsStore = create<DraftsState>((set, get) => ({
     set((s) => {
       const drafts = { ...s.drafts }
       delete drafts[key]
-      return { drafts }
+      return { drafts, revisions: { ...s.revisions, [key]: (s.revisions[key] ?? 0) + 1 } }
     })
     void window.phosphor.invoke('app:clearDraft', key)
   },

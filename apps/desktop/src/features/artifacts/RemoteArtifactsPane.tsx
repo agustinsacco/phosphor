@@ -19,11 +19,13 @@ export function RemoteArtifactsPane({
   const summary = JSON.stringify(host?.lanes.find((l) => l.laneId === laneId))
   const available = host?.state === 'ready' && host.capabilities.includes('artifacts.read')
   const [failed, setFailed] = useState(false)
-  const [loaded, setLoaded] = useState(false)
+  const [loaded, setLoaded] = useState<string | null>(null)
   const epoch = host?.cursor?.epoch
+  const connection = host?.connectionToken
+  const requestKey = JSON.stringify([sessionId, summary, epoch, connection])
   useEffect(() => {
     let alive = true
-    setLoaded(false)
+    setLoaded(null)
     setFailed(false)
     if (available)
       void window.phosphor
@@ -31,7 +33,7 @@ export function RemoteArtifactsPane({
         .then((items) => {
           if (alive) {
             useArtifactsStore.getState().hydrate(sessionId, items)
-            setLoaded(true)
+            setLoaded(requestKey)
           }
         })
         .catch(() => {
@@ -40,8 +42,8 @@ export function RemoteArtifactsPane({
     return () => {
       alive = false
     }
-  }, [available, sessionId, summary, epoch])
-  if (!available || !loaded)
+  }, [available, sessionId, summary, epoch, connection, requestKey])
+  if (!available || loaded !== requestKey)
     return <p className="p-4">{!available || failed ? REMOTE_UNAVAILABLE : 'Loading artifacts…'}</p>
-  return <ArtifactsPane workspacePath={workspacePath} />
+  return <ArtifactsPane sessionId={sessionId} workspacePath={workspacePath} />
 }

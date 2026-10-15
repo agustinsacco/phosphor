@@ -138,7 +138,7 @@ export function canViewStoredArtifact(key: string, hosts: HostsSnapshot): boolea
 }
 
 export function artifactOnMachine(key: string, machine: string, hosts: HostsSnapshot): boolean {
-  if (!machine) return true
+  if (!machine || machine === 'all') return true
   if (machine === 'local') return !key.startsWith('host:')
   return key.startsWith(`host:${machine}/`) && canViewStoredArtifact(key, hosts)
 }

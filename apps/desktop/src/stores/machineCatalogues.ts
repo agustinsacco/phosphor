@@ -6,27 +6,48 @@ import type { MachineModel, MachineProvider } from '@shared/host-protocol-machin
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from './remoteLanes'
 import { useSkillsStore } from './skills'
 
-let sequence = 0
-export const useMachineCataloguesStore = create<{
-  hostId: string | null
+export interface MachineCatalogue {
   models: MachineModel[]
   providers: MachineProvider[]
   error: string | null
-  load: (hostId: string | null, workspacePath?: string) => Promise<void>
-}>((set) => ({
-  hostId: null,
+  status: 'idle' | 'loading' | 'ready' | 'error'
+}
+export const EMPTY_MACHINE_CATALOGUE: MachineCatalogue = Object.freeze({
   models: [],
   providers: [],
   error: null,
-  async load(hostId, workspacePath) {
-    const request = ++sequence
-    set({ hostId, models: [], providers: [], error: null })
+  status: 'idle',
+})
+export function machineCatalogueKey(
+  hostId: string,
+  generation = machineReadGeneration(hostId),
+): string {
+  return `${hostId}:${generation}`
+}
+
+export const useMachineCataloguesStore = create<{
+  catalogues: Record<string, MachineCatalogue>
+  load: (hostId: string | null, workspacePath?: string, force?: boolean) => Promise<void>
+}>((set, get) => ({
+  catalogues: {},
+  async load(hostId, workspacePath, force = false) {
+    // A consumer leaving a page does not own another consumer's catalogue.
     if (!hostId) return
-    const host = useRemoteLanesStore.getState().hosts[hostId]
     const generation = machineReadGeneration(hostId)
-    const current = () => request === sequence && machineReadGeneration(hostId) === generation
+    const key = machineCatalogueKey(hostId, generation)
+    const existing = get().catalogues[key]
+    if (!force && (existing?.status === 'loading' || existing?.status === 'ready')) return
+    const entry: MachineCatalogue = { ...EMPTY_MACHINE_CATALOGUE, status: 'loading' }
+    set((s) => ({ catalogues: { ...s.catalogues, [key]: entry } }))
+    const current = () =>
+      get().catalogues[key] === entry && machineReadGeneration(hostId) === generation
+    const finish = (patch: Partial<MachineCatalogue>) => {
+      if (current())
+        set((s) => ({ catalogues: { ...s.catalogues, [key]: { ...entry, ...patch } } }))
+    }
+    const host = useRemoteLanesStore.getState().hosts[hostId]
     if (host?.state !== 'ready' || !host.capabilities.includes('skills.read')) {
-      set({ error: REMOTE_UNAVAILABLE })
+      finish({ error: REMOTE_UNAVAILABLE, status: 'error' })
       return
     }
     try {
@@ -47,9 +68,9 @@ export const useMachineCataloguesStore = create<{
       )
       if (!current()) return
       if (!models || !providers) throw new Error(REMOTE_UNAVAILABLE)
-      set({ models, providers })
+      finish({ models, providers, status: 'ready' })
     } catch {
-      if (current()) set({ error: REMOTE_UNAVAILABLE })
+      if (current()) finish({ error: REMOTE_UNAVAILABLE, status: 'error' })
     }
   },
 }))

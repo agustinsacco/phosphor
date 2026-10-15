@@ -312,3 +312,43 @@ it('lists working groups first, selects a run by its header and never invents a 
   // Settled with no reported end: a state and counters, not time since its start.
   expect(header()).toBe('done · 3 tools · #done-run')
 })
+
+it.each([
+  ['process', 'bee1-a', 'process'],
+  ['bee1-a', 'bee1-b', 'bee1-a'],
+])('subagent pane never keeps another lane selection across %j', async (...sequence) => {
+  for (const id of ['process', 'bee1-a', 'bee1-b']) {
+    useChatStore.getState().ensure(id)
+    useChatStore.getState().setMeta(id, meta(id))
+    useChatStore.setState((s) => ({
+      sessions: {
+        ...s.sessions,
+        [id]: {
+          ...s.sessions[id]!,
+          isStreaming: true,
+          agentStartedAt: 1,
+          tools: {
+            fg: {
+              toolCallId: 'fg',
+              toolName: 'subagent',
+              argsText: '',
+              args: { agent: 'reviewer', task: `Work for ${id}` },
+              status: 'running',
+              startedAt: 2,
+              output: null,
+            },
+          },
+        },
+      },
+    }))
+  }
+  for (const id of sequence) {
+    await act(async () => {
+      openForegroundSubagent(id, 'fg')
+      root.render(<SubagentPanel key={id} sessionId={id} />)
+    })
+    expect(el.textContent).toContain(`Work for ${id}`)
+    for (const other of ['process', 'bee1-a', 'bee1-b'].filter((x) => x !== id))
+      expect(el.textContent).not.toContain(`Work for ${other}`)
+  }
+})

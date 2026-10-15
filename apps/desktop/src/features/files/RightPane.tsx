@@ -91,7 +91,9 @@ export const RightPane = memo(function RightPane({
         {rightPane === 'terminal' && (
           <TerminalPane sessionId={sessionId} workspacePath={workspacePath} />
         )}
-        {rightPane === 'artifacts' && <ArtifactsPane workspacePath={workspacePath} />}
+        {rightPane === 'artifacts' && (
+          <ArtifactsPane sessionId={sessionId} workspacePath={workspacePath} />
+        )}
         {rightPane === 'subagents' && <SubagentPanel sessionId={sessionId} />}
       </div>
     </div>
