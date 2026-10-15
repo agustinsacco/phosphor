@@ -22,6 +22,8 @@ export function ProviderSignIn({ hostId }: { hostId: string }): React.JSX.Elemen
   const [providers, setProviders] = useState<MachineProvider[]>([])
   const [terminal, setTerminal] = useState<{ ptyId: string; provider: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const [loadFailed, setLoadFailed] = useState(false)
+  const [reload, setReload] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const allowed =
     host?.state === 'ready' &&
@@ -30,20 +32,25 @@ export function ProviderSignIn({ hostId }: { hostId: string }): React.JSX.Elemen
   const readable = host?.state === 'ready' && host.capabilities.includes('skills.read')
   useEffect(() => {
     let live = true
+    setLoadFailed(false)
     if (readable)
       void window.phosphor.invoke('hosts:providers', hostId).then(
         (rows) => {
           if (live) setProviders(rows)
         },
         () => {
-          if (live) setProviders([])
+          // A failed read is not "no providers": say so and offer a retry.
+          if (live) {
+            setProviders([])
+            setLoadFailed(true)
+          }
         },
       )
     else setProviders([])
     return () => {
       live = false
     }
-  }, [hostId, readable])
+  }, [hostId, readable, reload])
   useEffect(() => {
     if (!terminal) return
     const id = terminal.ptyId
@@ -73,6 +80,19 @@ export function ProviderSignIn({ hostId }: { hostId: string }): React.JSX.Elemen
   }
   return (
     <div className="mt-4 space-y-3">
+      {loadFailed && (
+        <div role="alert" className="flex items-center justify-between gap-3">
+          <span>Could not load this machine's providers.</span>
+          <Button onClick={() => setReload((n) => n + 1)}>Retry</Button>
+        </div>
+      )}
+      {providers
+        .filter((p) => p.status === 'ready')
+        .map((p) => (
+          <div key={p.id} className="flex items-center justify-between gap-3">
+            <span>{p.name}: Signed in</span>
+          </div>
+        ))}
       {providers
         .filter((p) => p.status === 'not_ready')
         .map((p) => {

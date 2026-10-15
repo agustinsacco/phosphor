@@ -303,9 +303,38 @@ describe('createSkillsFeature', () => {
     payload = JSON.stringify({ id: 'feature', type: 'response', success: false, error: 'private' })
     expect(await feature.call('machine.models', {})).toEqual(error('internal'))
   })
-  it('admits only one child probe at a time', async () => {
-    const pending = feature.call('machine.models', {})
-    expect(await feature.call('machine.models', {})).toEqual(error('internal'))
-    expect((await pending).ok).toBe(true)
+  it('never runs two probes at once', async () => {
+    let inFlight = 0
+    let peak = 0
+    const serial = createSkillsFeature(
+      {
+        home: root,
+        env: {},
+        log: () => {},
+        store: { getLane: () => null, listRepositories: () => [] },
+      },
+      {
+        inspect: async () => {
+          peak = Math.max(peak, ++inFlight)
+          await new Promise((r) => setTimeout(r, 10))
+          inFlight--
+          throw new Error('probe')
+        },
+      },
+    )
+    await Promise.all([serial.call('machine.models', {}), serial.call('machine.providers', {})])
+    expect(peak).toBe(1)
+  })
+  it('queues concurrent probes instead of failing them, with a bounded queue', async () => {
+    const both = await Promise.all([
+      feature.call('machine.models', {}),
+      feature.call('machine.providers', {}),
+    ])
+    expect(both.map((r) => r.ok)).toEqual([true, true])
+    const burst = await Promise.all(
+      Array.from({ length: 9 }, () => feature.call('machine.models', {})),
+    )
+    expect(burst.filter((r) => r.ok)).toHaveLength(8)
+    expect(burst.filter((r) => !r.ok)).toEqual([error('internal')])
   })
 })
