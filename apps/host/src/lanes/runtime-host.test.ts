@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { renameSync } from 'node:fs'
@@ -521,6 +522,10 @@ describe('lane lifecycle parity', () => {
       success: true,
       data: { ...state, sessionFile: file, messageCount: 1 },
     }))
+    // pi reports the path before it writes the file: still nothing to resume.
+    await expect(s.binding.stopLane(lane.laneId)).rejects.toThrow('Send a first message')
+    expect(s.runtime.stop).not.toHaveBeenCalled()
+    await writeFile(file, '{}\n')
     await s.binding.stopLane(lane.laneId)
     expect(store.getLane(lane.laneId)?.sessionFile).toBe(file)
     const saved = store.getLane(lane.laneId)

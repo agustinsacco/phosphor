@@ -1,3 +1,4 @@
+import { lstat } from 'node:fs/promises'
 import { titleCandidates, type createLaneNamer } from './naming'
 import type { SessionPush } from '@phosphor/shared/models'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
@@ -132,7 +133,15 @@ export function createRuntimeLanes(options: {
       const sessionId = live.sessionFor(laneId)
       if (sessionId !== null) {
         const state = await learnFile(laneId, sessionId)
-        if (!state?.sessionFile)
+        // pi reports its session path before the file exists; it writes the file when a
+        // turn ends. Stopping before then leaves nothing to resume, so require the file.
+        const persisted =
+          !!state?.sessionFile &&
+          (await lstat(state.sessionFile).then(
+            (info) => info.isFile(),
+            () => false,
+          ))
+        if (!persisted)
           throw Object.assign(new Error('Send a first message before stopping this lane.'), {
             code: 'first-prompt-required',
           })
