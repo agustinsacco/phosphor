@@ -9,7 +9,7 @@ import type * as ChatStoreModule from '@/stores/chat'
 import { useComposerMachine } from '@/features/home/useComposerMachine'
 import { Sidebar } from './Sidebar'
 import { useRemoteComposer, rememberRemoteRepository } from '@/features/home/remoteComposer'
-import { requestReveal, hostGroupKey } from './laneReveal'
+import { requestReveal, remoteLaneGroupKey } from './laneReveal'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { MachineSwitcher, MachineLabelLine, otherMachineActivity } from './MachineSwitcher'
@@ -267,7 +267,7 @@ it('notice reveal expands the Host repository and clears its search', () => {
       .click(),
   )
   expect(container.querySelector('[data-testid=remote-session-row]')).toBeNull()
-  act(() => requestReveal(hostGroupKey(MOCK_HOST_ID, '0000000000000001')))
+  act(() => requestReveal(remoteLaneGroupKey(MOCK_HOST_ID, '0000000000000001')))
   expect(container.querySelector('[data-testid=remote-session-row]')).not.toBeNull()
 })
 it('content-only chat updates do not rerender the switcher row, while count changes do', () => {
