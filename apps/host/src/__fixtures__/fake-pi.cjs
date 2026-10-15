@@ -52,6 +52,11 @@ if (args.includes('--version')) {
   process.exit(0)
 }
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined)
+// pi 1.x rejects a provider without a model before starting a session.
+if (flag('--mode') === 'rpc' && args.includes('--provider') && !args.includes('--model')) {
+  console.error('--provider requires --model')
+  process.exit(1)
+}
 
 // pi's layout, as libs/session-runtime/src/pi/pi-paths.ts mangles it: keep the two in step.
 const agentDir = process.env.PI_CODING_AGENT_DIR ?? join(process.env.HOME ?? '/', '.pi', 'agent')

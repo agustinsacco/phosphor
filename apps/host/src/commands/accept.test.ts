@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { sessionDirForCwd } from '@phosphor/session-runtime/pi/pi-paths'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -358,17 +358,23 @@ describe('accept', { timeout: 30_000 }, () => {
     expect(JSON.stringify(evidence)).not.toContain('person@example.com')
   })
 
-  it("runs the Claude lane on pi's default without --claude-model, failing when that is not Claude", async () => {
+  it('refuses a Claude lane without a model before spawning when the default is not Claude', async () => {
     machine.installClaude()
-    const { outcome } = await accept({ lane: 'claude' })
-    expect(outcome.exitCode).toBe(1)
-    expect(evidenceOf(outcome).lanes[0]!.steps.at(-1)).toMatchObject({
-      name: 'state',
-      ok: false,
-      detail:
-        "the claude lane runs on provider fake, not pi-claude-cli: pi's default is not Claude, " +
-        "so name the lane's model with --claude-model",
+    const { outcome, progress } = await accept({ lane: 'claude' })
+    expect(outcome).toEqual({
+      exitCode: 64,
+      problem:
+        "the claude lane cannot start: pi's default is not Claude, so name the lane's model with --claude-model",
     })
+    expect(progress).toEqual([])
+    expect(transcripts()).toEqual([])
+  })
+
+  it('uses the Claude default without passing a provider-only argument to pi', async () => {
+    machine.installClaude()
+    const path = join(machine.agentDir, 'settings.json')
+    const settings = JSON.parse(readFileSync(path, 'utf8'))
+    writeFileSync(path, JSON.stringify({ ...settings, defaultProvider: 'pi-claude-cli' }))
     const onClaude = await accept({
       lane: 'claude',
       env: { ...machine.hostEnv, PI_FAKE_PROVIDER: 'pi-claude-cli' },

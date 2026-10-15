@@ -151,7 +151,20 @@ describe('runtime lane binding', () => {
           data: { ...state, sessionName: 'Native rename' },
         }))
       s.runtime.command.mockClear()
-      await job.apply('Generated title')
+      const applied = await job.apply('Generated title')
+      job.outcome?.(applied ?? 'applied')
+      job.outcome?.('print-failed')
+      expect(s.log.mock.calls.filter((c) => c[1] === 'lane.naming')).toEqual([
+        [
+          'host',
+          'lane.naming',
+          {
+            laneId: lane.laneId,
+            outcome: change === 'none' ? 'applied' : 'stale',
+            ms: expect.any(Number),
+          },
+        ],
+      ])
       expect(
         s.runtime.command.mock.calls.filter((c) => c[1].type === 'set_session_name'),
       ).toHaveLength(change === 'none' ? 1 : 0)
@@ -159,6 +172,38 @@ describe('runtime lane binding', () => {
       if (change === 'rename') expect(store.getLane(lane.laneId)?.title).toBe('Manual')
     },
   )
+  it.each(['skipped-not-eligible', 'skipped-no-model'] as const)(
+    'logs one private-data-free naming diagnostic for %s',
+    async (expected) => {
+      const nameLane = vi.fn<NonNullable<Parameters<typeof createRuntimeLanes>[0]['nameLane']>>()
+      const s = setup([], nameLane)
+      if (expected === 'skipped-not-eligible')
+        s.runtime.command.mockImplementation(async (_id, cmd) => ({
+          type: 'response',
+          command: cmd.type,
+          success: true,
+          data: cmd.type === 'get_messages' ? { messages: [] } : { ...state, messageCount: 2 },
+        }))
+      const session = await s.binding.sessions.start({ repository: machine.repository })
+      const lane = s.saved()
+      await s.binding.sessions.attach(lane.laneId, session.sessionId)
+      await s.binding.command(session.sessionId, { type: 'prompt', message: 'private prompt' })
+      await vi.waitFor(() =>
+        expect(s.log).toHaveBeenCalledWith('host', 'lane.naming', {
+          laneId: lane.laneId,
+          outcome: expected,
+          ms: expect.any(Number),
+        }),
+      )
+      await s.binding.command(session.sessionId, {
+        type: 'prompt',
+        message: 'another private prompt',
+      })
+      expect(s.log.mock.calls.filter((c) => c[1] === 'lane.naming')).toHaveLength(1)
+      expect(nameLane).not.toHaveBeenCalled()
+    },
+  )
+
   it('keeps naming disabled when not configured', async () => {
     const s = setup()
     const session = await s.binding.sessions.start({ repository: machine.repository })

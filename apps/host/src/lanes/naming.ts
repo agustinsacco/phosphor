@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process'
+import { resolvePackagePaths } from '@phosphor/session-runtime/pi/package-resources'
 import { listPackages } from '@phosphor/session-runtime/pi/packages'
 import { claudeOneShotEnv } from '@phosphor/session-runtime/pi/provider-detect'
 import type { HostMachine } from '../session/runtime'
@@ -11,6 +12,16 @@ import {
   type TitleCandidate,
 } from './title-policy'
 
+export type NamingOutcome =
+  | 'applied'
+  | 'skipped-not-eligible'
+  | 'skipped-no-model'
+  | 'skipped-no-provider-package'
+  | 'print-failed'
+  | 'print-timeout'
+  | 'stale'
+  | 'set-failed'
+
 /** One bounded print run; neither output nor errors are logged. */
 export function printTitle(
   machine: Pick<HostMachine, 'pi' | 'env'>,
@@ -18,6 +29,7 @@ export function printTitle(
   args: string[],
   timeoutMs = 30_000,
   signal?: AbortSignal,
+  failed?: (outcome: 'print-failed' | 'print-timeout') => void,
 ): Promise<string | null> {
   if (signal?.aborted) return Promise.resolve(null)
   return new Promise((resolve) => {
@@ -29,7 +41,7 @@ export function printTitle(
     })
     let output = ''
     let ended = false
-    const finish = (ok: boolean) => {
+    const finish = (ok: boolean, outcome: 'print-failed' | 'print-timeout' = 'print-failed') => {
       if (ended) return
       ended = true
       clearTimeout(timer)
@@ -40,17 +52,20 @@ export function printTitle(
       } catch {
         /* Already exited. */
       }
-      resolve(ok ? sanitizeTitle(output) : null)
+      const title = ok ? sanitizeTitle(output) : null
+      if (!title) failed?.(outcome)
+      resolve(title)
     }
     const abort = () => finish(false)
     signal?.addEventListener('abort', abort, { once: true })
-    const timer = setTimeout(() => finish(false), timeoutMs)
+    const timer = setTimeout(() => finish(false, 'print-timeout'), timeoutMs)
     child.stdout.on('data', (chunk: Buffer) => {
       if (Buffer.byteLength(output) + chunk.length > 4096) finish(false)
       else output += chunk.toString('utf8')
     })
     child.on('error', () => finish(false))
-    child.on('exit', (code) => finish(code === 0))
+    // close waits for stdout to drain; exit can arrive before its final data.
+    child.on('close', (code) => finish(code === 0))
   })
 }
 
@@ -65,13 +80,20 @@ export function createLaneNamer(machine: Pick<HostMachine, 'pi' | 'env'>) {
     model: TitleModel
     models: TitleCandidate[]
     current(): boolean
-    apply(title: string): Promise<void>
+    apply(title: string): Promise<'applied' | 'stale' | 'set-failed' | void>
+    outcome?(outcome: NamingOutcome): void
   }) => {
-    if (controller.signal.aborted || pending >= 64) return
+    if (controller.signal.aborted || pending >= 64) {
+      options.outcome?.('stale')
+      return
+    }
     pending++
     tail = tail
       .then(async () => {
-        if (controller.signal.aborted || !options.current()) return
+        if (controller.signal.aborted || !options.current()) {
+          options.outcome?.('stale')
+          return
+        }
         const model =
           pickTitleModel(options.models, options.model.provider, options.model.id) ?? options.model
         let extensions: string[] = []
@@ -79,20 +101,42 @@ export function createLaneNamer(machine: Pick<HostMachine, 'pi' | 'env'>) {
           const pkg = (await listPackages(options.cwd)).find(
             (p) => p.name === '@saccolabs/pi-claude-cli' && p.installed,
           )
-          if (!pkg?.resources.extensions.length) return
-          extensions = pkg.resources.extensions
+          // Package resources are display names, not executable extension paths.
+          extensions = pkg?.installPath ? resolvePackagePaths(pkg.installPath).extensions : []
+          if (!extensions.length) {
+            options.outcome?.('skipped-no-provider-package')
+            return
+          }
         }
-        if (controller.signal.aborted || !options.current()) return
+        if (controller.signal.aborted || !options.current()) {
+          options.outcome?.('stale')
+          return
+        }
+        let failure: NamingOutcome = 'print-failed'
         const title = await printTitle(
           machine,
           options.cwd,
           [...titleArgs({ model, extensions }), titlePrompt(options.message, [])],
           30_000,
           controller.signal,
+          (outcome) => {
+            failure = outcome
+          },
         )
-        if (title && options.current()) await options.apply(title)
+        if (!options.current() || controller.signal.aborted) options.outcome?.('stale')
+        else if (!title) options.outcome?.(failure)
+        else {
+          try {
+            const applied = await options.apply(title)
+            options.outcome?.(applied ?? 'applied')
+          } catch {
+            options.outcome?.('set-failed')
+          }
+        }
       })
-      .catch(() => {})
+      .catch(() => {
+        options.outcome?.('print-failed')
+      })
       .finally(() => {
         pending--
       })
