@@ -102,6 +102,7 @@ export function RoutinesPage({ workspacePath }: { workspacePath: string }): Reac
     setEditor(null)
     setContinuing(null)
     setHistory([])
+    setError('')
   }
 
   useEffect(() => {

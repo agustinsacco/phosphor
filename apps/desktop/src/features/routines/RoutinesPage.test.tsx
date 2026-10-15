@@ -512,6 +512,20 @@ it('shows local load failures only on This Mac and labels them under All machine
   expect(container.textContent).toContain('This Mac: Local failure')
 })
 
+it('drops an action error from This Mac when the selection moves to a Host', async () => {
+  await renderHostWithLocalActivity()
+  await act(async () => useRemoteLanesStore.getState().setFilter('local'))
+  const fallback = invoke.getMockImplementation()!
+  invoke.mockImplementation(async (channel, target) => {
+    if (channel === 'routines:pauseAll') throw new Error('Local pause failed')
+    return fallback(channel, target)
+  })
+  await click('Pause all')
+  expect(container.textContent).toContain('Local pause failed')
+  await act(async () => useRemoteLanesStore.getState().setFilter(host.slice(5)))
+  expect(container.textContent).not.toContain('Local pause failed')
+})
+
 it('keeps new routine drafts separate per machine and resumes only the selected machine', async () => {
   await renderHostWithLocalActivity(true)
   await act(async () =>
