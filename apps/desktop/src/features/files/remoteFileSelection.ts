@@ -1,7 +1,7 @@
 import { isFilePath } from '@shared/host-protocol-files'
 import { useSessionsStore } from '@/stores/sessions'
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
-import type { PendingReveal, RevealTarget } from '@/stores/files'
+import type { RevealTarget } from '@/stores/files'
 let sequence = 0
 import { useRemoteFileSelection } from './remoteFileSelectionStore'
 export { useRemoteFileSelection, releaseRemoteFileSelection } from './remoteFileSelectionStore'
