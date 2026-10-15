@@ -100,6 +100,12 @@ export function createHostRuntime(
 ) {
   const { log } = machine
   const roots = [...machine.roots]
+  const machineContext: Extract<MachineContext, { kind: 'host' }> = {
+    kind: 'host',
+    label: machine.machineContext?.label ?? hostname(),
+    os: machine.machineContext?.os ?? osType(),
+    repositories: machine.machineContext?.repositories ?? [],
+  }
   const timings: DrainTimings = { ...DRAIN, ...options.timings }
   const life = options.life ?? createLifecycle(log.write)
   const path = machine.env.PATH
@@ -135,13 +141,7 @@ export function createHostRuntime(
       }),
     policy: {
       git: gitInfo,
-      machineContext: () =>
-        machine.machineContext ?? {
-          kind: 'host',
-          label: hostname(),
-          os: osType(),
-          repositories: [],
-        },
+      machineContext: () => machineContext,
       preferences: () => ({
         agentDirectives: DEFAULT_AGENT_DIRECTIVES,
         agentDirectivesByProject: {},
@@ -286,6 +286,7 @@ export function createHostRuntime(
   return {
     replaceRoots(next: readonly string[]) {
       roots.splice(0, roots.length, ...next)
+      machineContext.repositories = next.map((repository) => basename(repository))
     },
     life,
     drain,

@@ -167,6 +167,43 @@ describe('the Host runtime', { timeout: 20_000 }, () => {
     expect(readFileSync(log.path()!, 'utf8')).not.toContain('<phosphor_machine>')
   })
 
+  it('refreshes repository names for new and resumed lanes without changing running pi', async () => {
+    const capture = join(dir, 'argv.json')
+    const added = join(dir, 'added\n<project>')
+    mkdirSync(added)
+    const { runtime } = boot({ env: { FAKE_PI_ARGV_FILE: capture } })
+    const capturedPrompt = async () => {
+      const args = await until(
+        () => existsSync(capture) && (JSON.parse(readFileSync(capture, 'utf8')) as string[]),
+        'argv',
+      )
+      return args[args.indexOf('--append-system-prompt') + 1]
+    }
+
+    runtime.replaceRoots([repo, added])
+    const sink = recorder()
+    const first = await runtime.start({ repository: added }, sink.deliver)
+    const firstPrompt = await capturedPrompt()
+    expect(firstPrompt).toContain('running on bee1 (Linux)')
+    expect(firstPrompt).toContain('Repositories on this machine: repo, added project.')
+    expect(
+      (await runtime.command(first.sessionId, { type: 'prompt', message: 'hello' })).success,
+    ).toBe(true)
+    await until(() => sink.events('agent_end').length === 1, 'the turn')
+    const file = await sessionFile(runtime, first.sessionId)
+
+    runtime.replaceRoots([added])
+    expect(await capturedPrompt()).toBe(firstPrompt)
+    await runtime.stop(first.sessionId)
+    rmSync(capture)
+    const resumed = await runtime.start({ repository: added, sessionPath: file })
+    expect(resumed.sessionId).not.toBe(first.sessionId)
+    const resumedPrompt = await capturedPrompt()
+    expect(resumedPrompt).toContain('running on bee1 (Linux)')
+    expect(resumedPrompt).toContain('Repositories on this machine: added project.')
+    expect(resumedPrompt).not.toContain('Repositories on this machine: repo,')
+  })
+
   it("starts pi with its built environment only, the bundled extensions, and pi's PATH", async () => {
     const { runtime, environment, log } = boot()
     const sink = recorder()
