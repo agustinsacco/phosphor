@@ -76,3 +76,30 @@ it('does not open a local file for a remote workspace key', async () => {
   ).rejects.toThrow('Not available on remote lanes yet.')
   expect(invoke).not.toHaveBeenCalled()
 })
+
+it.each([
+  ['A machine needs at least one folder. Add another first.', true],
+  ['private host detail /home/user/repo', false],
+])('shows only the fixed last-folder refusal verbatim (%s)', async (message, verbatim) => {
+  const host = structuredClone(mockRemoteHosts)[MOCK_HOST_ID]!
+  host.capabilities.push('workspaces.write')
+  useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host }, filter: 'all' })
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'hosts:removeRepository')
+      throw new Error(`Error invoking remote method 'hosts:removeRepository': Error: ${message}`)
+  })
+  act(() => root.render(<RemoteLanes />))
+  const button = (match: (b: HTMLButtonElement) => boolean) => {
+    const found = [...document.body.querySelectorAll('button')].find(match)
+    if (!found) throw new Error('Missing button')
+    return found
+  }
+  act(() => button((b) => !!b.getAttribute('aria-label')?.startsWith('Workspace options')).click())
+  act(() => button((b) => !!b.textContent?.startsWith('Remove')).click())
+  await act(async () => button((b) => b.textContent === 'Remove folder').click())
+  const alert = document.body.querySelector('[role="alert"]')?.textContent
+  expect(alert).toBe(
+    verbatim ? message : 'The Host could not remove this folder. Stop its lanes before retrying.',
+  )
+  invoke.mockReset().mockResolvedValue(undefined)
+})

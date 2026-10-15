@@ -26,6 +26,9 @@ import {
   useRemoteLanesStore,
 } from '@/stores/remoteLanes'
 
+/** Mirrors the main process's last-repository refusal (electron/hosts/repository-management.ts). */
+export const LAST_FOLDER_REFUSAL = 'A machine needs at least one folder. Add another first.'
+
 export function RemoteLanes(): React.JSX.Element | null {
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const filter = useRemoteLanesStore((s) => s.filter)
@@ -153,9 +156,13 @@ function RemoteRepositoryGroup({
                     void window.phosphor
                       .invoke('hosts:removeRepository', hostId, repositoryId)
                       .then(() => setRemoving(false))
-                      .catch(() =>
+                      .catch((error: unknown) =>
                         setRemoveError(
-                          'The Host could not remove this folder. Stop its lanes before retrying.',
+                          // Only the fixed last-folder refusal is shown verbatim; anything
+                          // else keeps the generic text rather than echoing error details.
+                          error instanceof Error && error.message.includes(LAST_FOLDER_REFUSAL)
+                            ? LAST_FOLDER_REFUSAL
+                            : 'The Host could not remove this folder. Stop its lanes before retrying.',
                         ),
                       )
                       .finally(() => setRemoveBusy(false))

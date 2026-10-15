@@ -1,3 +1,4 @@
+import { PaneShell, PaneTitle } from '@/components/PaneShell'
 import { useEffect, useState } from 'react'
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
@@ -43,6 +44,10 @@ export function RemoteArtifactsPane({
     }
   }, [available, sessionId, summary, epoch, connection, requestKey])
   if (!available || loaded !== requestKey)
-    return <p className="p-4">{!available || failed ? REMOTE_UNAVAILABLE : 'Loading artifacts…'}</p>
+    return (
+      <PaneShell title={<PaneTitle label="Artifacts" />}>
+        <p className="p-4">{!available || failed ? REMOTE_UNAVAILABLE : 'Loading artifacts…'}</p>
+      </PaneShell>
+    )
   return <ArtifactsPane sessionId={sessionId} workspacePath={workspacePath} />
 }
