@@ -55,8 +55,31 @@ export async function prepareLaneFolder(input: {
   let madeBranch = false
   let baseCommit = ''
   const path = join(root, '.phosphor', 'worktrees', slug)
+  const logUndoFailure = (error: unknown) => {
+    const code =
+      typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
+    try {
+      log?.(
+        'host',
+        'lane.worktree_undo_failed',
+        typeof code === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(code) ? { code } : {},
+      )
+    } catch {
+      /* Logging cannot replace the original error. */
+    }
+  }
   const undo = async () => {
     if (!created) return
+    // A folder can be missing, replaced or unregistered after reservation.
+    // Roll back our fresh ref independently, without deleting someone else's move.
+    if (worktree.fresh && madeBranch) {
+      try {
+        await run(['update-ref', '-d', `refs/heads/${branch}`, baseCommit])
+        madeBranch = false
+      } catch (error) {
+        logUndoFailure(error)
+      }
+    }
     try {
       try {
         const leaf = lstatSync(path)
@@ -84,19 +107,10 @@ export async function prepareLaneFolder(input: {
         }
       }
       created = false
-      if (madeBranch) await run(['update-ref', '-d', `refs/heads/${branch}`, baseCommit])
+      if (madeBranch && !worktree.fresh)
+        await run(['update-ref', '-d', `refs/heads/${branch}`, baseCommit])
     } catch (error) {
-      const code =
-        typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined
-      try {
-        log?.(
-          'host',
-          'lane.worktree_undo_failed',
-          typeof code === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(code) ? { code } : {},
-        )
-      } catch {
-        /* Logging cannot replace the original error. */
-      }
+      logUndoFailure(error)
     }
   }
   try {
@@ -144,7 +158,7 @@ export async function prepareLaneFolder(input: {
     const existing = await exists(`refs/heads/${branch}`)
     if (existing && worktree.fresh)
       throw new LaneFolderError('That branch already exists.', 'branch-exists')
-    if (worktree.fresh) checkFolders()
+    if (worktree.fresh) checkLeafAbsent()
     if (
       !worktree.fresh &&
       (await run(['worktree', 'list', '--porcelain']))
@@ -153,8 +167,10 @@ export async function prepareLaneFolder(input: {
     )
       refuse('That branch is checked out in another worktree.')
     const common = resolve(root, await run(['rev-parse', '--git-common-dir']))
-    directory(join(common, 'info'))
-    excludeWorktrees(join(common, 'info', 'exclude'))
+    if (!worktree.fresh) {
+      directory(join(common, 'info'))
+      excludeWorktrees(join(common, 'info', 'exclude'))
+    }
     if (!existing) {
       const remote = await exists(`refs/remotes/origin/${defaultBranch}`)
       const base = remote
@@ -174,6 +190,10 @@ export async function prepareLaneFolder(input: {
       created = true
     }
     checkFolders()
+    if (worktree.fresh) {
+      directory(join(common, 'info'))
+      excludeWorktrees(join(common, 'info', 'exclude'))
+    }
     checkLeafAbsent()
     created = true
     await run(['worktree', 'add', path, branch])

@@ -525,6 +525,8 @@ it('fresh refuses a laneless old branch without a folder, and a suffixed branch 
   expect(await run(['rev-parse', 'phosphor/fix-bug-2'])).toBe(await run(['rev-parse', 'main']))
   expect(await run(['rev-parse', 'phosphor/fix-bug'])).toBe(old)
   await next.undo()
+  expect(existsSync(next.cwd)).toBe(false)
+  expect(await run(['for-each-ref', 'refs/heads/phosphor/fix-bug-2'])).toBe('')
 })
 
 it('two concurrent fresh creates never reuse the same branch', async () => {
@@ -551,3 +553,86 @@ it('two concurrent fresh creates never reuse the same branch', async () => {
   })
   for (const result of results) if (result.status === 'fulfilled') await result.value.undo()
 })
+
+it('fresh refuses an unregistered leaf before reserving any ref and leaves it untouched', async () => {
+  const path = join(root, '.phosphor', 'worktrees', 'occupied-leaf')
+  mkdirSync(path, { recursive: true })
+  writeFileSync(join(path, 'kept'), 'keep this folder')
+  const exclude = readFileSync(join(root, '.git', 'info', 'exclude'))
+  const spy = vi.spyOn(exec, 'git')
+  await expect(
+    prepareLaneFolder({ root, worktree: { branch: 'occupied-leaf', fresh: true } }),
+  ).rejects.toEqual(new LaneFolderError('A worktree folder for that branch already exists.'))
+  expect(spy.mock.calls.some(([, args]) => args[0] === 'update-ref')).toBe(false)
+  expect(await run(['for-each-ref', 'refs/heads/occupied-leaf'])).toBe('')
+  expect(readFileSync(join(path, 'kept'), 'utf8')).toBe('keep this folder')
+  expect(readFileSync(join(root, '.git', 'info', 'exclude'))).toEqual(exclude)
+})
+
+it('fresh loses a branch-only reservation race without directories or exclude changes', async () => {
+  const realGit = exec.git
+  const base = await run(['rev-parse', 'main'])
+  const excludePath = join(root, '.git', 'info', 'exclude')
+  const exclude = readFileSync(excludePath)
+  vi.spyOn(exec, 'git').mockImplementation(async (cwd, args, options) => {
+    if (args[0] === 'update-ref' && args[1] === 'refs/heads/branch-only-race')
+      await realGit(root, ['branch', 'branch-only-race', base])
+    return realGit(cwd, args, options)
+  })
+  await expect(
+    prepareLaneFolder({ root, worktree: { branch: 'branch-only-race', fresh: true } }),
+  ).rejects.toMatchObject({ code: 'branch-exists' })
+  expect(existsSync(join(root, '.phosphor'))).toBe(false)
+  expect(readFileSync(excludePath)).toEqual(exclude)
+  expect(await run(['rev-parse', 'branch-only-race'])).toBe(base)
+})
+
+it.each(['parent', 'exclude', 'leaf', 'moved'] as const)(
+  'fresh rolls back its owned ref independently of a later %s failure',
+  async (failure) => {
+    const realGit = exec.git
+    const base = await run(['rev-parse', 'main'])
+    await run(['commit', '--allow-empty', '-m', 'next'])
+    const next = await run(['rev-parse', 'main'])
+    await run(['reset', '--hard', base])
+    const path = join(root, '.phosphor', 'worktrees', 'reserved')
+    const logs: unknown[] = []
+    if (failure === 'exclude')
+      vi.mocked(fs.openSync).mockImplementation(() => {
+        throw new Error('exclude')
+      })
+    const spy = vi.spyOn(exec, 'git').mockImplementation(async (cwd, args, options) => {
+      if (args[0] === 'update-ref' && args[1] === 'refs/heads/reserved') {
+        const result = await realGit(cwd, args, options)
+        if (failure === 'parent') writeFileSync(join(root, '.phosphor'), 'keep parent file')
+        return result
+      }
+      if (args[0] === 'worktree' && args[1] === 'add') {
+        mkdirSync(path)
+        writeFileSync(join(path, 'kept'), 'keep unregistered leaf')
+        if (failure === 'moved') await realGit(root, ['update-ref', 'refs/heads/reserved', next])
+        throw new Error('add failed')
+      }
+      return realGit(cwd, args, options)
+    })
+    await expect(
+      prepareLaneFolder({
+        root,
+        worktree: { branch: 'reserved', fresh: true },
+        log: (_scope, message, data) => logs.push({ message, data }),
+      }),
+    ).rejects.toThrow('The worktree could not be created.')
+    expect(spy).toHaveBeenCalledWith(
+      root,
+      ['update-ref', '-d', 'refs/heads/reserved', base],
+      expect.anything(),
+    )
+    if (failure === 'moved') expect(await run(['rev-parse', 'reserved'])).toBe(next)
+    else expect(await run(['for-each-ref', 'refs/heads/reserved'])).toBe('')
+    if (failure === 'parent')
+      expect(readFileSync(join(root, '.phosphor'), 'utf8')).toBe('keep parent file')
+    if (failure === 'leaf' || failure === 'moved')
+      expect(readFileSync(join(path, 'kept'), 'utf8')).toBe('keep unregistered leaf')
+    expect(JSON.stringify(logs)).not.toContain('reserved')
+  },
+)
