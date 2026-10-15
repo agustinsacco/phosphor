@@ -29,7 +29,7 @@ export interface Toast {
   /** The lane's marker emoji, so the notice and its sidebar row match. */
   marker?: string
   /** Clicking the card does this (and dismisses it). */
-  onOpen?: () => void
+  onOpen?: () => void | Promise<unknown>
   /** Names what clicking does, for the accessible label and the hover hint. */
   openLabel?: string
   /** Playing its exit animation; removed from the list once it finishes. */

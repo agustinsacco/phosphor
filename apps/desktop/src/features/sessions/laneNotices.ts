@@ -3,6 +3,7 @@ import { useExtensionUiStore, type Toast } from '@/stores/extensionUi'
 import { useLanePrefsStore } from '@/stores/lanePrefs'
 import { useLayoutStore } from '@/stores/layout'
 import { useSessionsStore } from '@/stores/sessions'
+import { navigateToLane } from '@/stores/remoteLanes'
 import { laneMarker } from '@/lib/laneMarker'
 import { laneOutcome } from '@/lib/laneNotice'
 import { sessionTitle } from '@/lib/sessionTitle'
@@ -50,11 +51,7 @@ export function notifyLane(
     kind: notice.kind ?? 'info',
     marker: marker || undefined,
     openLabel: 'Open lane',
-    onOpen: () => {
-      const current = useSessionsStore.getState()
-      // Closed since the notice went up: nothing to go to.
-      if (current.live[sessionId]) current.activate(sessionId)
-    },
+    onOpen: () => navigateToLane({ sessionId }),
   })
 }
 
