@@ -2,7 +2,7 @@ import { expect } from '@playwright/test'
 import { spawn, execFileSync } from 'node:child_process'
 import { once } from 'node:events'
 import { generateKeyPairSync, randomBytes, randomUUID, sign } from 'node:crypto'
-import { mkdir, rm, writeFile, readFile } from 'node:fs/promises'
+import { mkdir, rm, writeFile, readFile, symlink } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import { createServer as createProxy, connect, type Socket } from 'node:net'
 import { join, resolve } from 'node:path'
@@ -217,6 +217,7 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
     const addable = join(root, 'addable')
     await mkdir(nonGit)
     await mkdir(addable)
+    await symlink(h.workspace, join(root, 'escape'))
     await mkdir(join(repo, 'nested'))
     await writeFile(join(nonGit, 'remote.txt'), 'HOST_B_ONLY non-git\n')
     await writeFile(join(addable, 'addable.txt'), 'HOST_ADDABLE_ONLY\n')
@@ -239,12 +240,12 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
     await mkdir(join(h.workspace, '.pi', 'skills', 'local-only'), { recursive: true })
     await writeFile(
       join(h.workspace, '.pi', 'skills', 'local-only', 'SKILL.md'),
-      '---\nname: LOCAL_ONLY\ndescription: Local fixture\n---\nLOCAL_ONLY skill\n',
+      '---\nname: local-only\ndescription: LOCAL_ONLY fixture\n---\nLOCAL_ONLY skill\n',
     )
     await mkdir(join(agent, 'skills', 'host-only'), { recursive: true })
     await writeFile(
       join(agent, 'skills', 'host-only', 'SKILL.md'),
-      '---\nname: HOST_A_ONLY\ndescription: Host fixture\n---\nHOST_A_ONLY skill\n',
+      '---\nname: host-only\ndescription: HOST_A_ONLY fixture\n---\nHOST_A_ONLY skill\n',
     )
     await writeFile(
       join(agent, 'settings.json'),
@@ -419,11 +420,15 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
       if (lane && frame.receipt.fence !== undefined) fences.set(lane, frame.receipt.fence)
       return frame.receipt
     }
-    const createLane = async (index = 1, branch?: string) => {
+    const createLane = async (
+      index = 1,
+      branch?: string,
+      name = index ? 'HOST_B_ONLY lane' : `HOST_A_ONLY ${branch ?? 'lane'}`,
+    ) => {
       const receipt = await command({
         type: 'lane.create',
         repositoryId: await repositoryId(index),
-        name: index ? 'HOST_B_ONLY lane' : `HOST_A_ONLY ${branch ?? 'lane'}`,
+        ...(name && { name }),
         worktree: branch ? { branch } : null,
       })
       if (!receipt.laneId) throw new Error('Missing lane')
@@ -497,12 +502,41 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
       restartHost,
       command,
       severConnection,
+      slowName: {
+        prompt: `PHX-delayedname name-until:${join(root, 'release-name')}`,
+        release: () => writeFile(join(root, 'release-name'), ''),
+        finished: () =>
+          readFile(join(root, 'release-name.finished'), 'utf8').then(
+            () => true,
+            () => false,
+          ),
+      },
       slowTurn: {
         prompt: `slow-until ${join(root, 'release-slow-turn')}`,
         release: () => writeFile(join(root, 'release-slow-turn'), ''),
       },
       readHostFile: (path: string) => readFile(join(repo, path), 'utf8'),
       createLane,
+      createEmptyLane: async () => {
+        await mkdir(join(root, 'empty'))
+        await command({ type: 'host.repositories.add', path: 'empty' })
+        const directory = () =>
+          frames.findLast(
+            (f) => f.type === 'lanes' && f.repositories.some((r) => r.name === 'empty'),
+          )
+        await expect.poll(() => directory()).toBeTruthy()
+        const snapshot = directory()
+        if (snapshot?.type !== 'lanes') throw new Error('Missing empty repository')
+        const repository = snapshot.repositories.find((r) => r.name === 'empty')!
+        const receipt = await command({
+          type: 'lane.create',
+          repositoryId: repository.id,
+          name: 'HOST_EMPTY lane',
+          worktree: null,
+        })
+        if (!receipt.laneId) throw new Error('Missing empty lane')
+        return receipt.laneId
+      },
       createWorktreePair: async () => {
         const pair = [await createLane(0, 'fixture-a'), await createLane(0, 'fixture-b')]
         for (const [index, lane] of pair.entries()) {

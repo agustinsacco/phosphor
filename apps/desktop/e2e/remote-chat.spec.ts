@@ -55,15 +55,91 @@ test('Send, steer, follow up and abort have one remote echo; model, thinking and
   }
 })
 
-test.fixme('Continue has exactly one remote echo (phase 2)', async () => {
-  // Start stream; abort; click Continue; exactly one user bubble and one reply.
-  // Assert one ordered transcript after reconnect and a subsequent successful prompt.
+test('Continue has exactly one remote echo', async () => {
+  test.setTimeout(25_000)
+  const h = await remoteHostFixture()
+  try {
+    await h.signIn()
+    await openRemote(h)
+    await takeControl(h)
+    const chat = h.page.getByRole('textbox', { name: 'Chat message', exact: true })
+    await chat.fill('stream continue test')
+    await chat.press('Enter')
+    await expect(h.page.locator('main p').filter({ hasText: /^1 2 / })).toBeVisible()
+    await h.page.locator('button[aria-label="Stop"]').click()
+    await expect(h.page.getByText('stopped', { exact: true })).toBeVisible()
+    await chat.fill('draft preserved')
+    await h.page.getByRole('button', { name: 'Continue', exact: true }).click()
+    await expect(h.page.locator('main').getByText('continue', { exact: true })).toHaveCount(1)
+    await expect(h.page.locator('main').getByText('ok', { exact: true })).toHaveCount(1)
+    await expect(chat).toHaveValue('draft preserved')
+    const restore = h.severConnection()
+    try {
+      await expect(h.page.getByText(/Reconnecting|Connecting/).first()).toBeVisible()
+    } finally {
+      restore()
+    }
+    await expect(h.page.getByText('Controlled by you', { exact: true })).toBeVisible()
+    await expect(h.page.locator('main').getByText('continue', { exact: true })).toHaveCount(1)
+    await sendTurn(h, 'PHX-aftercontinue')
+  } finally {
+    await h.close()
+  }
 })
 
-test.fixme('Remote slash, mentions and attachments use Host inputs (phase 2)', async () => {
-  // `/` offers Host-only extension, no local-only command; execute handled command and assert its
-  // response/no spurious turn; `@` lists nested Host file, not local decoy; attach document and
-  // image, assert attachment chip and Host-derived response, not local absolute path. Refuse upload
-  // and !shell; draft/attachment retained, no reply; unavailable queue removal/rewind/fork has
-  // reason or is absent.
+test('Remote slash, mentions and attachments use Host inputs', async () => {
+  test.setTimeout(25_000)
+  const h = await remoteHostFixture()
+  try {
+    await h.signIn()
+    await openRemote(h)
+    await takeControl(h)
+    const chat = h.page.getByRole('textbox', { name: 'Chat message', exact: true })
+    await chat.fill('/host')
+    await expect(h.page.getByText('/host-only', { exact: true })).toBeVisible()
+    await chat.fill('/host-only')
+    await h.page.getByRole('button', { name: 'Send message', exact: true }).click()
+    await expect(h.page.getByText('HOST_A_ONLY command handled', { exact: true })).toBeVisible()
+    await expect(h.page.locator('main').getByText('ok', { exact: true })).toHaveCount(0)
+    await chat.fill('@guide')
+    await expect(h.page.getByText('nested/guide.md', { exact: true })).toBeVisible()
+    await expect(h.page.getByText('LOCAL_ONLY decoy', { exact: true })).toHaveCount(0)
+    await chat.fill('!echo LOCAL_ONLY')
+    await chat.press('Enter')
+    await expect(chat).toHaveValue('!echo LOCAL_ONLY')
+    await expect(
+      h.page.getByText('Not available on remote lanes yet.', { exact: true }),
+    ).toBeVisible()
+    const chosen = h.page.waitForEvent('filechooser')
+    await h.page.getByRole('button', { name: 'Attach files', exact: true }).click()
+    await (
+      await chosen
+    ).setFiles([
+      {
+        name: 'host-document.txt',
+        mimeType: 'text/plain',
+        buffer: Buffer.from('HOST_A_ONLY document'),
+      },
+      {
+        name: 'host-image.png',
+        mimeType: 'image/png',
+        buffer: Buffer.from(
+          'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=',
+          'base64',
+        ),
+      },
+    ])
+    await expect(h.page.getByTestId('attachment-chips')).toContainText('host-document.txt')
+    await h.page.getByTestId('attachment-chips').getByRole('img').hover()
+    await expect(
+      h.page.getByRole('button', { name: 'Remove host-image.png', exact: true }),
+    ).toBeVisible()
+    await chat.fill('PHX-hostinputs')
+    await h.page.getByRole('button', { name: 'Send message', exact: true }).click()
+    await expect(h.page.locator('main').getByText('PHX-hostinputs', { exact: true })).toHaveCount(1)
+    await expect(h.page.getByTestId('attachment-chips')).toHaveCount(0)
+    expect(await h.localSentinel()).toBe('LOCAL_ONLY decoy\n')
+  } finally {
+    await h.close()
+  }
 })

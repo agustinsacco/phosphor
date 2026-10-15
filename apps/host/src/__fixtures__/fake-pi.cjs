@@ -71,8 +71,20 @@ if (args.includes('-p') || args.includes('--print')) {
   console.error('FAKE_PI_PRINT_WAITING_FOR_EOF')
   process.stdin.resume()
   process.stdin.on('end', () => {
-    console.log('HOST_A_ONLY title')
-    process.exit(0)
+    const release = /name-until:([^\s]+)/.exec(args.join(' '))?.[1]
+    const finish = () => {
+      if (release) writeFileSync(`${release}.finished`, '')
+      console.log('HOST_A_ONLY title')
+      process.exit(0)
+    }
+    if (!release) return finish()
+    const deadline = Date.now() + 10000
+    const timer = setInterval(() => {
+      if (existsSync(release)) {
+        clearInterval(timer)
+        finish()
+      } else if (Date.now() > deadline) process.exit(1)
+    }, 10)
   })
   return
 }
@@ -196,6 +208,19 @@ function persist(message) {
   if (!existsSync(sessionFile)) {
     mkdirSync(dirname(sessionFile), { recursive: true })
     appendFileSync(sessionFile, header() + '\n')
+    if (flag('-n')) {
+      const entryId = randomUUID()
+      appendFileSync(
+        sessionFile,
+        JSON.stringify({
+          type: 'session_info',
+          id: entryId,
+          parentId: lastEntryId,
+          name: flag('-n'),
+        }) + '\n',
+      )
+      lastEntryId = entryId
+    }
   }
   {
     const entryId = randomUUID()
@@ -370,13 +395,15 @@ function prompt(message) {
       ? messages.flatMap((m) => JSON.stringify(m.content).match(/PHX-[A-Za-z0-9]+/g) ?? [])
       : /PHX-[A-Za-z0-9]+/.exec(message)
   const reply = /links/i.test(message)
-    ? `[${laneMarker()} guide](nested/guide.md#L2) [absolute](${join(process.cwd(), 'remote.txt')})`
+    ? `[${laneMarker()} guide](nested/guide.md#L2) [absolute](${join(process.cwd(), 'remote.txt')}) [outside](/etc/passwd)`
     : (process.env.FAKE_PI_TURN !== 'wrong' && tokens?.at(-1)) || 'ok'
   delta(reply)
-  if (process.env.FAKE_PI_TURN === 'fail' || /fail-turn/.test(message)) {
-    const error = /fail-turn/.test(message)
-      ? `${laneMarker()} provider error`
-      : `401: invalid x-api-key ${process.env.ANTHROPIC_API_KEY}`
+  if (process.env.FAKE_PI_TURN === 'fail' || /fail-turn|auth-error/.test(message)) {
+    const error = /auth-error/.test(message)
+      ? '401 unauthorized: login expired'
+      : /fail-turn/.test(message)
+        ? `${laneMarker()} provider error`
+        : `401: invalid x-api-key ${process.env.ANTHROPIC_API_KEY}`
     return setTimeout(() => finish(message, '', 'error', error), 10)
   }
   if (process.env.FAKE_PI_TURN === 'exit') return setTimeout(() => process.exit(3), 50)
@@ -515,13 +542,27 @@ function handle(cmd) {
     }
     case 'get_commands':
       return respond(cmd, {
-        commands:
-          breakdown && process.env.FAKE_PI_HIDE !== 'budget'
+        commands: [
+          ...(breakdown && process.env.FAKE_PI_HIDE !== 'budget'
             ? [
                 { name: 'phosphor-context-budget', source: 'extension' },
                 { name: 'host-only', description: 'HOST_A_ONLY command', source: 'extension' },
               ]
-            : [],
+            : []),
+          ...(existsSync(join(agentDir, 'skills', 'host-only', 'SKILL.md'))
+            ? [
+                {
+                  name: 'skill:host-only',
+                  description: 'HOST_A_ONLY fixture',
+                  source: 'skill',
+                  sourceInfo: {
+                    path: join(agentDir, 'skills', 'host-only', 'SKILL.md'),
+                    scope: 'user',
+                  },
+                },
+              ]
+            : []),
+        ],
       })
     case 'set_model':
       selectedModel = models.find(

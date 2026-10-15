@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { remoteHostFixture } from './fixtures/remote-host'
-import { openRemote, takeControl, files, file } from './fixtures/remote-ui'
+import { openRemote, takeControl, files, file, captures } from './fixtures/remote-ui'
 
 test('Background attention and sign-out preserve machine boundaries', async () => {
   test.setTimeout(25_000)
@@ -75,10 +75,71 @@ test('Background attention and sign-out preserve machine boundaries', async () =
   }
 })
 
-test.fixme('Provider login and error remedies target bee1, Settings is This Mac (phase 2)', async () => {
-  // trigger remote auth error, click Sign in on bee1→Machines/readiness; provider login terminal
-  // visibly names bee1, finishes and readiness becomes signed in, retry succeeds. Assert no local
-  // login terminal. Open machine-scoped Settings tabs: This Mac scope visible; Accounts links bee1
-  // readiness; no unhandled rejection, Host meter unaffected by Mac budget change. Capture auth
-  // remedy and scope banner both themes.
+test('Provider login and error remedies target bee1, Settings is This Mac', async ({
+  browserName: _browserName,
+}, info) => {
+  test.setTimeout(25_000)
+  const h = await remoteHostFixture()
+  const errors: string[] = []
+  try {
+    h.page.on('pageerror', (error) => errors.push(error.message))
+    await h.signIn()
+    await openRemote(h)
+    await takeControl(h)
+    const chat = h.page.getByRole('textbox', { name: 'Chat message', exact: true })
+    await chat.fill('auth-error')
+    await chat.press('Enter')
+    await expect(h.page.getByRole('button', { name: 'Sign in on bee1', exact: true })).toBeVisible()
+    await captures(h, info, 'remote-auth-remedy')
+    await h.page.getByRole('button', { name: 'Sign in on bee1', exact: true }).click()
+    await expect(h.page.locator('main')).toContainText('bee1')
+    await expect(h.page.locator('main')).toContainText('Readiness')
+    await expect(h.page.locator('.xterm')).toHaveCount(0)
+    const provider = h.page
+      .getByText('ChatGPT (Codex): Not signed in', { exact: true })
+      .locator('..')
+    await expect(provider).toBeVisible()
+    if (await provider.getByRole('button', { name: 'Sign in', exact: true }).count()) {
+      await provider.getByRole('button', { name: 'Sign in', exact: true }).click()
+      const login = h.page.getByRole('dialog', { name: 'Provider sign-in', exact: true })
+      await expect(login).toContainText('Type /login openai-codex')
+      await expect(login.locator('.xterm')).toContainText('HOST_A_ONLY provider login')
+      const input = login.locator('.xterm-helper-textarea')
+      await input.focus()
+      await input.pressSequentially('/login openai-codex', { delay: 5 })
+      await input.press('Enter')
+      await expect(login.locator('.xterm')).toContainText('HOST_A_ONLY signed in')
+      await input.pressSequentially('/quit')
+      await input.press('Enter')
+      await expect(login).toBeHidden()
+      await expect(h.page.getByText('ChatGPT (Codex): Not signed in', { exact: true })).toHaveCount(
+        0,
+      )
+    } else {
+      await expect(provider).toContainText('phosphor providers login openai-codex')
+      info.annotations.push({
+        type: 'gap',
+        description:
+          'Dev Host has no native node-pty resource; provider PTY login unavailable. Real terminal capability was not spoofed.',
+      })
+    }
+
+    await h.page.getByRole('button', { name: 'Settings', exact: true }).click()
+    const settings = h.page.getByRole('dialog', { name: 'Settings', exact: true })
+    for (const tab of ['Accounts', 'Agent', 'Extensions', 'Advanced']) {
+      await settings.getByRole('button', { name: tab, exact: true }).click()
+      await expect(settings).toContainText(
+        'These settings configure This Mac, not a remote machine.',
+      )
+      await expect(settings).toContainText('Remote settings are not available here.')
+    }
+    await settings.getByRole('button', { name: 'Accounts', exact: true }).click()
+    await expect(
+      settings.getByRole('button', { name: 'Open bee1 readiness', exact: true }),
+    ).toBeVisible()
+    await captures(h, info, 'remote-settings-scope')
+    expect(errors).toEqual([])
+  } finally {
+    await h.close()
+  }
 })

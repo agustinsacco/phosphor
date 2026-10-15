@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -76,6 +76,15 @@ describe('Host fake pi acceptance scripts', () => {
     h.child.stdin.end()
     await exit
     expect(h.output()).toBe('HOST_A_ONLY title\n')
+  })
+
+  it('persists a launch name on the first prompt, not before it', async () => {
+    const h = await fixture(['--mode', 'rpc', '-n', 'HOST_A_ONLY launch name'])
+    const initial = (await h.request('get_state')) as { data: { sessionFile: string } }
+    await expect(readFile(initial.data.sessionFile, 'utf8')).rejects.toThrow()
+    await h.request('prompt', { message: 'PHX-launchname' })
+    await h.settled(1)
+    expect(await readFile(initial.data.sessionFile, 'utf8')).toContain('HOST_A_ONLY launch name')
   })
 
   it('finishes turns, recalls persisted tokens, and persists a manual name on resume', async () => {
@@ -164,6 +173,27 @@ describe('Host fake pi acceptance scripts', () => {
     })
   })
 
+  it('discovers the Host user skill without extension arguments', async () => {
+    const h = await fixture(['--mode', 'rpc', '--no-session'])
+    const path = join(h.root, 'skills', 'host-only', 'SKILL.md')
+    await mkdir(join(h.root, 'skills', 'host-only'), { recursive: true })
+    await writeFile(path, 'HOST_A_ONLY skill')
+    expect(await h.request('get_commands')).toMatchObject({
+      data: {
+        commands: [
+          { name: 'skill:host-only', source: 'skill', sourceInfo: { path, scope: 'user' } },
+        ],
+      },
+    })
+  })
+
+  it('produces a remote authentication error for remedy acceptance', async () => {
+    const h = await fixture()
+    await h.request('prompt', { message: 'auth-error' })
+    await h.settled(1)
+    expect(JSON.stringify(h.records())).toContain('401 unauthorized: login expired')
+  })
+
   it('offers two models, handles Host commands without a turn, and compacts', async () => {
     const h = await fixture(['--mode', 'rpc', '-e', '/fixture/context-breakdown.ts'])
     expect(await h.request('get_available_models')).toMatchObject({
@@ -210,6 +240,30 @@ describe('Host fake pi acceptance scripts', () => {
     expect(JSON.stringify(messages)).toContain('artifact_update')
     expect(JSON.stringify(messages)).toContain('toolResult')
     expect(JSON.stringify(messages)).toContain('HOST_A_ONLY version 2')
+    expect(h.records()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'message_start',
+          message: expect.objectContaining({ role: 'assistant' }),
+        }),
+        expect.objectContaining({
+          type: 'message_end',
+          message: expect.objectContaining({
+            role: 'toolResult',
+            toolName: 'artifact_create',
+            details: expect.objectContaining({ version: 1 }),
+          }),
+        }),
+        expect.objectContaining({
+          type: 'message_end',
+          message: expect.objectContaining({
+            role: 'toolResult',
+            toolName: 'artifact_update',
+            details: expect.objectContaining({ version: 2 }),
+          }),
+        }),
+      ]),
+    )
     expect(JSON.stringify(messages)).toContain('nested/guide.md#L2')
     expect(JSON.stringify(messages)).toContain('"stopReason":"error"')
   })
