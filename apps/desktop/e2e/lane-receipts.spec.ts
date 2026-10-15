@@ -1,4 +1,6 @@
 import { execFileSync } from 'node:child_process'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { test, expect } from '@playwright/test'
 import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
 import { captures, openRemote, selectMachine } from './fixtures/remote-ui'
@@ -69,13 +71,17 @@ test('This Mac lane shows its own receipt after settling off screen', async ({
     await h.page.getByRole('button', { name: 'Start session', exact: true }).click()
     await expect(h.page.getByRole('textbox', { name: 'Chat message', exact: true })).toBeVisible()
     await h.page.getByRole('button', { name: 'New', exact: true }).click()
+    await expect(h.page.getByPlaceholder('Describe a task or ask a question')).toBeVisible()
+    // The stub settles the turn only now, so it always settles off screen.
+    writeFileSync(join(h.workspace, '.phx-receipt-go'), '')
     const card = h.page.getByTestId('toast').filter({ hasText: 'tests pass' })
     await expect(card).toBeVisible()
     await card.hover()
     for (const text of [
       'This Mac',
       'workspace',
-      '⎇ phosphor/phx-receipt',
+      // Auto-naming may rename the branch before the card shows; either name is the lane's.
+      '⎇ phosphor/',
       '1 file',
       '+1',
       '-1',

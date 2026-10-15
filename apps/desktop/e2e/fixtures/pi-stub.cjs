@@ -1172,7 +1172,15 @@ function persist(message) {
 
 async function runReceiptTurn() {
   out({ type: 'agent_start' })
+  // Settle only after the test has left the lane, which it signals with a file in
+  // the workspace above this worktree. A fixed delay raced slow CI runners.
+  const go = [0, 1, 2, 3].map((up) =>
+    path.join(process.cwd(), ...Array(up).fill('..'), '.phx-receipt-go'),
+  )
+  const until = Date.now() + 15_000
   await new Promise((resolve) => setTimeout(resolve, 700))
+  while (Date.now() < until && !go.some((file) => fs.existsSync(file)))
+    await new Promise((resolve) => setTimeout(resolve, 100))
   fs.writeFileSync('hello.ts', 'export const hello = "receipt"\n')
   for (const [name, args, result] of [
     [

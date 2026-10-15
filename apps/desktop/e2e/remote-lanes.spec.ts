@@ -17,7 +17,7 @@ test('Create on bee1 with a usable default and name the first turn', async ({
   const h = await remoteHostFixture()
   try {
     execFileSync('git', ['branch', 'phosphor/phx-created'], { cwd: h.repo })
-    const base = execFileSync('git', ['rev-parse', 'main'], {
+    const base = execFileSync('git', ['rev-parse', 'HEAD'], {
       cwd: h.repo,
       encoding: 'utf8',
     }).trim()
