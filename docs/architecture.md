@@ -106,7 +106,7 @@ or change session ownership, pi arguments or on-disk formats.
 
 - **Main process owns all side effects**: pi subprocesses, PTYs, filesystem, git, watchers, dialogs, app prefs.
 - **Renderer is pure UI** over typed IPC. `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true` (`apps/desktop/electron/main.ts`), strict CSP in `apps/desktop/src/index.html`. Model-authored HTML renders only in the sandboxed iframe, and only via a `phosphor-artifact://` URL, because a `srcdoc` document inherits the embedder's policy container and the app's own `script-src 'self'` would silently refuse every inline script (`apps/desktop/src/components/SandboxedHtml.tsx`). Workspace files reach the Files pane's viewers over a second scheme, `phosphor-file://`, which serves only token-granted files and gives HTML the same sandbox and no-network policy (`apps/desktop/electron/fs/file-protocol.ts`, [files.md](files.md#previews)). Both schemes are registered in one `registerSchemesAsPrivileged` call; Electron honours only one. A frame navigating itself to http(s) or `file:` is refused twice: by the app's `frame-src`, and by a `will-frame-navigate` guard that does not depend on that policy.
-- **IPC design**: request/response methods (`invoke`) for commands, push channels (`send`) for streams. Namespace per domain, **22 prefixes today**: `pi:*` (session lifecycle, RPC passthrough, agent settings, provider login), `app:*` (prefs, dialogs, theme, drafts, sandboxes), `git:*` (including worktrees; there is no `worktrees:*`), `claude:*` (pi-claude-cli accounts, login, usage), `sessions:*` (on-disk scan, tree, fork/jump, delete), `mcp:*`, `fs:*`, `skills:*`, `packages:*`, `pty:*`, `headroom:*`, `updates:*`, `maintenance:*`, `gh:*`, `clipboard:*`, `optimization:*` (`optimization:stats`, one channel), `artifacts:*`, `routines:*` (local schedules, history, and execution controls), `account:*` (optional sign-in), `control:*` (machine directory and enrollment clients), `voice:*` (dictation and its model download; the recognizer runs in a utility process, [voice.md](voice.md)), and `feedback:*`. Every message type is declared in [`libs/shared/src/ipc.ts`](../libs/shared/src/ipc.ts); count prefixes there, not here, if the two ever disagree.
+- **IPC design**: request/response methods (`invoke`) for commands, push channels (`send`) for streams. Namespace per domain, **23 prefixes today**: `pi:*` (session lifecycle, RPC passthrough, agent settings, provider login), `app:*` (prefs, dialogs, theme, drafts, sandboxes), `git:*` (including worktrees; there is no `worktrees:*`), `claude:*` (pi-claude-cli accounts, login, usage), `sessions:*` (on-disk scan, tree, fork/jump, delete), `mcp:*`, `fs:*`, `skills:*`, `packages:*`, `pty:*`, `headroom:*`, `updates:*`, `maintenance:*`, `gh:*`, `clipboard:*`, `optimization:*` (`optimization:stats`, one channel), `artifacts:*`, `routines:*` (local schedules, history, and execution controls), `account:*` (optional sign-in), `control:*` (machine directory and enrollment clients), `hosts:*` (Host connections and remote resources), `voice:*` (dictation and its model download; the recognizer runs in a utility process, [voice.md](voice.md)), and `feedback:*`. Every message type is declared in [`libs/shared/src/ipc.ts`](../libs/shared/src/ipc.ts); count prefixes there, not here, if the two ever disagree.
 - **Data flow for one streamed prompt**: renderer `pi:command` with `{type:"prompt"}` → main writes one JSONL line to child stdin → child stdout events parsed by `PiRpcClient` → forwarded on `pi:event:<sessionId>` (`sessionEventChannel()` in `libs/shared/src/ipc.ts`) → `reduceChatEvent` (`apps/desktop/src/features/chat/reducer.ts`) folds events into message view-models → virtualized list renders deltas.
 
 ## Repo layout
@@ -126,17 +126,18 @@ interactive sessions remain independent and are not reclaimed by it.
 
 ## Host and control plane
 
-`apps/host` is a plain-Node CLI with its own config and machine adapters over
-`libs/session-runtime`. It checks prerequisites and runs local acceptance sessions.
-Its `login`, `status` and `logout` clients make outbound Ed25519-signed requests.
-It has no inbound listener, heartbeat runner or remote lane API ([host.md](host.md)).
+`apps/host` is a plain-Node CLI and daemon with its own config and machine
+adapters over `libs/session-runtime`. It owns remote pi sessions, repositories,
+terminals and schedules. `phosphor run` sends signed heartbeats and serves a
+grant-authenticated loopback API, exposed privately by Tailscale Serve.
+[Host](host.md) owns the runtime and CLI contract.
 
-`apps/control` serves built Astro pages and the control API: health, account
-metadata, enrollment, the machine directory, and Host self, heartbeat and
-self-revocation routes over the shared `control-api.ts` contract and server-only
-SQL functions. It is not deployed yet.
-Desktop's main-only `control:*` clients back the Machines page's
-approval, rename and removal UI. There is no execution grant or lane transport here.
+`apps/control` serves built Astro pages and the control API: account metadata,
+enrollment, machine directory, clients, grants and Host heartbeats over shared
+contracts and server-only SQL functions. Desktop main's `control:*` clients own
+directory operations; `hosts:*` and machine-scoped IPC route directly to the Host.
+The renderer has no network access. [Remote access](remote-access.md) shows the
+end-to-end flow and [remote protocol](remote-protocol.md) defines the transport.
 
 The control plane stores identity and machine metadata only, including Host public
 keys. Lanes, prompts, transcripts, paths and provider credentials stay off it.

@@ -545,12 +545,13 @@ libs/pi-extensions/pi-ext/  the six pi extensions that run inside pi's process,
                      bundled into every session: artifacts, context-breakdown,
                      headroom, lane-reload, tool-name-guard, worktree-paths
 apps/desktop/e2e/                 Playwright-Electron smoke tests + deterministic pi stub
-apps/control/        plain-Node site and control API server, not deployed yet;
-                     enrollment, machine and Host routes (docs/control-plane.md)
+apps/control/        plain-Node site and control API server; enrollment, machines,
+                     clients, grants and Host routes (docs/control-plane.md)
 apps/host/           the plain-Node Host and its `phosphor` CLI (src/, and
                      scripts/build.mjs for the bundle): its config, pi's
                      environment, machine checks, session runtime and signed
                      loopback API for grant-authenticated clients (docs/host.md)
+tools/host-release/  signed Host bundles, pinned Node/native PTY, manifest and installer
 tools/scripts/             install.sh, icon + screenshot generation, release and
                      validate helpers
 docs/                living technical docs — one file per surface, each

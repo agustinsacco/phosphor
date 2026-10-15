@@ -4,7 +4,9 @@ The Nx project graph is not one installation domain. npm shares the three
 private source libraries, while Desktop, Control and the site keep independent locks.
 All targets remain uncached. The Host (`apps/host`, [host.md](host.md)) has no
 manifest of its own: it is checked and tested from the root install and imports
-only Node builtins and the source libraries. No native Node staging exists.
+Node builtins, `ws` and the source libraries. Signed Host releases stage their
+own pinned Node runtime and target-specific node-pty resources, separate from
+Desktop's Electron ABI ([Host releases](host.md#build)).
 
 | Domain                            | Manifest / lock                                                                                             | Ownership                                                               |
 | --------------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |

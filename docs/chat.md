@@ -962,25 +962,33 @@ so a bad push degrades to "section absent" rather than a broken meter.
 
 ## Remote lanes
 
-Hosts that announce `sessions.read` show their lanes in the sidebar. The machine
-filter lists All machines, This Mac, and each capable Host. Every remote row is
-tagged with its machine. Offline Hosts keep their last-known rows in memory,
-greyed and labelled offline. A dot means the Host's attention counter exceeds
-its read counter. Opening a lane or reading it in a focused window marks it read
-on the Host. Clicking a Host notification opens that lane.
-
-Remote lanes use the same transcript renderer as local lanes. The header shows
-the machine. The control strip names the controller. Viewers see a read-only
-composer and an explicit Take control action; there is no automatic takeover.
+Remote lanes use the same transcript renderer as local lanes. The header names
+the machine; the control strip names the controller. Viewers have a read-only
+composer and an explicit Take control action. There is no automatic takeover.
 Controllers can prompt, steer, queue, abort, compact, change model and thinking,
-answer dialogs, stop and resume. New lane on a machine asks for its repository,
-optional branch and name, and optional provider and model ids.
+answer dialogs, stop and resume. The machine's capabilities and current control
+are checked in main and again by the Host.
 
-Terminal and Subagents panes show “Not available on
-remote lanes yet.” instead of local machine data. Local workspace controls,
-file mentions, transcript export and local account usage are not
-available inside a remote lane. Remote transcripts remain in memory. Drafts use
-Host-qualified lane keys. A reconnect reset replaces history through the normal
-hydration path.
+Remote creation uses the target machine's configured repositories and model
+catalogue. An unavailable Host never starts a local session instead.
 
-Remote Artifacts requires `artifacts.read`; see [remote artifacts](remote-access.md#remote-artifacts).
+<!-- pending: L -->
+
+Slash commands come from the lane; file mentions search its Host file list.
+Thinking levels derive from its model. Continue waits for the receipt and echo
+rather than inserting an optimistic duplicate. The Files, Changes, Terminal and
+Artifacts panes route to the Host when their capabilities are announced. Remote
+Subagents do not inspect local sessions. Missing capabilities show the fixed
+unavailable hint, not local machine data. The full [gap list](future-features.md#remote-surface-gaps)
+owns unsupported actions.
+
+Remote transcripts remain in memory. Drafts use Host-qualified lane keys; local
+attachment paths and uploaded Host document paths are not persisted in remote
+drafts. A reconnect reset replaces history through the normal hydration path.
+The composer disables during disconnection and recovers from the Host snapshot.
+Opening or focusing the lane marks it read on the Host; counters clear across
+clients. [Desktop routing](remote-desktop.md) owns connection and receipt details.
+
+<!-- pending: K -->
+
+Remote Artifacts requires `artifacts.read`; see [remote artifacts](remote-desktop.md#remote-artifacts).

@@ -112,7 +112,7 @@ printf '#!/bin/sh\nexec %s %s "$@"\n' "$(readlink -f "$(command -v node)")" ~/.l
 The last line writes the `phosphor` command. It pins node's real path, not a
 version manager's per-shell link (fnm's `/run/user/.../fnm_multishells/...`
 is gone at logout). Copying a build made elsewhere ([Build](#build)) works too.
-Desktop's Add a machine dialog shows the same commands.
+Desktop's Add a machine dialog offers the signed release installer and manual setup.
 
 Then run `setup`, `doctor`, `providers`, `accept`, `login` and `service install`.
 
@@ -161,8 +161,9 @@ Failed checks exit 69 or 78 and write nothing. An existing valid config is
 summarized and left untouched, with exit 0. An invalid one is left untouched
 with safe errors and exit 78. `--replace` rewrites it, keeping `hostId`,
 `contextBudget`, `environment.pass`, `accounts`, `control`, `api.port` and `resourceRoot`
-when the old config loads and validates. A broken old file is replaced with a
-note. A symlink is replaced, never written through.
+when the old config loads and validates. Other settings are detected again;
+`autoNameLanes` and `allowRepositoryChanges` return to their default `true`.
+A broken old file is replaced with a note. A symlink is replaced, never written through.
 
 The new directory is 0700 and the new file 0600. An existing directory must
 belong to the caller and not be writable by others; otherwise setup exits 78
@@ -198,7 +199,10 @@ phosphor update [--version X.Y.Z] [--check] [--json]
 phosphor update --rollback [--json]
 phosphor uninstall [--purge --yes] [--json]
 phosphor version [--json]
+phosphor help
 ```
+
+`--help` also prints usage.
 
 stdout carries only the report or the JSON. Usage errors and accept's progress
 go to stderr.
@@ -213,7 +217,7 @@ for dev builds (`0.0.0-dev.source` when no commit is stamped).
 | 69            | a prerequisite is unavailable; for `providers`, nothing is signed in; for `status`, not enrolled |
 | 70            | internal error, a failed cleanup or the drain deadline                                           |
 | 75            | control plane unreachable, invalid response, enrollment code expired or concurrent setup         |
-| 77            | this machine was removed from the account                                                        |
+| 77            | this machine is removed from the account                                                         |
 | 78            | the config or state storage is invalid                                                           |
 | 129, 130, 143 | ended by SIGHUP, SIGINT or SIGTERM, after stopping probes and sessions                           |
 
@@ -379,18 +383,22 @@ on Linux and macOS alike. No environment variable names it.
   `chmod` to run.
 - **Pinned paths.** Every path is absolute and normalized. `~` is not expanded.
 
-| Field              | Meaning                                                                                                                                                                             |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `hostId`           | Optional. Defaults to the short hostname, made to fit the HostHello identifier pattern.                                                                                             |
-| `pi.executable`    | What `command -v pi` prints.                                                                                                                                                        |
-| `pi.node`          | The node that runs pi. Required when `pi.executable` resolves to a Node script, as an npm-installed pi does.                                                                        |
-| `resourceRoot`     | Holds `pi-ext/` and `skills/`. Defaults to the running bundle's own folder.                                                                                                         |
-| `repositories`     | 1 to 64 folders that sessions may run in. Never `/`.                                                                                                                                |
-| `contextBudget`    | Desktop's grammar; `""` or absent is the 200k default. A value Desktop would quietly replace with the default, such as `77k`, is an error.                                          |
-| `environment.pass` | Up to 64 more variable names for pi. Names only, never values. Naming `PATH` or a hook below is an error.                                                                           |
-| `environment.path` | Up to 32 more PATH folders.                                                                                                                                                         |
-| `control.url`      | Optional bare origin. Defaults to `https://phosphor.saccolabs.com`. HTTPS, or HTTP only on localhost, 127.0.0.1 or ::1. No credentials, path, query or fragment. Ports are 1-65535. |
-| `accounts`         | `null` or absent: accounts are unavailable on a Host.                                                                                                                               |
+| Field                    | Meaning                                                                                                                                                                             |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `version`                | Required, exactly `1`.                                                                                                                                                              |
+| `autoNameLanes`          | Optional boolean, default `true`. Enables Host-generated lane names.                                                                                                                |
+| `allowRepositoryChanges` | Optional boolean, default `true`. Allows home-relative folder browsing and repository registration/removal.                                                                         |
+| `api.port`               | Optional integer from 1024 to 65535, default 47615. Loopback and Tailscale Serve port.                                                                                              |
+| `hostId`                 | Optional. Defaults to the short hostname, made to fit the HostHello identifier pattern.                                                                                             |
+| `pi.executable`          | What `command -v pi` prints.                                                                                                                                                        |
+| `pi.node`                | The node that runs pi. Required when `pi.executable` resolves to a Node script, as an npm-installed pi does.                                                                        |
+| `resourceRoot`           | Holds `pi-ext/` and `skills/`. Defaults to the running bundle's own folder.                                                                                                         |
+| `repositories`           | 1 to 64 folders that sessions may run in. Never `/`.                                                                                                                                |
+| `contextBudget`          | Desktop's grammar; `""` or absent is the 200k default. A value Desktop would quietly replace with the default, such as `77k`, is an error.                                          |
+| `environment.pass`       | Up to 64 more variable names for pi. Names only, never values. Naming `PATH` or a hook below is an error.                                                                           |
+| `environment.path`       | Up to 32 more PATH folders.                                                                                                                                                         |
+| `control.url`            | Optional bare origin. Defaults to `https://phosphor.saccolabs.com`. HTTPS, or HTTP only on localhost, 127.0.0.1 or ::1. No credentials, path, query or fragment. Ports are 1-65535. |
+| `accounts`               | `null` or absent: accounts are unavailable on a Host.                                                                                                                               |
 
 ## Machine identity
 
@@ -430,7 +438,7 @@ The files live in `identity/` beside the config file, including when
   refuses another login or logout with exit 75. Dead or invalid locks are
   reclaimed under the `.lock-recovery` directory gate. A gate is waited on for
   at most one second, then exits 75. Only the process that created a gate
-  removes it: a gate over 30 seconds old was left by a crash, and the message
+  removes it: a gate over 30 seconds old indicates a possible crash, and the message
   asks you to remove it if no login or logout is running. Release uses the
   same gate and removes only its own token. Recovery compares the file identity
   and token again under the gate. A symlink is removed without touching its
@@ -588,7 +596,8 @@ close matching sockets; a changed owner or epoch or removal closes all sockets.
 Missing heartbeat fields do not erase authority or revocations.
 
 With a usable machine, hello announces `sessions.read`, `sessions.control`,
-`workspaces.read`, `skills.read` and `routines`.
+`workspaces.read`, `workspaces.write`, `skills.read`, `artifacts.read` and `routines`.
+It also announces `terminal` when native PTY loading succeeds.
 Ready capabilities are the intersection of Host and grant capabilities.
 `sessions.read` admits subscriptions and the six read-only lane calls;
 `sessions.control` admits lane commands. Routine commands use the capability matrix
@@ -630,9 +639,9 @@ the run lock.
 | 4409       | Unsupported protocol version                                                          |
 | 4429       | Too many calls, connections or queued bytes; HTTP 429 during an upgrade is equivalent |
 
-API logs contain event names, connection and client ids, close codes, durations
-and ports. They never contain grants, signatures, challenges, proofs, keys or
-header values.
+API logs contain fixed event and operation names, outcome classes, validated
+connection traces, close codes, durations and ports, never client or lane ids.
+They never contain grants, signatures, challenges, proofs, keys or header values.
 
 ## Tailscale
 
@@ -661,7 +670,7 @@ An unverifiable route is not changed.
 The Host never uses Funnel. A Funnel route on this port would publish the Host
 to the internet and must be turned off. Funnel, a different proxy target, extra
 path handlers, HTTP or a TCP forwarder cause enable and disable to refuse with
-exit 78. The Host will not replace a route it did not make. Routes on other
+exit 78. The Host refuses to replace a different route. Routes on other
 ports are left alone. `doctor` warns about an absent route and fails for Funnel
 or another route on this port. `setup` only suggests `phosphor tailscale enable`
 when Tailscale is running with a usable certified name and the route is absent;
@@ -681,7 +690,9 @@ After `phosphor login`, `phosphor run` reports the machine's readiness to the
 control plane every 30 seconds, or the interval the server returns, plus up to
 3 seconds of jitter. pi, Claude sign-in and Tailscale are checked at start and
 every five minutes. Each probe has a 2 second deadline and a 64 KiB output cap.
-No session starts. Logs record each control call and state change, with no keys or signatures.
+Readiness probes do not start sessions. The daemon also serves interactive lanes
+and runs acknowledged routines. Logs record each control call and state change,
+with no keys or signatures.
 
 Only one run holds `identity/.run-lock`. It uses the identity lock's publication,
 recovery and ownership rules, with its own `.run-lock-recovery` gate. It reads
@@ -698,10 +709,9 @@ A removed machine exits 77, keeps its identity and asks you to run login again.
 SIGTERM or SIGINT sends one stopping beat, waits at most 5 seconds, and exits 0
 whether or not that beat succeeds. A sequence write already running gets up to
 1 more second to land, so the next run reads it. A second signal cuts the beat
-and that wait short and exits with its own code, 130 for SIGINT. Either way it first releases its run lock,
-waiting at most 3 seconds: exiting inside that release once left
-`identity/.run-lock-recovery` behind, and every later run refused to start. A
-signal during start-up stops reconciliation, closes the store and releases the
+and that wait short and exits with its own code, 130 for SIGINT. Either way it
+first releases its run lock, waiting at most 3 seconds so recovery state is not
+abandoned during shutdown. A signal during start-up stops reconciliation, closes the store and releases the
 run lock before exiting, without sending a heartbeat.
 
 On Linux, `phosphor service install` requires an enrolled identity and writes
@@ -815,7 +825,7 @@ An invalid existing config does not get that next step.
 | `repository`              | Each root resolves to an existing folder other than `/`. A root holding the home folder, or one level under `/`, warns; one that is not a git repository is noted.                                                                                                                                                  | 69         |
 | `agent-dir`               | pi's agent folder exists, meaning pi has run as this user.                                                                                                                                                                                                                                                          | warning    |
 | `providers`               | Once pi itself passes: a provider is signed in, and pi's default provider is, when it has one ([providers](#providers)).                                                                                                                                                                                            | warning    |
-| `context-budget`          | The budget sessions will be held to.                                                                                                                                                                                                                                                                                | never      |
+| `context-budget`          | The effective session context budget.                                                                                                                                                                                                                                                                               | never      |
 | `accounts`, `compression` | Unavailable on a Host: pi uses the logins of the user running it, and there is no Headroom proxy.                                                                                                                                                                                                                   | never      |
 
 Two lanes come out of the checks:
@@ -922,6 +932,8 @@ The credential stays in pi's or Claude's own store. Control receives none of it.
 
 ## accept
 
+<!-- pending: J -->
+
 `phosphor accept --repository DIR` runs real sessions on this machine and
 reports what they proved. DIR must be inside a configured repository. Use an
 empty one that Desktop never opens: the lane store indexes transcripts but does
@@ -976,7 +988,7 @@ stdout gets the evidence, as JSON with `--json`, with every secret value of pi's
 environment hidden: the verdict; the machine; the Host, pi and Claude versions;
 the names in pi's environment; for each lane its provider, model, thinking
 level, each step with its time, whether the extensions loaded, any group left
-and whether the transcript was deleted; the drain result; and the log path.
+and whether transcript deletion completed; the drain result; and the log path.
 stderr gets the log path and one line per step, redacted the same way, so a
 passed `XDG_STATE_HOME` or `HOME` is hidden in the path. An error accept did not
 expect is printed as an internal error, redacted too.
@@ -1200,7 +1212,8 @@ These rules keep the Host's own records and admissions consistent. They do not
 confine extensions: an extension runs inside pi as the user, so it can move pi
 to any file, even one another session writes, and the Host learns of the move
 only afterwards. Nor are they an authorization boundary: `bash` runs as the user
-anyway, and which commands a remote controller may send is component 21's.
+anyway. The [Host protocol](remote-protocol.md) and its command allowlist
+authorize remote controllers.
 
 ### Lifecycle
 
@@ -1264,7 +1277,7 @@ error code. Login records creation, polls, approval and the saved identity path
 before its self check. Run records each sequence, state changes, retries with
 delay and removal (exit 77). Service commands log unit writes/removal and program
 arguments/results, never the captured environment or child output. Terminal
-output stays the same. See [Tracing a machine](remote-access.md#tracing-a-machine).
+output stays the same. See [Tracing a machine](remote-development.md#tracing-a-machine).
 The folder is 0700 and every file 0600, an older folder,
 log or rotated log included. It records the runtime's inputs (pi's command, the
 names in pi's environment, PATH, the repositories), each spawn's argv, pi's
@@ -1490,7 +1503,9 @@ scheduling and workers before closing the routines database. A routine never
 uses a terminal; a live shell is not an occupancy lock. See [routines.md](routines.md#host-routines)
 for bounds, deletion policy and the connection capability matrix.
 
-### Remote lane names and lifecycle
+## Remote lane names and lifecycle
+
+<!-- pending: J -->
 
 An unnamed lane immediately uses its first accepted user message as its summary
 title: the first nonempty line, trimmed, at most 80 characters. The Host also
@@ -1515,7 +1530,7 @@ an empty lane with the selected model when no file exists yet. Persisted names
 are not parsed as creation names on resume; an unsaved name is restored via RPC. In-turn model
 switches are refused.
 
-### Repository management and lane deletion
+## Repository management and lane deletion
 
 `allowRepositoryChanges` is a boolean, default on. Turning it off refuses
 `machine.folders.list`, `host.repositories.add` and `host.repositories.remove`.
