@@ -1,3 +1,4 @@
+import { openRemoteLane, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { create } from 'zustand'
@@ -37,6 +38,11 @@ export function CommandPalette({
 }: {
   workspacePath: string
 }): React.JSX.Element | null {
+  const sessions = useSessionsStore()
+  const hosts = useRemoteLanesStore((s) => s.hosts)
+  const active = sessions.activeSessionId ? sessions.live[sessions.activeSessionId] : undefined
+  const hostId = active?.target?.kind === 'remote' ? active.target.hostId : undefined
+  const remote = workspacePath.startsWith('host:') || hostId !== undefined
   const open = usePaletteStore((s) => s.open)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
@@ -69,7 +75,6 @@ export function CommandPalette({
 
   const actions = useMemo<PaletteAction[]>(() => {
     const layout = useLayoutStore.getState()
-    const sessions = useSessionsStore.getState()
     const disk = sessions.disk[workspacePath] ?? []
     const activeSessionId = sessions.activeSessionId
     const recents = useWorkspacesStore.getState().recents
@@ -194,7 +199,9 @@ export function CommandPalette({
       },
     ]
 
-    for (const workspace of recents.filter((w) => w.path !== workspacePath).slice(0, 5)) {
+    for (const workspace of (remote ? [] : recents)
+      .filter((w) => w.path !== workspacePath)
+      .slice(0, 5)) {
       base.push({
         id: `ws-${workspace.path}`,
         label: `Switch workspace: ${workspace.name}`,
@@ -206,7 +213,7 @@ export function CommandPalette({
       })
     }
 
-    for (const meta of disk.slice(0, 8)) {
+    for (const meta of (remote ? [] : disk).slice(0, 8)) {
       base.push({
         id: `session-${meta.path}`,
         label: `Open session: ${
@@ -216,8 +223,26 @@ export function CommandPalette({
       })
     }
 
+    if (remote) {
+      const localOnly = new Set([
+        'open-folder',
+        'open-artifacts-page',
+        'open-skills-page',
+        'rewind',
+      ])
+      for (const lane of (hostId ? hosts[hostId]?.lanes : []) ?? []) {
+        base.push({
+          id: `lane-${lane.laneId}`,
+          label: `Open lane: ${lane.title ?? 'Untitled lane'}`,
+          run: () => {
+            if (hostId) void openRemoteLane(hostId, lane.laneId)
+          },
+        })
+      }
+      return base.filter((action) => !localOnly.has(action.id))
+    }
     return base
-  }, [workspacePath, open])
+  }, [workspacePath, open, sessions, hosts, hostId, remote])
 
   const matches = useMemo(() => fuzzyFilter(query, actions, (a) => a.label, 12), [query, actions])
 

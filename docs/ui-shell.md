@@ -23,7 +23,10 @@
 
 **Shortcut scope:** New, Find, Files and Changes work from the composer.
 Go to file also works from the editor and ordinary text fields; Ctrl+P remains
-shell history in terminals. Search in files works from any focus, the editor included.
+shell history in terminals. Shortcuts also work on remote lanes: Go to file lists
+and opens only the lane's Host files, including line/column jumps. Search in
+files works from any focus, the editor included; on a remote lane it opens Files
+and reports “Not available on remote lanes yet.” without starting a local search.
 F6 moves between the composer and pane controls; in a fullscreen pane it
 focuses Exit fullscreen. Dialogs block app navigation (not zoom). IME/AltGr and
 editor-owned letter chords are never read as app commands. Bindings belong to
@@ -400,7 +403,15 @@ The visual recipe lives in [style-guide.md](style-guide.md#action-hints).
 - **Command palette** (Cmd/Ctrl+K): new session, go to file, toggle sidebar
   and each pane, open the Artifacts/Skills pages, rewind, expand/collapse tool
   output, settings and keybindings, theme, open a folder, switch workspace,
-  open a session. Distinct from the chat `/` command menu.
+  open a session. On a remote lane, local folder/recents/disk-session commands,
+  rewind and global Artifacts/Skills page commands are omitted; lane navigation
+  lists that Host's lanes instead. Target switches refresh the command set.
+  Distinct from the chat `/` command menu.
+- **Host home Files**: with no lane open and a Host selected in the sidebar,
+  the top-bar Files button opens read-only configured-repository browsing.
+  Disconnected machines or missing `workspaces.read` disable it with a fixed
+  reason. Changing the switcher or opening a lane closes this home pane;
+  This Mac's home does not offer it.
 - **Empty states**: no workspace → onboarding card with folder picker; no
   sessions → "Describe a task…" hero; pi missing/outdated → setup screen with
   the install command.
