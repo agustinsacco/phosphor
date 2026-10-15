@@ -9,6 +9,10 @@ import {
   REMOTE_NOT_READY,
 } from '@/stores/remoteLanes'
 import { Button } from '@/components/form'
+import { useChatStore } from '@/stores/chat'
+
+/** pi writes nothing to resume until a first message; the Host refuses Stop before then. */
+export const STOP_NEEDS_PROMPT = 'Send a first message before stopping this lane.'
 
 export function MachineChip({ sessionId }: { sessionId: string }): React.JSX.Element {
   const target = useSessionsStore((s) => s.live[sessionId]?.target)
@@ -28,6 +32,9 @@ export function RemoteLaneControls({ sessionId }: { sessionId: string }): React.
   const hosts = useRemoteLanesStore((s) => s.hosts)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const prompted = useChatStore(
+    (s) => s.sessions[sessionId]?.items.some((item) => item.kind === 'user') ?? false,
+  )
   if (entry?.target?.kind !== 'remote' || !entry.laneId) return null
   const hostId = entry.target.hostId
   const laneId = entry.laneId
@@ -71,7 +78,14 @@ export function RemoteLaneControls({ sessionId }: { sessionId: string }): React.
       {canControlSession(sessionId) && (
         <Button
           size="xs"
-          disabled={busy}
+          disabled={
+            busy || (!prompted && lane?.activity !== 'stopped' && lane?.activity !== 'failed')
+          }
+          title={
+            !prompted && lane?.activity !== 'stopped' && lane?.activity !== 'failed'
+              ? STOP_NEEDS_PROMPT
+              : undefined
+          }
           onClick={() =>
             void act(
               lane?.activity === 'stopped' || lane?.activity === 'failed'
