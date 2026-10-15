@@ -180,6 +180,14 @@ export async function deleteMergedBranch(
   if (!isLaneBranchName(branch)) return false
   const run = (args: string[]) => git(root, args, { isolateEnv: true, trim: true })
   try {
+    const ref = `refs/heads/${branch}`
+    if (
+      await run(['symbolic-ref', '-q', ref]).then(
+        () => true,
+        () => false,
+      )
+    )
+      return false
     const current = await run(['symbolic-ref', '--quiet', 'HEAD'])
     if (current === `refs/heads/${branch}`) return false
     const worktrees = await run(['worktree', 'list', '--porcelain'])
@@ -188,8 +196,23 @@ export async function deleteMergedBranch(
     if (!allowed() || !(await branchMerged(root, branch))) return false
     if (tip !== (await run(['rev-parse', '--verify', `refs/heads/${branch}`]))) return false
     if (!allowed()) return false
-    // Compare-and-delete: a concurrent writer must not lose an unproven tip.
-    await run(['update-ref', '-d', `refs/heads/${branch}`, tip])
+    try {
+      // Prefer Git's own checkout protection for true-ancestry merges.
+      await run(['branch', '-d', branch])
+      return true
+    } catch {
+      // Squash merges need the proof above and a compare-and-delete fallback.
+    }
+    const before = await run(['worktree', 'list', '--porcelain'])
+    if (before.split('\n').includes(`branch ${ref}`) || !allowed()) return false
+    // Never dereference a symbolic ref or lose a concurrently advanced tip.
+    await run(['update-ref', '--no-deref', '-d', ref, tip])
+    const after = await run(['worktree', 'list', '--porcelain'])
+    if (after.split('\n').includes(`branch ${ref}`)) {
+      // A checkout raced the mutation. Restore only if no writer recreated the ref.
+      await run(['update-ref', ref, tip, ''])
+      return false
+    }
     return true
   } catch {
     return false

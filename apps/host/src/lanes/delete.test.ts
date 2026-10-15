@@ -158,7 +158,7 @@ it('keeps a concurrently advanced branch by comparing the proven object id atomi
     .git
   vi.mocked(gitExec.git).mockImplementation(async (cwd, args, options) => {
     if (
-      (args[0] === 'update-ref' && args[1] === '-d') ||
+      (args[0] === 'update-ref' && args.includes('-d')) ||
       (args[0] === 'branch' && args[1] === '-D')
     )
       await actual(root, ['update-ref', 'refs/heads/feature', advanced], { isolateEnv: true })
@@ -187,6 +187,65 @@ it('keeps a concurrently advanced branch by comparing the proven object id atomi
     ),
   ).toEqual({ ok: true, data: { branchKept: true } })
   expect(await run(['rev-parse', 'feature'])).toBe(advanced)
+})
+
+async function deleteFeatureLane() {
+  const repo = store.syncRepositories([root])[0]!
+  const cwd = join(root, '.phosphor', 'worktrees', 'feature')
+  await mkdir(cwd, { recursive: true })
+  const lane = store.ensureLane({
+    repositoryId: repo.id,
+    cwd,
+    sessionFile: null,
+    branch: 'feature',
+    worktree: true,
+  })
+  return createLaneDeletion({
+    store,
+    stop: async () => {},
+    remove: async () => {},
+    forget: () => {},
+  })(
+    { type: 'lane.delete', laneId: lane.laneId, removeWorktree: false, removeBranch: true },
+    () => true,
+  )
+}
+
+it('keeps symbolic branch refs pointing at checked-out main without deleting main', async () => {
+  const tip = await run(['rev-parse', 'main'])
+  await run(['symbolic-ref', 'refs/heads/feature', 'refs/heads/main'])
+  expect(await deleteFeatureLane()).toEqual({ ok: true, data: { branchKept: true } })
+  expect(await run(['rev-parse', '--verify', 'refs/heads/main'])).toBe(tip)
+  expect(await run(['symbolic-ref', '-q', 'refs/heads/feature'])).toBe('refs/heads/main')
+})
+
+it('restores the proven tip when another worktree checks out the branch just before mutation', async () => {
+  await run(['checkout', '-b', 'feature'])
+  await writeFile(join(root, 'a'), 'feature')
+  await run(['commit', '-am', 'feature'])
+  const tip = await run(['rev-parse', 'feature'])
+  await run(['checkout', 'main'])
+  await run(['merge', '--squash', 'feature'])
+  await run(['commit', '-m', 'squashed'])
+  const actual = (await vi.importActual<typeof gitExec>('@phosphor/session-runtime/git/git-exec'))
+    .git
+  let injected = false
+  vi.mocked(gitExec.git).mockImplementation(async (cwd, args, options) => {
+    if (args[0] === 'update-ref' && args.includes('-d')) {
+      injected = true
+      await actual(root, ['worktree', 'add', join(root, 'racing-worktree'), 'feature'], {
+        isolateEnv: true,
+      })
+    }
+    return actual(cwd, args, options)
+  })
+  expect(await deleteFeatureLane()).toEqual({ ok: true, data: { branchKept: true } })
+  expect(injected).toBe(true)
+  expect(await run(['rev-parse', '--verify', 'refs/heads/feature'])).toBe(tip)
+  expect(await run(['-C', join(root, 'racing-worktree'), 'symbolic-ref', 'HEAD'])).toBe(
+    'refs/heads/feature',
+  )
+  expect(await run(['-C', join(root, 'racing-worktree'), 'rev-parse', 'HEAD'])).toBe(tip)
 })
 
 it('retries after trash succeeds and dirty worktree removal fails, including an already removed worktree', async () => {
