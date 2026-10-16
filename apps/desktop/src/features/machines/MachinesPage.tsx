@@ -564,8 +564,8 @@ export function MachinesPage(): React.JSX.Element {
               <OnThisMachine hostId={machine.id} />
               <Section title="Remove machine">
                 <p className="text-text-secondary mb-3 text-base">
-                  Remove this machine from your account. Its files and installation stay on the
-                  machine.
+                  Remove this machine from your account. Lanes, routines and files stay on the
+                  machine and return when you add it again.
                 </p>
                 <Button
                   variant="danger"
@@ -614,11 +614,12 @@ export function MachinesPage(): React.JSX.Element {
             >
               <div className="space-y-3 p-5 text-base">
                 <p>
-                  The Host stops at its next heartbeat. Its files and installation stay on the
-                  machine.
+                  The Host stops at its next heartbeat. Lanes, routines and files stay on the
+                  machine and return when you add it again.
                 </p>
                 <p className="text-text-secondary">
-                  Run <code>phosphor login</code> again on {removing.label} to bring it back.
+                  Add it again over SSH, or run <code>phosphor login</code> then{' '}
+                  <code>phosphor service install</code> on {removing.label}.
                 </p>
                 {error && (
                   <p role="alert" className="text-danger">

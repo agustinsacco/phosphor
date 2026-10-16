@@ -182,9 +182,9 @@ export function BeforeYouStart({
                 )
               })}
             </ul>
-          ) : (
+          ) : status.code === 'ready' ? (
             <p className="text-text-secondary">No other online machines found on your tailnet.</p>
-          )}
+          ) : null}
         </div>
       )}
       <p className="text-text-secondary text-sm">
