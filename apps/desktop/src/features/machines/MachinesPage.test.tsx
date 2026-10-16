@@ -105,7 +105,7 @@ it('shows empty guidance, list loading and offline errors explicitly', async () 
   useMachinesStore.setState({ machines: [] })
   await render()
   expect(container.textContent).toContain('Bring another machine online')
-  expect(container.textContent).toContain('phosphor setup --repository')
+  expect(container.textContent).toContain('phosphor setup')
   await act(async () => useMachinesStore.setState({ loading: true, error: 'offline' }))
   expect(container.textContent).toContain('Updating machines')
   expect(document.querySelector('[role=alert]')?.textContent).toContain('Cannot reach')
@@ -115,7 +115,7 @@ it('walks all four enrollment steps, formats code, submits Enter, and shows done
   await click('Add a machine')
   await click('Continue to Install')
   expect(document.querySelector('[role=dialog]')?.textContent).toContain(
-    'Prepare the other machine',
+    'Install on the other machine',
   )
   await click('I have a code')
   await input('Code', 'bcdfghjk')
@@ -157,8 +157,7 @@ it('confirms removal before invoking main, and Cancel is inert', async () => {
   expect(confirmation).toContain('next heartbeat')
   expect(confirmation).toContain('Lanes, routines and files stay on the machine')
   expect(confirmation).toContain('return when you add it again')
-  expect(confirmation).toContain('phosphor login')
-  expect(confirmation).toContain('phosphor service install')
+  expect(confirmation).toContain('phosphor setup')
   expect(invoke).not.toHaveBeenCalledWith('control:removeMachine', MACHINE.id)
   await click('Cancel')
   expect(document.querySelector('[role=dialog]')).toBeNull()

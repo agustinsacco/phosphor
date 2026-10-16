@@ -46,7 +46,8 @@ async function runStatusCommand(
 }
 
 export function renderStatus(report: StatusReport): string {
-  if (!report.identity) return `${report.error ?? 'This machine is not signed in.'}\n`
+  if (!report.identity)
+    return `${report.error ?? 'This machine is not signed in.'}\nNext: phosphor setup\n`
   const owner =
     report.identity.ownerLogin === null
       ? 'your account'
@@ -58,6 +59,7 @@ export function renderStatus(report: StatusReport): string {
       `Enrolled: ${report.server.enrolledAt}. Last seen: ${report.server.lastSeenAt ?? 'never'}.`,
     )
   } else if (report.error) lines.push(report.error)
+  lines.push('Next: phosphor setup')
   return `${lines.join('\n')}\n`
 }
 

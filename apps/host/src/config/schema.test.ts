@@ -88,12 +88,10 @@ describe('Host config v1', () => {
     expect(message('/repositories/0')).toBe('must not be /')
   })
 
-  it('bounds every list and requires a repository', () => {
+  it('bounds every list and allows no repositories', () => {
     const many = (count: number, make: (i: number) => string) =>
       Array.from({ length: count }, (_, i) => make(i))
-    expect(errorsOf({ ...minimal, repositories: [] })).toEqual([
-      { pointer: '/repositories', message: 'must list at least one folder' },
-    ])
+    expect(errorsOf({ ...minimal, repositories: [] })).toEqual([])
     expect(errorsOf({ ...minimal, repositories: many(65, (i) => `/srv/${i}`) })[0]?.pointer).toBe(
       '/repositories',
     )

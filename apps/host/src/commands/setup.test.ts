@@ -136,8 +136,8 @@ describe('setup detection', () => {
     expect(renderSetup(report)).toContain(
       'not a git repository: sessions may start in any folder inside it',
     )
-    expect(renderSetup(report).endsWith('next: phosphor doctor\n')).toBe(true)
-    expect(report).toMatchObject({ next: 'phosphor doctor', pi: { version: '1.2.0' } })
+    expect(renderSetup(report).endsWith('next: phosphor setup\n')).toBe(true)
+    expect(report).toMatchObject({ next: 'phosphor setup', pi: { version: '1.2.0' } })
   })
   it('pins a Node-script symlink as found, with node beside it', async () => {
     const node = await nodePi()
@@ -240,13 +240,15 @@ describe('setup repositories and PATH', () => {
     expect((await runSetup(context)).exitCode).toBe(0)
     expect((await saved()).repositories).toEqual([repository])
   })
-  it('requires an explicit repository outside git', async () => {
+  it('writes a valid empty configuration outside git', async () => {
     await executable('git', 'exit 1')
     context.repositories = []
     const report = await runSetup(context)
-    expect(report.exitCode).toBe(64)
-    expect(renderSetup(report)).toContain('phosphor setup --repository ~/src/project')
-    await nothingWritten()
+    expect(report.exitCode).toBe(0)
+    expect(renderSetup(report)).toContain(
+      'Desktop folder picker or phosphor setup --repository PATH --replace',
+    )
+    expect((await saved()).repositories).toEqual([])
   })
   it.each(['/', 'home', 'home parent', 'link to home', 'missing', 'file'])(
     'refuses repository %s',
@@ -622,9 +624,7 @@ describe('setup Tailscale hint', () => {
       }
       const report = await runSetup(context)
       expect(report.exitCode).toBe(0)
-      expect(renderSetup(report).includes('Run phosphor tailscale enable.')).toBe(
-        state === 'absent',
-      )
+      expect(renderSetup(report).includes('Run phosphor setup.')).toBe(state === 'absent')
       expect(probe.mock.calls.every((call) => call[1].includes('status'))).toBe(true)
       expect(renderSetup(report)).not.toContain(name)
     },
@@ -649,7 +649,7 @@ it('preserves api.port on replace and names it in the Tailscale hint', async () 
   const report = await runSetup(context)
   expect(report.exitCode).toBe(0)
   expect((await saved()).api).toEqual({ port: 50001 })
-  expect(renderSetup(report)).toContain('Port 50001: Run phosphor tailscale enable.')
+  expect(renderSetup(report)).toContain('Port 50001: Run phosphor setup.')
   expect(probe.mock.calls.map((call) => call[1])).toEqual([
     ['status', '--json'],
     ['serve', 'status', '--json'],

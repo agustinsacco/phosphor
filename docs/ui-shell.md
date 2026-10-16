@@ -492,16 +492,17 @@ A never-connected Host offers `phosphor run` and, on Linux,
 `phosphor service status`. Rename edits the label inline: Enter or blur saves,
 Escape cancels, and failure restores the saved label with an inline error.
 Remove confirms that the Host stops at its next heartbeat. Lanes, routines and
-files stay on that machine and return when it is added again: over SSH from
-Add a machine, or with `phosphor login` then `phosphor service install` on it.
+files stay on that machine and return when it is added again: rerun
+`phosphor setup` on it and approve the new code in Add a machine.
 The re-added machine has a new id, so Desktop's per-machine preferences for it
 (model and thinking picks, pins, filters, routine drafts) start fresh.
 
 Add a machine is disabled while signed out. The guide checks this computer's
-account and Tailscale readiness, then offers SSH installation or manual setup.
-It follows the enrolled machine online and leads to provider sign-in. The
-[SSH flow](remote-desktop.md#install-a-host-over-ssh) owns installation details.
-Manual code approval compares the fingerprint and asks for an editable label.
+account and read-only local Tailscale readiness, then shows a copyable terminal
+command to install the Host and run guided `phosphor setup` on the other machine.
+I have a code leads to code entry and fingerprint approval with an editable label.
+It follows the enrolled machine online and leads to separate provider sign-in.
+The [Add a machine flow](remote-desktop.md#add-a-machine) owns installation details.
 Codes accept either case and an optional separator, format as four letters per
 group, and submit with Enter. Invalid, expired, rate-limited and network errors
 stay on the current step. Approval is enrollment, not an execution grant.

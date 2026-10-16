@@ -215,7 +215,7 @@ describe('tailscale probes and presentation', () => {
         state === 'ours' ? 'pass' : state === 'other' || state === 'funnel' ? 'fail' : 'warn',
       )
       expect(setupTailscaleHint(found)).toEqual(
-        state === 'absent' ? [`Port ${port}: Run phosphor tailscale enable.`] : [],
+        state === 'absent' ? [`Port ${port}: Run phosphor setup.`] : [],
       )
       expect(JSON.stringify(checks)).not.toContain(name)
     },

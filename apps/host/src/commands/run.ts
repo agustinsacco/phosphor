@@ -145,7 +145,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
   try {
     const prepared = await withCommandLock(context, () => prepareControl(context))
     if (!prepared.loaded) {
-      context.print('Run phosphor login first.')
+      context.print('Run phosphor setup first.')
       return 69
     }
     const { identity, key } = prepared.loaded
@@ -186,7 +186,7 @@ async function runHostCommand(context: RunContext): Promise<number> {
       const config = await (context.loadConfig ?? loadHostConfig)(context.configPath, context.uid)
       initAbort.signal.throwIfAborted()
       if (!config.ok)
-        throw new IdentityFailure('Config is not usable. Run phosphor doctor to check it.')
+        throw new IdentityFailure('Config is not usable. Run phosphor setup to check it.')
       const stateDirectory = hostStateDirectory(context.env, context.home)
       try {
         initAbort.signal.throwIfAborted()

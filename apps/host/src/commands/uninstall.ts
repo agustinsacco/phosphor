@@ -6,6 +6,7 @@ import { checkedFolder } from '../update/files'
 import { acquireInstallLock, hasCode } from '../update/lock'
 import { commandLayout } from '../update/layout'
 import { installLifetime, signalTurn } from '../update/lifetime'
+import { removeHostPathBlocks } from '../machine/shell-path'
 import { runLogout } from './logout'
 import { runService } from './service'
 import { serviceState, type UpdateContext } from './update'
@@ -85,6 +86,7 @@ export async function runUninstall(
         context.print(
           `Source install: remove the bundle folder ${dirname(context.update?.bundle ?? process.argv[1] ?? 'phosphor.mjs')}.`,
         )
+      removeHostPathBlocks(context.home, context.uid)
       if (purge) {
         for (const path of [config, state]) if (safe(path)) rmSync(path, { recursive: true })
       } else context.print(`Kept config and identity: ${config}; state: ${state}`)

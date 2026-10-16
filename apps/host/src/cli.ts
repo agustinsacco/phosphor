@@ -6,7 +6,9 @@ import { createHostLog, hostLogDirectory } from './machine/log'
 import { EXIT } from './checks'
 import { renderAccept, runAccept, type AcceptLane } from './commands/accept'
 import { renderDoctor, runDoctor, type DoctorContext } from './commands/doctor'
-import { renderSetup, runSetup } from './commands/setup'
+import { renderSetup, runSetup, type SetupReport } from './commands/setup'
+import { installHostPath } from './machine/shell-path'
+import { runGuidedSetup } from './commands/guided-setup'
 import type { LoginContext } from './commands/provider-login'
 import { renderProviders, runProviders } from './commands/providers'
 import { runProviderLogin } from './commands/provider-login'
@@ -27,10 +29,10 @@ import { isTailscaleAction, runTailscale } from './commands/tailscale'
 
 export const USAGE = `usage: phosphor <command>
 
-Set up a Host: setup, doctor, providers, accept, login, service install.
+Set up a Host: phosphor setup. Re-run it to resume or finish setup.
 
   setup [--repository DIR]... [--pi FILE] [--node FILE] [--replace]
-        [--config FILE] [--json]    detect programs and write an owner-only config
+        [--config FILE] [--json]    configure, sign in, start the user service and enable Tailscale
   doctor [--config FILE] [--json]   check that this machine can run a Host
   providers [--config FILE] [--json]
                                     show which providers pi can use here
@@ -88,6 +90,7 @@ export type CliContext = Omit<DoctorContext, 'configPath'> & {
 }
 
 const COMMAND_OPTIONS: Record<string, readonly string[]> = {
+  'internal-install-path': [],
   setup: ['config', 'json', 'repository', 'pi', 'node', 'replace'],
   doctor: ['config', 'json'],
   run: ['config', 'supervisor'],
@@ -210,6 +213,10 @@ export async function runCli(
       io.stdout(values.json ? `${JSON.stringify(version)}\n` : `phosphor ${HOST_VERSION}\n`)
       return EXIT.ok
     }
+    if (command === 'internal-install-path') {
+      installHostPath({ ...context, print: (line) => io.stdout(`${line}\n`) })
+      return EXIT.ok
+    }
     const configPath = values.config ?? defaultConfigPath(context.env, context.home)
     if (tailscale && isTailscaleAction(extra[0])) {
       const outcome = await runTailscale({ ...context, configPath }, extra[0], context.tailscale)
@@ -236,15 +243,54 @@ export async function runCli(
       return exitCode
     }
     if (command === 'setup') {
-      const report = await runSetup({
-        ...context,
-        cwd: context.cwd ?? process.cwd(),
-        configPath,
-        repositories,
-        pi: values.pi,
-        node: values.node,
-        replace: values.replace,
+      if (!context.terminal) {
+        const report = await runSetup({
+          ...context,
+          cwd: context.cwd ?? process.cwd(),
+          configPath,
+          repositories,
+          pi: values.pi,
+          node: values.node,
+          replace: values.replace,
+          tailscaleHints: false,
+        })
+        if (report.exitCode === EXIT.ok) report.next = 'phosphor login'
+        io.stdout(values.json ? `${JSON.stringify(report, null, 2)}\n` : renderSetup(report))
+        return report.exitCode
+      }
+      const controller = new AbortController()
+      let finished = () => {}
+      const ended = new Promise<void>((resolve) => {
+        finished = resolve
       })
+      const detach = context.attach?.({
+        drain: async () => {
+          controller.abort()
+          await ended
+          return { state: 'stopped' }
+        },
+        log: { write: () => {}, hide: () => 'Setup could not finish.' },
+      })
+      let report: SetupReport
+      try {
+        report = await runGuidedSetup({
+          ...context,
+          ...context.control,
+          cwd: context.cwd ?? process.cwd(),
+          configPath,
+          repositories,
+          pi: values.pi,
+          node: values.node,
+          replace: values.replace,
+          signal: context.control?.signal
+            ? AbortSignal.any([controller.signal, context.control.signal])
+            : controller.signal,
+          print: (line) => (values.json ? io.stderr : io.stdout)(`${line}\n`),
+        })
+      } finally {
+        finished()
+        detach?.()
+      }
       io.stdout(values.json ? `${JSON.stringify(report, null, 2)}\n` : renderSetup(report))
       return report.exitCode
     }

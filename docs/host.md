@@ -2,7 +2,8 @@
 
 The Host is Phosphor's plain-Node application for machines Desktop does not run
 on. Its command is `phosphor`; its config and logs live in `phosphor-host`
-folders, apart from Desktop's own. `setup` writes its config. `doctor` checks
+folders, apart from Desktop's own. `setup` guides config, enrollment, service
+startup and Tailscale routing. `doctor` checks
 whether a machine can run sessions, `providers` which models pi can use there,
 and `accept` runs real sessions to prove it ([accept](#accept)). `login`,
 `status` and `logout` manage its machine identity in the control plane. `run`
@@ -35,7 +36,7 @@ empty, and an installer with no keys refuses installation. Each bundle carries N
 The installer needs curl, ssh-keygen, tar, awk, base64, od and sha256sum or shasum.
 
 ```sh
-curl -fsSL https://github.com/agustinsacco/Phosphor/releases/download/host-latest/install.sh | sh
+curl -fsSL https://github.com/agustinsacco/Phosphor/releases/download/host-latest/install.sh | sh && export PATH="$HOME/.local/bin:$PATH" && phosphor setup
 ```
 
 The generated installer verifies the manifest's OpenSSH Ed25519 signature in
@@ -49,9 +50,23 @@ the asset folder for an offline mirror (`file://` works too).
 
 Programs live in `~/.local/lib/phosphor-host/versions/<version>/`. An atomic
 symlink replacement selects `current`; `~/.local/bin/phosphor` points at its
-launcher. Add `~/.local/bin` to PATH, then run `phosphor setup`. A failed
-verification leaves an existing install untouched. Config, identity, state and
-provider installs are never changed. An already selected version with a matching
+launcher. The command above exports PATH in your current shell before running
+setup: a piped installer cannot change its parent's environment.
+
+When `~/.local/bin` is absent from PATH, the installer adds one marked block to
+`~/.zshrc` for zsh or `~/.bashrc` for bash, plus `~/.profile` on macOS bash.
+The `Phosphor Host PATH` markers make reruns idempotent; a `case ":$PATH:"`
+guard avoids duplicate PATH entries. It prints each changed file. Other shells
+get the export line to add manually. Set `PHOSPHOR_NO_MODIFY_PATH=1` in the
+installer's environment to opt out. Symlinked, non-regular or other-owned startup
+files are refused and left unchanged. The installer calls its installed Node runtime
+while holding the install lock. The runtime opens startup files without following
+symlinks, checks ownership and size on that same descriptor, and appends through it.
+Uninstall atomically removes every occurrence of the exact marked block from safe
+user-owned startup files, leaving other shell configuration alone.
+
+A failed verification leaves an existing install untouched. The installer never
+changes config, identity, state or provider installs. An already selected version with a matching
 `VERSION` is idempotent: the installer verifies the signed manifest, keeps the
 version folder untouched and makes sure the launcher is in place. Any other
 existing version folder is refused, with an instruction to run
@@ -112,7 +127,7 @@ in place of `phosphor` in the commands below. `service install` pins the running
 Node executable, bundle and config paths. Keep that Node installation and source
 bundle available to the service. Release installs supply their own launcher and
 pinned Node. Copying a build made elsewhere ([Build](#build)) works too.
-Desktop's Add a machine dialog offers the signed release installer and manual setup.
+Desktop's Add a machine dialog offers the terminal command above.
 
 Continue with [Bring a machine online](remote-access.md#bring-a-machine-online)
 for setup, provider sign-in, acceptance, enrollment, Tailscale and service startup.
@@ -120,11 +135,42 @@ The command reference below owns each command's detailed behavior.
 
 ## setup
 
-`setup` is non-interactive. Repeat `--repository DIR` for up to 64 directories.
+`phosphor setup` is the guided, idempotent first run when both stdin and stdout
+are terminals:
+
+1. Detect and validate config, keeping an existing valid config unless `--replace`
+   is passed.
+2. Enroll with `login`, printing a code and fingerprint for approval in Desktop.
+   An existing confirmed identity is kept.
+3. Install and start the user service unless it is already installed and running.
+4. Enable the Tailscale Serve route when permitted, keeping an existing correct route.
+
+Without a terminal, setup only detects and writes config. It does not enroll,
+start a service or invoke Tailscale, and ends with `next: phosphor login`. This
+keeps older Desktop SSH installers compatible with their separate login step.
+
+A running service is never restarted by setup because that stops live lanes. If
+guided setup changes config while the service is running, it exits 0 and prints:
+`Config changed. Run phosphor service restart to apply; running lanes stop.`
+Unchanged reruns do not print this warning. A loaded but exited macOS job is not
+considered running and is started through the normal service installation step.
+
+Rerun `phosphor setup` to resume. Ctrl-C keeps completed steps, including config
+and a pending enrollment request. Missing Tailscale operator permission exits 75
+and prints `sudo tailscale set --operator=$USER` plus the command to rerun;
+config, enrollment and the service stay ready. Setup never runs sudo. Its final
+summary names completed steps and the next action, or asks you to open the machine
+in Desktop when all four are ready. Provider sign-in remains separate:
+`phosphor providers login PROVIDER`, or Sign in in Desktop's machine Readiness.
+
+Repositories may be empty. Add a folder later from Desktop or with
+`phosphor setup --repository PATH --replace`. Repeat `--repository DIR` for up
+to 64 directories.
 Relative paths resolve from the caller's cwd. Each directory must exist and
 must not resolve to `/`, the home directory, or a folder containing the home
 directory. A non-git folder is accepted with a note. With no directory flag,
-setup uses `git rev-parse --show-toplevel`; outside git it exits 64 with an example.
+new config uses `git rev-parse --show-toplevel`; outside git it has an empty
+repository list. An existing config is kept unless replaced.
 
 `--pi FILE` pins that path, otherwise the first pi on the caller's PATH. A found
 program keeps its own name, so symlinks and shell wrappers stay pinned as found,
@@ -140,7 +186,8 @@ is noted. No environment values other than paths are printed.
 
 Setup validates the candidate and runs doctor's pi resolution before writing.
 Failed checks exit 69 or 78 and write nothing. An existing valid config is
-summarized and left untouched, with exit 0. An invalid one is left untouched
+summarized and left untouched before continuing to enrollment and service setup.
+An invalid one is left untouched
 with safe errors and exit 78. `--replace` rewrites it, keeping `hostId`,
 `contextBudget`, `environment.pass`, `accounts`, `control`, `api.port` and `resourceRoot`
 when the old config loads and validates. Other settings are detected again;
@@ -157,7 +204,8 @@ you to rerun setup. A filesystem without hard links fails with exit 70, without
 falling back to overwrite. `--replace` uses rename instead. The temporary file
 is removed on success and failure. A failed post-write load exits 70. Text and
 `--json` show the config, pi and node paths and versions, repositories, Claude
-presence, extra PATH and notes, ending with `next: phosphor doctor` on success.
+presence, extra PATH and notes. Incomplete guided setup ends with
+`next: phosphor setup`.
 
 ## Commands
 
@@ -191,17 +239,17 @@ go to stderr.
 `version` prints the independent Host release version, or `0.0.0-dev.<sha7>`
 for dev builds (`0.0.0-dev.source` when no commit is stamped).
 
-| Exit          | Meaning                                                                                          |
-| ------------- | ------------------------------------------------------------------------------------------------ |
-| 0             | success                                                                                          |
-| 1             | an acceptance check failed; its transcript is kept                                               |
-| 64            | usage error                                                                                      |
-| 69            | a prerequisite is unavailable; for `providers`, nothing is signed in; for `status`, not enrolled |
-| 70            | internal error, a failed cleanup or the drain deadline                                           |
-| 75            | control plane unreachable, invalid response, enrollment code expired or concurrent setup         |
-| 77            | this machine is removed from the account                                                         |
-| 78            | the config or state storage is invalid                                                           |
-| 129, 130, 143 | ended by SIGHUP, SIGINT or SIGTERM, after stopping probes and sessions                           |
+| Exit          | Meaning                                                                                                             |
+| ------------- | ------------------------------------------------------------------------------------------------------------------- |
+| 0             | success                                                                                                             |
+| 1             | an acceptance check failed; its transcript is kept                                                                  |
+| 64            | usage error                                                                                                         |
+| 69            | a prerequisite is unavailable; for `providers`, nothing is signed in; for `status`, not enrolled                    |
+| 70            | internal error, a failed cleanup or the drain deadline                                                              |
+| 75            | control plane unreachable, invalid response, enrollment code expired, concurrent setup or a failed Tailscale change |
+| 77            | this machine is removed from the account                                                                            |
+| 78            | the config or state storage is invalid                                                                              |
+| 129, 130, 143 | ended by SIGHUP, SIGINT or SIGTERM, after stopping probes and sessions                                              |
 
 ## Build
 
@@ -377,7 +425,7 @@ variable directly names the config file.
 | `pi.executable`          | What `command -v pi` prints.                                                                                                                                                        |
 | `pi.node`                | The node that runs pi. Required when `pi.executable` resolves to a Node script, as an npm-installed pi does.                                                                        |
 | `resourceRoot`           | Holds `pi-ext/` and `skills/`. Defaults to the running bundle's own folder.                                                                                                         |
-| `repositories`           | 1 to 64 folders that sessions may run in. Never `/`.                                                                                                                                |
+| `repositories`           | 0 to 64 folders that sessions may run in. Never `/`. Add folders from Desktop or `setup --repository PATH --replace`.                                                               |
 | `contextBudget`          | Desktop's grammar; `""` or absent is the 200k default. A value Desktop would quietly replace with the default, such as `77k`, is an error.                                          |
 | `environment.pass`       | Up to 64 more variable names for pi. Names only, never values. Naming `PATH` or a hook below is an error.                                                                           |
 | `environment.path`       | Up to 32 more PATH folders.                                                                                                                                                         |
@@ -638,9 +686,8 @@ to the internet and must be turned off. Funnel, a different proxy target, extra
 path handlers, HTTP or a TCP forwarder cause enable and disable to refuse with
 exit 78. The Host refuses to replace a different route. Routes on other
 ports are left alone. `doctor` warns about an absent route and fails for Funnel
-or another route on this port. `setup` only suggests `phosphor tailscale enable`
-when Tailscale is running with a usable certified name and the route is absent;
-it never changes serve config.
+or another route on this port. Guided `setup` runs the same `enable` operation
+after enrollment and service startup, with the same refusal and permission rules.
 
 At start and every five minutes, the readiness refresh verifies the running
 machine's certified `Self.DNSName` and serve config. Only an HTTPS route with
@@ -671,15 +718,15 @@ has not stepped back past the server's last sequence.
 
 Network failures back off from 5 seconds to 5 minutes. A success resets the
 backoff. Rate limits wait 10 seconds; a stale sequence retries with a fresh one.
-A removed machine exits 77, keeps its identity and asks you to run login again.
+A removed machine exits 77 and keeps its identity. Run `phosphor setup` to add it again.
 Removal deletes nothing. The state database, lanes and their transcripts,
 worktrees and branches, routines and their history, repositories, attachments,
 artifacts and config all stay. Host data is stored per OS user, not per host id,
 so a re-enrolled machine gets a new id and serves the same lanes and routines.
 Running pi processes and terminal output end with the service and do not come
-back. Desktop's Add a machine over SSH reinstalls and restarts the service;
-by hand, run `phosphor login` then `phosphor service install`, because login
-alone does not restart a stopped service. Data is also not tied to the account:
+back. Rerun `phosphor setup` on the Host to enroll it again and restart its
+stopped service. Login alone does not restart a stopped service. Data is also not
+tied to the account:
 enrolling the same OS user into a different account serves that account the
 same data. `uninstall --purge` removes config and state only; repository
 files, worktrees, pi's sessions and provider credentials remain.
@@ -818,10 +865,11 @@ Two lanes come out of the checks:
   alone: the email and organization beside it identify a person.
 
 When nothing failed, the report ends with the next setup step (`next` in
-`--json`, beside `providers`). While nothing is signed in and the Claude lane is
-unavailable, it is `phosphor providers`. Otherwise it is an accept that passes as
-written, since a lane runs on pi's default unless told otherwise and pi ignores
-a provider named without a model:
+`--json`, beside `providers`). A missing provider sign-in gives
+`phosphor providers login PROVIDER`; unavailable Tailscale gives its recovery
+step, and an absent Serve route gives `phosphor setup`. Otherwise it is an accept
+that passes as written, since a lane runs on pi's default unless told otherwise
+and pi ignores a provider named without a model:
 
 | When                                                             | next                                               |
 | ---------------------------------------------------------------- | -------------------------------------------------- |
@@ -915,7 +963,9 @@ The credential stays in pi's or Claude's own store. Control receives none of it.
 Claude acceptance validates its model selection before starting a session.
 
 `phosphor accept --repository DIR` runs real sessions on this machine and
-reports what they proved. DIR must be inside a configured repository. Use an
+reports what they proved. Without a repository it exits 64 with a hint to add
+one from Desktop or with `phosphor setup --repository PATH --replace`.
+DIR must be inside a configured repository. Use an
 empty one that Desktop never opens: the lane store indexes transcripts but does
 not lock them against another process. accept runs doctor first, and if the machine fails
 it, prints doctor's report and exits with doctor's code.

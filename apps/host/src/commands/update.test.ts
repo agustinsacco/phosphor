@@ -15,7 +15,7 @@ import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fixture, tar, bundle } from '../update/__fixtures__/release'
-import { runUpdate, compareVersions } from './update'
+import { runUpdate, compareVersions, serviceState } from './update'
 import { atomicRecord } from '../update/files'
 import { acquireInstallLock } from '../update/lock'
 import type { Drainable } from '../shutdown'
@@ -384,7 +384,11 @@ describe('runUpdate', () => {
               0o600,
             )
           }
-          return { code: 0, stdout: '', stderr: '' }
+          return {
+            code: 0,
+            stdout: args[0] === 'print' ? 'state = running\npid = 123\n' : '',
+            stderr: '',
+          }
         },
       }
       expect(await runUpdate(f.context)).toBe(0)
@@ -584,4 +588,43 @@ describe('runUpdate', () => {
     expect(compareVersions('2.0.0', '1.999.999')).toBeGreaterThan(0)
     expect(compareVersions('1.2.0', '1.2.3')).toBeLessThan(0)
   })
+})
+
+it.each([
+  ['state = running\n', true],
+  ['pid = 123\n', true],
+  ['state = exited\nlast exit code = 77\n', false],
+  ['state = not running\n', false],
+  ['prefix pid = 123 suffix\n', false],
+  ['pid = 0\n', false],
+  ['state = running\n' + 'x'.repeat(65536), false],
+] as const)(
+  'reports actual launchd activity from bounded job output: %s',
+  async (stdout, running) => {
+    const f = setup()
+    f.context.platform = 'darwin'
+    f.context.service = { runner: async () => ({ code: 0, stdout, stderr: '' }) }
+    expect(await serviceState(f.context)).toEqual({ installed: true, running })
+  },
+)
+it('leaves a stopped-but-loaded macOS job stopped after selecting an update', async () => {
+  const f = setup()
+  f.context.platform = 'darwin'
+  f.context.arch = 'arm64'
+  f.release('1.2.3', bundle(), (m) => {
+    if (m.artifacts[0]) {
+      m.artifacts[0].target = 'darwin-arm64'
+      m.artifacts[0].file = 'phosphor-host-1.2.3-darwin-arm64.tar.gz'
+    }
+  })
+  writeFileSync(join(f.assets, 'phosphor-host-1.2.3-darwin-arm64.tar.gz'), bundle())
+  const runner = vi.fn(async () => ({
+    code: 0,
+    stdout: 'state = exited\nlast exit code = 77\n',
+    stderr: '',
+  }))
+  f.context.service = { runner }
+  expect(await runUpdate(f.context)).toBe(0)
+  expect(runner).toHaveBeenCalledTimes(1)
+  expect(f.messages).toContain('Selected Host 1.2.3.')
 })

@@ -322,10 +322,21 @@ fi
 if [ "$already" = 0 ]; then rename_safe "$stage/current" "$root/current" || fail; fi
 committed=1
 end_critical
+# Use the installed runtime while the install lock still serializes rc updates.
+path_message=$("$command" internal-install-path) || path_message='Could not update shell startup file; use the PATH export below.'
 # Finish cleanup before claiming success; it can record a deferred signal too.
 cleanup
 if [ "$foreign" = 1 ]; then
-  printf 'Previous launcher kept at %s. If a Host service is running, run phosphor service install again.\n' "$backup"
+  printf 'Previous launcher kept at %s. If a Host service is running, run phosphor setup again.\n' "$backup"
 fi
-if [ "$already" = 1 ]; then printf '%s\n' 'Phosphor Host already installed. Next: phosphor setup'
-else printf '%s\n' 'Installed Phosphor Host. Next: phosphor setup'; fi
+if [ -n "$path_message" ]; then printf '%s\n' "$path_message"; fi
+next='phosphor setup'
+case :${PATH:-}: in
+  *:"$home/.local/bin":*) ;;
+  *)
+    next='~/.local/bin/phosphor setup'
+    printf '%s\n' 'For this terminal, run: export PATH="$HOME/.local/bin:$PATH"'
+    ;;
+esac
+if [ "$already" = 1 ]; then printf 'Phosphor Host already installed. Next: %s\n' "$next"
+else printf 'Installed Phosphor Host. Next: %s\n' "$next"; fi

@@ -141,7 +141,6 @@ export function validateHostConfig(value: unknown): ConfigValidation {
   if (value.resourceRoot !== undefined) path(value.resourceRoot, '/resourceRoot')
 
   const repositories = list(value.repositories, LIMITS.repositories, '/repositories', 'folders')
-  if (repositories?.length === 0) fail('/repositories', 'must list at least one folder')
   repositories?.forEach((repository, index) => {
     if (repository === '/') fail(pointer('repositories', index), 'must not be /')
     else path(repository, pointer('repositories', index))

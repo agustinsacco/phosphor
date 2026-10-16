@@ -30,26 +30,31 @@ public tunnels and disabling TLS verification are not part of this transport.
 
 ## Bring a machine online
 
-1. Install pi and the [Host](host.md#setting-up-a-host) on the execution machine.
-   Both computers need Tailscale, with MagicDNS and HTTPS certificates enabled.
-2. Run `phosphor setup --repository DIR`, then `phosphor doctor`. Use
-   `phosphor providers` and `phosphor providers login PROVIDER` to sign in there.
-   `phosphor accept --repository DIR` proves real sessions in a disposable repository.
-   [Acceptance](host.md#accept) explains when the Claude lane needs `--claude-model`.
-3. Sign in to Phosphor with GitHub in Desktop. Open Machines > Add a machine.
-   Use its guided [SSH installation](remote-desktop.md#install-a-host-over-ssh), or run
-   `phosphor login` on the Host and approve the code after comparing fingerprints.
-4. Run `phosphor tailscale enable` and `phosphor service install` on the Host.
-   `phosphor run` is the foreground alternative. A macOS service runs at login;
-   Linux's user service uses linger to keep running after logout and reboot.
+1. Install pi on the execution machine. Both computers need Tailscale on the
+   same tailnet, with MagicDNS and HTTPS certificates enabled.
+2. Sign in to Phosphor with GitHub in Desktop. Open Machines > Add a machine.
+   Its [terminal-command flow](remote-desktop.md#add-a-machine) checks local
+   readiness and gives the signed Host install command to run on the other machine.
+3. The command runs `phosphor setup`, which keeps or creates config, prints an
+   enrollment code and fingerprint, installs and starts the service, then enables
+   Tailscale Serve. In Desktop, choose I have a code, enter it, compare fingerprints
+   and approve. No repository is required. Rerunning setup resumes completed steps;
+   if Tailscale needs operator permission, run its printed sudo command and rerun setup.
+4. Once online, open the machine's Readiness and sign in to a provider there, or
+   run `phosphor providers login PROVIDER` on the Host. Credentials stay there.
+   Add a repository from Desktop or with `phosphor setup --repository DIR --replace`.
+   `phosphor doctor` checks readiness; `phosphor accept --repository DIR` proves
+   real sessions in a disposable repository. [Acceptance](host.md#accept) explains
+   when the Claude lane needs `--claude-model`.
 5. Open the machine in Desktop. Readiness gives recovery steps for missing pi,
    transport or provider sign-in. An online directory row alone is not proof of a
    ready connection or permission to execute.
 
 The [Host command and config reference](host.md#commands) covers manual operation,
-signed releases, updates, rollback and uninstall. Credentials stay on the machine
-where the provider login runs. SSH is only for installation and repair, never lane
-transport.
+signed releases, updates, rollback and uninstall. `phosphor run` is the foreground
+alternative to the service. A macOS service runs at login; Linux's user service
+uses linger to keep running after logout and reboot. Lane transport is private
+Tailscale HTTPS/WSS, not SSH.
 
 ## Connect and authorize
 

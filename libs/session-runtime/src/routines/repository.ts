@@ -1,4 +1,5 @@
-import { DatabaseSync } from 'node:sqlite'
+import type { DatabaseSync } from 'node:sqlite'
+import { loadRoutineSqlite } from './sqlite'
 import { randomUUID } from 'node:crypto'
 import {
   activeRun,
@@ -16,6 +17,7 @@ export class RoutineRepository {
   private readonly db: DatabaseSync
 
   constructor(path: string) {
+    const { DatabaseSync } = loadRoutineSqlite()
     this.db = new DatabaseSync(path)
     this.db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000;')
     const version = this.db.prepare('PRAGMA user_version').get()!.user_version

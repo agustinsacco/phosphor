@@ -618,8 +618,7 @@ export function MachinesPage(): React.JSX.Element {
                   machine and return when you add it again.
                 </p>
                 <p className="text-text-secondary">
-                  Add it again over SSH, or run <code>phosphor login</code> then{' '}
-                  <code>phosphor service install</code> on {removing.label}.
+                  Add it again by running <code>phosphor setup</code> on {removing.label}.
                 </p>
                 {error && (
                   <p role="alert" className="text-danger">

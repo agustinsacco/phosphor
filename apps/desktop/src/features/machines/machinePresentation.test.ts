@@ -78,7 +78,7 @@ it.each(['bcdfghjk', 'BCDF-GHJK', ' bcdf-ghjk '])('normalises and formats %s', (
 )
 it('installs the signed Host release, never a source build or Desktop installer', () => {
   expect(HOST_INSTALL).toBe(
-    'curl -fsSL https://github.com/agustinsacco/Phosphor/releases/download/host-latest/install.sh | sh',
+    'curl -fsSL https://github.com/agustinsacco/Phosphor/releases/download/host-latest/install.sh | sh && export PATH="$HOME/.local/bin:$PATH" && phosphor setup',
   )
 })
 it('trusts readiness only while a machine is online, and names problems in a few words', () => {

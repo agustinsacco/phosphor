@@ -177,7 +177,7 @@ export function routeMessage(state: ServeRoute, port: number): string {
         ? ' Turn off Funnel because it would publish the Host to the internet.'
         : '')
     )
-  if (state === 'absent') return 'Run phosphor tailscale enable.'
+  if (state === 'absent') return 'Run phosphor setup.'
   if (state === 'unknown')
     return 'Tailscale serve status could not be verified; check tailscale status.'
   return 'Tailscale serve is ready.'
@@ -201,6 +201,6 @@ export function tailscaleChecks(found: TailscaleInspection): Check[] {
 }
 export function setupTailscaleHint(found: TailscaleInspection): string[] {
   return found.readiness === 'ok' && found.name !== null && found.state === 'absent'
-    ? [`Port ${found.port}: Run phosphor tailscale enable.`]
+    ? [`Port ${found.port}: Run phosphor setup.`]
     : []
 }

@@ -2,7 +2,6 @@ import { machineStatus } from '@shared/control-api'
 import { CheckIcon } from '@/components/icons'
 import { BeforeYouStart } from './onboarding/BeforeYouStart'
 import { OnlineAndProviders } from './onboarding/OnlineAndProviders'
-import { SshInstallPanel } from './SshInstallPanel'
 import { useEffect, useRef, useState } from 'react'
 import {
   normalizeLabel,
@@ -10,7 +9,6 @@ import {
   type EnrollmentLookupResponse,
   type MachineView,
 } from '@shared/control-api'
-import { TooltipSummary } from '@/components/Tooltip'
 import { ModalOverlay, ModalPanel } from '@/components/Modal'
 import { Button, TextInput } from '@/components/form'
 import { machinesAccountGeneration, useMachinesStore } from '@/stores/machines'
@@ -18,20 +16,15 @@ import { controlMessage } from './controlMessages'
 import { formatCode, platformName } from './machinePresentation'
 import { CopyCommand, HostGuide, HostSetup } from './MachineControls'
 
-type Step = 'before' | 'providers' | 'on-machine' | 'code' | 'confirm' | 'finishing' | 'done'
+type Step = 'before' | 'providers' | 'on-machine' | 'code' | 'confirm' | 'done'
 export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JSX.Element {
   const [step, setStep] = useState<Step>('before')
-  const [suggestedTarget, setSuggestedTarget] = useState('')
-  const [ssh, setSsh] = useState(false)
-  const [sshActive, setSshActive] = useState(false)
-  const [sshFingerprint, setSshFingerprint] = useState<string | null>(null)
   const [code, setCode] = useState('')
   const [details, setDetails] = useState<EnrollmentLookupResponse | null>(null)
   const [added, setAdded] = useState<MachineView | null>(null)
   const [label, setLabel] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const sshDone = useRef(false)
   const pending = useRef(false)
   const live = useRef(true)
   useEffect(() => {
@@ -42,33 +35,19 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
   }, [])
   const normalizedCode = normalizeUserCode(code)
   const normalizedLabel = normalizeLabel(label)
-  async function submit(
-    enrollmentCode = normalizedCode,
-    fingerprint = sshFingerprint,
-    lookupOnly = false,
-  ): Promise<void> {
-    if (
-      pending.current ||
-      !enrollmentCode ||
-      (!lookupOnly && step === 'confirm' && !normalizedLabel)
-    )
-      return
+  async function submit(): Promise<void> {
+    const enrollmentCode = normalizedCode
+    if (pending.current || !enrollmentCode || (step === 'confirm' && !normalizedLabel)) return
     pending.current = true
     const generation = machinesAccountGeneration()
     setBusy(true)
     setError(null)
     try {
-      if (step === 'code' || lookupOnly) {
+      if (step === 'code') {
         const result = await window.phosphor.invoke('control:lookupEnrollment', enrollmentCode)
         if (!live.current) return
         if (generation !== machinesAccountGeneration()) {
           setError(controlMessage('signed-out'))
-          return
-        }
-        if (result.ok && fingerprint && result.keyFingerprint !== fingerprint) {
-          setError(
-            'The fingerprints do not match. Cancel installation. Do not approve this machine.',
-          )
           return
         }
         if (result.ok && useMachinesStore.getState().remoteEnabled) {
@@ -77,10 +56,6 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
           setStep('confirm')
         } else setError(controlMessage(result.ok ? 'signed-out' : result.error.code))
       } else if (step === 'confirm' && normalizedLabel) {
-        if (sshFingerprint && (!details || details.keyFingerprint !== sshFingerprint)) {
-          setError('The fingerprints do not match. Do not approve this machine.')
-          return
-        }
         const result = await window.phosphor.invoke(
           'control:approveEnrollment',
           enrollmentCode,
@@ -96,7 +71,7 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
         }
         if (result.ok && useMachinesStore.getState().remoteEnabled) {
           setAdded(result.machine)
-          setStep(sshFingerprint && !sshDone.current ? 'finishing' : 'done')
+          setStep('done')
         } else setError(controlMessage(result.ok ? 'signed-out' : result.error.code))
       }
     } catch {
@@ -137,8 +112,6 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
                   {step === 'done' && online ? 'Continue to Providers' : 'View machine'}
                 </Button>
               </>
-            ) : step === 'finishing' ? (
-              <Button onClick={onClose}>Cancel</Button>
             ) : (
               <>
                 <Button
@@ -205,70 +178,19 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
                 </li>
               ))}
             </ol>
-            {step === 'before' && (
-              <BeforeYouStart
-                installActive={sshActive}
-                onReturnToInstall={() => setStep('on-machine')}
-                onPick={(target) => {
-                  setSuggestedTarget(target)
-                  setSsh(true)
-                  setStep('on-machine')
-                }}
-              />
-            )}
+            {step === 'before' && <BeforeYouStart />}
             {step === 'on-machine' && (
               <div className="space-y-3">
-                <h2 className="text-xl font-semibold">Prepare the other machine</h2>
-                <p className="text-text-secondary">
-                  Install over SSH from here, or run the terminal commands on the machine you want
-                  to add.
-                </p>
+                <h2 className="text-xl font-semibold">Install on the other machine</h2>
+                <HostSetup />
+                <HostGuide />
               </div>
-            )}
-            {ssh && (
-              <div hidden={step === 'before' || step === 'done' || step === 'providers'}>
-                <SshInstallPanel
-                  initialTarget={suggestedTarget}
-                  onState={(event) => {
-                    setSshActive(
-                      event === null || event.kind === 'progress' || event.kind === 'enrollment',
-                    )
-                    sshDone.current = event?.kind === 'done' && event.step === 'service'
-                    if (sshDone.current)
-                      setStep((current) => (current === 'finishing' ? 'done' : current))
-                  }}
-                  onEnrollment={(value, fingerprint) => {
-                    setCode(value)
-                    setSshFingerprint(fingerprint)
-                    setStep('code')
-                    setDetails(null)
-                    void submit(value, fingerprint, true)
-                  }}
-                />
-              </div>
-            )}
-            {step === 'on-machine' && (
-              <>
-                {!ssh && <Button onClick={() => setSsh(true)}>Install over SSH</Button>}
-                {ssh ? (
-                  <details className="space-y-3">
-                    <TooltipSummary>Prefer terminal commands?</TooltipSummary>
-                    <HostSetup />
-                    <HostGuide />
-                  </details>
-                ) : (
-                  <>
-                    <HostSetup />
-                    <HostGuide />
-                  </>
-                )}
-              </>
             )}
             {step === 'code' && (
               <>
                 <h2 className="text-xl font-semibold">Enter the code from the Host</h2>
                 <p className="text-text-secondary">
-                  Use the code printed by phosphor login. Codes expire after 10 minutes.
+                  Use the code printed by phosphor setup. Codes expire after 10 minutes.
                 </p>
                 <label className="block">
                   Code
@@ -296,15 +218,9 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
                   </p>
                 </div>
                 <p className="text-text-secondary">
-                  Compare this fingerprint with what phosphor login printed. Only approve a machine
+                  Compare this fingerprint with what phosphor setup printed. Only approve a machine
                   you recognise.
                 </p>
-                {sshFingerprint && (
-                  <>
-                    <p>Enrollment code: {formatCode(code)}</p>
-                    <p>Host fingerprint: {sshFingerprint}</p>
-                  </>
-                )}
                 <CopyCommand command={details.keyFingerprint} />
                 <label className="block">
                   Machine label
@@ -323,10 +239,6 @@ export function AddMachineDialog({ onClose }: { onClose: () => void }): React.JS
                 )}
               </>
             )}
-            {step === 'finishing' && added && (
-              <h2 className="text-xl font-semibold">Finishing install on {added.label}...</h2>
-            )}
-            {step === 'done' && sshDone.current && <p>Host service installed.</p>}
             {(step === 'done' || step === 'providers') && added && (
               <OnlineAndProviders
                 added={added}

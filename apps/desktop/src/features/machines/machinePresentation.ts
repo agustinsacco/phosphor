@@ -9,9 +9,7 @@ import {
 export const LOCAL_MACHINE = 'this-computer'
 export const HOST_GUIDE = 'https://github.com/agustinsacco/Phosphor/blob/main/docs/host.md'
 export const HOST_INSTALL =
-  'curl -fsSL https://github.com/agustinsacco/Phosphor/releases/download/host-latest/install.sh | sh'
-export const HOST_SETUP = 'phosphor setup --repository ~/src/project'
-export const HOST_LOGIN = 'phosphor login'
+  'curl -fsSL https://github.com/agustinsacco/Phosphor/releases/download/host-latest/install.sh | sh && export PATH="$HOME/.local/bin:$PATH" && phosphor setup'
 export const HOST_RUN = 'phosphor run'
 export const HOST_SERVICE_INSTALL = 'phosphor service install'
 export const HOST_SERVICE_STATUS = 'phosphor service status'

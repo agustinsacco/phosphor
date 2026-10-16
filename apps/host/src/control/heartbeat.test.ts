@@ -159,7 +159,7 @@ describe('heartbeat loop', () => {
     expect(await createHeartbeat(f.ports).run()).toBe(77)
     expect(f.ports.onRemoved).toHaveBeenCalledOnce()
     expect(f.logs).toEqual([
-      'This machine was removed from your Phosphor account. Run phosphor login to add it again.',
+      'This machine was removed from your Phosphor account. Run phosphor setup to add it again.',
     ])
     expect(f.waits).toEqual([])
   })

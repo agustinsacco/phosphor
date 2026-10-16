@@ -49,8 +49,7 @@ export async function prepareControl(
   recoverIncomplete = false,
 ): Promise<PreparedControl> {
   const config = await loadHostConfig(context.configPath, context.uid)
-  if (!config.ok)
-    throw new IdentityFailure('Config is not usable. Run phosphor doctor to check it.')
+  if (!config.ok) throw new IdentityFailure('Config is not usable. Run phosphor setup to check it.')
   const url = config.config.control?.url ?? DEFAULT_CONTROL_URL
   const store = commandStore(context)
   let loaded: PreparedControl['loaded'] = null
@@ -66,7 +65,7 @@ export async function prepareControl(
   }
   if (identity && new URL(identity.controlUrl).origin !== new URL(url).origin) {
     throw new IdentityFailure(
-      `This machine is signed in to ${new URL(identity.controlUrl).origin}, but the config points at ${new URL(url).origin}. Run phosphor logout --local, then phosphor login.`,
+      `This machine is signed in to ${new URL(identity.controlUrl).origin}, but the config points at ${new URL(url).origin}. Run phosphor logout --local, then phosphor setup.`,
     )
   }
   if (incomplete && !recoverIncomplete) throw incomplete

@@ -11,6 +11,7 @@ import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { fixture } from '../update/__fixtures__/release'
 import { acquireInstallLock } from '../update/lock'
+import { HOST_PATH_BLOCK } from '../machine/shell-path'
 import { runUninstall } from './uninstall'
 const logout = vi.hoisted(() => ({ run: vi.fn(async () => ({ exitCode: 0, message: 'ok' })) }))
 vi.mock('./logout', () => ({ runLogout: logout.run }))
@@ -42,10 +43,12 @@ it('removes program and own launcher, uninstalls service first and keeps config,
       return { code: args.includes('is-active') ? 3 : 0, stdout: '', stderr: '' }
     },
   }
+  writeFileSync(join(f.home, '.zshrc'), `# user config\n${HOST_PATH_BLOCK}# more config\n`)
   const backup = join(f.home, '.local/bin/phosphor.before-release')
   writeFileSync(backup, 'original')
   expect(await runUninstall(f.context)).toBe(0)
   expect(existsSync(f.lib)).toBe(false)
+  expect(readFileSync(join(f.home, '.zshrc'), 'utf8')).toBe('# user config\n# more config\n')
   expect(existsSync(join(f.home, '.local/bin/phosphor'))).toBe(false)
   expect(calls.some((args) => args.includes('disable'))).toBe(true)
   expect(existsSync(unit)).toBe(false)

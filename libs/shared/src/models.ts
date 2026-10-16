@@ -543,7 +543,6 @@ export interface MaintenanceReport {
 }
 
 export interface AppPrefs {
-  tailscaleDiscovery?: boolean
   theme: ThemePreference
   recentWorkspaces: WorkspaceInfo[]
   /** Most recently used workspace — where the app lands with no session. */
@@ -833,7 +832,6 @@ export interface OptimizationStats {
 }
 
 export const DEFAULT_APP_PREFS: AppPrefs = {
-  tailscaleDiscovery: false,
   theme: 'dark',
   recentWorkspaces: [],
   pinnedSessions: [],

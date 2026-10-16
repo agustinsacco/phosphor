@@ -86,7 +86,7 @@ async function runServiceCommand(
     if (action === 'install') {
       const prepared = await withCommandLock(context, () => prepareControl(context))
       if (!prepared.loaded) {
-        context.print('Run phosphor login first.')
+        context.print('Run phosphor setup first.')
         return 69
       }
       const { node, bundle } = serviceProgram(
@@ -229,7 +229,7 @@ async function runLaunchdService(
     if (action === 'install') {
       const prepared = await withCommandLock(context, () => prepareControl(context))
       if (!prepared.loaded) {
-        context.print('Run phosphor login first.')
+        context.print('Run phosphor setup first.')
         return 69
       }
       const { node, bundle } = serviceProgram(
@@ -264,7 +264,7 @@ async function runLaunchdService(
     if (action === 'restart') {
       const result = await invoke('launchctl', ['kickstart', '-k', job])
       if (launchctlMissing('kickstart', result.code))
-        return fail('The service is not loaded. Run phosphor service install.')
+        return fail('The service is not loaded. Run phosphor setup.')
       if (result.code !== 0) return fail()
       context.print('Phosphor Host service restarted.')
       return 0

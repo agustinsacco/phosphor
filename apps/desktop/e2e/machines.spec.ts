@@ -1,8 +1,10 @@
 import { test, expect } from '@playwright/test'
-import { readFile, mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises'
+import { readFile, mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { accountControlFixture } from './fixtures/account-control'
+import { captures } from './fixtures/remote-ui'
+import { REMOTE_TEST_TIMEOUT } from './fixtures/remote-host'
 import { MACHINE } from '../src/features/machines/__fixtures__/control'
 
 test('Machines is always available, shows only this computer while signed out, and Settings owns feedback', async () => {
@@ -60,8 +62,8 @@ test('signed-in directory walks guided enrollment, stable detail, rename and con
     const dialog = page.getByRole('dialog', { name: 'Add a machine', exact: true })
     await expect(dialog).toContainText('Before you start')
     await dialog.getByRole('button', { name: 'Continue to Install' }).click()
-    await expect(dialog).toContainText('Install the Host')
-    await expect(dialog).toContainText('phosphor login')
+    await expect(dialog).toContainText('Install on the other machine')
+    await expect(dialog).toContainText('phosphor setup')
     await dialog.getByRole('button', { name: 'I have a code' }).click()
     await dialog.getByRole('textbox', { name: 'Code', exact: true }).fill('BCDFGHJX')
     await dialog.getByRole('button', { name: 'Look up code' }).click()
@@ -106,91 +108,53 @@ test('signed-in directory walks guided enrollment, stable detail, rename and con
   }
 })
 
-test('onboarding steps and opt-in suggestions in dark and light', async () => {
-  const testInfo = test.info()
+test('onboarding uses one terminal command and keeps Online and Providers', async () => {
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
+  const info = test.info()
   const bin = await mkdtemp(join(tmpdir(), 'phosphor-tailscale-'))
-  const config = join(bin, 'status.json')
-  const setDiscovery = (peers: boolean, delay = 0) =>
-    writeFile(config, JSON.stringify({ peers, delay }))
-  await setDiscovery(true)
   await writeFile(
     join(bin, 'tailscale'),
-    `#!/usr/bin/env node
-const config = JSON.parse(require('node:fs').readFileSync(${JSON.stringify(config)}, 'utf8'));
-setTimeout(() => console.log(JSON.stringify({BackendState:'Running',CurrentTailnet:{MagicDNSEnabled:true},CertDomains:['desktop.tail123.ts.net'],Peer:config.peers ? {fixture:{DNSName:'buildbox.tail123.ts.net.',OS:'linux',Online:true,TailscaleIPs:['100.1.2.3']}} : {}})), config.delay)
+    `#!/bin/sh
+printf '%s\\n' '{"BackendState":"Running","CurrentTailnet":{"MagicDNSEnabled":true},"CertDomains":["desktop.tail123.ts.net"]}'
 `,
     { mode: 0o755 },
   )
-  const shots = process.env.PHOSPHOR_ONBOARDING_SHOTS ?? testInfo.outputPath('onboarding')
-  await mkdir(shots, { recursive: true })
   const h = await accountControlFixture([], { env: { PATH: `${bin}:${process.env.PATH}` } })
   const { page } = h
   try {
     await h.signIn()
     await page.getByRole('button', { name: 'Machines', exact: true }).click()
-    for (const theme of ['dark', 'light'] as const) {
-      await page.evaluate(async (theme) => {
-        await window.phosphor.invoke('app:setTheme', theme)
-        document.documentElement.classList.toggle('dark', theme === 'dark')
-      }, theme)
-      await page.getByRole('button', { name: 'Add a machine', exact: true }).first().click()
-      const dialog = page.getByRole('dialog', { name: 'Add a machine', exact: true })
-      await expect(dialog).toContainText('MagicDNS and HTTPS certificates are available')
-      const toggle = dialog.getByRole('switch')
-      if ((await toggle.getAttribute('aria-checked')) === 'true') await toggle.click()
-      await expect(toggle).toHaveAttribute('aria-checked', 'false')
-      await dialog.screenshot({ path: join(shots, `${theme}-before.png`) })
-      await toggle.click()
-      const suggestion = dialog.getByRole('button', { name: 'Use buildbox.tail123.ts.net' })
-      await expect(suggestion).toBeVisible()
-      await dialog.screenshot({ path: join(shots, `${theme}-discovery.png`) })
-      await setDiscovery(false, 1500)
-      await dialog.getByRole('button', { name: 'Check again' }).click()
-      await expect(dialog).toContainText('Loading suggestions…')
-      await dialog.screenshot({ path: join(shots, `${theme}-discovery-loading.png`) })
-      await expect(dialog).toContainText('No other online machines found on your tailnet.')
-      await dialog.screenshot({ path: join(shots, `${theme}-discovery-empty.png`) })
-      await setDiscovery(true)
-      await dialog.getByRole('button', { name: 'Check again' }).click()
-      await expect(suggestion).toBeVisible()
-      await suggestion.click()
-      await expect(dialog.getByRole('textbox', { name: 'SSH target', exact: true })).toHaveValue(
-        'buildbox.tail123.ts.net',
-      )
-      await dialog.screenshot({ path: join(shots, `${theme}-install.png`) })
-      await dialog.getByRole('button', { name: 'I have a code' }).click()
-      await dialog.getByRole('textbox', { name: 'Code', exact: true }).fill('BCDFGHJK')
-      await dialog.screenshot({ path: join(shots, `${theme}-code.png`) })
-      await dialog.getByRole('button', { name: 'Look up code' }).click()
-      await dialog.screenshot({ path: join(shots, `${theme}-confirm.png`) })
-      await dialog.getByRole('button', { name: 'Approve machine' }).click()
-      // Picking a suggestion did not start SSH. Manual enrollment completes directly.
-      await expect(dialog).toContainText('Waiting for bee1 to connect…')
-      await dialog.screenshot({ path: join(shots, `${theme}-online.png`) })
-      await expect(dialog.locator('details').filter({ hasText: 'Stuck?' })).not.toHaveAttribute(
-        'open',
-        '',
-      )
-      await dialog.getByRole('button', { name: 'Close', exact: true }).click()
-      h.state.approvedMachine = {
-        ...MACHINE,
-        lastSeenAt: new Date().toISOString(),
-        state: 'running',
-      }
-      await page.getByRole('button', { name: 'Add a machine', exact: true }).first().click()
-      await dialog.getByRole('button', { name: 'Continue to Install' }).click()
-      await dialog.getByRole('button', { name: 'I have a code' }).click()
-      await dialog.getByRole('textbox', { name: 'Code', exact: true }).fill('BCDFGHJK')
-      await dialog.getByRole('button', { name: 'Look up code' }).click()
-      await dialog.getByRole('button', { name: 'Approve machine' }).click()
-      await expect(dialog).toContainText('bee1 is online')
-      await expect(dialog.getByRole('button', { name: 'Continue to Providers' })).toBeVisible()
-      await dialog.screenshot({ path: join(shots, `${theme}-online-ready.png`) })
-      await expect(dialog).toContainText('Host not reachable')
-      await dialog.screenshot({ path: join(shots, `${theme}-providers.png`) })
-      await dialog.getByRole('button', { name: 'Close', exact: true }).click()
-      h.state.approvedMachine = MACHINE
-    }
+    await page.getByRole('button', { name: 'Add a machine', exact: true }).first().click()
+    const dialog = page.getByRole('dialog', { name: 'Add a machine', exact: true })
+    await expect(dialog).toContainText('MagicDNS and HTTPS certificates are available')
+    await expect(dialog.getByRole('switch')).toHaveCount(0)
+    await dialog.getByRole('button', { name: 'Continue to Install' }).click()
+    const command =
+      'curl -fsSL https://github.com/agustinsacco/Phosphor/releases/download/host-latest/install.sh | sh && export PATH="$HOME/.local/bin:$PATH" && phosphor setup'
+    await expect(dialog.locator('pre code')).toHaveText(command)
+    await expect(dialog).toContainText('PHOSPHOR_NO_MODIFY_PATH=1')
+    await expect(dialog).not.toContainText('SSH')
+    await dialog.getByRole('button', { name: 'Copy', exact: true }).click()
+    await expect(dialog.getByRole('button', { name: 'Copied', exact: true })).toBeVisible()
+    await captures(h, info, 'install-command')
+    await dialog.getByRole('button', { name: 'I have a code' }).click()
+    await dialog.getByRole('textbox', { name: 'Code', exact: true }).fill('BCDFGHJK')
+    await dialog.getByRole('button', { name: 'Look up code' }).click()
+    await expect(dialog).toContainText(MACHINE.keyFingerprint)
+    await dialog.getByRole('button', { name: 'Approve machine' }).click()
+    await expect(dialog).toContainText('Waiting for bee1 to connect…')
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
+    h.state.approvedMachine = { ...MACHINE, lastSeenAt: new Date().toISOString(), state: 'running' }
+    await page.getByRole('button', { name: 'Add a machine', exact: true }).first().click()
+    await dialog.getByRole('button', { name: 'Continue to Install' }).click()
+    await dialog.getByRole('button', { name: 'I have a code' }).click()
+    await dialog.getByRole('textbox', { name: 'Code', exact: true }).fill('BCDFGHJK')
+    await dialog.getByRole('button', { name: 'Look up code' }).click()
+    await dialog.getByRole('button', { name: 'Approve machine' }).click()
+    await expect(dialog).toContainText('bee1 is online')
+    // Online advances to Providers by itself; clicking races that switch on a slow runner.
+    await expect(dialog).toContainText('Host not reachable')
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click()
   } finally {
     await h.close()
     await rm(bin, { recursive: true, force: true })

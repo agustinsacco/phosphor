@@ -110,7 +110,7 @@ Key fingerprint: ${keyFingerprint}. Phosphor shows the same one.
 Waiting for approval. The code expires in ${minutesLeft(deadline - now())}. Ctrl-C cancels.`)
       const expired = {
         exitCode: EXIT.tempfail,
-        message: 'The code expired. Run phosphor login again.',
+        message: 'The code expired. Run phosphor setup again.',
       }
       let failures = 0
       for (let polls = 0; polls < CONTROL_LIMITS.enrollmentTtlSec; polls++) {
@@ -202,7 +202,7 @@ Waiting for approval. The code expires in ${minutesLeft(deadline - now())}. Ctrl
     if (context.signal?.aborted)
       return {
         exitCode: 130,
-        message: "Cancelled. Run phosphor login again within the code's lifetime to keep waiting.",
+        message: "Cancelled. Run phosphor setup again within the code's lifetime to keep waiting.",
       }
     return controlResult(error, context.signal)
   }

@@ -160,10 +160,6 @@
       "types": "./src/skills.ts",
       "default": "./src/skills.ts"
     },
-    "./ssh-install": {
-      "types": "./src/ssh-install.ts",
-      "default": "./src/ssh-install.ts"
-    },
     "./skillsCatalog": {
       "types": "./src/skillsCatalog.ts",
       "default": "./src/skillsCatalog.ts"

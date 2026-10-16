@@ -5,7 +5,7 @@ export function controlMessage(code: DesktopControlErrorCode): string {
     case 'bad-request':
     case 'not-found':
     case 'gone':
-      return 'That code is wrong or expired. Run phosphor login again and check the code.'
+      return 'That code is wrong or expired. Run phosphor setup again and check the code.'
     case 'too-many-requests':
       return 'Too many tries. Wait 15 minutes before trying again.'
     case 'conflict':

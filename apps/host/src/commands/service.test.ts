@@ -450,7 +450,7 @@ describe('phosphor service on macOS', () => {
         expect(await runService(f.context, action)).toBe(75)
         expect(machine.output.join('\n')).not.toContain('private error')
         if (action === 'restart' && code === 113)
-          expect(machine.output.join('\n')).toContain('Run phosphor service install.')
+          expect(machine.output.join('\n')).toContain('Run phosphor setup.')
         if (action === 'status')
           expect(machine.output).toContain('The service state could not be read.')
       }

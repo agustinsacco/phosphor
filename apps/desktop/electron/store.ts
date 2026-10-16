@@ -126,7 +126,6 @@ export function getPrefs(): AppPrefs {
   const s = prefs()
   return {
     theme: s.get('theme'),
-    tailscaleDiscovery: s.get('tailscaleDiscovery') === true,
     // Read-only prune: worktree folders (never workspaces) and folders that
     // no longer exist. Deliberately not written back — see `visibleWorkspaces`.
     recentWorkspaces: visibleWorkspaces(
@@ -518,7 +517,3 @@ export const getRemoteClients = (): RemoteClients =>
   cleanClients(remotePrefs().get('remoteClients'))
 export const setRemoteClients = (clients: RemoteClients): void =>
   remotePrefs().set('remoteClients', cleanClients(clients))
-
-export function setTailscaleDiscovery(enabled: boolean): void {
-  prefs().set('tailscaleDiscovery', enabled)
-}

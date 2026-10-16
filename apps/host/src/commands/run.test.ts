@@ -316,6 +316,33 @@ describe('phosphor run', () => {
     expect(machine.calls).toEqual([])
     expect(await readdir(identityDirectory(machine.configPath))).not.toContain('.run-lock')
   })
+  it('runs and heartbeats with no configured folders or lanes', async () => {
+    await machine.enrollOld()
+    await writeFile(machine.configPath, JSON.stringify({ ...machine.config, repositories: [] }), {
+      mode: 0o600,
+    })
+    const f = context()
+    const log = vi.fn()
+    f.log = log
+    f.fetch = async () => Response.json({ accepted: true, nextInSec: 30 })
+    f.wait = async () => {
+      machine.abort.abort()
+    }
+    expect(await runHost(f)).toBe(0)
+    expect(log).toHaveBeenCalledWith('host', 'lanes.reconciled', {
+      repositories: 0,
+      lanes: 0,
+      added: 0,
+      removed: 0,
+    })
+    const store = await openStore(hostStateDirectory(f.env, f.home), process.getuid?.())
+    try {
+      expect(store.listRepositories()).toEqual([])
+      expect(store.listLanes()).toEqual([])
+    } finally {
+      store.close()
+    }
+  })
   it('keeps heartbeating with unavailable repositories, reconciles present ones and logs only a count', async () => {
     await machine.enrollOld()
     await writeFile(
@@ -357,7 +384,7 @@ describe('phosphor run', () => {
   })
   it('requires enrollment before any network call', async () => {
     expect(await runHost(context())).toBe(69)
-    expect(machine.output).toEqual(['Run phosphor login first.'])
+    expect(machine.output).toEqual(['Run phosphor setup first.'])
     expect(machine.calls).toEqual([])
   })
   it('refuses another control origin without contacting either', async () => {

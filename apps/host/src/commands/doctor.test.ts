@@ -118,7 +118,7 @@ describe('doctor', () => {
               : 'warn',
       )
       const text = renderDoctor(report)
-      if (state === 'absent') expect(text).toContain('Run phosphor tailscale enable.')
+      if (state === 'absent') expect(text).toContain('Run phosphor setup.')
       if (state === 'other' || state === 'funnel')
         expect(text).toContain('will not replace a route it did not make')
       if (state === 'funnel') expect(text).toContain('publish the Host to the internet')
@@ -161,10 +161,7 @@ describe('doctor', () => {
       'radius not_ready',
     ])
     // pi has no default provider here, so the lane is told which to run on.
-    expect(report.next).toBe(
-      'run real sessions on ChatGPT (Codex): phosphor accept --repository DIR --lane native ' +
-        '--provider openai-codex --model ID (pi --list-models openai-codex lists them)',
-    )
+    expect(report.next).toBe('Tailscale is missing: install Tailscale first.')
     expect(report.lanes.native).toEqual({ available: true })
     expect(report.lanes.claude.reason).toContain('(it is not installed)')
     expect(report.environment?.names).toEqual([
@@ -315,7 +312,7 @@ describe('doctor', () => {
         summary: 'Tailscale is missing: install Tailscale first.',
       },
     ])
-    expect(report.next).toBe('sign in to a provider: phosphor providers')
+    expect(report.next).toBe('sign in to a provider: phosphor providers login PROVIDER')
   })
 
   it("warns when pi's default provider is not signed in, whatever else is", async () => {
@@ -336,18 +333,12 @@ describe('doctor', () => {
       default: true,
     })
     // Signed in to something else, so setup moves on there; the warning stays.
-    expect(report.next).toBe(
-      'run real sessions on ChatGPT (Codex): phosphor accept --repository DIR --lane native ' +
-        '--provider openai-codex --model ID (pi --list-models openai-codex lists them)',
-    )
+    expect(report.next).toBe('sign in to a provider: phosphor providers login PROVIDER')
   })
 
   it('counts the claude lane as something to run on, and asks pi nothing when pi is unusable', async () => {
     machine.installClaude()
-    expect((await runDoctor(context())).next).toBe(
-      'run real sessions on the claude lane: phosphor accept --repository DIR --lane claude ' +
-        '--claude-model ID (pi --list-models pi-claude-cli lists them)',
-    )
+    expect((await runDoctor(context())).next).toBe('Tailscale is missing: install Tailscale first.')
     const unusable = await runDoctor(context({ env: { ...machine.hostEnv, PI_FAKE_MODE: 'leak' } }))
     expect(unusable.providers).toBeUndefined()
     expect(unusable.next).toBeUndefined()
@@ -369,7 +360,9 @@ describe('doctor', () => {
     expect(text).toMatch(/^phosphor 0\.0\.0-dev\.source · node 22\.22\.3 · linux\n/)
     expect(text).toContain(`  ok    pi              ${machine.cli} 1.2.0, started with node\n`)
     expect(text).toContain('\nlanes\n  native  available\n  claude  unavailable: ')
-    expect(text.endsWith('\nready\nnext: sign in to a provider: phosphor providers\n')).toBe(true)
+    expect(
+      text.endsWith('\nready\nnext: sign in to a provider: phosphor providers login PROVIDER\n'),
+    ).toBe(true)
   })
 })
 
@@ -425,4 +418,53 @@ describe('nextStep', () => {
   ])('names an accept that runs as written when %s', (_when, providers, lane, piDefault, step) => {
     expect(nextStep(providers, lane, piDefault)).toBe(step)
   })
+})
+
+it('is ready without folders and publishes an empty machine-context list', async () => {
+  machine.writeConfig({ ...machine.config, repositories: [] })
+  const inspected = await inspectHost(context())
+  expect(inspected.report.ok).toBe(true)
+  expect(inspected.machine?.roots).toEqual([])
+  expect(inspected.machine?.machineContext?.repositories).toEqual([])
+  expect(inspected.report.checks.find((check) => check.id === 'repository')).toMatchObject({
+    status: 'info',
+  })
+})
+
+it('keeps provider-only guidance specific instead of recommending setup', async () => {
+  const report = await runDoctor(
+    context({
+      tailscale: {
+        which: async () => '/usr/bin/tailscale',
+        probe: async (_file, args) => ({
+          code: 0,
+          signal: null,
+          timedOut: false,
+          truncated: false,
+          stderr: '',
+          stdout: JSON.stringify(
+            args[0] === 'status'
+              ? {
+                  BackendState: 'Running',
+                  CertDomains: ['bee.tail.ts.net'],
+                  Self: { DNSName: 'bee.tail.ts.net' },
+                }
+              : {
+                  TCP: { '47615': { HTTPS: true } },
+                  Web: {
+                    'bee.tail.ts.net:47615': {
+                      Handlers: { '/': { Proxy: 'http://127.0.0.1:47615' } },
+                    },
+                  },
+                },
+          ),
+        }),
+      },
+    }),
+  )
+  expect(report.next).toBe('sign in to a provider: phosphor providers login PROVIDER')
+  expect(report.next).not.toContain('phosphor setup')
+  expect(report.checks.filter((check) => check.status === 'warn').map((check) => check.id)).toEqual(
+    ['providers'],
+  )
 })
