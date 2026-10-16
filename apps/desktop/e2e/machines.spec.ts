@@ -152,7 +152,7 @@ printf '%s\\n' '{"BackendState":"Running","CurrentTailnet":{"MagicDNSEnabled":tr
     await dialog.getByRole('button', { name: 'Look up code' }).click()
     await dialog.getByRole('button', { name: 'Approve machine' }).click()
     await expect(dialog).toContainText('bee1 is online')
-    await dialog.getByRole('button', { name: 'Continue to Providers' }).click()
+    // Online advances to Providers by itself; clicking races that switch on a slow runner.
     await expect(dialog).toContainText('Host not reachable')
     await dialog.getByRole('button', { name: 'Close', exact: true }).click()
   } finally {
