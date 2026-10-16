@@ -4,9 +4,11 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { AccountView } from '@shared/account'
 import { MachinesPage } from './MachinesPage'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinesStore } from '@/stores/machines'
 import { MACHINE, LOOKUP } from './__fixtures__/control'
 
+const originalRefresh = useMachinesStore.getState().refresh
 let root: Root
 let container: HTMLDivElement
 let account: AccountView
@@ -33,6 +35,7 @@ beforeEach(() => {
   vi.stubGlobal('phosphor', { invoke, platform: 'darwin', onAccountChanged: () => () => undefined })
   vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn(async () => undefined) } })
   useMachinesStore.setState({
+    refresh: originalRefresh,
     remoteEnabled: true,
     machines: [MACHINE],
     nowMs: Date.now(),
@@ -231,3 +234,87 @@ it('refreshes the list when an approval lands after the dialog closed', async ()
   await act(async () => finish?.({ ok: true, machine: MACHINE }))
   expect(refresh).toHaveBeenCalledOnce()
 })
+it('bee2 reports an unreachable address despite green readiness and Check again refreshes control', async () => {
+  useMachinesStore.setState({
+    machines: [
+      {
+        ...MACHINE,
+        lastSeenAt: new Date().toISOString(),
+        state: 'running',
+        readiness: { pi: 'ok', claude: 'ok', tailscale: 'ok' },
+      },
+    ],
+    view: { kind: 'machine', id: MACHINE.id },
+  })
+  await render()
+  expect(container.textContent).toContain('Reachable')
+  expect(container.textContent).toContain('bee1 is enrolled but not reachable')
+  expect(container.textContent).toContain('sudo tailscale set --operator=$USER && phosphor setup')
+  expect(container.textContent).toContain('Reported just now')
+  expect(container.querySelector('header')?.textContent).toContain('Online · Not reachable yet')
+  const state = Array.from(container.querySelectorAll('dt')).find(
+    (dt) => dt.textContent === 'State',
+  )
+  expect(state?.nextElementSibling?.textContent).toBe('Not reachable yet')
+  for (const name of ['Reachable', 'Tailscale']) {
+    const heading = Array.from(container.querySelectorAll('h4')).find((h) => h.textContent === name)
+    expect(heading?.previousElementSibling?.classList.contains('bg-warning')).toBe(true)
+    expect(heading?.previousElementSibling?.classList.contains('bg-success')).toBe(false)
+  }
+  expect(container.textContent).toContain('Running, but its address is not published')
+  expect(container.textContent).not.toContain('Connected with HTTPS available')
+  expect(
+    Array.from(container.querySelectorAll('code')).filter(
+      (c) => c.textContent === 'sudo tailscale set --operator=$USER && phosphor setup',
+    ),
+  ).toHaveLength(1)
+  const checkAgain = Array.from(container.querySelectorAll('button')).find(
+    (b) => b.textContent === 'Check again',
+  )
+  expect(checkAgain?.classList.contains('border')).toBe(true)
+  expect(checkAgain?.classList.contains('rounded-md')).toBe(true)
+  expect(checkAgain?.classList.contains('px-2.5')).toBe(true)
+  invoke.mockClear()
+  await click('Check again')
+  expect(invoke).toHaveBeenCalledWith('control:machines')
+})
+
+it.each(['connecting', 'reconnecting', 'ready'] as const)(
+  'keeps Online while the Host is %s',
+  async (connection) => {
+    useMachinesStore.setState({
+      machines: [
+        {
+          ...MACHINE,
+          endpoint: 'https://host.example:47615',
+          lastSeenAt: new Date().toISOString(),
+          state: 'running',
+        },
+      ],
+      view: { kind: 'machine', id: MACHINE.id },
+    })
+    useRemoteLanesStore.setState({
+      hosts: {
+        [MACHINE.id]: {
+          connectionToken: 'test',
+          state: connection,
+          capabilities: [],
+          lanes: [],
+          repositories: [],
+        },
+      },
+    })
+    try {
+      await render()
+      const state = Array.from(container.querySelectorAll('dt')).find(
+        (dt) => dt.textContent === 'State',
+      )
+      expect(state?.nextElementSibling?.textContent).toBe('Online')
+      expect(container.querySelector('header')?.textContent).toContain('Linux x64 · Online')
+      expect(container.querySelector('header')?.textContent).not.toContain('Connecting…')
+      expect(container.querySelector('header')?.textContent).not.toContain('Not reachable yet')
+    } finally {
+      useRemoteLanesStore.setState({ hosts: {} })
+    }
+  },
+)

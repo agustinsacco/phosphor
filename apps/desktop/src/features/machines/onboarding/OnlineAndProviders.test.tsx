@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
 import { OnlineAndProviders } from './OnlineAndProviders'
 import { MACHINE } from '../__fixtures__/control'
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinesStore } from '@/stores/machines'
 
 it('follows directory online state and reads provider readiness without owning sign-in', async () => {
@@ -13,6 +14,7 @@ it('follows directory online state and reads provider readiness without owning s
   ])
   vi.stubGlobal('phosphor', { invoke })
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  useRemoteLanesStore.setState({ hosts: {} })
   const now = Date.now()
   useMachinesStore.setState({ machines: [MACHINE], nowMs: now, clockOffsetMs: 0 })
   const container = document.createElement('div')
@@ -38,9 +40,23 @@ it('follows directory online state and reads provider readiness without owning s
         machines: [{ ...MACHINE, lastSeenAt: new Date(now).toISOString(), state: 'running' }],
       }),
     )
+    await act(async () =>
+      useRemoteLanesStore.setState({
+        hosts: {
+          [MACHINE.id]: {
+            connectionToken: 'test-connection',
+            state: 'ready',
+            capabilities: [],
+            repositories: [],
+            lanes: [],
+          },
+        },
+      }),
+    )
     expect(container.textContent).toContain('bee1 is online')
     await act(async () => useMachinesStore.setState({ nowMs: now + 600000 }))
-    expect(container.textContent).toContain('Offline. Wake the machine')
+    await act(async () => useRemoteLanesStore.setState({ hosts: {} }))
+    expect(container.textContent).toContain('not reachable')
     await render(true)
     expect(invoke).toHaveBeenCalledWith('hosts:providers', MACHINE.id)
     expect(container.textContent).toContain('Anthropic: Ready')
@@ -64,6 +80,7 @@ it('keeps troubleshooting collapsed, orders recovery commands and advances only 
   vi.useFakeTimers()
   vi.stubGlobal('phosphor', { invoke: vi.fn(async () => []) })
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  useRemoteLanesStore.setState({ hosts: {} })
   const now = Date.now()
   useMachinesStore.setState({ machines: [MACHINE], nowMs: now, clockOffsetMs: 0 })
   const container = document.createElement('div')
@@ -83,6 +100,7 @@ it('keeps troubleshooting collapsed, orders recovery commands and advances only 
     expect(container.querySelector('details')?.open).toBe(false)
     expect(container.querySelector('summary')?.textContent).toBe('Stuck?')
     expect([...container.querySelectorAll('code')].map((c) => c.textContent)).toEqual([
+      'phosphor setup',
       'phosphor service status',
       'phosphor service install',
       'phosphor run',
@@ -93,6 +111,19 @@ it('keeps troubleshooting collapsed, orders recovery commands and advances only 
     await act(async () =>
       useMachinesStore.setState({
         machines: [{ ...MACHINE, lastSeenAt: new Date(now).toISOString(), state: 'running' }],
+      }),
+    )
+    await act(async () =>
+      useRemoteLanesStore.setState({
+        hosts: {
+          [MACHINE.id]: {
+            connectionToken: 'test-connection',
+            state: 'ready',
+            capabilities: [],
+            repositories: [],
+            lanes: [],
+          },
+        },
       }),
     )
     expect(container.textContent).toContain('bee1 is online')

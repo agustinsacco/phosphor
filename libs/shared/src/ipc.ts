@@ -187,6 +187,14 @@ export interface IpcInvokeMap {
   'hosts:tailscaleStatus': { args: []; result: TailscaleStatus }
   // Read-only machine catalogues, independent of an open lane.
   'hosts:models': { args: [hostId: string]; result: MachineModel[] }
+  'hosts:claude': {
+    args: [hostId: string]
+    result: {
+      provider: 'ok' | 'missing' | 'outdated'
+      cli: 'ok' | 'missing'
+      auth: 'ok' | 'signed-out' | 'unknown'
+    } | null
+  }
   'hosts:providers': { args: [hostId: string]; result: MachineProvider[] }
   'hosts:repositoryFiles': { args: [hostId: string, repositoryId: string]; result: string[] }
   'hosts:repositoryFile': {

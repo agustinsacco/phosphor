@@ -1,3 +1,4 @@
+import { machineReachability } from '@/features/machines/machineReachability'
 import { remoteLaneGroupKey, useLaneReveal } from './laneReveal'
 import { openRemoteComposer } from '@/features/home/remoteComposer'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
@@ -30,6 +31,7 @@ export function RemoteLanes(): React.JSX.Element | null {
   const filter = useRemoteLanesStore((s) => s.filter)
   const enabled = useMachinesStore((s) => s.remoteEnabled)
   const machines = useMachinesStore((s) => s.machines)
+  const now = useMachinesStore((s) => s.nowMs + s.clockOffsetMs)
   const error = useRemoteLanesStore((s) => s.error)
   if (!enabled || filter === 'local') return null
   const ids =
@@ -56,7 +58,12 @@ export function RemoteLanes(): React.JSX.Element | null {
             ) : (
               <div className="text-text-tertiary px-2 py-3 text-sm">
                 {!hosts[id] || hosts[id].state === 'no-address'
-                  ? 'Setting up…'
+                  ? (() => {
+                      const machine = machines.find((m) => m.id === id)
+                      return machine
+                        ? machineReachability(machine, hosts[id]?.state, now || Date.now()).short
+                        : 'Not reachable yet'
+                    })()
                   : hosts[id].state === 'ready'
                     ? 'No repositories configured'
                     : REMOTE_NOT_READY}

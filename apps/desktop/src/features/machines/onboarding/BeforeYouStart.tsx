@@ -42,8 +42,8 @@ export function BeforeYouStart(): React.JSX.Element {
     <section className="space-y-4" aria-label="Before you start">
       <h2 className="text-xl font-semibold">Bring another machine online</h2>
       <p className="text-text-secondary">
-        You will need a terminal on the other machine, pi installed there, and both computers on
-        your tailnet.
+        The new machine needs Tailscale signed in on your tailnet and pi. Run the command in its
+        terminal; it does the rest.
       </p>
       <div className="border-border bg-bg-secondary space-y-3 rounded-lg border p-4">
         <h3 className="flex items-center gap-2 font-medium">

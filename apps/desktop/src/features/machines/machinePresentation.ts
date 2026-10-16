@@ -83,10 +83,14 @@ export function machineSubtitle(machine: MachineView, now: number, offset = 0): 
     statusText(machine, now, offset),
   ].join(' · ')
 }
-export function readinessChecks(readiness: Readiness | null): ReadinessCheck[] {
+export function readinessChecks(
+  readiness: Readiness | null,
+  endpoint?: string | null,
+): ReadinessCheck[] {
   const pi = readiness?.pi ?? 'unknown'
   const claude = readiness?.claude ?? 'unknown'
   const tailscale = readiness?.tailscale ?? 'unknown'
+  const unpublished = tailscale === 'ok' && endpoint === null
   return [
     {
       name: 'pi',
@@ -130,15 +134,17 @@ export function readinessChecks(readiness: Readiness | null): ReadinessCheck[] {
     },
     {
       name: 'Tailscale',
-      ok: tailscale === 'ok',
-      short:
-        tailscale === 'no-https'
+      ok: tailscale === 'ok' && !unpublished,
+      short: unpublished
+        ? 'Address not published'
+        : tailscale === 'no-https'
           ? 'No Tailscale HTTPS'
           : tailscale === 'unknown'
             ? 'Tailscale not reported'
             : `Tailscale ${tailscale}`,
-      detail:
-        tailscale === 'ok'
+      detail: unpublished
+        ? 'Running, but its address is not published'
+        : tailscale === 'ok'
           ? 'Connected with HTTPS available'
           : tailscale === 'stopped'
             ? 'Start Tailscale on this machine.'

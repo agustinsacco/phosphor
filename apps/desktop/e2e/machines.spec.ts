@@ -142,7 +142,7 @@ printf '%s\\n' '{"BackendState":"Running","CurrentTailnet":{"MagicDNSEnabled":tr
     await dialog.getByRole('button', { name: 'Look up code' }).click()
     await expect(dialog).toContainText(MACHINE.keyFingerprint)
     await dialog.getByRole('button', { name: 'Approve machine' }).click()
-    await expect(dialog).toContainText('Waiting for bee1 to connect…')
+    await expect(dialog).toContainText('bee1 has never connected')
     await dialog.getByRole('button', { name: 'Close', exact: true }).click()
     h.state.approvedMachine = { ...MACHINE, lastSeenAt: new Date().toISOString(), state: 'running' }
     await page.getByRole('button', { name: 'Add a machine', exact: true }).first().click()
@@ -151,12 +151,50 @@ printf '%s\\n' '{"BackendState":"Running","CurrentTailnet":{"MagicDNSEnabled":tr
     await dialog.getByRole('textbox', { name: 'Code', exact: true }).fill('BCDFGHJK')
     await dialog.getByRole('button', { name: 'Look up code' }).click()
     await dialog.getByRole('button', { name: 'Approve machine' }).click()
-    await expect(dialog).toContainText('bee1 is online')
-    // Online advances to Providers by itself; clicking races that switch on a slow runner.
-    await expect(dialog).toContainText('Host not reachable')
+    await expect(dialog).toContainText('bee1 is enrolled but not reachable')
+    await expect(dialog).toContainText('sudo tailscale set --operator=$USER && phosphor setup')
+    await expect(dialog).not.toContainText('Choose how the Host runs models')
     await dialog.getByRole('button', { name: 'Close', exact: true }).click()
   } finally {
     await h.close()
     await rm(bin, { recursive: true, force: true })
+  }
+})
+
+test('bee2 has green readiness but no address, and Check again refreshes the report', async () => {
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
+  const machine = {
+    ...MACHINE,
+    label: 'bee2',
+    hostname: 'bee2',
+    lastSeenAt: new Date().toISOString(),
+    state: 'running' as const,
+    readiness: { pi: 'ok' as const, claude: 'ok' as const, tailscale: 'ok' as const },
+  }
+  const h = await accountControlFixture([machine])
+  try {
+    await h.signIn()
+    await h.page.getByRole('button', { name: 'Machines', exact: true }).click()
+    await h.page.getByTestId('enrolled-machine-row').click()
+    const detail = h.page.getByTestId('machine-detail')
+    await expect(h.page.getByTestId('machines-page').locator('header')).toContainText(
+      'Online · Not reachable yet',
+    )
+    await expect(
+      detail
+        .locator('dt')
+        .filter({ hasText: /^State$/ })
+        .locator('..'),
+    ).toContainText('Not reachable yet')
+    await expect(detail).toContainText('Running, but its address is not published')
+    await expect(detail).not.toContainText('Connected with HTTPS available')
+    await expect(detail).toContainText('bee2 is enrolled but not reachable')
+    await expect(detail).toContainText('sudo tailscale set --operator=$USER && phosphor setup')
+    await captures(h, test.info(), 'bee2-no-address')
+    h.state.machines = [{ ...machine, lastSeenAt: new Date(Date.now() - 120_000).toISOString() }]
+    await detail.getByRole('button', { name: 'Check again', exact: true }).click()
+    await expect(detail).toContainText('Reported 2 min ago')
+  } finally {
+    await h.close()
   }
 })

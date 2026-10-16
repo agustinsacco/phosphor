@@ -1,3 +1,6 @@
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { machineReachability } from './machineReachability'
+import { useClaudeReadiness } from './ClaudeReadiness'
 import { OnThisMachine } from './OnThisMachine'
 import { ProviderSignIn } from './ProviderSignIn'
 import { useEffect, useRef, useState } from 'react'
@@ -70,11 +73,17 @@ function useThisComputer(): Computer {
   }, [])
   return state
 }
-function Dot({ online }: { online: boolean }): React.JSX.Element {
+function Dot({
+  online,
+  warning = false,
+}: {
+  online: boolean
+  warning?: boolean
+}): React.JSX.Element {
   return (
     <span
       aria-hidden
-      className={`h-2 w-2 shrink-0 rounded-full ${online ? 'bg-success' : 'bg-text-tertiary'}`}
+      className={`h-2 w-2 shrink-0 rounded-full ${online ? 'bg-success' : warning ? 'bg-warning' : 'bg-text-tertiary'}`}
     />
   )
 }
@@ -112,13 +121,21 @@ function RowSummary({
   now: number
   offset: number
 }): React.JSX.Element | null {
+  const connection = useRemoteLanesStore((s) => s.hosts[machine.id]?.state)
   const freshness = readinessFreshness(machine, now, offset)
   if (!machine.lastSeenAt)
     return (
       <span className="bg-accent-soft text-accent rounded px-2 py-0.5 text-sm">Finish setup</span>
     )
   if (freshness !== 'live') return null
-  return <ReadinessChips checks={readinessChecks(machine.readiness)} />
+  return (
+    <ReadinessChips
+      checks={[
+        { name: 'Reachable', ...machineReachability(machine, connection, now + offset) },
+        ...readinessChecks(machine.readiness, machine.endpoint),
+      ]}
+    />
+  )
 }
 export function MachineRow({
   machine,
@@ -188,7 +205,7 @@ function Checks({
       {checks.map((check) => (
         <div key={check.name}>
           <div className="flex items-center gap-2">
-            <Dot online={check.ok} />
+            <Dot online={check.ok} warning={!check.ok} />
             <h4 className="text-lg font-medium">{check.name}</h4>
           </div>
           <p className="text-text-secondary mb-2 mt-1 text-base">{check.detail}</p>
@@ -213,6 +230,8 @@ export function MachinesPage(): React.JSX.Element {
   const signedIn = account?.account.status === 'signed-in'
   const state = useMachinesStore()
   const computer = useThisComputer()
+  const hosts = useRemoteLanesStore((s) => s.hosts)
+  const [readinessRefresh, setReadinessRefresh] = useState(0)
   const liveHere = useSessionsStore((s) => Object.keys(s.live).length)
   useEffect(() => () => useMachinesStore.setState({ adding: false }), [])
   const adding = state.adding
@@ -230,9 +249,17 @@ export function MachinesPage(): React.JSX.Element {
   }, [])
   const selected = state.view.kind === 'machine' ? state.view.id : null
   const machine = state.machines.find((entry) => entry.id === selected)
+  const claudeCheck = useClaudeReadiness(machine?.id ?? '', readinessRefresh)
   const local = selected === LOCAL_MACHINE
   const now = state.nowMs || Date.now()
   const correctedNow = now + state.clockOffsetMs
+  const reachability = machine
+    ? machineReachability(machine, hosts[machine.id]?.state, correctedNow)
+    : null
+  const connecting =
+    machine && ['connecting', 'reconnecting'].includes(hosts[machine.id]?.state ?? '')
+  const reachabilitySuffix =
+    reachability && !reachability.ok && !connecting ? ` · ${reachability.short}` : ''
   const localChecks: ReadinessCheck[] = [
     {
       name: 'pi',
@@ -328,7 +355,7 @@ export function MachinesPage(): React.JSX.Element {
               )}
               <p className="text-text-secondary mt-2 max-w-xl text-lg">
                 {machine
-                  ? machineSubtitle(machine, now, state.clockOffsetMs)
+                  ? machineSubtitle(machine, now, state.clockOffsetMs) + reachabilitySuffix
                   : local
                     ? `${platformName(window.phosphor.platform)} · Your local lanes run here`
                     : "This computer and the Hosts you've added. Lanes on other machines come later."}
@@ -503,7 +530,9 @@ export function MachinesPage(): React.JSX.Element {
                   <div>
                     <dt className="text-text-secondary">State</dt>
                     <dd className="mt-1 font-medium">
-                      {statusText(machine, now, state.clockOffsetMs)}
+                      {reachability && !reachability.ok && !connecting
+                        ? reachability.short
+                        : statusText(machine, now, state.clockOffsetMs)}
                     </dd>
                   </div>
                   <div>
@@ -521,6 +550,32 @@ export function MachinesPage(): React.JSX.Element {
                 </dl>
               </Section>
               <Section title="Readiness">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <p className="text-text-secondary">
+                    {machine.lastSeenAt
+                      ? `Reported ${relativeTime(machine.lastSeenAt, correctedNow)}`
+                      : 'Not reported yet'}
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      void state.refresh()
+                      setReadinessRefresh((n) => n + 1)
+                    }}
+                  >
+                    Check again
+                  </Button>
+                </div>
+                <div className="mb-4">
+                  <Checks
+                    checks={[
+                      {
+                        name: 'Reachable',
+                        ...machineReachability(machine, hosts[machine.id]?.state, correctedNow),
+                      },
+                    ]}
+                  />
+                </div>
                 {readinessFreshness(machine, now, state.clockOffsetMs) === 'none' ? (
                   <p className="text-text-secondary text-base">
                     {machine.label} reports pi, Claude and Tailscale once it first connects.
@@ -534,8 +589,16 @@ export function MachinesPage(): React.JSX.Element {
                           have changed since.
                         </p>
                       )}
-                    <Checks checks={readinessChecks(machine.readiness)} />
-                    <ProviderSignIn key={machine.id} hostId={machine.id} />
+                    <Checks
+                      checks={readinessChecks(machine.readiness, machine.endpoint).map((check) =>
+                        check.name === 'Claude' && claudeCheck ? claudeCheck : check,
+                      )}
+                    />
+                    <ProviderSignIn
+                      key={machine.id}
+                      hostId={machine.id}
+                      refresh={readinessRefresh}
+                    />
                   </>
                 )}
               </Section>

@@ -4,6 +4,7 @@ import type { IpcInvokeChannel } from './ipc'
 export const IPC_SCOPE: Record<IpcInvokeChannel, 'app' | 'machine'> = {
   'hosts:tailscaleStatus': 'app',
   'hosts:models': 'machine',
+  'hosts:claude': 'machine',
   'hosts:providers': 'machine',
   'hosts:repositoryFiles': 'machine',
   'hosts:repositoryFile': 'machine',

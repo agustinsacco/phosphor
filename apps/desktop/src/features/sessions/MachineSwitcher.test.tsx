@@ -220,7 +220,7 @@ it('down keeps last-known rows inert and disables creation; setting up has an ex
       },
     }),
   )
-  expect(container.textContent).toContain('Setting up…')
+  expect(container.textContent).toContain('Not reachable yet')
 })
 it('repository plus preselects that repository without sending a local creation', async () => {
   useRemoteLanesStore.setState({ filter: MOCK_HOST_ID })

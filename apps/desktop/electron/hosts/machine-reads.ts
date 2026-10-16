@@ -1,3 +1,4 @@
+import type { IpcInvokeMap } from '@shared/ipc'
 import {
   machineRecord,
   parseMachineModels,
@@ -42,6 +43,29 @@ export function machineReads(
   }
   return {
     lane,
+    async claude(hostId: string) {
+      const c = connection(hostId)
+      if (
+        !c ||
+        c.snapshot().state !== 'ready' ||
+        !c.snapshot().capabilities.includes('skills.read')
+      )
+        return null
+      const generation = c.incarnation().generation
+      try {
+        const reply = await c.call('machine.claude', {})
+        if (
+          connection(hostId) !== c ||
+          c.incarnation().generation !== generation ||
+          c.snapshot().state !== 'ready' ||
+          !c.snapshot().capabilities.includes('skills.read')
+        )
+          return null
+        return reply.ok ? parseClaudeDetail(reply.data) : null
+      } catch {
+        return null
+      }
+    },
     async models(hostId: string) {
       const data = await lane(hostId).call('skills.read', 'machine.models', {})
       const result = machineRecord(data) ? parseMachineModels(data.models) : null
@@ -59,4 +83,18 @@ export function machineReads(
       return readFeature('skills:list', [], lane(hostId))
     },
   }
+}
+
+/** Temporary local boundary parser until the shared Host parser lands. */
+export function parseClaudeDetail(value: unknown): IpcInvokeMap['hosts:claude']['result'] {
+  if (!machineRecord(value) || Object.keys(value).sort().join(',') !== 'auth,cli,provider')
+    return null
+  const { provider, cli, auth } = value
+  if (
+    (provider !== 'ok' && provider !== 'missing' && provider !== 'outdated') ||
+    (cli !== 'ok' && cli !== 'missing') ||
+    (auth !== 'ok' && auth !== 'signed-out' && auth !== 'unknown')
+  )
+    return null
+  return { provider, cli, auth }
 }

@@ -1,7 +1,10 @@
+import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { machineReachability } from '../machineReachability'
+import { ClaudeReadiness, useClaudeReadiness } from '../ClaudeReadiness'
 import { CheckIcon, ReloadIcon } from '@/components/icons'
 import { TooltipSummary } from '@/components/Tooltip'
 import { useEffect, useState } from 'react'
-import { machineStatus, type MachineView } from '@shared/control-api'
+import { type MachineView } from '@shared/control-api'
 import type { MachineProvider } from '@shared/host-protocol-machine'
 import { useMachinesStore } from '@/stores/machines'
 import { Button } from '@/components/form'
@@ -21,11 +24,17 @@ export function OnlineAndProviders({
 }): React.JSX.Element {
   const directory = useMachinesStore()
   const machine = directory.machines.find((m) => m.id === added.id) ?? added
-  const online =
-    machineStatus(machine, directory.nowMs || Date.now(), directory.clockOffsetMs) === 'up'
+  const connection = useRemoteLanesStore((s) => s.hosts[added.id]?.state)
+  const reachability = machineReachability(
+    machine,
+    connection,
+    (directory.nowMs || Date.now()) + directory.clockOffsetMs,
+  )
+  const online = reachability.ok
   const [readiness, setReadiness] = useState<MachineProvider[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
+  const claude = useClaudeReadiness(providers ? added.id : '', attempt)
   useEffect(() => {
     if (!providers) return
     let live = true
@@ -58,8 +67,9 @@ export function OnlineAndProviders({
           ) : (
             <ReloadIcon size={18} className="text-accent animate-spin" />
           )}
-          {online ? `${added.label} is online` : `Waiting for ${added.label} to connect…`}
+          {online ? `${added.label} is online` : reachability.detail}
         </p>
+        {reachability.command && <CopyCommand command={reachability.command} />}
         <details className="space-y-3 text-text-secondary">
           <TooltipSummary>Stuck?</TooltipSummary>
           <p>
@@ -87,16 +97,19 @@ export function OnlineAndProviders({
       <p className="text-text-secondary">
         Provider credentials stay on {added.label}, not on this computer.
       </p>
-      {readiness?.map((provider) => (
-        <p key={provider.id}>
-          {provider.name}:{' '}
-          {provider.status === 'ready'
-            ? 'Ready'
-            : provider.status === 'not_ready'
-              ? 'Sign-in needed'
-              : 'Not reported'}
-        </p>
-      ))}
+      <ClaudeReadiness check={claude} />
+      {readiness
+        ?.filter((provider) => !claude || !['claude', 'pi-claude-cli'].includes(provider.id))
+        .map((provider) => (
+          <p key={provider.id}>
+            {provider.name}:{' '}
+            {provider.status === 'ready'
+              ? 'Ready'
+              : provider.status === 'not_ready'
+                ? 'Sign-in needed'
+                : 'Not reported'}
+          </p>
+        ))}
       {!readiness && (
         <p role="status">
           {failed

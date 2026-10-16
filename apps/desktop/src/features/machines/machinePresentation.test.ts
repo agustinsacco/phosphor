@@ -109,3 +109,20 @@ it('never suggests piping a download into a shell', () => {
   expect(missing?.command).toBeUndefined()
   expect(missing?.detail).toContain('tailscale.com/download')
 })
+
+it('marks running Tailscale as unpublished until the Host has an endpoint without duplicating its fix', () => {
+  const readiness = { pi: 'ok', claude: 'ok', tailscale: 'ok' } as const
+  expect(
+    readinessChecks(readiness, null).find((check) => check.name === 'Tailscale'),
+  ).toMatchObject({
+    ok: false,
+    short: 'Address not published',
+    detail: 'Running, but its address is not published',
+    command: undefined,
+  })
+  expect(
+    readinessChecks(readiness, 'https://host.example:47615').find(
+      (check) => check.name === 'Tailscale',
+    ),
+  ).toMatchObject({ ok: true, detail: 'Connected with HTTPS available' })
+})
