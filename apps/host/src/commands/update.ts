@@ -178,9 +178,18 @@ function prune(layout: InstalledLayout, current: string, previous: string): void
   for (const version of older.slice(1))
     rmSync(join(layout.lib, 'versions', version), { recursive: true })
 }
+/** Bounds the provider update so a stalled pi or npm never holds the Host update open. */
+export const CLAUDE_PROVIDER_UPDATE_TIMEOUT_MS = 120_000
+
 /** Provider updates are best effort and never roll back a verified Host release. */
-export async function updateClaudeProvider(context: UpdateContext): Promise<void> {
+export async function updateClaudeProvider(
+  context: UpdateContext,
+  lifetime?: AbortSignal,
+): Promise<void> {
+  const bounded = AbortSignal.timeout(CLAUDE_PROVIDER_UPDATE_TIMEOUT_MS)
+  const signal = lifetime ? AbortSignal.any([lifetime, bounded]) : bounded
   try {
+    signal.throwIfAborted()
     const packages = await (context.packages ?? listPackages)()
     if (!packages.some((pkg) => pkg.name === CLAUDE_PROVIDER_PACKAGE && pkg.installed)) return
     const loaded = await loadHostConfig(context.configPath, context.uid)
@@ -193,7 +202,7 @@ export async function updateClaudeProvider(context: UpdateContext): Promise<void
       nodePath: config.pi.node,
     })
     const terminal =
-      context.setupTerminal ?? setupTerminal(environment.env, context.signal, context.json ? 2 : 1)
+      context.setupTerminal ?? setupTerminal(environment.env, signal, context.json ? 2 : 1)
     const args = [
       ...(config.pi.node ? [config.pi.executable] : []),
       'update',
@@ -202,6 +211,8 @@ export async function updateClaudeProvider(context: UpdateContext): Promise<void
     if ((await terminal.run(config.pi.node ?? config.pi.executable, args)) !== 0)
       throw new Error('update')
   } catch {
+    // Cancellation (SIGTERM, Ctrl-C) ends the update; only the provider's own failure is a warning.
+    lifetime?.throwIfAborted()
     context.print(
       'Warning: Claude provider update failed. Run: pi update npm:@saccolabs/pi-claude-cli',
     )
@@ -296,7 +307,7 @@ export async function runUpdate(
           release = undefined
           await signalTurn()
           signal.throwIfAborted()
-          await updateClaudeProvider(context)
+          await updateClaudeProvider(context, signal)
           context.print('already up to date')
           return 0
         }
@@ -353,7 +364,7 @@ export async function runUpdate(
       signal.throwIfAborted()
       if (!service.installed || (!service.running && !options.rollback))
         context.print(`restart phosphor run to use ${version}`)
-      if (!options.rollback) await updateClaudeProvider(context)
+      if (!options.rollback) await updateClaudeProvider(context, signal)
       context.print(`Selected Host ${version}.`)
       if (notice) context.print(notice)
       return 0

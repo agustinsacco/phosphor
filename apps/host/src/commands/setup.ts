@@ -81,7 +81,9 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
   let repositories = context.repositories?.length
     ? context.repositories.map((path) => resolve(context.cwd, path))
     : (kept?.repositories ?? [])
-  if (repositories.length === 0) {
+  // An existing config's folder list, even an empty one, is the user's choice: rerunning setup
+  // inside a checkout must never add it. Only a first setup (or --replace) adopts the cwd.
+  if (repositories.length === 0 && (!kept || context.replace)) {
     const top = git
       ? await probe(git, ['-C', context.cwd, 'rev-parse', '--show-toplevel'], {
           ...discovery,

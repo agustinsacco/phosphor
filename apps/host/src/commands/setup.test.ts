@@ -654,6 +654,18 @@ it('preserves api.port on replace and names it in the Tailscale hint', async () 
   ])
 })
 
+it('never adds the cwd checkout to an existing config with no folders', async () => {
+  await executable(
+    'git',
+    `if [ "$4" = --show-toplevel ]; then printf '%s\\n' '${repository}'; else exit 0; fi`,
+  )
+  await oldConfig({ repositories: [] })
+  context.repositories = undefined
+  const report = await runSetup(context)
+  expect(report.exitCode).toBe(0)
+  expect((await saved()).repositories).toEqual([])
+})
+
 it('redetects Claude and git without replace and preserves user PATH and repositories', async () => {
   const custom = join(dir, 'user-tools')
   await mkdir(custom)
