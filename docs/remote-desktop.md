@@ -204,70 +204,54 @@ the Host; Desktop holds remote contents in memory only.
 HTML staging remains local through `phosphor-artifact://`. Its sandbox never
 uses `allow-same-origin`, and its policy grants no network access.
 
-## Install a Host over SSH
+## Add a machine
 
-The Add a machine dialog guides Before you start → Install → Online → Providers.
-It checks the signed-in Phosphor account and reads Tailscale status on this computer.
-A failed check offers fixed recovery guidance and manual installation remains available.
-The Online step follows the enrolled directory entry, distinguishes first connection
-from offline, and keeps recovery commands in the collapsed Stuck? disclosure. Once online,
-it advances to Providers after a short pause. Back preserves a running SSH installation,
-including its target, repository, progress and fingerprint approval. Providers
-reads the Host's provider readiness and opens the machine page's Readiness section
-for Sign in. The manual fallback is `phosphor providers login PROVIDER` over SSH.
-Provider credentials stay on the Host.
+Machines > Add a machine guides Before you start → Install → Online → Providers.
+Desktop does not install over SSH or suggest Tailscale peers.
 
-Optional Tailscale peer suggestions are off by default and persisted in Desktop
-preferences. Main runs only `tailscale status --json`, without a shell, with a five
-second deadline, forced termination and 1 MiB output limit. A packaged app inherits
-launchd's minimal PATH, so main looks for the executable in the inherited PATH, the
-login-shell PATH and fixed install locations (on macOS the Tailscale.app bundle,
-`/usr/local/bin` and `/opt/homebrew/bin`). It runs only an absolute path to an existing,
-executable regular file. Not found reads as not installed; a found file that fails to
-start reads as a failed check. "No other online machines found" appears only after a
-ready check that returned no peers. A failed status read
-clears suggestions without reverting a successfully saved discovery preference. Only fixed status codes and, when opted in,
-peer DNS names, OS and online flags reach the renderer. No addresses, keys, tags,
-user identities or command output are logged or exposed. Suggestions show online
-peers excluding enrolled endpoint hostnames, not machine labels. Picking a suggestion
-only fills the SSH target. It does not connect, enroll, trust or scan a peer.
-Install remains an explicit action with the existing fingerprint approval checks.
-While an SSH installation is running or awaiting approval, suggestions cannot replace
-its target; return to Install to resume it. Idle installations can use another suggestion.
+**Before you start** checks the signed-in Phosphor account and reads local
+Tailscale readiness. Both computers need to be on your tailnet, with MagicDNS
+and HTTPS certificates enabled; pi must already be installed on the Host.
+Checks are read-only. Fixed recovery guidance and Check again help with failures;
+if the CLI is unavailable, verify Tailscale manually and continue.
 
-Machines > Add a machine > Install over SSH uses the system `ssh` in Desktop
-main, only for installation and repair. Enter `user@host` or an SSH config alias.
-Desktop uses your agent, keys and known_hosts. It never requests a password or
-accepts an unknown host key. Agent and X11 forwarding and configured tunnels are
-disabled. If connection fails, run the displayed `ssh TARGET`
-command once in a terminal, then try again.
+Main runs only `tailscale status --json`, without a shell, with a five-second
+deadline, forced termination and 1 MiB output limit. A packaged app inherits
+launchd's minimal PATH, so main looks for the executable in the inherited PATH,
+the login-shell PATH and fixed install locations (on macOS the Tailscale.app
+bundle, `/usr/local/bin` and `/opt/homebrew/bin`). It runs only an absolute path
+to an existing, executable regular file. Not found reads as not installed; a
+found file that fails to start reads as a failed check. Only a fixed readiness
+code reaches the renderer, never peer names, addresses, keys, identities or
+command output. There is no peer discovery preference or suggestion list.
 
-Optionally enter a repository relative to the remote home, such as `src/project`.
-It must already exist. Only letters, digits, dots, underscores, hyphens and path
-separators are allowed, with no `.` or `..` segments or leading hyphens. Without
-it, setup uses the existing config or the remote working directory's git root.
-If neither exists, choose a repository and retry. pi and the installer prerequisites
-must already be installed on the machine ([host.md](host.md#setup)).
+**Install** shows a copyable command to run in a terminal on the other machine:
 
-Desktop pipes its bundled signed-manifest installer to `sh -s --`, using the
-installer's latest-release default, then runs non-interactive setup, login and
-user service installation as separate SSH processes. Login stays running while
-you approve the code in the same dialog as manual enrollment. Desktop looks up
-the code from login stdout only and refuses a fingerprint mismatch. Banners and
-stderr cannot supply the enrollment. Desktop discards login stdout through a fresh
-per-job sentinel and fails the step if that sentinel is missing. Both fingerprints
-appear inline.
-The Host saves its own identity after approval. The dialog waits for service
-installation to finish before offering Close or View machine. Cancel remains
-available while waiting, and SSH failures stay visible. SSH is never the lane
-transport.
+```sh
+curl -fsSL https://github.com/agustinsacco/Phosphor/releases/download/host-latest/install.sh | sh && export PATH="$HOME/.local/bin:$PATH" && phosphor setup
+```
 
-One install runs per target, with at most eight jobs. Install steps time out after
-ten minutes; login ends when its code expires, with a ten-minute upper bound.
-Cancel or closing the dialog kills the local SSH process group. It does not roll
-back a completed remote step or revoke an approved machine. Retry is explicit.
-Failures show fixed guidance and a collapsible, bounded last 20 lines of remote
-output. Output, targets, codes and fingerprints stay out of Desktop logs.
+The export makes `phosphor` available in that terminal. The installer adds a
+marked PATH block for future supported shell sessions; set
+`PHOSPHOR_NO_MODIFY_PATH=1` in its environment to opt out. See
+[Host installation](host.md#install-from-a-release) for startup-file safety and
+[guided setup](host.md#setup) for resumable config, enrollment, service and
+Tailscale setup. No repository is required to bring the machine online.
+
+Choose **I have a code**, enter the code printed by setup, compare the displayed
+fingerprint with the Host's terminal and approve with an editable machine label.
+Codes expire after ten minutes. Approval enrolls the machine; it is not an
+execution grant.
+
+**Online** follows the enrolled directory entry, distinguishes first connection
+from offline, and keeps recovery commands in the collapsed Stuck? disclosure.
+Once online, it advances to Providers after a short pause. Enrollment alone does
+not prove reachability; both computers need tailnet access to the Host endpoint.
+
+**Providers** reads the Host's provider readiness and opens the machine page's
+Readiness section for Sign in. The terminal fallback on the Host is
+`phosphor providers login PROVIDER`. Provider credentials stay on the Host;
+guided setup does not sign in to providers.
 
 Terminal capability, controller input, reconnects and privacy are owned by
 [terminal.md](terminal.md#host-terminals). Native release resources and wire bounds
