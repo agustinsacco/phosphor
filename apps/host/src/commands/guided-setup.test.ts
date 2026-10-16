@@ -318,6 +318,7 @@ it.each([true, false])('offers npm pi installation and honors approval %s', asyn
   context.setupTerminal = { confirm, run }
   const report = await runGuidedSetup(context)
   expect(report.exitCode).toBe(approved ? 0 : 69)
+  expect(control.output.join('\n')).toMatch(/ {2}! pi {15}not installed/)
   expect(run).toHaveBeenCalledTimes(approved ? 1 : 0)
   if (approved)
     expect(run).toHaveBeenCalledWith(npm, ['install', '-g', '@earendil-works/pi-coding-agent'])

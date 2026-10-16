@@ -289,7 +289,9 @@ the directory's last-seen age, and last-known groups with disabled lane and
 creation actions. A Host that is enrolled but not yet connected shows the
 reachability rule's short phrase (for example "Not reachable yet" or "Never
 connected") in blue with an explicit empty state, never a bare "Setting up". A connected
-Host with an empty repository shows “No lanes yet” and its capability-gated +.
+Host with an empty repository shows “No lanes yet” and its capability-gated +. A
+ready Host with no folders shows “No folders yet” and, with `workspaces.write`,
+an Add folder on MACHINE… button that opens the Host folder browser.
 Remote actions retain the fixed reconnection/unavailable hints and main's
 capability, readiness and stale-connection checks. Creating a remote lane never
 falls back to local creation.

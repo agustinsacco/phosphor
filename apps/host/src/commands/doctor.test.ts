@@ -353,6 +353,11 @@ describe('doctor', () => {
       detail: `${machine.bin}/claude 2.1.283, logged in`,
     })
     expect(JSON.stringify(report)).not.toContain('person@example.com')
+    expect(report.checks.find((check) => check.id === 'providers')).toEqual({
+      id: 'providers',
+      status: 'info',
+      summary: 'no pi provider is signed in; the claude lane is ready',
+    })
   })
 
   it('renders a readable report', async () => {

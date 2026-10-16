@@ -139,7 +139,9 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
       ? resolve(context.cwd, context.node)
       : ((!context.replace ? kept?.pi.node : undefined) ??
         (await stable(
-          (await which('node', dirname(executable))) ?? (await which('node', discovery.env.PATH)),
+          // pi's `env node` shebang resolves through the user's PATH, never the platform defaults.
+          (await which('node', dirname(executable))) ??
+            (await which('node', context.env.PATH ?? '')),
         )))
     : null
   const pi = { executable, ...(node ? { node } : {}) }

@@ -18,6 +18,7 @@ import { runLogin } from './commands/login'
 import { runLogout } from './commands/logout'
 import { renderStatus, runStatus } from './commands/status'
 import type { ControlContext } from './control/command'
+import { createIdentityStore, identityDirectory } from './control/identity'
 import { defaultConfigPath } from './config/load'
 import type { Drainable } from './shutdown'
 import { HOST_SOURCE_SHA, HOST_VERSION } from './version'
@@ -257,7 +258,15 @@ export async function runCli(
           replace: values.replace,
           tailscaleHints: false,
         })
-        if (report.exitCode === EXIT.ok) report.next = 'phosphor login'
+        // Point at login only when this machine is not on an account yet.
+        const enrolled = await createIdentityStore(
+          identityDirectory(configPath),
+          process.getuid?.(),
+        )
+          .load()
+          .then((loaded) => loaded !== null)
+          .catch(() => false)
+        if (report.exitCode === EXIT.ok && !enrolled) report.next = 'phosphor login'
         io.stdout(values.json ? `${JSON.stringify(report, null, 2)}\n` : renderSetup(report))
         return report.exitCode
       }

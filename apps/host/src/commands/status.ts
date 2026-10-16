@@ -59,7 +59,8 @@ export function renderStatus(report: StatusReport): string {
       `Enrolled: ${report.server.enrolledAt}. Last seen: ${report.server.lastSeenAt ?? 'never'}.`,
     )
   } else if (report.error) lines.push(report.error)
-  lines.push('Next: phosphor setup')
+  // A confirmed machine needs nothing; only a problem points back to setup.
+  if (!report.server) lines.push('Next: phosphor setup')
   return `${lines.join('\n')}\n`
 }
 

@@ -206,6 +206,10 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
     }
   }
 
+  // A ready claude lane is a usable model, so no signed-in pi provider is not a problem.
+  const unsigned = checks.findIndex((c) => c.id === 'providers' && c.summary === NO_PROVIDER)
+  if (claude.available && unsigned >= 0)
+    checks[unsigned] = info('providers', 'no pi provider is signed in; the claude lane is ready')
   const exitCode = exitCodeFor(checks)
   const providerLogin =
     providers &&
@@ -334,6 +338,8 @@ function helloExposure(hello: HostHello, environment: PiEnvironment): Check | nu
   return fail('hello', summary, EXIT.config)
 }
 
+const NO_PROVIDER = 'none is signed in: phosphor providers'
+
 /** Signed in to something pi runs on, with its default first: a session naming no model uses it. */
 function providersCheck(providers: readonly ProviderState[]): Check {
   const fallback = providers.find((provider) => provider.default)
@@ -342,7 +348,7 @@ function providersCheck(providers: readonly ProviderState[]): Check {
     return warn('providers', `pi's default, ${fallback.name}, is ${state}: phosphor providers`)
   }
   const ready = providers.filter((provider) => provider.status === 'ready')
-  if (ready.length === 0) return warn('providers', 'none is signed in: phosphor providers')
+  if (ready.length === 0) return warn('providers', NO_PROVIDER)
   return pass('providers', `signed in: ${ready.map((provider) => provider.name).join(', ')}`)
 }
 

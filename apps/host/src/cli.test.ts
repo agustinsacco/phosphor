@@ -7,7 +7,9 @@ import { hostLogDirectory } from './machine/log'
 import { nextStep } from './commands/doctor'
 import { serviceExitPath } from './machine/launchd'
 import type { Drainable } from './shutdown'
-import { controlMachine } from './control/__fixtures__/machine'
+import { controlMachine, oldIdentity } from './control/__fixtures__/machine'
+import { createIdentityStore, identityDirectory } from './control/identity'
+import { freshKey } from './control/signer'
 import {
   runCli,
   USAGE,
@@ -481,6 +483,26 @@ describe('control commands', () => {
       await control.cleanup()
     }
   })
+  it.each([false, true])(
+    'points non-terminal setup at login only before enrollment (enrolled %s)',
+    async (enrolled) => {
+      machine = fakeMachine()
+      machine.writeConfig(machine.config)
+      if (enrolled)
+        await createIdentityStore(identityDirectory(machine.configPath), process.getuid?.()).save(
+          oldIdentity,
+          freshKey(),
+        )
+      const setup = await run(['setup', '--config', machine.configPath], {
+        home: machine.home,
+        cwd: machine.dir,
+        env: machine.hostEnv,
+        terminal: false,
+      })
+      expect(setup.code).toBe(0)
+      expect(setup.stdout.includes('next: phosphor login')).toBe(!enrolled)
+    },
+  )
   it('routes login without a TTY, status --json and logout --local, with no headers on output', async () => {
     const control = await controlMachine()
     try {

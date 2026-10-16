@@ -165,7 +165,8 @@ installer is downloaded with curl into a temporary directory and executed by
 Bash only after approval. The temporary directory is removed afterwards.
 
 Without a terminal, setup only detects and writes config. It does not enroll,
-start a service or invoke Tailscale, and ends with `next: phosphor login`. This
+start a service or invoke Tailscale. On a machine not yet on an account it ends
+with `next: phosphor login`; an enrolled machine gets no next step. This
 keeps older Desktop SSH installers compatible with their separate login step.
 
 A running service is never restarted by setup because that stops live lanes. If
@@ -512,7 +513,8 @@ status and plain logout exit 78 without contacting either origin. Run
 `phosphor logout --local`, then login, to change it.
 
 `phosphor status` shows the local identity and the server's label, owner,
-enrollment time and last seen. It exits 0 when confirmed, 69 when not enrolled,
+enrollment time and last seen. A confirmed machine needs nothing more; any other
+result ends with `Next: phosphor setup`. It exits 0 when confirmed, 69 when not enrolled,
 77 when removed, 75 when unreachable or the response is invalid, and 78 for
 invalid storage or config. `--json` is one object with this stable shape:
 
@@ -869,7 +871,7 @@ An invalid existing config does not get that next step.
 | `extensions`                   | The six bundled extensions, and every helper they import from beside themselves, are under `<resourceRoot>/pi-ext/`.                                                                                                                                                                                                | 69            |
 | `repository`                   | Each root resolves to an existing folder other than `/`. A root holding the home folder, or one level under `/`, warns; one that is not a git repository is noted.                                                                                                                                                  | 69            |
 | `agent-dir`                    | pi's agent folder exists, meaning pi has run as this user.                                                                                                                                                                                                                                                          | warning       |
-| `providers`                    | Once pi itself passes: a provider is signed in, and pi's default provider is, when it has one ([providers](#providers)).                                                                                                                                                                                            | warning       |
+| `providers`                    | Once pi itself passes: a provider is signed in, and pi's default provider is, when it has one ([providers](#providers)). With no pi provider signed in but a ready claude lane, this is information, not a warning.                                                                                                 | warning       |
 | `Tailscale`, `Tailscale serve` | Checks local Tailscale readiness and the configured Serve route. Missing transport warns; Funnel or a conflicting route fails.                                                                                                                                                                                      | warning or 78 |
 | `context-budget`               | The effective session context budget.                                                                                                                                                                                                                                                                               | never         |
 | `accounts`, `compression`      | Unavailable on a Host: pi uses the logins of the user running it, and there is no Headroom proxy.                                                                                                                                                                                                                   | never         |

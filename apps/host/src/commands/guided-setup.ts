@@ -106,6 +106,7 @@ export async function runGuidedSetup(context: GuidedSetupContext): Promise<Setup
       ? (await stat(pinnedPi).catch(() => null))?.isFile()
       : await which('pi', searchPath)
     if (!piExists) {
+      row('!', 'pi', 'not installed')
       const npm = await which('npm', searchPath)
       if (!npm)
         return stop(
