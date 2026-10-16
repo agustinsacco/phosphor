@@ -4,7 +4,7 @@ import { access, stat } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
 import { tailscaleExecutableCandidates } from '@phosphor/shared/tailscale-executable'
 import { getLoginShellPath } from '../pi/shell-env'
-import type { TailscalePeer, TailscaleStatus } from '@shared/tailscale-status'
+import type { TailscaleStatus } from '@shared/tailscale-status'
 
 export const TAILSCALE_OPTIONS = {
   timeout: 5_000,
@@ -21,12 +21,8 @@ const dnsName = (value: unknown): value is string =>
   /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+ts\.net\.?$/i.test(value)
 
 /** Tailscale's extensible JSON is untrusted. Only these fields leave main. */
-export function parseTailscaleStatus(output: string, discovery: boolean): TailscaleStatus {
-  const result = (code: TailscaleStatus['code'], peers: TailscalePeer[] = []): TailscaleStatus => ({
-    code,
-    discovery,
-    peers,
-  })
+export function parseTailscaleStatus(output: string): TailscaleStatus {
+  const result = (code: TailscaleStatus['code']): TailscaleStatus => ({ code })
   if (Buffer.byteLength(output) > TAILSCALE_OPTIONS.maxBuffer) return result('check-failed')
   let value: unknown
   try {
@@ -42,24 +38,7 @@ export function parseTailscaleStatus(output: string, discovery: boolean): Tailsc
     return result('magicdns-unavailable')
   if (!Array.isArray(value.CertDomains) || !value.CertDomains.some(dnsName))
     return result('https-unavailable')
-  if (!discovery) return result('ready')
-  if (!record(value.Peer) || Object.keys(value.Peer).length > 1_000) return result('check-failed')
-  const peers: TailscalePeer[] = []
-  for (const peer of Object.values(value.Peer)) {
-    if (
-      !record(peer) ||
-      !dnsName(peer.DNSName) ||
-      typeof peer.Online !== 'boolean' ||
-      typeof peer.OS !== 'string'
-    )
-      continue
-    peers.push({
-      dnsName: peer.DNSName.toLowerCase().replace(/\.$/, ''),
-      os: peer.OS === 'linux' || peer.OS === 'darwin' || peer.OS === 'windows' ? peer.OS : 'other',
-      online: peer.Online,
-    })
-  }
-  return result('ready', peers)
+  return result('ready')
 }
 
 export type TailscaleRunner = (
@@ -111,15 +90,10 @@ const run: TailscaleRunner = (done) => {
     child?.kill('SIGKILL')
   }
 }
-export function readTailscaleStatus(
-  discovery: boolean,
-  runner: TailscaleRunner = run,
-): Promise<TailscaleStatus> {
+export function readTailscaleStatus(runner: TailscaleRunner = run): Promise<TailscaleStatus> {
   return new Promise((resolve) => {
     const failure = (code: TailscaleStatus['code'] = 'check-failed'): TailscaleStatus => ({
       code,
-      discovery,
-      peers: [],
     })
     // execFile waits for stdio to close. Bound IPC even if a descendant holds a pipe open.
     const deadline = setTimeout(() => {
@@ -131,7 +105,7 @@ export function readTailscaleStatus(
       resolve(
         error
           ? failure(error.code === 'ENOENT' ? 'not-installed' : 'check-failed')
-          : parseTailscaleStatus(output, discovery),
+          : parseTailscaleStatus(output),
       )
     })
   })

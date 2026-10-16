@@ -41,13 +41,13 @@ it('settles at exactly the deadline and cancels the runner once, even if it neve
   vi.useFakeTimers()
   const cancel = vi.fn()
   let settled: unknown
-  const pending = readTailscaleStatus(false, () => cancel).then((value) => (settled = value))
+  const pending = readTailscaleStatus(() => cancel).then((value) => (settled = value))
   await vi.advanceTimersByTimeAsync(TAILSCALE_OPTIONS.timeout - 1)
   expect(settled).toBeUndefined()
   expect(cancel).not.toHaveBeenCalled()
   await vi.advanceTimersByTimeAsync(1)
   await pending
-  expect(settled).toEqual({ code: 'check-failed', discovery: false, peers: [] })
+  expect(settled).toEqual({ code: 'check-failed' })
   expect(cancel).toHaveBeenCalledTimes(1)
 })
 
@@ -92,12 +92,12 @@ it('kills a real SIGTERM-resistant executable with SIGKILL', async () => {
   await new Promise((resolve) => setTimeout(resolve, 200))
   expect(child.exitCode).toBeNull()
   expect(child.signalCode).toBeNull()
-  const result = await readTailscaleStatus(true, (done) => {
+  const result = await readTailscaleStatus((done) => {
     child.once('exit', () => done({ code: 'killed' }, ''))
     return () => {
       child.kill(TAILSCALE_OPTIONS.killSignal)
     }
   })
-  expect(result).toEqual({ code: 'check-failed', discovery: true, peers: [] })
+  expect(result).toEqual({ code: 'check-failed' })
   expect(await within(exited, 10_000, 'child exit after the deadline')).toBe('SIGKILL')
 }, 45_000)
