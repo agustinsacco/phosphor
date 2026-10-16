@@ -263,7 +263,7 @@ test('Host home opens read-only machine Files without a lane', async ({
   }
 })
 
-test('The last Host folder cannot be removed', async () => {
+test('The last Host folder can be removed and its files stay', async () => {
   test.setTimeout(REMOTE_TEST_TIMEOUT)
   const h = await remoteHostFixture()
   try {
@@ -283,12 +283,13 @@ test('The last Host folder cannot be removed', async () => {
       .click()
     await h.page.getByRole('button', { name: 'Remove from bee1', exact: true }).click()
     await modal.getByRole('button', { name: 'Remove folder', exact: true }).click()
-    await expect(modal.getByRole('alert')).toHaveText(
-      'A machine needs at least one folder. Add another first.',
-    )
+    await expect(
+      h.page.getByRole('button', { name: 'Workspace options for repository', exact: true }),
+    ).toHaveCount(0)
+    await expect(h.page.getByRole('alert')).toHaveCount(0)
     expect(
       JSON.parse(await readFile(join(h.root, 'conf/config.json'), 'utf8')).repositories,
-    ).toEqual([h.repo])
+    ).toEqual([])
     expect(await h.readHostFile('remote.txt')).toContain('HOST_A_ONLY')
   } finally {
     await h.close()

@@ -176,6 +176,10 @@
       "types": "./src/routines/ownership.ts",
       "default": "./src/routines/ownership.ts"
     },
+    "./routines/sqlite": {
+      "types": "./src/routines/sqlite.ts",
+      "default": "./src/routines/sqlite.ts"
+    },
     "./files/mutations": {
       "types": "./src/files/mutations.ts",
       "default": "./src/files/mutations.ts"
