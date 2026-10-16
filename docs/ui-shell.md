@@ -491,8 +491,11 @@ A never-connected Host offers `phosphor run` and, on Linux,
 `phosphor service install`. A Host offline for over a day suggests
 `phosphor service status`. Rename edits the label inline: Enter or blur saves,
 Escape cancels, and failure restores the saved label with an inline error.
-Remove confirms that the Host stops at its next heartbeat and must run
-`phosphor login` again. Its files and installation stay on that machine.
+Remove confirms that the Host stops at its next heartbeat. Lanes, routines and
+files stay on that machine and return when it is added again: over SSH from
+Add a machine, or with `phosphor login` then `phosphor service install` on it.
+The re-added machine has a new id, so Desktop's per-machine preferences for it
+(model and thinking picks, pins, filters, routine drafts) start fresh.
 
 Add a machine is disabled while signed out. The guide checks this computer's
 account and Tailscale readiness, then offers SSH installation or manual setup.
