@@ -107,3 +107,28 @@ it('stops a stalled provider update when the Host update is cancelled', async ()
   ).rejects.toThrow()
   expect(Date.now() - started).toBeLessThan(10_000)
 })
+it('rethrows a cancellation that lands while packages are being listed', async () => {
+  const lifetime = new AbortController()
+  const print = vi.fn()
+  await expect(
+    updateClaudeProvider(
+      {
+        nodeVersion: process.versions.node,
+        defaultResourceRoot: machine.dir,
+        configPath: machine.configPath,
+        uid: process.getuid?.(),
+        home: machine.home,
+        env: machine.hostEnv,
+        platform: 'linux',
+        hostname: 'test',
+        print,
+        packages: async () => {
+          lifetime.abort()
+          return []
+        },
+      },
+      lifetime.signal,
+    ),
+  ).rejects.toThrow()
+  expect(print).not.toHaveBeenCalled()
+})

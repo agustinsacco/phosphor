@@ -3,6 +3,9 @@ import { createInterface } from 'node:readline/promises'
 
 export class SetupCancelled extends Error {}
 
+/** How long a cancelled child gets to exit after SIGTERM before SIGKILL. */
+export const KILL_GRACE_MS = 5_000
+
 export interface SetupTerminal {
   confirm: (question: string, command?: string) => Promise<boolean>
   run: (file: string, args: readonly string[]) => Promise<number>
@@ -40,9 +43,21 @@ export function setupTerminal(
     run(file, args) {
       signal?.throwIfAborted()
       return new Promise((resolve) => {
-        const child = spawn(file, args, { env, stdio: ['inherit', output, 2], signal })
-        child.once('error', () => resolve(signal?.aborted ? 130 : 1))
-        child.once('close', (code) => resolve(signal?.aborted ? 130 : (code ?? 1)))
+        const child = spawn(file, args, { env, stdio: ['inherit', output, 2] })
+        let escalate: NodeJS.Timeout | undefined
+        // Cancel with SIGTERM, then SIGKILL; settle only once the child has really exited.
+        const stop = () => {
+          child.kill('SIGTERM')
+          escalate = setTimeout(() => child.kill('SIGKILL'), KILL_GRACE_MS)
+        }
+        signal?.addEventListener('abort', stop, { once: true })
+        const settle = (code: number) => {
+          signal?.removeEventListener('abort', stop)
+          clearTimeout(escalate)
+          resolve(signal?.aborted ? 130 : code)
+        }
+        child.once('error', () => settle(1))
+        child.once('close', (code) => settle(code ?? 1))
       })
     },
   }

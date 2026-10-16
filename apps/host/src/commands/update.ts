@@ -191,6 +191,7 @@ export async function updateClaudeProvider(
   try {
     signal.throwIfAborted()
     const packages = await (context.packages ?? listPackages)()
+    signal.throwIfAborted()
     if (!packages.some((pkg) => pkg.name === CLAUDE_PROVIDER_PACKAGE && pkg.installed)) return
     const loaded = await loadHostConfig(context.configPath, context.uid)
     if (!loaded.ok) throw new Error('config')
