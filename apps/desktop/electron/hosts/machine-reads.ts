@@ -1,6 +1,6 @@
-import type { IpcInvokeMap } from '@shared/ipc'
 import {
   machineRecord,
+  parseMachineClaude,
   parseMachineModels,
   parseMachineParams,
   parseMachineProviders,
@@ -61,7 +61,7 @@ export function machineReads(
           !c.snapshot().capabilities.includes('skills.read')
         )
           return null
-        return reply.ok ? parseClaudeDetail(reply.data) : null
+        return reply.ok ? parseMachineClaude(reply.data) : null
       } catch {
         return null
       }
@@ -83,18 +83,4 @@ export function machineReads(
       return readFeature('skills:list', [], lane(hostId))
     },
   }
-}
-
-/** Temporary local boundary parser until the shared Host parser lands. */
-export function parseClaudeDetail(value: unknown): IpcInvokeMap['hosts:claude']['result'] {
-  if (!machineRecord(value) || Object.keys(value).sort().join(',') !== 'auth,cli,provider')
-    return null
-  const { provider, cli, auth } = value
-  if (
-    (provider !== 'ok' && provider !== 'missing' && provider !== 'outdated') ||
-    (cli !== 'ok' && cli !== 'missing') ||
-    (auth !== 'ok' && auth !== 'signed-out' && auth !== 'unknown')
-  )
-    return null
-  return { provider, cli, auth }
 }
