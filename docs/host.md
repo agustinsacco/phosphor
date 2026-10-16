@@ -669,6 +669,17 @@ has not stepped back past the server's last sequence.
 Network failures back off from 5 seconds to 5 minutes. A success resets the
 backoff. Rate limits wait 10 seconds; a stale sequence retries with a fresh one.
 A removed machine exits 77, keeps its identity and asks you to run login again.
+Removal deletes nothing. The state database, lanes and their transcripts,
+worktrees and branches, routines and their history, repositories, attachments,
+artifacts and config all stay. Host data is stored per OS user, not per host id,
+so a re-enrolled machine gets a new id and serves the same lanes and routines.
+Running pi processes and terminal output end with the service and do not come
+back. Desktop's Add a machine over SSH reinstalls and restarts the service;
+by hand, run `phosphor login` then `phosphor service install`, because login
+alone does not restart a stopped service. Data is also not tied to the account:
+enrolling the same OS user into a different account serves that account the
+same data. `uninstall --purge` removes config and state only; repository
+files, worktrees, pi's sessions and provider credentials remain.
 SIGTERM or SIGINT sends one stopping beat, waits at most 5 seconds, and exits 0
 whether or not that beat succeeds. A sequence write already running gets up to
 1 more second to land, so the next run reads it. A second signal cuts the beat

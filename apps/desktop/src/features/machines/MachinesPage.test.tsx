@@ -150,8 +150,15 @@ it.each(['not-found', 'too-many-requests', 'offline', 'signed-out'])(
 it('confirms removal before invoking main, and Cancel is inert', async () => {
   useMachinesStore.setState({ view: { kind: 'machine', id: MACHINE.id } })
   await render()
+  expect(container.textContent).toContain('Lanes, routines and files stay on the machine')
+  expect(container.textContent).toContain('return when you add it again')
   await click('Remove machine')
-  expect(document.querySelector('[role=dialog]')?.textContent).toContain('next heartbeat')
+  const confirmation = document.querySelector('[role=dialog]')?.textContent
+  expect(confirmation).toContain('next heartbeat')
+  expect(confirmation).toContain('Lanes, routines and files stay on the machine')
+  expect(confirmation).toContain('return when you add it again')
+  expect(confirmation).toContain('phosphor login')
+  expect(confirmation).toContain('phosphor service install')
   expect(invoke).not.toHaveBeenCalledWith('control:removeMachine', MACHINE.id)
   await click('Cancel')
   expect(document.querySelector('[role=dialog]')).toBeNull()
