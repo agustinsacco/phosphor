@@ -6,6 +6,7 @@ import {
   readSync,
   writeSync,
   fchmodSync,
+  fchownSync,
   fsyncSync,
   lstatSync,
   renameSync,
@@ -153,6 +154,8 @@ export function removeHostPathBlocks(home: string, uid: number | undefined): voi
       )
       temp = replacement
       writeAll(tempFd, Buffer.concat(parts))
+      // Keep the rc's owner and group; if they cannot be kept, the original stays untouched.
+      fchownSync(tempFd, info.uid, info.gid)
       fchmodSync(tempFd, info.mode & 0o7777)
       fsyncSync(tempFd)
       closeSync(tempFd)

@@ -117,6 +117,25 @@ it('atomically removes every exact block and preserves bytes and permissions', (
   }
   expect(readdirSync(root).sort()).toEqual(['.bashrc', '.profile', '.zshrc'])
 })
+it('keeps the rc group on removal, and leaves the rc untouched when it cannot', async () => {
+  const root = home(),
+    path = join(root, '.bashrc')
+  const other = process.getgroups?.().find((gid) => gid !== statSync(root).gid)
+  if (other === undefined) return
+  writeFileSync(path, `# rc\n${HOST_PATH_BLOCK}`, { mode: 0o640 })
+  fs.chownSync(path, process.getuid?.() ?? -1, other)
+  removeHostPathBlocks(root, process.getuid?.())
+  expect(readFileSync(path, 'utf8')).toBe('# rc\n')
+  expect(statSync(path).gid).toBe(other)
+
+  writeFileSync(path, `# rc\n${HOST_PATH_BLOCK}`)
+  vi.spyOn(fs, 'fchownSync').mockImplementation(() => {
+    throw Object.assign(new Error('not permitted'), { code: 'EPERM' })
+  })
+  removeHostPathBlocks(root, process.getuid?.())
+  expect(readFileSync(path, 'utf8')).toBe(`# rc\n${HOST_PATH_BLOCK}`)
+  expect(readdirSync(root)).toEqual(['.bashrc'])
+})
 it('leaves the original byte-identical and removes staging after a partial write failure', async () => {
   const root = home(),
     path = join(root, '.zshrc')
