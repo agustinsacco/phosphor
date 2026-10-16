@@ -32,7 +32,9 @@ let hostBuilt = false
  */
 export const REMOTE_TEST_TIMEOUT = process.env.CI ? 120_000 : 25_000
 
-export async function remoteHostFixture(options: { allowRepositoryChanges?: boolean } = {}) {
+export async function remoteHostFixture(
+  options: { allowRepositoryChanges?: boolean; claude?: boolean } = {},
+) {
   const project = resolve(import.meta.dirname, '../../../..')
   if (!hostBuilt)
     execFileSync(process.execPath, [join(project, 'apps/host/scripts/build.mjs')], {
@@ -269,6 +271,14 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
       '#!/bin/sh\necho \'{"BackendState":"Stopped"}\'\n',
       { mode: 0o700 },
     )
+    if (options.claude)
+      await writeFile(
+        join(root, 'bin', 'claude'),
+        `#!/bin/sh
+case "$1" in --version) echo 2.1.283 ;; auth) echo '{"loggedIn":true}' ;; esac
+`,
+        { mode: 0o700 },
+      )
     execFileSync('git', ['init', '-q', repo])
     const nonGit = join(root, 'notes')
     const addable = join(root, 'addable')
@@ -308,6 +318,22 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
       join(agent, 'settings.json'),
       JSON.stringify({ defaultProvider: 'fake', defaultModel: 'fake-model' }),
     )
+    const installClaudeProvider = async () => {
+      const provider = join(agent, 'npm/node_modules/@saccolabs/pi-claude-cli')
+      await mkdir(provider, { recursive: true })
+      await writeFile(
+        join(provider, 'package.json'),
+        JSON.stringify({ name: '@saccolabs/pi-claude-cli', version: '0.10.0' }),
+      )
+      await writeFile(
+        join(agent, 'settings.json'),
+        JSON.stringify({
+          defaultProvider: 'fake',
+          defaultModel: 'fake-model',
+          packages: ['npm:@saccolabs/pi-claude-cli'],
+        }),
+      )
+    }
     await writeFile(
       join(agent, 'auth.json'),
       JSON.stringify({
@@ -341,6 +367,7 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
           node: process.execPath,
           executable: join(project, 'apps/host/src/__fixtures__/fake-pi.cjs'),
         },
+        ...(options.claude && { environment: { path: [join(root, 'bin')] } }),
         repositories: [repo, nonGit],
         // The parity config introduces this policy; baseline rejects it if explicitly requested.
         ...(options.allowRepositoryChanges !== undefined && {
@@ -555,6 +582,7 @@ export async function remoteHostFixture(options: { allowRepositoryChanges?: bool
       repo,
       nonGit,
       addable,
+      installClaudeProvider,
       laneId,
       send,
       frames,

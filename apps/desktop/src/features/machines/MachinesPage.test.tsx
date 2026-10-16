@@ -197,17 +197,17 @@ it('shows readiness on a row only while it is current, and names this Mac once',
   const rows = Array.from(document.querySelectorAll('[data-testid=enrolled-machine-row]'))
   const text = (label: string): string =>
     rows.find((row) => row.textContent?.includes(label))?.textContent ?? ''
-  expect(text('online')).toContain('Claude signed out')
+  expect(text('online')).toContain('Claude Code signed out')
   expect(text('bee1')).toContain('Finish setup')
-  expect(text('bee1')).not.toContain('Claude signed out')
+  expect(text('bee1')).not.toContain('Claude Code signed out')
   expect(text('offline')).toContain('Offline · last seen 3 h ago')
-  expect(text('offline')).not.toContain('Claude signed out')
+  expect(text('offline')).not.toContain('Claude Code signed out')
   expect(text('offline')).not.toContain('Ready')
   await act(async () => useMachinesStore.getState().show({ kind: 'machine', id: offline.id }))
   expect(container.textContent).toContain('As last reported, 3 h ago')
   await act(async () => useMachinesStore.getState().show({ kind: 'machine', id: MACHINE.id }))
   expect(container.textContent).toContain('reports pi, Claude and Tailscale once it first connects')
-  expect(container.textContent).not.toContain('Sign in to Claude on this machine')
+  expect(container.textContent).not.toContain('Sign in to Claude Code on this machine')
 })
 it('refreshes the list when an approval lands after the dialog closed', async () => {
   const refresh = vi.fn(async () => undefined)

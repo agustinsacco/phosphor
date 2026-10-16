@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { expect, it, vi } from 'vitest'
-import { claudeReadiness } from './ClaudeReadiness'
+import { ClaudeReadiness, claudeReadiness } from './ClaudeReadiness'
 import { MachinesPage } from './MachinesPage'
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useMachinesStore } from '@/stores/machines'
@@ -61,7 +61,7 @@ it('falls back for an old Host and re-reads Claude and providers with Check agai
   try {
     await act(async () => root.render(<MachinesPage />))
     expect(invoke).toHaveBeenCalledWith('hosts:claude', MACHINE.id)
-    expect(container.textContent).toContain('Sign in to Claude on this machine.')
+    expect(container.textContent).toContain('Sign in to Claude Code on this machine.')
     invoke.mockClear()
     invoke.mockImplementation(async (channel: string) => {
       if (channel === 'hosts:claude') return { provider: 'missing', cli: 'ok', auth: 'ok' }
@@ -78,7 +78,7 @@ it('falls back for an old Host and re-reads Claude and providers with Check agai
     expect(invoke).toHaveBeenCalledWith('control:machines')
     expect(invoke).toHaveBeenCalledWith('hosts:providers', MACHINE.id)
     expect(invoke).toHaveBeenCalledWith('hosts:claude', MACHINE.id)
-    expect(container.textContent).toContain('Claude provider missing')
+    expect(container.textContent).toContain('Claude Code provider missing')
     expect(container.textContent).toContain('pi install npm:@saccolabs/pi-claude-cli')
   } finally {
     act(() => root.unmount())
@@ -92,14 +92,14 @@ it.each([
     provider: 'missing',
     cli: 'ok',
     auth: 'ok',
-    text: 'Claude provider missing',
+    text: 'Claude Code provider missing',
     command: 'pi install npm:@saccolabs/pi-claude-cli',
   },
   {
     provider: 'outdated',
     cli: 'ok',
     auth: 'ok',
-    text: 'Claude provider outdated',
+    text: 'Claude Code provider outdated',
     command: 'pi install npm:@saccolabs/pi-claude-cli',
   },
   {
@@ -113,7 +113,7 @@ it.each([
     provider: 'ok',
     cli: 'ok',
     auth: 'signed-out',
-    text: 'Sign in to Claude',
+    text: 'Sign in to Claude Code',
     command: 'phosphor providers login claude',
   },
   { provider: 'ok', cli: 'ok', auth: 'ok', text: 'Signed in and ready', command: undefined },
@@ -150,6 +150,9 @@ it.each([
     const root = createRoot(container)
     try {
       await act(async () => root.render(<MachinesPage />))
+      expect([...container.querySelectorAll('h4')].map((h) => h.textContent)).toContain(
+        'Claude Code',
+      )
       expect(container.textContent).toContain(text)
       if (command)
         expect([...container.querySelectorAll('code')].map((c) => c.textContent)).toContain(command)
@@ -161,3 +164,20 @@ it.each([
     }
   },
 )
+
+it('labels the detailed provider as Claude Code, distinct from native Claude Pro/Max', async () => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () =>
+      root.render(
+        <ClaudeReadiness check={claudeReadiness({ provider: 'ok', cli: 'ok', auth: 'ok' })} />,
+      ),
+    )
+    expect(container.querySelector('p')?.textContent).toBe('Claude Code: Signed in and ready')
+  } finally {
+    act(() => root.unmount())
+    vi.unstubAllGlobals()
+  }
+})

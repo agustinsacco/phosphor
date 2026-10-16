@@ -52,7 +52,7 @@ export function sortMachines(
 export interface ReadinessCheck {
   name: string
   ok: boolean
-  /** A few words for a list row, such as "Claude signed out". */
+  /** A few words for a list row, such as "Claude Code signed out". */
   short: string
   detail: string
   command?: string
@@ -107,21 +107,21 @@ export function readinessChecks(
       command: pi === 'unknown' ? 'phosphor doctor' : pi === 'ok' ? undefined : PI_INSTALL,
     },
     {
-      name: 'Claude',
+      name: 'Claude Code',
       ok: claude === 'ok',
       short:
         claude === 'signed-out'
-          ? 'Claude signed out'
+          ? 'Claude Code signed out'
           : claude === 'unknown'
-            ? 'Claude not reported'
-            : `Claude ${claude}`,
+            ? 'Claude Code not reported'
+            : `Claude Code ${claude}`,
       detail:
         claude === 'ok'
           ? 'Signed in and ready'
           : claude === 'signed-out'
-            ? 'Sign in to Claude on this machine.'
+            ? 'Sign in to Claude Code on this machine.'
             : claude === 'missing'
-              ? 'Install the Claude CLI on this machine.'
+              ? 'Install Claude Code on this machine.'
               : 'Not reported yet. Check the Host on this machine.',
       command:
         claude === 'signed-out'

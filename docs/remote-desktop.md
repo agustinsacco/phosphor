@@ -263,7 +263,7 @@ Claude provider and runs `claude` login when signed out
 `hosts:claude` reads the Host's `machine.claude` call under the same permission
 as `machine.providers`: `{ provider: ok|missing|outdated, cli: ok|missing,
 auth: ok|signed-out|unknown }`, validated by the strict shared
-`parseMachineClaude`. The Claude row then names the missing part and its fix. A
+`parseMachineClaude`. The Claude Code row then names the missing part and its fix. A
 Host older than the call refuses it; main returns null and the row keeps the
 single Claude status.
 

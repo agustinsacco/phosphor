@@ -482,7 +482,7 @@ connected, re-reads providers and Claude detail. A failing check uses the amber
 warning dot. With no published endpoint, Tailscale reads "Running, but its
 address is not published" and the fix appears once, under Reachable; the header
 reads "Online · Not reachable yet" and Status shows the same phrase, so no
-surface claims a reachable machine that is not. The Claude row names the missing
+surface claims a reachable machine that is not. The Claude Code row names the missing
 part (provider missing or outdated, Claude Code missing, signed out) with its
 fix; older Hosts keep the single status.
 

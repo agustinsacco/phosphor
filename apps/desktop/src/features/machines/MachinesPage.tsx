@@ -591,7 +591,7 @@ export function MachinesPage(): React.JSX.Element {
                       )}
                     <Checks
                       checks={readinessChecks(machine.readiness, machine.endpoint).map((check) =>
-                        check.name === 'Claude' && claudeCheck ? claudeCheck : check,
+                        check.name === 'Claude Code' && claudeCheck ? claudeCheck : check,
                       )}
                     />
                     <ProviderSignIn
