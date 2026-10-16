@@ -1,4 +1,9 @@
 import { execFile } from 'node:child_process'
+import { constants } from 'node:fs'
+import { access, stat } from 'node:fs/promises'
+import { isAbsolute, join } from 'node:path'
+import { tailscaleExecutableCandidates } from '@phosphor/shared/tailscale-executable'
+import { getLoginShellPath } from '../pi/shell-env'
 import type { TailscalePeer, TailscaleStatus } from '@shared/tailscale-status'
 
 export const TAILSCALE_OPTIONS = {
@@ -60,12 +65,50 @@ export function parseTailscaleStatus(output: string, discovery: boolean): Tailsc
 export type TailscaleRunner = (
   done: (error: { code?: string | number } | null, output: string) => void,
 ) => void | (() => void)
+/** Resolve only executable regular files from main's environment and native install locations. */
+export async function resolveTailscaleExecutable(
+  platform = process.platform,
+  inheritedPath = process.env.PATH ?? '',
+  loginPath: () => Promise<string | null> = getLoginShellPath,
+): Promise<string | null> {
+  const shellPath = await loginPath()
+  const name = platform === 'win32' ? 'tailscale.exe' : 'tailscale'
+  const candidates = [
+    ...[inheritedPath, shellPath ?? '']
+      .flatMap((value) => value.split(platform === 'win32' ? ';' : ':'))
+      .filter((dir) => isAbsolute(dir))
+      .map((dir) => join(dir, name)),
+    ...tailscaleExecutableCandidates(platform),
+  ]
+  for (const candidate of new Set(candidates)) {
+    if (!isAbsolute(candidate)) continue
+    try {
+      if (!(await stat(candidate)).isFile()) continue
+      await access(candidate, constants.X_OK)
+      return candidate
+    } catch {
+      // Missing, inaccessible or not executable: try the next local candidate.
+    }
+  }
+  return null
+}
 const run: TailscaleRunner = (done) => {
-  const child = execFile('tailscale', ['status', '--json'], TAILSCALE_OPTIONS, (error, stdout) =>
-    done(error, stdout),
+  let cancelled = false
+  let child: ReturnType<typeof execFile> | undefined
+  void resolveTailscaleExecutable().then(
+    (executable) => {
+      if (cancelled) return
+      if (!executable) return done({ code: 'ENOENT' }, '')
+      child = execFile(executable, ['status', '--json'], TAILSCALE_OPTIONS, (error, stdout) =>
+        // A resolved file that cannot start is a failed check, not a missing installation.
+        done(error?.code === 'ENOENT' ? { code: 'EXEC_FAILED' } : error, stdout),
+      )
+    },
+    () => done({ code: 'RESOLUTION_FAILED' }, ''),
   )
   return () => {
-    child.kill('SIGKILL')
+    cancelled = true
+    child?.kill('SIGKILL')
   }
 }
 export function readTailscaleStatus(

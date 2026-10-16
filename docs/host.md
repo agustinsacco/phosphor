@@ -610,6 +610,9 @@ They never contain grants, signatures, challenges, proofs, keys or header values
 
 `phosphor tailscale status|enable|disable [--config FILE]` manages only the
 configured `api.port` (default 47615). The API still listens on loopback only.
+The Host finds `tailscale` on its PATH, then in fixed install locations when the
+service PATH omits it (macOS: the Tailscale.app bundle, `/usr/local/bin`,
+`/opt/homebrew/bin`; Linux: `/usr/bin`, `/usr/local/bin`, `/snap/bin`).
 `status` shows the route state, the endpoint the Host reports, and the next step.
 It exits 0 for the Host's route and 69 otherwise.
 

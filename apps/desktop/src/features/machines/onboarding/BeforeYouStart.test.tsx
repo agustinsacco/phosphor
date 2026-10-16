@@ -201,3 +201,34 @@ it('only lets idle installations use discovery targets', async () => {
     vi.unstubAllGlobals()
   }
 })
+
+it.each([
+  'ready',
+  'not-installed',
+  'not-running',
+  'signed-out',
+  'magicdns-unavailable',
+  'https-unavailable',
+  'check-failed',
+])('shows empty discovery only after a ready check, not %s failure', async (code) => {
+  vi.stubGlobal('phosphor', {
+    invoke: vi.fn(async (channel) =>
+      channel === 'account:get'
+        ? { account: { status: 'signed-in' } }
+        : { code, discovery: true, peers: [] },
+    ),
+    onAccountChanged: () => () => {},
+  })
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  try {
+    await act(async () => root.render(<BeforeYouStart onPick={() => {}} />))
+    expect(container.textContent?.includes('No other online machines found on your tailnet.')).toBe(
+      code === 'ready',
+    )
+  } finally {
+    act(() => root.unmount())
+    vi.unstubAllGlobals()
+  }
+})

@@ -219,7 +219,13 @@ Provider credentials stay on the Host.
 
 Optional Tailscale peer suggestions are off by default and persisted in Desktop
 preferences. Main runs only `tailscale status --json`, without a shell, with a five
-second deadline, forced termination and 1 MiB output limit. A failed status read
+second deadline, forced termination and 1 MiB output limit. A packaged app inherits
+launchd's minimal PATH, so main looks for the executable in the inherited PATH, the
+login-shell PATH and fixed install locations (on macOS the Tailscale.app bundle,
+`/usr/local/bin` and `/opt/homebrew/bin`). It runs only an absolute path to an existing,
+executable regular file. Not found reads as not installed; a found file that fails to
+start reads as a failed check. "No other online machines found" appears only after a
+ready check that returned no peers. A failed status read
 clears suggestions without reverting a successfully saved discovery preference. Only fixed status codes and, when opted in,
 peer DNS names, OS and online flags reach the renderer. No addresses, keys, tags,
 user identities or command output are logged or exposed. Suggestions show online

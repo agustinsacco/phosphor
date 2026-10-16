@@ -1,5 +1,7 @@
 import { isEndpoint, type Readiness } from '@phosphor/shared/control-api'
 import { HOST_API_PORT } from '@phosphor/shared/host-protocol'
+import { tailscaleExecutableCandidates } from '@phosphor/shared/tailscale-executable'
+import { basename, dirname } from 'node:path'
 import { fail, pass, warn, EXIT, type Check } from '../checks'
 import type { HostConfigV1 } from '../config/schema'
 import { buildPiEnvironment } from './environment'
@@ -126,7 +128,16 @@ export async function inspectTailscale(
   ports = tailscalePorts,
 ): Promise<TailscaleInspection> {
   const port = config.api?.port ?? HOST_API_PORT
-  const executable = await ports.which('tailscale', env.PATH ?? '')
+  let executable = await ports.which(
+    platform === 'win32' ? 'tailscale.exe' : 'tailscale',
+    env.PATH ?? '',
+  )
+  if (!executable) {
+    for (const candidate of tailscaleExecutableCandidates(platform)) {
+      executable = await ports.which(basename(candidate), dirname(candidate))
+      if (executable) break
+    }
+  }
   const options = tailscaleOptions(config, env, platform)
   const status = executable ? await ports.probe(executable, ['status', '--json'], options) : null
   const readiness = tailscaleReadiness(status)

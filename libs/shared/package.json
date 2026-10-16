@@ -212,6 +212,10 @@
       "types": "./src/routines-types.ts",
       "default": "./src/routines-types.ts"
     },
+    "./tailscale-executable": {
+      "types": "./src/tailscale-executable.ts",
+      "default": "./src/tailscale-executable.ts"
+    },
     "./tailscale-status": {
       "types": "./src/tailscale-status.ts",
       "default": "./src/tailscale-status.ts"

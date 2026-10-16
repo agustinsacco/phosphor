@@ -308,3 +308,26 @@ describe('tailscale probes and presentation', () => {
     expect(setupTailscaleHint(found)).toEqual([])
   })
 })
+
+it.each([
+  ['darwin', '/Applications/Tailscale.app/Contents/MacOS/Tailscale'],
+  ['darwin', '/usr/local/bin/tailscale'],
+  ['darwin', '/opt/homebrew/bin/tailscale'],
+  ['linux', '/snap/bin/tailscale'],
+] as const)('finds %s Tailscale outside a service PATH: %s', async (platform, candidate) => {
+  const which = vi.fn(async (name: string, path: string) =>
+    `${path}/${name}` === candidate ? candidate : null,
+  )
+  const probe = vi.fn(async (_file: string, args: readonly string[]) =>
+    result(args[0] === 'status' ? JSON.stringify(status) : '{}'),
+  )
+  const found = await inspectTailscale(
+    { version: 1, pi: { executable: '/pi' }, repositories: ['/repo'] },
+    { PATH: '/missing' },
+    platform,
+    { which, probe },
+  )
+  expect(found.executable).toBe(candidate)
+  expect(found.readiness).toBe('ok')
+  expect(probe.mock.calls[0]?.[0]).toBe(candidate)
+})
