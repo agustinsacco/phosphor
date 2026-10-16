@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { accountControlFixture } from './fixtures/account-control'
 import { captures } from './fixtures/remote-ui'
+import { REMOTE_TEST_TIMEOUT } from './fixtures/remote-host'
 import { MACHINE } from '../src/features/machines/__fixtures__/control'
 
 test('Machines is always available, shows only this computer while signed out, and Settings owns feedback', async () => {
@@ -108,7 +109,7 @@ test('signed-in directory walks guided enrollment, stable detail, rename and con
 })
 
 test('onboarding uses one terminal command and keeps Online and Providers', async () => {
-  test.setTimeout(25_000)
+  test.setTimeout(REMOTE_TEST_TIMEOUT)
   const info = test.info()
   const bin = await mkdtemp(join(tmpdir(), 'phosphor-tailscale-'))
   await writeFile(

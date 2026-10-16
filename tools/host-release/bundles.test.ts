@@ -428,7 +428,9 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
       const child = await new Promise<{ status: number | null; stdout: string; stderr: string }>(
         (resolve, reject) => {
           const flow =
-            'sh "$INSTALLER" && export PATH="$HOME/.local/bin:$PATH" && command -v phosphor && phosphor setup && phosphor setup'
+            // util-linux `script -c` runs the flow with $SHELL, so keep that /bin/sh and set
+            // the user's shell (which picks the rc file) inside the flow instead.
+            'export SHELL=/bin/zsh && sh "$INSTALLER" && export PATH="$HOME/.local/bin:$PATH" && command -v phosphor && phosphor setup && phosphor setup'
           const command = spawn(
             'script',
             process.platform === 'darwin'
@@ -439,7 +441,7 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
               signal: AbortSignal.timeout(20000),
               env: {
                 HOME: home,
-                SHELL: '/bin/zsh',
+                SHELL: '/bin/sh',
                 USER: 'tester',
                 PATH: `${machine.bin}:/usr/bin:/bin`,
                 INSTALLER: script,
