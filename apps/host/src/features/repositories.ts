@@ -143,8 +143,6 @@ export function createRepositories(options: {
         if (options.live(repository.id)) return { ok: false, code: 'busy' }
         const canonical = await Promise.all(paths.map((p) => realpath(p).catch(() => p)))
         paths = paths.filter((_p, i) => canonical[i] !== repository.path)
-        // Config v1 requires at least one repository.
-        if (!paths.length) return { ok: false, code: 'last-repository' }
         if (!allowed() || options.live(repository.id)) return { ok: false, code: 'busy' }
         await save(paths, () => allowed() && !options.live(repository.id))
         return { ok: true }

@@ -108,7 +108,7 @@ describe('Host identity storage', () => {
     opening.mockClear()
     await expect(store().load()).rejects.toMatchObject({
       incomplete: identity,
-      message: expect.stringContaining('run phosphor login'),
+      message: expect.stringContaining('run phosphor setup'),
     })
     if (['key mode', 'key symlink', 'key directory'].includes(problem)) {
       expect(opening.mock.calls.some(([path]) => String(path) === keyFile())).toBe(false)

@@ -437,6 +437,18 @@ describe('accept', { timeout: 30_000 }, () => {
     },
   )
 
+  it('requires an allowed folder for acceptance, not initial machine setup', async () => {
+    machine.writeConfig({ ...machine.config, repositories: [] })
+    const { outcome } = await accept()
+    expect(outcome).toMatchObject({
+      exitCode: 64,
+      problem:
+        'accept needs a repository. Add one with phosphor setup --repository PATH --replace, or from Desktop.',
+    })
+    expect(outcome).not.toHaveProperty('doctor')
+    expect(transcripts()).toEqual([])
+  })
+
   it('returns the doctor report when the machine cannot run sessions', async () => {
     machine.writeConfig({ ...machine.config, repositories: ['relative'] })
     const { outcome } = await accept()

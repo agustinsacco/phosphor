@@ -94,7 +94,7 @@ export interface HeartbeatPorts {
 }
 const UNKNOWN: Readiness = { pi: 'unknown', claude: 'unknown', tailscale: 'unknown' }
 export const REMOVED =
-  'This machine was removed from your Phosphor account. Run phosphor login to add it again.'
+  'This machine was removed from your Phosphor account. Run phosphor setup to add it again.'
 
 /**
  * `work`, or `fallback` once `signal` aborts. The abort listener is removed as

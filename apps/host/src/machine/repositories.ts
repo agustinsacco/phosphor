@@ -40,7 +40,9 @@ export async function checkRepositories(
 ): Promise<{ roots: string[]; checks: Check[] }> {
   const home = await realpath(machine.home).catch(() => machine.home)
   const roots: string[] = []
-  const checks: Check[] = []
+  const checks: Check[] = configured.length
+    ? []
+    : [info('repository', 'no folders configured; add one with the Desktop folder picker')]
   for (const path of configured) {
     let real: string
     try {

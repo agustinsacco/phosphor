@@ -131,6 +131,12 @@ export async function runAccept(context: AcceptContext): Promise<AcceptOutcome> 
   const inspection = await inspectHost(context)
   const { report, machine, secrets } = inspection
   if (!machine) return { exitCode: report.exitCode, problem: 'doctor failed', doctor: report }
+  if (machine.roots.length === 0)
+    return {
+      exitCode: EXIT.usage,
+      problem:
+        'accept needs a repository. Add one with phosphor setup --repository PATH --replace, or from Desktop.',
+    }
   const claudeLane = report.lanes.claude
   if (context.lane === 'claude' && !claudeLane.available) {
     const problem = `the claude lane is unavailable: ${claudeLane.reason}`

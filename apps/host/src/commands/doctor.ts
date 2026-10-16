@@ -29,7 +29,13 @@ import { checkRepositories } from '../machine/repositories'
 import { checkExtensions } from '../machine/resources'
 import type { HostMachine } from '../session/runtime'
 import { HOST_VERSION } from '../version'
-import { inspectTailscale, tailscaleChecks, type tailscalePorts } from '../machine/tailscale'
+import {
+  inspectTailscale,
+  tailscaleChecks,
+  tailscaleMessage,
+  routeMessage,
+  type tailscalePorts,
+} from '../machine/tailscale'
 
 /** What a Host will offer once it can be reached (component 21). */
 const CAPABILITIES: HostCapability[] = ['sessions.read', 'sessions.control']
@@ -180,11 +186,8 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
   checks.push(budgetCheck(config.contextBudget ?? ''))
   checks.push(info('accounts', 'unavailable on a Host: pi uses the logins of the user running it'))
   checks.push(info('compression', 'unavailable on a Host: there is no Headroom proxy'))
-  checks.push(
-    ...tailscaleChecks(
-      await inspectTailscale(config, context.env, context.platform, context.tailscale),
-    ),
-  )
+  const tailscale = await inspectTailscale(config, context.env, context.platform, context.tailscale)
+  checks.push(...tailscaleChecks(tailscale))
 
   const failed = [...new Set(checks.filter((c) => c.status === 'fail').map((c) => c.id))]
   const native: Lane =
@@ -204,6 +207,22 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
   }
 
   const exitCode = exitCodeFor(checks)
+  const providerLogin =
+    providers &&
+    (providers.some((p) => p.default && p.status !== 'ready') ||
+      (!providers.some((p) => p.status === 'ready') && !claude.available))
+  const next =
+    exitCode === EXIT.ok
+      ? providerLogin
+        ? 'sign in to a provider: phosphor providers login PROVIDER'
+        : tailscale.readiness !== 'ok'
+          ? tailscaleMessage(tailscale.readiness)
+          : tailscale.state === 'absent'
+            ? 'phosphor setup'
+            : nextStep(providers ?? [], claude, piDefault)
+      : failed.every((id) => id === 'Tailscale serve')
+        ? routeMessage(tailscale.state, tailscale.port)
+        : undefined
   const report = redactStrings(
     {
       ok: exitCode === EXIT.ok,
@@ -215,7 +234,7 @@ export async function inspectHost(context: DoctorContext): Promise<HostInspectio
       environment: { names: environment.names, path: environment.env.PATH!.split(':') },
       ...(exposed ? {} : { hello }),
       ...(providers ? { providers } : {}),
-      ...(exitCode === EXIT.ok ? { next: nextStep(providers ?? [], claude, piDefault) } : {}),
+      ...(next ? { next } : {}),
     },
     environment.secrets,
   )

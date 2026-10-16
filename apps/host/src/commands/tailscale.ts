@@ -23,7 +23,7 @@ export async function runTailscale(
   if (!loaded.ok)
     return {
       exitCode: EXIT.config,
-      message: 'Config is not usable. Run phosphor doctor to check it.',
+      message: 'Config is not usable. Run phosphor setup to check it.',
     }
   const inspect = () => inspectTailscale(loaded.config, context.env, context.platform, ports)
   const found = await inspect()
@@ -67,7 +67,7 @@ export async function runTailscale(
       message:
         'Tailscale serve could not be changed.' +
         (context.platform === 'linux'
-          ? ' One-time fix on Linux: sudo tailscale set --operator=$USER'
+          ? '\nOne-time fix on Linux:\nsudo tailscale set --operator=$USER\nThen run phosphor setup.'
           : ''),
     }
   const after = await inspect()

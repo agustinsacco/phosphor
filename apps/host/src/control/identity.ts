@@ -65,7 +65,7 @@ export function identityDirectory(configPath: string): string {
 
 function parseIdentity(value: unknown): HostIdentity {
   const invalid = () =>
-    new IdentityFailure('Invalid identity. Run phosphor logout --local, then phosphor login.')
+    new IdentityFailure('Invalid identity. Run phosphor logout --local, then phosphor setup.')
   if (
     value === null ||
     typeof value !== 'object' ||
@@ -227,7 +227,7 @@ export function createIdentityStore(
         identity = parseIdentity(value)
       } catch {
         throw new IdentityFailure(
-          'Invalid identity. Run phosphor logout --local, then phosphor login.',
+          'Invalid identity. Run phosphor logout --local, then phosphor setup.',
         )
       }
       try {
@@ -238,7 +238,7 @@ export function createIdentityStore(
         return { identity, key }
       } catch {
         throw new IdentityFailure(
-          'Identity incomplete. Use an owned regular key, no symlink, chmod 600 host-key.*.pem; run phosphor login.',
+          'Identity incomplete. Use an owned regular key, no symlink, chmod 600 host-key.*.pem; run phosphor setup.',
           identity,
         )
       }

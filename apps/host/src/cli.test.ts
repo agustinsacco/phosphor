@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fakeMachine, type FakeMachine } from './__fixtures__/machine'
 import { hostLogDirectory } from './machine/log'
+import { nextStep } from './commands/doctor'
 import { serviceExitPath } from './machine/launchd'
 import type { Drainable } from './shutdown'
 import { controlMachine } from './control/__fixtures__/machine'
@@ -183,41 +184,49 @@ describe('phosphor', () => {
       }
     },
   )
-  it('runs setup with repeated relative repositories, overrides, replace and JSON', async () => {
+  it('runs guided setup with repeated relative repositories, overrides, replace and JSON', async () => {
     machine = fakeMachine()
-    const options = {
-      cwd: machine.dir,
-      env: { ...machine.hostEnv, PATH: machine.bin },
-      home: machine.home,
+    const control = await controlMachine()
+    machine.writeConfig({ ...machine.config, control: control.config.control })
+    try {
+      const options = {
+        cwd: machine.dir,
+        env: { ...machine.hostEnv, PATH: machine.bin },
+        home: machine.home,
+        control: control.context,
+        service: { runner: async () => ({ code: 0, stdout: '', stderr: '' }) },
+      }
+      const relative = machine.repository.slice(machine.dir.length + 1)
+      const node = machine.script(
+        'node',
+        'if [ "$1" = --version ]; then echo v22.22.3; else echo 1.2.0; fi',
+      )
+      const argv = [
+        'setup',
+        '--config',
+        machine.configPath,
+        '--replace',
+        '--pi',
+        machine.pi,
+        '--node',
+        node,
+        '--repository',
+        relative,
+        '--repository',
+        relative,
+      ]
+      const result = await run([...argv, '--json'], options)
+      expect(result.code).toBe(69)
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        next: 'phosphor setup',
+        repositories: [machine.repository],
+      })
+      const existing = await run(['setup', '--config', machine.configPath], options)
+      expect(existing.code).toBe(69)
+      expect(existing.stdout).toContain('already set up; rerun with --replace')
+    } finally {
+      await control.cleanup()
     }
-    const relative = machine.repository.slice(machine.dir.length + 1)
-    const node = machine.script(
-      'node',
-      'if [ "$1" = --version ]; then echo v22.22.3; else echo 1.2.0; fi',
-    )
-    const argv = [
-      'setup',
-      '--config',
-      machine.configPath,
-      '--replace',
-      '--pi',
-      machine.pi,
-      '--node',
-      node,
-      '--repository',
-      relative,
-      '--repository',
-      relative,
-    ]
-    const result = await run([...argv, '--json'], options)
-    expect(result).toMatchObject({ code: 0, stderr: '' })
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      next: 'phosphor doctor',
-      repositories: [machine.repository],
-    })
-    const existing = await run(['setup', '--config', machine.configPath], options)
-    expect(existing.code).toBe(0)
-    expect(existing.stdout).toContain('already set up; rerun with --replace')
   })
 
   it('prints missing-config setup guidance in both doctor renderers', async () => {
@@ -379,7 +388,13 @@ describe('phosphor', () => {
       const options = { env: { ...machine.hostEnv, ...env }, home: machine.home }
       const config = ['--json', '--config', machine.configPath]
       const doctor = await run(['doctor', ...config], options)
-      const next: string = JSON.parse(doctor.stdout).next
+      const inspected = JSON.parse(doctor.stdout)
+      expect(inspected.next).not.toContain('phosphor accept')
+      const next = nextStep(
+        inspected.providers,
+        inspected.lanes.claude,
+        'defaultProvider' in settings ? settings.defaultProvider : undefined,
+      )
       const command = next.slice(next.indexOf('phosphor ') + 'phosphor '.length)
       const argv = command
         .replace(/ \(pi --list-models [^)]+\)$/, '')

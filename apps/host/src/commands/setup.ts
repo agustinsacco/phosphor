@@ -89,11 +89,14 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
           timeoutMs: context.probeTimeoutMs,
         })
       : null
-    if (!top || top.code !== 0 || top.truncated || !top.stdout.trim().startsWith('/')) {
-      return stop(EXIT.usage, 'usage: phosphor setup --repository ~/src/project')
+    if (top && top.code === 0 && !top.truncated && top.stdout.trim().startsWith('/')) {
+      repositories = [resolve(top.stdout.trim())]
     }
-    repositories = [resolve(top.stdout.trim())]
   }
+  if (repositories.length === 0)
+    report.notes.push(
+      'Add a folder later with the Desktop folder picker or phosphor setup --repository PATH --replace.',
+    )
   const repositoryShape = validateHostConfig({
     version: 1,
     pi: { executable: '/unused' },
@@ -237,7 +240,7 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
       await inspectTailscale(config, context.env, context.platform, context.tailscale),
     ),
   )
-  report.next = 'phosphor doctor'
+  report.next = 'phosphor setup'
   return report
 }
 

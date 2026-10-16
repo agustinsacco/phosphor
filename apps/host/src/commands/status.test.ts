@@ -23,7 +23,9 @@ describe('phosphor status', () => {
       exitCode: 69,
       report: { version: 1, status: 'not-enrolled', identity: null, server: null, error: null },
     })
-    expect(renderStatus(result.report)).toBe('This machine is not signed in.\n')
+    expect(renderStatus(result.report)).toBe(
+      'This machine is not signed in.\nNext: phosphor setup\n',
+    )
     expect(machine.calls).toEqual([])
   })
   it('reports local identity plus the server view, with no key material', async () => {

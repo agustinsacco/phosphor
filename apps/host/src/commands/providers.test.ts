@@ -25,6 +25,7 @@ const context = (overrides: Partial<DoctorContext> = {}): DoctorContext => ({
   nodeVersion: '22.22.3',
   defaultResourceRoot: '/nonexistent',
   probeTimeoutMs: 5_000,
+  tailscale: { which: async () => null, probe: vi.fn() },
   ...overrides,
 })
 
@@ -43,14 +44,11 @@ describe('phosphor providers', () => {
     expect(result.claude.available).toBe(false)
   })
 
-  it('moves on to accept once a provider is signed in, and never shows its credential', async () => {
+  it('names the missing prerequisite once a provider is signed in, and never shows its credential', async () => {
     machine.signIn('github-copilot', 'xai')
     const result = await report()
     expect(result).toMatchObject({ ok: true, exitCode: 0 })
-    expect(result.next).toBe(
-      'run real sessions on GitHub Copilot: phosphor accept --repository DIR --lane native ' +
-        '--provider github-copilot --model ID (pi --list-models github-copilot lists them)',
-    )
+    expect(result.next).toBe('Tailscale is missing: install Tailscale first.')
     const ready = result.providers.filter((provider) => provider.status === 'ready')
     expect(ready.map((provider) => provider.id)).toEqual(['github-copilot', 'xai'])
     for (const text of [JSON.stringify(result), renderProviders(result)]) {
@@ -118,6 +116,6 @@ describe('phosphor providers', () => {
     expect(text).toContain('\n  ok    ChatGPT (Codex)  signed in (openai-codex)\n')
     expect(text).toContain('\n  -     Claude Pro/Max   not signed in (anthropic)\n')
     expect(text).toContain('\nclaude lane: unavailable: ')
-    expect(text).toMatch(/\nnext: run real sessions on ChatGPT \(Codex\): phosphor accept .+\n$/)
+    expect(text).toMatch(/\nnext: Tailscale is missing: install Tailscale first\.\n$/)
   })
 })

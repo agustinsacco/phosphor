@@ -325,7 +325,44 @@ end_critical
 # Finish cleanup before claiming success; it can record a deferred signal too.
 cleanup
 if [ "$foreign" = 1 ]; then
-  printf 'Previous launcher kept at %s. If a Host service is running, run phosphor service install again.\n' "$backup"
+  printf 'Previous launcher kept at %s. If a Host service is running, run phosphor setup again.\n' "$backup"
 fi
-if [ "$already" = 1 ]; then printf '%s\n' 'Phosphor Host already installed. Next: phosphor setup'
-else printf '%s\n' 'Installed Phosphor Host. Next: phosphor setup'; fi
+# Future shells use one recognizable block. Never follow an rc symlink.
+add_path_block() {
+  rc=$1
+  if [ -L "$rc" ] || { [ -e "$rc" ] && { [ ! -f "$rc" ] || [ "$(ls -dn "$rc" | awk '{print $3}')" != "$(id -u)" ]; }; }; then
+    printf 'Left unsafe shell startup file unchanged: %s\n' "$rc"
+    return
+  fi
+  if [ -f "$rc" ] && grep -F -q '# >>> Phosphor Host PATH >>>' "$rc"; then return; fi
+  if cat >> "$rc" <<'PHOSPHOR_PATH'
+
+# >>> Phosphor Host PATH >>>
+case ":$PATH:" in
+  *:"$HOME/.local/bin":*) ;;
+  *) export PATH="$HOME/.local/bin:$PATH" ;;
+esac
+# <<< Phosphor Host PATH <<<
+PHOSPHOR_PATH
+  then printf 'Added Phosphor Host PATH to %s\n' "$rc"
+  else printf 'Could not update shell startup file: %s\n' "$rc"; fi
+}
+next='phosphor setup'
+case :${PATH:-}: in
+  *:"$home/.local/bin":*) ;;
+  *)
+    next='~/.local/bin/phosphor setup'
+    if [ "${PHOSPHOR_NO_MODIFY_PATH:-}" != 1 ]; then
+      case ${SHELL:-} in
+        */zsh) add_path_block "$home/.zshrc" ;;
+        */bash)
+          add_path_block "$home/.bashrc"
+          case $target in darwin-*) add_path_block "$home/.profile" ;; esac
+          ;;
+      esac
+    fi
+    printf '%s\n' 'For this terminal, run: export PATH="$HOME/.local/bin:$PATH"'
+    ;;
+esac
+if [ "$already" = 1 ]; then printf 'Phosphor Host already installed. Next: %s\n' "$next"
+else printf 'Installed Phosphor Host. Next: %s\n' "$next"; fi

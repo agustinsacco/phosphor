@@ -13,6 +13,7 @@ let service: ReturnType<typeof createRepositories>
 let busy = false
 const changed = vi.fn()
 beforeEach(async () => {
+  vi.mocked(fs.open).mockReset()
   home = await realpath(await mkdtemp(join(tmpdir(), 'host-folders-')))
   configPath = join(home, 'config.json')
   await mkdir(join(home, 'original'))
@@ -84,12 +85,9 @@ it('never updates the store or config after an atomic rename fails', async () =>
   expect(store.listRepositories()).toHaveLength(1)
   expect(changed).not.toHaveBeenCalled()
 })
-it('refuses capability loss, disabled changes, live repositories and the last repository', async () => {
+it('refuses capability loss, disabled changes and live repositories', async () => {
   const id = store.listRepositories()[0]?.id
   if (!id) throw new Error('fixture')
-  expect(
-    await service.execute({ type: 'host.repositories.remove', repositoryId: id }, () => true),
-  ).toEqual({ ok: false, code: 'last-repository' })
   busy = true
   expect(
     await service.execute({ type: 'host.repositories.remove', repositoryId: id }, () => true),
@@ -183,3 +181,17 @@ it.each(['symlink', 'directory'])(
     }
   },
 )
+
+it('removes the last folder and can add the first folder to the empty config', async () => {
+  const id = store.listRepositories()[0]?.id
+  if (!id) throw new Error('fixture')
+  expect(
+    await service.execute({ type: 'host.repositories.remove', repositoryId: id }, () => true),
+  ).toEqual({ ok: true })
+  expect(JSON.parse(await readFile(configPath, 'utf8')).repositories).toEqual([])
+  expect(store.listRepositories()).toEqual([])
+  expect(
+    (await service.execute({ type: 'host.repositories.add', path: 'Projects' }, () => true)).ok,
+  ).toBe(true)
+  expect(store.listRepositories()).toHaveLength(1)
+})

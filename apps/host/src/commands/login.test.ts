@@ -53,6 +53,9 @@ async function pendingEnrollment(overrides: Partial<PendingEnrollment> = {}) {
 
 describe('phosphor login', () => {
   it('prints the code and actual key fingerprint, respects the interval and commits only after approval', async () => {
+    await writeFile(machine.configPath, JSON.stringify({ ...machine.config, repositories: [] }), {
+      mode: 0o600,
+    })
     let waits = 0
     machine.onWait(async () => {
       expect(await machine.store.load()).toBeNull()
@@ -118,7 +121,7 @@ describe('phosphor login', () => {
       const result = await runLogin(machine.context)
       expect(result.exitCode).toBe(outcome === 'cancelled' ? 130 : 75)
       if (outcome !== 'cancelled')
-        expect(result.message).toBe('The code expired. Run phosphor login again.')
+        expect(result.message).toBe('The code expired. Run phosphor setup again.')
       const retained = await machine.store.load()
       expect(retained?.identity).toEqual(oldIdentity)
       expect(retained && publicIdentity(retained.key)).toEqual(old && publicIdentity(old.key))
@@ -223,7 +226,7 @@ describe('phosphor login', () => {
     )
     const result = await runLogin(machine.context)
     expect(result.exitCode).toBe(78)
-    expect(result.message).toContain('Run phosphor logout --local, then phosphor login.')
+    expect(result.message).toContain('Run phosphor logout --local, then phosphor setup.')
     expect(machine.calls).toEqual([])
     await writeFile(machine.configPath, JSON.stringify(machine.config))
     expect((await runLogin(machine.context)).exitCode).toBe(0)
@@ -295,7 +298,7 @@ describe('phosphor login', () => {
     const result = await runLogin(machine.context)
     expect(result).toEqual({
       exitCode: 130,
-      message: "Cancelled. Run phosphor login again within the code's lifetime to keep waiting.",
+      message: "Cancelled. Run phosphor setup again within the code's lifetime to keep waiting.",
     })
     const pending = await machine.store.loadPending()
     machine.onWait(undefined)

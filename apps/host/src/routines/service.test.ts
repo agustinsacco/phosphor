@@ -592,3 +592,15 @@ describe('Host routines daemon', () => {
     )
   })
 })
+
+it('lists no routines and rejects saving against a repository on an empty Host', async () => {
+  store.syncRepositories([])
+  expect(await list()).toEqual([])
+  await expect(
+    routines.execute(
+      { type: 'routine.save', routine: input(), expectedRevision: null },
+      randomUUID(),
+      control,
+    ),
+  ).rejects.toThrow('repository unavailable')
+})

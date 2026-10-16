@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from 'node:child_process'
+import { execFileSync, spawnSync, spawn } from 'node:child_process'
 import {
   cpSync,
   existsSync,
@@ -14,11 +14,16 @@ import {
 import { homedir, tmpdir, userInfo } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { join, resolve } from 'node:path'
+import { createServer } from 'node:http'
 import { createHash } from 'node:crypto'
 import { gunzipSync, gzipSync } from 'node:zlib'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { HOST_RELEASE_BASE_URL } from '../../apps/host/src/update/download'
 import { verifyReleaseManifest } from '../../apps/host/src/update/verify'
+import { createIdentityStore, identityDirectory } from '../../apps/host/src/control/identity'
+import { controlMachine } from '../../apps/host/src/control/__fixtures__/machine'
+import { freshKey } from '../../apps/host/src/control/signer'
+import { fakeMachine } from '../../apps/host/src/__fixtures__/machine'
 import { HOST_PROTOCOL_VERSION } from '../../libs/shared/src/remote-host'
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'host-bundles-test-')))
 const root = resolve(import.meta.dirname, '../..')
@@ -182,6 +187,288 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
         env: { HOME: home, PATH: '/usr/bin:/bin' },
       })
       expect(version).toContain('1.2.3')
+    }
+  })
+  it.each([false, true])('names a usable setup command when local bin is on PATH: %s', (onPath) => {
+    const { result } = installPrepared((home) => ({
+      PATH: onPath ? `${home}/.local/bin:${process.env.PATH}` : '/usr/bin:/bin',
+    }))
+    expect(result.status, result.stderr).toBe(0)
+    expect(result.stdout).toContain(
+      onPath ? 'Next: phosphor setup' : 'Next: ~/.local/bin/phosphor setup',
+    )
+    expect(result.stdout.includes('export PATH="$HOME/.local/bin:$PATH"')).toBe(!onPath)
+  })
+  it.each(['zsh', 'bash'])(
+    'adds one guarded PATH block for %s, preserves user content and survives reruns',
+    (shell) => {
+      const { result, home, release } = (() => {
+        let source = ''
+        const installed = installPrepared((home, release) => {
+          source = release
+          writeFileSync(join(home, `.${shell}rc`), '# user content\n')
+          return { SHELL: `/bin/${shell}`, PATH: '/usr/bin:/bin' }
+        })
+        return { ...installed, release: source }
+      })()
+      expect(result.status, result.stderr).toBe(0)
+      const file = join(home, `.${shell}rc`)
+      expect(result.stdout).toContain(`Added Phosphor Host PATH to ${file}`)
+      expect(readFileSync(file, 'utf8')).toContain('# user content\n')
+      const again = spawnSync('sh', [script, '1.2.3'], {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          HOME: home,
+          SHELL: `/bin/${shell}`,
+          PATH: '/usr/bin:/bin',
+          PHOSPHOR_HOST_RELEASE_URL: `file://${release}`,
+        },
+      })
+      expect(again.status, again.stderr).toBe(0)
+      expect(readFileSync(file, 'utf8').split('# >>> Phosphor Host PATH >>>')).toHaveLength(2)
+      if (shell === 'bash' && process.platform === 'darwin')
+        expect(
+          readFileSync(join(home, '.profile'), 'utf8').split('# >>> Phosphor Host PATH >>>'),
+        ).toHaveLength(2)
+      const resolved = spawnSync('sh', ['-c', `. "$HOME/.${shell}rc"; command -v phosphor`], {
+        encoding: 'utf8',
+        env: { HOME: home, PATH: '/usr/bin:/bin' },
+      })
+      expect(resolved.stdout.trim()).toBe(join(home, '.local/bin/phosphor'))
+      const twice = spawnSync(
+        'sh',
+        ['-c', `. "$HOME/.${shell}rc"; . "$HOME/.${shell}rc"; printf '%s' "$PATH"`],
+        { encoding: 'utf8', env: { HOME: home, PATH: '/usr/bin:/bin' } },
+      )
+      expect(
+        twice.stdout.split(':').filter((entry) => entry === join(home, '.local/bin')),
+      ).toHaveLength(1)
+    },
+  )
+  it.each(['opt-out', 'symlink', 'directory', 'foreign-owner', 'on-path', 'other-shell'])(
+    'leaves rc unchanged for %s and prints the same-shell export when needed',
+    (scenario) => {
+      const { result, home } = installPrepared((home) => {
+        const rc = join(home, '.zshrc')
+        if (scenario === 'symlink') {
+          writeFileSync(join(home, 'target'), 'keep')
+          execFileSync('ln', ['-s', 'target', rc])
+        } else if (scenario === 'directory') mkdirSync(rc)
+        else writeFileSync(rc, 'keep')
+        return {
+          SHELL: scenario === 'other-shell' ? '/bin/fish' : '/bin/zsh',
+          PATH:
+            scenario === 'on-path'
+              ? `${home}/.local/bin:/usr/bin:/bin`
+              : scenario === 'foreign-owner'
+                ? hook(
+                    home,
+                    'ls',
+                    'if [ "$2" = "$HOME/.zshrc" ]; then echo "-rw------- 1 999999 0 4 Jan 1 file"; exit 0; fi',
+                  )
+                : '/usr/bin:/bin',
+          ...(scenario === 'opt-out' ? { PHOSPHOR_NO_MODIFY_PATH: '1' } : {}),
+        }
+      })
+      expect(result.status, result.stderr).toBe(0)
+      expect(result.stdout).not.toContain('Added Phosphor Host PATH')
+      if (['symlink', 'directory', 'foreign-owner'].includes(scenario))
+        expect(result.stdout).toContain('Left unsafe shell startup file unchanged:')
+      if (scenario !== 'directory') expect(readFileSync(join(home, '.zshrc'), 'utf8')).toBe('keep')
+      expect(result.stdout.includes('export PATH="$HOME/.local/bin:$PATH"')).toBe(
+        scenario !== 'on-path',
+      )
+    },
+  )
+  it('runs doctor and initializes routines from the built Host without SQLite warnings or folders', async () => {
+    const machine = fakeMachine()
+    const server = createServer((_request, response) => {
+      response.writeHead(410, { 'Content-Type': 'application/json' })
+      response.end(JSON.stringify({ error: { code: 'gone', message: 'removed' } }))
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    if (!address || typeof address === 'string') throw new Error('fixture address')
+    const origin = `http://127.0.0.1:${address.port}`
+    try {
+      machine.writeConfig({
+        ...machine.config,
+        repositories: [],
+        control: { url: origin },
+      })
+      await createIdentityStore(identityDirectory(machine.configPath), process.getuid?.()).save(
+        {
+          version: 1,
+          hostId: '0b6f7c1e-2f4a-4c8e-9d1b-5a7e3c2f1d00',
+          label: 'test',
+          ownerLogin: null,
+          controlUrl: origin,
+          savedAt: new Date().toISOString(),
+        },
+        freshKey(),
+      )
+      const { home, result } = install()
+      expect(result.status, result.stderr).toBe(0)
+      for (const command of ['doctor', 'run']) {
+        const child = await new Promise<{ status: number | null; stdout: string; stderr: string }>(
+          (resolve, reject) => {
+            const process = spawn(
+              join(home, '.local/bin/phosphor'),
+              [command, '--config', machine.configPath],
+              {
+                signal: AbortSignal.timeout(15000),
+                env: {
+                  ...machine.hostEnv,
+                  NODE_OPTIONS: '',
+                  DYLD_INSERT_LIBRARIES: '',
+                  LD_PRELOAD: '',
+                  PI_CODING_AGENT_DIR: machine.agentDir,
+                  XDG_STATE_HOME: join(machine.dir, 'state'),
+                },
+              },
+            )
+            let stdout = '',
+              stderr = ''
+            process.stdout.on('data', (chunk) => {
+              stdout += chunk
+            })
+            process.stderr.on('data', (chunk) => {
+              stderr += chunk
+            })
+            process.on('error', reject)
+            process.on('close', (status) => resolve({ status, stdout, stderr }))
+          },
+        )
+        expect(child.stderr).not.toContain('ExperimentalWarning')
+        expect(child.status, child.stdout + child.stderr).toBe(command === 'doctor' ? 0 : 77)
+      }
+      expect(existsSync(join(machine.dir, 'state/phosphor-host/routines/state.sqlite'))).toBe(true)
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+      machine.cleanup()
+    }
+  })
+  it('runs the terminal install command and guided setup against local control, then resumes safely', async () => {
+    const control = await controlMachine()
+    const machine = fakeMachine()
+    control.setCreation({ expiresAt: new Date(Date.now() + 600000).toISOString() })
+    const fetch = control.context.fetch
+    if (!fetch) throw new Error('fixture fetch')
+    const server = createServer((request, response) => {
+      void (async () => {
+        const chunks: Buffer[] = []
+        for await (const chunk of request) chunks.push(Buffer.from(chunk))
+        const headers = new Headers()
+        for (const [key, value] of Object.entries(request.headers)) {
+          if (value !== undefined) headers.set(key, Array.isArray(value) ? value.join(', ') : value)
+        }
+        const answer = await fetch(`http://localhost${request.url}`, {
+          method: request.method,
+          headers,
+          body: Buffer.concat(chunks).toString() || undefined,
+        })
+        response.writeHead(answer.status, { 'Content-Type': 'application/json' })
+        response.end(await answer.text())
+      })().catch(() => {
+        response.writeHead(500)
+        response.end()
+      })
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    try {
+      const address = server.address()
+      if (!address || typeof address === 'string') throw new Error('fixture address')
+      let release = ''
+      const prepared = installPrepared((_home, source) => {
+        release = source
+        return {}
+      })
+      expect(prepared.result.status, prepared.result.stderr).toBe(0)
+      const home = mkdtempSync(join(dir, 'terminal-home-'))
+      const config = join(home, '.config/phosphor-host')
+      mkdirSync(config, { recursive: true, mode: 0o700 })
+      writeFileSync(
+        join(config, 'config.json'),
+        JSON.stringify({
+          ...machine.config,
+          repositories: [],
+          environment: { path: [machine.bin] },
+          control: { url: `http://127.0.0.1:${address.port}` },
+        }),
+        { mode: 0o600 },
+      )
+      machine.script(
+        'launchctl',
+        'case "$1" in print) [ -f "$HOME/service-ready" ] || exit 113 ;; bootstrap) touch "$HOME/service-ready" ;; esac',
+      )
+      machine.script(
+        'systemctl',
+        'case "$2" in is-active) [ -f "$HOME/service-ready" ] || exit 3 ;; restart) touch "$HOME/service-ready" ;; esac',
+      )
+      machine.script('loginctl', 'exit 0')
+      machine.script(
+        'tailscale',
+        `case "$1 $2" in
+        "status --json") echo '{"BackendState":"Running","CertDomains":["bee.tail.ts.net"],"Self":{"DNSName":"bee.tail.ts.net."}}' ;;
+        "serve status") if [ -f "$HOME/route-ready" ]; then echo '{"TCP":{"47615":{"HTTPS":true}},"Web":{"bee.tail.ts.net:47615":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:47615"}}}}}'; else echo '{}'; fi ;;
+        "serve --bg") touch "$HOME/route-ready" ;;
+        *) exit 1 ;;
+      esac`,
+      )
+      // The helper prepares versioned manifests; publish its same signed bytes under the latest alias.
+      cpSync(
+        join(release, 'phosphor-host-1.2.3.manifest.json'),
+        join(release, 'phosphor-host.manifest.json'),
+      )
+      cpSync(
+        join(release, 'phosphor-host-1.2.3.manifest.json.sig'),
+        join(release, 'phosphor-host.manifest.json.sig'),
+      )
+      const child = await new Promise<{ status: number | null; stdout: string; stderr: string }>(
+        (resolve, reject) => {
+          const command = spawn(
+            'sh',
+            [
+              '-c',
+              'sh "$INSTALLER" && export PATH="$HOME/.local/bin:$PATH" && command -v phosphor && phosphor setup && phosphor setup',
+            ],
+            {
+              signal: AbortSignal.timeout(20000),
+              env: {
+                HOME: home,
+                SHELL: '/bin/zsh',
+                USER: 'tester',
+                PATH: `${machine.bin}:/usr/bin:/bin`,
+                INSTALLER: script,
+                PHOSPHOR_HOST_RELEASE_URL: `file://${release}`,
+                PI_CODING_AGENT_DIR: machine.agentDir,
+              },
+            },
+          )
+          let stdout = '',
+            stderr = ''
+          command.stdout.on('data', (chunk) => {
+            stdout += chunk
+          })
+          command.stderr.on('data', (chunk) => {
+            stderr += chunk
+          })
+          command.on('error', reject)
+          command.on('close', (status) => resolve({ status, stdout, stderr }))
+        },
+      )
+      expect(child.status, child.stdout + child.stderr).toBe(0)
+      expect(child.stdout).toContain(join(home, '.local/bin/phosphor'))
+      expect(child.stdout.match(/Config, login, service and Tailscale ready/g)).toHaveLength(2)
+      expect(existsSync(join(home, 'service-ready'))).toBe(true)
+      expect(existsSync(join(home, 'route-ready'))).toBe(true)
+      expect(control.calls.filter((call) => call.path.endsWith('/enrollments'))).toHaveLength(1)
+      expect(child.stderr).not.toContain('ExperimentalWarning')
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+      machine.cleanup()
+      await control.cleanup()
     }
   })
   it('keeps release bundles independent of TMPDIR and untracked machine files', () => {
@@ -370,7 +657,7 @@ printf '%s\\n' "$status" | grep -F -x '?? ${probe}' || :
       expect(readdirSync(join(refused.old, 'versions'))).toEqual(['old'])
       const replaced = installPrepared(prepare, ['--replace-launcher'])
       expect(replaced.result.status, replaced.result.stderr).toBe(0)
-      expect(replaced.result.stdout).toContain('phosphor service install')
+      expect(replaced.result.stdout).toContain('phosphor setup')
       const backup = `${launcher(replaced.home)}.before-release`
       if (kind === 'file') expect(readFileSync(backup, 'utf8')).toBe('source launcher')
       else
