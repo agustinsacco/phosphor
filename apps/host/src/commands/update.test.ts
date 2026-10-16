@@ -1,3 +1,4 @@
+vi.mock('@phosphor/session-runtime/pi/packages', () => ({ listPackages: async () => [] }))
 import type * as Fs from 'node:fs'
 import type * as Archive from '../update/archive'
 import type * as RemoteHost from '@phosphor/shared/remote-host'
@@ -628,3 +629,38 @@ it('leaves a stopped-but-loaded macOS job stopped after selecting an update', as
   expect(runner).toHaveBeenCalledTimes(1)
   expect(f.messages).toContain('Selected Host 1.2.3.')
 })
+
+it.each(['new', 'current', 'check'] as const)(
+  'updates installed Claude provider only for an applied %s update',
+  async (kind) => {
+    const f = setup()
+    if (kind === 'current') f.release('1.0.0')
+    mkdirSync(join(f.context.configPath, '..'), { recursive: true, mode: 0o700 })
+    writeFileSync(
+      f.context.configPath,
+      JSON.stringify({ version: 1, pi: { executable: '/trusted/pi' }, repositories: [] }),
+      { mode: 0o600 },
+    )
+    f.context.packages = async () => [
+      {
+        name: '@saccolabs/pi-claude-cli',
+        spec: 'npm:@saccolabs/pi-claude-cli',
+        scope: 'global',
+        kind: 'npm',
+        filtered: false,
+        installed: true,
+        resources: { extensions: [], skills: [], prompts: [], themes: [] },
+      },
+    ]
+    const run = vi.fn(async () => 1)
+    f.context.setupTerminal = { confirm: async () => false, run }
+    expect(await runUpdate(f.context, { check: kind === 'check' })).toBe(0)
+    expect(run).toHaveBeenCalledTimes(kind === 'check' ? 0 : 1)
+    if (kind !== 'check') {
+      expect(run).toHaveBeenCalledWith('/trusted/pi', ['update', 'npm:@saccolabs/pi-claude-cli'])
+      expect(f.messages).toContain(
+        'Warning: Claude provider update failed. Run: pi update npm:@saccolabs/pi-claude-cli',
+      )
+    }
+  },
+)

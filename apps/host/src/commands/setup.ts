@@ -72,22 +72,18 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
       )
       return stop(EXIT.config, 'the config is not usable; rerun with --replace to rewrite it')
     }
-    summarize(report, old.config)
-    if (context.tailscaleHints !== false)
-      report.notes.push(
-        ...setupTailscaleHint(
-          await inspectTailscale(old.config, context.env, context.platform, context.tailscale),
-        ),
-      )
-    return stop(EXIT.ok, 'already set up; rerun with --replace to rewrite it')
   }
   if (old && !old.ok) report.notes.push('the old config is not usable; replacing it')
   const kept = old?.ok ? old.config : undefined
   const discovery = buildPiEnvironment({ hostEnv: context.env, platform: context.platform })
-  discovery.env.PATH = context.env.PATH ?? ''
+  discovery.env.PATH = `${context.env.PATH ?? ''}:${discovery.env.PATH ?? ''}`
   const git = await which('git', discovery.env.PATH)
-  let repositories = context.repositories?.map((path) => resolve(context.cwd, path)) ?? []
-  if (repositories.length === 0) {
+  let repositories = context.repositories?.length
+    ? context.repositories.map((path) => resolve(context.cwd, path))
+    : (kept?.repositories ?? [])
+  // An existing config's folder list, even an empty one, is the user's choice: rerunning setup
+  // inside a checkout must never add it. Only a first setup (or --replace) adopts the cwd.
+  if (repositories.length === 0 && (!kept || context.replace)) {
     const top = git
       ? await probe(git, ['-C', context.cwd, 'rev-parse', '--show-toplevel'], {
           ...discovery,
@@ -100,7 +96,7 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
   }
   if (repositories.length === 0)
     report.notes.push(
-      'Add a folder later with the Desktop folder picker or phosphor setup --repository PATH --replace.',
+      'Add a folder later with the Desktop folder picker or phosphor setup --repository PATH.',
     )
   const repositoryShape = validateHostConfig({
     version: 1,
@@ -123,9 +119,13 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
       return stop(EXIT.usage, `${path} is /, the home directory, or contains the home directory`)
     }
   }
+  const keptPi =
+    !context.replace && kept && (await stat(kept.pi.executable).catch(() => null))?.isFile()
+      ? kept.pi.executable
+      : undefined
   const executable = context.pi
     ? resolve(context.cwd, context.pi)
-    : await stable(await which('pi', discovery.env.PATH))
+    : (keptPi ?? (await stable(await which('pi', discovery.env.PATH))))
   if (!executable) {
     return stop(
       EXIT.unavailable,
@@ -137,12 +137,15 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
   const node = script
     ? context.node
       ? resolve(context.cwd, context.node)
-      : await stable(
-          (await which('node', dirname(executable))) ?? (await which('node', discovery.env.PATH)),
-        )
+      : ((!context.replace ? kept?.pi.node : undefined) ??
+        (await stable(
+          // pi's `env node` shebang resolves through the user's PATH, never the platform defaults.
+          (await which('node', dirname(executable))) ??
+            (await which('node', context.env.PATH ?? '')),
+        )))
     : null
   const pi = { executable, ...(node ? { node } : {}) }
-  const path: string[] = []
+  const path: string[] = [...(kept?.environment?.path ?? [])]
   const built =
     buildPiEnvironment({
       hostEnv: context.env,
@@ -156,6 +159,7 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
     }
   }
   const config: HostConfigV1 = {
+    ...(!context.replace ? kept : {}),
     version: 1,
     ...(kept?.hostId !== undefined ? { hostId: kept.hostId } : {}),
     ...(kept?.contextBudget !== undefined ? { contextBudget: kept.contextBudget } : {}),
@@ -201,6 +205,10 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
   const checked = await checkRepositories(config.repositories, { home, git, environment })
   report.checks.push(...checked.checks)
   if (exitCodeFor(checked.checks) !== EXIT.ok) return stop(exitCodeFor(checked.checks))
+  if (kept && isDeepStrictEqual(kept, config)) {
+    report.changed = false
+    return report
+  }
   const text = `${JSON.stringify(config, null, 2)}\n`
   if (Buffer.byteLength(text) > CONFIG_MAX_BYTES)
     return stop(EXIT.config, 'config is larger than 64 KiB')
@@ -218,7 +226,7 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
       await handle.close()
     }
     // A first setup must not overwrite a config that appeared during detection.
-    if (context.replace) await rename(temp, file)
+    if (context.replace || kept) await rename(temp, file)
     else await link(temp, file)
   } catch (error) {
     if (!context.replace && error instanceof Error && 'code' in error && error.code === 'EEXIST') {

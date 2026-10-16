@@ -35,7 +35,7 @@ describe("pi's environment", () => {
       expect(names).not.toContain(name)
     }
     expect(names).not.toContain('PROMPT_COMMAND')
-    expect(env.PATH).toBe(LINUX_PATH)
+    expect(env.PATH).toBe(`/home/me/.local/bin:${LINUX_PATH}`)
   })
 
   it('passes identity, locale and provider names, and nothing else unless named', () => {
@@ -71,7 +71,7 @@ describe("pi's environment", () => {
       platform: 'darwin',
     })
     expect(env.PATH).toBe(
-      '/opt/node/bin:/home/me/.cargo/bin:/usr/bin:/opt/homebrew/bin:/usr/local/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin',
+      '/opt/node/bin:/home/me/.cargo/bin:/usr/bin:/home/me/.local/bin:/opt/homebrew/bin:/usr/local/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin',
     )
     expect(platformPath('linux').join(':')).toBe(LINUX_PATH)
   })
@@ -198,3 +198,16 @@ describe('redaction', () => {
     expect(passRefusal('GH_TOKEN')).toBeNull()
   })
 })
+
+it.each(['linux', 'darwin'] as const)(
+  'finds later ~/.local/bin installs on %s after configured paths',
+  (platform) => {
+    const path = buildPiEnvironment({
+      hostEnv: { HOME: '/home/test' },
+      path: ['/custom'],
+      platform,
+    }).env.PATH?.split(':')
+    expect(path?.slice(0, 2)).toEqual(['/custom', '/home/test/.local/bin'])
+    expect(path).toContain('/usr/bin')
+  },
+)

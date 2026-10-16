@@ -50,7 +50,13 @@ export function parseMachineParams(
         ? ['laneId']
         : []
   if (
-    !['machine.models', 'machine.providers', 'skills.list', 'skills.read'].includes(method) ||
+    ![
+      'machine.models',
+      'machine.providers',
+      'machine.claude',
+      'skills.list',
+      'skills.read',
+    ].includes(method) ||
     Object.keys(v).some((k) => !keys.includes(k))
   )
     return null
@@ -197,4 +203,24 @@ export function parseSkillReadResult(v: unknown): SkillReadResult | null {
   )
     return null
   return { binary: false, size: v.size, content: v.content }
+}
+
+export type MachineClaude = {
+  provider: 'ok' | 'missing' | 'outdated'
+  cli: 'ok' | 'missing'
+  auth: 'ok' | 'signed-out' | 'unknown'
+}
+
+export function parseMachineClaude(value: unknown): MachineClaude | null {
+  if (
+    !machineRecord(value) ||
+    Object.keys(value).length !== 3 ||
+    Object.keys(value).some((key) => !['provider', 'cli', 'auth'].includes(key))
+  )
+    return null
+  const { provider, cli, auth } = value
+  if (provider !== 'ok' && provider !== 'missing' && provider !== 'outdated') return null
+  if (cli !== 'ok' && cli !== 'missing') return null
+  if (auth !== 'ok' && auth !== 'signed-out' && auth !== 'unknown') return null
+  return { provider, cli, auth }
 }

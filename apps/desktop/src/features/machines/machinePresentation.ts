@@ -52,7 +52,7 @@ export function sortMachines(
 export interface ReadinessCheck {
   name: string
   ok: boolean
-  /** A few words for a list row, such as "Claude signed out". */
+  /** A few words for a list row, such as "Claude Code signed out". */
   short: string
   detail: string
   command?: string
@@ -83,10 +83,14 @@ export function machineSubtitle(machine: MachineView, now: number, offset = 0): 
     statusText(machine, now, offset),
   ].join(' · ')
 }
-export function readinessChecks(readiness: Readiness | null): ReadinessCheck[] {
+export function readinessChecks(
+  readiness: Readiness | null,
+  endpoint?: string | null,
+): ReadinessCheck[] {
   const pi = readiness?.pi ?? 'unknown'
   const claude = readiness?.claude ?? 'unknown'
   const tailscale = readiness?.tailscale ?? 'unknown'
+  const unpublished = tailscale === 'ok' && endpoint === null
   return [
     {
       name: 'pi',
@@ -103,21 +107,21 @@ export function readinessChecks(readiness: Readiness | null): ReadinessCheck[] {
       command: pi === 'unknown' ? 'phosphor doctor' : pi === 'ok' ? undefined : PI_INSTALL,
     },
     {
-      name: 'Claude',
+      name: 'Claude Code',
       ok: claude === 'ok',
       short:
         claude === 'signed-out'
-          ? 'Claude signed out'
+          ? 'Claude Code signed out'
           : claude === 'unknown'
-            ? 'Claude not reported'
-            : `Claude ${claude}`,
+            ? 'Claude Code not reported'
+            : `Claude Code ${claude}`,
       detail:
         claude === 'ok'
           ? 'Signed in and ready'
           : claude === 'signed-out'
-            ? 'Sign in to Claude on this machine.'
+            ? 'Sign in to Claude Code on this machine.'
             : claude === 'missing'
-              ? 'Install the Claude CLI on this machine.'
+              ? 'Install Claude Code on this machine.'
               : 'Not reported yet. Check the Host on this machine.',
       command:
         claude === 'signed-out'
@@ -130,15 +134,17 @@ export function readinessChecks(readiness: Readiness | null): ReadinessCheck[] {
     },
     {
       name: 'Tailscale',
-      ok: tailscale === 'ok',
-      short:
-        tailscale === 'no-https'
+      ok: tailscale === 'ok' && !unpublished,
+      short: unpublished
+        ? 'Address not published'
+        : tailscale === 'no-https'
           ? 'No Tailscale HTTPS'
           : tailscale === 'unknown'
             ? 'Tailscale not reported'
             : `Tailscale ${tailscale}`,
-      detail:
-        tailscale === 'ok'
+      detail: unpublished
+        ? 'Running, but its address is not published'
+        : tailscale === 'ok'
           ? 'Connected with HTTPS available'
           : tailscale === 'stopped'
             ? 'Start Tailscale on this machine.'

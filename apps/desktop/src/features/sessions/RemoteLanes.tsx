@@ -1,3 +1,4 @@
+import { machineReachability } from '@/features/machines/machineReachability'
 import { remoteLaneGroupKey, useLaneReveal } from './laneReveal'
 import { openRemoteComposer } from '@/features/home/remoteComposer'
 import { HostFolderBrowser } from '@/features/machines/HostFolderBrowser'
@@ -30,6 +31,7 @@ export function RemoteLanes(): React.JSX.Element | null {
   const filter = useRemoteLanesStore((s) => s.filter)
   const enabled = useMachinesStore((s) => s.remoteEnabled)
   const machines = useMachinesStore((s) => s.machines)
+  const now = useMachinesStore((s) => s.nowMs + s.clockOffsetMs)
   const error = useRemoteLanesStore((s) => s.error)
   if (!enabled || filter === 'local') return null
   const ids =
@@ -43,7 +45,9 @@ export function RemoteLanes(): React.JSX.Element | null {
         .map((id) => (
           <section key={id} aria-label={machineLabel(id)}>
             {filter === 'all' && <MachineLabelLine id={id} />}
-            {hosts[id]?.state !== 'no-address' && hosts[id]?.repositories.length ? (
+            {hosts[id]?.state === 'ready' && hosts[id].repositories.length === 0 ? (
+              <NoFolders hostId={id} />
+            ) : hosts[id]?.state !== 'no-address' && hosts[id]?.repositories.length ? (
               hosts[id].repositories.map((repo) => (
                 <RemoteRepositoryGroup
                   key={repo.id}
@@ -56,10 +60,13 @@ export function RemoteLanes(): React.JSX.Element | null {
             ) : (
               <div className="text-text-tertiary px-2 py-3 text-sm">
                 {!hosts[id] || hosts[id].state === 'no-address'
-                  ? 'Setting up…'
-                  : hosts[id].state === 'ready'
-                    ? 'No repositories configured'
-                    : REMOTE_NOT_READY}
+                  ? (() => {
+                      const machine = machines.find((m) => m.id === id)
+                      return machine
+                        ? machineReachability(machine, hosts[id]?.state, now || Date.now()).short
+                        : 'Not reachable yet'
+                    })()
+                  : REMOTE_NOT_READY}
               </div>
             )}
           </section>
@@ -70,6 +77,24 @@ export function RemoteLanes(): React.JSX.Element | null {
         </p>
       )}
     </>
+  )
+}
+
+/** A ready Host with no folders: the one next step is adding one, so offer it right here. */
+function NoFolders({ hostId }: { hostId: string }): React.JSX.Element {
+  const host = useRemoteLanesStore((s) => s.hosts[hostId])
+  const [adding, setAdding] = useState(false)
+  const writable = !!host?.capabilities.includes('workspaces.write')
+  return (
+    <div className="text-text-tertiary flex flex-col items-start gap-2 px-2 py-3 text-sm">
+      <span>No folders yet</span>
+      {writable && (
+        <Button size="xs" onClick={() => setAdding(true)}>
+          Add folder on {machineLabel(hostId)}…
+        </Button>
+      )}
+      {adding && <HostFolderBrowser hostId={hostId} onClose={() => setAdding(false)} />}
+    </div>
   )
 }
 

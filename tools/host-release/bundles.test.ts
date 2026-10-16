@@ -352,6 +352,7 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
   it('runs the terminal install command and guided setup against local control, then resumes safely', async () => {
     const control = await controlMachine()
     const machine = fakeMachine()
+    machine.installClaude()
     control.setCreation({ expiresAt: new Date(Date.now() + 600000).toISOString() })
     const fetch = control.context.fetch
     if (!fetch) throw new Error('fixture fetch')
@@ -410,6 +411,7 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
       machine.script(
         'tailscale',
         `case "$1 $2" in
+        "debug prefs") echo '{"OperatorUser":"${userInfo().username}"}' ;;
         "status --json") echo '{"BackendState":"Running","CertDomains":["bee.tail.ts.net"],"Self":{"DNSName":"bee.tail.ts.net."}}' ;;
         "serve status") if [ -f "$HOME/route-ready" ]; then echo '{"TCP":{"47615":{"HTTPS":true}},"Web":{"bee.tail.ts.net:47615":{"Handlers":{"/":{"Proxy":"http://127.0.0.1:47615"}}}}}'; else echo '{}'; fi ;;
         "serve --bg") touch "$HOME/route-ready" ;;
@@ -430,7 +432,7 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
           const flow =
             // util-linux `script -c` runs the flow with $SHELL, so keep that /bin/sh and set
             // the user's shell (which picks the rc file) inside the flow instead.
-            'export SHELL=/bin/zsh && sh "$INSTALLER" && export PATH="$HOME/.local/bin:$PATH" && command -v phosphor && phosphor setup && phosphor setup'
+            'export SHELL=/bin/sh && sh "$INSTALLER" && export PATH="$HOME/.local/bin:$PATH" && command -v phosphor && phosphor setup && phosphor setup'
           const command = spawn(
             'script',
             process.platform === 'darwin'
@@ -464,7 +466,8 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
       )
       expect(child.status, child.stdout + child.stderr).toBe(0)
       expect(child.stdout).toContain(join(home, '.local/bin/phosphor'))
-      expect(child.stdout.match(/Config, login, service and Tailscale ready/g)).toHaveLength(2)
+      expect(child.stdout.match(/Ready\. Open .* in Phosphor\./g)).toHaveLength(2)
+      expect(child.stdout).not.toMatch(/Config ready|extra PATH|already set up|next:/)
       expect(existsSync(join(home, 'service-ready'))).toBe(true)
       expect(existsSync(join(home, 'route-ready'))).toBe(true)
       expect(control.calls.filter((call) => call.path.endsWith('/enrollments'))).toHaveLength(1)

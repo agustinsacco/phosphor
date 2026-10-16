@@ -475,6 +475,17 @@ judges silent Hosts down after 90 s, using the server clock correction. No
 account means no control request. List loading, offline and account errors are
 explicit and offer retry.
 
+Readiness opens with a Reachable row from the shared reachability rule, then pi,
+Claude and Tailscale. It shows "Reported N ago" (new Hosts re-check every
+minute) and a Check again button that reloads machines from control and, when
+connected, re-reads providers and Claude detail. A failing check uses the amber
+warning dot. With no published endpoint, Tailscale reads "Running, but its
+address is not published" and the fix appears once, under Reachable; the header
+reads "Online · Not reachable yet" and Status shows the same phrase, so no
+surface claims a reachable machine that is not. The Claude Code row names the missing
+part (provider missing or outdated, Claude Code missing, signed out) with its
+fix; older Hosts keep the single status.
+
 Readiness also lists the connected Host's unsigned-in providers. With `terminal`
 and `sessions.control`, Sign in opens a private terminal modal on that Host.
 For pi, type `/login PROVIDER`, follow its steps, then `/quit`; Claude prints

@@ -7,7 +7,9 @@ import { hostLogDirectory } from './machine/log'
 import { nextStep } from './commands/doctor'
 import { serviceExitPath } from './machine/launchd'
 import type { Drainable } from './shutdown'
-import { controlMachine } from './control/__fixtures__/machine'
+import { controlMachine, oldIdentity } from './control/__fixtures__/machine'
+import { createIdentityStore, identityDirectory } from './control/identity'
+import { freshKey } from './control/signer'
 import {
   runCli,
   USAGE,
@@ -104,6 +106,10 @@ const USAGE_CASES: [string[], string][] = [
 ]
 
 describe('phosphor', () => {
+  it.each(['--version', '-v'])('prints its version with %s', async (flag) => {
+    expect(await run([flag])).toEqual(await run(['version']))
+  })
+
   it('prints its version, plain or as JSON', async () => {
     expect(await run(VERSION_CASES[0])).toEqual({
       code: 0,
@@ -225,12 +231,13 @@ describe('phosphor', () => {
       const result = await run([...argv, '--json'], options)
       expect(result.code).toBe(69)
       expect(JSON.parse(result.stdout)).toMatchObject({
-        next: 'phosphor setup',
-        repositories: [machine.repository],
+        exitCode: 69,
+        notes: ['Install Tailscale: https://tailscale.com/download'],
       })
       const existing = await run(['setup', '--config', machine.configPath], options)
       expect(existing.code).toBe(69)
-      expect(existing.stdout).toContain('already set up; rerun with --replace')
+      expect(existing.stdout).toContain('Install Tailscale: https://tailscale.com/download')
+      expect(existing.stdout).not.toContain('already set up; rerun with --replace')
     } finally {
       await control.cleanup()
     }
@@ -476,6 +483,26 @@ describe('control commands', () => {
       await control.cleanup()
     }
   })
+  it.each([false, true])(
+    'points non-terminal setup at login only before enrollment (enrolled %s)',
+    async (enrolled) => {
+      machine = fakeMachine()
+      machine.writeConfig(machine.config)
+      if (enrolled)
+        await createIdentityStore(identityDirectory(machine.configPath), process.getuid?.()).save(
+          oldIdentity,
+          freshKey(),
+        )
+      const setup = await run(['setup', '--config', machine.configPath], {
+        home: machine.home,
+        cwd: machine.dir,
+        env: machine.hostEnv,
+        terminal: false,
+      })
+      expect(setup.code).toBe(0)
+      expect(setup.stdout.includes('next: phosphor login')).toBe(!enrolled)
+    },
+  )
   it('routes login without a TTY, status --json and logout --local, with no headers on output', async () => {
     const control = await controlMachine()
     try {

@@ -210,8 +210,9 @@ Machines > Add a machine guides Before you start → Install → Online → Prov
 Desktop does not install over SSH or suggest Tailscale peers.
 
 **Before you start** checks the signed-in Phosphor account and reads local
-Tailscale readiness. Both computers need to be on your tailnet, with MagicDNS
-and HTTPS certificates enabled; pi must already be installed on the Host.
+Tailscale readiness. It states what the new machine needs: Tailscale signed in on
+your tailnet, and pi; the install command does the rest. Both computers need
+MagicDNS and HTTPS certificates enabled.
 Checks are read-only. Fixed recovery guidance and Check again help with failures;
 if the CLI is unavailable, verify Tailscale manually and continue.
 
@@ -243,15 +244,28 @@ fingerprint with the Host's terminal and approve with an editable machine label.
 Codes expire after ten minutes. Approval enrolls the machine; it is not an
 execution grant.
 
-**Online** follows the enrolled directory entry, distinguishes first connection
-from offline, and keeps recovery commands in the collapsed Stuck? disclosure.
-Once online, it advances to Providers after a short pause. Enrollment alone does
-not prove reachability; both computers need tailnet access to the Host endpoint.
+**Online** follows the enrolled directory entry and the live connection through
+one reachability rule (`machineReachability`), shared with the machine page and
+the sidebar. Enrollment alone does not prove reachability: a Host with no
+published endpoint reads "enrolled but not reachable" with
+`sudo tailscale set --operator=$USER && phosphor setup`; a Host never seen offers
+`phosphor setup`; a stopped or silent Host offers `phosphor service restart`.
+Only a ready connection advances to Providers, after a short pause. Further
+recovery stays in the collapsed Stuck? disclosure.
 
 **Providers** reads the Host's provider readiness and opens the machine page's
 Readiness section for Sign in. The terminal fallback on the Host is
-`phosphor providers login PROVIDER`. Provider credentials stay on the Host;
-guided setup does not sign in to providers.
+`phosphor providers login PROVIDER`. Provider credentials stay on the Host.
+In a terminal, guided `phosphor setup` offers to install Claude Code and the
+Claude provider and runs `claude` login when signed out
+([host.md](host.md#setup)).
+
+`hosts:claude` reads the Host's `machine.claude` call under the same permission
+as `machine.providers`: `{ provider: ok|missing|outdated, cli: ok|missing,
+auth: ok|signed-out|unknown }`, validated by the strict shared
+`parseMachineClaude`. The Claude Code row then names the missing part and its fix. A
+Host older than the call refuses it; main returns null and the row keeps the
+single Claude status.
 
 Terminal capability, controller input, reconnects and privacy are owned by
 [terminal.md](terminal.md#host-terminals). Native release resources and wire bounds
@@ -272,8 +286,12 @@ The button summarizes only machines other than the selected one.
 
 Reconnecting uses an amber pulsing status dot. Down machines show a grey dot,
 the directory's last-seen age, and last-known groups with disabled lane and
-creation actions. Setting up uses blue and an explicit empty state. A connected
-Host with an empty repository shows “No lanes yet” and its capability-gated +.
+creation actions. A Host that is enrolled but not yet connected shows the
+reachability rule's short phrase (for example "Not reachable yet" or "Never
+connected") in blue with an explicit empty state, never a bare "Setting up". A connected
+Host with an empty repository shows “No lanes yet” and its capability-gated +. A
+ready Host with no folders shows “No folders yet” and, with `workspaces.write`,
+an Add folder on MACHINE… button that opens the Host folder browser.
 Remote actions retain the fixed reconnection/unavailable hints and main's
 capability, readiness and stale-connection checks. Creating a remote lane never
 falls back to local creation.

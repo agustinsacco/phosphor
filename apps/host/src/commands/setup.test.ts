@@ -132,7 +132,7 @@ describe('setup detection', () => {
     expect((await saved()).pi).toEqual({ executable: join(bin, 'pi') })
     expect(renderSetup(report)).toContain(`pi  ${bin}/pi (pi 1.2.0)`)
     expect(renderSetup(report)).toContain('claude  not found')
-    expect(renderSetup(report)).toContain('git not found')
+    expect(report.repositories).toEqual([repository])
     expect(renderSetup(report)).toContain(
       'not a git repository: sessions may start in any folder inside it',
     )
@@ -246,7 +246,7 @@ describe('setup repositories and PATH', () => {
     const report = await runSetup(context)
     expect(report.exitCode).toBe(0)
     expect(renderSetup(report)).toContain(
-      'Desktop folder picker or phosphor setup --repository PATH --replace',
+      'Desktop folder picker or phosphor setup --repository PATH',
     )
     expect((await saved()).repositories).toEqual([])
   })
@@ -300,12 +300,10 @@ describe('setup existing config and permissions', () => {
     await oldConfig({ environment: { path: [bin] } })
     const before = await readFile(context.configPath)
     const mtime = (await stat(context.configPath)).mtimeMs
-    // Existing configs do not need installed programs to be summarized.
-    await rm(join(bin, 'pi'))
     const report = await runSetup(context)
     expect(report.exitCode).toBe(0)
     expect(renderSetup(report)).toContain(`extra PATH  ${bin}`)
-    expect(renderSetup(report)).toContain('already set up; rerun with --replace')
+    expect(report.changed).toBe(false)
     expect(await readFile(context.configPath)).toEqual(before)
     expect((await stat(context.configPath)).mtimeMs).toBe(mtime)
   })
@@ -331,7 +329,7 @@ describe('setup existing config and permissions', () => {
     await oldConfig(kept)
     context.replace = true
     expect((await runSetup(context)).exitCode).toBe(0)
-    expect(await saved()).toMatchObject({ ...kept, environment: { pass: ['LANG'], path: [] } })
+    expect(await saved()).toMatchObject({ ...kept, environment: { pass: ['LANG'], path: [dir] } })
   })
   it('writes exactly 64 KiB, but refuses one byte more without replacing the old file', async () => {
     // Keep the candidate size stable on Linux (/tmp) and macOS (a longer temp path).
@@ -654,4 +652,42 @@ it('preserves api.port on replace and names it in the Tailscale hint', async () 
     ['status', '--json'],
     ['serve', 'status', '--json'],
   ])
+})
+
+it('never adds the cwd checkout to an existing config with no folders', async () => {
+  await executable(
+    'git',
+    `if [ "$4" = --show-toplevel ]; then printf '%s\\n' '${repository}'; else exit 0; fi`,
+  )
+  await oldConfig({ repositories: [] })
+  context.repositories = undefined
+  const report = await runSetup(context)
+  expect(report.exitCode).toBe(0)
+  expect((await saved()).repositories).toEqual([])
+})
+
+it('redetects Claude and git without replace and preserves user PATH and repositories', async () => {
+  const custom = join(dir, 'user-tools')
+  await mkdir(custom)
+  await oldConfig({
+    environment: { path: [custom] },
+    autoNameLanes: false,
+    allowRepositoryChanges: false,
+  })
+  const first = await runSetup(context)
+  expect(first.exitCode).toBe(0)
+  const later = join(dir, 'later-tools')
+  await executable('claude', 'echo 1.0.0', later)
+  await executable('git', 'exit 1', later)
+  context.env.PATH = `${later}:${bin}`
+  context.repositories = []
+  const refreshed = await runSetup(context)
+  expect(refreshed.exitCode).toBe(0)
+  expect(refreshed.changed).toBe(true)
+  const config = await saved()
+  expect(config.environment?.path).toEqual([custom, later])
+  expect(config.repositories).toEqual([repository])
+  expect(config.autoNameLanes).toBe(false)
+  expect(config.allowRepositoryChanges).toBe(false)
+  expect((await runSetup(context)).changed).toBe(false)
 })

@@ -103,3 +103,24 @@ it.each([
   )
   invoke.mockReset().mockResolvedValue(undefined)
 })
+
+it.each([true, false])(
+  'offers Add folder on a ready Host with no folders when it can write workspaces (%s)',
+  (writable) => {
+    const host = structuredClone(mockRemoteHosts)[MOCK_HOST_ID]!
+    host.repositories = []
+    host.lanes = []
+    if (writable) host.capabilities.push('workspaces.write')
+    useRemoteLanesStore.setState({ hosts: { [MOCK_HOST_ID]: host }, filter: MOCK_HOST_ID })
+    act(() => root.render(<RemoteLanes />))
+    expect(container.textContent).toContain('No folders yet')
+    const add = [...container.querySelectorAll('button')].find((b) =>
+      b.textContent?.startsWith('Add folder on'),
+    )
+    expect(!!add).toBe(writable)
+    if (add) {
+      act(() => add.click())
+      expect(document.body.textContent).toContain('Choose a folder')
+    }
+  },
+)

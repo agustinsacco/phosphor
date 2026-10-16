@@ -190,7 +190,7 @@ describe('phosphor providers login', () => {
     const { outcome } = await login('claude', { run })
     expect(outcome).toEqual({
       exitCode: 69,
-      problem: "claude is not on pi's PATH: add its folder to /environment/path",
+      problem: 'Claude Code is not installed: run phosphor setup',
     })
     expect(seen).toHaveLength(0)
   })

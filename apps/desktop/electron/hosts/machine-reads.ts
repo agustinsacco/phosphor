@@ -1,5 +1,6 @@
 import {
   machineRecord,
+  parseMachineClaude,
   parseMachineModels,
   parseMachineParams,
   parseMachineProviders,
@@ -42,6 +43,29 @@ export function machineReads(
   }
   return {
     lane,
+    async claude(hostId: string) {
+      const c = connection(hostId)
+      if (
+        !c ||
+        c.snapshot().state !== 'ready' ||
+        !c.snapshot().capabilities.includes('skills.read')
+      )
+        return null
+      const generation = c.incarnation().generation
+      try {
+        const reply = await c.call('machine.claude', {})
+        if (
+          connection(hostId) !== c ||
+          c.incarnation().generation !== generation ||
+          c.snapshot().state !== 'ready' ||
+          !c.snapshot().capabilities.includes('skills.read')
+        )
+          return null
+        return reply.ok ? parseMachineClaude(reply.data) : null
+      } catch {
+        return null
+      }
+    },
     async models(hostId: string) {
       const data = await lane(hostId).call('skills.read', 'machine.models', {})
       const result = machineRecord(data) ? parseMachineModels(data.models) : null

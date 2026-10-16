@@ -1,3 +1,5 @@
+import { machineReachability } from '@/features/machines/machineReachability'
+import type { MachineView } from '@shared/control-api'
 import { isUnseen } from './unseen'
 import { useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
@@ -10,7 +12,6 @@ import { useRemoteLanesStore, machineLabel } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
 import { useExtensionUiStore } from '@/stores/extensionUi'
-import { relativeTime } from '@/features/machines/machinePresentation'
 
 export interface MachineActivity {
   running: number
@@ -91,24 +92,21 @@ export function MachineLabelLine({ id }: { id: string }): React.JSX.Element {
         <MachineDot state={id === 'local' ? 'ready' : host?.state} />
       </div>
       <div className="text-text-tertiary mt-1 text-xs">
-        {id === 'local' ? <LocalActivityText /> : machineStateText(host, machine?.lastSeenAt, now)}
+        {id === 'local' ? <LocalActivityText /> : machineStateText(host, machine, now)}
       </div>
     </div>
   )
 }
 function machineStateText(
   host: HostConnectionView | undefined,
-  lastSeenAt: string | null | undefined,
+  machine: MachineView | undefined,
   now: number,
 ): string {
-  const state = host?.state
-  return state === 'ready'
+  return host?.state === 'ready'
     ? activityText(remoteActivity(host))
-    : state === 'connecting' || state === 'reconnecting'
-      ? 'Reconnecting…'
-      : !state || state === 'no-address'
-        ? 'Setting up…'
-        : `Down${lastSeenAt ? ` · seen ${relativeTime(lastSeenAt, now || Date.now())}` : ''}`
+    : machine
+      ? machineReachability(machine, host?.state, now || Date.now()).short
+      : 'Not reachable yet'
 }
 
 function LocalActivityText(): React.JSX.Element {
@@ -181,8 +179,7 @@ function EnabledMachineSwitcher(): React.JSX.Element {
     const host = hosts[id]
     const machine = machines.find((m) => m.id === id)
     const state = id === 'local' ? 'ready' : host?.state
-    const detail =
-      id === 'local' ? activityText(local) : machineStateText(host, machine?.lastSeenAt, now)
+    const detail = id === 'local' ? activityText(local) : machineStateText(host, machine, now)
     return (
       <span className="flex items-start gap-2.5">
         <span className="text-text-tertiary pt-1">

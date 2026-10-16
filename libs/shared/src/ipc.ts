@@ -1,7 +1,7 @@
 import type { LaneReceipt } from './lane-receipt'
 import type { FileRead } from './host-protocol-files'
 import type { TailscaleStatus } from './tailscale-status'
-import type { MachineModel, MachineProvider } from './host-protocol-machine'
+import type { MachineClaude, MachineModel, MachineProvider } from './host-protocol-machine'
 import type { HostCapability } from './remote-host'
 import type { RepositorySummary, LaneSummary, StreamCursor } from './host-protocol'
 /**
@@ -187,6 +187,11 @@ export interface IpcInvokeMap {
   'hosts:tailscaleStatus': { args: []; result: TailscaleStatus }
   // Read-only machine catalogues, independent of an open lane.
   'hosts:models': { args: [hostId: string]; result: MachineModel[] }
+  'hosts:claude': {
+    args: [hostId: string]
+    /** null: unavailable, or a Host older than machine.claude. */
+    result: MachineClaude | null
+  }
   'hosts:providers': { args: [hostId: string]; result: MachineProvider[] }
   'hosts:repositoryFiles': { args: [hostId: string, repositoryId: string]; result: string[] }
   'hosts:repositoryFile': {

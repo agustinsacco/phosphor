@@ -1,3 +1,5 @@
+import { listPackages } from '@phosphor/session-runtime/pi/packages'
+import { inspectClaude } from '../machine/claude'
 import { spawn } from 'node:child_process'
 import { hostname } from 'node:os'
 import { JsonlDecoder } from '@phosphor/session-runtime/pi/jsonl'
@@ -133,6 +135,9 @@ export async function machineCall(
 ): Promise<FeatureOutcome> {
   const inspection = await featureInspection(context, ports)
   if (!inspection.pi) throw new FeatureFailure('internal')
+  if (method === 'machine.claude') {
+    return { ok: true, data: await inspectClaude(await listPackages(), inspection.pi.environment) }
+  }
   if (method === 'machine.providers') {
     // Only names and readiness. Reasons can carry arbitrary provider output or credentials.
     const providers = parseMachineProviders(inspection.report.providers)

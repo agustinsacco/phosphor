@@ -8,7 +8,13 @@ import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import type { MachineProvider } from '@shared/host-protocol-machine'
 
 /** Provider contents and credentials stay on the authenticated Host terminal connection. */
-export function ProviderSignIn({ hostId }: { hostId: string }): React.JSX.Element {
+export function ProviderSignIn({
+  hostId,
+  refresh = 0,
+}: {
+  hostId: string
+  refresh?: number
+}): React.JSX.Element {
   const live = useRef(true)
   const currentHost = useRef(hostId)
   currentHost.current = hostId
@@ -50,7 +56,7 @@ export function ProviderSignIn({ hostId }: { hostId: string }): React.JSX.Elemen
     return () => {
       live = false
     }
-  }, [hostId, readable, reload])
+  }, [hostId, readable, reload, refresh])
   useEffect(() => {
     if (!terminal) return
     const id = terminal.ptyId

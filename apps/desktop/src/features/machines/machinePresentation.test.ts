@@ -54,9 +54,9 @@ it('gives problem-only readiness and actionable fixes, including unknown reports
       (check) => check.ok && !check.command,
     ),
   ).toBe(true)
-  expect(readinessChecks(MACHINE.readiness).find((check) => check.name === 'Claude')?.command).toBe(
-    'phosphor providers login claude',
-  )
+  expect(
+    readinessChecks(MACHINE.readiness).find((check) => check.name === 'Claude Code')?.command,
+  ).toBe('phosphor providers login claude')
   expect(
     readinessChecks({ pi: 'missing', claude: 'missing', tailscale: 'stopped' }).map(
       (check) => check.command,
@@ -93,10 +93,10 @@ it('trusts readiness only while a machine is online, and names problems in a few
     readinessChecks({ pi: 'outdated', claude: 'signed-out', tailscale: 'no-https' }).map(
       (check) => check.short,
     ),
-  ).toEqual(['pi outdated', 'Claude signed out', 'No Tailscale HTTPS'])
+  ).toEqual(['pi outdated', 'Claude Code signed out', 'No Tailscale HTTPS'])
   expect(readinessChecks(null).map((check) => check.short)).toEqual([
     'pi not reported',
-    'Claude not reported',
+    'Claude Code not reported',
     'Tailscale not reported',
   ])
   expect(machineSubtitle(online, now)).toBe('bee1 · Linux x64 · Online')
@@ -108,4 +108,21 @@ it('never suggests piping a download into a shell', () => {
   const missing = readinessChecks({ pi: 'ok', claude: 'ok', tailscale: 'missing' })[2]
   expect(missing?.command).toBeUndefined()
   expect(missing?.detail).toContain('tailscale.com/download')
+})
+
+it('marks running Tailscale as unpublished until the Host has an endpoint without duplicating its fix', () => {
+  const readiness = { pi: 'ok', claude: 'ok', tailscale: 'ok' } as const
+  expect(
+    readinessChecks(readiness, null).find((check) => check.name === 'Tailscale'),
+  ).toMatchObject({
+    ok: false,
+    short: 'Address not published',
+    detail: 'Running, but its address is not published',
+    command: undefined,
+  })
+  expect(
+    readinessChecks(readiness, 'https://host.example:47615').find(
+      (check) => check.name === 'Tailscale',
+    ),
+  ).toMatchObject({ ok: true, detail: 'Connected with HTTPS available' })
 })
