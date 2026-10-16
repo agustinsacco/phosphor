@@ -428,6 +428,12 @@ export function renderDoctor(report: DoctorReport): string {
       ? `available${lane.detail ? `: ${lane.detail}` : ''}`
       : `unavailable: ${lane.reason}`
     lines.push(`  ${name.padEnd(7)} ${state}`)
+    if (
+      name === 'claude' &&
+      !lane.available &&
+      lane.reason === 'Claude Code is not installed: run phosphor setup'
+    )
+      lines.push("          pi's PATH is configured in /environment/path")
   }
   if (report.environment) {
     lines.push(`pi environment, names only`, `  ${report.environment.names.join(' ')}`)

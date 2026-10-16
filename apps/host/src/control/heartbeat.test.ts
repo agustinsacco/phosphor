@@ -220,18 +220,18 @@ describe('heartbeat loop', () => {
     expect(f.logs.join('\n')).not.toContain(detail)
     expect(f.logs.join('\n')).not.toContain('PRIVATE KEY')
   })
-  it('refreshes readiness exactly after five minutes, not on every beat', async () => {
+  it('refreshes readiness exactly after one minute, not on every beat', async () => {
     const f = loopFixture()
     f.ports.wait = async (ms) => {
       f.setClock(1000 + f.requests.length * ms)
       if (f.requests.length === 11) f.signal.abort()
     }
     await createHeartbeat(f.ports).run()
-    expect(f.ports.readiness).toHaveBeenCalledTimes(2)
+    expect(f.ports.readiness).toHaveBeenCalledTimes(6)
   })
-  it('refreshes readiness at the exact five-minute boundary', async () => {
+  it('refreshes readiness at the exact one-minute boundary', async () => {
     const f = loopFixture()
-    const times = [300999, 301000]
+    const times = [60999, 61000]
     f.ports.wait = async () => {
       const next = times.shift()
       if (next === undefined) f.signal.abort()
@@ -243,7 +243,7 @@ describe('heartbeat loop', () => {
       return ready
     }
     await createHeartbeat(f.ports).run()
-    expect(probed).toEqual([1000, 301000])
+    expect(probed).toEqual([1000, 61000])
   })
   it('rejects invalid request metadata and response intervals', async () => {
     const f = loopFixture()
@@ -353,10 +353,10 @@ describe('heartbeat loop', () => {
     expect(f.requests).toHaveLength(501)
     expect(Math.max(...peaks)).toBeLessThanOrEqual(1)
     // Every cancellable step registers on the loop's own signal, never on a
-    // lifetime promise: 50 readiness checks (one per five minutes of 30 s beats),
+    // lifetime promise: 250 readiness checks (one per one minute of 30 s beats),
     // 500 requests and 499 waits (the last wait aborts before it is raced).
     // A step raced any other way changes this count.
-    expect(added.mock.contexts.filter((context) => context === patched)).toHaveLength(1049)
+    expect(added.mock.contexts.filter((context) => context === patched)).toHaveLength(1249)
     expect(active).toBe(0)
     added.mockRestore()
   })

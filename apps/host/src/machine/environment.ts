@@ -1,4 +1,4 @@
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import { isForwardedEnvName } from '@phosphor/session-runtime/pi/forwarded-env'
 
 /**
@@ -100,8 +100,8 @@ export interface PiEnvironment {
 /**
  * Base names, `LC_*`, the provider names Desktop imports from a login shell,
  * and the config's `pass` list, minus the hooks above. PATH is never
- * inherited: it is node's directory, then the config's folders, then the
- * platform defaults. Path-shaping variables (`PI_CODING_AGENT_DIR`, `XDG_*`)
+ * inherited: it is node's directory, then the config's folders, then
+ * $HOME/.local/bin and the platform defaults. Path-shaping variables (`PI_CODING_AGENT_DIR`, `XDG_*`)
  * come only from the Host's own environment, so the Host and pi agree on
  * where sessions live.
  */
@@ -121,9 +121,14 @@ export function buildPiEnvironment(input: {
   }
   // Built last, so an inherited or passed PATH never survives.
   const node = input.nodePath ? [dirname(input.nodePath)] : []
-  env.PATH = [...new Set([...node, ...(input.path ?? []), ...platformPath(input.platform)])].join(
-    ':',
-  )
+  env.PATH = [
+    ...new Set([
+      ...node,
+      ...(input.path ?? []),
+      ...(env.HOME ? [join(env.HOME, '.local/bin')] : []),
+      ...platformPath(input.platform),
+    ]),
+  ].join(':')
   const names = Object.keys(env).sort()
   const secrets = new Set(
     names.filter((name) => isSecret(name, env[name]!, pass.has(name))).map((name) => env[name]!),

@@ -223,7 +223,7 @@ export function createHeartbeat(ports: HeartbeatPorts) {
         while (!ending) {
           let delay: number
           try {
-            if (ports.now() - refreshed >= 300_000) {
+            if (ports.now() - refreshed >= 60_000) {
               readiness = await untilAborted(ports.readiness(), running.signal, readiness)
               refreshed = ports.now()
             }

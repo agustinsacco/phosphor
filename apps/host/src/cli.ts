@@ -140,7 +140,9 @@ export async function runCli(
   }
   let parsed: ReturnType<typeof parse>
   try {
-    parsed = parse(argv)
+    parsed = parse(
+      argv.length === 1 && ['--version', '-v'].includes(argv[0] ?? '') ? ['version'] : argv,
+    )
   } catch (error) {
     return usage(errorText(error))
   }
@@ -227,6 +229,7 @@ export async function runCli(
       const messages: string[] = []
       const install = {
         ...context,
+        json: values.json,
         ...context.control,
         configPath,
         print: (line: string) => {
@@ -275,6 +278,7 @@ export async function runCli(
       try {
         report = await runGuidedSetup({
           ...context,
+          json: values.json,
           ...context.control,
           cwd: context.cwd ?? process.cwd(),
           configPath,
@@ -291,7 +295,7 @@ export async function runCli(
         finished()
         detach?.()
       }
-      io.stdout(values.json ? `${JSON.stringify(report, null, 2)}\n` : renderSetup(report))
+      if (values.json) io.stdout(`${JSON.stringify(report, null, 2)}\n`)
       return report.exitCode
     }
     const controlLog = ['login', 'status', 'logout', 'run', 'service'].includes(command)

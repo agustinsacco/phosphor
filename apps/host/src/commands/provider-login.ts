@@ -63,7 +63,7 @@ export async function runProviderLogin(context: LoginContext): Promise<LoginOutc
   if (isClaude) {
     const claude = await which('claude', env.PATH ?? '')
     if (!claude) {
-      const problem = "claude is not on pi's PATH: add its folder to /environment/path"
+      const problem = 'Claude Code is not installed: run phosphor setup'
       return { exitCode: EXIT.unavailable, problem }
     }
     file = claude

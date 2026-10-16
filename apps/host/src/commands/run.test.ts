@@ -885,10 +885,10 @@ it('refreshes the endpoint with readiness, caches between beats, and logs only c
       ? value.endpoint
       : undefined
   })
-  expect(endpoints.slice(0, 10)).toEqual(Array.from({ length: 10 }, () => `https://${name}:47615`))
-  // 12 running beats after the route went away, then the stopping beat.
-  expect(endpoints.slice(10)).toEqual(Array.from({ length: 13 }, () => null))
-  expect(probe).toHaveBeenCalledTimes(6)
+  expect(endpoints.slice(0, 2)).toEqual(Array.from({ length: 2 }, () => `https://${name}:47615`))
+  // 20 running beats after the route went away, then the stopping beat.
+  expect(endpoints.slice(2)).toEqual(Array.from({ length: 21 }, () => null))
+  expect(probe).toHaveBeenCalledTimes(22)
   expect(logs).toEqual([
     { scope: 'host', event: 'tailscale.endpoint', fields: { state: 'ours' } },
     { scope: 'host', event: 'tailscale.endpoint', fields: { state: 'absent' } },

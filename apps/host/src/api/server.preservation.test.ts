@@ -18,6 +18,7 @@ import { hostStateDirectory } from '../lanes/state-dir'
 import { openStore } from '../lanes/store'
 import type { HostMachine } from '../session/runtime'
 import type { Drainable } from '../shutdown'
+import type * as Doctor from '../commands/doctor'
 import { runLogin } from '../commands/login'
 import { runSetup } from '../commands/setup'
 import { runHost } from '../commands/run'
@@ -27,7 +28,8 @@ const hooks = vi.hoisted(
     machine?: Omit<HostMachine, 'log'>
   } => ({}),
 )
-vi.mock('../commands/doctor', () => ({
+vi.mock('../commands/doctor', async (original) => ({
+  ...(await original<typeof Doctor>()),
   inspectHost: async () => ({ machine: hooks.machine, secrets: [] }),
 }))
 
@@ -65,8 +67,25 @@ it('keeps Host data on removal and serves it after enrollment under a new identi
     PATH: process.env.PATH ?? '/usr/bin:/bin',
   }
   const directory = hostStateDirectory(env, pi.home)
-  const config = { ...control.config, repositories: [pi.repository], api: { port } }
+  const config = {
+    ...control.config,
+    pi: pi.config.pi,
+    repositories: [pi.repository],
+    api: { port },
+  }
   writeFileSync(control.configPath, JSON.stringify(config))
+  expect(
+    (
+      await runSetup({
+        ...control.context,
+        env,
+        home: pi.home,
+        cwd: pi.repository,
+        nodeVersion: process.versions.node,
+        defaultResourceRoot: EXTENSIONS_ROOT,
+      })
+    ).exitCode,
+  ).toBe(0)
   const originalConfig = readFileSync(control.configPath)
   vi.stubEnv('PI_CODING_AGENT_DIR', pi.agentDir)
   vi.stubEnv('PI_CODING_AGENT_SESSION_DIR', undefined)

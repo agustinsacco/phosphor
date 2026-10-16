@@ -1,3 +1,4 @@
+vi.mock('@phosphor/session-runtime/pi/packages', () => ({ listPackages: async () => [] }))
 import { execFileSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises'
@@ -363,4 +364,14 @@ describe('createSkillsFeature', () => {
     expect(burst.filter((r) => r.ok)).toHaveLength(8)
     expect(burst.filter((r) => !r.ok)).toEqual([error('internal')])
   })
+})
+
+it('serves machine.claude under the existing read capability with strict empty params', async () => {
+  expect(feature.capability).toBe('skills.read')
+  expect(feature.methods).toContain('machine.claude')
+  expect(await feature.call('machine.claude', {})).toEqual({
+    ok: true,
+    data: { provider: 'missing', cli: 'missing', auth: 'unknown' },
+  })
+  expect(await feature.call('machine.claude', { extra: true })).toEqual(error('bad-request'))
 })

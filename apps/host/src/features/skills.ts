@@ -126,7 +126,13 @@ export function createSkillsFeature(
   let tail: Promise<unknown> = Promise.resolve()
   let waiting = 0
   const MAX_WAITING = 8
-  const methods = ['machine.models', 'machine.providers', 'skills.list', 'skills.read']
+  const methods = [
+    'machine.models',
+    'machine.providers',
+    'machine.claude',
+    'skills.list',
+    'skills.read',
+  ]
   return {
     capability: 'skills.read',
     methods,

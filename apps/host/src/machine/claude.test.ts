@@ -69,7 +69,7 @@ describe('the Claude lane', () => {
     const bare = { env: { PATH: '/usr/bin:/bin' }, secrets: [] }
     expect(await checkClaudeLane([provider('0.10.0')], bare)).toEqual({
       available: false,
-      reason: "claude is not on pi's PATH: add its folder to /environment/path",
+      reason: 'Claude Code is not installed: run phosphor setup',
     })
   })
 

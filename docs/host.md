@@ -71,7 +71,11 @@ changes config, identity, state or provider installs. An already selected versio
 version folder untouched and makes sure the launcher is in place. Any other
 existing version folder is refused, with an instruction to run
 `phosphor update --rollback` or remove that folder before trying again.
-Use `phosphor update` to select another signed release. A `current` that is not
+Use `phosphor update` to select another signed release. A normal update also
+runs `pi update npm:@saccolabs/pi-claude-cli` when that package is installed,
+including when the Host is already current. Its output passes through; failure
+prints a warning without failing the Host update. Check-only and rollback do
+not update provider packages. A `current` that is not
 a symlink is refused.
 
 A launcher symlink is ours only when it points exactly at
@@ -138,12 +142,27 @@ The command reference below owns each command's detailed behavior.
 `phosphor setup` is the guided, idempotent first run when both stdin and stdout
 are terminals:
 
-1. Detect and validate config, keeping an existing valid config unless `--replace`
-   is passed.
-2. Enroll with `login`, printing a code and fingerprint for approval in Desktop.
+1. Check Tailscale is installed and signed in. Missing Tailscale or sign-in stops
+   with one fix. Setup never installs Tailscale.
+2. Check operator access. With permission, run `sudo tailscale set --operator=<user>`
+   using the real sudo and inherited terminal, then recheck the setting.
+3. Detect and validate pi. If missing, offer `npm install -g @earendil-works/pi-coding-agent`.
+   Without npm, print the Node.js and pi installation commands.
+4. Enroll with `login`, printing a code and fingerprint for approval in Desktop.
    An existing confirmed identity is kept.
-3. Install and start the user service unless it is already installed and running.
-4. Enable the Tailscale Serve route when permitted, keeping an existing correct route.
+5. Install and start the user service unless it is already installed and running.
+6. Enable the Tailscale Serve route, keeping an existing correct route, and show its address.
+7. Offer Claude setup if needed: Anthropic's installer for missing Claude Code,
+   `pi install npm:@saccolabs/pi-claude-cli` for a missing or outdated provider,
+   and interactive `claude` sign-in when needed. Each command needs approval.
+8. Show configured folders, or how to add one from Desktop.
+
+The terminal output is one aligned checklist and a final ready or fix line.
+Prompts read one line and default to Yes. Without a terminal, a prompt never
+runs a command and prints the command instead. External commands use argv,
+without shell interpolation, and interactive output passes through. The Claude
+installer is downloaded with curl into a temporary directory and executed by
+Bash only after approval. The temporary directory is removed afterwards.
 
 Without a terminal, setup only detects and writes config. It does not enroll,
 start a service or invoke Tailscale, and ends with `next: phosphor login`. This
@@ -156,21 +175,19 @@ Unchanged reruns do not print this warning. A loaded but exited macOS job is not
 considered running and is started through the normal service installation step.
 
 Rerun `phosphor setup` to resume. Ctrl-C keeps completed steps, including config
-and a pending enrollment request. Missing Tailscale operator permission exits 75
-and prints `sudo tailscale set --operator=$USER` plus the command to rerun;
-config, enrollment and the service stay ready. Setup never runs sudo. Its final
-summary names completed steps and the next action, or asks you to open the machine
-in Desktop when all four are ready. Provider sign-in remains separate:
-`phosphor providers login PROVIDER`, or Sign in in Desktop's machine Readiness.
+and a pending enrollment request. Declining operator access exits 75 and prints
+`sudo tailscale set --operator=<user>`. Optional Claude setup may be skipped.
+Other providers remain separate: `phosphor providers login PROVIDER`, or Sign in
+in Desktop's machine Readiness.
 
 Repositories may be empty. Add a folder later from Desktop or with
-`phosphor setup --repository PATH --replace`. Repeat `--repository DIR` for up
+`phosphor setup --repository PATH`. Repeat `--repository DIR` for up
 to 64 directories.
 Relative paths resolve from the caller's cwd. Each directory must exist and
 must not resolve to `/`, the home directory, or a folder containing the home
 directory. A non-git folder is accepted with a note. With no directory flag,
 new config uses `git rev-parse --show-toplevel`; outside git it has an empty
-repository list. An existing config is kept unless replaced.
+repository list. Existing folders are kept when no directory flag is passed.
 
 `--pi FILE` pins that path, otherwise the first pi on the caller's PATH. A found
 program keeps its own name, so symlinks and shell wrappers stay pinned as found,
@@ -179,18 +196,19 @@ on PATH (fnm's multishell folder under `/run/user` is gone at logout), and a
 config must outlive the shell that wrote it. The same applies to a found node and
 to the Claude and git folders below. A Node script needs `--node FILE`, or node
 beside the found pi, or node on PATH, in that order.
-A direct executable needs no node. Missing pi exits 69 with its npm install
-command. Claude and git directories absent from the Host's built PATH are added
-to `environment.path`, without duplicates. Missing Claude is fine; missing git
+A direct executable needs no node. Without guided installation, missing pi
+exits 69 with its npm install command. Claude and git are redetected on every run. Their directories absent from the
+Host's built PATH are merged into `environment.path`, without duplicates or
+dropping user-added folders, including without `--replace`. Missing Claude is fine; missing git
 is noted. No environment values other than paths are printed.
 
 Setup validates the candidate and runs doctor's pi resolution before writing.
-Failed checks exit 69 or 78 and write nothing. An existing valid config is
-summarized and left untouched before continuing to enrollment and service setup.
+Failed checks exit 69 or 78 and write nothing. An unchanged existing valid config is left untouched. Changed discovery is
+validated and published atomically before enrollment and service setup.
 An invalid one is left untouched
 with safe errors and exit 78. `--replace` rewrites it, keeping `hostId`,
 `contextBudget`, `environment.pass`, `accounts`, `control`, `api.port` and `resourceRoot`
-when the old config loads and validates. Other settings are detected again;
+when the old config loads and validates. User-added PATH folders are also kept. Other settings are detected again;
 `autoNameLanes` and `allowRepositoryChanges` return to their default `true`.
 A broken old file is replaced with a note. A symlink is replaced, never written through.
 
@@ -201,11 +219,10 @@ The JSON file is written to an exclusive temporary file and synced, then
 published atomically and loaded again. First setup uses a hard link so it cannot
 overwrite a config that appeared during detection; that race exits 75 and asks
 you to rerun setup. A filesystem without hard links fails with exit 70, without
-falling back to overwrite. `--replace` uses rename instead. The temporary file
-is removed on success and failure. A failed post-write load exits 70. Text and
-`--json` show the config, pi and node paths and versions, repositories, Claude
-presence, extra PATH and notes. Incomplete guided setup ends with
-`next: phosphor setup`.
+falling back to overwrite. Refreshing an existing valid config and `--replace` use rename instead. The temporary file
+is removed on success and failure. A failed post-write load exits 70. Config-only text and `--json` retain the config, pi and node paths and versions,
+repositories, Claude presence, extra PATH and notes. Guided terminal output
+does not print these internal fields or duplicate next-step lines.
 
 ## Commands
 
@@ -228,7 +245,7 @@ phosphor tailscale status|enable|disable [--config FILE]
 phosphor update [--version X.Y.Z] [--check] [--json]
 phosphor update --rollback [--json]
 phosphor uninstall [--purge --yes] [--json]
-phosphor version [--json]
+phosphor version [--json]  # --version and -v also print the version
 phosphor help
 ```
 
@@ -702,7 +719,8 @@ names, addresses or output.
 After `phosphor login`, `phosphor run` reports the machine's readiness to the
 control plane every 30 seconds, or the interval the server returns, plus up to
 3 seconds of jitter. pi, Claude sign-in and Tailscale are checked at start and
-every five minutes. Each probe has a 2 second deadline and a 64 KiB output cap.
+every 60 seconds. Claude reports `missing` when its provider package is missing
+or older than the required context version, even if Claude Code is signed in. Each probe has a 2 second deadline and a 64 KiB output cap.
 Readiness probes do not start sessions. The daemon also serves interactive lanes
 and runs acknowledged routines. Logs record each control call and state change,
 with no keys or signatures.
@@ -816,7 +834,8 @@ config pins program paths and builds PATH independently of that ambient PATH.
 `TERM` is left out, so a Host started from a terminal behaves like one started
 by a service manager.
 
-- **PATH** is `pi.node`'s folder, then `environment.path`, then the platform
+- **PATH** is `pi.node`'s folder, then `environment.path`, then `$HOME/.local/bin`
+  on Linux and macOS, then the platform
   defaults: `/usr/local/bin /usr/bin /bin /usr/local/sbin /usr/sbin /sbin`, with
   `/opt/homebrew/bin` first on macOS. The Host's own PATH never reaches pi.
 - **pi's directory layout** (`PI_CODING_AGENT_DIR`, `PI_CODING_AGENT_SESSION_DIR`,
@@ -964,7 +983,7 @@ Claude acceptance validates its model selection before starting a session.
 
 `phosphor accept --repository DIR` runs real sessions on this machine and
 reports what they proved. Without a repository it exits 64 with a hint to add
-one from Desktop or with `phosphor setup --repository PATH --replace`.
+one from Desktop or with `phosphor setup --repository PATH`.
 DIR must be inside a configured repository. Use an
 empty one that Desktop never opens: the lane store indexes transcripts but does
 not lock them against another process. accept runs doctor first, and if the machine fails
@@ -1650,3 +1669,12 @@ Kept branches are not deletion failures. The receipt returns only
 `{branchKept: boolean}`; Desktop rejects missing or malformed confirmation as an
 unknown outcome. Removal is published to every connected client. Resources already removed before a later
 failure are not recreated; a retry can finish the remaining work.
+
+### Claude machine diagnostics
+
+The read-only `machine.claude` call takes empty params under the same `skills.read`
+capability as `machine.providers`. It returns exactly three enum fields:
+`provider` (`ok`, `missing`, `outdated`), `cli` (`ok`, `missing`), and
+`auth` (`ok`, `signed-out`, `unknown`). These independent checks contain no account
+or command output. No new capability is advertised. Older Hosts refuse the method;
+clients can fall back to their existing provider summary.

@@ -1,6 +1,7 @@
 import { MIN_CLAUDE_CONTEXT_VERSION, type PiPackageEntry } from '@phosphor/shared/models'
 import { claudeContextProviderShortfall } from '@phosphor/session-runtime/pi/provider-detect'
 import { extractVersion } from '@phosphor/session-runtime/pi/versions'
+import type { MachineClaude } from '@phosphor/shared/host-protocol-machine'
 import { which } from './executables'
 import { probe, probeFailure, type ProbeEnvironment } from './probe'
 
@@ -66,7 +67,7 @@ export async function checkClaudeLane(
   if (!claude) {
     return {
       available: false,
-      reason: "claude is not on pi's PATH: add its folder to /environment/path",
+      reason: 'Claude Code is not installed: run phosphor setup',
     }
   }
   const run = { ...environment, timeoutMs: options.timeoutMs ?? 10_000 }
@@ -86,4 +87,22 @@ export async function checkClaudeLane(
     }
   }
   return { available: true, claude, version }
+}
+
+/** Independent diagnostics: a missing provider must not hide a missing CLI or login. */
+export async function inspectClaude(
+  packages: Pick<PiPackageEntry, 'name' | 'version' | 'installed'>[],
+  environment: ProbeEnvironment,
+): Promise<MachineClaude> {
+  const installed = packages.some((pkg) => pkg.name === CLAUDE_PROVIDER_PACKAGE && pkg.installed)
+  const provider =
+    claudeContextProviderShortfall(packages) === null ? 'ok' : installed ? 'outdated' : 'missing'
+  const claude = await which('claude', environment.env.PATH ?? '')
+  if (!claude) return { provider, cli: 'missing', auth: 'unknown' }
+  const auth = await claudeLoggedIn(claude, environment, { timeoutMs: 2000 })
+  return {
+    provider,
+    cli: 'ok',
+    auth: 'loggedIn' in auth ? (auth.loggedIn ? 'ok' : 'signed-out') : 'unknown',
+  }
 }

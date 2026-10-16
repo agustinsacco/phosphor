@@ -104,6 +104,10 @@ const USAGE_CASES: [string[], string][] = [
 ]
 
 describe('phosphor', () => {
+  it.each(['--version', '-v'])('prints its version with %s', async (flag) => {
+    expect(await run([flag])).toEqual(await run(['version']))
+  })
+
   it('prints its version, plain or as JSON', async () => {
     expect(await run(VERSION_CASES[0])).toEqual({
       code: 0,
@@ -225,12 +229,13 @@ describe('phosphor', () => {
       const result = await run([...argv, '--json'], options)
       expect(result.code).toBe(69)
       expect(JSON.parse(result.stdout)).toMatchObject({
-        next: 'phosphor setup',
-        repositories: [machine.repository],
+        exitCode: 69,
+        notes: ['Install Tailscale: https://tailscale.com/download'],
       })
       const existing = await run(['setup', '--config', machine.configPath], options)
       expect(existing.code).toBe(69)
-      expect(existing.stdout).toContain('already set up; rerun with --replace')
+      expect(existing.stdout).toContain('Install Tailscale: https://tailscale.com/download')
+      expect(existing.stdout).not.toContain('already set up; rerun with --replace')
     } finally {
       await control.cleanup()
     }

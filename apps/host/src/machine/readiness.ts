@@ -1,6 +1,8 @@
 import { realpath, stat } from 'node:fs/promises'
 import { basename, dirname } from 'node:path'
 import type { Readiness } from '@phosphor/shared/control-api'
+import { listPackages } from '@phosphor/session-runtime/pi/packages'
+import { claudeContextProviderShortfall } from '@phosphor/session-runtime/pi/provider-detect'
 import { MIN_PI_VERSION } from '@phosphor/shared/models'
 import { compareVersions, extractVersion } from '@phosphor/session-runtime/pi/versions'
 import type { HostConfigV1 } from '../config/schema'
@@ -36,7 +38,9 @@ export async function checkReadiness(
   config: HostConfigV1,
   env: NodeJS.ProcessEnv,
   platform: NodeJS.Platform,
-  ports = readinessPorts,
+  ports: typeof readinessPorts & {
+    listPackages?: typeof listPackages
+  } = readinessPorts,
   onTailscale?: (found: TailscaleInspection) => void,
 ): Promise<Readiness> {
   const environment = buildPiEnvironment({
@@ -60,12 +64,16 @@ export async function checkReadiness(
     else if (await ports.which(basename(exe), dirname(exe)))
       pi = piReadiness(await ports.probe(exe, ['--version'], options))
   }
+  const providerReady =
+    claudeContextProviderShortfall(await (ports.listPackages ?? listPackages)()) === null
   const claude = await ports.which('claude', environment.env.PATH ?? '')
   const tailscale = await inspectTailscale(config, env, platform, ports)
   onTailscale?.(tailscale)
   return {
     pi,
-    claude: claudeReadiness(claude ? await ports.probe(claude, ['auth', 'status'], options) : null),
+    claude: claudeReadiness(
+      claude && providerReady ? await ports.probe(claude, ['auth', 'status'], options) : null,
+    ),
     tailscale: tailscale.readiness,
   }
 }

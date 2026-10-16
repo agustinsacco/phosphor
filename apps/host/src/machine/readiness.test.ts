@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MIN_PI_VERSION } from '@phosphor/shared/models'
+import { listPackages } from '@phosphor/session-runtime/pi/packages'
+import { MIN_CLAUDE_CONTEXT_VERSION, MIN_PI_VERSION } from '@phosphor/shared/models'
 import { chmod, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -11,6 +12,12 @@ import {
   tailscaleReadiness,
 } from './readiness'
 import { PROBE_OUTPUT_CAP, type ProbeResult } from './probe'
+
+vi.mock('@phosphor/session-runtime/pi/packages', () => ({
+  listPackages: vi.fn(async () => [
+    { name: '@saccolabs/pi-claude-cli', version: MIN_CLAUDE_CONTEXT_VERSION, installed: true },
+  ]),
+}))
 
 const result = (stdout: string, extra: Partial<ProbeResult> = {}): ProbeResult => ({
   code: 0,
@@ -130,7 +137,12 @@ describe('readiness mappings', () => {
       await chmod(script, 0o644)
       await chmod(binary, 0o644)
       const probe = vi.fn(async () => result(MIN_PI_VERSION))
-      const ports = { ...readinessPorts, probe }
+      const ports = {
+        ...readinessPorts,
+        probe,
+        which: async (name: string, path: string) =>
+          name === 'tailscale' || name === 'claude' ? null : readinessPorts.which(name, path),
+      }
       const check = (executable: string) =>
         checkReadiness(
           { version: 1, pi: { executable, node: '/n/node' }, repositories: ['/repo'] },
@@ -186,3 +198,39 @@ describe('readiness mappings', () => {
     ).toBe('unknown')
   })
 })
+
+it.each(['missing', 'outdated'])(
+  'reports missing when the Claude provider is %s',
+  async (state) => {
+    vi.mocked(listPackages).mockResolvedValueOnce(
+      state === 'missing'
+        ? []
+        : [
+            {
+              name: '@saccolabs/pi-claude-cli',
+              version: '0.9.9',
+              installed: true,
+              spec: 'npm:@saccolabs/pi-claude-cli',
+              scope: 'global',
+              kind: 'npm',
+              filtered: false,
+              resources: { extensions: [], skills: [], prompts: [], themes: [] },
+            },
+          ],
+    )
+    const stateResult = await checkReadiness(
+      { version: 1, pi: { executable: '/pi' }, repositories: [] },
+      {},
+      'linux',
+      {
+        probe: async (_file, args) =>
+          result(args.includes('auth') ? '{"loggedIn":true}' : MIN_PI_VERSION),
+        which: async (name) => (name === 'claude' ? '/claude' : null),
+        resolve: async () => null,
+        isFile: async () => false,
+        isNodeScript: async () => false,
+      },
+    )
+    expect(stateResult.claude).toBe('missing')
+  },
+)
