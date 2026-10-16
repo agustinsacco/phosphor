@@ -23,6 +23,11 @@ export async function runGuidedSetup(context: GuidedSetupContext): Promise<Setup
     return report
   }
   const state = await serviceState(context)
+  if (state.running && report.changed) {
+    report.next = undefined
+    report.notes.push('Config changed. Run phosphor service restart to apply; running lanes stop.')
+    return report
+  }
   if (!state.installed || !state.running) {
     const code = await runService(context, 'install')
     if (code !== EXIT.ok) {

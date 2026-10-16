@@ -100,12 +100,16 @@ export async function serviceState(
   const runner =
     context.service?.runner ?? serviceRunner(context.env, context.print, context.signal)
   if (context.platform === 'darwin') {
-    const loaded =
-      (await runner('launchctl', ['print', `gui/${context.uid}/${HOST_AGENT}`])).code === 0
+    const status = await runner('launchctl', ['print', `gui/${context.uid}/${HOST_AGENT}`])
+    const loaded = status.code === 0
+    const running =
+      loaded &&
+      status.stdout.length <= 65536 &&
+      /^[\t ]*(?:state = running|pid = [1-9][0-9]{0,9})[\t ]*\r?$/m.test(status.stdout)
     return {
       installed:
         loaded || exists(join(context.home, 'Library/LaunchAgents', `${HOST_AGENT}.plist`)),
-      running: loaded,
+      running,
     }
   }
   if (context.platform !== 'linux') return { installed: false, running: false }

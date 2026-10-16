@@ -59,8 +59,11 @@ The `Phosphor Host PATH` markers make reruns idempotent; a `case ":$PATH:"`
 guard avoids duplicate PATH entries. It prints each changed file. Other shells
 get the export line to add manually. Set `PHOSPHOR_NO_MODIFY_PATH=1` in the
 installer's environment to opt out. Symlinked, non-regular or other-owned startup
-files are refused and left unchanged. Uninstall removes only the exact marked
-block from safe user-owned startup files, leaving other shell configuration alone.
+files are refused and left unchanged. The installer calls its installed Node runtime
+while holding the install lock. The runtime opens startup files without following
+symlinks, checks ownership and size on that same descriptor, and appends through it.
+Uninstall atomically removes every occurrence of the exact marked block from safe
+user-owned startup files, leaving other shell configuration alone.
 
 A failed verification leaves an existing install untouched. The installer never
 changes config, identity, state or provider installs. An already selected version with a matching
@@ -132,7 +135,8 @@ The command reference below owns each command's detailed behavior.
 
 ## setup
 
-`phosphor setup` is the guided, idempotent first run:
+`phosphor setup` is the guided, idempotent first run when both stdin and stdout
+are terminals:
 
 1. Detect and validate config, keeping an existing valid config unless `--replace`
    is passed.
@@ -140,6 +144,16 @@ The command reference below owns each command's detailed behavior.
    An existing confirmed identity is kept.
 3. Install and start the user service unless it is already installed and running.
 4. Enable the Tailscale Serve route when permitted, keeping an existing correct route.
+
+Without a terminal, setup only detects and writes config. It does not enroll,
+start a service or invoke Tailscale, and ends with `next: phosphor login`. This
+keeps older Desktop SSH installers compatible with their separate login step.
+
+A running service is never restarted by setup because that stops live lanes. If
+guided setup changes config while the service is running, it exits 0 and prints:
+`Config changed. Run phosphor service restart to apply; running lanes stop.`
+Unchanged reruns do not print this warning. A loaded but exited macOS job is not
+considered running and is started through the normal service installation step.
 
 Rerun `phosphor setup` to resume. Ctrl-C keeps completed steps, including config
 and a pending enrollment request. Missing Tailscale operator permission exits 75

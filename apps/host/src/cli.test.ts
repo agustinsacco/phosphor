@@ -191,10 +191,17 @@ describe('phosphor', () => {
     try {
       const options = {
         cwd: machine.dir,
+        terminal: true,
         env: { ...machine.hostEnv, PATH: machine.bin },
         home: machine.home,
         control: control.context,
-        service: { runner: async () => ({ code: 0, stdout: '', stderr: '' }) },
+        service: {
+          runner: async (_program: string, args: readonly string[]) => ({
+            code: args.includes('is-active') ? 3 : 0,
+            stdout: '',
+            stderr: '',
+          }),
+        },
       }
       const relative = machine.repository.slice(machine.dir.length + 1)
       const node = machine.script(
@@ -227,6 +234,36 @@ describe('phosphor', () => {
     } finally {
       await control.cleanup()
     }
+  })
+
+  it('keeps non-terminal setup config-only for older SSH clients', async () => {
+    machine = fakeMachine()
+    const fetch = vi.fn(() => {
+      throw new Error('must not enroll')
+    })
+    const runner = vi.fn(async () => ({ code: 0, stdout: '', stderr: '' }))
+    const which = vi.fn(async () => null)
+    const probe = vi.fn()
+    const result = await run(['setup', '--config', machine.configPath], {
+      home: machine.home,
+      cwd: machine.dir,
+      env: machine.hostEnv,
+      terminal: false,
+      control: { fetch },
+      service: { runner },
+      tailscale: { which, probe },
+    })
+    expect(result.code).toBe(0)
+    expect(result.stdout).toContain('next: phosphor login')
+    expect(fetch).not.toHaveBeenCalled()
+    expect(runner).not.toHaveBeenCalled()
+    expect(which).not.toHaveBeenCalled()
+    expect(probe).not.toHaveBeenCalled()
+  })
+  it('keeps the installer path command hidden and refuses caller-supplied paths', async () => {
+    expect(USAGE).not.toContain('internal-install-path')
+    expect((await run(['internal-install-path', '/tmp/elsewhere'])).code).toBe(64)
+    expect((await run(['internal-install-path', '--config', '/tmp/elsewhere'])).code).toBe(64)
   })
 
   it('prints missing-config setup guidance in both doctor renderers', async () => {

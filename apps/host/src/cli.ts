@@ -6,7 +6,8 @@ import { createHostLog, hostLogDirectory } from './machine/log'
 import { EXIT } from './checks'
 import { renderAccept, runAccept, type AcceptLane } from './commands/accept'
 import { renderDoctor, runDoctor, type DoctorContext } from './commands/doctor'
-import { renderSetup, type SetupReport } from './commands/setup'
+import { renderSetup, runSetup, type SetupReport } from './commands/setup'
+import { installHostPath } from './machine/shell-path'
 import { runGuidedSetup } from './commands/guided-setup'
 import type { LoginContext } from './commands/provider-login'
 import { renderProviders, runProviders } from './commands/providers'
@@ -89,6 +90,7 @@ export type CliContext = Omit<DoctorContext, 'configPath'> & {
 }
 
 const COMMAND_OPTIONS: Record<string, readonly string[]> = {
+  'internal-install-path': [],
   setup: ['config', 'json', 'repository', 'pi', 'node', 'replace'],
   doctor: ['config', 'json'],
   run: ['config', 'supervisor'],
@@ -211,6 +213,10 @@ export async function runCli(
       io.stdout(values.json ? `${JSON.stringify(version)}\n` : `phosphor ${HOST_VERSION}\n`)
       return EXIT.ok
     }
+    if (command === 'internal-install-path') {
+      installHostPath({ ...context, print: (line) => io.stdout(`${line}\n`) })
+      return EXIT.ok
+    }
     const configPath = values.config ?? defaultConfigPath(context.env, context.home)
     if (tailscale && isTailscaleAction(extra[0])) {
       const outcome = await runTailscale({ ...context, configPath }, extra[0], context.tailscale)
@@ -237,6 +243,21 @@ export async function runCli(
       return exitCode
     }
     if (command === 'setup') {
+      if (!context.terminal) {
+        const report = await runSetup({
+          ...context,
+          cwd: context.cwd ?? process.cwd(),
+          configPath,
+          repositories,
+          pi: values.pi,
+          node: values.node,
+          replace: values.replace,
+          tailscaleHints: false,
+        })
+        if (report.exitCode === EXIT.ok) report.next = 'phosphor login'
+        io.stdout(values.json ? `${JSON.stringify(report, null, 2)}\n` : renderSetup(report))
+        return report.exitCode
+      }
       const controller = new AbortController()
       let finished = () => {}
       const ended = new Promise<void>((resolve) => {

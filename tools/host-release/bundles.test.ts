@@ -189,6 +189,12 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
       expect(version).toContain('1.2.3')
     }
   })
+  it('calls the installed PATH helper before releasing the install lock', () => {
+    const template = readFileSync(join(root, 'tools/host-release/install.sh.in'), 'utf8')
+    const helper = template.indexOf('"$command" internal-install-path')
+    expect(helper).toBeGreaterThan(template.indexOf('committed=1'))
+    expect(helper).toBeLessThan(template.lastIndexOf('\ncleanup\n'))
+  })
   it.each([false, true])('names a usable setup command when local bin is on PATH: %s', (onPath) => {
     const { result } = installPrepared((home) => ({
       PATH: onPath ? `${home}/.local/bin:${process.env.PATH}` : '/usr/bin:/bin',
@@ -246,7 +252,7 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
       ).toHaveLength(1)
     },
   )
-  it.each(['opt-out', 'symlink', 'directory', 'foreign-owner', 'on-path', 'other-shell'])(
+  it.each(['opt-out', 'symlink', 'directory', 'oversized', 'on-path', 'other-shell'])(
     'leaves rc unchanged for %s and prints the same-shell export when needed',
     (scenario) => {
       const { result, home } = installPrepared((home) => {
@@ -255,27 +261,21 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
           writeFileSync(join(home, 'target'), 'keep')
           execFileSync('ln', ['-s', 'target', rc])
         } else if (scenario === 'directory') mkdirSync(rc)
-        else writeFileSync(rc, 'keep')
+        else writeFileSync(rc, scenario === 'oversized' ? 'x'.repeat(1024 * 1024 + 1) : 'keep')
         return {
           SHELL: scenario === 'other-shell' ? '/bin/fish' : '/bin/zsh',
-          PATH:
-            scenario === 'on-path'
-              ? `${home}/.local/bin:/usr/bin:/bin`
-              : scenario === 'foreign-owner'
-                ? hook(
-                    home,
-                    'ls',
-                    'if [ "$2" = "$HOME/.zshrc" ]; then echo "-rw------- 1 999999 0 4 Jan 1 file"; exit 0; fi',
-                  )
-                : '/usr/bin:/bin',
+          PATH: scenario === 'on-path' ? `${home}/.local/bin:/usr/bin:/bin` : '/usr/bin:/bin',
           ...(scenario === 'opt-out' ? { PHOSPHOR_NO_MODIFY_PATH: '1' } : {}),
         }
       })
       expect(result.status, result.stderr).toBe(0)
       expect(result.stdout).not.toContain('Added Phosphor Host PATH')
-      if (['symlink', 'directory', 'foreign-owner'].includes(scenario))
+      if (['symlink', 'directory', 'oversized'].includes(scenario))
         expect(result.stdout).toContain('Left unsafe shell startup file unchanged:')
-      if (scenario !== 'directory') expect(readFileSync(join(home, '.zshrc'), 'utf8')).toBe('keep')
+      if (scenario !== 'directory')
+        expect(readFileSync(join(home, '.zshrc'), 'utf8')).toBe(
+          scenario === 'oversized' ? 'x'.repeat(1024 * 1024 + 1) : 'keep',
+        )
       expect(result.stdout.includes('export PATH="$HOME/.local/bin:$PATH"')).toBe(
         scenario !== 'on-path',
       )
@@ -400,7 +400,7 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
       )
       machine.script(
         'launchctl',
-        'case "$1" in print) [ -f "$HOME/service-ready" ] || exit 113 ;; bootstrap) touch "$HOME/service-ready" ;; esac',
+        'case "$1" in print) [ -f "$HOME/service-ready" ] || exit 113; echo "state = running" ;; bootstrap) touch "$HOME/service-ready" ;; esac',
       )
       machine.script(
         'systemctl',
@@ -427,13 +427,15 @@ describe('signed Host bundle tools', { timeout: 60_000 }, () => {
       )
       const child = await new Promise<{ status: number | null; stdout: string; stderr: string }>(
         (resolve, reject) => {
+          const flow =
+            'sh "$INSTALLER" && export PATH="$HOME/.local/bin:$PATH" && command -v phosphor && phosphor setup && phosphor setup'
           const command = spawn(
-            'sh',
-            [
-              '-c',
-              'sh "$INSTALLER" && export PATH="$HOME/.local/bin:$PATH" && command -v phosphor && phosphor setup && phosphor setup',
-            ],
+            'script',
+            process.platform === 'darwin'
+              ? ['-q', '/dev/null', 'sh', '-c', flow]
+              : ['-q', '-e', '-c', flow, '/dev/null'],
             {
+              stdio: ['ignore', 'pipe', 'pipe'],
               signal: AbortSignal.timeout(20000),
               env: {
                 HOME: home,

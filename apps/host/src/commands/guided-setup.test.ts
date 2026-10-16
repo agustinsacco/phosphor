@@ -142,3 +142,33 @@ it('stops at a service failure without changing the route', async () => {
   expect((await runGuidedSetup(context)).exitCode).toBe(75)
   expect(route).toBe(false)
 })
+
+it('does not restart running lanes when config changed, and does not repeat the warning unchanged', async () => {
+  serviceRunning = true
+  const replaced = await runGuidedSetup({
+    ...context,
+    replace: true,
+    repositories: [machine.repository],
+  })
+  expect(replaced.exitCode).toBe(0)
+  expect(replaced.changed).toBe(true)
+  expect(replaced.notes).toContain(
+    'Config changed. Run phosphor service restart to apply; running lanes stop.',
+  )
+  expect(operations.some((op) => op.includes('restart'))).toBe(false)
+  expect(route).toBe(false)
+  const unchanged = await runGuidedSetup(context)
+  expect(unchanged.exitCode).toBe(0)
+  expect(unchanged.notes.join('\n')).not.toContain('Config changed.')
+  expect(operations.some((op) => op.includes('restart'))).toBe(false)
+})
+it('reinstalls a loaded but exited macOS job instead of treating it as running', async () => {
+  context.platform = 'darwin'
+  if (!context.service) throw new Error('fixture')
+  context.service.runner = async (_program, args) => {
+    operations.push(args.join(' '))
+    return { code: 0, stdout: 'state = exited\nlast exit code = 77\n', stderr: '' }
+  }
+  expect((await runGuidedSetup(context)).exitCode).toBe(0)
+  expect(operations.some((op) => op.includes('bootstrap'))).toBe(true)
+})

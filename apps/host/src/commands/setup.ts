@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from 'node:util'
 import { randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
 import {
@@ -29,10 +30,13 @@ export interface SetupContext extends DoctorContext {
   pi?: string
   node?: string
   replace?: boolean
+  /** Config-only SSH compatibility must not invoke Tailscale. */
+  tailscaleHints?: boolean
 }
 
 export interface SetupReport {
   exitCode: number
+  changed?: boolean
   config: string
   pi?: HostConfigV1['pi'] & { version?: string }
   nodeVersion?: string
@@ -69,11 +73,12 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
       return stop(EXIT.config, 'the config is not usable; rerun with --replace to rewrite it')
     }
     summarize(report, old.config)
-    report.notes.push(
-      ...setupTailscaleHint(
-        await inspectTailscale(old.config, context.env, context.platform, context.tailscale),
-      ),
-    )
+    if (context.tailscaleHints !== false)
+      report.notes.push(
+        ...setupTailscaleHint(
+          await inspectTailscale(old.config, context.env, context.platform, context.tailscale),
+        ),
+      )
     return stop(EXIT.ok, 'already set up; rerun with --replace to rewrite it')
   }
   if (old && !old.ok) report.notes.push('the old config is not usable; replacing it')
@@ -235,11 +240,13 @@ export async function runSetup(context: SetupContext): Promise<SetupReport> {
     )
     return stop(EXIT.internal, 'the written config could not be loaded')
   }
-  report.notes.push(
-    ...setupTailscaleHint(
-      await inspectTailscale(config, context.env, context.platform, context.tailscale),
-    ),
-  )
+  report.changed = !kept || !isDeepStrictEqual(kept, config)
+  if (context.tailscaleHints !== false)
+    report.notes.push(
+      ...setupTailscaleHint(
+        await inspectTailscale(config, context.env, context.platform, context.tailscale),
+      ),
+    )
   report.next = 'phosphor setup'
   return report
 }
