@@ -167,18 +167,18 @@ describe('size-budget per-package ratchet', () => {
     expect(readFileSync(join(root, 'tools/budgets/host.json'), 'utf8')).toBe(before)
   })
 
-  it('CLI exits nonzero for regressions, missing budgets and unknown commands', () => {
+  it.each([
+    { name: 'new offender', lines: 401, command: 'check', status: 1, output: /shared:.*new/i },
+    { name: 'within budget', lines: 400, command: 'check', status: 0, output: /PASS/ },
+    { name: 'missing baseline', lines: 400, command: 'check', status: 1, output: /host:.*ENOENT/ },
+    { name: 'unknown command', lines: 400, command: 'regenerate', status: 1, output: /Usage:/ },
+  ])('CLI checks $name', ({ name, lines, command, status, output }) => {
     const root = repository()
-    put(root, 'libs/shared/large.ts', source(401))
+    put(root, 'libs/shared/large.ts', source(lines))
+    if (name === 'missing baseline') rmSync(join(root, 'tools/budgets/host.json'))
     const script = resolve('tools/scripts/size-budget.mjs')
-    const run = (...args: string[]) =>
-      spawnSync(process.execPath, [script, ...args], { cwd: root, encoding: 'utf8' })
-    expect(run('check').status).toBe(1)
-    expect(run('check').stdout).toMatch(/shared:.*new/i)
-    put(root, 'libs/shared/large.ts', source(400))
-    expect(run('check').status).toBe(0)
-    rmSync(join(root, 'tools/budgets/host.json'))
-    expect(run('check').status).toBe(1)
-    expect(run('regenerate').status).toBe(1)
+    const result = spawnSync(process.execPath, [script, command], { cwd: root, encoding: 'utf8' })
+    expect(result.status).toBe(status)
+    expect(result.stdout + result.stderr).toMatch(output)
   })
 })
