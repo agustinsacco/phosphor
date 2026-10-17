@@ -11,6 +11,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { ArtifactLibrary } from './artifact-library'
+import { writeIndex } from './artifact-indexer'
 
 function sessionFile(
   id: string,
@@ -135,6 +136,43 @@ describe('ArtifactLibrary', () => {
     await library.indexFile(path)
     const again = new ArtifactLibrary(root)
     expect((await again.list()).map((l) => l.key)).toEqual(['session-aaaaaaaa/notes'])
+  })
+
+  it('treats absent prototype-named slugs as missing after loading an index', async () => {
+    const path = put('a.jsonl', 'session-aaaaaaaa', [{ slug: 'notes', version: 1, content: 'x' }])
+    await library.indexFile(path)
+    const again = new ArtifactLibrary(root)
+    for (const slug of ['constructor', 'toString', '__proto__']) {
+      expect(await again.read(`session-aaaaaaaa/${slug}`)).toBeNull()
+      expect(await again.remove(`session-aaaaaaaa/${slug}`)).toBe(false)
+    }
+    expect(await again.read('missing-session/constructor')).toBeNull()
+  })
+
+  it('reads and removes an own constructor slug from a persisted index, preserving siblings', async () => {
+    const path = put('a.jsonl', 'session-aaaaaaaa', [
+      { slug: 'notes', version: 1, content: 'constructor content' },
+      { slug: 'guide', version: 1, content: 'sibling content' },
+    ])
+    const index = (await library.indexFile(path))!
+    index.artifacts = {
+      constructor: { ...index.artifacts.notes!, slug: 'constructor' },
+      guide: index.artifacts.guide!,
+    }
+    await writeIndex(root(), index)
+    rmSync(path)
+    const again = new ArtifactLibrary(root)
+    expect((await again.read('session-aaaaaaaa/constructor'))?.artifact.versions[0]?.content).toBe(
+      'constructor content',
+    )
+    await again.list()
+    expect(await again.remove('session-aaaaaaaa/constructor')).toBe(true)
+    const reloaded = new ArtifactLibrary(root)
+    expect(await reloaded.read('session-aaaaaaaa/constructor')).toBeNull()
+    expect((await reloaded.read('session-aaaaaaaa/guide'))?.artifact.versions[0]?.content).toBe(
+      'sibling content',
+    )
+    expect((await reloaded.list()).map((l) => l.id)).toEqual(['guide'])
   })
 
   it('backfills every session file once, then only the ones that changed', async () => {

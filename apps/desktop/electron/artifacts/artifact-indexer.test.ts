@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { blobFile, currentVersion } from '@phosphor/pi-extensions/artifact-store'
-import { emptyScan, indexSessionFile, scanLine } from './artifact-indexer'
+import { blobFile, currentVersion, readIndex } from '@phosphor/pi-extensions/artifact-store'
+import { emptyScan, indexSessionFile, scanLine, writeIndex } from './artifact-indexer'
 
 const SESSION_ID = '01a10e05-6032-757f-b3c3-b00bb780ca19'
 
@@ -189,6 +189,53 @@ describe('indexSessionFile', () => {
     write([header(), artifactResult('9', '0', 'artifact_create', { ...v(1, 'x'), id: 'other' })])
     const second = (await indexSessionFile(root, file, first))!
     expect(Object.keys(second.artifacts)).toEqual(['other'])
+  })
+
+  it('indexes constructor on fresh scans and full branch rebuilds without losing siblings', async () => {
+    write([
+      header(),
+      artifactResult('1', '0', 'artifact_create', v(1, 'guide')),
+      artifactResult('2', '1', 'artifact_create', { ...v(1, 'one'), id: 'constructor' }),
+    ])
+    const first = (await indexSessionFile(root, file, null))!
+    expect(Object.keys(first.artifacts)).toEqual(['guide', 'constructor'])
+    expect(currentVersion(first.artifacts['constructor']!)?.toolCallId).toBe('call-2')
+
+    append([artifactResult('3', '1', 'artifact_create', { ...v(1, 'other'), id: 'constructor' })])
+    const rebuilt = (await indexSessionFile(root, file, first))!
+    expect(rebuilt.artifacts.guide).toEqual(first.artifacts.guide)
+    expect(
+      rebuilt.artifacts['constructor']!.versions.map((x) => [x.toolCallId, x.onBranch]),
+    ).toEqual([
+      ['call-2', false],
+      ['call-3', true],
+    ])
+  })
+
+  it('adds and clones constructor incrementally after persisted reloads', async () => {
+    write([header(), artifactResult('1', '0', 'artifact_create', v(1, 'guide'))])
+    const first = (await indexSessionFile(root, file, null))!
+    await writeIndex(root, first)
+    const reloaded = readIndex(root, SESSION_ID)!
+    append([artifactResult('2', '1', 'artifact_create', { ...v(1, 'one'), id: 'constructor' })])
+    const second = (await indexSessionFile(root, file, reloaded))!
+    expect(Object.hasOwn(reloaded.artifacts, 'constructor')).toBe(false)
+    expect(second.artifacts.guide).toEqual(first.artifacts.guide)
+    await writeIndex(root, second)
+    const stored = readIndex(root, SESSION_ID)!
+    expect(Object.hasOwn(stored.artifacts, 'constructor')).toBe(true)
+
+    append([artifactResult('3', '2', 'artifact_edit', { ...v(2, 'two'), id: 'constructor' })])
+    const third = (await indexSessionFile(root, file, stored))!
+    expect(Object.keys(third.artifacts)).toEqual(['guide', 'constructor'])
+    expect(stored.artifacts['constructor']!.versions).toHaveLength(1)
+    expect(third.artifacts['constructor']!.versions.map((x) => [x.version, x.onBranch])).toEqual([
+      [1, true],
+      [2, true],
+    ])
+    const latest = currentVersion(third.artifacts['constructor']!)!
+    expect(readFileSync(blobFile(root, latest.sha256), 'utf8')).toBe('two')
+    expect(third.artifacts.guide).toEqual(first.artifacts.guide)
   })
 
   it('answers null for a missing file or one that is not a session', async () => {
