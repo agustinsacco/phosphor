@@ -1,3 +1,4 @@
+import { CONTROL_LIMITS } from '@phosphor/shared/control-api'
 import { ControlFailure } from './http'
 
 /** Oldest entries are evicted. Expiration is lazy, so memory never grows with uptime. */
@@ -27,6 +28,12 @@ export class BoundedCache<T> {
     this.entries.set(key, { value, expires })
   }
 }
+/**
+ * withinSkew accepts both ends of its window, so one signed request stays valid for
+ * twice the skew inclusive. A record must outlive that whole span plus a margin, or a
+ * request first seen at the early edge is accepted again at the late edge.
+ */
+const NONCE_TTL_MS = 2 * CONTROL_LIMITS.signatureSkewSec * 1000 + 1000
 export class NonceCache {
   private readonly entries = new Map<string, number>()
   constructor(
@@ -47,7 +54,7 @@ export class NonceCache {
     const key = `${identity}:${nonce}`
     if (this.entries.has(key)) return false
     if (this.entries.size >= this.capacity) throw new ControlFailure('too-many-requests')
-    this.entries.set(key, now + 120_000)
+    this.entries.set(key, now + NONCE_TTL_MS)
     return true
   }
 }

@@ -91,10 +91,13 @@ are free. The exported user guard refuses suspended accounts on other routes.
 The exported Host guard supports a raw Ed25519 public key or an enrolled UUID,
 never both. It verifies the shared signing string against the exact body bytes,
 requires timestamps within 60 seconds, rejects queries or any rewritten raw
-path. It consumes a nonce only after verification. Nonces live for 120 seconds in two separate
-100,000-entry caches: one for enrollment keys and one for enrolled Hosts. Expired
-entries are swept. A full cache refuses new nonces with 429 without evicting live
-replay records. Enrollment traffic cannot fill the enrolled Hosts' cache.
+path. It consumes a nonce only after verification. A timestamp is accepted at
+both ends of its 60-second skew, so one signed request is valid for 120 seconds;
+nonces live for 121 seconds, twice the skew plus a one-second margin, so a
+request first accepted at the early edge is still refused at the late edge.
+They live in two separate 100,000-entry caches: one for enrollment keys and one
+for enrolled Hosts. Expired entries are swept. A full cache refuses new nonces
+with 429 without evicting live replay records. Enrollment traffic cannot fill the enrolled Hosts' cache.
 Enrolled key lookup consumes a per-IP limit of 120 per 60 seconds before any RPC.
 Key-mode verification needs no upstream lookup or auth limiter.
 Enrolled key lookup is an injected port; gone
