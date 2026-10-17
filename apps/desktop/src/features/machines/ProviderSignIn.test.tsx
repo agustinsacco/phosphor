@@ -101,5 +101,25 @@ it('shows a retryable error instead of an empty list when the provider read fail
   const retry = [...container.querySelectorAll('button')].find((b) => b.textContent === 'Retry')
   await act(async () => retry?.click())
   expect(container.textContent).not.toContain('Could not load')
-  expect(container.textContent).toContain('ChatGPT: Signed in')
+  expect(container.querySelector('[data-provider=openai-codex]')?.textContent).toBe(
+    'ChatGPTSigned in',
+  )
+})
+it('shows loading rows while the first read is in flight, and a hint when not connected', async () => {
+  let finish = (_: unknown) => {}
+  invoke.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+  )
+  await render()
+  expect(container.querySelector('[role=status]')?.getAttribute('aria-label')).toBe(
+    'Loading providers',
+  )
+  await act(async () => finish([{ id: 'xai', name: 'xAI', status: 'not_ready' }]))
+  expect(container.querySelector('[role=status]')).toBeNull()
+  useRemoteLanesStore.setState({ hosts: {} })
+  await render()
+  expect(container.textContent).toContain('Providers appear once this computer is connected')
 })

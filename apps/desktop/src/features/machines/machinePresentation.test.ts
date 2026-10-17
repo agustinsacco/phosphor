@@ -3,32 +3,18 @@ import {
   formatCode,
   HOST_INSTALL,
   localMachineLabel,
-  machineSubtitle,
   platformName,
   readinessFreshness,
   readinessChecks,
   relativeTime,
   sortMachines,
-  statusText,
 } from './machinePresentation'
 import { MACHINE } from './__fixtures__/control'
 const now = Date.parse('2026-01-01T03:00:00.000Z')
-it('uses shared clock correction and labels every state', () => {
-  expect(statusText(MACHINE, now)).toBe('Waiting for first connection')
+it('says relative times and platform names in words', () => {
   const online = { ...MACHINE, lastSeenAt: new Date(now).toISOString(), state: 'running' as const }
-  expect(statusText(online, now)).toBe('Online')
-  expect(statusText({ ...online, lastSeenAt: '2026-01-01T00:00:00.000Z' }, now)).toBe(
-    'Offline · last seen 3 h ago',
-  )
-  expect(statusText({ ...online, state: 'stopping' }, now)).toBe('Stopping')
-  expect(
-    statusText(
-      { ...online, state: 'stopping', lastSeenAt: new Date(now - 91_000).toISOString() },
-      now,
-    ),
-  ).toBe('Offline · last seen 1 min ago')
-  expect(statusText(online, now + 600000, -600000)).toBe('Online')
   expect(relativeTime(online.lastSeenAt, now - 10000)).toBe('just now')
+  expect(relativeTime('2026-01-01T00:00:00.000Z', now)).toBe('3 h ago')
   expect(platformName('darwin')).toBe('macOS')
   expect(platformName('win32')).toBe('Windows')
   expect(platformName('linux')).toBe('Linux')
@@ -99,7 +85,6 @@ it('trusts readiness only while a machine is online, and names problems in a few
     'Claude Code not reported',
     'Tailscale not reported',
   ])
-  expect(machineSubtitle(online, now)).toBe('bee1 · Linux x64 · Online')
   expect(localMachineLabel('darwin')).toBe('This Mac')
   expect(localMachineLabel('win32')).toBe('This PC')
   expect(localMachineLabel('linux')).toBe('This computer')

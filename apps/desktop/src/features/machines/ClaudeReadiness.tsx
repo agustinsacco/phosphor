@@ -40,27 +40,40 @@ export function claudeReadiness(detail: ClaudeDetail): ReadinessCheck {
           : 'phosphor setup',
   }
 }
-export function useClaudeReadiness(hostId: string, refresh: number): ReadinessCheck | null {
+/**
+ * The Host's live Claude detail. `loading` is true while a read for this Host
+ * is in flight; `check` stays null when the Host is older or unreachable.
+ */
+export function useClaudeReadiness(
+  hostId: string,
+  refresh: number,
+): { check: ReadinessCheck | null; loading: boolean } {
   const connection = useRemoteLanesStore((s) => s.hosts[hostId])
   const connected = connection?.state === 'ready'
-  const [check, setCheck] = useState<{ hostId: string; check: ReadinessCheck } | null>(null)
+  const [state, setState] = useState<{
+    hostId: string
+    check: ReadinessCheck | null
+    loading: boolean
+  } | null>(null)
   useEffect(() => {
     let live = true
-    setCheck(null)
+    setState(connected ? { hostId, check: null, loading: true } : null)
     if (connected)
       void window.phosphor.invoke('hosts:claude', hostId).then(
         (detail) => {
-          if (live) setCheck(detail ? { hostId, check: claudeReadiness(detail) } : null)
+          if (live)
+            setState({ hostId, check: detail ? claudeReadiness(detail) : null, loading: false })
         },
         () => {
-          if (live) setCheck(null)
+          if (live) setState({ hostId, check: null, loading: false })
         },
       )
     return () => {
       live = false
     }
   }, [hostId, connected, connection?.connectionToken, refresh])
-  return connected && check?.hostId === hostId ? check.check : null
+  const current = connected && state?.hostId === hostId ? state : null
+  return { check: current?.check ?? null, loading: current?.loading ?? false }
 }
 export function ClaudeReadiness({ check }: { check: ReadinessCheck | null }) {
   return check ? (

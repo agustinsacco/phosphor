@@ -12,6 +12,8 @@ export const IPC_SCOPE: Record<IpcInvokeChannel, 'app' | 'machine'> = {
   'hosts:providerLogin': 'app',
   'hosts:uploadAttachments': 'app',
   'hosts:snapshot': 'app',
+  'hosts:reconnect': 'app',
+  'hosts:traffic': 'app',
   'hosts:setFocusedLane': 'app',
   'hosts:openLane': 'app',
   'hosts:createLane': 'app',

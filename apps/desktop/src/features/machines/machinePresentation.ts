@@ -1,5 +1,4 @@
 import {
-  CONTROL_LIMITS,
   machineStatus,
   normalizeUserCode,
   type MachineView,
@@ -23,18 +22,6 @@ export function relativeTime(at: string, now: number): string {
   if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`
   if (seconds < 86400) return `${Math.floor(seconds / 3600)} h ago`
   return `${Math.floor(seconds / 86400)} d ago`
-}
-export function statusText(machine: MachineView, now: number, offset = 0): string {
-  if (!machine.lastSeenAt) return 'Waiting for first connection'
-  // A stopping beat is a Host's last word: once it is old, the Host is offline.
-  if (
-    machine.state === 'stopping' &&
-    now + offset - Date.parse(machine.lastSeenAt) <= CONTROL_LIMITS.downAfterSec * 1000
-  )
-    return 'Stopping'
-  return machineStatus(machine, now, offset) === 'up'
-    ? 'Online'
-    : `Offline · last seen ${relativeTime(machine.lastSeenAt, now + offset)}`
 }
 export function sortMachines(
   machines: readonly MachineView[],
@@ -76,13 +63,6 @@ export function readinessFreshness(
   return machineStatus(machine, now, offset) === 'up' ? 'live' : 'stale'
 }
 
-export function machineSubtitle(machine: MachineView, now: number, offset = 0): string {
-  return [
-    machine.hostname,
-    `${platformName(machine.platform)} ${machine.arch}`,
-    statusText(machine, now, offset),
-  ].join(' · ')
-}
 export function readinessChecks(
   readiness: Readiness | null,
   endpoint?: string | null,

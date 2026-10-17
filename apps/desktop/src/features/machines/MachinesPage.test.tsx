@@ -24,7 +24,8 @@ const invoke = vi.fn(async (channel: string): Promise<unknown> => {
   return null
 })
 beforeEach(() => {
-  invoke.mockClear()
+  // Reset, not clear: a test that swaps the implementation must not leak it.
+  invoke.mockReset()
   account = {
     account: {
       status: 'signed-in',
@@ -76,18 +77,51 @@ const input = async (label: string, value: string): Promise<void> => {
     element?.dispatchEvent(new Event('input', { bubbles: true }))
   })
 }
+const codes = (text: string): Element[] =>
+  Array.from(container.querySelectorAll('code')).filter((c) => c.textContent === text)
+const check = (name: string): HTMLElement | null =>
+  container.querySelector<HTMLElement>(`[data-check="${name}"]`)
+const headerPill = (): Element | null =>
+  container.querySelector('[data-testid=machine-detail] header [data-tone]')
+
 it('lists this computer first and only enrolled machines, then opens stable detail', async () => {
   await render()
   expect(document.querySelector('[data-testid=local-machine-row]')).not.toBeNull()
-  expect(document.querySelectorAll('[data-testid=enrolled-machine-row]')).toHaveLength(1)
-  expect(container.textContent).toContain('Waiting for first connection')
-  await act(async () =>
-    document.querySelector<HTMLButtonElement>('[data-testid=enrolled-machine-row]')?.click(),
-  )
-  expect(container.textContent).toContain('Finish setting up bee1')
+  const rows = document.querySelectorAll('[data-testid=enrolled-machine-row]')
+  expect(rows).toHaveLength(1)
+  expect(rows[0]?.querySelector('[data-tone]')?.textContent).toBe('Waiting for setup')
+  // Never connected: no lane counts or readiness from a Host that has not reported.
+  expect(rows[0]?.textContent).not.toContain('running')
+  expect(rows[0]?.querySelector('[data-check-chip]')).toBeNull()
+  await act(async () => (rows[0] as HTMLButtonElement).click())
+  expect(container.textContent).toContain('Waiting for bee1 to finish setup')
+  // Setup in progress is not a failure: one command, and the Connection row only waits.
+  expect(codes('phosphor setup')).toHaveLength(1)
+  expect(check('Connection')?.textContent).toContain('Waiting for setup')
   expect(container.textContent).toContain('phosphor service install')
   await act(async () => useMachinesStore.setState({ nowMs: Date.now() + 5000 }))
   expect(document.querySelector('[data-testid=machine-detail]')).not.toBeNull()
+})
+it('shows loading rows for local checks until each read settles, then the verdict', async () => {
+  const pending: ((value: unknown) => void)[] = []
+  invoke.mockImplementation(async (channel: string) => {
+    if (channel === 'account:get') return account
+    if (channel === 'pi:health')
+      return new Promise((resolve) => {
+        pending.push(resolve)
+      })
+    if (channel === 'packages:claudeStatus')
+      return { binary: { found: true }, auth: { loggedIn: false } }
+    return null
+  })
+  await render()
+  const local = (): string =>
+    document.querySelector('[data-testid=local-machine-row]')?.textContent ?? ''
+  expect(local()).toContain('Checking…')
+  await act(async () => pending[0]?.({ ok: true, version: '1.2.0' }))
+  expect(local()).toContain('pi 1.2.0')
+  expect(local()).toContain('Claude signed out')
+  expect(local()).not.toContain('Checking…')
 })
 it('shows only local status and optional sign-in when signed out', async () => {
   account = { account: { status: 'signed-out' } }
@@ -110,8 +144,14 @@ it('shows empty guidance, list loading and offline errors explicitly', async () 
   expect(container.textContent).toContain('Bring another machine online')
   expect(container.textContent).toContain('phosphor setup')
   await act(async () => useMachinesStore.setState({ loading: true, error: 'offline' }))
-  expect(container.textContent).toContain('Updating machines')
+  expect(document.querySelector('[aria-label="Loading machines"]')).not.toBeNull()
   expect(document.querySelector('[role=alert]')?.textContent).toContain('Cannot reach')
+  expect(container.textContent).toContain('Retrying…')
+  // A later refresh with machines already listed says so without hiding them.
+  await act(async () => useMachinesStore.setState({ machines: [MACHINE], error: null }))
+  expect(document.querySelector('[aria-label="Loading machines"]')).toBeNull()
+  expect(container.textContent).toContain('Updating')
+  expect(document.querySelectorAll('[data-testid=enrolled-machine-row]')).toHaveLength(1)
 })
 it('walks all four enrollment steps, formats code, submits Enter, and shows done', async () => {
   await render()
@@ -197,14 +237,28 @@ it('shows readiness on a row only while it is current, and names this Mac once',
   const rows = Array.from(document.querySelectorAll('[data-testid=enrolled-machine-row]'))
   const text = (label: string): string =>
     rows.find((row) => row.textContent?.includes(label))?.textContent ?? ''
-  expect(text('online')).toContain('Claude Code signed out')
-  expect(text('bee1')).toContain('Finish setup')
-  expect(text('bee1')).not.toContain('Claude Code signed out')
-  expect(text('offline')).toContain('Offline · last seen 3 h ago')
-  expect(text('offline')).not.toContain('Claude Code signed out')
-  expect(text('offline')).not.toContain('Ready')
+  const chip = (label: string): Element | null | undefined =>
+    rows
+      .find((row) => row.textContent?.includes(label))
+      ?.querySelector('[data-check-chip="Claude Code"]')
+  expect(chip('online')?.getAttribute('data-ok')).toBe('false')
+  expect(text('online')).toContain('Not reachable')
+  expect(text('online')).toContain('2 running · 1 waiting')
+  expect(text('bee1')).toContain('Waiting for setup')
+  expect(chip('bee1')).toBeNull()
+  expect(text('offline')).toContain('Offline')
+  expect(text('offline')).toContain('last seen 3 h ago')
+  expect(chip('offline')).toBeNull()
+  expect(text('offline')).not.toContain('running')
+  expect(text('offline')).not.toContain('Connected')
+  // Up machines sort first.
+  expect(rows[0]?.textContent).toContain('online')
   await act(async () => useMachinesStore.getState().show({ kind: 'machine', id: offline.id }))
   expect(container.textContent).toContain('As last reported, 3 h ago')
+  // Offline, not "publish your address": nothing is checking in to publish one.
+  expect(headerPill()?.textContent).toBe('Offline')
+  expect(check('Connection')?.textContent).toContain('has not checked in since 3 h ago')
+  expect(codes('sudo tailscale set --operator=$USER && phosphor setup')).toHaveLength(0)
   await act(async () => useMachinesStore.getState().show({ kind: 'machine', id: MACHINE.id }))
   expect(container.textContent).toContain('reports pi, Claude and Tailscale once it first connects')
   expect(container.textContent).not.toContain('Sign in to Claude Code on this machine')
@@ -247,41 +301,48 @@ it('bee2 reports an unreachable address despite green readiness and Check again 
     view: { kind: 'machine', id: MACHINE.id },
   })
   await render()
-  expect(container.textContent).toContain('Reachable')
-  expect(container.textContent).toContain('bee1 is enrolled but not reachable')
-  expect(container.textContent).toContain('sudo tailscale set --operator=$USER && phosphor setup')
+  expect(check('Connection')?.getAttribute('data-ok')).toBe('false')
+  expect(check('Connection')?.textContent).toContain('bee1 is enrolled but not reachable')
   expect(container.textContent).toContain('Reported just now')
-  expect(container.querySelector('header')?.textContent).toContain('Online · Not reachable yet')
-  const state = Array.from(container.querySelectorAll('dt')).find(
-    (dt) => dt.textContent === 'State',
-  )
-  expect(state?.nextElementSibling?.textContent).toBe('Not reachable yet')
-  for (const name of ['Reachable', 'Tailscale']) {
-    const heading = Array.from(container.querySelectorAll('h4')).find((h) => h.textContent === name)
-    expect(heading?.previousElementSibling?.classList.contains('bg-warning')).toBe(true)
-    expect(heading?.previousElementSibling?.classList.contains('bg-success')).toBe(false)
-  }
-  expect(container.textContent).toContain('Running, but its address is not published')
+  // One status for the machine, never "Online · Not reachable yet".
+  expect(headerPill()?.textContent).toBe('Not reachable')
+  expect(headerPill()?.getAttribute('data-tone')).toBe('warn')
+  expect(container.textContent).not.toContain('Online')
+  expect(check('Tailscale')?.getAttribute('data-ok')).toBe('false')
+  expect(check('Tailscale')?.textContent).toContain('Address not published')
+  expect(check('Tailscale')?.textContent).toContain('Running, but its address is not published')
+  expect(check('pi')?.textContent).toContain('Ready to run lanes')
   expect(container.textContent).not.toContain('Connected with HTTPS available')
-  expect(
-    Array.from(container.querySelectorAll('code')).filter(
-      (c) => c.textContent === 'sudo tailscale set --operator=$USER && phosphor setup',
-    ),
-  ).toHaveLength(1)
-  const checkAgain = Array.from(container.querySelectorAll('button')).find(
-    (b) => b.textContent === 'Check again',
+  expect(codes('sudo tailscale set --operator=$USER && phosphor setup')).toHaveLength(1)
+  const address = Array.from(container.querySelectorAll('dt')).find(
+    (dt) => dt.textContent === 'Address',
   )
-  expect(checkAgain?.classList.contains('border')).toBe(true)
-  expect(checkAgain?.classList.contains('rounded-md')).toBe(true)
-  expect(checkAgain?.classList.contains('px-2.5')).toBe(true)
+  expect(address?.nextElementSibling?.textContent).toBe('Not published')
   invoke.mockClear()
   await click('Check again')
   expect(invoke).toHaveBeenCalledWith('control:machines')
+  // The re-read replaced the machine with control's answer; the card says when it asked.
+  expect(container.querySelector('[role=status]')?.textContent).toContain('checked just now')
+})
+it('a Mac Host without an address gets setup alone, not the Linux operator command', async () => {
+  useMachinesStore.setState({
+    machines: [
+      { ...MACHINE, platform: 'darwin', lastSeenAt: new Date().toISOString(), state: 'running' },
+    ],
+    view: { kind: 'machine', id: MACHINE.id },
+  })
+  await render()
+  expect(check('Connection')?.textContent).toContain('phosphor setup')
+  expect(codes('sudo tailscale set --operator=$USER && phosphor setup')).toHaveLength(0)
 })
 
-it.each(['connecting', 'reconnecting', 'ready'] as const)(
-  'keeps Online while the Host is %s',
-  async (connection) => {
+it.each([
+  ['connecting', 'Connecting…', 'pending'],
+  ['reconnecting', 'Connecting…', 'pending'],
+  ['ready', 'Connected', 'ok'],
+] as const)(
+  'a published Host that is %s says %s and offers no fix',
+  async (connection, label, tone) => {
     useMachinesStore.setState({
       machines: [
         {
@@ -306,13 +367,14 @@ it.each(['connecting', 'reconnecting', 'ready'] as const)(
     })
     try {
       await render()
-      const state = Array.from(container.querySelectorAll('dt')).find(
-        (dt) => dt.textContent === 'State',
+      expect(headerPill()?.textContent).toBe(label)
+      expect(headerPill()?.getAttribute('data-tone')).toBe(tone)
+      expect(check('Connection')?.textContent).toContain(
+        connection === 'ready' ? 'bee1 is reachable' : label,
       )
-      expect(state?.nextElementSibling?.textContent).toBe('Online')
-      expect(container.querySelector('header')?.textContent).toContain('Linux x64 · Online')
-      expect(container.querySelector('header')?.textContent).not.toContain('Connecting…')
-      expect(container.querySelector('header')?.textContent).not.toContain('Not reachable yet')
+      expect(check('Connection')?.querySelector('code')).toBeNull()
+      expect(container.textContent).not.toContain('Not reachable')
+      expect(container.textContent).not.toContain('phosphor service restart')
     } finally {
       useRemoteLanesStore.setState({ hosts: {} })
     }

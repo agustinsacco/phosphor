@@ -44,6 +44,8 @@ export function createHostConnection(ports: {
   onAttention?: (event: Extract<HostFrame, { type: 'attention' }>['event']) => void
   disabled?: () => void
   log?: TraceLog
+  /** Every frame sent or received, for the metadata-only traffic log. */
+  traffic?: (direction: 'in' | 'out', frame: ClientFrame | HostFrame, bytes: number) => void
   now?: () => number
   random?: () => number
 }) {
@@ -130,10 +132,19 @@ export function createHostConnection(ports: {
       return false
     try {
       socket.send(text)
-      return true
     } catch {
       socket.close(1000, 'Transport failed')
       return false
+    }
+    observe('out', frame, text)
+    return true
+  }
+  /** The traffic log is diagnostic: it must never affect the connection. */
+  function observe(direction: 'in' | 'out', frame: ClientFrame | HostFrame, text: string) {
+    try {
+      ports.traffic?.(direction, frame, utf8Length(text))
+    } catch {
+      /* Ignored on purpose. */
     }
   }
   function replayPending() {
@@ -289,6 +300,7 @@ export function createHostConnection(ports: {
       return
     }
     const f = parsed.value
+    observe('in', f, text)
     if (view.state !== 'ready') {
       if (f.type !== 'ready') {
         socket?.close(4400, 'Expected ready')

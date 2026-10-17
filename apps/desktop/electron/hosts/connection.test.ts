@@ -11,6 +11,7 @@ import {
 } from '@shared/host-protocol'
 import type { GrantPayload } from '@shared/host-grant'
 import { createHostConnection, hostEndpoint, type LaneFrame } from './connection'
+import { createTrafficLog } from './traffic-log'
 
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => {
@@ -28,6 +29,7 @@ async function setup(
     delay?: number
     throwClose?: boolean
     backpressure?: { bytes: number; writesBeforeFull: number }
+    traffic?: Parameters<typeof createHostConnection>[0]['traffic']
   } = {},
 ) {
   const keys = generateKeyPairSync('ed25519')
@@ -141,6 +143,7 @@ async function setup(
     changed,
     random: () => 1,
     log: (...args) => logs.push(args),
+    traffic: options.traffic,
   })
   await drain()
   if (connection.snapshot().state === 'ready') {
@@ -209,6 +212,46 @@ it('authenticates, queries, lists deltas, watches in order, and keeps secrets ou
   off()
   t.connection.close()
   t.host.stop()
+})
+
+it('feeds the traffic log metadata without secrets, and a failing log never hurts the link', async () => {
+  const traffic = createTrafficLog()
+  const t = await setup({
+    traffic: (direction, frame, bytes) => traffic.frame('h', direction, frame, bytes),
+  })
+  await drain()
+  const result = t.connection.call('host.repositories')
+  await drain()
+  expect((await result).ok).toBe(true)
+  const receipt = t.connection.send(
+    { type: 'set_session_name', name: 'Private title' },
+    t.laneId,
+    1,
+  )
+  await drain()
+  await vi.advanceTimersByTimeAsync(1)
+  expect((await receipt).status).toBe('done')
+  const { entries } = traffic.read(0)
+  const kinds = entries.map((e) => `${e.direction}:${e.kind}`)
+  for (const kind of ['out:auth', 'in:ready', 'out:call', 'in:result', 'out:command', 'in:receipt'])
+    expect(kinds).toContain(kind)
+  const text = JSON.stringify(entries)
+  const auth = t.initialAuth
+  for (const secret of [t.token, auth?.challenge ?? 'x', ...t.proofs, 'Private title'])
+    expect(text).not.toContain(secret)
+  t.connection.close()
+  t.host.stop()
+
+  const broken = await setup({
+    traffic: () => {
+      throw new Error('log bug')
+    },
+  })
+  await drain()
+  expect(broken.connection.snapshot().state).toBe('ready')
+  expect((await broken.connection.call('host.repositories')).ok).toBe(true)
+  broken.connection.close()
+  broken.host.stop()
 })
 
 it.each([{ wrongKey: true }, { wrongId: true }])(

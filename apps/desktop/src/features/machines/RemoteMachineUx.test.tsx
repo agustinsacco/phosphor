@@ -94,7 +94,7 @@ it('chip follows connected, reconnecting and down snapshots and recovers', () =>
 })
 it('On this machine gates reads and links, counts only that machine and opens filtered pages', async () => {
   await act(async () => root.render(<OnThisMachine hostId={MOCK_HOST_ID} />))
-  expect(container.textContent).toContain('1 lanes')
+  expect(container.textContent).toContain('1 lane')
   expect(container.textContent).not.toContain('Skills')
   expect(container.textContent).not.toContain('Routines')
   expect(container.textContent).not.toContain('Artifacts')
@@ -146,7 +146,9 @@ it('ignores counts from a detail selection that has gone away', async () => {
   const first = finish
   await act(async () => root.render(<OnThisMachine hostId="other" />))
   await act(async () => first?.({ skills: [{ name: 'old' }] }))
-  expect(button('Skills').textContent).toContain('Unavailable')
+  // The new machine's own read is still pending: loading, never the old machine's count.
+  expect(button('Skills').textContent).toContain('Loading')
+  expect(button('Skills').textContent).not.toContain('1')
 })
 
 it('keeps On this machine counts and pending reads across unchanged snapshots', async () => {
@@ -185,7 +187,7 @@ it('keeps On this machine counts and pending reads across unchanged snapshots', 
     })
   })
   await act(async () => first({ skills: [{}, {}] }))
-  expect(button('Skills').textContent).toContain('Unavailable')
+  expect(button('Skills').textContent).toContain('Loading')
   await act(async () => finish({ skills: [{ name: 'new' }] }))
   expect(button('Skills').textContent).toContain('1')
 })
@@ -222,8 +224,21 @@ it('rejects pending counts immediately on reconnect before effect cleanup', asyn
     await Promise.resolve()
     expect(invoke.mock.calls.filter(([channel]) => channel === 'routines:list')).toHaveLength(0)
   })
-  expect(button('Skills').textContent).toContain('Unavailable')
+  expect(button('Skills').textContent).toContain('Loading')
+  expect(button('Skills').textContent).not.toContain('1')
   expect(invoke).toHaveBeenCalledTimes(1)
+})
+it('says Unavailable for a failed count, never zero', async () => {
+  const host = mockRemoteHosts[MOCK_HOST_ID]!
+  useRemoteLanesStore.setState({
+    hosts: { [MOCK_HOST_ID]: { ...host, capabilities: ['skills.read'] } },
+  })
+  invoke.mockImplementation(async () => {
+    throw new Error('busy')
+  })
+  await act(async () => root.render(<OnThisMachine hostId={MOCK_HOST_ID} />))
+  expect(button('Skills').textContent).toContain('Unavailable')
+  expect(button('Skills').textContent).not.toContain('0')
 })
 it('disables Stop until the lane has a first message, with the reason', () => {
   const id = mockRemoteInfo.sessionId

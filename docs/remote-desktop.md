@@ -40,6 +40,14 @@ in memory. No transcript is written to the client's disk. Remote lane access
 requires `sessions.read` in the Host's authenticated `ready` frame; mutations
 also require `sessions.control`.
 
+`hosts:reconnect` re-reads the directory, then replaces one present Host's
+connection (logged as reason `requested`). `hosts:traffic` pages main's
+memory-only traffic log after a cursor: up to 2000 metadata lines covering Host
+frames in both directions, control calls and connection changes, never frame
+payloads ([Machines debug log](ui-shell.md#health-check-and-debug-log)). The
+log is recorded through an optional connection port that cannot fail a send or
+a receive.
+
 `hosts:openLane` returns one opaque `remote-<16 hex>` handle per lane per window,
 with at most 64 handles per window. Its workspace key is
 `host:<hostId>/lane:<laneId>`, never a local path. Lane-qualified keys keep
@@ -246,15 +254,21 @@ execution grant.
 
 **Online** follows the enrolled directory entry and the live connection through
 one reachability rule (`machineReachability`), shared with the machine page and
-the sidebar. Enrollment alone does not prove reachability: a Host with no
-published endpoint reads "enrolled but not reachable" with
-`sudo tailscale set --operator=$USER && phosphor setup`; a Host never seen offers
-`phosphor setup`; a stopped or silent Host offers `phosphor service restart`.
-Only a ready connection advances to Providers, after a short pause. Further
-recovery stays in the collapsed Stuck? disclosure.
+the sidebar. Enrollment alone does not prove reachability. The rule checks, in
+order: a Host never seen offers `phosphor setup`; a silent Host (no heartbeat
+for 90 s) offers `phosphor service restart`; a Host with no published endpoint
+reads "enrolled but not reachable" with `phosphor setup` on a Mac and
+`sudo tailscale set --operator=$USER && phosphor setup` on Linux, or names
+Tailscale stopped or missing when the Host reported so. With an endpoint, an
+`unsupported` connection asks for `phosphor update`, `wrong-machine` is an
+identity mismatch (remove and add again), a refused grant says access was
+refused, and any other unready connection is Connecting… or, once settled, Not
+reachable from this computer (check Tailscale here and the tailnet), never a
+restart. Only a ready connection advances to Providers, after a short pause.
+Further recovery stays in the collapsed Stuck? disclosure.
 
-**Providers** reads the Host's provider readiness and opens the machine page's
-Readiness section for Sign in. The terminal fallback on the Host is
+**Providers** reads the Host's provider readiness and opens the machine page,
+whose Providers card has Sign in. The terminal fallback on the Host is
 `phosphor providers login PROVIDER`. Provider credentials stay on the Host.
 In a terminal, guided `phosphor setup` offers to install Claude Code and the
 Claude provider and runs `claude` login when signed out
