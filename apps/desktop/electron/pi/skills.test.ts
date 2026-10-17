@@ -330,3 +330,39 @@ describe('import', () => {
     expect(existsSync(join(dir, 'SKILL.md'))).toBe(true)
   })
 })
+
+describe('deleteSkill admission', () => {
+  it('refuses an undiscovered bundle even in a writable root', async () => {
+    const dir = seedSkill(join(agentDir, 'skills'), 'undiscovered')
+    await resolveSkills({})
+    const unknown = seedSkill(join(agentDir, 'skills'), 'unknown')
+    await expect(deleteSkill(unknown)).rejects.toThrow('unknown skill directory')
+    expect(existsSync(join(unknown, 'SKILL.md'))).toBe(true)
+    expect(existsSync(join(dir, 'SKILL.md'))).toBe(true)
+  })
+
+  it('refuses a discovered read-only settings bundle', async () => {
+    const foreignRoot = join(workspace, 'foreign-skills')
+    const dir = seedSkill(foreignRoot, 'read-only')
+    writeFileSync(join(agentDir, 'settings.json'), JSON.stringify({ skills: [foreignRoot] }))
+    const result = await resolveSkills({ workspacePath: workspace })
+    expect(result.skills.find((skill) => skill.dir === dir)?.writable).toBe(false)
+    await expect(deleteSkill(dir, workspace)).rejects.toThrow('this skill is read-only in Phosphor')
+    expect(existsSync(join(dir, 'SKILL.md'))).toBe(true)
+  })
+
+  it('refuses a discovered installed package bundle', async () => {
+    const pkg = join(agentDir, 'npm', 'node_modules', 'pi-demo')
+    mkdirSync(pkg, { recursive: true })
+    writeFileSync(
+      join(pkg, 'package.json'),
+      JSON.stringify({ name: 'pi-demo', pi: { skills: ['./skills'] } }),
+    )
+    const dir = seedSkill(join(pkg, 'skills'), 'package-skill')
+    writeFileSync(join(agentDir, 'settings.json'), JSON.stringify({ packages: ['npm:pi-demo'] }))
+    const result = await resolveSkills({})
+    expect(result.skills.find((skill) => skill.dir === dir)?.origin).toBe('package')
+    await expect(deleteSkill(dir)).rejects.toThrow('this skill is read-only in Phosphor')
+    expect(existsSync(join(dir, 'SKILL.md'))).toBe(true)
+  })
+})
