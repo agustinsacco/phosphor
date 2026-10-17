@@ -7,7 +7,6 @@ import { buildPiEnvironment } from '../machine/environment'
 import { identityDirectory } from '../control/identity'
 import { createShutdown, type Drainable } from '../shutdown'
 import { readdirSync } from 'node:fs'
-import { setTimeout } from 'node:timers/promises'
 import { inspectHost } from './doctor'
 import { runHost, type RunContext } from './run'
 import type * as Runtime from '../session/runtime'
@@ -556,7 +555,8 @@ describe('run teardown failures', () => {
         (error: unknown) => error,
       )
       await vi.waitFor(() => expect(hooks.order).toContain('runtime'))
-      await setTimeout(50)
+      // Enough turns for a close that wrongly followed the failed stop to have begun.
+      for (let turn = 0; turn < 20; turn++) await new Promise(setImmediate)
       // The runtime still drains: neither the store nor the run lock may go yet.
       expect(hooks.order).toEqual(PHASES.slice(0, 4))
       finish()
