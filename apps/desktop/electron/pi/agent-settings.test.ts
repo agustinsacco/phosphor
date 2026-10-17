@@ -1,5 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import * as fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -10,6 +11,10 @@ import {
   readAgentSettingsScoped,
   readWebSearchConfig,
 } from './agent-settings'
+
+vi.mock('node:fs/promises', async (importOriginal) => ({
+  ...(await importOriginal<typeof fs>()),
+}))
 
 /**
  * Regression guard: a malformed settings.json must never be overwritten by a
@@ -27,6 +32,7 @@ describe('pi agent settings', () => {
   })
 
   afterEach(async () => {
+    vi.restoreAllMocks()
     if (previousEnv === undefined) delete process.env.PI_CODING_AGENT_DIR
     else process.env.PI_CODING_AGENT_DIR = previousEnv
     await rm(dir, { recursive: true, force: true })
@@ -86,6 +92,71 @@ describe('pi agent settings', () => {
     // The user's file survives byte-for-byte.
     expect(await readFile(settingsPath(), 'utf8')).toBe(broken)
   })
+
+  it.each(['null', '[]', '[1]', '"dark"', '42', 'true'])(
+    'settings patches refuse non-object JSON in both scopes (%s), preserving bytes',
+    async (raw) => {
+      const workspace = join(dir, 'workspace')
+      await mkdir(join(workspace, '.pi'), { recursive: true })
+      for (const scope of ['global', 'project'] as const) {
+        const path = scope === 'global' ? settingsPath() : join(workspace, '.pi', 'settings.json')
+        await writeFile(path, raw)
+        await expect(patchAgentSettings(scope, workspace, { theme: 'dark' })).rejects.toThrow(
+          /will not overwrite/,
+        )
+        expect(await readFile(path, 'utf8')).toBe(raw)
+        const health = await checkAgentSettings(workspace)
+        expect(health[scope]).toMatchObject({ value: {}, exists: true, malformed: true })
+      }
+    },
+  )
+
+  it.each(['null', '[]', '[1]', '"dark"', '42', 'true'])(
+    'web-search patches refuse non-object JSON (%s), preserving bytes',
+    async (raw) => {
+      const path = join(dir, 'web-search.json')
+      await writeFile(path, raw)
+      await expect(patchWebSearchConfig({ braveApiKey: 'x' })).rejects.toThrow(/will not overwrite/)
+      expect(await readFile(path, 'utf8')).toBe(raw)
+      expect(await readWebSearchConfig()).toMatchObject({
+        config: {},
+        exists: true,
+        malformed: true,
+      })
+    },
+  )
+
+  it.each(['EACCES', 'EISDIR'])(
+    'settings and web-search patches refuse %s reads, preserving bytes',
+    async (code) => {
+      const raw = '{ "existing": "keep me" }\n'
+      const workspace = join(dir, 'workspace')
+      await mkdir(join(workspace, '.pi'), { recursive: true })
+      const targets = [
+        {
+          path: settingsPath(),
+          patch: () => patchAgentSettings('global', undefined, { theme: 'dark' }),
+        },
+        {
+          path: join(workspace, '.pi', 'settings.json'),
+          patch: () => patchAgentSettings('project', workspace, { theme: 'dark' }),
+        },
+        {
+          path: join(dir, 'web-search.json'),
+          patch: () => patchWebSearchConfig({ braveApiKey: 'x' }),
+        },
+      ]
+      for (const target of targets) {
+        await writeFile(target.path, raw)
+        const error = Object.assign(new Error(`${code}: cannot read config`), { code })
+        const read = vi.spyOn(fs, 'readFile').mockRejectedValueOnce(error)
+        await expect(target.patch()).rejects.toThrow(/will not overwrite/)
+        expect(read).toHaveBeenCalledWith(target.path, 'utf8')
+        read.mockRestore()
+        expect(await readFile(target.path, 'utf8')).toBe(raw)
+      }
+    },
+  )
 
   it('reports malformed state so the UI can block editing', async () => {
     await writeFile(settingsPath(), '{ "oops": true,, }')

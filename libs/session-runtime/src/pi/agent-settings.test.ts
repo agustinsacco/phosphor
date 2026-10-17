@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { readAgentSettings } from './agent-settings'
@@ -26,6 +26,23 @@ describe('readAgentSettings', () => {
     await writeFile(settingsPath(), '{ broken')
     await expect(readAgentSettings()).resolves.toEqual({})
   })
+
+  it.each(['null', '[]', '[1]', '"dark"', '42', 'true'])(
+    'ignores a non-object project config (%s) without losing global settings',
+    async (raw) => {
+      const workspace = join(dir, 'workspace')
+      await mkdir(join(workspace, '.pi'), { recursive: true })
+      await writeFile(
+        settingsPath(),
+        JSON.stringify({ theme: 'dark', compaction: { enabled: true } }),
+      )
+      await writeFile(join(workspace, '.pi', 'settings.json'), raw)
+      await expect(readAgentSettings(workspace)).resolves.toEqual({
+        theme: 'dark',
+        compaction: { enabled: true },
+      })
+    },
+  )
 
   it('merges project overrides one level deep, matching pi semantics', async () => {
     const workspace = await mkdtemp(join(tmpdir(), 'phosphor-ws-'))
