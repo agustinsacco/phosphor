@@ -278,7 +278,9 @@ export async function indexSessionFile(
 
   const artifacts = resumable ? cloneArtifacts(previous.artifacts) : {}
   for (const candidate of state.candidates) {
-    const existing = artifacts[candidate.slug]
+    const existing = Object.hasOwn(artifacts, candidate.slug)
+      ? artifacts[candidate.slug]
+      : undefined
     if (existing?.versions.some((v) => v.toolCallId === candidate.toolCallId)) continue
     const sha256 = await writeBlob(root, candidate.content)
     const artifact: StoredArtifact = existing ?? {
