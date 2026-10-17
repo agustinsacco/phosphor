@@ -1,3 +1,8 @@
+import { readFileSync, readdirSync } from 'node:fs'
+import { dirname, posix, resolve } from 'node:path'
+import ts from 'typescript'
+import { SNAPSHOT_WIDGET } from '../../../libs/pi-extensions/pi-ext/subagent-snapshot'
+import { RATE_LIMIT_STATUS_KEY as ROUTING_RATE_LIMIT_KEY } from '../../../libs/shared/src/claude-limits'
 import { describe, expect, it } from 'vitest'
 import { SWARM_STATUS_KEY } from '../../../libs/pi-extensions/pi-ext/swarm'
 import { LANE_RELOAD_STATUS_KEY } from '../../../libs/pi-extensions/pi-ext/lane-reload'
@@ -74,10 +79,6 @@ describe('status wire runtime characterization', () => {
     expect(parseFleetWidget([prefix + JSON.stringify({ kind, version: 2 })])).toBeNull()
   })
 })
-
-import { readFileSync, readdirSync } from 'node:fs'
-import { dirname, posix, resolve } from 'node:path'
-import ts from 'typescript'
 
 const root = resolve(import.meta.dirname, '../../..')
 const hostPath = 'apps/desktop/src/features/extension-ui/ExtensionUiHosts.tsx'
@@ -160,13 +161,35 @@ function literalResolver(sources: Map<string, ts.SourceFile>) {
   }
 }
 
+const sourceCache = new Map<string, { text: string; source: ts.SourceFile }>()
+
+function statusKeyArgument(call: ts.CallExpression, bound: boolean, path: string) {
+  if (
+    bound &&
+    ts.isPropertyAccessExpression(call.expression) &&
+    call.expression.name.text === 'apply'
+  ) {
+    const args = call.arguments[1]
+    if (!args || !ts.isArrayLiteralExpression(args)) {
+      throw new Error(`Nonliteral setStatus.apply arguments in ${path}`)
+    }
+    return args.elements[0]
+  }
+  return call.arguments[bound ? 1 : 0]
+}
+
 // Static literal audit, not a runtime snapshot of extension loaders. Only source is parsed.
 function literalAudit(texts: Map<string, string>) {
   const sources = new Map(
-    [...texts].map(([path, text]) => [
-      path,
-      ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true),
-    ]),
+    [...texts].map(([path, text]) => {
+      const cached = sourceCache.get(path)
+      const source =
+        cached?.text === text
+          ? cached.source
+          : ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true)
+      sourceCache.set(path, { text, source })
+      return [path, source] as const
+    }),
   )
   const { literal, initializer } = literalResolver(sources)
   const producers = new Map<string, string[]>()
@@ -183,11 +206,17 @@ function literalAudit(texts: Map<string, string>) {
     const scan = (node: ts.Node): void => {
       if (ts.isCallExpression(node)) {
         const callee = node.expression
-        const bound = ts.isPropertyAccessExpression(callee) && callee.name.text === 'call'
+        const bound =
+          ts.isPropertyAccessExpression(callee) && ['call', 'apply'].includes(callee.name.text)
         const target = bound ? callee.expression : callee
         const name = ts.isPropertyAccessExpression(target) ? target.name.text : target.getText()
-        if (name === 'setStatus' && (bound || ts.isPropertyAccessExpression(target))) {
-          record(producers, path, node.arguments[bound ? 1 : 0])
+        if (
+          name === 'setStatus' &&
+          (bound ||
+            ts.isPropertyAccessExpression(target) ||
+            path.startsWith('libs/pi-extensions/pi-ext/'))
+        ) {
+          record(producers, path, statusKeyArgument(node, bound, path))
         }
         if (ts.isPropertyAccessExpression(callee) && callee.name.text === 'has') {
           suppressionUses.push(callee.expression.getText())
@@ -195,7 +224,10 @@ function literalAudit(texts: Map<string, string>) {
       }
       if (ts.isElementAccessExpression(node) && ts.isElementAccessExpression(node.expression)) {
         const owner = node.expression.expression
-        if (ts.isPropertyAccessExpression(owner) && owner.name.text === 'statuses') {
+        if (
+          (ts.isPropertyAccessExpression(owner) && owner.name.text === 'statuses') ||
+          (ts.isIdentifier(owner) && owner.text === 'statuses')
+        ) {
           record(consumers, path, node.argumentExpression)
         }
       }
@@ -224,6 +256,10 @@ function literalAudit(texts: Map<string, string>) {
 
 function assertWireKeys(actual: Iterable<string>, expected: string[]): void {
   const keys = [...new Set(actual)].sort()
+  for (const key of [...keys, ...expected]) {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(key))
+      throw new Error(`Invalid lowercase wire key: ${key}`)
+  }
   if (JSON.stringify(keys) !== JSON.stringify([...expected].sort())) {
     throw new Error(
       `Wire keys differ: actual=${JSON.stringify(keys)} expected=${JSON.stringify(expected)}`,
@@ -236,44 +272,53 @@ const auditedTexts = new Map(
     ...sourceFiles('libs/pi-extensions/pi-ext'),
     ...sourceFiles('apps/desktop/src'),
     'libs/session-runtime/src/pi/lane-reload.ts',
+    'libs/session-runtime/src/pi/session-startup.ts',
+    'libs/shared/src/claude-limits.ts',
+    'apps/host/src/commands/accept.ts',
   ].map((path) => [path, readFileSync(resolve(root, path), 'utf8')]),
 )
 
+const baseAudit = literalAudit(auditedTexts)
+
+function checkWire(audit: ReturnType<typeof literalAudit>, contract = fixture): void {
+  assertWireKeys(
+    [...audit.producers.values()].flat(),
+    contract.statuses.filter(({ producer }) => producer).map(({ key }) => key),
+  )
+  assertWireKeys(
+    [...audit.consumers.values()].flat(),
+    contract.statuses.map(({ key }) => key),
+  )
+  for (const { key, producer, consumer } of contract.statuses) {
+    if (producer) expect(audit.producers.get(producer), producer).toContain(key)
+    expect(audit.consumers.get(consumer), consumer).toContain(key)
+  }
+  expect(
+    contract.statuses
+      .filter(({ producer }) => !producer)
+      .map((entry) => entry.externalCompatibility),
+  ).toEqual([
+    '@saccolabs/pi-claude-cli >= 0.4.5; opaque external provider',
+    '@saccolabs/pi-claude-cli >= 0.4.13; legacy sessions before 0.9.0',
+  ])
+  assertWireKeys(
+    audit.structuredSet('STRUCTURED_STATUS_KEYS'),
+    contract.statuses.map(({ key }) => key),
+  )
+  assertWireKeys(audit.structuredSet('STRUCTURED_WIDGET_KEYS'), contract.structuredWidgets)
+  expect(audit.suppressionUses).toContain('STRUCTURED_STATUS_KEYS')
+  expect(audit.suppressionUses).toContain('STRUCTURED_WIDGET_KEYS')
+  expect(contract.asyncWidget.prefix).toMatch(/^[A-Z0-9_]+:$/)
+}
+
 describe('status wire AST literal audit', () => {
-  it('accounts for every bundled producer and renderer/main consumer without unlisted keys', () => {
-    const audit = literalAudit(auditedTexts)
-    const native = fixture.statuses.filter(({ producer }) => producer)
-    assertWireKeys(
-      [...audit.producers.values()].flat(),
-      native.map(({ key }) => key),
-    )
-    assertWireKeys(
-      [...audit.consumers.values()].flat(),
-      fixture.statuses.map(({ key }) => key),
-    )
-    for (const { key, producer, consumer } of fixture.statuses) {
-      if (producer) expect(audit.producers.get(producer), producer).toContain(key)
-      expect(audit.consumers.get(consumer), consumer).toContain(key)
-    }
-    expect(
-      fixture.statuses
-        .filter(({ producer }) => !producer)
-        .map((entry) => entry.externalCompatibility),
-    ).toEqual([
-      '@saccolabs/pi-claude-cli >= 0.4.5; opaque external provider',
-      '@saccolabs/pi-claude-cli >= 0.4.13; legacy sessions before 0.9.0',
-    ])
+  it('accounts for every producer, consumer and suppressed key without unlisted wire keys', () => {
+    checkWire(baseAudit)
   })
 
-  it('keeps all structured status/widget keys out of prose rendering', () => {
-    const audit = literalAudit(auditedTexts)
-    assertWireKeys(
-      audit.structuredSet('STRUCTURED_STATUS_KEYS'),
-      fixture.statuses.map(({ key }) => key),
-    )
-    assertWireKeys(audit.structuredSet('STRUCTURED_WIDGET_KEYS'), fixture.structuredWidgets)
-    expect(audit.suppressionUses).toContain('STRUCTURED_STATUS_KEYS')
-    expect(audit.suppressionUses).toContain('STRUCTURED_WIDGET_KEYS')
+  it('ties the snapshot widget and account-routing key to their renderer contracts', () => {
+    expect(SNAPSHOT_WIDGET).toBe(fixture.structuredWidgets[2])
+    expect(ROUTING_RATE_LIMIT_KEY).toBe(RATE_LIMIT_STATUS_KEY)
   })
 
   it('recognizes direct strings, local constants, imported aliases and bound setStatus.call', () => {
@@ -311,13 +356,7 @@ describe('status wire AST literal audit', () => {
           .get(path)!
           .replace("SWARM_STATUS_KEY = 'phosphor-swarm'", `SWARM_STATUS_KEY = '${key}'`),
       )
-      const audit = literalAudit(texts)
-      expect(() =>
-        assertWireKeys(
-          [...audit.producers.values()].flat(),
-          fixture.statuses.filter(({ producer }) => producer).map(({ key }) => key),
-        ),
-      ).toThrow('Wire keys differ')
+      expect(() => checkWire(literalAudit(texts))).toThrow()
     },
   )
 
@@ -327,9 +366,7 @@ describe('status wire AST literal audit', () => {
     texts.set(path, texts.get(path)!.replace('[SWARM_STATUS_KEY]', "['phosphor-misspelled']"))
     const audit = literalAudit(texts)
     expect(audit.structuredSet('STRUCTURED_STATUS_KEYS')).toContain('phosphor-swarm')
-    expect(() => assertWireKeys(audit.consumers.get(path) ?? [], ['phosphor-swarm'])).toThrow(
-      'Wire keys differ',
-    )
+    expect(() => checkWire(audit)).toThrow('Wire keys differ')
   })
 
   it('rejects a removed consumer and an additional producer wire key', () => {
@@ -339,18 +376,11 @@ describe('status wire AST literal audit', () => {
       path,
       texts.get(path)!.replace('s.statuses[sessionId]?.[SWARM_STATUS_KEY]', 'undefined'),
     )
-    texts.set('added.ts', "ctx.ui.setStatus('phosphor-new', '')")
     const audit = literalAudit(texts)
     expect(audit.consumers.get(path)).toBeUndefined()
-    expect(() => assertWireKeys(audit.consumers.get(path) ?? [], ['phosphor-swarm'])).toThrow(
-      'Wire keys differ',
-    )
-    expect(() =>
-      assertWireKeys(
-        [...audit.producers.values()].flat(),
-        fixture.statuses.filter(({ producer }) => producer).map(({ key }) => key),
-      ),
-    ).toThrow('Wire keys differ')
+    expect(() => checkWire(audit)).toThrow()
+    texts.set('added.ts', "ctx.ui.setStatus('phosphor-new', '')")
+    expect(() => checkWire(literalAudit(texts))).toThrow('Wire keys differ')
   })
 
   it.each(['STRUCTURED_STATUS_KEYS', 'STRUCTURED_WIDGET_KEYS'])(
@@ -367,23 +397,16 @@ describe('status wire AST literal audit', () => {
           .get(hostPath)!
           .replace(`const ${name} = new Set([\n  ${token},`, `const ${name} = new Set([`),
       )
-      const keys = literalAudit(texts).structuredSet(name)
-      expect(() =>
-        assertWireKeys(
-          keys,
-          name === 'STRUCTURED_STATUS_KEYS'
-            ? fixture.statuses.map(({ key }) => key)
-            : fixture.structuredWidgets,
-        ),
-      ).toThrow('Wire keys differ')
+      expect(() => checkWire(literalAudit(texts))).toThrow('Wire keys differ')
     },
   )
 
-  it('fails closed on dynamic producer expressions', () => {
-    expect(() =>
-      literalAudit(new Map([['producer.ts', 'ctx.ui.setStatus(computeKey(), "")']])),
-    ).toThrow('Unresolved wire expression')
-  })
+  it.each(['ctx.ui.setStatus(computeKey(), "")', 'setStatus.apply(ctx.ui, computeArgs())'])(
+    'fails closed on dynamic producer expressions: %s',
+    (source) => {
+      expect(() => literalAudit(new Map([['producer.ts', source]]))).toThrow()
+    },
+  )
 })
 
 describe('status wire audit regressions', () => {
@@ -391,8 +414,37 @@ describe('status wire audit regressions', () => {
     expect(() => assertWireKeys(['Claude-rate-limit'], ['Claude-rate-limit'])).toThrow()
   })
 
+  it.each(['claude-rate-limit', 'phosphor-subagent-save'])(
+    'rejects synchronized fixture/source case changes to %s',
+    (key) => {
+      const recased = key[0]!.toUpperCase() + key.slice(1)
+      const texts = new Map(
+        [...auditedTexts].map(([path, text]) => [path, text.replaceAll(key, recased)]),
+      )
+      const contract = {
+        ...fixture,
+        statuses: fixture.statuses.map((entry) => ({
+          ...entry,
+          key: entry.key === key ? recased : entry.key,
+        })),
+        structuredWidgets: fixture.structuredWidgets.map((value) =>
+          value === key ? recased : value,
+        ),
+      }
+      expect(() => checkWire(literalAudit(texts), contract)).toThrow('Invalid lowercase wire key')
+    },
+  )
+
+  it('rejects a lowercased fixture payload prefix independently of key equality', () => {
+    const contract = {
+      ...fixture,
+      asyncWidget: { ...fixture.asyncWidget, prefix: fixture.asyncWidget.prefix.toLowerCase() },
+    }
+    expect(() => checkWire(baseAudit, contract)).toThrow()
+  })
+
   it('audits the routing and parameter-based rate-limit consumers and Host consumer', () => {
-    const audit = literalAudit(auditedTexts)
+    const audit = baseAudit
     for (const path of [
       'libs/session-runtime/src/pi/session-startup.ts',
       'apps/desktop/src/features/home/accountUsage.ts',
