@@ -130,3 +130,43 @@ describe('writer output before the lock boundary (characterization)', () => {
     expect(existsSync(missing)).toBe(false)
   })
 })
+
+/** A live pi appends while a fork reads, so the source can end mid-line. */
+const TORN = '{"type":"message","id":"aaaa0003","parentId":"aaaa00'
+
+function unparseable(raw: string): string[] {
+  return raw
+    .split('\n')
+    .filter((l) => l.length > 0)
+    .filter((l) => {
+      try {
+        JSON.parse(l)
+        return false
+      } catch {
+        return true
+      }
+    })
+}
+
+describe('fork of a transcript that ends in a torn line (regression)', () => {
+  it('copies complete lines only, so its jump never merges with the fragment', async () => {
+    await writeFile(source, SOURCE + TORN, 'utf8')
+    const fork = await forkSessionAt(source, 'aaaa0001')
+    const raw = await readFile(fork, 'utf8')
+    expect(unparseable(raw)).toEqual([])
+    expect(raw).not.toContain(TORN)
+    expect(entries(raw).slice(1)).toEqual([
+      ...entries(SOURCE).slice(1),
+      expect.objectContaining({ type: 'branch_summary', parentId: 'aaaa0001', fromId: LEAF }),
+    ])
+    expect(await readFile(source, 'utf8')).toBe(SOURCE + TORN)
+  })
+
+  it('forks a header followed only by a fragment as a header plus its jump', async () => {
+    const header = SOURCE.slice(0, SOURCE.indexOf('\n') + 1)
+    await writeFile(source, header + TORN, 'utf8')
+    const raw = await readFile(await forkSessionAt(source, 'aaaa0001'), 'utf8')
+    expect(unparseable(raw)).toEqual([])
+    expect(entries(raw).map((e) => e.type)).toEqual(['session', 'branch_summary'])
+  })
+})
