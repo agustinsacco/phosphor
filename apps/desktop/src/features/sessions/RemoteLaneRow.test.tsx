@@ -3,10 +3,16 @@ import { useExtensionUiStore } from '@/stores/extensionUi'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { beforeEach, afterEach, expect, it, vi } from 'vitest'
-import { RemoteLaneRow, remoteLaneTitle } from './RemoteLaneRow'
+import {
+  ONLY_WHILE_RUNNING,
+  RemoteLaneRow,
+  remoteControlHint,
+  remoteLaneTitle,
+  TAKE_CONTROL_FIRST,
+} from './RemoteLaneRow'
 import { ContextMenuHost } from '@/components/ContextMenu'
 import { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } from '@/dev/mockRemoteLanes'
-import { useRemoteLanesStore } from '@/stores/remoteLanes'
+import { REMOTE_NOT_READY, REMOTE_UNAVAILABLE, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { useSessionsStore } from '@/stores/sessions'
 import { useChatStore } from '@/stores/chat'
 let root: Root, container: HTMLDivElement
@@ -83,6 +89,25 @@ it('uses the local context-menu host and gates controller actions for a viewer',
   expect(button('Delete').disabled).toBe(true)
   expect(button('Take control').disabled).toBe(false)
   expect(document.body.textContent).not.toContain('Fork')
+  // A viewer is told how to get the action, not that it does not exist.
+  for (const action of ['Rename', 'Stop', 'Delete'])
+    expect(button(action).textContent).toContain(TAKE_CONTROL_FIRST)
+  expect(document.body.textContent).not.toContain(REMOTE_UNAVAILABLE)
+})
+it('names the one obstacle a disabled controller action has', () => {
+  expect(remoteControlHint(false, true, true)).toBe(REMOTE_NOT_READY)
+  expect(remoteControlHint(true, false, true)).toBe(REMOTE_UNAVAILABLE)
+  expect(remoteControlHint(true, true, false)).toBe(TAKE_CONTROL_FIRST)
+  expect(remoteControlHint(true, true, true)).toBeUndefined()
+})
+it('a controller of a stopped lane can delete it, and rename says why it waits', () => {
+  const host = useRemoteLanesStore.getState().hosts[MOCK_HOST_ID]!
+  host.lanes[0] = { ...host.lanes[0]!, activity: 'stopped' }
+  render()
+  menu()
+  expect(button('Delete').disabled).toBe(false)
+  expect(button('Rename').disabled).toBe(true)
+  expect(button('Rename').textContent).toContain(ONLY_WHILE_RUNNING)
 })
 it('renames inline through the remote session and waits for success', async () => {
   render()
@@ -150,6 +175,7 @@ it('delete requires workspace-write capability even for the current controller',
   render()
   menu()
   expect(button('Delete').disabled).toBe(true)
+  expect(button('Delete').textContent).toContain(REMOTE_UNAVAILABLE)
 })
 
 it.each([false, true])(
