@@ -22,8 +22,6 @@ step() {
 }
 
 step typecheck npm run typecheck
-step host-types npm run typecheck:host
-step control-types npm run typecheck:control
 step lint      npm run lint
 step format    npx prettier --check .
 step unit      npm test

@@ -1,5 +1,13 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -9,7 +17,7 @@ import { runTypecheck } from '../typecheck.mjs'
 const repo = resolve(import.meta.dirname, '../../..')
 const temporary: string[] = []
 const fixture = () => {
-  const root = mkdtempSync(join(tmpdir(), 'phosphor-typecheck-'))
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'phosphor-typecheck-')))
   temporary.push(root)
   return root
 }
@@ -113,6 +121,15 @@ describe('typecheck coverage audit', () => {
 })
 
 describe('comprehensive typecheck runner', () => {
+  it('shares one root and Nx runner while preserving standalone Host and Control aliases', () => {
+    const pkg = JSON.parse(readFileSync(join(repo, 'package.json'), 'utf8'))
+    const project = JSON.parse(readFileSync(join(repo, 'tools/scripts/project.json'), 'utf8'))
+    expect(pkg.scripts.typecheck).toBe('node tools/scripts/typecheck.mjs')
+    expect(project.targets.typecheck.options.command).toBe(pkg.scripts.typecheck)
+    expect(pkg.scripts['typecheck:host']).toBe('tsc --noEmit -p apps/host/tsconfig.json')
+    expect(pkg.scripts['typecheck:control']).toBe('tsc --noEmit -p apps/control/tsconfig.json')
+  })
+
   it('delegates every compiler project and the independent site check', () => {
     const root = runnerFixture()
     const calls: { command: string; args: string[]; cwd: string }[] = []
@@ -146,6 +163,21 @@ describe('comprehensive typecheck runner', () => {
       ).toBe(7)
     },
   )
+
+  it('propagates an actual independent site command failure', () => {
+    const root = runnerFixture()
+    write(root, 'apps/site/package.json', JSON.stringify({ scripts: { check: 'node check.cjs' } }))
+    write(root, 'apps/site/check.cjs', 'process.exit(7)')
+    expect(runTypecheck(root)).toBe(7)
+  })
+
+  it('rejects individual site tools linked into a parent installation', () => {
+    const root = runnerFixture()
+    const tool = join(root, 'apps/site/node_modules/typescript/lib/typescript.js')
+    rmSync(tool)
+    symlinkSync(join(root, 'node_modules/typescript/lib/tsc.js'), tool)
+    expect(() => runTypecheck(root, () => 0)).toThrow(/site.*local installation/i)
+  })
 
   it('requires a real site-local installation, never a parent toolchain', () => {
     const root = runnerFixture()

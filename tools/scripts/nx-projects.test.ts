@@ -52,8 +52,7 @@ const commands = {
     test: 'npx --yes supabase@2.119.0 test db',
   },
   tooling: {
-    typecheck:
-      'tsc --noEmit -p apps/desktop/tsconfig.node.json && tsc --noEmit -p apps/desktop/tsconfig.web.json && tsc --noEmit -p apps/host/tsconfig.json && tsc --noEmit -p apps/control/tsconfig.json',
+    typecheck: 'node tools/scripts/typecheck.mjs',
     lint: 'eslint .',
     test: 'vitest run',
     validate: './tools/scripts/validate.sh',

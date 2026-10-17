@@ -14,7 +14,7 @@
     "dev:web": "npm run dev:web --prefix apps/desktop --",
     "build": "npm run build --prefix apps/desktop --",
     "preview": "npm run preview --prefix apps/desktop --",
-    "typecheck": "npm run typecheck --prefix apps/desktop --",
+    "typecheck": "node tools/scripts/typecheck.mjs",
     "typecheck:host": "tsc --noEmit -p apps/host/tsconfig.json",
     "build:host": "node apps/host/scripts/build.mjs",
     "lint": "eslint .",
