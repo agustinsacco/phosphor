@@ -108,10 +108,65 @@ describe('test-inventory normalization and move parity', () => {
     expect(compareInventories(before, after, { allowPlatformMismatch: true }).equal).toBe(true)
   })
 
-  it('excludes fixture cases but fails closed on fixture-only collections', () => {
-    const fixture = collected(['fixture'], 'apps/host/src/__fixtures__/example.test.ts')
-    expect(normalizeCollection([...collected(), ...fixture], options).cases).toHaveLength(1)
-    expect(() => normalizeCollection(fixture, options)).toThrow(/Empty/)
+  it.each(['__fixtures__', 'fixtures'])(
+    'retains collected %s cases and detects their loss after relocation',
+    (directory) => {
+      const from = `apps/host/src/${directory}/example.test.ts`
+      const to = `apps/host/test/${directory}/example.test.ts`
+      const fixture = collected(['fixture'], from)
+      const before = normalizeCollection([...collected(), ...fixture], options)
+      expect(before.cases).toHaveLength(2)
+      expect(normalizeCollection(fixture, options).cases[0].file).toBe(from)
+      const moves = { version: 1, moves: [{ from, to }] }
+      const after = normalizeCollection([...collected(), ...collected(['fixture'], to)], options)
+      expect(compareInventories(before, after, { map: moves }).equal).toBe(true)
+      const diff = compareInventories(before, normalizeCollection(collected(), options), {
+        map: moves,
+      })
+      expect(diff.equal).toBe(false)
+      expect(diff.missing).toMatchObject([{ file: from, fullName: 'fixture' }])
+    },
+  )
+
+  it('retains execution outcomes for fixture-directory suites', () => {
+    const fixture = 'apps/host/src/__fixtures__/example.test.ts'
+    const run = normalizeExecution(execution(['passed', 'skipped'], fixture), options)
+    expect(run.cases.map((entry) => entry.file)).toEqual([fixture, fixture])
+    expect(run.counts.executed).toMatchObject({ total: 2, passed: 1, skipped: 1 })
+  })
+
+  it('keeps same-named cases in different roots of one project distinct', () => {
+    const first = 'tools/scripts/test/example.test.ts'
+    const second = 'tools/host-release/test/example.test.ts'
+    const before = normalizeCollection(
+      [...collected(['same'], first), ...collected(['same'], second)],
+      options,
+    )
+    expect(new Set(before.cases.map((entry) => entry.path)).size).toBe(2)
+    expect(before.cases.map((entry) => entry.ordinal)).toEqual([1, 1])
+    const after = normalizeCollection(collected(['same'], second), options)
+    expect(compareInventories(before, after).missing).toMatchObject([{ file: first }])
+    const to = 'tools/host-release/test/moved.test.ts'
+    const relocation = { version: 1, moves: [{ from: first, to }] }
+    const movedInventory = normalizeCollection(
+      [...collected(['same'], to), ...collected(['same'], second)],
+      options,
+    )
+    expect(compareInventories(before, movedInventory, { map: relocation }).equal).toBe(true)
+  })
+
+  it.each([
+    [
+      { from: file, to: moved },
+      { from: moved, to: 'apps/host/test/next.test.ts' },
+    ],
+    [
+      { from: file, to: moved },
+      { from: moved, to: file },
+    ],
+    [{ from: file, to: file }],
+  ])('rejects overlapping relocation sources and destinations: %j', (...moves) => {
+    expect(() => validateRelocationMap({ version: 1, moves })).toThrow(/overlap/i)
   })
 
   it.each([null, {}, [], [{ name: 'test' }], [{ file: join(root, file), name: 42 }]])(

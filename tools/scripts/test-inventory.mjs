@@ -23,7 +23,6 @@ const statuses = {
   pending: 'skipped',
   todo: 'todo',
 }
-const fixture = (file) => /(^|\/)(__fixtures__|fixtures)\//.test(file)
 const key = (entry) => JSON.stringify([entry.project, entry.path, entry.fullName, entry.ordinal])
 
 export function validateRelocationMap(map) {
@@ -32,7 +31,7 @@ export function validateRelocationMap(map) {
     throw new Error('Invalid relocation manifest version/moves')
   const froms = new Set()
   const tos = new Set()
-  return map.moves.map((move) => {
+  const moves = map.moves.map((move) => {
     const from = repoPath(move?.from)
     const to = repoPath(move?.to)
     if (froms.has(from) || tos.has(to)) throw new Error('Duplicate relocation from/to')
@@ -40,6 +39,17 @@ export function validateRelocationMap(map) {
     tos.add(to)
     return { from, to }
   })
+  if ([...froms].some((from) => tos.has(from)))
+    throw new Error('Overlapping relocation sources and destinations')
+  return moves
+}
+
+// Retain the distinguishing root segments when a project owns multiple trees.
+function identityRoot(roots) {
+  const parts = roots[0].split('/')
+  while (parts.length && !roots.every((root) => `${root}/`.startsWith(`${parts.join('/')}/`)))
+    parts.pop()
+  return parts.join('/')
 }
 
 function canonicalFile(file, moves) {
@@ -61,26 +71,26 @@ function normalize(kind, rawCases, options) {
   const projects = options.projects ?? loadProjectRoots(root)
   const moves = validateRelocationMap(options.map)
   const occurrences = new Map()
-  const cases = rawCases
-    .filter((entry) => !fixture(entry.file))
-    .map((entry) => {
-      const file = canonicalFile(entry.file, moves)
-      const owner = owningProject(file, projects)
-      const identity = {
-        project: owner.project,
-        path: file.slice(owner.root.length + 1),
-        fullName: entry.fullName,
-      }
-      const signature = JSON.stringify(identity)
-      const ordinal = (occurrences.get(signature) ?? 0) + 1
-      occurrences.set(signature, ordinal)
-      return {
-        ...identity,
-        ordinal,
-        file,
-        ...(kind === 'execution' ? { status: entry.status } : {}),
-      }
-    })
+  // Vitest's include globs, not directory names, define the fixture boundary.
+  const cases = rawCases.map((entry) => {
+    const file = canonicalFile(entry.file, moves)
+    const owner = owningProject(file, projects)
+    const root = identityRoot(projects.find((project) => project.name === owner.project).roots)
+    const identity = {
+      project: owner.project,
+      path: root ? file.slice(root.length + 1) : file,
+      fullName: entry.fullName,
+    }
+    const signature = JSON.stringify(identity)
+    const ordinal = (occurrences.get(signature) ?? 0) + 1
+    occurrences.set(signature, ordinal)
+    return {
+      ...identity,
+      ordinal,
+      file,
+      ...(kind === 'execution' ? { status: entry.status } : {}),
+    }
+  })
   if (!cases.length) throw new Error('Empty test inventory')
   return {
     version: 1,

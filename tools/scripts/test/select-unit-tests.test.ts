@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { resolve } from 'node:path'
@@ -31,18 +31,23 @@ const unit = () => ({
 })
 
 describe('select-unit-tests explicit unit selection', () => {
-  it('pins project roots from project.json plus the documented release-tools exception', () => {
-    expect(projects).toEqual([
-      { name: 'control', roots: ['apps/control'] },
-      { name: 'desktop', roots: ['apps/desktop'] },
-      { name: 'host', roots: ['apps/host'] },
-      { name: 'pi-extensions', roots: ['libs/pi-extensions'] },
-      { name: 'runtime', roots: ['libs/session-runtime'] },
-      { name: 'schema', roots: ['supabase'] },
-      { name: 'shared', roots: ['libs/shared'] },
-      { name: 'site', roots: ['apps/site'] },
-      { name: 'tooling', roots: ['tools/scripts', 'tools/host-release'] },
-    ])
+  it('loads project roots from project.json plus the documented release-tools exception', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'unit-projects-'))
+    try {
+      for (const [name, path] of [
+        ['host', 'apps/host'],
+        ['tooling', 'tools/scripts'],
+      ]) {
+        mkdirSync(join(directory, path), { recursive: true })
+        writeFileSync(join(directory, path, 'project.json'), JSON.stringify({ name, root: path }))
+      }
+      expect(loadProjectRoots(directory)).toEqual([
+        { name: 'host', roots: ['apps/host'] },
+        { name: 'tooling', roots: ['tools/scripts', 'tools/host-release'] },
+      ])
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
   })
 
   it('unions explicit paths with the entire owning package suite in both layouts', () => {
@@ -76,7 +81,7 @@ describe('select-unit-tests explicit unit selection', () => {
     ).toEqual(files.slice(5).sort())
   })
 
-  it('strips ownership notes, skips glob/non-path entries with warnings', () => {
+  it('strips ownership notes, keeps glob prefixes and warns on non-path entries', () => {
     const validated = validateUnitSpec({
       ...unit(),
       owns: [...unit().owns, 'apps/host/**', 'test-inventory'],
@@ -84,8 +89,30 @@ describe('select-unit-tests explicit unit selection', () => {
     expect(validated.owns).toEqual([
       'apps/desktop/src/store.ts',
       'apps/desktop/src/MonacoEditor.tsx',
+      'apps/host',
     ])
-    expect(validated.warnings).toHaveLength(2)
+    expect(validated.warnings).toHaveLength(1)
+  })
+
+  it.each([
+    'apps/host/**',
+    'apps/host/src/*.ts',
+    'apps/host/{src,test}/x.ts',
+    'apps/host/[st]*.ts',
+  ])('expands glob ownership %s alongside an explicit consumer suite', (glob) => {
+    const selection = selectUnitTests({ ...unit(), owns: [glob] }, files, projects)
+    expect(selection.projects).toEqual(['desktop', 'host'])
+    expect(selection.files).toContain(files[2])
+    expect(selection.warnings).toEqual([])
+  })
+
+  it('fails closed for glob-only code ownership or unknown glob owners', () => {
+    expect(() =>
+      selectUnitTests({ owns: ['apps/host/**', 'docs/host.md'] }, files, projects),
+    ).toThrow(/Empty explicit/)
+    expect(() => selectUnitTests({ ...unit(), owns: ['unknown/**'] }, files, projects)).toThrow(
+      /No owning/,
+    )
   })
 
   it.each([
@@ -97,7 +124,7 @@ describe('select-unit-tests explicit unit selection', () => {
     { owns: ['apps/host/src/file.ts'], existing_tests: ['../escape.test.ts'] },
     { owns: ['apps/host/src/file.ts'], new_tests: [{}] },
     { ...unit(), importChanges: [{ consumer: 'host' }] },
-    { ...unit(), owns: ['apps/desktop/**'] },
+    { ...unit(), owns: ['**/*.ts'] },
   ])('rejects invalid or empty explicit selection %j', (input) => {
     expect(() => validateUnitSpec(input)).toThrow()
   })
@@ -122,19 +149,20 @@ describe('select-unit-tests explicit unit selection', () => {
 
   it('uses real Vitest file-only collection without resolving the Monaco import graph', () => {
     const available = listTestFiles(root)
-    expect(available).toContain('apps/desktop/src/stores/filesRelease.test.ts')
+    const explicit = available.find((file) => file.startsWith('apps/desktop/'))!
+    expect(explicit).toBeDefined()
     const selection = selectUnitTests(
       {
         owns: [
           'apps/desktop/src/features/files/MonacoEditor.tsx',
           'apps/desktop/src/lib/monaco.ts',
         ],
-        existing_tests: ['apps/desktop/src/stores/filesRelease.test.ts'],
+        existing_tests: [explicit],
       },
       available,
       projects,
     )
-    expect(selection.files).toContain('apps/desktop/src/stores/filesRelease.test.ts')
+    expect(selection.files).toContain(explicit)
     expect(selection.files.length).toBeGreaterThan(100)
     expect(selection.projects).toEqual(['desktop'])
   }, 30_000)

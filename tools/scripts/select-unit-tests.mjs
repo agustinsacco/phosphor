@@ -93,16 +93,23 @@ export function validateUnitSpec(unit) {
     throw new Error('Invalid existing_tests')
   for (const test of unit.existing_tests ?? []) tests.push(repoPath(test))
   const warnings = []
+  const globPrefixes = []
   const owns = unit.owns.flatMap((entry) => {
     const path = typeof entry === 'string' ? entry.replace(/\s*\(.*\)\s*$/, '').trim() : ''
-    if ((!path.includes('/') && !path.includes('.')) || /[*?{}[\]]/.test(path)) {
-      warnings.push(`Skipped non-path or glob ownership: ${String(entry)}`)
+    if (!path.includes('/') && !path.includes('.') && !/[*?{}[\]]/.test(path)) {
+      warnings.push(`Skipped non-path ownership: ${String(entry)}`)
       return []
+    }
+    if (!isRootSuiteInput(path) && /[*?{}[\]]/.test(path)) {
+      const prefix = repoPath(path.split(/[*?{}[\]]/, 1)[0].replace(/\/$/, ''))
+      globPrefixes.push(prefix)
+      return [prefix]
     }
     return [repoPath(path)]
   })
-  if (!owns.length) throw new Error('No exact ownership paths')
-  const noTests = unit.kind === 'docs' || owns.every((path) => !isCodePath(path))
+  if (!owns.length) throw new Error('No ownership paths')
+  const noTests =
+    unit.kind === 'docs' || (!globPrefixes.length && owns.every((path) => !isCodePath(path)))
   if (!tests.length && !noTests) throw new Error('Empty explicit test selection')
   const importChanges = unit.importChanges ?? []
   if (
@@ -112,7 +119,7 @@ export function validateUnitSpec(unit) {
     )
   )
     throw new Error('Invalid importChanges')
-  return { tests: [...new Set(tests)], owns, importChanges, warnings, noTests }
+  return { tests: [...new Set(tests)], owns, globPrefixes, importChanges, warnings, noTests }
 }
 
 export function selectUnitTests(unit, availableFiles, projects = loadProjectRoots()) {
@@ -123,7 +130,7 @@ export function selectUnitTests(unit, availableFiles, projects = loadProjectRoot
     try {
       names.add(owningProject(path, projects).project)
     } catch (error) {
-      if (isCodePath(path)) throw error
+      if (isCodePath(path) || selection.globPrefixes.includes(path)) throw error
       selection.warnings.push(`Skipped unowned non-code ownership: ${path}`)
     }
   }
@@ -206,7 +213,7 @@ function main(args) {
       if (!existsSync(resolve(file))) throw new Error(`Missing test file: ${file}`)
     const result = spawnSync(
       process.execPath,
-      [resolve('node_modules/vitest/vitest.mjs'), 'run', ...selection.files],
+      [resolve('node_modules/vitest/vitest.mjs'), 'run', '--maxWorkers=2', ...selection.files],
       { stdio: 'inherit' },
     )
     if (result.error) throw result.error
