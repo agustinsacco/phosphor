@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll, afterAll, vi } from 'vitest'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runPrintMode } from './print-mode'
@@ -275,5 +275,118 @@ describe('runPrintMode baseline', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+/**
+ * Cancellation and streaming, for a caller that runs print mode as a job a
+ * user watches (the Claude provider proof) and that quit must be able to stop.
+ */
+describe('runPrintMode cancellation and streaming', () => {
+  const script = (name: string, lines: string[]): string => {
+    const path = join(dir, name)
+    writeFileSync(path, lines.join('\n'))
+    return path
+  }
+  const isAlive = (pid: number): boolean => {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch {
+      return false
+    }
+  }
+  const waitFor = async (check: () => boolean): Promise<boolean> => {
+    for (let i = 0; i < 60 && !check(); i++) await new Promise((r) => setTimeout(r, 50))
+    return check()
+  }
+
+  it('never starts a run whose signal is already aborted', async () => {
+    const marker = join(dir, 'aborted-before-spawn.ran')
+    const writesMarker = script('writes-marker.cjs', [
+      `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran')`,
+      "process.stdout.write('ran\\n')",
+    ])
+    const controller = new AbortController()
+    controller.abort()
+    const result = await runPrintMode(process.execPath, [writesMarker], {
+      cwd: dir,
+      env: process.env,
+      timeoutMs: 3_000,
+      signal: controller.signal,
+    })
+    expect(result).toEqual({ stdout: '', error: 'aborted' })
+    await new Promise((r) => setTimeout(r, 200))
+    expect(existsSync(marker)).toBe(false)
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'stops a running run and everything it started when aborted',
+    async () => {
+      const pidFile = join(dir, 'abort-child.pid')
+      const hangsWithChild = script('abort-hangs-with-child.cjs', [
+        "const { spawn } = require('node:child_process')",
+        "const { writeFileSync } = require('node:fs')",
+        "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })",
+        "process.stdout.write('answer\\n')",
+        `writeFileSync(${JSON.stringify(pidFile)}, String(child.pid))`,
+        'setInterval(() => {}, 1000)',
+      ])
+      const controller = new AbortController()
+      const pending = runPrintMode(process.execPath, [hangsWithChild], {
+        cwd: dir,
+        env: process.env,
+        timeoutMs: 3_000,
+        signal: controller.signal,
+      })
+      expect(await waitFor(() => existsSync(pidFile))).toBe(true)
+      const childPid = Number(readFileSync(pidFile, 'utf8'))
+      const started = Date.now()
+      controller.abort()
+      const result = await pending
+      expect(Date.now() - started).toBeLessThan(1_000)
+      expect(result).toEqual({ stdout: 'answer\n', error: 'aborted' })
+      expect(await waitFor(() => !isAlive(childPid))).toBe(true)
+    },
+  )
+
+  it('streams stdout chunks to onStdout while the run is still going', async () => {
+    const release = join(dir, 'stream-release')
+    const twoParts = script('streams-two-parts.cjs', [
+      "const { existsSync } = require('node:fs')",
+      "process.stdout.write('one\\n')",
+      'const timer = setInterval(() => {',
+      `  if (!existsSync(${JSON.stringify(release)})) return`,
+      '  clearInterval(timer)',
+      "  process.stdout.write('two\\n')",
+      '}, 20)',
+    ])
+    const chunks: string[] = []
+    const result = await runPrintMode(process.execPath, [twoParts], {
+      cwd: dir,
+      env: process.env,
+      timeoutMs: 3_000,
+      onStdout: (chunk) => {
+        chunks.push(chunk)
+        if (chunk.includes('one')) writeFileSync(release, '')
+      },
+    })
+    expect(result).toEqual({ stdout: 'one\ntwo\n' })
+    expect(chunks.join('')).toBe('one\ntwo\n')
+  })
+
+  it('stops listening to the signal once the run times out', async () => {
+    const controller = new AbortController()
+    const removed = vi.spyOn(controller.signal, 'removeEventListener')
+    const result = await runPrintMode(process.execPath, [answersThenHangsScript], {
+      cwd: dir,
+      env: process.env,
+      timeoutMs: 500,
+      signal: controller.signal,
+    })
+    expect(result.error).toBe('timed out after 500ms')
+    expect(removed).toHaveBeenCalledWith('abort', expect.any(Function))
+    // A late abort finds nothing to settle and throws nothing.
+    expect(() => controller.abort()).not.toThrow()
   })
 })
