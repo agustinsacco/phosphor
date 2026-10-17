@@ -250,3 +250,45 @@ describe('Host routine runner characterization', () => {
     expect(test.removeListener).toHaveBeenCalledWith('abort', expect.any(Function))
   })
 })
+
+describe('Host routine runner nested-tool outcomes', () => {
+  it('finishes without a tool warning when the parent handles a nested failure', async () => {
+    const test = await start()
+    test.event(toolEnd(true, 'parent'))
+    test.event(toolEnd(false))
+    test.event({ type: 'agent_end', messages: [message] })
+    await expect(test.completed).resolves.toEqual(finished)
+  })
+
+  it('warns when the parent fails after a nested failure', async () => {
+    const test = await start()
+    test.event(toolEnd(true, 'parent'))
+    test.event(toolEnd(true))
+    test.event({ type: 'agent_end', messages: [message] })
+    await expect(test.completed).resolves.toEqual(warned)
+  })
+
+  it('does not clear an earlier top-level error when a later parent handles its child', async () => {
+    const test = await start()
+    test.event(toolEnd(true))
+    test.event(toolEnd(true, 'parent'))
+    test.event(toolEnd(false))
+    test.event({ type: 'agent_end', messages: [message] })
+    await expect(test.completed).resolves.toEqual(warned)
+  })
+
+  it.each([
+    { patch: { errorMessage: 'Provider failed' }, reason: 'Provider failed' },
+    { patch: { stopReason: 'error' as const }, reason: 'Agent stopped: error.' },
+    { patch: { stopReason: 'aborted' as const }, reason: 'Agent stopped: aborted.' },
+  ])(
+    'cannot hide assistant failure after a handled child error: $reason',
+    async ({ patch, reason }) => {
+      const test = await start()
+      test.event(toolEnd(true, 'parent'))
+      test.event(toolEnd(false))
+      test.event({ type: 'agent_end', messages: [{ ...message, ...patch }] })
+      await expect(test.completed).resolves.toEqual({ status: 'failed', reason })
+    },
+  )
+})
