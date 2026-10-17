@@ -662,3 +662,45 @@ describe.skipIf(process.platform === 'win32')('resolveBinary', () => {
     expect(existsSync(join(lookupMachine.root, 'login-shell-ran'))).toBe(false)
   })
 })
+
+/**
+ * The name is data for the shell, never source: every caller passes a
+ * constant today, so this is hardening, but `resolveBinary` is exported and
+ * a name with shell syntax in it must not run, expand or split.
+ */
+describe.skipIf(process.platform === 'win32')('resolveBinary keeps the name as data', () => {
+  beforeEach(setUpLookupMachine)
+  afterEach(tearDownLookupMachine)
+
+  const marker = (): string => join(lookupMachine.root, 'ran')
+
+  it("does not run a command after a name's `;`", async () => {
+    expect(await resolveBinary(`nope; : > '${marker()}'`)).toBeNull()
+    expect(existsSync(marker())).toBe(false)
+  })
+
+  it('does not let a name choose the answer', async () => {
+    expect(await resolveBinary('nope; echo /evil/claude')).toBeNull()
+  })
+
+  it('does not expand $( ) or backticks in a name', async () => {
+    expect(await resolveBinary(`$(: > '${marker()}')`)).toBeNull()
+    expect(await resolveBinary(`\`: > '${marker()}'\``)).toBeNull()
+    expect(existsSync(marker())).toBe(false)
+  })
+
+  it('does not strip quotes or split on spaces', async () => {
+    installBinary(lookupMachine.loginDir, 'claude')
+
+    expect(await resolveBinary("'claude'")).toBeNull()
+    expect(await resolveBinary('"claude"')).toBeNull()
+    expect(await resolveBinary('nope claude')).toBeNull()
+  })
+
+  it('finds a file whose name holds shell syntax, as named', async () => {
+    for (const name of ['my tool', 'a;b', '$(x)', "it's"]) {
+      const path = installBinary(lookupMachine.loginDir, name)
+      expect(await resolveBinary(name)).toBe(path)
+    }
+  })
+})
