@@ -117,3 +117,16 @@ describe.each(homes)('$directory/tsconfig.json', (home) => {
     }
   })
 })
+
+it('allows only the Host output module imported by its TypeScript script test', () => {
+  const config = parseConfig(resolve(root, 'apps/host/tsconfig.json'))
+  expect(config.options.allowJs).toBe(true)
+  expect(config.options.checkJs).not.toBe(true)
+  expect(config.options.maxNodeModuleJsDepth ?? 0).toBe(0)
+  const program = ts.createProgram(config.fileNames, config.options)
+  const javascript = program
+    .getSourceFiles()
+    .map((file) => relative(root, file.fileName).replaceAll('\\', '/'))
+    .filter((path) => !path.includes('node_modules/') && /\.(c|m)?js$/.test(path))
+  expect(javascript).toEqual(['apps/host/scripts/output.mjs'])
+})
