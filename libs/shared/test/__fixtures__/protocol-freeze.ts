@@ -352,6 +352,7 @@ export const LANE_OP_TYPES = {
   'control.release': true,
   'host.repositories.add': true,
   'host.repositories.remove': true,
+  'host.repositories.createFolder': true,
   'provider.login': true,
   'terminal.create': true,
   'terminal.resize': true,

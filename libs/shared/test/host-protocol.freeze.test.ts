@@ -357,6 +357,7 @@ describe('Host API constants and op lists', () => {
       'control.take',
       'host.repositories.add',
       'host.repositories.remove',
+      'host.repositories.createFolder',
     ])
   })
 
