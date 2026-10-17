@@ -633,4 +633,64 @@ describe('run teardown failures', () => {
       }
     },
   )
+  it.each([
+    { phase: 'commands', mode: 'reject' as const },
+    { phase: 'store', mode: 'throw' as const },
+    { phase: 'release', mode: 'reject' as const },
+  ])(
+    'a signal whose stops succeed still exits 70 when $phase fails ($mode) in teardown',
+    async ({ phase, mode }) => {
+      const host = await fullHost()
+      const exits: number[] = []
+      const atExit: string[][] = []
+      const shutdown = createShutdown({
+        exit: (code) => {
+          exits.push(code)
+          atExit.push(
+            readdirSync(identityDirectory(host.control.configPath)).filter((name) =>
+              name.startsWith('.run-lock'),
+            ),
+          )
+        },
+        stderr: () => {},
+        stopProbes: () => {},
+      })
+      const failure = new Error(`${phase} failed`)
+      fail(phase, mode, failure)
+      let signalled = false
+      let stopping: Promise<void> | undefined
+      try {
+        await expect(
+          runHost({
+            ...host.context,
+            attach: shutdown.attach,
+            wait: async (ms) => {
+              // 5 s is the stopping beat's own wait.
+              if (ms === 5000) return
+              if (signalled) return host.control.abort.abort()
+              signalled = true
+              stopping = shutdown.signal('SIGTERM')
+            },
+          }),
+        ).rejects.toBe(failure)
+        await stopping
+        // As main.ts does: the command's own 70 is ignored while the signal's drain decides.
+        shutdown.finish(70)
+        expect(exits).toEqual([70])
+        // Only a failed release leaves its lock behind.
+        expect(atExit).toEqual([phase === 'release' ? ['.run-lock'] : []])
+        expect(hooks.order).toEqual([
+          'naming',
+          'api',
+          'routines.stop',
+          'runtime',
+          'naming',
+          'api',
+          ...PHASES.slice(4),
+        ])
+      } finally {
+        await host.cleanup()
+      }
+    },
+  )
 })
