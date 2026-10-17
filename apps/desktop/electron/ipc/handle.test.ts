@@ -198,3 +198,87 @@ it('characterize: declared resource positions refuse host: workspaces and remote
   expect(refuses('skills:importConfirm', { sourcePath: '/s.zip', scope: 'user' })).toBe(false)
   expect(refuses('fs:searchWorkspace', { ...SEARCH, workspacePath: '/local' })).toBe(false)
 })
+
+it('regression: file content, terminal input and commit messages reach local handlers', () => {
+  for (const text of REMOTE_KEYS) {
+    const local = vi.fn(() => 'local')
+    const write = registered('fs:writeFile', local)
+    const input = registered('pty:write', local)
+    const commit = registered('git:commitAll', local)
+    expect(refusal(() => write(SENDER, '/local/a.ts', text, null))).toBe(false)
+    expect(refusal(() => input(SENDER, 'pty-1', text))).toBe(false)
+    expect(refusal(() => commit(SENDER, '/local/repository', text))).toBe(false)
+    expect(local.mock.calls).toEqual([
+      [SENDER, '/local/a.ts', text, null],
+      [SENDER, 'pty-1', text],
+      [SENDER, '/local/repository', text],
+    ])
+  }
+})
+
+it('regression: routine, label, title, HTML, MCP, config and skill text is never a resource', () => {
+  for (const text of REMOTE_KEYS) {
+    const routine = { ...ROUTINE, name: text, instructions: text, model: text }
+    expect(refuses('routines:save', routine, undefined, undefined, undefined)).toBe(false)
+    expect(refuses('routines:check', routine)).toBe(false)
+    expect(refuses('sessions:appendLabel', '/local/s.jsonl', 'entry', text)).toBe(false)
+    expect(refuses('pi:generateTitle', '/local', text, [text])).toBe(false)
+    expect(refuses('artifacts:stageHtml', text, 'dark')).toBe(false)
+    expect(refuses('artifacts:exportPdf', { html: text, title: text, theme: 'light' })).toBe(false)
+    const server = { command: text, args: [text], env: { KEY: text } }
+    expect(refuses('mcp:upsertServer', 'global', undefined, text, server)).toBe(false)
+    expect(refuses('mcp:writeFile', 'project', '/local', text)).toBe(false)
+    expect(refuses('pi:writeConfigFile', 'settings', text)).toBe(false)
+    expect(refuses('pi:patchAgentSettings', 'project', '/local', { model: text })).toBe(false)
+    expect(refuses('pi:patchWebSearchConfig', { provider: text })).toBe(false)
+    expect(refuses('skills:writeFile', '/skills/a', 'SKILL.md', text, '/local')).toBe(false)
+    const skill = { ...SKILL, name: text, description: text, content: text }
+    expect(refuses('skills:create', skill)).toBe(false)
+    expect(refuses('skills:install', 'library', text, { targetName: text })).toBe(false)
+    expect(refuses('git:addWorktree', '/local', text, { kind: 'new', name: text })).toBe(false)
+    expect(refuses('git:renameBranch', '/local', text, text)).toBe(false)
+    expect(refuses('fs:searchWorkspace', { ...SEARCH, workspacePath: '/l', include: text })).toBe(
+      false,
+    )
+    expect(refuses('claude:submitCode', text)).toBe(false)
+  }
+})
+
+it('regression: only selected arrays are bounded; other payloads are not walked', () => {
+  const paths = (count: number) => Array.from({ length: count }, (_, i) => `/local/${i}`)
+  expect(refuses('fs:statDirs', paths(4096))).toBe(false)
+  expect(refuses('fs:statDirs', paths(4097))).toBe(true)
+  expect(refuses('git:infoBatch', paths(4097))).toBe(true)
+  expect(refuses('artifacts:list', paths(4097))).toBe(true)
+  const names = Array.from({ length: 5000 }, (_, i) => `name ${i}`)
+  expect(refuses('pi:generateTitle', '/local', 'message', names)).toBe(false)
+  let deep: unknown = 'host:machine/repository'
+  for (let level = 0; level < 32; level++) deep = { level: deep }
+  expect(refuses('pi:patchAgentSettings', 'global', undefined, { deep })).toBe(false)
+  expect(refuses('mcp:upsertServer', 'global', undefined, 'n', { command: 'c', env: deep })).toBe(
+    false,
+  )
+})
+
+it('regression: malformed selected containers and keys fail closed', () => {
+  expect(refuses('pi:createSession', null)).toBe(true)
+  expect(refuses('pi:createSession', '/local')).toBe(true)
+  expect(refuses('pi:createSession', [{ workspacePath: '/local' }])).toBe(true)
+  expect(refuses('pi:createSession', { workspacePath: 42 })).toBe(true)
+  expect(refuses('pi:createSession', {})).toBe(true)
+  expect(refuses('pi:createSession', { workspacePath: '/local', sessionPath: null })).toBe(true)
+  expect(refuses('app:saveDialog', null)).toBe(true)
+  expect(refuses('routines:check', 'routine')).toBe(true)
+  expect(refuses('fs:statDirs', '/local')).toBe(true)
+  expect(refuses('fs:statDirs', { 0: '/local', length: 1 })).toBe(true)
+  expect(refuses('fs:statDirs', ['/local', 7])).toBe(true)
+  expect(refuses('git:infoBatch', ['/local', undefined])).toBe(true)
+  expect(refuses('fs:readFile', 42)).toBe(true)
+  expect(refuses('fs:readFile', undefined)).toBe(true)
+  expect(refuses('fs:readFile')).toBe(true)
+  expect(refuses('fs:rename', '/local/a', { path: '/local/b' })).toBe(true)
+  expect(refuses('routines:list', undefined)).toBe(false)
+  expect(refuses('mcp:readConfigs')).toBe(false)
+  expect(refuses('sessions:delete', undefined, 'session-1')).toBe(false)
+  expect(refuses('app:saveDialog', { title: 'Save' })).toBe(false)
+})
