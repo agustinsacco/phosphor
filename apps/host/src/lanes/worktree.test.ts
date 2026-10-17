@@ -712,3 +712,97 @@ it('fresh tracked-worktree cleanup preserves a ref moved by another creator', as
   expect(await run(['worktree', 'list', '--porcelain'])).not.toContain(folder.cwd)
   expect(await run(['rev-parse', 'tracked-moved'])).toBe(next)
 })
+
+async function originDevelop(): Promise<{ origin: string; local: string }> {
+  await run(['checkout', '-b', 'develop'])
+  await run(['commit', '--allow-empty', '-m', 'develop'])
+  const remote = join(temp, 'origin.git')
+  await run(['init', '--bare', remote])
+  await run(['remote', 'add', 'origin', remote])
+  await run(['push', 'origin', 'develop'])
+  await run(['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/develop'])
+  const origin = await run(['rev-parse', 'refs/remotes/origin/develop'])
+  await run(['commit', '--allow-empty', '-m', 'local develop only'])
+  await run(['checkout', 'main'])
+  await run(['branch', 'master', 'develop'])
+  return { origin, local: await run(['rev-parse', 'develop']) }
+}
+
+it('origin/HEAD outranks local main, master and the current branch for base and default refusal', async () => {
+  const { origin, local } = await originDevelop()
+  await expect(prepare('develop')).rejects.toThrow('The default branch stays in the main tree.')
+  await expect(
+    prepareLaneFolder({ root, worktree: { branch: 'develop', fresh: true } }),
+  ).rejects.toMatchObject({ code: 'branch-exists' })
+  expect(existsSync(join(root, '.phosphor', 'worktrees', 'develop'))).toBe(false)
+  const lane = await prepareLaneFolder({ root, worktree: { branch: 'lane', fresh: true } })
+  expect(await run(['rev-parse', 'lane'])).toBe(origin)
+  const master = await prepare('master')
+  expect(await run(['symbolic-ref', '--short', 'HEAD'], master.cwd)).toBe('master')
+  await master.undo()
+  expect(await run(['rev-parse', 'master'])).toBe(local)
+  await lane.undo()
+  expect(await run(['for-each-ref', 'refs/heads/lane'])).toBe('')
+  expect(await run(['rev-parse', 'develop'])).toBe(local)
+})
+
+it('without origin/HEAD, main outranks master and the current branch', async () => {
+  const main = await run(['rev-parse', 'main'])
+  await run(['checkout', '-b', 'master'])
+  await run(['commit', '--allow-empty', '-m', 'master'])
+  await run(['checkout', '-b', 'current'])
+  await run(['commit', '--allow-empty', '-m', 'current'])
+  await expect(prepare('main')).rejects.toThrow('The default branch stays in the main tree.')
+  await expect(
+    prepareLaneFolder({ root, worktree: { branch: 'main', fresh: true } }),
+  ).rejects.toMatchObject({ code: 'branch-exists' })
+  const lane = await prepare('from-main')
+  expect(await run(['rev-parse', 'from-main'])).toBe(main)
+  const master = await prepare('master')
+  await master.undo()
+  await lane.undo()
+  expect(await run(['for-each-ref', 'refs/heads/from-main'])).toBe('')
+})
+
+it('fresh rollback after an origin-based reservation deletes only its own ref', async () => {
+  const { origin, local } = await originDevelop()
+  const realGit = exec.git
+  vi.spyOn(exec, 'git').mockImplementation((cwd, args, options) =>
+    args[0] === 'worktree' && args[1] === 'add'
+      ? Promise.reject(new Error('add failed'))
+      : realGit(cwd, args, options),
+  )
+  await expect(
+    prepareLaneFolder({ root, worktree: { branch: 'origin-rollback', fresh: true } }),
+  ).rejects.toEqual(new LaneFolderError('The worktree could not be created.'))
+  vi.restoreAllMocks()
+  expect(await run(['for-each-ref', 'refs/heads/origin-rollback'])).toBe('')
+  expect(existsSync(join(root, '.phosphor', 'worktrees', 'origin-rollback'))).toBe(false)
+  expect(await run(['rev-parse', 'refs/remotes/origin/develop'])).toBe(origin)
+  expect(await run(['rev-parse', 'develop'])).toBe(local)
+})
+
+it('a detached HEAD without trunk candidates creates from the HEAD commit and allows its branch', async () => {
+  await run(['branch', '-m', 'trunk'])
+  await run(['commit', '--allow-empty', '-m', 'detached'])
+  await run(['checkout', '--detach'])
+  await run(['update-ref', 'refs/heads/trunk', 'HEAD~1'])
+  const head = await run(['rev-parse', 'HEAD'])
+  const lane = await prepareLaneFolder({ root, worktree: { branch: 'detached', fresh: true } })
+  expect(await run(['rev-parse', 'detached'])).toBe(head)
+  const trunk = await prepare('trunk')
+  await trunk.undo()
+  await lane.undo()
+  expect(await run(['for-each-ref', 'refs/heads/detached'])).toBe('')
+})
+
+it('an unborn HEAD without trunk candidates refuses new branches with the generic sentence', async () => {
+  await run(['branch', '-m', 'trunk'])
+  await run(['checkout', '--orphan', 'unborn'])
+  for (const fresh of [true, undefined] as const)
+    await expect(
+      prepareLaneFolder({ root, worktree: { branch: 'orphan-lane', ...(fresh && { fresh }) } }),
+    ).rejects.toEqual(new LaneFolderError('The worktree could not be created.'))
+  expect(await run(['for-each-ref', 'refs/heads/orphan-lane'])).toBe('')
+  expect(existsSync(join(root, '.phosphor', 'worktrees', 'orphan-lane'))).toBe(false)
+})
