@@ -48,32 +48,38 @@ it('refuses saturated nonce caches with 429 and never evicts unexpired replay re
   )
   expect(cache.accept('a', 'nonce')).toBe(false)
 })
-it('sweeps expired nonces at 120 seconds and reuses slots without removing live nonces', () => {
+it('keeps nonces spent through the 120-second skew span and reuses slots at 121 seconds', () => {
   let now = 0
   const cache = new NonceCache(() => now, 2)
   expect(cache.accept('a', 'nonce')).toBe(true)
   now = 1
   expect(cache.accept('b', 'nonce')).toBe(true)
-  now = 119999
+  now = 120_000
   expect(cache.accept('a', 'nonce')).toBe(false)
-  now = 120000
+  expect(() => cache.accept('c', 'nonce')).toThrowError(
+    expect.objectContaining({ code: 'too-many-requests', status: 429 }),
+  )
+  now = 120_999
+  expect(cache.accept('a', 'nonce')).toBe(false)
+  now = 121_000
   expect(cache.accept('a', 'nonce')).toBe(true)
   expect(cache.accept('b', 'nonce')).toBe(false)
-  now = 120001
+  now = 121_001
   expect(cache.accept('c', 'nonce')).toBe(true)
+  expect(cache.accept('a', 'nonce')).toBe(false)
 })
 
 it('stays closed when the wall clock steps back: no replay, slots free later', () => {
   let now = 1000
   const cache = new NonceCache(() => now, 2)
-  expect(cache.accept('a', 'one')).toBe(true) // expires 121000
+  expect(cache.accept('a', 'one')).toBe(true) // expires 122000
   now = 0
-  expect(cache.accept('a', 'two')).toBe(true) // expires 120000, behind one
-  now = 120_000
+  expect(cache.accept('a', 'two')).toBe(true) // expires 121000, behind one
+  now = 121_000
   expect(cache.accept('a', 'one')).toBe(false)
   expect(cache.accept('a', 'two')).toBe(false)
   expect(() => cache.accept('a', 'three')).toThrow()
-  now = 121_000
+  now = 122_000
   expect(cache.accept('a', 'three')).toBe(true)
   expect(cache.accept('a', 'four')).toBe(true)
 })

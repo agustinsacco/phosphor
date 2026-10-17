@@ -237,6 +237,31 @@ it('refuses saturated key nonces with 429 without affecting enrolled host nonces
   })
   expect(await authenticateHost(enrolledRequest(), bytes, ports, 'host', testIp)).toBe(userId)
 })
+it('refuses a replay at the late skew edge after first accepting it at the early edge', async () => {
+  const signedAtMs = Number(vector.input.timestamp) * 1000
+  for (const [mode, identity, signed] of [
+    ['key', vector.publicKey, request],
+    ['host', userId, enrolledRequest],
+  ] as const) {
+    const ports = deps()
+    let now = signedAtMs - 60_000
+    ports.clock = () => now
+    ports.nonces = { key: new NonceCache(ports.clock), host: new NonceCache(ports.clock) }
+    ports.limits = new RateLimiter(ports.clock)
+    expect(await authenticateHost(signed(), bytes, ports, mode, testIp)).toBe(identity)
+    // Both edges are inside the inclusive skew, so only the nonce record refuses this.
+    now = signedAtMs + 60_000
+    await expect(authenticateHost(signed(), bytes, ports, mode, testIp)).rejects.toMatchObject({
+      code: 'unauthenticated',
+    })
+    // Once the record lapses the signature is already outside the skew.
+    now = signedAtMs + 61_000
+    await expect(authenticateHost(signed(), bytes, ports, mode, testIp)).rejects.toMatchObject({
+      code: 'unauthenticated',
+    })
+    expect(ports.nonces[mode].accept(identity, vector.input.nonce)).toBe(true)
+  }
+})
 it('limits enrolled host lookups to 120 per minute per IP before any RPC', async () => {
   const ports = deps()
   let now = ports.clock()
