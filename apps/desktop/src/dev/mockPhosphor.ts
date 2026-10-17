@@ -1520,6 +1520,7 @@ export function installMockPhosphor(): void {
         case 'hosts:deleteLane':
           return Promise.resolve({ branchKept: false })
         case 'hosts:removeRepository':
+        case 'hosts:createFolder':
           return Promise.resolve(undefined)
         case 'hosts:listFolders':
           return Promise.resolve({
@@ -1528,6 +1529,7 @@ export function installMockPhosphor(): void {
             entries: [
               { name: 'Projects', isRepository: false, configured: false },
               { name: 'Phosphor', isRepository: true, configured: true },
+              ...(args[2] ? [{ name: '.config', isRepository: false, configured: false }] : []),
             ],
           })
         case 'hosts:addRepository':

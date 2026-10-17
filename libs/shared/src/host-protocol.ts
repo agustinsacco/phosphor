@@ -278,6 +278,7 @@ export const UNFENCED_OPS: readonly LaneOpType[] = [
   'control.take',
   'host.repositories.add',
   'host.repositories.remove',
+  'host.repositories.createFolder',
 ]
 
 export type RejectCode =
@@ -698,6 +699,7 @@ const laneOps = [
   'terminal.kill',
   'host.repositories.add',
   'host.repositories.remove',
+  'host.repositories.createFolder',
   'lane.delete',
   'lane.create',
   'lane.resume',

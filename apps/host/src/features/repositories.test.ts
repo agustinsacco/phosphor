@@ -56,6 +56,35 @@ it('confines every canonical folder to home and refuses escaped symlinks', async
   expect(listed.ok).toBe(true)
   expect(JSON.stringify(listed)).not.toContain('.hidden')
   expect(JSON.stringify(listed)).not.toContain('escape')
+  // Hidden folders only when asked: an older Desktop refuses a listing holding one.
+  const hidden = await service.feature.call('machine.folders.list', { hidden: true })
+  expect(JSON.stringify(hidden)).toContain('"name":".hidden"')
+  expect(JSON.stringify(hidden)).not.toContain('escape')
+  expect(await service.feature.call('machine.folders.list', { path: '.hidden' })).toMatchObject({
+    ok: true,
+    data: { path: '.hidden', entries: [] },
+  })
+})
+it('creates one folder under an existing home folder, never escaping or overwriting', async () => {
+  const create = (path: string, allowed = true) =>
+    service.execute({ type: 'host.repositories.createFolder', path }, () => allowed)
+  expect(await create('Projects/new-app')).toEqual({ ok: true })
+  expect((await stat(join(home, 'Projects', 'new-app'))).isDirectory()).toBe(true)
+  expect(await create('.hidden/.inner')).toEqual({ ok: true })
+  expect(await create('top')).toEqual({ ok: true })
+  expect(await create('Projects/new-app')).toEqual({ ok: false, code: 'conflict' })
+  await writeFile(join(home, 'Projects', 'file'), '')
+  expect(await create('Projects/file')).toEqual({ ok: false, code: 'conflict' })
+  expect(await create('missing/child')).toEqual({ ok: false, code: 'bad-request' })
+  await symlink(tmpdir(), join(home, 'escape'))
+  expect(await create('escape/inside-tmp')).toEqual({ ok: false, code: 'bad-request' })
+  expect(await create('Projects/refused', false)).toEqual({ ok: false, code: 'forbidden' })
+  await expect(stat(join(home, 'Projects', 'refused'))).rejects.toThrow()
+  // Creating is not adding: the config and the repository list are untouched.
+  expect(JSON.parse(await readFile(configPath, 'utf8')).repositories).toEqual([
+    join(home, 'original'),
+  ])
+  expect(changed).not.toHaveBeenCalled()
 })
 it('writes config atomically, preserves other fields, and only then updates roots and snapshots', async () => {
   const added = await service.execute(
@@ -102,6 +131,10 @@ it('refuses capability loss, disabled changes and live repositories', async () =
     ok: false,
     error: { code: 'forbidden' },
   })
+  expect(
+    await service.execute({ type: 'host.repositories.createFolder', path: 'new' }, () => true),
+  ).toEqual({ ok: false, code: 'forbidden' })
+  await expect(stat(join(home, 'new'))).rejects.toThrow()
 })
 
 it('refuses a permission change during the atomic write before rename', async () => {

@@ -2,6 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import type { HostConnectionSnapshot } from './connection'
 import type { HostFrame, Receipt } from '@shared/host-protocol'
 import { repositoryManagement } from './repository-management'
+import { FOLDER_EXISTS, HOST_TOO_OLD } from '@shared/host-protocol-repositories'
 const laneId = '12345678-1234-4234-8234-123456789abc'
 let view: HostConnectionSnapshot, generation: number
 const call = vi.fn<(...args: unknown[]) => Promise<Extract<HostFrame, { type: 'result' }>>>()
@@ -41,6 +42,27 @@ it('reads machine folders and returns only the new repository identity', async (
   expect(call).toHaveBeenCalledWith('machine.folders.list', {})
   expect(await management.add('host', 'Projects')).toEqual({ repositoryId: '1234567890abcdef' })
   await management.remove('host', '1234567890abcdef')
+})
+it('asks for hidden folders only when wanted, since older Hosts refuse the key', async () => {
+  await management.folders('host', 'src', false)
+  expect(call).toHaveBeenLastCalledWith('machine.folders.list', { path: 'src' })
+  await management.folders('host', '.config', true)
+  expect(call).toHaveBeenLastCalledWith('machine.folders.list', { path: '.config', hidden: true })
+})
+it('creates a folder and names the two refusals a user can act on', async () => {
+  await management.createFolder('host', 'src/new')
+  expect(send).toHaveBeenLastCalledWith(
+    { type: 'host.repositories.createFolder', path: 'src/new' },
+    undefined,
+    undefined,
+  )
+  send.mockResolvedValueOnce({ requestId: laneId, status: 'rejected', code: 'conflict' })
+  await expect(management.createFolder('host', 'src/new')).rejects.toThrow(FOLDER_EXISTS)
+  send.mockResolvedValueOnce({ requestId: laneId, status: 'rejected', code: 'unsupported' })
+  await expect(management.createFolder('host', 'src/new')).rejects.toThrow(HOST_TOO_OLD)
+  send.mockClear()
+  await expect(management.createFolder('host', 'src/..')).rejects.toThrow()
+  expect(send).not.toHaveBeenCalled()
 })
 it.each(['capability', 'connection', 'generation', 'ready'] as const)(
   'rechecks %s for queries and mutations',

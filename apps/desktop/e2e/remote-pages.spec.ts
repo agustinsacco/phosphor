@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { readFile } from 'node:fs/promises'
+import { readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import { REMOTE_TEST_TIMEOUT, remoteHostFixture } from './fixtures/remote-host'
 import { selectMachine, openRemote, takeControl, captures, pane } from './fixtures/remote-ui'
@@ -21,6 +21,18 @@ test('Browse, add and remove folders on bee1', async ({ browserName: _browserNam
     await expect(modal.getByRole('button', { name: /repository.*git.*Added/ })).toBeVisible()
     await captures(h, info, 'remote-folder-browser')
     await expect(modal.getByRole('button', { name: /escape/ })).toHaveCount(0)
+    // A new folder opens in place; hidden folders are listed only on request.
+    await modal.getByRole('button', { name: 'New folder', exact: true }).click()
+    await modal.getByRole('textbox', { name: 'New folder name', exact: true }).fill('.made')
+    await modal.getByRole('button', { name: 'Create', exact: true }).click()
+    const crumbs = modal.getByRole('navigation', { name: 'Folder breadcrumbs', exact: true })
+    await expect(crumbs).toContainText('.made')
+    expect((await stat(join(h.root, '.made'))).isDirectory()).toBe(true)
+    await crumbs.getByRole('button', { name: 'Home', exact: true }).click()
+    await expect(modal.getByRole('button', { name: /addable/ })).toBeVisible()
+    await expect(modal.getByRole('button', { name: /\.made/ })).toHaveCount(0)
+    await modal.getByRole('checkbox', { name: 'Show hidden', exact: true }).check()
+    await expect(modal.getByRole('button', { name: /\.made/ })).toBeVisible()
     await modal.getByRole('button', { name: /addable/, exact: false }).click()
     await modal.getByRole('button', { name: 'Add this folder', exact: true }).click()
     await expect(
