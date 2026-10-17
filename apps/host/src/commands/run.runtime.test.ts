@@ -5,7 +5,10 @@ import { controlMachine, type ControlMachine } from '../control/__fixtures__/mac
 import { fakeMachine, EXTENSIONS_ROOT } from '../__fixtures__/machine'
 import { buildPiEnvironment } from '../machine/environment'
 import { identityDirectory } from '../control/identity'
-import type { Drainable } from '../shutdown'
+import { createShutdown, type Drainable } from '../shutdown'
+import { readdirSync } from 'node:fs'
+import { setTimeout } from 'node:timers/promises'
+import { inspectHost } from './doctor'
 import { runHost, type RunContext } from './run'
 import type * as Runtime from '../session/runtime'
 import type * as Store from '../lanes/store'
@@ -460,4 +463,174 @@ describe('run teardown', () => {
       await host.cleanup()
     }
   })
+})
+describe('run teardown failures', () => {
+  /** Fails `phase` the first time it is reached: synchronously, or as a rejected promise. */
+  function fail(phase: string, mode: 'throw' | 'reject', error: Error) {
+    let failed = false
+    teardown.step = (name) => {
+      hooks.order.push(name)
+      if (name !== phase || failed) return
+      failed = true
+      if (mode === 'throw') throw error
+      return Promise.reject(error)
+    }
+  }
+  const ASYNC_PHASES = ['api', 'routines.stop', 'runtime', 'commands', 'routines.close', 'release']
+  it.each([
+    ...PHASES.map((phase) => ({ phase, mode: 'throw' as const })),
+    ...ASYNC_PHASES.map((phase) => ({ phase, mode: 'reject' as const })),
+  ])(
+    'attempts every phase once when $phase fails ($mode), then rejects with it and exits 70',
+    async ({ phase, mode }) => {
+      const host = await fullHost()
+      const failure = new Error(`${phase} failed`)
+      const log = vi.fn()
+      fail(phase, mode, failure)
+      try {
+        await expect(
+          runHost({
+            ...host.context,
+            log,
+            wait: async () => {
+              host.control.abort.abort()
+            },
+          }),
+        ).rejects.toBe(failure)
+        expect(hooks.order).toEqual(PHASES)
+        expect(log).toHaveBeenCalledWith(
+          'host',
+          'end',
+          expect.objectContaining({ command: 'run', exitCode: 70 }),
+        )
+        // Only a failed release leaves its lock behind.
+        expect(await runLocks(host.control)).toEqual(phase === 'release' ? ['.run-lock'] : [])
+      } finally {
+        await host.cleanup()
+      }
+    },
+  )
+  it('keeps the first failure when a later phase fails too', async () => {
+    const host = await fullHost()
+    const first = new Error('commands failed')
+    teardown.step = (name) => {
+      hooks.order.push(name)
+      if (name === 'commands') return Promise.reject(first)
+      if (name === 'store') throw new Error('store failed')
+    }
+    try {
+      await expect(
+        runHost({
+          ...host.context,
+          wait: async () => {
+            host.control.abort.abort()
+          },
+        }),
+      ).rejects.toBe(first)
+      expect(hooks.order).toEqual(PHASES)
+      expect(await runLocks(host.control)).toEqual([])
+    } finally {
+      await host.cleanup()
+    }
+  })
+  it('closes nothing until every stop has settled, even after one has failed', async () => {
+    const host = await fullHost()
+    const failure = new Error('api failed')
+    let finish: () => void = () => {}
+    const held = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+    teardown.step = (name) => {
+      hooks.order.push(name)
+      if (name === 'api') return Promise.reject(failure)
+      if (name === 'runtime') return held
+    }
+    try {
+      const outcome = runHost({
+        ...host.context,
+        wait: async () => {
+          host.control.abort.abort()
+        },
+      }).then(
+        () => undefined,
+        (error: unknown) => error,
+      )
+      await vi.waitFor(() => expect(hooks.order).toContain('runtime'))
+      await setTimeout(50)
+      // The runtime still drains: neither the store nor the run lock may go yet.
+      expect(hooks.order).toEqual(PHASES.slice(0, 4))
+      finish()
+      expect(await outcome).toBe(failure)
+      expect(hooks.order).toEqual(PHASES)
+    } finally {
+      await host.cleanup()
+    }
+  })
+  it('closes what a failed start-up opened, even when one close fails', async () => {
+    const host = await fullHost()
+    const failure = new Error('attachments failed')
+    let target: Drainable | undefined
+    vi.mocked(inspectHost).mockRejectedValueOnce(new Error('inspection failed'))
+    fail('attachments', 'throw', failure)
+    try {
+      await expect(
+        runHost({
+          ...host.context,
+          attach: (drain) => {
+            target = drain
+            return () => {}
+          },
+        }),
+      ).rejects.toBe(failure)
+      expect(hooks.order).toEqual(['attachments', 'store', 'release'])
+      expect(target?.exitCode?.('SIGTERM', true)).toBe(70)
+      expect(await runLocks(host.control)).toEqual([])
+    } finally {
+      await host.cleanup()
+    }
+  })
+  it.each(['throw', 'reject'] as const)(
+    'a signal whose stop fails (%s) still waits for the release, then exits 70',
+    async (mode) => {
+      const host = await fullHost()
+      const exits: number[] = []
+      const atExit: string[][] = []
+      const shutdown = createShutdown({
+        exit: (code) => {
+          exits.push(code)
+          atExit.push(
+            readdirSync(identityDirectory(host.control.configPath)).filter((name) =>
+              name.startsWith('.run-lock'),
+            ),
+          )
+        },
+        stderr: () => {},
+        stopProbes: () => {},
+      })
+      fail('api', mode, new Error('api failed'))
+      let signalled = false
+      let stopping: Promise<void> | undefined
+      try {
+        const result = await runHost({
+          ...host.context,
+          attach: shutdown.attach,
+          wait: async (ms) => {
+            // 5 s is the stopping beat's own wait.
+            if (ms === 5000) return
+            // A drain that gave up early leaves the loop running: end it.
+            if (signalled) return host.control.abort.abort()
+            signalled = true
+            stopping = shutdown.signal('SIGTERM')
+          },
+        })
+        await stopping
+        expect(result).toBe(0)
+        expect(exits).toEqual([70])
+        expect(atExit).toEqual([[]])
+        expect(hooks.order.filter((step) => step === 'release')).toHaveLength(1)
+      } finally {
+        await host.cleanup()
+      }
+    },
+  )
 })
