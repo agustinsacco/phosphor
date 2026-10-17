@@ -780,3 +780,98 @@ describe('thought rows', () => {
     expect(thoughtRows()[0]!.textContent).toMatch(/^✳Thinking \d+s$/)
   })
 })
+
+describe('ActivityGroup cross-message row identity', () => {
+  const messageStep = (kind: 'externalTool' | 'subagent' | 'tool', id: string): ActivityStep => {
+    const block: ActivityStep['block'] =
+      kind === 'externalTool'
+        ? {
+            type: kind,
+            index: 0,
+            name: 'Bash',
+            args: JSON.stringify({ command: `echo ${id}` }),
+            result: { status: 'ok', preview: `output ${id}` },
+          }
+        : kind === 'subagent'
+          ? {
+              type: kind,
+              index: 0,
+              status: 'completed',
+              description: id,
+              prompt: `prompt ${id}`,
+              seen: new Set(['call', 'end']),
+            }
+          : { type: kind, index: 0, toolCallId: id }
+    return { ...step(block), itemId: `message-${id}` }
+  }
+
+  function updateGroup(steps: ActivityStep[], revealKey?: string): void {
+    const ui = (
+      <ActivityGroup
+        steps={steps}
+        tools={{ first: tool('first'), target: tool('target'), inserted: tool('inserted') }}
+        hideThinking={false}
+        sessionId="s1"
+        active={true}
+        reveal={
+          revealKey ? { rowId: 'activity', segment: `detail:${revealKey}`, nonce: 1 } : undefined
+        }
+      />
+    )
+    if (root) act(() => root!.render(ui))
+    else render(ui)
+  }
+
+  it.each(['externalTool', 'subagent'] as const)(
+    'renders two %s messages at index zero without duplicate-key warnings',
+    (kind) => {
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+      try {
+        updateGroup([messageStep(kind, 'first'), messageStep(kind, 'target')])
+        const duplicateKeys = errors.mock.calls.filter((args) =>
+          args.some((arg) => typeof arg === 'string' && arg.includes('same key')),
+        )
+        expect(duplicateKeys).toEqual([])
+        expect(document.querySelectorAll('.activity-step-enter')).toHaveLength(2)
+      } finally {
+        errors.mockRestore()
+      }
+    },
+  )
+
+  describe.each(['externalTool', 'subagent', 'tool'] as const)('%s expansion', (kind) => {
+    it.each(['click', 'find reveal'] as const)(
+      'keeps the row opened by %s attached when siblings are inserted, reordered and removed',
+      (openWith) => {
+        const first = messageStep(kind, 'first')
+        const target = messageStep(kind, 'target')
+        const inserted = messageStep(kind, 'inserted')
+        const key = kind === 'tool' ? 'target' : 'message-target:0'
+        updateGroup([first, target], openWith === 'find reveal' ? key : undefined)
+        if (openWith === 'click') {
+          const segment = document.querySelector<HTMLElement>(`[data-find-segment="step:${key}"]`)!
+          const button = segment.matches('button')
+            ? segment
+            : (segment.querySelector('button') ?? segment.closest('button')!)
+          act(() => button.click())
+        }
+        const expectOnlyTargetOpen = (): void => {
+          const details = [...document.querySelectorAll('[data-find-segment^="detail:"]')]
+          expect(details.map((el) => el.getAttribute('data-find-segment'))).toEqual([
+            `detail:${key}`,
+          ])
+        }
+        expectOnlyTargetOpen()
+        for (const steps of [
+          [inserted, first, target],
+          [target, inserted, first],
+          [target, first],
+          [target],
+        ]) {
+          updateGroup(steps)
+          expectOnlyTargetOpen()
+        }
+      },
+    )
+  })
+})
