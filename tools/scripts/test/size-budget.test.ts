@@ -155,7 +155,7 @@ describe('size-budget per-package ratchet', () => {
 
   it('checks all eight package domains, tracked and untracked source, and never rewrites baselines', () => {
     const root = repository()
-    for (const [name, prefix] of Object.entries(PACKAGES)) {
+    for (const prefix of Object.values(PACKAGES)) {
       put(root, `${prefix || '.'}/large.ts`, source(401))
     }
     execFileSync('git', ['-C', root, 'add', 'apps/host/large.ts'])

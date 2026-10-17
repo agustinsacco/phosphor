@@ -86,3 +86,31 @@ describe('size-spans whole-span measurements', () => {
     expect(() => measureSource('a.ts', 'function broken( {')).toThrow(/a.ts/)
   })
 })
+
+describe('size-spans lexical identity and registration boundaries', () => {
+  it('includes named object and namespace ownership and escapes key delimiters', () => {
+    const source = `namespace Service {\nconst api = { options: { run() {} }, 'odd::/[]'() {} }\n}`
+    const keys = functions('a.ts', source).map(({ key }) => key)
+    expect(keys).toEqual([
+      'a.ts::Service[1]/api[1]/options[1]/run[1]',
+      'a.ts::Service[1]/api[1]/odd%3A%3A%2F%5B%5D[1]',
+    ])
+  })
+
+  it('does not exempt local objects, shadowed imports, var hoisting or named function expressions', () => {
+    const sources = [
+      `const other = { describe: (name, cb) => cb() }; other.describe('s', () => {\n${body(81)}\n})`,
+      `import { describe } from 'vitest'; function run(describe) { describe('s', () => {\n${body(81)}\n}) }`,
+      `function run() { if (true) { var describe = register }; describe('s', () => {\n${body(81)}\n}) }`,
+      `const run = function describe() { describe('s', () => {\n${body(81)}\n}) }`,
+    ]
+    for (const source of sources) {
+      expect(functions('a.test.ts', source).some(({ lines }) => lines === 83)).toBe(true)
+    }
+  })
+
+  it('recognizes namespace and Playwright suite registrations but still counts their tests', () => {
+    const source = `import * as v from 'vitest'; import { test } from '@playwright/test';\nv.describe.only('suite', () => {\n${body(81)}\n})\ntest.describe('e2e', () => {\n  test('case', async () => {\n${body(81)}\n  })\n})`
+    expect(functions('a.spec.ts', source).map(({ lines }) => lines)).toEqual([83])
+  })
+})

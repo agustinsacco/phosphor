@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "package": "site",
+  "offenders": {
+    "scripts/remote-hosts-shot.mjs::evaluate[1]": 129
+  },
+  "exemptions": [],
+  "renames": {}
+}
