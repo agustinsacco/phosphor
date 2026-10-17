@@ -254,7 +254,7 @@ describe('typecheck review regressions', () => {
     })
   })
 
-  it('does not grant all tools files an ambient desktop-only node-pty module', () => {
+  it('keeps the desktop-only node-pty module out of the tools-wide types list', () => {
     const config = JSON.parse(readFileSync(join(repo, 'tsconfig.tools.json'), 'utf8'))
     expect(config.compilerOptions.types).toEqual(['node'])
   })

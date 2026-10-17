@@ -8,7 +8,9 @@ function runCommand(command, args, cwd) {
   const result = spawnSync(command, args, {
     cwd,
     stdio: 'inherit',
-    shell: process.platform === 'win32',
+    // Only a .cmd shim needs cmd.exe (Node 22 refuses it otherwise). A shell
+    // would join node's own path and arguments unquoted, which breaks on spaces.
+    shell: process.platform === 'win32' && command.endsWith('.cmd'),
   })
   if (result.error) throw result.error
   return result.status ?? 1
