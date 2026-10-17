@@ -6,6 +6,7 @@
     "allowJs": true
   },
   "include": [
+    "libs/shared/src/ipc.ts",
     "vitest.config.ts",
     "tools/scripts/**/*.ts",
     "tools/scripts/**/*.tsx",

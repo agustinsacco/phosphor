@@ -138,7 +138,6 @@ describe('Desktop application and native install boundary', () => {
       'dev:web',
       'build',
       'preview',
-      'typecheck',
       'pack',
       'dist',
       'dist:mac',
@@ -149,6 +148,9 @@ describe('Desktop application and native install boundary', () => {
       expect(facade.scripts[command]).toBe(`npm run ${command} --prefix apps/desktop --`)
       expect(manifest.scripts[command]).toBeDefined()
     }
+    // Root typecheck covers every project (FD-04); Desktop keeps its own script.
+    expect(facade.scripts.typecheck).toBe('node tools/scripts/typecheck.mjs')
+    expect(manifest.scripts.typecheck).toBeDefined()
     for (const file of ['electron.vite.config.ts', 'vite.config.ts']) {
       const config = readFileSync(join(app, file), 'utf8')
       expect(config).toContain("dedupe: ['luxon', 'cron-parser']")

@@ -37,7 +37,7 @@ describe('select-unit-tests explicit unit selection', () => {
       for (const [name, path] of [
         ['host', 'apps/host'],
         ['tooling', 'tools/scripts'],
-      ]) {
+      ] as const) {
         mkdirSync(join(directory, path), { recursive: true })
         writeFileSync(join(directory, path, 'project.json'), JSON.stringify({ name, root: path }))
       }

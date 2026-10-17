@@ -57,6 +57,7 @@ describe('status wire runtime characterization', () => {
           id: key,
           method: 'setStatus',
           statusKey: key,
+          statusText: undefined,
         })
         expect(useExtensionUiStore.getState().statuses[sessionId]).not.toHaveProperty(key)
       }

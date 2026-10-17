@@ -15,6 +15,18 @@ import { isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadProjectRoots, owningProject, repoPath } from './select-unit-tests.mjs'
 
+/**
+ * @typedef {'passed' | 'failed' | 'skipped' | 'todo'} CaseStatus
+ * @typedef {{ project: string, path: string, fullName: string, ordinal: number,
+ *   file: string, status?: CaseStatus }} InventoryCase
+ * @typedef {{ total: number, passed: number, skipped: number, todo: number,
+ *   failed: number }} ExecutionCounts
+ * @typedef {{ version: 1, kind: 'collection' | 'execution',
+ *   platform: { os: string, nodeMajor: number },
+ *   counts: { collected: number, executed: ExecutionCounts | null },
+ *   cases: InventoryCase[] }} Inventory
+ */
+
 const readJson = (file) => JSON.parse(readFileSync(file, 'utf8'))
 const statuses = {
   passed: 'passed',
@@ -66,6 +78,7 @@ function countsFor(kind, cases) {
   for (const entry of cases) executed[entry.status]++
   return { collected: 0, executed }
 }
+/** @returns {Inventory} */
 function normalize(kind, rawCases, options) {
   const root = options.root ?? process.cwd()
   const projects = options.projects ?? loadProjectRoots(root)
@@ -101,6 +114,7 @@ function normalize(kind, rawCases, options) {
   }
 }
 
+/** @returns {Inventory} */
 export function normalizeCollection(report, options = {}) {
   if (!Array.isArray(report)) throw new Error('Invalid Vitest list JSON')
   const rawCases = report.map((entry) => {
@@ -111,6 +125,7 @@ export function normalizeCollection(report, options = {}) {
   return normalize('collection', rawCases, options)
 }
 
+/** @returns {Inventory} */
 export function normalizeExecution(report, options = {}) {
   if (!report || !Array.isArray(report.testResults))
     throw new Error('Invalid Vitest execution JSON')
@@ -232,6 +247,7 @@ export function compareInventories(before, after, options = {}) {
   }
 }
 
+/** @returns {Inventory} */
 export function captureInventory(mode, options = {}) {
   if (!['collect', 'run'].includes(mode)) throw new Error('Expected collect or run')
   const root = options.root ?? process.cwd()

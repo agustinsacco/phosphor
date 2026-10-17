@@ -55,7 +55,9 @@ describe('test-inventory normalization and move parity', () => {
   it('retains the duplicate-name multiset and distinct parameterized cases', () => {
     const before = normalizeCollection(collected(['same', 'same', 'case 1', 'case 2']), options)
     expect(
-      before.cases.filter((entry) => entry.fullName === 'same').map((entry) => entry.ordinal),
+      before.cases
+        .filter((entry: { fullName: string }) => entry.fullName === 'same')
+        .map((entry: { ordinal: number }) => entry.ordinal),
     ).toEqual([1, 2])
     const after = normalizeCollection(collected(['same', 'case 1', 'case 2']), options)
     const diff = compareInventories(before, after)
@@ -116,7 +118,7 @@ describe('test-inventory normalization and move parity', () => {
       const fixture = collected(['fixture'], from)
       const before = normalizeCollection([...collected(), ...fixture], options)
       expect(before.cases).toHaveLength(2)
-      expect(normalizeCollection(fixture, options).cases[0].file).toBe(from)
+      expect(normalizeCollection(fixture, options).cases[0]?.file).toBe(from)
       const moves = { version: 1, moves: [{ from, to }] }
       const after = normalizeCollection([...collected(), ...collected(['fixture'], to)], options)
       expect(compareInventories(before, after, { map: moves }).equal).toBe(true)
@@ -186,8 +188,10 @@ describe('test-inventory normalization and move parity', () => {
   })
   it('rejects suite-level failures even when there are no failed assertions', () => {
     const report = execution()
-    report.testResults[0].status = 'failed'
-    report.testResults[0].message = 'Failed to load Monaco'
+    const [suite] = report.testResults
+    if (!suite) throw new Error('execution() fixture has one suite')
+    suite.status = 'failed'
+    suite.message = 'Failed to load Monaco'
     expect(() => normalizeExecution(report, options)).toThrow(/suite/i)
   })
 
@@ -241,6 +245,7 @@ it('wraps real Vitest list/run reports, retaining parameterized and skipped iden
   const projects = [{ name: 'fixture', roots: ['suite'] }]
   const invoke = (_command: string, args: string[]) => {
     const command = args[1]
+    if (command === undefined) throw new Error('invoke expects a Vitest command')
     const output = args.find((arg) => arg.startsWith('--json=') || arg.startsWith('--outputFile='))!
     execFileSync(
       process.execPath,
@@ -302,7 +307,7 @@ it('retains failed execution reports but rejects partial collection or process f
     writeFileSync(output.slice('--outputFile='.length), JSON.stringify(execution(['failed'])))
     throw new Error('nonzero test process')
   }
-  expect(captureInventory('run', { root, invoke }).counts.executed.failed).toBe(1)
+  expect(captureInventory('run', { root, invoke }).counts.executed?.failed).toBe(1)
   expect(() =>
     captureInventory('collect', {
       root,
