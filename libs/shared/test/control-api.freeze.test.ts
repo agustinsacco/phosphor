@@ -1,5 +1,7 @@
 // Freezes the control plane's route strings. Baselines are literal values,
 // never snapshots, so no update flag can rewrite them.
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   CONTROL_API_PREFIX,
@@ -33,5 +35,30 @@ describe('control API routes', () => {
     expect(machineRoute('00000000-0000-4000-8000-00000000000d')).toBe(
       '/api/v1/machines/00000000-0000-4000-8000-00000000000d',
     )
+  })
+})
+
+describe('control API route formation', () => {
+  it('hangs every route from the versioned prefix, once each, without query or trailing slash', () => {
+    const routes = Object.values(CONTROL_ROUTES)
+    expect(new Set(routes).size).toBe(routes.length)
+    for (const route of routes) expect(route, route).toMatch(/^\/api\/v1(?:\/[a-z-]+)+$/)
+  })
+
+  it('forms each machine path under the machines route, apart from every static route', () => {
+    const ids = ['00000000-0000-4000-8000-00000000000d', 'f47ac10b-58cc-4372-a567-0e02b2c3d479']
+    expect(ids.map(machineRoute)).toStrictEqual([
+      '/api/v1/machines/00000000-0000-4000-8000-00000000000d',
+      '/api/v1/machines/f47ac10b-58cc-4372-a567-0e02b2c3d479',
+    ])
+    for (const id of ids) {
+      expect(machineRoute(id)).toBe(`${CONTROL_ROUTES.machines}/${id}`)
+      expect(Object.values(CONTROL_ROUTES)).not.toContain(machineRoute(id))
+    }
+  })
+
+  it('holds literal baselines that a snapshot update cannot rewrite', () => {
+    const source = readFileSync(resolve(import.meta.dirname, 'control-api.freeze.test.ts'), 'utf8')
+    expect(source.match(/\.(?:toMatch|toThrowErrorMatching)\w*Snapshot\(/g)).toBeNull()
   })
 })
