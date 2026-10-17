@@ -1,14 +1,24 @@
 import { join } from 'node:path'
+import { readdir } from 'node:fs/promises'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { controlMachine } from '../control/__fixtures__/machine'
+import { controlMachine, type ControlMachine } from '../control/__fixtures__/machine'
 import { fakeMachine, EXTENSIONS_ROOT } from '../__fixtures__/machine'
 import { buildPiEnvironment } from '../machine/environment'
+import { identityDirectory } from '../control/identity'
 import type { Drainable } from '../shutdown'
-import { runHost } from './run'
+import { runHost, type RunContext } from './run'
 import type * as Runtime from '../session/runtime'
 import type * as Store from '../lanes/store'
 import type { LaneService } from '../lanes/service'
 import type * as Skills from '../features/skills'
+import type * as Naming from '../lanes/naming'
+import type * as Commands from '../lanes/commands'
+import type * as Native from '../terminals/native'
+import type * as Terminals from '../terminals/service'
+import type * as Attachments from '../features/attachments'
+import type * as Routines from '../routines/service'
+import type * as Live from '../lanes/live'
+import type * as Lock from '../control/lock'
 
 const sink = vi.hoisted(() => ({ deliver: vi.fn(), isConnected: vi.fn(() => true) }))
 const hooks = vi.hoisted(
@@ -22,6 +32,28 @@ const hooks = vi.hoisted(
     skillsConfigPath?: string
   } => ({ machine: null, order: [], lanes: undefined, epoch: '' }),
 )
+// Teardown calls record their phase in hooks.order through `step`.
+const teardown = vi.hoisted(() => {
+  const state = {
+    native: null as Native.HostPtyModule | null,
+    /** Each wrapped teardown call reports here first. A test may swap it to throw, hold or reject. */
+    step: (name: string): Promise<void> | void => {
+      hooks.order.push(name)
+    },
+    /** A synchronous teardown call. A step that throws stops it, as the real call would. */
+    now(name: string, original: () => void) {
+      void state.step(name)
+      original()
+    },
+    /** An asynchronous one. The original runs once the step's promise, if any, resolves. */
+    later<T>(name: string, original: () => Promise<T>): Promise<T> {
+      const held = state.step(name)
+      return held ? held.then(original) : original()
+    },
+  }
+  return state
+})
+const recordStep = teardown.step
 vi.mock('./doctor', () => ({
   inspectHost: vi.fn(async () => ({ machine: hooks.machine, secrets: [] })),
 }))
@@ -33,9 +65,7 @@ vi.mock('../api/server', () => ({
       ready: Promise.resolve(),
       deliver: sink.deliver,
       isConnected: sink.isConnected,
-      stop: async () => {
-        hooks.order.push('api')
-      },
+      stop: () => teardown.later('api', async () => {}),
     }
   },
 }))
@@ -48,10 +78,8 @@ vi.mock('../session/runtime', async (original) => {
       const runtime = module.createHostRuntime(...args)
       return {
         ...runtime,
-        drain: (...args: Parameters<typeof runtime.drain>) => {
-          hooks.order.push('runtime')
-          return runtime.drain(...args)
-        },
+        drain: (...args: Parameters<typeof runtime.drain>) =>
+          teardown.later('runtime', () => runtime.drain(...args)),
       }
     },
   }
@@ -74,11 +102,96 @@ vi.mock('../lanes/store', async (original) => {
       const store = await module.openStore(...args)
       hooks.connected = args[2]?.isConnected
       const close = store.close.bind(store)
-      vi.spyOn(store, 'close').mockImplementation(() => {
-        hooks.order.push('store')
-        close()
-      })
+      vi.spyOn(store, 'close').mockImplementation(() => teardown.now('store', close))
       return store
+    },
+  }
+})
+vi.mock('../lanes/naming', async (original) => {
+  const module = await original<typeof Naming>()
+  return {
+    ...module,
+    createLaneNamer: (...args: Parameters<typeof module.createLaneNamer>) => {
+      const namer = module.createLaneNamer(...args)
+      const cancel = namer.cancel.bind(namer)
+      namer.cancel = () => teardown.now('naming', cancel)
+      return namer
+    },
+  }
+})
+vi.mock('../lanes/commands', async (original) => {
+  const module = await original<typeof Commands>()
+  return {
+    ...module,
+    createLaneCommands: (...args: Parameters<typeof module.createLaneCommands>) => {
+      const commands = module.createLaneCommands(...args)
+      const close = commands.close.bind(commands)
+      commands.close = () => teardown.later('commands', close)
+      return commands
+    },
+  }
+})
+vi.mock('../terminals/native', async (original) => ({
+  ...(await original<typeof Native>()),
+  loadHostPty: () => teardown.native,
+}))
+vi.mock('../terminals/service', async (original) => {
+  const module = await original<typeof Terminals>()
+  return {
+    ...module,
+    createTerminals: (...args: Parameters<typeof module.createTerminals>) => {
+      const terminals = module.createTerminals(...args)
+      const close = terminals.close.bind(terminals)
+      terminals.close = () => teardown.now('terminals', close)
+      return terminals
+    },
+  }
+})
+vi.mock('../features/attachments', async (original) => {
+  const module = await original<typeof Attachments>()
+  return {
+    ...module,
+    createAttachments: (...args: Parameters<typeof module.createAttachments>) => {
+      const attachments = module.createAttachments(...args)
+      const close = attachments.close.bind(attachments)
+      attachments.close = () => teardown.now('attachments', close)
+      return attachments
+    },
+  }
+})
+vi.mock('../routines/service', async (original) => {
+  const module = await original<typeof Routines>()
+  return {
+    ...module,
+    createHostRoutines: (...args: Parameters<typeof module.createHostRoutines>) => {
+      const routines = module.createHostRoutines(...args)
+      const stop = routines.stop.bind(routines)
+      const close = routines.close.bind(routines)
+      routines.stop = () => teardown.later('routines.stop', stop)
+      routines.close = () => teardown.later('routines.close', close)
+      return routines
+    },
+  }
+})
+vi.mock('../lanes/live', async (original) => {
+  const module = await original<typeof Live>()
+  return {
+    ...module,
+    createLiveLanes: (...args: Parameters<typeof module.createLiveLanes>) => {
+      const live = module.createLiveLanes(...args)
+      const close = live.close.bind(live)
+      live.close = () => teardown.now('live', close)
+      return live
+    },
+  }
+})
+vi.mock('../control/lock', async (original) => {
+  const module = await original<typeof Lock>()
+  return {
+    ...module,
+    acquireIdentityLock: async (...args: Parameters<typeof module.acquireIdentityLock>) => {
+      const release = await module.acquireIdentityLock(...args)
+      return args[3] === '.run-lock' ? () => teardown.later('release', release) : release
     },
   }
 })
@@ -89,6 +202,8 @@ afterEach(() => {
   hooks.order = []
   hooks.lanes = undefined
   hooks.skillsConfigPath = undefined
+  teardown.step = recordStep
+  teardown.native = null
   vi.unstubAllEnvs()
 })
 describe('run lane composition', () => {
@@ -224,4 +339,125 @@ describe('run lane composition', () => {
       }
     },
   )
+})
+
+/** Every teardown phase of a fully started Host, in the order run takes them. */
+const PHASES = [
+  'naming',
+  'api',
+  'routines.stop',
+  'runtime',
+  'commands',
+  'terminals',
+  'attachments',
+  'routines.close',
+  'live',
+  'store',
+  'release',
+]
+/** An enrolled Host whose machine and native PTY are usable, so every teardown phase exists. */
+async function fullHost() {
+  const control = await controlMachine()
+  const pi = fakeMachine({ rpc: true })
+  await control.enrollOld()
+  vi.stubEnv('PATH', process.env.PATH)
+  vi.stubEnv('PI_CODING_AGENT_DIR', pi.agentDir)
+  vi.stubEnv('PI_CODING_AGENT_SESSION_DIR', undefined)
+  const environment = buildPiEnvironment({
+    hostEnv: pi.hostEnv,
+    nodePath: process.execPath,
+    platform: process.platform,
+  })
+  hooks.machine = {
+    pi: { binaryPath: process.execPath, prefixArgs: [pi.cli] },
+    env: environment.env,
+    roots: [pi.repository],
+    resourceRoot: EXTENSIONS_ROOT,
+    contextBudget: '',
+  }
+  teardown.native = { spawn: vi.fn() }
+  const context: RunContext = {
+    ...control.context,
+    env: { XDG_STATE_HOME: join(control.root, 'state'), PI_CODING_AGENT_DIR: pi.agentDir },
+    home: pi.home,
+    nodeVersion: process.versions.node,
+    defaultResourceRoot: EXTENSIONS_ROOT,
+    heartbeat: {
+      readiness: async () => ({ pi: 'ok', claude: 'ok', tailscale: 'ok' }),
+      random: () => 0,
+      seq: { read: async () => 0, write: async () => {} },
+    },
+    fetch: async () => Response.json({ accepted: true, nextInSec: 30 }),
+  }
+  return {
+    control,
+    context,
+    cleanup: async () => {
+      await control.cleanup()
+      pi.cleanup()
+    },
+  }
+}
+async function runLocks(control: ControlMachine) {
+  return (await readdir(identityDirectory(control.configPath))).filter((name) =>
+    name.startsWith('.run-lock'),
+  )
+}
+describe('run teardown', () => {
+  it('closes every phase once in dependency order and releases the run lock', async () => {
+    const host = await fullHost()
+    try {
+      const result = await runHost({
+        ...host.context,
+        wait: async () => {
+          host.control.abort.abort()
+        },
+      })
+      expect(result, host.control.output.join('\n')).toBe(0)
+      expect(hooks.lanes?.capabilities).toContain('terminal')
+      expect(hooks.order).toEqual(PHASES)
+      expect(await runLocks(host.control)).toEqual([])
+    } finally {
+      await host.cleanup()
+    }
+  })
+  it('shares the stops a signal began, and a repeat drain closes and releases nothing again', async () => {
+    const host = await fullHost()
+    let target: Drainable | undefined
+    let signalled = false
+    let drained: Promise<{ state: 'stopped' | 'failed' }> | undefined
+    try {
+      const result = await runHost({
+        ...host.context,
+        attach: (drain) => {
+          target = drain
+          return () => {}
+        },
+        wait: async (_ms, signal) => {
+          // The heartbeat's own drain waits here too, before `drained` is assigned.
+          if (signal?.aborted || signalled) return
+          signalled = true
+          drained = target?.drain('SIGTERM')
+        },
+      })
+      expect(result, host.control.output.join('\n')).toBe(0)
+      expect(await drained).toEqual({ state: 'stopped' })
+      expect(hooks.order).toEqual([
+        'naming',
+        'api',
+        'routines.stop',
+        'runtime',
+        'naming',
+        'api',
+        ...PHASES.slice(4),
+      ])
+      expect(await runLocks(host.control)).toEqual([])
+      const before = hooks.order.length
+      expect(await target?.drain('SIGTERM')).toEqual({ state: 'stopped' })
+      expect(hooks.order.slice(before)).toEqual(['naming', 'api', 'runtime'])
+      expect(target?.exitCode?.('SIGTERM', true)).toBe(143)
+    } finally {
+      await host.cleanup()
+    }
+  })
 })
