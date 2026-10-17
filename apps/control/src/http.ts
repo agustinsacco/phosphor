@@ -11,6 +11,7 @@ import { createHash, timingSafeEqual } from 'node:crypto'
 import type { IncomingHttpHeaders } from 'node:http'
 import type { Config } from './config'
 import type { User } from './auth/user'
+import { ipRateKey } from './ip-rate-key'
 
 export class ControlFailure extends Error {
   constructor(
@@ -154,8 +155,14 @@ export const apiHeaders: MiddlewareHandler<Env> = async (c, next) => {
   await next()
 }
 
-/** servicelb SNAT hides the peer, so only the authenticated edge may supply an IP. */
+/**
+ * The caller's rate-limit subject (see ipRateKey): IPv4, or an IPv6 /64. servicelb
+ * SNAT hides the peer, so only the authenticated edge may supply the address.
+ */
 export function clientIp(request: Request, socketAddress: string, config: Config): string {
+  return ipRateKey(peerAddress(request, socketAddress, config))
+}
+function peerAddress(request: Request, socketAddress: string, config: Config): string {
   const forwarded = request.headers.get('cf-connecting-ip')
   const edge = request.headers.get('x-phosphor-edge')
   if (config.trustProxy !== 'cloudflare' || !forwarded || !isIP(forwarded) || !edge)

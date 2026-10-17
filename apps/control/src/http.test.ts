@@ -111,7 +111,7 @@ it('trusts an IP only with Cloudflare mode and the correct edge secret', () => {
     '10.42.0.1',
   )
   request.headers.set('cf-connecting-ip', '2001:db8::1')
-  expect(clientIp(request, '10.42.0.1', config)).toBe('2001:db8::1')
+  expect(clientIp(request, '10.42.0.1', config)).toBe('2001:db8:0:0::/64')
   for (const forwarded of ['invalid', '192.0.2.1, 192.0.2.2', '']) {
     request.headers.set('cf-connecting-ip', forwarded)
     expect(clientIp(request, '10.42.0.1', config)).toBe('10.42.0.1')

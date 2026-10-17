@@ -141,6 +141,10 @@ routes return 429, even for a correct code, until a failure leaves the window.
 Proxy IP selection trusts a valid `cf-connecting-ip` only in Cloudflare mode
 when `x-phosphor-edge` matches `CONTROL_EDGE_SECRET`. SHA-256 digests are compared
 in constant time. Missing or incorrect edge headers use the socket address.
+Whichever address is chosen, a per-IP limit keys an IPv4 address as itself and
+an IPv6 address by its /64, so every address and spelling inside one /64 shares
+a bucket. An IPv4-mapped IPv6 address counts as its IPv4 address; a socket
+address that is not an IP shares one `unknown` bucket.
 servicelb SNAT hides peers, so all non-Cloudflare LAN and tailnet clients share
 that address bucket. Headers and comparison results are never logged. All in-memory guards are
 process-local. Run a single replica; rollout overlap is not cross-process replay
