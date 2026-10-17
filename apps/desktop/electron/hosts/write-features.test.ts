@@ -1,5 +1,6 @@
 import { expect, it, vi } from 'vitest'
-import { writeFeature, routeRemoteWrite, type WriteLane } from './write-features'
+import { REMOTE_UNAVAILABLE } from './lane-ops'
+import { WRITE_CHANNELS, writeFeature, routeRemoteWrite, type WriteLane } from './write-features'
 const root = 'host:12345678-1234-4234-8234-123456789012/0123456789abcdef'
 function lane(data?: unknown): WriteLane {
   return {
@@ -52,4 +53,42 @@ it('never routes local mutations and refuses unresolved remote lanes', () => {
   expect(routeRemoteWrite('fs:readFile', [`${root}/a`], () => lane())).toBeNull()
   expect(() => routeRemoteWrite('fs:trash', [`${root}/a`], () => null)).toThrow()
   expect(routeRemoteWrite('fs:trash', [`${root}/a`], () => lane())).not.toBeNull()
+})
+it('characterize: a routed host write carries host:-looking content verbatim', async () => {
+  const l = lane({ revision: 'b'.repeat(64), mtimeMs: 2 })
+  for (const content of ['host:machine/repository', 'remote-0123456789abcdef']) {
+    const routed = routeRemoteWrite('fs:writeFile', [`${root}/a`, content, null], () => l)
+    expect(await routed?.result).toEqual({ revision: 'b'.repeat(64), mtimeMs: 2 })
+    expect(l.write).toHaveBeenLastCalledWith({
+      type: 'files.write',
+      path: 'a',
+      content,
+      expected: null,
+    })
+  }
+})
+it('characterize: a remote source never lands outside its own lane', async () => {
+  const other = 'host:12345678-1234-4234-8234-123456789012/fedcba9876543210'
+  const l = lane({ path: 'a' })
+  for (const to of ['/Users/local/b', `${other}/b`, 'remote-0123456789abcdef', other])
+    await expect(writeFeature('fs:rename', [`${root}/a`, to], l)).rejects.toThrow(
+      REMOTE_UNAVAILABLE,
+    )
+  for (const directory of ['/Users/local', other, `${other}/dir`, 'remote-0123456789abcdef'])
+    await expect(
+      writeFeature('fs:transfer', [root, `${root}/a`, directory, 'move'], l),
+    ).rejects.toThrow(REMOTE_UNAVAILABLE)
+  for (const source of [`${other}/a`, '/Users/local/a'])
+    await expect(writeFeature('fs:transfer', [root, source, root, 'copy'], l)).rejects.toThrow(
+      REMOTE_UNAVAILABLE,
+    )
+  expect(l.write).not.toHaveBeenCalled()
+})
+it('characterize: a refused remote write throws instead of declining to local handlers', () => {
+  const args = [`${root}/a`, `${root}/b`, root, 'copy']
+  for (const channel of WRITE_CHANNELS)
+    expect(() => routeRemoteWrite(channel, [...args], () => null)).toThrow(REMOTE_UNAVAILABLE)
+  expect(() =>
+    routeRemoteWrite('fs:transfer', [root, '/local/a', root, 'copy'], () => null),
+  ).toThrow(REMOTE_UNAVAILABLE)
 })

@@ -1,6 +1,8 @@
-import { expect, it, vi } from 'vitest'
+import { expect, it, vi, type Mock } from 'vitest'
 const main = vi.hoisted(() => ({ handle: vi.fn() }))
 vi.mock('electron', () => ({ ipcMain: main }))
+import type { IpcInvokeChannel } from '@shared/ipc'
+import { REMOTE_UNAVAILABLE } from '../hosts/lane-ops'
 import { handle, rejectRemoteArguments, setRemoteReadRouter } from './handle'
 
 it('rejects opaque workspaces and remote handles before any local handler runs', () => {
@@ -61,4 +63,138 @@ it('routes reads before local side effects and retains the refusal for writes', 
   } finally {
     setRemoteReadRouter(() => null)
   }
+})
+
+const REMOTE_KEYS = ['host:machine/repository', 'remote-0123456789abcdef']
+const SENDER = { sender: { id: 1 } }
+/** True when the call was refused with the fixed remote text; other errors propagate. */
+function refusal(call: () => unknown): boolean {
+  try {
+    call()
+    return false
+  } catch (error) {
+    if (error instanceof Error && error.message === REMOTE_UNAVAILABLE) return true
+    throw error
+  }
+}
+function refuses(channel: IpcInvokeChannel, ...args: unknown[]): boolean {
+  return refusal(() => rejectRemoteArguments(channel, args))
+}
+/** The wrapper handle() registers with ipcMain for this channel. */
+function registered(channel: IpcInvokeChannel, local: Mock) {
+  handle(channel, local)
+  const wrapped: unknown = main.handle.mock.calls.at(-1)?.[1]
+  if (typeof wrapped !== 'function') throw new Error('Missing handler')
+  return (event: unknown, ...args: unknown[]): unknown => wrapped(event, ...args)
+}
+const ROUTINE = {
+  name: 'Nightly',
+  instructions: 'Summarise',
+  workspacePath: '/local/repository',
+  isolated: false,
+  intent: 'report',
+  provider: 'anthropic',
+  model: 'claude',
+  timezone: 'UTC',
+  schedule: { kind: 'manual' },
+  period: 'none',
+  catchUpHours: 0,
+  maxRuntimeMinutes: 30,
+  enabled: true,
+  trusted: false,
+}
+const SKILL = { scope: 'project', name: 'Skill', description: 'd', content: 'c', draft: false }
+const SEARCH = { searchId: 's1', query: { text: 'needle' } }
+
+it('characterize: app channels and the four routed pi channels are not inspected', () => {
+  for (const key of REMOTE_KEYS) {
+    expect(refuses('hosts:openLane', key, key)).toBe(false)
+    expect(refuses('app:recordWorkspace', key)).toBe(false)
+    expect(refuses('clipboard:writeFiles', [key], false)).toBe(false)
+    expect(refuses('pi:command', key, { type: 'get_state' })).toBe(false)
+    expect(refuses('pi:extensionUiResponse', key, { id: 'ui', cancelled: true })).toBe(false)
+    expect(refuses('pi:disposeSession', key)).toBe(false)
+    expect(refuses('pi:listLiveSessions', key)).toBe(false)
+  }
+})
+
+it('characterize: a router answer wins before the guard; a decline falls to the guard', async () => {
+  const local = vi.fn(() => 'local')
+  setRemoteReadRouter((_windowId, channel, args) => {
+    if (channel === 'fs:writeFile' && args[0] === 'host:lane/a')
+      return { result: Promise.resolve('routed') }
+    if (channel === 'fs:trash' && args[0] === 'host:gone/a') throw new Error(REMOTE_UNAVAILABLE)
+    return null
+  })
+  try {
+    const write = registered('fs:writeFile', local)
+    expect(await write(SENDER, 'host:lane/a', 'host:machine/content')).toBe('routed')
+    const trash = registered('fs:trash', local)
+    expect(refusal(() => trash(SENDER, 'host:gone/a'))).toBe(true)
+    expect(refusal(() => trash(SENDER, 'host:declined/a'))).toBe(true)
+    expect(local).not.toHaveBeenCalled()
+  } finally {
+    setRemoteReadRouter(() => null)
+  }
+})
+
+it('characterize: local calls reach the handler with the event and arguments unchanged', async () => {
+  const local = vi.fn(async (_event: unknown, path: unknown) => `read ${String(path)}`)
+  const read = registered('fs:readFile', local)
+  expect(await read(SENDER, '/local/a.ts')).toBe('read /local/a.ts')
+  expect(local).toHaveBeenCalledWith(SENDER, '/local/a.ts')
+  const list = vi.fn(() => ['/local/a.ts'])
+  expect(registered('fs:statDirs', list)(SENDER, ['/local', '/local/src'])).toEqual(['/local/a.ts'])
+  expect(list).toHaveBeenCalledWith(SENDER, ['/local', '/local/src'])
+})
+
+it('characterize: a remote secondary rename or transfer path never reaches local disk', () => {
+  const local = vi.fn()
+  const rename = registered('fs:rename', local)
+  const transfer = registered('fs:transfer', local)
+  for (const key of REMOTE_KEYS) {
+    expect(refusal(() => rename(SENDER, '/local/a', key))).toBe(true)
+    expect(refusal(() => transfer(SENDER, '/local', key, '/local', 'copy'))).toBe(true)
+    expect(refusal(() => transfer(SENDER, '/local', '/local/a', key, 'move'))).toBe(true)
+    expect(refusal(() => transfer(SENDER, key, '/local/a', '/local', 'copy'))).toBe(true)
+  }
+  expect(local).not.toHaveBeenCalled()
+})
+
+it('characterize: declared resource positions refuse host: workspaces and remote handles', () => {
+  for (const key of REMOTE_KEYS) {
+    expect(refuses('pi:createSession', { workspacePath: key })).toBe(true)
+    expect(refuses('pi:createSession', { workspacePath: '/w', sessionPath: key })).toBe(true)
+    expect(refuses('pi:createSession', { workspacePath: '/w', forkFrom: key })).toBe(true)
+    expect(refuses('routines:save', { ...ROUTINE, workspacePath: key })).toBe(true)
+    expect(refuses('routines:check', { ...ROUTINE, workspacePath: key })).toBe(true)
+    expect(refuses('skills:create', { ...SKILL, workspacePath: key })).toBe(true)
+    expect(refuses('skills:importConfirm', { sourcePath: key, scope: 'user' })).toBe(true)
+    expect(
+      refuses('skills:importConfirm', {
+        sourcePath: '/s.zip',
+        scope: 'project',
+        workspacePath: key,
+      }),
+    ).toBe(true)
+    expect(refuses('skills:writeFile', '/skills/a', 'SKILL.md', 'text', key)).toBe(true)
+    expect(refuses('app:saveDialog', { title: 'Save', defaultPath: key })).toBe(true)
+    expect(refuses('fs:searchWorkspace', { ...SEARCH, workspacePath: key })).toBe(true)
+    expect(refuses('fs:statDirs', ['/local', key])).toBe(true)
+    expect(refuses('git:infoBatch', [key])).toBe(true)
+    expect(refuses('artifacts:list', ['/local/s.jsonl', key])).toBe(true)
+    expect(refuses('sessions:delete', undefined, key)).toBe(true)
+    expect(refuses('pty:create', '/local', 80, 24, key)).toBe(true)
+    expect(refuses('git:commitAll', key, 'message')).toBe(true)
+    expect(refuses('mcp:writeFile', 'project', key, '{}')).toBe(true)
+    expect(refuses('packages:run', 'install', 'npm:x', 'project', key)).toBe(true)
+    expect(refuses('claude:bindSession', '/local/s.jsonl', key)).toBe(true)
+  }
+  expect(refuses('pi:createSession', { workspacePath: '/w', sessionPath: '/w/s.jsonl' })).toBe(
+    false,
+  )
+  expect(refuses('routines:list')).toBe(false)
+  expect(refuses('mcp:readFile', 'global', undefined)).toBe(false)
+  expect(refuses('skills:importConfirm', { sourcePath: '/s.zip', scope: 'user' })).toBe(false)
+  expect(refuses('fs:searchWorkspace', { ...SEARCH, workspacePath: '/local' })).toBe(false)
 })
