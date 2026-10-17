@@ -47,11 +47,21 @@ afterEach(() => {
 })
 
 const stall = (options: { timeoutMs: number; signal?: AbortSignal }) =>
-  runGroup(process.execPath, ['-e', STALL, pidsFile], { ...options, env: process.env })
+  runGroup(process.execPath, ['-e', STALL, pidsFile], {
+    ...options,
+    cwd: undefined,
+    env: process.env,
+    signal: options.signal,
+  })
 
 describe('runGroup', () => {
   it('resolves with the exit code', async () => {
-    const code = runGroup(process.execPath, ['-e', 'process.exit(3)'], { timeoutMs: 10_000 })
+    const code = runGroup(process.execPath, ['-e', 'process.exit(3)'], {
+      timeoutMs: 10_000,
+      cwd: undefined,
+      env: undefined,
+      signal: undefined,
+    })
     expect(await code).toBe(3)
   })
 

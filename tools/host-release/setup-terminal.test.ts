@@ -1,10 +1,14 @@
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { buildSync } from 'esbuild'
-import { spawn } from '../../apps/desktop/node_modules/node-pty'
 import { afterAll, beforeAll, expect, it } from 'vitest'
+import type * as NodePty from 'node-pty'
+
+const require = createRequire(new URL('../../apps/desktop/package.json', import.meta.url))
+const { spawn } = require('node-pty') as typeof NodePty
 
 const dir = mkdtempSync(join(tmpdir(), 'host-setup-terminal-'))
 const bundle = join(dir, 'prompt.mjs')

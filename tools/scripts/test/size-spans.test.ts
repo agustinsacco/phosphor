@@ -21,8 +21,8 @@ describe('size-spans whole-span measurements', () => {
     const source = `const useStore = create(() => ({\n  run: () => {\n${body(81)}\n  },\n}))`
     const spans = functions('src/store.ts', source)
     expect(spans.map(({ lines }) => lines)).toEqual([85, 83])
-    expect(spans[0].key).toBe('src/store.ts::useStore[1]')
-    expect(spans[1].key).toBe('src/store.ts::useStore[1]/run[1]')
+    expect(spans[0]?.key).toBe('src/store.ts::useStore[1]')
+    expect(spans[1]?.key).toBe('src/store.ts::useStore[1]/run[1]')
   })
 
   it('measures TSX, anonymous functions, constructors, accessors and computed methods', () => {
@@ -30,7 +30,7 @@ describe('size-spans whole-span measurements', () => {
     const spans = functions('view.tsx', source)
     expect(spans.map(({ lines }) => lines)).toEqual([1, 1, 3, 3, 3, 1])
     expect(new Set(spans.map(({ key }) => key)).size).toBe(6)
-    expect(spans[2].key).toContain('View[1]/render[1]')
+    expect(spans[2]?.key).toContain('View[1]/render[1]')
   })
 
   it.each(['ts', 'tsx', 'js', 'mjs', 'cjs'])(
@@ -40,8 +40,8 @@ describe('size-spans whole-span measurements', () => {
       expect(measureSource(`run.${ext}`, lf.replaceAll('\n', '\r\n'))).toEqual(
         measureSource(`run.${ext}`, lf),
       )
-      expect(functions(`run.${ext}`, lf)[0].lines).toBe(3)
-      expect(measureSource(`run.${ext}`, lf)[0].lines).toBe(3)
+      expect(functions(`run.${ext}`, lf)[0]?.lines).toBe(3)
+      expect(measureSource(`run.${ext}`, lf)[0]?.lines).toBe(3)
     },
   )
 
@@ -72,7 +72,7 @@ describe('size-spans whole-span measurements', () => {
   it('handles imported aliases, nested suites and each/skip/only suites without exempting tests', () => {
     const source = `import { describe as suite, it } from 'vitest'\nsuite.each([1])('suite', () => {\n  suite.skip('inner', () => {\n    it('test', () => {\n${body(81)}\n    })\n  })\n})`
     expect(functions('a.test.ts', source)).toHaveLength(1)
-    expect(functions('a.test.ts', source)[0].lines).toBe(83)
+    expect(functions('a.test.ts', source)[0]?.lines).toBe(83)
   })
 
   it.each(['a.test.ts', 'a.spec.tsx', '__tests__/a.ts', 'test/a.ts'])(

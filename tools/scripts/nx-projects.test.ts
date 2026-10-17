@@ -193,11 +193,12 @@ describe('explicit Nx project contract', () => {
       const project = graph.nodes[name].data
       assertTargets(name as keyof typeof commands, project.targets)
       for (const [target, command] of Object.entries(expected)) {
+        const projectInputs = inputs[name as keyof typeof inputs]
+        if (!projectInputs) throw new Error(`Missing inputs for ${name}`)
         expect(project.targets[target]).toMatchObject({
           executor: 'nx:run-commands',
           cache: false,
-          inputs:
-            inputs[name as keyof typeof inputs][target] ?? inputs[name as keyof typeof inputs]['*'],
+          inputs: projectInputs[target] ?? projectInputs['*'],
           options: {
             command,
             cwd: name === 'site' ? 'apps/site' : name === 'desktop' ? 'apps/desktop' : '.',
