@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { devRendererUrl } from './dev-renderer-url'
 
 // Which document main.ts opens in its window. The window carries the privileged
 // preload, so an environment variable must not choose that document for a
@@ -161,5 +162,24 @@ describe('main window renderer', () => {
     const window = await launchMain(false, '')
     expect(window.loadURL).not.toHaveBeenCalled()
     expect(window.loadFile).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('devRendererUrl', () => {
+  it.each([['https://attacker.example/phish.html'], ['http://localhost:5173/'], [''], [undefined]])(
+    'is undefined in a packaged app whatever ELECTRON_RENDERER_URL holds (%j)',
+    (value) => {
+      expect(devRendererUrl({ ELECTRON_RENDERER_URL: value }, true)).toBeUndefined()
+    },
+  )
+
+  it('returns the dev server URL in an unpackaged run', () => {
+    const env = { ELECTRON_RENDERER_URL: 'http://localhost:5173/' }
+    expect(devRendererUrl(env, false)).toBe('http://localhost:5173/')
+  })
+
+  it('is undefined in an unpackaged run when ELECTRON_RENDERER_URL is unset or empty', () => {
+    expect(devRendererUrl({}, false)).toBeUndefined()
+    expect(devRendererUrl({ ELECTRON_RENDERER_URL: '' }, false)).toBeUndefined()
   })
 })

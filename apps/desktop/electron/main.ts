@@ -39,8 +39,10 @@ import { artifactScheme, registerArtifactProtocol } from './artifacts/artifact-p
 import { fileScheme, isFrameEscape, registerFileProtocol } from './fs/file-protocol'
 import { externalUrl, isAppNavigation } from './external-links'
 import { installPermissionPolicy } from './voice/permissions'
+import { devRendererUrl } from './dev-renderer-url'
 
-const isDev = !!process.env.ELECTRON_RENDERER_URL
+const rendererUrl = devRendererUrl(process.env, app.isPackaged)
+const isDev = rendererUrl !== undefined
 
 // Brand identity when running unpackaged (`npm run dev`): packaged builds get
 // name + icon from electron-builder (productName / build/icon.*), but a dev
@@ -173,8 +175,8 @@ function createWindow(): BrowserWindow {
     if (!event.isMainFrame && isFrameEscape(event.url)) event.preventDefault()
   })
 
-  if (isDev) {
-    void window.loadURL(process.env.ELECTRON_RENDERER_URL!)
+  if (rendererUrl !== undefined) {
+    void window.loadURL(rendererUrl)
   } else {
     void window.loadFile(join(import.meta.dirname, '../renderer/index.html'))
   }
