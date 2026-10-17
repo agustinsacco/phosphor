@@ -17,6 +17,7 @@ import { maintenanceScheduler } from './ipc/maintenance-handlers'
 import { registry } from './registry'
 import { ptyManager } from './pty/pty-manager'
 import { disposeMcpLogins } from './pi/mcp-cli'
+import { disposePackageJobs } from './pi/packages'
 import { ensureDesktopArtifactSkill } from './pi/session-launch'
 import { cancelAllLogins } from './pi/login-flow'
 import { cancelAllClaudeLogins } from './pi/claude-login'
@@ -348,6 +349,9 @@ function beginQuit(): void {
   // A connector sign-in is its own `pi mcp login` child — not in the registry,
   // so disposeAll below would not touch it, and it holds the OAuth callback port.
   disposeMcpLogins()
+  // Package jobs (pi install, npm, `claude update`, the provider proof) are
+  // their own process trees, outside the registry too. New ones are refused.
+  const packageJobs = disposePackageJobs()
   ptyManager.killAll()
   // Stop admission and persist interrupted routine outcomes before disposing
   // unrelated sessions. Routine cancellation owns its nested process tree.
@@ -357,6 +361,7 @@ function beginQuit(): void {
       settleAccount(),
       unwatchAll(),
       unwatchAllWorkspaces(),
+      packageJobs,
     ]).finally(() => {
       quitComplete = true
       app.quit()
@@ -377,6 +382,8 @@ function hardShutdown(): never {
   try {
     ptyManager.killAll()
     registry.killAllSync()
+    // Its kills are synchronous on POSIX; only the settlement is not awaited.
+    void disposePackageJobs()
   } catch {
     // best effort — we are exiting regardless
   }

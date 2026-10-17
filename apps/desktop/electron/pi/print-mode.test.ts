@@ -3,6 +3,14 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runPrintMode } from './print-mode'
+import type * as ChildProcessModule from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
+
+// Real child_process; only execFile is observable, for the Windows tree kill.
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof ChildProcessModule>()
+  return { ...actual, execFile: vi.fn(actual.execFile) }
+})
 
 /**
  * The fixture behaves like `pi -p`: it does not answer until stdin reaches
@@ -388,5 +396,74 @@ describe('runPrintMode cancellation and streaming', () => {
     expect(removed).toHaveBeenCalledWith('abort', expect.any(Function))
     // A late abort finds nothing to settle and throws nothing.
     expect(() => controller.abort()).not.toThrow()
+  })
+})
+
+/**
+ * Windows has no process groups, so the tree goes through `taskkill /T /F`.
+ * The module decides its platform when it loads, so it is loaded as win32.
+ */
+describe('killProcessTree on Windows', () => {
+  type Callback = (error: Error | null) => void
+  async function loadAsWindows(): Promise<{
+    killProcessTree: (child: ChildProcess) => void
+    execFile: ReturnType<typeof vi.fn>
+  }> {
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
+    Object.defineProperty(process, 'platform', { ...platform, value: 'win32' })
+    try {
+      vi.resetModules()
+      const { killProcessTree } = await import('./print-mode')
+      const childProcess = await import('node:child_process')
+      const execFile = vi.mocked(childProcess.execFile) as unknown as ReturnType<typeof vi.fn>
+      execFile.mockReset()
+      execFile.mockImplementation(() => ({}))
+      return { killProcessTree, execFile }
+    } finally {
+      Object.defineProperty(process, 'platform', platform)
+    }
+  }
+  const fakeChild = (
+    state: Partial<ChildProcess>,
+  ): ChildProcess & { kill: ReturnType<typeof vi.fn> } =>
+    ({
+      pid: 4242,
+      exitCode: null,
+      signalCode: null,
+      kill: vi.fn(),
+      ...state,
+    }) as unknown as ChildProcess & {
+      kill: ReturnType<typeof vi.fn>
+    }
+
+  it('walks the tree with a bounded taskkill', async () => {
+    const { killProcessTree, execFile } = await loadAsWindows()
+    const child = fakeChild({})
+    killProcessTree(child)
+    expect(execFile).toHaveBeenCalledTimes(1)
+    const [command, args, options, callback] = execFile.mock.calls[0]!
+    expect([command, args, options]).toEqual([
+      'taskkill',
+      ['/pid', '4242', '/T', '/F'],
+      { timeout: 5_000, windowsHide: true },
+    ])
+    ;(callback as Callback)(null)
+    expect(child.kill).not.toHaveBeenCalled()
+  })
+
+  it('kills the child alone when taskkill fails or times out', async () => {
+    const { killProcessTree, execFile } = await loadAsWindows()
+    const child = fakeChild({})
+    killProcessTree(child)
+    ;(execFile.mock.calls[0]![3] as Callback)(new Error('timed out'))
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+  })
+
+  it('leaves an exited child alone, since Windows reuses its pid', async () => {
+    const { killProcessTree, execFile } = await loadAsWindows()
+    killProcessTree(fakeChild({ exitCode: 0 }))
+    killProcessTree(fakeChild({ signalCode: 'SIGKILL' }))
+    killProcessTree(fakeChild({ pid: undefined }))
+    expect(execFile).not.toHaveBeenCalled()
   })
 })

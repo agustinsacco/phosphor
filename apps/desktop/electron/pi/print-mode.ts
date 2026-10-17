@@ -16,24 +16,46 @@
  * reading stdin, so it is happy either way. `print-mode.test.ts`
  * uses a fixture that blocks on stdin the way real pi does.
  */
-import { spawn, type ChildProcess } from 'node:child_process'
+import { execFile, spawn, type ChildProcess } from 'node:child_process'
 
 /** POSIX only: the child leads its own process group, so the group can die. */
-const OWN_GROUP = process.platform !== 'win32'
+export const OWN_GROUP = process.platform !== 'win32'
+
+/** How long a Windows `taskkill` may take before the child alone is killed. */
+const TASKKILL_TIMEOUT_MS = 5_000
 
 /**
- * Kill the run and everything it started. pi alone is not enough: a provider
- * or extension can spawn its own children (the Claude CLI, MCP servers), and
- * killing only pi leaves them orphaned. Also called after a clean exit, so
- * nothing a title run started can outlive it. ESRCH (already gone) is fine.
+ * Kill a child and everything it started. The child alone is not enough: a
+ * provider or extension can spawn its own children (the Claude CLI, MCP
+ * servers), and killing only pi leaves them orphaned. ESRCH (already gone) is
+ * fine.
+ *
+ * POSIX: the child must have been spawned `detached: OWN_GROUP`, so it leads
+ * its own group and the group can be killed even after the child itself has
+ * exited — which is why print mode calls this after a clean exit too.
+ * Windows has no groups: `taskkill /T /F` walks the tree, bounded, falling
+ * back to the child alone. It is skipped once the child has exited, because
+ * Windows reuses pids and a tree walk from a stale one could kill a stranger.
  */
-function killTree(child: ChildProcess): void {
-  try {
-    if (OWN_GROUP && child.pid) process.kill(-child.pid, 'SIGKILL')
-    else child.kill('SIGKILL')
-  } catch {
-    // Already exited.
+export function killProcessTree(child: ChildProcess): void {
+  if (!child.pid) return
+  if (OWN_GROUP) {
+    try {
+      process.kill(-child.pid, 'SIGKILL')
+    } catch {
+      // Already exited.
+    }
+    return
   }
+  if (child.exitCode !== null || child.signalCode !== null) return
+  execFile(
+    'taskkill',
+    ['/pid', String(child.pid), '/T', '/F'],
+    { timeout: TASKKILL_TIMEOUT_MS, windowsHide: true },
+    (error) => {
+      if (error && child.exitCode === null) child.kill('SIGKILL')
+    },
+  )
 }
 
 /** Stop waiting on a print-mode run. Generous: it is off any critical path. */
@@ -54,18 +76,34 @@ export interface PrintModeResult {
   error?: string
 }
 
+export interface PrintModeOptions {
+  cwd: string
+  env: NodeJS.ProcessEnv
+  timeoutMs?: number
+  /**
+   * Stops the run like a timeout does, with error `aborted`: the tree is
+   * killed and stdout so far is kept. Already aborted means nothing spawns.
+   */
+  signal?: AbortSignal
+  /** Each stdout chunk as it arrives, uncapped, until the run settles. */
+  onStdout?: (chunk: string) => void
+}
+
 /**
  * Run a command that speaks pi's print mode and collect its stdout.
  *
  * Never rejects: every caller of this treats a failure as "no answer", and a
  * thrown error in a fire-and-forget naming pass is just an unhandled rejection.
+ * Settles once, whichever of exit, spawn error, timeout or abort comes first.
  */
 export async function runPrintMode(
   binaryPath: string,
   args: string[],
-  options: { cwd: string; env: NodeJS.ProcessEnv; timeoutMs?: number },
+  options: PrintModeOptions,
 ): Promise<PrintModeResult> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const { signal } = options
+  if (signal?.aborted) return { stdout: '', error: 'aborted' }
   return new Promise<PrintModeResult>((resolve) => {
     let child
     try {
@@ -89,9 +127,12 @@ export async function runPrintMode(
       if (settled) return
       settled = true
       clearTimeout(timer)
-      killTree(child)
+      signal?.removeEventListener('abort', onAbort)
+      killProcessTree(child)
       resolve(result)
     }
+    const onAbort = (): void => finish({ stdout, error: 'aborted' })
+    signal?.addEventListener('abort', onAbort, { once: true })
 
     // Answering and exiting are two different events, and a print-mode run
     // can do the first without the second: pi-claude-cli >= 0.7.0 parks its
@@ -104,7 +145,9 @@ export async function runPrintMode(
     }, timeoutMs)
 
     child.stdout?.on('data', (chunk: Buffer) => {
-      if (stdout.length < MAX_OUTPUT_BYTES) stdout += chunk.toString()
+      const text = chunk.toString()
+      if (stdout.length < MAX_OUTPUT_BYTES) stdout += text
+      if (!settled) options.onStdout?.(text)
     })
     // Kept only to explain a failure. pi is quiet here on success.
     child.stderr?.on('data', (chunk: Buffer) => {

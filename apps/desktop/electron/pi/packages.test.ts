@@ -468,6 +468,49 @@ describe('package job ownership', () => {
     expect(onExit.mock.calls).toEqual([[127]])
   })
 
+  it('a proof stopped before it starts never spawns', async () => {
+    const { packages, runPrintMode } = await freshModules()
+    const job = recordJob()
+    await packages.runClaudeProviderTest(job.sender, markerStub)
+
+    await packages.disposePackageJobs()
+
+    expect(job.exits()).toEqual([1])
+    expect(runPrintMode).toHaveBeenCalledTimes(1)
+    expect(runPrintMode.mock.calls[0]?.[2].signal?.aborted).toBe(true)
+    await delay(200)
+    expect(existsSync(markerFile)).toBe(false)
+  })
+
+  it('a closed window hears nothing, and its jobs still end and leave the table', async () => {
+    const { packages, runPrintMode } = await freshModules()
+    runPrintMode.mockImplementation(async (_binary, _args, options) => {
+      options.onStdout?.('phosphor-provider-ok\n')
+      return { stdout: 'phosphor-provider-ok\n' }
+    })
+    const proof = recordJob()
+    proof.sender.destroyed = true
+    const install = recordJob()
+    install.sender.destroyed = true
+    const onExit = vi.fn()
+
+    await packages.runClaudeProviderTest(proof.sender, answeringStub)
+    packages.startJob(install.sender, process.execPath, [answeringStub], { env: env(), onExit })
+
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(runPrintMode).toHaveBeenCalledTimes(1))
+    await delay(50)
+    expect(onExit).toHaveBeenCalledWith(0)
+    expect(proof.sent).toEqual([])
+    expect(install.sent).toEqual([])
+    // Both have left the table: disposal has nothing to wait for.
+    const settled = await Promise.race([
+      packages.disposePackageJobs().then(() => 'settled'),
+      delay(1_000).then(() => 'bound'),
+    ])
+    expect(settled).toBe('settled')
+  })
+
   it.skipIf(process.platform === 'win32')(
     'a job that outlives its 15-minute deadline is stopped with its tree',
     async () => {

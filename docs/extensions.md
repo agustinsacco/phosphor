@@ -60,6 +60,20 @@ packages:run(action, spec, scope, ws?) → { jobId }
 so one hook powers the Extensions tab, the MCP migration card's package
 removal, the Headroom install, onboarding and the Claude provider test.
 
+A job reports its exit once, whichever comes first: the process closing, a
+spawn error (127), its 15-minute deadline, or quit. Each job leads its own
+process tree (a POSIX process group; on Windows a bounded `taskkill /T /F`), so
+stopping one stops what it started too: npm, git, the Claude CLI. A stopped
+job prints why and exits 1. An approved quit, and a signal shutdown, call
+`disposePackageJobs()`: every job is stopped, new ones are refused with
+"Phosphor is shutting down", and quit waits up to 3 seconds for them to report.
+
+The Claude provider test is a print-mode run (`runPrintMode`, stdin ignored)
+on the same channels, not a plain job. It is bounded at 30 seconds, and its
+tree is killed even after a clean exit. Its stdout streams; a failure ends with
+print mode's reason (`exited N: <stderr>`, `timed out after …`, `aborted`) and
+exit 1.
+
 `packages:installPi` runs `npm install -g @earendil-works/pi-coding-agent`
 through `piProcessEnv()` (login-shell PATH, so fnm/nvm work from a GUI launch)
 and reports plainly when npm itself is unreachable.
