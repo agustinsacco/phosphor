@@ -238,7 +238,9 @@ export async function accountControlFixture(
         rows = []
       }
       const tree = (parent: number): number[] =>
-        rows.flatMap(([pid, ppid]) => (ppid === parent ? [...tree(pid), pid] : []))
+        rows.flatMap(([pid, ppid]) =>
+          ppid === parent && pid !== undefined ? [...tree(pid), pid] : [],
+        )
       const pids = child.pid ? [...tree(child.pid), child.pid] : []
       let timer: ReturnType<typeof setTimeout> | undefined
       const closeStarted = performance.now()

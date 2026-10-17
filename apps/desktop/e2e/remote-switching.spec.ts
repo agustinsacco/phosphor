@@ -39,7 +39,7 @@ test('Every lane surface refreshes A→B→A', async ({ browserName: _browserNam
       ['Remote test lane', 'HOST_A_ONLY', 'HOST_B_ONLY'],
       ['HOST_B_ONLY lane', 'HOST_B_ONLY', 'HOST_A_ONLY'],
       ['Remote test lane', 'HOST_A_ONLY', 'HOST_B_ONLY'],
-    ]) {
+    ] as const) {
       await selectLane(h, title)
       await files(h)
       await file(h, 'remote.txt')
@@ -74,7 +74,7 @@ test('Switcher drives pages; page override resets and never revives Mac data', a
     for (const [page, host, local] of [
       ['Skills', 'HOST_A_ONLY', 'LOCAL_ONLY'],
       ['Routines', 'HOST_A_ONLY routine', 'LOCAL_ONLY routine'],
-    ]) {
+    ] as const) {
       await selectMachine(h, 'bee1')
       await h.page.getByRole('button', { name: page, exact: true }).first().click()
       await expect(h.page.getByTestId('global-page')).toContainText(host)
@@ -151,7 +151,7 @@ test('Remote Files, Changes, controls, model and error surfaces refresh A→B→
       ['Remote test lane', 'HOST_A_ONLY', 'HOST_B_ONLY'],
       ['HOST_B_ONLY lane', 'HOST_B_ONLY', 'HOST_A_ONLY'],
       ['Remote test lane', 'HOST_A_ONLY', 'HOST_B_ONLY'],
-    ]) {
+    ] as const) {
       await selectLane(h, title)
       await expect(h.page.getByText('Controlled by you', { exact: true })).toBeVisible()
       await files(h)

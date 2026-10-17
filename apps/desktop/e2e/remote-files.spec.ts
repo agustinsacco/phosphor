@@ -166,7 +166,7 @@ test('A save dropped before Host admission is applied once by reconnect replay',
     const initial = await stat(join(h.repo, 'remote.txt'), { bigint: true })
     const original = await h.readHostFile('remote.txt')
     const restoreTraffic = h.dropClientTraffic()
-    let restoreConnection = () => undefined
+    let restoreConnection: () => void = () => undefined
     try {
       await h.page.getByRole('button', { name: 'Save', exact: true }).click()
       await expect(
@@ -242,7 +242,7 @@ test('A revoked save fence keeps an unconfirmed draft without automatic retry', 
     const original = await h.readHostFile('remote.txt')
     const identity = await stat(join(h.repo, 'remote.txt'), { bigint: true })
     const restoreTraffic = h.dropClientTraffic()
-    let restoreConnection = () => undefined
+    let restoreConnection: () => void = () => undefined
     try {
       await h.page.getByRole('button', { name: 'Save', exact: true }).click()
       await expect(

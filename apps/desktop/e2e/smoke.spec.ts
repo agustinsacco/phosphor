@@ -368,7 +368,7 @@ test('Swarm toggles lane authorization without sending a turn and honors reduced
       const result = await page.evaluate(async (text) => {
         const live = await window.phosphor.invoke('pi:listLiveSessions')
         if (live.length !== 1) throw new Error('Expected one isolated stub session')
-        return window.phosphor.piCommand(live[0].sessionId, { type: 'prompt', message: text })
+        return window.phosphor.piCommand(live[0]!.sessionId, { type: 'prompt', message: text })
       }, message)
       expect(result.success).toBe(true)
     }
@@ -439,7 +439,10 @@ test('Swarm toggles lane authorization without sending a turn and honors reduced
                 const s = n / 255
                 return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
               })
-            return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722
+            const [red, green, blue] = channels
+            if (red === undefined || green === undefined || blue === undefined)
+              throw new Error(`Expected an rgb colour, got ${color}`)
+            return red * 0.2126 + green * 0.7152 + blue * 0.0722
           }
           const a = luminance(css.color),
             b = luminance(css.backgroundColor)
@@ -602,7 +605,7 @@ test('Mermaid viewer fits, zooms, pans, exports and restores focus', async () =>
     await page.getByRole('button', { name: 'Light', exact: true }).click()
     await page.keyboard.press('Escape')
     await expand.click()
-    await h.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(900, 700))
+    await h.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(900, 700))
     await expect
       .poll(async () => Math.round((await image.boundingBox())?.width ?? Infinity))
       .toBeLessThan(Math.round(fitWidth))
@@ -1065,9 +1068,11 @@ test('composer shortcuts format selections, insert links and expand long drafts'
     await field.press(`${mod}+Shift+k`)
     await expect(field).toHaveValue('[read more](https://)')
     await expect(field).toBeFocused()
-    expect(await field.evaluate((el) => el.value.slice(el.selectionStart, el.selectionEnd))).toBe(
-      'https://',
-    )
+    expect(
+      await field.evaluate((el: HTMLTextAreaElement) =>
+        el.value.slice(el.selectionStart, el.selectionEnd),
+      ),
+    ).toBe('https://')
     await field.pressSequentially('https://example.com')
     await expect(field).toHaveValue('[read more](https://example.com)')
 
@@ -4631,7 +4636,7 @@ test('Subagents settings follow package availability and fit both themes', async
     await expect(settings).toContainText('Pi owns execution')
     await expect(settings.getByRole('button', { name: 'Edit global settings…' })).toBeVisible()
     await harness.app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0].setSize(760, 850),
+      BrowserWindow.getAllWindows()[0]!.setSize(760, 850),
     )
     for (const theme of ['dark', 'light']) {
       await page.evaluate(
@@ -4715,7 +4720,7 @@ test('a parallel delegation shows every child working at once, then settles', as
     const finished = await page.evaluate(async () => {
       const live = await window.phosphor.invoke('pi:listLiveSessions')
       if (live.length !== 1) throw new Error('Expected one isolated stub session')
-      return window.phosphor.piCommand(live[0].sessionId, {
+      return window.phosphor.piCommand(live[0]!.sessionId, {
         type: 'prompt',
         message: '/stub-finish-parallel',
       })
@@ -4772,6 +4777,7 @@ test('the home workbench keeps parallel lanes visible and reuses subagent inspec
     for (const width of [1200, 760]) {
       await harness.app.evaluate(({ BrowserWindow }, width) => {
         const window = BrowserWindow.getAllWindows()[0]
+        if (!window) throw new Error('Expected the app window')
         window.setMinimumSize(640, 600)
         window.setSize(width, 900)
       }, width)
@@ -4905,7 +4911,7 @@ test('a native delegation is an agent row with live progress, a fleet chip and a
     const completion = await page.evaluate(async () => {
       const live = await window.phosphor.invoke('pi:listLiveSessions')
       if (live.length !== 1) throw new Error('Expected one isolated stub session')
-      return window.phosphor.piCommand(live[0].sessionId, {
+      return window.phosphor.piCommand(live[0]!.sessionId, {
         type: 'prompt',
         message: '/stub-finish-delegation',
       })
@@ -5031,7 +5037,7 @@ test('recorded workflow completions and attention stay visible, attributable and
     // just the previous single-scout happy path. Inspector replies below are scripted.
     for (const width of [1440, 900]) {
       await harness.app.evaluate(
-        ({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0].setSize(width, 900),
+        ({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0]!.setSize(width, 900),
         width,
       )
       for (const theme of ['dark', 'light']) {
@@ -5109,7 +5115,7 @@ test('recorded workflow completions and attention stay visible, attributable and
     const settled = await page.evaluate(async () => {
       const live = await window.phosphor.invoke('pi:listLiveSessions')
       if (live.length !== 1) throw new Error('Expected one isolated stub session')
-      return window.phosphor.piCommand(live[0].sessionId, {
+      return window.phosphor.piCommand(live[0]!.sessionId, {
         type: 'prompt',
         message: '/stub-settle-workflow',
       })
@@ -5181,7 +5187,7 @@ test('subagent inspection, steering and saved snapshots survive compaction and a
     await expect(panel).toContainText('Validation: full suite is running')
     for (const width of [1440, 900]) {
       await first.app.evaluate(
-        ({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0].setSize(width, 900),
+        ({ BrowserWindow }, width) => BrowserWindow.getAllWindows()[0]!.setSize(width, 900),
         width,
       )
       for (const theme of ['dark', 'light']) {
@@ -5379,7 +5385,7 @@ test('subagent pane owns scrolling, keeps rows stable and preserves drafts acros
     }
     // Pane-width responsive navigation, even inside a wide application window.
     await pane.getByRole('button', { name: 'Exit fullscreen' }).click()
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(900, 800))
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.setSize(900, 800))
     await expect(nav).not.toBeVisible()
     await pane.getByRole('button', { name: 'Back to runs' }).click()
     await expect(row).toBeFocused()
@@ -5387,7 +5393,7 @@ test('subagent pane owns scrolling, keeps rows stable and preserves drafts acros
     await expect(header).toBeFocused()
     expect(await pane.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
     await app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1.25),
+      BrowserWindow.getAllWindows()[0]!.webContents.setZoomFactor(1.25),
     )
     expect(await pane.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
     // The summary beside a docked pane truncates its text, never its button.
@@ -5407,7 +5413,7 @@ test('subagent pane owns scrolling, keeps rows stable and preserves drafts acros
       Buffer.from(png, 'base64'),
     )
     await app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0].webContents.setZoomFactor(1),
+      BrowserWindow.getAllWindows()[0]!.webContents.setZoomFactor(1),
     )
     await pane.getByText('Details & actions', { exact: true }).click()
     await pane.getByRole('button', { name: 'Save snapshot', exact: true }).click()
