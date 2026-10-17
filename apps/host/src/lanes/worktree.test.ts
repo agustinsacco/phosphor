@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import * as exec from '@phosphor/session-runtime/git/git-exec'
-import { deleteMergedBranch } from './delete'
+import { branchMerged, deleteMergedBranch } from './delete'
 import { LaneFolderError, prepareLaneFolder } from './worktree'
 
 vi.mock('node:fs', async (importOriginal) => {
@@ -820,4 +820,19 @@ it('a develop-only lane is created from and later proven against the same trunk'
   await run(['merge', '--no-ff', '-m', 'merge lane', 'phosphor/lane'])
   expect(await deleteMergedBranch(root, 'phosphor/lane')).toBe(true)
   expect(await run(['for-each-ref', 'refs/heads/phosphor/lane'])).toBe('')
+})
+
+it('a lane created without a trunk ref falls back to the HEAD commit and is never proven merged', async () => {
+  await run(['branch', '-m', 'trunk'])
+  await run(['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/missing'])
+  const lane = await prepareLaneFolder({ root, worktree: { branch: 'no-trunk', fresh: true } })
+  const head = await run(['rev-parse', 'HEAD'])
+  expect(await run(['rev-parse', 'no-trunk'])).toBe(head)
+  await run(['worktree', 'remove', lane.cwd])
+  expect(await branchMerged(root, 'no-trunk')).toBe(false)
+  expect(await deleteMergedBranch(root, 'no-trunk')).toBe(false)
+  await run(['symbolic-ref', '--delete', 'refs/remotes/origin/HEAD'])
+  await run(['checkout', '--detach'])
+  expect(await branchMerged(root, 'no-trunk')).toBe(false)
+  expect(await run(['rev-parse', 'no-trunk'])).toBe(head)
 })

@@ -6,6 +6,7 @@ import type { DeleteLaneOp } from '@phosphor/shared/host-protocol-repositories'
 import { isLaneBranchName, type RejectCode } from '@phosphor/shared/host-protocol'
 import type { HostStore } from './store'
 import { inside } from '../features/files'
+import { defaultBranchRefs, resolveDefaultBranch } from './default-branch'
 
 const missing = (error: unknown) =>
   error instanceof Error && 'code' in error && error.code === 'ENOENT'
@@ -52,17 +53,10 @@ export function transcriptTrash(state: string) {
 export async function branchMerged(root: string, branch: string): Promise<boolean> {
   if (!isLaneBranchName(branch)) return false
   const run = (args: string[]) => git(root, args, { isolateEnv: true, trim: true })
-  const remote = await run(['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']).catch(
-    () => null,
-  )
-  const trunk =
-    remote?.replace('refs/remotes/origin/', '') ??
-    (await run(['show-ref', '--verify', 'refs/heads/main']).then(
-      () => 'main',
-      () => 'master',
-    ))
-  if (branch === trunk) return false
-  for (const base of [`refs/remotes/origin/${trunk}`, `refs/heads/${trunk}`]) {
+  // The trunk lane creation used. No trunk means no proof, never a proof against HEAD.
+  const trunk = await resolveDefaultBranch(run).catch(() => null)
+  if (trunk === null || branch === trunk) return false
+  for (const base of defaultBranchRefs(trunk)) {
     try {
       await run(['merge-base', '--is-ancestor', `refs/heads/${branch}`, base])
       return true
