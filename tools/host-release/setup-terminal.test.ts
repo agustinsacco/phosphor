@@ -1,3 +1,4 @@
+/// <reference path="../../apps/desktop/node_modules/node-pty/typings/node-pty.d.ts" />
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'

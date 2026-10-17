@@ -1,10 +1,15 @@
 import { spawnSync } from 'node:child_process'
+import { realpathSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { auditCoverage, localTool, typecheckProjects } from './typecheck-coverage.mjs'
 
 function runCommand(command, args, cwd) {
-  const result = spawnSync(command, args, { cwd, stdio: 'inherit' })
+  const result = spawnSync(command, args, {
+    cwd,
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+  })
   if (result.error) throw result.error
   return result.status ?? 1
 }
@@ -26,7 +31,10 @@ export function runTypecheck(root, run = runCommand) {
   return run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'check'], site)
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (
+  process.argv[1] &&
+  realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
+) {
   try {
     const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
     const missing = auditCoverage(root)

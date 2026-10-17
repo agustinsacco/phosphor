@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { realpathSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -77,13 +77,16 @@ export function auditCoverage(root, projects = typecheckProjects) {
     },
   )
     .split('\0')
-    .filter((file) => /\.(?:tsx?|mts|cts)$/.test(file))
+    .filter((file) => /\.(?:tsx?|mts|cts)$/.test(file) && existsSync(join(root, file)))
   // No generated declarations are exempt today. A tracked declaration is source
   // unless a future exemption names that exact generated file and its reason.
   return [...new Set(candidates)].filter((file) => !covered.has(resolve(root, file))).sort()
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (
+  process.argv[1] &&
+  realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
+) {
   try {
     const missing = auditCoverage(resolve(dirname(fileURLToPath(import.meta.url)), '../..'))
     if (missing.length)
