@@ -159,10 +159,7 @@ describe('lane lifecycle races', () => {
       ],
       { removeWorktree: true, deleteBranch: false, discardChanges: false },
     )
-    expect(results).toMatchObject([
-      { ok: false, error: 'Error: Cannot stop process' },
-      { ok: true },
-    ])
+    expect(results).toMatchObject([{ ok: false, error: 'Cannot stop process' }, { ok: true }])
     expect(useSessionsStore.getState().bulkDelete?.running).toBe(false)
   })
 })
