@@ -15,6 +15,7 @@ import type { MachineView } from '@shared/control-api'
 import type { AccountView } from '@shared/account'
 import type { PhosphorApi } from '@shared/ipc'
 import { mockRoutineCall, onMockRoutinesChanged } from './mockRoutines'
+import { mockTraffic } from './mockTraffic'
 import { bytesToBase64 } from '../lib/base64'
 import type { ConnectorAuthPush, ConnectorAuthState, SessionPush } from '@shared/models'
 import type { McpListResult } from '@shared/mcp'
@@ -1467,6 +1468,10 @@ export function installMockPhosphor(): void {
           return Promise.resolve(undefined as never)
         case 'hosts:tailscaleStatus':
           return { code: 'not-installed' } as never
+        case 'hosts:traffic':
+          return mockTraffic(Number(args[0]) || 0)
+        case 'hosts:reconnect':
+          return undefined as never
         case 'hosts:models':
           return [
             {

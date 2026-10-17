@@ -31,6 +31,8 @@ import { createRemoteLanes, type RemoteLanes } from '../hosts/remote-lanes'
 import { createRemoteTerminals } from '../hosts/terminals'
 import { createRemoteRoutines } from '../hosts/routines'
 import { createHostAttention, readHostReceipt } from '../hosts/attention'
+import { trafficLog } from '../hosts/traffic-log'
+import { tappedLog } from '../hosts/traffic-tap'
 
 let routines: ReturnType<typeof createRemoteRoutines> | undefined
 export const remoteRoutineMachines = () => routines?.machines() ?? []
@@ -70,14 +72,15 @@ export function registerHostsHandlers(): void {
         hostId,
         endpoint,
         testEndpoint,
-        socket: (url) => openHostSocket(url, log, testEndpoint),
+        socket: (url) => openHostSocket(url, tappedLog, testEndpoint),
         grant: () => grants.grantFor(hostId),
         clearGrant: () => grants.clear(hostId),
         changed: () => manager.changed(),
         disabled: () => manager.disabled(),
         onRoutinesChanged: () => broadcast('routines:changed', { machine: `host:${hostId}` }),
         onAttention: (event) => attention.receive(hostId, event),
-        log,
+        log: tappedLog,
+        traffic: (direction, frame, bytes) => trafficLog.frame(hostId, direction, frame, bytes),
       }),
   })
   const management = repositoryManagement(manager.connection)
@@ -268,4 +271,12 @@ export function registerHostsHandlers(): void {
     return uploadAttachments(files, lane)
   })
   handle('hosts:snapshot', () => manager.snapshot())
+  handle('hosts:reconnect', async (_event, hostId) => {
+    if (typeof hostId !== 'string' || !manager.present(hostId)) return
+    trafficLog.state(hostId, 'reconnect', 'requested')
+    await manager.reconnect(hostId)
+  })
+  handle('hosts:traffic', (_event, after) =>
+    trafficLog.read(typeof after === 'number' && Number.isFinite(after) ? after : 0),
+  )
 }

@@ -34,7 +34,10 @@ export function OnlineAndProviders({
   const [readiness, setReadiness] = useState<MachineProvider[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [attempt, setAttempt] = useState(0)
-  const claude = useClaudeReadiness(providers ? added.id : '', attempt)
+  const { check: claude, loading: claudeLoading } = useClaudeReadiness(
+    providers ? added.id : '',
+    attempt,
+  )
   useEffect(() => {
     if (!providers) return
     let live = true
@@ -97,7 +100,11 @@ export function OnlineAndProviders({
       <p className="text-text-secondary">
         Provider credentials stay on {added.label}, not on this computer.
       </p>
-      <ClaudeReadiness check={claude} />
+      {claudeLoading ? (
+        <p role="status">Checking Claude Code…</p>
+      ) : (
+        <ClaudeReadiness check={claude} />
+      )}
       {readiness
         ?.filter((provider) => !claude || !['claude', 'pi-claude-cli'].includes(provider.id))
         .map((provider) => (

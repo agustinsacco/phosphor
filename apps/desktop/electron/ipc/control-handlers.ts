@@ -1,5 +1,4 @@
 import { app } from 'electron'
-import { log } from '../debug-log'
 import {
   accountAccessToken,
   accountControlGeneration,
@@ -12,13 +11,14 @@ import { createMachinesLive } from '../control/live'
 import { createRealtime, liveTimers } from '../control/realtime'
 import { controlUrl, createControlClient } from '../control/client'
 import { handle } from './handle'
+import { tappedLog } from '../hosts/traffic-tap'
 
 const client = createControlClient({
   baseUrl: () => controlUrl(app.isPackaged, process.env),
   accessToken: accountAccessToken,
   generation: accountControlGeneration,
   version: () => app.getVersion(),
-  log,
+  log: tappedLog,
 })
 
 export const controlClient = () => client
@@ -41,13 +41,13 @@ export function registerControlHandlers(): void {
   app.once('will-quit', off)
   const stop = createMachinesLive({
     snapshot: accountSnapshot,
-    log,
+    log: tappedLog,
     subscribe: onAccountChange,
     timers: liveTimers,
     broadcast: machinesChanged,
     realtime: (changed, joined) =>
       createRealtime({
-        log,
+        log: tappedLog,
         target: supabaseTarget(app.isPackaged, process.env),
         socket: (url) => new WebSocket(url),
         accessToken: accountAccessToken,

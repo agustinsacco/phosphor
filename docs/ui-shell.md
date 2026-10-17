@@ -452,10 +452,18 @@ collapsed project statistics remain below the tiles.
 
 ## Machines
 
-One bordered list starts with this computer, using real pi health, Claude and
-provider sign-in checks. Enrolled Hosts follow, sorted online first, then by
-label. Rows show a status dot, hostname, human platform name and architecture,
-status text, problem-only readiness chips (or Ready), and non-zero lane counts.
+The list has two groups: This computer, then Hosts (sorted online first, then
+by label). Each row is one line of name plus a muted subtitle (hostname when it
+differs, platform and architecture, Host version, non-zero lane counts, last
+seen), then three readiness dots (pi, Claude, Tailscale; amber with the reason
+in a tooltip) and one status pill in a fixed-width column so the dots line up.
+The pill comes from `machineHeadline` and is the machine's single status:
+Connected, Connecting…, Waiting for setup, Not reachable, Tailscale stopped,
+Update needed, Access refused, Identity mismatch, Stopping or Offline. No surface
+pairs two verdicts such as "Online · Not reachable yet". A never-connected or
+offline Host shows no readiness dots or lane counts, because those are only as
+fresh as its last heartbeat. The page subtitle sums the fleet in words
+("4 Hosts · 1 connected · 2 need attention · 1 offline").
 The whole row opens a stable detail view; live updates do not reset selection.
 Signed out, only this computer is listed, with an optional GitHub sign-in panel.
 Signed in with no Hosts, Add a machine opens guided setup. There are no sample
@@ -472,41 +480,82 @@ branch collisions and window-local thinking memory.
 Main owns directory traffic. Realtime is only a debounced change signal, with
 60 s polling while disconnected. A 5 s local timer updates relative times and
 judges silent Hosts down after 90 s, using the server clock correction. No
-account means no control request. List loading, offline and account errors are
-explicit and offer retry.
+account means no control request. Loading is visible everywhere it takes time:
+the first directory load shows skeleton rows, a later refresh shows "Updating"
+beside the Hosts heading without hiding them, and this computer's checks,
+provider lists, Claude detail and On this machine counts each show a spinner or
+skeleton until their own read settles. A failed count reads Unavailable, never
+zero. Offline and account errors are explicit and offer retry.
 
-Readiness opens with a Reachable row from the shared reachability rule, then pi,
-Claude and Tailscale. It shows "Reported N ago" (new Hosts re-check every
-minute) and a Check again button that reloads machines from control and, when
-connected, re-reads providers and Claude detail. A failing check uses the amber
-warning dot. With no published endpoint, Tailscale reads "Running, but its
-address is not published" and the fix appears once, under Reachable; the header
-reads "Online · Not reachable yet" and Status shows the same phrase, so no
-surface claims a reachable machine that is not. The Claude Code row names the missing
-part (provider missing or outdated, Claude Code missing, signed out) with its
-fix; older Hosts keep the single status.
+A Host's detail is a header (label with Rename, the status pill, Reconnect and
+Check again) over cards in two columns: Readiness and On this machine on the
+left, Providers and Details on the right. Readiness opens with a Connection row
+from the shared reachability rule, then pi, Claude Code and Tailscale. A passing
+row says what is true ("Signed in and ready"); a failing row opens to its
+explanation and the one command that fixes it, so each fix appears once.
+Waiting for setup and Connecting… are progress, shown with a spinner and no
+command. The card header reads "Reported N ago" (Hosts re-check every minute and
+report with each heartbeat), plus "checked N ago" after Check again, which
+reloads machines from control and re-reads providers and Claude detail. An
+offline Host's last report is shown muted under "As last reported", without
+fixes; its Connection row says when it last checked in and offers
+`phosphor service restart`. With no published endpoint, Tailscale reads "Running,
+but its address is not published" and the fix appears under Connection:
+`phosphor setup` on a Mac, `sudo tailscale set --operator=$USER && phosphor setup`
+on Linux. The Claude Code row names the missing part (provider missing or
+outdated, Claude Code missing, signed out); older Hosts keep the single status.
 
-Readiness also lists the connected Host's unsigned-in providers. With `terminal`
+Providers lists the connected Host's providers, signed-in first. Not signed in
+is neutral, not a warning, because most people use one or two. With `terminal`
 and `sessions.control`, Sign in opens a private terminal modal on that Host.
 For pi, type `/login PROVIDER`, follow its steps, then `/quit`; Claude prints
 its own login steps. Closing the modal stops the login. Exiting refreshes
 `machine.providers`. Viewers and Hosts without those capabilities keep the
 `phosphor providers login PROVIDER` hint. Credentials stay on the Host.
 
-Details share Status, Readiness and About sections. Host details include the
-last heartbeat, enrollment date, version, copyable fingerprint and machine id.
-On this machine lists lanes and capability-gated skills, routines and artifact
-counts, with links to machine-filtered pages. Down lanes stay labelled last known.
-Problems give plain-language fixes and copyable commands to run on that Host.
-A never-connected Host offers `phosphor run` and, on Linux,
-`phosphor service install`. A Host offline for over a day suggests
-`phosphor service status`. Rename edits the label inline: Enter or blur saves,
-Escape cancels, and failure restores the saved label with an inline error.
-Remove confirms that the Host stops at its next heartbeat. Lanes, routines and
-files stay on that machine and return when it is added again: rerun
-`phosphor setup` on it and approve the new code in Add a machine.
-The re-added machine has a new id, so Desktop's per-machine preferences for it
-(model and thinking picks, pins, filters, routine drafts) start fresh.
+Details lists hostname, platform, Host version, enrollment date, the published
+address, and a copyable fingerprint and machine id. On this machine lists lanes
+and capability-gated skills, routines and artifact counts, with links to
+machine-filtered pages. Down lanes stay labelled last known.
+A never-connected Host shows "Waiting for X to finish setup" with
+`phosphor setup` (it resumes where it stopped) and a Troubleshooting disclosure
+with `phosphor service status`, `phosphor service install` and `phosphor run`.
+A Host offline for over a day suggests `phosphor service status`. Rename edits
+the label inline: Enter or blur saves, Escape cancels, and failure restores the
+saved label with an inline error. Remove confirms that the Host stops at its
+next heartbeat. Lanes, routines and files stay on that machine and return when
+it is added again: rerun `phosphor setup` on it and approve the new code in Add
+a machine. The re-added machine has a new id, so Desktop's per-machine
+preferences for it (model and thinking picks, pins, filters, routine drafts)
+start fresh.
+
+This computer's detail has Readiness (pi and the Claude CLI), Providers (its
+subscription sign-ins, with a link to Settings → Accounts) and Details.
+
+### Health check and debug log
+
+The page header carries a status badge, a refresh button and a debug log
+toggle. The badge sums live state and the last health check from the past 10
+minutes: All systems normal, N issues, N offline, Connecting…, Waiting for
+setup, Control unreachable or Checking…. It opens a popover; refresh runs the
+check directly. The check only reads (nothing restarts): the control plane
+(reloading the directory), local Tailscale and pi, then per Host its heartbeat
+and connection and, when connected and granted, providers, models, Claude Code,
+skills, routines and lanes. Each step shows its time in ms. A Host that is not
+connected gets one "Skipped until connected" line instead of six. Each Host
+section has Reconnect (`hosts:reconnect`), which re-reads the directory, then
+drops and reopens that Host's connection; open lanes resync. The popover links to the log.
+
+The debug log docks under the page and shows what this computer exchanges with
+the control plane and its Hosts, newest at the bottom. It is metadata only:
+direction, kind (call method, command op, event type, frame type), shortened
+lane and request ids, sizes, round-trip times and error codes. It never shows
+prompts, transcripts, file contents, terminal bytes, tokens or paths. Main keeps
+the last 2000 lines in memory (`hosts:traffic`, nothing on disk), and the open
+panel polls every 500 ms from its last cursor, saying when older lines were
+dropped. Filters: peer, text, errors only, and pings (hidden by default). Pause
+stops polling, Clear empties the view, Copy puts the visible lines on the
+clipboard as tab-separated text with UTC milliseconds.
 
 Add a machine is disabled while signed out. The guide checks this computer's
 account and read-only local Tailscale readiness, then shows a copyable terminal

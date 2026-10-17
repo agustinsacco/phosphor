@@ -83,16 +83,16 @@ test('signed-in directory walks guided enrollment, stable detail, rename and con
     await dialog.getByText('Stuck?', { exact: true }).click()
     await expect(dialog).toContainText('phosphor service install')
     await dialog.getByRole('button', { name: 'View machine' }).click()
-    await expect(page.getByTestId('machine-detail')).toContainText('Finish setting up bee1')
+    await expect(page.getByTestId('machine-detail')).toContainText(
+      'Waiting for bee1 to finish setup',
+    )
     await page.getByRole('button', { name: 'Rename', exact: true }).click()
     await page.getByRole('textbox', { name: 'Machine label', exact: true }).fill('buildbox')
     await page.getByRole('textbox', { name: 'Machine label', exact: true }).press('Enter')
     await expect(page.getByRole('heading', { name: 'buildbox', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '← Machines' }).click()
     await expect(page.getByTestId('enrolled-machine-row')).toHaveCount(1)
-    await expect(page.getByTestId('enrolled-machine-row')).toContainText(
-      'Waiting for first connection',
-    )
+    await expect(page.getByTestId('enrolled-machine-row')).toContainText('Waiting for setup')
     await page.getByTestId('enrolled-machine-row').click()
     await page.getByRole('button', { name: 'Remove machine', exact: true }).click()
     const remove = page.getByRole('dialog', { name: 'Remove machine', exact: true })
@@ -177,15 +177,11 @@ test('bee2 has green readiness but no address, and Check again refreshes the rep
     await h.page.getByRole('button', { name: 'Machines', exact: true }).click()
     await h.page.getByTestId('enrolled-machine-row').click()
     const detail = h.page.getByTestId('machine-detail')
-    await expect(h.page.getByTestId('machines-page').locator('header')).toContainText(
-      'Online · Not reachable yet',
+    // One status for the machine, never "Online · Not reachable yet".
+    await expect(detail.locator('header').first().locator('[data-tone]')).toHaveText(
+      'Not reachable',
     )
-    await expect(
-      detail
-        .locator('dt')
-        .filter({ hasText: /^State$/ })
-        .locator('..'),
-    ).toContainText('Not reachable yet')
+    await expect(detail.locator('[data-check="Tailscale"]')).toContainText('Address not published')
     await expect(detail).toContainText('Running, but its address is not published')
     await expect(detail).not.toContainText('Connected with HTTPS available')
     await expect(detail).toContainText('bee2 is enrolled but not reachable')
@@ -193,7 +189,7 @@ test('bee2 has green readiness but no address, and Check again refreshes the rep
     await captures(h, test.info(), 'bee2-no-address')
     h.state.machines = [{ ...machine, lastSeenAt: new Date(Date.now() - 120_000).toISOString() }]
     await detail.getByRole('button', { name: 'Check again', exact: true }).click()
-    await expect(detail).toContainText('Reported 2 min ago')
+    await expect(detail).toContainText('Reported 2 min ago · checked just now')
   } finally {
     await h.close()
   }

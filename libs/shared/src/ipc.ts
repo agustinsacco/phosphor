@@ -164,6 +164,35 @@ export interface HostConnectionView {
 }
 export type HostsSnapshot = Record<string, HostConnectionView>
 
+/**
+ * One line of Desktop's remote traffic log (`hosts:traffic`): what crossed the
+ * wire and when, never what it said. Kinds, method names, ids, sizes, timings
+ * and error codes only; no payload, grant or terminal input is ever recorded.
+ */
+export interface TrafficEntry {
+  /** Monotonic within this app run; the poll cursor. */
+  seq: number
+  /** Epoch milliseconds. */
+  at: number
+  peer: 'control' | 'host'
+  hostId?: string
+  /** `call` is one request and its reply; `state` is a lifecycle change, not a frame. */
+  direction: 'out' | 'in' | 'call' | 'state'
+  kind: string
+  detail?: string
+  bytes?: number
+  ms?: number
+  outcome?: 'ok' | 'error'
+  code?: string
+}
+export interface TrafficPage {
+  entries: TrafficEntry[]
+  /** Newest seq recorded so far: pass it back as `after`. */
+  last: number
+  /** True when entries after `after` were dropped before this read. */
+  gap: boolean
+}
+
 /** A new lane on a Host (11). The Host picks the folder; never a path from here. */
 export interface RemoteLaneCreate {
   repositoryId: string
@@ -205,6 +234,10 @@ export interface IpcInvokeMap {
     result: string[]
   }
   'hosts:snapshot': { args: []; result: HostsSnapshot }
+  /** Drops and reopens one Host connection, after re-reading the directory. */
+  'hosts:reconnect': { args: [hostId: string]; result: void }
+  /** Memory-only traffic metadata recorded after `after` (0 for everything kept). */
+  'hosts:traffic': { args: [after: number]; result: TrafficPage }
   'hosts:setFocusedLane': {
     args: [target: { hostId: string; laneId: string } | null]
     result: void

@@ -6,6 +6,9 @@ const TerminalView = lazy(() =>
 )
 import { useRemoteLanesStore } from '@/stores/remoteLanes'
 import type { MachineProvider } from '@shared/host-protocol-machine'
+import { Skeleton, StatusPill } from './MachineUi'
+
+const ORDER = { ready: 0, not_ready: 1, unknown: 2 } as const
 
 /** Provider contents and credentials stay on the authenticated Host terminal connection. */
 export function ProviderSignIn({
@@ -25,7 +28,8 @@ export function ProviderSignIn({
     }
   }, [])
   const host = useRemoteLanesStore((s) => s.hosts[hostId])
-  const [providers, setProviders] = useState<MachineProvider[]>([])
+  // null while the first read is in flight.
+  const [providers, setProviders] = useState<MachineProvider[] | null>(null)
   const [terminal, setTerminal] = useState<{ ptyId: string; provider: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -39,6 +43,7 @@ export function ProviderSignIn({
   useEffect(() => {
     let live = true
     setLoadFailed(false)
+    setProviders(null)
     if (readable)
       void window.phosphor.invoke('hosts:providers', hostId).then(
         (rows) => {
@@ -52,7 +57,6 @@ export function ProviderSignIn({
           }
         },
       )
-    else setProviders([])
     return () => {
       live = false
     }
@@ -84,39 +88,74 @@ export function ProviderSignIn({
       setBusy(false)
     }
   }
+  const claude = terminal?.provider === 'claude'
   return (
-    <div className="mt-4 space-y-3">
-      {loadFailed && (
-        <div role="alert" className="flex items-center justify-between gap-3">
+    <div className="space-y-2">
+      {loadFailed ? (
+        <div role="alert" className="flex items-center justify-between gap-3 py-1 text-base">
           <span>Could not load this machine's providers.</span>
-          <Button onClick={() => setReload((n) => n + 1)}>Retry</Button>
+          <Button size="xs" onClick={() => setReload((n) => n + 1)}>
+            Retry
+          </Button>
         </div>
-      )}
-      {providers
-        .filter((p) => p.status === 'ready')
-        .map((p) => (
-          <div key={p.id} className="flex items-center justify-between gap-3">
-            <span>{p.name}: Signed in</span>
-          </div>
-        ))}
-      {providers
-        .filter((p) => p.status === 'not_ready')
-        .map((p) => {
-          const provider = p.id === 'pi-claude-cli' ? 'claude' : p.id
-          return (
-            <div key={p.id} className="flex items-center justify-between gap-3">
-              <span>{p.name}: Not signed in</span>
-              {allowed ? (
-                <Button disabled={busy || !!terminal} onClick={() => void start(provider)}>
-                  Sign in
-                </Button>
-              ) : (
-                <code>phosphor providers login {provider}</code>
-              )}
+      ) : !readable ? (
+        <p className="text-text-secondary text-base">
+          Providers appear once this computer is connected to the machine.
+        </p>
+      ) : providers === null ? (
+        <div role="status" aria-label="Loading providers" className="space-y-3 py-1">
+          {[0, 1, 2].map((row) => (
+            <div key={row} className="flex items-center gap-3">
+              <Skeleton className="h-3.5 w-36" />
+              <Skeleton className="ml-auto h-4 w-20 rounded-full" />
             </div>
-          )
-        })}
-      {error && <p role="alert">{error}</p>}
+          ))}
+        </div>
+      ) : providers.length === 0 ? (
+        <p className="text-text-secondary text-base">No providers reported by this machine.</p>
+      ) : (
+        <ul className="divide-border divide-y">
+          {[...providers]
+            .sort((a, b) => ORDER[a.status] - ORDER[b.status])
+            .map((p) => {
+              const provider = p.id === 'pi-claude-cli' ? 'claude' : p.id
+              return (
+                <li key={p.id} data-provider={p.id} className="flex items-center gap-3 py-2">
+                  <span className="min-w-0 flex-1 truncate text-lg">{p.name}</span>
+                  <StatusPill
+                    // Unused providers are not problems; the Sign in button is the action.
+                    tone={p.status === 'ready' ? 'ok' : 'off'}
+                  >
+                    {p.status === 'ready'
+                      ? 'Signed in'
+                      : p.status === 'not_ready'
+                        ? 'Not signed in'
+                        : 'Not reported'}
+                  </StatusPill>
+                  {p.status === 'not_ready' &&
+                    (allowed ? (
+                      <Button
+                        size="xs"
+                        disabled={busy || !!terminal}
+                        onClick={() => void start(provider)}
+                      >
+                        Sign in
+                      </Button>
+                    ) : (
+                      <code className="text-text-secondary font-mono text-sm">
+                        phosphor providers login {provider}
+                      </code>
+                    ))}
+                </li>
+              )
+            })}
+        </ul>
+      )}
+      {error && (
+        <p role="alert" className="text-danger text-base">
+          {error}
+        </p>
+      )}
       {terminal && (
         <ModalOverlay onClose={() => setTerminal(null)}>
           <div role="dialog" aria-modal="true" aria-label="Provider sign-in">
@@ -125,12 +164,14 @@ export function ProviderSignIn({
               title="Sign in on this machine"
               footer={<Button onClick={() => setTerminal(null)}>Close</Button>}
             >
-              <p>
-                Type /login {terminal.provider} in pi, follow its instructions, then /quit. For
-                Claude, follow the printed login steps. Credentials stay on this machine.
+              <p className="px-5 pt-4 text-base">
+                {claude
+                  ? 'Claude Code prints a link and asks for a code. Open the link on any computer, sign in, then paste the code here.'
+                  : `Type /login ${terminal.provider} in pi, follow its instructions, then /quit.`}{' '}
+                Credentials stay on this machine.
               </p>
-              <div className="h-96">
-                <Suspense fallback={<p>Opening terminal...</p>}>
+              <div className="h-96 p-3">
+                <Suspense fallback={<p>Opening terminal…</p>}>
                   <TerminalView ptyId={terminal.ptyId} visible readOnly={!allowed} />
                 </Suspense>
               </div>

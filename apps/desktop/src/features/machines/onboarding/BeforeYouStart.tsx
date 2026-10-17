@@ -5,7 +5,7 @@ import { useAccount } from '@/features/settings/useAccount'
 import { useSettingsUiStore } from '@/features/settings/settingsUiStore'
 import { Button } from '@/components/form'
 
-const fixes: Record<TailscaleCode, string> = {
+export const TAILSCALE_FIXES: Record<TailscaleCode, string> = {
   ready: 'Tailscale is running and logged in. MagicDNS and HTTPS certificates are available.',
   'not-installed': 'Install Tailscale on this computer, then sign in to your tailnet.',
   'not-running': 'Open Tailscale and connect to your tailnet, then check again.',
@@ -70,7 +70,11 @@ export function BeforeYouStart(): React.JSX.Element {
           computer
         </h3>
         <p role="status" className="text-text-secondary pl-6">
-          {busy ? 'Checking Tailscale…' : status ? fixes[status.code] : 'Checking Tailscale…'}
+          {busy
+            ? 'Checking Tailscale…'
+            : status
+              ? TAILSCALE_FIXES[status.code]
+              : 'Checking Tailscale…'}
         </p>
         <div className="flex flex-wrap gap-2 pl-6">
           <Button disabled={busy} onClick={() => void check()}>

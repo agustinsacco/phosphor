@@ -95,10 +95,8 @@ test('Provider login and error remedies target bee1, Settings is This Mac', asyn
     await expect(h.page.locator('main')).toContainText('bee1')
     await expect(h.page.locator('main')).toContainText('Readiness')
     await expect(h.page.locator('.xterm')).toHaveCount(0)
-    const provider = h.page
-      .getByText('ChatGPT (Codex): Not signed in', { exact: true })
-      .locator('..')
-    await expect(provider).toBeVisible()
+    const provider = h.page.locator('[data-provider="openai-codex"]')
+    await expect(provider.locator('[data-tone]')).toHaveText('Not signed in')
     if (await provider.getByRole('button', { name: 'Sign in', exact: true }).count()) {
       await provider.getByRole('button', { name: 'Sign in', exact: true }).click()
       const login = h.page.getByRole('dialog', { name: 'Provider sign-in', exact: true })
@@ -112,9 +110,7 @@ test('Provider login and error remedies target bee1, Settings is This Mac', asyn
       await input.pressSequentially('/quit')
       await input.press('Enter')
       await expect(login).toBeHidden()
-      await expect(h.page.getByText('ChatGPT (Codex): Not signed in', { exact: true })).toHaveCount(
-        0,
-      )
+      await expect(provider.locator('[data-tone]')).toHaveText('Signed in')
     } else {
       await expect(provider).toContainText('phosphor providers login openai-codex')
       info.annotations.push({

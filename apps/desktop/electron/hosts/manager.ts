@@ -43,7 +43,7 @@ export function createHostManager(ports: {
     list = null
     ports.clearGrants()
   }
-  function reconcile(reset: ReadonlySet<string> = new Set()) {
+  function reconcile(reset: ReadonlySet<string> = new Set(), resetReason = 'identity') {
     if (!list || !user || stopped || disabled) return
     const present = new Set(list.machines.map((m) => m.id))
     for (const id of Object.keys(cached))
@@ -66,7 +66,7 @@ export function createHostManager(ports: {
               ? 'down'
               : c.endpoint !== machine.endpoint
                 ? 'endpoint'
-                : 'identity',
+                : resetReason,
         })
         const view = c.connection.snapshot()
         c.connection.close()
@@ -179,6 +179,16 @@ export function createHostManager(ports: {
     label: (hostId: string) => list?.machines.find((m) => m.id === hostId)?.label ?? hostId,
     present: (hostId: string) => !!list?.machines.some((m) => m.id === hostId),
     disabled: disable,
+    /**
+     * A user's explicit retry: re-read the directory, then replace this Host's
+     * connection. It is the only way out of states that stop retrying
+     * (forbidden, unsupported, wrong machine). Open lanes resync as after any
+     * reconnect; nothing is resent.
+     */
+    async reconnect(hostId: string): Promise<void> {
+      await refresh()
+      reconcile(new Set([hostId]), 'requested')
+    },
     snapshot(): HostsSnapshot {
       const result = structuredClone(cached)
       for (const [id, c] of connections) result[id] = c.connection.snapshot()
