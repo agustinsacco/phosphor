@@ -1,4 +1,5 @@
-import type { AgentMessage, RpcCommand, RpcResponseDataMap } from '@shared/rpc'
+import type { AgentMessage, RpcCommand, RpcResponse, RpcResponseDataMap } from '@shared/rpc'
+import { ipcErrorText } from '@shared/errors'
 import { useChatStore } from '@/stores/chat'
 
 /**
@@ -18,7 +19,13 @@ export async function piCall<T extends RpcCommand['type']>(
   sessionId: string,
   command: Extract<RpcCommand, { type: T }>,
 ): Promise<RpcResponseDataMap[T] | undefined> {
-  const response = await window.phosphor.piCommand<T>(sessionId, command)
+  let response: RpcResponse<RpcResponseDataMap[T]>
+  try {
+    response = await window.phosphor.piCommand<T>(sessionId, command)
+  } catch (error) {
+    useChatStore.getState().setError(sessionId, ipcErrorText(error))
+    return undefined
+  }
   if (!response.success) {
     useChatStore.getState().setError(sessionId, response.error ?? `${command.type} failed`)
     return undefined
@@ -37,7 +44,13 @@ export async function piCallOk<T extends RpcCommand['type']>(
   sessionId: string,
   command: Extract<RpcCommand, { type: T }>,
 ): Promise<boolean> {
-  const response = await window.phosphor.piCommand<T>(sessionId, command)
+  let response: RpcResponse<RpcResponseDataMap[T]>
+  try {
+    response = await window.phosphor.piCommand<T>(sessionId, command)
+  } catch (error) {
+    useChatStore.getState().setError(sessionId, ipcErrorText(error))
+    return false
+  }
   if (!response.success) {
     useChatStore.getState().setError(sessionId, response.error ?? `${command.type} failed`)
     return false
@@ -54,7 +67,13 @@ export async function piCallAccepted<T extends RpcCommand['type']>(
   sessionId: string,
   command: Extract<RpcCommand, { type: T }>,
 ): Promise<{ data: RpcResponseDataMap[T] | undefined } | null> {
-  const response = await window.phosphor.piCommand<T>(sessionId, command)
+  let response: RpcResponse<RpcResponseDataMap[T]>
+  try {
+    response = await window.phosphor.piCommand<T>(sessionId, command)
+  } catch (error) {
+    useChatStore.getState().setError(sessionId, ipcErrorText(error))
+    return null
+  }
   if (!response.success) {
     useChatStore.getState().setError(sessionId, response.error ?? `${command.type} failed`)
     return null

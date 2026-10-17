@@ -319,7 +319,6 @@ export function Composer({
         }
       } catch (error) {
         finishRemoteDraft(false)
-        // IPC-level rejections (a dead process or an outdated provider) land here.
         chat.setError(sessionId, ipcErrorText(error))
       } finally {
         unsubscribe()
