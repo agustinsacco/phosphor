@@ -113,3 +113,20 @@ epoch, a lifetime of at most 300 seconds, clock skew and revoked sessions or
 clients. A renewal cannot change the owner or client identity. Effective
 capabilities are the intersection of grant and Host capabilities. Seeing an
 enrolled machine is never a grant to execute on it.
+
+The Host remembers each revoked session and client id for 15 minutes after the
+last heartbeat that named it, at most 1000 of each
+(`apps/host/src/api/authority.ts`). A repeated id only refreshes its time, and a
+clock step backwards never shortens it. A live revocation is never evicted to make
+room. If a heartbeat's new ids do not fit, the Host closes instead: open streams
+close with 4403 and upgrades answer 503. It stays closed for at least 15 minutes
+after the last heartbeat that did not fit. Missing heartbeats, missing fields and
+expiring ids never reopen it. After that, only a heartbeat that carries owner,
+epoch and revocations, and fits, reopens it. A removed Host stays closed.
+
+Recovery therefore costs at least 15 minutes of refused connections and waits for
+a complete heartbeat. A backwards clock step makes the wait longer. The Host
+accepts this cost so that it keeps no unbounded state and no per-grant
+bookkeeping. [Control's per-owner caps](control-plane.md#grants-and-revocation)
+keep an honest account well below 1000 live ids, so the cap is only reached in
+exceptional cases.
