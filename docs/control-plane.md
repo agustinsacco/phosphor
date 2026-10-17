@@ -91,10 +91,13 @@ are free. The exported user guard refuses suspended accounts on other routes.
 The exported Host guard supports a raw Ed25519 public key or an enrolled UUID,
 never both. It verifies the shared signing string against the exact body bytes,
 requires timestamps within 60 seconds, rejects queries or any rewritten raw
-path. It consumes a nonce only after verification. Nonces live for 120 seconds in two separate
-100,000-entry caches: one for enrollment keys and one for enrolled Hosts. Expired
-entries are swept. A full cache refuses new nonces with 429 without evicting live
-replay records. Enrollment traffic cannot fill the enrolled Hosts' cache.
+path. It consumes a nonce only after verification. A timestamp is accepted at
+both ends of its 60-second skew, so one signed request is valid for 120 seconds;
+nonces live for 121 seconds, twice the skew plus a one-second margin, so a
+request first accepted at the early edge is still refused at the late edge.
+They live in two separate 100,000-entry caches: one for enrollment keys and one
+for enrolled Hosts. Expired entries are swept. A full cache refuses new nonces
+with 429 without evicting live replay records. Enrollment traffic cannot fill the enrolled Hosts' cache.
 Enrolled key lookup consumes a per-IP limit of 120 per 60 seconds before any RPC.
 Key-mode verification needs no upstream lookup or auth limiter.
 Enrolled key lookup is an injected port; gone
@@ -122,9 +125,15 @@ on process restart. Nothing logs headers, bodies, tokens, codes, keys, peer/clie
 edge secrets or peer error messages. [Tracing a machine](remote-development.md#tracing-a-machine)
 lists the events and their correlation rules.
 
-The reusable sliding-window limiter has a 10,000-key cap. At capacity it sweeps
-expired windows and refuses new keys with 429 rather than evicting live windows.
-Enrollment creates are limited to ten per hour per IP before signature checking
+Rate limits are sliding windows held per purpose, the key prefix before the
+first colon. Each of the eight purposes (`enrollment-create`, `enrollment-poll-ip`,
+`enrollment-poll`, `enrollment-failure`, `user-verify`, `host-auth`,
+`grant-issue`, `client-register`) has its own 10,000-key cap, 80,000 keys in all.
+At capacity a purpose sweeps its expired windows and refuses new keys with 429
+rather than evicting live windows. Saturating one purpose never refuses another,
+so an unauthenticated enrollment flood cannot spend the capacity of user
+verification, Host authentication or grant issuance. A key of an undeclared
+purpose is refused. Enrollment creates are limited to ten per hour per IP before signature checking
 or nonce consumption. Polls are limited to sixty per minute per IP before the
 request contract is validated, then to one per two seconds per parsed enrollment id, both
 before signature checking; Hosts sharing an address share the first limit.
@@ -135,6 +144,10 @@ routes return 429, even for a correct code, until a failure leaves the window.
 Proxy IP selection trusts a valid `cf-connecting-ip` only in Cloudflare mode
 when `x-phosphor-edge` matches `CONTROL_EDGE_SECRET`. SHA-256 digests are compared
 in constant time. Missing or incorrect edge headers use the socket address.
+Whichever address is chosen, a per-IP limit keys an IPv4 address as itself and
+an IPv6 address by its /64, so every address and spelling inside one /64 shares
+a bucket. An IPv4-mapped IPv6 address counts as its IPv4 address; a socket
+address that is not an IP shares one `unknown` bucket.
 servicelb SNAT hides peers, so all non-Cloudflare LAN and tailnet clients share
 that address bucket. Headers and comparison results are never logged. All in-memory guards are
 process-local. Run a single replica; rollout overlap is not cross-process replay

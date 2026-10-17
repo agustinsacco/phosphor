@@ -154,3 +154,61 @@ it('remote continue waits for the receipt and Host echo, with no optimistic dupl
   expect(button.disabled).toBe(true)
   useSessionsStore.setState({ live: {} })
 })
+
+it.each([false, true])(
+  'rejected continue reports once, releases busy state and keeps the draft (remote: %s)',
+  async (remote) => {
+    const { useSessionsStore } = await import('@/stores/sessions')
+    const { useRemoteLanesStore } = await import('@/stores/remoteLanes')
+    const { mockRemoteHosts, mockRemoteInfo, MOCK_HOST_ID } = await import('@/dev/mockRemoteLanes')
+    if (remote) {
+      const hosts = structuredClone(mockRemoteHosts)
+      hosts[MOCK_HOST_ID]!.lanes[0]!.control.controller = {
+        self: true,
+        label: 'You',
+        connected: true,
+      }
+      useRemoteLanesStore.setState({ hosts })
+      useSessionsStore.setState({ live: { s1: { ...mockRemoteInfo, phosphorId: 's1' } } })
+    }
+    useDraftsStore.getState().setText('session:s1', 'keep this draft')
+    const drafts = useDraftsStore.getState().drafts
+    const report = vi.spyOn(useChatStore.getState(), 'setError')
+    const message = remote ? 'Command not sent: disconnected.' : 'Process stopped'
+    let reject: (reason: unknown) => void = () => {
+      throw new Error('invoke not started')
+    }
+    piCommand.mockImplementation(
+      () =>
+        new Promise((_resolve, fail) => {
+          reject = fail
+        }),
+    )
+    try {
+      const button = render()
+      await act(async () => {
+        button.click()
+        button.click()
+      })
+      expect(button.disabled).toBe(true)
+      expect(piCommand).toHaveBeenCalledOnce()
+      await act(async () =>
+        reject(new Error(`Error invoking remote method 'pi:command': Error: ${message}`)),
+      )
+      expect(report.mock.calls.filter(([, error]) => error !== null)).toEqual([['s1', message]])
+      expect(button.disabled).toBe(false)
+      expect(useDraftsStore.getState().drafts).toBe(drafts)
+      if (remote) expect(useChatStore.getState().sessions.s1!.items).toEqual([])
+      piCommand.mockResolvedValue({ success: false, error: 'retry refused' })
+      await act(async () => button.click())
+      expect(piCommand).toHaveBeenCalledTimes(2)
+      expect(button.disabled).toBe(false)
+    } finally {
+      report.mockRestore()
+      act(() => {
+        useSessionsStore.setState({ live: {} })
+        useRemoteLanesStore.setState({ hosts: {} })
+      })
+    }
+  },
+)

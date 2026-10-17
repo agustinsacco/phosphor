@@ -1,8 +1,16 @@
-import { describe, expect, it, beforeAll, afterAll } from 'vitest'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { describe, expect, it, beforeAll, afterAll, vi } from 'vitest'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { runPrintMode } from './print-mode'
+import type * as ChildProcessModule from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
+
+// Real child_process; only execFile is observable, for the Windows tree kill.
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof ChildProcessModule>()
+  return { ...actual, execFile: vi.fn(actual.execFile) }
+})
 
 /**
  * The fixture behaves like `pi -p`: it does not answer until stdin reaches
@@ -114,5 +122,348 @@ describe('runPrintMode', () => {
     })
     expect(result.stdout).toBe('')
     expect(result.error).toBeTruthy()
+  })
+})
+
+/**
+ * Baseline behaviour pinned before print mode grew cancellation and
+ * streaming: what every existing caller (session naming, the usage probe) gets
+ * back. A caller that passes no new option must keep seeing exactly this.
+ */
+describe('runPrintMode baseline', () => {
+  const script = (name: string, lines: string[]): string => {
+    const path = join(dir, name)
+    writeFileSync(path, lines.join('\n'))
+    return path
+  }
+  const isAlive = (pid: number): boolean => {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch {
+      return false
+    }
+  }
+  const waitForDeath = async (pid: number): Promise<boolean> => {
+    for (let i = 0; i < 40 && isAlive(pid); i++) await new Promise((r) => setTimeout(r, 50))
+    return !isAlive(pid)
+  }
+
+  it('resolves a clean run with its stdout and nothing else', async () => {
+    const result = await run(blockingScript)
+    expect(result).toEqual({ stdout: 'Friendly Greeting\n' })
+  })
+
+  it('treats stderr on a clean exit as noise, not an error', async () => {
+    const noisy = script('noisy-ok.cjs', [
+      "process.stderr.write('warning: something\\n')",
+      "process.stdout.write('ok\\n')",
+      'process.exit(0)',
+    ])
+    expect(await run(noisy)).toEqual({ stdout: 'ok\n' })
+  })
+
+  it('drops stdout on a non-zero exit and names the code', async () => {
+    const partial = script('partial-then-fails.cjs', [
+      "process.stdout.write('partial\\n')",
+      'process.exit(2)',
+    ])
+    expect(await run(partial)).toEqual({ stdout: '', error: 'exited 2' })
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'reports a death by signal as an exit with no code',
+    async () => {
+      const killed = script('kills-itself.cjs', ["process.kill(process.pid, 'SIGKILL')"])
+      expect(await run(killed)).toEqual({ stdout: '', error: 'exited null' })
+    },
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'gives the child /dev/null for stdin, never a pipe',
+    async () => {
+      const probe = script('stdin-probe.cjs', [
+        "const stat = require('node:fs').fstatSync(0)",
+        'process.stdout.write(JSON.stringify({ fifo: stat.isFIFO(), char: stat.isCharacterDevice() }))',
+      ])
+      const result = await run(probe)
+      expect(JSON.parse(result.stdout)).toEqual({ fifo: false, char: true })
+    },
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'runs the child as its own process group leader',
+    async () => {
+      const probe = script('group-probe.cjs', [
+        "const { execSync } = require('node:child_process')",
+        "const pgid = execSync('ps -o pgid= -p ' + process.pid).toString().trim()",
+        "process.stdout.write(pgid === String(process.pid) ? 'leader' : 'member')",
+      ])
+      expect(await run(probe)).toEqual({ stdout: 'leader' })
+    },
+  )
+
+  it.skipIf(process.platform === 'win32')(
+    'kills what the run started when it times out',
+    async () => {
+      const pidFile = join(dir, 'timeout-child.pid')
+      const hangsWithChild = script('hangs-with-child.cjs', [
+        "const { spawn } = require('node:child_process')",
+        "const { writeFileSync } = require('node:fs')",
+        "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })",
+        `writeFileSync(${JSON.stringify(pidFile)}, String(child.pid))`,
+        "process.stdout.write('answer\\n')",
+        'setInterval(() => {}, 1000)',
+      ])
+      const result = await run(hangsWithChild, 1_000)
+      expect(result).toEqual({ stdout: 'answer\n', error: 'timed out after 1000ms' })
+      expect(await waitForDeath(Number(readFileSync(pidFile, 'utf8')))).toBe(true)
+    },
+  )
+
+  it('stops collecting stdout past about a mebibyte', async () => {
+    const flood = script('floods-stdout.cjs', [
+      "const chunk = 'x'.repeat(64 * 1024)",
+      'for (let i = 0; i < 64; i++) process.stdout.write(chunk)',
+    ])
+    const result = await run(flood)
+    expect(result.error).toBeUndefined()
+    expect(result.stdout.length).toBeGreaterThanOrEqual(1024 * 1024)
+    expect(result.stdout.length).toBeLessThan(2 * 1024 * 1024)
+  })
+
+  it('stops collecting stderr past about a mebibyte', async () => {
+    const flood = script('floods-stderr.cjs', [
+      "const chunk = 'e'.repeat(64 * 1024)",
+      'for (let i = 0; i < 64; i++) process.stderr.write(chunk)',
+      'process.exitCode = 1',
+    ])
+    const result = await run(flood)
+    expect(result.stdout).toBe('')
+    expect(result.error?.startsWith('exited 1: eee')).toBe(true)
+    expect(result.error!.length).toBeLessThan(2 * 1024 * 1024)
+  })
+
+  it('settles once with the spawn error when a missing binary also closes', async () => {
+    const result = await runPrintMode(join(dir, 'missing-binary'), [], {
+      cwd: dir,
+      env: process.env,
+      timeoutMs: 5_000,
+    })
+    expect(result).toEqual({ stdout: '', error: expect.stringContaining('ENOENT') })
+    expect(result.error).not.toContain('exited')
+  })
+
+  it('reports an argument spawn() rejects outright as a spawn failure', async () => {
+    const result = await runPrintMode('bad\0binary', [], {
+      cwd: dir,
+      env: process.env,
+      timeoutMs: 5_000,
+    })
+    expect(result.stdout).toBe('')
+    expect(result.error).toMatch(/^spawn failed: /)
+  })
+
+  it('gives up after 30 seconds when the caller names no timeout', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      let settled = false
+      const pending = runPrintMode(process.execPath, [answersThenHangsScript], {
+        cwd: dir,
+        env: process.env,
+      }).then((result) => {
+        settled = true
+        return result
+      })
+      await vi.advanceTimersByTimeAsync(29_999)
+      expect(settled).toBe(false)
+      await vi.advanceTimersByTimeAsync(1)
+      const result = await pending
+      expect(result.error).toBe('timed out after 30000ms')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+/**
+ * Cancellation and streaming, for a caller that runs print mode as a job a
+ * user watches (the Claude provider proof) and that quit must be able to stop.
+ */
+describe('runPrintMode cancellation and streaming', () => {
+  const script = (name: string, lines: string[]): string => {
+    const path = join(dir, name)
+    writeFileSync(path, lines.join('\n'))
+    return path
+  }
+  const isAlive = (pid: number): boolean => {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch {
+      return false
+    }
+  }
+  const waitFor = async (check: () => boolean): Promise<boolean> => {
+    for (let i = 0; i < 60 && !check(); i++) await new Promise((r) => setTimeout(r, 50))
+    return check()
+  }
+
+  it('never starts a run whose signal is already aborted', async () => {
+    const marker = join(dir, 'aborted-before-spawn.ran')
+    const writesMarker = script('writes-marker.cjs', [
+      `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'ran')`,
+      "process.stdout.write('ran\\n')",
+    ])
+    const controller = new AbortController()
+    controller.abort()
+    const result = await runPrintMode(process.execPath, [writesMarker], {
+      cwd: dir,
+      env: process.env,
+      timeoutMs: 3_000,
+      signal: controller.signal,
+    })
+    expect(result).toEqual({ stdout: '', error: 'aborted' })
+    await new Promise((r) => setTimeout(r, 200))
+    expect(existsSync(marker)).toBe(false)
+  })
+
+  it.skipIf(process.platform === 'win32')(
+    'stops a running run and everything it started when aborted',
+    async () => {
+      const pidFile = join(dir, 'abort-child.pid')
+      const hangsWithChild = script('abort-hangs-with-child.cjs', [
+        "const { spawn } = require('node:child_process')",
+        "const { writeFileSync } = require('node:fs')",
+        "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })",
+        "process.stdout.write('answer\\n')",
+        `writeFileSync(${JSON.stringify(pidFile)}, String(child.pid))`,
+        'setInterval(() => {}, 1000)',
+      ])
+      const controller = new AbortController()
+      const pending = runPrintMode(process.execPath, [hangsWithChild], {
+        cwd: dir,
+        env: process.env,
+        timeoutMs: 3_000,
+        signal: controller.signal,
+      })
+      expect(await waitFor(() => existsSync(pidFile))).toBe(true)
+      const childPid = Number(readFileSync(pidFile, 'utf8'))
+      const started = Date.now()
+      controller.abort()
+      const result = await pending
+      expect(Date.now() - started).toBeLessThan(1_000)
+      expect(result).toEqual({ stdout: 'answer\n', error: 'aborted' })
+      expect(await waitFor(() => !isAlive(childPid))).toBe(true)
+    },
+  )
+
+  it('streams stdout chunks to onStdout while the run is still going', async () => {
+    const release = join(dir, 'stream-release')
+    const twoParts = script('streams-two-parts.cjs', [
+      "const { existsSync } = require('node:fs')",
+      "process.stdout.write('one\\n')",
+      'const timer = setInterval(() => {',
+      `  if (!existsSync(${JSON.stringify(release)})) return`,
+      '  clearInterval(timer)',
+      "  process.stdout.write('two\\n')",
+      '}, 20)',
+    ])
+    const chunks: string[] = []
+    const result = await runPrintMode(process.execPath, [twoParts], {
+      cwd: dir,
+      env: process.env,
+      timeoutMs: 3_000,
+      onStdout: (chunk) => {
+        chunks.push(chunk)
+        if (chunk.includes('one')) writeFileSync(release, '')
+      },
+    })
+    expect(result).toEqual({ stdout: 'one\ntwo\n' })
+    expect(chunks.join('')).toBe('one\ntwo\n')
+  })
+
+  it('stops listening to the signal once the run times out', async () => {
+    const controller = new AbortController()
+    const removed = vi.spyOn(controller.signal, 'removeEventListener')
+    const result = await runPrintMode(process.execPath, [answersThenHangsScript], {
+      cwd: dir,
+      env: process.env,
+      timeoutMs: 500,
+      signal: controller.signal,
+    })
+    expect(result.error).toBe('timed out after 500ms')
+    expect(removed).toHaveBeenCalledWith('abort', expect.any(Function))
+    // A late abort finds nothing to settle and throws nothing.
+    expect(() => controller.abort()).not.toThrow()
+  })
+})
+
+/**
+ * Windows has no process groups, so the tree goes through `taskkill /T /F`.
+ * The module decides its platform when it loads, so it is loaded as win32.
+ */
+describe('killProcessTree on Windows', () => {
+  type Callback = (error: Error | null) => void
+  async function loadAsWindows(): Promise<{
+    killProcessTree: (child: ChildProcess) => void
+    execFile: ReturnType<typeof vi.fn>
+  }> {
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')!
+    Object.defineProperty(process, 'platform', { ...platform, value: 'win32' })
+    try {
+      vi.resetModules()
+      const { killProcessTree } = await import('./print-mode')
+      const childProcess = await import('node:child_process')
+      const execFile = vi.mocked(childProcess.execFile) as unknown as ReturnType<typeof vi.fn>
+      execFile.mockReset()
+      execFile.mockImplementation(() => ({}))
+      return { killProcessTree, execFile }
+    } finally {
+      Object.defineProperty(process, 'platform', platform)
+    }
+  }
+  const fakeChild = (
+    state: Partial<ChildProcess>,
+  ): ChildProcess & { kill: ReturnType<typeof vi.fn> } =>
+    ({
+      pid: 4242,
+      exitCode: null,
+      signalCode: null,
+      kill: vi.fn(),
+      ...state,
+    }) as unknown as ChildProcess & {
+      kill: ReturnType<typeof vi.fn>
+    }
+
+  it('walks the tree with a bounded taskkill', async () => {
+    const { killProcessTree, execFile } = await loadAsWindows()
+    const child = fakeChild({})
+    killProcessTree(child)
+    expect(execFile).toHaveBeenCalledTimes(1)
+    const [command, args, options, callback] = execFile.mock.calls[0]!
+    expect([command, args, options]).toEqual([
+      'taskkill',
+      ['/pid', '4242', '/T', '/F'],
+      { timeout: 5_000, windowsHide: true },
+    ])
+    ;(callback as Callback)(null)
+    expect(child.kill).not.toHaveBeenCalled()
+  })
+
+  it('kills the child alone when taskkill fails or times out', async () => {
+    const { killProcessTree, execFile } = await loadAsWindows()
+    const child = fakeChild({})
+    killProcessTree(child)
+    ;(execFile.mock.calls[0]![3] as Callback)(new Error('timed out'))
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+  })
+
+  it('leaves an exited child alone, since Windows reuses its pid', async () => {
+    const { killProcessTree, execFile } = await loadAsWindows()
+    killProcessTree(fakeChild({ exitCode: 0 }))
+    killProcessTree(fakeChild({ signalCode: 'SIGKILL' }))
+    killProcessTree(fakeChild({ pid: undefined }))
+    expect(execFile).not.toHaveBeenCalled()
   })
 })

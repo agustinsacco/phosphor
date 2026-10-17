@@ -4,8 +4,9 @@ vi.mock('@/lib/monaco', () => ({ languageForPath: () => 'plaintext' }))
 vi.mock('@/features/files/MonacoEditor', () => ({ releaseFileModel: vi.fn() }))
 
 import type { SessionMeta } from '@shared/models'
-import { bootstrapSession, useSessionsStore } from './sessions'
+import { bootstrapSession, refreshSessionCommands, useSessionsStore } from './sessions'
 import { useChatStore } from './chat'
+import { useTerminalStore } from './terminal'
 
 const meta = { path: '/repo/yo.jsonl', cwd: '/repo' } as SessionMeta
 const invoke = vi.fn()
@@ -158,10 +159,41 @@ describe('lane lifecycle races', () => {
       ],
       { removeWorktree: true, deleteBranch: false, discardChanges: false },
     )
-    expect(results).toMatchObject([
-      { ok: false, error: 'Error: Cannot stop process' },
-      { ok: true },
-    ])
+    expect(results).toMatchObject([{ ok: false, error: 'Cannot stop process' }, { ok: true }])
     expect(useSessionsStore.getState().bulkDelete?.running).toBe(false)
+  })
+})
+
+describe('slash-command refresh throttle across a lane lifecycle', () => {
+  const commandRequests = (id: string): number =>
+    piCommand.mock.calls.filter(
+      ([sessionId, cmd]) => sessionId === id && cmd.type === 'get_commands',
+    ).length
+
+  it('asks a session re-adopted under the same id again inside the throttle window', async () => {
+    useSessionsStore.setState({ live: { readopted: live('readopted') } })
+    await refreshSessionCommands('readopted')
+    expect(commandRequests('readopted')).toBe(1)
+    await useSessionsStore.getState().disposeSession('readopted')
+    await useSessionsStore.getState().adoptSession('readopted', '/repo')
+    const afterAdopt = commandRequests('readopted')
+    await refreshSessionCommands('readopted')
+    expect(commandRequests('readopted')).toBe(afterAdopt + 1)
+    await useSessionsStore.getState().disposeSession('readopted')
+  })
+
+  it('releases the throttle even when the rest of the cleanup fails', async () => {
+    const removeSession = useTerminalStore.getState().removeSession
+    useTerminalStore.setState({ removeSession: () => Promise.reject(new Error('pty stuck')) })
+    try {
+      useSessionsStore.setState({ live: { stuck: live('stuck') } })
+      await refreshSessionCommands('stuck')
+      await expect(useSessionsStore.getState().disposeSession('stuck')).rejects.toThrow('pty stuck')
+      await refreshSessionCommands('stuck')
+      expect(commandRequests('stuck')).toBe(2)
+    } finally {
+      useTerminalStore.setState({ removeSession })
+    }
+    await useSessionsStore.getState().disposeSession('stuck')
   })
 })

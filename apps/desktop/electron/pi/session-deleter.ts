@@ -40,6 +40,10 @@ interface ClaudeLedgerRef {
   sessionId: string
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 /**
  * Read a pi transcript for the identity of its Claude Code counterpart, or
  * null when the session never ran on that provider.
@@ -48,6 +52,10 @@ interface ClaudeLedgerRef {
  * is repeated on every assistant message — so a session that switched
  * providers mid-run is only recognisable by scanning. We stop at the first
  * hit, which for a Claude session is the second line of the file.
+ *
+ * The header's id and cwd become a pairing key and a filesystem path, so only
+ * strings count: a header with anything else yields no counterpart at all.
+ * A line that is not an object is skipped, never the end of the scan.
  */
 async function claudeLedgerRef(sessionFilePath: string): Promise<ClaudeLedgerRef | null> {
   const stream = createReadStream(sessionFilePath, { encoding: 'utf8' })
@@ -59,20 +67,21 @@ async function claudeLedgerRef(sessionFilePath: string): Promise<ClaudeLedgerRef
   try {
     for await (const line of rl) {
       if (!line.trim()) continue
-      let entry: Record<string, unknown>
+      let entry: unknown
       try {
-        entry = JSON.parse(line) as Record<string, unknown>
+        entry = JSON.parse(line)
       } catch {
         continue
       }
+      if (!isRecord(entry)) continue
 
       if (entry.type === 'session') {
-        sessionId = entry.id as string | undefined
-        cwd = entry.cwd as string | undefined
+        sessionId = typeof entry.id === 'string' ? entry.id : undefined
+        cwd = typeof entry.cwd === 'string' ? entry.cwd : undefined
         continue
       }
 
-      const message = entry.message as { provider?: string } | undefined
+      const message = isRecord(entry.message) ? entry.message : undefined
       if (entry.provider === CLAUDE_CLI_PROVIDER || message?.provider === CLAUDE_CLI_PROVIDER) {
         return cwd && sessionId ? { cwd, sessionId } : null
       }

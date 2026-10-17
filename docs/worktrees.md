@@ -49,6 +49,16 @@ your main checkout.
   by a merged PR tied to the local tip (`isBranchLanded`). Anything unproven
   survives with the reason shown. A
   dirty tree refuses checkout, pull and update-from-main alike.
+- **A Host lane is proven against the trunk it was created from.** The Host
+  resolves trunk with one rule for lane creation and lane deletion
+  (`apps/host/src/lanes/default-branch.ts`): `origin/HEAD`'s branch, else an
+  existing `main`, else `master`, else the branch HEAD names when it has a
+  commit, so a develop-only repository uses `develop` for both. A new lane
+  branch starts from `origin/<trunk>`, else local `<trunk>`, else the HEAD
+  commit. Merge proof uses only `origin/<trunk>` and `<trunk>`, never `HEAD`:
+  with no trunk (a detached or unborn HEAD and no candidate) nothing is proven
+  and the branch is kept. Desktop resolves its trunk separately in
+  `git-worktrees.ts`; the two are not one implementation.
 - **Merges are guided, not magic**: commit (your message) → preflight (main
   tree clean; no auto-stash, no auto-checkout) → `git merge --no-ff`. A
   conflict aborts immediately, so the repo is never left mid-merge.

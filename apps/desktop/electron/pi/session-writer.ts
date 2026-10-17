@@ -112,6 +112,9 @@ export async function appendBranchJump(path: string, targetId: string): Promise<
  * Fork a session AT a specific entry: copy the file into a new session
  * (fresh header id, parentSession = source) and move its leaf to `targetId`.
  * Returns the new session file path.
+ *
+ * The source may be live, with pi mid-append, so only its complete lines are
+ * copied: a torn tail would otherwise merge with the jump into one bad line.
  */
 export async function forkSessionAt(path: string, targetId: string): Promise<string> {
   const raw = await readFile(path, 'utf8')
@@ -130,7 +133,8 @@ export async function forkSessionAt(path: string, targetId: string): Promise<str
   }
   const stamp = now.toISOString().replace(/[:.]/g, '-')
   const newPath = join(dirname(path), `${stamp}_${newId}.jsonl`)
-  await writeFile(newPath, JSON.stringify(newHeader) + '\n' + raw.slice(newlineIndex + 1), 'utf8')
+  const body = raw.slice(newlineIndex + 1, raw.lastIndexOf('\n') + 1)
+  await writeFile(newPath, JSON.stringify(newHeader) + '\n' + body, 'utf8')
   await appendBranchJump(newPath, targetId)
   return newPath
 }

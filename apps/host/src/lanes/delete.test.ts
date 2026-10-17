@@ -320,3 +320,35 @@ it('finishes when the worktree was already removed by an interrupted attempt', a
     ),
   ).toEqual({ ok: true, data: { branchKept: false } })
 })
+
+async function commitOn(branch: string, start: string, file: string) {
+  await run(['checkout', '-b', branch, start])
+  await writeFile(join(root, file), branch)
+  await run(['add', file])
+  await run(['commit', '-m', branch])
+}
+
+it('proves lanes against a develop-only trunk and keeps unmerged, current and trunk branches', async () => {
+  await run(['branch', '-m', 'develop'])
+  await commitOn('merged', 'develop', 'merged')
+  await commitOn('squashed', 'develop', 'squashed')
+  await commitOn('unmerged', 'develop', 'unmerged')
+  await run(['checkout', 'develop'])
+  await run(['merge', '--no-ff', '-m', 'merge', 'merged'])
+  await run(['merge', '--squash', 'squashed'])
+  await run(['commit', '-m', 'squash'])
+  expect(await branchMerged(root, 'merged')).toBe(true)
+  expect(await branchMerged(root, 'squashed')).toBe(true)
+  expect(await branchMerged(root, 'unmerged')).toBe(false)
+  expect(await branchMerged(root, 'develop')).toBe(false)
+  expect(await deleteMergedBranch(root, 'develop')).toBe(false)
+  expect(await deleteMergedBranch(root, 'unmerged')).toBe(false)
+  await run(['checkout', 'merged'])
+  expect(await deleteMergedBranch(root, 'merged')).toBe(false)
+  await run(['checkout', 'develop'])
+  expect(await deleteMergedBranch(root, 'merged')).toBe(true)
+  expect(await deleteMergedBranch(root, 'squashed')).toBe(true)
+  expect(await run(['for-each-ref', '--format=%(refname)', 'refs/heads'])).toBe(
+    'refs/heads/develop\nrefs/heads/unmerged',
+  )
+})

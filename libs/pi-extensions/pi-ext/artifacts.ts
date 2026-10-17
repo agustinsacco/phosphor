@@ -371,7 +371,7 @@ function readForeign(root: string | undefined, ref: ArtifactRef): ForeignArtifac
     throw new Error(`"${ref.session}" matches more than one session; use the full session id.`)
   }
   if (!index) throw new Error(`No session "${ref.session}" in the artifact store.`)
-  const artifact = index.artifacts[ref.slug]
+  const artifact = Object.hasOwn(index.artifacts, ref.slug) ? index.artifacts[ref.slug] : undefined
   if (!artifact) {
     const known = Object.keys(index.artifacts)
     throw new Error(

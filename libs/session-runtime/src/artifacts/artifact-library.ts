@@ -186,8 +186,10 @@ export class ArtifactLibrary {
     const slash = key.indexOf('/')
     if (slash === -1) return null
     const index = this.indexes.get(key.slice(0, slash))
-    const artifact = index?.artifacts[key.slice(slash + 1)]
-    return index && artifact ? { index, artifact } : null
+    const slug = key.slice(slash + 1)
+    if (!index || !Object.hasOwn(index.artifacts, slug)) return null
+    const artifact = index.artifacts[slug]
+    return artifact ? { index, artifact } : null
   }
 
   /**

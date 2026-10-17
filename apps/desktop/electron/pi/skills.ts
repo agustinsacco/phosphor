@@ -16,6 +16,7 @@
  * are read-only here on purpose.
  */
 import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { shell } from 'electron'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
@@ -384,7 +385,7 @@ export async function deleteSkill(dir: string, workspacePath?: string): Promise<
   if (!knownSkillDirs.has(base)) throw new Error('unknown skill directory')
   if (!isWritableSkillDir(base, workspacePath))
     throw new Error('this skill is read-only in Phosphor')
-  await rm(base, { recursive: true, force: true })
+  await shell.trashItem(base)
   knownSkillDirs.delete(base)
 }
 

@@ -5975,6 +5975,12 @@ test('bundled artifact skill is editable, removable across restart and explicitl
     await expect(harness.page.getByRole('button', { name: 'Publish', exact: true })).toBeVisible()
     await expect.poll(() => readFile(file, 'utf8')).toContain('disable-model-invocation: true')
     await harness.page.getByRole('button', { name: 'Delete', exact: true }).click()
+    // Deleting asks first; nothing leaves disk until the user confirms.
+    expect(await readFile(file, 'utf8')).toContain('My custom visual rule.')
+    await harness.page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Move to Trash', exact: true })
+      .click()
     await expect.poll(async () => readFile(file, 'utf8').catch(() => 'removed')).toBe('removed')
     await shutdown(harness)
     harness = await launch({ agentDir: soloAgentDir, userDataDir })

@@ -755,7 +755,8 @@ whether or not that beat succeeds. A sequence write already running gets up to
 1 more second to land, so the next run reads it. A second signal cuts the beat
 and that wait short and exits with its own code, 130 for SIGINT. Either way it
 first releases its run lock, waiting at most 3 seconds so recovery state is not
-abandoned during shutdown. A signal during start-up stops reconciliation, closes the store and releases the
+abandoned during shutdown. A failed stop or teardown step, the release included,
+makes either exit 70 instead ([Lifecycle](#lifecycle)). A signal during start-up stops reconciliation, closes the store and releases the
 run lock before exiting, without sending a heartbeat.
 
 On Linux, `phosphor service install` requires an enrolled identity and writes
@@ -973,8 +974,9 @@ per Host, also subject to the overall terminal limit. Exit, grant or capability
 loss, and Host shutdown kill it; disconnect kills it after ten minutes without
 reattachment. Closing the Desktop modal kills it while connected. Login input,
 output and scrollback stay in memory only and are never logged or persisted.
-An exit before the first subscription keeps a content-free completion tombstone
-for at most ten minutes, removed once its owner receives the exit. Tombstones
+An exit before the first subscription keeps a content-free completion tombstone,
+with the login's own exit code, for at most ten minutes, removed once its owner
+receives the exit. Tombstones
 exclude all output bytes, do not count toward the one-per-provider or two-login
 limit, and do count toward the overall 32-terminal Host limit.
 The credential stays in pi's or Claude's own store. Control receives none of it.
@@ -1334,7 +1336,12 @@ group left; otherwise `stopped`.
 Heartbeat, runtime drain and routine-worker shutdown proceed concurrently.
 After the runtime and routines stop, commands close, terminals and attachments
 close, the routine database closes, live lanes close, the store closes and the
-run lock releases. Command close refuses new
+run lock releases. A failed step, synchronous or not, skips none of the rest.
+Closing starts only once every stop has settled, failed or not, and goes one step
+at a time, so the store never closes while a user of it still runs. `run` then
+exits 70 with the first failure. A signal's drain waits for the release too, at
+most 3 seconds, then fails with exit 70 if one of its own stops failed or, failing
+that, if any step of this teardown did, the release included. Command close refuses new
 work, discards queued work and waits up to 2 seconds for any tail left after
 runtime drain. Late callbacks skip publication and store writes. A second signal
 forces runtime drain immediately. Start-up signals still abort reconciliation
@@ -1540,6 +1547,11 @@ Client disconnects leave PTYs running. Lane removal kills them within one second
 even without a connected client. Host shutdown kills them; after restart, retained
 identities are `interrupted`. Only identities and status persist in private Host
 state. Input and scrollback never reach disk. A routine never types into a terminal.
+
+A terminal sends one `terminal.exit`. A process that ends by itself reports its
+own exit code. One the Host ends (kill, lane removal, shutdown, or a provider
+login's revocation or disconnect) has no observed code and reports `-1`, never a
+clean `0`. `exitCode` stays a plain integer, so existing parsers accept it.
 
 Viewers with `terminal` may subscribe to topic `terminal`. Output has an epoch and
 monotonic sequence, chunks of at most 16 KiB UTF-8, and replay bounded by 256 KiB

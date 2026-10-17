@@ -1,7 +1,17 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  existsSync,
+  readFileSync,
+  rmSync,
+  renameSync,
+} from 'node:fs'
+import * as fsPromises from 'node:fs/promises'
+import { shell } from 'electron'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import {
   buildSkillZip,
   confirmSkillImport,
@@ -25,19 +35,34 @@ import { SKILL_CATALOG } from '@shared/skillsCatalog'
  * (no binaryPath ⇒ scan fallback) — the probe's plumbing is the same
  * PiRpcClient every session uses, and e2e covers the spawn contract.
  */
+vi.mock('electron', () => ({ shell: { trashItem: vi.fn() } }))
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof fsPromises>()
+  return { ...actual, rm: vi.fn(actual.rm) }
+})
+
 let agentDir: string
 let workspace: string
+let trashDir: string
 
 beforeEach(() => {
   agentDir = mkdtempSync(join(tmpdir(), 'phosphor-skills-agent-'))
   workspace = mkdtempSync(join(tmpdir(), 'phosphor-skills-ws-'))
   process.env.PI_CODING_AGENT_DIR = agentDir
+  trashDir = mkdtempSync(join(tmpdir(), 'phosphor-skills-trash-'))
+  vi.mocked(shell.trashItem)
+    .mockReset()
+    .mockImplementation(async (path) => {
+      renameSync(path, join(trashDir, basename(path)))
+    })
 })
 
 afterEach(() => {
   delete process.env.PI_CODING_AGENT_DIR
   rmSync(agentDir, { recursive: true, force: true })
   rmSync(workspace, { recursive: true, force: true })
+  rmSync(trashDir, { recursive: true, force: true })
+  vi.restoreAllMocks()
 })
 
 function seedSkill(root: string, name: string, extraAttrs = ''): string {
@@ -329,4 +354,109 @@ describe('import', () => {
     })
     expect(existsSync(join(dir, 'SKILL.md'))).toBe(true)
   })
+})
+
+describe('deleteSkill admission', () => {
+  it('refuses an undiscovered bundle even in a writable root', async () => {
+    const dir = seedSkill(join(agentDir, 'skills'), 'undiscovered')
+    await resolveSkills({})
+    const unknown = seedSkill(join(agentDir, 'skills'), 'unknown')
+    await expect(deleteSkill(unknown)).rejects.toThrow('unknown skill directory')
+    expect(existsSync(join(unknown, 'SKILL.md'))).toBe(true)
+    expect(existsSync(join(dir, 'SKILL.md'))).toBe(true)
+  })
+
+  it('refuses a discovered read-only settings bundle', async () => {
+    const foreignRoot = join(workspace, 'foreign-skills')
+    const dir = seedSkill(foreignRoot, 'read-only')
+    writeFileSync(join(agentDir, 'settings.json'), JSON.stringify({ skills: [foreignRoot] }))
+    const result = await resolveSkills({ workspacePath: workspace })
+    expect(result.skills.find((skill) => skill.dir === dir)?.writable).toBe(false)
+    await expect(deleteSkill(dir, workspace)).rejects.toThrow('this skill is read-only in Phosphor')
+    expect(existsSync(join(dir, 'SKILL.md'))).toBe(true)
+  })
+
+  it('refuses a discovered installed package bundle', async () => {
+    const pkg = join(agentDir, 'npm', 'node_modules', 'pi-demo')
+    mkdirSync(pkg, { recursive: true })
+    writeFileSync(
+      join(pkg, 'package.json'),
+      JSON.stringify({ name: 'pi-demo', pi: { skills: ['./skills'] } }),
+    )
+    const dir = seedSkill(join(pkg, 'skills'), 'package-skill')
+    writeFileSync(join(agentDir, 'settings.json'), JSON.stringify({ packages: ['npm:pi-demo'] }))
+    const result = await resolveSkills({})
+    expect(result.skills.find((skill) => skill.dir === dir)?.origin).toBe('package')
+    await expect(deleteSkill(dir)).rejects.toThrow('this skill is read-only in Phosphor')
+    expect(existsSync(join(dir, 'SKILL.md'))).toBe(true)
+  })
+})
+
+describe('deleteSkill Trash', () => {
+  it.each(['user', 'project'] as const)(
+    'moves the entire %s bundle to Trash without rm',
+    async (scope) => {
+      const root = scope === 'user' ? join(agentDir, 'skills') : join(workspace, '.pi', 'skills')
+      const dir = seedSkill(root, 'recoverable')
+      mkdirSync(join(dir, 'references'))
+      writeFileSync(join(dir, 'references', 'notes.md'), 'keep these notes')
+      writeFileSync(join(dir, SKILL_SIDECAR), 'keep provenance')
+      const original = readFileSync(join(dir, 'SKILL.md'), 'utf8')
+      await resolveSkills({ workspacePath: workspace })
+      const rm = vi.mocked(fsPromises.rm).mockClear()
+
+      await deleteSkill(dir, workspace)
+
+      expect(shell.trashItem).toHaveBeenCalledExactlyOnceWith(dir)
+      expect(rm).not.toHaveBeenCalled()
+      expect(existsSync(dir)).toBe(false)
+      const trashed = join(trashDir, 'recoverable')
+      expect(readFileSync(join(trashed, 'SKILL.md'), 'utf8')).toBe(original)
+      expect(readFileSync(join(trashed, 'references', 'notes.md'), 'utf8')).toBe('keep these notes')
+      expect(readFileSync(join(trashed, SKILL_SIDECAR), 'utf8')).toBe('keep provenance')
+      await expect(deleteSkill(dir, workspace)).rejects.toThrow('unknown skill directory')
+      expect(shell.trashItem).toHaveBeenCalledTimes(1)
+    },
+  )
+
+  it('propagates Trash failure without removing or forgetting the bundle, allowing retry', async () => {
+    const dir = seedSkill(join(agentDir, 'skills'), 'retryable')
+    await resolveSkills({})
+    const rm = vi.mocked(fsPromises.rm).mockClear()
+    vi.mocked(shell.trashItem).mockRejectedValueOnce(new Error('Trash unavailable'))
+
+    await expect(deleteSkill(dir)).rejects.toThrow('Trash unavailable')
+
+    expect(existsSync(join(dir, 'SKILL.md'))).toBe(true)
+    expect((await readSkillFileEntry(dir, 'SKILL.md')).content).toContain('retryable')
+    expect(rm).not.toHaveBeenCalled()
+    await deleteSkill(dir)
+    expect(shell.trashItem).toHaveBeenCalledTimes(2)
+    expect(existsSync(join(trashDir, 'retryable', 'SKILL.md'))).toBe(true)
+  })
+})
+
+it('awaits Trash completion before forgetting a known skill', async () => {
+  const dir = seedSkill(join(agentDir, 'skills'), 'awaited')
+  await resolveSkills({})
+  let finish!: () => void
+  vi.mocked(shell.trashItem).mockImplementationOnce(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = () => {
+          renameSync(dir, join(trashDir, 'awaited'))
+          resolve()
+        }
+      }),
+  )
+  let settled = false
+  const removal = deleteSkill(dir).then(() => {
+    settled = true
+  })
+  await Promise.resolve()
+  expect(settled).toBe(false)
+  expect((await readSkillFileEntry(dir, 'SKILL.md')).content).toContain('awaited')
+  finish()
+  await removal
+  await expect(readSkillFileEntry(dir, 'SKILL.md')).rejects.toThrow('unknown skill directory')
 })

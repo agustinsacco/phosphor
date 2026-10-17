@@ -1,3 +1,4 @@
+import { CONTROL_LIMITS } from '@phosphor/shared/control-api'
 import { ControlFailure } from './http'
 
 /** Oldest entries are evicted. Expiration is lazy, so memory never grows with uptime. */
@@ -27,6 +28,12 @@ export class BoundedCache<T> {
     this.entries.set(key, { value, expires })
   }
 }
+/**
+ * withinSkew accepts both ends of its window, so one signed request stays valid for
+ * twice the skew inclusive. A record must outlive that whole span plus a margin, or a
+ * request first seen at the early edge is accepted again at the late edge.
+ */
+const NONCE_TTL_MS = 2 * CONTROL_LIMITS.signatureSkewSec * 1000 + 1000
 export class NonceCache {
   private readonly entries = new Map<string, number>()
   constructor(
@@ -47,22 +54,60 @@ export class NonceCache {
     const key = `${identity}:${nonce}`
     if (this.entries.has(key)) return false
     if (this.entries.size >= this.capacity) throw new ControlFailure('too-many-requests')
-    this.entries.set(key, now + 120_000)
+    this.entries.set(key, now + NONCE_TTL_MS)
     return true
   }
 }
+/**
+ * The control plane's rate-limit purposes: a key's purpose is its prefix before the
+ * first colon. Each purpose holds its own keys, so saturating one never refuses
+ * another, and together they hold at most 80,000.
+ */
+export const RATE_PURPOSE_CAPACITIES = Object.freeze({
+  'enrollment-create': 10_000,
+  'enrollment-poll-ip': 10_000,
+  'enrollment-poll': 10_000,
+  'enrollment-failure': 10_000,
+  'user-verify': 10_000,
+  'host-auth': 10_000,
+  'grant-issue': 10_000,
+  'client-register': 10_000,
+})
+/**
+ * Sliding windows in one map of at most `capacity` keys. Given a table of purpose
+ * capacities instead, each declared purpose gets its own such limiter and a key of an
+ * undeclared purpose is refused.
+ */
 export class RateLimiter {
   private readonly entries = new Map<string, { times: number[]; expires: number }>()
+  private readonly purposes: ReadonlyMap<string, RateLimiter> | null
+  /** Most keys held at once: in purpose mode, the purposes' capacities together. */
+  private readonly capacity: number
   constructor(
     private readonly clock: () => number,
-    private readonly capacity = 10_000,
+    capacity: number | Readonly<Record<string, number>> = 10_000,
   ) {
-    if (!Number.isSafeInteger(capacity) || capacity < 1) throw new Error('Invalid cache capacity')
+    if (typeof capacity === 'number') {
+      this.purposes = null
+      this.capacity = capacity
+    } else {
+      const purposes = Object.entries(capacity).map(
+        ([name, keys]) => [name, new RateLimiter(clock, keys)] as const,
+      )
+      this.purposes = new Map(purposes)
+      this.capacity = purposes.reduce((total, [, purpose]) => total + purpose.capacity, 0)
+    }
+    if (!Number.isSafeInteger(this.capacity) || this.capacity < 1)
+      throw new Error('Invalid cache capacity')
   }
   get size() {
-    return this.entries.size
+    if (!this.purposes) return this.entries.size
+    let size = 0
+    for (const purpose of this.purposes.values()) size += purpose.size
+    return size
   }
   available(key: string, limit: number, windowMs: number): boolean {
+    if (this.purposes) return this.purpose(key)?.available(key, limit, windowMs) ?? false
     const entry = this.entries.get(key)
     return (entry?.times.filter((time) => time > this.clock() - windowMs).length ?? 0) < limit
   }
@@ -77,6 +122,7 @@ export class RateLimiter {
     ) {
       throw new Error('Invalid rate limit')
     }
+    if (this.purposes) return this.purpose(key)?.consume(key, limit, windowMs) ?? false
     const now = this.clock()
     const entry = this.entries.get(key)
     const state = (entry?.times ?? []).filter((time) => time > now - windowMs)
@@ -91,5 +137,9 @@ export class RateLimiter {
     state.push(now)
     this.entries.set(key, { times: state, expires: now + windowMs })
     return true
+  }
+  private purpose(key: string): RateLimiter | undefined {
+    const colon = key.indexOf(':')
+    return colon < 0 ? undefined : this.purposes?.get(key.slice(0, colon))
   }
 }

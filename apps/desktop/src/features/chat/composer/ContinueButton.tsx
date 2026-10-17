@@ -3,7 +3,6 @@ import { useSessionsStore } from '@/stores/sessions'
 import { canControlSession, useRemoteLanesStore } from '@/stores/remoteLanes'
 import { TooltipButton } from '@/components/Tooltip'
 import { iconButtonClass } from '@/components/ComposerButtons'
-import { ipcErrorText } from '@shared/errors'
 import { piCallOk } from '@/lib/rpc'
 import { useChatStore, type ChatSession } from '@/stores/chat'
 
@@ -48,13 +47,6 @@ export function ContinueButton({ sessionId }: { sessionId: string }): React.JSX.
     if (!remote) chat.addUserMessage(sessionId, 'continue')
     try {
       await piCallOk(sessionId, { type: 'prompt', message: 'continue' })
-    } catch (error) {
-      chat.setError(
-        sessionId,
-        remote
-          ? 'The Host could not confirm this. Check the lane before retrying.'
-          : ipcErrorText(error),
-      )
     } finally {
       sending.current = false
       setPending(false)

@@ -7,11 +7,16 @@ import { beforeEach, afterEach, expect, it, vi } from 'vitest'
 import { SKILL_CATALOG } from '@shared/skillsCatalog'
 import { useSkillsStore } from '@/stores/skills'
 import { SkillsPage } from './SkillsPage'
+import { PromptHost } from '@/components/PromptHost'
+import { usePromptStore } from '@/stores/prompt'
 
 vi.mock('@/components/markdown/Markdown', () => ({ Markdown: () => null }))
 const container = document.createElement('div')
 const root = createRoot(container)
-beforeEach(() => useMachineCataloguesStore.setState({ catalogues: {} }))
+beforeEach(() => {
+  useMachineCataloguesStore.setState({ catalogues: {} })
+  usePromptStore.setState({ requests: [] })
+})
 afterEach(() => {
   remoteSelection.setState({ filter: 'local' })
   act(() => root.render(null))
@@ -288,4 +293,125 @@ it.each([
       expect(container.textContent).not.toContain('New skill')
     }
   }
+})
+
+const deletionDir = '/repo/.pi/skills/my-bundle'
+
+async function renderDeletionDetail(): Promise<ReturnType<typeof vi.fn>> {
+  const invoke = await render()
+  invoke.mockResolvedValue({ content: '# Bundle', binary: false, size: 8 })
+  await act(async () => {
+    useSkillsStore.setState({
+      selectedDir: deletionDir,
+      byWorkspace: {
+        '/repo': {
+          skills: [
+            {
+              name: 'my-bundle',
+              description: 'A bundle',
+              dir: deletionDir,
+              scope: 'project',
+              source: 'scan',
+              origin: 'top-level',
+              writable: true,
+              borrowed: false,
+              draft: false,
+              files: [{ path: 'SKILL.md', size: 8 }],
+              totalSize: 8,
+              warnings: [],
+            },
+          ],
+          probe: 'scan',
+          userRoot: '/agent/skills',
+        },
+      },
+    })
+    root.render(
+      <>
+        <SkillsPage workspacePath="/repo" />
+        <PromptHost />
+      </>,
+    )
+  })
+  invoke.mockClear()
+  vi.mocked(useSkillsStore.getState().refresh).mockClear()
+  return invoke
+}
+
+function choiceButton(label: string): HTMLButtonElement {
+  const match = [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
+    (node) => node.textContent === label,
+  )
+  expect(match, `dialog choice ${label}`).toBeDefined()
+  return match!
+}
+
+it.each(['Cancel', 'Escape', 'backdrop'])(
+  'does not delete on the initial click or %s dismissal',
+  async (dismissal) => {
+    const invoke = await renderDeletionDetail()
+    await act(async () => {
+      button('Delete').click()
+      button('Delete').click()
+    })
+    expect(invoke).not.toHaveBeenCalledWith('skills:delete', deletionDir, '/repo')
+    expect(usePromptStore.getState().requests).toHaveLength(1)
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('my-bundle')
+    expect(choiceButton('Move to Trash')).toBeDefined()
+    expect(button('Delete').disabled).toBe(true)
+    await act(async () => {
+      if (dismissal === 'Cancel') choiceButton('Cancel').click()
+      else if (dismissal === 'Escape')
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      else document.querySelector<HTMLElement>('[data-modal-overlay]')!.click()
+    })
+    expect(usePromptStore.getState().requests).toHaveLength(0)
+    expect(invoke).not.toHaveBeenCalledWith('skills:delete', deletionDir, '/repo')
+    expect(useSkillsStore.getState().selectedDir).toBe(deletionDir)
+    expect(useSkillsStore.getState().refresh).not.toHaveBeenCalled()
+    expect(button('Delete').disabled).toBe(false)
+  },
+)
+
+it('sends one confirmed delete and navigates back only after it succeeds', async () => {
+  const invoke = await renderDeletionDetail()
+  let finish!: () => void
+  invoke.mockImplementation(
+    () =>
+      new Promise<void>((resolve) => {
+        finish = resolve
+      }),
+  )
+  await act(async () => {
+    button('Delete').click()
+    button('Delete').click()
+  })
+  expect(usePromptStore.getState().requests).toHaveLength(1)
+  await act(async () => {
+    const confirm = choiceButton('Move to Trash')
+    confirm.click()
+    confirm.click()
+  })
+  expect(invoke).toHaveBeenCalledExactlyOnceWith('skills:delete', deletionDir, '/repo')
+  expect(useSkillsStore.getState().selectedDir).toBe(deletionDir)
+  expect(button('Delete').disabled).toBe(true)
+  await act(async () => finish())
+  expect(useSkillsStore.getState().selectedDir).toBeNull()
+  expect(useSkillsStore.getState().refresh).toHaveBeenCalledExactlyOnceWith('/repo')
+})
+
+it('retains the detail and surfaces a failed Trash operation, allowing retry', async () => {
+  const invoke = await renderDeletionDetail()
+  invoke.mockRejectedValueOnce(new Error('Trash unavailable'))
+  await act(async () => button('Delete').click())
+  await act(async () => choiceButton('Move to Trash').click())
+  expect(invoke).toHaveBeenCalledExactlyOnceWith('skills:delete', deletionDir, '/repo')
+  expect(useSkillsStore.getState().selectedDir).toBe(deletionDir)
+  expect(container.querySelector('[role="alert"]')?.textContent).toContain('Trash unavailable')
+  expect(useSkillsStore.getState().refresh).not.toHaveBeenCalled()
+  expect(button('Delete').disabled).toBe(false)
+  await act(async () => button('Delete').click())
+  await act(async () => choiceButton('Move to Trash').click())
+  expect(invoke).toHaveBeenCalledTimes(2)
+  expect(useSkillsStore.getState().selectedDir).toBeNull()
 })

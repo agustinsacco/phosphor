@@ -613,6 +613,9 @@ const settles = createSettleTracker()
  * raced test teardown, and would equally race app shutdown).
  */
 async function cleanupLocalSessionState(sessionId: string): Promise<void> {
+  // Before any await, so a cleanup that fails partway still releases it and
+  // a session re-adopted under this id is not throttled by its predecessor.
+  commandsRefreshedAt.delete(sessionId)
   const entry = useSessionsStore.getState().live[sessionId]
   if (entry?.target?.kind === 'remote' && entry.laneId) {
     const { useDraftsStore } = await import('./drafts')
@@ -1445,83 +1448,94 @@ export const useSessionsStore = create<SessionsState>((set, get) => ({
           : s,
       )
 
-    const { removeWorktree } = await import('./worktrees').then((m) => ({
-      removeWorktree: m.useWorktreesStore.getState().removeWorktree,
-    }))
+    // Every settlement unlocks, including a failure outside the per-lane
+    // catch (the lazy store read, the final refresh): a run left `running`
+    // keeps its lanes inert and refuses every later delete.
+    try {
+      const { removeWorktree } = await import('./worktrees').then((m) => ({
+        removeWorktree: m.useWorktreesStore.getState().removeWorktree,
+      }))
 
-    for (const lane of lanes) {
-      // Checked between lanes, never mid-lane: stopping halfway through a
-      // worktree removal is how you get a half-deleted lane.
-      if (bulkDeleteCancelled) break
-      publish(lane)
+      for (const lane of lanes) {
+        // Checked between lanes, never mid-lane: stopping halfway through a
+        // worktree removal is how you get a half-deleted lane.
+        if (bulkDeleteCancelled) break
+        publish(lane)
 
-      try {
-        let branchError: string | undefined
-        if (options.removeWorktree && lane.worktreePath && lane.mainRepoPath) {
-          // Stop every writer, including handles a renderer reload has not
-          // adopted yet, before removing its working directory.
-          const mainLive = await window.phosphor.invoke('pi:listLiveSessions')
-          const ids = new Set([
-            ...Object.values(get().live)
-              .filter((l) => l.diskPath === lane.path)
-              .map((l) => l.phosphorId),
-            ...(mainLive ?? []).filter((l) => l.diskPath === lane.path).map((l) => l.sessionId),
-          ])
-          for (const id of ids) await get().disposeSession(id)
-          const outcome = await removeWorktree(lane.mainRepoPath, lane.worktreePath, {
-            force: options.discardChanges,
-            deleteBranch: options.deleteBranch,
+        try {
+          let branchError: string | undefined
+          if (options.removeWorktree && lane.worktreePath && lane.mainRepoPath) {
+            // Stop every writer, including handles a renderer reload has not
+            // adopted yet, before removing its working directory.
+            const mainLive = await window.phosphor.invoke('pi:listLiveSessions')
+            const ids = new Set([
+              ...Object.values(get().live)
+                .filter((l) => l.diskPath === lane.path)
+                .map((l) => l.phosphorId),
+              ...(mainLive ?? []).filter((l) => l.diskPath === lane.path).map((l) => l.sessionId),
+            ])
+            for (const id of ids) await get().disposeSession(id)
+            const outcome = await removeWorktree(lane.mainRepoPath, lane.worktreePath, {
+              force: options.discardChanges,
+              deleteBranch: options.deleteBranch,
+            })
+            if (!outcome.removed) {
+              throw new Error(`worktree kept, ${outcome.dirtyCount} uncommitted changes`)
+            }
+            branchError = outcome.branchError
+          }
+          const cwd =
+            Object.entries(get().disk).find(([, metas]) =>
+              metas.some((m) => m.path === lane.path),
+            )?.[0] ?? workspacePath
+          await get().deleteSession(cwd, { path: lane.path })
+          results.push({
+            path: lane.path,
+            title: lane.title,
+            ok: true,
+            ...(branchError ? { error: branchError } : {}),
           })
-          if (!outcome.removed) {
-            throw new Error(`worktree kept, ${outcome.dirtyCount} uncommitted changes`)
-          }
-          branchError = outcome.branchError
+        } catch (error) {
+          results.push({
+            path: lane.path,
+            title: lane.title,
+            ok: false,
+            error: ipcErrorText(error),
+          })
         }
-        const cwd =
-          Object.entries(get().disk).find(([, metas]) =>
-            metas.some((m) => m.path === lane.path),
-          )?.[0] ?? workspacePath
-        await get().deleteSession(cwd, { path: lane.path })
-        results.push({
-          path: lane.path,
-          title: lane.title,
-          ok: true,
-          ...(branchError ? { error: branchError } : {}),
-        })
-      } catch (error) {
-        results.push({ path: lane.path, title: lane.title, ok: false, error: String(error) })
+        publish(lane)
       }
-      publish(lane)
-    }
 
-    // Forget markers for lanes that are actually gone, so the prefs map does
-    // not accumulate entries for paths that no longer exist.
-    const gone = new Set(results.filter((r) => r.ok).map((r) => r.path))
-    if (gone.size > 0) {
-      edited('laneMarkers')
-      set((s) => {
-        const laneMarkers = { ...s.laneMarkers }
-        for (const path of gone) delete laneMarkers[path]
-        void window.phosphor.invoke('app:setLaneMarkers', laneMarkers)
-        return { laneMarkers }
-      })
-    }
+      // Forget markers for lanes that are actually gone, so the prefs map does
+      // not accumulate entries for paths that no longer exist.
+      const gone = new Set(results.filter((r) => r.ok).map((r) => r.path))
+      if (gone.size > 0) {
+        edited('laneMarkers')
+        set((s) => {
+          const laneMarkers = { ...s.laneMarkers }
+          for (const path of gone) delete laneMarkers[path]
+          void window.phosphor.invoke('app:setLaneMarkers', laneMarkers)
+          return { laneMarkers }
+        })
+      }
 
-    await get().refreshDisk(workspacePath)
-    set((s) =>
-      s.bulkDelete
-        ? {
-            bulkDelete: {
-              ...s.bulkDelete,
-              done: results.length,
-              current: '',
-              currentPath: '',
-              results,
-              running: false,
-            },
-          }
-        : s,
-    )
+      await get().refreshDisk(workspacePath)
+    } finally {
+      set((s) =>
+        s.bulkDelete
+          ? {
+              bulkDelete: {
+                ...s.bulkDelete,
+                done: results.length,
+                current: '',
+                currentPath: '',
+                results,
+                running: false,
+              },
+            }
+          : s,
+      )
+    }
     return results
   },
 

@@ -146,3 +146,91 @@ it('disables a disconnected remote composer and restores it from the ready snaps
     useSessionsStore.setState({ live: {} })
   }
 })
+
+it.each(['prompt', 'abort'] as const)(
+  'reports a rejected remote %s once and preserves the draft',
+  async (action) => {
+    const { useSessionsStore } = await import('@/stores/sessions')
+    const { useRemoteLanesStore } = await import('@/stores/remoteLanes')
+    const { mockRemoteInfo, mockRemoteHosts, MOCK_HOST_ID } = await import('@/dev/mockRemoteLanes')
+    const hosts = structuredClone(mockRemoteHosts)
+    hosts[MOCK_HOST_ID]!.lanes[0]!.control.controller = {
+      self: true,
+      label: 'You',
+      connected: true,
+    }
+    const sessionId = mockRemoteInfo.sessionId
+    const draftKey = hostResourceKey(mockRemoteInfo.target!, 'session', mockRemoteInfo.laneId!)
+    useSessionsStore.setState({
+      live: { [sessionId]: { ...mockRemoteInfo, phosphorId: sessionId } },
+    })
+    useRemoteLanesStore.setState({ hosts })
+    useChatStore.setState({ sessions: {} })
+    useChatStore.getState().ensure(sessionId)
+    if (action === 'abort')
+      useChatStore.setState((s) => ({
+        sessions: {
+          ...s.sessions,
+          [sessionId]: { ...s.sessions[sessionId]!, isStreaming: true, promptSentAt: 1 },
+        },
+      }))
+    useDraftsStore.getState().patch(draftKey, {
+      text: 'keep this prompt',
+      attachments: [{ kind: 'image', data: 'aGVsbG8=', mimeType: 'image/png', name: 'image.png' }],
+    })
+    // Upload support is unnecessary for inline images, but still required by the UI's attachment admission.
+    hosts[MOCK_HOST_ID]!.capabilities.push('workspaces.write')
+    const report = vi.spyOn(useChatStore.getState(), 'setError')
+    const command = vi.spyOn(window.phosphor, 'piCommand')
+    const message = 'The Host could not confirm this. Check the lane before retrying.'
+    command.mockRejectedValue(
+      new Error(`Error invoking remote method 'pi:command': Error: ${message}`),
+    )
+    const el = document.createElement('div')
+    document.body.append(el)
+    const root = createRoot(el)
+    try {
+      await act(async () =>
+        root.render(
+          <Composer sessionId={sessionId} workspacePath={mockRemoteInfo.workspacePath} />,
+        ),
+      )
+      const click = () =>
+        (
+          el.querySelector(
+            `button[aria-label="${action === 'prompt' ? 'Send message' : 'Stop'}"]`,
+          ) as HTMLButtonElement
+        ).click()
+      await act(async () => click())
+      expect(command).toHaveBeenCalledWith(sessionId, expect.objectContaining({ type: action }))
+      expect(report.mock.calls.filter(([, error]) => error !== null)).toEqual([
+        [sessionId, message],
+      ])
+      expect(useDraftsStore.getState().get(draftKey)).toMatchObject({
+        text: 'keep this prompt',
+        attachments: [expect.objectContaining({ kind: 'image', data: 'aGVsbG8=' })],
+      })
+      expect(useChatStore.getState().sessions[sessionId]!.items).toEqual([])
+      expect(useChatStore.getState().sessions[sessionId]!.promptSentAt).toBeNull()
+      if (action === 'prompt') {
+        command.mockResolvedValue({
+          type: 'response',
+          command: 'prompt',
+          success: true,
+          data: { disposition: 'handled' },
+        })
+        await act(async () => click())
+        expect(command).toHaveBeenCalledTimes(2)
+        expect(useDraftsStore.getState().get(draftKey)).toEqual({ text: '', attachments: [] })
+      }
+    } finally {
+      act(() => root.unmount())
+      el.remove()
+      report.mockRestore()
+      command.mockRestore()
+      useSessionsStore.setState({ live: {} })
+      useRemoteLanesStore.setState({ hosts: {} })
+      useDraftsStore.setState({ drafts: {} })
+    }
+  },
+)

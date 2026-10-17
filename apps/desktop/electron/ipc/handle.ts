@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron'
-import { IPC_SCOPE } from '@shared/ipc-scope'
 import { REMOTE_UNAVAILABLE } from '../hosts/lane-ops'
+import { refusesMachineResourceArgs } from './machine-resource-args'
 import type { IpcInvokeChannel, IpcInvokeMap } from '@shared/ipc'
 
 type Handler<C extends IpcInvokeChannel> = (
@@ -19,26 +19,9 @@ export function setRemoteReadRouter(router: NonNullable<typeof remoteRead>): voi
   remoteRead = router
 }
 
-const routed = new Set<IpcInvokeChannel>([
-  'pi:command',
-  'pi:extensionUiResponse',
-  'pi:disposeSession',
-  'pi:listLiveSessions',
-])
-export function rejectRemoteArguments(channel: IpcInvokeChannel, args: unknown[]): void {
-  if (IPC_SCOPE[channel] !== 'machine' || routed.has(channel)) return
-  // Inspect nested options as well as positional paths. Bound traversal fail-closed.
-  let remaining = 4096
-  function visit(value: unknown, depth: number): boolean {
-    if (--remaining < 0 || depth > 16) return true
-    if (typeof value === 'string')
-      return value.startsWith('host:') || /^remote-[0-9a-f]{16}$/.test(value)
-    if (Array.isArray(value)) return value.some((v) => visit(v, depth + 1))
-    if (value && typeof value === 'object')
-      return Object.values(value).some((v) => visit(v, depth + 1))
-    return false
-  }
-  if (visit(args, 0)) throw new Error(REMOTE_UNAVAILABLE)
+/** Refuse a call whose declared resource positions are remote or malformed. */
+export function rejectRemoteArguments(channel: IpcInvokeChannel, args: readonly unknown[]): void {
+  if (refusesMachineResourceArgs(channel, args)) throw new Error(REMOTE_UNAVAILABLE)
 }
 
 /** Register one typed IPC invoke handler. */

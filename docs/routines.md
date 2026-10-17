@@ -125,8 +125,11 @@ instructions and configuration, not stored account credentials or run history.
   until that run ends; it is visible so you can watch it.
 - `Finished · unverified` means the agent returned a written outcome, **not**
   that its report, tests, or external deliveries were independently verified.
-  Empty outcomes and provider errors fail. Tool errors remain visible even
-  when the final message claims success. There is no delivery-receipt gateway.
+  Empty outcomes and provider errors fail. On Desktop and Host, top-level tool
+  errors add a warning even when the final message claims success. Nested tool
+  failures are the parent tool's responsibility: a successful parent does not
+  add a tool-error warning, but a failed parent does. All tool errors remain
+  visible in the transcript. There is no delivery-receipt gateway.
 - Main owns execution even with zero renderer windows. Opening a running lane
   adopts its existing process, never a second writer of the same transcript.
   Mutating RPC commands are blocked while the routine owns that session.

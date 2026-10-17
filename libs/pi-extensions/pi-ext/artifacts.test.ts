@@ -16,6 +16,8 @@ import {
   ARTIFACT_INDEX_FORMAT,
   ARTIFACT_STORE_ENV,
   contentHash,
+  indexFile,
+  readIndex,
   type SessionArtifactIndex,
 } from './artifact-store'
 
@@ -377,6 +379,34 @@ describe('artifacts of other sessions', () => {
     expect(read.details).toEqual({ ref: `${OTHER_SESSION}/guide`, foreign: true, version: 7 })
     h.branch.push(result('artifact_read', read.details as never))
     h.hooks.get('session_start')!({}, h.ctx)
+    expect((await run(h, 'artifact_list', {})).content[0]!.text).toBe(
+      'No artifacts in this session yet.',
+    )
+  })
+
+  it('reports the ordinary missing error for an inherited constructor slug', async () => {
+    const h = sessionHarness()
+    await expect(run(h, 'artifact_read', { id: `${OTHER_SESSION}/constructor` })).rejects.toThrow(
+      `No artifact "constructor" in session ${OTHER_SESSION}. Known ids there: guide.`,
+    )
+    await expect(
+      run(h, 'artifact_read', { id: `${OTHER_SESSION}/constructor@v7` }),
+    ).rejects.toThrow(/No artifact "constructor"/)
+  })
+
+  it('reads an own constructor slug from the persisted store without losing its sibling', async () => {
+    const index = readIndex(root, OTHER_SESSION)!
+    index.artifacts['constructor'] = { ...index.artifacts.guide!, slug: 'constructor' }
+    writeFileSync(indexFile(root, OTHER_SESSION), JSON.stringify(index))
+    const h = sessionHarness()
+    const read = await run(h, 'artifact_read', { id: `${OTHER_SESSION}/constructor` })
+    expect(read.content[0]!.text).toContain('<h1>guide</h1>')
+    expect(read.details).toEqual({ ref: `${OTHER_SESSION}/constructor`, foreign: true, version: 7 })
+    const versioned = await run(h, 'artifact_read', { id: `${OTHER_SESSION}/constructor@v7` })
+    expect(versioned.content).toEqual(read.content)
+    expect(
+      (await run(h, 'artifact_read', { id: `${OTHER_SESSION}/guide` })).content[0]!.text,
+    ).toContain('<h1>guide</h1>')
     expect((await run(h, 'artifact_list', {})).content[0]!.text).toBe(
       'No artifacts in this session yet.',
     )

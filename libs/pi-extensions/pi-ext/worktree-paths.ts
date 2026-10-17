@@ -110,6 +110,10 @@ export function worktreeCounterpart(input: {
  * Same one-call detection as the app's own `git-info.ts`: in a linked
  * worktree the git dir is `<main>/.git/worktrees/<name>` while the common dir
  * is `<main>/.git`; in an ordinary repo the two are equal.
+ *
+ * Synchronous inside pi's `tool_call` hook, so a hung git would stall the
+ * tool call; the timeout bounds it at one second and a timeout counts as
+ * "not a worktree" for this cwd.
  */
 function detectMainRepo(cwd: string): string | null {
   try {
@@ -117,6 +121,7 @@ function detectMainRepo(cwd: string): string | null {
       cwd,
       encoding: 'utf-8',
       stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 1000,
     })
     const [gitDir, commonDirRaw] = out.split('\n').map((line) => line.trim())
     if (!gitDir || !commonDirRaw) return null
@@ -125,7 +130,7 @@ function detectMainRepo(cwd: string): string | null {
     if (gitDir === commonDir) return null
     return dirname(commonDir)
   } catch {
-    // Not a repo, or no git on PATH: nothing to guard against.
+    // Not a repo, no git on PATH, or git timed out: nothing to guard against.
     return null
   }
 }

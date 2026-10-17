@@ -1,7 +1,7 @@
 import type { IpcInvokeChannel } from './ipc'
 
 /** Classification only. Remote routing is added by each feature's owner. */
-export const IPC_SCOPE: Record<IpcInvokeChannel, 'app' | 'machine'> = {
+export const IPC_SCOPE = {
   'hosts:tailscaleStatus': 'app',
   'hosts:models': 'machine',
   'hosts:claude': 'machine',
@@ -245,4 +245,9 @@ export const IPC_SCOPE: Record<IpcInvokeChannel, 'app' | 'machine'> = {
   'feedback:state': 'app',
   'feedback:submit': 'app',
   'feedback:dismiss': 'app',
-}
+} as const satisfies Record<IpcInvokeChannel, 'app' | 'machine'>
+
+/** Channels whose handlers act on this machine's files, processes or accounts. */
+export type MachineChannel = {
+  [C in IpcInvokeChannel]: (typeof IPC_SCOPE)[C] extends 'machine' ? C : never
+}[IpcInvokeChannel]

@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto'
 import { serve } from '@hono/node-server'
 import { createApp } from './app'
 import { parseConfig } from './config'
-import { NonceCache, RateLimiter } from './limits'
+import { NonceCache, RATE_PURPOSE_CAPACITIES, RateLimiter } from './limits'
 import { createSupabase } from './supabase'
 
 const config = parseConfig(process.env)
@@ -14,7 +14,7 @@ const app = createApp({
   fetch,
   log: (entry) => console.log(JSON.stringify(entry)),
   supabase: createSupabase(config, fetch),
-  limits: new RateLimiter(clock),
+  limits: new RateLimiter(clock, RATE_PURPOSE_CAPACITIES),
   nonces: { key: new NonceCache(clock), host: new NonceCache(clock) },
   version: '0.1.0',
 })

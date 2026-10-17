@@ -111,7 +111,7 @@ it('trusts an IP only with Cloudflare mode and the correct edge secret', () => {
     '10.42.0.1',
   )
   request.headers.set('cf-connecting-ip', '2001:db8::1')
-  expect(clientIp(request, '10.42.0.1', config)).toBe('2001:db8::1')
+  expect(clientIp(request, '10.42.0.1', config)).toBe('2001:db8:0:0::/64')
   for (const forwarded of ['invalid', '192.0.2.1, 192.0.2.2', '']) {
     request.headers.set('cf-connecting-ip', forwarded)
     expect(clientIp(request, '10.42.0.1', config)).toBe('10.42.0.1')
@@ -127,4 +127,80 @@ it('trusts an IP only with Cloudflare mode and the correct edge secret', () => {
   }
   request.headers.delete('x-phosphor-edge')
   expect(clientIp(request, '10.42.0.1', config)).toBe('10.42.0.1')
+})
+
+function edgeConfig() {
+  const secret = randomBytes(32).toString('base64url')
+  return {
+    secret,
+    config: parseConfig({
+      SUPABASE_SECRET_KEY: randomBytes(32).toString('hex'),
+      CONTROL_TRUST_PROXY: 'cloudflare',
+      CONTROL_EDGE_SECRET: secret,
+    }),
+  }
+}
+it('keys trusted-edge IPv6 addresses by /64, so rotating /128s share one bucket', () => {
+  const { secret, config } = edgeConfig()
+  const key = (forwarded: string) =>
+    clientIp(
+      new Request('http://localhost', {
+        headers: { 'cf-connecting-ip': forwarded, 'x-phosphor-edge': secret },
+      }),
+      '10.42.0.1',
+      config,
+    )
+  const network = key('2001:db8:1:2::1')
+  for (const forwarded of [
+    '2001:db8:1:2::2',
+    '2001:DB8:1:2:FFFF:FFFF:FFFF:FFFF',
+    '2001:0db8:0001:0002:0000:0000:0000:0001',
+    '2001:db8:1:2:a:b:c:d',
+  ])
+    expect(key(forwarded)).toBe(network)
+  expect(key('2001:db8:1:3::1')).not.toBe(network)
+  expect(key('2001:db9:1:2::1')).not.toBe(network)
+  expect(key('::ffff:192.0.2.1')).toBe('192.0.2.1')
+  expect(key('192.0.2.1')).toBe('192.0.2.1')
+})
+it('normalizes the socket address too, and untrusted headers never choose the bucket', () => {
+  const { config } = edgeConfig()
+  const key = (forwarded: string, edge: string, socket: string) =>
+    clientIp(
+      new Request('http://localhost', {
+        headers: { 'cf-connecting-ip': forwarded, 'x-phosphor-edge': edge },
+      }),
+      socket,
+      config,
+    )
+  const wrong = randomBytes(32).toString('base64url')
+  const socket = key('192.0.2.1', wrong, '2001:db8:9:9::5')
+  for (const [forwarded, address] of [
+    ['192.0.2.2', '2001:db8:9:9::6'],
+    ['2001:db8:1:2::1', '2001:DB8:9:9:0:0:0:7'],
+    ['2001:db8:1:3::1', '2001:0db8:0009:0009::8'],
+  ])
+    expect(key(String(forwarded), wrong, String(address))).toBe(socket)
+  expect(key('192.0.2.1', wrong, '2001:db8:9:a::5')).not.toBe(socket)
+  expect(key('192.0.2.1', wrong, '::ffff:10.42.0.1')).toBe('10.42.0.1')
+  expect(clientIp(new Request('http://localhost'), '2001:db8:9:9::1', config)).toBe(socket)
+})
+it('spends one enrollment-create budget for a /64 whose trusted-edge /128 rotates', async () => {
+  const deps = dependencies()
+  const { secret, config } = edgeConfig()
+  deps.config = config
+  const app = createApp(deps)
+  const enroll = (ip: string) =>
+    app.request('/api/v1/enrollments', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'cf-connecting-ip': ip,
+        'x-phosphor-edge': secret,
+      },
+      body: '{}',
+    })
+  for (let i = 1; i <= 10; i++) expect((await enroll(`2001:db8:5:6::${i}`)).status).toBe(400)
+  expect((await enroll('2001:db8:5:6:ffff::1')).status).toBe(429)
+  expect((await enroll('2001:db8:5:7::1')).status).toBe(400)
 })

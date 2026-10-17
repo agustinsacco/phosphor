@@ -85,7 +85,9 @@ export function createRoutineExecutor(
             })
           if (push.kind !== 'event') return
           const event = push.event
-          if (event.type === 'tool_execution_end' && event.isError) toolErrors = true
+          // A nested call's failure (a codemode script's) is the script's to handle.
+          if (event.type === 'tool_execution_end' && event.isError && !event.parentToolCallId)
+            toolErrors = true
           if (event.type === 'message_end' && event.message.role === 'assistant')
             assistant = event.message
           if (event.type === 'extension_error')

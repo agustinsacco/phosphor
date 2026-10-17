@@ -89,6 +89,7 @@ function setup(native?: HostPtyModule) {
     spawn,
     data: (s: string) => onData(s),
     exit: () => onExit({ exitCode: 0 }),
+    exitWith: (exitCode: number) => onExit({ exitCode }),
     saved: () => saved,
   }
 }
@@ -279,6 +280,85 @@ describe('Host terminals', () => {
       }),
     ).toBe(true)
     await result
+  })
+})
+describe('Host terminal exit codes', () => {
+  function watch(f: ReturnType<typeof setup>, terminalId: string, owner?: string) {
+    const frames: TerminalFrame[] = []
+    f.service.subscribe(
+      { type: 'subscribe', topic: 'terminal', id: 's', terminalId },
+      (frame) => {
+        frames.push(frame)
+      },
+      owner,
+    )
+    return frames
+  }
+  function exits(frames: TerminalFrame[]) {
+    return frames.flatMap((frame) => (frame.type === 'terminal.exit' ? [frame.exitCode] : []))
+  }
+  function login(f: ReturnType<typeof setup>, owner: string) {
+    let terminalId = ''
+    const run = f.service.loginRunner(owner, (id) => {
+      terminalId = id
+    })('/bin/sh', [], { cwd: root, env: {} })
+    return { terminalId, run }
+  }
+  it.each(['kill', 'reap', 'shutdown'] as const)(
+    'reports -1, once, when the Host ends a running terminal by %s',
+    async (how) => {
+      if (how === 'reap') vi.useFakeTimers()
+      const f = setup()
+      const a = lane()
+      const id = await create(f, a.laneId)
+      const frames = watch(f, id)
+      if (how === 'kill')
+        await f.service.execute(a.laneId, { type: 'terminal.kill', terminalId: id })
+      else if (how === 'reap') {
+        lanes.delete(a.laneId)
+        vi.advanceTimersByTime(1000)
+      } else f.service.close()
+      expect(f.pty.kill).toHaveBeenCalledOnce()
+      // The native exit that follows the kill must not add a second, clean report.
+      f.exitWith(0)
+      expect(exits(frames)).toEqual([-1])
+      expect(frames.every((frame) => parseTerminalFrame(frame) !== null)).toBe(true)
+    },
+  )
+  it.each([0, 3])('keeps a natural exit code %i and reports it once', async (code) => {
+    const f = setup()
+    const a = lane()
+    const id = await create(f, a.laneId)
+    const frames = watch(f, id)
+    f.exitWith(code)
+    await f.service.execute(a.laneId, { type: 'terminal.kill', terminalId: id })
+    expect(exits(frames)).toEqual([code])
+    expect(f.pty.kill).not.toHaveBeenCalled()
+  })
+  it('reports a provider login its own exit code, live and from its tombstone', async () => {
+    const owner = randomUUID()
+    const live = setup()
+    const watched = login(live, owner)
+    const frames = watch(live, watched.terminalId, owner)
+    live.exitWith(2)
+    expect(exits(frames)).toEqual([2])
+    expect(await watched.run).toEqual({ code: null })
+    const early = setup()
+    const unwatched = login(early, owner)
+    early.exitWith(2)
+    const tombstone = watch(early, unwatched.terminalId, owner)
+    expect(tombstone.map((frame) => frame.type)).toEqual(['terminal.reset', 'terminal.exit'])
+    expect(exits(tombstone)).toEqual([2])
+  })
+  it('reports -1, once, when the Host kills a provider login', async () => {
+    const owner = randomUUID()
+    const f = setup()
+    const { terminalId } = login(f, owner)
+    const frames = watch(f, terminalId, owner)
+    f.service.machineOp(owner, { type: 'terminal.kill', terminalId })
+    f.exitWith(0)
+    expect(exits(frames)).toEqual([-1])
+    expect(frames.every((frame) => parseTerminalFrame(frame) !== null)).toBe(true)
   })
 })
 afterAll(() => rmSync(root, { recursive: true, force: true }))

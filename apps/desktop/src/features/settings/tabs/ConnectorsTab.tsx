@@ -673,6 +673,7 @@ function CatalogRow({
                   className="min-w-40 flex-1 font-mono"
                 />
                 <TextInput
+                  type="password"
                   size="sm"
                   value={clientSecret}
                   onChange={(e) => setClientSecret(e.target.value)}

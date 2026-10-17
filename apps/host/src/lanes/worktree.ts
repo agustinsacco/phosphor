@@ -13,6 +13,7 @@ import { dirname, join, resolve } from 'node:path'
 import { isLaneBranchName } from '@phosphor/shared/host-protocol'
 import { git } from '@phosphor/session-runtime/git/git-exec'
 import type { RuntimeLog } from '@phosphor/session-runtime/file-log'
+import { defaultBranchRefs, resolveDefaultBranch } from './default-branch'
 
 export class LaneFolderError extends Error {
   constructor(
@@ -126,19 +127,7 @@ export async function prepareLaneFolder(input: {
     }
   }
   try {
-    let defaultBranch = (
-      await optional(['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])
-    ).replace(/^origin\//, '')
-    if (!defaultBranch) {
-      const names = (await run(['for-each-ref', 'refs/heads', '--format=%(refname:short)'])).split(
-        '\n',
-      )
-      defaultBranch = names.includes('main')
-        ? 'main'
-        : names.includes('master')
-          ? 'master'
-          : await run(['rev-parse', '--abbrev-ref', 'HEAD'])
-    }
+    const defaultBranch = await resolveDefaultBranch(run)
     if (branch === defaultBranch) {
       if (worktree.fresh) throw new LaneFolderError('That branch already exists.', 'branch-exists')
       refuse('The default branch stays in the main tree.')
@@ -184,12 +173,13 @@ export async function prepareLaneFolder(input: {
       excludeWorktrees(join(common, 'info', 'exclude'))
     }
     if (!existing) {
-      const remote = await exists(`refs/remotes/origin/${defaultBranch}`)
-      const base = remote
-        ? `origin/${defaultBranch}`
-        : (await exists(`refs/heads/${defaultBranch}`))
-          ? defaultBranch
-          : 'HEAD'
+      // Without a trunk ref, a new branch starts from the HEAD commit; deletion never does.
+      let base = 'HEAD'
+      for (const ref of defaultBranch === null ? [] : defaultBranchRefs(defaultBranch)) {
+        if (!(await exists(ref))) continue
+        base = ref
+        break
+      }
       baseCommit = await run(['rev-parse', '--verify', `${base}^{commit}`])
       try {
         await run(['update-ref', `refs/heads/${branch}`, baseCommit, '0'.repeat(baseCommit.length)])

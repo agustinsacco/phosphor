@@ -20,10 +20,14 @@ import { laneRoot } from '../features/files'
 import type { HostPty, HostPtyModule } from './native'
 
 export class TerminalForbidden extends Error {}
+/** A stop the Host forces has no observed code. The numeric wire reports it as -1, never a clean 0. */
+const FORCED_EXIT_CODE = -1
 
 type Entry = TerminalSummary & {
   login?: { owner: string; disconnectedAt?: number; finish: (result: TerminalRun) => void }
   pty?: HostPty
+  /** The code kill() reported, which a login's tombstone repeats. */
+  exitCode?: number
   seq: number
   inputSeq: number
   window: number
@@ -79,7 +83,7 @@ export function createTerminals(options: {
       options.context.store.listRepositories().some((r) => r.id === lane.repositoryId)
     )
   }
-  function kill(entry: Entry) {
+  function kill(entry: Entry, exitCode = FORCED_EXIT_CODE) {
     const pty = entry.pty
     entry.pty = undefined
     entry.status = 'exited'
@@ -88,15 +92,17 @@ export function createTerminals(options: {
       entry.chunks = []
       entry.outputBytes = 0
     }
-    if (pty)
+    if (pty) {
+      entry.exitCode = exitCode
       emit(entry, {
         type: 'terminal.exit',
         id: 'live',
         terminalId: entry.terminalId,
         epoch: options.epoch,
         seq: ++entry.seq,
-        exitCode: 0,
+        exitCode,
       })
+    }
     try {
       pty?.kill()
     } catch {
@@ -335,7 +341,7 @@ export function createTerminals(options: {
         terminalId: entry.terminalId,
         epoch: options.epoch,
         seq: ++entry.seq,
-        exitCode: 0,
+        exitCode: entry.exitCode ?? FORCED_EXIT_CODE,
       })
       entries.delete(entry.terminalId)
       entry.listeners.clear()
@@ -425,9 +431,9 @@ export function createTerminals(options: {
             name: 'xterm-256color',
           })
           entry.pty.onData((data) => output(entry, data))
-          entry.pty.onExit(() => {
+          entry.pty.onExit(({ exitCode }) => {
             const watched = entry.listeners.size > 0
-            kill(entry)
+            kill(entry, exitCode)
             // An exit can beat Desktop's first subscribe. Retain only a bounded,
             // content-free tombstone so its reset reports completion, not a hung modal.
             if (entry.login) entry.login.disconnectedAt = now()
