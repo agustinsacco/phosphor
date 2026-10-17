@@ -309,12 +309,7 @@ export const ActivityGroup = memo(function ActivityGroup({
             {rows.map(({ step, thought }) => {
               const findKey = stepFindKey(step)
               return (
-                <div
-                  className="activity-step-enter"
-                  key={
-                    step.block.type === 'tool' ? step.block.toolCallId : `th-${step.block.index}`
-                  }
-                >
+                <div className="activity-step-enter" key={findKey}>
                   {thought && (
                     <ThoughtRow
                       thought={thought}
