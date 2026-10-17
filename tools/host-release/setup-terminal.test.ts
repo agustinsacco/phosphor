@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference -- node-pty ships an ambient-module .d.ts (no exports), so a relative type import is TS2306; this keeps its types local to this test
 /// <reference path="../../apps/desktop/node_modules/node-pty/typings/node-pty.d.ts" />
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
