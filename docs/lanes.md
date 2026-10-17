@@ -360,7 +360,10 @@ Remote rows use the same context menu and inline rename as local rows. The title
 prefers the live session name, the Host summary, then the first prompt. The Host,
 not Desktop, generates remote titles. Pin and marker preferences use Host/lane
 resource keys. Local-only tree, fork, clone, routine and HTML export actions are
-omitted. Remote Delete needs control and workspace-write capability. It uses the
+omitted. Remote Delete needs control and workspace-write capability. A disabled
+action's hint names its obstacle: “Take control first.” for a viewer, “Only
+while running.” for rename and spend on a stopped lane, and “Not available on
+remote lanes yet.” only when the Host lacks the capability. It uses the
 same resource confirmation, keeps failures visible, and closes the lane on
 success. A shared worktree gets transcript-only deletion. The Host keeps trashed
 transcripts for 30 days; worktree removal and merged-branch deletion are optional.

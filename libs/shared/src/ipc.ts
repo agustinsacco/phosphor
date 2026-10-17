@@ -227,7 +227,7 @@ export interface IpcInvokeMap {
     result: { branchKept: boolean }
   }
   'hosts:listFolders': {
-    args: [hostId: string, path?: string]
+    args: [hostId: string, path?: string, hidden?: boolean]
     result: {
       path: string
       truncated: boolean
@@ -235,6 +235,7 @@ export interface IpcInvokeMap {
     }
   }
   'hosts:addRepository': { args: [hostId: string, path: string]; result: { repositoryId: string } }
+  'hosts:createFolder': { args: [hostId: string, path: string]; result: void }
   'hosts:removeRepository': { args: [hostId: string, repositoryId: string]; result: void }
   'hosts:releaseControl': { args: [hostId: string, laneId: string]; result: void }
   'routines:list': { args: [machine?: string]; result: RoutinesSnapshot }

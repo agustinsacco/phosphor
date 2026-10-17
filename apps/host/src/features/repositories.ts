@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { lstat, open, opendir, realpath, unlink } from 'node:fs/promises'
+import { lstat, mkdir, open, opendir, realpath, unlink } from 'node:fs/promises'
 import { renameSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import {
@@ -91,7 +91,11 @@ export function createRepositories(options: {
             truncated = true
             break
           }
-          if (!entry.isDirectory() || entry.name.startsWith('.') || !isHomePath(entry.name))
+          if (
+            !entry.isDirectory() ||
+            (entry.name.startsWith('.') && !p.hidden) ||
+            !isHomePath(entry.name)
+          )
             continue
           if (entries.length === 500) {
             truncated = true
@@ -138,6 +142,14 @@ export function createRepositories(options: {
           if (!added) throw new Error('repository unavailable')
           return { ok: true, data: added }
         }
+        if (op.type === 'host.repositories.createFolder') {
+          const slash = op.path.lastIndexOf('/')
+          const parent = await homeDirectory(options.home, op.path.slice(0, Math.max(slash, 0)))
+          if (!allowed()) return { ok: false, code: 'forbidden' }
+          // Not recursive: an existing name, file or symlink included, is a conflict.
+          await mkdir(join(parent.full, op.path.slice(slash + 1)))
+          return { ok: true }
+        }
         const repository = options.store.listRepositories().find((r) => r.id === op.repositoryId)
         if (!repository) return { ok: false, code: 'bad-request' }
         if (options.live(repository.id)) return { ok: false, code: 'busy' }
@@ -152,7 +164,9 @@ export function createRepositories(options: {
           code:
             error instanceof FileFailure && error.code === 'forbidden'
               ? 'forbidden'
-              : 'bad-request',
+              : error instanceof Error && 'code' in error && error.code === 'EEXIST'
+                ? 'conflict'
+                : 'bad-request',
         }
       }
     },

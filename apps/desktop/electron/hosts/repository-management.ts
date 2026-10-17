@@ -5,6 +5,8 @@ import {
   parseFolderList,
   parseDeleteLaneResult,
   isRepositoryId,
+  FOLDER_EXISTS,
+  HOST_TOO_OLD,
 } from '@shared/host-protocol-repositories'
 import type { createHostConnection } from './connection'
 import { REMOTE_UNAVAILABLE } from './lane-ops'
@@ -42,18 +44,28 @@ export function repositoryManagement(
       throw new Error(REMOTE_UNAVAILABLE)
     const result = await c.send(op, laneId, fence)
     if (!available()) throw new Error(REMOTE_UNAVAILABLE)
-    if (result.status !== 'done')
+    if (result.status !== 'done') {
+      const code = result.status === 'rejected' ? result.code : undefined
       throw new Error(
-        result.status === 'rejected' && result.code === 'last-repository'
+        code === 'last-repository'
           ? 'A machine needs at least one folder. Add another first.'
-          : 'The remote change was not confirmed.',
+          : code === 'conflict' && op.type === 'host.repositories.createFolder'
+            ? FOLDER_EXISTS
+            : code === 'unsupported'
+              ? HOST_TOO_OLD
+              : 'The remote change was not confirmed.',
       )
+    }
     return result.data
   }
   return {
-    async folders(hostId: string, path?: string) {
+    async folders(hostId: string, path?: string, hidden?: boolean) {
       const { c, available } = admitted(hostId, false)
-      const params = parseFolderParams(path === undefined ? {} : { path })
+      // `hidden` is sent only when asked for: older Hosts refuse the key.
+      const params = parseFolderParams({
+        ...(path === undefined ? {} : { path }),
+        ...(hidden ? { hidden: true } : {}),
+      })
       if (!params) throw new Error(REMOTE_UNAVAILABLE)
       const reply = await c.call('machine.folders.list', params)
       if (!available() || !reply.ok) throw new Error(REMOTE_UNAVAILABLE)
@@ -71,6 +83,9 @@ export function repositoryManagement(
       )
         throw new Error(REMOTE_UNAVAILABLE)
       return { repositoryId: result.id }
+    },
+    async createFolder(hostId: string, path: string) {
+      await command(hostId, { type: 'host.repositories.createFolder', path })
     },
     async remove(hostId: string, repositoryId: string) {
       await command(hostId, { type: 'host.repositories.remove', repositoryId })

@@ -34,6 +34,25 @@ export function remoteLaneTitle(
   )
 }
 
+export const TAKE_CONTROL_FIRST = 'Take control first.'
+export const ONLY_WHILE_RUNNING = 'Only while running.'
+
+/**
+ * Why a controller-only row action is disabled, or undefined when control is
+ * not the obstacle. Not holding control is the common case and the user can fix
+ * it, so it must not read as a permanent gap (the generic text did, and left a
+ * viewer believing Delete was impossible).
+ */
+export function remoteControlHint(
+  ready: boolean,
+  canControl: boolean,
+  self: boolean,
+): string | undefined {
+  if (!ready) return REMOTE_NOT_READY
+  if (!canControl) return REMOTE_UNAVAILABLE
+  return self ? undefined : TAKE_CONTROL_FIRST
+}
+
 /** Remote curation uses durable Host/lane identities, never transport handles. */
 export function RemoteLaneRow({
   hostId,
@@ -73,7 +92,12 @@ export function RemoteLaneRow({
     !!host?.capabilities.includes('sessions.control') &&
     lane.control.controller?.self === true
   const running = lane.activity !== 'stopped' && lane.activity !== 'failed'
-  const hint = !ready ? REMOTE_NOT_READY : REMOTE_UNAVAILABLE
+  const canWrite = !!host?.capabilities.includes('workspaces.write')
+  const controlHint = remoteControlHint(
+    ready,
+    !!host?.capabilities.includes('sessions.control'),
+    lane.control.controller?.self === true,
+  )
   async function act(action: () => Promise<unknown>): Promise<void> {
     setBusy(true)
     try {
@@ -126,13 +150,13 @@ export function RemoteLaneRow({
     {
       label: 'Open',
       disabled: !ready || busy,
-      hint: !ready ? hint : undefined,
+      hint: !ready ? REMOTE_NOT_READY : undefined,
       onClick: () => void openRemoteLane(hostId, lane.laneId),
     },
     {
       label: 'Rename',
       disabled: !controlled || !running || busy,
-      hint: !controlled || !running ? hint : undefined,
+      hint: controlHint ?? (!running ? ONLY_WHILE_RUNNING : undefined),
       onClick: rename,
     },
     ...(!lane.control.controller?.self
@@ -140,7 +164,7 @@ export function RemoteLaneRow({
           {
             label: 'Take control',
             disabled: !ready || !host?.capabilities.includes('sessions.control') || busy,
-            hint: !ready ? hint : undefined,
+            hint: !ready ? REMOTE_NOT_READY : undefined,
             onClick: () =>
               void act(() => window.phosphor.invoke('hosts:takeControl', hostId, lane.laneId)),
           },
@@ -151,7 +175,7 @@ export function RemoteLaneRow({
           {
             label: 'Release control',
             disabled: !controlled || busy,
-            hint: !controlled ? hint : undefined,
+            hint: controlHint,
             onClick: () =>
               void act(() => window.phosphor.invoke('hosts:releaseControl', hostId, lane.laneId)),
           },
@@ -160,7 +184,7 @@ export function RemoteLaneRow({
     {
       label: running ? 'Stop' : 'Resume',
       disabled: !controlled || busy,
-      hint: !controlled ? hint : undefined,
+      hint: controlHint,
       onClick: () =>
         void act(() =>
           window.phosphor.invoke(
@@ -173,7 +197,7 @@ export function RemoteLaneRow({
     {
       label: 'Mark read',
       disabled: !ready || busy,
-      hint: !ready ? hint : undefined,
+      hint: !ready ? REMOTE_NOT_READY : undefined,
       onClick: () => void act(() => window.phosphor.invoke('hosts:markRead', hostId, lane.laneId)),
     },
     { label: pinned ? 'Unpin' : 'Pin', onClick: () => useSessionsStore.getState().togglePin(key) },
@@ -190,7 +214,7 @@ export function RemoteLaneRow({
     {
       label: 'Copy spend',
       disabled: !ready || busy || !running,
-      hint: !ready || !running ? hint : undefined,
+      hint: !ready ? REMOTE_NOT_READY : !running ? ONLY_WHILE_RUNNING : undefined,
       onClick: () =>
         void act(async () => {
           const stats = await piCall(await session(), { type: 'get_session_stats' })
@@ -209,8 +233,8 @@ export function RemoteLaneRow({
       label: 'Delete',
       danger: true,
       separatorAbove: true,
-      disabled: !controlled || !host?.capabilities.includes('workspaces.write') || busy,
-      hint: !controlled || !host?.capabilities.includes('workspaces.write') ? hint : undefined,
+      disabled: !controlled || !canWrite || busy,
+      hint: controlHint ?? (!canWrite ? REMOTE_UNAVAILABLE : undefined),
       onClick: () => setDeleting(true),
     },
   ]

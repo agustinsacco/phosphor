@@ -81,7 +81,10 @@ export function registerHostsHandlers(): void {
       }),
   })
   const management = repositoryManagement(manager.connection)
-  handle('hosts:listFolders', (_event, hostId, path) => management.folders(hostId, path))
+  handle('hosts:listFolders', (_event, hostId, path, hidden) =>
+    management.folders(hostId, path, hidden),
+  )
+  handle('hosts:createFolder', (_event, hostId, path) => management.createFolder(hostId, path))
   handle('hosts:addRepository', (_event, hostId, path) => management.add(hostId, path))
   handle('hosts:removeRepository', (_event, hostId, repositoryId) =>
     management.remove(hostId, repositoryId),

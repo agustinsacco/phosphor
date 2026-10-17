@@ -22,6 +22,7 @@ export const IPC_SCOPE: Record<IpcInvokeChannel, 'app' | 'machine'> = {
   'hosts:deleteLane': 'app',
   'hosts:listFolders': 'app',
   'hosts:addRepository': 'app',
+  'hosts:createFolder': 'app',
   'hosts:removeRepository': 'app',
   'hosts:releaseControl': 'app',
   'routines:list': 'machine',

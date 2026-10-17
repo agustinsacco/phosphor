@@ -1633,13 +1633,22 @@ switches are refused.
 ## Repository management and lane deletion
 
 `allowRepositoryChanges` is a boolean, default on. Turning it off refuses
-`machine.folders.list`, `host.repositories.add` and `host.repositories.remove`.
+`machine.folders.list`, `host.repositories.add`, `host.repositories.remove` and
+`host.repositories.createFolder`.
 These owner-authenticated operations require `workspaces.write`; mutations also
 require `sessions.control` and use durable receipts. Folder paths are relative
-to the Host user's real home. Absolute paths, dot directories and symlink escapes
-are refused. Folder listing returns directories only, at most 500, sorted within
-the returned subset, with `truncated` when more exist. Enumeration also stops
-after 20,000 directory entries, including hidden entries.
+to the Host user's real home. Absolute paths, `.` and `..` components and symlink
+escapes are refused; hidden names such as `.config` are allowed. Folder listing
+returns directories only, at most 500, sorted within the returned subset, with
+`truncated` when more exist. Hidden folders are listed only with `hidden: true`,
+because older Desktops refuse a listing that holds one; older Hosts refuse the
+key. Enumeration also stops after 20,000 directory entries, including hidden
+entries.
+
+`host.repositories.createFolder` makes one folder, non-recursively, in an existing
+folder under home and returns no data. An existing name, including a file or
+symlink, is `conflict`. It never changes the config: adding the new folder is a
+separate `host.repositories.add`. Older Hosts answer `unsupported`.
 
 Add accepts existing git or non-git directories, refuses duplicates and more than
 64 configured folders. It reads the validated config, preserves other fields,

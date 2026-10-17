@@ -3,12 +3,17 @@ import { isUuid } from './control-api'
 export type RepositoryOp =
   | { type: 'host.repositories.add'; path: string }
   | { type: 'host.repositories.remove'; repositoryId: string }
+  /** Makes one new folder; its parent must already exist. Never adds it to the config. */
+  | { type: 'host.repositories.createFolder'; path: string }
 export type DeleteLaneOp = {
   type: 'lane.delete'
   laneId: string
   removeWorktree: boolean
   removeBranch: boolean
 }
+/** Fixed refusals main passes to the renderer, which shows only these verbatim. */
+export const FOLDER_EXISTS = 'A folder with that name already exists.'
+export const HOST_TOO_OLD = 'Update the Host on this machine first.'
 export interface FolderList {
   path: string
   truncated: boolean
@@ -20,6 +25,12 @@ const keys = (v: Record<string, unknown>, allowed: string[]) =>
   Object.keys(v).every((k) => allowed.includes(k))
 export const isRepositoryId = (v: unknown): v is string =>
   typeof v === 'string' && /^[a-f0-9]{16}$/.test(v)
+/**
+ * A path relative to the Host user's home. Hidden names such as `.config` are
+ * allowed; `.` and `..` never are. Older Hosts refuse every dot name and older
+ * Desktops refuse one in a listing, so a listing includes hidden folders only
+ * when asked.
+ */
 export const isHomePath = (v: unknown): v is string =>
   typeof v === 'string' &&
   v.length <= 4096 &&
@@ -29,16 +40,26 @@ export const isHomePath = (v: unknown): v is string =>
       .every(
         (p) =>
           p.length > 0 &&
-          !p.startsWith('.') &&
+          p !== '.' &&
+          p !== '..' &&
           !/[\\:]/.test(p) &&
           ![...p].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127),
       ))
-export function parseFolderParams(v: unknown): { path?: string } | null {
-  return record(v) && keys(v, ['path']) && (v.path === undefined || isHomePath(v.path))
-    ? v.path === undefined
-      ? {}
-      : { path: v.path }
-    : null
+/** One new folder's name: a single home-path component of at most 255 characters. */
+export const isFolderName = (v: unknown): v is string =>
+  isHomePath(v) && v !== '' && !v.includes('/') && v.length <= 255
+export function parseFolderParams(v: unknown): { path?: string; hidden?: true } | null {
+  if (
+    !record(v) ||
+    !keys(v, ['path', 'hidden']) ||
+    (v.path !== undefined && !isHomePath(v.path)) ||
+    (v.hidden !== undefined && typeof v.hidden !== 'boolean')
+  )
+    return null
+  return {
+    ...(v.path === undefined ? {} : { path: v.path as string }),
+    ...(v.hidden === true ? { hidden: true as const } : {}),
+  }
 }
 export function parseRepositoryOp(v: unknown): RepositoryOp | null {
   if (!record(v)) return null
@@ -50,6 +71,13 @@ export function parseRepositoryOp(v: unknown): RepositoryOp | null {
     isRepositoryId(v.repositoryId)
   )
     return { type: v.type, repositoryId: v.repositoryId }
+  if (
+    v.type === 'host.repositories.createFolder' &&
+    keys(v, ['type', 'path']) &&
+    isHomePath(v.path) &&
+    isFolderName(v.path.split('/').pop())
+  )
+    return { type: v.type, path: v.path }
   return null
 }
 export function parseDeleteLaneOp(v: unknown): DeleteLaneOp | null {

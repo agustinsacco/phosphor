@@ -524,5 +524,8 @@ An active Host lane's sidebar header shows its repository and machine names.
 Its menu offers Host folder registration, not This Mac's recent folders. Remote
 workspace group menus can remove the configuration entry with confirmation;
 files are kept. The folder browser uses the Host home as its root and never
-opens a local folder picker. Skills, Artifacts and Routines default to the sidebar
+opens a local folder picker. Show hidden lists dot folders for that dialog only.
+New folder creates one folder in the folder being viewed and opens it, so Add
+this folder adds it; it needs control capability. An older Host's refusal says to
+update it. Skills, Artifacts and Routines default to the sidebar
 machine, with a window-local page override reset by the next sidebar change.

@@ -12,10 +12,15 @@ it('strictly bounds relative paths and exact folder params', () => {
   expect(parseFolderParams({})).toEqual({})
   expect(parseFolderParams({ path: '' })).toEqual({ path: '' })
   expect(parseFolderParams({ path: 'x'.repeat(4096) })).not.toBeNull()
+  expect(parseFolderParams({ path: '.config/app' })).toEqual({ path: '.config/app' })
+  expect(parseFolderParams({ path: 'x', hidden: true })).toEqual({ path: 'x', hidden: true })
+  expect(parseFolderParams({ hidden: false })).toEqual({})
+  expect(parseFolderParams({ hidden: 'yes' })).toBeNull()
   for (const path of [
     '/absolute',
     '../escape',
-    '.hidden',
+    '.',
+    'x/./y',
     'x/../y',
     'x//y',
     'a\\b',
@@ -45,6 +50,34 @@ it('strictly bounds relative paths and exact folder params', () => {
       entries: [{ name: '../x', isRepository: false, configured: false }],
     }),
   ).toBeNull()
+  for (const name of ['..', '.'])
+    expect(
+      parseFolderList({
+        path: '',
+        truncated: false,
+        entries: [{ name, isRepository: false, configured: false }],
+      }),
+    ).toBeNull()
+})
+it('admits creating exactly one named folder', () => {
+  const create = (path: unknown) =>
+    parseRepositoryOp({ type: 'host.repositories.createFolder', path })
+  for (const path of ['new', 'Projects/new', '.config/.app'])
+    expect(create(path)).toEqual({ type: 'host.repositories.createFolder', path })
+  for (const path of ['', '/abs', 'x/..', 'x/.', 'x//y', 'a\\b', `x/${'n'.repeat(256)}`, 1])
+    expect(create(path)).toBeNull()
+  expect(
+    parseRepositoryOp({ type: 'host.repositories.createFolder', path: 'x', extra: 1 }),
+  ).toBeNull()
+  expect(
+    parseClientFrame(
+      JSON.stringify({
+        type: 'command',
+        requestId: laneId,
+        op: { type: 'host.repositories.createFolder', path: 'Projects/new' },
+      }),
+    ).ok,
+  ).toBe(true)
 })
 it('admits exact repository mutations and fenced deletion shapes', () => {
   expect(parseRepositoryOp({ type: 'host.repositories.add', path: 'Projects' })).not.toBeNull()
