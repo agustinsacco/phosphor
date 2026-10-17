@@ -21,7 +21,12 @@ test('Send, steer, follow up and abort have one remote echo; model, thinking and
     await chat.fill('PHX-followed')
     await h.page.getByRole('button', { name: 'Queue follow-up', exact: true }).click()
     await expect(h.page.getByText('PHX-steered', { exact: true })).toBeVisible()
-    await expect(h.page.getByText('PHX-followed', { exact: true })).toBeVisible()
+    // The chip comes from the Host echo; the remote draft clears only at the
+    // receipt, so for a moment the composer still holds the same text.
+    await expect(
+      h.page.getByTestId('queue-chips').getByText('PHX-followed', { exact: true }),
+    ).toBeVisible()
+    await expect(chat).toHaveValue('')
     await h.page
       .getByRole('button', { name: 'Stop', exact: true })
       .and(h.page.locator('[aria-label="Stop"]'))
