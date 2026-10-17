@@ -71,6 +71,14 @@ import type { FeatureContext } from '../features/feature'
  */
 export const RELEASE_WAIT_MS = 3000
 
+/** Runs `step` so a synchronous throw becomes a rejection and cannot skip the steps after it. */
+const attempt = async (step: () => unknown): Promise<unknown> => step()
+/** Waits for every promise to settle, then returns the first failure in list order. */
+async function firstFailure(pending: unknown[]): Promise<PromiseRejectedResult | undefined> {
+  const results = await Promise.allSettled(pending)
+  return results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
+}
+
 export interface RunContext extends ControlContext {
   env: NodeJS.ProcessEnv
   home: string
@@ -119,27 +127,31 @@ async function runHostCommand(context: RunContext): Promise<number> {
     released = resolve
   })
   const closeAndRelease = async () => {
-    try {
-      try {
-        nameLane?.cancel()
-        const stoppingApi = api?.stop()
-        routinesStop ??= routines?.stop()
-        runtimeDrain ??= runtime?.drain('run finished')
-        await Promise.all([stoppingApi, runtimeDrain, routinesStop])
-        await commands?.close()
-        terminals?.close()
-        attachments?.close()
-        await routines?.close()
-        live?.close()
-        store?.close()
-      } finally {
-        await release?.()
-      }
-    } catch (error) {
+    // The stops start together, and nothing closes until all of them have settled.
+    const failures = [
+      await firstFailure([
+        attempt(() => nameLane?.cancel()),
+        attempt(() => api?.stop()),
+        attempt(() => (routinesStop ??= routines?.stop())),
+        attempt(() => (runtimeDrain ??= runtime?.drain('run finished'))),
+      ]),
+    ]
+    // Then one at a time, whatever failed: the store closes only after its last user.
+    for (const close of [
+      () => commands?.close(),
+      () => terminals?.close(),
+      () => attachments?.close(),
+      () => routines?.close(),
+      () => live?.close(),
+      () => store?.close(),
+      () => release?.(),
+    ])
+      failures.push(await firstFailure([attempt(close)]))
+    released()
+    const failure = failures.find((result) => result !== undefined)
+    if (failure) {
       startupExit = 70
-      throw error
-    } finally {
-      released()
+      throw failure.reason
     }
   }
   try {
@@ -159,22 +171,31 @@ async function runHostCommand(context: RunContext): Promise<number> {
         if (drains++ > 0 && (SHUTDOWN_SIGNALS as readonly string[]).includes(reason))
           later = reason as ShutdownSignal
         initAbort.abort()
-        nameLane?.cancel()
-        const stoppingApi = api?.stop()
-        routinesStop ??= routines?.stop()
-        if (runtime) {
-          if (!runtimeDrain) runtimeDrain = runtime.drain(reason)
-          else void runtime.drain(reason)
-        }
+        // Settled from the start, so a failed stop is never unhandled, and it
+        // still waits for the release below before the drain rejects.
+        const stopping = firstFailure([
+          attempt(() => nameLane?.cancel()),
+          attempt(() => api?.stop()),
+          attempt(() => (routinesStop ??= routines?.stop())),
+          attempt(() => {
+            if (!runtime) return
+            if (!runtimeDrain) runtimeDrain = runtime.drain(reason)
+            else void runtime.drain(reason)
+            return runtimeDrain
+          }),
+        ])
         let result: { state: 'stopped' | 'failed' }
         if (loop) result = await loop.drain()
         else {
           await initialization?.catch(() => {})
           result = { state: 'stopped' }
         }
-        await Promise.all([stoppingApi, runtimeDrain, routinesStop])
-        if (runtimeDrain && (await runtimeDrain).state === 'failed') result = { state: 'failed' }
+        // Start-up may have created the runtime or routines since: wait for those too.
+        const drainingRuntime = runtimeDrain
+        const failure = (await stopping) ?? (await firstFailure([drainingRuntime, routinesStop]))
+        if (!failure && (await drainingRuntime)?.state === 'failed') result = { state: 'failed' }
         await Promise.race([unlocked, setTimeout(RELEASE_WAIT_MS, undefined, { ref: false })])
+        if (failure) throw failure.reason
         return result
       },
       exitCode: (_reason, clean) =>
