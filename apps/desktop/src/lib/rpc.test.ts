@@ -145,3 +145,47 @@ describe('RPC envelope contract', () => {
     expect(storedError('s1')).toBeFalsy()
   })
 })
+
+describe('rejected pi invokes', () => {
+  const helpers = [
+    { name: 'piCall', call: piCall, sentinel: undefined },
+    { name: 'piCallOk', call: piCallOk, sentinel: false },
+    { name: 'piCallAccepted', call: piCallAccepted, sentinel: null },
+  ]
+
+  it.each(helpers)(
+    '$name resolves its failure sentinel and reports each rejection once',
+    async ({ call, sentinel }) => {
+      const report = vi.spyOn(useChatStore.getState(), 'setError')
+      try {
+        for (const rejection of [
+          new Error("Error invoking remote method 'pi:command': Error: Process stopped"),
+          { message: "Error invoking remote method 'pi:command': Process stopped" },
+          'Process stopped',
+        ]) {
+          report.mockClear()
+          piCommand.mockRejectedValue(rejection)
+          await expect(call('s1', { type: 'abort' })).resolves.toBe(sentinel)
+          expect(report).toHaveBeenCalledExactlyOnceWith('s1', 'Process stopped')
+          expect(storedError('s1')).toBe('Process stopped')
+        }
+      } finally {
+        report.mockRestore()
+      }
+    },
+  )
+
+  it.each(helpers)('$name does not catch exceptions from envelope reporting', async ({ call }) => {
+    piCommand.mockResolvedValue({ success: false, error: 'refused' })
+    const localError = new Error('local store failure')
+    const report = vi.spyOn(useChatStore.getState(), 'setError').mockImplementation(() => {
+      throw localError
+    })
+    try {
+      await expect(call('s1', { type: 'abort' })).rejects.toBe(localError)
+      expect(report).toHaveBeenCalledExactlyOnceWith('s1', 'refused')
+    } finally {
+      report.mockRestore()
+    }
+  })
+})
