@@ -105,8 +105,14 @@ you want to watch.
 
 - **`apps/desktop/electron/pi/session-writer.ts` appends to pi's own session files**
   (bookmarks, branch jumps, forks). It is only safe while no pi process owns
-  the file — call sites enforce this by convention. It depends on pi's on-disk
-  format staying stable. Tests: `apps/desktop/electron/pi/session-writer.test.ts`.
+  the file, so every caller goes through `apps/desktop/electron/pi/session-mutation.ts`.
+  That boundary runs inside the singleton path lock that resume and deletion share.
+  A label or jump is refused while a live, disposing or routine lane owns the
+  file, or once the file is gone. A fork may read a live source, because it only
+  writes a new file and copies complete lines. Never call the writer directly.
+  The check is process-local: a pi run outside Phosphor is not seen. The writer
+  depends on pi's on-disk format staying stable. Tests:
+  `apps/desktop/electron/pi/session-writer.test.ts`, `session-mutation.test.ts`.
 - **JSONL framing is strict LF via `JsonlDecoder`, never `readline`** —
   U+2028/U+2029 are legal inside JSON strings and readline splits on them.
 - **`libs/session-runtime/src/pi/pi-paths.ts` is the single source of truth** (re-exported from

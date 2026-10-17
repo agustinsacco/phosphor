@@ -45,7 +45,8 @@ Desktop's `apps/desktop/electron/pi/session-runtime.ts` binds the shared session
 `libs/session-runtime/src/pi/session-service.ts` admits create/resume and manual commands;
 `session-startup.ts` owns preparation/readiness and failure disposal. Live budget
 and routine callbacks remain live, while provider/account environment is fixed
-at spawn. Resume and deletion share one owner-local path-lock instance. The
+at spawn. Resume, deletion and Phosphor's own transcript edits share one
+owner-local path-lock instance (§Sessions on disk covers the edits). The
 Node subprocess test exercises this complete path without Electron, using a
 fake pi, not a real provider.
 
@@ -170,6 +171,24 @@ migration, and rewrites only the disposable header cwd to isolate project resour
 - Entry types: `message` (wraps an AgentMessage), `model_change`, `thinking_level_change`, `compaction` (summary, firstKeptEntryId, tokensBefore), `branch_summary` (fromId, summary), `custom` (extension state, not in context), `custom_message` (in context), `label` (targetId, label), `session_info` (name).
 - Sidebar scan: parse header + last `session_info` + first user message + file mtime. Rows order by immutable header creation time (newest first), not mtime, so viewing or updating a session does not move it. Live-update via chokidar on the sessions dir.
 - Sessions are deleted by trashing the `.jsonl` file.
+- The tree view's labels, branch jumps and forks (`sessions:appendLabel`, `sessions:jump`,
+  `sessions:forkAt`) write pi's files from main, through
+  `apps/desktop/electron/pi/session-mutation.ts` and inside the same path lock as resume
+  and deletion. Edits and admissions of one transcript therefore run in call order.
+  - A label or jump is refused, never forced, while a lane in this process owns the file.
+    That covers a live lane, a disposing one (still registered until its process
+    exits) and a routine's claim. Paths are compared canonically, so a symlinked
+    spelling is caught too. It is also refused once the file is gone, so an append
+    queued behind a deletion cannot recreate it. The renderer closes its own lane
+    first; main does not do it for the renderer.
+  - A fork is the deliberate exception. It reads the source and writes a new
+    fresh-id file, and it may run while the source is live, so an open lane's tree
+    can still fork. It copies only the source's complete LF-terminated lines: a live
+    pi can leave a torn last line mid-append, and copying it would merge it with the
+    fork's jump into one unreadable line. The call returns only once the new file
+    holds its jump.
+  - The protection is process-local: a pi that another process started (a terminal,
+    the Host CLI) is not seen.
 
 ## Config on disk
 

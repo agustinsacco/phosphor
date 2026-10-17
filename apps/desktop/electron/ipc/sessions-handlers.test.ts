@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { existsSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
@@ -189,5 +189,46 @@ describe('session edit IPCs queue with resume and deletion on one path lock', ()
     await deletion
     expect(state.trash).toHaveBeenCalledOnce()
     expect(existsSync(source)).toBe(false)
+  })
+})
+
+describe('every edit IPC holds the shared path lock until its file is complete', () => {
+  it.each([
+    ['sessions:appendLabel', () => label(source), 'label'],
+    ['sessions:jump', () => jump(source), 'branch_summary'],
+  ])('%s finishes before a resume queued after it reads the file', async (_, edit, type) => {
+    const done = edit()
+    const seen = await openSessionPath(alias, async () => readFileSync(source, 'utf8'))
+    await done
+    expect(seen.trimEnd().split('\n').at(-1)).toContain(`"type":"${type}"`)
+  })
+
+  it('sessions:forkAt stays pending, holding the source, until its branch is on disk', async () => {
+    const reached = barrier()
+    const append = barrier()
+    state.beforeAppend = async () => {
+      reached.open()
+      await append.wait
+    }
+    const forked = fork(source)
+    const resumed = openSessionPath(alias, async () => readdirSync(join(dir, 'real')))
+    await reached.wait
+    expect(await Promise.race([forked.then(() => 'settled'), Promise.resolve('pending')])).toBe(
+      'pending',
+    )
+    append.open()
+    const path = await forked
+    expect(readFileSync(path, 'utf8').trimEnd().split('\n').at(-1)).toContain(
+      '"type":"branch_summary"',
+    )
+    expect(await resumed).toContain(basename(path))
+  })
+
+  it('sessions:forkAt reads a live source without writing it: the deliberate exception', async () => {
+    state.sessions.set('live-1', { sessionFile: source, alive: true })
+    ownRoutineSession('routine-1', source)
+    const path = await fork(alias)
+    expect(readFileSync(path, 'utf8')).toContain('"parentSession":' + JSON.stringify(alias))
+    expect(await readFile(source, 'utf8')).toBe(SOURCE)
   })
 })

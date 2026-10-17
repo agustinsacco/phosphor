@@ -3,6 +3,7 @@ import { unwatchWorkspaceSessions, watchWorkspaceSessions } from '../pi/session-
 import { listSessions, readSessionTree, workspaceStats } from '../pi/session-scanner'
 import { deleteLane } from '../pi/delete-lane'
 import { appendBranchJump, appendLabel, forkSessionAt } from '../pi/session-writer'
+import { withOfflineSessionMutation, withSessionForkSource } from '../pi/session-mutation'
 import { claudeSessionIdFor } from '../pi/claude-session-map'
 import { forkClaudeLedgerForClone } from '../pi/claude-ledger'
 
@@ -26,16 +27,21 @@ export function registerSessionsHandlers(): void {
 
   handle('sessions:readTree', (_event, sessionFilePath: string) => readSessionTree(sessionFilePath))
 
+  // The lock is taken synchronously, before any await, so call order is lock order.
   handle('sessions:appendLabel', async (_event, sessionFilePath, targetId, label) => {
-    await appendLabel(sessionFilePath, targetId, label)
+    await withOfflineSessionMutation(sessionFilePath, () =>
+      appendLabel(sessionFilePath, targetId, label),
+    )
   })
 
   handle('sessions:jump', async (_event, sessionFilePath, targetId) => {
-    await appendBranchJump(sessionFilePath, targetId)
+    await withOfflineSessionMutation(sessionFilePath, () =>
+      appendBranchJump(sessionFilePath, targetId),
+    )
   })
 
   handle('sessions:forkAt', (_event, sessionFilePath, targetId) =>
-    forkSessionAt(sessionFilePath, targetId),
+    withSessionForkSource(sessionFilePath, () => forkSessionAt(sessionFilePath, targetId)),
   )
 
   handle('sessions:claudeSessionId', (_event, piSessionId: string) =>
