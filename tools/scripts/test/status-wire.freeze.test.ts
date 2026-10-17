@@ -385,3 +385,40 @@ describe('status wire AST literal audit', () => {
     ).toThrow('Unresolved wire expression')
   })
 })
+
+describe('status wire audit regressions', () => {
+  it('rejects recased keys even when the expected fixture is recased too', () => {
+    expect(() => assertWireKeys(['Claude-rate-limit'], ['Claude-rate-limit'])).toThrow()
+  })
+
+  it('audits the routing and parameter-based rate-limit consumers and Host consumer', () => {
+    const audit = literalAudit(auditedTexts)
+    for (const path of [
+      'libs/session-runtime/src/pi/session-startup.ts',
+      'apps/desktop/src/features/home/accountUsage.ts',
+    ]) {
+      expect(audit.consumers.get(path), path).toContain(RATE_LIMIT_STATUS_KEY)
+    }
+    expect(audit.consumers.get('apps/host/src/commands/accept.ts')).toContain(
+      CONTEXT_BREAKDOWN_STATUS_KEY,
+    )
+  })
+
+  it('audits unbound and apply-style extension producers, but not React setters', () => {
+    const audit = literalAudit(
+      new Map([
+        [
+          'libs/pi-extensions/pi-ext/example.ts',
+          `setStatus('phosphor-swarm', '')
+           setStatus.apply(ctx.ui, ['phosphor-headroom', ''])`,
+        ],
+        ['apps/desktop/src/example.tsx', `setStatus('loading')`],
+      ]),
+    )
+    expect(audit.producers.get('libs/pi-extensions/pi-ext/example.ts')).toEqual([
+      'phosphor-swarm',
+      'phosphor-headroom',
+    ])
+    expect(audit.producers.has('apps/desktop/src/example.tsx')).toBe(false)
+  })
+})
