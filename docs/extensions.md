@@ -303,6 +303,13 @@ The Host bundle includes the same files; `accept` seeds them before starting its
 sessions (`doctor` stays read-only). This is an ordinary user-owned pi skill, not
 an immutable package skill: Skills → Yours offers source editing, hiding,
 export and deletion, plus **Restore artifact skill** for a missing folder.
+Deleting a writable skill asks for confirmation naming the bundle. Only
+**Move to Trash** moves the entire folder to the system Trash, where it can be
+recovered. Cancel, Escape and backdrop dismissal leave it untouched. If Trash
+fails, the bundle stays in place and the detail shows the error for retry;
+deletion never falls back to permanent removal. Package and other read-only
+skills cannot be deleted here.
+
 Existing folders or symlinks are never overwritten. App upgrades preserve edits
 and do not silently update the installed copy; delete then restore to adopt a
 new shipped default. The receipt in `<piAgentDir>/.phosphor-bundled-skills/`

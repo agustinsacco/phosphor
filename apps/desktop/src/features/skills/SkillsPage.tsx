@@ -7,12 +7,13 @@ import {
   EMPTY_MACHINE_CATALOGUE,
 } from '@/stores/machineCatalogues'
 import { TooltipButton, TooltipSummary } from '@/components/Tooltip'
-import { memo, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import type { ResolvedSkill, SkillImportPreview, SkillScope } from '@shared/skills'
 import { parseSkillFrontmatter, setSkillDraftFlag } from '@shared/skills'
 import { SKILL_CATALOG, type SkillCatalogLibrary } from '@shared/skillsCatalog'
 import { useSkillsStore } from '@/stores/skills'
+import { promptChoice } from '@/stores/prompt'
 import { useRemoteLanesStore, REMOTE_UNAVAILABLE } from '@/stores/remoteLanes'
 import { PageShell } from '@/components/PageShell'
 import { PaneTitle } from '@/components/PaneShell'
@@ -414,6 +415,7 @@ function SkillDetail({
   const [file, setFile] = useState('SKILL.md')
   const [content, setContent] = useState<string | null>(null)
   const [pending, setPending] = useState<string | null>(null)
+  const deleting = useRef(false)
   const [failure, setFailure] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -473,11 +475,28 @@ function SkillDetail({
       })
     })
 
-  const remove = (): Promise<void> =>
-    run('delete', async () => {
+  const remove = async (): Promise<void> => {
+    if (deleting.current || pending != null) return
+    deleting.current = true
+    setPending('delete')
+    setFailure(null)
+    try {
+      const choice = await promptChoice({
+        title: `Move ${skill.name} to Trash?`,
+        message: `The entire skill bundle at ${skill.dir} will move to the system Trash.`,
+        choices: [{ value: 'trash', label: 'Move to Trash', primary: true }],
+      })
+      if (choice !== 'trash') return
       await window.phosphor.invoke('skills:delete', skill.dir, workspacePath)
       onBack()
-    })
+      await useSkillsStore.getState().refresh(workspacePath)
+    } catch (cause) {
+      setFailure(cause instanceof Error ? cause.message : String(cause))
+    } finally {
+      deleting.current = false
+      setPending(null)
+    }
+  }
 
   const body = useMemo(
     () => (content != null ? parseSkillFrontmatter(content).body : null),
