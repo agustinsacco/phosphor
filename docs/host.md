@@ -755,7 +755,8 @@ whether or not that beat succeeds. A sequence write already running gets up to
 1 more second to land, so the next run reads it. A second signal cuts the beat
 and that wait short and exits with its own code, 130 for SIGINT. Either way it
 first releases its run lock, waiting at most 3 seconds so recovery state is not
-abandoned during shutdown. A signal during start-up stops reconciliation, closes the store and releases the
+abandoned during shutdown. A failed stop or teardown step, the release included,
+makes either exit 70 instead ([Lifecycle](#lifecycle)). A signal during start-up stops reconciliation, closes the store and releases the
 run lock before exiting, without sending a heartbeat.
 
 On Linux, `phosphor service install` requires an enrolled identity and writes
@@ -1338,8 +1339,9 @@ close, the routine database closes, live lanes close, the store closes and the
 run lock releases. A failed step, synchronous or not, skips none of the rest.
 Closing starts only once every stop has settled, failed or not, and goes one step
 at a time, so the store never closes while a user of it still runs. `run` then
-exits 70 with the first failure. A signal's drain whose stop failed still waits
-for the release, then fails with exit 70. Command close refuses new
+exits 70 with the first failure. A signal's drain waits for the release too, at
+most 3 seconds, then fails with exit 70 if one of its own stops failed or, failing
+that, if any step of this teardown did, the release included. Command close refuses new
 work, discards queued work and waits up to 2 seconds for any tail left after
 runtime drain. Late callbacks skip publication and store writes. A second signal
 forces runtime drain immediately. Start-up signals still abort reconciliation

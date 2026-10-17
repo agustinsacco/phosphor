@@ -126,6 +126,8 @@ async function runHostCommand(context: RunContext): Promise<number> {
   const unlocked = new Promise<void>((resolve) => {
     released = resolve
   })
+  // Set before `unlocked` resolves, so a signal's drain fails with it too.
+  let teardownFailure: PromiseRejectedResult | undefined
   const closeAndRelease = async () => {
     // The stops start together, and nothing closes until all of them have settled.
     const failures = [
@@ -147,11 +149,11 @@ async function runHostCommand(context: RunContext): Promise<number> {
       () => release?.(),
     ])
       failures.push(await firstFailure([attempt(close)]))
+    teardownFailure = failures.find((result) => result !== undefined)
     released()
-    const failure = failures.find((result) => result !== undefined)
-    if (failure) {
+    if (teardownFailure) {
       startupExit = 70
-      throw failure.reason
+      throw teardownFailure.reason
     }
   }
   try {
@@ -195,7 +197,9 @@ async function runHostCommand(context: RunContext): Promise<number> {
         const failure = (await stopping) ?? (await firstFailure([drainingRuntime, routinesStop]))
         if (!failure && (await drainingRuntime)?.state === 'failed') result = { state: 'failed' }
         await Promise.race([unlocked, setTimeout(RELEASE_WAIT_MS, undefined, { ref: false })])
-        if (failure) throw failure.reason
+        // A teardown step that failed after this drain's own stops fails the signal's exit too.
+        const failed = failure ?? teardownFailure
+        if (failed) throw failed.reason
         return result
       },
       exitCode: (_reason, clean) =>
