@@ -4,6 +4,7 @@ import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promise
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { claudeProjectDirName } from './pi-paths'
+import type * as PiPaths from './pi-paths'
 
 /**
  * Deleting a Claude Code session used to leave the CLI's copy of the
@@ -19,6 +20,20 @@ const trashed: string[] = []
 const trashItem = vi.fn()
 
 vi.mock('electron', () => ({ shell: { trashItem: (path: string) => trashItem(path) } }))
+
+/** Every argument list the CLI ledger path builder was handed. */
+const ledgerPathCalls = vi.hoisted(() => [] as unknown[][])
+
+vi.mock('./pi-paths', async (importOriginal) => {
+  const actual = await importOriginal<typeof PiPaths>()
+  return {
+    ...actual,
+    claudeSessionFileForCwd: (...args: Parameters<typeof actual.claudeSessionFileForCwd>) => {
+      ledgerPathCalls.push(args)
+      return actual.claudeSessionFileForCwd(...args)
+    },
+  }
+})
 
 const { deleteSession, onBeforeSessionDelete } = await import('./session-deleter')
 
@@ -73,6 +88,12 @@ function transcript(cwd: string, provider: string): string {
   )
 }
 
+/** The same transcript under another header line — a malformed one, say. */
+function transcriptWithHeader(header: unknown, provider: string): string {
+  const [, ...body] = transcript('', provider).split('\n')
+  return line(header) + body.join('\n')
+}
+
 describe('deleteSession', () => {
   let root: string
   let piPath: string
@@ -82,6 +103,7 @@ describe('deleteSession', () => {
 
   beforeEach(async () => {
     trashed.length = 0
+    ledgerPathCalls.length = 0
     trashItem.mockReset()
     trashItem.mockImplementation(async (path: string) => {
       trashed.push(path)
@@ -333,5 +355,52 @@ describe('deleteSession', () => {
 
     await expect(deleteSession(piPath)).resolves.toBeUndefined()
     expect(trashed).toEqual([piPath, claudeLedger])
+  })
+
+  async function readSessionMapFile(): Promise<unknown> {
+    const path = join(process.env.PI_CLAUDE_CLI_STATE_DIR!, 'session-map.json')
+    return JSON.parse(await readFile(path, 'utf8'))
+  }
+
+  it('never hands a non-string header id to the pairing map or the ledger path builder', async () => {
+    // An array stringifies to the id it holds, so `[id]` used to look the
+    // pairing up, forget it, and trash the CLI copy it pointed at.
+    const header = { type: 'session', version: 3, id: [SESSION_ID], cwd: workspace }
+    await writeFile(piPath, transcriptWithHeader(header, 'pi-claude-cli'), 'utf8')
+    await writeSessionMap(CLI_SESSION_ID)
+    await mkdir(claudeDir, { recursive: true })
+    await writeFile(join(claudeDir, `${CLI_SESSION_ID}.jsonl`), line({ type: 'summary' }), 'utf8')
+
+    await deleteSession(piPath)
+
+    // pi's own transcript still goes; nothing of the CLI's is touched.
+    expect(trashed).toEqual([piPath])
+    expect(ledgerPathCalls).toEqual([])
+    expect(await readSessionMapFile()).toEqual({ [SESSION_ID]: CLI_SESSION_ID })
+  })
+
+  it('never hands a non-string header cwd to the ledger path builder', async () => {
+    const header = { type: 'session', version: 3, id: SESSION_ID, cwd: [workspace] }
+    await writeFile(piPath, transcriptWithHeader(header, 'pi-claude-cli'), 'utf8')
+    await writeSessionMap(CLI_SESSION_ID)
+
+    await deleteSession(piPath)
+
+    expect(trashed).toEqual([piPath])
+    expect(ledgerPathCalls).toEqual([])
+    expect(await readSessionMapFile()).toEqual({ [SESSION_ID]: CLI_SESSION_ID })
+  })
+
+  it('still finds a legacy pairing past a null row', async () => {
+    // `null` is valid JSON but not an entry; reading `.type` off it used to
+    // abandon the scan, and the CLI copy with it.
+    const [header, ...body] = transcript(workspace, 'pi-claude-cli').split('\n')
+    await writeFile(piPath, [header, 'null', ...body].join('\n'), 'utf8')
+    await writeClaudeLedger()
+
+    await deleteSession(piPath)
+
+    expect(trashed).toEqual([piPath, claudeLedger])
+    expect(ledgerPathCalls).toEqual([[workspace, SESSION_ID]])
   })
 })
