@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { piCall, piCallOk, rehydrateTranscript } from './rpc'
+import { piCall, piCallOk, piCallAccepted, rehydrateTranscript } from './rpc'
 import { useChatStore } from '@/stores/chat'
 
 const piCommand = vi.fn()
@@ -98,5 +98,50 @@ describe('rehydrateTranscript', () => {
 
     await expect(rehydrateTranscript('s1')).resolves.toBeUndefined()
     expect(storedError('s1')).toBe('session gone')
+  })
+})
+
+describe('RPC envelope contract', () => {
+  it('preserves successful absent data in each helper without changing an existing error', async () => {
+    useChatStore.getState().setError('s1', 'previous error')
+    piCommand.mockResolvedValue({ success: true })
+    await expect(piCall('s1', { type: 'abort' })).resolves.toBeUndefined()
+    await expect(piCallOk('s1', { type: 'abort' })).resolves.toBe(true)
+    await expect(piCallAccepted('s1', { type: 'abort' })).resolves.toEqual({ data: undefined })
+    expect(storedError('s1')).toBe('previous error')
+  })
+
+  it.each([undefined, 'prompt refused'])(
+    'reports a failed envelope with error %s',
+    async (error) => {
+      piCommand.mockResolvedValue({ success: false, error })
+      await expect(piCall('s1', { type: 'prompt', message: 'hi' })).resolves.toBeUndefined()
+      expect(storedError('s1')).toBe(error ?? 'prompt failed')
+      await expect(piCallOk('s1', { type: 'prompt', message: 'hi' })).resolves.toBe(false)
+      expect(storedError('s1')).toBe(error ?? 'prompt failed')
+      await expect(piCallAccepted('s1', { type: 'prompt', message: 'hi' })).resolves.toBeNull()
+      expect(storedError('s1')).toBe(error ?? 'prompt failed')
+    },
+  )
+
+  it('preserves the handled prompt disposition without reporting an error', async () => {
+    const data = { disposition: 'handled' }
+    piCommand.mockResolvedValue({ success: true, data })
+    await expect(piCallAccepted('s1', { type: 'prompt', message: '/command' })).resolves.toEqual({
+      data,
+    })
+    await expect(piCall('s1', { type: 'prompt', message: '/command' })).resolves.toBe(data)
+    await expect(piCallOk('s1', { type: 'prompt', message: '/command' })).resolves.toBe(true)
+    expect(storedError('s1')).toBeFalsy()
+  })
+
+  it('leaves the transcript unchanged when a successful rehydrate has no data', async () => {
+    useChatStore.getState().ensure('s1')
+    useChatStore.getState().hydrate('s1', [{ role: 'user', content: 'keep me', timestamp: 1 }])
+    const items = useChatStore.getState().sessions.s1!.items
+    piCommand.mockResolvedValue({ success: true })
+    await expect(rehydrateTranscript('s1')).resolves.toBeUndefined()
+    expect(useChatStore.getState().sessions.s1!.items).toBe(items)
+    expect(storedError('s1')).toBeFalsy()
   })
 })
