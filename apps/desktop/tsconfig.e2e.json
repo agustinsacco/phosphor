@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Specs run in Node, evaluate code in the renderer (DOM) and in Electron's
+    // main process (app.evaluate), so all three sets of types apply.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node", "electron"],
+    // Resolves the .mjs helpers the specs import; they are not type-checked.
+    "allowJs": true
+  },
+  "include": [
+    "e2e/**/*.ts",
+    "test/e2e/**/*.ts",
+    "playwright.config.ts",
+    // Declares window.phosphor for code the specs run in the renderer.
+    "../../libs/shared/src/ipc.ts"
+  ]
+}
