@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import * as exec from '@phosphor/session-runtime/git/git-exec'
+import { deleteMergedBranch } from './delete'
 import { LaneFolderError, prepareLaneFolder } from './worktree'
 
 vi.mock('node:fs', async (importOriginal) => {
@@ -805,4 +806,18 @@ it('an unborn HEAD without trunk candidates refuses new branches with the generi
     ).rejects.toEqual(new LaneFolderError('The worktree could not be created.'))
   expect(await run(['for-each-ref', 'refs/heads/orphan-lane'])).toBe('')
   expect(existsSync(join(root, '.phosphor', 'worktrees', 'orphan-lane'))).toBe(false)
+})
+
+it('a develop-only lane is created from and later proven against the same trunk', async () => {
+  await run(['branch', '-m', 'develop'])
+  await run(['commit', '--allow-empty', '-m', 'develop'])
+  const develop = await run(['rev-parse', 'develop'])
+  const lane = await prepareLaneFolder({ root, worktree: { branch: 'phosphor/lane', fresh: true } })
+  expect(await run(['rev-parse', 'phosphor/lane'])).toBe(develop)
+  await run(['commit', '--allow-empty', '-m', 'lane work'], lane.cwd)
+  await run(['worktree', 'remove', lane.cwd])
+  expect(await deleteMergedBranch(root, 'phosphor/lane')).toBe(false)
+  await run(['merge', '--no-ff', '-m', 'merge lane', 'phosphor/lane'])
+  expect(await deleteMergedBranch(root, 'phosphor/lane')).toBe(true)
+  expect(await run(['for-each-ref', 'refs/heads/phosphor/lane'])).toBe('')
 })
