@@ -78,9 +78,21 @@ and notification clicks share [notice navigation](chat.md#notice-navigation).
 local lane. Read counters come from the Host and clear unread across clients.
 
 `IPC_SCOPE` classifies every invoke channel as app-local or machine-scoped.
-Unrouted machine channels reject opaque remote workspace keys and remote handles,
-including nested options, with “Not available on remote lanes yet.” They never
-fall through to this machine's filesystem or subprocesses.
+`electron/ipc/machine-resource-args.ts` declares, for every machine channel, the
+arguments that name a local resource: positional paths and handles, named option
+fields such as `pi:createSession`'s `workspacePath`, `sessionPath` and `forkFrom`,
+and each item of a path array. Each declaration is typed against the channel's
+arguments, so a machine channel without one, or a selector its types do not
+allow, does not compile. Once the remote routers decline a call, a selected
+position holding a `host:` workspace key or a `remote-<16 hex>` handle fails with
+“Not available on remote lanes yet.” So does one that is not a string where its
+type requires one, a malformed options object or array, or an array over 4096
+items. Such a call never falls through to this machine's filesystem or
+subprocesses. Nothing else is inspected: file content, terminal input, commit
+messages, routine instructions, labels, HTML, configs and settings patches reach
+the local handler unchanged. The four `pi:` channels main routes by handle
+(`pi:command`, `pi:extensionUiResponse`, `pi:disposeSession`,
+`pi:listLiveSessions`) are declared exempt.
 
 ### Attention receipt enrichment
 

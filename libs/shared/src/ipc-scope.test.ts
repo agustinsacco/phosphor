@@ -1,5 +1,6 @@
-import { expect, it } from 'vitest'
-import { IPC_SCOPE } from './ipc-scope'
+import { expect, expectTypeOf, it } from 'vitest'
+import type { IpcInvokeChannel } from './ipc'
+import { IPC_SCOPE, type MachineChannel } from './ipc-scope'
 
 it('lists the reviewed machine surface; everything else is app-local', () => {
   const machine = {
@@ -38,4 +39,13 @@ it('lists the reviewed machine surface; everything else is app-local', () => {
   expect(Object.values(IPC_SCOPE).every((scope) => scope === 'app' || scope === 'machine')).toBe(
     true,
   )
+})
+
+it('keeps each classification literal so MachineChannel derives without widening', () => {
+  expectTypeOf<keyof typeof IPC_SCOPE>().toEqualTypeOf<IpcInvokeChannel>()
+  expectTypeOf<(typeof IPC_SCOPE)['app:getPrefs']>().toEqualTypeOf<'app'>()
+  expectTypeOf<(typeof IPC_SCOPE)['fs:readFile']>().toEqualTypeOf<'machine'>()
+  expectTypeOf<'fs:readFile' | 'pi:command' | 'pty:write'>().toExtend<MachineChannel>()
+  expectTypeOf<'hosts:openLane'>().not.toExtend<MachineChannel>()
+  expectTypeOf<'app:getPrefs'>().not.toExtend<MachineChannel>()
 })

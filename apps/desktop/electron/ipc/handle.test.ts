@@ -19,19 +19,16 @@ it('rejects opaque workspaces and remote handles before any local handler runs',
   wrapped({}, '/local/file')
   expect(local).toHaveBeenCalledOnce()
 })
-it('allows app channels and explicitly routed pi calls, but bounds nested traversal', () => {
+it('allows app channels and explicitly routed pi calls, and bounds only selected keys', () => {
   expect(() => rejectRemoteArguments('hosts:openLane', ['remote-0123456789abcdef'])).not.toThrow()
   expect(() => rejectRemoteArguments('pi:command', ['remote-0123456789abcdef'])).not.toThrow()
   expect(() =>
-    rejectRemoteArguments(
-      'fs:readFile',
-      Array.from({ length: 4096 }, () => 'local'),
-    ),
+    rejectRemoteArguments('fs:statDirs', [Array.from({ length: 4097 }, () => '/local')]),
   ).toThrow()
   expect(() =>
     rejectRemoteArguments(
       'fs:readFile',
-      Array.from({ length: 4095 }, () => 'local'),
+      Array.from({ length: 4097 }, () => 'local'),
     ),
   ).not.toThrow()
   let nested: unknown = 'local'
