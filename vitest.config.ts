@@ -38,5 +38,8 @@ export default defineConfig({
     // Node by default; DOM-dependent suites opt in per file with
     // `// @vitest-environment jsdom` so the fast majority stay in node.
     environment: 'node',
+    // Enabled only by the unit runner, with explicit owned-source includes.
+    // No global threshold: existing unmeasured coverage is not a baseline.
+    coverage: { provider: 'v8', reporter: ['json'] },
   },
 })
