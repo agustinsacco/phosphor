@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs'
 import { promisify } from 'node:util'
 import { MIN_PI_VERSION, type PiHealth } from '@shared/models'
 import { compareVersions, extractVersion } from '@phosphor/session-runtime/pi/versions'
-import { getLoginShellPath, piProcessEnv } from './shell-env'
+import { piProcessEnv } from './shell-env'
+import { lookupPosixBinary, windowsWhereOutput } from './binary-lookup'
 import { createTtlCache } from './ttl-cache'
 import {
   describeWindowsLaunchFailure,
@@ -111,37 +112,12 @@ type PiLookup = { ok: true; launch: WindowsLaunch } | { ok: false; failure: Wind
 
 async function findPi(): Promise<PiLookup> {
   if (process.platform === 'win32') return probeWindows()
-  const file = await probePosix()
+  // The login-shell PATH first: the version-manager-aware case, and what pi
+  // is also spawned with.
+  const file = await lookupPosixBinary('pi')
   return file
     ? { ok: true, launch: { file, prefixArgs: [] } }
     : { ok: false, failure: { kind: 'not-found' } }
-}
-
-async function probePosix(): Promise<string | null> {
-  // 1. Login-shell PATH (the version-manager-aware case, and what we will
-  //    also hand to pi when spawning it).
-  const shellPath = await getLoginShellPath()
-  if (shellPath) {
-    try {
-      const { stdout } = await execFileAsync('/bin/sh', ['-c', 'command -v pi'], {
-        timeout: 15_000,
-        env: { ...process.env, PATH: shellPath },
-      })
-      const found = stdout.trim().split('\n').pop()?.trim()
-      if (found) return found
-    } catch {
-      // fall through
-    }
-  }
-  // 2. The process PATH (dev runs launched from a terminal).
-  try {
-    const { stdout } = await execFileAsync('/bin/sh', ['-c', 'command -v pi'], { timeout: 15_000 })
-    const found = stdout.trim().split('\n').pop()?.trim()
-    if (found) return found
-  } catch {
-    // fall through
-  }
-  return null
 }
 
 /**
@@ -154,12 +130,7 @@ async function probePosix(): Promise<string | null> {
  * is not, and the failure message says so.
  */
 async function probeWindows(): Promise<PiLookup> {
-  const where = async (name: string): Promise<string> => {
-    const { stdout } = await execFileAsync('where', [name], { timeout: 15_000 })
-    return stdout
-  }
-  const stdout = await where('pi').catch(() => '')
-  return resolveWindowsLaunch(stdout, {
+  return resolveWindowsLaunch(await windowsWhereOutput('pi'), {
     readShim: (path) => {
       try {
         return readFileSync(path, 'utf8')
@@ -167,7 +138,7 @@ async function probeWindows(): Promise<PiLookup> {
         return null
       }
     },
-    whereNode: () => where('node'),
+    whereNode: () => windowsWhereOutput('node'),
   })
 }
 
