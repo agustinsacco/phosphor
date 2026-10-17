@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { BoundedCache, NonceCache, RateLimiter } from './limits'
+import { BoundedCache, NonceCache, RATE_PURPOSE_CAPACITIES, RateLimiter } from './limits'
 it('bounds cache state, evicts oldest and expires exactly at deadline', () => {
   let now = 0
   const cache = new BoundedCache<string>(() => now, 2)
@@ -156,4 +156,77 @@ it('pins argument checks: boundaries accepted, invalid values throw even at capa
   expect(limit.size).toBe(1)
   for (const capacity of [0, -1, 1.5, Number.NaN])
     expect(() => new RateLimiter(() => 0, capacity)).toThrow('Invalid cache capacity')
+})
+
+it('gives each declared purpose its own capacity and expiry', () => {
+  let now = 0
+  const limit = new RateLimiter(() => now, { a: 2, b: 1 })
+  expect(limit.consume('a:1', 5, 100)).toBe(true)
+  expect(limit.consume('a:2', 5, 1000)).toBe(true)
+  expect(limit.consume('a:3', 5, 100)).toBe(false)
+  // A full purpose neither refuses another nor evicts its own live windows.
+  expect(limit.consume('b:1', 5, 1000)).toBe(true)
+  expect(limit.consume('b:2', 5, 100)).toBe(false)
+  expect(limit.consume('a:1', 5, 100)).toBe(true)
+  expect(limit.size).toBe(3)
+  now = 100
+  expect(limit.consume('a:3', 5, 100)).toBe(true)
+  expect(limit.consume('a:4', 5, 100)).toBe(false)
+  expect(limit.consume('b:2', 5, 100)).toBe(false)
+  now = 1000
+  expect(limit.consume('b:2', 5, 100)).toBe(true)
+  expect(limit.size).toBe(3)
+})
+
+it('keys the purpose by the prefix before the first colon and refuses undeclared ones', () => {
+  const limit = new RateLimiter(() => 0, { 'user-verify': 1 })
+  expect(limit.consume('user-verify:2001:db8:0:0::/64', 5, 100)).toBe(true)
+  expect(limit.consume('user-verify:192.0.2.1', 5, 100)).toBe(false)
+  for (const key of ['enrollment-create:192.0.2.1', 'user-verify', 'User-verify:x', ':x', '']) {
+    expect(limit.consume(key, 5, 100)).toBe(false)
+    expect(limit.available(key, 5, 100)).toBe(false)
+  }
+  expect(limit.size).toBe(1)
+  // Argument checks come first, whatever the purpose.
+  expect(() => limit.consume('unknown:x', 0, 100)).toThrow('Invalid rate limit')
+  expect(() => limit.consume('user-verify:' + 'x'.repeat(501), 1, 100)).toThrow()
+})
+
+it('reads and spends the same window through available and consume', () => {
+  let now = 0
+  const limit = new RateLimiter(() => now, { 'enrollment-failure': 1, 'user-verify': 1 })
+  const key = 'enrollment-failure:user'
+  expect(limit.available(key, 2, 100)).toBe(true)
+  expect(limit.consume(key, 2, 100)).toBe(true)
+  expect(limit.available(key, 2, 100)).toBe(true)
+  expect(limit.consume(key, 2, 100)).toBe(true)
+  expect(limit.available(key, 2, 100)).toBe(false)
+  expect(limit.available('user-verify:user', 1, 100)).toBe(true)
+  now = 100
+  expect(limit.available(key, 2, 100)).toBe(true)
+})
+
+it('bounds all eight control purposes together at 80,000 keys', () => {
+  expect(RATE_PURPOSE_CAPACITIES).toEqual({
+    'enrollment-create': 10_000,
+    'enrollment-poll-ip': 10_000,
+    'enrollment-poll': 10_000,
+    'enrollment-failure': 10_000,
+    'user-verify': 10_000,
+    'host-auth': 10_000,
+    'grant-issue': 10_000,
+    'client-register': 10_000,
+  })
+  const limit = new RateLimiter(() => 0, RATE_PURPOSE_CAPACITIES)
+  for (const purpose of Object.keys(RATE_PURPOSE_CAPACITIES)) {
+    for (let i = 0; i < 10_000; i++) expect(limit.consume(`${purpose}:${i}`, 1, 100)).toBe(true)
+    expect(limit.consume(`${purpose}:new`, 1, 100)).toBe(false)
+  }
+  expect(limit.size).toBe(80_000)
+  for (const purpose of Object.keys(RATE_PURPOSE_CAPACITIES))
+    expect(limit.consume(`${purpose}:new`, 1, 100)).toBe(false)
+  expect(limit.size).toBe(80_000)
+  const tables: Record<string, number>[] = [{}, { a: 0 }, { a: 1, b: 1.5 }, { a: Number.NaN }]
+  for (const table of tables)
+    expect(() => new RateLimiter(() => 0, table)).toThrow('Invalid cache capacity')
 })

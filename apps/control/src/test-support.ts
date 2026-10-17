@@ -2,7 +2,7 @@ import { createHash, generateKeyPairSync, randomBytes, sign } from 'node:crypto'
 import { HOST_HEADERS, hostSigningString } from '@phosphor/shared/control-api'
 import { vi } from 'vitest'
 import { parseConfig } from './config'
-import { RateLimiter, NonceCache } from './limits'
+import { RATE_PURPOSE_CAPACITIES, RateLimiter, NonceCache } from './limits'
 import type { AppDeps } from './app'
 
 export const userId = '0b6f7c1e-2f4a-4c8e-9d1b-5a7e3c2f1d00'
@@ -63,7 +63,7 @@ export function dependencies(): AppDeps {
       getUser: vi.fn(async () => ({ id: userId, user_metadata: { user_name: 'tester' } })),
       rpc: vi.fn(async () => ({ enabled: true, maxHosts: 20 })),
     },
-    limits: new RateLimiter(clock),
+    limits: new RateLimiter(clock, RATE_PURPOSE_CAPACITIES),
     nonces: { key: new NonceCache(clock), host: new NonceCache(clock) },
   }
 }

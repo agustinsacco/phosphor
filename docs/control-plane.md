@@ -122,9 +122,15 @@ on process restart. Nothing logs headers, bodies, tokens, codes, keys, peer/clie
 edge secrets or peer error messages. [Tracing a machine](remote-development.md#tracing-a-machine)
 lists the events and their correlation rules.
 
-The reusable sliding-window limiter has a 10,000-key cap. At capacity it sweeps
-expired windows and refuses new keys with 429 rather than evicting live windows.
-Enrollment creates are limited to ten per hour per IP before signature checking
+Rate limits are sliding windows held per purpose, the key prefix before the
+first colon. Each of the eight purposes (`enrollment-create`, `enrollment-poll-ip`,
+`enrollment-poll`, `enrollment-failure`, `user-verify`, `host-auth`,
+`grant-issue`, `client-register`) has its own 10,000-key cap, 80,000 keys in all.
+At capacity a purpose sweeps its expired windows and refuses new keys with 429
+rather than evicting live windows. Saturating one purpose never refuses another,
+so an unauthenticated enrollment flood cannot spend the capacity of user
+verification, Host authentication or grant issuance. A key of an undeclared
+purpose is refused. Enrollment creates are limited to ten per hour per IP before signature checking
 or nonce consumption. Polls are limited to sixty per minute per IP before the
 request contract is validated, then to one per two seconds per parsed enrollment id, both
 before signature checking; Hosts sharing an address share the first limit.
