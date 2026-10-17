@@ -81,3 +81,32 @@ describe('vitest.config.ts legacy unit-test layout', () => {
     expect(layout.unstubGlobals).toBe(false)
   })
 })
+
+describe('vitest.config.ts relocated unit-test layout', () => {
+  it('collects both layouts exactly once, including overlapping tooling globs', async () => {
+    const newPaths = [
+      'apps/desktop/test/session.test.ts',
+      'apps/desktop/test/nested/session.test.ts',
+      'apps/desktop/test/view.test.tsx',
+      'apps/desktop/test/nested/view.test.tsx',
+      'apps/host/test/session.test.ts',
+      'apps/host/test/nested/session.test.ts',
+      'apps/control/test/auth.test.ts',
+      'apps/control/test/nested/auth.test.ts',
+      'libs/shared/test/protocol.test.ts',
+      'libs/shared/test/nested/protocol.test.ts',
+      'libs/session-runtime/test/session.test.ts',
+      'libs/session-runtime/test/nested/session.test.ts',
+      'libs/pi-extensions/test/guard.test.ts',
+      'libs/pi-extensions/test/nested/guard.test.ts',
+      'tools/scripts/test/release.test.ts',
+      'tools/scripts/test/nested/release.test.ts',
+      'tools/host-release/test/release.test.ts',
+      'tools/host-release/test/nested/release.test.ts',
+    ]
+    const expected = [...legacyPaths, ...newPaths]
+    const layout = await collectLayout([...expected, ...ignoredPaths])
+    expect(layout.files.sort()).toEqual(expected.sort())
+    expect(new Set(layout.files).size).toBe(expected.length)
+  })
+})
