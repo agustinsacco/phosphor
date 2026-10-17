@@ -187,3 +187,83 @@ describe('comprehensive typecheck runner', () => {
     expect(() => runTypecheck(root, () => 0)).toThrow(/site.*local installation/i)
   })
 })
+
+describe('typecheck review regressions', () => {
+  it('ignores tracked files deleted from disk before the deletion is staged', () => {
+    const root = coverageFixture()
+    write(root, 'gone.ts', 'export {}')
+    execFileSync('git', ['add', 'gone.ts'], { cwd: root })
+    rmSync(join(root, 'gone.ts'))
+    expect(auditCoverage(root, ['tsconfig.json'])).toEqual([])
+  })
+
+  it.each(['typecheck.mjs', 'typecheck-coverage.mjs'])(
+    'runs %s when its entry path is a symlink',
+    (entry) => {
+      const root = fixture()
+      for (const script of ['typecheck.mjs', 'typecheck-coverage.mjs'])
+        write(
+          root,
+          `tools/scripts/${script}`,
+          readFileSync(join(repo, 'tools/scripts', script), 'utf8'),
+        )
+      symlinkSync(join(repo, 'node_modules'), join(root, 'node_modules'), 'dir')
+      const link = join(root, 'entry.mjs')
+      symlinkSync(join(root, 'tools/scripts', entry), link)
+      let failure: unknown
+      try {
+        execFileSync(process.execPath, [link], { encoding: 'utf8', stdio: 'pipe' })
+      } catch (error) {
+        failure = error
+      }
+      expect(failure).toMatchObject({
+        status: 1,
+        stderr: expect.stringContaining('apps/desktop/tsconfig.node.json'),
+      })
+    },
+  )
+
+  it('spawns Windows npm.cmd through a shell', () => {
+    const root = runnerFixture()
+    const output = execFileSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `
+        import cp from 'node:child_process'
+        import { syncBuiltinESMExports } from 'node:module'
+        const calls = []
+        cp.spawnSync = (command, args, options) => {
+          calls.push({ command, args, options })
+          return { status: 0 }
+        }
+        syncBuiltinESMExports()
+        Object.defineProperty(process, 'platform', { value: 'win32' })
+        const { runTypecheck } = await import(${JSON.stringify(new URL('../typecheck.mjs', import.meta.url).href)})
+        runTypecheck(${JSON.stringify(root)})
+        console.log(JSON.stringify(calls.at(-1)))
+      `,
+      ],
+      { encoding: 'utf8' },
+    )
+    expect(JSON.parse(output)).toMatchObject({
+      command: 'npm.cmd',
+      args: ['run', 'check'],
+      options: { cwd: join(root, 'apps/site'), shell: true },
+    })
+  })
+
+  it('does not grant all tools files an ambient desktop-only node-pty module', () => {
+    const config = JSON.parse(readFileSync(join(repo, 'tsconfig.tools.json'), 'utf8'))
+    expect(config.compilerOptions.types).toEqual(['node'])
+  })
+
+  it('documents that the validator checks Host through the root typecheck command', () => {
+    const docs = readFileSync(join(repo, 'docs/host.md'), 'utf8')
+    expect(docs).toContain("The validator's `npm run typecheck` includes the Host project")
+    expect(docs).not.toContain(
+      '`npm run typecheck:host` and `npm run build:host` run in the validator',
+    )
+  })
+})
