@@ -187,4 +187,87 @@ describe('readSessionTree', () => {
     ])
     expect(tree.leafId).toBe('aaaa0007')
   })
+
+  it('reads every field of a well-formed transcript', async () => {
+    const at = '2026-08-01T10:00:01.000Z'
+    const long = 'x'.repeat(500)
+    const tree = await treeOf(
+      line(HEADER),
+      line({
+        type: 'model_change',
+        id: 'm1',
+        parentId: null,
+        timestamp: at,
+        provider: 'p',
+        modelId: 'm',
+      }),
+      line({
+        type: 'thinking_level_change',
+        id: 't1',
+        parentId: 'm1',
+        timestamp: at,
+        thinkingLevel: 'high',
+      }),
+      line(message('u1', 't1', { role: 'user', content: [{ type: 'text', text: 'hi' }] })),
+      line(
+        message('a1', 'u1', {
+          role: 'assistant',
+          content: [
+            { type: 'thinking', thinking: 'hmm' },
+            { type: 'text', text: 'Reading.' },
+            { type: 'toolCall', id: 'c1', name: 'read', arguments: {} },
+            { type: 'toolCall', id: 'c2', name: 'grep', arguments: {} },
+          ],
+        }),
+      ),
+      line(message('r1', 'a1', { role: 'toolResult', toolName: 'read', content: [] })),
+      line({ type: 'label', id: 'l1', parentId: 'r1', timestamp: at, targetId: 'u1', label: 'cp' }),
+      line({ type: 'compaction', id: 'c1', parentId: 'l1', timestamp: at, summary: long }),
+      line({ type: 'session_info', id: 's1', parentId: 'c1', timestamp: at, name: 'Named' }),
+    )
+
+    expect(tree).toEqual({
+      sessionId: 'sess-uuid-1',
+      cwd: '/work/proj',
+      leafId: 's1',
+      entries: [
+        {
+          id: 'm1',
+          parentId: null,
+          type: 'model_change',
+          timestamp: at,
+          provider: 'p',
+          modelId: 'm',
+        },
+        {
+          id: 't1',
+          parentId: 'm1',
+          type: 'thinking_level_change',
+          timestamp: at,
+          thinkingLevel: 'high',
+        },
+        { id: 'u1', parentId: 't1', type: 'message', timestamp: at, role: 'user', preview: 'hi' },
+        {
+          id: 'a1',
+          parentId: 'u1',
+          type: 'message',
+          timestamp: at,
+          role: 'assistant',
+          preview: 'Reading.',
+          toolName: 'read, grep',
+        },
+        {
+          id: 'r1',
+          parentId: 'a1',
+          type: 'message',
+          timestamp: at,
+          role: 'toolResult',
+          toolName: 'read',
+        },
+        { id: 'l1', parentId: 'r1', type: 'label', timestamp: at, targetId: 'u1', label: 'cp' },
+        { id: 'c1', parentId: 'l1', type: 'compaction', timestamp: at, summary: 'x'.repeat(400) },
+        { id: 's1', parentId: 'c1', type: 'session_info', timestamp: at, name: 'Named' },
+      ],
+    })
+  })
 })

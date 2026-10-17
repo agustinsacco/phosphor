@@ -5,7 +5,99 @@ import { extractText } from './session-content'
 /**
  * Read a persisted session file into the branch structure the tree view
  * renders: one entry per JSONL record, with previews and tool names.
+ *
+ * The file is pi's, so every value is checked before it is used. A line that
+ * is not an object, or a row without a string `type` and `id`, is skipped; an
+ * optional field of the wrong type is left out. A malformed row costs only
+ * itself, never the rows around it or the leaf.
  */
+
+type JsonRecord = Record<string, unknown>
+
+/** Optional entry fields read straight off the row as strings. */
+type OptionalStringField = Exclude<keyof SessionTreeEntry, 'id' | 'parentId' | 'type' | 'timestamp'>
+
+function isRecord(value: unknown): value is JsonRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function stringOrUndefined(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function setIfString(node: SessionTreeEntry, field: OptionalStringField, value: unknown): void {
+  if (typeof value === 'string') node[field] = value
+}
+
+function parseRecord(line: string): JsonRecord | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(line)
+  } catch {
+    return null
+  }
+  return isRecord(parsed) ? parsed : null
+}
+
+/** Content blocks that are objects, and whose text, on a text block, is a string. */
+function contentBlocks(content: unknown[]): JsonRecord[] {
+  return content.filter(
+    (block): block is JsonRecord =>
+      isRecord(block) && (block.type !== 'text' || typeof block.text === 'string'),
+  )
+}
+
+function previewOf(content: unknown): string | undefined {
+  return extractText(Array.isArray(content) ? contentBlocks(content) : content)?.slice(0, 160)
+}
+
+function readMessage(node: SessionTreeEntry, message: JsonRecord): void {
+  const role = stringOrUndefined(message.role)
+  if (role === undefined) return
+  node.role = role
+  if (role === 'user') {
+    setIfString(node, 'preview', previewOf(message.content))
+  } else if (role === 'assistant' && Array.isArray(message.content)) {
+    const blocks = contentBlocks(message.content)
+    setIfString(node, 'preview', previewOf(blocks))
+    const tools = blocks.filter((block) => block.type === 'toolCall')
+    if (tools.length > 0) {
+      node.toolName = tools
+        .map((tool) => tool.name)
+        .filter((name): name is string => typeof name === 'string' && name.length > 0)
+        .join(', ')
+    }
+  } else if (role === 'toolResult') {
+    setIfString(node, 'toolName', message.toolName)
+  }
+}
+
+function treeEntry(entry: JsonRecord, id: string, type: string): SessionTreeEntry {
+  const node: SessionTreeEntry = {
+    id,
+    parentId: stringOrUndefined(entry.parentId) ?? null,
+    type,
+    timestamp: stringOrUndefined(entry.timestamp) ?? '',
+  }
+
+  if (type === 'message') {
+    if (isRecord(entry.message)) readMessage(node, entry.message)
+  } else if (type === 'label') {
+    setIfString(node, 'targetId', entry.targetId)
+    setIfString(node, 'label', entry.label)
+  } else if (type === 'branch_summary' || type === 'compaction') {
+    if (typeof entry.summary === 'string') node.summary = entry.summary.slice(0, 400)
+  } else if (type === 'session_info') {
+    setIfString(node, 'name', entry.name)
+  } else if (type === 'model_change') {
+    setIfString(node, 'provider', entry.provider)
+    setIfString(node, 'modelId', entry.modelId)
+  } else if (type === 'thinking_level_change') {
+    setIfString(node, 'thinkingLevel', entry.thinkingLevel)
+  }
+
+  return node
+}
 
 export async function readSessionTree(path: string): Promise<SessionTree> {
   const raw = await readFile(path, 'utf8')
@@ -16,64 +108,17 @@ export async function readSessionTree(path: string): Promise<SessionTree> {
   let leafId: string | null = null
 
   for (const line of lines) {
-    let entry: Record<string, unknown>
-    try {
-      entry = JSON.parse(line) as Record<string, unknown>
-    } catch {
+    const entry = parseRecord(line)
+    if (!entry || typeof entry.type !== 'string') continue
+    if (entry.type === 'session') {
+      sessionId = stringOrUndefined(entry.id) ?? ''
+      cwd = stringOrUndefined(entry.cwd) ?? ''
       continue
     }
-    const type = entry.type as string
-    if (type === 'session') {
-      sessionId = (entry.id as string) ?? ''
-      cwd = (entry.cwd as string) ?? ''
-      continue
-    }
-    const id = entry.id as string
-    if (!id) continue
+    const id = entry.id
+    if (typeof id !== 'string' || !id) continue
     leafId = id
-
-    const node: SessionTreeEntry = {
-      id,
-      parentId: (entry.parentId as string | null) ?? null,
-      type,
-      timestamp: (entry.timestamp as string) ?? '',
-    }
-
-    if (type === 'message') {
-      const message = entry.message as { role?: string; content?: unknown } | undefined
-      node.role = message?.role
-      if (message?.role === 'user') {
-        node.preview = extractText(message.content)?.slice(0, 160)
-      } else if (message?.role === 'assistant') {
-        const content = message?.content
-        if (Array.isArray(content)) {
-          node.preview = extractText(content)?.slice(0, 160)
-          const tools = content.filter((b) => (b as { type?: string }).type === 'toolCall')
-          if (tools.length > 0) {
-            node.toolName = tools
-              .map((t) => (t as { name?: string }).name)
-              .filter(Boolean)
-              .join(', ')
-          }
-        }
-      } else if (message?.role === 'toolResult') {
-        node.toolName = (message as { toolName?: string }).toolName
-      }
-    } else if (type === 'label') {
-      node.targetId = entry.targetId as string
-      node.label = entry.label as string | undefined
-    } else if (type === 'branch_summary' || type === 'compaction') {
-      node.summary = (entry.summary as string | undefined)?.slice(0, 400)
-    } else if (type === 'session_info') {
-      node.name = entry.name as string | undefined
-    } else if (type === 'model_change') {
-      node.provider = entry.provider as string | undefined
-      node.modelId = entry.modelId as string | undefined
-    } else if (type === 'thinking_level_change') {
-      node.thinkingLevel = entry.thinkingLevel as string | undefined
-    }
-
-    entries.push(node)
+    entries.push(treeEntry(entry, id, entry.type))
   }
 
   return { sessionId, cwd, entries, leafId }
