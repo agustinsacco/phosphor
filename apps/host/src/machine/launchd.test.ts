@@ -26,10 +26,9 @@ import {
   readLogTail,
   readServiceExit,
   serviceExitPath,
-  writeLaunchAgent,
-  removeLaunchAgent,
 } from './launchd'
 import { hostLogDirectory } from './log'
+import { removeServiceUnit, writeServiceUnit } from './systemd'
 vi.mock('node:fs', async (importOriginal) => {
   const fs = await importOriginal<typeof Fs>()
   return { ...fs, fstatSync: vi.fn(fs.fstatSync) }
@@ -64,7 +63,7 @@ describe('launchd', () => {
     'lints escaped XML in a temporary directory',
     async () => {
       const path = join(root, 'agent.plist')
-      await writeLaunchAgent(path, plist('/a&<>"\'b'))
+      await writeServiceUnit(path, plist('/a&<>"\'b'))
       expect(execFileSync('plutil', ['-lint', path], { encoding: 'utf8' })).toContain('OK')
     },
   )
@@ -110,14 +109,14 @@ describe('launchd', () => {
   })
   it('writes atomically at 0644 and removes idempotently', async () => {
     const path = join(root, 'LaunchAgents', 'agent.plist')
-    await writeLaunchAgent(path, 'old')
+    await writeServiceUnit(path, 'old')
     await chmod(path, 0o600)
-    await writeLaunchAgent(path, 'new')
+    await writeServiceUnit(path, 'new')
     expect(await readFile(path, 'utf8')).toBe('new')
     expect((await stat(path)).mode & 0o777).toBe(0o644)
     expect(await readdir(join(root, 'LaunchAgents'))).toEqual(['agent.plist'])
-    await removeLaunchAgent(path)
-    await removeLaunchAgent(path)
+    await removeServiceUnit(path)
+    await removeServiceUnit(path)
   })
   it('whitelists state, pid and exit code, not environment or malformed lines', () => {
     expect(
@@ -161,7 +160,7 @@ describe('launchd', () => {
     await writeFile(path, 'a'.repeat(1024 * 1024 - 256 * 1024 + 1) + 'b'.repeat(256 * 1024))
     prepareLaunchdRun({}, root, ports(path))
     expect(await readFile(path, 'utf8')).toBe('b'.repeat(256 * 1024))
-    await removeLaunchAgent(path)
+    await removeServiceUnit(path)
     prepareLaunchdRun({}, root, ports(path))
   })
   it('never follows a symlink to compact its target', async () => {
@@ -253,7 +252,7 @@ describe('launchd', () => {
     expect(await readServiceExit(path)).toBe('config invalid')
     await writeFile(path, record.padEnd(1025))
     expect(await readServiceExit(path)).toBeUndefined()
-    await removeLaunchAgent(path)
+    await removeServiceUnit(path)
     expect(await readServiceExit(path)).toBeUndefined()
   })
 })
