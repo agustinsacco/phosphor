@@ -35,7 +35,7 @@ vi.mock('../pi/session-runtime', () => ({
   },
 }))
 vi.mock('../pi/print-mode', () => ({ runPrintMode: h.print }))
-vi.mock('./pi-config-handlers', () => ({ catalogueModels: async () => [] }))
+vi.mock('../pi/catalogue', () => ({ catalogueModels: async () => [] }))
 vi.mock('@phosphor/session-runtime/pi/packages', () => ({ listPackages: async () => [] }))
 vi.mock('@phosphor/session-runtime/pi/agent-settings', () => ({
   readAgentSettings: async () => ({ defaultProvider: 'openai' }),

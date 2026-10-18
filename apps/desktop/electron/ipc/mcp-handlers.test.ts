@@ -48,7 +48,6 @@ vi.mock('../pi/health', () => ({ checkPiHealth: state.health }))
 vi.mock('../pi/shell-env', () => ({ piProcessEnv: state.env }))
 vi.mock('../pi/stub', () => ({ piStubPath: state.stub }))
 vi.mock('../broadcast', () => ({ broadcast: state.broadcast }))
-vi.mock('./pi-config-handlers', () => ({ invalidatePiCommands: state.invalidate }))
 vi.mock('../pi/catalogue', () => ({ invalidatePiCommands: state.invalidate }))
 
 async function invoke<C extends IpcInvokeChannel>(

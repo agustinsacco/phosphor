@@ -45,10 +45,6 @@ vi.mock('../pi/health', async (original) => ({
   checkPiHealth: state.health,
   invalidatePiHealth: state.invalidateHealth,
 }))
-vi.mock('./pi-config-handlers', () => ({
-  invalidateCatalogueModels: state.invalidateModels,
-  invalidatePiCommands: state.invalidateCommands,
-}))
 vi.mock('../pi/catalogue', () => ({
   invalidateCatalogueModels: state.invalidateModels,
   invalidatePiCommands: state.invalidateCommands,

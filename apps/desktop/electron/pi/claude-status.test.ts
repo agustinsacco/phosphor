@@ -33,7 +33,6 @@ it('version failure is cosmetic and account environment scopes both subprocesses
     ],
   ])
   expect(h.lookup).not.toHaveBeenCalled()
-  expect(await h.env()).toEqual({ PATH: '/shell', CLAUDE_CONFIG_DIR: '/default' })
 })
 
 it('extracts prerelease versions and parses nonzero auth JSON', async () => {

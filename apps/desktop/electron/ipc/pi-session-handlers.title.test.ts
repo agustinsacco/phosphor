@@ -22,7 +22,6 @@ vi.mock('../pi/stub', () => ({ piStubPath: () => state.stub }))
 vi.mock('../pi/shell-env', () => ({
   piProcessEnv: async () => ({ PATH: '/pi/bin', PI_CLAUDE_CLI_KEEPALIVE_MS: '999' }),
 }))
-vi.mock('./pi-config-handlers', () => ({ catalogueModels: state.catalogue }))
 vi.mock('../pi/catalogue', () => ({ catalogueModels: state.catalogue }))
 vi.mock('../pi/print-mode', () => ({ runPrintMode: state.run }))
 vi.mock('@phosphor/session-runtime/pi/agent-settings', () => ({

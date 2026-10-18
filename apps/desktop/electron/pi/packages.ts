@@ -50,18 +50,6 @@ export async function packageSkillDirs(
   return found
 }
 
-/**
- * How to invoke pi for package jobs. The e2e stub is a Node script, so it
- * runs through Electron-as-Node exactly like the session spawner does
- * (package IPC handlers compute and pass the override). The shared resolver
- * uses the inherited-stub environment profile for these jobs.
- */
-export interface PiInvoker {
-  command: string
-  prefixArgs: string[]
-  env: Record<string, string>
-}
-
 /** `pi install|remove|update` through pi's own package manager. */
 export async function runPackageAction(
   sender: JobSender,
