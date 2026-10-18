@@ -13,7 +13,7 @@ import {
 } from 'node:fs'
 import { randomUUID } from 'node:crypto'
 import { dirname, join, resolve } from 'node:path'
-import { hasCode } from './lock'
+import { errnoIs } from '../fs-safety'
 
 export function readBounded(path: string, cap: number): string {
   const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
@@ -60,7 +60,7 @@ export function checkedFolder(
       if (!info.isDirectory() || info.isSymbolicLink() || (parent === path && info.uid !== uid))
         throw new Error('Unsafe uninstall folder')
     } catch (error) {
-      if (!hasCode(error, 'ENOENT')) throw error
+      if (!(error instanceof Error && errnoIs(error, 'ENOENT'))) throw error
       if (parent === path) return false
     }
     parent = dirname(parent)
