@@ -9,6 +9,7 @@ import {
   parseHostSelfResponse,
   type EnrollmentCreateResponse,
 } from '@phosphor/shared/control-api'
+import { errnoIs, isOwnerPrivate } from '../fs-safety'
 import { isControlUrl } from './url'
 import { publicIdentity } from './signer'
 
@@ -56,8 +57,7 @@ const unsafe = () =>
   new IdentityFailure(
     'Unsafe identity storage. Use files owned by you, no symlinks, chmod 600 host-key.*.pem host.json and chmod 700 identity.',
   )
-const missing = (error: unknown) =>
-  error instanceof Error && 'code' in error && error.code === 'ENOENT'
+const missing = (error: unknown) => error instanceof Error && errnoIs(error, 'ENOENT')
 
 export function identityDirectory(configPath: string): string {
   return join(dirname(resolve(configPath)), 'identity')
@@ -98,14 +98,7 @@ function parseIdentity(value: unknown): HostIdentity {
 
 export async function checkIdentityDirectory(directory: string, uid: number | undefined) {
   const info = await lstat(directory)
-  if (
-    !info.isDirectory() ||
-    info.isSymbolicLink() ||
-    uid === undefined ||
-    info.uid !== uid ||
-    info.mode & 0o077
-  )
-    throw unsafe()
+  if (!info.isDirectory() || info.isSymbolicLink() || !isOwnerPrivate(info, uid)) throw unsafe()
   return info
 }
 export async function readIdentityFileSnapshot(
@@ -115,13 +108,11 @@ export async function readIdentityFileSnapshot(
 ) {
   const path = join(directory, name)
   const info = await lstat(path)
-  if (!info.isFile() || info.isSymbolicLink() || info.uid !== uid || info.mode & 0o077)
-    throw unsafe()
+  if (!info.isFile() || info.isSymbolicLink() || !isOwnerPrivate(info, uid)) throw unsafe()
   const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK)
   try {
     const actual = await file.stat()
-    if (!actual.isFile() || actual.uid !== uid || actual.mode & 0o077 || actual.size > 4096)
-      throw unsafe()
+    if (!actual.isFile() || !isOwnerPrivate(actual, uid) || actual.size > 4096) throw unsafe()
     const bytes = Buffer.alloc(4097)
     const { bytesRead } = await file.read(bytes, 0, bytes.length, 0)
     if (bytesRead > 4096) throw unsafe()
