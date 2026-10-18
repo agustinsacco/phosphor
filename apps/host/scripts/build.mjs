@@ -8,17 +8,17 @@
 // when the bundle reaches Electron, a native Desktop module or another app,
 // imports anything but a Node builtin, or lacks one of the six extensions.
 // It replaces DIR only when DIR is empty or an earlier build (output.mjs).
-import { execFileSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+// The stages: build-bundle.mjs, build-resources.mjs, then build-info.mjs.
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
-import { bundleHost, NODE_TARGET, OUTFILE } from './build-bundle.mjs'
+import { bundleHost } from './build-bundle.mjs'
+import { gitIn, writeBuildInfo } from './build-info.mjs'
 import { stageResources } from './build-resources.mjs'
-import { buildInto, INFO } from './output.mjs'
+import { buildInto } from './output.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
+const git = gitIn(ROOT)
 
 const { values } = parseArgs({
   options: {
@@ -57,46 +57,6 @@ console.log(
 async function stageBuild(stage) {
   const inputs = await bundleHost(stage, { root: ROOT, stamped, releaseVersion })
   await stageResources(stage, { root: ROOT, native: values.native, target: values.target })
-
-  const files = readdirSync(stage, { recursive: true, encoding: 'utf8' })
-    .filter((file) => statSync(join(stage, file)).isFile())
-    .sort()
-    .map((file) => {
-      const bytes = readFileSync(join(stage, file))
-      return {
-        path: file,
-        bytes: bytes.length,
-        sha256: createHash('sha256').update(bytes).digest('hex'),
-      }
-    })
-  const info = {
-    schema: 1,
-    name: 'phosphor',
-    version: releaseVersion ?? `0.0.0-dev.${stamped?.slice(0, 7) ?? 'source'}`,
-    sourceSha: stamped,
-    sourceDirty: stamped
-      ? git(
-          'status',
-          '--porcelain',
-          ...(releaseVersion === undefined ? [] : ['--untracked-files=no']),
-        ) !== ''
-      : null,
-    nodeTarget: NODE_TARGET,
-    entry: OUTFILE,
-    files,
-  }
-  writeFileSync(join(stage, INFO), `${JSON.stringify(info, null, 2)}\n`)
+  const info = writeBuildInfo(stage, { stamped, releaseVersion, git })
   return { info, inputs: inputs.length }
-}
-
-function git(...args) {
-  try {
-    return execFileSync('git', args, {
-      cwd: ROOT,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim()
-  } catch {
-    return null
-  }
 }
