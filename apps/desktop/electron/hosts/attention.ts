@@ -1,104 +1,69 @@
-import { parseLaneReceipt, receiptSummary } from '@shared/lane-receipt'
 import type { AttentionEvent } from '@shared/host-protocol'
 import type { HostAttention } from '@shared/ipc'
+import { makeAttention, waitForReceipt } from './attention-publication'
 
-export function createHostAttention(ports: {
+export interface AttentionPorts {
   receipt?: (hostId: string, laneId: string) => Promise<unknown>
   label: (hostId: string) => string
   focused: (hostId: string, laneId: string) => boolean
   publish: (event: HostAttention) => void
   notify: (title: string, body: string, click: () => void) => void
   open: (hostId: string, laneId: string) => void
-}) {
-  const seen = new Set<string>()
-  const pending = new Map<string, Promise<unknown>>()
-  const laneArrivals = new Map<string, number>()
+}
+
+export interface AttentionState {
+  seen: Set<string>
+  pending: Map<string, Promise<unknown>>
+  laneArrivals: Map<string, number>
   // Unique counters prevent an evicted lane's old publication from becoming current again.
-  let arrivalCounter = 0
-  let generation = 0
-  return {
-    clear: () => {
-      generation++
-      seen.clear()
-      pending.clear()
-      laneArrivals.clear()
-    },
-    receive(hostId: string, event: AttentionEvent) {
-      const key = `${hostId}/${event.id}`
-      if (seen.has(key)) return
-      seen.add(key)
-      const laneKey = `${hostId}/${event.laneId}`
-      const arrival = ++arrivalCounter
-      laneArrivals.delete(laneKey)
-      laneArrivals.set(laneKey, arrival)
-      if (laneArrivals.size > 256) {
-        const oldest = laneArrivals.keys().next().value
-        if (oldest) laneArrivals.delete(oldest)
-      }
-      if (seen.size > 1600) {
-        const oldest = seen.values().next().value
-        if (oldest) seen.delete(oldest)
-      }
-      const kind = event.kind.startsWith('routine-') ? 'routine' : event.kind
-      const attention: HostAttention = {
-        hostId,
-        laneId: event.laneId,
-        kind: kind === 'finished' || kind === 'needs-input' || kind === 'failed' ? kind : 'routine',
-        title: event.title ?? 'Untitled lane',
-        at: event.at,
-      }
-      const enrich =
-        event.kind === 'finished' || event.kind === 'failed' || event.kind === 'routine-finished'
-      const before = generation
-      const publish = (value?: unknown) => {
-        if (before !== generation) return
-        const parsed = parseLaneReceipt(value)
-        const receipt =
-          enrich &&
-          parsed &&
-          parsed.settledAt !== null &&
-          Math.abs(parsed.settledAt - Date.parse(event.at)) <= 30_000 &&
-          (event.kind === 'failed') === (parsed.outcome === 'error')
-            ? parsed
-            : null
-        if (receipt) attention.receipt = receipt
-        ports.publish(attention)
-        if (!ports.focused(hostId, event.laneId))
-          ports.notify(
-            `${ports.label(hostId)} · ${attention.title}`,
-            receipt
-              ? receiptSummary(receipt)
-              : attention.kind === 'failed'
-                ? 'Stopped'
-                : attention.kind === 'finished'
-                  ? 'Done'
-                  : attention.kind,
-            () => ports.open(hostId, event.laneId),
-          )
-      }
-      if (!enrich || !ports.receipt || ports.focused(hostId, event.laneId)) return publish()
-      let request = pending.get(laneKey)
-      if (!request) {
-        if (pending.size >= 1600) return publish()
-        request = ports.receipt(hostId, event.laneId).catch(() => undefined)
-        pending.set(laneKey, request)
-        void request.finally(() => {
-          if (pending.get(laneKey) === request) pending.delete(laneKey)
-        })
-      }
-      let timer: ReturnType<typeof setTimeout> | undefined
-      void Promise.race([
-        request,
-        new Promise<undefined>((resolve) => {
-          timer = setTimeout(() => resolve(undefined), 2000)
-        }),
-      ])
-        .then((value) => {
-          if (laneArrivals.get(laneKey) === arrival) publish(value)
-        })
-        .finally(() => clearTimeout(timer))
-    },
+  arrivalCounter: number
+  generation: number
+}
+
+export function createHostAttention(ports: AttentionPorts) {
+  const state: AttentionState = {
+    seen: new Set(),
+    pending: new Map(),
+    laneArrivals: new Map(),
+    arrivalCounter: 0,
+    generation: 0,
   }
+  return {
+    clear: () => clearAttention(state),
+    receive: (hostId: string, event: AttentionEvent) =>
+      receiveAttention(state, ports, hostId, event),
+  }
+}
+
+function clearAttention(state: AttentionState): void {
+  state.generation++
+  state.seen.clear()
+  state.pending.clear()
+  state.laneArrivals.clear()
+}
+
+function receiveAttention(
+  state: AttentionState,
+  ports: AttentionPorts,
+  hostId: string,
+  event: AttentionEvent,
+): void {
+  const key = `${hostId}/${event.id}`
+  if (state.seen.has(key)) return
+  state.seen.add(key)
+  const laneKey = `${hostId}/${event.laneId}`
+  const arrival = ++state.arrivalCounter
+  state.laneArrivals.delete(laneKey)
+  state.laneArrivals.set(laneKey, arrival)
+  if (state.laneArrivals.size > 256) {
+    const oldest = state.laneArrivals.keys().next().value
+    if (oldest) state.laneArrivals.delete(oldest)
+  }
+  if (state.seen.size > 1600) {
+    const oldest = state.seen.values().next().value
+    if (oldest) state.seen.delete(oldest)
+  }
+  waitForReceipt(state, ports, event, makeAttention(hostId, event), arrival)
 }
 
 /** Only the connection that began this read may supply the receipt. */
