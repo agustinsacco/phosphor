@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   corpus: { list: vi.fn(), record: vi.fn(), clear: vi.fn() },
 }))
 
+vi.mock('./sender-policy', () => ({ admitSender: () => undefined }))
 vi.mock('electron', () => ({
   app: { getPath: () => '/user-data' },
   session: { defaultSession: { setSpellCheckerEnabled: state.spellcheck } },

@@ -19,6 +19,7 @@ const state = vi.hoisted(() => ({
     clearObservations: vi.fn(),
   },
 }))
+vi.mock('./sender-policy', () => ({ admitSender: () => undefined }))
 vi.mock('electron', () => ({
   app: {
     isPackaged: true,

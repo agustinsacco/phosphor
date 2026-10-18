@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
   sweep: vi.fn<(options: SweepOptions) => Promise<MaintenanceReport>>(),
 }))
 
+vi.mock('./sender-policy', () => ({ admitSender: () => undefined }))
 vi.mock('electron', () => ({
   ipcMain: {
     handle: (channel: string, handler: (...args: unknown[]) => unknown) =>
