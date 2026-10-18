@@ -1,10 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { GRANT_LIMITS, type GrantClient, type GrantPayload } from '../../host-grant'
-import type { ClientFrame, HostFrame } from '../../host-protocol'
+import type { ClientFrame, FrameSocket, HostFrame } from '../../host-protocol'
 import type { HostCapability } from '../../remote-host'
 import { createFakeHost, type FakeHostOptions } from '../fake-host'
 import { createLoopbackPair } from '../loopback'
-import type { FrameSocket } from '../../host-protocol'
 import { attach, disconnect, dispatch, receive, receiptStatus } from './connections'
 import { createFakeHostState, type FakeHostState, type Limits } from './state'
 

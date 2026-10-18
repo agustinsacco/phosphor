@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { newRoutine } from '@phosphor/shared/routines'
 import type { DatabaseSync } from 'node:sqlite'
-import { RoutineRepository } from './repository'
+import { PENDING_RUNS_SQL, RoutineRepository } from './repository'
 import { loadRoutineSqlite } from './sqlite'
 
 const now = Date.parse('2026-09-21T08:00Z')
@@ -95,12 +95,10 @@ it('opens a pre-index v1 database without losing occurrence identities or owned 
   expect(state.repo.background()).toBe(true)
 })
 
-const pendingSql =
-  "SELECT data FROM runs WHERE json_extract(data, '$.status') IN ('queued','running') ORDER BY created_at, rowid"
 function expectActivePlan(state: ReturnType<typeof fixture>) {
   const db = state.inspect()
   try {
-    const plan = db.prepare(`EXPLAIN QUERY PLAN ${pendingSql}`).all()
+    const plan = db.prepare(`EXPLAIN QUERY PLAN ${PENDING_RUNS_SQL}`).all()
     expect(plan.map((row) => row.detail)).toEqual(['SCAN runs USING INDEX runs_active'])
     expect(db.prepare('PRAGMA user_version').get()?.user_version).toBe(1)
   } finally {

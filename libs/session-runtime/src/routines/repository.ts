@@ -13,6 +13,10 @@ import {
 } from '@phosphor/shared/routines'
 
 /** Single main-process writer. Each occurrence and cursor advance commits together. */
+/** Active runs, oldest first; the runs_active index must serve it. */
+export const PENDING_RUNS_SQL =
+  "SELECT data FROM runs WHERE json_extract(data, '$.status') IN ('queued','running') ORDER BY created_at, rowid"
+
 export class RoutineRepository {
   private readonly db: DatabaseSync
 
@@ -129,9 +133,7 @@ export class RoutineRepository {
 
   pending(): RoutineRun[] {
     return this.db
-      .prepare(
-        "SELECT data FROM runs WHERE json_extract(data, '$.status') IN ('queued','running') ORDER BY created_at, rowid",
-      )
+      .prepare(PENDING_RUNS_SQL)
       .all()
       .map((r) => JSON.parse(r.data as string) as RoutineRun)
   }

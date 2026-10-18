@@ -182,7 +182,7 @@ const RAW_PATTERNS: Array<[string, RegExp]> = [
   ['service', /\bservice\s+\S+\s+(start|stop|restart)/i],
 ]
 
-class LexerState implements Parsed, Word {
+class LexerState implements Parsed {
   commands: Word[][] = []
   scripts: string[] = []
   words: Word[] = []
