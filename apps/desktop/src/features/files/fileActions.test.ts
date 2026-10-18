@@ -137,3 +137,111 @@ it('characterizes trash warning and success-only tab reconciliation', async () =
     unsubscribe()
   }
 })
+
+it('queues trash, cancels without IPC, and ignores non-affirmative values', async () => {
+  const { usePromptStore } = await import('@/stores/prompt')
+  const invoke = vi.fn().mockResolvedValue(undefined)
+  vi.stubGlobal('window', { confirm: vi.fn(() => true), phosphor: { invoke } })
+  useFilesStore.setState({ byWorkspace: {} })
+  const entry = { name: 'docs', path: '/repo/docs', relativePath: 'docs', isDirectory: true }
+  for (const choice of [undefined, 'not-trash']) {
+    const pending = trashEntry('/repo', entry)
+    try {
+      expect(invoke).not.toHaveBeenCalled()
+      expect(usePromptStore.getState().requests).toHaveLength(1)
+      const request = usePromptStore.getState().requests[0]!
+      expect(request.kind).toBe('choice')
+      expect(request.choices).toContainEqual(expect.objectContaining({ value: 'trash' }))
+      usePromptStore.getState().dismiss(request, choice)
+      await pending
+      expect(invoke).not.toHaveBeenCalled()
+    } finally {
+      for (const request of usePromptStore.getState().requests)
+        usePromptStore.getState().dismiss(request, undefined)
+      await pending
+    }
+  }
+})
+
+it('confirms trash once across repeated clicks during choice and IPC', async () => {
+  const { usePromptStore } = await import('@/stores/prompt')
+  const finishes: (() => void)[] = []
+  const invoke = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        finishes.push(resolve)
+      }),
+  )
+  vi.stubGlobal('window', { confirm: vi.fn(() => true), phosphor: { invoke } })
+  useFilesStore.setState({ byWorkspace: {} })
+  const reconcile = vi.spyOn(useFilesStore.getState(), 'reconcilePath').mockImplementation(() => {})
+  const refresh = vi.spyOn(useFilesStore.getState(), 'refreshDir').mockResolvedValue()
+  const entry = { name: 'docs', path: '/repo/docs', relativePath: 'docs', isDirectory: true }
+  const pending = trashEntry('/repo', entry)
+  const repeated = trashEntry('/repo', entry)
+  try {
+    expect(invoke).not.toHaveBeenCalled()
+    expect(usePromptStore.getState().requests).toHaveLength(1)
+    usePromptStore.getState().dismiss(usePromptStore.getState().requests[0]!, 'trash')
+    await Promise.resolve()
+    await trashEntry('/repo', entry)
+    expect(invoke).toHaveBeenCalledExactlyOnceWith('fs:trash', entry.path)
+    expect(reconcile).not.toHaveBeenCalled()
+    finishes.forEach((finish) => finish())
+    await pending
+    expect(reconcile).toHaveBeenCalledExactlyOnceWith('/repo', entry.path)
+    expect(refresh).toHaveBeenCalledExactlyOnceWith('/repo', '/repo')
+  } finally {
+    for (const request of usePromptStore.getState().requests)
+      usePromptStore.getState().dismiss(request, undefined)
+    finishes.forEach((finish) => finish())
+    await Promise.all([pending, repeated])
+  }
+})
+
+it('asks again with the unsaved warning when a descendant becomes dirty while queued', async () => {
+  const { usePromptStore } = await import('@/stores/prompt')
+  const invoke = vi.fn().mockResolvedValue(undefined)
+  vi.stubGlobal('window', { confirm: vi.fn(() => true), phosphor: { invoke } })
+  useFilesStore.setState({ byWorkspace: {} })
+  const entry = { name: 'docs', path: '/repo/docs', relativePath: 'docs', isDirectory: true }
+  const pending = trashEntry('/repo', entry)
+  try {
+    expect(invoke).not.toHaveBeenCalled()
+    const request = usePromptStore.getState().requests[0]!
+    expect(`${request.title} ${request.message ?? ''}`).not.toContain('Unsaved edits')
+    useFilesStore.setState({
+      byWorkspace: {
+        '/repo': {
+          openFiles: [
+            {
+              path: '/repo/docs/new.md',
+              relativePath: 'docs/new.md',
+              language: 'markdown',
+              content: 'draft',
+              savedContent: '',
+              dirty: true,
+              mtimeMs: 1,
+              size: 0,
+            },
+          ],
+          activePath: '/repo/docs/new.md',
+          gitStatus: {},
+        },
+      },
+    })
+    usePromptStore.getState().dismiss(request, 'trash')
+    await Promise.resolve()
+    expect(invoke).not.toHaveBeenCalled()
+    expect(usePromptStore.getState().requests).toHaveLength(1)
+    const warning = usePromptStore.getState().requests[0]!
+    expect(`${warning.title} ${warning.message ?? ''}`).toContain('Unsaved edits will be lost.')
+    usePromptStore.getState().dismiss(warning, undefined)
+    await pending
+    expect(invoke).not.toHaveBeenCalled()
+  } finally {
+    for (const request of usePromptStore.getState().requests)
+      usePromptStore.getState().dismiss(request, undefined)
+    await pending
+  }
+})
