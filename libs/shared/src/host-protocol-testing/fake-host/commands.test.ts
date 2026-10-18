@@ -10,6 +10,14 @@ import {
 import type { HostCapability } from '../../remote-host'
 import { createFakeHost, type FakeHostOptions } from '../fake-host'
 import { createLoopbackPair } from '../loopback'
+import { admit, command } from './commands'
+import {
+  createFakeHostState,
+  type Command,
+  type Connection,
+  type FakeHostState,
+  type Limits,
+} from './state'
 
 const ISSUER = 'https://control.test'
 const HOST_ID = '00000000-0000-4000-8000-0000000000a1'
@@ -342,5 +350,161 @@ describe('lane operations through createFakeHost', () => {
       type: 'snapshot',
       snapshot: { dialogs: [], state: { thinkingLevel: 'high' } },
     })
+  })
+})
+
+describe('command module', () => {
+  function state(limits: Partial<Limits> = {}, commandDelayMs?: number) {
+    return createFakeHostState({
+      expectations: { iss: ISSUER, hostId: HOST_ID, owner: OWNER, epoch: 1 },
+      verify: () => false,
+      sign: () => new Uint8Array(64),
+      id: () => LANE,
+      epoch: () => 'epoch',
+      repositories: [REPOSITORY],
+      limits,
+      ...(commandDelayMs === undefined ? {} : { commandDelayMs }),
+    })
+  }
+  function connection(s: FakeHostState, client: GrantClient) {
+    const frames: HostFrame[] = []
+    const authTimer = setTimeout(() => undefined, 0)
+    clearTimeout(authTimer)
+    const iat = Math.floor(Date.now() / 1000)
+    const c: Connection = {
+      socket: {
+        send: (text) => void frames.push(JSON.parse(text)),
+        close: () => undefined,
+        onMessage: () => undefined,
+        onClose: () => undefined,
+        isOpen: () => true,
+        bufferedBytes: () => 0,
+      },
+      grant: {
+        v: 1,
+        iss: ISSUER,
+        kid: 'key',
+        sub: OWNER,
+        sid: 'session',
+        hostId: HOST_ID,
+        epoch: 1,
+        client,
+        caps: ['sessions.read', 'sessions.control'],
+        iat,
+        exp: iat + 300,
+        jti: '0123456789abcdef',
+      },
+      subscriptions: new Map(),
+      wanted: new Set(),
+      delivered: new Set(),
+      pending: 0,
+      calls: 0,
+      stale: new Set(),
+      authTimer,
+    }
+    s.connections.add(c)
+    return {
+      c,
+      receipts: () => frames.flatMap((f) => (f.type === 'receipt' ? [brief(f.receipt)] : [])),
+    }
+  }
+  const frame = (n: number, op: LaneOp, fence?: number): Command => ({
+    type: 'command',
+    requestId: rid(n),
+    op,
+    ...(op.type === 'lane.create' ? {} : { laneId: LANE }),
+    ...(fence === undefined ? {} : { fence }),
+  })
+
+  it('stores a new command as pending and wanted, and answers a same-id retry from the store', () => {
+    const s = state()
+    const a = connection(s, FIRST),
+      b = connection(s, SECOND)
+    const grant = a.c.grant
+    if (!grant) throw new Error('No grant')
+    const stored = admit(s, a.c, frame(1, prompt, 1), grant)
+    expect(stored).toEqual({
+      clientId: FIRST.id,
+      hash: expect.any(String),
+      receipt: { requestId: rid(1), status: 'pending' },
+    })
+    expect(stored?.hash).toBe(JSON.stringify({ laneId: LANE, fence: 1, op: prompt }))
+    expect([...a.c.wanted]).toEqual([rid(1)])
+    a.c.wanted.clear()
+    expect(admit(s, a.c, frame(1, prompt, 1), grant)).toBeNull()
+    expect(admit(s, a.c, frame(1, prompt, 2), grant)).toBeNull()
+    const other = b.c.grant
+    if (!other) throw new Error('No grant')
+    expect(admit(s, b.c, frame(1, prompt, 1), other)).toBeNull()
+    expect([a.receipts(), b.receipts(), [...a.c.wanted]]).toEqual([
+      ['01:pending', '01:rejected:conflict'],
+      ['01:rejected:conflict'],
+      [rid(1)],
+    ])
+    expect(s.receipts.size).toBe(1)
+  })
+
+  it('refuses over the connection cap before the Host-wide started cap, unstored', () => {
+    const s = state({ pendingCommandsPerConnection: 1, receiptsKept: 1 })
+    const a = connection(s, FIRST)
+    const grant = a.c.grant
+    if (!grant) throw new Error('No grant')
+    a.c.pending = 1
+    expect(admit(s, a.c, frame(1, prompt, 1), grant)).toBeNull()
+    a.c.pending = 0
+    s.receipts.set(rid(9), {
+      clientId: SECOND.id,
+      hash: '',
+      receipt: { requestId: rid(9), status: 'pending' },
+    })
+    expect(admit(s, a.c, frame(2, prompt, 1), grant)).toBeNull()
+    expect(a.receipts()).toEqual(['01:rejected:too-many-requests', '02:rejected:busy'])
+    expect([...s.receipts.keys()]).toEqual([rid(9)])
+  })
+
+  it.for([
+    [HOST_LIMITS.commandAnswerMs - 1, '01:done:f1'],
+    [HOST_LIMITS.commandAnswerMs + 1, '01:unknown'],
+  ] as const)('settles a %i ms command once, clearing both timers', async ([delay, settled]) => {
+    const s = state({}, delay)
+    const a = connection(s, FIRST)
+    command(s, a.c, frame(0, create), true)
+    command(s, a.c, frame(1, { type: 'abort' }, 1), true)
+    expect([a.c.pending, s.executions, s.timers.size]).toEqual([1, 1, 2])
+    await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs + 1)
+    expect(a.receipts()).toEqual(['00:done:f1', settled])
+    expect([a.c.pending, s.executions, s.timers.size]).toEqual([0, 1, 0])
+  })
+
+  it('settles nothing once the epoch has changed', async () => {
+    const s = state({}, 5)
+    const a = connection(s, FIRST)
+    command(s, a.c, frame(0, create), true)
+    command(s, a.c, frame(1, { type: 'abort' }, 1), true)
+    s.epoch = 'restarted'
+    await vi.advanceTimersByTimeAsync(HOST_LIMITS.commandAnswerMs + 1)
+    expect(a.receipts()).toEqual(['00:done:f1'])
+    expect([a.c.pending, s.receipts.get(rid(1))?.receipt.status]).toEqual([1, 'pending'])
+  })
+
+  it('stores a forbidden refusal when the connection may not control lanes', () => {
+    const s = state()
+    const a = connection(s, FIRST)
+    command(s, a.c, frame(1, create), false)
+    expect(a.receipts()).toEqual(['01:rejected:forbidden'])
+    expect(s.receipts.get(rid(1))?.receipt).toEqual({
+      requestId: rid(1),
+      status: 'rejected',
+      code: 'forbidden',
+    })
+    expect([s.lanes.size, s.executions]).toEqual([0, 0])
+  })
+
+  it('ignores a command from a connection without a grant', () => {
+    const s = state()
+    const a = connection(s, FIRST)
+    a.c.grant = null
+    command(s, a.c, frame(1, create), true)
+    expect([a.receipts(), s.receipts.size, a.c.wanted.size]).toEqual([[], 0, 0])
   })
 })

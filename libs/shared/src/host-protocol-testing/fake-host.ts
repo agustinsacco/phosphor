@@ -18,21 +18,18 @@ import {
   type HostFrame,
   type ClientFrame,
   type LaneEvent,
-  type LaneSummary,
-  type RejectCode,
   type AttentionEvent,
 } from '../host-protocol'
 import type { HostCapability } from '../remote-host'
-import type { ExtensionUIRequest, ThinkingLevel } from '../rpc'
+import type { ExtensionUIRequest } from '../rpc'
+import { command } from './fake-host/commands'
 import { send as sendFrame } from './fake-host/delivery'
+import { prune, rejected } from './fake-host/receipts'
 import {
   createFakeHostState,
-  now,
-  type Command,
   type Connection,
   type FakeHostOptions,
   type Lane,
-  type Stored,
 } from './fake-host/state'
 import * as streams from './fake-host/streams'
 
@@ -47,239 +44,11 @@ export function createFakeHost(options: FakeHostOptions) {
   const snap = (lane: Lane) => streams.snapshot(state, lane)
   const publish = (lane: Lane, event: LaneEvent) => streams.publish(state, sendFrame, lane, event)
   const summary = (lane: Lane) => streams.summary(state, sendFrame, lane)
-  const announce = (lane: Lane) => streams.announce(state, sendFrame, lane)
   const notify = (lane: Lane, kind: AttentionEvent['kind']) =>
     streams.notify(state, sendFrame, lane, kind)
-  const changeControl = (lane: Lane, controller: LaneSummary['control']['controller']) =>
-    streams.changeControl(state, sendFrame, lane, controller)
   const turn = (lane: Lane) => streams.turn(state, sendFrame, lane)
-  function forget(id: string) {
-    receipts.delete(id)
-    for (const c of connections) {
-      c.wanted.delete(id)
-      c.delivered.delete(id)
-    }
-  }
-  function prune() {
-    for (const [id, r] of receipts)
-      if (r.finishedAt !== undefined && Date.now() - r.finishedAt > limits.receiptTtlMs) forget(id)
-    const finished = [...receipts].filter(([, r]) => r.receipt.status !== 'pending')
-    for (const [id] of finished.slice(0, Math.max(0, finished.length - limits.receiptsKept)))
-      forget(id)
-  }
   function authorized(c: Connection, cap: HostCapability) {
     return c.grant?.caps.includes(cap) && caps.includes(cap)
-  }
-  function deliver(requestId: string, stored: Stored) {
-    if (stored.receipt.status !== 'pending') {
-      stored.finishedAt ??= Date.now()
-      prune()
-    }
-    for (const c of connections)
-      if (
-        c.grant?.client.id === stored.clientId &&
-        c.wanted.has(requestId) &&
-        !c.delivered.has(requestId)
-      ) {
-        send(c, { type: 'receipt', receipt: stored.receipt })
-        if (stored.receipt.status !== 'pending') {
-          c.delivered.add(requestId)
-          c.wanted.delete(requestId)
-        }
-      }
-  }
-  function rejected(c: Connection, requestId: string, code: RejectCode, lane?: Lane) {
-    send(c, {
-      type: 'receipt',
-      receipt: {
-        requestId,
-        status: 'rejected',
-        code,
-        ...(lane ? { control: lane.summary.control } : {}),
-      },
-    })
-  }
-  function command(c: Connection, f: Command) {
-    const grant = c.grant
-    if (!grant) return
-    prune()
-    const hash = JSON.stringify({ laneId: f.laneId, fence: f.fence, op: f.op })
-    const old = receipts.get(f.requestId)
-    if (old) {
-      if (old.clientId !== grant.client.id || old.hash !== hash) {
-        rejected(c, f.requestId, 'conflict')
-        return
-      }
-      send(c, { type: 'receipt', receipt: old.receipt })
-      if (old.receipt.status === 'pending') c.wanted.add(f.requestId)
-      return
-    }
-    if (c.pending >= limits.pendingCommandsPerConnection) {
-      rejected(c, f.requestId, 'too-many-requests')
-      return
-    }
-    if (
-      [...receipts.values()].filter((r) => r.receipt.status === 'pending').length >=
-      limits.receiptsKept
-    ) {
-      rejected(c, f.requestId, 'busy')
-      return
-    }
-    const stored: Stored = {
-      clientId: grant.client.id,
-      hash,
-      receipt: { requestId: f.requestId, status: 'pending' },
-    }
-    receipts.set(f.requestId, stored)
-    c.wanted.add(f.requestId)
-    const reject = (code: RejectCode, lane?: Lane) => {
-      stored.receipt = {
-        requestId: f.requestId,
-        status: 'rejected',
-        code,
-        ...(lane ? { control: lane.summary.control } : {}),
-      }
-      deliver(f.requestId, stored)
-    }
-    if (!authorized(c, 'sessions.control')) {
-      reject('forbidden')
-      return
-    }
-    let lane = f.laneId ? lanes.get(f.laneId) : undefined
-    if (f.op.type === 'lane.create') {
-      const operation = f.op
-      if (f.laneId !== undefined || !repositories.some((r) => r.id === operation.repositoryId)) {
-        reject('bad-request')
-        return
-      }
-      if (lanes.size >= limits.lanesPerHost) {
-        reject('too-many-requests')
-        return
-      }
-      const laneId = options.id()
-      lane = {
-        summary: {
-          laneId,
-          repositoryId: f.op.repositoryId,
-          cwd: repositories.find((r) => r.id === operation.repositoryId)?.path ?? '/test',
-          title: f.op.name ?? null,
-          branch: f.op.worktree?.branch ?? null,
-          worktree: f.op.worktree !== null,
-          model: f.op.provider && f.op.model ? { provider: f.op.provider, id: f.op.model } : null,
-          activity: 'idle',
-          createdAt: now(),
-          updatedAt: now(),
-          attention: 0,
-          read: 0,
-          control: {
-            fence: 1,
-            controller: { clientId: grant.client.id, label: grant.client.label, connected: true },
-          },
-        },
-        thinkingLevel: f.op.thinkingLevel === undefined ? 'off' : thinkingLevel(f.op.thinkingLevel),
-        sessionId: options.id(),
-        seq: 0,
-        events: [],
-        replayBytes: 0,
-        messages: [],
-        pending: [],
-        dialogs: [],
-        ui: new Map(),
-      }
-      lanes.set(laneId, lane)
-      announce(lane)
-      stored.receipt = { requestId: f.requestId, status: 'done', laneId, fence: 1 }
-      deliver(f.requestId, stored)
-      return
-    }
-    if (!lane) {
-      reject('unknown-lane')
-      return
-    }
-    const l = lane
-    if (f.op.type !== 'control.take' && f.op.type !== 'lane.markRead') {
-      if (f.fence !== l.summary.control.fence) {
-        reject('stale-fence', l)
-        return
-      }
-      const controller = l.summary.control.controller
-      if (controller && controller.clientId !== grant.client.id) {
-        reject('not-controller', l)
-        return
-      }
-      if (f.op.type === 'control.release' && !controller) {
-        reject('not-controller', l)
-        return
-      }
-      if (!controller)
-        changeControl(l, { clientId: grant.client.id, label: grant.client.label, connected: true })
-    }
-    if (f.op.type === 'control.take')
-      changeControl(l, { clientId: grant.client.id, label: grant.client.label, connected: true })
-    else if (f.op.type === 'control.release') changeControl(l, null)
-    else if (f.op.type === 'lane.markRead') {
-      l.summary = {
-        ...l.summary,
-        read: Math.max(l.summary.read, Math.min(f.op.upTo, l.summary.attention)),
-      }
-      summary(l)
-    } else if (f.op.type === 'lane.stop') {
-      l.summary = { ...l.summary, activity: 'stopped' }
-      summary(l)
-    } else if (f.op.type === 'lane.resume') {
-      l.summary = { ...l.summary, activity: 'idle' }
-      summary(l)
-    } else if (l.summary.activity === 'stopped' || l.summary.activity === 'failed') {
-      reject('lane-stopped')
-      return
-    } else if (f.op.type === 'extension_ui_response') {
-      const id = f.op.response.id
-      if (!l.dialogs.some((d) => d.id === id)) {
-        reject('bad-request')
-        return
-      }
-      l.dialogs = l.dialogs.filter((d) => d.id !== id)
-      publish(l, { kind: 'dialog-resolved', dialogId: id })
-      l.summary = { ...l.summary, activity: l.dialogs.length ? 'needs-input' : 'idle' }
-      summary(l)
-    } else if (f.op.type === 'set_session_name') {
-      l.summary = { ...l.summary, title: f.op.name }
-      summary(l)
-    } else if (f.op.type === 'set_thinking_level') {
-      l.thinkingLevel = f.op.level
-    } else if (f.op.type === 'set_model') {
-      l.summary = { ...l.summary, model: { provider: f.op.provider, id: f.op.modelId } }
-      summary(l)
-    }
-    c.pending++
-    state.executions++
-    const startingEpoch = state.epoch
-    const timer = setTimeout(() => {
-      timers.delete(timer)
-      if (state.epoch !== startingEpoch || stored.receipt.status !== 'pending') return
-      clearTimeout(deadline)
-      timers.delete(deadline)
-      c.pending--
-      if (l.summary.activity === 'failed') {
-        stored.receipt = { requestId: f.requestId, status: 'unknown' }
-        deliver(f.requestId, stored)
-        return
-      }
-      if (f.op.type === 'prompt') turn(l)
-      stored.receipt = { requestId: f.requestId, status: 'done', fence: l.summary.control.fence }
-      deliver(f.requestId, stored)
-    }, options.commandDelayMs ?? 1)
-    const deadline = setTimeout(() => {
-      timers.delete(deadline)
-      if (state.epoch !== startingEpoch || stored.receipt.status !== 'pending') return
-      clearTimeout(timer)
-      timers.delete(timer)
-      c.pending--
-      stored.receipt = { requestId: f.requestId, status: 'unknown' }
-      deliver(f.requestId, stored)
-    }, limits.commandAnswerMs)
-    timers.add(timer)
-    timers.add(deadline)
   }
   function handle(c: Connection, f: ClientFrame) {
     if (f.type === 'auth') {
@@ -394,10 +163,10 @@ export function createFakeHost(options: FakeHostOptions) {
         c.stale.delete(f.id)
         break
       case 'command':
-        command(c, f)
+        command(state, c, f, authorized(c, 'sessions.control') === true)
         break
       case 'receipt-status': {
-        prune()
+        prune(state)
         const r = receipts.get(f.requestId)
         if (!r || r.clientId !== c.grant.client.id)
           send(c, { type: 'receipt', receipt: { requestId: f.requestId, status: 'unknown' } })
@@ -576,7 +345,7 @@ export function createFakeHost(options: FakeHostOptions) {
             socket.close(4401, 'Auth required')
             return
           }
-          if (p.reply?.kind === 'receipt') rejected(c, p.reply.requestId, p.reply.code)
+          if (p.reply?.kind === 'receipt') rejected(state, c, p.reply.requestId, p.reply.code)
           else if (p.reply?.kind === 'result')
             send(c, {
               type: 'result',
@@ -722,19 +491,4 @@ export function createFakeHost(options: FakeHostOptions) {
 function paramsLane(v: unknown): string | null {
   if (v === null || typeof v !== 'object' || !('laneId' in v)) return null
   return isUuid(v.laneId) ? v.laneId : null
-}
-
-function thinkingLevel(value: string): ThinkingLevel {
-  switch (value) {
-    case 'off':
-    case 'minimal':
-    case 'low':
-    case 'medium':
-    case 'high':
-    case 'xhigh':
-    case 'max':
-      return value
-    default:
-      throw new Error('Invalid thinking level')
-  }
 }
