@@ -3,8 +3,12 @@ import { constants } from 'node:fs'
 import { access, stat } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
 import { tailscaleExecutableCandidates } from '@phosphor/shared/tailscale-executable'
+import {
+  classifyTailscale,
+  readTailscaleStatus as readTailscaleFacts,
+  type TailscaleStatus,
+} from '@phosphor/shared/tailscale-status'
 import { getLoginShellPath } from '../pi/shell-env'
-import type { TailscaleStatus } from '@shared/tailscale-status'
 
 export const TAILSCALE_OPTIONS = {
   timeout: 5_000,
@@ -13,32 +17,9 @@ export const TAILSCALE_OPTIONS = {
   encoding: 'utf8' as const,
   windowsHide: true,
 }
-const record = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value)
-const dnsName = (value: unknown): value is string =>
-  typeof value === 'string' &&
-  value.length <= 254 &&
-  /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+ts\.net\.?$/i.test(value)
-
-/** Tailscale's extensible JSON is untrusted. Only these fields leave main. */
+/** Tailscale's extensible JSON is untrusted. Only the shared status code leaves main. */
 export function parseTailscaleStatus(output: string): TailscaleStatus {
-  const result = (code: TailscaleStatus['code']): TailscaleStatus => ({ code })
-  if (Buffer.byteLength(output) > TAILSCALE_OPTIONS.maxBuffer) return result('check-failed')
-  let value: unknown
-  try {
-    value = JSON.parse(output)
-  } catch {
-    return result('check-failed')
-  }
-  if (!record(value) || typeof value.BackendState !== 'string') return result('check-failed')
-  if (value.BackendState === 'NeedsLogin' || value.BackendState === 'NeedsMachineAuth')
-    return result('signed-out')
-  if (value.BackendState !== 'Running') return result('not-running')
-  if (!record(value.CurrentTailnet) || value.CurrentTailnet.MagicDNSEnabled !== true)
-    return result('magicdns-unavailable')
-  if (!Array.isArray(value.CertDomains) || !value.CertDomains.some(dnsName))
-    return result('https-unavailable')
-  return result('ready')
+  return classifyTailscale(readTailscaleFacts(output))
 }
 
 export type TailscaleRunner = (

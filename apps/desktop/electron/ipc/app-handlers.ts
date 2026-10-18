@@ -1,16 +1,8 @@
 import { app, BrowserWindow, dialog, shell } from 'electron'
-import { basename, join } from 'node:path'
-import {
-  listSandboxFolders,
-  openSandboxFolder,
-  planSandboxRename,
-  resolveSandboxFolder,
-  sandboxCwds,
-} from '../sandbox'
-import { isWithinFolder, rebaseWithinFolder } from '@shared/paths'
-import { access, readdir, rename } from 'node:fs/promises'
-import { claudeProjectDirForCwd, sessionDirForCwd } from '../pi/pi-paths'
-import { repointSessionCwd } from '../pi/session-cwd'
+import { basename } from 'node:path'
+import { listSandboxFolders, openSandboxFolder } from '../sandbox'
+import { deleteSandbox, renameSandbox, sandboxBase } from '../sandbox-service'
+import { pathExists } from '../sandbox-transcripts'
 import { registry } from '../registry'
 import { syncContextBudget, withBudgetCompaction } from '../pi/context-budget'
 import { piStubPath } from '../pi/stub'
@@ -28,7 +20,13 @@ import {
   wouldExceedBlobCap,
   writeDraftBlob,
 } from '../drafts-blobs'
-import { orphanBlobIds, sweepDrafts } from '../prefs-utils'
+import {
+  saveComposerDraft,
+  clearComposerDraft,
+  writeComposerDraftBlob,
+  sweepComposerDrafts,
+} from '../app/draft-service'
+import { resolveResumeTarget } from '../app/resume-target'
 import {
   getPrefs,
   markSessionSeen,
@@ -51,7 +49,6 @@ import {
   setDraft,
   clearDraft,
   setDrafts,
-  repointStoredPaths,
   realPathOrNull,
 } from '../store'
 
@@ -77,79 +74,17 @@ async function pickFolder(event: Electron.IpcMainInvokeEvent): Promise<string | 
   return result.filePaths[0] ?? null
 }
 
-/** True when the path is reachable — used to validate persisted locations. */
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await access(path)
-    return true
-  } catch {
-    return false
-  }
-}
-
-/**
- * Where sandboxes live. userData, not homedir: E2E redirects userData
- * (PHOSPHOR_TEST_USER_DATA), so stub-driven runs never touch the real one.
- *
- * Resolved, so every sandbox path Phosphor hands out is the one pi will derive
- * its session directory from. A userData directory reached through a symlink
- * otherwise yields a second spelling of each sandbox, and the sidebar shows
- * one folder as two groups listing the same lanes.
- */
-function sandboxBase(): string {
-  const base = join(app.getPath('userData'), 'sandboxes')
-  return realPathOrNull(base) ?? base
-}
-
-/** Trash a path if it is there — a missing one is not an error here. */
-async function trashIfPresent(path: string): Promise<void> {
-  if (!(await pathExists(path))) return
-  await shell.trashItem(path)
-}
-
-/**
- * Move a transcript directory alongside its sandbox.
- *
- * A sandbox with no chats yet simply has no such directory, so a missing
- * source is normal. An occupied destination is left alone rather than merged:
- * it means history already exists under the new name (a sandbox that once had
- * it was deleted or renamed away), and `rename` onto a non-empty directory
- * fails anyway. The old transcripts stay where they are — orphaned, but not
- * destroyed.
- */
-async function moveIfPresent(from: string, to: string): Promise<void> {
-  if (!(await pathExists(from))) return
-  if (await pathExists(to)) return
-  await rename(from, to)
-}
-
-/**
- * Point every transcript in `dir` at the cwd the folder now has.
- *
- * Moving the directory is not enough: pi stores the cwd INSIDE each session
- * file and refuses to resume one whose stored cwd is gone, exiting 1 before
- * the RPC loop starts (`electron/pi/session-cwd.ts`). Without this a renamed
- * sandbox kept all its chats in the sidebar and none of them would open.
- *
- * Best-effort per file, like the moves above — one unreadable transcript is
- * not a reason to fail a rename that has already happened on disk.
- */
-async function repointTranscripts(dir: string, from: string, to: string): Promise<void> {
-  let names: string[]
-  try {
-    names = await readdir(dir)
-  } catch {
-    return // No chats in this cwd; the common case, not an error.
-  }
-  await Promise.allSettled(
-    names
-      .filter((name) => name.endsWith('.jsonl'))
-      .map((name) => repointSessionCwd(join(dir, name), from, to)),
-  )
-}
-
 /** App preferences, native dialogs, and runtime info. */
 export function registerAppHandlers(): void {
+  registerPreferenceHandlers()
+  registerContextHandlers()
+  registerDraftHandlers()
+  registerRuntimeHandlers()
+  registerDialogHandlers()
+  registerSandboxHandlers()
+}
+
+function registerPreferenceHandlers(): void {
   handle('app:getPrefs', () => getPrefs())
 
   handle('app:setTheme', (_event, theme) => {
@@ -163,109 +98,22 @@ export function registerAppHandlers(): void {
 
   handle('app:setSessionOrder', (_event, paths) => setSessionOrder(paths))
 
-  handle('app:setPinnedSessions', (_event, paths) => {
-    setPinnedSessions(paths)
-  })
+  handle('app:setPinnedSessions', (_event, paths) => setPinnedSessions(paths))
 
-  handle('app:setRewoundSessions', (_event, record) => {
-    setRewoundSessions(record)
-  })
+  handle('app:setRewoundSessions', (_event, record) => setRewoundSessions(record))
 
-  handle('app:setLanePrefs', (_event, lanes) => {
-    setLanePrefs(lanes)
-  })
+  handle('app:setLanePrefs', (_event, lanes) => setLanePrefs(lanes))
 
-  handle('app:setLaneMarkers', (_event, markers) => {
-    setLaneMarkers(markers)
-  })
+  handle('app:setLaneMarkers', (_event, markers) => setLaneMarkers(markers))
 
-  handle('app:setModelPicks', (_event, picks) => {
-    setModelPicks(picks)
-  })
+  handle('app:setModelPicks', (_event, picks) => setModelPicks(picks))
 
-  handle('app:setLastSession', (_event, sessionPath) => {
-    setLastSession(sessionPath)
-  })
+  handle('app:setLastSession', (_event, sessionPath) => setLastSession(sessionPath))
 
-  handle('app:setCollapsedWorkspaces', (_event, paths) => {
-    setCollapsedWorkspaces(paths)
-  })
+  handle('app:setCollapsedWorkspaces', (_event, paths) => setCollapsedWorkspaces(paths))
 
   handle('app:recordWorkspace', (_event, path: string) => {
     recordWorkspace(path, basename(path))
-  })
-
-  handle('app:setDraft', async (_event, draft) => {
-    // Anything the prune dropped takes its images with it.
-    await deleteDraftBlobs(setDraft(draft))
-  })
-
-  handle('app:clearDraft', async (_event, key) => {
-    await deleteDraftBlobs(clearDraft(key))
-  })
-
-  handle('app:writeDraftBlob', async (_event, blobId, base64) => {
-    // Refuse rather than silently drop: the composer says so out loud.
-    const bytes = Math.floor((base64.length * 3) / 4)
-    if (await wouldExceedBlobCap(bytes)) return false
-    await writeDraftBlob(blobId, base64)
-    return true
-  })
-
-  handle('app:readDraftBlob', (_event, blobId) => readDraftBlob(blobId))
-
-  handle('app:sweepDrafts', async () => {
-    const drafts = getPrefs().drafts
-    // Resolve existence up front: `sweepDrafts` is pure so it can be tested
-    // without a filesystem.
-    const folders = [...new Set(Object.keys(drafts).filter((k) => k.startsWith('home:')))].map(
-      (k) => k.slice('home:'.length),
-    )
-    const alive = new Set(
-      (await Promise.all(folders.map(async (f) => ((await pathExists(f)) ? f : null)))).filter(
-        (f): f is string => f !== null,
-      ),
-    )
-    const swept = sweepDrafts(drafts, (path) => alive.has(path))
-    setDrafts(swept.drafts)
-    const orphans = orphanBlobIds(swept.drafts, await listDraftBlobs())
-    await deleteDraftBlobs([...swept.dropped, ...orphans])
-    return swept.drafts
-  })
-
-  handle('app:resumeTarget', async () => {
-    const { lastSessionPath, lastWorkspacePath, recentWorkspaces } = getPrefs()
-
-    // Prefer the exact session, but only if BOTH it and its workspace still
-    // exist — a session file whose folder was deleted can't be resumed.
-    if (lastSessionPath && lastWorkspacePath) {
-      const [sessionOk, workspaceOk] = await Promise.all([
-        pathExists(lastSessionPath),
-        pathExists(lastWorkspacePath),
-      ])
-      if (sessionOk && workspaceOk) {
-        return {
-          kind: 'session' as const,
-          sessionPath: lastSessionPath,
-          workspacePath: lastWorkspacePath,
-        }
-      }
-    }
-
-    if (lastWorkspacePath && (await pathExists(lastWorkspacePath))) {
-      return { kind: 'workspace' as const, workspacePath: lastWorkspacePath }
-    }
-
-    // Fall back to the newest recent that still exists — the picker should
-    // only ever appear on a true first run, not because lastWorkspacePath
-    // went stale or was never written.
-    for (const ws of [...recentWorkspaces].sort((a, b) => b.lastOpenedAt - a.lastOpenedAt)) {
-      if (await pathExists(ws.path)) {
-        return { kind: 'workspace' as const, workspacePath: ws.path }
-      }
-    }
-
-    return { kind: 'none' as const }
   })
 
   handle('app:setFontPrefs', (_event, fonts) => {
@@ -275,18 +123,20 @@ export function registerAppHandlers(): void {
     applyZoom(fonts.uiScale)
   })
 
-  handle('app:setRecentWorkspaces', (_event, workspaces) => {
-    setRecentWorkspaces(workspaces)
-  })
+  handle('app:setRecentWorkspaces', (_event, workspaces) => setRecentWorkspaces(workspaces))
 
-  handle('app:setWorktreePrefs', (_event, worktrees) => {
-    setWorktreePrefs(worktrees)
-  })
+  handle('app:setWorktreePrefs', (_event, worktrees) => setWorktreePrefs(worktrees))
 
-  handle('app:setAgentDirectives', (_event, directives, projectPath) => {
-    setAgentDirectives(directives, projectPath)
-  })
+  handle('app:setAgentDirectives', (_event, directives, projectPath) =>
+    setAgentDirectives(directives, projectPath),
+  )
 
+  handle('app:markSessionSeen', (_event, sessionPath: string) => {
+    markSessionSeen(sessionPath)
+  })
+}
+
+function registerContextHandlers(): void {
   handle('app:setContextBudget', async (_event, value: string) => {
     setContextBudget(value)
     if (piStubPath()) return
@@ -313,11 +163,10 @@ export function registerAppHandlers(): void {
       sessionId,
     ),
   )
+}
 
-  handle('app:markSessionSeen', (_event, sessionPath: string) => {
-    markSessionSeen(sessionPath)
-  })
-
+function registerRuntimeHandlers(): void {
+  handle('app:resumeTarget', () => resolveResumeTarget(getPrefs(), pathExists))
   handle('app:userInfo', () => ({
     username: userInfo().username,
     // Only the profile NAME, never credentials — used to build the right
@@ -333,7 +182,9 @@ export function registerAppHandlers(): void {
     platform: process.platform,
     arch: process.arch,
   }))
+}
 
+function registerDialogHandlers(): void {
   handle('app:selectFolder', async (event) => {
     // E2E hook: avoid the native (undriveable) dialog.
     const picked = e2eWorkspaceOverride() ?? (await pickFolder(event))
@@ -344,114 +195,6 @@ export function registerAppHandlers(): void {
     // is how a workspace acquires a second spelling, and two spellings are two
     // sidebar groups over one set of sessions.
     return realPathOrNull(picked) ?? picked
-  })
-
-  handle('app:createSandbox', () => openSandboxFolder(sandboxBase()))
-
-  handle('app:listSandboxes', () => listSandboxFolders(sandboxBase()))
-
-  /**
-   * Renaming a sandbox moves its folder, so it moves the sandbox's IDENTITY:
-   * a workspace is its path here, and pi names a transcript directory after
-   * the mangled cwd. Three things therefore have to move together, or the
-   * rename reads as data loss — the folder, pi's transcripts, and the CLI's.
-   *
-   * "Its" transcripts means the whole subtree, not just the sandbox root. A
-   * sandbox that is a git repo has lanes, each its own cwd with its own pair
-   * of transcript directories (`sandboxCwds`). Moving only the root's pair
-   * left every lane chat pointing at a path that no longer existed, and they
-   * vanished from the sidebar along with their pins, markers and badges.
-   *
-   * Refused while a session is live ANYWHERE inside the folder, for the same
-   * subtree reason: a lane session's cwd is under the sandbox, so an exact
-   * path compare passed it and renamed the folder out from under a running
-   * pi. The renderer closes those chats in order before asking
-   * (`promptRenameSandbox`); this stays the guard, since the string comes
-   * from the renderer either way.
-   */
-  handle('app:renameSandbox', async (_event, path: string, name: string) => {
-    const plan = planSandboxRename(sandboxBase(), path, name)
-    if (!plan.ok) return { ok: false as const, reason: plan.reason }
-    // Same folder: a no-op submit, or a rename to the name it already has.
-    if (plan.from === plan.to) return { ok: true as const, path: plan.to }
-    if (registry.list().some((session) => isWithinFolder(session.workspacePath, plan.from))) {
-      return { ok: false as const, reason: 'in-use' as const }
-    }
-
-    // Resolved on either side of the move, and that order matters: every
-    // mangling runs on the REAL path, so a source cwd only resolves while the
-    // folder is still at `from`, and a destination only once it is at `to`.
-    const cwds = sandboxCwds(plan.from)
-    const before = cwds.flatMap((cwd) => [sessionDirForCwd(cwd), claudeProjectDirForCwd(cwd)])
-    try {
-      await rename(plan.from, plan.to)
-    } catch {
-      return { ok: false as const, reason: 'failed' as const }
-    }
-    const movedCwds = cwds.map((cwd) => rebaseWithinFolder(cwd, plan.from, plan.to))
-    const after = movedCwds.flatMap((cwd) => [sessionDirForCwd(cwd), claudeProjectDirForCwd(cwd)])
-
-    // Best-effort, and after the folder: transcripts left behind cost history,
-    // which is worse than the folder not moving but not worth failing over —
-    // the folder has already moved and there is nothing to roll back to.
-    await Promise.allSettled(before.map((from, index) => moveIfPresent(from, after[index]!)))
-
-    // The cwd each moved transcript stores is still the old one, and pi will
-    // not resume a session whose stored cwd is gone. Runs on pi's directories
-    // only — the CLI's ledger records a cwd too, but it never refuses a resume
-    // over one, and its transcripts are the CLI's file format, not pi's.
-    await Promise.all(
-      cwds.map((cwd, index) =>
-        repointTranscripts(sessionDirForCwd(movedCwds[index]!), cwd, movedCwds[index]!),
-      ),
-    )
-
-    repointStoredPaths([
-      { from: plan.from, to: plan.to },
-      ...before.map((from, index) => ({ from, to: after[index]! })),
-    ])
-    return { ok: true as const, path: plan.to }
-  })
-
-  /**
-   * A sandbox's transcripts go with it. They are scratch chats about a folder
-   * that no longer exists, and leaving them behind would hand the next
-   * `sandbox-N` — numbers are reused once the folder above them is gone — a
-   * sidebar full of somebody else's history.
-   *
-   * Everything goes to the Trash rather than being unlinked, the same as
-   * deleting a session (electron/pi/session-deleter.ts): the user may have
-   * written real work into a folder they only meant as scratch.
-   *
-   * Subtree-wide on both counts, like the rename above: a live lane session
-   * blocks the delete (an exact compare let one through, and this one trashes
-   * the folder under the running pi), and a lane's transcripts go with it
-   * rather than being left behind under a name nothing will ever scan again.
-   */
-  handle('app:deleteSandbox', async (_event, path: string) => {
-    const target = resolveSandboxFolder(sandboxBase(), path)
-    if (!target) return { ok: false as const, reason: 'not-a-sandbox' as const }
-    if (registry.list().some((session) => isWithinFolder(session.workspacePath, target))) {
-      return { ok: false as const, reason: 'in-use' as const }
-    }
-
-    // Resolved before the folder goes: every path mangles the REAL cwd, which
-    // is unknowable once the folder is in the Trash.
-    const transcripts = sandboxCwds(target).flatMap((cwd) => [
-      sessionDirForCwd(cwd),
-      claudeProjectDirForCwd(cwd),
-    ])
-    try {
-      await shell.trashItem(target)
-    } catch {
-      return { ok: false as const, reason: 'failed' as const }
-    }
-    // Best-effort, and after the folder: a transcript left behind is a worse
-    // outcome than the folder surviving, but not one worth failing over.
-    await Promise.allSettled(transcripts.map(trashIfPresent))
-
-    setRecentWorkspaces(getPrefs().recentWorkspaces.filter((w) => w.path !== target))
-    return { ok: true as const }
   })
 
   handle('app:saveDialog', async (event, options) => {
@@ -475,6 +218,36 @@ export function registerAppHandlers(): void {
     const external = externalUrl(url)
     if (external) await shell.openExternal(external)
   })
+}
+
+function registerSandboxHandlers(): void {
+  handle('app:createSandbox', () => openSandboxFolder(sandboxBase()))
+
+  handle('app:listSandboxes', () => listSandboxFolders(sandboxBase()))
+
+  handle('app:renameSandbox', (_event, path, name) => renameSandbox(path, name))
+  handle('app:deleteSandbox', (_event, path) => deleteSandbox(path))
+}
+
+function registerDraftHandlers(): void {
+  const deps = () => ({
+    getDrafts: () => getPrefs().drafts,
+    setDraft,
+    clearDraft,
+    setDrafts,
+    deleteBlobs: deleteDraftBlobs,
+    listBlobs: listDraftBlobs,
+    writeBlob: writeDraftBlob,
+    wouldExceedBlobCap,
+    pathExists,
+  })
+  handle('app:setDraft', (_event, draft) => saveComposerDraft(deps(), draft))
+  handle('app:clearDraft', (_event, key) => clearComposerDraft(deps(), key))
+  handle('app:writeDraftBlob', (_event, blobId, base64) =>
+    writeComposerDraftBlob(deps(), blobId, base64),
+  )
+  handle('app:readDraftBlob', (_event, blobId) => readDraftBlob(blobId))
+  handle('app:sweepDrafts', () => sweepComposerDrafts(deps()))
 }
 
 /**

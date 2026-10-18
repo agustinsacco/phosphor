@@ -65,8 +65,6 @@
     "electron/hosts/terminals.ts::createRemoteTerminals[1]": 487,
     "electron/hosts/terminals.ts::createRemoteTerminals[1]/create[1]": 81,
     "electron/hosts/terminals.ts::createRemoteTerminals[1]/write[1]": 81,
-    "electron/ipc/app-handlers.ts::file": 493,
-    "electron/ipc/app-handlers.ts::registerAppHandlers[1]": 327,
     "electron/ipc/hosts-handlers.ts::registerHostsHandlers[1]": 238,
     "electron/ipc/pi-session-handlers.ts::registerPiSessionHandlers[1]": 121,
     "electron/ipc/routines-handlers.ts::registerRoutinesHandlers[1]": 84,
