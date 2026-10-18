@@ -1,12 +1,12 @@
-import { createHash } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { createWriteStream } from 'node:fs'
-import { access, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { constants as FS } from 'node:fs'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { basename, dirname, join, sep } from 'node:path'
 import { tmpdir } from 'node:os'
+import { sha512Base64 } from './archive-hash'
 
 /**
  * Self-update for macOS builds that cannot use `electron-updater`.
@@ -339,12 +339,6 @@ async function downloadFile(
     }
   })
   await pipeline(source, createWriteStream(dest))
-}
-
-async function sha512Base64(path: string): Promise<string> {
-  const hash = createHash('sha512')
-  hash.update(await readFile(path))
-  return hash.digest('base64')
 }
 
 async function findBundle(dir: string): Promise<string | null> {
