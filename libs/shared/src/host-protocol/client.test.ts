@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import * as facade from '../host-protocol'
 import { parseClientFrame } from '../host-protocol'
+import { parseClientFrame as parseClientLeaf } from './client'
 
 const LANE = '00000000-0000-4000-8000-000000000001'
 const TERM = '00000000-0000-4000-8000-000000000004'
@@ -88,5 +90,34 @@ describe('parseClientFrame through the public entry', () => {
     })
     for (const type of [undefined, null, 1, 'Ping', 'pong', 'subscribe-failed', 'terminal.ack'])
       expect(client({ type }), String(type)).toStrictEqual({ ok: false, reason: 'type' })
+  })
+})
+
+describe('client.ts parseClientFrame', () => {
+  it('is the parser the public entry exports', () => {
+    expect(facade.parseClientFrame).toBe(parseClientLeaf)
+  })
+
+  it('projects auth, subscriptions and ping from frame text', () => {
+    const auth = { type: 'auth', grant: 'g', challenge: 'ab'.repeat(32), trace: TRACE }
+    expect(parseClientLeaf(JSON.stringify(auth))).toStrictEqual({ ok: true, frame: auth })
+    const lane = { type: 'subscribe', id: 'l', topic: 'lane', laneId: LANE }
+    expect(parseClientLeaf(JSON.stringify({ ...lane, after: undefined }))).toStrictEqual({
+      ok: true,
+      frame: lane,
+    })
+    expect(parseClientLeaf('{"type":"ping","at":7}')).toStrictEqual({
+      ok: true,
+      frame: { type: 'ping', at: 7 },
+    })
+  })
+
+  it('refuses each malformed frame with the reason the dispatch picks', () => {
+    expect(parseClientLeaf('{"type":"subscribe","topic":"terminal","id":"t"}')).toStrictEqual(FRAME)
+    expect(parseClientLeaf('{"type":"terminal.input"}')).toStrictEqual(FRAME)
+    expect(parseClientLeaf('{"type":"command"}')).toStrictEqual(FRAME)
+    expect(parseClientLeaf('{"type":"call"}')).toStrictEqual(FRAME)
+    expect(parseClientLeaf('{"type":"nope"}')).toStrictEqual({ ok: false, reason: 'type' })
+    expect(parseClientLeaf('nope')).toStrictEqual({ ok: false, reason: 'json' })
   })
 })

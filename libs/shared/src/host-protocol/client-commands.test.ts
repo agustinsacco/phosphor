@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseClientFrame } from '../host-protocol'
+import { parseCallFrame, parseCommandFrame } from './client-commands'
 
 const LANE = '00000000-0000-4000-8000-000000000001'
 const REQUEST = '00000000-0000-4000-8000-000000000003'
@@ -89,5 +90,41 @@ describe('command and call frames through the public entry', () => {
         ok: true,
         frame: { type: 'call', id: 'call', method: 'a.b', params },
       })
+  })
+})
+
+describe('client-commands.ts', () => {
+  const frame = (fields: object) => ({ type: 'command', requestId: REQUEST, ...fields })
+
+  it('refuses a command with no usable request id bare, otherwise with a receipt reply', () => {
+    expect(parseCommandFrame({ type: 'command', op: { type: 'abort' } })).toStrictEqual(FRAME)
+    expect(parseCommandFrame(frame({ op: { type: 'files.write' } }))).toStrictEqual(
+      receipt('unsupported'),
+    )
+    expect(parseCommandFrame(frame({ op: { type: 'routine.save' } }))).toStrictEqual(
+      receipt('bad-request'),
+    )
+    expect(parseCommandFrame(frame({ op: ['abort'] }))).toStrictEqual(receipt('bad-request'))
+  })
+
+  it('applies lane and fence rules after the op parses', () => {
+    const op = { type: 'routine.run', routineId: OTHER }
+    expect(parseCommandFrame(frame({ op }))).toStrictEqual({ ok: true, frame: frame({ op }) })
+    expect(parseCommandFrame(frame({ op, fence: 2 }))).toStrictEqual(receipt('bad-request'))
+    const fenced = frame({ op: { type: 'abort' }, laneId: LANE, fence: 2, trace: TRACE })
+    expect(parseCommandFrame({ ...fenced, extra: true })).toStrictEqual({ ok: true, frame: fenced })
+  })
+
+  it('validates a call by id, method grammar and trace', () => {
+    const base = { type: 'call', id: 'c', method: 'lane.state' }
+    expect(parseCallFrame(base)).toStrictEqual({ ok: true, frame: base })
+    expect(parseCallFrame({ ...base, id: undefined })).toStrictEqual(FRAME)
+    const reply = {
+      ok: false,
+      reason: 'call',
+      reply: { kind: 'result', id: 'c', code: 'bad-request' },
+    }
+    for (const patch of [{ method: 'm'.repeat(65) }, { method: 'lane' }, { trace: 'x' }])
+      expect(parseCallFrame({ ...base, ...patch })).toStrictEqual(reply)
   })
 })

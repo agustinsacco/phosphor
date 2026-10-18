@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { parseClientFrame } from '../host-protocol'
+import { parseAttachmentOp } from '../host-protocol-attachments'
+import { parseProviderLoginOp } from '../host-protocol-providers'
+import { parseDeleteLaneOp, parseRepositoryOp } from '../host-protocol-repositories'
+import { parseRoutineOp, ROUTINE_OPS } from '../host-protocol-routines'
+import { parseTerminalOp } from '../host-protocol-terminals'
+import { parseFileWriteOp } from '../host-protocol-writes'
+import { BAD_REQUEST_OP_TYPES, parseLaneOp } from './client-ops'
+import { LANE_PI_OPS } from './operations'
 
 const REQUEST = '00000000-0000-4000-8000-000000000003'
 const REPO = 'fedcba9876543210'
@@ -109,5 +117,66 @@ describe('command ops through the public entry', () => {
       expect(command({ type }), type).toStrictEqual(refused('bad-request'))
     for (const type of ['files.delete', 'attachments.commit'])
       expect(command({ type }), type).toStrictEqual(refused('unsupported'))
+  })
+})
+
+describe('client-ops.ts', () => {
+  const LANE = '00000000-0000-4000-8000-000000000001'
+
+  it('hands every delegated family to its own parser, valid or not', () => {
+    const cases = [
+      [
+        parseDeleteLaneOp,
+        { type: 'lane.delete', laneId: LANE, removeWorktree: false, removeBranch: true },
+      ],
+      [parseRepositoryOp, { type: 'host.repositories.remove', repositoryId: REPO }],
+      [parseProviderLoginOp, { type: 'provider.login', provider: 'p' }],
+      [parseTerminalOp, { type: 'terminal.kill', terminalId: LANE }],
+      [parseRoutineOp, { type: 'routine.cancel', runId: LANE }],
+      [parseFileWriteOp, { type: 'files.delete', path: 'a' }],
+      [
+        parseAttachmentOp,
+        { type: 'attachments.commit', uploadId: 'a'.repeat(32), sha256: 'b'.repeat(64) },
+      ],
+    ] as const
+    for (const [parse, op] of cases) {
+      expect(parseLaneOp(op), op.type).toStrictEqual(parse(op))
+      expect(parseLaneOp(op), op.type).not.toBeNull()
+      expect(parseLaneOp({ ...op, extra: 1 }), op.type).toBeNull()
+    }
+  })
+
+  it('parses core ops itself and refuses anything that is not a record', () => {
+    expect(parseLaneOp({ type: 'lane.stop', extra: 1 })).toStrictEqual({ type: 'lane.stop' })
+    expect(parseLaneOp({ type: 'lane.create', repositoryId: REPO, worktree: null })).toStrictEqual({
+      type: 'lane.create',
+      repositoryId: REPO,
+      worktree: null,
+    })
+    for (const v of [null, undefined, [], 'abort', 1, [{ type: 'abort' }], {}, { type: 'bash' }])
+      expect(parseLaneOp(v)).toBeNull()
+  })
+
+  it('lists every bad-request op type except the file and attachment families', () => {
+    expect(BAD_REQUEST_OP_TYPES).toStrictEqual([
+      ...ROUTINE_OPS,
+      ...LANE_PI_OPS,
+      'extension_ui_response',
+      'provider.login',
+      'terminal.create',
+      'terminal.resize',
+      'terminal.kill',
+      'host.repositories.add',
+      'host.repositories.remove',
+      'host.repositories.createFolder',
+      'lane.delete',
+      'lane.create',
+      'lane.resume',
+      'lane.stop',
+      'lane.markRead',
+      'control.take',
+      'control.release',
+    ])
+    expect(BAD_REQUEST_OP_TYPES.some((type) => /^(files|attachments)\./.test(type))).toBe(false)
   })
 })

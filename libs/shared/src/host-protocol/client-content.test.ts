@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseClientFrame } from '../host-protocol'
+import { parseExtensionUiResponse, parsePromptImages } from './client-content'
 
 const REQUEST = '00000000-0000-4000-8000-000000000003'
 const IMAGE = { type: 'image', data: 'AAAA', mimeType: 'image/png' }
@@ -91,5 +92,46 @@ describe('prompt images and UI responses through the public entry', () => {
       { ...base, id: 'a.b', value: 'a' },
     ])
       expect(answer(response)).toStrictEqual(REFUSED)
+  })
+})
+
+describe('client-content.ts', () => {
+  it('caps prompt images at sixteen and refuses the whole list on one bad image', () => {
+    expect(parsePromptImages([])).toStrictEqual([])
+    expect(parsePromptImages(Array.from({ length: 16 }, () => IMAGE))).toHaveLength(16)
+    expect(parsePromptImages(Array.from({ length: 17 }, () => IMAGE))).toBeNull()
+    expect(parsePromptImages([IMAGE, { ...IMAGE, data: 'AAA' }])).toBeNull()
+    expect(parsePromptImages([{ ...IMAGE, extra: 1 }])).toStrictEqual([IMAGE])
+    for (const v of [undefined, null, {}, 'AAAA']) expect(parsePromptImages(v)).toBeNull()
+  })
+
+  it('takes base64 padding of zero, one or two characters only', () => {
+    const data = (d: string) => parsePromptImages([{ ...IMAGE, data: d }])
+    for (const d of ['AAAA', 'AAA=', 'AA=='])
+      expect(data(d), d).toStrictEqual([{ ...IMAGE, data: d }])
+    for (const d of ['A===', '=AAA', 'AA=A', 'AAAAA']) expect(data(d), d).toBeNull()
+  })
+
+  it('projects a UI response to its id and one answer field', () => {
+    const base = { type: 'extension_ui_response', id: 'dialog' } as const
+    expect(parseExtensionUiResponse({ ...base, value: 'v', x: 1 })).toStrictEqual({
+      ...base,
+      value: 'v',
+    })
+    expect(parseExtensionUiResponse({ ...base, confirmed: false })).toStrictEqual({
+      ...base,
+      confirmed: false,
+    })
+    expect(parseExtensionUiResponse({ ...base, cancelled: true })).toStrictEqual({
+      ...base,
+      cancelled: true,
+    })
+    for (const v of [
+      { ...base, value: undefined },
+      { ...base, value: 'v', cancelled: true },
+      base,
+      null,
+    ])
+      expect(parseExtensionUiResponse(v)).toBeNull()
   })
 })
